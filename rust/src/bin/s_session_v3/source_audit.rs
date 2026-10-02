@@ -271,7 +271,7 @@ pub(super) fn audit_generated_metered(
     super::history::check_deadline(deadline)?;
     #[cfg(test)]
     super::state::trace_event("source_closure", None);
-    sc::verify(s, state).map_err(err)?;
+    sc::audit_verify_public(s, state).map_err(err)?;
     let mut array_source = ArrayAuditSource {
         source: s,
         full_arrays: budget.is_none(),

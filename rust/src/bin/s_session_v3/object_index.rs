@@ -279,7 +279,7 @@ fn ordering(a: &Entry, b: &Entry, dead: bool) -> std::cmp::Ordering {
 }
 fn candidate(s: &mut dyn NodeStore, o: &ProducedObject, g: i64) -> Result<Entry, String> {
     let generated = o.generated().clone();
-    sc::verify(s, &generated.content_ref()).map_err(err)?;
+    sc::audit_verify_public(s, &generated.content_ref()).map_err(err)?;
     if integer(s, &generated.content_ref(), "first_known_generation")? != g
         || integer(s, &generated.content_ref(), "published_generation")? != g
         || text(s, &generated.content_ref(), "first_known_cut")? != format!("cut-{g}")
@@ -750,7 +750,7 @@ pub(super) fn load(
     // 一次调用复用codec既有的上下文记忆；每根声明仍核，所有来源/生命周期绑定仍逐行执行。
     #[cfg(test)]
     super::state::trace_event("object_index_closures", None);
-    sc::verify_many(
+    sc::audit_verify_public_many(
         s,
         out.iter().flat_map(|e| {
             [
@@ -835,7 +835,7 @@ pub(super) fn stage(
         }
         let wire =
             replace_batch_placeholder(s, &e.birth_wire, &[f("batch_id")], batch).map_err(err)?;
-        sc::verify(s, &wire).map_err(err)?;
+        sc::audit_verify_public(s, &wire).map_err(err)?;
         let (fact, w) = match &e.slot {
             Slot::Shape(w) => (None, Some(*w)),
             Slot::Typed { fact_key, .. } => (Some(fact_key.as_str()), None),

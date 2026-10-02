@@ -58,7 +58,9 @@ pub(super) fn check_audit_source_retention(cap: usize) -> Result<(), String> {
         return Err("S3WriterResourcesInvalid：audit_cache_source_bytes 必须为显式正预算".into());
     }
     if AUDIT_SOURCE_RETAINED_BYTES > cap {
-        return Err("S3WriterResourcesInvalid：跨请求审计源保留超过 audit_cache_source_bytes".into());
+        return Err(
+            "S3WriterResourcesInvalid：跨请求审计源保留超过 audit_cache_source_bytes".into(),
+        );
     }
     Ok(())
 }
@@ -105,6 +107,17 @@ fn audit_with_budget(
     max_render_bytes: Option<u64>,
     budget: Option<&dyn audit_budget::Budget>,
 ) -> Result<AuditedState, String> {
+    audit_with_capture(tx, deadline, max_render_bytes, budget, None)
+}
+fn audit_with_capture(
+    tx: &Transaction<'_>,
+    deadline: Option<std::time::Instant>,
+    max_render_bytes: Option<u64>,
+    budget: Option<&dyn audit_budget::Budget>,
+    capture: Option<&sc::AuditCapture>,
+) -> Result<AuditedState, String> {
+    // None/None以外完整原路，不能让捕获改变计费或期限轨迹。
+    let capture = capture.filter(|_| budget.is_none() && deadline.is_none());
     #[cfg(test)]
     trace_event("control", None);
     history::check_deadline(deadline)?;
@@ -124,7 +137,15 @@ fn audit_with_budget(
         cuts,
         objects,
         auxiliary,
-    } = history::read_indexed_history_for_audit(tx, &raw, control, deadline, max_render_bytes, budget)?;
+    } = history::read_indexed_history_for_audit_captured(
+        tx,
+        &raw,
+        control,
+        deadline,
+        max_render_bytes,
+        budget,
+        capture,
+    )?;
     #[cfg(test)]
     trace_event("catalog_metadata", None);
     // 4. 从未运行的目录行：空初态（generation=0）要求全部行都仍是未运行。
@@ -142,7 +163,12 @@ fn audit_with_budget(
     if budget.is_none() {
         reader.enable_audit_same_material();
     }
-    let mut store = history::HashReader::metered(&mut reader, deadline, max_render_bytes, budget);
+    let mut captured_reader = capture.map(sc::AuditCapture::reader);
+    let source: &mut dyn sc::NodeSource = match captured_reader.as_mut() {
+        Some(s) => s,
+        None => &mut reader,
+    };
+    let mut store = history::HashReader::metered(source, deadline, max_render_bytes, budget);
     // 7a. 当前代对象索引已在同次history中完整加载并绑定原件；继续用它核逐代变化。
     let mut previous = -1i64;
     for cut in &cuts {
@@ -161,6 +187,15 @@ fn audit_with_budget(
             budget,
         )?;
         let (withdrawals, replaces) = object_index::changes_at(&objects, cut.metadata.generation)?;
+        #[cfg(test)]
+        AUDIT_TRACE.with(|trace| {
+            if let Some(t) = trace.borrow_mut().as_mut() {
+                t.events.push(
+                    json!({"phase":"source_business_result","generation":cut.metadata.generation,
+                "counts":format!("{:?}",counts),"withdrawals":withdrawals,"replaces":replaces}),
+                );
+            }
+        });
         #[cfg(test)]
         trace_event("catalog_cut", Some(cut.metadata.generation));
         // 6'. Delta 目录证据与 CC-056 变化集合必须与本代真实来源、replaces 一致。
@@ -732,5 +767,193 @@ mod tests {
             .unwrap();
         let error = audit_error(&mut f);
         assert!(error.contains("未运行目录"), "{error}");
+    }
+}
+
+#[cfg(test)]
+mod scoped_prototype_probe {
+    use super::*;
+    #[test]
+    #[ignore]
+    fn owned_current_material() {
+        let db = std::env::var("AUDIT_PROTOTYPE_DB").unwrap();
+        let mut c =
+            Connection::open_with_flags(db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+        let tx = c.transaction().unwrap();
+        let sql = content_store::sql_reads_on_thread();
+        let f = sc::frame_calls_on_thread();
+        let started = std::time::Instant::now();
+        let capture = if std::env::var_os("AUDIT_PROTOTYPE_CAPTURE").is_some() {
+            Some({
+                let c = content_store::capture_for_prototype(&tx).unwrap();
+                if std::env::var_os("AUDIT_PROTOTYPE_NO_REUSE").is_some() {
+                    c.without_reuse()
+                } else {
+                    c
+                }
+            })
+        } else {
+            None
+        };
+        let capture_ns = started.elapsed().as_nanos();
+        let (result, events, work) = traced(true, || {
+            audit_with_capture(&tx, None, None, None, capture.as_ref())
+        });
+        let elapsed = started.elapsed().as_nanos();
+        let s = result.unwrap();
+        let cuts = s
+            .cuts
+            .iter()
+            .map(|c| {
+                format!(
+                    "{:?}|{:?}|{:?}|{:?}|{:?}",
+                    c.metadata, c.roots, c.batch_id, c.snapshot, c.delta
+                )
+            })
+            .collect::<Vec<_>>();
+        let complete = json!({"raw":s.raw,"cuts":cuts,"objects":format!("{:?}",s.objects),"auxiliary":format!("{:?}",s.auxiliary),"clock":v2::stored_clock(&tx).unwrap().value});
+        let report = json!({"elapsed_ns":elapsed.to_string(),"capture_ns":capture_ns.to_string(),"capture":capture.as_ref().map(sc::AuditCapture::retention),"sql_node_reads":content_store::sql_reads_on_thread()-sql,"f_calls":sc::frame_calls_on_thread()-f,"work":work,"events":events,"complete":complete,"complete_sha256":sha256_hex(canonical_json(&complete).as_bytes())});
+        std::fs::write(
+            std::env::var("AUDIT_PROTOTYPE_REPORT").unwrap(),
+            canonical_json(&report),
+        )
+        .unwrap();
+        println!(
+            "AUDIT_PROTOTYPE elapsed_ns={} sql={} f={} output_sha={}",
+            elapsed, report["sql_node_reads"], report["f_calls"], report["complete_sha256"]
+        );
+    }
+}
+
+#[cfg(test)]
+mod audit_capture_gate_tests {
+    use super::*;
+    use sha2::{Digest, Sha256};
+    struct Meter {
+        trace: std::cell::RefCell<Sha256>,
+        checks: std::cell::Cell<usize>,
+        records: std::cell::Cell<usize>,
+        stop: Option<usize>,
+    }
+    impl Meter {
+        fn new(stop: Option<usize>) -> Self {
+            Self {
+                trace: Default::default(),
+                checks: Default::default(),
+                records: Default::default(),
+                stop,
+            }
+        }
+        fn event(&self, t: &[u8]) {
+            self.trace.borrow_mut().update(t);
+        }
+        fn fingerprint(&self) -> String {
+            format!("{:x}", self.trace.borrow().clone().finalize())
+        }
+    }
+    impl audit_budget::Budget for Meter {
+        fn precheck(&self) -> Result<(), sc::CodecError> {
+            self.event(b"pre");
+            self.checks.set(self.checks.get() + 1);
+            if self.stop == Some(self.checks.get()) {
+                Err(sc::CodecError::new("probe_budget_stop", "original gate"))
+            } else {
+                Ok(())
+            }
+        }
+        fn prepare_node(&self) -> Result<(), sc::CodecError> {
+            self.event(b"prepare");
+            Ok(())
+        }
+        fn accept_prepared_frame(&self, f: &sc::job::CheckedFrame) -> Result<(), sc::CodecError> {
+            self.event(b"accept");
+            self.event(f.digest());
+            Ok(())
+        }
+        fn node(&self, d: &sc::NodeDigest, t: u8, b: &[u8]) -> Result<(), sc::CodecError> {
+            self.event(b"node");
+            self.event(d);
+            self.event(&[t]);
+            self.event(b);
+            sc::job::CheckedFrame::checked(d, t, b.to_vec()).map(|_| ())
+        }
+        fn record(&self) -> Result<(), sc::CodecError> {
+            self.event(b"record");
+            self.records.set(self.records.get() + 1);
+            Ok(())
+        }
+    }
+    fn fingerprint(s: &AuditedState) -> String {
+        format!(
+            "{:?}|{:?}|{:?}|{:?}",
+            s.raw,
+            s.cuts
+                .iter()
+                .map(|c| format!(
+                    "{:?}|{:?}|{:?}|{:?}|{:?}",
+                    c.metadata, c.roots, c.batch_id, c.snapshot, c.delta
+                ))
+                .collect::<Vec<_>>(),
+            s.objects,
+            s.auxiliary
+        )
+    }
+    #[test]
+    fn audit_capture_budget_deadline_original_trace_and_outputs() {
+        let mut f = prepared::tests::Fixture::new();
+        let (e, t) = f.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
+        f.publish(&e, &t).unwrap();
+        let tx = f.conn.transaction().unwrap();
+        let captured = content_store::capture_for_prototype(&tx).unwrap();
+        for (metered, stop, expired) in [
+            (true, None, false),
+            (true, Some(333), false),
+            (true, Some(10000), false),
+            (false, None, false),
+            (false, None, true),
+        ] {
+            let deadline = if metered {
+                None
+            } else {
+                Some(
+                    std::time::Instant::now()
+                        + std::time::Duration::from_secs(if expired { 0 } else { 120 }),
+                )
+            };
+            let mut baseline = None;
+            for cap in [None, Some(&captured)] {
+                let m = Meter::new(stop);
+                let sql = content_store::sql_reads_on_thread();
+                let frames = sc::frame_calls_on_thread();
+                let result = audit_with_capture(
+                    &tx,
+                    deadline,
+                    None,
+                    if metered { Some(&m) } else { None },
+                    cap,
+                );
+                let output = result.as_ref().map(fingerprint).map_err(Clone::clone);
+                let observed = (
+                    output,
+                    content_store::sql_reads_on_thread() - sql,
+                    sc::frame_calls_on_thread() - frames,
+                    m.fingerprint(),
+                    m.records.get(),
+                    m.checks.get(),
+                );
+                if let Some(ref expected) = baseline {
+                    assert_eq!(&observed, expected);
+                } else {
+                    baseline = Some(observed);
+                }
+            }
+            let observation = baseline.unwrap();
+            assert_eq!(observation.0.is_ok(), stop.is_none() && !expired);
+            if metered && stop.is_none() {
+                assert!(observation.4 > 0);
+            }
+            println!("CAPTURE_GATE metered={metered} stop={stop:?} expired={expired} sql={} f={} records={} checks={} trace={}",observation.1,observation.2,observation.4,observation.5,observation.3);
+        }
+        assert_eq!(captured.retention()["capture_reads"], json!(0));
     }
 }

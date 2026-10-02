@@ -308,16 +308,10 @@ pub fn parse_root(root: &str) -> Result<NodeDigest, CodecError> {
     let bytes = hex.as_bytes();
     for i in 0..32 {
         let hi = hex_val(bytes[2 * i]).ok_or_else(|| {
-            CodecError::new(
-                code::ROOT,
-                format!("根文本 `{root}` 含非小写十六进制字符"),
-            )
+            CodecError::new(code::ROOT, format!("根文本 `{root}` 含非小写十六进制字符"))
         })?;
         let lo = hex_val(bytes[2 * i + 1]).ok_or_else(|| {
-            CodecError::new(
-                code::ROOT,
-                format!("根文本 `{root}` 含非小写十六进制字符"),
-            )
+            CodecError::new(code::ROOT, format!("根文本 `{root}` 含非小写十六进制字符"))
         })?;
         d[i] = (hi << 4) | lo;
     }
@@ -412,9 +406,19 @@ pub enum NodeRead {
 pub trait NodeSource {
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError>;
 
+    /// #1394 原型能力：仅当前实际读取的自有不可变捕获。普通/可变源默认无能力。
+    /// 此能力只供显式 audit_verify 使用；通用 verify 从不读取它。
+    fn audit_capture(&self) -> Option<&AuditCapture> {
+        None
+    }
+
     // Reached a checked array and an in-range index, immediately before descent.
     // Default leaves existing callers and storage sources unchanged.
-    fn before_path_index(&mut self, _prefix: &[path::PathStep], _index: u64) -> Result<(), CodecError> {
+    fn before_path_index(
+        &mut self,
+        _prefix: &[path::PathStep],
+        _index: u64,
+    ) -> Result<(), CodecError> {
         Ok(())
     }
 
@@ -428,15 +432,22 @@ pub trait NodeSource {
     /// 包装器可沿同一调用栈传递证明；作用域内也可先实际重读全部原件，在请求摘要、tag
     /// 与完整 body 逐字相同后仅复用纯 F 证明。不得按摘要跳过真实读取，不得以旧成功
     /// 兜底错误、Missing 或变化的原件；来源、角色、闭包与业务准入仍须逐次核验。
-    fn checked_read(&mut self, digest: &NodeDigest) -> Result<Option<job::CheckedFrame>, CodecError> {
+    fn checked_read(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<Option<job::CheckedFrame>, CodecError> {
         match self.read(digest)? {
             NodeRead::Missing => Ok(None),
-            NodeRead::Found { tag, body } => job::CheckedFrame::checked(digest, tag, body).map(Some),
+            NodeRead::Found { tag, body } => {
+                job::CheckedFrame::checked(digest, tag, body).map(Some)
+            }
         }
     }
 
     /// 审计源可显式限制单次渲染物化；普通流式源不擅自填默认上限。
-    fn max_render_bytes(&self) -> Option<u64> { None }
+    fn max_render_bytes(&self) -> Option<u64> {
+        None
+    }
 }
 
 /// 内存节点表：缓冲/测试用。写入面按摘要校验，损坏节点用 `insert_unchecked` 注入。
@@ -680,7 +691,10 @@ impl ContentRef {
         let mut map = JsonMap::new();
         map.insert("format".into(), JsonNode::String(self.format.clone()));
         map.insert("root".into(), JsonNode::String(self.root.clone()));
-        map.insert("kind".into(), JsonNode::String(self.kind.name().to_string()));
+        map.insert(
+            "kind".into(),
+            JsonNode::String(self.kind.name().to_string()),
+        );
         map.insert(
             "extent".into(),
             match self.extent {
@@ -719,9 +733,8 @@ impl ContentRef {
         let kind_name = field("kind")?
             .as_str()
             .ok_or_else(|| CodecError::new(code::REF_FIELD, "kind 必须是字符串".to_string()))?;
-        let kind = Kind::from_name(kind_name).ok_or_else(|| {
-            CodecError::new(code::KIND, format!("未知 kind `{kind_name}`"))
-        })?;
+        let kind = Kind::from_name(kind_name)
+            .ok_or_else(|| CodecError::new(code::KIND, format!("未知 kind `{kind_name}`")))?;
         let extent = match field("extent")? {
             JsonNode::Null => None,
             JsonNode::String(text) => Some(parse_canonical_u64(text, "extent")?),
@@ -887,11 +900,7 @@ pub fn write_template(sink: &mut dyn NodeSink, value: &Value) -> Result<Built, C
     write_in_mode(sink, value, Mode::Template)
 }
 
-fn write_in_mode(
-    sink: &mut dyn NodeSink,
-    value: &Value,
-    mode: Mode,
-) -> Result<Built, CodecError> {
+fn write_in_mode(sink: &mut dyn NodeSink, value: &Value, mode: Mode) -> Result<Built, CodecError> {
     let (kind, extent) = value_kind_extent(value, mode)?;
     let mut steps = vec![WStep::Value(value)];
     let mut done: Vec<NodeDigest> = Vec::new();
@@ -983,19 +992,19 @@ fn write_string_node(sink: &mut dyn NodeSink, text: &str) -> Result<NodeDigest, 
     let bytes = text.as_bytes();
     let root = write_bytes(sink, bytes)?;
     let mut body = Vec::with_capacity(40);
-    body.extend_from_slice(&checked_frame_len(u64::try_from(bytes.len()).expect("字节数可表达"))?);
+    body.extend_from_slice(&checked_frame_len(
+        u64::try_from(bytes.len()).expect("字节数可表达"),
+    )?);
     body.extend_from_slice(&root);
     put_node(sink, tag::STRING, &body)
 }
 
-fn write_byte_node(
-    sink: &mut dyn NodeSink,
-    t: u8,
-    bytes: &[u8],
-) -> Result<NodeDigest, CodecError> {
+fn write_byte_node(sink: &mut dyn NodeSink, t: u8, bytes: &[u8]) -> Result<NodeDigest, CodecError> {
     let root = write_bytes(sink, bytes)?;
     let mut body = Vec::with_capacity(40);
-    body.extend_from_slice(&checked_frame_len(u64::try_from(bytes.len()).expect("字节数可表达"))?);
+    body.extend_from_slice(&checked_frame_len(
+        u64::try_from(bytes.len()).expect("字节数可表达"),
+    )?);
     body.extend_from_slice(&root);
     put_node(sink, t, &body)
 }
@@ -1330,7 +1339,10 @@ fn utf8_step(state: Utf8State, byte: u8) -> Option<Utf8State> {
             }
             let mut next = b;
             next[idx.min(2)] = byte;
-            Some(Utf8State::Pending { len: len + 1, b: next })
+            Some(Utf8State::Pending {
+                len: len + 1,
+                b: next,
+            })
         }
     }
 }
@@ -1440,9 +1452,7 @@ impl LeafIter {
                 }
                 tag::SEQ_LEAF => {
                     if body.len() != 32 {
-                        return Err(sequence_shape_error(
-                            "单叶序列 body 必须是 32 字节叶摘要",
-                        ));
+                        return Err(sequence_shape_error("单叶序列 body 必须是 32 字节叶摘要"));
                     }
                     let leaf = digest_at(&body, 0);
                     let (lt, lbody) = read_checked(source, &leaf)?;
@@ -1477,6 +1487,111 @@ impl LeafIter {
 
 // ── 核验器：值节点去重 + 序列摘要折叠 ────────────────────────────────────────
 
+#[derive(Default)]
+struct AuditMemo {
+    /// 已核过的 (摘要, 上下文)。
+    seen: HashSet<(NodeDigest, Flavor)>,
+    /// 已入待核集合的 (摘要, 上下文) —— 重复子树不重复入队。
+    pushed: HashSet<(NodeDigest, Flavor)>,
+    todo: Vec<(NodeDigest, Flavor)>,
+    /// 实际读到的不同摘要（唯一节点计数）。
+    read_digests: HashSet<NodeDigest>,
+    bytes_memo: HashMap<(NodeDigest, Utf8State, NumState), ByteAgg>,
+    elem_memo: HashMap<(NodeDigest, Flavor), u64>,
+    field_memo: HashMap<(NodeDigest, Flavor), FieldAgg>,
+    key_cmp: HashMap<(NodeDigest, NodeDigest), std::cmp::Ordering>,
+}
+
+/// #1394 算法原型：完整自有节点捕获，无 NodeSink、无可变原件入口。
+/// 仅复用本捕获内 Public/Template 独立验证上下文，不授予来源或业务资格。
+pub struct AuditCapture {
+    nodes: BTreeMap<NodeDigest, (u8, Vec<u8>)>,
+    public: std::cell::RefCell<AuditMemo>,
+    template: std::cell::RefCell<AuditMemo>,
+    reads: std::cell::Cell<u64>,
+    reuse: bool,
+}
+impl AuditCapture {
+    pub fn without_reuse(mut self) -> Self {
+        self.reuse = false;
+        self
+    }
+
+    pub fn new(nodes: MemoryNodes) -> Self {
+        Self {
+            nodes: nodes.nodes,
+            public: Default::default(),
+            template: Default::default(),
+            reads: Default::default(),
+            reuse: true,
+        }
+    }
+    pub fn contains(&self, digest: &NodeDigest) -> bool {
+        self.nodes.contains_key(digest)
+    }
+    pub fn original(&self, digest: &NodeDigest) -> Option<(u8, &[u8])> {
+        self.nodes.get(digest).map(|(t, b)| (*t, b.as_slice()))
+    }
+    pub fn reader(&self) -> impl NodeSource + '_ {
+        CaptureReader(self)
+    }
+    pub fn verify(&self, reference: &ContentRef, mode: Mode) -> Result<(), CodecError> {
+        let slot = if mode == Mode::Public {
+            &self.public
+        } else {
+            &self.template
+        };
+        let memo = std::mem::take(&mut *slot.borrow_mut());
+        let mut source = CaptureReader(self);
+        let mut verifier = Verifier::with_memo(&mut source, mode, memo);
+        let result = verifier.verify_reference(reference).map(|_| ());
+        // 出错不保留 run() 提前插入的 seen/pushed，不能让下一根继承半成功。
+        if result.is_ok() {
+            *slot.borrow_mut() = verifier.into_memo();
+        }
+        result
+    }
+    pub fn retention(&self) -> serde_json::Value {
+        let memo = |m: &AuditMemo| {
+            serde_json::json!({
+            "seen_capacity":m.seen.capacity(),"pushed_capacity":m.pushed.capacity(),
+            "todo_vec_capacity":m.todo.capacity(),"read_digests_capacity":m.read_digests.capacity(),
+            "bytes_memo_capacity":m.bytes_memo.capacity(),"elem_memo_capacity":m.elem_memo.capacity(),
+            "field_memo_capacity":m.field_memo.capacity(),"key_cmp_capacity":m.key_cmp.capacity(),
+            "todo_vec_capacity_bytes":m.todo.capacity()*std::mem::size_of::<(NodeDigest,Flavor)>(),
+            "retained_string_capacity_bytes":0,
+            "map_set_capacity_payload_bytes":m.seen.capacity()*std::mem::size_of::<(NodeDigest,Flavor)>()
+                +m.pushed.capacity()*std::mem::size_of::<(NodeDigest,Flavor)>()
+                +m.read_digests.capacity()*std::mem::size_of::<NodeDigest>()
+                +m.bytes_memo.capacity()*std::mem::size_of::<((NodeDigest,Utf8State,NumState),ByteAgg)>()
+                +m.elem_memo.capacity()*std::mem::size_of::<((NodeDigest,Flavor),u64)>()
+                +m.field_memo.capacity()*std::mem::size_of::<((NodeDigest,Flavor),FieldAgg)>()
+                +m.key_cmp.capacity()*std::mem::size_of::<((NodeDigest,NodeDigest),std::cmp::Ordering)>()})
+        };
+        serde_json::json!({"captured_nodes":self.nodes.len(),"body_vec_len_bytes":self.nodes.values().map(|(_,b)|b.len()).sum::<usize>(),
+            "body_vec_capacity_bytes":self.nodes.values().map(|(_,b)|b.capacity()).sum::<usize>(),
+            "capture_string_capacity_bytes":0,"capture_reads":self.reads.get(),
+            "public":memo(&self.public.borrow()),"template":memo(&self.template.borrow()),
+            "scope":"retained Vec/String and map/set capacity payload; excludes BTree allocation/allocator overhead, transient reads, total heap/RSS/IO peak; no resource eligibility"})
+    }
+}
+struct CaptureReader<'a>(&'a AuditCapture);
+impl NodeSource for CaptureReader<'_> {
+    fn audit_capture(&self) -> Option<&AuditCapture> {
+        self.0.reuse.then_some(self.0)
+    }
+    fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, CodecError> {
+        self.0.reads.set(self.0.reads.get() + 1);
+        Ok(match self.0.nodes.get(d) {
+            Some((t, b)) => NodeRead::Found {
+                tag: *t,
+                body: b.clone(),
+            },
+            None => NodeRead::Missing,
+        })
+    }
+}
+
 struct Verifier<'a> {
     source: &'a mut dyn NodeSource,
     mode: Mode,
@@ -1494,6 +1609,33 @@ struct Verifier<'a> {
 }
 
 impl<'a> Verifier<'a> {
+    fn with_memo(source: &'a mut dyn NodeSource, mode: Mode, memo: AuditMemo) -> Self {
+        Self {
+            source,
+            mode,
+            seen: memo.seen,
+            pushed: memo.pushed,
+            todo: memo.todo,
+            read_digests: memo.read_digests,
+            bytes_memo: memo.bytes_memo,
+            elem_memo: memo.elem_memo,
+            field_memo: memo.field_memo,
+            key_cmp: memo.key_cmp,
+        }
+    }
+    fn into_memo(self) -> AuditMemo {
+        AuditMemo {
+            seen: self.seen,
+            pushed: self.pushed,
+            todo: self.todo,
+            read_digests: self.read_digests,
+            bytes_memo: self.bytes_memo,
+            elem_memo: self.elem_memo,
+            field_memo: self.field_memo,
+            key_cmp: self.key_cmp,
+        }
+    }
+
     fn new(source: &'a mut dyn NodeSource, mode: Mode) -> Self {
         Self {
             source,
@@ -1549,11 +1691,7 @@ impl<'a> Verifier<'a> {
         let mut aggs: Vec<ByteAgg> = Vec::new();
         while let Some(step) = steps.pop() {
             match step {
-                Step::Enter {
-                    digest,
-                    utf8,
-                    num,
-                } => {
+                Step::Enter { digest, utf8, num } => {
                     if let Some(agg) = self.bytes_memo.get(&(digest, utf8, num)) {
                         aggs.push(*agg);
                         continue;
@@ -2067,7 +2205,11 @@ impl<'a> Verifier<'a> {
                 let x = buf_a[pos_a + i];
                 let y = buf_b[pos_b + i];
                 if x != y {
-                    return Ok(if x < y { Ordering::Less } else { Ordering::Greater });
+                    return Ok(if x < y {
+                        Ordering::Less
+                    } else {
+                        Ordering::Greater
+                    });
                 }
             }
             pos_a += n;
@@ -2182,7 +2324,11 @@ impl<'a> Verifier<'a> {
                         ));
                     }
                     if body.len() != 32 {
-                        return Err(body_shape_error(t, &body, "body 必须是内部值的 32 字节摘要"));
+                        return Err(body_shape_error(
+                            t,
+                            &body,
+                            "body 必须是内部值的 32 字节摘要",
+                        ));
                     }
                     self.push_work(digest_at(&body, 0), Flavor::JsonInner);
                 }
@@ -2288,6 +2434,50 @@ fn verify_many_with_mode(
         verifier.verify_reference(&reference)?;
     }
     Ok(verifier.read_digests.len())
+}
+
+/// #1394 原型的显式闭包口；通用 verify/verify_many 不变。
+/// 可变 overlay 的适配器必须禁止异原件遮蔽捕获内节点；新增根仍走普通完整核验。
+pub fn audit_verify(
+    source: &mut dyn NodeSource,
+    reference: &ContentRef,
+    mode: Mode,
+) -> Result<(), CodecError> {
+    if let Some(capture) = source.audit_capture() {
+        if capture.contains(&reference.digest()?) {
+            return capture.verify(reference, mode);
+        }
+    }
+    verify_with_mode(source, reference, mode).map(|_| ())
+}
+pub fn audit_verify_many(
+    source: &mut dyn NodeSource,
+    references: impl IntoIterator<Item = ContentRef>,
+    mode: Mode,
+) -> Result<(), CodecError> {
+    if source.audit_capture().is_none() {
+        return verify_many_with_mode(source, references, mode).map(|_| ());
+    }
+    for reference in references {
+        audit_verify(source, &reference, mode)?;
+    }
+    Ok(())
+}
+
+pub fn audit_verify_public(s: &mut dyn NodeSource, r: &ContentRef) -> Result<(), CodecError> {
+    audit_verify(s, r, Mode::Public)
+}
+pub fn audit_verify_public_many(
+    s: &mut dyn NodeSource,
+    r: impl IntoIterator<Item = ContentRef>,
+) -> Result<(), CodecError> {
+    audit_verify_many(s, r, Mode::Public)
+}
+pub fn audit_verify_template_many(
+    s: &mut dyn NodeSource,
+    r: impl IntoIterator<Item = ContentRef>,
+) -> Result<(), CodecError> {
+    audit_verify_many(s, r, Mode::Template)
 }
 
 // ── 渲染：惰性叶迭代 + 规范 JSON 转义 ────────────────────────────────────────
@@ -2683,19 +2873,34 @@ pub fn render_canonical(
     reference: &ContentRef,
     out: &mut dyn Write,
 ) -> Result<(), CodecError> {
-    struct Bounded<'a> { inner: &'a mut dyn Write, limit: Option<u64>, written: u64 }
+    struct Bounded<'a> {
+        inner: &'a mut dyn Write,
+        limit: Option<u64>,
+        written: u64,
+    }
     impl Write for Bounded<'_> {
         fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-            if self.limit.is_some_and(|limit| (self.written as u128)+(bytes.len() as u128)>limit as u128) {
-                return Err(std::io::Error::other("Incomplete/CaptureBytes：内容渲染超过显式物化上限"));
+            if self
+                .limit
+                .is_some_and(|limit| (self.written as u128) + (bytes.len() as u128) > limit as u128)
+            {
+                return Err(std::io::Error::other(
+                    "Incomplete/CaptureBytes：内容渲染超过显式物化上限",
+                ));
             }
-            let n=self.inner.write(bytes)?;
-            self.written=self.written.saturating_add(n as u64);
+            let n = self.inner.write(bytes)?;
+            self.written = self.written.saturating_add(n as u64);
             Ok(n)
         }
-        fn flush(&mut self)->std::io::Result<()> {self.inner.flush()}
+        fn flush(&mut self) -> std::io::Result<()> {
+            self.inner.flush()
+        }
     }
-    let mut bounded=Bounded { inner:out, limit:source.max_render_bytes(), written:0 };
+    let mut bounded = Bounded {
+        inner: out,
+        limit: source.max_render_bytes(),
+        written: 0,
+    };
     let verified = verify(source, reference)?;
     let mut renderer = Renderer {
         source,
@@ -2756,7 +2961,9 @@ mod tests {
 
     #[test]
     fn number_token_grammar() {
-        for ok in ["0", "-0", "1", "1.0", "1e0", "1E+5", "-12.5e-3", "10", "1e-0"] {
+        for ok in [
+            "0", "-0", "1", "1.0", "1e0", "1E+5", "-12.5e-3", "10", "1e-0",
+        ] {
             assert!(NumberToken::parse(ok).is_ok(), "应接受 `{ok}`");
         }
         for bad in [
@@ -2802,7 +3009,9 @@ mod tests {
         let mut wrong_kind = built.content_ref();
         wrong_kind.kind = Kind::Number;
         assert_eq!(
-            verify(&mut store, &wrong_kind).expect_err("kind 不符").code(),
+            verify(&mut store, &wrong_kind)
+                .expect_err("kind 不符")
+                .code(),
             code::KIND
         );
 
@@ -2843,7 +3052,8 @@ mod tests {
             &Value::Array(vec![Value::Edge(shared.digest), Value::Edge(shared.digest)]),
         )
         .unwrap();
-        let second = write_value(&mut store, &Value::Array(vec![Value::Edge(shared.digest)])).unwrap();
+        let second =
+            write_value(&mut store, &Value::Array(vec![Value::Edge(shared.digest)])).unwrap();
 
         let mut separate_store = store.clone();
         let mut separate = CountingSource {
@@ -2862,13 +3072,15 @@ mod tests {
             reads: 0,
             unique: std::collections::HashSet::new(),
         };
-        let unique = verify_many(
-            &mut many,
-            vec![first.content_ref(), second.content_ref()],
-        )
-        .unwrap();
+        let unique =
+            verify_many(&mut many, vec![first.content_ref(), second.content_ref()]).unwrap();
         assert_eq!(unique, many.unique.len());
-        assert!(many.reads < separate_reads, "共享根应减少读取：{} >= {}", many.reads, separate_reads);
+        assert!(
+            many.reads < separate_reads,
+            "共享根应减少读取：{} >= {}",
+            many.reads,
+            separate_reads
+        );
     }
 
     #[test]
@@ -2877,11 +3089,8 @@ mod tests {
         let value = write_value(&mut store, &Value::string("x")).unwrap();
         let mut wrong_extent = value.content_ref();
         wrong_extent.extent = Some(999);
-        let err = verify_many(
-            &mut store,
-            vec![value.content_ref(), wrong_extent],
-        )
-        .expect_err("已见根也必须重新核对 extent");
+        let err = verify_many(&mut store, vec![value.content_ref(), wrong_extent])
+            .expect_err("已见根也必须重新核对 extent");
         assert_eq!(err.code(), code::EXTENT);
 
         let mut wrong_kind = value.content_ref();
@@ -2895,20 +3104,14 @@ mod tests {
             &Value::Array(vec![Value::Edge(frame(tag::NULL, &[]))]),
         )
         .unwrap();
-        let err = verify_many(
-            &mut store,
-            vec![value.content_ref(), missing.content_ref()],
-        )
-        .expect_err("后续根缺子节点必须拒绝");
+        let err = verify_many(&mut store, vec![value.content_ref(), missing.content_ref()])
+            .expect_err("后续根缺子节点必须拒绝");
         assert_eq!(err.code(), code::NODE_MISSING);
 
         let bad = write_value(&mut store, &Value::string("bad")).unwrap();
         store.insert_unchecked(bad.digest, tag::STRING, vec![0; 40]);
-        let err = verify_many(
-            &mut store,
-            vec![value.content_ref(), bad.content_ref()],
-        )
-        .expect_err("后续根摘要损坏必须拒绝");
+        let err = verify_many(&mut store, vec![value.content_ref(), bad.content_ref()])
+            .expect_err("后续根摘要损坏必须拒绝");
         assert_eq!(err.code(), code::NODE_DIGEST);
     }
 
@@ -2917,7 +3120,10 @@ mod tests {
         let mut full = MemoryNodes::new();
         let child = write_value(&mut full, &Value::string("child")).unwrap();
         let graph = write_value(&mut full, &Value::Array(vec![Value::Edge(child.digest)])).unwrap();
-        assert_eq!(verify_many(&mut full, vec![graph.content_ref()]).unwrap(), 5);
+        assert_eq!(
+            verify_many(&mut full, vec![graph.content_ref()]).unwrap(),
+            5
+        );
 
         let (root_tag, root_body) = full
             .get(&graph.digest)
@@ -2925,7 +3131,8 @@ mod tests {
             .unwrap();
         let mut partial = MemoryNodes::new();
         partial.insert_unchecked(graph.digest, root_tag, root_body);
-        let err = verify_many(&mut partial, vec![graph.content_ref()]).expect_err("调用间不得继承旧闭包");
+        let err =
+            verify_many(&mut partial, vec![graph.content_ref()]).expect_err("调用间不得继承旧闭包");
         assert_eq!(err.code(), code::NODE_MISSING);
 
         let placeholder = frame(tag::BATCH_SELF, &[]);
@@ -3037,7 +3244,8 @@ mod tests {
             JsonValue::Number(NumberToken::parse("1.0").unwrap()),
             JsonValue::String("汉\n".to_string()),
         ]);
-        let built = write_value(&mut store, &Value::JsonText(Box::new(inner))).expect("写入文本视图");
+        let built =
+            write_value(&mut store, &Value::JsonText(Box::new(inner))).expect("写入文本视图");
         let mut rendered = Vec::new();
         render_canonical(&mut store, &built.content_ref(), &mut rendered).expect("渲染");
         assert_eq!(
@@ -3087,7 +3295,10 @@ mod tests {
         reversed.reverse();
         let a = write_value(&mut store, &Value::Object(fields)).expect("写入对象");
         let b = write_value(&mut store, &Value::Object(reversed)).expect("写入逆序对象");
-        assert_eq!(a.digest, b.digest, "对象字段按键的 UTF-8 字节升序，与输入顺序无关");
+        assert_eq!(
+            a.digest, b.digest,
+            "对象字段按键的 UTF-8 字节升序，与输入顺序无关"
+        );
 
         let dup = Value::Object(vec![
             ("k".to_string(), Value::string("a")),
@@ -3145,7 +3356,10 @@ mod tests {
             (JsonNode::String("".into()), code::EXTENT),
             (JsonNode::String(" 1".into()), code::EXTENT),
             (JsonNode::String("1.0".into()), code::EXTENT),
-            (JsonNode::String("9223372036854775808".into()), code::LENGTH_OVERFLOW),
+            (
+                JsonNode::String("9223372036854775808".into()),
+                code::LENGTH_OVERFLOW,
+            ),
             (
                 JsonNode::String("18446744073709551616".into()),
                 code::LENGTH_OVERFLOW,

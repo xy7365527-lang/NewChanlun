@@ -753,3 +753,23 @@ mod tests {
         assert_eq!(body, [1], "不得覆盖坏原件假装修复成功");
     }
 }
+
+#[cfg(test)]
+pub(crate) fn capture_for_prototype(
+    tx: &Transaction<'_>,
+) -> Result<s_content::AuditCapture, CodecError> {
+    ensure_format(tx)?;
+    let mut nodes = s_content::MemoryNodes::new();
+    let mut stmt = tx
+        .prepare("SELECT digest,tag,body FROM s_content_nodes")
+        .map_err(storage_error)?;
+    let mut rows = stmt.query([]).map_err(storage_error)?;
+    while let Some(r) = rows.next().map_err(storage_error)? {
+        let d: Vec<u8> = r.get(0).map_err(storage_error)?;
+        let d: NodeDigest = d.try_into().map_err(|_| storage_error("捕获摘要长度"))?;
+        let t: i64 = r.get(1).map_err(storage_error)?;
+        let t: u8 = t.try_into().map_err(|_| storage_error("捕获标签域"))?;
+        nodes.insert_unchecked(d, t, r.get(2).map_err(storage_error)?);
+    }
+    Ok(s_content::AuditCapture::new(nodes))
+}

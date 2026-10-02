@@ -122,10 +122,10 @@ pub(super) fn assemble_unpublished(
 ) -> Result<UnpublishedManifest, CodecError> {
     check_metadata(metadata)?;
     // 同一次读集核完整闭包；路径算子只核触碰边界，不能替代这里的全闭包校验。
-    s_content::verify(store, &metadata.scope)?;
+    s_content::audit_verify_public(store, &metadata.scope)?;
     require_kind(&metadata.scope, Kind::Object, "scope")?;
-    s_content::verify(store, &roots.generated_state)?;
-    s_content::verify_template_many(
+    s_content::audit_verify_public(store, &roots.generated_state)?;
+    s_content::audit_verify_template_many(
         store,
         [
             roots.publication_template.clone(),

@@ -400,8 +400,8 @@ pub(super) fn verify_cut_metered(
 ) -> Result<(), String> {
     super::history::check_deadline(deadline)?;
     require_ohlc(&metadata.profile_id)?;
-    sc::verify(store, generated_state).map_err(err)?;
-    sc::verify(store, delta).map_err(err)?;
+    sc::audit_verify_public(store, generated_state).map_err(err)?;
+    sc::audit_verify_public(store, delta).map_err(err)?;
     let frontier = text(store, delta, "index_frontier")?;
     if !real_batch_id(&frontier) {
         return Err(err(format!(
@@ -609,7 +609,7 @@ pub(super) fn verify_current(
                 entry.id
             )));
         }
-        sc::verify(store, &stored).map_err(err)?;
+        sc::audit_verify_public(store, &stored).map_err(err)?;
     }
     Ok(())
 }
