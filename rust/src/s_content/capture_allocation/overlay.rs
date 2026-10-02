@@ -83,9 +83,7 @@ impl OverlaySlab {
             });
         }
         s.body_used = needed;
-        let m = &s.body.budget.0;
-        m.copied_rows.set(m.copied_rows.get() + 1);
-        m.copied_bytes.set(m.copied_bytes.get() + body.len() as u64);
+        s.body.budget.note_copy(body.len());
         self.peak_slots = self.peak_slots.max(s.used);
         self.peak_body = self.peak_body.max(s.body_used);
         Ok(())

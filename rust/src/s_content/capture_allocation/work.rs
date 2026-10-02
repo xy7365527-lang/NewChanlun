@@ -16,21 +16,25 @@ pub(crate) fn allocation_error() -> CodecError {
 #[derive(Clone)]
 pub(crate) struct LedgerAllocator {
     budget: OwnedBudget,
+    kind: &'static str,
 }
 impl LedgerAllocator {
     pub(crate) fn new(budget: &OwnedBudget) -> Self {
+        Self::new_tag(budget, "codec Layout")
+    }
+    pub(crate) fn new_tag(budget: &OwnedBudget, kind: &'static str) -> Self {
         Self {
             budget: budget.clone(),
+            kind,
         }
     }
 }
 // SAFETY: every allocation uses the requested valid Layout, and every matching release uses
-// the same allocator ledger and Layout. Owned vectors/maps keep this Rc alive through Drop.
+// the same allocator ledger and Layout. Owned vectors/maps keep this Arc alive through Drop.
 unsafe impl Allocator for LedgerAllocator {
     fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
-        self.budget.note_layout(layout);
         self.budget
-            .preflight(layout.size())
+            .reserve_layout(layout, self.kind)
             .map_err(|_| AllocError)?;
         if layout.size() == 0 {
             return Ok(NonNull::slice_from_raw_parts(
@@ -38,17 +42,13 @@ unsafe impl Allocator for LedgerAllocator {
                 0,
             ));
         }
-        let m = &self.budget.0;
-        m.attempts.set(m.attempts.get() + 1);
-        m.live.set(m.live.get() + layout.size());
         // SAFETY: nonzero valid caller Layout.
         let p = unsafe { std::alloc::alloc(layout) };
         let Some(p) = NonNull::new(p) else {
-            m.live.set(m.live.get() - layout.size());
+            self.budget.rollback_layout(layout);
             return Err(AllocError);
         };
-        m.allocated.set(m.allocated.get() + 1);
-        m.peak.set(m.peak.get().max(m.live.get()));
+        self.budget.commit_layout(layout);
         Ok(NonNull::slice_from_raw_parts(p, layout.size()))
     }
     unsafe fn deallocate(&self, p: NonNull<u8>, layout: Layout) {
@@ -57,9 +57,7 @@ unsafe impl Allocator for LedgerAllocator {
         }
         // SAFETY: Allocator contract requires the live allocation and its original Layout.
         unsafe { std::alloc::dealloc(p.as_ptr(), layout) };
-        let m = &self.budget.0;
-        m.live.set(m.live.get() - layout.size());
-        m.released.set(m.released.get() + 1);
+        self.budget.release_layout(layout);
     }
     unsafe fn grow(
         &self,
@@ -116,7 +114,10 @@ impl<T> CodecVec<T> {
         Self {
             storage: match b {
                 None => VecStorage::Plain(Vec::new()),
-                Some(b) => VecStorage::Owned(AllocVec::new_in(LedgerAllocator::new(b))),
+                Some(b) => VecStorage::Owned(AllocVec::new_in(LedgerAllocator::new_tag(
+                    b,
+                    std::any::type_name::<T>(),
+                ))),
             },
         }
     }
@@ -136,10 +137,7 @@ impl<T> CodecVec<T> {
                 v.reserve(n);
                 Ok(())
             }
-            VecStorage::Owned(v) => {
-                v.allocator().budget.note_kind(std::any::type_name::<T>());
-                v.try_reserve(n).map_err(|_| allocation_error())
-            }
+            VecStorage::Owned(v) => v.try_reserve(n).map_err(|_| allocation_error()),
         }
     }
     pub(crate) fn reserve_exact(&mut self, n: usize) -> Result<(), CodecError> {
@@ -148,10 +146,7 @@ impl<T> CodecVec<T> {
                 v.reserve_exact(n);
                 Ok(())
             }
-            VecStorage::Owned(v) => {
-                v.allocator().budget.note_kind(std::any::type_name::<T>());
-                v.try_reserve_exact(n).map_err(|_| allocation_error())
-            }
+            VecStorage::Owned(v) => v.try_reserve_exact(n).map_err(|_| allocation_error()),
         }
     }
     pub fn try_push(&mut self, x: T) -> Result<(), CodecError> {
@@ -330,7 +325,7 @@ impl<K: Eq + Hash, V> WorkMap<K, V> {
             None => Self::default(),
             Some(b) => Self::Owned(hashbrown::HashMap::with_hasher_in(
                 RandomState::new(),
-                LedgerAllocator::new(b),
+                LedgerAllocator::new_tag(b, std::any::type_name::<(K, V)>()),
             )),
         }
     }
@@ -341,9 +336,6 @@ impl<K: Eq + Hash, V> WorkMap<K, V> {
                 if let Some(old) = m.get_mut(&k) {
                     return Ok(Some(std::mem::replace(old, v)));
                 }
-                m.allocator()
-                    .budget
-                    .note_kind(std::any::type_name::<(K, V)>());
                 m.try_reserve(1).map_err(|_| allocation_error())?;
                 Ok(m.insert(k, v))
             }
@@ -383,7 +375,7 @@ impl<T: Eq + Hash> WorkSet<T> {
             None => Self::default(),
             Some(b) => Self::Owned(hashbrown::HashSet::with_hasher_in(
                 RandomState::new(),
-                LedgerAllocator::new(b),
+                LedgerAllocator::new_tag(b, std::any::type_name::<T>()),
             )),
         }
     }
@@ -394,7 +386,6 @@ impl<T: Eq + Hash> WorkSet<T> {
                 if m.contains(&v) {
                     return Ok(false);
                 }
-                m.allocator().budget.note_kind(std::any::type_name::<T>());
                 m.try_reserve(1).map_err(|_| allocation_error())?;
                 Ok(m.insert(v))
             }

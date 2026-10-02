@@ -16,10 +16,7 @@ impl MeteredBody {
                 std::ptr::copy_nonoverlapping(bytes.as_ptr(), owner.pointer.as_ptr(), bytes.len());
             }
         }
-        let m = &budget.0;
-        m.copied_rows.set(m.copied_rows.get() + 1);
-        m.copied_bytes
-            .set(m.copied_bytes.get() + bytes.len() as u64);
+        budget.note_copy(bytes.len());
         Ok(Self { owner })
     }
 }
