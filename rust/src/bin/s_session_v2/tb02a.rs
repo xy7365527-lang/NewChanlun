@@ -45,114 +45,204 @@ pub(super) fn enabled(conn: &Connection) -> Result<bool, String> {
     Ok(meta_get_opt(conn, "profile_id")?.as_deref() == Some(PROFILE))
 }
 
-pub(super) fn parse_input(value: &Value) -> Result<RawInputFile, String> {
-    let top = [
-        "schema_revision",
-        "session_id",
-        "source_namespace",
-        "source_epoch",
-        "instrument",
-        "profile",
-        "events",
-    ];
-    exact_keys(value, &top)?;
-    for key in &top[..6] {
-        text(value, key)?;
+use newchan_rust::s_content::capture_allocation::audit_json::{ArrayIter, ArrayView, JsonView};
+const INPUT_FIELDS: &[&str] = &[
+    "schema_revision",
+    "session_id",
+    "source_namespace",
+    "source_epoch",
+    "instrument",
+    "profile",
+    "events",
+];
+const TICK_FIELDS: &[&str] = &[
+    "event_id",
+    "revision",
+    "seq",
+    "received_at",
+    "raw_text",
+    "price",
+    "timestamp",
+    "volume",
+];
+const OHLC_FIELDS: &[&str] = &[
+    "event_id",
+    "revision",
+    "seq",
+    "received_at",
+    "raw_text",
+    "open",
+    "high",
+    "low",
+    "close",
+    "timestamp",
+    "volume",
+];
+
+/// 借用原输入完整事件序列；字段私有，构造不授予接受/单事件资格。
+pub(super) struct RawInputView<'a> {
+    pub schema_revision: &'a str,
+    pub session_id: &'a str,
+    pub source_namespace: &'a str,
+    pub source_epoch: &'a str,
+    pub instrument: &'a str,
+    pub profile: &'a str,
+    events: ArrayView<'a>,
+    ohlc: bool,
+}
+#[derive(Clone, Copy)]
+pub(super) struct RawEventView<'a> {
+    pub event_id: &'a str,
+    pub revision: &'a str,
+    pub seq: &'a str,
+    pub received_at: &'a str,
+    pub raw_text: &'a str,
+    pub price: &'a str,
+    pub timestamp: &'a str,
+    pub volume: &'a str,
+    pub ohlc: Option<OhlcView<'a>>,
+}
+impl RawInputView<'_> {
+    pub fn events_len(&self) -> usize {
+        self.events.len()
     }
-    let schema = text(value, "schema_revision")?;
-    let profile = text(value, "profile")?;
-    let (keys, ohlc) = match (schema, profile) {
-        ("1", "testonly_tick_1_1_ohlc") => (
-            vec![
-                "event_id",
-                "revision",
-                "seq",
-                "received_at",
-                "raw_text",
-                "price",
-                "timestamp",
-                "volume",
-            ],
-            false,
-        ),
-        (RAW_SCHEMA, PROFILE) => (
-            vec![
-                "event_id",
-                "revision",
-                "seq",
-                "received_at",
-                "raw_text",
-                "open",
-                "high",
-                "low",
-                "close",
-                "timestamp",
-                "volume",
-            ],
-            true,
-        ),
+    pub fn events(&self) -> RawEventIter<'_> {
+        RawEventIter {
+            iter: self.events.iter(),
+            ohlc: self.ohlc,
+        }
+    }
+    pub fn event(&self, index: usize) -> Result<RawEventView<'_>, String> {
+        event_view(
+            self.events
+                .get(index)
+                .ok_or("SchemaUnsupported：events索引越界")?,
+            self.ohlc,
+        )
+    }
+}
+pub(super) struct RawEventIter<'a> {
+    iter: ArrayIter<'a>,
+    ohlc: bool,
+}
+impl<'a> Iterator for RawEventIter<'a> {
+    type Item = Result<RawEventView<'a>, String>;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|v| event_view(v, self.ohlc))
+    }
+}
+/// 与普通parse_input共核；先逐条校完全部事件，再返借用view，不能提前取第一条放行。
+pub(super) fn parse_input_view(value: JsonView<'_>) -> Result<RawInputView<'_>, String> {
+    exact_keys_view(value, INPUT_FIELDS)?;
+    for key in &INPUT_FIELDS[..6] {
+        input_text(value, key)?;
+    }
+    let schema = input_text(value, "schema_revision")?;
+    let profile = input_text(value, "profile")?;
+    let ohlc = match (schema, profile) {
+        ("1", "testonly_tick_1_1_ohlc") => false,
+        (RAW_SCHEMA, PROFILE) => true,
         _ => return Err("SchemaUnsupported：schema_revision/profile组合未声明".into()),
     };
-    let mut events = Vec::new();
-    for e in value["events"]
-        .as_array()
-        .ok_or("SchemaUnsupported：events必须数组")?
-    {
-        exact_keys(e, &keys)?;
-        for key in &keys {
-            text(e, key)?;
-        }
-        let prices = if ohlc {
-            Some(Ohlc {
-                open: text(e, "open")?.into(),
-                high: text(e, "high")?.into(),
-                low: text(e, "low")?.into(),
-                close: text(e, "close")?.into(),
-            })
-        } else {
-            None
-        };
-        let event = RawEvent {
-            event_id: text(e, "event_id")?.into(),
-            revision: text(e, "revision")?.into(),
-            seq: text(e, "seq")?.into(),
-            received_at: text(e, "received_at")?.into(),
-            raw_text: text(e, "raw_text")?.into(),
-            price: if let Some(p) = &prices {
-                p.close.clone()
-            } else {
-                text(e, "price")?.into()
-            },
-            timestamp: text(e, "timestamp")?.into(),
-            volume: text(e, "volume")?.into(),
-            ohlc: prices,
-        };
-        validate_prices(&event)?;
-        events.push(event);
+    let events = value
+        .get("events")
+        .and_then(JsonView::as_array)
+        .ok_or("SchemaUnsupported：events必须数组")?;
+    for event in events.iter() {
+        event_view(event, ohlc)?;
     }
-    Ok(RawInputFile {
-        schema_revision: schema.into(),
-        session_id: text(value, "session_id")?.into(),
-        source_namespace: text(value, "source_namespace")?.into(),
-        source_epoch: text(value, "source_epoch")?.into(),
-        instrument: text(value, "instrument")?.into(),
-        profile: profile.into(),
+    Ok(RawInputView {
+        schema_revision: schema,
+        session_id: input_text(value, "session_id")?,
+        source_namespace: input_text(value, "source_namespace")?,
+        source_epoch: input_text(value, "source_epoch")?,
+        instrument: input_text(value, "instrument")?,
+        profile,
         events,
+        ohlc,
     })
 }
-
-fn exact_keys(value: &Value, keys: &[&str]) -> Result<(), String> {
+fn event_view(value: JsonView<'_>, ohlc: bool) -> Result<RawEventView<'_>, String> {
+    let keys = if ohlc { OHLC_FIELDS } else { TICK_FIELDS };
+    exact_keys_view(value, keys)?;
+    for key in keys {
+        input_text(value, key)?;
+    }
+    let prices = if ohlc {
+        Some(OhlcView {
+            open: input_text(value, "open")?,
+            high: input_text(value, "high")?,
+            low: input_text(value, "low")?,
+            close: input_text(value, "close")?,
+        })
+    } else {
+        None
+    };
+    let event = RawEventView {
+        event_id: input_text(value, "event_id")?,
+        revision: input_text(value, "revision")?,
+        seq: input_text(value, "seq")?,
+        received_at: input_text(value, "received_at")?,
+        raw_text: input_text(value, "raw_text")?,
+        price: if let Some(p) = prices {
+            p.close
+        } else {
+            input_text(value, "price")?
+        },
+        timestamp: input_text(value, "timestamp")?,
+        volume: input_text(value, "volume")?,
+        ohlc: prices,
+    };
+    validate_prices_view(event.price, event.volume, event.ohlc)?;
+    Ok(event)
+}
+fn exact_keys_view(value: JsonView<'_>, keys: &[&str]) -> Result<(), String> {
     let map = value.as_object().ok_or("SchemaUnsupported：预期对象")?;
-    if map.len() != keys.len() || map.keys().any(|k| !keys.contains(&k.as_str())) {
+    if map.len() != keys.len() || map.keys().any(|k| !keys.contains(&k)) {
         return Err("SchemaUnsupported：字段缺失或多余".into());
     }
     Ok(())
 }
-fn text<'a>(value: &'a Value, key: &str) -> Result<&'a str, String> {
-    value[key]
-        .as_str()
+fn input_text<'a>(value: JsonView<'a>, key: &str) -> Result<&'a str, String> {
+    value
+        .get(key)
+        .and_then(JsonView::as_str)
         .ok_or_else(|| format!("SchemaUnsupported：{key}必须文本"))
 }
+pub(super) fn parse_input(value: &Value) -> Result<RawInputFile, String> {
+    let input = parse_input_view(value.into())?;
+    let mut events = Vec::new();
+    // 显式normal DTO适配；Owned控制消费者直接持上述view，不调用本String/Vec边界。
+    for event in input.events() {
+        let e = event?;
+        events.push(RawEvent {
+            event_id: e.event_id.into(),
+            revision: e.revision.into(),
+            seq: e.seq.into(),
+            received_at: e.received_at.into(),
+            raw_text: e.raw_text.into(),
+            price: e.price.into(),
+            timestamp: e.timestamp.into(),
+            volume: e.volume.into(),
+            ohlc: e.ohlc.map(|p| Ohlc {
+                open: p.open.into(),
+                high: p.high.into(),
+                low: p.low.into(),
+                close: p.close.into(),
+            }),
+        });
+    }
+    Ok(RawInputFile {
+        schema_revision: input.schema_revision.into(),
+        session_id: input.session_id.into(),
+        source_namespace: input.source_namespace.into(),
+        source_epoch: input.source_epoch.into(),
+        instrument: input.instrument.into(),
+        profile: input.profile.into(),
+        events,
+    })
+}
+
 pub(super) fn validate_prices(event: &RawEvent) -> Result<(), String> {
     validate_prices_view(
         &event.price,
@@ -568,4 +658,142 @@ fn verify_raw_ohlc_cardinality(conn: &Connection) -> Result<(), String> {
         return Err("StorageUnavailable：raw_ohlc与原始账不一一对应".into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod input_view_tests {
+    use super::*;
+    fn input(ohlc: bool) -> Value {
+        let event = if ohlc {
+            json!({"event_id":"e1","revision":"1","seq":"0","received_at":"r","raw_text":"汉\"😀\n","open":"-2","high":"4","low":"-3","close":"3","timestamp":"t","volume":"0"})
+        } else {
+            json!({"event_id":"e1","revision":"not-parsed-here","seq":"not-parsed-here","received_at":"r","raw_text":"汉\"😀\n","price":"legacy-not-parsed-here","timestamp":"t","volume":"-1"})
+        };
+        json!({"schema_revision":if ohlc {RAW_SCHEMA}else{"1"},"session_id":"s","source_namespace":"n","source_epoch":"e","instrument":"i","profile":if ohlc {PROFILE}else{"testonly_tick_1_1_ohlc"},"events":[event]})
+    }
+    #[test]
+    fn borrowed_raw_input_matches_normal_dto_all_fields_without_tightening_tick() {
+        for ohlc in [false, true] {
+            let v = input(ohlc);
+            let normal = parse_input(&v).unwrap();
+            let view = parse_input_view((&v).into()).unwrap();
+            assert_eq!(view.schema_revision, normal.schema_revision);
+            assert_eq!(view.session_id, normal.session_id);
+            assert_eq!(view.source_namespace, normal.source_namespace);
+            assert_eq!(view.source_epoch, normal.source_epoch);
+            assert_eq!(view.instrument, normal.instrument);
+            assert_eq!(view.profile, normal.profile);
+            assert_eq!(view.events_len(), normal.events.len());
+            for (borrowed, plain) in view.events().zip(&normal.events) {
+                let b = borrowed.unwrap();
+                assert_eq!(
+                    (
+                        b.event_id,
+                        b.revision,
+                        b.seq,
+                        b.received_at,
+                        b.raw_text,
+                        b.price,
+                        b.timestamp,
+                        b.volume
+                    ),
+                    (
+                        plain.event_id.as_str(),
+                        plain.revision.as_str(),
+                        plain.seq.as_str(),
+                        plain.received_at.as_str(),
+                        plain.raw_text.as_str(),
+                        plain.price.as_str(),
+                        plain.timestamp.as_str(),
+                        plain.volume.as_str()
+                    )
+                );
+                match (b.ohlc, &plain.ohlc) {
+                    (Some(b), Some(p)) => assert_eq!(
+                        (b.open, b.high, b.low, b.close),
+                        (
+                            p.open.as_str(),
+                            p.high.as_str(),
+                            p.low.as_str(),
+                            p.close.as_str()
+                        )
+                    ),
+                    (None, None) => {}
+                    _ => panic!("OHLC shape mismatch"),
+                }
+            }
+        }
+    }
+    #[test]
+    fn borrowed_raw_input_checks_bad_later_event_before_single_event_consumer_gate() {
+        for (field, value, error) in [
+            ("open", json!("01"), "不是规范十进制整数"),
+            ("volume", json!("-1"), "volume为负"),
+            ("raw_text", json!(true), "raw_text必须文本"),
+        ] {
+            let mut v = input(true);
+            let mut second = v["events"][0].clone();
+            second[field] = value;
+            v["events"].as_array_mut().unwrap().push(second);
+            let expected = parse_input(&v).unwrap_err();
+            let actual = parse_input_view((&v).into()).err().unwrap();
+            assert_eq!(actual, expected);
+            assert!(actual.contains(error));
+        }
+        let mut v = input(true);
+        v["events"][0]["open"] = json!("01");
+        v["events"][0]["volume"] = json!("-1");
+        assert!(parse_input_view((&v).into())
+            .err()
+            .unwrap()
+            .contains("open `01`"));
+        let mut v = input(true);
+        v["events"][0]["high"] = json!("-4");
+        assert_eq!(
+            parse_input_view((&v).into()).err().unwrap(),
+            "InvalidDomain：OHLC几何或close索引不一致"
+        );
+        let mut v = input(true);
+        v["events"].as_array_mut().unwrap().clear();
+        assert_eq!(parse_input_view((&v).into()).unwrap().events_len(), 0);
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_raw_input_borrows_arena_budget_then_drops_and_low_quota_refuses_parse() {
+        use newchan_rust::s_content::capture_allocation::{audit_json::OwnedJson, OwnedBudget};
+        let v = input(true);
+        let bytes = canonical_json(&v);
+        let b = OwnedBudget::new(100000);
+        let owner = OwnedJson::parse(bytes.as_bytes(), &b).unwrap();
+        let before = b.snapshot();
+        {
+            let input = parse_input_view(owner.view()).unwrap();
+            assert_eq!(input.events_len(), 1);
+            assert_eq!(input.event(0).unwrap().price, "3");
+            assert_eq!(b.snapshot().allocation_attempts, before.allocation_attempts);
+        }
+        drop(owner);
+        assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
+        let low = OwnedBudget::new(0);
+        assert_eq!(
+            OwnedJson::parse(bytes.as_bytes(), &low)
+                .err()
+                .unwrap()
+                .code(),
+            newchan_rust::s_content::capture_allocation::LIMIT
+        );
+        assert_eq!(low.snapshot().allocated_layouts, 0);
+        assert_eq!(low.snapshot().live_requested_layout_bytes, 0);
+        let mut v = input(true);
+        let mut bad = v["events"][0].clone();
+        bad["close"] = json!("9007199254740993");
+        v["events"].as_array_mut().unwrap().push(bad);
+        let owner = OwnedJson::parse(canonical_json(&v).as_bytes(), &b).unwrap();
+        assert_eq!(
+            parse_input_view(owner.view()).err().unwrap(),
+            parse_input(&v).unwrap_err()
+        );
+        drop(owner);
+        assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
+    }
 }
