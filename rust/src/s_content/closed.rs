@@ -1072,6 +1072,110 @@ mod owned_ref_tests {
         }
     }
     #[test]
+    fn owned_ref_verify_render_and_nested_json_flavor_share_normal_kernel() {
+        let mut nodes = MemoryNodes::new();
+        let built = write_value(
+            &mut nodes,
+            &Value::Object(vec![
+                (
+                    "a".into(),
+                    Value::Array(vec![Value::Null, Value::Bool(true)]),
+                ),
+                ("b".into(), Value::string("汉")),
+            ]),
+        )
+        .unwrap();
+        let reference = built.content_ref();
+        let legacy = AuditCapture::new(nodes.clone());
+        let mut plain = nodes.clone();
+        let (cap, budget, _) = capture(nodes, 32768);
+        let mut closed = cap
+            .closed_codec_for_allocation_prototype(0, 0, None)
+            .unwrap();
+        let owned = closed.content_ref_owned(&reference.root).unwrap();
+        let f = frame_calls_on_thread();
+        verify(&mut plain, &reference).unwrap();
+        let calls = frame_calls_on_thread() - f;
+        let f = frame_calls_on_thread();
+        closed
+            .verify_fresh_owned(owned.view(), Mode::Public)
+            .unwrap();
+        assert_eq!(frame_calls_on_thread() - f, calls);
+        for _ in 0..2 {
+            let f = frame_calls_on_thread();
+            legacy.verify(&reference, Mode::Public).unwrap();
+            let calls = frame_calls_on_thread() - f;
+            let f = frame_calls_on_thread();
+            closed
+                .verify_cached_owned(owned.view(), Mode::Public)
+                .unwrap();
+            assert_eq!(frame_calls_on_thread() - f, calls);
+        }
+        let mut ordinary = Vec::new();
+        let mut actual = Vec::new();
+        let f = frame_calls_on_thread();
+        render_canonical(&mut plain, &reference, &mut ordinary).unwrap();
+        let calls = frame_calls_on_thread() - f;
+        let f = frame_calls_on_thread();
+        closed
+            .render_canonical_owned(owned.view(), &mut actual)
+            .unwrap();
+        assert_eq!(actual, ordinary);
+        assert_eq!(frame_calls_on_thread() - f, calls);
+        drop(closed);
+        drop(cap);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+
+        // Each node has a valid F, but a nested 0x07 inside JsonInner is forbidden.
+        let mut nodes = MemoryNodes::new();
+        let null = frame(tag::NULL, &[]);
+        nodes.insert_unchecked(null, tag::NULL, vec![]);
+        let nested = frame(tag::JSON_TEXT, &null);
+        nodes.insert_unchecked(nested, tag::JSON_TEXT, null.to_vec());
+        let seq = frame(tag::SEQ_LEAF, &nested);
+        nodes.insert_unchecked(seq, tag::SEQ_LEAF, nested.to_vec());
+        let mut array = 1u64.to_be_bytes().to_vec();
+        array.extend_from_slice(&seq);
+        let inner = frame(tag::ARRAY, &array);
+        nodes.insert_unchecked(inner, tag::ARRAY, array);
+        let outer = frame(tag::JSON_TEXT, &inner);
+        nodes.insert_unchecked(outer, tag::JSON_TEXT, inner.to_vec());
+        let reference = ContentRef::new(Kind::JsonText, &outer, None);
+        let path = [path::PathStep::JsonText, path::PathStep::Index(0)];
+        let mut plain = nodes.clone();
+        let expected = path::lookup_path(&mut plain, &reference, &path).unwrap_err();
+        let (cap, budget, _) = capture(nodes, 32768);
+        let mut closed = cap
+            .closed_codec_for_allocation_prototype(0, 0, None)
+            .unwrap();
+        let owned = closed.content_ref_owned(&reference.root).unwrap();
+        assert_eq!(
+            closed.lookup_path_owned(owned.view(), &path).unwrap_err(),
+            expected
+        );
+        let expected = verify(&mut plain, &reference).unwrap_err();
+        assert_eq!(
+            closed
+                .verify_fresh_owned(owned.view(), Mode::Public)
+                .unwrap_err(),
+            expected
+        );
+        let mut ordinary = Vec::new();
+        let mut actual = Vec::new();
+        let expected = render_canonical(&mut plain, &reference, &mut ordinary).unwrap_err();
+        assert_eq!(
+            closed
+                .render_canonical_owned(owned.view(), &mut actual)
+                .unwrap_err(),
+            expected
+        );
+        assert!(actual.is_empty());
+        assert!(ordinary.is_empty());
+        drop(closed);
+        drop(cap);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[test]
     fn owned_ref_results_share_capture_ledger_on_move_clone_growth_and_drop() {
         let size = std::mem::size_of::<RefOwner>();
         let (cap, budget, _) = capture(MemoryNodes::new(), 3 * size - 1);
