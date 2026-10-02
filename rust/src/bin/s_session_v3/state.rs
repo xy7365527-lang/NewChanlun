@@ -160,6 +160,10 @@ fn audit_with_capture_impl(
     };
     #[cfg(test)]
     let capture_ns = capture_started.elapsed().as_nanos();
+    #[cfg(all(test, feature = "s_allocation_sqlite_testonly"))]
+    if capture.is_some() {
+        shared_sqlite_probe::arm_after_owned_capture();
+    }
     #[cfg(test)]
     trace_event("control", None);
     history::check_deadline(deadline)?;
@@ -209,8 +213,6 @@ fn audit_with_capture_impl(
         Some(c) => history::HashReader::captured_for_audit(c, max_render_bytes).map_err(err)?,
         None => history::HashReader::metered(&mut reader, deadline, max_render_bytes, budget),
     };
-    #[cfg(all(test, feature = "s_allocation_sqlite_testonly"))]
-    shared_sqlite_probe::arm_after_owned_reader();
     // 7a. 当前代对象索引已在同次history中完整加载并绑定原件；继续用它核逐代变化。
     let mut previous = -1i64;
     for cut in &cuts {
@@ -901,18 +903,22 @@ mod scoped_prototype_probe {
 }
 
 // #1394: one exact fresh TestOnly process. The production audit and its SQL predicates
-// are unchanged; the optional fault starts only after the real capture/overlay exists.
+// are unchanged; the optional fault starts only after the real capture exists.
 #[cfg(all(test, feature = "s_allocation_sqlite_testonly"))]
 mod shared_sqlite_probe {
     use super::*;
     use sc::capture_allocation::{sqlite, OwnedBudget};
     thread_local! {
-        static FAULT: std::cell::RefCell<Option<sqlite::RefusalControl>> = const { std::cell::RefCell::new(None) };
+        static FAULT: std::cell::RefCell<Option<(sqlite::RefusalControl, OwnedBudget)>> = const { std::cell::RefCell::new(None) };
         static ARMED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+        static ARM_LIVE: std::cell::Cell<Option<(usize, usize)>> = const { std::cell::Cell::new(None) };
     }
-    pub(super) fn arm_after_owned_reader() {
+    pub(super) fn arm_after_owned_capture() {
         FAULT.with(|f| {
-            if let Some(control) = f.borrow().as_ref() {
+            if let Some((control, budget)) = f.borrow().as_ref() {
+                let total = budget.snapshot().live_requested_layout_bytes;
+                let sql = budget.ledger_health().sqlite_live_layout_bytes;
+                ARM_LIVE.with(|a| a.set(Some((total, sql))));
                 control.refuse_sqlite_allocations_for_testonly();
                 ARMED.with(|a| a.set(true));
             }
@@ -932,7 +938,7 @@ mod shared_sqlite_probe {
         let control = guard.control();
         let inject = std::env::var_os("AUDIT_SQLITE_INJECT_REFUSAL").is_some();
         if inject {
-            FAULT.with(|f| *f.borrow_mut() = Some(control.clone()));
+            FAULT.with(|f| *f.borrow_mut() = Some((control.clone(), budget.clone())));
         }
         let mut conn =
             Connection::open_with_flags(&db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
@@ -996,7 +1002,8 @@ mod shared_sqlite_probe {
         let report = json!({
             "scope":"selected closed codec plus SQLite requested Layout/header; JSON/business/outer diagnostics remain uncovered",
             "whole_audit_allocation_admitted":false,"production_capture_enabled":false,
-            "fault_injection":inject,"armed_after_real_owned_reader":armed,
+            "fault_injection":inject,"armed_after_real_owned_capture":armed,
+            "live_at_fault_arm":ARM_LIVE.with(|a| a.get()),
             "error":error,"before_sql_close":before_close,"health_before_sql_close":health_before_close,
             "last_layout":request,"after_all_drop":final_meter,"health_after_all_drop":final_health,
             "elapsed_ns":elapsed.to_string(),"f_calls":frame_count,"sql_node_reads":node_sql_reads,
@@ -1014,7 +1021,9 @@ mod shared_sqlite_probe {
         assert_eq!(final_meter.live_requested_layout_bytes, 0);
         assert_eq!(final_meter.allocated_layouts, final_meter.released_layouts);
         if inject {
-            assert!(armed, "fault must start at the actual owned reader");
+            assert!(armed, "fault must start after the actual owned capture");
+            let (total, sql) = ARM_LIVE.with(|a| a.get()).unwrap();
+            assert!(total > sql, "real Rust capture must still be charged");
             assert!(health_before_close.sqlite_rejected_layouts > 0);
             let error = error.expect("actual SQL allocation refusal must propagate audit Err");
             assert!(
