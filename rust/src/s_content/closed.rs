@@ -67,27 +67,27 @@ impl ClosedCapturedOwner<'_> {
         r: RefView<'_>,
         p: &[path::PathStep],
     ) -> Result<RefOwner, CodecError> {
-        path::lookup_path_owned_ctx(&mut CodecContext::Closed(self), r, p)
+        path::lookup_path_owned_ctx(self, r, p)
     }
     pub fn lookup_array_items_owned(
         &mut self,
         r: RefView<'_>,
     ) -> Result<CodecVec<RefOwner>, CodecError> {
-        path::lookup_array_items_owned_ctx(&mut CodecContext::Closed(self), r)
+        path::lookup_array_items_owned_ctx(self, r)
     }
     pub fn lookup_object_fields_owned<'names>(
         &mut self,
         r: RefView<'_>,
         n: &[&'names str],
     ) -> Result<OwnedRefFields<'names>, CodecError> {
-        path::lookup_object_fields_owned_ctx(&mut CodecContext::Closed(self), r, n, true)
+        path::lookup_object_fields_owned_ctx(self, r, n, true)
     }
     pub fn lookup_object_fields_subset_owned<'names>(
         &mut self,
         r: RefView<'_>,
         n: &[&'names str],
     ) -> Result<OwnedRefFields<'names>, CodecError> {
-        path::lookup_object_fields_owned_ctx(&mut CodecContext::Closed(self), r, n, false)
+        path::lookup_object_fields_owned_ctx(self, r, n, false)
     }
     pub fn new_owned_ref_result(&self) -> CodecVec<RefOwner> {
         WorkVec::new(Some(&self.budget))

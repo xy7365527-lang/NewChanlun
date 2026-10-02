@@ -90,11 +90,11 @@ pub(super) fn lookup_path_ctx(
     lookup_path_output(source, reference.into(), path)
 }
 pub(super) fn lookup_path_owned_ctx(
-    source: &mut CodecContext<'_, '_>,
+    source: &mut super::ClosedCapturedOwner<'_>,
     reference: RefView<'_>,
     path: &[PathStep],
 ) -> Result<RefOwner, CodecError> {
-    lookup_path_output(source, reference, path)
+    lookup_path_output(&mut CodecContext::Closed(source), reference, path)
 }
 fn lookup_path_output<R: RefOutput>(
     source: &mut CodecContext<'_, '_>,
@@ -121,10 +121,10 @@ pub(super) fn lookup_array_items_ctx(
     lookup_array_output(source, reference.into())
 }
 pub(super) fn lookup_array_items_owned_ctx(
-    source: &mut CodecContext<'_, '_>,
+    source: &mut super::ClosedCapturedOwner<'_>,
     reference: RefView<'_>,
 ) -> Result<WorkVec<RefOwner>, CodecError> {
-    lookup_array_output(source, reference)
+    lookup_array_output(&mut CodecContext::Closed(source), reference)
 }
 fn lookup_array_output<R: RefOutput>(
     source: &mut CodecContext<'_, '_>,
@@ -190,12 +190,12 @@ pub(super) fn lookup_object_fields_subset_ctx(
 }
 
 pub(super) fn lookup_object_fields_owned_ctx<'names>(
-    source: &mut CodecContext<'_, '_>,
+    source: &mut super::ClosedCapturedOwner<'_>,
     reference: RefView<'_>,
     names: &[&'names str],
     exact: bool,
 ) -> Result<OwnedRefFields<'names>, CodecError> {
-    object_fields_output(source, reference, names, exact)
+    object_fields_output(&mut CodecContext::Closed(source), reference, names, exact)
 }
 trait FieldOutput<'names>: Sized {
     type Reference: RefOutput;
