@@ -773,3 +773,361 @@ pub(crate) fn capture_for_prototype(
     }
     Ok(s_content::AuditCapture::new(nodes))
 }
+
+/// #1394：显式测试额度，局部 capture 两个固定 Layout 的写前门。绝非全 audit 准入。
+#[cfg(test)]
+pub(crate) fn capture_slab_for_prototype(
+    tx: &Transaction<'_>,
+    budget: &s_content::capture_allocation::OwnedBudget,
+    mut cancelled: impl FnMut() -> bool,
+) -> Result<s_content::capture_allocation::CaptureSlab, CodecError> {
+    use s_content::capture_allocation::CaptureSlab;
+    ensure_format(tx)?;
+    // Two passes in the same transaction. Read borrowed BLOBs, never row.get::<Vec<u8>>.
+    // No LENGTH/SUM allocation estimate and no count-to-byte unit mixing.
+    fn borrowed_row<'a>(
+        r: &'a rusqlite::Row<'_>,
+    ) -> Result<(NodeDigest, u8, &'a [u8]), CodecError> {
+        let digest: NodeDigest = r
+            .get_ref(0)
+            .map_err(storage_error)?
+            .as_blob()
+            .map_err(storage_error)?
+            .try_into()
+            .map_err(|_| storage_error("捕获摘要长度"))?;
+        let tag: i64 = r.get(1).map_err(storage_error)?;
+        let tag: u8 = tag.try_into().map_err(|_| storage_error("捕获标签域"))?;
+        let body = r
+            .get_ref(2)
+            .map_err(storage_error)?
+            .as_blob()
+            .map_err(storage_error)?;
+        Ok((digest, tag, body))
+    }
+    fn check_cancel(cancelled: &mut impl FnMut() -> bool) -> Result<(), CodecError> {
+        if cancelled() {
+            Err(CodecError::new(
+                "prototype_capture_cancelled",
+                "测试捕获已取消",
+            ))
+        } else {
+            Ok(())
+        }
+    }
+    let mut stmt = tx
+        .prepare("SELECT digest,tag,body FROM s_content_nodes ORDER BY digest")
+        .map_err(storage_error)?;
+    let mut count = 0usize;
+    let mut bodies = 0usize;
+    {
+        let mut rows = stmt.query([]).map_err(storage_error)?;
+        while let Some(r) = rows.next().map_err(storage_error)? {
+            check_cancel(&mut cancelled)?;
+            let (_, _, body) = borrowed_row(r)?;
+            count = count
+                .checked_add(1)
+                .ok_or_else(|| storage_error("节点数溢出"))?;
+            bodies = bodies
+                .checked_add(body.len())
+                .ok_or_else(|| storage_error("body 字节数溢出"))?;
+            budget.preflight(CaptureSlab::requested_bytes(count, bodies)?)?;
+        }
+    }
+    check_cancel(&mut cancelled)?;
+    let mut slab = CaptureSlab::new(count, bodies, budget)?;
+    {
+        let mut rows = stmt.query([]).map_err(storage_error)?;
+        while let Some(r) = rows.next().map_err(storage_error)? {
+            check_cancel(&mut cancelled)?;
+            let (d, t, body) = borrowed_row(r)?;
+            slab.push(d, t, body)?;
+        }
+    }
+    check_cancel(&mut cancelled)?;
+    slab.finish()
+}
+
+#[cfg(test)]
+mod capture_allocation_tests {
+    use super::*;
+    use s_content::capture_allocation::{CaptureSlab, OwnedBudget, INCOMPLETE, LIMIT};
+
+    fn fixture() -> Connection {
+        let mut c = Connection::open_in_memory().unwrap();
+        c.execute_batch("CREATE TABLE s_protocol_meta(singleton INTEGER,protocol_revision TEXT); INSERT INTO s_protocol_meta VALUES(1,'s-session/3');").unwrap();
+        let tx = c.transaction().unwrap();
+        init_schema(&tx).unwrap();
+        s_content::write_value(
+            &mut TxStore::new(&tx).unwrap(),
+            &s_content::Value::String("x".repeat(5000)),
+        )
+        .unwrap();
+        tx.commit().unwrap();
+        c
+    }
+    fn required(tx: &Transaction<'_>) -> usize {
+        let (n, bytes): (i64, i64) = tx
+            .query_row(
+                "SELECT count(*),sum(length(body)) FROM s_content_nodes",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        CaptureSlab::requested_bytes(n.try_into().unwrap(), bytes.try_into().unwrap()).unwrap()
+    }
+
+    #[test]
+    #[ignore = "requires caller-owned private SQLite copy; never connect original"]
+    fn owned_current_capture_boundaries() {
+        let mut c = Connection::open_with_flags(
+            std::env::var("AUDIT_PROTOTYPE_DB").unwrap(),
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .unwrap();
+        let tx = c.transaction().unwrap();
+        let min = required(&tx);
+        let mut reports = Vec::new(); // Test report outside measured capture owners.
+        for cap in [min - 1, min, min + 1] {
+            let budget = OwnedBudget::new(cap);
+            let capture = capture_slab_for_prototype(&tx, &budget, || false);
+            if cap < min {
+                assert_eq!(capture.err().unwrap().code(), LIMIT);
+                assert_eq!(budget.snapshot().copied_rows, 0);
+                assert_eq!(budget.snapshot().allocation_attempts, 0);
+            } else {
+                let capture = capture.unwrap();
+                assert_eq!(capture.snapshot().live_requested_layout_bytes, min);
+                drop(capture);
+            }
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+            reports.push(serde_json::json!({"case":"capture-boundary","meter":budget.snapshot()}));
+        }
+        for cap in [2 * min - 1, 2 * min, 2 * min + 1] {
+            let budget = OwnedBudget::new(cap);
+            let first = capture_slab_for_prototype(&tx, &budget, || false).unwrap();
+            let clone = first.try_clone();
+            if cap < 2 * min {
+                assert_eq!(clone.err().unwrap().code(), LIMIT);
+                assert_eq!(budget.snapshot().allocated_layouts, 2);
+            } else {
+                assert_eq!(budget.snapshot().live_requested_layout_bytes, 2 * min);
+                drop(clone.unwrap());
+            }
+            drop(first);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+            reports
+                .push(serde_json::json!({"case":"simultaneous-clone","meter":budget.snapshot()}));
+        }
+        let result = serde_json::json!({"scope":"capture index and body requested Layout only", "whole_audit_admitted":false,"minimum_capture_bytes":min,"record_layout_bytes":CaptureSlab::requested_bytes(1,0).unwrap(),"cases":reports});
+        std::fs::write(
+            std::env::var("AUDIT_PROTOTYPE_REPORT").unwrap(),
+            serde_json::to_vec_pretty(&result).unwrap(),
+        )
+        .unwrap();
+        eprintln!("CURRENT_BOUNDARIES {result}");
+    }
+
+    #[test]
+    #[ignore = "intentional RED control: unchanged legacy loader allocates despite candidate zero budget"]
+    fn legacy_loader_red_exceeds_zero_payload() {
+        let mut c = fixture();
+        let tx = c.transaction().unwrap();
+        let capture = capture_for_prototype(&tx).unwrap();
+        let actual = capture.retention()["body_vec_capacity_bytes"]
+            .as_u64()
+            .unwrap();
+        eprintln!("LEGACY_RED body_vec_capacity_bytes={actual} candidate_limit_bytes=0");
+        assert_eq!(actual, 0, "旧 loader 没有写前门；此控制应失败");
+    }
+
+    #[test]
+    fn capture_payload_exact_boundary_and_units() {
+        let mut c = fixture();
+        let tx = c.transaction().unwrap();
+        let min = required(&tx);
+        for cap in [min - 1, min, min + 1] {
+            let budget = OwnedBudget::new(cap);
+            let capture = capture_slab_for_prototype(&tx, &budget, || false);
+            if cap < min {
+                assert_eq!(capture.err().unwrap().code(), LIMIT);
+                let m = budget.snapshot();
+                assert_eq!(m.allocated_layouts, 0);
+                assert_eq!(m.copied_rows, 0);
+            } else {
+                let capture = capture.unwrap();
+                assert_eq!(budget.snapshot().live_requested_layout_bytes, min);
+                assert_eq!(
+                    capture
+                        .require_complete_audit_coverage()
+                        .unwrap_err()
+                        .code(),
+                    INCOMPLETE
+                );
+                assert_eq!(budget.snapshot().allocated_layouts, 2);
+                drop(capture);
+            }
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+            eprintln!(
+                "BOUNDARY {}",
+                serde_json::to_string(&budget.snapshot()).unwrap()
+            );
+        }
+        // A slot is NOT a byte: one fixed record costs size_of<Record>, plus its body bytes.
+        assert!(CaptureSlab::requested_bytes(1, 0).unwrap() >= 49);
+        assert!(CaptureSlab::requested_bytes(usize::MAX, 1).is_err());
+        let count: usize = tx
+            .query_row("SELECT count(*) FROM s_content_nodes", [], |r| {
+                r.get::<_, i64>(0).map(|n| usize::try_from(n).unwrap())
+            })
+            .unwrap();
+        assert!(capture_slab_for_prototype(&tx, &OwnedBudget::new(count), || false).is_err());
+    }
+
+    #[test]
+    fn simultaneous_clones_release_cancel_and_failed_growth() {
+        let mut c = fixture();
+        let tx = c.transaction().unwrap();
+        let min = required(&tx);
+        let budget = OwnedBudget::new(2 * min - 1);
+        let first = capture_slab_for_prototype(&tx, &budget, || false).unwrap();
+        let before = budget.snapshot();
+        assert_eq!(first.try_clone().err().unwrap().code(), LIMIT);
+        assert_eq!(
+            budget.snapshot().allocated_layouts,
+            before.allocated_layouts
+        );
+        assert_eq!(budget.snapshot().copied_rows, before.copied_rows);
+        drop(first);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+
+        let budget = OwnedBudget::new(2 * min);
+        let first = capture_slab_for_prototype(&tx, &budget, || false).unwrap();
+        let second = first.try_clone().unwrap();
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 2 * min);
+        drop(first);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, min);
+        drop(second);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        eprintln!(
+            "CLONE {}",
+            serde_json::to_string(&budget.snapshot()).unwrap()
+        );
+
+        let count: usize = tx
+            .query_row("SELECT count(*) FROM s_content_nodes", [], |r| {
+                r.get::<_, i64>(0).map(|n| usize::try_from(n).unwrap())
+            })
+            .unwrap();
+        let budget = OwnedBudget::new(min);
+        let mut checks = 0;
+        let result = capture_slab_for_prototype(&tx, &budget, || {
+            checks += 1;
+            checks == count + 3 // cancel after allocation and one copied row
+        });
+        assert_eq!(result.err().unwrap().code(), "prototype_capture_cancelled");
+        let m = budget.snapshot();
+        assert_eq!(m.copied_rows, 1);
+        assert_eq!(m.live_requested_layout_bytes, 0);
+        assert_eq!(m.allocated_layouts, m.released_layouts);
+        eprintln!("CANCEL {}", serde_json::to_string(&m).unwrap());
+
+        let budget = OwnedBudget::new(1024);
+        let mut slab = CaptureSlab::new(1, 1, &budget).unwrap();
+        assert_eq!(slab.push([0; 32], 0, &[0; 2]).unwrap_err().code(), LIMIT);
+        assert_eq!(budget.snapshot().copied_rows, 0);
+        assert!(slab.finish().is_err());
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+
+    #[test]
+    fn borrowed_oversized_body_and_error_cleanup() {
+        let mut c = fixture();
+        let tx = c.transaction().unwrap();
+        // SQLite owns this corrupt row. The capture loader must not first obtain an owned Vec.
+        tx.execute("UPDATE s_content_nodes SET body=zeroblob(1048576) WHERE digest=(SELECT min(digest) FROM s_content_nodes)", []).unwrap();
+        let budget = OwnedBudget::new(4096);
+        assert_eq!(
+            capture_slab_for_prototype(&tx, &budget, || false)
+                .err()
+                .unwrap()
+                .code(),
+            LIMIT
+        );
+        assert_eq!(budget.snapshot().allocated_layouts, 0);
+        assert_eq!(budget.snapshot().copied_body_bytes, 0);
+        tx.execute("UPDATE s_content_nodes SET body='not-blob' WHERE digest=(SELECT min(digest) FROM s_content_nodes)", []).unwrap();
+        assert_eq!(
+            capture_slab_for_prototype(&tx, &budget, || false)
+                .err()
+                .unwrap()
+                .code(),
+            code::SOURCE
+        );
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        eprintln!(
+            "BORROWED_REJECT {}",
+            serde_json::to_string(&budget.snapshot()).unwrap()
+        );
+    }
+
+    #[test]
+    fn slab_owner_preserves_bytes_digest_errors_and_cold_binding() {
+        let mut c = fixture();
+        let tx = c.transaction().unwrap();
+        let budget = OwnedBudget::new(required(&tx));
+        let slab = capture_slab_for_prototype(&tx, &budget, || false).unwrap();
+        let legacy = capture_for_prototype(&tx).unwrap();
+        let mut stmt = tx.prepare("SELECT digest FROM s_content_nodes").unwrap();
+        let mut rows = stmt.query([]).unwrap();
+        while let Some(row) = rows.next().unwrap() {
+            let digest: NodeDigest = row
+                .get_ref(0)
+                .unwrap()
+                .as_blob()
+                .unwrap()
+                .try_into()
+                .unwrap();
+            assert_eq!(slab.original(&digest), legacy.original(&digest));
+        }
+        drop(rows);
+        drop(stmt);
+        let root = s_content::write_value(
+            &mut s_content::MemoryNodes::new(),
+            &s_content::Value::String("x".repeat(5000)),
+        )
+        .unwrap()
+        .content_ref();
+        let capture = s_content::AuditCapture::from_slab_for_allocation_prototype(slab);
+        capture.verify(&root, s_content::Mode::Public).unwrap();
+        let mut bad = root.clone();
+        bad.extent = Some(4999);
+        assert_eq!(
+            capture
+                .verify(&bad, s_content::Mode::Public)
+                .unwrap_err()
+                .code(),
+            code::EXTENT
+        );
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        tx.execute(
+            "UPDATE s_content_nodes SET body=zeroblob(length(body)) WHERE tag=16",
+            [],
+        )
+        .unwrap();
+        let broken = s_content::AuditCapture::from_slab_for_allocation_prototype(
+            capture_slab_for_prototype(&tx, &budget, || false).unwrap(),
+        );
+        for _ in 0..2 {
+            assert_eq!(
+                broken
+                    .verify(&root, s_content::Mode::Public)
+                    .unwrap_err()
+                    .code(),
+                code::NODE_DIGEST
+            );
+        }
+        drop(broken);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+}

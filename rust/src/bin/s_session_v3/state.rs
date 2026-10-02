@@ -116,12 +116,35 @@ fn audit_with_capture(
     budget: Option<&dyn audit_budget::Budget>,
     enable_prototype_capture: bool,
 ) -> Result<(AuditedState, Option<Value>), String> {
+    audit_with_capture_impl(
+        tx,
+        deadline,
+        max_render_bytes,
+        budget,
+        enable_prototype_capture,
+        #[cfg(test)]
+        None,
+    )
+}
+fn audit_with_capture_impl(
+    tx: &Transaction<'_>,
+    deadline: Option<std::time::Instant>,
+    max_render_bytes: Option<u64>,
+    budget: Option<&dyn audit_budget::Budget>,
+    enable_prototype_capture: bool,
+    #[cfg(test)] owned_budget: Option<&sc::capture_allocation::OwnedBudget>,
+) -> Result<(AuditedState, Option<Value>), String> {
     // 外部不能带入旧捕获；只有本次fresh audit在None/None内可新建自有读集。
     #[cfg(test)]
     let capture_started = std::time::Instant::now();
     #[cfg(test)]
     let capture = if enable_prototype_capture && budget.is_none() && deadline.is_none() {
-        Some(content_store::capture_for_prototype(tx).map_err(err)?)
+        Some(match owned_budget {
+            Some(b) => sc::AuditCapture::from_slab_for_allocation_prototype(
+                content_store::capture_slab_for_prototype(tx, b, || false).map_err(err)?,
+            ),
+            None => content_store::capture_for_prototype(tx).map_err(err)?,
+        })
     } else {
         None
     };
@@ -807,8 +830,12 @@ mod scoped_prototype_probe {
         let f = sc::frame_calls_on_thread();
         let started = std::time::Instant::now();
         let enabled = std::env::var_os("AUDIT_PROTOTYPE_CAPTURE").is_some();
-        let (result, events, work) =
-            traced(true, || audit_with_capture(&tx, None, None, None, enabled));
+        let owned_budget = std::env::var("AUDIT_PROTOTYPE_OWNED_PAYLOAD_BYTES")
+            .ok()
+            .map(|v| sc::capture_allocation::OwnedBudget::new(v.parse().unwrap()));
+        let (result, events, work) = traced(true, || {
+            audit_with_capture_impl(&tx, None, None, None, enabled, owned_budget.as_ref())
+        });
         let elapsed = started.elapsed().as_nanos();
         let (s, capture) = result.unwrap();
         let cuts = s
@@ -822,7 +849,7 @@ mod scoped_prototype_probe {
             })
             .collect::<Vec<_>>();
         let complete = json!({"raw":s.raw,"cuts":cuts,"objects":format!("{:?}",s.objects),"auxiliary":format!("{:?}",s.auxiliary),"clock":v2::stored_clock(&tx).unwrap().value});
-        let report = json!({"elapsed_ns":elapsed.to_string(),"capture_ns":capture.as_ref().and_then(|v|v.get("capture_ns")).cloned(),"capture":capture,"sql_node_reads":content_store::sql_reads_on_thread()-sql,"f_calls":sc::frame_calls_on_thread()-f,"work":work,"events":events,"complete":complete,"complete_sha256":sha256_hex(canonical_json(&complete).as_bytes())});
+        let report = json!({"whole_audit_allocation_admitted":false,"capture_meter_after_drop":owned_budget.as_ref().map(|b|b.snapshot()),"elapsed_ns":elapsed.to_string(),"capture_ns":capture.as_ref().and_then(|v|v.get("capture_ns")).cloned(),"capture":capture,"sql_node_reads":content_store::sql_reads_on_thread()-sql,"f_calls":sc::frame_calls_on_thread()-f,"work":work,"events":events,"complete":complete,"complete_sha256":sha256_hex(canonical_json(&complete).as_bytes())});
         std::fs::write(
             std::env::var("AUDIT_PROTOTYPE_REPORT").unwrap(),
             canonical_json(&report),
@@ -930,17 +957,21 @@ mod audit_capture_gate_tests {
                 )
             };
             let mut baseline = None;
-            for enabled in [false, true] {
+            for (enabled, use_owned_gate) in [(false, false), (true, false), (true, true)] {
+                let owned = sc::capture_allocation::OwnedBudget::new(0);
                 let m = Meter::new(stop);
                 let sql = content_store::sql_reads_on_thread();
                 let frames = sc::frame_calls_on_thread();
-                let result = audit_with_capture(
+                let result = audit_with_capture_impl(
                     &tx,
                     deadline,
                     None,
                     if metered { Some(&m) } else { None },
                     enabled,
+                    use_owned_gate.then_some(&owned),
                 );
+                assert_eq!(owned.snapshot().allocation_attempts, 0);
+                assert_eq!(owned.snapshot().rejected_layouts, 0);
                 if let Ok((_, capacity)) = &result {
                     assert!(capacity.is_none(), "Some/期限不创建捕获");
                 }

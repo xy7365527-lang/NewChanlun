@@ -32,6 +32,8 @@ pub const CHUNK_BYTES: usize = 4096;
 pub const MAX_FRAME_LEN: u64 = (1u64 << 63) - 1;
 
 pub mod access;
+#[doc(hidden)]
+pub mod capture_allocation;
 /// 整次操作的累计资源与期限（#1394 采纳 C §5.6.1）。
 pub mod job;
 
@@ -1498,8 +1500,12 @@ struct AuditMemo {
 
 /// #1394 算法原型：完整自有节点捕获，无 NodeSink、无可变原件入口。
 /// 仅复用本捕获内 Public/Template 独立验证上下文，不授予来源或业务资格。
+enum CaptureNodes {
+    Legacy(BTreeMap<NodeDigest, (u8, Vec<u8>)>),
+    AllocationPrototype(capture_allocation::CaptureSlab),
+}
 pub struct AuditCapture {
-    nodes: BTreeMap<NodeDigest, (u8, Vec<u8>)>,
+    nodes: CaptureNodes,
     public: std::cell::RefCell<AuditMemo>,
     template: std::cell::RefCell<AuditMemo>,
     reads: std::cell::Cell<u64>,
@@ -1507,17 +1513,29 @@ pub struct AuditCapture {
 impl AuditCapture {
     pub fn new(nodes: MemoryNodes) -> Self {
         Self {
-            nodes: nodes.nodes,
+            nodes: CaptureNodes::Legacy(nodes.nodes),
+            public: Default::default(),
+            template: Default::default(),
+            reads: Default::default(),
+        }
+    }
+    #[doc(hidden)]
+    pub fn from_slab_for_allocation_prototype(slab: capture_allocation::CaptureSlab) -> Self {
+        Self {
+            nodes: CaptureNodes::AllocationPrototype(slab),
             public: Default::default(),
             template: Default::default(),
             reads: Default::default(),
         }
     }
     pub fn contains(&self, digest: &NodeDigest) -> bool {
-        self.nodes.contains_key(digest)
+        self.original(digest).is_some()
     }
     pub fn original(&self, digest: &NodeDigest) -> Option<(u8, &[u8])> {
-        self.nodes.get(digest).map(|(t, b)| (*t, b.as_slice()))
+        match &self.nodes {
+            CaptureNodes::Legacy(nodes) => nodes.get(digest).map(|(t, b)| (*t, b.as_slice())),
+            CaptureNodes::AllocationPrototype(slab) => slab.original(digest),
+        }
     }
     pub fn reader(&self) -> impl NodeSource + '_ {
         CaptureReader(self)
@@ -1555,8 +1573,23 @@ impl AuditCapture {
                 +m.field_memo.capacity()*std::mem::size_of::<((NodeDigest,Flavor),FieldAgg)>()
                 +m.key_cmp.capacity()*std::mem::size_of::<((NodeDigest,NodeDigest),std::cmp::Ordering)>()})
         };
-        serde_json::json!({"captured_nodes":self.nodes.len(),"body_vec_len_bytes":self.nodes.values().map(|(_,b)|b.len()).sum::<usize>(),
-            "body_vec_capacity_bytes":self.nodes.values().map(|(_,b)|b.capacity()).sum::<usize>(),
+        let (nodes, body_len, body_capacity, allocation) = match &self.nodes {
+            CaptureNodes::Legacy(nodes) => (
+                nodes.len(),
+                nodes.values().map(|(_, b)| b.len()).sum::<usize>(),
+                nodes.values().map(|(_, b)| b.capacity()).sum::<usize>(),
+                serde_json::Value::Null,
+            ),
+            CaptureNodes::AllocationPrototype(slab) => (
+                slab.len(),
+                slab.body_bytes(),
+                0,
+                serde_json::json!({"meter":slab.snapshot(),"body_arena_bytes":slab.body_bytes(),
+                    "whole_audit_admitted":false,"uncovered":["Verifier","memo","steps/aggs","NodeRead clone","overlay","SQLite","allocator overhead","RSS"]}),
+            ),
+        };
+        serde_json::json!({"captured_nodes":nodes,"body_len_bytes":body_len,
+            "body_vec_capacity_bytes":body_capacity,"capture_allocation_prototype":allocation,
             "capture_string_capacity_bytes":0,"capture_reads":self.reads.get(),
             "public":memo(&self.public.borrow()),"template":memo(&self.template.borrow()),
             "scope":"retained Vec/String and map/set capacity payload; excludes BTree allocation/allocator overhead, transient reads, total heap/RSS/IO peak; no resource eligibility"})
@@ -1566,10 +1599,10 @@ struct CaptureReader<'a>(&'a AuditCapture);
 impl NodeSource for CaptureReader<'_> {
     fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, CodecError> {
         self.0.reads.set(self.0.reads.get() + 1);
-        Ok(match self.0.nodes.get(d) {
+        Ok(match self.0.original(d) {
             Some((t, b)) => NodeRead::Found {
-                tag: *t,
-                body: b.clone(),
+                tag: t,
+                body: b.to_vec(),
             },
             None => NodeRead::Missing,
         })
