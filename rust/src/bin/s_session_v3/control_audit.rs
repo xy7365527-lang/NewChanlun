@@ -29,6 +29,8 @@
 //! 不冒充内容闭包、ID 配方、来源对拍或 crosswalk 已核。本模块只读，不写任何行。
 
 use super::*;
+use crate::v3::business_json::{self as control_json, TextValue};
+use newchan_rust::s_content::{capture_allocation::OwnedBudget, CodecVec};
 
 /// S3 控制历史审计入口（只读）。
 ///
@@ -36,29 +38,53 @@ use super::*;
 /// [`v2::ControlHistory::consume_header`]（manifest 的 `protocol_revision` 必须先被调用方显式核为
 /// `s-session/3`），最后 [`v2::ControlHistory::finish`] 检查逐代期望全部消费。
 pub(super) fn prepare_s3_control_history(conn: &Connection) -> Result<v2::ControlHistory, String> {
-    verify_s3_markers(conn)?;
-    verify_s3_schema(conn)?;
-    // 当前冻结 profile 绑定：唯一判据在 crate root（旧域与 S3 共用同一份），此处只消费结果。
-    let _profile = crate::verify_profile_binding(conn)?;
-    let epoch_facts = v2::verify_epoch_history(conn, true)?;
-    let history = v2::validate_control_history(conn, PROTOCOL_REVISION, epoch_facts)?;
-    verify_s3_publications(conn)?;
+    prepare_s3_control_history_with_owner(conn, None)
+}
+pub(super) fn prepare_s3_control_history_with_owner(
+    conn: &Connection,
+    owner: Option<&OwnedBudget>,
+) -> Result<v2::ControlHistory, String> {
+    #[cfg(not(feature = "s_allocation_json_testonly"))]
+    if owner.is_some() {
+        return Err("prototype_audit_allocation_incomplete：owned控制审计未启用".into());
+    }
+    verify_s3_markers_with_owner(conn, owner)?;
+    verify_s3_schema_with_owner(conn, owner)?;
+    let _profile = crate::verify_profile_binding_with_owner(conn, owner)?;
+    let epoch = v2::verify_epoch_history_with_owner(conn, true, owner)?;
+    let history = v2::validate_control_history_with_owner(conn, PROTOCOL_REVISION, epoch, owner)?;
+    verify_s3_publications_with_owner(conn, owner)?;
     Ok(history)
 }
 
 /// 双协议标记：根 `meta` 与控制行都必须逐字登记 `s-session/3`。
 fn verify_s3_markers(conn: &Connection) -> Result<(), String> {
-    let meta_marker = meta_get_opt(conn, "protocol_revision")?;
-    let table_marker: Option<String> = conn
-        .query_row(
-            "SELECT protocol_revision FROM s_protocol_meta WHERE singleton=1",
-            [],
-            |r| r.get(0),
-        )
-        .optional()
+    verify_s3_markers_with_owner(conn, None)
+}
+fn verify_s3_markers_with_owner(
+    conn: &Connection,
+    owner: Option<&OwnedBudget>,
+) -> Result<(), String> {
+    let meta_marker = v2::control_meta_text(conn, "protocol_revision", owner)?;
+    let mut stmt = conn
+        .prepare("SELECT protocol_revision FROM s_protocol_meta WHERE singleton=1")
         .map_err(|e| {
             format!("StorageUnavailable：读 s_protocol_meta 标记失败（控制域不可判定）：{e}")
         })?;
+    let mut rows = stmt.query([]).map_err(|e| {
+        format!("StorageUnavailable：读 s_protocol_meta 标记失败（控制域不可判定）：{e}")
+    })?;
+    let table_marker = rows
+        .next()
+        .map_err(|e| {
+            format!("StorageUnavailable：读 s_protocol_meta 标记失败（控制域不可判定）：{e}")
+        })?
+        .map(|r| {
+            TextValue::from_sql(r, 0, owner).map_err(|e| {
+                format!("StorageUnavailable：读 s_protocol_meta 标记失败（控制域不可判定）：{e}")
+            })
+        })
+        .transpose()?;
     if meta_marker.as_deref() != Some(PROTOCOL_REVISION)
         || table_marker.as_deref() != Some(PROTOCOL_REVISION)
     {
@@ -71,26 +97,41 @@ fn verify_s3_markers(conn: &Connection) -> Result<(), String> {
 
 /// S3 唯一已认可 schema：逐表全等比 DDL（未知表/缺表即拒）+ 存量行类型核 + 内容格式登记值。
 pub(super) fn schema_ddls(conn: &Connection) -> Result<Vec<&'static str>, String> {
-    let mut ddls = vec![SCHEMA, v2::SCHEMA_V2];
-    if tb02a::enabled(conn)? {
-        ddls.push(tb02a::SCHEMA);
+    schema_ddls_with_owner(conn, None).map(|v| v.into_iter().collect())
+}
+fn schema_ddls_with_owner(
+    conn: &Connection,
+    owner: Option<&OwnedBudget>,
+) -> Result<CodecVec<&'static str>, String> {
+    let mut ddls = control_json::new_work(owner);
+    for ddl in [SCHEMA, v2::SCHEMA_V2] {
+        ddls.try_push(ddl).map_err(|e| e.to_string())?;
     }
-    ddls.extend([
+    if v2::control_meta_text(conn, "profile_id", owner)?.as_deref() == Some(tb02a::PROFILE) {
+        ddls.try_push(tb02a::SCHEMA).map_err(|e| e.to_string())?;
+    }
+    for ddl in [
         content_store::SCHEMA,
         commit::SCHEMA,
         aux_index::SCHEMA,
         object_index::SCHEMA,
-    ]);
+    ] {
+        ddls.try_push(ddl).map_err(|e| e.to_string())?;
+    }
     Ok(ddls)
 }
-
 pub(super) fn verify_s3_schema(conn: &Connection) -> Result<(), String> {
-    let mut expected = BTreeMap::new();
-    for ddl in schema_ddls(conn)? {
-        v2::expect_ddl_tables("S3固定DDL", ddl, &mut expected)?;
+    verify_s3_schema_with_owner(conn, None)
+}
+fn verify_s3_schema_with_owner(
+    conn: &Connection,
+    owner: Option<&OwnedBudget>,
+) -> Result<(), String> {
+    let mut expected = v2::ControlSchema::new(owner);
+    for ddl in schema_ddls_with_owner(conn, owner)? {
+        expected.add_ddl("S3固定DDL", ddl)?;
     }
-    v2::verify_expected_schema(conn, &expected)?;
-    // 模式声明不证明登记值：`s-content/1` 的格式登记必须存在且逐字相符（唯一判据在 content_store）。
+    v2::verify_control_schema(conn, &expected)?;
     content_store::ensure_format(conn).map_err(|e| format!("StorageUnavailable：{e}"))?;
     verify_content_registration_rows(conn)?;
     Ok(())
@@ -118,7 +159,13 @@ fn verify_content_registration_rows(conn: &Connection) -> Result<(), String> {
 /// S3 私有发布索引与结构 Delta 逐代闭合。这里只核索引行的存在性与代号绑定；
 /// manifest/snapshot/Delta 的内容闭包由 root 的发布/内容审计模块核。
 fn verify_s3_publications(conn: &Connection) -> Result<(), String> {
-    let generation = meta_i64(conn, "generation")?;
+    verify_s3_publications_with_owner(conn, None)
+}
+fn verify_s3_publications_with_owner(
+    conn: &Connection,
+    owner: Option<&OwnedBudget>,
+) -> Result<(), String> {
+    let generation = v2::control_meta_i64(conn, "generation", owner)?;
     let (count, head): (i64, i64) = conn
         .query_row(
             "SELECT COUNT(*),COALESCE(MAX(generation),0) FROM s_content_publications",
@@ -152,9 +199,10 @@ fn verify_s3_publications(conn: &Connection) -> Result<(), String> {
         .map_err(|e| format!("StorageUnavailable：读发布索引行失败：{e}"))?
     {
         let g: i64 = r.get(0).map_err(|e| format!("StorageUnavailable：{e}"))?;
-        let batch_id: String = r.get(1).map_err(|e| format!("StorageUnavailable：{e}"))?;
-        let delta_batch: Option<String> =
-            r.get(2).map_err(|e| format!("StorageUnavailable：{e}"))?;
+        let batch_id =
+            TextValue::from_sql(r, 1, owner).map_err(|e| format!("StorageUnavailable：{e}"))?;
+        let delta_batch =
+            TextValue::optional_sql(r, 2, owner).map_err(|e| format!("StorageUnavailable：{e}"))?;
         let root_lens = [
             r.get::<_, Option<i64>>(3)
                 .map_err(|e| format!("StorageUnavailable：{e}"))?,
@@ -327,6 +375,101 @@ mod tests {
         history.finish().unwrap();
     }
 
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_control_vertical_chain_matches_plain_commit_and_releases() {
+        let domain = published_domain();
+        let plain = prepare_s3_control_history(&domain.fixture.conn).unwrap();
+        let budget = OwnedBudget::new(10_000_000);
+        let mut owned =
+            prepare_s3_control_history_with_owner(&domain.fixture.conn, Some(&budget)).unwrap();
+        assert_eq!(owned.session_generation(), plain.session_generation());
+        assert_eq!(owned.clock_plan_hash(), plain.clock_plan_hash());
+        assert_eq!(
+            owned.remaining_commit(1, &domain.batch_id),
+            plain.remaining_commit(1, &domain.batch_id)
+        );
+        let before = budget.snapshot();
+        assert!(before.live_requested_layout_bytes > 0);
+        assert!(owned
+            .consume_header(
+                1,
+                &domain.batch_id,
+                Some("1"),
+                Some(&domain.clock_hash),
+                Some("121")
+            )
+            .is_err());
+        assert_eq!(owned.remaining_commit(1, &domain.batch_id), Some(COMMIT_NS));
+        owned
+            .consume_header(
+                1,
+                &domain.batch_id,
+                Some("1"),
+                Some(&domain.clock_hash),
+                Some(COMMIT_NS),
+            )
+            .unwrap();
+        assert_eq!(
+            budget.snapshot().allocation_attempts,
+            before.allocation_attempts
+        );
+        assert!(owned
+            .consume_header(
+                1,
+                &domain.batch_id,
+                Some("1"),
+                Some(&domain.clock_hash),
+                Some(COMMIT_NS)
+            )
+            .is_err());
+        owned.finish().unwrap();
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_control_vertical_chain_preserves_negative_gate_order() {
+        let domain = published_domain();
+        let tx = domain.fixture.conn.unchecked_transaction().unwrap();
+        tx.execute(
+            "UPDATE s_clock_events SET semantic_ns='999' WHERE phase='commit'",
+            [],
+        )
+        .unwrap();
+        tx.execute(
+            "UPDATE s_protocol_meta SET logical_phase_frontier='9999'",
+            [],
+        )
+        .unwrap();
+        let plain = prepare_s3_control_history(&tx).err().unwrap();
+        let budget = OwnedBudget::new(10_000_000);
+        let owned = prepare_s3_control_history_with_owner(&tx, Some(&budget))
+            .err()
+            .unwrap();
+        assert_eq!(owned, plain);
+        assert!(plain.contains("phase时间/代际与计划不一致"), "{plain}");
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        tx.rollback().unwrap();
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_control_vertical_chain_zero_budget_refuses_without_plain_fallback() {
+        let domain = published_domain();
+        let budget = OwnedBudget::new(0);
+        let error = prepare_s3_control_history_with_owner(&domain.fixture.conn, Some(&budget))
+            .err()
+            .unwrap();
+        assert!(
+            error.contains(newchan_rust::s_content::capture_allocation::LIMIT),
+            "{error}"
+        );
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        assert!(budget.snapshot().rejected_layouts > 0);
+        prepare_s3_control_history(&domain.fixture.conn).unwrap();
+    }
+
     #[test]
     fn s3_audit_accepts_fresh_domain_with_no_generation() {
         let temp = Temp::new();
@@ -344,8 +487,8 @@ mod tests {
         assert_eq!(history.session_generation(), "1");
         assert_eq!(history.clock_plan_hash(), domain.clock_hash);
         assert_eq!(
-            history.remaining().get(&(1, domain.batch_id.clone())),
-            Some(&COMMIT_NS.to_string()),
+            history.remaining_commit(1, &domain.batch_id),
+            Some(COMMIT_NS),
             "逐代期望必须来自真实 Commit phase 的 clock 时刻"
         );
         // manifest 协议标记由调用方显式核为 s-session/3 后才消费共用核心。

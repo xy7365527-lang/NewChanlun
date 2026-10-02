@@ -515,6 +515,16 @@ fn sql_err(e: rusqlite::Error) -> String {
         err(format!(
             "Incomplete/CaptureBytes：SQLite单值或行超过捕获限制：{e}"
         ))
+    } else if let Some(cause) = e
+        .sqlite_error()
+        .filter(|v| v.extended_code & 255 == rusqlite::ffi::SQLITE_NOMEM)
+    {
+        // rusqlite may display only the filename when sqlite3_open_v2 returns
+        // NOMEM with a NULL handle. Preserve the actual typed SQLite cause.
+        err(format!(
+            "Incomplete/SqliteOutOfMemory：SQLite out of memory（extended_code={}）：{e}",
+            cause.extended_code
+        ))
     } else {
         err(e)
     }

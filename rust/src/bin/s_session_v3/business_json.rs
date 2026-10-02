@@ -190,13 +190,20 @@ pub(crate) fn new_work<T>(b: Option<&OwnedBudget>) -> sc::CodecVec<T> {
     let _ = b;
     sc::CodecVec::from_plain(Vec::new())
 }
-fn workmap<K: Eq + std::hash::Hash, V>(b: Option<&OwnedBudget>) -> aj::BusinessMap<K, V> {
+pub(crate) use aj::{BusinessIter, BusinessMap};
+pub(crate) fn new_map<K: Eq + std::hash::Hash, V>(b: Option<&OwnedBudget>) -> BusinessMap<K, V> {
     #[cfg(feature = "s_allocation_json_testonly")]
     if let Some(b) = b {
         return aj::BusinessMap::owned(b);
     }
     let _ = b;
     aj::BusinessMap::plain()
+}
+fn workmap<K: Eq + std::hash::Hash, V>(b: Option<&OwnedBudget>) -> BusinessMap<K, V> {
+    new_map(b)
+}
+pub(crate) fn bytes_extend(bytes: &mut sc::CodecVec<u8>, value: &[u8]) -> Result<(), String> {
+    bytes.try_extend_bytes(value).map_err(|e| e.to_string())
 }
 pub(crate) struct Effective<'a> {
     values: sc::CodecVec<JsonView<'a>>,
@@ -680,6 +687,29 @@ pub(crate) enum TextValue {
     Owned(aj::TextOwner),
 }
 impl TextValue {
+    pub fn from_owned_bytes(bytes: sc::CodecVec<u8>) -> Result<Self, String> {
+        #[cfg(feature = "s_allocation_json_testonly")]
+        {
+            return aj::TextOwner::from_owned_bytes(bytes)
+                .map(Self::Owned)
+                .map_err(|e| e.to_string());
+        }
+        #[cfg(not(feature = "s_allocation_json_testonly"))]
+        {
+            let _ = bytes;
+            Err("prototype_audit_allocation_incomplete：Owned文本入口未启用".into())
+        }
+    }
+    /// 存储选择来自传入真实Vec owner；Owned错误直接返回，不回普通分支。
+    pub fn from_bytes(bytes: sc::CodecVec<u8>) -> Result<Self, String> {
+        if bytes.allocation_budget().is_some() {
+            return Self::from_owned_bytes(bytes);
+        }
+        let bytes = bytes.try_into_plain().map_err(|e| e.to_string())?;
+        String::from_utf8(bytes)
+            .map(Self::Plain)
+            .map_err(|e| e.to_string())
+    }
     pub fn as_str(&self) -> &str {
         match self {
             Self::Plain(s) => s,
@@ -740,6 +770,11 @@ impl TextValue {
             rusqlite::types::ValueRef::Null => Ok(None),
             _ => Self::from_sql(row, i, b).map(Some),
         }
+    }
+}
+impl std::borrow::Borrow<str> for TextValue {
+    fn borrow(&self) -> &str {
+        self.as_str()
     }
 }
 impl std::ops::Deref for TextValue {
@@ -893,5 +928,272 @@ impl rusqlite::ToSql for TextValue {
         Ok(rusqlite::types::ToSqlOutput::Borrowed(
             rusqlite::types::ValueRef::Text(self.as_str().as_bytes()),
         ))
+    }
+}
+
+#[cfg(all(test, feature = "s_allocation_json_testonly"))]
+mod collection_owner_tests {
+    use super::*;
+    use std::hash::{Hash, Hasher};
+
+    struct PhaseQuery<'a>(i64, &'a str);
+    impl Hash for PhaseQuery<'_> {
+        fn hash<H: Hasher>(&self, h: &mut H) {
+            (self.0, self.1).hash(h);
+        }
+    }
+    impl hashbrown::Equivalent<(i64, TextValue)> for PhaseQuery<'_> {
+        fn equivalent(&self, key: &(i64, TextValue)) -> bool {
+            self.0 == key.0 && self.1 == key.1.as_str()
+        }
+    }
+    struct MessageQuery<'a>(&'a str, &'a str, i64);
+    impl Hash for MessageQuery<'_> {
+        fn hash<H: Hasher>(&self, h: &mut H) {
+            (self.0, self.1, self.2).hash(h);
+        }
+    }
+    impl hashbrown::Equivalent<(TextValue, TextValue, i64)> for MessageQuery<'_> {
+        fn equivalent(&self, key: &(TextValue, TextValue, i64)) -> bool {
+            self.0 == key.0.as_str() && self.1 == key.1.as_str() && self.2 == key.2
+        }
+    }
+    // 强制同hash，只检验既有hashbrown删除后的探测链；不另写桶或删除算法。
+    #[derive(Eq, PartialEq)]
+    struct Collision(TextValue);
+    impl Hash for Collision {
+        fn hash<H: Hasher>(&self, h: &mut H) {
+            0u8.hash(h);
+        }
+    }
+    struct CollisionQuery<'a>(&'a str);
+    impl Hash for CollisionQuery<'_> {
+        fn hash<H: Hasher>(&self, h: &mut H) {
+            0u8.hash(h);
+        }
+    }
+    impl hashbrown::Equivalent<Collision> for CollisionQuery<'_> {
+        fn equivalent(&self, key: &Collision) -> bool {
+            self.0 == key.0.as_str()
+        }
+    }
+
+    #[test]
+    fn owned_business_map_borrowed_unicode_tuple_and_collision_delete_chains() {
+        let budget = OwnedBudget::new(1_000_000);
+        {
+            let mut plain = new_map::<TextValue, i64>(None);
+            let mut owned = new_map::<TextValue, i64>(Some(&budget));
+            for (n, key) in ["中文😀", "é", "e\u{301}", "消息\\\""].iter().enumerate() {
+                plain
+                    .insert(TextValue::from_str(key, None).unwrap(), n as i64)
+                    .unwrap();
+                owned
+                    .insert(TextValue::from_str(key, Some(&budget)).unwrap(), n as i64)
+                    .unwrap();
+            }
+            let attempts = budget.snapshot().allocation_attempts;
+            for key in ["中文😀", "é", "e\u{301}", "消息\\\"", "不存在"] {
+                assert_eq!(plain.get(key), owned.get(key));
+                assert_eq!(plain.contains_key(key), owned.contains_key(key));
+            }
+            *owned.get_mut("中文😀").unwrap() = 9;
+            assert_eq!(owned.remove("中文😀"), Some(9));
+            assert_eq!(owned.remove("中文😀"), None);
+            assert_eq!(budget.snapshot().allocation_attempts, attempts);
+            assert_eq!(owned.iter().len(), owned.len());
+
+            let mut phase = new_map::<(i64, TextValue), i64>(Some(&budget));
+            phase
+                .insert(
+                    (7, TextValue::from_str("批次😀", Some(&budget)).unwrap()),
+                    42,
+                )
+                .unwrap();
+            let mut messages = new_map::<(TextValue, TextValue, i64), i64>(Some(&budget));
+            messages
+                .insert(
+                    (
+                        TextValue::from_str("消息", Some(&budget)).unwrap(),
+                        TextValue::from_str("阶段é", Some(&budget)).unwrap(),
+                        3,
+                    ),
+                    11,
+                )
+                .unwrap();
+            let attempts = budget.snapshot().allocation_attempts;
+            assert_eq!(phase.get(&PhaseQuery(7, "批次😀")), Some(&42));
+            assert_eq!(phase.remove(&PhaseQuery(7, "批次😀")), Some(42));
+            assert!(phase.is_empty());
+            assert_eq!(messages.get(&MessageQuery("消息", "阶段é", 3)), Some(&11));
+            assert_eq!(messages.remove(&MessageQuery("消息", "阶段é", 3)), Some(11));
+            assert_eq!(budget.snapshot().allocation_attempts, attempts);
+
+            let mut collisions = new_map::<Collision, i64>(Some(&budget));
+            let keys = [
+                "头😀",
+                "中文",
+                "é",
+                "e\u{301}",
+                "尾",
+                "中间",
+                "再次😀",
+                "终",
+            ];
+            for (n, key) in keys.iter().enumerate() {
+                collisions
+                    .insert(
+                        Collision(TextValue::from_str(key, Some(&budget)).unwrap()),
+                        n as i64,
+                    )
+                    .unwrap();
+            }
+            let attempts = budget.snapshot().allocation_attempts;
+            for removed in [0usize, 3, 5, 7] {
+                assert_eq!(
+                    collisions.remove(&CollisionQuery(keys[removed])),
+                    Some(removed as i64)
+                );
+            }
+            for (n, key) in keys.iter().enumerate() {
+                assert_eq!(
+                    collisions.get(&CollisionQuery(key)).copied(),
+                    if [0usize, 3, 5, 7].contains(&n) {
+                        None
+                    } else {
+                        Some(n as i64)
+                    }
+                );
+            }
+            assert_eq!(budget.snapshot().allocation_attempts, attempts);
+            for n in [1usize, 2, 4, 6] {
+                assert_eq!(collisions.remove(&CollisionQuery(keys[n])), Some(n as i64));
+            }
+            assert!(collisions.is_empty());
+        }
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+
+    #[test]
+    fn owned_business_map_old_new_live_rehash_one_byte_short_preserves_values() {
+        let budget = OwnedBudget::new(1_000_000);
+        {
+            let mut old = new_map::<TextValue, TextValue>(Some(&budget));
+            old.insert(
+                TextValue::from_str("旧键😀", Some(&budget)).unwrap(),
+                TextValue::from_str("旧值é", Some(&budget)).unwrap(),
+            )
+            .unwrap();
+            let mut new = new_map::<i64, i64>(Some(&budget));
+            new.insert(0, 10).unwrap();
+            for n in 1..new.capacity() {
+                new.insert(n as i64, n as i64 + 10).unwrap();
+            }
+            let count = new.len();
+            let mut probe = new_map::<i64, i64>(Some(&budget));
+            for n in 0..count {
+                probe.insert(n as i64, n as i64 + 10).unwrap();
+            }
+            probe.insert(count as i64, 99).unwrap();
+            let request = budget.allocation_request_probe().last_request_bytes;
+            drop(probe);
+            let live = budget.snapshot().live_requested_layout_bytes;
+            let fill = sc::capture_allocation::CaptureSlab::new(
+                0,
+                budget.snapshot().limit_bytes - live - request + 1,
+                &budget,
+            )
+            .unwrap();
+            let before_refusal = budget.snapshot();
+            let before_capacity = new.capacity();
+            let error = new.insert(count as i64, 99).unwrap_err();
+            assert_eq!(error.code(), sc::capture_allocation::LIMIT);
+            assert_eq!(new.len(), count);
+            assert_eq!(new.capacity(), before_capacity);
+            for n in 0..count {
+                assert_eq!(new.get(&(n as i64)), Some(&(n as i64 + 10)));
+            }
+            assert!(!new.contains_key(&(count as i64)));
+            assert_eq!(old.get("旧键😀").unwrap().as_str(), "旧值é");
+            let refusal = budget.allocation_request_probe();
+            assert_eq!(refusal.refused_bytes, request);
+            assert_eq!(
+                refusal.live_before_refusal + request,
+                budget.snapshot().limit_bytes + 1
+            );
+            // reserve_on先拒绝超额请求，再计实际allocator尝试；预检拒绝不能要求attempts增加。
+            let after_refusal = budget.snapshot();
+            assert_eq!(
+                after_refusal.rejected_layouts,
+                before_refusal.rejected_layouts + 1
+            );
+            assert_eq!(
+                after_refusal.allocation_attempts,
+                before_refusal.allocation_attempts
+            );
+            assert_eq!(
+                after_refusal.allocated_layouts,
+                before_refusal.allocated_layouts
+            );
+            assert_eq!(
+                after_refusal.released_layouts,
+                before_refusal.released_layouts
+            );
+            assert_eq!(
+                after_refusal.live_requested_layout_bytes,
+                before_refusal.live_requested_layout_bytes
+            );
+            let admitted_attempts = after_refusal.allocation_attempts;
+            // 删除和已有值替换无需table分配，在同一拒绝头寸下仍保持其既有语义。
+            assert_eq!(new.remove(&0), Some(10));
+            assert_eq!(new.insert(1, 77).unwrap(), Some(11));
+            assert_eq!(new.get(&1), Some(&77));
+            assert_eq!(budget.snapshot().allocation_attempts, admitted_attempts);
+            let removed = old.remove("旧键😀").unwrap();
+            assert_eq!(removed.as_str(), "旧值é");
+            assert!(old.is_empty());
+            assert_eq!(budget.snapshot().allocation_attempts, admitted_attempts);
+            drop(fill);
+            drop(removed);
+            new.insert(count as i64, 99).unwrap();
+            assert_eq!(new.get(&(count as i64)), Some(&99));
+        }
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+
+    #[test]
+    fn owned_text_consumes_real_bytes_zero_copy_utf8_and_drops_zero() {
+        let budget = OwnedBudget::new(10000);
+        {
+            let mut bytes = new_work(Some(&budget));
+            bytes.try_reserve_exact("中文😀é".len()).unwrap();
+            bytes_extend(&mut bytes, "中文😀é".as_bytes()).unwrap();
+            let pointer = bytes.as_ptr();
+            let live = budget.snapshot().live_requested_layout_bytes;
+            let attempts = budget.snapshot().allocation_attempts;
+            let text = TextValue::from_owned_bytes(bytes).unwrap();
+            assert!(matches!(text, TextValue::Owned(_)));
+            assert_eq!(text.as_str(), "中文😀é");
+            assert_eq!(text.as_str().as_ptr(), pointer);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, live);
+            assert_eq!(budget.snapshot().allocation_attempts, attempts);
+            let clone = text.try_clone().unwrap();
+            assert_eq!(clone.as_str(), text.as_str());
+            assert!(budget.snapshot().live_requested_layout_bytes > live);
+            drop(clone);
+        }
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        let plain = sc::CodecVec::from_plain("普通😀".as_bytes().to_vec());
+        let pointer = plain.as_ptr();
+        let text = TextValue::from_bytes(plain).unwrap();
+        assert!(matches!(text, TextValue::Plain(_)));
+        assert_eq!(text.as_str().as_ptr(), pointer);
+        assert!(TextValue::from_owned_bytes(sc::CodecVec::from_plain(vec![b'a'])).is_err());
+        let mut invalid = new_work(Some(&budget));
+        bytes_extend(&mut invalid, &[0xff]).unwrap();
+        let attempts = budget.snapshot().allocation_attempts;
+        assert!(TextValue::from_owned_bytes(invalid).is_err());
+        assert_eq!(budget.snapshot().allocation_attempts, attempts);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
 }

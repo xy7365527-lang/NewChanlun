@@ -21,7 +21,7 @@
 #![allow(dead_code)] // S3 发布/历史接线由主控在下游切片落地；本模块 API 现由本文件测试消费。
 
 use super::audit_store::{CodecRead, RefValue};
-use super::business_json::{self as bj, RawEventsView};
+use super::business_json::{self as bj, JsonOwner, RawEventsView, TextValue};
 use crate::{
     canonical_json, content_manifest, content_manifest::ManifestMetadata, tb02a, tb02a_facts,
 };
@@ -88,11 +88,22 @@ fn scalar(
     root: &ContentRef,
     key: &str,
 ) -> Result<Value, String> {
-    scalar_ref(s, root.into(), key)
+    match scalar_ref(s, root.into(), key)? {
+        JsonOwner::Plain(value) => Ok(value),
+        #[cfg(feature = "s_allocation_json_testonly")]
+        JsonOwner::Owned(_) => Err(err(
+            "prototype_audit_allocation_incomplete：owned标量不得经normal DTO返回",
+        )),
+    }
 }
 
 fn text(s: &mut (impl CodecRead + ?Sized), root: &ContentRef, key: &str) -> Result<String, String> {
-    text_ref(s, root, key)
+    match text_ref(s, root, key)? {
+        TextValue::Plain(text) => Ok(text),
+        TextValue::Owned(_) => Err(err(
+            "prototype_audit_allocation_incomplete：owned文本不得经normal DTO返回",
+        )),
+    }
 }
 
 fn array_field(
@@ -127,7 +138,7 @@ fn scalar_ref(
     s: &mut (impl CodecRead + ?Sized),
     root: sc::RefView<'_>,
     key: &str,
-) -> Result<Value, String> {
+) -> Result<JsonOwner, String> {
     let child = field_ref(s, root, key)?;
     if !matches!(
         child.kind(),
@@ -135,20 +146,19 @@ fn scalar_ref(
     ) {
         return Err(err(format!("{key} 不是标量")));
     }
-    // 此处元数据物化仍是待覆盖的临时工作集；引用保持实际store所有权。
-    let mut bytes = Vec::new();
-    s.render_ref(child.view(), &mut bytes).map_err(err)?;
-    strict_json(&bytes).map_err(err)
+    bj::render_json(s, child.view()).map_err(err)
 }
 fn text_ref<'r>(
     s: &mut (impl CodecRead + ?Sized),
     root: impl Into<sc::RefView<'r>>,
     key: &str,
-) -> Result<String, String> {
-    scalar_ref(s, root.into(), key)?
+) -> Result<TextValue, String> {
+    let value = scalar_ref(s, root.into(), key)?;
+    let text = value
+        .view()
         .as_str()
-        .map(str::to_owned)
-        .ok_or_else(|| err(format!("{key} 不是文本")))
+        .ok_or_else(|| err(format!("{key} 不是文本")))?;
+    TextValue::from_str(text, s.allocation_budget().as_ref()).map_err(err)
 }
 fn array_field_ref<'r>(
     s: &mut (impl CodecRead + ?Sized),
@@ -258,9 +268,9 @@ fn reference_text(reference: &RefValue) -> Result<String, String> {
 
 struct AxisState {
     id: &'static str,
-    impl_status: String,
-    proof_status: String,
-    run_status: String,
+    impl_status: TextValue,
+    proof_status: TextValue,
+    run_status: TextValue,
     evidence: RefValue,
 }
 
@@ -268,7 +278,7 @@ struct AxisState {
 fn axes_entries<'r>(
     s: &mut (impl CodecRead + ?Sized),
     axes: impl Into<sc::RefView<'r>>,
-) -> Result<Vec<AxisState>, String> {
+) -> Result<sc::CodecVec<AxisState>, String> {
     let axes = axes.into();
     if axes.kind() != Kind::Object || axes.extent() != Some(AXIS_IDS.len() as u64) {
         return Err(err(format!(
@@ -276,7 +286,7 @@ fn axes_entries<'r>(
             axes.extent()
         )));
     }
-    let mut out = Vec::with_capacity(AXIS_IDS.len());
+    let mut out = bj::new_work(s.allocation_budget().as_ref());
     for id in AXIS_IDS {
         let axis = field_ref(s, axes, id)?;
         if axis.kind() != Kind::Object || axis.extent() != Some(AXIS_FIELDS.len() as u64) {
@@ -320,13 +330,14 @@ fn axes_entries<'r>(
                 array_field_ref(s, &evidence, key)?;
             }
         }
-        out.push(AxisState {
+        out.try_push(AxisState {
             id,
             impl_status,
             proof_status,
             run_status,
             evidence,
-        });
+        })
+        .map_err(err)?;
     }
     Ok(out)
 }
@@ -719,25 +730,30 @@ fn verify_current_in_store<'r>(
     axes: impl Into<sc::RefView<'r>>,
 ) -> Result<(), String> {
     let entries = axes_entries(store, axes)?;
+    let budget = store.allocation_budget();
     for entry in &entries {
         let row = tx
             .query_row(
                 "SELECT impl_status,proof_status,run_status,evidence_json FROM catalog WHERE catalog_id=?1",
                 params![entry.id],
                 |r| {
-                    Ok((
-                        r.get::<_, String>(0)?,
-                        r.get::<_, String>(1)?,
-                        r.get::<_, String>(2)?,
-                        r.get::<_, String>(3)?,
-                    ))
+                    Ok((|| -> Result<_, String> {
+                        Ok((
+                            TextValue::from_sql(r, 0, budget.as_ref())?,
+                            TextValue::from_sql(r, 1, budget.as_ref())?,
+                            TextValue::from_sql(r, 2, budget.as_ref())?,
+                            TextValue::from_sql(r, 3, budget.as_ref())?,
+                        ))
+                    })())
                 },
             )
             .optional()
             .map_err(|e| err(format!("读 catalog[{}] 失败：{e}", entry.id)))?;
-        let Some((impl_status, proof_status, run_status, evidence_json)) = row else {
+        let Some(row) = row else {
             return Err(err(format!("catalog[{}] 缺行", entry.id)));
         };
+        let (impl_status, proof_status, run_status, evidence_json) =
+            row.map_err(|e| err(format!("读 catalog[{}] 失败：{e}", entry.id)))?;
         if impl_status != entry.impl_status
             || proof_status != entry.proof_status
             || run_status != entry.run_status
@@ -747,29 +763,178 @@ fn verify_current_in_store<'r>(
                 entry.id
             )));
         }
-        let parsed = strict_json(evidence_json.as_bytes())
+        let parsed = parse_json_owned(evidence_json.as_bytes(), budget.as_ref())
             .map_err(|e| err(format!("catalog[{}].evidence_json 非法：{e}", entry.id)))?;
-        if canonical_json(&parsed) != evidence_json {
+        if !canonical_matches(parsed.view(), evidence_json.as_bytes(), budget.as_ref())? {
             return Err(err(format!(
                 "catalog[{}].evidence_json 不是规范 JSON 文本",
                 entry.id
             )));
         }
-        let stored = ContentRef::from_transport_json(&parsed).map_err(|e| {
+        let claim = sc::TransportRef::from_json_view(parsed.view()).map_err(|e| {
             err(format!(
                 "catalog[{}].evidence_json 不是四字段 ContentRef：{e}",
                 entry.id
             ))
         })?;
-        if stored.digest().map_err(err)? != entry.evidence.digest().map_err(err)? {
+        if claim.digest().map_err(err)? != entry.evidence.digest().map_err(err)? {
             return Err(err(format!(
                 "catalog[{}].evidence_json 与本轴 evidence 不同根",
                 entry.id
             )));
         }
-        store.verify_public(&stored).map_err(err)?;
+        let stored = claim.try_owned_ref().map_err(err)?;
+        store
+            .verify_ref(stored.view(), sc::Mode::Public)
+            .map_err(err)?;
     }
     Ok(())
+}
+
+fn parse_json_owned(
+    bytes: &[u8],
+    budget: Option<&sc::capture_allocation::OwnedBudget>,
+) -> Result<JsonOwner, String> {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    if let Some(b) = budget {
+        return sc::capture_allocation::audit_json::OwnedJson::parse(bytes, b)
+            .map(JsonOwner::Owned)
+            .map_err(err);
+    }
+    if budget.is_some() {
+        return Err(err(
+            "prototype_audit_allocation_incomplete：owned目录解码入口未编译",
+        ));
+    }
+    strict_json(bytes).map(JsonOwner::Plain)
+}
+
+fn canonical_matches(
+    value: sc::capture_allocation::audit_json::JsonView<'_>,
+    expected: &[u8],
+    budget: Option<&sc::capture_allocation::OwnedBudget>,
+) -> Result<bool, String> {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    if let Some(b) = budget {
+        let bytes = sc::capture_allocation::audit_json::canonical_bytes(value, b).map_err(err)?;
+        return Ok(&bytes[..] == expected);
+    }
+    if budget.is_some() {
+        return Err(err(
+            "prototype_audit_allocation_incomplete：owned目录编码入口未编译",
+        ));
+    }
+    Ok(serde_json::to_vec(&value).map_err(err)? == expected)
+}
+
+#[cfg(all(test, feature = "s_allocation_json_testonly"))]
+mod owned_catalog_temp_tests {
+    use super::*;
+    use sc::capture_allocation::{CaptureSlab, OwnedBudget};
+
+    #[test]
+    fn actual_catalog_sql_and_scalar_owners_share_live_capture_and_refuse_before_mutation() {
+        let mut fixture = super::super::prepared::tests::Fixture::new();
+        for n in 1..=2 {
+            let id = format!("raw-{n}");
+            let (event, token) =
+                fixture.accept_begin(n, (&id, n * 10, 6 + n, 12 + n, 3 + n, 7 + n), 1);
+            fixture.publish(&event, &token).unwrap();
+        }
+        let before_changes = fixture.conn.total_changes();
+        let tx = fixture.conn.transaction().unwrap();
+        let audited = super::super::state::audit(&tx).unwrap();
+        let generated = &audited.cuts.last().unwrap().roots.generated_state;
+        let mut normal_source = crate::content_store::ReadStore::new(&tx).unwrap();
+        let normal_axes = normal_source
+            .lookup_ref(generated.view(), &[f("catalog_axes")])
+            .unwrap();
+        let normal = axes_entries(&mut normal_source, normal_axes.view()).unwrap();
+        let expected: Vec<_> = normal
+            .iter()
+            .map(|e| {
+                (
+                    e.id,
+                    e.impl_status.to_string(),
+                    e.proof_status.to_string(),
+                    e.run_status.to_string(),
+                    e.evidence.digest().unwrap(),
+                )
+            })
+            .collect();
+        drop(normal);
+        let budget = OwnedBudget::new(50 * 1024 * 1024);
+        let capture = sc::AuditCapture::from_slab_for_allocation_prototype(
+            crate::content_store::capture_slab_for_prototype(
+                &tx,
+                &budget,
+                &crate::content_store::CaptureCancellation::never(),
+            )
+            .unwrap(),
+        );
+        let capture_live = budget.snapshot().live_requested_layout_bytes;
+        assert!(capture_live > 0);
+        super::super::audit_store::with_owned_store_probe(
+            &capture,
+            &budget,
+            32768,
+            1_000_000,
+            |store| {
+                let axes = store
+                    .lookup_ref(generated.view(), &[f("catalog_axes")])
+                    .unwrap();
+                let entries = axes_entries(store, axes.view()).unwrap();
+                let actual: Vec<_> = entries
+                    .iter()
+                    .map(|e| {
+                        (
+                            e.id,
+                            e.impl_status.to_string(),
+                            e.proof_status.to_string(),
+                            e.run_status.to_string(),
+                            e.evidence.digest().unwrap(),
+                        )
+                    })
+                    .collect();
+                assert_eq!(actual, expected);
+                assert_eq!(entries.len(), 13);
+                for e in &entries {
+                    assert!(matches!(&e.impl_status, TextValue::Owned(_)));
+                    assert!(matches!(&e.proof_status, TextValue::Owned(_)));
+                    assert!(matches!(&e.run_status, TextValue::Owned(_)));
+                    assert!(matches!(&e.evidence, RefValue::Owned(_)));
+                }
+                verify_current_in_store(&tx, store, axes.view()).unwrap();
+                let axis = field_ref(store, axes.view(), "CC-001").unwrap();
+                let retained = budget.snapshot().live_requested_layout_bytes;
+                assert!(retained > capture_live);
+                let ballast =
+                    CaptureSlab::new(0, budget.snapshot().limit_bytes - retained - 1, &budget)
+                        .unwrap();
+                let before_refusal = budget.snapshot().live_requested_layout_bytes;
+                let failure = text_ref(store, &axis, "impl_status").unwrap_err();
+                assert!(failure.contains(sc::capture_allocation::LIMIT), "{failure}");
+                assert_eq!(
+                    budget.snapshot().live_requested_layout_bytes,
+                    before_refusal
+                );
+                assert_eq!(entries[0].impl_status.as_str(), expected[0].1.as_str());
+                assert_eq!(entries[0].evidence.digest().unwrap(), expected[0].4);
+                drop(ballast);
+                assert_eq!(budget.snapshot().live_requested_layout_bytes, retained);
+                verify_current_in_store(&tx, store, axes.view()).unwrap();
+            },
+        );
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        assert_eq!(
+            budget.snapshot().allocated_layouts,
+            budget.snapshot().released_layouts
+        );
+        assert!(!budget.ledger_health().invariant_broken);
+        drop(tx);
+        assert_eq!(fixture.conn.total_changes(), before_changes);
+    }
 }
 
 #[cfg(test)]

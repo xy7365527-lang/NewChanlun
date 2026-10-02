@@ -172,7 +172,15 @@ fn audit_with_capture_impl(
         b.precheck().map_err(err)?;
     }
     // 1. 控制历史：共享 schema/profile/catalog 绑定与逐代发布索引闭合（唯一判据在 control_audit）。
-    let control = control_audit::prepare_s3_control_history(tx)?;
+    #[cfg(all(test, feature = "s_allocation_json_testonly"))]
+    let control_owner = owned_budget.filter(|_| {
+        capture
+            .as_ref()
+            .is_some_and(sc::AuditCapture::is_allocation_prototype)
+    });
+    #[cfg(not(all(test, feature = "s_allocation_json_testonly")))]
+    let control_owner = None;
+    let control = control_audit::prepare_s3_control_history_with_owner(tx, control_owner)?;
     #[cfg(test)]
     trace_event("raw", None);
     // 2. 真实原始账：逐序回读并做身份/修订链/内容hash/receipt 自检。

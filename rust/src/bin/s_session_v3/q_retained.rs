@@ -18,6 +18,280 @@ pub(super) struct Packed {
     // #1394: keep the same allocation ledger across packing and checkout.
     budget: Option<OwnedBudget>,
 }
+
+/// #1394：仅唯一鲜进程执行，安装真实 SQLite shim 后验证实际 Q 缓存所有权。
+/// 不改变生产额度，也不把这里经过的普通 capture 临时容器声称为已完整计量。
+#[cfg(all(
+    test,
+    feature = "s_allocation_json_testonly",
+    feature = "s_allocation_sqlite_testonly"
+))]
+mod isolated_sqlite_owned_cache_tests {
+    use super::*;
+    use newchan_rust::s_content::capture_allocation::sqlite::TestOnlySqliteAllocator;
+
+    #[test]
+    #[ignore = "only this exact test in a fresh isolated SQLite process"]
+    fn actual_owned_q_cache_sqlite_refusal_preserves_old_cache_and_retries() {
+        // Install precedes Fixture/init_v3/open_db and every SQLite API in this process.
+        let budget = OwnedBudget::new(50 * 1024 * 1024);
+        // SAFETY: the caller runs only this ignored exact test in a fresh process,
+        // with no other thread/library using SQLite until finish below.
+        let guard = unsafe { TestOnlySqliteAllocator::install(&budget) }.unwrap();
+        let control = guard.control();
+        let mut fixture = prepared::tests::Fixture::new();
+        for n in 1..=2 {
+            let id = format!("raw-{n}");
+            let (event, token) =
+                fixture.accept_begin(n, (&id, n * 10, 6 + n, 12 + n, 3 + n, 7 + n), 1);
+            fixture.publish(&event, &token).unwrap();
+        }
+        let after_fixture = (budget.snapshot(), budget.ledger_health());
+        assert!(after_fixture.1.sqlite_live_layout_bytes > 0);
+        // The existing Q capture-image limit stays separate from the TestOnly ledger limit.
+        let max = 16 * 1024 * 1024;
+        let mut proof = capture_verified(
+            &fixture.db_path(),
+            Limits {
+                max_capture_bytes: max,
+                capture_deadline_ms: 20000,
+                verify_deadline_ms: 20000,
+            },
+        )
+        .unwrap();
+        let expected_rows = serde_json::to_value(&proof.audited.raw).unwrap();
+        let expected_digest = proof.digest;
+        let expected_cuts = proof.audited.cuts.len();
+        let expected_objects = proof.audited.objects.len();
+        let after_capture = (budget.snapshot(), budget.ledger_health());
+        let peaks = std::rc::Rc::new(std::cell::Cell::new((0, 0)));
+        let tx = proof.db.transaction().unwrap();
+        let owned = history::with_overlay_prototype(
+            history::OverlayPrototype {
+                slots: 32768,
+                bytes: 1_000_000,
+                budget: budget.clone(),
+                peaks: peaks.clone(),
+            },
+            || state::audit_owned_capture_for_testonly(&tx, &budget),
+        )
+        .unwrap();
+        drop(tx);
+        assert!(matches!(&owned.raw, RawEvents::Owned(_)));
+        assert!(owned.budget.as_ref().unwrap().same_ledger(&budget));
+        assert_eq!(serde_json::to_value(&owned.raw).unwrap(), expected_rows);
+        assert_eq!(owned.cuts.len(), expected_cuts);
+        assert_eq!(owned.objects.len(), expected_objects);
+        assert!(matches!(
+            &owned.cuts[0].metadata.session_id,
+            super::super::super::business_json::TextValue::Owned(_)
+        ));
+        assert!(matches!(
+            &owned.cuts[0].delta,
+            super::super::super::audit_store::RefValue::Owned(_)
+        ));
+        proof.audited = owned;
+        let after_owned_audit = (budget.snapshot(), budget.ledger_health());
+        let deadline = Instant::now() + std::time::Duration::from_secs(30);
+        let mut packed = Packed::new(proof, max, deadline).unwrap();
+        assert!(packed.budget.as_ref().unwrap().same_ledger(&budget));
+        let retained = (budget.snapshot(), budget.ledger_health());
+        let retained_rust = retained
+            .0
+            .live_requested_layout_bytes
+            .checked_sub(retained.1.sqlite_live_layout_bytes)
+            .unwrap();
+        assert!(retained_rust > 0);
+        assert!(retained.1.sqlite_live_layout_bytes > 0);
+        assert!(!packed.bytes.is_empty() && !packed.raw.is_empty());
+        let page_hash = sha256_hex(&packed.bytes);
+        let raw_hashes: Vec<_> = packed.raw.iter().map(|row| sha256_hex(row)).collect();
+        let old_audited = packed.audited.as_ref().unwrap();
+        let old_cuts = old_audited.cuts.as_ptr();
+        let old_objects = old_audited.objects.as_ptr();
+        let old_session = old_audited.cuts[0].metadata.session_id.as_str().as_ptr();
+        let old_delta = old_audited.cuts[0].delta.digest().unwrap();
+
+        // Only SQLite allocations refuse: old Rust page/raw/typed owners remain live.
+        // This deliberate fault is distinct from a numeric 50 MiB quota failure.
+        control.refuse_sqlite_allocations_for_testonly();
+        // Diagnose the exact linked rusqlite open failure before the outer String boundary.
+        // The same SQLite-only injection remains armed for the actual checkout below.
+        let actual_sqlite_error = Connection::open_in_memory()
+            .err()
+            .expect("fresh in-memory connection must fail under SQLite-only refusal");
+        let actual_sqlite_metadata = match &actual_sqlite_error {
+            rusqlite::Error::SqliteFailure(sqlite, message) => {
+                assert_eq!(sqlite.code, rusqlite::ffi::ErrorCode::OutOfMemory);
+                assert_eq!(sqlite.extended_code & 255, rusqlite::ffi::SQLITE_NOMEM);
+                json!({"variant":"SqliteFailure", "code":format!("{:?}",sqlite.code),
+                    "extended_code":sqlite.extended_code, "message":message,
+                    "debug":format!("{actual_sqlite_error:?}")})
+            }
+            other => panic!("SQLite allocation refusal misclassified: {other:?}"),
+        };
+        let failure = packed
+            .checkout(deadline)
+            .err()
+            .expect("fresh actual Q checkout must propagate SQLite allocation refusal");
+        let after_refusal = (budget.snapshot(), budget.ledger_health());
+        println!(
+            "Q_SQLITE_REFUSAL_DIAGNOSTIC {}",
+            json!({
+                "actual_sqlite_error":actual_sqlite_metadata,
+                "checkout_error":failure,
+                "retained":retained,
+                "after_refusal":after_refusal,
+                "request":budget.allocation_request_probe(),
+                "old_audited_present":packed.audited.is_some(),
+                "old_page_sha256_preserved":sha256_hex(&packed.bytes)==page_hash,
+                "whole_audit_allocation_admitted":false
+            })
+        );
+        assert!(!failure.contains(newchan_rust::s_content::capture_allocation::LIMIT));
+        assert!(after_refusal.1.sqlite_rejected_layouts > retained.1.sqlite_rejected_layouts);
+        assert_eq!(
+            after_refusal.0.allocation_attempts,
+            retained.0.allocation_attempts
+        );
+        assert_eq!(
+            after_refusal.0.live_requested_layout_bytes,
+            retained.0.live_requested_layout_bytes
+        );
+        assert_eq!(
+            after_refusal.1.sqlite_live_layout_bytes,
+            retained.1.sqlite_live_layout_bytes
+        );
+        assert!(!after_refusal.1.invariant_broken);
+        let still_audited = packed
+            .audited
+            .as_ref()
+            .expect("old audit owner must not be taken");
+        assert_eq!(still_audited.cuts.as_ptr(), old_cuts);
+        assert_eq!(still_audited.objects.as_ptr(), old_objects);
+        assert_eq!(
+            still_audited.cuts[0].metadata.session_id.as_str().as_ptr(),
+            old_session
+        );
+        assert_eq!(still_audited.cuts[0].delta.digest().unwrap(), old_delta);
+        assert_eq!(sha256_hex(&packed.bytes), page_hash);
+        assert_eq!(
+            packed
+                .raw
+                .iter()
+                .map(|row| sha256_hex(row))
+                .collect::<Vec<_>>(),
+            raw_hashes
+        );
+        let refusal_request = budget.allocation_request_probe();
+        assert!(refusal_request.refused_kind.starts_with("SQLite "));
+        assert!(refusal_request.refused_bytes > 0);
+        // Preserve the original failing message assertion after checking old-cache integrity.
+        assert!(
+            failure.to_ascii_lowercase().contains("out of memory"),
+            "{failure}"
+        );
+
+        control.clear_refusal_for_testonly();
+        let borrowed = packed.checkout(deadline).unwrap();
+        assert!(packed.audited.is_none());
+        assert!(matches!(&borrowed.audited.raw, RawEvents::Owned(_)));
+        assert!(borrowed
+            .audited
+            .budget
+            .as_ref()
+            .unwrap()
+            .same_ledger(&budget));
+        assert_eq!(
+            serde_json::to_value(&borrowed.audited.raw).unwrap(),
+            expected_rows
+        );
+        assert_eq!(borrowed.audited.cuts.len(), expected_cuts);
+        assert_eq!(borrowed.audited.objects.len(), expected_objects);
+        assert_eq!(borrowed.digest, expected_digest);
+        let during_checkout = (budget.snapshot(), budget.ledger_health());
+        assert!(during_checkout.1.sqlite_live_layout_bytes > retained.1.sqlite_live_layout_bytes);
+        let checkout_rust = during_checkout
+            .0
+            .live_requested_layout_bytes
+            .checked_sub(during_checkout.1.sqlite_live_layout_bytes)
+            .unwrap();
+        assert!(
+            checkout_rust > retained_rust,
+            "old bytes and newly decoded raw coexist"
+        );
+        assert_eq!(sha256_hex(&packed.bytes), page_hash);
+        packed.restore(borrowed);
+        let after_restore = (budget.snapshot(), budget.ledger_health());
+        assert!(packed.audited.is_some());
+        assert_eq!(
+            after_restore.0.live_requested_layout_bytes - after_restore.1.sqlite_live_layout_bytes,
+            retained_rust
+        );
+        assert_eq!(sha256_hex(&packed.bytes), page_hash);
+        let second = packed.checkout(deadline).unwrap();
+        assert_eq!(
+            serde_json::to_value(&second.audited.raw).unwrap(),
+            expected_rows
+        );
+        packed.restore(second);
+        drop(packed);
+        drop(fixture);
+        let after_owners_drop = (budget.snapshot(), budget.ledger_health());
+        // SAFETY: all actual Fixture/capture/checkout connections, transactions and
+        // statements above are dropped; this exact fresh process has no other SQLite user.
+        unsafe { guard.finish() }.unwrap();
+        drop(control);
+        let after_finish = (budget.snapshot(), budget.ledger_health());
+        assert_eq!(after_finish.0.live_requested_layout_bytes, 0);
+        assert_eq!(
+            after_finish.0.allocated_layouts,
+            after_finish.0.released_layouts
+        );
+        assert_eq!(after_finish.1.sqlite_live_layout_bytes, 0);
+        assert_eq!(after_finish.1.sqlite_live_payload_bytes, 0);
+        assert_eq!(
+            after_finish.1.sqlite_allocated_layouts,
+            after_finish.1.sqlite_released_layouts
+        );
+        assert!(!after_finish.1.invariant_broken);
+        println!(
+            "Q_OWNED_SQLITE_LIFECYCLE {}",
+            json!({
+                "scope":"actual two-publication Q capture, same-ledger owned state audit, Packed checkout/restore; SQLite Layout/header and retained Rust page/raw/typed owners",
+                "testonly_limit_bytes":50 * 1024 * 1024,
+                "existing_q_image_limit_bytes":max,
+                "overlay_slots":32768,
+                "overlay_body_bytes":1_000_000,
+                "overlay_peak_used":peaks.get(),
+                "after_fixture":after_fixture,
+                "after_capture":after_capture,
+                "after_owned_audit":after_owned_audit,
+                "retained":retained,
+                "after_sqlite_refusal":after_refusal,
+                "refusal_request":refusal_request,
+                "refusal_error":failure,
+                "actual_sqlite_error":actual_sqlite_metadata,
+                "old_cache_preserved":true,
+                "during_checkout":during_checkout,
+                "after_restore":after_restore,
+                "after_all_owners_drop":after_owners_drop,
+                "after_finish":after_finish,
+                "page_sha256":page_hash,
+                "capture_digest":expected_digest.as_str(),
+                "cuts":expected_cuts,
+                "objects":expected_objects,
+                "raw_rows":expected_rows.as_array().unwrap().len(),
+                "fault_injection":true,
+                "numeric_quota_failure_claimed":false,
+                "whole_audit_allocation_admitted":false,
+                "production_capture_enabled":false,
+                "uncovered":["ordinary capture/projection/fragment temporary Rust containers", "outer errors and diagnostics", "allocator overhead and physical RSS/IO"]
+            })
+        );
+    }
+}
+
 impl Packed {
     pub(super) fn new(
         mut proof: VerifiedCapture,

@@ -42,7 +42,7 @@ use capture_allocation::work::{WorkMap, WorkSet, WorkVec};
 pub use closed::ClosedCapturedOwner;
 use closed::CodecContext;
 #[doc(hidden)]
-pub use ref_owner::{OwnedRefFields, RefOwner, RefView};
+pub use ref_owner::{OwnedRefFields, RefOwner, RefView, TransportRef};
 /// 整次操作的累计资源与期限（#1394 采纳 C §5.6.1）。
 pub mod job;
 
@@ -688,16 +688,7 @@ impl ContentRef {
     }
 
     pub fn digest(&self) -> Result<NodeDigest, CodecError> {
-        if self.format != CONTENT_FORMAT {
-            return Err(CodecError::new(
-                code::FORMAT,
-                format!(
-                    "ContentRef.format 必须是 `{CONTENT_FORMAT}`，实为 `{}`",
-                    self.format
-                ),
-            ));
-        }
-        parse_root(&self.root)
+        transport_digest(&self.format, &self.root)
     }
 
     /// 严格 transport 形态：四字段齐备、无多余字段、类型精确。
@@ -721,68 +712,25 @@ impl ContentRef {
     }
 
     pub fn from_transport_json(node: &JsonNode) -> Result<ContentRef, CodecError> {
-        let map = node.as_object().ok_or_else(|| {
-            CodecError::new(code::REF_FIELD, "ContentRef 必须是 JSON 对象".to_string())
-        })?;
-        for key in map.keys() {
-            if !matches!(key.as_str(), "format" | "root" | "kind" | "extent") {
-                return Err(CodecError::new(
-                    code::REF_FIELD,
-                    format!("ContentRef 出现 exact 四字段之外的键 `{key}`"),
-                ));
-            }
-        }
-        let field = |name: &str| -> Result<&JsonNode, CodecError> {
-            map.get(name).ok_or_else(|| {
-                CodecError::new(code::REF_FIELD, format!("ContentRef 缺字段 `{name}`"))
-            })
-        };
-        let format = field("format")?
-            .as_str()
-            .ok_or_else(|| CodecError::new(code::REF_FIELD, "format 必须是字符串".to_string()))?
-            .to_string();
-        let root = field("root")?
-            .as_str()
-            .ok_or_else(|| CodecError::new(code::REF_FIELD, "root 必须是字符串".to_string()))?
-            .to_string();
-        let kind_name = field("kind")?
-            .as_str()
-            .ok_or_else(|| CodecError::new(code::REF_FIELD, "kind 必须是字符串".to_string()))?;
-        let kind = Kind::from_name(kind_name)
-            .ok_or_else(|| CodecError::new(code::KIND, format!("未知 kind `{kind_name}`")))?;
-        let extent = match field("extent")? {
-            JsonNode::Null => None,
-            JsonNode::String(text) => Some(parse_canonical_u64(text, "extent")?),
-            other => {
-                return Err(CodecError::new(
-                    code::EXTENT,
-                    format!(
-                        "extent 必须是规范十进制字符串或 null（U64 长度按 §5.2 用十进制字符串传输），实为 {other}"
-                    ),
-                ))
-            }
-        };
-        if kind.extent_is_byte_or_count() != extent.is_some() {
-            return Err(CodecError::new(
-                code::EXTENT,
-                format!(
-                    "kind={} 的 extent 必须是{}",
-                    kind.name(),
-                    if kind.extent_is_byte_or_count() {
-                        "规范十进制字符串"
-                    } else {
-                        "null"
-                    }
-                ),
-            ));
-        }
+        let claim = TransportRef::from_json_view(node.into())?;
         Ok(ContentRef {
-            format,
-            root,
-            kind,
-            extent,
+            format: claim.format().to_string(),
+            root: claim.root().to_string(),
+            kind: claim.kind(),
+            extent: claim.extent(),
         })
     }
+}
+
+// Both normal and borrowed transport declarations defer these checks to digest().
+fn transport_digest(format: &str, root: &str) -> Result<NodeDigest, CodecError> {
+    if format != CONTENT_FORMAT {
+        return Err(CodecError::new(
+            code::FORMAT,
+            format!("ContentRef.format 必须是 `{CONTENT_FORMAT}`，实为 `{format}`"),
+        ));
+    }
+    parse_root(root)
 }
 
 /// 公开控制数值的规范十进制：`0` 或 `[1-9][0-9]*`，无 `+`、无前导零、≤ 2^63-1。

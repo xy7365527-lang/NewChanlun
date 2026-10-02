@@ -1,12 +1,12 @@
 //! #1394 同capture账本的真实Layout标准allocator及fallible codec工作集。
-//! 普通路径保持std；owned只有try*增长，无额度错误后普通fallback。
+//! 普通路径使用标准分配器；owned只有try*增长，无额度错误后普通fallback。
 use super::*;
 use allocator_api2::{
     alloc::{AllocError, Allocator},
     vec::Vec as AllocVec,
 };
 use std::collections::hash_map::RandomState;
-use std::collections::{BTreeMap, HashMap as StdMap, HashSet as StdSet};
+use std::collections::{BTreeMap, HashSet as StdSet};
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut, Index};
 
@@ -105,6 +105,20 @@ impl<T> Default for CodecVec<T> {
     }
 }
 impl<T> CodecVec<T> {
+    /// 只借实际allocator的原账本，不接受外来budget标记。
+    pub fn allocation_budget(&self) -> Option<&OwnedBudget> {
+        match &self.storage {
+            VecStorage::Plain(_) => None,
+            VecStorage::Owned(v) => Some(&v.allocator().budget),
+        }
+    }
+    pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), CodecError> {
+        self.reserve_exact(additional)
+    }
+    /// 普通持有者的消费转移；Owned直接拒绝，不能藉此擦为std。
+    pub fn try_into_plain(self) -> Result<Vec<T>, CodecError> {
+        self.into_plain()
+    }
     pub fn from_plain(v: Vec<T>) -> Self {
         Self {
             storage: VecStorage::Plain(v),
@@ -224,6 +238,13 @@ impl<T> CodecVec<T> {
         }
     }
 }
+impl CodecVec<u8> {
+    /// 字节追加只复制u8，不开放可能深复制payload的泛型Clone入口。
+    pub fn try_extend_bytes(&mut self, bytes: &[u8]) -> Result<(), CodecError> {
+        self.extend_from_slice(bytes)
+    }
+}
+
 impl<T> Deref for CodecVec<T> {
     type Target = [T];
     fn deref(&self) -> &[T] {
@@ -311,12 +332,12 @@ impl<T> IntoIterator for CodecVec<T> {
 }
 
 pub(crate) enum WorkMap<K, V> {
-    Plain(StdMap<K, V>),
+    Plain(hashbrown::HashMap<K, V, RandomState, allocator_api2::alloc::Global>),
     Owned(hashbrown::HashMap<K, V, RandomState, LedgerAllocator>),
 }
 impl<K, V> Default for WorkMap<K, V> {
     fn default() -> Self {
-        Self::Plain(StdMap::new())
+        Self::Plain(hashbrown::HashMap::with_hasher(RandomState::new()))
     }
 }
 impl<K: Eq + Hash, V> WorkMap<K, V> {
@@ -341,10 +362,49 @@ impl<K: Eq + Hash, V> WorkMap<K, V> {
             }
         }
     }
-    pub(crate) fn get(&self, k: &K) -> Option<&V> {
+    pub(crate) fn get<Q: Hash + hashbrown::Equivalent<K> + ?Sized>(&self, key: &Q) -> Option<&V> {
         match self {
-            Self::Plain(m) => m.get(k),
-            Self::Owned(m) => m.get(k),
+            Self::Plain(m) => m.get(key),
+            Self::Owned(m) => m.get(key),
+        }
+    }
+    pub(crate) fn get_mut<Q: Hash + hashbrown::Equivalent<K> + ?Sized>(
+        &mut self,
+        key: &Q,
+    ) -> Option<&mut V> {
+        match self {
+            Self::Plain(m) => m.get_mut(key),
+            Self::Owned(m) => m.get_mut(key),
+        }
+    }
+    pub(crate) fn remove<Q: Hash + hashbrown::Equivalent<K> + ?Sized>(
+        &mut self,
+        key: &Q,
+    ) -> Option<V> {
+        match self {
+            Self::Plain(m) => m.remove(key),
+            Self::Owned(m) => m.remove(key),
+        }
+    }
+    pub(crate) fn contains_key<Q: Hash + hashbrown::Equivalent<K> + ?Sized>(
+        &self,
+        key: &Q,
+    ) -> bool {
+        match self {
+            Self::Plain(m) => m.contains_key(key),
+            Self::Owned(m) => m.contains_key(key),
+        }
+    }
+    pub(crate) fn iter(&self) -> hashbrown::hash_map::Iter<'_, K, V> {
+        match self {
+            Self::Plain(m) => m.iter(),
+            Self::Owned(m) => m.iter(),
+        }
+    }
+    pub(crate) fn len(&self) -> usize {
+        match self {
+            Self::Plain(m) => m.len(),
+            Self::Owned(m) => m.len(),
         }
     }
     pub(crate) fn capacity(&self) -> usize {

@@ -146,7 +146,14 @@ impl OwnedJson {
     }
     #[cfg(feature = "s_allocation_json_testonly")]
     pub fn parse(bytes: &[u8], budget: &OwnedBudget) -> Result<Self, CodecError> {
-        Parser::new(bytes, budget).parse()
+        Parser::new(bytes, budget, DuplicateKeys::Reject).parse()
+    }
+    /// #1394 TestOnly：普通 serde_json Value 的 JSON-shape 入口，重复键取最后一个值。
+    /// 与严格 wire 入口分别固定策略；严格解析失败不会重试此入口。
+    /// 被替换的节点、键和子边仍留在 arena 并持账，直到整个 owner drop。
+    #[cfg(feature = "s_allocation_json_testonly")]
+    pub fn parse_legacy_shape(bytes: &[u8], budget: &OwnedBudget) -> Result<Self, CodecError> {
+        Parser::new(bytes, budget, DuplicateKeys::LastWins).parse()
     }
     #[cfg(feature = "s_allocation_json_testonly")]
     pub fn from_view(view: JsonView<'_>, budget: &OwnedBudget) -> Result<Self, CodecError> {
@@ -744,21 +751,29 @@ struct ParseFrame {
     object: bool,
     state: u8,
 }
+#[derive(Clone, Copy)]
+#[cfg(feature = "s_allocation_json_testonly")]
+enum DuplicateKeys {
+    Reject,
+    LastWins,
+}
 #[cfg(feature = "s_allocation_json_testonly")]
 struct Parser<'a> {
     input: &'a [u8],
     pos: usize,
     tree: OwnedJson,
     stack: CodecVec<ParseFrame>,
+    duplicate_keys: DuplicateKeys,
 }
 #[cfg(feature = "s_allocation_json_testonly")]
 impl<'a> Parser<'a> {
-    fn new(input: &'a [u8], b: &OwnedBudget) -> Self {
+    fn new(input: &'a [u8], b: &OwnedBudget, duplicate_keys: DuplicateKeys) -> Self {
         Self {
             input,
             pos: 0,
             tree: OwnedJson::empty(b),
             stack: CodecVec::new(Some(b)),
+            duplicate_keys,
         }
     }
     fn ws(&mut self) {
@@ -809,27 +824,32 @@ impl<'a> Parser<'a> {
                 self.stack.pop();
                 continue;
             }
-            let key = if frame.object {
+            let (key, existing) = if frame.object {
                 self.take(b'"')?;
                 let k = self.string()?;
-                if (ObjectView(JsonView::Owned(OwnedView {
+                let existing = (ObjectView(JsonView::Owned(OwnedView {
                     tree: &self.tree,
                     id: frame.node,
                 })))
-                .owned_edge(self.tree.text(k))
-                .is_some()
-                {
+                .owned_edge(self.tree.text(k));
+                if existing.is_some() && matches!(self.duplicate_keys, DuplicateKeys::Reject) {
                     return Err(CodecError::static_detail(SCHEMA, "duplicate key"));
                 }
                 self.ws();
                 self.take(b':')?;
                 self.ws();
-                k
+                (k, existing)
             } else {
-                Span::default()
+                (Span::default(), None)
             };
             let (child, container) = self.atom()?;
-            self.tree.attach(frame.node, key, child)?;
+            if let Some(edge) = existing {
+                // Keep the original linked edge and the other fields intact. The old value
+                // and this occurrence's key remain genuinely allocated and ledger-owned.
+                self.tree.edges[edge].value = child;
+            } else {
+                self.tree.attach(frame.node, key, child)?;
+            }
             self.stack.last_mut().unwrap().state = 2;
             if let Some(object) = container {
                 if self.stack.len() >= 127 {
@@ -1350,6 +1370,94 @@ pub(crate) mod tests {
         }
         assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
     }
+    fn legacy_shape_parity(input: &[u8]) {
+        let ordinary = std::str::from_utf8(input)
+            .ok()
+            .and_then(|text| serde_json::from_str::<Value>(text).ok());
+        let budget = OwnedBudget::new(1_000_000);
+        let owned = OwnedJson::parse_legacy_shape(input, &budget);
+        assert_eq!(ordinary.is_some(), owned.is_ok(), "input {input:?}");
+        if let (Some(value), Ok(tree)) = (ordinary, owned) {
+            assert_eq!(tree.view(), JsonView::Plain(&value));
+            let bytes = canonical_bytes(tree.view(), &budget).unwrap();
+            assert_eq!(&*bytes, canonical_json(&value).as_bytes());
+            drop((bytes, tree));
+        }
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[test]
+    fn owned_legacy_shape_last_wins_fields_numbers_and_unicode_match_serde() {
+        for input in [
+            &b"null"[..],
+            &b"[]"[..],
+            &b"{}"[..],
+            &br#"{"z":true,"a":{"old":[1,2]},"other":"kept","\u0061":[{"n":-0,"n":18446744073709551616},"\uD834\uDD1E"],"last":null}"#[..],
+            &br#"[{"a":1,"a":2,"b":3},{"a":{},"b":[],"a":{"a":1,"a":2},"c":false}]"#[..],
+            &br#"{"number":1,"number":0.123456789012345678901234567890,"min":2.2250738585072014e-308,"max":1.7976931348623157e308,"underflow":-1e-999999999999999999999,"zero":0e999999999999999999999,"negative_zero":-0}"#[..],
+            "{\"𝄞\":0,\"\\uD834\\uDD1E\":1,\"中文\":\"😀é\"}".as_bytes(),
+        ] {
+            legacy_shape_parity(input);
+        }
+        let input = br#"{"before":0,"a":1,"a":[{"x":true}],"after":2}"#;
+        let budget = OwnedBudget::new(100000);
+        let strict = OwnedJson::parse(input, &budget).unwrap_err();
+        assert_eq!(strict.detail, "duplicate key");
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        let legacy = OwnedJson::parse_legacy_shape(input, &budget).unwrap();
+        assert_eq!(legacy.view().as_object().unwrap().len(), 3);
+        assert_eq!(legacy.view().get("before").unwrap().as_u64(), Some(0));
+        assert_eq!(legacy.view().get("after").unwrap().as_u64(), Some(2));
+        drop(legacy);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[test]
+    fn owned_legacy_shape_validates_replaced_values_separators_depth_and_full_input() {
+        for input in [
+            &br#"{"a":0,"a":[1,]}"#[..],
+            &br#"{"a":0,"a":1 "later":2}"#[..],
+            &br#"{"a":0,"a":1,}"#[..],
+            &br#"{"a":0,"a":{}]"#[..],
+            &br#"{"a":0,"a":[]} trailing"#[..],
+            &br#"{"a":0,"a":1e309}"#[..],
+            &br#"{"a":"\uD800","a":"valid"}"#[..],
+            &b"{\"a\":\"\xff\",\"a\":0}"[..],
+        ] {
+            legacy_shape_parity(input);
+        }
+        for depth in [126, 127, 128] {
+            let input = format!("{}0{}", "[".repeat(depth), "]".repeat(depth));
+            legacy_shape_parity(input.as_bytes());
+        }
+    }
+    #[test]
+    fn owned_legacy_shape_duplicate_growth_is_ledgered_refuses_low_budget_and_drops_zero() {
+        let input = format!(
+            "{{\"kept\":true,{}}}",
+            vec![format!("\"a\":\"{}\"", "s".repeat(256)); 128].join(",")
+        );
+        let full = OwnedBudget::new(1_000_000);
+        let before = full.snapshot().allocation_attempts;
+        let (tree, calls) = observed(|| OwnedJson::parse_legacy_shape(input.as_bytes(), &full));
+        let tree = tree.unwrap();
+        assert_eq!(calls, full.snapshot().allocation_attempts - before);
+        assert_eq!(tree.view().as_object().unwrap().len(), 2);
+        assert_eq!(tree.view().get("kept").unwrap().as_bool(), Some(true));
+        let peak = full.snapshot().peak_requested_layout_bytes;
+        let retained = full.snapshot().live_requested_layout_bytes;
+        // Superseded strings and nodes are not released while the arena is retained.
+        assert!(retained > 256 * 128);
+        drop(tree);
+        assert_eq!(full.snapshot().live_requested_layout_bytes, 0);
+        let low = OwnedBudget::new(peak - 1);
+        let before = low.snapshot().allocation_attempts;
+        let (error, calls) = observed(|| OwnedJson::parse_legacy_shape(input.as_bytes(), &low));
+        assert_eq!(error.unwrap_err().code(), super::super::LIMIT);
+        assert_eq!(calls, low.snapshot().allocation_attempts - before);
+        let request = low.allocation_request_probe();
+        assert!(request.live_before_refusal + request.refused_bytes > low.snapshot().limit_bytes);
+        assert!(low.snapshot().rejected_layouts > 0);
+        assert_eq!(low.snapshot().live_requested_layout_bytes, 0);
+    }
     #[test]
     fn owned_json_strings_duplicates_tail_and_depth_parity() {
         for input in [
@@ -1653,6 +1761,19 @@ impl Drop for ObjectMut<'_> {
 
 /// 同账fallible业务映射，键/值的内部分配必须由其各自owner承担；本表不调用Clone。
 pub struct BusinessMap<K, V>(super::work::WorkMap<K, V>);
+/// 两种allocator使用同一hashbrown迭代器，不装Box、不复制key/value。
+pub struct BusinessIter<'a, K, V>(hashbrown::hash_map::Iter<'a, K, V>);
+impl<'a, K: 'a, V: 'a> Iterator for BusinessIter<'a, K, V> {
+    type Item = (&'a K, &'a V);
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
+    }
+}
+impl<K, V> ExactSizeIterator for BusinessIter<'_, K, V> {}
+impl<K, V> std::iter::FusedIterator for BusinessIter<'_, K, V> {}
 impl<K: Eq + std::hash::Hash, V> BusinessMap<K, V> {
     pub fn plain() -> Self {
         Self(super::work::WorkMap::new(None))
@@ -1661,11 +1782,44 @@ impl<K: Eq + std::hash::Hash, V> BusinessMap<K, V> {
     pub fn owned(b: &OwnedBudget) -> Self {
         Self(super::work::WorkMap::new(Some(b)))
     }
-    pub fn get(&self, k: &K) -> Option<&V> {
-        self.0.get(k)
+    pub fn get<Q: std::hash::Hash + hashbrown::Equivalent<K> + ?Sized>(
+        &self,
+        key: &Q,
+    ) -> Option<&V> {
+        self.0.get(key)
     }
-    pub fn insert(&mut self, k: K, v: V) -> Result<Option<V>, CodecError> {
-        self.0.insert(k, v)
+    pub fn get_mut<Q: std::hash::Hash + hashbrown::Equivalent<K> + ?Sized>(
+        &mut self,
+        key: &Q,
+    ) -> Option<&mut V> {
+        self.0.get_mut(key)
+    }
+    pub fn remove<Q: std::hash::Hash + hashbrown::Equivalent<K> + ?Sized>(
+        &mut self,
+        key: &Q,
+    ) -> Option<V> {
+        self.0.remove(key)
+    }
+    pub fn contains_key<Q: std::hash::Hash + hashbrown::Equivalent<K> + ?Sized>(
+        &self,
+        key: &Q,
+    ) -> bool {
+        self.0.contains_key(key)
+    }
+    pub fn insert(&mut self, key: K, value: V) -> Result<Option<V>, CodecError> {
+        self.0.insert(key, value)
+    }
+    pub fn iter(&self) -> BusinessIter<'_, K, V> {
+        BusinessIter(self.0.iter())
+    }
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+    pub fn capacity(&self) -> usize {
+        self.0.capacity()
     }
 }
 
@@ -1747,6 +1901,18 @@ pub struct TextOwner {
     bytes: CodecVec<u8>,
 }
 impl TextOwner {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    pub fn from_owned_bytes(bytes: CodecVec<u8>) -> Result<Self, CodecError> {
+        if bytes.allocation_budget().is_none() {
+            return Err(CodecError::static_detail(
+                super::INCOMPLETE,
+                "文本消费入口只接受实际Owned字节所有者",
+            ));
+        }
+        std::str::from_utf8(&bytes)
+            .map_err(|_| CodecError::static_detail(SCHEMA, "文本字节不是UTF8"))?;
+        Ok(Self { bytes })
+    }
     #[cfg(feature = "s_allocation_json_testonly")]
     pub fn copy_from(value: &str, budget: &OwnedBudget) -> Result<Self, CodecError> {
         Ok(Self {

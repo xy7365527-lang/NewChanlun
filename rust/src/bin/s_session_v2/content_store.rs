@@ -11,16 +11,53 @@ fn storage_error(error: impl std::fmt::Display) -> CodecError {
     CodecError::new(code::SOURCE, format!("S3 内容存储：{error}"))
 }
 
+/// 常量比较只借当前 SQL 列，并在 get_ref 返回后检查连接 NOMEM。
+/// 当前 UTF-8 受测域不分配转换文本；rusqlite 内部列转换先于此检查，
+/// 因此这里不声明 UTF-16→UTF-8 等转换型 OOM 的完整资格。
+fn row_text_equals(
+    conn: &Connection,
+    row: &rusqlite::Row<'_>,
+    expected: &str,
+) -> rusqlite::Result<bool> {
+    let column = row.get_ref(0);
+    // SAFETY: row来自此活连接的query_row；仅查询错误码，不修改连接或延长列借用。
+    let status = unsafe { rusqlite::ffi::sqlite3_errcode(conn.handle()) };
+    if status == rusqlite::ffi::SQLITE_NOMEM {
+        return Err(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(status),
+            None,
+        ));
+    }
+    let column = column?;
+    match column.as_str() {
+        Ok(text) => Ok(text == expected),
+        // 错误路径保持旧row.get::<String>的类别和列上下文；成功比较不创建String。
+        Err(rusqlite::types::FromSqlError::InvalidType) => Err(rusqlite::Error::InvalidColumnType(
+            0,
+            row.as_ref().column_name(0)?.into(),
+            column.data_type(),
+        )),
+        Err(rusqlite::types::FromSqlError::Utf8Error(error)) => {
+            Err(rusqlite::Error::Utf8Error(0, error))
+        }
+        Err(error) => Err(rusqlite::Error::FromSqlConversionFailure(
+            0,
+            column.data_type(),
+            Box::new(error),
+        )),
+    }
+}
+
 fn ensure_domain(conn: &Connection) -> Result<(), CodecError> {
-    let protocol: Option<String> = conn
+    let protocol: Option<bool> = conn
         .query_row(
             "SELECT protocol_revision FROM s_protocol_meta WHERE singleton=1",
             [],
-            |row| row.get(0),
+            |row| row_text_equals(conn, row, "s-session/3"),
         )
         .optional()
         .map_err(storage_error)?;
-    if protocol.as_deref() != Some("s-session/3") {
+    if protocol != Some(true) {
         return Err(CodecError::new(
             code::FORMAT,
             "内容节点表只属于已登记的 s-session/3 域",
@@ -31,15 +68,15 @@ fn ensure_domain(conn: &Connection) -> Result<(), CodecError> {
 
 pub(super) fn ensure_format(conn: &Connection) -> Result<(), CodecError> {
     ensure_domain(conn)?;
-    let format: Option<String> = conn
+    let format: Option<bool> = conn
         .query_row(
             "SELECT content_format FROM s_content_meta WHERE singleton=1",
             [],
-            |row| row.get(0),
+            |row| row_text_equals(conn, row, s_content::CONTENT_FORMAT),
         )
         .optional()
         .map_err(storage_error)?;
-    if format.as_deref() != Some(s_content::CONTENT_FORMAT) {
+    if format != Some(true) {
         return Err(CodecError::new(
             code::FORMAT,
             "内容存储缺少 s-content/1 格式登记",
@@ -693,6 +730,75 @@ mod tests {
             ReadStore::new(&tx).unwrap().read(&digest).unwrap(),
             NodeRead::Missing
         ));
+    }
+
+    #[test]
+    fn content_domain_and_format_borrow_text_keep_missing_null_type_and_order_rejections() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE s_protocol_meta(singleton INTEGER,protocol_revision); CREATE TABLE s_content_meta(singleton INTEGER,content_format);").unwrap();
+        let missing = ensure_format(&conn).unwrap_err();
+        assert_eq!(missing.code(), code::FORMAT);
+        assert!(missing.detail().contains("s-session/3"));
+        conn.execute("INSERT INTO s_protocol_meta VALUES(1,'s-session/3')", [])
+            .unwrap();
+        let missing = ensure_format(&conn).unwrap_err();
+        assert_eq!(missing.code(), code::FORMAT);
+        assert!(missing.detail().contains("格式登记"));
+        conn.execute(
+            "INSERT INTO s_content_meta VALUES(1,?1)",
+            params![s_content::CONTENT_FORMAT],
+        )
+        .unwrap();
+        ensure_format(&conn).unwrap();
+        for value in ["NULL", "7", "x'00'", "CAST(x'ff' AS TEXT)"] {
+            conn.execute_batch(&format!(
+                "UPDATE s_protocol_meta SET protocol_revision={value}"
+            ))
+            .unwrap();
+            let old = conn
+                .query_row(
+                    "SELECT protocol_revision FROM s_protocol_meta WHERE singleton=1",
+                    [],
+                    |r| r.get::<_, String>(0),
+                )
+                .unwrap_err();
+            let rejected = ensure_format(&conn).unwrap_err();
+            assert_eq!(rejected.to_string(), storage_error(old).to_string());
+            assert_eq!(rejected.code(), code::SOURCE);
+        }
+        conn.execute(
+            "UPDATE s_protocol_meta SET protocol_revision='s-session/3'",
+            [],
+        )
+        .unwrap();
+        for value in ["NULL", "7", "x'00'", "CAST(x'ff' AS TEXT)"] {
+            conn.execute_batch(&format!("UPDATE s_content_meta SET content_format={value}"))
+                .unwrap();
+            let old = conn
+                .query_row(
+                    "SELECT content_format FROM s_content_meta WHERE singleton=1",
+                    [],
+                    |r| r.get::<_, String>(0),
+                )
+                .unwrap_err();
+            let rejected = ensure_format(&conn).unwrap_err();
+            assert_eq!(rejected.to_string(), storage_error(old).to_string());
+            assert_eq!(rejected.code(), code::SOURCE);
+        }
+        conn.execute(
+            "UPDATE s_content_meta SET content_format=?1",
+            params![s_content::CONTENT_FORMAT],
+        )
+        .unwrap();
+        ensure_format(&conn).unwrap();
+        conn.execute(
+            "UPDATE s_protocol_meta SET protocol_revision='s-session/2'",
+            [],
+        )
+        .unwrap();
+        let wrong = ensure_format(&conn).unwrap_err();
+        assert_eq!(wrong.code(), code::FORMAT);
+        assert!(wrong.detail().contains("s-session/3"));
     }
 
     #[test]

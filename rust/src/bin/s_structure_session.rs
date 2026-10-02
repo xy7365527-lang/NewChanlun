@@ -1006,15 +1006,32 @@ fn observation_id(ob: &Value) -> String {
 
 // #1371 R10：输入profile是固定身份。未发布的已接纳输入也必须有独立内容绑定。
 fn verify_profile_binding(conn: &Connection) -> Result<(String, String), String> {
-    let id = meta_get_opt(conn, "profile_id")?;
-    let hash = meta_get_opt(conn, "profile_hash")?;
-    let input = meta_get_opt(conn, "input_profile")?;
-    let definition = meta_get_opt(conn, "profile_definition")?;
+    let (id, hash) = verify_profile_binding_with_owner(conn, None)?;
+    match (id, hash) {
+        (v3::business_json::TextValue::Plain(id), v3::business_json::TextValue::Plain(hash)) => {
+            Ok((id, hash))
+        }
+        _ => Err("prototype_audit_allocation_incomplete：normal profile不可擦除Owned".into()),
+    }
+}
+fn verify_profile_binding_with_owner(
+    conn: &Connection,
+    owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+) -> Result<(v3::business_json::TextValue, v3::business_json::TextValue), String> {
+    use v3::business_json::TextValue;
+
+    let id = v2::control_meta_text(conn, "profile_id", owner)?;
+    let hash = v2::control_meta_text(conn, "profile_hash", owner)?;
+    let input = v2::control_meta_text(conn, "input_profile", owner)?;
+    let definition = v2::control_meta_text(conn, "profile_definition", owner)?;
     let raw_count: i64 = conn
         .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0))
         .map_err(|e| e.to_string())?;
     if id.is_none() && hash.is_none() && input.is_none() && definition.is_none() && raw_count == 0 {
-        return Ok((String::new(), String::new()));
+        return Ok((
+            TextValue::from_str("", owner)?,
+            TextValue::from_str("", owner)?,
+        ));
     }
     let id = id
         .filter(|v| !v.is_empty())
@@ -1030,9 +1047,11 @@ fn verify_profile_binding(conn: &Connection) -> Result<(String, String), String>
         return Err("StorageUnavailable：input_profile与固定profile_id不一致".to_string());
     }
     if let Some(definition) = definition {
-        let profile = json_shape(&definition, JsonShape::Object)?;
-        if profile["profile_id"].as_str() != Some(id.as_str())
-            || sha256_hex(&canonical_bytes_of_value(&profile)) != hash
+        let profile = json_shape_with_owner(definition.as_str(), JsonShape::Object, owner)?;
+        let view = profile.view();
+        if view.get("profile_id").and_then(|v| v.as_str()) != Some(id.as_str())
+            || newchan_rust::session_protocol::canonical_hash_view_with_owner(view, owner)?.as_str()
+                != hash.as_str()
         {
             return Err("StorageUnavailable：profile定义与固定id/hash不一致".to_string());
         }
@@ -1042,21 +1061,40 @@ fn verify_profile_binding(conn: &Connection) -> Result<(String, String), String>
         // #1394：物理域可能是旧整块也可能是新节点图，故按已发布代序逐代展开选取首个带
         // profile 的可达批次；不再用 SQL 直接读整块列（图域该列为长度占位）。
         let mut stmt=conn.prepare("SELECT b.batch_id FROM batches b JOIN structure_deltas d ON d.index_frontier=b.batch_id ORDER BY d.generation ASC").map_err(|e|e.to_string())?;
-        let sealed_ids = stmt
-            .query_map([], |r| r.get::<_, String>(0))
-            .map_err(|e| e.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())?;
+        let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
+        let mut sealed_ids = v3::business_json::new_work(owner);
+        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            sealed_ids
+                .try_push(TextValue::from_sql(row, 0, owner)?)
+                .map_err(|e| e.to_string())?;
+        }
         let mut sealed_found = false;
         let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
         for batch_id in &sealed_ids {
             let bytes = load_batch_bytes_with(conn, &mut reader, batch_id)?;
-            let batch: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
-            if batch["profile_id"].as_str().unwrap_or("").is_empty() {
+            #[cfg(feature = "s_allocation_json_testonly")]
+            let batch = if let Some(b) = owner {
+                newchan_rust::s_content::capture_allocation::audit_json::OwnedJson::parse_legacy_shape(&bytes,b).map(v3::business_json::JsonOwner::Owned).map_err(|e|e.to_string())?
+            } else {
+                serde_json::from_slice(&bytes)
+                    .map(v3::business_json::JsonOwner::Plain)
+                    .map_err(|e| e.to_string())?
+            };
+            #[cfg(not(feature = "s_allocation_json_testonly"))]
+            let batch = serde_json::from_slice(&bytes)
+                .map(v3::business_json::JsonOwner::Plain)
+                .map_err(|e| e.to_string())?;
+            let batch = batch.view();
+            if batch
+                .get("profile_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .is_empty()
+            {
                 continue;
             }
-            if batch["profile_id"].as_str() != Some(id.as_str())
-                || batch["profile_hash"].as_str() != Some(hash.as_str())
+            if batch.get("profile_id").and_then(|v| v.as_str()) != Some(id.as_str())
+                || batch.get("profile_hash").and_then(|v| v.as_str()) != Some(hash.as_str())
             {
                 return Err("StorageUnavailable：旧profile绑定与可达封存批次不一致".to_string());
             }
@@ -1064,12 +1102,16 @@ fn verify_profile_binding(conn: &Connection) -> Result<(String, String), String>
             break;
         }
         if !sealed_found {
-            let declared: Value = serde_json::from_str(include_str!(
-                "../../../s_session/profiles/testonly_tick_1_1_ohlc.json"
-            ))
-            .map_err(|e| e.to_string())?;
-            if declared["profile_id"].as_str() != Some(id.as_str())
-                || sha256_hex(&canonical_bytes_of_value(&declared)) != hash
+            let declared = json_shape_with_owner(
+                include_str!("../../../s_session/profiles/testonly_tick_1_1_ohlc.json"),
+                JsonShape::Object,
+                owner,
+            )?;
+            let declared = declared.view();
+            if declared.get("profile_id").and_then(|v| v.as_str()) != Some(id.as_str())
+                || newchan_rust::session_protocol::canonical_hash_view_with_owner(declared, owner)?
+                    .as_str()
+                    != hash.as_str()
             {
                 return Err("StorageUnavailable：旧未发布profile缺可核独立来源".to_string());
             }
@@ -3774,17 +3816,51 @@ enum JsonShape {
 }
 
 fn json_shape(text: &str, shape: JsonShape) -> Result<Value, String> {
-    let value: Value =
-        serde_json::from_str(text).map_err(|e| format!("持久 JSON 解析失败：{e}"))?;
+    match json_shape_with_owner(text, shape, None)? {
+        v3::business_json::JsonOwner::Plain(v) => Ok(v),
+        #[cfg(feature = "s_allocation_json_testonly")]
+        v3::business_json::JsonOwner::Owned(_) => {
+            Err("prototype_audit_allocation_incomplete：normal JSON shape不可擦除Owned".into())
+        }
+    }
+}
+fn json_shape_with_owner(
+    text: &str,
+    shape: JsonShape,
+    owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+) -> Result<v3::business_json::JsonOwner, String> {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    let value = if let Some(b) = owner {
+        newchan_rust::s_content::capture_allocation::audit_json::OwnedJson::parse_legacy_shape(
+            text.as_bytes(),
+            b,
+        )
+        .map(v3::business_json::JsonOwner::Owned)
+        .map_err(|e| format!("持久 JSON 解析失败：{e}"))?
+    } else {
+        serde_json::from_str(text)
+            .map(v3::business_json::JsonOwner::Plain)
+            .map_err(|e| format!("持久 JSON 解析失败：{e}"))?
+    };
+    #[cfg(not(feature = "s_allocation_json_testonly"))]
+    let value = {
+        if owner.is_some() {
+            return Err("prototype_audit_allocation_incomplete：owned legacy JSON未启用".into());
+        }
+        serde_json::from_str(text)
+            .map(v3::business_json::JsonOwner::Plain)
+            .map_err(|e| format!("持久 JSON 解析失败：{e}"))?
+    };
+    let view = value.view();
     let valid = match shape {
-        JsonShape::Array => value.is_array(),
-        JsonShape::Object => value.is_object(),
-        JsonShape::CatalogBranches => value.is_array() || value.is_object(),
+        JsonShape::Array => view.is_array(),
+        JsonShape::Object => view.is_object(),
+        JsonShape::CatalogBranches => view.is_array() || view.is_object(),
     };
     if valid {
         Ok(value)
     } else {
-        Err("持久 JSON 形状不符".to_string())
+        Err("持久 JSON 形状不符".into())
     }
 }
 
