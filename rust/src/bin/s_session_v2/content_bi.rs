@@ -45,6 +45,7 @@
 
 use super::content_producer::{array_from_sequence, Cc004Producer, ProducerError, TypedObject};
 use super::*;
+use newchan_rust::s_content::capture_allocation::audit_json::{ArrayView, JsonArray, JsonView};
 use newchan_rust::s_content::path::{lookup_path, PathStep};
 use newchan_rust::s_content::{
     self as sc, Built, CodecError, ContentRef, Kind, NodeDigest, NodeStore, SequenceRef,
@@ -136,14 +137,14 @@ fn coord_i64(coord: usize) -> Result<i64, BiError> {
 /// **历史插入**各计一次；普通尾部追加不计。每次**全扫** `all_events`。
 ///
 /// 这是生产实现；`tb02b::fact_basis` 只是冻结测试 oracle（旧模块不再进生产路径）。
-fn fact_generation(all_events: &[Value]) -> Result<i64, BiError> {
+fn fact_generation(all_events: ArrayView<'_>) -> Result<i64, BiError> {
     let mut max_coord = i64::MIN;
     let mut generation: i64 = 1;
-    for event in all_events {
+    for event in all_events.iter() {
         let coord = event_coord(event)?;
         let revision = event
             .get("revision")
-            .and_then(Value::as_i64)
+            .and_then(JsonView::as_i64)
             .ok_or_else(|| BiError::Facts {
                 detail: "原始事件缺 i64 修订号 revision".to_string(),
             })?;
@@ -158,10 +159,10 @@ fn fact_generation(all_events: &[Value]) -> Result<i64, BiError> {
 }
 
 /// 原始事件里的源坐标文本（旧 `stored_source_coord` 的同一条判据：规范十进制 + 非负）。
-fn event_coord(event: &Value) -> Result<i64, BiError> {
+fn event_coord(event: JsonView<'_>) -> Result<i64, BiError> {
     let text = event
         .get("source_coord")
-        .and_then(Value::as_str)
+        .and_then(JsonView::as_str)
         .ok_or_else(|| BiError::Facts {
             detail: "原始事件缺 source_coord 文本".to_string(),
         })?;
@@ -173,18 +174,88 @@ fn event_coord(event: &Value) -> Result<i64, BiError> {
     Ok(coord)
 }
 
+/// 原始账只借用真实所有者；坐标迭代及闭区间与旧 BTreeMap 同序，不分配投影。
+#[derive(Clone, Copy)]
+pub(super) enum BiLedgerView<'a> {
+    Plain(&'a BTreeMap<i64, Value>),
+    Views(&'a BTreeMap<i64, JsonView<'a>>),
+}
+
+impl<'a> BiLedgerView<'a> {
+    fn len(self) -> usize {
+        match self {
+            Self::Plain(rows) => rows.len(),
+            Self::Views(rows) => rows.len(),
+        }
+    }
+
+    fn get(self, coord: i64) -> Option<JsonView<'a>> {
+        match self {
+            Self::Plain(rows) => rows.get(&coord).map(JsonView::from),
+            Self::Views(rows) => rows.get(&coord).copied(),
+        }
+    }
+
+    fn iter(self) -> BiRows<'a> {
+        match self {
+            Self::Plain(rows) => BiRows::Plain(rows.iter()),
+            Self::Views(rows) => BiRows::Views(rows.iter()),
+        }
+    }
+
+    fn range(self, start: i64, end: i64) -> BiRows<'a> {
+        match self {
+            Self::Plain(rows) => BiRows::PlainRange(rows.range(start..=end)),
+            Self::Views(rows) => BiRows::ViewsRange(rows.range(start..=end)),
+        }
+    }
+}
+
+enum BiRows<'a> {
+    Plain(std::collections::btree_map::Iter<'a, i64, Value>),
+    Views(std::collections::btree_map::Iter<'a, i64, JsonView<'a>>),
+    PlainRange(std::collections::btree_map::Range<'a, i64, Value>),
+    ViewsRange(std::collections::btree_map::Range<'a, i64, JsonView<'a>>),
+}
+
+impl<'a> Iterator for BiRows<'a> {
+    type Item = (i64, JsonView<'a>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Plain(rows) => rows.next().map(|(coord, row)| (*coord, row.into())),
+            Self::Views(rows) => rows.next().map(|(coord, row)| (*coord, *row)),
+            Self::PlainRange(rows) => rows.next().map(|(coord, row)| (*coord, row.into())),
+            Self::ViewsRange(rows) => rows.next().map(|(coord, row)| (*coord, *row)),
+        }
+    }
+}
+
+/// 旧 slice 入口的无分配数组投影，生命周期随真实 slice，不复制事件。
+struct PlainEvents<'a>(&'a [Value]);
+impl JsonArray for PlainEvents<'_> {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+    fn get(&self, index: usize) -> Option<JsonView<'_>> {
+        self.0.get(index).map(JsonView::from)
+    }
+}
+
 /// 本次有效原始账的**有界视图**：只读键集与逐行标量，不复制整行、不物化依赖数组。
 struct Ledger<'a> {
-    rows: &'a BTreeMap<i64, Value>,
+    rows: BiLedgerView<'a>,
 }
 
 impl<'a> Ledger<'a> {
     fn new(rows: &'a BTreeMap<i64, Value>) -> Self {
-        Ledger { rows }
+        Ledger {
+            rows: BiLedgerView::Plain(rows),
+        }
     }
 
-    fn row(&self, coord: i64) -> Result<&'a Value, BiError> {
-        self.rows.get(&coord).ok_or_else(|| BiError::Facts {
+    fn row(&self, coord: i64) -> Result<JsonView<'a>, BiError> {
+        self.rows.get(coord).ok_or_else(|| BiError::Facts {
             detail: format!("依赖坐标 {coord} 不在本次有效原始账"),
         })
     }
@@ -192,22 +263,22 @@ impl<'a> Ledger<'a> {
     fn text(&self, coord: i64, field: &'static str) -> Result<&'a str, BiError> {
         self.row(coord)?
             .get(field)
-            .and_then(Value::as_str)
+            .and_then(JsonView::as_str)
             .ok_or(BiError::Ledger { coord, what: field })
     }
 
     fn int(&self, coord: i64, field: &'static str) -> Result<i64, BiError> {
         self.row(coord)?
             .get(field)
-            .and_then(Value::as_i64)
+            .and_then(JsonView::as_i64)
             .ok_or(BiError::Ledger { coord, what: field })
     }
 
     /// 最后到达的行：`seq` 最大；同 `seq` 取账内迭代序最后一条（与旧 `max_by_key` 同口径）。
-    fn latest(&self) -> Option<&'a Value> {
-        let mut best: Option<(&'a Value, i64)> = None;
-        for row in self.rows.values() {
-            let Some(seq) = row.get("seq").and_then(Value::as_i64) else {
+    fn latest(&self) -> Option<JsonView<'a>> {
+        let mut best: Option<(JsonView<'a>, i64)> = None;
+        for (_, row) in self.rows.iter() {
+            let Some(seq) = row.get("seq").and_then(JsonView::as_i64) else {
                 continue;
             };
             if best.is_none_or(|(_, best_seq)| seq >= best_seq) {
@@ -268,7 +339,8 @@ impl RawCoords {
     ) -> Result<(), BiError> {
         let common = self.coords.len().min(ledger.rows.len());
         let mut first = common;
-        for (index, (&mine, &theirs)) in self.coords.iter().zip(ledger.rows.keys()).enumerate() {
+        for (index, (&mine, (theirs, _))) in self.coords.iter().zip(ledger.rows.iter()).enumerate()
+        {
             if mine != theirs {
                 first = index;
                 break;
@@ -292,7 +364,7 @@ impl RawCoords {
         let mut refs = refs_prefix;
         let mut tail: Vec<i64> = Vec::new();
         let mut tail_refs: Vec<NodeDigest> = Vec::new();
-        for &coord in ledger.rows.keys().skip(first) {
+        for (coord, _) in ledger.rows.iter().skip(first) {
             let leaf = producer.coord_text_leaf(&mut *store, coord)?;
             text = sc::sequence_append(&mut *store, &text, &leaf)?;
             let source = producer
@@ -911,6 +983,18 @@ pub(super) struct BiBuildInput<'a> {
     pub semantic_commit_ns: Option<String>,
 }
 
+/// 借用入口与旧入口共用同一业务核；事件与有效账可来自同账 OwnedJson。
+pub(super) struct BiBuildInputView<'a> {
+    pub facts: &'a StrokeFacts,
+    pub raw: BiLedgerView<'a>,
+    pub all_events: ArrayView<'a>,
+    pub prior: &'a PriorState<'a>,
+    pub generation: i64,
+    pub cut: &'a str,
+    pub frontier: i64,
+    pub semantic_commit_ns: Option<&'a str>,
+}
+
 /// 一次构造的产物：本代全部内容对象 + 批次 `relations` 投影。
 pub(super) struct BiBuild {
     pub objects: Vec<TypedObject>,
@@ -949,7 +1033,31 @@ impl ContentBi {
         store: &mut dyn NodeStore,
         input: &BiBuildInput<'_>,
     ) -> Result<BiBuild, BiError> {
-        let ledger = Ledger::new(input.raw);
+        let events = PlainEvents(input.all_events);
+        self.build_borrowed(
+            producer,
+            store,
+            &BiBuildInputView {
+                facts: input.facts,
+                raw: BiLedgerView::Plain(input.raw),
+                all_events: JsonView::BorrowedArray(&events).as_array().unwrap(),
+                prior: input.prior,
+                generation: input.generation,
+                cut: input.cut,
+                frontier: input.frontier,
+                semantic_commit_ns: input.semantic_commit_ns.as_deref(),
+            },
+        )
+    }
+
+    /// 无复制借用适配。门序、判据、身份及生命周期与 normal 入口共用此核。
+    pub(super) fn build_borrowed(
+        &mut self,
+        producer: &mut Cc004Producer,
+        store: &mut dyn NodeStore,
+        input: &BiBuildInputView<'_>,
+    ) -> Result<BiBuild, BiError> {
+        let ledger = Ledger { rows: input.raw };
         let fact_generation = fact_generation(input.all_events)?;
         self.coords.sync(&mut *store, producer, &ledger)?;
         let known = sc::write_value(
@@ -1184,19 +1292,19 @@ impl ContentBi {
             }
             let start_root = first_extreme_root(&stroke.start)?;
             let end_root = first_extreme_root(&stroke.end)?;
-            for (coord, row) in input.raw.range(start_root..=end_root) {
+            for (coord, row) in input.raw.range(start_root, end_root) {
                 let identity =
                     row.get("identity_key")
-                        .and_then(Value::as_str)
+                        .and_then(JsonView::as_str)
                         .ok_or(BiError::Ledger {
-                            coord: *coord,
+                            coord,
                             what: "identity_key",
                         })?;
                 let revision =
                     row.get("revision")
-                        .and_then(Value::as_i64)
+                        .and_then(JsonView::as_i64)
                         .ok_or(BiError::Ledger {
-                            coord: *coord,
+                            coord,
                             what: "revision",
                         })?;
                 edges.push((
@@ -1294,7 +1402,7 @@ impl ContentBi {
             let event_at = match latest {
                 Some(row) => CValue::String(
                     row.get("ts")
-                        .and_then(Value::as_str)
+                        .and_then(JsonView::as_str)
                         .ok_or_else(|| BiError::Facts {
                             detail: "原始账最新行缺 ts".to_string(),
                         })?
@@ -1492,11 +1600,11 @@ fn known_value(
 ) -> Result<CValue, BiError> {
     let latest = ledger.latest();
     let receipt = latest
-        .and_then(|row| row.get("receipt_id").and_then(Value::as_str))
+        .and_then(|row| row.get("receipt_id").and_then(JsonView::as_str))
         .map(|text| CValue::String(text.to_string()))
         .unwrap_or(CValue::Null);
     let received_at = latest
-        .and_then(|row| row.get("received_at").and_then(Value::as_str))
+        .and_then(|row| row.get("received_at").and_then(JsonView::as_str))
         .map(|text| CValue::String(text.to_string()))
         .unwrap_or(CValue::Null);
     let commit = match semantic_commit_ns {
@@ -2214,6 +2322,7 @@ mod tests {
     #[derive(Debug)]
     struct Generation {
         objects: Vec<TypedObject>,
+        relations: Vec<CValue>,
         oracle: Vec<Value>,
     }
 
@@ -2287,6 +2396,7 @@ mod tests {
         );
         Generation {
             objects: build.objects,
+            relations: build.relations,
             oracle,
         }
     }
@@ -2324,6 +2434,7 @@ mod tests {
             .build(&mut harness.producer, &mut harness.store, &input)?;
         Ok(Generation {
             objects: build.objects,
+            relations: build.relations,
             oracle: Vec::new(),
         })
     }
@@ -2346,6 +2457,253 @@ mod tests {
             );
             assert_eq!(a.record.digest, b.record.digest, "{label} #{index} record");
         }
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn borrowed_owned_matches_normal_lifecycle_and_exact_refs() {
+        use newchan_rust::s_content::capture_allocation::{audit_json::OwnedJson, OwnedBudget};
+        let rows = fixture_rows();
+        let mut revised = rows[..9].to_vec();
+        revised[2].revision = 2;
+        revised[2].seq = 9;
+        let mut inserted = rows[..9].to_vec();
+        inserted.push(Row {
+            coord: 65,
+            high: 18,
+            low: 15,
+            revision: 1,
+            seq: 10,
+        });
+        let cases = [
+            rows[..6].to_vec(),
+            rows[..9].to_vec(),
+            rows.clone(),
+            revised,
+            inserted,
+            vec![],
+        ];
+        let budget = OwnedBudget::new(4 * 1024 * 1024);
+        let mut normal = Harness::new();
+        let mut borrowed = Harness::new();
+        let mut previous_normal = None;
+        let mut previous_borrowed: Option<Generation> = None;
+        for (index, case) in cases.iter().enumerate() {
+            let expected = run_generation(
+                &mut normal,
+                case,
+                previous_normal.as_ref(),
+                "borrowed oracle",
+            );
+            let (bars, raw, events) = ledger(case);
+            let facts = facts_of(&bars);
+            borrowed.bind(&raw);
+            let owner = OwnedJson::parse(&serde_json::to_vec(&events).unwrap(), &budget).unwrap();
+            let all_events = owner.view().as_array().unwrap();
+            let raw_views = all_events
+                .iter()
+                .map(|event| (event_coord(event).unwrap(), event))
+                .collect();
+            let prior = PriorState {
+                bi_records: previous_borrowed
+                    .as_ref()
+                    .map(Generation::bi_records)
+                    .unwrap_or_default(),
+                version_record: previous_borrowed
+                    .as_ref()
+                    .and_then(Generation::version_record),
+            };
+            let attempts = budget.snapshot().allocation_attempts;
+            let actual = borrowed
+                .bi
+                .build_borrowed(
+                    &mut borrowed.producer,
+                    &mut borrowed.store,
+                    &BiBuildInputView {
+                        facts: &facts,
+                        raw: BiLedgerView::Views(&raw_views),
+                        all_events,
+                        prior: &prior,
+                        generation: GENERATION,
+                        cut: CUT,
+                        frontier: FRONTIER,
+                        semantic_commit_ns: Some(COMMIT),
+                    },
+                )
+                .unwrap();
+            // 适配只借 arena 字段，不新造或克隆第二份 JSON 所有者。
+            assert_eq!(budget.snapshot().allocation_attempts, attempts);
+            for (a, b) in actual.objects.iter().zip(&expected.objects) {
+                assert_eq!(
+                    a.record.content_ref(),
+                    b.record.content_ref(),
+                    "case {index} record exact refs"
+                );
+                assert_eq!(
+                    a.payload.content_ref(),
+                    b.payload.content_ref(),
+                    "case {index} payload exact refs"
+                );
+                assert_eq!(
+                    a.input_refs.content_ref(),
+                    b.input_refs.content_ref(),
+                    "case {index} input refs"
+                );
+                assert_eq!(
+                    a.source_coords.content_ref(),
+                    b.source_coords.content_ref(),
+                    "case {index} source coords"
+                );
+            }
+            assert_eq!(actual.relations.len(), expected.relations.len(), "关系数量");
+            for (a, b) in actual.relations.iter().zip(&expected.relations) {
+                assert_eq!(render_value(a), render_value(b), "关系投影逐字段");
+            }
+            let actual_generation = Generation {
+                objects: actual.objects,
+                relations: actual.relations,
+                oracle: vec![],
+            };
+            assert_same_roots(&actual_generation, &expected, "owned borrowed lifecycle");
+            drop(owner);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+            previous_normal = Some(expected);
+            previous_borrowed = Some(actual_generation);
+        }
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn borrowed_owned_rejects_bad_event_before_writes_and_keeps_latest_ties() {
+        use newchan_rust::s_content::capture_allocation::{audit_json::OwnedJson, OwnedBudget};
+        let rows = fixture_rows();
+        let (bars, mut raw, mut events) = ledger(&rows[..9]);
+        let facts = facts_of(&bars);
+        for row in raw.values_mut() {
+            row["seq"] = json!(100);
+        }
+        let budget = OwnedBudget::new(4 * 1024 * 1024);
+        let raw_owner = OwnedJson::parse(
+            &serde_json::to_vec(&raw.values().collect::<Vec<_>>()).unwrap(),
+            &budget,
+        )
+        .unwrap();
+        let raw_views = raw_owner
+            .view()
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| (event_coord(row).unwrap(), row))
+            .collect();
+        let plain_latest = Ledger::new(&raw).latest().unwrap();
+        let view_latest = Ledger {
+            rows: BiLedgerView::Views(&raw_views),
+        }
+        .latest()
+        .unwrap();
+        assert_eq!(
+            plain_latest, view_latest,
+            "equal seq chooses last coordinate"
+        );
+        events[0]["source_coord"] = json!("01");
+        let event_owner = OwnedJson::parse(&serde_json::to_vec(&events).unwrap(), &budget).unwrap();
+        let prior = PriorState {
+            bi_records: vec![],
+            version_record: None,
+        };
+        let mut normal = Harness::new();
+        let mut borrowed = Harness::new();
+        let normal_error = normal
+            .bi
+            .build(
+                &mut normal.producer,
+                &mut normal.store,
+                &BiBuildInput {
+                    facts: &facts,
+                    raw: &raw,
+                    all_events: &events,
+                    prior: &prior,
+                    generation: GENERATION,
+                    cut: CUT,
+                    frontier: FRONTIER,
+                    semantic_commit_ns: Some(COMMIT.to_string()),
+                },
+            )
+            .err()
+            .unwrap();
+        let borrowed_error = borrowed
+            .bi
+            .build_borrowed(
+                &mut borrowed.producer,
+                &mut borrowed.store,
+                &BiBuildInputView {
+                    facts: &facts,
+                    raw: BiLedgerView::Views(&raw_views),
+                    all_events: event_owner.view().as_array().unwrap(),
+                    prior: &prior,
+                    generation: GENERATION,
+                    cut: CUT,
+                    frontier: FRONTIER,
+                    semantic_commit_ns: Some(COMMIT),
+                },
+            )
+            .err()
+            .unwrap();
+        assert_eq!(normal_error.to_string(), borrowed_error.to_string());
+        assert_eq!(normal.store.puts, 0);
+        assert_eq!(borrowed.store.puts, 0);
+        // 事件门通过后，缺源仍按原门序显式上抛，不能重跑 normal 作兜底。
+        events[0]["source_coord"] = json!(rows[0].coord.to_string());
+        let valid_owner = OwnedJson::parse(&serde_json::to_vec(&events).unwrap(), &budget).unwrap();
+        let normal_source_error = normal
+            .bi
+            .build(
+                &mut normal.producer,
+                &mut normal.store,
+                &BiBuildInput {
+                    facts: &facts,
+                    raw: &raw,
+                    all_events: &events,
+                    prior: &prior,
+                    generation: GENERATION,
+                    cut: CUT,
+                    frontier: FRONTIER,
+                    semantic_commit_ns: None,
+                },
+            )
+            .err()
+            .unwrap();
+        let borrowed_source_error = borrowed
+            .bi
+            .build_borrowed(
+                &mut borrowed.producer,
+                &mut borrowed.store,
+                &BiBuildInputView {
+                    facts: &facts,
+                    raw: BiLedgerView::Views(&raw_views),
+                    all_events: valid_owner.view().as_array().unwrap(),
+                    prior: &prior,
+                    generation: GENERATION,
+                    cut: CUT,
+                    frontier: FRONTIER,
+                    semantic_commit_ns: None,
+                },
+            )
+            .err()
+            .unwrap();
+        assert!(matches!(
+            &borrowed_source_error,
+            BiError::Content(ProducerError::MissingSource(_))
+        ));
+        assert_eq!(
+            normal_source_error.to_string(),
+            borrowed_source_error.to_string()
+        );
+        assert_eq!(normal.store.puts, borrowed.store.puts, "缺源前写入门序相同");
+        drop(valid_owner);
+        drop(event_owner);
+        drop(raw_owner);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
 
     /// 多前缀普通 append：覆盖同代确认沿用、端点延伸、稀疏坐标与七个 kind 齐备。
