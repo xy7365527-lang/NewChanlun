@@ -16,7 +16,7 @@
 
 use serde_json::{Map as JsonMap, Value as JsonNode};
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::BTreeMap;
 use std::fmt;
 use std::io::Write;
 
@@ -35,6 +35,8 @@ pub mod access;
 #[doc(hidden)]
 pub mod capture_allocation;
 mod closed;
+pub use capture_allocation::work::{CodecFields, CodecVec};
+use capture_allocation::work::{WorkMap, WorkSet, WorkVec};
 #[doc(hidden)]
 pub use closed::ClosedCapturedOwner;
 use closed::CodecContext;
@@ -105,14 +107,20 @@ pub mod code {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CodecError {
     code: &'static str,
-    detail: String,
+    detail: std::borrow::Cow<'static, str>,
 }
 
 impl CodecError {
+    pub(crate) fn static_detail(code: &'static str, detail: &'static str) -> Self {
+        Self {
+            code,
+            detail: std::borrow::Cow::Borrowed(detail),
+        }
+    }
     pub fn new(code: &'static str, detail: impl Into<String>) -> Self {
         Self {
             code,
-            detail: detail.into(),
+            detail: std::borrow::Cow::Owned(detail.into()),
         }
     }
 
@@ -818,10 +826,11 @@ fn write_bytes_ctx(
         let digest = put_node(sink, tag::SEQ_EMPTY, &[])?;
         return Ok(digest);
     }
-    let mut leaves = Vec::with_capacity(bytes.len().div_ceil(CHUNK_BYTES));
+    let budget = sink.budget();
+    let mut leaves = WorkVec::with_capacity(bytes.len().div_ceil(CHUNK_BYTES), budget.as_ref())?;
     for chunk in bytes.chunks(CHUNK_BYTES) {
         let digest = put_node(sink, tag::BYTES_CHUNK, chunk)?;
-        leaves.push(digest);
+        leaves.push(digest)?;
     }
     write_sequence_ctx(sink, &leaves)
 }
@@ -847,10 +856,11 @@ fn write_sequence_ctx(
             format!("序列叶数 {} 超过 2^63-1", leaves.len()),
         ));
     }
-    let mut stack: Vec<(u64, NodeDigest)> = Vec::new();
+    let budget = sink.budget();
+    let mut stack: WorkVec<(u64, NodeDigest)> = WorkVec::new(budget.as_ref());
     for leaf in leaves {
         let leaf_node = put_node(sink, tag::SEQ_LEAF, leaf)?;
-        stack.push((1, leaf_node));
+        stack.push((1, leaf_node))?;
         while stack.len() >= 2 {
             let (n1, d1) = stack[stack.len() - 1];
             let (n2, d2) = stack[stack.len() - 2];
@@ -860,7 +870,7 @@ fn write_sequence_ctx(
             stack.truncate(stack.len() - 2);
             let n = n1 + n2;
             let digest = put_branch(sink, &d2, &d1, n)?;
-            stack.push((n, digest));
+            stack.push((n, digest))?;
         }
     }
     let mut it = stack.into_iter().rev();
@@ -913,8 +923,10 @@ fn write_in_mode(
     mode: Mode,
 ) -> Result<Built, CodecError> {
     let (kind, extent) = value_kind_extent(value, mode)?;
-    let mut steps = vec![WStep::Value(value)];
-    let mut done: Vec<NodeDigest> = Vec::new();
+    let budget = sink.budget();
+    let mut steps = WorkVec::with_capacity(1, budget.as_ref())?;
+    steps.push(WStep::Value(value))?;
+    let mut done: WorkVec<NodeDigest> = WorkVec::new(budget.as_ref());
     while let Some(step) = steps.pop() {
         match step {
             WStep::Value(v) => write_value_step(sink, v, mode, &mut steps, &mut done)?,
@@ -923,12 +935,12 @@ fn write_in_mode(
                 let children = &done[base..];
                 let n = u64::try_from(children.len()).expect("元素数可表达");
                 let fields = write_sequence_ctx(sink, children)?;
-                let mut body = Vec::with_capacity(40);
-                body.extend_from_slice(&checked_frame_len(n)?);
-                body.extend_from_slice(&fields);
+                let mut body = WorkVec::with_capacity(40, sink.budget().as_ref())?;
+                body.extend_from_slice(&checked_frame_len(n)?)?;
+                body.extend_from_slice(&fields)?;
                 let digest = put_node(sink, tag::ARRAY, &body)?;
                 done.truncate(base);
-                done.push(digest);
+                done.push(digest)?;
             }
             WStep::FinishObject { base, keys } => {
                 let n = u64::try_from(keys.len()).expect("字段数可表达");
@@ -938,7 +950,10 @@ fn write_in_mode(
                         "对象字段记账与已写入子值不符".to_string(),
                     ));
                 }
-                let mut order: Vec<usize> = (0..keys.len()).collect();
+                let mut order = WorkVec::with_capacity(keys.len(), budget.as_ref())?;
+                for i in 0..keys.len() {
+                    order.push(i)?;
+                }
                 order.sort_by(|&a, &b| keys[a].as_bytes().cmp(keys[b].as_bytes()));
                 for w in order.windows(2) {
                     if keys[w[0]] == keys[w[1]] {
@@ -948,27 +963,27 @@ fn write_in_mode(
                         ));
                     }
                 }
-                let mut field_digests = Vec::with_capacity(order.len());
+                let mut field_digests = WorkVec::with_capacity(order.len(), budget.as_ref())?;
                 for &i in &order {
                     let key_digest = write_string_node(sink, keys[i])?;
                     let mut body = [0u8; 64];
                     body[..32].copy_from_slice(&key_digest);
                     body[32..].copy_from_slice(&done[base + i]);
-                    field_digests.push(put_node(sink, tag::OBJECT_FIELD, &body)?);
+                    field_digests.push(put_node(sink, tag::OBJECT_FIELD, &body)?)?;
                 }
                 let fields = write_sequence_ctx(sink, &field_digests)?;
-                let mut body = Vec::with_capacity(40);
-                body.extend_from_slice(&checked_frame_len(n)?);
-                body.extend_from_slice(&fields);
+                let mut body = WorkVec::with_capacity(40, sink.budget().as_ref())?;
+                body.extend_from_slice(&checked_frame_len(n)?)?;
+                body.extend_from_slice(&fields)?;
                 let digest = put_node(sink, tag::OBJECT, &body)?;
                 done.truncate(base);
-                done.push(digest);
+                done.push(digest)?;
             }
             WStep::FinishJsonText { base } => {
                 let inner = done[base];
                 let digest = put_node(sink, tag::JSON_TEXT, &inner)?;
                 done.truncate(base);
-                done.push(digest);
+                done.push(digest)?;
             }
         }
     }
@@ -989,7 +1004,7 @@ enum WStep<'a> {
     Value(&'a Value),
     Json(&'a JsonValue),
     FinishArray { base: usize },
-    FinishObject { base: usize, keys: Vec<&'a str> },
+    FinishObject { base: usize, keys: WorkVec<&'a str> },
     FinishJsonText { base: usize },
 }
 
@@ -1003,11 +1018,11 @@ fn write_string_node(
 ) -> Result<NodeDigest, CodecError> {
     let bytes = text.as_bytes();
     let root = write_bytes_ctx(sink, bytes)?;
-    let mut body = Vec::with_capacity(40);
+    let mut body = WorkVec::with_capacity(40, sink.budget().as_ref())?;
     body.extend_from_slice(&checked_frame_len(
         u64::try_from(bytes.len()).expect("字节数可表达"),
-    )?);
-    body.extend_from_slice(&root);
+    )?)?;
+    body.extend_from_slice(&root)?;
     put_node(sink, tag::STRING, &body)
 }
 
@@ -1017,11 +1032,11 @@ fn write_byte_node(
     bytes: &[u8],
 ) -> Result<NodeDigest, CodecError> {
     let root = write_bytes_ctx(sink, bytes)?;
-    let mut body = Vec::with_capacity(40);
+    let mut body = WorkVec::with_capacity(40, sink.budget().as_ref())?;
     body.extend_from_slice(&checked_frame_len(
         u64::try_from(bytes.len()).expect("字节数可表达"),
-    )?);
-    body.extend_from_slice(&root);
+    )?)?;
+    body.extend_from_slice(&root)?;
     put_node(sink, t, &body)
 }
 
@@ -1057,33 +1072,39 @@ fn write_value_step<'a>(
     sink: &mut CodecContext<'_, '_>,
     value: &'a Value,
     mode: Mode,
-    steps: &mut Vec<WStep<'a>>,
-    done: &mut Vec<NodeDigest>,
+    steps: &mut WorkVec<WStep<'a>>,
+    done: &mut WorkVec<NodeDigest>,
 ) -> Result<(), CodecError> {
     match value {
-        Value::Null => done.push(put_node(sink, tag::NULL, &[])?),
-        Value::Bool(false) => done.push(put_node(sink, tag::BOOL_FALSE, &[])?),
-        Value::Bool(true) => done.push(put_node(sink, tag::BOOL_TRUE, &[])?),
-        Value::String(s) => done.push(write_string_node(sink, s)?),
-        Value::Number(t) => done.push(write_byte_node(sink, tag::NUMBER, t.bytes())?),
+        Value::Null => done.push(put_node(sink, tag::NULL, &[])?)?,
+        Value::Bool(false) => done.push(put_node(sink, tag::BOOL_FALSE, &[])?)?,
+        Value::Bool(true) => done.push(put_node(sink, tag::BOOL_TRUE, &[])?)?,
+        Value::String(s) => done.push(write_string_node(sink, s)?)?,
+        Value::Number(t) => done.push(write_byte_node(sink, tag::NUMBER, t.bytes())?)?,
         Value::Array(items) => {
-            steps.push(WStep::FinishArray { base: done.len() });
+            steps.push(WStep::FinishArray { base: done.len() })?;
             for item in items.iter().rev() {
-                steps.push(WStep::Value(item));
+                steps.push(WStep::Value(item))?;
             }
         }
         Value::Object(fields) => {
             steps.push(WStep::FinishObject {
                 base: done.len(),
-                keys: fields.iter().map(|(k, _)| k.as_str()).collect(),
-            });
+                keys: {
+                    let mut keys = WorkVec::with_capacity(fields.len(), sink.budget().as_ref())?;
+                    for (k, _) in fields {
+                        keys.push(k.as_str())?;
+                    }
+                    keys
+                },
+            })?;
             for (_, v) in fields.iter().rev() {
-                steps.push(WStep::Value(v));
+                steps.push(WStep::Value(v))?;
             }
         }
         Value::JsonText(inner) => {
-            steps.push(WStep::FinishJsonText { base: done.len() });
-            steps.push(WStep::Json(inner));
+            steps.push(WStep::FinishJsonText { base: done.len() })?;
+            steps.push(WStep::Json(inner))?;
         }
         Value::BatchSelf => {
             if mode != Mode::Template {
@@ -1092,9 +1113,9 @@ fn write_value_step<'a>(
                     "模板占位（0x08）只在显式模板上下文里允许写".to_string(),
                 ));
             }
-            done.push(put_node(sink, tag::BATCH_SELF, &[])?);
+            done.push(put_node(sink, tag::BATCH_SELF, &[])?)?;
         }
-        Value::Edge(digest) => done.push(*digest),
+        Value::Edge(digest) => done.push(*digest)?,
     }
     Ok(())
 }
@@ -1102,28 +1123,34 @@ fn write_value_step<'a>(
 fn write_json_step<'a>(
     sink: &mut CodecContext<'_, '_>,
     value: &'a JsonValue,
-    steps: &mut Vec<WStep<'a>>,
-    done: &mut Vec<NodeDigest>,
+    steps: &mut WorkVec<WStep<'a>>,
+    done: &mut WorkVec<NodeDigest>,
 ) -> Result<(), CodecError> {
     match value {
-        JsonValue::Null => done.push(put_node(sink, tag::NULL, &[])?),
-        JsonValue::Bool(false) => done.push(put_node(sink, tag::BOOL_FALSE, &[])?),
-        JsonValue::Bool(true) => done.push(put_node(sink, tag::BOOL_TRUE, &[])?),
-        JsonValue::String(s) => done.push(write_string_node(sink, s)?),
-        JsonValue::Number(t) => done.push(write_byte_node(sink, tag::NUMBER, t.bytes())?),
+        JsonValue::Null => done.push(put_node(sink, tag::NULL, &[])?)?,
+        JsonValue::Bool(false) => done.push(put_node(sink, tag::BOOL_FALSE, &[])?)?,
+        JsonValue::Bool(true) => done.push(put_node(sink, tag::BOOL_TRUE, &[])?)?,
+        JsonValue::String(s) => done.push(write_string_node(sink, s)?)?,
+        JsonValue::Number(t) => done.push(write_byte_node(sink, tag::NUMBER, t.bytes())?)?,
         JsonValue::Array(items) => {
-            steps.push(WStep::FinishArray { base: done.len() });
+            steps.push(WStep::FinishArray { base: done.len() })?;
             for item in items.iter().rev() {
-                steps.push(WStep::Json(item));
+                steps.push(WStep::Json(item))?;
             }
         }
         JsonValue::Object(fields) => {
             steps.push(WStep::FinishObject {
                 base: done.len(),
-                keys: fields.iter().map(|(k, _)| k.as_str()).collect(),
-            });
+                keys: {
+                    let mut keys = WorkVec::with_capacity(fields.len(), sink.budget().as_ref())?;
+                    for (k, _) in fields {
+                        keys.push(k.as_str())?;
+                    }
+                    keys
+                },
+            })?;
             for (_, v) in fields.iter().rev() {
-                steps.push(WStep::Json(v));
+                steps.push(WStep::Json(v))?;
             }
         }
     }
@@ -1516,14 +1543,19 @@ fn read_body_checked(
 // ── 惰性叶迭代（渲染与键比较用；不预收集整棵序列） ──────────────────────────
 
 /// 顺序产出序列树的叶：只需 O(树深) 栈，按消费推进。
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct LeafIter {
-    stack: Vec<NodeDigest>,
+    stack: WorkVec<NodeDigest>,
 }
 
 impl LeafIter {
-    fn new(root: NodeDigest) -> Self {
-        Self { stack: vec![root] }
+    fn new(
+        root: NodeDigest,
+        budget: Option<&capture_allocation::OwnedBudget>,
+    ) -> Result<Self, CodecError> {
+        let mut stack = WorkVec::with_capacity(1, budget)?;
+        stack.push(root)?;
+        Ok(Self { stack })
     }
 
     /// 下一个叶（tag, 摘要, body）；叶的类型由调用方按上下文核。
@@ -1579,8 +1611,8 @@ impl LeafIter {
                     }
                     let left = digest_at(&body, 8);
                     let right = digest_at(&body, 40);
-                    self.stack.push(right);
-                    self.stack.push(left);
+                    self.stack.push(right)?;
+                    self.stack.push(left)?;
                 }
                 other => {
                     return Err(sequence_shape_error(format!(
@@ -1597,19 +1629,35 @@ impl LeafIter {
 
 #[derive(Default)]
 struct AuditMemo {
+    budget: Option<capture_allocation::OwnedBudget>,
     /// 已核过的 (摘要, 上下文)。
-    seen: HashSet<(NodeDigest, Flavor)>,
+    seen: WorkSet<(NodeDigest, Flavor)>,
     /// 已入待核集合的 (摘要, 上下文) —— 重复子树不重复入队。
-    pushed: HashSet<(NodeDigest, Flavor)>,
-    todo: Vec<(NodeDigest, Flavor)>,
+    pushed: WorkSet<(NodeDigest, Flavor)>,
+    todo: WorkVec<(NodeDigest, Flavor)>,
     /// 实际读到的不同摘要（唯一节点计数）。
-    read_digests: HashSet<NodeDigest>,
-    bytes_memo: HashMap<(NodeDigest, Utf8State, NumState), ByteAgg>,
-    elem_memo: HashMap<(NodeDigest, Flavor), u64>,
-    field_memo: HashMap<(NodeDigest, Flavor), FieldAgg>,
-    key_cmp: HashMap<(NodeDigest, NodeDigest), std::cmp::Ordering>,
+    read_digests: WorkSet<NodeDigest>,
+    bytes_memo: WorkMap<(NodeDigest, Utf8State, NumState), ByteAgg>,
+    elem_memo: WorkMap<(NodeDigest, Flavor), u64>,
+    field_memo: WorkMap<(NodeDigest, Flavor), FieldAgg>,
+    key_cmp: WorkMap<(NodeDigest, NodeDigest), std::cmp::Ordering>,
 }
 
+impl AuditMemo {
+    fn new(b: Option<&capture_allocation::OwnedBudget>) -> Self {
+        Self {
+            budget: b.cloned(),
+            seen: WorkSet::new(b),
+            pushed: WorkSet::new(b),
+            todo: WorkVec::new(b),
+            read_digests: WorkSet::new(b),
+            bytes_memo: WorkMap::new(b),
+            elem_memo: WorkMap::new(b),
+            field_memo: WorkMap::new(b),
+            key_cmp: WorkMap::new(b),
+        }
+    }
+}
 /// #1394 算法原型：完整自有节点捕获，无 NodeSink、无可变原件入口。
 /// 仅复用本捕获内 Public/Template 独立验证上下文，不授予来源或业务资格。
 enum CaptureNodes {
@@ -1633,10 +1681,11 @@ impl AuditCapture {
     }
     #[doc(hidden)]
     pub fn from_slab_for_allocation_prototype(slab: capture_allocation::CaptureSlab) -> Self {
+        let budget = slab.owned_budget();
         Self {
             nodes: CaptureNodes::AllocationPrototype(slab),
-            public: Default::default(),
-            template: Default::default(),
+            public: std::cell::RefCell::new(AuditMemo::new(Some(&budget))),
+            template: std::cell::RefCell::new(AuditMemo::new(Some(&budget))),
             reads: Default::default(),
         }
     }
@@ -1658,7 +1707,11 @@ impl AuditCapture {
         } else {
             &self.template
         };
-        let memo = std::mem::take(&mut *slot.borrow_mut());
+        let budget = match &self.nodes {
+            CaptureNodes::AllocationPrototype(s) => Some(s.owned_budget()),
+            _ => None,
+        };
+        let memo = std::mem::replace(&mut *slot.borrow_mut(), AuditMemo::new(budget.as_ref()));
         let mut source = CaptureReader(self);
         let mut verifier = Verifier::with_memo_capture(&mut source, mode, memo);
         let result = verifier.verify_reference(reference).map(|_| ());
@@ -1727,16 +1780,16 @@ struct Verifier<'a, 'capture> {
     source: CodecContext<'a, 'capture>,
     mode: Mode,
     /// 已核过的 (摘要, 上下文)。
-    seen: HashSet<(NodeDigest, Flavor)>,
+    seen: WorkSet<(NodeDigest, Flavor)>,
     /// 已入待核集合的 (摘要, 上下文) —— 重复子树不重复入队。
-    pushed: HashSet<(NodeDigest, Flavor)>,
-    todo: Vec<(NodeDigest, Flavor)>,
+    pushed: WorkSet<(NodeDigest, Flavor)>,
+    todo: WorkVec<(NodeDigest, Flavor)>,
     /// 实际读到的不同摘要（唯一节点计数）。
-    read_digests: HashSet<NodeDigest>,
-    bytes_memo: HashMap<(NodeDigest, Utf8State, NumState), ByteAgg>,
-    elem_memo: HashMap<(NodeDigest, Flavor), u64>,
-    field_memo: HashMap<(NodeDigest, Flavor), FieldAgg>,
-    key_cmp: HashMap<(NodeDigest, NodeDigest), std::cmp::Ordering>,
+    read_digests: WorkSet<NodeDigest>,
+    bytes_memo: WorkMap<(NodeDigest, Utf8State, NumState), ByteAgg>,
+    elem_memo: WorkMap<(NodeDigest, Flavor), u64>,
+    field_memo: WorkMap<(NodeDigest, Flavor), FieldAgg>,
+    key_cmp: WorkMap<(NodeDigest, NodeDigest), std::cmp::Ordering>,
 }
 
 impl<'a, 'capture> Verifier<'a, 'capture> {
@@ -1748,6 +1801,13 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         Self::with_context(CodecContext::Source(source), mode, memo)
     }
     fn with_context(source: CodecContext<'a, 'capture>, mode: Mode, memo: AuditMemo) -> Self {
+        let budget = source.budget();
+        let memo = if budget.is_some() && memo.budget.is_none() {
+            assert!(memo.seen.is_empty() && memo.pushed.is_empty() && memo.read_digests.is_empty());
+            AuditMemo::new(budget.as_ref())
+        } else {
+            memo
+        };
         Self {
             source,
             mode,
@@ -1763,6 +1823,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
     }
     fn into_memo(self) -> AuditMemo {
         AuditMemo {
+            budget: self.source.budget(),
             seen: self.seen,
             pushed: self.pushed,
             todo: self.todo,
@@ -1780,14 +1841,15 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
     /// 读节点 + 核摘要 + 记唯一节点。
     fn read_node(&mut self, digest: &NodeDigest) -> Result<(u8, VerifierBody), CodecError> {
         let got = self.source.read(digest)?;
-        self.read_digests.insert(*digest);
+        self.read_digests.insert(*digest)?;
         Ok(got)
     }
 
-    fn push_work(&mut self, digest: NodeDigest, flavor: Flavor) {
-        if self.pushed.insert((digest, flavor)) {
-            self.todo.push((digest, flavor));
+    fn push_work(&mut self, digest: NodeDigest, flavor: Flavor) -> Result<(), CodecError> {
+        if self.pushed.insert((digest, flavor))? {
+            self.todo.push((digest, flavor))?;
         }
+        Ok(())
     }
 
     /// 字节序列 B 的折叠摘要。按 (摘要, UTF-8 进态, 数字进态) 记忆化：
@@ -1809,17 +1871,19 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                 num: NumState,
             },
         }
-        let mut steps = vec![Step::Enter {
+        let budget = self.source.budget();
+        let mut steps = WorkVec::with_capacity(1, budget.as_ref())?;
+        steps.push(Step::Enter {
             digest: *root,
             utf8: Utf8State::Empty,
             num: NumState::Start,
-        }];
-        let mut aggs: Vec<ByteAgg> = Vec::new();
+        })?;
+        let mut aggs: WorkVec<ByteAgg> = WorkVec::new(budget.as_ref());
         while let Some(step) = steps.pop() {
             match step {
                 Step::Enter { digest, utf8, num } => {
                     if let Some(agg) = self.bytes_memo.get(&(digest, utf8, num)) {
-                        aggs.push(*agg);
+                        aggs.push(*agg)?;
                         continue;
                     }
                     let (t, body) = self.read_node(&digest)?;
@@ -1836,8 +1900,8 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                                 utf8,
                                 num,
                             };
-                            self.bytes_memo.insert((digest, utf8, num), agg);
-                            aggs.push(agg);
+                            self.bytes_memo.insert((digest, utf8, num), agg)?;
+                            aggs.push(agg)?;
                         }
                         tag::SEQ_LEAF => {
                             if body.len() != 32 {
@@ -1867,8 +1931,8 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                                 utf8: utf8_out,
                                 num: num_feed(num, &lbody),
                             };
-                            self.bytes_memo.insert((digest, utf8, num), agg);
-                            aggs.push(agg);
+                            self.bytes_memo.insert((digest, utf8, num), agg)?;
+                            aggs.push(agg)?;
                         }
                         tag::SEQ_BRANCH => {
                             if body.len() != 72 {
@@ -1894,13 +1958,13 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                                 n,
                                 utf8,
                                 num,
-                            });
-                            steps.push(Step::Right { digest: right });
+                            })?;
+                            steps.push(Step::Right { digest: right })?;
                             steps.push(Step::Enter {
                                 digest: left,
                                 utf8,
                                 num,
-                            });
+                            })?;
                         }
                         other => {
                             return Err(sequence_shape_error(format!(
@@ -1917,7 +1981,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                         digest,
                         utf8: left.utf8,
                         num: left.num,
-                    });
+                    })?;
                 }
                 Step::Combine {
                     digest,
@@ -1951,8 +2015,8 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                         utf8: right.utf8,
                         num: right.num,
                     };
-                    self.bytes_memo.insert((digest, utf8, num), agg);
-                    aggs.push(agg);
+                    self.bytes_memo.insert((digest, utf8, num), agg)?;
+                    aggs.push(agg)?;
                 }
             }
         }
@@ -1966,13 +2030,15 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
             Enter(NodeDigest),
             Combine { digest: NodeDigest, n: u64 },
         }
-        let mut steps = vec![Step::Enter(*root)];
-        let mut counts: Vec<u64> = Vec::new();
+        let budget = self.source.budget();
+        let mut steps = WorkVec::with_capacity(1, budget.as_ref())?;
+        steps.push(Step::Enter(*root))?;
+        let mut counts: WorkVec<u64> = WorkVec::new(budget.as_ref());
         while let Some(step) = steps.pop() {
             match step {
                 Step::Enter(digest) => {
                     if let Some(count) = self.elem_memo.get(&(digest, flavor)) {
-                        counts.push(*count);
+                        counts.push(*count)?;
                         continue;
                     }
                     let (t, body) = self.read_node(&digest)?;
@@ -1981,8 +2047,8 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             if !body.is_empty() {
                                 return Err(body_shape_error(t, &body, "空序列 body 必须为空"));
                             }
-                            self.elem_memo.insert((digest, flavor), 0);
-                            counts.push(0);
+                            self.elem_memo.insert((digest, flavor), 0)?;
+                            counts.push(0)?;
                         }
                         tag::SEQ_LEAF => {
                             if body.len() != 32 {
@@ -2000,9 +2066,9 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             if Kind::from_tag(lt).is_none() {
                                 return Err(unsupported_value_tag_error(lt));
                             }
-                            self.push_work(leaf, flavor);
-                            self.elem_memo.insert((digest, flavor), 1);
-                            counts.push(1);
+                            self.push_work(leaf, flavor)?;
+                            self.elem_memo.insert((digest, flavor), 1)?;
+                            counts.push(1)?;
                         }
                         tag::SEQ_BRANCH => {
                             if body.len() != 72 {
@@ -2023,9 +2089,9 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             }
                             let left = digest_at(&body, 8);
                             let right = digest_at(&body, 40);
-                            steps.push(Step::Combine { digest, n });
-                            steps.push(Step::Enter(right));
-                            steps.push(Step::Enter(left));
+                            steps.push(Step::Combine { digest, n })?;
+                            steps.push(Step::Enter(right))?;
+                            steps.push(Step::Enter(left))?;
                         }
                         other => {
                             return Err(sequence_shape_error(format!(
@@ -2048,8 +2114,8 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             n - k
                         )));
                     }
-                    self.elem_memo.insert((digest, flavor), n);
-                    counts.push(n);
+                    self.elem_memo.insert((digest, flavor), n)?;
+                    counts.push(n)?;
                 }
             }
         }
@@ -2065,13 +2131,15 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
             Enter(NodeDigest),
             Combine { digest: NodeDigest, n: u64 },
         }
-        let mut steps = vec![Step::Enter(*root)];
-        let mut aggs: Vec<FieldAgg> = Vec::new();
+        let budget = self.source.budget();
+        let mut steps = WorkVec::with_capacity(1, budget.as_ref())?;
+        steps.push(Step::Enter(*root))?;
+        let mut aggs: WorkVec<FieldAgg> = WorkVec::new(budget.as_ref());
         while let Some(step) = steps.pop() {
             match step {
                 Step::Enter(digest) => {
                     if let Some(agg) = self.field_memo.get(&(digest, flavor)) {
-                        aggs.push(*agg);
+                        aggs.push(*agg)?;
                         continue;
                     }
                     let (t, body) = self.read_node(&digest)?;
@@ -2085,8 +2153,8 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                                 first: None,
                                 last: None,
                             };
-                            self.field_memo.insert((digest, flavor), agg);
-                            aggs.push(agg);
+                            self.field_memo.insert((digest, flavor), agg)?;
+                            aggs.push(agg)?;
                         }
                         tag::SEQ_LEAF => {
                             if body.len() != 32 {
@@ -2109,15 +2177,15 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             let key = digest_at(&fbody, 0);
                             let value = digest_at(&fbody, 32);
                             self.validate_string_node(&key)?;
-                            self.seen.insert((key, Flavor::Value));
-                            self.push_work(value, flavor);
+                            self.seen.insert((key, Flavor::Value))?;
+                            self.push_work(value, flavor)?;
                             let agg = FieldAgg {
                                 count: 1,
                                 first: Some(key),
                                 last: Some(key),
                             };
-                            self.field_memo.insert((digest, flavor), agg);
-                            aggs.push(agg);
+                            self.field_memo.insert((digest, flavor), agg)?;
+                            aggs.push(agg)?;
                         }
                         tag::SEQ_BRANCH => {
                             if body.len() != 72 {
@@ -2138,9 +2206,9 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             }
                             let left = digest_at(&body, 8);
                             let right = digest_at(&body, 40);
-                            steps.push(Step::Combine { digest, n });
-                            steps.push(Step::Enter(right));
-                            steps.push(Step::Enter(left));
+                            steps.push(Step::Combine { digest, n })?;
+                            steps.push(Step::Enter(right))?;
+                            steps.push(Step::Enter(left))?;
                         }
                         other => {
                             return Err(sequence_shape_error(format!(
@@ -2193,8 +2261,8 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                         first: left.first,
                         last: right.last,
                     };
-                    self.field_memo.insert((digest, flavor), agg);
-                    aggs.push(agg);
+                    self.field_memo.insert((digest, flavor), agg)?;
+                    aggs.push(agg)?;
                 }
             }
         }
@@ -2254,8 +2322,8 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
             return Ok(*ord);
         }
         let ord = self.compare_key_streams(a, b)?;
-        self.key_cmp.insert((*a, *b), ord);
-        self.key_cmp.insert((*b, *a), ord.reverse());
+        self.key_cmp.insert((*a, *b), ord)?;
+        self.key_cmp.insert((*b, *a), ord.reverse())?;
         Ok(ord)
     }
 
@@ -2267,8 +2335,8 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         use std::cmp::Ordering;
         let root_a = self.string_bytes_root(a)?;
         let root_b = self.string_bytes_root(b)?;
-        let mut iter_a = LeafIter::new(root_a);
-        let mut iter_b = LeafIter::new(root_b);
+        let mut iter_a = LeafIter::new(root_a, self.source.budget().as_ref())?;
+        let mut iter_b = LeafIter::new(root_b, self.source.budget().as_ref())?;
         let mut buf_a = VerifierBody::empty();
         let mut buf_b = VerifierBody::empty();
         let mut pos_a = 0usize;
@@ -2378,9 +2446,9 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
 
     /// 全闭包核验：值节点按 (摘要, 上下文) 去重，序列按摘要折叠。
     fn run(&mut self, root: &NodeDigest) -> Result<(), CodecError> {
-        self.push_work(*root, Flavor::Value);
+        self.push_work(*root, Flavor::Value)?;
         while let Some((digest, flavor)) = self.todo.pop() {
-            if !self.seen.insert((digest, flavor)) {
+            if !self.seen.insert((digest, flavor))? {
                 continue;
             }
             let (t, body) = self.read_node(&digest)?;
@@ -2456,7 +2524,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             "body 必须是内部值的 32 字节摘要",
                         ));
                     }
-                    self.push_work(digest_at(&body, 0), Flavor::JsonInner);
+                    self.push_work(digest_at(&body, 0), Flavor::JsonInner)?;
                 }
                 tag::BATCH_SELF => {
                     if !body.is_empty() {
@@ -2604,24 +2672,42 @@ pub fn audit_verify_template_many(
 
 /// 逐字符写出规范 JSON 转义（斜线不转义；控制字符用小写四位十六进制）。
 fn write_escaped_char(ch: char, out: &mut dyn Write) -> Result<(), CodecError> {
+    escaped_char_with(ch, |bytes| out.write_all(bytes).map_err(io_error))
+}
+fn write_escaped_char_work(ch: char, out: &mut WorkVec<u8>) -> Result<(), CodecError> {
+    // 私有fallible写口直接承接同allocator的Result，外部io kind不授予资源因果证明。
+    escaped_char_with(ch, |bytes| out.extend_from_slice(bytes))
+}
+fn escaped_char_with(
+    ch: char,
+    mut emit: impl FnMut(&[u8]) -> Result<(), CodecError>,
+) -> Result<(), CodecError> {
     match ch {
-        '"' => out.write_all(b"\\\""),
-        '\\' => out.write_all(b"\\\\"),
-        '\u{0008}' => out.write_all(b"\\b"),
-        '\u{0009}' => out.write_all(b"\\t"),
-        '\u{000A}' => out.write_all(b"\\n"),
-        '\u{000C}' => out.write_all(b"\\f"),
-        '\u{000D}' => out.write_all(b"\\r"),
+        '"' => emit(b"\\\""),
+        '\\' => emit(b"\\\\"),
+        '\u{0008}' => emit(b"\\b"),
+        '\u{0009}' => emit(b"\\t"),
+        '\u{000A}' => emit(b"\\n"),
+        '\u{000C}' => emit(b"\\f"),
+        '\u{000D}' => emit(b"\\r"),
         c if (c as u32) < 0x20 => {
-            let esc = format!("\\u{:04x}", c as u32);
-            out.write_all(esc.as_bytes())
+            let n = c as u8;
+            const HEX: &[u8; 16] = b"0123456789abcdef";
+            let bytes = [
+                b'\\',
+                b'u',
+                b'0',
+                b'0',
+                HEX[(n >> 4) as usize],
+                HEX[(n & 15) as usize],
+            ];
+            emit(&bytes)
         }
         c => {
-            let mut buf = [0u8; 4];
-            out.write_all(c.encode_utf8(&mut buf).as_bytes())
+            let mut bytes = [0u8; 4];
+            emit(c.encode_utf8(&mut bytes).as_bytes())
         }
     }
-    .map_err(io_error)
 }
 
 /// 增量 UTF-8 解码（渲染转义用）：UTF-8 可以在块间分开。
@@ -2697,6 +2783,7 @@ struct Renderer<'a, 'capture> {
 impl Renderer<'_, '_> {
     /// 写出字节：处于转义层时逐字符转义，否则原样写出。
     fn emit(&mut self, bytes: &[u8]) -> Result<(), CodecError> {
+        let budget = self.source.budget();
         let Renderer {
             out,
             escaping,
@@ -2706,13 +2793,21 @@ impl Renderer<'_, '_> {
         if !*escaping {
             return out.write_all(bytes).map_err(io_error);
         }
-        let mut buf: Vec<u8> = Vec::with_capacity(bytes.len() + 8);
-        esc_decoder.feed(bytes, &mut |ch| write_escaped_char(ch, &mut buf))?;
+        let mut buf = WorkVec::with_capacity(
+            bytes
+                .len()
+                .checked_add(8)
+                .ok_or_else(capture_allocation::work::allocation_error)?,
+            budget.as_ref(),
+        )?;
+        esc_decoder.feed(bytes, &mut |ch| write_escaped_char_work(ch, &mut buf))?;
         out.write_all(&buf).map_err(io_error)
     }
 
     fn run(&mut self, root: NodeDigest) -> Result<(), CodecError> {
-        let mut tasks = vec![RTask::Value(root, Flavor::Value)];
+        let budget = self.source.budget();
+        let mut tasks = WorkVec::with_capacity(1, budget.as_ref())?;
+        tasks.push(RTask::Value(root, Flavor::Value))?;
         while let Some(task) = tasks.pop() {
             match task {
                 RTask::Emit(bytes) => self.emit(bytes)?,
@@ -2740,7 +2835,7 @@ impl Renderer<'_, '_> {
                     flavor,
                 } => {
                     if index == total {
-                        tasks.push(RTask::Emit(b"]"));
+                        tasks.push(RTask::Emit(b"]"))?;
                         continue;
                     }
                     let (lt, leaf, _body) = iter
@@ -2754,10 +2849,10 @@ impl Renderer<'_, '_> {
                         index: index + 1,
                         total,
                         flavor,
-                    });
-                    tasks.push(RTask::Value(leaf, flavor));
+                    })?;
+                    tasks.push(RTask::Value(leaf, flavor))?;
                     if index > 0 {
-                        tasks.push(RTask::Emit(b","));
+                        tasks.push(RTask::Emit(b","))?;
                     }
                 }
                 RTask::Fields {
@@ -2767,7 +2862,7 @@ impl Renderer<'_, '_> {
                     flavor,
                 } => {
                     if index == total {
-                        tasks.push(RTask::Emit(b"}"));
+                        tasks.push(RTask::Emit(b"}"))?;
                         continue;
                     }
                     let (ft, _field, fbody) = iter
@@ -2785,49 +2880,49 @@ impl Renderer<'_, '_> {
                         index: index + 1,
                         total,
                         flavor,
-                    });
-                    tasks.push(RTask::Value(value, flavor));
-                    tasks.push(RTask::Emit(b":"));
-                    tasks.push(RTask::Value(key, Flavor::Value));
+                    })?;
+                    tasks.push(RTask::Value(value, flavor))?;
+                    tasks.push(RTask::Emit(b":"))?;
+                    tasks.push(RTask::Value(key, Flavor::Value))?;
                     if index > 0 {
-                        tasks.push(RTask::Emit(b","));
+                        tasks.push(RTask::Emit(b","))?;
                     }
                 }
                 RTask::Value(digest, flavor) => {
                     let (t, body) = self.source.read(&digest)?;
                     match t {
-                        tag::NULL => tasks.push(RTask::Emit(b"null")),
-                        tag::BOOL_FALSE => tasks.push(RTask::Emit(b"false")),
-                        tag::BOOL_TRUE => tasks.push(RTask::Emit(b"true")),
+                        tag::NULL => tasks.push(RTask::Emit(b"null"))?,
+                        tag::BOOL_FALSE => tasks.push(RTask::Emit(b"false"))?,
+                        tag::BOOL_TRUE => tasks.push(RTask::Emit(b"true"))?,
                         tag::STRING => {
                             framed_len(&body, "字符串")?;
-                            tasks.push(RTask::Emit(b"\""));
-                            tasks.push(RTask::StringBody(digest));
-                            tasks.push(RTask::Emit(b"\""));
+                            tasks.push(RTask::Emit(b"\""))?;
+                            tasks.push(RTask::StringBody(digest))?;
+                            tasks.push(RTask::Emit(b"\""))?;
                         }
                         tag::NUMBER => {
                             framed_len(&body, "数字 token")?;
-                            tasks.push(RTask::TokenBody(digest));
+                            tasks.push(RTask::TokenBody(digest))?;
                         }
                         tag::ARRAY => {
                             let declared = framed_len(&body, "数组")?;
                             tasks.push(RTask::Elements {
-                                iter: LeafIter::new(digest_at(&body, 8)),
+                                iter: LeafIter::new(digest_at(&body, 8), budget.as_ref())?,
                                 index: 0,
                                 total: declared,
                                 flavor,
-                            });
-                            tasks.push(RTask::Emit(b"["));
+                            })?;
+                            tasks.push(RTask::Emit(b"["))?;
                         }
                         tag::OBJECT => {
                             let declared = framed_len(&body, "对象")?;
                             tasks.push(RTask::Fields {
-                                iter: LeafIter::new(digest_at(&body, 8)),
+                                iter: LeafIter::new(digest_at(&body, 8), budget.as_ref())?,
                                 index: 0,
                                 total: declared,
                                 flavor,
-                            });
-                            tasks.push(RTask::Emit(b"{"));
+                            })?;
+                            tasks.push(RTask::Emit(b"{"))?;
                         }
                         tag::JSON_TEXT => {
                             if flavor == Flavor::JsonInner {
@@ -2843,11 +2938,11 @@ impl Renderer<'_, '_> {
                                     "body 必须是内部值的 32 字节摘要",
                                 ));
                             }
-                            tasks.push(RTask::Emit(b"\""));
-                            tasks.push(RTask::ExitEscape);
-                            tasks.push(RTask::Value(digest_at(&body, 0), Flavor::JsonInner));
-                            tasks.push(RTask::EnterEscape);
-                            tasks.push(RTask::Emit(b"\""));
+                            tasks.push(RTask::Emit(b"\""))?;
+                            tasks.push(RTask::ExitEscape)?;
+                            tasks.push(RTask::Value(digest_at(&body, 0), Flavor::JsonInner))?;
+                            tasks.push(RTask::EnterEscape)?;
+                            tasks.push(RTask::Emit(b"\""))?;
                         }
                         tag::BATCH_SELF => {
                             return Err(CodecError::new(
@@ -2873,9 +2968,10 @@ impl Renderer<'_, '_> {
             ));
         }
         let declared = framed_len(&body, "字符串")?;
-        let mut iter = LeafIter::new(digest_at(&body, 8));
+        let budget = self.source.budget();
+        let mut iter = LeafIter::new(digest_at(&body, 8), budget.as_ref())?;
         let mut decoder = Utf8Decoder::default();
-        let mut escaped: Vec<u8> = Vec::with_capacity(8);
+        let mut escaped = WorkVec::with_capacity(8, budget.as_ref())?;
         let mut total: u64 = 0;
         loop {
             let next = {
@@ -2907,7 +3003,7 @@ impl Renderer<'_, '_> {
             } = self;
             decoder.feed(&lbody, &mut |ch| {
                 escaped.clear();
-                write_escaped_char(ch, &mut escaped)?;
+                write_escaped_char_work(ch, &mut escaped)?;
                 if *escaping {
                     esc_decoder.feed(&escaped, &mut |inner| write_escaped_char(inner, &mut **out))
                 } else {
@@ -2934,7 +3030,8 @@ impl Renderer<'_, '_> {
             ));
         }
         let declared = framed_len(&body, "数字 token")?;
-        let mut iter = LeafIter::new(digest_at(&body, 8));
+        let budget = self.source.budget();
+        let mut iter = LeafIter::new(digest_at(&body, 8), budget.as_ref())?;
         let mut state = NumState::Start;
         let mut total: u64 = 0;
         loop {
@@ -3555,7 +3652,7 @@ mod metered_key_body_tests {
         let count = nodes.nodes.len();
         let bytes = nodes.nodes.values().map(|(_, b)| b.len()).sum();
         let base = capture_allocation::CaptureSlab::requested_bytes(count, bytes).unwrap();
-        let budget = capture_allocation::OwnedBudget::new(base + 4096 + 32);
+        let budget = capture_allocation::OwnedBudget::new(base + 4096 + 32 + 204);
         let mut slab = capture_allocation::CaptureSlab::new(count, bytes, &budget).unwrap();
         for (d, (t, body)) in nodes.nodes {
             slab.push(d, t, &body).unwrap();
@@ -3572,19 +3669,20 @@ mod metered_key_body_tests {
         );
         assert_eq!(result.unwrap_err().code(), capture_allocation::LIMIT);
         let after = budget.snapshot();
-        assert_eq!(after.live_requested_layout_bytes, base);
+        assert_eq!(after.live_requested_layout_bytes, base + 140);
         assert!(after.peak_requested_layout_bytes >= base + 4096);
         assert_eq!(after.rejected_layouts, before.rejected_layouts + 1);
         // 两STRING头40B、两序列32B与首块4096B实际分配；第二块在alloc前拒绝。
-        assert_eq!(after.allocated_layouts, before.allocated_layouts + 5);
-        assert_eq!(after.allocation_attempts, before.allocation_attempts + 5);
-        assert_eq!(after.released_layouts, before.released_layouts + 5);
-        assert_eq!(after.peak_requested_layout_bytes, base + 4096 + 32);
+        assert_eq!(after.allocated_layouts, before.allocated_layouts + 8);
+        assert_eq!(after.allocation_attempts, before.allocation_attempts + 8);
+        assert_eq!(after.released_layouts, before.released_layouts + 7);
+        assert_eq!(after.peak_requested_layout_bytes, base + 4096 + 32 + 204);
         println!(
             "METERED_KEY_RECEIPT {}",
             serde_json::to_string(&after).unwrap()
         );
         drop(verifier);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
         drop(source);
         drop(capture);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
@@ -3627,7 +3725,7 @@ mod metered_key_body_tests {
             .compare_key_streams(&a.digest, &b.digest)
             .unwrap();
         let legacy_f = frame_calls_on_thread() - before_f;
-        let (capture, budget, base) = slab_capture(nodes, 8192 + 32);
+        let (capture, budget, base) = slab_capture(nodes, 8192 + 32 + 204);
         let before = budget.snapshot();
         let before_f = frame_calls_on_thread();
         assert_eq!(
@@ -3636,9 +3734,9 @@ mod metered_key_body_tests {
         );
         assert_eq!(frame_calls_on_thread() - before_f, legacy_f);
         let after = budget.snapshot();
-        assert_eq!(after.peak_requested_layout_bytes, base + 8192 + 32);
-        assert_eq!(after.allocated_layouts, before.allocated_layouts + 6);
-        assert_eq!(after.released_layouts, before.released_layouts + 6);
+        assert_eq!(after.peak_requested_layout_bytes, base + 8192 + 32 + 204);
+        assert_eq!(after.allocated_layouts, before.allocated_layouts + 9);
+        assert_eq!(after.released_layouts, before.released_layouts + 9);
         assert_eq!(after.live_requested_layout_bytes, base);
         assert_eq!(after.rejected_layouts, 0);
         println!(
@@ -3658,12 +3756,15 @@ mod metered_key_body_tests {
         )
         .unwrap();
         let reference = ContentRef::new(object.kind, &object.digest, object.extent);
-        let (capture, budget, base) = slab_capture(nodes, 8192 + 128);
+        let (capture, budget, base) = slab_capture(nodes, 32768);
         capture.verify(&reference, Mode::Public).unwrap();
-        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
-        assert_eq!(
-            budget.snapshot().peak_requested_layout_bytes,
-            base + 8192 + 32 + 80
+        assert!(
+            budget.snapshot().live_requested_layout_bytes > base,
+            "成功capture Public memo的真实布局必须持续活到capture Drop"
+        );
+        assert!(
+            budget.snapshot().peak_requested_layout_bytes >= base + 8192 + 32 + 80,
+            "body并存和新增memo/栈都须计量"
         );
         drop(capture);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
@@ -3872,11 +3973,17 @@ mod metered_verifier_body_tests {
         );
         assert_eq!(result.unwrap_err().code(), capture_allocation::LIMIT);
         let after = budget.snapshot();
-        assert_eq!(after.allocated_layouts, before.allocated_layouts + 1);
-        assert_eq!(after.allocation_attempts, before.allocation_attempts + 1);
+        assert_eq!(after.allocated_layouts, before.allocated_layouts + 3);
+        assert_eq!(after.allocation_attempts, before.allocation_attempts + 3);
         assert_eq!(frame_calls_on_thread() - f, 1);
-        assert_eq!(after.peak_requested_layout_bytes, base + 32);
-        assert_eq!(after.live_requested_layout_bytes, base);
+        assert_eq!(after.live_requested_layout_bytes, base + 140);
+        assert_eq!(after.peak_requested_layout_bytes, base + 220);
+        let refusal = budget.allocation_request_probe();
+        assert_eq!(refusal.refused_bytes, 4096);
+        println!(
+            "BYTE_AGG_WORKSET_RECEIPT {}",
+            serde_json::to_string(&budget.snapshot()).unwrap()
+        );
         println!(
             "VERIFIER_BYTE_AGG_RECEIPT {}",
             serde_json::to_string(&after).unwrap()
@@ -3954,13 +4061,23 @@ mod metered_verifier_body_tests {
                 let plain = traced_verify(&legacy, &built.content_ref(), mode);
                 let bounded = traced_verify(&owned, &built.content_ref(), mode);
                 assert_eq!(bounded, plain, "case {case}, {mode:?}");
-                assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+                if bounded.0.is_ok() {
+                    assert!(
+                        budget.snapshot().live_requested_layout_bytes > base,
+                        "成功memo布局持续活到capture Drop"
+                    );
+                } else {
+                    assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+                }
                 assert_eq!(owned.reads.get(), legacy.reads.get());
                 if case == 3 {
                     // 两旧4096B buf与下一4096B真实并存，另有32B序列及两40B根头。
-                    assert_eq!(
-                        budget.snapshot().peak_requested_layout_bytes,
-                        base + 3 * 4096 + 32 + 80
+                    assert!(
+                        budget.snapshot().peak_requested_layout_bytes >= base + 3 * 4096 + 32 + 80
+                    );
+                    assert!(
+                        budget.snapshot().allocated_layouts > 39,
+                        "已有body并存外所有容器也真实计费"
                     );
                 }
                 println!(
@@ -4054,7 +4171,10 @@ mod metered_verifier_body_tests {
                 traced_verify(&owned, &reference, mode),
                 traced_verify(&legacy, &reference, mode)
             );
-            assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+            assert!(
+                budget.snapshot().live_requested_layout_bytes >= base,
+                "缓存允许持账，但后续root与普通算法对拍必须相同"
+            );
         }
         drop(owned);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
@@ -4062,7 +4182,7 @@ mod metered_verifier_body_tests {
 
     #[test]
     fn metered_verifier_nested_root_headers_and_sequence_owners_are_live_together() {
-        for extra in [4207, 4208] {
+        for extra in [4207, 8192] {
             let (capture, budget, base, reference, _) = captured_string(&"a".repeat(4096), extra);
             let before = budget.snapshot();
             let f = frame_calls_on_thread();
@@ -4070,18 +4190,27 @@ mod metered_verifier_body_tests {
             let after = budget.snapshot();
             if extra == 4207 {
                 assert_eq!(result.unwrap_err().code(), capture_allocation::LIMIT);
-                assert_eq!(after.allocated_layouts, before.allocated_layouts + 3);
-                assert_eq!(after.allocation_attempts, before.allocation_attempts + 3);
-                assert_eq!(after.peak_requested_layout_bytes, base + 112);
+                assert_eq!(after.allocated_layouts, before.allocated_layouts + 8);
+                assert_eq!(after.allocation_attempts, before.allocation_attempts + 8);
+                assert_eq!(after.peak_requested_layout_bytes, base + 728);
+                assert_eq!(budget.allocation_request_probe().refused_bytes, 4096);
                 assert_eq!(frame_calls_on_thread() - f, 3);
                 assert!(capture.public.borrow().seen.is_empty());
             } else {
                 result.unwrap();
-                assert_eq!(after.allocated_layouts, before.allocated_layouts + 4);
-                assert_eq!(after.peak_requested_layout_bytes, base + 4208);
+                assert_eq!(after.allocated_layouts, before.allocated_layouts + 11);
+                assert_eq!(after.peak_requested_layout_bytes, base + 5252);
                 assert_eq!(frame_calls_on_thread() - f, 4);
             }
-            assert_eq!(after.live_requested_layout_bytes, base);
+            if extra == 4207 {
+                assert_eq!(after.live_requested_layout_bytes, base);
+            } else {
+                assert_eq!(
+                    after.live_requested_layout_bytes,
+                    base + 868,
+                    "成功memo仍持账"
+                );
+            }
             println!(
                 "VERIFIER_NESTED_OWNER_RECEIPT {}",
                 serde_json::json!({"base":base,"extra":extra,"meter":after})
@@ -4089,5 +4218,49 @@ mod metered_verifier_body_tests {
             drop(capture);
             assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
         }
+    }
+}
+
+#[cfg(test)]
+mod codec_workset_budget_probe {
+    use super::*;
+    #[test]
+    fn captured_public_template_memo_next_layout_refuses_before_allocate() {
+        let mut nodes = MemoryNodes::new();
+        let built = write_value(
+            &mut nodes,
+            &Value::Array(
+                (0..120)
+                    .map(|i| Value::string(format!("shared-{i}")))
+                    .collect(),
+            ),
+        )
+        .unwrap();
+        let count = nodes.nodes.len();
+        let bytes = nodes.nodes.values().map(|(_, b)| b.len()).sum();
+        let base = capture_allocation::CaptureSlab::requested_bytes(count, bytes).unwrap();
+        let budget = capture_allocation::OwnedBudget::new(base + 4096);
+        let mut slab = capture_allocation::CaptureSlab::new(count, bytes, &budget).unwrap();
+        for (d, (t, b)) in nodes.nodes {
+            slab.push(d, t, &b).unwrap();
+        }
+        let cap = AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
+        let result = cap.verify(&built.content_ref(), Mode::Public);
+        let retention = cap.retention();
+        println!(
+            "MEMO_RED_RECEIPT {}",
+            serde_json::json!({"base":base,"meter":budget.snapshot(),"memo":retention["public"]})
+        );
+        assert!(
+            result.is_err(),
+            "真实memo增长超过4096余量必须写前拒绝，实得{result:?}"
+        );
+        assert_eq!(result.unwrap_err().code(), capture_allocation::LIMIT);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        let result = cap.verify(&built.content_ref(), Mode::Template);
+        assert!(result.is_err());
+        assert_eq!(cap.original(&built.digest).unwrap().0, tag::ARRAY);
+        drop(cap);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
 }

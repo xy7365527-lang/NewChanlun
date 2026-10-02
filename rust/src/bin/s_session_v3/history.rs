@@ -1188,6 +1188,12 @@ impl NodeSink for HashReader<'_> {
 }
 
 impl CodecRead for HashReader<'_> {
+    fn new_ref_result(&mut self) -> sc::CodecVec<ContentRef> {
+        match &mut self.owned {
+            Some(owner) => owner.new_ref_result(),
+            None => sc::CodecVec::from_plain(Vec::new()),
+        }
+    }
     fn generic_source(&mut self) -> &mut dyn NodeSource {
         self
     }
@@ -1211,36 +1217,39 @@ impl CodecRead for HashReader<'_> {
             sc::path::lookup_path(self, r, p)
         }
     }
-    fn lookup_array_items(&mut self, r: &ContentRef) -> Result<Vec<ContentRef>, sc::CodecError> {
+    fn lookup_array_items(
+        &mut self,
+        r: &ContentRef,
+    ) -> Result<sc::CodecVec<ContentRef>, sc::CodecError> {
         self.sync_owned();
         if let Some(owner) = &mut self.owned {
             owner.lookup_array_items(r)
         } else {
-            sc::path::lookup_array_items(self, r)
+            sc::path::lookup_array_items(self, r).map(sc::CodecVec::from_plain)
         }
     }
     fn lookup_object_fields(
         &mut self,
         r: &ContentRef,
         n: &[&str],
-    ) -> Result<BTreeMap<String, ContentRef>, sc::CodecError> {
+    ) -> Result<sc::CodecFields, sc::CodecError> {
         self.sync_owned();
         if let Some(owner) = &mut self.owned {
             owner.lookup_object_fields(r, n)
         } else {
-            sc::path::lookup_object_fields(self, r, n)
+            sc::path::lookup_object_fields(self, r, n).map(sc::CodecFields::from_plain)
         }
     }
     fn lookup_object_fields_subset(
         &mut self,
         r: &ContentRef,
         n: &[&str],
-    ) -> Result<BTreeMap<String, ContentRef>, sc::CodecError> {
+    ) -> Result<sc::CodecFields, sc::CodecError> {
         self.sync_owned();
         if let Some(owner) = &mut self.owned {
             owner.lookup_object_fields_subset(r, n)
         } else {
-            sc::path::lookup_object_fields_subset(self, r, n)
+            sc::path::lookup_object_fields_subset(self, r, n).map(sc::CodecFields::from_plain)
         }
     }
     fn render_canonical(
@@ -1566,6 +1575,84 @@ mod tests {
     }
 
     #[test]
+    fn closed_codec_return_owners_keep_ledger_through_iterator_consumption() {
+        use sc::capture_allocation::{CaptureSlab, OwnedBudget};
+        #[derive(Default)]
+        struct Collect(BTreeMap<NodeDigest, (u8, Vec<u8>)>);
+        impl NodeSink for Collect {
+            fn put(&mut self, d: NodeDigest, t: u8, b: &[u8]) -> Result<(), sc::CodecError> {
+                self.0.insert(d, (t, b.to_vec()));
+                Ok(())
+            }
+        }
+        let mut nodes = Collect::default();
+        let original = sc::write_value(
+            &mut nodes,
+            &V::Object(vec![
+                ("items".into(), V::Array(vec![V::Null; 5])),
+                ("κ".into(), V::String("source".into())),
+            ]),
+        )
+        .unwrap()
+        .content_ref();
+        let count = nodes.0.len();
+        let bytes = nodes.0.values().map(|(_, b)| b.len()).sum();
+        let base = CaptureSlab::requested_bytes(count, bytes).unwrap();
+        let overlay =
+            sc::capture_allocation::overlay::OverlaySlab::requested_bytes(8, 1024).unwrap();
+        let budget = OwnedBudget::new(base + overlay + 65536);
+        let mut slab = CaptureSlab::new(count, bytes, &budget).unwrap();
+        for (d, (t, b)) in nodes.0 {
+            slab.push(d, t, &b).unwrap();
+        }
+        let capture = sc::AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
+        with_overlay_prototype(
+            OverlayPrototype {
+                slots: 8,
+                bytes: 1024,
+                budget: budget.clone(),
+                peaks: std::rc::Rc::new(std::cell::Cell::new((0, 0))),
+            },
+            || {
+                let mut reader = HashReader::captured_for_audit(&capture, None).unwrap();
+                let fields = reader
+                    .lookup_object_fields(&original, &["items", "κ"])
+                    .unwrap();
+                let fields_live = budget.snapshot().live_requested_layout_bytes;
+                assert!(
+                    fields_live > base + overlay,
+                    "字段结果entries与UTF8 key必须真实留账"
+                );
+                let items = reader.lookup_array_items(&fields["items"]).unwrap();
+                let both_live = budget.snapshot().live_requested_layout_bytes;
+                assert!(both_live > fields_live, "数组结果容器必须另占真实Layout");
+                drop(reader);
+                assert_eq!(
+                    budget.snapshot().live_requested_layout_bytes,
+                    both_live - overlay
+                );
+                assert_eq!(fields["κ"].kind, Kind::String);
+                let mut iter = items.into_iter();
+                assert_eq!(iter.next().unwrap().kind, Kind::Null);
+                assert_eq!(
+                    budget.snapshot().live_requested_layout_bytes,
+                    both_live - overlay,
+                    "owning iterator消费首项仍持有原数组allocation"
+                );
+                assert_eq!(iter.count(), 4);
+                assert_eq!(
+                    budget.snapshot().live_requested_layout_bytes,
+                    fields_live - overlay
+                );
+                drop(fields);
+                assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+            },
+        );
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+
+    #[test]
     fn overlay_bounded_limits_replace_clear_and_shared_live() {
         use sc::capture_allocation::{overlay::OverlaySlab, OwnedBudget, LIMIT};
         let capture = sc::AuditCapture::new(sc::MemoryNodes::new());
@@ -1807,6 +1894,7 @@ mod tests {
                                 .map_err(|e| format!("SourceAuditInvalid：{e}"))
                         })
                         .collect::<Result<Vec<_>, _>>()
+                        .map(sc::CodecVec::from_plain)
                 } else {
                     source_audit::elements(&mut reader, &root)
                 };

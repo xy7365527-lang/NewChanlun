@@ -1,6 +1,6 @@
-//! #1394 局部测试原型：只限制 capture 的两次 requested Layout 分配。
-//! 不覆盖 Verifier、NodeRead clone、overlay、SQLite、分配器元数据或 RSS。
-//! 共享计数器 Rc 是固定测试仪表，不属于 capture payload；没有生产默认额度。
+//! #1394 局部原型：同OwnedBudget计量capture/固定overlay、codec节点body与选定全部工作集真实Layout。
+//! 未覆盖业务JSON/其它业务容器、ContentRef字符串/外部输出、SQLite、外层错误/诊断、allocator元数据与物理RSS。
+//! 普通NodeSource及擦除后的公开Vec契约保持；固定Rc/Cell仪表不算payload，无生产默认额度/完整准入。
 
 use super::{CodecError, NodeDigest};
 use std::alloc::{alloc_zeroed, dealloc, Layout};
@@ -23,6 +23,13 @@ struct Meter {
     rejected: Cell<u64>,
     copied_rows: Cell<u64>,
     copied_bytes: Cell<u64>,
+    request_size: Cell<usize>,
+    request_align: Cell<usize>,
+    request_kind: Cell<&'static str>,
+    refused_size: Cell<usize>,
+    refused_align: Cell<usize>,
+    refused_live: Cell<usize>,
+    refused_kind: Cell<&'static str>,
 }
 #[derive(Clone, Copy, Debug, serde::Serialize)]
 pub struct Snapshot {
@@ -37,7 +44,7 @@ pub struct Snapshot {
     pub copied_body_bytes: u64,
 }
 fn refused() -> CodecError {
-    CodecError::new(LIMIT, "capture requested Layout 超过显式测试额度")
+    CodecError::static_detail(LIMIT, "capture requested Layout 超过显式测试额度")
 }
 impl OwnedBudget {
     pub fn new(limit: usize) -> Self {
@@ -51,6 +58,13 @@ impl OwnedBudget {
             rejected: Cell::new(0),
             copied_rows: Cell::new(0),
             copied_bytes: Cell::new(0),
+            request_size: Cell::new(0),
+            request_align: Cell::new(1),
+            request_kind: Cell::new("none"),
+            refused_size: Cell::new(0),
+            refused_align: Cell::new(1),
+            refused_live: Cell::new(0),
+            refused_kind: Cell::new("none"),
         }))
     }
     pub fn snapshot(&self) -> Snapshot {
@@ -67,6 +81,26 @@ impl OwnedBudget {
             copied_body_bytes: m.copied_bytes.get(),
         }
     }
+    pub(crate) fn note_kind(&self, kind: &'static str) {
+        self.0.request_kind.set(kind);
+    }
+    pub(crate) fn note_layout(&self, layout: Layout) {
+        self.0.request_size.set(layout.size());
+        self.0.request_align.set(layout.align());
+    }
+    #[doc(hidden)]
+    pub fn allocation_request_probe(&self) -> RequestProbe {
+        let m = &self.0;
+        RequestProbe {
+            last_request_bytes: m.request_size.get(),
+            last_request_align: m.request_align.get(),
+            last_request_kind: m.request_kind.get(),
+            refused_bytes: m.refused_size.get(),
+            refused_align: m.refused_align.get(),
+            live_before_refusal: m.refused_live.get(),
+            refused_kind: m.refused_kind.get(),
+        }
+    }
     pub fn preflight(&self, bytes: usize) -> Result<(), CodecError> {
         if self
             .0
@@ -76,6 +110,10 @@ impl OwnedBudget {
             .is_none_or(|n| n > self.0.limit)
         {
             self.0.rejected.set(self.0.rejected.get() + 1);
+            self.0.refused_size.set(bytes);
+            self.0.refused_align.set(self.0.request_align.get());
+            self.0.refused_live.set(self.0.live.get());
+            self.0.refused_kind.set(self.0.request_kind.get());
             return Err(refused());
         }
         Ok(())
@@ -90,6 +128,8 @@ struct OwnedLayout {
 impl OwnedLayout {
     fn new(layout: Layout, budget: &OwnedBudget) -> Result<Self, CodecError> {
         // Each actual allocation has its own BEFORE gate, even after aggregate preflight.
+        budget.note_kind("capture/body/overlay Layout");
+        budget.note_layout(layout);
         budget.preflight(layout.size())?;
         let m = &budget.0;
         if layout.size() == 0 {
@@ -105,7 +145,10 @@ impl OwnedLayout {
         let pointer = unsafe { alloc_zeroed(layout) };
         let Some(pointer) = NonNull::new(pointer) else {
             m.live.set(m.live.get() - layout.size());
-            return Err(CodecError::new(LIMIT, "capture 分配器拒绝已预留 Layout"));
+            return Err(CodecError::static_detail(
+                LIMIT,
+                "capture 分配器拒绝已预留 Layout",
+            ));
         };
         m.allocated.set(m.allocated.get() + 1);
         m.peak.set(m.peak.get().max(m.live.get()));
@@ -271,4 +314,17 @@ impl CaptureSlab {
     pub(super) fn owned_budget(&self) -> OwnedBudget {
         self.body.budget.clone()
     }
+}
+
+pub(crate) mod work;
+
+#[derive(Clone, Copy, Debug, serde::Serialize)]
+pub struct RequestProbe {
+    pub last_request_bytes: usize,
+    pub last_request_align: usize,
+    pub last_request_kind: &'static str,
+    pub refused_bytes: usize,
+    pub refused_align: usize,
+    pub live_before_refusal: usize,
+    pub refused_kind: &'static str,
 }

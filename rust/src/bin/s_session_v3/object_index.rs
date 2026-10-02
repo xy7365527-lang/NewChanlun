@@ -62,7 +62,7 @@ fn scalar_value(s: &mut (impl CodecRead + ?Sized), r: &ContentRef) -> Result<Val
 }
 
 /// 同一原件绑定调用中的固定小字段；大载荷只保存引用，不持久缓存或信任摘要替代闭包。
-pub(super) struct Fields(BTreeMap<String, ContentRef>);
+pub(super) struct Fields(sc::CodecFields);
 impl Fields {
     fn read(
         s: &mut (impl CodecStore + ?Sized),

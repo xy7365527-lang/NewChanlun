@@ -46,6 +46,10 @@ rusqlite = { version = "0.40", features = ["bundled", "hooks", "limits", "serial
 # #1374：向内核查询真实持久卷，macOS firmlink 不能用挂载路径前缀判断。
 libc = { version = "0.2", optional = true }
 
+# #1394 closed codec private allocator, exact versions; normal sources unchanged.
+allocator-api2 = { version = "=0.2.21", optional = true }
+hashbrown = { version = "=0.17.1", default-features = false, features = ["allocator-api2"], optional = true }
+
 [features]
 default = []
 extension-module = ["pyo3/extension-module"]
@@ -62,7 +66,7 @@ issue1087_parity = []
 lav_seal = ["dep:sha2"]
 # #1370 TB-01-A：正式结构会话 S 二进制（s_structure_session）——sha2（payload_hash 规范字节）
 #   + rusqlite（S 自有 SQLite/WAL 单写者）。
-s_session = ["dep:sha2", "dep:rusqlite", "dep:libc"]
+s_session = ["dep:sha2", "dep:rusqlite", "dep:libc", "dep:allocator-api2", "dep:hashbrown"]
 
 # ── CLI 生产入口（goal acceptance[5]：CLI 能驱动 S_Θ 产回测结果）。 ──
 # required-features：默认 cargo build 不编译它（cdylib 构建不受影响）。
@@ -226,6 +230,8 @@ required-features = ["issue1087_parity"]
 # 仅测试期依赖：T 回测全量 runner 读取 analysis/data_cache/*.json（8 标的 OHLC）。
 # 放 dev-dependencies ⇒ cdylib（Python 扩展）构建不受影响，零运行时依赖膨胀。
 [dev-dependencies]
+allocator-api2 = "=0.2.21"
+hashbrown = { version = "=0.17.1", default-features = false, features = ["allocator-api2"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # venue 费率 datum 的 sha256 校验（#360）：cargo test 下 `cfg(test)` 解 venue_fee::datum_io 门控。

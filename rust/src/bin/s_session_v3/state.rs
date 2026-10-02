@@ -865,6 +865,14 @@ mod scoped_prototype_probe {
             None => run(),
         };
         let elapsed = started.elapsed().as_nanos();
+        if let Err(error) = &result {
+            let failure = json!({"whole_audit_allocation_admitted":false,"testonly_failure_receipt":true,"error":error,"after_drop_meter":owned_budget.as_ref().map(|b|b.snapshot()),"last_layout":owned_budget.as_ref().map(|b|b.allocation_request_probe()),"f_calls":sc::frame_calls_on_thread()-f,"sql_node_reads":content_store::sql_reads_on_thread()-sql,"events":events,"work":work,"elapsed_ns":elapsed.to_string()});
+            std::fs::write(
+                std::env::var("AUDIT_PROTOTYPE_REPORT").unwrap(),
+                canonical_json(&failure),
+            )
+            .unwrap();
+        }
         let (s, capture) = result.unwrap();
         let cuts = s
             .cuts

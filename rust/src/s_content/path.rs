@@ -44,8 +44,9 @@ use super::{
     be_u64, body_shape_error, byte_chunk_shape_error, byte_extent_error, checked_frame_len, code,
     digest_at, frame, framed_len, header_extent, is_sequence_tag, length_overflow_error,
     root_string, sequence_shape_error, split_index, tag, unsupported_value_tag_error,
-    write_string_node, CodecContext, CodecError, ContentRef, Kind, LeafIter, NodeDigest,
-    NodeSource, NodeStore, VerifierBody, CHUNK_BYTES, CONTENT_FORMAT, MAX_FRAME_LEN,
+    write_string_node, CodecContext, CodecError, CodecFields, ContentRef, Kind, LeafIter,
+    NodeDigest, NodeSource, NodeStore, VerifierBody, WorkVec, CHUNK_BYTES, CONTENT_FORMAT,
+    MAX_FRAME_LEN,
 };
 use std::cmp::Ordering;
 
@@ -105,7 +106,7 @@ pub(super) fn lookup_path_ctx(
 pub(super) fn lookup_array_items_ctx(
     source: &mut CodecContext<'_, '_>,
     reference: &ContentRef,
-) -> Result<Vec<ContentRef>, CodecError> {
+) -> Result<WorkVec<ContentRef>, CodecError> {
     let (count, root) = {
         let node = navigate(source, reference, &[], false)?;
         if node.tag != tag::ARRAY {
@@ -113,15 +114,17 @@ pub(super) fn lookup_array_items_ctx(
         }
         (framed_len(&node.body, "数组")?, digest_at(&node.body, 8))
     };
-    let mut stack = vec![(root, count, 0u64)];
-    let mut result = Vec::new();
+    let budget = source.budget();
+    let mut stack = WorkVec::with_capacity(1, budget.as_ref())?;
+    stack.push((root, count, 0u64))?;
+    let mut result = WorkVec::new(budget.as_ref());
     while let Some((digest, count, base_index)) = stack.pop() {
         match read_seq_node(source, &digest, count)? {
             SeqNode::Empty => {}
             SeqNode::Branch { k, left, right } => {
                 // 两侧实际出栈时各核期望数量；完整遍历不为每个 item 重读共同祖先。
-                stack.push((right, count - k, base_index + k));
-                stack.push((left, k, base_index));
+                stack.push((right, count - k, base_index + k))?;
+                stack.push((left, k, base_index))?;
             }
             SeqNode::Leaf(value) => {
                 source.before_path_index(&[], base_index)?;
@@ -134,7 +137,7 @@ pub(super) fn lookup_array_items_ctx(
                 }
                 let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
                 let extent = header_extent(t, &body)?;
-                result.push(ContentRef::new(kind, &value, extent));
+                result.push(ContentRef::new(kind, &value, extent))?;
             }
         }
     }
@@ -149,7 +152,7 @@ pub(super) fn lookup_object_fields_ctx(
     source: &mut CodecContext<'_, '_>,
     reference: &ContentRef,
     names: &[&str],
-) -> Result<std::collections::BTreeMap<String, ContentRef>, CodecError> {
+) -> Result<CodecFields, CodecError> {
     object_fields(source, reference, names, true)
 }
 
@@ -159,7 +162,7 @@ pub(super) fn lookup_object_fields_subset_ctx(
     source: &mut CodecContext<'_, '_>,
     reference: &ContentRef,
     names: &[&str],
-) -> Result<std::collections::BTreeMap<String, ContentRef>, CodecError> {
+) -> Result<CodecFields, CodecError> {
     object_fields(source, reference, names, false)
 }
 
@@ -168,7 +171,7 @@ fn object_fields(
     reference: &ContentRef,
     names: &[&str],
     exact: bool,
-) -> Result<std::collections::BTreeMap<String, ContentRef>, CodecError> {
+) -> Result<CodecFields, CodecError> {
     let node = navigate(source, reference, &[], false)?;
     if node.tag != tag::OBJECT {
         return Err(step_kind_error("对象字段集", "0x06 对象", node.tag));
@@ -177,13 +180,16 @@ fn object_fields(
     if exact && count != names.len() as u64 {
         return Err(sequence_shape_error("对象字段数与固定 exact 清单不同"));
     }
-    let mut keys = names.to_vec();
+    let budget = source.budget();
+    let mut keys = WorkVec::with_capacity(names.len(), budget.as_ref())?;
+    keys.extend_from_slice(names)?;
     keys.sort_unstable();
     if keys.windows(2).any(|pair| pair[0] == pair[1]) {
         return Err(CodecError::new(code::DUPLICATE_KEY, "exact 清单重复键"));
     }
-    let mut result = std::collections::BTreeMap::new();
-    let mut stack = vec![(digest_at(&node.body, 8), count)];
+    let mut result = CodecFields::new(budget.as_ref());
+    let mut stack = WorkVec::with_capacity(1, budget.as_ref())?;
+    stack.push((digest_at(&node.body, 8), count))?;
     let mut at = 0;
     let mut previous_key = None;
     // #1394 C §5：仅完整审计 None 的 Subset，在本次 DFS 中保留前/当前两短键。
@@ -195,8 +201,8 @@ fn object_fields(
             SeqNode::Empty => {}
             SeqNode::Branch { k, left, right } => {
                 // 后续实际读到两子树并逐层检查期望数量；不用为每个字段再下行一遍。
-                stack.push((right, count - k));
-                stack.push((left, k));
+                stack.push((right, count - k))?;
+                stack.push((left, k))?;
             }
             SeqNode::Leaf(field) => {
                 let (key, value) = read_field(source, &field)?;
@@ -244,7 +250,7 @@ fn object_fields(
                     return Err(field_missing_error(expected));
                 }
                 let reference = super::content_ref_ctx(source, &root_string(&value))?;
-                result.insert((*expected).into(), reference);
+                result.append(expected, reference)?;
                 at += 1;
             }
         }
@@ -367,7 +373,7 @@ pub(super) fn bytes_between_ctx(
     reference: &ContentRef,
     offset: u64,
     end: u64,
-) -> Result<Vec<u8>, CodecError> {
+) -> Result<WorkVec<u8>, CodecError> {
     let node = navigate(source, reference, &[], false)?;
     if !matches!(reference.kind, Kind::String | Kind::Number) {
         return Err(step_kind_error("bytes", "字符串或数字", node.tag));
@@ -379,7 +385,8 @@ pub(super) fn bytes_between_ctx(
     let count = total.div_ceil(CHUNK_BYTES as u64);
     let root = digest_at(&node.body, 8);
     check_range_root_ctx(source, reference)?;
-    let mut output = Vec::new();
+    let budget = source.budget();
+    let mut output = WorkVec::new(budget.as_ref());
     if offset == end {
         return Ok(output);
     }
@@ -394,7 +401,7 @@ pub(super) fn bytes_between_ctx(
         }
         let lo = offset.saturating_sub(start) as usize;
         let hi = (end - start).min(expected) as usize;
-        output.extend_from_slice(&body[lo..hi]);
+        output.extend_from_slice(&body[lo..hi])?;
     }
     Ok(output)
 }
@@ -449,9 +456,10 @@ pub(super) fn replace_batch_placeholder_ctx(
             Ancestor::Array { declared, branches } => {
                 let leaf = store.emit(tag::SEQ_LEAF, &digest)?;
                 let fields = rebuild_sequence(store, branches, leaf)?;
-                let mut body = Vec::with_capacity(40);
-                body.extend_from_slice(&checked_frame_len(*declared)?);
-                body.extend_from_slice(&fields);
+                let budget = store.budget();
+                let mut body = WorkVec::with_capacity(40, budget.as_ref())?;
+                body.extend_from_slice(&checked_frame_len(*declared)?)?;
+                body.extend_from_slice(&fields)?;
                 digest = store.emit(tag::ARRAY, &body)?;
                 kind = Kind::Array;
                 extent = Some(*declared);
@@ -467,9 +475,10 @@ pub(super) fn replace_batch_placeholder_ctx(
                 let field = store.emit(tag::OBJECT_FIELD, &field_body)?;
                 let leaf = store.emit(tag::SEQ_LEAF, &field)?;
                 let fields = rebuild_sequence(store, branches, leaf)?;
-                let mut body = Vec::with_capacity(40);
-                body.extend_from_slice(&checked_frame_len(*declared)?);
-                body.extend_from_slice(&fields);
+                let budget = store.budget();
+                let mut body = WorkVec::with_capacity(40, budget.as_ref())?;
+                body.extend_from_slice(&checked_frame_len(*declared)?)?;
+                body.extend_from_slice(&fields)?;
                 digest = store.emit(tag::OBJECT, &body)?;
                 kind = Kind::Object;
                 extent = Some(*declared);
@@ -491,12 +500,12 @@ enum Ancestor {
     /// 数组：重建元素序列与 0x05 数组节点。
     Array {
         declared: u64,
-        branches: Vec<BranchFrame>,
+        branches: WorkVec<BranchFrame>,
     },
     /// 对象：重建 0x14 字段节点（键不变）、字段序列与 0x06 对象节点。
     Object {
         declared: u64,
-        branches: Vec<BranchFrame>,
+        branches: WorkVec<BranchFrame>,
         key: NodeDigest,
     },
 }
@@ -515,7 +524,7 @@ struct Descent {
     digest: NodeDigest,
     tag: u8,
     body: VerifierBody,
-    ancestors: Vec<Ancestor>,
+    ancestors: WorkVec<Ancestor>,
 }
 
 /// 沿 path 下行。`forbid_json_text` 为真时（替换）当场拒绝 json_text 步骤。
@@ -552,7 +561,9 @@ fn navigate(
     let mut cur_digest = root;
     // json_text 上下文：进入文本视图后不再复位（其内部任意深度都受同一禁令）。
     let mut json_inner = false;
-    let mut ancestors: Vec<Ancestor> = Vec::with_capacity(path.len().min(64));
+    let budget = source.budget();
+    let mut ancestors: WorkVec<Ancestor> =
+        WorkVec::with_capacity(path.len().min(64), budget.as_ref())?;
     for (step_position, step) in path.iter().enumerate() {
         match step {
             PathStep::Field(name) => {
@@ -566,7 +577,7 @@ fn navigate(
                     declared,
                     branches,
                     key,
-                });
+                })?;
                 let (t, body) = read_value_node(source, &value, json_inner)?;
                 (cur_tag, cur_body, cur_digest) = (t, body, value);
             }
@@ -581,7 +592,7 @@ fn navigate(
                 source.before_path_index(&path[..step_position], *index)?;
                 let elements_root = digest_at(&cur_body, 8);
                 let (branches, leaf) = descend_seq(source, &elements_root, declared, *index)?;
-                ancestors.push(Ancestor::Array { declared, branches });
+                ancestors.push(Ancestor::Array { declared, branches })?;
                 let (t, body) = read_value_node(source, &leaf, json_inner)?;
                 (cur_tag, cur_body, cur_digest) = (t, body, leaf);
             }
@@ -790,11 +801,12 @@ fn descend_seq(
     root: &NodeDigest,
     count: u64,
     index: u64,
-) -> Result<(Vec<BranchFrame>, NodeDigest), CodecError> {
+) -> Result<(WorkVec<BranchFrame>, NodeDigest), CodecError> {
     if index >= count {
         return Err(index_range_error(index, count));
     }
-    let mut branches: Vec<BranchFrame> = Vec::new();
+    let budget = source.budget();
+    let mut branches: WorkVec<BranchFrame> = WorkVec::new(budget.as_ref());
     let mut digest = *root;
     let mut at = index;
     let mut n = count;
@@ -819,7 +831,7 @@ fn descend_seq(
                         left,
                         right,
                         went_left: true,
-                    });
+                    })?;
                     digest = left;
                     n = k;
                 } else {
@@ -828,7 +840,7 @@ fn descend_seq(
                         left,
                         right,
                         went_left: false,
-                    });
+                    })?;
                     digest = right;
                     at -= k;
                     n -= k;
@@ -897,9 +909,10 @@ fn find_field(
     root: &NodeDigest,
     count: u64,
     name: &str,
-) -> Result<(Vec<BranchFrame>, NodeDigest, NodeDigest), CodecError> {
+) -> Result<(WorkVec<BranchFrame>, NodeDigest, NodeDigest), CodecError> {
     let wanted = name.as_bytes();
-    let mut branches: Vec<BranchFrame> = Vec::new();
+    let budget = source.budget();
+    let mut branches: WorkVec<BranchFrame> = WorkVec::new(budget.as_ref());
     let mut digest = *root;
     let mut n = count;
     loop {
@@ -942,7 +955,7 @@ fn find_field(
                         left,
                         right,
                         went_left: false,
-                    });
+                    })?;
                     digest = right;
                     n -= k;
                 } else {
@@ -951,7 +964,7 @@ fn find_field(
                         left,
                         right,
                         went_left: true,
-                    });
+                    })?;
                     digest = left;
                     n = k;
                 }
@@ -984,7 +997,7 @@ fn cmp_key_bytes(
     wanted: &[u8],
 ) -> Result<Ordering, CodecError> {
     let (bytes_root, declared) = read_string_header(source, key)?;
-    let mut iter = LeafIter::new(bytes_root);
+    let mut iter = LeafIter::new(bytes_root, source.budget().as_ref())?;
     let mut pos = 0usize;
     let mut total: u64 = 0;
     while let Some((lt, _leaf, chunk)) = iter.next_context(source)? {
@@ -1031,8 +1044,8 @@ fn cmp_key_nodes(
     }
     let (root_a, declared_a) = read_string_header(source, a)?;
     let (root_b, declared_b) = read_string_header(source, b)?;
-    let mut iter_a = LeafIter::new(root_a);
-    let mut iter_b = LeafIter::new(root_b);
+    let mut iter_a = LeafIter::new(root_a, source.budget().as_ref())?;
+    let mut iter_b = LeafIter::new(root_b, source.budget().as_ref())?;
     let mut buf_a = VerifierBody::empty();
     let mut buf_b = VerifierBody::empty();
     let mut pos_a = 0usize;
@@ -1173,21 +1186,21 @@ pub fn lookup_array_items(
     s: &mut dyn NodeSource,
     r: &ContentRef,
 ) -> Result<Vec<ContentRef>, CodecError> {
-    lookup_array_items_ctx(&mut CodecContext::Source(s), r)
+    lookup_array_items_ctx(&mut CodecContext::Source(s), r)?.into_plain()
 }
 pub fn lookup_object_fields(
     s: &mut dyn NodeSource,
     r: &ContentRef,
     n: &[&str],
 ) -> Result<std::collections::BTreeMap<String, ContentRef>, CodecError> {
-    lookup_object_fields_ctx(&mut CodecContext::Source(s), r, n)
+    lookup_object_fields_ctx(&mut CodecContext::Source(s), r, n)?.into_plain()
 }
 pub fn lookup_object_fields_subset(
     s: &mut dyn NodeSource,
     r: &ContentRef,
     n: &[&str],
 ) -> Result<std::collections::BTreeMap<String, ContentRef>, CodecError> {
-    lookup_object_fields_subset_ctx(&mut CodecContext::Source(s), r, n)
+    lookup_object_fields_subset_ctx(&mut CodecContext::Source(s), r, n)?.into_plain()
 }
 pub fn replace_batch_placeholder(
     s: &mut dyn NodeStore,
@@ -1213,5 +1226,5 @@ pub(super) fn bytes_between(
     o: u64,
     e: u64,
 ) -> Result<Vec<u8>, CodecError> {
-    bytes_between_ctx(&mut CodecContext::Source(s), r, o, e)
+    bytes_between_ctx(&mut CodecContext::Source(s), r, o, e)?.into_plain()
 }

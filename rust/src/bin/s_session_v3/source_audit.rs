@@ -119,16 +119,20 @@ fn exact(r: &ContentRef, kind: Kind, n: u64) -> Result<(), String> {
 pub(super) fn elements(
     s: &mut (impl CodecRead + ?Sized),
     r: &ContentRef,
-) -> Result<Vec<ContentRef>, String> {
+) -> Result<sc::CodecVec<ContentRef>, String> {
     if r.kind != Kind::Array {
         return Err(err("预期数组"));
     }
     if s.audit_full_array_scan() {
         return s.lookup_array_items(r).map_err(err);
     }
-    (0..r.extent.ok_or_else(|| err("数组缺长度"))?)
-        .map(|i| s.lookup_path(r, &[PathStep::Index(i)]).map_err(err))
-        .collect()
+    let count = r.extent.ok_or_else(|| err("数组缺长度"))?;
+    let mut result = s.new_ref_result();
+    for i in 0..count {
+        let item = s.lookup_path(r, &[PathStep::Index(i)]).map_err(err)?;
+        result.try_push(item).map_err(err)?;
+    }
+    Ok(result)
 }
 
 /// 活期仅为本次完整来源审计；预算/期限 Some 强制原路径。
@@ -178,6 +182,13 @@ impl<'a, 'borrow, 'source> ArrayAuditSource<'a, 'borrow, 'source> {
     }
 }
 impl CodecRead for ArrayAuditSource<'_, '_, '_> {
+    fn new_ref_result(&mut self) -> sc::CodecVec<ContentRef> {
+        if self.source.owned_codec_active() {
+            self.source.new_ref_result()
+        } else {
+            sc::CodecVec::from_plain(Vec::new())
+        }
+    }
     fn generic_source(&mut self) -> &mut dyn NodeSource {
         self
     }
@@ -199,33 +210,36 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_> {
             lookup_path(self, r, p)
         }
     }
-    fn lookup_array_items(&mut self, r: &ContentRef) -> Result<Vec<ContentRef>, sc::CodecError> {
+    fn lookup_array_items(
+        &mut self,
+        r: &ContentRef,
+    ) -> Result<sc::CodecVec<ContentRef>, sc::CodecError> {
         if self.source.owned_codec_active() {
             self.owned_role(|s| s.lookup_array_items(r))
         } else {
-            sc::path::lookup_array_items(self, r)
+            sc::path::lookup_array_items(self, r).map(sc::CodecVec::from_plain)
         }
     }
     fn lookup_object_fields(
         &mut self,
         r: &ContentRef,
         n: &[&str],
-    ) -> Result<BTreeMap<String, ContentRef>, sc::CodecError> {
+    ) -> Result<sc::CodecFields, sc::CodecError> {
         if self.source.owned_codec_active() {
             self.owned_role(|s| s.lookup_object_fields(r, n))
         } else {
-            sc::path::lookup_object_fields(self, r, n)
+            sc::path::lookup_object_fields(self, r, n).map(sc::CodecFields::from_plain)
         }
     }
     fn lookup_object_fields_subset(
         &mut self,
         r: &ContentRef,
         n: &[&str],
-    ) -> Result<BTreeMap<String, ContentRef>, sc::CodecError> {
+    ) -> Result<sc::CodecFields, sc::CodecError> {
         if self.source.owned_codec_active() {
             self.owned_role(|s| s.lookup_object_fields_subset(r, n))
         } else {
-            sc::path::lookup_object_fields_subset(self, r, n)
+            sc::path::lookup_object_fields_subset(self, r, n).map(sc::CodecFields::from_plain)
         }
     }
     fn render_canonical(
@@ -1099,7 +1113,7 @@ mod tests {
             .unwrap();
         let refs = field(s, shape, "input_refs_json").unwrap();
         let refs = lookup_path(s, &refs, &[PathStep::JsonText]).unwrap();
-        let part = elements(s, &refs).unwrap().remove(0);
+        let part = elements(s, &refs).unwrap().into_iter().next().unwrap();
         let index = number(s, &part, "merged_index").unwrap();
         let payload = objects
             .iter()
@@ -1613,7 +1627,7 @@ mod tests {
     fn witness_merged_claim_is_checked_against_group_fact_not_itself() {
         let (mut s, state, raw, rule) = fixture();
         let root = field(&mut s, &state, "witnesses").unwrap();
-        let first = elements(&mut s, &root).unwrap().remove(0);
+        let first = elements(&mut s, &root).unwrap().into_iter().next().unwrap();
         // 原 witness ID 配方不含 merged_high；只改此值仍有合法 witness ID 和 Merkle 闭包。
         let changed = replace_field(
             &mut s,

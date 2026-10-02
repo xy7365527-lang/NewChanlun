@@ -6,34 +6,40 @@ use newchan_rust::s_content::{
 };
 
 use sc::path::PathStep;
-use std::collections::BTreeMap;
 use std::io::Write;
 
 /// 仅bin内的静态codec门；具体捕获owner不可擦除成外来来源。
 pub(crate) trait CodecRead: NodeSource {
     fn generic_source(&mut self) -> &mut dyn NodeSource;
+    fn new_ref_result(&mut self) -> sc::CodecVec<ContentRef> {
+        sc::CodecVec::from_plain(Vec::new())
+    }
     fn content_ref_of(&mut self, root: &str) -> Result<ContentRef, CodecError> {
         sc::content_ref_of(self.generic_source(), root)
     }
     fn lookup_path(&mut self, r: &ContentRef, p: &[PathStep]) -> Result<ContentRef, CodecError> {
         sc::path::lookup_path(self.generic_source(), r, p)
     }
-    fn lookup_array_items(&mut self, r: &ContentRef) -> Result<Vec<ContentRef>, CodecError> {
-        sc::path::lookup_array_items(self.generic_source(), r)
+    fn lookup_array_items(
+        &mut self,
+        r: &ContentRef,
+    ) -> Result<sc::CodecVec<ContentRef>, CodecError> {
+        sc::path::lookup_array_items(self.generic_source(), r).map(sc::CodecVec::from_plain)
     }
     fn lookup_object_fields(
         &mut self,
         r: &ContentRef,
         n: &[&str],
-    ) -> Result<BTreeMap<String, ContentRef>, CodecError> {
-        sc::path::lookup_object_fields(self.generic_source(), r, n)
+    ) -> Result<sc::CodecFields, CodecError> {
+        sc::path::lookup_object_fields(self.generic_source(), r, n).map(sc::CodecFields::from_plain)
     }
     fn lookup_object_fields_subset(
         &mut self,
         r: &ContentRef,
         n: &[&str],
-    ) -> Result<BTreeMap<String, ContentRef>, CodecError> {
+    ) -> Result<sc::CodecFields, CodecError> {
         sc::path::lookup_object_fields_subset(self.generic_source(), r, n)
+            .map(sc::CodecFields::from_plain)
     }
     fn render_canonical(&mut self, r: &ContentRef, w: &mut dyn Write) -> Result<(), CodecError> {
         sc::render_canonical(self.generic_source(), r, w)
@@ -197,6 +203,12 @@ impl<'a, 'source> StoreView<'a, 'source> {
     }
 }
 impl CodecRead for StoreView<'_, '_> {
+    fn new_ref_result(&mut self) -> sc::CodecVec<ContentRef> {
+        match &mut self.backend {
+            Backend::Generic(s) => s.new_ref_result(),
+            Backend::Audit(s) => s.new_ref_result(),
+        }
+    }
     fn generic_source(&mut self) -> &mut dyn NodeSource {
         self
     }
@@ -212,7 +224,10 @@ impl CodecRead for StoreView<'_, '_> {
             Backend::Audit(s) => s.lookup_path(r, p),
         }
     }
-    fn lookup_array_items(&mut self, r: &ContentRef) -> Result<Vec<ContentRef>, CodecError> {
+    fn lookup_array_items(
+        &mut self,
+        r: &ContentRef,
+    ) -> Result<sc::CodecVec<ContentRef>, CodecError> {
         match &mut self.backend {
             Backend::Generic(s) => s.lookup_array_items(r),
             Backend::Audit(s) => s.lookup_array_items(r),
@@ -222,7 +237,7 @@ impl CodecRead for StoreView<'_, '_> {
         &mut self,
         r: &ContentRef,
         n: &[&str],
-    ) -> Result<BTreeMap<String, ContentRef>, CodecError> {
+    ) -> Result<sc::CodecFields, CodecError> {
         match &mut self.backend {
             Backend::Generic(s) => s.lookup_object_fields(r, n),
             Backend::Audit(s) => s.lookup_object_fields(r, n),
@@ -232,7 +247,7 @@ impl CodecRead for StoreView<'_, '_> {
         &mut self,
         r: &ContentRef,
         n: &[&str],
-    ) -> Result<BTreeMap<String, ContentRef>, CodecError> {
+    ) -> Result<sc::CodecFields, CodecError> {
         match &mut self.backend {
             Backend::Generic(s) => s.lookup_object_fields_subset(r, n),
             Backend::Audit(s) => s.lookup_object_fields_subset(r, n),

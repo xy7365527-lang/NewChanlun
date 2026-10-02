@@ -11,8 +11,7 @@ use newchan_rust::s_content::{
     Value as V,
 };
 use newchan_rust::session_protocol::{nonnegative, positive};
-use std::collections::BTreeMap;
-type Fields = BTreeMap<String, ContentRef>;
+type Fields = s_content::CodecFields;
 
 const GENERATED_FIELDS: &[&str] = &[
     "generation",

@@ -57,21 +57,27 @@ impl ClosedCapturedOwner<'_> {
     ) -> Result<ContentRef, CodecError> {
         path::lookup_path_ctx(&mut CodecContext::Closed(self), r, p)
     }
-    pub fn lookup_array_items(&mut self, r: &ContentRef) -> Result<Vec<ContentRef>, CodecError> {
+    pub fn new_ref_result(&self) -> CodecVec<ContentRef> {
+        WorkVec::new(Some(&self.budget))
+    }
+    pub fn lookup_array_items(
+        &mut self,
+        r: &ContentRef,
+    ) -> Result<CodecVec<ContentRef>, CodecError> {
         path::lookup_array_items_ctx(&mut CodecContext::Closed(self), r)
     }
     pub fn lookup_object_fields(
         &mut self,
         r: &ContentRef,
         n: &[&str],
-    ) -> Result<BTreeMap<String, ContentRef>, CodecError> {
+    ) -> Result<CodecFields, CodecError> {
         path::lookup_object_fields_ctx(&mut CodecContext::Closed(self), r, n)
     }
     pub fn lookup_object_fields_subset(
         &mut self,
         r: &ContentRef,
         n: &[&str],
-    ) -> Result<BTreeMap<String, ContentRef>, CodecError> {
+    ) -> Result<CodecFields, CodecError> {
         path::lookup_object_fields_subset_ctx(&mut CodecContext::Closed(self), r, n)
     }
     pub fn render_canonical(
@@ -232,6 +238,16 @@ pub(super) enum CodecContext<'read, 'capture> {
     Closed(&'read mut ClosedCapturedOwner<'capture>),
 }
 impl<'read, 'capture> CodecContext<'read, 'capture> {
+    pub(super) fn budget(&self) -> Option<OwnedBudget> {
+        match self {
+            Self::Capture(c) => match &c.nodes {
+                CaptureNodes::AllocationPrototype(s) => Some(s.owned_budget()),
+                _ => None,
+            },
+            Self::Closed(c) => Some(c.budget.clone()),
+            _ => None,
+        }
+    }
     pub(super) fn reborrow(&mut self) -> CodecContext<'_, 'capture> {
         match self {
             Self::Source(s) => CodecContext::Source(&mut **s),
@@ -542,5 +558,192 @@ mod ordinary_sink_regression {
         assert_eq!(error.code(), code::SINK);
         assert_eq!(frame_calls_on_thread() - before, 1);
         assert!(!nodes.contains(&wrong));
+    }
+}
+
+#[cfg(test)]
+mod codec_workset_growth_probe {
+    use super::*;
+    fn make_capture(nodes: MemoryNodes, extra: usize) -> (AuditCapture, OwnedBudget, usize) {
+        let count = nodes.len();
+        let bytes = nodes.iter().map(|(_, _, b)| b.len()).sum();
+        let base = capture_allocation::CaptureSlab::requested_bytes(count, bytes).unwrap();
+        let budget = OwnedBudget::new(base + extra);
+        let mut slab = capture_allocation::CaptureSlab::new(count, bytes, &budget).unwrap();
+        for (d, t, b) in nodes.iter() {
+            slab.push(*d, t, b).unwrap();
+        }
+        (
+            AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap()),
+            budget,
+            base,
+        )
+    }
+    #[test]
+    fn codec_path_stack_next_layout_held_old_block_refuses_before_growth() {
+        let mut nodes = MemoryNodes::new();
+        let array = write_value(
+            &mut nodes,
+            &Value::Array(vec![Value::Null, Value::Bool(true)]),
+        )
+        .unwrap();
+        let (cap, budget, base) = make_capture(nodes, 215);
+        let mut owner = cap
+            .closed_codec_for_allocation_prototype(0, 0, None)
+            .unwrap();
+        let got = owner.lookup_array_items(&array.content_ref());
+        assert!(got.is_err());
+        assert_eq!(got.err().unwrap().code(), capture_allocation::LIMIT);
+        let probe = budget.allocation_request_probe();
+        assert_eq!(probe.refused_bytes, 192);
+        assert_eq!(probe.live_before_refusal, base + 48);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        println!(
+            "PATH_GROW_LAYOUT_RECEIPT {}",
+            serde_json::to_string(&probe).unwrap()
+        );
+        drop(owner);
+        drop(cap);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[test]
+    fn codec_leaf_iterator_stack_counts_old_new_body_live_before_growth() {
+        let mut nodes = MemoryNodes::new();
+        let value = write_value(&mut nodes, &Value::string("x".repeat(8192))).unwrap();
+        let seq = digest_at(nodes.get(&value.digest).unwrap().1, 8);
+        let (cap, budget, base) = make_capture(nodes, 167);
+        let mut owner = cap
+            .closed_codec_for_allocation_prototype(0, 0, None)
+            .unwrap();
+        let mut source = CodecContext::Closed(&mut owner);
+        let mut iter = LeafIter::new(seq, source.budget().as_ref()).unwrap();
+        let got = iter.next_context(&mut source);
+        assert!(got.is_err());
+        assert_eq!(got.err().unwrap().code(), capture_allocation::LIMIT);
+        let probe = budget.allocation_request_probe();
+        assert_eq!(probe.refused_bytes, 128);
+        assert_eq!(probe.live_before_refusal, base + 104);
+        drop(iter);
+        drop(source);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        println!(
+            "LEAF_GROW_LAYOUT_RECEIPT {}",
+            serde_json::to_string(&probe).unwrap()
+        );
+        drop(owner);
+        drop(cap);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[test]
+    fn codec_large_ordered_fields_keep_key_storage_and_logarithmic_lookup() {
+        let mut nodes = MemoryNodes::new();
+        let count = 2048;
+        let fields = (0..count)
+            .rev()
+            .map(|i| (format!("键-{i:05}"), Value::Null))
+            .collect();
+        let object = write_value(&mut nodes, &Value::Object(fields)).unwrap();
+        let names = (0..count).map(|i| format!("键-{i:05}")).collect::<Vec<_>>();
+        let wanted = names.iter().map(String::as_str).collect::<Vec<_>>();
+        let mut plain = nodes.clone();
+        let f = frame_calls_on_thread();
+        let expected =
+            path::lookup_object_fields(&mut plain, &object.content_ref(), &wanted).unwrap();
+        let plain_f = frame_calls_on_thread() - f;
+        let (cap, budget, base) = make_capture(nodes, 4 * 1024 * 1024);
+        let mut owner = cap
+            .closed_codec_for_allocation_prototype(0, 0, None)
+            .unwrap();
+        let f = frame_calls_on_thread();
+        let started = std::time::Instant::now();
+        let actual = owner
+            .lookup_object_fields(&object.content_ref(), &wanted)
+            .unwrap();
+        let elapsed = started.elapsed().as_nanos();
+        assert_eq!(frame_calls_on_thread() - f, plain_f);
+        assert_eq!(actual.len(), count);
+        for name in &wanted {
+            assert_eq!(actual.get(name), expected.get(*name));
+        }
+        drop(owner);
+        assert!(
+            budget.snapshot().live_requested_layout_bytes > base,
+            "返还离开codec后的字段entry+UTF8 key必须仍真实计量"
+        );
+        println!(
+            "ORDERED_FIELDS_RECEIPT {}",
+            serde_json::json!({"fields":count,"complexity":"amortized append O(1), canonical sort O(n log n), query O(log n)","f_calls":plain_f,"elapsed_ns":elapsed.to_string(),"meter":budget.snapshot()})
+        );
+        drop(actual);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        drop(cap);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[test]
+    fn codec_renderer_task_growth_old_tasks_leaf_stack_and_body_are_live() {
+        let mut nodes = MemoryNodes::new();
+        let value = write_value(&mut nodes, &Value::Array(vec![Value::Null])).unwrap();
+        let task = std::mem::size_of::<RTask>();
+        let (cap, budget, base) = make_capture(nodes, 5 * task + 71);
+        let mut owner = cap
+            .closed_codec_for_allocation_prototype(0, 0, None)
+            .unwrap();
+        let mut output = Vec::new();
+        let result = Renderer {
+            source: CodecContext::Closed(&mut owner),
+            out: &mut output,
+            escaping: false,
+            esc_decoder: Utf8Decoder::default(),
+        }
+        .run(value.digest);
+        assert_eq!(result.unwrap_err().code(), capture_allocation::LIMIT);
+        let probe = budget.allocation_request_probe();
+        assert_eq!(probe.refused_bytes, 4 * task);
+        assert_eq!(probe.live_before_refusal, base + task + 72);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        assert!(output.is_empty());
+        println!(
+            "RENDER_TASK_GROW_RECEIPT {}",
+            serde_json::to_string(&probe).unwrap()
+        );
+        drop(owner);
+        drop(cap);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+}
+
+#[cfg(test)]
+mod writer_error_cause_probe {
+    use super::*;
+    #[test]
+    fn normal_external_writer_oom_stays_io_owned_internal_quota_stays_limit() {
+        struct OomWriter;
+        impl Write for OomWriter {
+            fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::from(std::io::ErrorKind::OutOfMemory))
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let mut nodes = MemoryNodes::new();
+        let value = write_value(&mut nodes, &Value::Bool(true)).unwrap();
+        let error = render_canonical(&mut nodes, &value.content_ref(), &mut OomWriter).unwrap_err();
+        assert_eq!(
+            error,
+            CodecError::new(
+                code::IO,
+                std::io::Error::from(std::io::ErrorKind::OutOfMemory).to_string()
+            )
+        );
+        let b = OwnedBudget::new(1);
+        let mut owned = WorkVec::with_capacity(1, Some(&b)).unwrap();
+        let error = write_escaped_char_work('\u{1}', &mut owned).unwrap_err();
+        assert_eq!(error.code(), capture_allocation::LIMIT);
+        assert!(matches!(error.detail, std::borrow::Cow::Borrowed(_)));
+        assert_eq!(owned.len(), 0);
+        assert_eq!(b.snapshot().allocated_layouts, 1);
+        drop(owned);
+        assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
     }
 }
