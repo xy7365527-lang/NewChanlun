@@ -1,6 +1,7 @@
 //! #1394 C §5.6：typed anchor内容片段与content-token/1的请求/回复合同。
 //! 实际根/保留窗口由ConfiguredCapture核验；checksum不是权限凭据或已安装前缀证书。
 use super::{
+    business_json as bj,
     projection::HistoryMode,
     q_resources::{Limit, QResources},
     q_wire,
@@ -10,11 +11,18 @@ use newchan_rust::s_content::access::Access;
 use newchan_rust::s_content::job::Job;
 use newchan_rust::{
     s_content::{
-        fragment::{self, Fragment, Unit},
+        capture_allocation::{
+            audit_json::{self as aj, JsonView},
+            OwnedBudget,
+        },
+        fragment::{self, Fragment, OwnedFragment, Unit},
         path::PathStep,
-        ContentRef, RefView,
+        ClosedCapturedOwner, CodecVec, ContentRef, RefView, TransportRef,
     },
-    session_protocol::{canonical_json, nonnegative, positive, required, sha256_hex},
+    session_protocol::{
+        canonical_hash_view_with_owner, canonical_json, nonnegative, positive, required_view,
+        sha256_hex, validate_envelope_view_with_owner,
+    },
 };
 use serde_json::{json, Value};
 
@@ -34,33 +42,56 @@ pub(super) enum Anchor {
     Delta,
 }
 pub(super) struct Request {
-    envelope: Value,
+    envelope: bj::JsonOwner,
     bytes: usize,
-    anchor: Value,
     anchor_kind: Anchor,
-    path_wire: Value,
-    path: Vec<PathStep>,
     unit: Unit,
     offset: u64,
     limit: u64,
-    target: Option<ContentRef>,
-    issued: Option<String>,
+    continuation: bool,
 }
 impl Request {
     pub(super) fn parse(bytes: &[u8], resources: &QResources) -> Result<Self, String> {
-        let envelope = q_wire::parse(bytes, resources)?;
-        let payload = &envelope["payload"];
-        if payload["op"] != "content" {
+        Self::parse_owner(
+            bj::JsonOwner::Plain(q_wire::parse(bytes, resources)?),
+            bytes.len(),
+        )
+    }
+    pub(super) fn parse_owned(
+        bytes: &[u8],
+        resources: &QResources,
+        budget: &OwnedBudget,
+    ) -> Result<Self, String> {
+        if bytes.len() as u128 > u128::from(resources.limit(Limit::FrameBytes)) {
+            return Err("QReplyInvalid：Incomplete：完整请求超过max_frame_bytes".into());
+        }
+        #[cfg(feature = "s_allocation_json_testonly")]
+        {
+            let envelope = aj::OwnedJson::parse(bytes, budget).map_err(err)?;
+            validate_envelope_view_with_owner(envelope.view(), "s-session/3", Some(budget))?;
+            return Self::parse_owner(bj::JsonOwner::Owned(envelope), bytes.len());
+        }
+        #[cfg(not(feature = "s_allocation_json_testonly"))]
+        {
+            let _ = budget;
+            Err("prototype_audit_allocation_incomplete：owned Q请求未启用".into())
+        }
+    }
+    fn parse_owner(envelope: bj::JsonOwner, bytes: usize) -> Result<Self, String> {
+        let allocation = envelope.view().allocation_budget().map_err(err)?;
+        let payload = child(envelope.view(), "payload");
+        if child(payload, "op").as_str() != Some("content") {
             return Err(err("op必须是content"));
         }
-        let (body, issued, target) = if payload.get("content_token").is_some() {
-            exact(payload, &["op", "content_token"])?;
-            let token = &payload["content_token"];
-            exact(token, &TOKEN_FIELDS)?;
-            if token["token_schema"] != "s-content-token/1" {
+        let continuation = payload.get("content_token").is_some();
+        let body = if continuation {
+            exact_view(payload, &["op", "content_token"])?;
+            let token = child(payload, "content_token");
+            exact_view(token, &TOKEN_FIELDS)?;
+            if child(token, "token_schema").as_str() != Some("s-content-token/1") {
                 return Err(err("content_token版本不符"));
             }
-            let issued = required(token, "issued_capture_digest")?;
+            let issued = required_view(token, "issued_capture_digest")?;
             if issued.len() != 64
                 || !issued
                     .bytes()
@@ -68,28 +99,38 @@ impl Request {
             {
                 return Err(err("签发摘要须为64位小写hex"));
             }
-            let mut unsigned = token.clone();
-            unsigned.as_object_mut().unwrap().remove("token_checksum");
-            if token["token_checksum"] != sha256_hex(canonical_json(&unsigned).as_bytes()) {
+            let unsigned_fields = [
+                ("token_schema", child(token, "token_schema")),
+                ("anchor", child(token, "anchor")),
+                ("path", child(token, "path")),
+                ("target_ref", child(token, "target_ref")),
+                ("unit", child(token, "unit")),
+                ("offset", child(token, "offset")),
+                ("limit", child(token, "limit")),
+                (
+                    "issued_capture_digest",
+                    child(token, "issued_capture_digest"),
+                ),
+            ];
+            let unsigned = JsonView::object_fields(&unsigned_fields).map_err(err)?;
+            let checksum = canonical_hash_view_with_owner(unsigned, allocation)?;
+            if child(token, "token_checksum").as_str() != Some(checksum.as_str()) {
                 return Err(err("content_token checksum不符"));
             }
-            (
-                token,
-                Some(issued.to_owned()),
-                Some(ContentRef::from_transport_json(&token["target_ref"]).map_err(err)?),
-            )
+            TransportRef::from_json_view(child(token, "target_ref")).map_err(err)?;
+            token
         } else {
-            exact(
+            exact_view(
                 payload,
                 &["op", "anchor", "path", "unit", "offset", "limit"],
             )?;
-            (payload, None, None)
+            payload
         };
-        let anchor = body["anchor"].clone();
-        let anchor_kind = match required(&anchor, "kind")? {
+        let anchor = child(body, "anchor");
+        let anchor_kind = match required_view(anchor, "kind")? {
             "projection" => {
-                exact(
-                    &anchor,
+                exact_view(
+                    anchor,
                     &[
                         "kind",
                         "fixed_cut",
@@ -97,10 +138,11 @@ impl Request {
                         "projection_ref",
                     ],
                 )?;
-                ContentRef::from_transport_json(&anchor["projection_ref"]).map_err(err)?;
-                let fixed = &anchor["fixed_cut"];
-                let generation = nonnegative(required(fixed, "cut_generation")?, "cut_generation")?;
-                let mode = match required(fixed, "history_mode")? {
+                TransportRef::from_json_view(child(anchor, "projection_ref")).map_err(err)?;
+                let fixed = child(anchor, "fixed_cut");
+                let generation =
+                    nonnegative(required_view(fixed, "cut_generation")?, "cut_generation")?;
+                let mode = match required_view(fixed, "history_mode")? {
                     "AsKnown" => HistoryMode::AsKnown,
                     "RecomputedWithRevision" => HistoryMode::RecomputedWithRevision,
                     _ => return Err(err("history_mode不符")),
@@ -108,8 +150,8 @@ impl Request {
                 Anchor::Projection { generation, mode }
             }
             "delta" => {
-                exact(
-                    &anchor,
+                exact_view(
+                    anchor,
                     &[
                         "kind",
                         "session_id",
@@ -121,36 +163,42 @@ impl Request {
                         "delta_ref",
                     ],
                 )?;
-                ContentRef::from_transport_json(&anchor["delta_ref"]).map_err(err)?;
-                positive(required(&anchor, "generation")?, "generation")?;
+                TransportRef::from_json_view(child(anchor, "delta_ref")).map_err(err)?;
+                positive(required_view(anchor, "generation")?, "generation")?;
                 Anchor::Delta
             }
             _ => return Err(err("anchor kind不符；不可用裸Hash访问")),
         };
-        let path_wire = body["path"].clone();
-        let path = fragment::parse_path(&path_wire).map_err(err)?;
-        let unit = Unit::parse(required(body, "unit")?).map_err(err)?;
-        let offset = nonnegative(required(body, "offset")?, "offset")? as u64;
-        let limit = positive(required(body, "limit")?, "limit")? as u64;
+        fragment::parse_path_view(child(body, "path")).map_err(err)?;
+        let unit = Unit::parse(required_view(body, "unit")?).map_err(err)?;
+        let offset = nonnegative(required_view(body, "offset")?, "offset")? as u64;
+        let limit = positive(required_view(body, "limit")?, "limit")? as u64;
         offset
             .checked_add(limit)
             .ok_or_else(|| err("offset+limit溢出"))?;
         Ok(Self {
             envelope,
-            bytes: bytes.len(),
-            anchor,
+            bytes,
             anchor_kind,
-            path_wire,
-            path,
             unit,
             offset,
             limit,
-            target,
-            issued,
+            continuation,
         })
     }
-    pub(super) fn validate_resources(&self, r: &QResources) -> Result<(), String> {
-        if self.bytes as u128 > u128::from(r.limit(Limit::FrameBytes)) {
+    pub(super) fn allocation_budget(&self) -> Result<Option<&OwnedBudget>, String> {
+        self.envelope.view().allocation_budget().map_err(err)
+    }
+    fn body_view(&self) -> JsonView<'_> {
+        let payload = child(self.envelope.view(), "payload");
+        if self.continuation {
+            child(payload, "content_token")
+        } else {
+            payload
+        }
+    }
+    pub(super) fn validate_resources(&self, resources: &QResources) -> Result<(), String> {
+        if self.bytes as u128 > u128::from(resources.limit(Limit::FrameBytes)) {
             return Err(err("Incomplete：完整请求超过max_frame_bytes"));
         }
         Ok(())
@@ -158,14 +206,39 @@ impl Request {
     pub(super) fn anchor_kind(&self) -> &Anchor {
         &self.anchor_kind
     }
+    pub(super) fn anchor_view(&self) -> JsonView<'_> {
+        child(self.body_view(), "anchor")
+    }
     pub(super) fn anchor(&self) -> &Value {
-        &self.anchor
+        let bj::JsonOwner::Plain(envelope) = &self.envelope else {
+            panic!("owned request须借anchor_view，不能擦std")
+        };
+        let payload = &envelope["payload"];
+        if self.continuation {
+            &payload["content_token"]["anchor"]
+        } else {
+            &payload["anchor"]
+        }
     }
     pub(super) fn validate_identity(&self, session: &str, incarnation: &str) -> Result<(), String> {
-        if self.envelope["session_id"] != session
-            || self.envelope["session_generation"] != incarnation
+        if child(self.envelope.view(), "session_id").as_str() != Some(session)
+            || child(self.envelope.view(), "session_generation").as_str() != Some(incarnation)
         {
             return Err(err("外层session/化身与实际已核内容会话不符"));
+        }
+        Ok(())
+    }
+    fn check_target(&self, actual: RefView<'_>) -> Result<(), String> {
+        if self.continuation {
+            let target =
+                TransportRef::from_json_view(child(self.body_view(), "target_ref")).map_err(err)?;
+            if target.format() != actual.format()
+                || target.root() != actual.root()
+                || target.kind() != actual.kind()
+                || target.extent() != actual.extent()
+            {
+                return Err(err("content_token target_ref与实际根和路径的目标不同"));
+            }
         }
         Ok(())
     }
@@ -176,10 +249,11 @@ impl Request {
         resources: &QResources,
         job: &mut dyn Access,
     ) -> Result<Fragment, String> {
-        let fragment = fragment::read_refview(
+        let path = fragment::parse_path_view(child(self.body_view(), "path")).map_err(err)?;
+        let fragment = fragment::read_view(
             source,
             root.into(),
-            &self.path,
+            &path,
             self.unit,
             self.offset,
             self.limit,
@@ -187,13 +261,29 @@ impl Request {
             job,
         )
         .map_err(err)?;
-        if self
-            .target
-            .as_ref()
-            .is_some_and(|target| *target != fragment.target_ref)
-        {
-            return Err(err("content_token target_ref与实际根和路径的目标不同"));
-        }
+        self.check_target(fragment.target_ref.view())?;
+        fragment.into_plain().map_err(err)
+    }
+    pub(super) fn read_owned<'a>(
+        &self,
+        source: &mut ClosedCapturedOwner<'_>,
+        root: impl Into<RefView<'a>>,
+        resources: &QResources,
+        job: &mut dyn Access,
+    ) -> Result<OwnedFragment, String> {
+        let path = fragment::parse_path_view(child(self.body_view(), "path")).map_err(err)?;
+        let fragment = fragment::read_owned(
+            source,
+            root.into(),
+            &path,
+            self.unit,
+            self.offset,
+            self.limit,
+            resources.limit(Limit::ReplyBytes),
+            job,
+        )
+        .map_err(err)?;
+        self.check_target(fragment.target_ref.view())?;
         Ok(fragment)
     }
     pub(super) fn reply(
@@ -206,39 +296,143 @@ impl Request {
         resources: &QResources,
         job: &mut dyn Access,
     ) -> Result<Vec<u8>, String> {
-        self.validate_resources(resources)?;
-        self.validate_identity(session, incarnation)?;
-        let issued = self.issued.as_deref().unwrap_or(capture_digest);
-        let next = if fragment.done {
-            Value::Null
-        } else {
-            let mut token = json!({"token_schema":"s-content-token/1","anchor":self.anchor,"path":self.path_wire,
-                "target_ref":fragment.target_ref.to_transport_json(),"unit":self.unit.name(),"offset":fragment.end.to_string(),
-                "limit":self.limit.to_string(),"issued_capture_digest":issued});
-            token["token_checksum"] = json!(sha256_hex(canonical_json(&token).as_bytes()));
-            token
-        };
-        let mut payload = Value::Object(fragment.fields());
-        payload["anchor"] = self.anchor.clone();
-        payload["path"] = self.path_wire.clone();
-        payload["next_token"] = next;
-        payload["validated_capture_digest"] = json!(capture_digest);
-        payload["ok"] = json!(true);
-        q_wire::reply(
-            &self.envelope,
-            payload,
+        let fields = Value::Object(fragment.fields());
+        self.reply_core(
+            (&fields).into(),
+            fragment.done,
+            fragment.end,
+            capture_digest,
             session,
             incarnation,
             epoch,
             resources,
             job,
+            None,
+        )?
+        .try_into_plain()
+        .map_err(err)
+    }
+    pub(super) fn reply_owned(
+        &self,
+        fragment: OwnedFragment,
+        capture_digest: &str,
+        session: &str,
+        incarnation: &str,
+        epoch: &str,
+        resources: &QResources,
+        job: &mut dyn Access,
+    ) -> Result<CodecVec<u8>, String> {
+        let allocation = fragment
+            .allocation_budget()
+            .ok_or_else(|| err("owned fragment缺真实来源账本"))?;
+        self.reply_core(
+            fragment.fields_view().map_err(err)?,
+            fragment.done,
+            fragment.end,
+            capture_digest,
+            session,
+            incarnation,
+            epoch,
+            resources,
+            job,
+            Some(allocation),
+        )
+    }
+    fn reply_core(
+        &self,
+        fields: JsonView<'_>,
+        done: bool,
+        end: u64,
+        capture_digest: &str,
+        session: &str,
+        incarnation: &str,
+        epoch: &str,
+        resources: &QResources,
+        job: &mut dyn Access,
+        allocation: Option<&OwnedBudget>,
+    ) -> Result<CodecVec<u8>, String> {
+        self.validate_resources(resources)?;
+        self.validate_identity(session, incarnation)?;
+        let body = self.body_view();
+        let issued = if self.continuation {
+            required_view(body, "issued_capture_digest")?
+        } else {
+            capture_digest
+        };
+        let offset = bj::Decimal::new(end as i64);
+        let limit = bj::Decimal::new(self.limit as i64);
+        let unsigned_fields = [
+            ("token_schema", JsonView::String("s-content-token/1")),
+            ("anchor", self.anchor_view()),
+            ("path", child(body, "path")),
+            ("target_ref", child(fields, "target_ref")),
+            ("unit", JsonView::String(self.unit.name())),
+            ("offset", JsonView::String(offset.text())),
+            ("limit", JsonView::String(limit.text())),
+            ("issued_capture_digest", JsonView::String(issued)),
+        ];
+        let unsigned = JsonView::object_fields(&unsigned_fields).map_err(err)?;
+        // done分支与旧行为相同：不生成、也不核下一个token的checksum。
+        let checksum = if done {
+            None
+        } else {
+            Some(canonical_hash_view_with_owner(unsigned, allocation)?)
+        };
+        let token_fields = [
+            unsigned_fields[0],
+            unsigned_fields[1],
+            unsigned_fields[2],
+            unsigned_fields[3],
+            unsigned_fields[4],
+            unsigned_fields[5],
+            unsigned_fields[6],
+            unsigned_fields[7],
+            (
+                "token_checksum",
+                checksum
+                    .as_ref()
+                    .map_or(JsonView::Null, |v| JsonView::String(v.as_str())),
+            ),
+        ];
+        let next = if done {
+            JsonView::Null
+        } else {
+            JsonView::object_fields(&token_fields).map_err(err)?
+        };
+        let payload_fields = [
+            ("target_ref", child(fields, "target_ref")),
+            ("unit", child(fields, "unit")),
+            ("offset", child(fields, "offset")),
+            ("end", child(fields, "end")),
+            ("total", child(fields, "total")),
+            ("items", child(fields, "items")),
+            ("nodes", child(fields, "nodes")),
+            ("done", child(fields, "done")),
+            ("anchor", self.anchor_view()),
+            ("path", child(body, "path")),
+            ("next_token", next),
+            ("validated_capture_digest", JsonView::String(capture_digest)),
+            ("ok", JsonView::Bool(true)),
+        ];
+        q_wire::reply_view(
+            self.envelope.view(),
+            JsonView::object_fields(&payload_fields).map_err(err)?,
+            session,
+            incarnation,
+            epoch,
+            resources,
+            job,
+            allocation,
         )
     }
 }
-fn exact(value: &Value, fields: &[&str]) -> Result<(), String> {
+fn child<'a>(value: JsonView<'a>, key: &str) -> JsonView<'a> {
+    value.get(key).unwrap_or(JsonView::Null)
+}
+fn exact_view(value: JsonView<'_>, fields: &[&str]) -> Result<(), String> {
     if value
         .as_object()
-        .is_some_and(|o| o.len() == fields.len() && o.keys().all(|k| fields.contains(&k.as_str())))
+        .is_some_and(|o| o.len() == fields.len() && o.keys().all(|k| fields.contains(&k)))
     {
         Ok(())
     } else {
@@ -280,11 +474,18 @@ mod tests {
             .anchor()
     }
     fn delta(capture: &mut ConfiguredCapture<'_>, g: i64) -> Value {
-        capture
+        let owner = capture
             .delta_references(g - 1, 1, &mut job())
             .unwrap()
             .anchors
-            .remove(0)
+            .into_iter()
+            .next()
+            .unwrap();
+        match owner {
+            bj::JsonOwner::Plain(value) => value,
+            #[cfg(feature = "s_allocation_json_testonly")]
+            bj::JsonOwner::Owned(_) => panic!("测试oracle只接普通delta"),
+        }
     }
     fn envelope(anchor: &Value, payload: Value) -> Value {
         let id = if anchor["kind"] == "projection" {
@@ -311,7 +512,7 @@ mod tests {
         let request = Request::parse(canonical_json(incoming).as_bytes(), resources)?;
         let bytes = capture.content(&request, "4", job)?;
         let value = strict_json(&bytes)?;
-        assert_eq!(bytes, canonical_json(&value).as_bytes());
+        assert_eq!(&bytes[..], canonical_json(&value).as_bytes());
         assert_eq!(value.as_object().unwrap().len(), 11);
         assert_eq!(value["payload"].as_object().unwrap().len(), 13);
         assert_eq!(
@@ -618,5 +819,88 @@ mod tests {
         let mut legacy = terminal;
         legacy["schema_revision"] = json!("s-session/2");
         assert!(Request::parse(canonical_json(&legacy).as_bytes(), &resources).is_err());
+    }
+}
+
+#[cfg(all(test, feature = "s_allocation_json_testonly"))]
+mod owned_request_tests {
+    use super::*;
+    use newchan_rust::s_content::{write_value, MemoryNodes, Value as ContentValue};
+    #[test]
+    fn content_owned_request_borrows_path_token_and_keeps_original_owner_to_drop0() {
+        let resources = super::super::q_resources::tests::resources();
+        let mut nodes = MemoryNodes::new();
+        let root = write_value(&mut nodes, &ContentValue::Object(vec![]))
+            .unwrap()
+            .content_ref();
+        let anchor = json!({"kind":"projection","fixed_cut":{"session_id":"s","session_generation":"1","cut_generation":"0","history_mode":"AsKnown"},"cut_projection_digest":"a".repeat(64),"projection_ref":root.to_transport_json()});
+        let path = json!([{"field":"汉\\\""},{"index":"0"},{"json_text":true}]);
+        let payload = json!({"op":"content","anchor":anchor,"path":path,"unit":"value","offset":"0","limit":"1"});
+        let incoming = json!({"schema_revision":"s-session/3","session_id":"s","session_generation":"1","source_namespace":"source","source_epoch":"1","message_id":"m","producer_id":"p","producer_epoch":"1","payload_hash":sha256_hex(canonical_json(&payload).as_bytes()),"causal_refs":[],"payload":payload});
+        let bytes = canonical_json(&incoming).into_bytes();
+        let normal = Request::parse(&bytes, &resources).unwrap();
+        let budget = OwnedBudget::new(100_000);
+        let request = Request::parse_owned(&bytes, &resources, &budget).unwrap();
+        assert_eq!(
+            serde_json::to_value(request.envelope.view()).unwrap(),
+            incoming
+        );
+        assert_eq!(
+            serde_json::to_value(request.anchor_view()).unwrap(),
+            *normal.anchor()
+        );
+        let path = fragment::parse_path_view(child(request.body_view(), "path")).unwrap();
+        use newchan_rust::s_content::path::{PathStepView, PathView};
+        assert_eq!(path.len(), 3);
+        assert!(matches!(path.step(0), Some(PathStepView::Field("汉\\\""))));
+        assert!(request
+            .envelope
+            .view()
+            .allocation_budget()
+            .unwrap()
+            .is_some());
+        assert!(budget.snapshot().live_requested_layout_bytes > 0);
+        request.validate_identity("s", "1").unwrap();
+        assert!(request.validate_identity("wrong", "1").is_err());
+        drop(request);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        let first = &incoming["payload"];
+        let mut token = json!({"token_schema":"s-content-token/1","anchor":first["anchor"],"path":first["path"],"target_ref":root.to_transport_json(),"unit":"value","offset":"1","limit":"1","issued_capture_digest":"b".repeat(64)});
+        token["token_checksum"] = json!(sha256_hex(canonical_json(&token).as_bytes()));
+        let mut continued = incoming.clone();
+        continued["payload"] = json!({"op":"content","content_token":token});
+        continued["payload_hash"] =
+            json!(sha256_hex(canonical_json(&continued["payload"]).as_bytes()));
+        let continued_bytes = canonical_json(&continued).into_bytes();
+        let normal = Request::parse(&continued_bytes, &resources).unwrap();
+        let owned = Request::parse_owned(&continued_bytes, &resources, &budget).unwrap();
+        assert_eq!(
+            serde_json::to_value(owned.envelope.view()).unwrap(),
+            continued
+        );
+        assert_eq!(
+            serde_json::to_value(owned.anchor_view()).unwrap(),
+            *normal.anchor()
+        );
+        assert!(owned.continuation);
+        assert_eq!(
+            child(owned.body_view(), "issued_capture_digest").as_str(),
+            Some("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+        );
+        drop(owned);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        continued["payload"]["content_token"]["token_checksum"] = json!("bad");
+        continued["payload_hash"] =
+            json!(sha256_hex(canonical_json(&continued["payload"]).as_bytes()));
+        let invalid = canonical_json(&continued).into_bytes();
+        let normal_error = Request::parse(&invalid, &resources).err().unwrap();
+        let owned_error = Request::parse_owned(&invalid, &resources, &budget)
+            .err()
+            .unwrap();
+        assert_eq!(owned_error, normal_error);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        let low = OwnedBudget::new(0);
+        assert!(Request::parse_owned(&bytes, &resources, &low).is_err());
+        assert_eq!(low.snapshot().live_requested_layout_bytes, 0);
     }
 }

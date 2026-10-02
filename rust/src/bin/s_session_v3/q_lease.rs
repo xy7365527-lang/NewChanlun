@@ -4,16 +4,16 @@
 //! delivery floor。调用方必须先核验 cursor 的身份、非负代号和同 cut 关系；本层
 //! 仍拒绝明显违反这些不变量的负值或 after > head。
 
+use super::business_json::{self as bj, BusinessMap, TextValue};
 use super::q_resources::{Limit, QResources};
+use newchan_rust::s_content::capture_allocation::OwnedBudget;
 use std::{
-    collections::BTreeMap,
     sync::Mutex,
     time::{Duration, Instant},
 };
 
-#[derive(Clone)]
 struct Lease {
-    identity: (String, String),
+    identity: (TextValue, TextValue),
     delivered: i64,
     initial_head: i64,
     observed_head: i64,
@@ -26,25 +26,35 @@ pub(super) struct ClientLeases {
     max_leases: u64,
     lease_duration: Duration,
     max_pending: u64,
-    resource_digest: String,
-    clients: Mutex<BTreeMap<String, Lease>>,
+    resource_digest: TextValue,
+    allocation: Option<OwnedBudget>,
+    clients: Mutex<BusinessMap<TextValue, Lease>>,
 }
 
 impl ClientLeases {
     pub(super) fn new(resources: &QResources) -> Self {
-        let lease_ms = resources.limit(Limit::ClientLeaseMs);
-        let lease_duration = Duration::from_millis(lease_ms);
-        // checked_add is performed for each supplied `now`; keeping the duration here avoids
-        // inventing a wall-clock deadline or silently saturating one.
-        Self {
-            max_leases: resources.limit(Limit::ClientLeases),
-            lease_duration,
-            max_pending: resources.limit(Limit::ClientPendingBatches),
-            resource_digest: resources.digest().to_owned(),
-            clients: Mutex::new(BTreeMap::new()),
-        }
+        Self::with_allocation(resources, None).expect("None lease同核")
     }
-
+    pub(super) fn with_allocation(
+        resources: &QResources,
+        allocation: Option<&OwnedBudget>,
+    ) -> Result<Self, String> {
+        #[cfg(not(feature = "s_allocation_json_testonly"))]
+        if allocation.is_some() {
+            return Err("prototype_audit_allocation_incomplete：owned租约未启用".into());
+        }
+        Ok(Self {
+            max_leases: resources.limit(Limit::ClientLeases),
+            lease_duration: Duration::from_millis(resources.limit(Limit::ClientLeaseMs)),
+            max_pending: resources.limit(Limit::ClientPendingBatches),
+            resource_digest: TextValue::from_str(resources.digest(), allocation)?,
+            allocation: allocation.cloned(),
+            clients: Mutex::new(bj::new_map(allocation)),
+        })
+    }
+    pub(super) fn allocation_budget(&self) -> Option<&OwnedBudget> {
+        self.allocation.as_ref()
+    }
     pub(super) fn resource_digest(&self) -> &str {
         &self.resource_digest
     }
@@ -69,11 +79,14 @@ impl ClientLeases {
 
         // Python 的原合同是 expires < now；恰好到期瞬间仍然有效。
         clients.retain(|_, lease| lease.expires >= now);
-        let identity_owned = (identity.0.to_owned(), identity.1.to_owned());
+        let identity_owned = (
+            TextValue::from_str(identity.0, self.allocation.as_ref())?,
+            TextValue::from_str(identity.1, self.allocation.as_ref())?,
+        );
 
         // 每次观察先把同一 session identity 的所有客户推进到本次 head，
         // sticky overflow 只会在这里置位，不会因 delivered 自动清除。
-        for lease in clients.values_mut() {
+        for (_, lease) in clients.iter_mut() {
             if lease.identity == identity_owned {
                 lease.observed_head = lease.observed_head.max(head);
                 if pending(lease) > self.max_pending {
@@ -86,18 +99,20 @@ impl ClientLeases {
             if clients.len() as u64 >= self.max_leases {
                 return Err("Incomplete：客户租约达到事前上限".into());
             }
-            clients.insert(
-                client.to_owned(),
-                Lease {
-                    identity: identity_owned,
-                    delivered: after,
-                    // 新客户不因历史 head 立即形成积压。
-                    initial_head: head,
-                    observed_head: head,
-                    overflow: false,
-                    expires,
-                },
-            );
+            clients
+                .insert(
+                    TextValue::from_str(client, self.allocation.as_ref())?,
+                    Lease {
+                        identity: identity_owned,
+                        delivered: after,
+                        // 新客户不因历史 head 立即形成积压。
+                        initial_head: head,
+                        observed_head: head,
+                        overflow: false,
+                        expires,
+                    },
+                )
+                .map_err(|e| e.to_string())?;
         } else {
             let lease = clients.get_mut(client).expect("租约必须存在");
             if lease.identity != identity_owned {
@@ -139,7 +154,7 @@ impl ClientLeases {
             .lock()
             .map_err(|_| "ClientLeaseInvalid：客户租约锁已中毒".to_string())?;
         if let Some(lease) = clients.get_mut(client) {
-            if lease.identity.0 == identity.0 && lease.identity.1 == identity.1 {
+            if lease.identity.0.as_str() == identity.0 && lease.identity.1.as_str() == identity.1 {
                 // 成功发送后只单调推进；不创建、不续租，也不清 sticky overflow。
                 lease.delivered = lease.delivered.max(after);
             }
@@ -188,6 +203,56 @@ mod tests {
         QResources::parse(&serde_json::to_vec(&input).unwrap()).unwrap()
     }
 
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_lease_same_ttl_sticky_identity_delivered_and_quota_refusal_keep_prior_state() {
+        use newchan_rust::s_content::capture_allocation::CaptureSlab;
+        let r = with_limits(4, 100, 2);
+        let normal = ClientLeases::new(&r);
+        let budget = OwnedBudget::new(100000);
+        let owned = ClientLeases::with_allocation(&r, Some(&budget)).unwrap();
+        let t = Instant::now();
+        for (client, identity, after, head) in [
+            ("a", ("s", "1"), 0, 0),
+            ("b", ("s", "1"), 0, 2),
+            ("a", ("s", "1"), 0, 3),
+        ] {
+            assert_eq!(
+                owned.observe(client, identity, after, head, t).unwrap(),
+                normal.observe(client, identity, after, head, t).unwrap()
+            );
+        }
+        owned.delivered("a", ("s", "1"), 1).unwrap();
+        normal.delivered("a", ("s", "1"), 1).unwrap();
+        assert_eq!(
+            owned.observe("a", ("s", "1"), 1, 3, t).unwrap(),
+            normal.observe("a", ("s", "1"), 1, 3, t).unwrap()
+        );
+        let live = budget.snapshot().live_requested_layout_bytes;
+        let fill = CaptureSlab::new(0, budget.snapshot().limit_bytes - live, &budget).unwrap();
+        assert!(owned.observe("new", ("s", "1"), 0, 3, t).is_err());
+        assert_eq!(owned.delivered_generation("a"), Some(1));
+        assert_eq!(owned.delivered_generation("new"), None);
+        drop(fill);
+        assert_eq!(
+            owned.observe("a", ("s", "1"), 3, 3, t).unwrap(),
+            normal.observe("a", ("s", "1"), 3, 3, t).unwrap()
+        );
+        assert_eq!(
+            owned.delivered_generation("a"),
+            normal.delivered_generation("a")
+        );
+        assert_eq!(
+            owned
+                .observe("a", ("s", "2"), 0, 0, t + Duration::from_millis(100))
+                .unwrap(),
+            normal
+                .observe("a", ("s", "2"), 0, 0, t + Duration::from_millis(100))
+                .unwrap()
+        );
+        drop(owned);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
     #[test]
     fn new_clients_do_not_inherit_old_history_and_same_identity_overflow_is_sticky_then_reset() {
         let r = with_limits(4, 100, 2);

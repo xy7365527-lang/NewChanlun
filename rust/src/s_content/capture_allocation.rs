@@ -480,6 +480,9 @@ impl CaptureSlab {
     pub fn body_bytes(&self) -> usize {
         self.body_used
     }
+    pub(crate) fn retained_layout_bytes(&self) -> usize {
+        self.index.layout.size() + self.body.layout.size()
+    }
     pub fn snapshot(&self) -> Snapshot {
         self.body.budget.snapshot()
     }

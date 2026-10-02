@@ -1461,6 +1461,7 @@ mod tests {
                     deadline: None,
                 };
                 let result = read_local(&mut s, root, names, legacy).unwrap();
+                drop(reader);
                 (
                     result,
                     crate::content_store::sql_reads_on_thread() - sql,
@@ -1549,6 +1550,7 @@ mod tests {
                     deadline,
                 };
                 let result = read_local(&mut s, root, names, legacy);
+                drop(reader);
                 (
                     result,
                     crate::content_store::sql_reads_on_thread() - sql,
@@ -1634,6 +1636,7 @@ mod tests {
                 assert!(local_fields(&mut s, &root, &keys).unwrap().is_none());
                 sc::path::lookup_object_fields_subset(&mut s, &root, &keys).map_err(err)
             };
+            drop(reader);
             (
                 fields,
                 crate::content_store::sql_reads_on_thread() - sql,
@@ -1707,6 +1710,7 @@ mod tests {
             Some(&meter),
         )
         .unwrap();
+        drop(reader);
         let frames = sc::frame_calls_on_thread() - frames;
         let roots = reads
             .digests

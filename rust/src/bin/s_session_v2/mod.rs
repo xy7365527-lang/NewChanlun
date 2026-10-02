@@ -1659,15 +1659,33 @@ fn init_v2(
     Ok(result)
 }
 pub(super) fn protocol_identity(conn: &Connection) -> Result<(String, String, String), String> {
+    let (session, generation, epoch) = protocol_identity_with_owner(conn, None)?;
     Ok((
-        meta_get_opt(conn, "session_id")?.ok_or_else(|| err("缺session"))?,
-        conn.query_row(
-            "SELECT session_generation FROM s_protocol_meta WHERE singleton=1",
-            [],
-            |r| r.get(0),
-        )
-        .map_err(err)?,
-        meta_get_opt(conn, "writer_epoch")?.ok_or_else(|| err("缺epoch"))?,
+        session.to_string(),
+        generation.to_string(),
+        epoch.to_string(),
+    ))
+}
+pub(crate) fn protocol_identity_with_owner(
+    conn: &Connection,
+    allocation: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+) -> Result<
+    (
+        crate::v3::business_json::TextValue,
+        crate::v3::business_json::TextValue,
+        crate::v3::business_json::TextValue,
+    ),
+    String,
+> {
+    Ok((
+        control_meta_text(conn, "session_id", allocation)?.ok_or_else(|| err("缺session"))?,
+        control_query_row(
+            conn,
+            c"SELECT session_generation FROM s_protocol_meta WHERE singleton=1",
+            &[],
+            |row| crate::v3::business_json::TextValue::from_sql(row, 0, allocation),
+        )?,
+        control_meta_text(conn, "writer_epoch", allocation)?.ok_or_else(|| err("缺epoch"))?,
     ))
 }
 /// 持久 message 行的机械读取（唯一查询/状态口径；v2 的 `lookup` 与 S3 域核验共用）。

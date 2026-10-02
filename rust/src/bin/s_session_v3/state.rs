@@ -102,6 +102,94 @@ pub(super) fn audit_with_access(
     audit_budget::Budget::precheck(&meter).map_err(err)?;
     Ok((state, meter.finish()))
 }
+#[cfg(feature = "s_allocation_json_testonly")]
+fn with_q_source<T>(
+    tx: &Transaction<'_>,
+    deadline: Option<std::time::Instant>,
+    profile: &super::q_allocation::Profile,
+    f: impl FnOnce(&sc::AuditCapture) -> Result<T, String>,
+) -> Result<(T, sc::AuditCapture), String> {
+    profile.validate()?;
+    history::check_deadline(deadline)?;
+    let slab = content_store::capture_slab_for_prototype(
+        tx,
+        &profile.budget,
+        &content_store::CaptureCancellation::until(deadline),
+    )
+    .map_err(err)?;
+    let source = sc::AuditCapture::from_slab_for_allocation_prototype(slab);
+    let result = history::with_overlay_prototype(
+        history::OverlayPrototype {
+            slots: profile.overlay_slots,
+            bytes: profile.overlay_bytes,
+            budget: profile.budget.clone(),
+            peaks: std::rc::Rc::new(std::cell::Cell::new((0, 0))),
+        },
+        || f(&source),
+    )?;
+    Ok((result, source))
+}
+pub(crate) fn audit_bounded_with_allocation(
+    tx: &Transaction<'_>,
+    deadline: Option<std::time::Instant>,
+    max: Option<u64>,
+    profile: &super::q_allocation::Profile,
+) -> Result<(AuditedState, sc::AuditCapture), String> {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    return with_q_source(tx, deadline, profile, |source| {
+        audit_core(
+            tx,
+            deadline,
+            max,
+            None,
+            false,
+            Some(&profile.budget),
+            Some(source),
+        )
+        .map(|(s, _)| s)
+    });
+    #[cfg(not(feature = "s_allocation_json_testonly"))]
+    {
+        let _ = (tx, deadline, max, profile);
+        Err("prototype_audit_allocation_incomplete：Q分配原型未启用".into())
+    }
+}
+pub(crate) fn audit_with_access_and_allocation(
+    tx: &Transaction<'_>,
+    deadline: Option<std::time::Instant>,
+    max: Option<u64>,
+    job: &mut dyn sc::access::Access,
+    profile: &super::q_allocation::Profile,
+) -> Result<(AuditedState, audit_budget::Receipt, sc::AuditCapture), String> {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    {
+        let hard = job.read_deadline().map_err(err)?;
+        let deadline = match (deadline, hard) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        };
+        let meter = audit_budget::AuditJob::with_allocation(job, Some(&profile.budget));
+        let (state, source) = with_q_source(tx, deadline, profile, |source| {
+            audit_core(
+                tx,
+                deadline,
+                max,
+                Some(&meter),
+                false,
+                Some(&profile.budget),
+                Some(source),
+            )
+            .map(|(s, _)| s)
+        })?;
+        audit_budget::Budget::precheck(&meter).map_err(err)?;
+        Ok((state, meter.try_finish()?, source))
+    }
+    #[cfg(not(feature = "s_allocation_json_testonly"))]
+    {
+        let _ = (tx, deadline, max, job, profile);
+        Err("prototype_audit_allocation_incomplete：Q分配原型未启用".into())
+    }
+}
 fn audit_with_budget(
     tx: &Transaction<'_>,
     deadline: Option<std::time::Instant>,
@@ -135,11 +223,34 @@ fn audit_with_capture_impl(
     enable_prototype_capture: bool,
     #[cfg(test)] owned_budget: Option<&sc::capture_allocation::OwnedBudget>,
 ) -> Result<(AuditedState, Option<Value>), String> {
+    audit_core(
+        tx,
+        deadline,
+        max_render_bytes,
+        budget,
+        enable_prototype_capture,
+        #[cfg(test)]
+        owned_budget,
+        #[cfg(not(test))]
+        None,
+        None,
+    )
+}
+fn audit_core(
+    tx: &Transaction<'_>,
+    deadline: Option<std::time::Instant>,
+    max_render_bytes: Option<u64>,
+    budget: Option<&dyn audit_budget::Budget>,
+    enable_prototype_capture: bool,
+    owned_budget: Option<&sc::capture_allocation::OwnedBudget>,
+    external_capture: Option<&sc::AuditCapture>,
+) -> Result<(AuditedState, Option<Value>), String> {
     // 外部不能带入旧捕获；只有本次fresh audit在None/None内可新建自有读集。
     #[cfg(test)]
     let capture_started = std::time::Instant::now();
     #[cfg(test)]
-    let capture = if enable_prototype_capture && budget.is_none() && deadline.is_none() {
+    let constructed_capture = if enable_prototype_capture && budget.is_none() && deadline.is_none()
+    {
         Some(match owned_budget {
             Some(b) => sc::AuditCapture::from_slab_for_allocation_prototype(
                 content_store::capture_slab_for_prototype(
@@ -155,10 +266,11 @@ fn audit_with_capture_impl(
         None
     };
     #[cfg(not(test))]
-    let capture: Option<sc::AuditCapture> = {
+    let constructed_capture: Option<sc::AuditCapture> = {
         let _ = enable_prototype_capture;
         None
     };
+    let capture = external_capture.or(constructed_capture.as_ref());
     #[cfg(test)]
     let capture_ns = capture_started.elapsed().as_nanos();
     #[cfg(all(test, feature = "s_allocation_sqlite_testonly"))]
@@ -172,28 +284,28 @@ fn audit_with_capture_impl(
         b.precheck().map_err(err)?;
     }
     // 1. 控制历史：共享 schema/profile/catalog 绑定与逐代发布索引闭合（唯一判据在 control_audit）。
-    #[cfg(all(test, feature = "s_allocation_json_testonly"))]
+    #[cfg(feature = "s_allocation_json_testonly")]
     let control_owner = owned_budget.filter(|_| {
         capture
             .as_ref()
-            .is_some_and(sc::AuditCapture::is_allocation_prototype)
+            .is_some_and(|c| c.is_allocation_prototype())
     });
-    #[cfg(not(all(test, feature = "s_allocation_json_testonly")))]
+    #[cfg(not(feature = "s_allocation_json_testonly"))]
     let control_owner = None;
     let control = control_audit::prepare_s3_control_history_with_owner(tx, control_owner)?;
     #[cfg(test)]
     trace_event("raw", None);
     // 2. 真实原始账：逐序回读并做身份/修订链/内容hash/receipt 自检。
-    #[cfg(all(test, feature = "s_allocation_json_testonly"))]
+    #[cfg(feature = "s_allocation_json_testonly")]
     let raw = match owned_budget.filter(|_| {
         capture
             .as_ref()
-            .is_some_and(sc::AuditCapture::is_allocation_prototype)
+            .is_some_and(|c| c.is_allocation_prototype())
     }) {
         Some(b) => super::business_json::read_owned(tx, deadline, b)?,
         None => super::business_json::RawEvents::Plain(read_raw_events_until(tx, deadline)?),
     };
-    #[cfg(not(all(test, feature = "s_allocation_json_testonly")))]
+    #[cfg(not(feature = "s_allocation_json_testonly"))]
     let raw = super::business_json::RawEvents::Plain(read_raw_events_until(tx, deadline)?);
     #[cfg(test)]
     trace_event("history", None);
@@ -209,7 +321,7 @@ fn audit_with_capture_impl(
         deadline,
         max_render_bytes,
         budget,
-        capture.as_ref(),
+        capture,
     )?;
     #[cfg(test)]
     trace_event("catalog_metadata", None);
@@ -229,7 +341,9 @@ fn audit_with_capture_impl(
         reader.enable_audit_same_material();
     }
     let mut store = match capture.as_ref() {
-        Some(c) => history::HashReader::captured_for_audit(c, max_render_bytes).map_err(err)?,
+        Some(c) => history::HashReader::captured_for_audit(c, max_render_bytes)
+            .map_err(err)?
+            .with_audit_gate(budget, deadline),
         None => history::HashReader::metered(&mut reader, deadline, max_render_bytes, budget),
     };
     // 7a. 当前代对象索引已在同次history中完整加载并绑定原件；继续用它核逐代变化。

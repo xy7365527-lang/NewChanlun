@@ -1,13 +1,13 @@
 //! #1394：S3一致typed捕获与原Q capture_digest；离开源事务后复用完整S3审计。
 //! 只重建项目固定DDL，摘要保留源schema原文；不执行来源SQL、不持有跨请求S读锁。
 //! 配置读取入口绑定Q v3资源文件；每worker长期reader在同连接版本夹持下复用完整私有缓存。
+use super::business_json::{self as bj, TextValue};
 use super::*;
-use rusqlite::{
-    limits::Limit,
-    params_from_iter,
-    types::{Value as Cell, ValueRef},
-    Transaction,
-};
+use newchan_rust::s_content as sc;
+use newchan_rust::s_content::{capture_allocation::OwnedBudget, CodecVec};
+use newchan_rust::sqlite_checked::{CheckedRow, CheckedStatement};
+use rusqlite::{limits::Limit, types::Value as Cell, Transaction};
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{
     io::Write,
@@ -39,19 +39,50 @@ impl Limits {
     }
 }
 
+enum CaptureCell {
+    Null,
+    Integer(i64),
+    Text(TextValue),
+    Blob(CodecVec<u8>),
+}
+impl CaptureCell {
+    fn view(&self) -> CellView<'_> {
+        match self {
+            Self::Null => CellView::Null,
+            Self::Integer(n) => CellView::Integer(*n),
+            Self::Text(v) => CellView::Text(v.as_str()),
+            Self::Blob(v) => CellView::Blob(v),
+        }
+    }
+    fn capacity(&self) -> usize {
+        match self {
+            Self::Text(v) => v.capacity(),
+            Self::Blob(v) => v.capacity(),
+            _ => 0,
+        }
+    }
+}
+enum CellView<'a> {
+    Null,
+    Integer(i64),
+    Text(&'a str),
+    Blob(&'a [u8]),
+    Real,
+}
 struct Table {
-    name: String,
-    columns: Vec<String>,
-    rows: Vec<Vec<Cell>>,
+    name: TextValue,
+    columns: CodecVec<TextValue>,
+    rows: CodecVec<CodecVec<CaptureCell>>,
     // 私有复制信息：现有独立索引核首次插入序；不进入原Q摘要配方。
-    rowids: Option<Vec<i64>>,
+    rowids: Option<CodecVec<i64>>,
 }
 struct Image {
-    header: Vec<u8>,
-    tables: Vec<Table>,
-    ddls: Vec<&'static str>,
-    digest: String,
+    header: CodecVec<u8>,
+    tables: CodecVec<Table>,
+    ddls: CodecVec<&'static str>,
+    digest: CaptureDigest,
     captured_bytes: u64,
+    allocation: Option<super::q_allocation::Profile>,
 }
 
 /// 只有完整state::audit通过才构造；数据库句柄不向调用者开放写面。
@@ -63,6 +94,8 @@ pub(super) struct VerifiedCapture {
     pub source_versions: [i64; 3],
     verify_deadline: Instant,
     audit_receipt: Option<audit_budget::Receipt>,
+    q_source: Option<newchan_rust::s_content::AuditCapture>,
+    allocation: Option<super::q_allocation::Profile>,
 }
 /// #1394：已计算捕获摘要采用固定规范十六进制，不为长期持有与借出再分配字符串。
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -86,6 +119,16 @@ impl CaptureDigest {
     }
     pub(super) fn capacity(&self) -> usize {
         0
+    }
+}
+impl PartialEq<String> for CaptureDigest {
+    fn eq(&self, other: &String) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+impl PartialEq<str> for CaptureDigest {
+    fn eq(&self, other: &str) -> bool {
+        self.as_str() == other
     }
 }
 impl std::ops::Deref for CaptureDigest {
@@ -118,7 +161,16 @@ impl VerifiedCapture {
     ) -> Result<projection::Projection, String> {
         let tx = self.db.transaction().map_err(err)?;
         let mut source = content_store::ReadStore::new(&tx).map_err(err)?;
-        let mut graph = history::HashReader::new(&mut source);
+        let deadline = job.read_deadline().map_err(err)?;
+        let mut graph = history::HashReader::for_audited(
+            &mut source,
+            &self.audited,
+            self.q_source.as_ref(),
+            self.allocation.as_ref(),
+            deadline,
+            None,
+        )
+        .map_err(err)?;
         projection::build(
             &tx,
             &self.audited,
@@ -132,34 +184,69 @@ impl VerifiedCapture {
 }
 
 pub(super) fn capture_verified(path: &Path, limits: Limits) -> Result<VerifiedCapture, String> {
-    capture_with(path, limits, |_| {})
+    capture_verified_with_allocation(path, limits, None)
+}
+pub(super) fn capture_verified_with_allocation(
+    path: &Path,
+    limits: Limits,
+    allocation: Option<super::q_allocation::Profile>,
+) -> Result<VerifiedCapture, String> {
+    capture_with_deadline_and_access(path, limits, None, |_| {}, None, allocation)
 }
 /// 当前一次捕获绑定同一份冻结资源，后续投影/Delta读取不能随请求改限额。
 pub(super) struct ConfiguredCapture<'a> {
     capture: VerifiedCapture,
     resources: &'a q_resources::QResources,
 }
-#[derive(Debug)]
 pub(super) struct DeltaReferences {
-    pub anchors: Vec<Value>,
-    pub usage: Vec<q_delta::Usage>,
+    pub anchors: CodecVec<bj::JsonOwner>,
+    pub usage: CodecVec<q_delta::Usage>,
     pub through_generation: i64,
     pub has_more: bool,
-    pub validated_capture_digest: String,
+    pub validated_capture_digest: CaptureDigest,
+}
+impl std::fmt::Debug for DeltaReferences {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DeltaReferences")
+            .field("anchors", &self.anchors.len())
+            .field("usage", &&self.usage[..])
+            .field("through_generation", &self.through_generation)
+            .field("has_more", &self.has_more)
+            .field("validated_capture_digest", &self.validated_capture_digest)
+            .finish()
+    }
+}
+fn measure_delta(
+    graph: &mut history::HashReader<'_>,
+    delta: &audit_store::RefValue,
+    resources: &q_resources::QResources,
+    job: &mut dyn newchan_rust::s_content::access::Access,
+) -> Result<q_delta::Usage, String> {
+    if let Some(owner) = graph.closed_owner_mut().map_err(err)? {
+        q_delta::measure_closed(owner, delta.view(), resources, job)
+    } else {
+        q_delta::measure(graph, delta.view(), resources, job)
+    }
 }
 impl ConfiguredCapture<'_> {
+    pub(crate) fn allocation_budget(&self) -> Option<&OwnedBudget> {
+        self.capture.allocation.as_ref().map(|p| &p.budget)
+    }
     /// 只从本次完整已核副本取错误回复的身份，不借请求自称已核。
-    pub(super) fn identity(&self) -> Result<(String, String), String> {
-        let session = meta_get_opt(&self.capture.db, "session_id")?
+    pub(super) fn identity(&self) -> Result<(TextValue, TextValue), String> {
+        let owner = self.capture.allocation.as_ref().map(|p| &p.budget);
+        let session = v2::control_meta_text(&self.capture.db, "session_id", owner)?
             .ok_or_else(|| err("已核捕获缺会话身份"))?;
-        let (_, incarnation, _) = v2::protocol_identity(&self.capture.db)?;
+        let (_, incarnation, _) = v2::protocol_identity_with_owner(&self.capture.db, owner)?;
         Ok((session, incarnation))
     }
-    /// 沿旧控制器ready小回执；调用前已经完整审计，不展开Snapshot rows。
-    pub(super) fn ready_cut(&self) -> Result<Value, String> {
+    /// 同一完整audit后的借用字段构造ready回执，Owned不会擦为Value。
+    pub(super) fn ready_cut(&self) -> Result<bj::JsonOwner, String> {
+        use newchan_rust::s_content::capture_allocation::audit_json::JsonView;
         let (session, incarnation) = self.identity()?;
+        let owner = self.capture.allocation.as_ref().map(|p| &p.budget);
         let generation = self.capture.generation();
-        let catalog = meta_get_opt(&self.capture.db, "catalog_revision")?
+        let catalog = v2::control_meta_text(&self.capture.db, "catalog_revision", owner)?
             .ok_or_else(|| err("已核捕获缺目录版本"))?;
         let index = self
             .capture
@@ -167,11 +254,35 @@ impl ConfiguredCapture<'_> {
             .cuts
             .last()
             .map_or("", |cut| cut.batch_id.as_str());
-        Ok(
-            json!({"session_id":session,"session_generation":incarnation,
-            "generation":generation.to_string(),"structure_cut":format!("cut-{generation}"),
-            "catalog_revision":catalog,"index_frontier":index}),
-        )
+        let mut scalar = [0u8; 20];
+        let gen = std::str::from_utf8(decimal_bytes(generation, &mut scalar)).expect("ASCII整数");
+        let mut cut = bj::new_work(owner);
+        cut.try_extend_bytes(b"cut-").map_err(|e| e.to_string())?;
+        cut.try_extend_bytes(gen.as_bytes())
+            .map_err(|e| e.to_string())?;
+        let cut = TextValue::from_bytes(cut)?;
+        struct Ready<'a> {
+            fields: [(&'static str, JsonView<'a>); 6],
+        }
+        impl newchan_rust::s_content::capture_allocation::audit_json::JsonObject for Ready<'_> {
+            fn len(&self) -> usize {
+                6
+            }
+            fn field(&self, i: usize) -> Option<(&str, JsonView<'_>)> {
+                self.fields.get(i).copied()
+            }
+        }
+        let ready = Ready {
+            fields: [
+                ("session_id", JsonView::String(session.as_str())),
+                ("session_generation", JsonView::String(incarnation.as_str())),
+                ("generation", JsonView::String(gen)),
+                ("structure_cut", JsonView::String(cut.as_str())),
+                ("catalog_revision", JsonView::String(catalog.as_str())),
+                ("index_frontier", JsonView::String(index)),
+            ],
+        };
+        bj::json_from_view(JsonView::borrowed_object(&ready).map_err(err)?, owner)
     }
     pub(super) fn watch(
         &mut self,
@@ -188,47 +299,99 @@ impl ConfiguredCapture<'_> {
         )?;
         let deadline = job.read_deadline().map_err(err)?;
         let tx = self.capture.db.transaction().map_err(err)?;
-        let policy=tx.query_row("SELECT policy_revision,retain_generations,first_available_generation,head_generation FROM s_delivery_policy WHERE singleton=1",[],|row|Ok(q_watch::Policy{
-            revision:row.get(0)?,retain:row.get(1)?,first:row.get(2)?,head:row.get(3)?,
-        })).map_err(err)?;
+        let mut stmt=newchan_rust::sqlite_checked::CheckedStatement::prepare(&tx,c"SELECT policy_revision,retain_generations,first_available_generation,head_generation FROM s_delivery_policy WHERE singleton=1").map_err(err)?;
+        let mut row = stmt
+            .next()
+            .map_err(err)?
+            .ok_or("QWatchInvalid：缺delivery policy")?;
+        let policy = q_watch::Policy {
+            revision: TextValue::from_sql(
+                &mut row,
+                0,
+                self.capture.allocation.as_ref().map(|p| &p.budget),
+            )
+            .map_err(err)?,
+            retain: row.integer(1).map_err(err)?,
+            first: row.integer(2).map_err(err)?,
+            head: row.integer(3).map_err(err)?,
+        };
+        drop(row);
+        stmt.finalize().map_err(err)?;
         let mut source = content_store::ReadStore::new(&tx).map_err(err)?;
-        let mut graph = history::HashReader::bounded(
+        let mut graph = history::HashReader::for_audited(
             &mut source,
+            &self.capture.audited,
+            self.capture.q_source.as_ref(),
+            self.capture.allocation.as_ref(),
             deadline,
             Some(self.resources.limit(q_resources::Limit::CaptureBytes)),
-        );
-        q_watch::prepare(
-            request,
-            current,
-            &self.capture.audited.cuts,
-            &mut graph,
-            policy,
-            &self.capture.digest,
-            self.resources,
-            leases,
-            epoch,
-            job,
         )
+        .map_err(err)?;
+        if self.capture.allocation.is_some() {
+            q_watch::prepare_owned(
+                request,
+                current,
+                &self.capture.audited.cuts,
+                &mut graph,
+                policy,
+                &self.capture.digest,
+                self.resources,
+                leases,
+                epoch,
+                job,
+            )
+        } else {
+            q_watch::prepare(
+                request,
+                current,
+                &self.capture.audited.cuts,
+                &mut graph,
+                policy,
+                &self.capture.digest,
+                self.resources,
+                leases,
+                epoch,
+                job,
+            )
+        }
     }
     pub(super) fn content(
         &mut self,
         request: &q_content::Request,
         producer_epoch: &str,
         job: &mut dyn newchan_rust::s_content::access::Access,
-    ) -> Result<Vec<u8>, String> {
+    ) -> Result<CodecVec<u8>, String> {
         use q_resources::Limit;
         request.validate_resources(self.resources)?;
+        match (
+            self.capture.allocation.as_ref(),
+            request.allocation_budget()?,
+        ) {
+            (None, None) => {}
+            (Some(profile), Some(input)) if profile.budget.same_ledger(input) => {}
+            _ => {
+                return Err(err(
+                    "prototype_audit_allocation_incomplete：Content请求与实际捕获原账不同",
+                ))
+            }
+        }
         let deadline = job.read_deadline().map_err(err)?;
         let tx = self.capture.db.transaction().map_err(sql_err)?;
-        let session = meta_get_opt(&tx, "session_id")?.ok_or_else(|| err("缺会话身份"))?;
-        let (_, incarnation, _) = v2::protocol_identity(&tx)?;
+        let owner = self.capture.allocation.as_ref().map(|p| &p.budget);
+        let session =
+            v2::control_meta_text(&tx, "session_id", owner)?.ok_or_else(|| err("缺会话身份"))?;
+        let (_, incarnation, _) = v2::protocol_identity_with_owner(&tx, owner)?;
         request.validate_identity(&session, &incarnation)?;
         let mut source = content_store::ReadStore::new(&tx).map_err(err)?;
-        let mut graph = history::HashReader::bounded(
+        let mut graph = history::HashReader::for_audited(
             &mut source,
+            &self.capture.audited,
+            self.capture.q_source.as_ref(),
+            self.capture.allocation.as_ref(),
             deadline,
             Some(self.resources.limit(Limit::CaptureBytes)),
-        );
+        )
+        .map_err(err)?;
         let root = match request.anchor_kind() {
             q_content::Anchor::Projection { generation, mode } => {
                 let actual = projection::build(
@@ -240,44 +403,78 @@ impl ConfiguredCapture<'_> {
                     self.resources.limit(Limit::CaptureBytes),
                     job,
                 )?;
-                reader::check_projection_anchor(&actual, request.anchor())?;
-                super::audit_store::RefValue::Plain(actual.root)
+                reader::check_projection_anchor_view(&actual, request.anchor_view())?;
+                actual.root
             }
             q_content::Anchor::Delta => {
-                let cut = reader::validated_delta(&tx, &self.capture.audited, request.anchor())?;
+                let cut = reader::validated_delta_view(
+                    &tx,
+                    &self.capture.audited,
+                    request.anchor_view(),
+                )?;
                 // Content回复也包含Delta引用，不能借片段路径绕过完整闭包的三原子门。
-                q_delta::measure(&mut graph, &cut.delta, self.resources, job)?;
+                measure_delta(&mut graph, &cut.delta, self.resources, job)?;
                 cut.delta.clone()
             }
         };
-        let fragment = request.read(&mut graph, &root, self.resources, job)?;
-        request.reply(
-            fragment,
-            &self.capture.digest,
-            &session,
-            &incarnation,
-            producer_epoch,
-            self.resources,
-            job,
-        )
+        if self.capture.allocation.is_some() {
+            let owner = graph.closed_owner_mut().map_err(err)?.ok_or_else(|| {
+                err("prototype_audit_allocation_incomplete：owned捕获缺实际Closed来源")
+            })?;
+            let fragment = request.read_owned(owner, root.view(), self.resources, job)?;
+            request.reply_owned(
+                fragment,
+                &self.capture.digest,
+                &session,
+                &incarnation,
+                producer_epoch,
+                self.resources,
+                job,
+            )
+        } else {
+            let fragment = request.read(&mut graph, root.view(), self.resources, job)?;
+            request
+                .reply(
+                    fragment,
+                    &self.capture.digest,
+                    &session,
+                    &incarnation,
+                    producer_epoch,
+                    self.resources,
+                    job,
+                )
+                .map(CodecVec::from_plain)
+        }
     }
     pub(super) fn snapshot(
         &mut self,
         request: &q_snapshot::Request,
         producer_epoch: &str,
         job: &mut dyn newchan_rust::s_content::access::Access,
-    ) -> Result<Vec<u8>, String> {
+    ) -> Result<sc::CodecVec<u8>, String> {
         request.validate_resources(self.resources)?;
         let generation = request.generation(self.capture.generation());
         let projection = self.projection(generation, request.history_mode(), job)?;
-        q_snapshot::reply(
-            request,
-            projection,
-            self.capture.digest(),
-            self.resources,
-            producer_epoch,
-            job,
-        )
+        match self.capture.allocation.as_ref() {
+            Some(p) => q_snapshot::reply_owned(
+                request,
+                projection,
+                self.capture.digest(),
+                self.resources,
+                producer_epoch,
+                job,
+                &p.budget,
+            ),
+            None => q_snapshot::reply(
+                request,
+                projection,
+                self.capture.digest(),
+                self.resources,
+                producer_epoch,
+                job,
+            )
+            .map(sc::CodecVec::from_plain),
+        }
     }
     pub(super) fn projection(
         &mut self,
@@ -323,8 +520,19 @@ impl ConfiguredCapture<'_> {
             ));
         }
         let mut source = content_store::ReadStore::new(&tx).map_err(err)?;
-        let mut anchors = Vec::new();
-        let mut usage = Vec::new();
+        let allocation = self.capture.allocation.as_ref();
+        let owner = allocation.map(|p| &p.budget);
+        let mut graph = history::HashReader::for_audited(
+            &mut source,
+            &self.capture.audited,
+            self.capture.q_source.as_ref(),
+            allocation,
+            job.read_deadline().map_err(err)?,
+            Some(self.resources.limit(Limit::CaptureBytes)),
+        )
+        .map_err(err)?;
+        let mut anchors = bj::new_work(owner);
+        let mut usage = bj::new_work(owner);
         let mut through = after;
         for cut in self
             .capture
@@ -336,13 +544,13 @@ impl ConfiguredCapture<'_> {
             if anchors.len() as u64 >= max_batches {
                 break;
             }
-            usage.push(q_delta::measure(
-                &mut source,
-                &cut.delta,
-                self.resources,
-                job,
-            )?);
-            anchors.push(reader::delta_anchor(cut));
+            usage
+                .try_push(measure_delta(&mut graph, &cut.delta, self.resources, job)?)
+                .map_err(|e| e.to_string())?;
+            let anchor = reader::delta_anchor_view(cut);
+            anchors
+                .try_push(bj::json_from_view(anchor.view(), owner)?)
+                .map_err(|e| e.to_string())?;
             through = cut.metadata.generation;
         }
         job.pre_io_check().map_err(err)?;
@@ -351,7 +559,7 @@ impl ConfiguredCapture<'_> {
             usage,
             through_generation: through,
             has_more: through < head,
-            validated_capture_digest: self.capture.digest.to_string(),
+            validated_capture_digest: self.capture.digest,
         })
     }
 }
@@ -369,6 +577,7 @@ pub(super) fn capture_configured<'a>(
         deadline,
         |_| {},
         Some(job),
+        None,
     );
     // 失败也复查整job绝对钟，不能通过开始下一捕获重置期限。
     job.pre_io_check().map_err(err)?;
@@ -396,7 +605,7 @@ fn capture_with_deadline(
     hard_deadline: Option<Instant>,
     seam: impl FnMut(&str),
 ) -> Result<VerifiedCapture, String> {
-    capture_with_deadline_and_access(path, limits, hard_deadline, seam, None)
+    capture_with_deadline_and_access(path, limits, hard_deadline, seam, None, None)
 }
 fn capture_with_deadline_and_access(
     path: &Path,
@@ -404,8 +613,13 @@ fn capture_with_deadline_and_access(
     hard_deadline: Option<Instant>,
     mut seam: impl FnMut(&str),
     job: Option<&mut dyn newchan_rust::s_content::access::Access>,
+    allocation: Option<super::q_allocation::Profile>,
 ) -> Result<VerifiedCapture, String> {
     limits.validate()?;
+    if let Some(profile) = &allocation {
+        profile.validate()?;
+    }
+    let owner = allocation.as_ref().map(|p| &p.budget);
     let capture_deadline = until(limits.capture_deadline_ms)?;
     let deadline = hard_deadline.map_or(capture_deadline, |d| d.min(capture_deadline));
     check(deadline, "Capture")?;
@@ -435,34 +649,19 @@ fn capture_with_deadline_and_access(
         .map_err(sql_err)?;
     let captured = (|| {
         check(deadline, "Capture")?;
-        let mode: String = source
-            .query_row("PRAGMA journal_mode", [], |r| r.get(0))
-            .map_err(sql_err)?;
-        if mode.to_lowercase() != "wal" {
-            return Err(err("源库必须由S预先建立WAL，Q不替它改模式"));
-        }
-        let names = source
-            .prepare("PRAGMA database_list")
-            .map_err(sql_err)?
-            .query_map([], |r| r.get::<_, String>(1))
-            .map_err(sql_err)?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(sql_err)?;
-        if names != ["main"] {
-            return Err(err("源连接含附加数据库"));
-        }
+        validate_source_with_owner(&source, owner)?;
         let v0 = version(&source)?;
         seam("after_v0");
         let tx = source.transaction().map_err(sql_err)?;
-        tx.query_row(
-            "SELECT key,value FROM meta ORDER BY key LIMIT 1",
-            [],
-            |_| Ok(()),
-        )
-        .map_err(sql_err)?;
+        pin_first_read(&tx)?;
         seam("after_first_read");
         let v1 = version(&tx)?;
-        let image = capture_image(&tx, limits.max_capture_bytes, deadline)?;
+        let image = capture_image_with_allocation(
+            &tx,
+            limits.max_capture_bytes,
+            deadline,
+            allocation.as_ref(),
+        )?;
         tx.rollback().map_err(sql_err)?;
         seam("after_transaction");
         let v2 = version(&source)?;
@@ -485,6 +684,11 @@ fn capture_with_deadline_and_access(
     result.source_versions = versions;
     Ok(result)
 }
+fn allocation_refusal(error: &str) -> bool {
+    error.contains(newchan_rust::s_content::capture_allocation::LIMIT)
+        || error.contains("Incomplete/SqliteOutOfMemory")
+}
+
 fn until(ms: u64) -> Result<Instant, String> {
     Instant::now()
         .checked_add(Duration::from_millis(ms))
@@ -501,10 +705,30 @@ fn file_identity(path: &Path) -> Result<(u64, u64), String> {
     let m = std::fs::metadata(path).map_err(err)?;
     Ok((m.dev(), m.ino()))
 }
-fn version(c: &Connection) -> Result<i64, String> {
-    c.query_row("PRAGMA data_version", [], |r| r.get(0))
-        .map_err(err)
+fn scalar(c: &Connection, sql: &std::ffi::CStr) -> Result<i64, String> {
+    let mut stmt = CheckedStatement::prepare(c, sql).map_err(sql_err)?;
+    let value = stmt
+        .next()
+        .map_err(sql_err)?
+        .ok_or(rusqlite::Error::QueryReturnedNoRows)
+        .map_err(sql_err)?
+        .integer(0)
+        .map_err(sql_err)?;
+    stmt.finalize().map_err(sql_err)?;
+    Ok(value)
 }
+fn pin_first_read(c: &Connection) -> Result<(), String> {
+    let mut stmt = CheckedStatement::prepare(c, c"SELECT key,value FROM meta ORDER BY key LIMIT 1")
+        .map_err(sql_err)?;
+    if stmt.next().map_err(sql_err)?.is_none() {
+        return Err(sql_err(rusqlite::Error::QueryReturnedNoRows));
+    }
+    stmt.finalize().map_err(sql_err)
+}
+fn version(c: &Connection) -> Result<i64, String> {
+    scalar(c, c"PRAGMA data_version")
+}
+
 fn err(e: impl std::fmt::Display) -> String {
     format!("Q3CaptureInvalid：{e}")
 }
@@ -539,274 +763,494 @@ fn phase_error(e: String, deadline: Instant, phase: &str) -> String {
         e
     }
 }
-fn quote(name: &str) -> String {
-    format!("\"{}\"", name.replace('"', "\"\""))
+/// 同一typed schema核；普通和Owned只由真实容器allocator区分。
+type SchemaRow = (TextValue, TextValue, TextValue, Option<TextValue>);
+type Column = (i64, TextValue, TextValue, i64, Option<TextValue>, i64);
+struct Index {
+    unique: i64,
+    origin: TextValue,
+    partial: i64,
+    columns: CodecVec<Option<TextValue>>,
 }
-
-/// 与Python _schema同形；schema_rows含实际DDL字节，schema含列及排序后的隐式索引元组。
-fn schema(c: &Connection) -> Result<(Value, Value), String> {
-    let mut stmt = c
-        .prepare("SELECT type,name,tbl_name,sql FROM sqlite_schema ORDER BY type,name")
-        .map_err(sql_err)?;
-    let rows = stmt
-        .query_map([], |r| {
-            Ok((
-                r.get::<_, String>(0)?,
-                r.get::<_, String>(1)?,
-                r.get::<_, String>(2)?,
-                r.get::<_, Option<String>>(3)?,
-            ))
+impl Serialize for Index {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        (self.unique, &self.origin, self.partial, &self.columns[..]).serialize(s)
+    }
+}
+fn index_cmp(a: &Index, b: &Index) -> std::cmp::Ordering {
+    a.unique
+        .cmp(&b.unique)
+        .then_with(|| a.origin.as_str().cmp(b.origin.as_str()))
+        .then(a.partial.cmp(&b.partial))
+        .then_with(|| {
+            a.columns
+                .iter()
+                .map(|v| v.as_ref().map(TextValue::as_str))
+                .cmp(b.columns.iter().map(|v| v.as_ref().map(TextValue::as_str)))
         })
+}
+struct SchemaTable {
+    name: TextValue,
+    columns: CodecVec<Column>,
+    indexes: CodecVec<Index>,
+}
+struct Schema {
+    rows: CodecVec<SchemaRow>,
+    tables: CodecVec<SchemaTable>,
+}
+impl Schema {
+    fn same_tables(&self, other: &Self) -> bool {
+        self.tables.len() == other.tables.len()
+            && self.tables.iter().zip(other.tables.iter()).all(|(a, b)| {
+                a.name == b.name
+                    && a.columns[..] == b.columns[..]
+                    && a.indexes.len() == b.indexes.len()
+                    && a.indexes
+                        .iter()
+                        .zip(b.indexes.iter())
+                        .all(|(x, y)| index_cmp(x, y).is_eq())
+            })
+    }
+}
+struct SchemaHeader<'a>(&'a Schema);
+impl Serialize for SchemaHeader<'_> {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::{SerializeMap, SerializeStruct};
+        struct Tables<'a>(&'a [SchemaTable]);
+        impl Serialize for Tables<'_> {
+            fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+                let mut out = s.serialize_map(Some(self.0.len()))?;
+                for t in self.0 {
+                    out.serialize_entry(t.name.as_str(), &(&t.columns[..], &t.indexes[..]))?;
+                }
+                out.end()
+            }
+        }
+        let mut out = s.serialize_struct("CaptureHeader", 2)?;
+        out.serialize_field("schema", &Tables(&self.0.tables))?;
+        out.serialize_field("schema_rows", &self.0.rows[..])?;
+        out.end()
+    }
+}
+struct BytesOut {
+    bytes: CodecVec<u8>,
+    error: Option<String>,
+}
+impl Write for BytesOut {
+    fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+        match self.bytes.try_extend_bytes(b) {
+            Ok(()) => Ok(b.len()),
+            Err(e) => {
+                self.error = Some(e.to_string());
+                Err(std::io::ErrorKind::Other.into())
+            }
+        }
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+fn encode(v: &impl Serialize, owner: Option<&OwnedBudget>) -> Result<CodecVec<u8>, String> {
+    let mut out = BytesOut {
+        bytes: bj::new_work(owner),
+        error: None,
+    };
+    let result = serde_json::to_writer(&mut out, v);
+    if let Some(e) = out.error {
+        return Err(e);
+    }
+    result.map_err(err)?;
+    Ok(out.bytes)
+}
+fn sql_text(owner: Option<&OwnedBudget>) -> BytesOut {
+    BytesOut {
+        bytes: bj::new_work(owner),
+        error: None,
+    }
+}
+impl BytesOut {
+    fn text(&mut self, v: &str) -> Result<(), String> {
+        self.bytes
+            .try_extend_bytes(v.as_bytes())
+            .map_err(|e| e.to_string())
+    }
+    fn quote(&mut self, v: &str) -> Result<(), String> {
+        self.text("\"")?;
+        for c in v.split_inclusive('"') {
+            self.text(c)?;
+            if c.ends_with('"') {
+                self.text("\"")?;
+            }
+        }
+        self.text("\"")
+    }
+    fn columns(&mut self, cols: &[TextValue]) -> Result<(), String> {
+        for (i, c) in cols.iter().enumerate() {
+            if i != 0 {
+                self.text(",")?;
+            }
+            self.quote(c.as_str())?;
+        }
+        Ok(())
+    }
+    fn statement<'a>(&mut self, c: &'a Connection) -> Result<CheckedStatement<'a>, String> {
+        self.bytes.try_push(0).map_err(|e| e.to_string())?;
+        let sql = std::ffi::CStr::from_bytes_with_nul(&self.bytes).map_err(err)?;
+        CheckedStatement::prepare(c, sql).map_err(sql_err)
+    }
+}
+fn row_text(
+    row: &mut CheckedRow<'_>,
+    i: usize,
+    owner: Option<&OwnedBudget>,
+) -> Result<TextValue, String> {
+    TextValue::from_str(row.text(i).map_err(sql_err)?, owner)
+}
+fn row_opt_text(
+    row: &mut CheckedRow<'_>,
+    i: usize,
+    owner: Option<&OwnedBudget>,
+) -> Result<Option<TextValue>, String> {
+    row.optional_text(i)
         .map_err(sql_err)?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(sql_err)?;
-    let mut tables = serde_json::Map::new();
+        .map(|s| TextValue::from_str(s, owner))
+        .transpose()
+}
+fn schema(c: &Connection, owner: Option<&OwnedBudget>) -> Result<Schema, String> {
+    let mut stmt = CheckedStatement::prepare(
+        c,
+        c"SELECT type,name,tbl_name,sql FROM sqlite_schema ORDER BY type,name",
+    )
+    .map_err(sql_err)?;
+    let mut rows = bj::new_work(owner);
+    while let Some(mut r) = stmt.next().map_err(sql_err)? {
+        rows.try_push((
+            row_text(&mut r, 0, owner)?,
+            row_text(&mut r, 1, owner)?,
+            row_text(&mut r, 2, owner)?,
+            row_opt_text(&mut r, 3, owner)?,
+        ))
+        .map_err(|e| e.to_string())?;
+    }
+    stmt.finalize().map_err(sql_err)?;
+    let mut tables = bj::new_work(owner);
     for (kind, name, _, sql) in &rows {
-        if kind == "index" {
+        if kind.as_str() == "index" {
             if sql.is_some() {
                 return Err(err("未声明的显式索引"));
             }
             continue;
         }
-        if kind != "table" {
+        if kind.as_str() != "table" {
             return Err(err("未声明视图或触发器"));
         }
-        let mut q=c.prepare("SELECT cid,name,type,\"notnull\",dflt_value,pk FROM pragma_table_info(?1) ORDER BY cid").map_err(sql_err)?;
-        let columns = q
-            .query_map([name], |r| {
-                Ok(json!([
-                    r.get::<_, i64>(0)?,
-                    r.get::<_, String>(1)?,
-                    r.get::<_, String>(2)?,
-                    r.get::<_, i64>(3)?,
-                    r.get::<_, Option<String>>(4)?,
-                    r.get::<_, i64>(5)?
-                ]))
-            })
-            .map_err(sql_err)?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(sql_err)?;
-        let mut q = c
-            .prepare("SELECT name,\"unique\",origin,partial FROM pragma_index_list(?1)")
-            .map_err(sql_err)?;
-        let idx = q
-            .query_map([name], |r| {
-                Ok((
-                    r.get::<_, String>(0)?,
-                    r.get::<_, i64>(1)?,
-                    r.get::<_, String>(2)?,
-                    r.get::<_, i64>(3)?,
+        let mut q=CheckedStatement::prepare(c,c"SELECT cid,name,type,\"notnull\",dflt_value,pk FROM pragma_table_info(?1) ORDER BY cid").map_err(sql_err)?;
+        q.bind_text(1, name.as_str()).map_err(sql_err)?;
+        let mut columns = bj::new_work(owner);
+        while let Some(mut r) = q.next().map_err(sql_err)? {
+            columns
+                .try_push((
+                    r.integer(0).map_err(sql_err)?,
+                    row_text(&mut r, 1, owner)?,
+                    row_text(&mut r, 2, owner)?,
+                    r.integer(3).map_err(sql_err)?,
+                    row_opt_text(&mut r, 4, owner)?,
+                    r.integer(5).map_err(sql_err)?,
                 ))
-            })
-            .map_err(sql_err)?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(sql_err)?;
-        let mut indexes = Vec::new();
-        for (name, unique, origin, partial) in idx {
-            let cols = c
-                .prepare("SELECT name FROM pragma_index_info(?1) ORDER BY seqno")
-                .map_err(sql_err)?
-                .query_map([name], |r| r.get::<_, Option<String>>(0))
-                .map_err(sql_err)?
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(sql_err)?;
-            indexes.push((unique, origin, partial, cols));
+                .map_err(|e| e.to_string())?;
         }
-        indexes.sort();
-        tables.insert(name.clone(), json!([columns, indexes]));
+        q.finalize().map_err(sql_err)?;
+        let mut q = CheckedStatement::prepare(
+            c,
+            c"SELECT name,\"unique\",origin,partial FROM pragma_index_list(?1)",
+        )
+        .map_err(sql_err)?;
+        q.bind_text(1, name.as_str()).map_err(sql_err)?;
+        let mut idx = bj::new_work(owner);
+        while let Some(mut r) = q.next().map_err(sql_err)? {
+            idx.try_push((
+                row_text(&mut r, 0, owner)?,
+                r.integer(1).map_err(sql_err)?,
+                row_text(&mut r, 2, owner)?,
+                r.integer(3).map_err(sql_err)?,
+            ))
+            .map_err(|e| e.to_string())?;
+        }
+        q.finalize().map_err(sql_err)?;
+        let mut indexes = bj::new_work(owner);
+        for (index_name, unique, origin, partial) in idx {
+            let mut q = CheckedStatement::prepare(
+                c,
+                c"SELECT name FROM pragma_index_info(?1) ORDER BY seqno",
+            )
+            .map_err(sql_err)?;
+            q.bind_text(1, index_name.as_str()).map_err(sql_err)?;
+            let mut cols = bj::new_work(owner);
+            while let Some(mut r) = q.next().map_err(sql_err)? {
+                cols.try_push(row_opt_text(&mut r, 0, owner)?)
+                    .map_err(|e| e.to_string())?;
+            }
+            q.finalize().map_err(sql_err)?;
+            indexes
+                .try_push(Index {
+                    unique,
+                    origin,
+                    partial,
+                    columns: cols,
+                })
+                .map_err(|e| e.to_string())?;
+        }
+        indexes.sort_unstable_by(index_cmp);
+        tables
+            .try_push(SchemaTable {
+                name: name.try_clone()?,
+                columns,
+                indexes,
+            })
+            .map_err(|e| e.to_string())?;
     }
-    Ok((json!(rows), Value::Object(tables)))
+    tables.sort_unstable_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+    Ok(Schema { rows, tables })
 }
-
 fn capture_image(tx: &Transaction<'_>, max: u64, deadline: Instant) -> Result<Image, String> {
+    capture_image_with_allocation(tx, max, deadline, None)
+}
+fn capture_image_with_allocation(
+    tx: &Transaction<'_>,
+    max: u64,
+    deadline: Instant,
+    allocation: Option<&super::q_allocation::Profile>,
+) -> Result<Image, String> {
     check(deadline, "Capture")?;
-    // 在获取DDL/行载荷前预检；数量上限来自同一组固定DDL产生的真实模式。
-    let ddls = control_audit::schema_ddls(tx)?;
+    if let Some(profile) = allocation {
+        profile.validate()?;
+    }
+    let owner = allocation.map(|p| &p.budget);
+    let ddls = control_audit::schema_ddls_with_owner(tx, owner)?;
     let expected = Connection::open_in_memory().map_err(sql_err)?;
     for ddl in &ddls {
         expected.execute_batch(ddl).map_err(sql_err)?;
     }
-    let (expected_rows, expected_schema) = schema(&expected)?;
-    let (count, bytes): (i64, i64) = tx
-        .query_row(
-            "SELECT COUNT(*),COALESCE(SUM(length(CAST(sql AS BLOB))),0) FROM sqlite_schema",
-            [],
-            |r| Ok((r.get(0)?, r.get(1)?)),
-        )
-        .map_err(sql_err)?;
+    let expected_schema = schema(&expected, owner)?;
+    let mut q = CheckedStatement::prepare(
+        tx,
+        c"SELECT COUNT(*),COALESCE(SUM(length(CAST(sql AS BLOB))),0) FROM sqlite_schema",
+    )
+    .map_err(sql_err)?;
+    let mut r = q
+        .next()
+        .map_err(sql_err)?
+        .ok_or_else(|| err("模式统计缺行"))?;
+    let count = r.integer(0).map_err(sql_err)?;
+    let bytes = r.integer(1).map_err(sql_err)?;
+    drop(r);
+    q.finalize().map_err(sql_err)?;
     if count < 0
         || bytes < 0
-        || count > expected_rows.as_array().unwrap().len() as i64
+        || count > expected_schema.rows.len() as i64
         || bytes > max.min(128 * 1024) as i64
     {
         return Err(err("Incomplete/CaptureBytes：模式元数据超过捕获界限"));
     }
-    control_audit::verify_s3_schema(tx)?;
-    let (schema_rows, schema) = schema(tx)?;
-    if schema != expected_schema {
+    control_audit::verify_s3_schema_with_owner(tx, owner)?;
+    let schema = schema(tx, owner)?;
+    if !schema.same_tables(&expected_schema) {
         return Err(err("列/主键/隐式索引与固定DDL不同"));
     }
-    let header = canonical_json(&json!({"schema":schema,"schema_rows":schema_rows})).into_bytes();
+    drop(expected_schema);
+    drop(expected);
+    let header = encode(&SchemaHeader(&schema), owner)?;
     let mut image = Image {
         header,
-        tables: Vec::new(),
+        tables: bj::new_work(owner),
         ddls,
-        digest: String::new(),
+        digest: CaptureDigest([b'0'; 64]),
         captured_bytes: 0,
+        allocation: allocation.cloned(),
     };
     image.check_bytes(max)?;
     let mut digest = Sha256::new();
     digest.update(&image.header);
-    for (name, meta) in schema.as_object().unwrap() {
+    for meta in &schema.tables {
+        let name = meta.name.as_str();
         check(deadline, "Capture")?;
-        let columns = meta[0]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|c| c[1].as_str().unwrap().to_owned())
-            .collect::<Vec<_>>();
-        let mut pk = meta[0]
-            .as_array()
-            .unwrap()
-            .iter()
-            .filter(|c| c[5].as_i64().unwrap() > 0)
-            .collect::<Vec<_>>();
-        pk.sort_by_key(|c| c[5].as_i64().unwrap());
-        let order = if name == "raw_events" {
-            "seq".into()
+        let mut columns = bj::new_work(owner);
+        for c in &meta.columns {
+            columns
+                .try_push(c.1.try_clone()?)
+                .map_err(|e| e.to_string())?;
+        }
+        let mut pk = bj::new_work(owner);
+        for c in &meta.columns {
+            if c.5 > 0 {
+                pk.try_push(c).map_err(|e| e.to_string())?;
+            }
+        }
+        pk.sort_unstable_by_key(|c| c.5);
+        let mut order = sql_text(owner);
+        if name == "raw_events" {
+            order.text("seq")?;
         } else {
-            pk.iter()
-                .map(|c| quote(c[1].as_str().unwrap()))
-                .collect::<Vec<_>>()
-                .join(",")
-        };
-        if order.is_empty() {
+            for (i, c) in pk.iter().enumerate() {
+                if i != 0 {
+                    order.text(",")?;
+                }
+                order.quote(c.1.as_str())?;
+            }
+        }
+        if order.bytes.is_empty() {
             return Err(err("固定表缺少确定主键顺序"));
         }
-        let lengths = columns
-            .iter()
-            .map(|c| format!("COALESCE(length(CAST({} AS BLOB)),0)", quote(c)))
-            .collect::<Vec<_>>()
-            .join("+");
-        let oversized: bool = tx
-            .query_row(
-                &format!(
-                    "SELECT EXISTS(SELECT 1 FROM {} WHERE {lengths}>?1)",
-                    quote(name)
-                ),
-                [max as i64],
-                |r| r.get(0),
-            )
+        let mut q = sql_text(owner);
+        q.text("SELECT EXISTS(SELECT 1 FROM ")?;
+        q.quote(name)?;
+        q.text(" WHERE ")?;
+        for (i, c) in columns.iter().enumerate() {
+            if i != 0 {
+                q.text("+")?;
+            }
+            q.text("COALESCE(length(CAST(")?;
+            q.quote(c.as_str())?;
+            q.text(" AS BLOB)),0)")?;
+        }
+        q.text(">?1)")?;
+        let mut oversized = q.statement(tx)?;
+        oversized.bind_integer(1, max as i64).map_err(sql_err)?;
+        let oversized_value = oversized
+            .next()
+            .map_err(sql_err)?
+            .ok_or_else(|| err("单行预检缺行"))?
+            .integer(0)
             .map_err(sql_err)?;
-        if oversized {
+        oversized.finalize().map_err(sql_err)?;
+        if oversized_value != 0 {
             return Err(err("Incomplete/CaptureBytes：单条持久记录超过捕获上限"));
         }
-        digest.update(canonical_json(&json!(name)).as_bytes());
-        let without_rowid: bool = tx
-            .query_row(
-                "SELECT wr FROM pragma_table_list WHERE schema='main' AND name=?1",
-                [name],
-                |r| r.get(0),
-            )
+        digest.update(&encode(&name, owner)?);
+        let mut q = CheckedStatement::prepare(
+            tx,
+            c"SELECT wr FROM pragma_table_list WHERE schema='main' AND name=?1",
+        )
+        .map_err(sql_err)?;
+        q.bind_text(1, name).map_err(sql_err)?;
+        let wr = q
+            .next()
+            .map_err(sql_err)?
+            .ok_or_else(|| err("表rowid登记缺行"))?
+            .integer(0)
             .map_err(sql_err)?;
+        q.finalize().map_err(sql_err)?;
+        let without_rowid = wr != 0;
         let rowid_offset = usize::from(!without_rowid);
-        let mut q = tx
-            .prepare(&format!(
-                "SELECT {}{} FROM {} ORDER BY {order}",
-                if without_rowid { "" } else { "rowid," },
-                columns
-                    .iter()
-                    .map(|c| quote(c))
-                    .collect::<Vec<_>>()
-                    .join(","),
-                quote(name)
-            ))
-            .map_err(sql_err)?;
-        let mut rows = q.query([]).map_err(sql_err)?;
-        let old_capacity = image.tables.capacity();
-        image.tables.push(Table {
-            name: name.clone(),
-            columns,
-            rows: Vec::new(),
-            rowids: if without_rowid {
-                None
-            } else {
-                Some(Vec::new())
-            },
-        });
+        let mut sql = sql_text(owner);
+        sql.text("SELECT ")?;
+        if !without_rowid {
+            sql.text("rowid,")?;
+        }
+        sql.columns(&columns)?;
+        sql.text(" FROM ")?;
+        sql.quote(name)?;
+        sql.text(" ORDER BY ")?;
+        sql.bytes
+            .try_extend_bytes(&order.bytes)
+            .map_err(|e| e.to_string())?;
+        let mut q = sql.statement(tx)?;
+        let old = image.tables.capacity();
+        image
+            .tables
+            .try_push(Table {
+                name: meta.name.try_clone()?,
+                columns,
+                rows: bj::new_work(owner),
+                rowids: (!without_rowid).then(|| bj::new_work(owner)),
+            })
+            .map_err(|e| e.to_string())?;
         let table = image.tables.last().unwrap();
-        let added = ((image.tables.capacity() - old_capacity) * size_of::<Table>()) as u64
+        let added = ((image.tables.capacity() - old) * size_of::<Table>()) as u64
             + table.name.capacity() as u64
-            + (table.columns.capacity() * size_of::<String>()) as u64
+            + (table.columns.capacity() * size_of::<TextValue>()) as u64
             + table
                 .columns
                 .iter()
                 .map(|c| c.capacity() as u64)
                 .sum::<u64>();
         image.charge(added, max)?;
-        while let Some(row) = rows.next().map_err(sql_err)? {
+        while let Some(mut row) = q.next().map_err(sql_err)? {
             check(deadline, "Capture")?;
             let n = image.tables.last().unwrap().columns.len();
-            let payload = (0..n).try_fold(0u64, |sum, i| -> Result<_, String> {
-                Ok(sum
-                    + match row.get_ref(i + rowid_offset).map_err(sql_err)? {
-                        ValueRef::Text(b) | ValueRef::Blob(b) => b.len() as u64,
-                        _ => 0,
-                    })
-            })?;
-            if image
-                .captured_bytes
-                .saturating_add(payload)
-                .saturating_add((n * size_of::<Cell>() + size_of::<Vec<Cell>>()) as u64)
-                > max
+            let mut payload = 0u64;
+            for i in 0..n {
+                payload += match row.column_type(i + rowid_offset).map_err(sql_err)? {
+                    rusqlite::types::Type::Text => {
+                        row.text_bytes(i + rowid_offset).map_err(sql_err)?.len() as u64
+                    }
+                    rusqlite::types::Type::Blob => {
+                        row.blob(i + rowid_offset).map_err(sql_err)?.len() as u64
+                    }
+                    _ => 0,
+                };
+            }
+            if image.captured_bytes.saturating_add(payload).saturating_add(
+                (n * size_of::<CaptureCell>() + size_of::<CodecVec<CaptureCell>>()) as u64,
+            ) > max
             {
                 return Err(err("Incomplete/CaptureBytes：全域捕获超过事前上限"));
             }
-            let mut cells = Vec::with_capacity(n);
+            let mut cells = bj::new_work(owner);
+            cells.try_reserve_exact(n).map_err(|e| e.to_string())?;
             for i in 0..n {
-                cells.push(match row.get_ref(i + rowid_offset).map_err(sql_err)? {
-                    ValueRef::Null => Cell::Null,
-                    ValueRef::Integer(v) => Cell::Integer(v),
-                    ValueRef::Text(b) => {
-                        Cell::Text(std::str::from_utf8(b).map_err(err)?.to_owned())
+                let c = i + rowid_offset;
+                let cell = match row.column_type(c).map_err(sql_err)? {
+                    rusqlite::types::Type::Null => CaptureCell::Null,
+                    rusqlite::types::Type::Integer => {
+                        CaptureCell::Integer(row.integer(c).map_err(sql_err)?)
                     }
-                    ValueRef::Blob(b) => Cell::Blob(b.to_vec()),
-                    ValueRef::Real(_) => return Err(err("REAL不属于已声明持久列类型")),
-                });
+                    rusqlite::types::Type::Text => {
+                        let text = std::str::from_utf8(row.text_bytes(c).map_err(sql_err)?)
+                            .map_err(err)?;
+                        CaptureCell::Text(TextValue::from_str(text, owner)?)
+                    }
+                    rusqlite::types::Type::Blob => {
+                        let mut b = bj::new_work(owner);
+                        b.try_extend_bytes(row.blob(c).map_err(sql_err)?)
+                            .map_err(|e| e.to_string())?;
+                        CaptureCell::Blob(b)
+                    }
+                    rusqlite::types::Type::Real => return Err(err("REAL不属于已声明持久列类型")),
+                };
+                cells.try_push(cell).map_err(|e| e.to_string())?;
             }
             digest.update(b"[");
             for cell in &cells {
-                hash_cell(&mut digest, cell)?;
+                hash_cell_view(&mut digest, cell.view())?;
             }
             digest.update(b"]");
-            let owned = (cells.capacity() * size_of::<Cell>()) as u64
-                + cells
-                    .iter()
-                    .map(|v| match v {
-                        Cell::Text(s) => s.capacity() as u64,
-                        Cell::Blob(b) => b.capacity() as u64,
-                        _ => 0,
-                    })
-                    .sum::<u64>();
+            let owned = (cells.capacity() * size_of::<CaptureCell>()) as u64
+                + cells.iter().map(|c| c.capacity() as u64).sum::<u64>();
             let table = image.tables.last_mut().unwrap();
-            let old_capacity = table.rows.capacity();
-            table.rows.push(cells);
-            let rowid_bytes = if let Some(ids) = &mut table.rowids {
+            let old = table.rows.capacity();
+            table.rows.try_push(cells).map_err(|e| e.to_string())?;
+            let rowids = if let Some(ids) = &mut table.rowids {
                 let old = ids.capacity();
-                ids.push(row.get(0).map_err(sql_err)?);
+                ids.try_push(row.integer(0).map_err(sql_err)?)
+                    .map_err(|e| e.to_string())?;
                 ((ids.capacity() - old) * size_of::<i64>()) as u64
             } else {
                 0
             };
-            let added = owned
-                + rowid_bytes
-                + ((table.rows.capacity() - old_capacity) * size_of::<Vec<Cell>>()) as u64;
-            image.charge(added, max)?;
+            let row_growth =
+                ((table.rows.capacity() - old) * size_of::<CodecVec<CaptureCell>>()) as u64;
+            image.charge(owned + rowids + row_growth, max)?;
         }
+        q.finalize().map_err(sql_err)?;
     }
     check(deadline, "Capture")?;
-    image.digest = format!("{:x}", digest.finalize());
-    image.charge(image.digest.capacity() as u64, max)?;
+    let hash = digest.finalize();
+    let hex = b"0123456789abcdef";
+    for (i, b) in hash.iter().enumerate() {
+        image.digest.0[2 * i] = hex[(b >> 4) as usize];
+        image.digest.0[2 * i + 1] = hex[(b & 15) as usize];
+    }
     Ok(image)
 }
 impl Image {
@@ -834,19 +1278,19 @@ impl Image {
                 .as_ref()
                 .map_or(0, |ids| (ids.capacity() * size_of::<i64>()) as u64);
             n += table.name.capacity() as u64
-                + (table.columns.capacity() * size_of::<String>()) as u64
+                + (table.columns.capacity() * size_of::<TextValue>()) as u64
                 + table
                     .columns
                     .iter()
                     .map(|c| c.capacity() as u64)
                     .sum::<u64>()
-                + (table.rows.capacity() * size_of::<Vec<Cell>>()) as u64;
+                + (table.rows.capacity() * size_of::<CodecVec<CaptureCell>>()) as u64;
             for row in &table.rows {
-                n += (row.capacity() * size_of::<Cell>()) as u64;
+                n += (row.capacity() * size_of::<CaptureCell>()) as u64;
                 for cell in row {
                     n += match cell {
-                        Cell::Text(t) => t.capacity() as u64,
-                        Cell::Blob(b) => b.capacity() as u64,
+                        CaptureCell::Text(t) => t.capacity() as u64,
+                        CaptureCell::Blob(b) => b.capacity() as u64,
                         _ => 0,
                     };
                 }
@@ -860,25 +1304,53 @@ impl Image {
         }
     }
 }
+fn decimal_bytes(n: i64, out: &mut [u8; 20]) -> &[u8] {
+    let mut unsigned = n.unsigned_abs();
+    let mut i = 20;
+    loop {
+        i -= 1;
+        out[i] = b'0' + (unsigned % 10) as u8;
+        unsigned /= 10;
+        if unsigned == 0 {
+            break;
+        }
+    }
+    if n < 0 {
+        i -= 1;
+        out[i] = b'-';
+    }
+    &out[i..]
+}
 fn hash_cell(hash: &mut Sha256, cell: &Cell) -> Result<(), String> {
+    let view = match cell {
+        Cell::Null => CellView::Null,
+        Cell::Integer(n) => CellView::Integer(*n),
+        Cell::Text(v) => CellView::Text(v),
+        Cell::Blob(v) => CellView::Blob(v),
+        Cell::Real(_) => CellView::Real,
+    };
+    hash_cell_view(hash, view)
+}
+fn hash_cell_view(hash: &mut Sha256, cell: CellView<'_>) -> Result<(), String> {
     match cell {
-        Cell::Null => {
+        CellView::Null => {
             hash.update(b"NoneType");
             hash.update(4u64.to_be_bytes());
             hash.update(b"null");
         }
-        Cell::Integer(n) => {
-            let s = n.to_string();
+        CellView::Integer(n) => {
+            let mut scalar = [0u8; 20];
+            let s = decimal_bytes(n, &mut scalar);
             hash.update(b"int");
             hash.update((s.len() as u64).to_be_bytes());
-            hash.update(s.as_bytes());
+            hash.update(s);
         }
-        Cell::Blob(b) => {
+        CellView::Blob(b) => {
             hash.update(b"b");
             hash.update((b.len() as u64).to_be_bytes());
             hash.update(b);
         }
-        Cell::Text(s) => {
+        CellView::Text(s) => {
             struct Count(u64);
             impl Write for Count {
                 fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
@@ -905,7 +1377,7 @@ fn hash_cell(hash: &mut Sha256, cell: &Cell) -> Result<(), String> {
             hash.update(count.0.to_be_bytes());
             serde_json::to_writer(&mut Hash(hash), s).map_err(err)?;
         }
-        Cell::Real(_) => return Err(err("REAL捕获单元不合法")),
+        CellView::Real => return Err(err("REAL捕获单元不合法")),
     }
     Ok(())
 }
@@ -934,61 +1406,97 @@ fn verify_image_metered(
         tx.execute_batch(ddl).map_err(sql_err)?;
     }
     // 副本从空库建立；外键在全部行导入后一次核对，避免按表名排序碰到前向依赖。
+    let owner = image.allocation.as_ref().map(|p| &p.budget);
     for table in &image.tables {
         let offset = usize::from(table.rowids.is_some());
-        let marks = (1..=table.columns.len() + offset)
-            .map(|i| format!("?{i}"))
-            .collect::<Vec<_>>()
-            .join(",");
-        let sql = format!(
-            "INSERT INTO {} ({}{}) VALUES ({marks})",
-            quote(&table.name),
-            if offset == 0 { "" } else { "rowid," },
-            table
-                .columns
-                .iter()
-                .map(|c| quote(c))
-                .collect::<Vec<_>>()
-                .join(",")
-        );
-        let mut insert = tx.prepare(&sql).map_err(sql_err)?;
+        let mut sql = sql_text(owner);
+        sql.text("INSERT INTO ")?;
+        sql.quote(table.name.as_str())?;
+        sql.text(" (")?;
+        if offset != 0 {
+            sql.text("rowid,")?;
+        }
+        sql.columns(&table.columns)?;
+        sql.text(") VALUES (")?;
+        for i in 1..=table.columns.len() + offset {
+            if i != 1 {
+                sql.text(",")?;
+            }
+            sql.text("?")?;
+            let mut scalar = [0u8; 20];
+            let bytes = decimal_bytes(i64::try_from(i).map_err(err)?, &mut scalar);
+            sql.bytes
+                .try_extend_bytes(bytes)
+                .map_err(|e| e.to_string())?;
+        }
+        sql.text(")")?;
+        sql.bytes.try_push(0).map_err(|e| e.to_string())?;
+        let csql = std::ffi::CStr::from_bytes_with_nul(&sql.bytes).map_err(err)?;
+        let mut insert = CheckedStatement::prepare_insert(&tx, csql).map_err(sql_err)?;
         for (n, row) in table.rows.iter().enumerate() {
             check(deadline, "Verify")?;
+            insert.reset().map_err(sql_err)?;
             if let Some(ids) = &table.rowids {
-                let id = Cell::Integer(ids[n]);
-                insert
-                    .execute(params_from_iter(std::iter::once(&id).chain(row.iter())))
-                    .map_err(sql_err)?;
-            } else {
-                insert.execute(params_from_iter(row)).map_err(sql_err)?;
+                insert.bind_integer(1, ids[n]).map_err(sql_err)?;
             }
+            for (i, cell) in row.iter().enumerate() {
+                let index = i32::try_from(i + offset + 1).map_err(err)?;
+                match cell.view() {
+                    CellView::Null => insert.bind_null(index),
+                    CellView::Integer(n) => insert.bind_integer(index, n),
+                    CellView::Text(s) => insert.bind_text(index, s),
+                    CellView::Blob(b) => insert.bind_blob(index, b),
+                    CellView::Real => return Err(err("REAL捕获单元不合法")),
+                }
+                .map_err(sql_err)?;
+            }
+            insert.execute().map_err(sql_err)?;
         }
+        insert.finalize().map_err(sql_err)?;
     }
-    let foreign_errors: i64 = tx
-        .query_row("SELECT count(*) FROM pragma_foreign_key_check", [], |r| {
-            r.get(0)
-        })
-        .map_err(sql_err)?;
+    let foreign_errors = scalar(&tx, c"SELECT count(*) FROM pragma_foreign_key_check")?;
     if foreign_errors != 0 {
         return Err(err("捕获内容外键闭合失败"));
     }
     tx.commit().map_err(sql_err)?;
-    let digest = CaptureDigest::from_str(&image.digest)?;
+    let digest = image.digest;
+    let allocation = image.allocation.clone();
     let captured_bytes = image.captured_bytes;
     drop(image);
     db.pragma_update(None, "query_only", true)
         .map_err(sql_err)?;
-    let (audited, audit_receipt) = {
+    let (audited, audit_receipt, q_source) = {
         let tx = db.transaction().map_err(sql_err)?;
-        if let Some(job) = job {
-            let (state, receipt) =
-                state::audit_with_access(&tx, Some(deadline), Some(max_capture_bytes), job)?;
-            (state, Some(receipt))
-        } else {
-            (
+        match (job, allocation.as_ref()) {
+            (Some(job), Some(profile)) => {
+                let (state, receipt, capture) = state::audit_with_access_and_allocation(
+                    &tx,
+                    Some(deadline),
+                    Some(max_capture_bytes),
+                    job,
+                    profile,
+                )?;
+                (state, Some(receipt), Some(capture))
+            }
+            (Some(job), None) => {
+                let (state, receipt) =
+                    state::audit_with_access(&tx, Some(deadline), Some(max_capture_bytes), job)?;
+                (state, Some(receipt), None)
+            }
+            (None, Some(profile)) => {
+                let (state, capture) = state::audit_bounded_with_allocation(
+                    &tx,
+                    Some(deadline),
+                    Some(max_capture_bytes),
+                    profile,
+                )?;
+                (state, None, Some(capture))
+            }
+            (None, None) => (
                 state::audit_bounded(&tx, Some(deadline), Some(max_capture_bytes))?,
                 None,
-            )
+                None,
+            ),
         }
     };
     check(deadline, "Verify")?;
@@ -1002,6 +1510,8 @@ fn verify_image_metered(
         source_versions: [0; 3],
         verify_deadline: deadline,
         audit_receipt,
+        q_source,
+        allocation,
     })
 }
 
@@ -1009,7 +1519,8 @@ fn verify_image_metered(
 /// 缓存无公开裸摘要入口；只有本次同连接版本/文件身份夹持成功才可借出。
 pub(super) struct AuditReader {
     path: std::path::PathBuf,
-    resources_digest: String,
+    resources_digest: CaptureDigest,
+    allocation: Option<super::q_allocation::Profile>,
     source: Option<Connection>,
     identity: Option<(u64, u64)>,
     cached: Option<(i64, retained::Packed)>,
@@ -1023,14 +1534,26 @@ pub(super) struct ReaderStats {
 }
 impl AuditReader {
     pub(super) fn new(path: std::path::PathBuf, resources: &q_resources::QResources) -> Self {
+        Self::new_with_allocation(path, resources, None)
+    }
+    pub(super) fn new_with_allocation(
+        path: std::path::PathBuf,
+        resources: &q_resources::QResources,
+        allocation: Option<super::q_allocation::Profile>,
+    ) -> Self {
         Self {
             path,
-            resources_digest: resources.digest().into(),
+            resources_digest: CaptureDigest::from_str(resources.digest())
+                .expect("frozen resource digest"),
+            allocation,
             source: None,
             identity: None,
             cached: None,
             stats: ReaderStats::default(),
         }
+    }
+    pub(super) fn allocation_profile(&self) -> Option<&super::q_allocation::Profile> {
+        self.allocation.as_ref()
     }
     pub(super) fn close(&mut self) {
         self.cached = None;
@@ -1062,7 +1585,10 @@ impl AuditReader {
             &mut dyn newchan_rust::s_content::access::Access,
         ) -> Result<T, String>,
     ) -> Result<T, String> {
-        if resources.digest() != self.resources_digest {
+        if let Some(profile) = &self.allocation {
+            profile.validate()?;
+        }
+        if resources.digest() != self.resources_digest.as_str() {
             self.close();
             return Err(err("reader资源与启动冻结配置不同"));
         }
@@ -1071,18 +1597,34 @@ impl AuditReader {
         let (mut packed, cache_version, verify_deadline) = match result {
             Ok(v) => v,
             Err(e) => {
-                self.close();
+                if !allocation_refusal(&e) {
+                    self.close();
+                }
                 return Err(e);
             }
         };
         let proof = match packed.checkout(verify_deadline) {
             Ok(v) => v,
             Err(e) => {
-                self.close();
+                if allocation_refusal(&e) {
+                    if let Some(version) = cache_version {
+                        self.stats.cached_bytes = packed.retained_bytes;
+                        self.cached = Some((version, packed));
+                    }
+                } else {
+                    self.close();
+                }
                 return Err(e);
             }
         };
-        job.pre_io_check().map_err(err)?;
+        if let Err(e) = job.pre_io_check().map_err(err) {
+            packed.restore(proof);
+            if let Some(version) = cache_version {
+                self.stats.cached_bytes = packed.retained_bytes;
+                self.cached = Some((version, packed));
+            }
+            return Err(e);
+        }
         seam("verify_complete");
         let mut capture = ConfiguredCapture {
             capture: proof,
@@ -1118,8 +1660,9 @@ impl AuditReader {
             check(deadline, "Capture")?;
             let identity = file_identity(&self.path)?;
             if self.source.is_none() || self.identity != Some(identity) {
+                let opened = open_source(&self.path, limits, deadline)?;
                 self.close();
-                self.source = Some(open_source(&self.path, limits, deadline)?);
+                self.source = Some(opened);
                 self.identity = Some(identity);
             }
             let source = self.source.as_mut().unwrap();
@@ -1130,16 +1673,11 @@ impl AuditReader {
                 .progress_handler(100, Some(move || Instant::now() >= deadline))
                 .map_err(sql_err)?;
             let captured = (|| {
-                validate_source(source)?;
+                validate_source_with_owner(source, self.allocation.as_ref().map(|p| &p.budget))?;
                 let v0 = version(source)?;
                 seam("after_v0");
                 let tx = source.transaction().map_err(sql_err)?;
-                tx.query_row(
-                    "SELECT key,value FROM meta ORDER BY key LIMIT 1",
-                    [],
-                    |_| Ok(()),
-                )
-                .map_err(sql_err)?;
+                pin_first_read(&tx)?;
                 seam("after_first_read");
                 let v1 = version(&tx)?;
                 let candidate = self
@@ -1149,7 +1687,12 @@ impl AuditReader {
                 let image = if candidate {
                     None
                 } else {
-                    Some(capture_image(&tx, limits.max_capture_bytes, deadline)?)
+                    Some(capture_image_with_allocation(
+                        &tx,
+                        limits.max_capture_bytes,
+                        deadline,
+                        self.allocation.as_ref(),
+                    )?)
                 };
                 tx.rollback().map_err(sql_err)?;
                 seam("after_transaction");
@@ -1169,15 +1712,14 @@ impl AuditReader {
             let local = until(limits.verify_deadline_ms)?;
             let verify_deadline = hard.map_or(local, |d| d.min(local));
             if candidate && versions.iter().all(|v| *v == versions[0]) {
+                let (_, packed) = self.cached.as_ref().ok_or_else(|| err("缓存候选消失"))?;
+                packed.replay(job)?;
+                job.pre_io_check().map_err(err)?;
                 let (_, packed) = self.cached.take().ok_or_else(|| err("缓存候选消失"))?;
                 self.stats.cached_bytes = 0;
-                packed.replay(job)?;
                 self.stats.cache_hits += 1;
-                job.pre_io_check().map_err(err)?;
                 return Ok((packed, Some(versions[2]), verify_deadline));
             }
-            self.cached = None;
-            self.stats.cached_bytes = 0;
             if candidate {
                 if attempt == 1 {
                     return Err(err("Incomplete：并发提交阻止缓存复用"));
@@ -1202,6 +1744,9 @@ impl AuditReader {
                 && file_identity(&self.path)? == identity
                 && packed.retained_bytes <= allowance;
             job.pre_io_check().map_err(err)?;
+            // 新鲜完整proof和保留量都成功后才撤销旧缓存；失败不得把旧权威丢掉。
+            self.cached = None;
+            self.stats.cached_bytes = 0;
             return Ok((packed, reusable.then_some(v3), verify_deadline));
         }
         Err(err("Incomplete：捕获重试已耗尽"))
@@ -1232,32 +1777,43 @@ fn open_source(path: &Path, limits: Limits, deadline: Instant) -> Result<Connect
     Ok(source)
 }
 fn validate_source(source: &Connection) -> Result<(), String> {
+    validate_source_with_owner(source, None)
+}
+fn validate_source_with_owner(
+    source: &Connection,
+    owner: Option<&OwnedBudget>,
+) -> Result<(), String> {
     if !source.is_autocommit() {
         return Err(err("reader不得持有跨请求事务"));
     }
-    let query_only: i64 = source
-        .query_row("PRAGMA query_only", [], |r| r.get(0))
-        .map_err(sql_err)?;
-    let read_uncommitted: i64 = source
-        .query_row("PRAGMA read_uncommitted", [], |r| r.get(0))
-        .map_err(sql_err)?;
+    let query_only = scalar(source, c"PRAGMA query_only")?;
+    let read_uncommitted = scalar(source, c"PRAGMA read_uncommitted")?;
     if query_only != 1 || read_uncommitted != 0 {
         return Err(err("只读隔离设置改变"));
     }
-    let names = source
-        .prepare("PRAGMA database_list")
-        .map_err(sql_err)?
-        .query_map([], |r| r.get::<_, String>(1))
-        .map_err(sql_err)?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(sql_err)?;
-    if names != ["main"] {
+    let mut stmt = CheckedStatement::prepare(source, c"PRAGMA database_list").map_err(sql_err)?;
+    let mut names = bj::new_work(owner);
+    while let Some(mut row) = stmt.next().map_err(sql_err)? {
+        names
+            .try_push(row_text(&mut row, 1, owner)?)
+            .map_err(|e| e.to_string())?;
+    }
+    stmt.finalize().map_err(sql_err)?;
+    if names.len() != 1 || names[0].as_str() != "main" {
         return Err(err("源连接含附加数据库"));
     }
-    let mode: String = source
-        .query_row("PRAGMA journal_mode", [], |r| r.get(0))
+    let mut stmt =
+        CheckedStatement::prepare(source, c"SELECT journal_mode FROM pragma_journal_mode")
+            .map_err(sql_err)?;
+    let mut row = stmt
+        .next()
+        .map_err(sql_err)?
+        .ok_or(rusqlite::Error::QueryReturnedNoRows)
         .map_err(sql_err)?;
-    if mode.to_lowercase() != "wal" {
+    let mode = row_text(&mut row, 0, owner)?;
+    drop(row);
+    stmt.finalize().map_err(sql_err)?;
+    if !mode.eq_ignore_ascii_case("wal") {
         return Err(err("源库必须由S预先建立WAL，Q不替它改模式"));
     }
     Ok(())
@@ -1317,6 +1873,125 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
         );
         String::from_utf8(out.stdout).unwrap().trim().into()
     }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    fn allocation_profile(budget: &OwnedBudget) -> super::super::q_allocation::Profile {
+        super::super::q_allocation::Profile {
+            budget: budget.clone(),
+            overlay_slots: 32768,
+            overlay_bytes: 1_000_000,
+        }
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn actual_owned_q_cold_capture_keeps_image_audit_and_projection_on_original_ledger() {
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        publish(&mut f, 2);
+        let expected = python_digest(&f.db_path());
+        let budget = OwnedBudget::new(50 * 1024 * 1024);
+        let mut capture = capture_verified_with_allocation(
+            &f.db_path(),
+            limits(),
+            Some(allocation_profile(&budget)),
+        )
+        .unwrap();
+        assert_eq!(capture.digest(), expected);
+        assert_eq!(capture.generation(), 2);
+        assert!(capture
+            .allocation
+            .as_ref()
+            .unwrap()
+            .budget
+            .same_ledger(&budget));
+        assert!(capture
+            .audited
+            .budget
+            .as_ref()
+            .unwrap()
+            .same_ledger(&budget));
+        assert!(matches!(&capture.audited.raw, bj::RawEvents::Owned(_)));
+        assert!(matches!(
+            &capture.audited.cuts[0].metadata.session_id,
+            TextValue::Owned(_)
+        ));
+        let projection = capture
+            .projection(2, projection::HistoryMode::AsKnown, 1_048_576, &mut job())
+            .unwrap();
+        assert!(matches!(&projection.root, audit_store::RefValue::Owned(_)));
+        assert!(matches!(&projection.wire, bj::JsonOwner::Owned(_)));
+        assert!(matches!(&projection.digest, TextValue::Owned(_)));
+        assert!(budget.snapshot().live_requested_layout_bytes > 0);
+        drop(projection);
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        let low = OwnedBudget::new(0);
+        let error = capture_verified_with_allocation(
+            &f.db_path(),
+            limits(),
+            Some(allocation_profile(&low)),
+        )
+        .err()
+        .unwrap();
+        assert!(allocation_refusal(&error), "{error}");
+        assert_eq!(low.snapshot().allocation_attempts, 0);
+        assert!(low.snapshot().rejected_layouts > 0);
+        assert_eq!(low.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn actual_owned_q_reader_budget_refusal_preserves_authoritative_cache_and_retries() {
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        let r = q_resources::tests::resources();
+        let budget = OwnedBudget::new(50 * 1024 * 1024);
+        let mut reader =
+            AuditReader::new_with_allocation(f.db_path(), &r, Some(allocation_profile(&budget)));
+        let expected = reader
+            .with_capture(&r, &mut job(), |c, _| Ok(c.capture.digest))
+            .unwrap();
+        assert!(reader.cached.is_some());
+        let old_bytes = reader.stats.cached_bytes;
+        let old_pages = reader.cached.as_ref().unwrap().1.page_digest_for_testonly();
+        let before = budget.snapshot();
+        let mut filler = bj::new_work::<u8>(Some(&budget));
+        filler
+            .try_reserve_exact(before.limit_bytes - before.live_requested_layout_bytes)
+            .unwrap();
+        let error = reader
+            .with_capture(&r, &mut job(), |_, _| Ok(()))
+            .err()
+            .unwrap();
+        assert!(allocation_refusal(&error), "{error}");
+        assert!(reader.cached.is_some());
+        assert_eq!(reader.stats.cached_bytes, old_bytes);
+        assert_eq!(
+            reader.cached.as_ref().unwrap().1.page_digest_for_testonly(),
+            old_pages
+        );
+        drop(filler);
+        assert_eq!(
+            budget.snapshot().live_requested_layout_bytes,
+            before.live_requested_layout_bytes
+        );
+        let retried = reader
+            .with_capture(&r, &mut job(), |c, _| {
+                assert!(c
+                    .capture
+                    .audited
+                    .budget
+                    .as_ref()
+                    .unwrap()
+                    .same_ledger(&budget));
+                Ok(c.capture.digest)
+            })
+            .unwrap();
+        assert_eq!(retried, expected);
+        assert_eq!(reader.stats.captures, 1);
+        assert_eq!(reader.stats.cache_hits, 1);
+        reader.close();
+        drop(reader);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
     #[test]
     fn real_capture_digest_matches_python_and_survives_source_commit_without_lock() {
         let mut f = Fixture::new();
@@ -1357,14 +2032,28 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
         let projection = captured
             .projection(1, projection::HistoryMode::AsKnown, &mut job)
             .unwrap();
-        assert_eq!(projection.wire["fixed_cut"]["cut_generation"], "1");
+        assert_eq!(
+            projection
+                .wire
+                .view()
+                .get("fixed_cut")
+                .and_then(|v| v.get("cut_generation"))
+                .and_then(|v| v.as_str()),
+            Some("1")
+        );
         publish(&mut f, 2);
         let one = captured.delta_references(0, 2, &mut job).unwrap();
         assert_eq!(one.anchors.len(), 1);
         assert_eq!(one.through_generation, 1);
         assert!(!one.has_more);
         assert_eq!(one.validated_capture_digest, digest);
-        assert_eq!(one.anchors[0]["generation"], "1");
+        assert_eq!(
+            one.anchors[0]
+                .view()
+                .get("generation")
+                .and_then(|v| v.as_str()),
+            Some("1")
+        );
         assert!(one.usage[0].nodes > 0 && one.usage[0].records > 0);
         let mut fresh = capture_configured(&f.db_path(), &resources, &mut job).unwrap();
         let first = fresh.delta_references(0, 1, &mut job).unwrap();
@@ -1374,7 +2063,16 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
         let next = fresh.delta_references(1, 1, &mut job).unwrap();
         assert_eq!(next.through_generation, 2);
         assert!(!next.has_more);
-        assert_eq!(next.anchors[0]["base_cut"], first.anchors[0]["next_cut"]);
+        assert_eq!(
+            next.anchors[0]
+                .view()
+                .get("base_cut")
+                .and_then(|v| v.as_str()),
+            first.anchors[0]
+                .view()
+                .get("next_cut")
+                .and_then(|v| v.as_str())
+        );
         assert_eq!(job.snapshot().requests, 2);
         assert!(fresh
             .delta_references(0, 5, &mut job)
@@ -1407,7 +2105,10 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
         let first = captured.delta_references(0, 1, &mut job).unwrap();
         assert_eq!(first.through_generation, 1);
         assert!(first.has_more);
-        assert_eq!(first.anchors[0], all.anchors[0]);
+        assert_eq!(
+            serde_json::to_value(first.anchors[0].view()).unwrap(),
+            serde_json::to_value(all.anchors[0].view()).unwrap()
+        );
         assert_eq!(job.snapshot().records, used + first.usage[0].records);
         assert_eq!(f.conn.total_changes(), before);
     }
@@ -1667,7 +2368,11 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
                 .db
                 .execute("UPDATE meta SET value='bad' WHERE key='generation'", [])
                 .is_err());
-            Ok((g, c.capture.digest().to_string(), canonical_json(&p.wire)))
+            Ok((
+                g,
+                c.capture.digest().to_string(),
+                serde_json::to_string(&p.wire.view()).map_err(err)?,
+            ))
         })
     }
     #[test]

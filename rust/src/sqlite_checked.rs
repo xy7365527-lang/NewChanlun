@@ -19,10 +19,28 @@ pub struct CheckedStatement<'conn> {
     _connection: &'conn Connection,
     statement: NonNull<ffi::sqlite3_stmt>,
     finished: bool,
+    readonly: bool,
 }
 impl<'conn> CheckedStatement<'conn> {
     /// 借用静态 CStr 或调用者已有的 CStr；返回后无需保留 SQL 借用，连接必须仍活着。
     pub fn prepare(connection: &'conn Connection, sql: &CStr) -> Result<Self> {
+        Self::prepare_with_mode(connection, sql, true)
+    }
+
+    /// 仅供调用方固定副本 INSERT；来源 SQL 仍须使用只读 prepare。
+    /// 不允许另一个语句或 RETURNING 行借只读 next 执行写入。
+    pub fn prepare_insert(connection: &'conn Connection, sql: &CStr) -> Result<Self> {
+        if !sql.to_bytes().starts_with(b"INSERT INTO ") {
+            return Err(sql_error(ffi::SQLITE_MISUSE));
+        }
+        Self::prepare_with_mode(connection, sql, false)
+    }
+
+    fn prepare_with_mode(
+        connection: &'conn Connection,
+        sql: &CStr,
+        readonly: bool,
+    ) -> Result<Self> {
         let mut statement = std::ptr::null_mut();
         let mut tail = std::ptr::null();
         // SAFETY: borrowed Connection is live; sql has a terminating NUL, out pointers valid.
@@ -48,8 +66,9 @@ impl<'conn> CheckedStatement<'conn> {
             _connection: connection,
             statement,
             finished: false,
+            readonly,
         };
-        if unsafe { ffi::sqlite3_stmt_readonly(statement.as_ptr()) } == 0 {
+        if (unsafe { ffi::sqlite3_stmt_readonly(statement.as_ptr()) } != 0) != readonly {
             return Err(sql_error(ffi::SQLITE_READONLY));
         }
         // Like rusqlite::prepare, permit whitespace/comments, reject a second statement.
@@ -93,6 +112,9 @@ impl<'conn> CheckedStatement<'conn> {
     pub fn bind_integer(&mut self, index: i32, value: i64) -> Result<()> {
         check(unsafe { ffi::sqlite3_bind_int64(self.statement.as_ptr(), index, value) })
     }
+    pub fn bind_real(&mut self, index: i32, value: f64) -> Result<()> {
+        check(unsafe { ffi::sqlite3_bind_double(self.statement.as_ptr(), index, value) })
+    }
     pub fn bind_blob(&mut self, index: i32, value: &[u8]) -> Result<()> {
         let len = i32::try_from(value.len()).map_err(|_| sql_error(ffi::SQLITE_TOOBIG))?;
         check(unsafe {
@@ -127,6 +149,9 @@ impl<'conn> CheckedStatement<'conn> {
     /// ```
     #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Result<Option<CheckedRow<'_>>> {
+        if !self.readonly {
+            return Err(sql_error(ffi::SQLITE_READONLY));
+        }
         if self.finished {
             return Ok(None);
         }
@@ -150,6 +175,27 @@ impl<'conn> CheckedStatement<'conn> {
                 Err(sql_error(cause))
             }
         }
+    }
+    /// 固定 INSERT 的唯一执行口；不开放写 statement 的行借用。
+    pub fn execute(&mut self) -> Result<usize> {
+        if self.readonly {
+            return Err(sql_error(ffi::SQLITE_READONLY));
+        }
+        let code = unsafe { ffi::sqlite3_step(self.statement.as_ptr()) };
+        if code != ffi::SQLITE_DONE {
+            unsafe {
+                ffi::sqlite3_reset(self.statement.as_ptr());
+            }
+            return Err(if code == ffi::SQLITE_ROW {
+                Error::ExecuteReturnedResults
+            } else {
+                sql_error(code)
+            });
+        }
+        let changed = unsafe { ffi::sqlite3_changes(self._connection.handle()) } as usize;
+        check(unsafe { ffi::sqlite3_reset(self.statement.as_ptr()) })?;
+        self.finished = true;
+        Ok(changed)
     }
     pub fn reset(&mut self) -> Result<()> {
         let code = unsafe { ffi::sqlite3_reset(self.statement.as_ptr()) };

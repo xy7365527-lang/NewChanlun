@@ -156,9 +156,12 @@ fn read_indexed_history_inner(
     if audit_same_material {
         reader.enable_audit_same_material();
     }
-    let capture = capture.filter(|_| budget.is_none() && deadline.is_none());
+    let capture =
+        capture.filter(|c| c.is_allocation_prototype() || (budget.is_none() && deadline.is_none()));
     let mut store = match capture {
-        Some(c) => HashReader::captured_for_audit(c, max_render_bytes).map_err(err)?,
+        Some(c) => HashReader::captured_for_audit(c, max_render_bytes)
+            .map_err(err)?
+            .with_audit_gate(budget, deadline),
         None => HashReader::metered(&mut reader, deadline, max_render_bytes, budget),
     };
     store.audit_full_arrays = audit_same_material && budget.is_none();
@@ -1138,7 +1141,7 @@ impl OverlayOwner {
         }
     }
 }
-#[cfg(test)]
+#[cfg(any(test, feature = "s_allocation_json_testonly"))]
 #[derive(Clone)]
 pub(super) struct OverlayPrototype {
     pub slots: usize,
@@ -1146,9 +1149,9 @@ pub(super) struct OverlayPrototype {
     pub budget: sc::capture_allocation::OwnedBudget,
     pub peaks: std::rc::Rc<std::cell::Cell<(usize, usize)>>,
 }
-#[cfg(test)]
+#[cfg(any(test, feature = "s_allocation_json_testonly"))]
 thread_local! { static OVERLAY_PROTOTYPE: std::cell::RefCell<Option<OverlayPrototype>> = const { std::cell::RefCell::new(None) }; }
-#[cfg(test)]
+#[cfg(any(test, feature = "s_allocation_json_testonly"))]
 pub(super) fn with_overlay_prototype<T>(config: OverlayPrototype, f: impl FnOnce() -> T) -> T {
     struct Reset;
     impl Drop for Reset {
@@ -1187,13 +1190,195 @@ pub(crate) struct HashReader<'a> {
     budget: Option<&'a dyn super::audit_budget::Budget>,
     audit_full_arrays: bool,
 }
+struct AuditObserver<'a> {
+    budget: Option<&'a dyn super::audit_budget::Budget>,
+    deadline: Option<std::time::Instant>,
+}
+impl sc::ClosedReadObserver for AuditObserver<'_> {
+    fn before_read(&self) -> Result<(), sc::CodecError> {
+        check_deadline(self.deadline).map_err(|e| sc::CodecError::new("verify_deadline", e))?;
+        if let Some(b) = self.budget {
+            b.precheck()?;
+        }
+        Ok(())
+    }
+    fn after_read(&self, d: &NodeDigest, t: u8, body: &[u8]) -> Result<(), sc::CodecError> {
+        if let Some(b) = self.budget {
+            b.node(d, t, body)?;
+            b.precheck()?;
+        }
+        check_deadline(self.deadline).map_err(|e| sc::CodecError::new("verify_deadline", e))
+    }
+    fn before_put(&self, d: &NodeDigest, t: u8, body: &[u8]) -> Result<(), sc::CodecError> {
+        check_deadline(self.deadline).map_err(|e| sc::CodecError::new("verify_deadline", e))?;
+        if let Some(b) = self.budget {
+            b.node(d, t, body)?;
+        }
+        Ok(())
+    }
+    fn after_put(&self) -> Result<(), sc::CodecError> {
+        if let Some(b) = self.budget {
+            b.precheck()?;
+        }
+        Ok(())
+    }
+}
 impl<'a> HashReader<'a> {
+    pub(crate) fn with_audit_gate(
+        mut self,
+        budget: Option<&'a dyn super::audit_budget::Budget>,
+        deadline: Option<std::time::Instant>,
+    ) -> Self {
+        self.budget = budget;
+        self.deadline = deadline;
+        if let Some(o) = &mut self.owned {
+            if budget.is_some() || deadline.is_some() {
+                o.set_read_observer(std::sync::Arc::new(AuditObserver { budget, deadline }));
+            }
+        }
+        self.sync_owned();
+        self
+    }
+    pub(crate) fn for_audited(
+        source: &'a mut dyn NodeSource,
+        audited: &super::state::AuditedState,
+        capture: Option<&'a sc::AuditCapture>,
+        allocation: Option<&super::q_allocation::Profile>,
+        deadline: Option<std::time::Instant>,
+        max: Option<u64>,
+    ) -> Result<Self, String> {
+        match allocation {
+            None => {
+                if capture.is_some() {
+                    return Err(
+                        "prototype_audit_allocation_incomplete：Q capture缺原分配profile".into(),
+                    );
+                }
+                Ok(Self::metered(source, deadline, max, None))
+            }
+            Some(p) => {
+                p.validate()?;
+                if !audited
+                    .budget
+                    .as_ref()
+                    .is_some_and(|b| b.same_ledger(&p.budget))
+                {
+                    return Err(
+                        "prototype_audit_allocation_incomplete：Q已核返回值不是原账本".into(),
+                    );
+                }
+                let c =
+                    capture.ok_or("prototype_audit_allocation_incomplete：Q缺实际不可变捕获源")?;
+                let owner = c
+                    .closed_codec_for_allocation_prototype(p.overlay_slots, p.overlay_bytes, max)
+                    .map_err(|e| e.to_string())?;
+                if !owner.allocation_budget().same_ledger(&p.budget) {
+                    return Err("prototype_audit_allocation_incomplete：Q捕获源不是原账本".into());
+                }
+                let mut reader = Self::captured(c, max);
+                reader.owned = Some(owner);
+                Ok(reader.with_audit_gate(None, deadline))
+            }
+        }
+    }
+    pub(crate) fn q_lookup_ref(
+        &mut self,
+        r: sc::RefView<'_>,
+        p: &[PathStep],
+        job: &mut dyn sc::access::Access,
+    ) -> Result<RefValue, sc::CodecError> {
+        self.sync_owned();
+        let owner = self.owned.as_mut().ok_or_else(|| {
+            sc::CodecError::new(
+                sc::capture_allocation::INCOMPLETE,
+                "Q owned lookup缺实际closed owner",
+            )
+        })?;
+        owner
+            .with_q_access(job, |scope| scope.lookup_path_owned(r, p))
+            .map(RefValue::Owned)
+    }
+    pub(crate) fn q_lookup_field(
+        &mut self,
+        r: sc::RefView<'_>,
+        key: &str,
+        job: &mut dyn sc::access::Access,
+    ) -> Result<RefValue, sc::CodecError> {
+        struct One<'a>(&'a str);
+        impl sc::path::PathView for One<'_> {
+            fn len(&self) -> usize {
+                1
+            }
+            fn step(&self, index: usize) -> Option<sc::path::PathStepView<'_>> {
+                (index == 0).then_some(sc::path::PathStepView::Field(self.0))
+            }
+        }
+        self.sync_owned();
+        let owner = self.owned.as_mut().ok_or_else(|| {
+            sc::CodecError::new(
+                sc::capture_allocation::INCOMPLETE,
+                "Q owned field缺实际closed owner",
+            )
+        })?;
+        owner
+            .with_q_access(job, |scope| scope.lookup_path_view_owned(r, &One(key)))
+            .map(RefValue::Owned)
+    }
+    pub(crate) fn q_render_ref(
+        &mut self,
+        r: sc::RefView<'_>,
+        out: &mut dyn std::io::Write,
+        job: &mut dyn sc::access::Access,
+    ) -> Result<(), sc::CodecError> {
+        self.sync_owned();
+        let owner = self.owned.as_mut().ok_or_else(|| {
+            sc::CodecError::new(
+                sc::capture_allocation::INCOMPLETE,
+                "Q owned render缺实际closed owner",
+            )
+        })?;
+        owner.with_q_access(job, |scope| scope.render_canonical_owned(r, out))
+    }
+    pub(crate) fn q_write_value_view(
+        &mut self,
+        v: sc::ValueView<'_>,
+        job: &mut dyn sc::access::Access,
+    ) -> Result<sc::Built, sc::CodecError> {
+        self.sync_owned();
+        let owner = self.owned.as_mut().ok_or_else(|| {
+            sc::CodecError::new(
+                sc::capture_allocation::INCOMPLETE,
+                "Q owned write缺实际closed owner",
+            )
+        })?;
+        owner.with_q_access(job, |scope| scope.write_value_view(v))
+    }
+    pub(crate) fn q_write_json_view(
+        &mut self,
+        v: sc::capture_allocation::audit_json::JsonView<'_>,
+        job: &mut dyn sc::access::Access,
+    ) -> Result<sc::Built, sc::CodecError> {
+        self.sync_owned();
+        let owner = self.owned.as_mut().ok_or_else(|| {
+            sc::CodecError::new(
+                sc::capture_allocation::INCOMPLETE,
+                "Q owned write缺实际closed owner",
+            )
+        })?;
+        owner.with_q_access(job, |scope| scope.write_json_view(v))
+    }
+    pub(crate) fn closed_owner_mut(
+        &mut self,
+    ) -> Result<Option<&mut sc::ClosedCapturedOwner<'a>>, sc::CodecError> {
+        self.sync_owned();
+        Ok(self.owned.as_mut())
+    }
     pub(super) fn captured_for_audit(
         capture: &'a sc::AuditCapture,
         max_render_bytes: Option<u64>,
     ) -> Result<Self, sc::CodecError> {
         if capture.is_allocation_prototype() {
-            #[cfg(test)]
+            #[cfg(any(test, feature = "s_allocation_json_testonly"))]
             if let Some(c) = OVERLAY_PROTOTYPE.with(|v| v.borrow().clone()) {
                 let mut reader = Self::captured(capture, max_render_bytes);
                 let mut owned = capture.closed_codec_for_allocation_prototype(
@@ -1201,10 +1386,12 @@ impl<'a> HashReader<'a> {
                     c.bytes,
                     max_render_bytes,
                 )?;
+                #[cfg(test)]
                 owned.set_trace_callbacks(
                     Some(super::state::trace_read),
                     Some(super::state::trace_put),
                 );
+                #[cfg(test)]
                 owned.set_overlay_peak_callback(Some(report_owned_overlay_peak));
                 reader.owned = Some(owned);
                 return Ok(reader);
@@ -2401,6 +2588,7 @@ mod tests {
                 } else {
                     source_audit::elements(&mut reader, &root)
                 };
+                drop(reader);
                 let reads = content_store::sql_reads_on_thread() - reads;
                 let frames = sc::frame_calls_on_thread() - frames;
                 (result, reads, frames, meter.events.into_inner())
@@ -2625,6 +2813,7 @@ mod tests {
             reader.checked_read(&digest).err().unwrap().code(),
             "second_source_error"
         );
+        drop(reader);
         assert_eq!(source.calls, 2);
     }
 

@@ -2,10 +2,21 @@
 //! 不实现NodeSource，不暴露body Vec；普通路径与本owner复用同一codec判断。
 use super::capture_allocation::{overlay::OverlaySlab, OwnedBudget};
 use super::*;
+use std::sync::Arc;
+
+/// cold audit的调用方逻辑门；只观察当次真实字节，不授予source/预算资格。
+/// Arc只持固定仪表引用，不存数据容器、成功缓存或可重放proof。
+pub trait ClosedReadObserver {
+    fn before_read(&self) -> Result<(), CodecError>;
+    fn after_read(&self, digest: &NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError>;
+    fn before_put(&self, digest: &NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError>;
+    fn after_put(&self) -> Result<(), CodecError>;
+}
 
 /// lib→bin 窄实现接口。字段/构造私有，不能拼接dyn source或另一份budget。
 pub struct ClosedCapturedOwner<'capture> {
     capture: &'capture AuditCapture,
+    observer: Option<Arc<dyn ClosedReadObserver + 'capture>>,
     budget: OwnedBudget,
     overlay: OverlaySlab,
     max_render_bytes: Option<u64>,
@@ -15,6 +26,60 @@ pub struct ClosedCapturedOwner<'capture> {
     overlay_peak_trace: Option<fn((usize, usize))>,
 }
 impl AuditCapture {
+    /// 只统计本capture持有的实际requested layouts，不借whole budget.live替代归属。
+    /// fixed Arc/Mutex与观察仪表头、瞬态codec/overlay及RSS不属本返回的payload scope。
+    pub fn retained_layout_bytes(&self) -> Result<u64, CodecError> {
+        let CaptureNodes::AllocationPrototype(slab) = &self.nodes else {
+            return Err(CodecError::static_detail(
+                capture_allocation::INCOMPLETE,
+                "Legacy BTree capture未取得真实allocator Layout",
+            ));
+        };
+        let memo = |m: &AuditMemo| -> Result<usize, CodecError> {
+            let sizes = [
+                m.seen.retained_layout_bytes(),
+                m.pushed.retained_layout_bytes(),
+                m.read_digests.retained_layout_bytes(),
+                Some(m.todo.retained_layout_bytes()?),
+                Some(m.bytes_memo.retained_layout_bytes()),
+                Some(m.elem_memo.retained_layout_bytes()),
+                Some(m.field_memo.retained_layout_bytes()),
+                Some(m.key_cmp.retained_layout_bytes()),
+            ];
+            sizes.into_iter().try_fold(0usize, |sum, size| {
+                let size = size.ok_or_else(|| {
+                    CodecError::static_detail(
+                        capture_allocation::INCOMPLETE,
+                        "StdHashSet memo未取得真实allocator Layout",
+                    )
+                })?;
+                sum.checked_add(size).ok_or_else(|| {
+                    CodecError::static_detail(
+                        capture_allocation::INCOMPLETE,
+                        "capture retained Layout求和溢出",
+                    )
+                })
+            })
+        };
+        let public = memo(&self.public.borrow())?;
+        let template = memo(&self.template.borrow())?;
+        let size = slab
+            .retained_layout_bytes()
+            .checked_add(public)
+            .and_then(|n| n.checked_add(template))
+            .ok_or_else(|| {
+                CodecError::static_detail(
+                    capture_allocation::INCOMPLETE,
+                    "capture retained Layout求和溢出",
+                )
+            })?;
+        u64::try_from(size).map_err(|_| {
+            CodecError::static_detail(
+                capture_allocation::INCOMPLETE,
+                "capture retained Layout超出u64",
+            )
+        })
+    }
     #[doc(hidden)]
     pub fn is_allocation_prototype(&self) -> bool {
         matches!(self.nodes, CaptureNodes::AllocationPrototype(_))
@@ -36,6 +101,7 @@ impl AuditCapture {
         let overlay = OverlaySlab::new(slots, bytes, &budget)?;
         Ok(ClosedCapturedOwner {
             capture: self,
+            observer: None,
             budget,
             overlay,
             max_render_bytes,
@@ -46,7 +112,29 @@ impl AuditCapture {
         })
     }
 }
-impl ClosedCapturedOwner<'_> {
+impl<'capture> ClosedCapturedOwner<'capture> {
+    pub fn set_read_observer(&mut self, observer: Arc<dyn ClosedReadObserver + 'capture>) {
+        self.observer = Some(observer);
+    }
+    pub fn lookup_path_view_owned(
+        &mut self,
+        r: RefView<'_>,
+        p: &dyn path::PathView,
+    ) -> Result<RefOwner, CodecError> {
+        path::lookup_path_view_output(&mut CodecContext::Closed(self), r, p, false)
+    }
+    /// 同一实际captured owner的窄访问装饰器；每个codec read/put执行原Q访问门。
+    pub fn with_q_access<R>(
+        &mut self,
+        access: &mut dyn access::Access,
+        f: impl FnOnce(&mut ClosedAccess<'_, '_>) -> Result<R, CodecError>,
+    ) -> Result<R, CodecError> {
+        f(&mut ClosedAccess {
+            owner: self,
+            access,
+        })
+    }
+
     pub fn content_ref_of(&mut self, root: &str) -> Result<ContentRef, CodecError> {
         content_ref_ctx(&mut CodecContext::Closed(self), root)
     }
@@ -122,7 +210,7 @@ impl ClosedCapturedOwner<'_> {
             .map(|_| ())
     }
     pub fn verify_cached_owned(&mut self, r: RefView<'_>, mode: Mode) -> Result<(), CodecError> {
-        if self.capture.contains(&r.digest()?) {
+        if self.observer.is_none() && self.capture.contains(&r.digest()?) {
             self.capture.verify_refview(r, mode)
         } else {
             self.verify_fresh_owned(r, mode)
@@ -199,7 +287,7 @@ impl ClosedCapturedOwner<'_> {
     }
     pub fn verify_cached(&mut self, r: &ContentRef, mode: Mode) -> Result<(), CodecError> {
         // 与原HashReader完全同一root选择：纯capture根复用capture各自Public/Template memo。
-        if self.capture.contains(&r.digest()?) {
+        if self.observer.is_none() && self.capture.contains(&r.digest()?) {
             self.capture.verify(r, mode)
         } else {
             self.verify_fresh(r, mode)
@@ -262,7 +350,7 @@ impl ClosedCapturedOwner<'_> {
     pub fn set_overlay_peak_callback(&mut self, trace: Option<fn((usize, usize))>) {
         self.overlay_peak_trace = trace;
     }
-    fn read(&mut self, d: &NodeDigest) -> Result<(u8, VerifierBody), CodecError> {
+    fn read_body(&mut self, d: &NodeDigest) -> Result<(u8, VerifierBody), CodecError> {
         let hit = self.overlay.original(d);
         if let Some(trace) = self.read_trace {
             trace(hit.is_some());
@@ -278,6 +366,22 @@ impl ClosedCapturedOwner<'_> {
             })?
         };
         let body = super::capture_allocation::body::MeteredBody::copy_from(b, &self.budget)?;
+        Ok((t, VerifierBody::Metered(body)))
+    }
+    pub(super) fn read_fragment(
+        &mut self,
+        d: &NodeDigest,
+        access: &mut dyn access::Access,
+    ) -> Result<(u8, VerifierBody), CodecError> {
+        let (tag, body) = self.read_body(d)?;
+        access.accept_node(d, tag, &body)?;
+        Ok((tag, body))
+    }
+    fn read(&mut self, d: &NodeDigest) -> Result<(u8, VerifierBody), CodecError> {
+        if let Some(observer) = &self.observer {
+            observer.before_read()?;
+        }
+        let (t, body) = self.read_body(d)?;
         let actual = frame(t, &body);
         if actual != *d {
             return Err(CodecError::new(
@@ -289,9 +393,15 @@ impl ClosedCapturedOwner<'_> {
                 ),
             ));
         }
-        Ok((t, VerifierBody::Metered(body)))
+        if let Some(observer) = &self.observer {
+            observer.after_read(d, t, &body)?;
+        }
+        Ok((t, body))
     }
     fn put_material(&mut self, m: FrameMaterial<'_>) -> Result<(), CodecError> {
+        if let Some(observer) = &self.observer {
+            observer.before_put(&m.digest, m.tag, m.body)?;
+        }
         if let Some(trace) = self.put_trace {
             trace();
         }
@@ -304,10 +414,139 @@ impl ClosedCapturedOwner<'_> {
             }
         }
         self.overlay.put(m.digest, m.tag, m.body)?;
+        if let Some(observer) = &self.observer {
+            observer.after_put()?;
+        }
         if let Some(trace) = self.overlay_peak_trace {
             trace(self.overlay.peak_used());
         }
         Ok(())
+    }
+}
+
+pub struct ClosedAccess<'read, 'capture> {
+    owner: &'read mut ClosedCapturedOwner<'capture>,
+    access: &'read mut dyn access::Access,
+}
+impl<'read, 'capture> ClosedAccess<'read, 'capture> {
+    fn context(&mut self) -> CodecContext<'_, 'capture> {
+        CodecContext::QAccess {
+            owner: &mut *self.owner,
+            access: &mut *self.access,
+        }
+    }
+    pub fn allocation_budget(&self) -> OwnedBudget {
+        self.owner.allocation_budget()
+    }
+    pub fn content_ref_owned(&mut self, root: &str) -> Result<RefOwner, CodecError> {
+        let digest = parse_root(root)?;
+        let (kind, extent) = path::reference_header(&mut self.context(), &digest)?;
+        Ok(RefOwner::new(kind, digest, extent))
+    }
+    pub fn lookup_path_owned(
+        &mut self,
+        r: RefView<'_>,
+        p: &[path::PathStep],
+    ) -> Result<RefOwner, CodecError> {
+        path::lookup_path_output(&mut self.context(), r, p)
+    }
+    pub fn lookup_path_view_owned(
+        &mut self,
+        r: RefView<'_>,
+        p: &dyn path::PathView,
+    ) -> Result<RefOwner, CodecError> {
+        path::lookup_path_view_output(&mut self.context(), r, p, false)
+    }
+    pub fn lookup_array_items_owned(
+        &mut self,
+        r: RefView<'_>,
+    ) -> Result<CodecVec<RefOwner>, CodecError> {
+        path::lookup_array_output(&mut self.context(), r)
+    }
+    pub fn lookup_object_fields_owned<'a>(
+        &mut self,
+        r: RefView<'_>,
+        n: &[&'a str],
+    ) -> Result<OwnedRefFields<'a>, CodecError> {
+        path::object_fields_output(&mut self.context(), r, n, true)
+    }
+    pub fn lookup_object_fields_subset_owned<'a>(
+        &mut self,
+        r: RefView<'_>,
+        n: &[&'a str],
+    ) -> Result<OwnedRefFields<'a>, CodecError> {
+        path::object_fields_output(&mut self.context(), r, n, false)
+    }
+    pub fn render_canonical_owned(
+        &mut self,
+        r: RefView<'_>,
+        out: &mut dyn Write,
+    ) -> Result<(), CodecError> {
+        render_refview_ctx(self.context(), r, out)
+    }
+    pub fn verify_fresh_owned(&mut self, r: RefView<'_>, mode: Mode) -> Result<(), CodecError> {
+        Verifier::with_context(self.context(), mode, AuditMemo::default())
+            .verify_refview(r)
+            .map(|_| ())
+    }
+    pub fn verify_cached_owned(&mut self, r: RefView<'_>, mode: Mode) -> Result<(), CodecError> {
+        self.verify_fresh_owned(r, mode)
+    }
+    pub fn verify_many_fresh_owned<'a>(
+        &mut self,
+        refs: impl IntoIterator<Item = RefView<'a>>,
+        mode: Mode,
+    ) -> Result<(), CodecError> {
+        let mut verifier = Verifier::with_context(self.context(), mode, AuditMemo::default());
+        for r in refs {
+            verifier.verify_refview(r)?;
+        }
+        Ok(())
+    }
+    pub fn verify_many_cached_owned<'a>(
+        &mut self,
+        refs: impl IntoIterator<Item = RefView<'a>>,
+        mode: Mode,
+    ) -> Result<(), CodecError> {
+        for r in refs {
+            self.verify_cached_owned(r, mode)?;
+        }
+        Ok(())
+    }
+    pub fn write_json_view(
+        &mut self,
+        v: capture_allocation::audit_json::JsonView<'_>,
+    ) -> Result<Built, CodecError> {
+        write_json_view_ctx(&mut self.context(), v)
+    }
+    pub fn write_value_view(&mut self, v: ValueView<'_>) -> Result<Built, CodecError> {
+        write_value_view_ctx(&mut self.context(), v, Mode::Public)
+    }
+    pub fn write_template_view(&mut self, v: ValueView<'_>) -> Result<Built, CodecError> {
+        write_value_view_ctx(&mut self.context(), v, Mode::Template)
+    }
+    pub fn replace_batch_placeholder_owned(
+        &mut self,
+        r: RefView<'_>,
+        p: &[path::PathStep],
+        b: &str,
+    ) -> Result<RefOwner, CodecError> {
+        path::replace_output(&mut self.context(), r, p, b)
+    }
+    pub fn raw_put(&mut self, d: NodeDigest, t: u8, b: &[u8]) -> Result<(), CodecError> {
+        let material = FrameMaterial::checked(t, b);
+        if material.digest != d {
+            return Err(CodecError::new(
+                code::NODE_DIGEST,
+                "closed overlay put摘要与实际F不符",
+            ));
+        }
+        self.access.accept_node(&d, t, b)?;
+        self.owner.put_material(material)?;
+        self.access.pre_io_check()
+    }
+    pub fn new_owned_ref_result(&self) -> CodecVec<RefOwner> {
+        self.owner.new_owned_ref_result()
     }
 }
 
@@ -335,6 +574,11 @@ pub(super) enum CodecContext<'read, 'capture> {
     Sink(&'read mut dyn NodeSink, Option<OwnedBudget>),
     Capture(&'read AuditCapture),
     Closed(&'read mut ClosedCapturedOwner<'capture>),
+    QAccess {
+        owner: &'read mut ClosedCapturedOwner<'capture>,
+        access: &'read mut dyn access::Access,
+    },
+    Fragment(&'read mut dyn fragment::FragmentRead),
 }
 impl<'read, 'capture> CodecContext<'read, 'capture> {
     pub(super) fn budget(&self) -> Option<OwnedBudget> {
@@ -344,6 +588,8 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
                 _ => None,
             },
             Self::Closed(c) => Some(c.budget.clone()),
+            Self::QAccess { owner, .. } => Some(owner.budget.clone()),
+            Self::Fragment(r) => r.budget(),
             Self::Sink(_, b) => b.clone(),
             _ => None,
         }
@@ -355,6 +601,11 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
             Self::Sink(s, b) => CodecContext::Sink(&mut **s, b.clone()),
             Self::Capture(c) => CodecContext::Capture(c),
             Self::Closed(c) => CodecContext::Closed(&mut **c),
+            Self::QAccess { owner, access } => CodecContext::QAccess {
+                owner: &mut **owner,
+                access: &mut **access,
+            },
+            Self::Fragment(r) => CodecContext::Fragment(&mut **r),
         }
     }
     pub(super) fn read(&mut self, d: &NodeDigest) -> Result<(u8, VerifierBody), CodecError> {
@@ -370,6 +621,13 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
                 }
             }
             Self::Closed(c) => c.read(d),
+            Self::QAccess { owner, access } => {
+                access.pre_io_check()?;
+                let result = owner.read_fragment(d, &mut **access)?;
+                access.pre_io_check()?;
+                Ok(result)
+            }
+            Self::Fragment(r) => r.read(d),
             Self::Sink(_, _) => Err(CodecError::new(code::SOURCE, "只写context不可读节点")),
         }
     }
@@ -380,6 +638,14 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
             Self::Store(s) => s.put(m.digest, m.tag, m.body)?,
             Self::Sink(s, _) => s.put(m.digest, m.tag, m.body)?,
             Self::Closed(c) => c.put_material(m)?,
+            Self::QAccess { owner, access } => {
+                access.accept_node(&m.digest, m.tag, m.body)?;
+                owner.put_material(m)?;
+                access.pre_io_check()?;
+            }
+            Self::Fragment(_) => {
+                return Err(CodecError::new(code::SOURCE, "只读fragment不可写节点"))
+            }
             Self::Source(_) | Self::Capture(_) => {
                 return Err(CodecError::new(code::SOURCE, "只读context不可写节点"))
             }
@@ -397,11 +663,25 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
             _ => Ok(()),
         }
     }
+    pub(super) fn before_path_view_index(
+        &mut self,
+        p: &dyn path::PathView,
+        end: usize,
+        i: u64,
+    ) -> Result<(), CodecError> {
+        match self {
+            Self::Fragment(r) => r.before_path_index(p, end, i),
+            _ => p
+                .plain_prefix(end)
+                .map_or(Ok(()), |prefix| self.before_path_index(prefix, i)),
+        }
+    }
     pub(super) fn audit_full_array_scan(&self) -> bool {
         match self {
             Self::Source(s) => s.audit_full_array_scan(),
             Self::Store(s) => s.audit_full_array_scan(),
             Self::Closed(c) => c.full_arrays,
+            Self::QAccess { owner, .. } => owner.full_arrays,
             _ => false,
         }
     }
@@ -410,6 +690,7 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
             Self::Source(s) => s.max_render_bytes(),
             Self::Store(s) => s.max_render_bytes(),
             Self::Closed(c) => c.max_render_bytes,
+            Self::QAccess { owner, .. } => owner.max_render_bytes,
             _ => None,
         }
     }
@@ -1295,6 +1576,220 @@ mod owned_ref_tests {
         }
         drop(closed);
         drop(cap);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+}
+
+#[cfg(test)]
+mod observer_gate_tests {
+    use super::*;
+    use std::cell::{Cell, RefCell};
+    struct Observer {
+        job: RefCell<job::Job>,
+        reads: Cell<u64>,
+        puts: Cell<u64>,
+        stop: Cell<bool>,
+    }
+    impl ClosedReadObserver for Observer {
+        fn before_read(&self) -> Result<(), CodecError> {
+            if self.stop.get() {
+                return Err(CodecError::static_detail(
+                    "observer_stopped",
+                    "逻辑读取门已停止",
+                ));
+            }
+            self.job.borrow_mut().pre_io_check()
+        }
+        fn after_read(&self, d: &NodeDigest, t: u8, b: &[u8]) -> Result<(), CodecError> {
+            self.job.borrow_mut().accept_node(d, t, b)?;
+            self.reads.set(self.reads.get() + 1);
+            self.job.borrow_mut().pre_io_check()
+        }
+        fn before_put(&self, d: &NodeDigest, t: u8, b: &[u8]) -> Result<(), CodecError> {
+            self.job.borrow_mut().accept_node(d, t, b).map(|_| ())
+        }
+        fn after_put(&self) -> Result<(), CodecError> {
+            self.puts.set(self.puts.get() + 1);
+            Ok(())
+        }
+    }
+    #[test]
+    fn closed_observer_real_read_put_gates_preserve_capture_and_own_retained_layout() {
+        let mut nodes = MemoryNodes::new();
+        let built = write_value(&mut nodes, &Value::string("original")).unwrap();
+        let count = nodes.len();
+        let bytes = nodes.iter().map(|(_, _, b)| b.len()).sum();
+        let base = capture_allocation::CaptureSlab::requested_bytes(count, bytes).unwrap();
+        let overlay = OverlaySlab::requested_bytes(4, 128).unwrap();
+        let budget = OwnedBudget::new(base + overlay + 100_000);
+        let mut slab = capture_allocation::CaptureSlab::new(count, bytes, &budget).unwrap();
+        for (d, t, b) in nodes.iter() {
+            slab.push(*d, t, b).unwrap();
+        }
+        let capture = AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
+        let original = capture.original(&built.digest).unwrap().1.to_vec();
+        let limits=job::JobLimits::from_canonical_json(&serde_json::json!({"max_total_wire_bytes":"1000000","max_total_node_bytes":"1000000","max_total_nodes":"1000","max_total_records":"1000","max_total_requests":"1000","max_elapsed_ms":"10000","max_staged_bytes":"1000000","max_store_bytes":"1000000"})).unwrap();
+        let now = std::time::Instant::now();
+        let observer = Arc::new(Observer {
+            job: RefCell::new(
+                job::Job::new(
+                    limits,
+                    job::Existing {
+                        store_bytes: 0,
+                        staged_bytes: 0,
+                    },
+                    Box::new(move || now),
+                )
+                .unwrap(),
+            ),
+            reads: Cell::new(0),
+            puts: Cell::new(0),
+            stop: Cell::new(false),
+        });
+        let mut owner = capture
+            .closed_codec_for_allocation_prototype(4, 128, None)
+            .unwrap();
+        owner.set_read_observer(observer.clone());
+        let before = frame_calls_on_thread();
+        owner
+            .lookup_path_view_owned((&built.content_ref()).into(), &[])
+            .unwrap();
+        assert_eq!(
+            frame_calls_on_thread() - before,
+            2,
+            "真实Closed F与实际逻辑accept F各一次"
+        );
+        assert_eq!(observer.reads.get(), 1);
+        assert_eq!(observer.job.borrow().snapshot().nodes, 1);
+        assert_eq!(
+            capture.retained_layout_bytes().unwrap(),
+            base as u64,
+            "不能拿含overlay的whole budget live充capture自身"
+        );
+        assert_eq!(
+            budget.snapshot().live_requested_layout_bytes,
+            base + overlay
+        );
+        // 缓存已有完整根证明时，安装了 observer 的同一根仍须逐节点执法。
+        capture.verify(&built.content_ref(), Mode::Public).unwrap();
+        let checked_reads = observer.reads.get();
+        owner
+            .verify_cached_owned((&built.content_ref()).into(), Mode::Public)
+            .unwrap();
+        assert!(
+            observer.reads.get() > checked_reads,
+            "cached root不能绕过实际observer门"
+        );
+        observer.stop.set(true);
+        let before = frame_calls_on_thread();
+        let reads = capture.reads.get();
+        let error = owner
+            .lookup_path_view_owned((&built.content_ref()).into(), &[])
+            .err()
+            .unwrap();
+        assert_eq!(error.code(), "observer_stopped");
+        assert_eq!(frame_calls_on_thread(), before);
+        assert_eq!(capture.reads.get(), reads);
+        let error = owner
+            .verify_cached_owned((&built.content_ref()).into(), Mode::Public)
+            .unwrap_err();
+        assert_eq!(error.code(), "observer_stopped");
+        assert_eq!(frame_calls_on_thread(), before);
+        assert_eq!(capture.reads.get(), reads);
+        observer.stop.set(false);
+        let digest = frame(tag::NULL, &[]);
+        let before = frame_calls_on_thread();
+        let nodes_before_put = observer.job.borrow().snapshot().nodes;
+        owner.raw_put(digest, tag::NULL, &[]).unwrap();
+        assert_eq!(frame_calls_on_thread() - before, 2);
+        assert_eq!(observer.puts.get(), 1);
+        assert_eq!(observer.job.borrow().snapshot().nodes, nodes_before_put + 1);
+        assert_eq!(capture.original(&built.digest).unwrap().1, original);
+        capture
+            .verify_refview((&built.content_ref()).into(), Mode::Public)
+            .unwrap();
+        assert_eq!(
+            capture.retained_layout_bytes().unwrap() as usize + overlay,
+            budget.snapshot().live_requested_layout_bytes,
+            "retained memo以自身allocator实际layout求和"
+        );
+        drop(owner);
+        drop(capture);
+        drop(observer);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+}
+
+#[cfg(test)]
+mod q_put_post_gate_tests {
+    use super::*;
+    struct StopAfterAccept {
+        accepted: bool,
+        post_calls: usize,
+    }
+    impl access::Access for StopAfterAccept {
+        fn owner_job(&mut self) -> Option<&mut job::Job> {
+            None
+        }
+        fn pre_io_check(&mut self) -> Result<(), CodecError> {
+            if self.accepted {
+                self.post_calls += 1;
+                Err(CodecError::static_detail(
+                    "last_put_stop",
+                    "最后put之后停止",
+                ))
+            } else {
+                Ok(())
+            }
+        }
+        fn accept_node(
+            &mut self,
+            d: &NodeDigest,
+            t: u8,
+            b: &[u8],
+        ) -> Result<job::NodeAcceptance, CodecError> {
+            job::CheckedNodeUsage::checked(d, t, b)?;
+            self.accepted = true;
+            Ok(job::NodeAcceptance::FirstAccept)
+        }
+    }
+    #[test]
+    fn q_closed_put_keeps_final_post_gate_and_never_returns_success_after_copy() {
+        let budget = OwnedBudget::new(65536);
+        let capture = AuditCapture::from_slab_for_allocation_prototype(
+            capture_allocation::CaptureSlab::new(0, 0, &budget)
+                .unwrap()
+                .finish()
+                .unwrap(),
+        );
+        let mut owner = capture
+            .closed_codec_for_allocation_prototype(8, 128, None)
+            .unwrap();
+        let mut access = StopAfterAccept {
+            accepted: false,
+            post_calls: 0,
+        };
+        let error = owner
+            .with_q_access(&mut access, |s| {
+                s.write_value_view(ValueView::Json(
+                    capture_allocation::audit_json::JsonView::Null,
+                ))
+            })
+            .unwrap_err();
+        assert_eq!(error.code(), "last_put_stop");
+        assert_eq!(access.post_calls, 1);
+        let mut access = StopAfterAccept {
+            accepted: false,
+            post_calls: 0,
+        };
+        let digest = frame(tag::BOOL_TRUE, &[]);
+        let error = owner
+            .with_q_access(&mut access, |s| s.raw_put(digest, tag::BOOL_TRUE, &[]))
+            .unwrap_err();
+        assert_eq!(error.code(), "last_put_stop");
+        assert_eq!(access.post_calls, 1);
+        drop(owner);
+        drop(capture);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
 }

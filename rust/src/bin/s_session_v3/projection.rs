@@ -1,19 +1,21 @@
-//! #1394 C §5.5：从完整核验的已发布切面构造七字段Q投影，正文保持值边。
-//! 构造器只接当前事务的AuditedState与只读派生图；不注册服务，不冒充Q capture。
-//! 六族按现有 s_query._order/_key 排序；S发布数组自身的顺序不是Q顺序。
-
+//! #1394 C §5.5：完整七字段Q投影；普通/Owned共享排序、键、内容根及元数据门。
+//! 只接本事务AuditedState与实际HashReader，派生节点不写SQLite。
+use super::audit_store::{CodecRead, CodecStore, RefValue};
+use super::business_json::{self as bj, JsonOwner, TextValue};
 use super::*;
 use newchan_rust::s_content::access::Access;
 #[cfg(test)]
 use newchan_rust::s_content::job::Job;
 use newchan_rust::s_content::{
-    self as sc,
-    path::{lookup_path, PathStep},
-    ContentRef, Kind, NodeDigest, NodeRead, NodeSink, NodeSource, Value as V,
+    self as sc, ContentRef, Kind, NodeDigest, NodeRead, NodeSink, NodeSource,
 };
 use newchan_rust::session_protocol::parse_canonical_i64;
+use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::Transaction;
-use std::collections::{BTreeMap, BTreeSet};
+use sc::capture_allocation::{
+    audit_json::{self as aj, JsonView},
+    OwnedBudget,
+};
 
 const FAMILIES: [&str; 6] = [
     "objects",
@@ -23,7 +25,6 @@ const FAMILIES: [&str; 6] = [
     "observations",
     "raw_history",
 ];
-
 #[derive(Clone, Copy, Debug)]
 pub(super) enum HistoryMode {
     AsKnown,
@@ -37,21 +38,190 @@ impl HistoryMode {
         }
     }
 }
-
 pub(super) struct Projection {
-    pub root: ContentRef,
-    pub digest: String,
-    /// 仅这三个位置解释ContentRef边：fixed_cut.catalog_evidence、catalog、rows[*].record。
-    pub wire: Value,
+    pub root: RefValue,
+    pub digest: TextValue,
+    pub wire: JsonOwner,
 }
 impl Projection {
+    pub(super) fn anchor_view(&self) -> ProjectionAnchor<'_> {
+        ProjectionAnchor {
+            projection: self,
+            reference: TransportView::new(self.root.view()),
+        }
+    }
+    pub(super) fn anchor_with_budget(
+        &self,
+        allocation: Option<&OwnedBudget>,
+    ) -> Result<JsonOwner, String> {
+        match (&self.wire, allocation) {
+            (JsonOwner::Plain(_), None) => {}
+            #[cfg(feature = "s_allocation_json_testonly")]
+            (JsonOwner::Owned(value), Some(b)) if value.budget().same_ledger(b) => {}
+            _ => return Err(err("projection实际owner与anchor预算不一致")),
+        }
+        bj::json_from_view(self.anchor_view().view(), allocation)
+    }
+    /// 旧Value接口只属于实际None构造；Owned调用必须使用anchor_with_budget或借用anchor_view。
     pub(super) fn anchor(&self) -> Value {
-        json!({"kind":"projection","fixed_cut":self.wire["fixed_cut"],"cut_projection_digest":self.digest,"projection_ref":self.root.to_transport_json()})
+        match self
+            .anchor_with_budget(None)
+            .expect("旧anchor仅支持普通Projection")
+        {
+            JsonOwner::Plain(value) => value,
+            #[cfg(feature = "s_allocation_json_testonly")]
+            JsonOwner::Owned(_) => unreachable!("None兼容接口不可擦除Owned"),
+        }
     }
 }
-
-/// 派生节点只写调用者的HashReader内存层，不能经此接口写SQLite。
-/// audit必须在同一事务先完成；独立Q capture/verify资源门仍由上层负责。
+pub(super) struct ProjectionAnchor<'a> {
+    projection: &'a Projection,
+    reference: TransportView<'a>,
+}
+impl ProjectionAnchor<'_> {
+    pub(super) fn view(&self) -> JsonView<'_> {
+        JsonView::borrowed_object(self).expect("anchor四字段唯一")
+    }
+}
+impl aj::JsonObject for ProjectionAnchor<'_> {
+    fn len(&self) -> usize {
+        4
+    }
+    fn field(&self, i: usize) -> Option<(&str, JsonView<'_>)> {
+        Some(match i {
+            0 => ("kind", JsonView::String("projection")),
+            1 => (
+                "fixed_cut",
+                bj::field(self.projection.wire.view(), "fixed_cut"),
+            ),
+            2 => (
+                "cut_projection_digest",
+                JsonView::String(&self.projection.digest),
+            ),
+            3 => ("projection_ref", self.reference.view()),
+            _ => return None,
+        })
+    }
+}
+#[derive(Clone, Copy)]
+struct UDecimal {
+    bytes: [u8; 20],
+    start: usize,
+}
+impl UDecimal {
+    fn new(mut n: u64) -> Self {
+        let mut bytes = [0; 20];
+        let mut start = 20;
+        loop {
+            start -= 1;
+            bytes[start] = b'0' + (n % 10) as u8;
+            n /= 10;
+            if n == 0 {
+                break;
+            }
+        }
+        Self { bytes, start }
+    }
+    fn text(&self) -> &str {
+        std::str::from_utf8(&self.bytes[self.start..]).expect("规范u64十进制")
+    }
+}
+pub(crate) struct TransportView<'a> {
+    reference: sc::RefView<'a>,
+    extent: Option<UDecimal>,
+}
+impl<'a> TransportView<'a> {
+    pub(crate) fn new(reference: sc::RefView<'a>) -> Self {
+        Self {
+            reference,
+            extent: reference.extent().map(UDecimal::new),
+        }
+    }
+    pub(crate) fn view(&self) -> JsonView<'_> {
+        JsonView::borrowed_object(self).expect("transport四字段唯一")
+    }
+}
+impl aj::JsonObject for TransportView<'_> {
+    fn len(&self) -> usize {
+        4
+    }
+    fn field(&self, i: usize) -> Option<(&str, JsonView<'_>)> {
+        Some(match i {
+            0 => ("format", JsonView::String(self.reference.format())),
+            1 => ("root", JsonView::String(self.reference.root())),
+            2 => ("kind", JsonView::String(self.reference.kind().name())),
+            3 => (
+                "extent",
+                self.extent
+                    .as_ref()
+                    .map(|v| JsonView::String(v.text()))
+                    .unwrap_or(JsonView::Null),
+            ),
+            _ => return None,
+        })
+    }
+}
+fn allocation(s: &(impl CodecRead + ?Sized)) -> Result<Option<OwnedBudget>, String> {
+    let budget = s.allocation_budget();
+    #[cfg(not(feature = "s_allocation_json_testonly"))]
+    if budget.is_some() {
+        return Err(err("owned Q投影入口未启用"));
+    }
+    Ok(budget)
+}
+fn decode(bytes: &[u8], budget: Option<&OwnedBudget>) -> Result<JsonOwner, String> {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    if let Some(b) = budget {
+        return aj::OwnedJson::parse(bytes, b)
+            .map(JsonOwner::Owned)
+            .map_err(|e| e.to_string());
+    }
+    if budget.is_some() {
+        return Err(err("owned Q JSON入口未启用"));
+    }
+    strict_json(bytes).map(JsonOwner::Plain)
+}
+fn push_array(array: &mut JsonOwner, value: JsonView<'_>) -> Result<(), String> {
+    match array {
+        JsonOwner::Plain(Value::Array(values)) => {
+            values.push(serde_json::to_value(value).map_err(|e| e.to_string())?);
+            Ok(())
+        }
+        #[cfg(feature = "s_allocation_json_testonly")]
+        JsonOwner::Owned(values) => values.push(value).map_err(|e| e.to_string()),
+        _ => Err(err("Q数组owner不是数组")),
+    }
+}
+fn session_generation(
+    tx: &Transaction<'_>,
+    budget: Option<&OwnedBudget>,
+) -> Result<TextValue, String> {
+    // 原protocol_identity三次读取及失败顺序全部保留；只改变实际文本owner。
+    v2::control_meta_text(tx, "session_id", budget)?
+        .ok_or_else(|| "StorageUnavailable：缺session".to_owned())?;
+    let mut stmt = CheckedStatement::prepare(
+        tx,
+        c"SELECT session_generation FROM s_protocol_meta WHERE singleton=1",
+    )
+    .map_err(|e| format!("StorageUnavailable：{e}"))?;
+    let value = {
+        let mut row = stmt
+            .next()
+            .map_err(|e| format!("StorageUnavailable：{e}"))?
+            .ok_or_else(|| {
+                format!(
+                    "StorageUnavailable：{}",
+                    rusqlite::Error::QueryReturnedNoRows
+                )
+            })?;
+        TextValue::from_sql(&mut row, 0, budget).map_err(|e| format!("StorageUnavailable：{e}"))?
+    };
+    stmt.finalize()
+        .map_err(|e| format!("StorageUnavailable：{e}"))?;
+    v2::control_meta_text(tx, "writer_epoch", budget)?
+        .ok_or_else(|| "StorageUnavailable：缺epoch".to_owned())?;
+    Ok(value)
+}
 pub(super) fn build(
     tx: &Transaction<'_>,
     audited: &state::AuditedState,
@@ -78,97 +248,185 @@ pub(super) fn build(
                 .ok_or_else(|| err("Unavailable：请求cut尚未发布"))?,
         )
     };
-    let get = |key| meta_get_opt(tx, key)?.ok_or_else(|| err(format!("缺冻结字段{key}")));
+    let budget = allocation(graph)?;
+    let get = |key| {
+        v2::control_meta_text(tx, key, budget.as_ref())?
+            .ok_or_else(|| err(format!("缺冻结字段{key}")))
+    };
     if get("profile_id")? != tb02a::PROFILE {
         return Err(err("非OHLC投影仍待接线，不套用s-record-order/2"));
     }
-    let (_, session_generation, _) = v2::protocol_identity(tx)?;
+    let session_generation = session_generation(tx, budget.as_ref())?;
     let mut s = Metered {
         graph,
         job,
         metadata_remaining: max_metadata_bytes,
     };
     s.job.pre_io_check().map_err(err)?;
-    let empty = write(&mut s, &json!({}))?;
-    let scope = strict_json(get("scope")?.as_bytes())?;
+    let empty_fields: [(&str, JsonView<'_>); 0] = [];
+    let empty = write(&mut s, JsonView::object_fields(&empty_fields).map_err(err)?)?;
+    let scope = decode(get("scope")?.as_bytes(), budget.as_ref())?;
+    let zero_range_fields = [
+        ("from", JsonView::String("0")),
+        ("to", JsonView::String("-1")),
+    ];
     let (evidence, run, frontier, range, index) = if let Some(cut) = cut {
         (
-            field(&mut s, &cut.snapshot, "catalog_evidence")?,
-            text(&mut s, &cut.snapshot, "catalog_run_status")?,
-            cut.metadata.input_frontier.to_string(),
-            scalar_json(&mut s, &cut.snapshot, "seq_range")?,
-            cut.batch_id.to_string(),
+            field(&mut s, cut.snapshot.view(), "catalog_evidence")?,
+            text(&mut s, cut.snapshot.view(), "catalog_run_status")?,
+            TextValue::from_str(
+                bj::Decimal::new(cut.metadata.input_frontier).text(),
+                budget.as_ref(),
+            )?,
+            scalar_json(&mut s, cut.snapshot.view(), "seq_range")?,
+            TextValue::from_str(cut.batch_id.as_str(), budget.as_ref())?,
         )
     } else {
         (
             empty.clone(),
-            "not_run".into(),
-            "-1".into(),
-            json!({"from":"0","to":"-1"}),
-            String::new(),
+            TextValue::from_str("not_run", budget.as_ref())?,
+            TextValue::from_str("-1", budget.as_ref())?,
+            bj::json_from_view(
+                JsonView::object_fields(&zero_range_fields).map_err(err)?,
+                budget.as_ref(),
+            )?,
+            TextValue::from_str("", budget.as_ref())?,
         )
     };
-    let mut fixed = json!({"session_id":get("session_id")?,"session_generation":session_generation,
-        "structure_cut":format!("cut-{generation}"),"cut_generation":generation.to_string(),"catalog_revision":get("catalog_revision")?,
-        "index_frontier":index,"profile_id":get("profile_id")?,"profile_hash":get("profile_hash")?,"input_frontier":frontier,
-        "seq_range":range,"catalog_run_status":run,"catalog_evidence":evidence.to_transport_json(),"scope":scope,
-        "rule_revision":get("rule_revision")?,"history_mode":mode.name(),
-        "as_of_generation":if matches!(mode,HistoryMode::AsKnown){json!(generation.to_string())}else{Value::Null}});
-    let fixed_root = edge_object(&mut s, &fixed, &[("catalog_evidence", &evidence)])?;
-
-    // 六族的顺序与原Q完全一致；只渲染排序/公开键字段，不展开payload、来源或证据。
-    let mut rows = Vec::new();
-    let mut row_roots = Vec::new();
-    let mut counts = serde_json::Map::new();
-    let mut object_ids = BTreeSet::new();
-    for family in FAMILIES {
-        let mut ordered = Vec::new();
+    let session_id = get("session_id")?;
+    let generation_decimal = bj::Decimal::new(generation);
+    let mut cut_bytes = [0u8; 24];
+    cut_bytes[..4].copy_from_slice(b"cut-");
+    let cut_len = 4 + generation_decimal.text().len();
+    cut_bytes[4..cut_len].copy_from_slice(generation_decimal.text().as_bytes());
+    let cut_text = std::str::from_utf8(&cut_bytes[..cut_len]).unwrap();
+    let catalog_revision = get("catalog_revision")?;
+    let profile_id = get("profile_id")?;
+    let profile_hash = get("profile_hash")?;
+    let rule_revision = get("rule_revision")?;
+    let evidence_transport = TransportView::new(evidence.view());
+    let fixed_fields = [
+        ("session_id", JsonView::String(&session_id)),
+        ("session_generation", JsonView::String(&session_generation)),
+        ("structure_cut", JsonView::String(cut_text)),
+        (
+            "cut_generation",
+            JsonView::String(generation_decimal.text()),
+        ),
+        ("catalog_revision", JsonView::String(&catalog_revision)),
+        ("index_frontier", JsonView::String(&index)),
+        ("profile_id", JsonView::String(&profile_id)),
+        ("profile_hash", JsonView::String(&profile_hash)),
+        ("input_frontier", JsonView::String(&frontier)),
+        ("seq_range", range.view()),
+        ("catalog_run_status", JsonView::String(&run)),
+        ("catalog_evidence", evidence_transport.view()),
+        ("scope", scope.view()),
+        ("rule_revision", JsonView::String(&rule_revision)),
+        ("history_mode", JsonView::String(mode.name())),
+        (
+            "as_of_generation",
+            if matches!(mode, HistoryMode::AsKnown) {
+                JsonView::String(generation_decimal.text())
+            } else {
+                JsonView::Null
+            },
+        ),
+    ];
+    let fixed = bj::json_from_view(
+        JsonView::object_fields(&fixed_fields).map_err(err)?,
+        budget.as_ref(),
+    )?;
+    let fixed_root = edge_object(&mut s, fixed.view(), &[("catalog_evidence", &evidence)])?;
+    let mut rows = bj::json_from_view(JsonView::ArraySlice(&[]), budget.as_ref())?;
+    let mut row_roots = bj::new_work(budget.as_ref());
+    let mut counts = [UDecimal::new(0); 7];
+    let mut object_ids = bj::new_map(budget.as_ref());
+    for (family_index, family) in FAMILIES.into_iter().enumerate() {
+        let mut ordered = bj::new_work(budget.as_ref());
         if let Some(cut) = cut {
-            let collection = field(&mut s, &cut.snapshot, family)?;
-            if collection.kind != Kind::Array {
+            let collection = field(&mut s, cut.snapshot.view(), family)?;
+            if collection.kind() != Kind::Array {
                 return Err(err("快照记录族不是数组"));
             }
-            for i in 0..collection.extent.ok_or_else(|| err("数组缺extent"))? {
+            for i in 0..collection.extent().ok_or_else(|| err("数组缺extent"))? {
                 s.job.charge_records(1).map_err(err)?;
-                let record =
-                    lookup_path(&mut s, &collection, &[PathStep::Index(i)]).map_err(err)?;
-                let (order, key) = record_order_key(&mut s, family, &record)?;
-                ordered.push((order, key, record));
+                let record = s
+                    .lookup_ref(collection.view(), &[sc::path::PathStep::Index(i)])
+                    .map_err(err)?;
+                let (order, key) = record_order_key(&mut s, family, record.view())?;
+                ordered.try_push((order, key, record, i)).map_err(err)?;
             }
         }
-        ordered.sort_by(|a, b| a.0.cmp(&b.0));
-        let mut keys = BTreeSet::new();
-        counts.insert(family.into(), json!(ordered.len().to_string()));
-        for (_, key, record) in ordered {
-            if !keys.insert(key.clone()) {
+        // ordinal保留原stable排序的平局顺序，unstable不分配普通sort scratch。
+        ordered.sort_unstable_by(|a, b| a.0[..].cmp(&b.0[..]).then(a.3.cmp(&b.3)));
+        let mut keys = bj::new_map(budget.as_ref());
+        counts[family_index] = UDecimal::new(ordered.len() as u64);
+        for (_, key, record, _) in ordered {
+            if keys
+                .insert(key.try_clone(budget.as_ref())?, ())
+                .map_err(err)?
+                .is_some()
+            {
                 return Err(err(format!("{family}含重复公开键")));
             }
-            if matches!(family, "objects" | "withdrawn_objects") && !object_ids.insert(key.clone())
+            if matches!(family, "objects" | "withdrawn_objects")
+                && object_ids
+                    .insert(key.try_clone(budget.as_ref())?, ())
+                    .map_err(err)?
+                    .is_some()
             {
                 return Err(err("active/withdrawn对象身份冲突"));
             }
-            let row = json!({"family":family,"key":key,"record":record.to_transport_json()});
-            row_roots.push(
-                edge_object(&mut s, &row, &[("record", &record)])?
-                    .digest()
-                    .map_err(err)?,
-            );
-            rows.push(row);
+            let record_transport = TransportView::new(record.view());
+            let row_fields = [
+                ("family", JsonView::String(family)),
+                ("key", key.view()),
+                ("record", record_transport.view()),
+            ];
+            let row = JsonView::object_fields(&row_fields).map_err(err)?;
+            row_roots
+                .try_push(sc::ValueView::Edge(
+                    edge_object(&mut s, row, &[("record", &record)])?
+                        .digest()
+                        .map_err(err)?,
+                ))
+                .map_err(err)?;
+            push_array(&mut rows, row)?;
         }
     }
-    counts.insert("total".into(), json!(rows.len().to_string()));
-    let rows_root = sc::write_value(
-        &mut s,
-        &V::Array(row_roots.into_iter().map(V::Edge).collect()),
-    )
-    .map_err(err)?
-    .content_ref();
-    let catalog = build_catalog(tx, &mut s, &fixed, &evidence, &empty, generation)?;
-    let wire = json!({"fixed_cut":fixed.take(),"catalog":catalog.to_transport_json(),"rows":rows,
-        "counts":counts,"scope":scope,"omissions":[],"order_version":"s-record-order/2"});
+    counts[6] = UDecimal::new(rows.view().as_array().unwrap().len() as u64);
+    let rows_root = write_value(&mut s, sc::ValueView::Array(&row_roots))?;
+    let catalog = build_catalog(tx, &mut s, fixed.view(), &evidence, &empty, generation)?;
+    let catalog_transport = TransportView::new(catalog.view());
+    let count_fields = [
+        (FAMILIES[0], JsonView::String(counts[0].text())),
+        (FAMILIES[1], JsonView::String(counts[1].text())),
+        (FAMILIES[2], JsonView::String(counts[2].text())),
+        (FAMILIES[3], JsonView::String(counts[3].text())),
+        (FAMILIES[4], JsonView::String(counts[4].text())),
+        (FAMILIES[5], JsonView::String(counts[5].text())),
+        ("total", JsonView::String(counts[6].text())),
+    ];
+    let wire_fields = [
+        ("fixed_cut", fixed.view()),
+        ("catalog", catalog_transport.view()),
+        ("rows", rows.view()),
+        (
+            "counts",
+            JsonView::object_fields(&count_fields).map_err(err)?,
+        ),
+        ("scope", scope.view()),
+        ("omissions", JsonView::ArraySlice(&[])),
+        ("order_version", JsonView::String("s-record-order/2")),
+    ];
+    let wire = bj::json_from_view(
+        JsonView::object_fields(&wire_fields).map_err(err)?,
+        budget.as_ref(),
+    )?;
     let root = edge_object(
         &mut s,
-        &wire,
+        wire.view(),
         &[
             ("fixed_cut", &fixed_root),
             ("catalog", &catalog),
@@ -176,211 +434,286 @@ pub(super) fn build(
         ],
     )?;
     let identity = sc::frame(0x22, &root.digest().map_err(err)?);
-    let digest = format!(
-        "qcut3-{}",
-        identity
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect::<String>()
-    );
+    let mut digest_bytes = [0u8; 70];
+    digest_bytes[..6].copy_from_slice(b"qcut3-");
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    for (i, b) in identity.iter().enumerate() {
+        digest_bytes[6 + i * 2] = HEX[(b >> 4) as usize];
+        digest_bytes[7 + i * 2] = HEX[(b & 15) as usize];
+    }
+    let digest = TextValue::from_str(std::str::from_utf8(&digest_bytes).unwrap(), budget.as_ref())?;
     s.job.pre_io_check().map_err(err)?;
     Ok(Projection { root, digest, wire })
 }
-
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 enum OrderPart {
     Number(i64),
-    Text(String),
+    Text(TextValue),
+}
+#[derive(PartialEq, Eq)]
+struct PublicKey(sc::CodecVec<TextValue>);
+impl std::hash::Hash for PublicKey {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        use std::hash::Hash;
+        self.0.len().hash(state);
+        for value in &self.0 {
+            value.hash(state);
+        }
+    }
+}
+impl PublicKey {
+    fn try_clone(&self, budget: Option<&OwnedBudget>) -> Result<Self, String> {
+        let mut out = bj::new_work(budget);
+        for v in &self.0 {
+            out.try_push(v.try_clone()?).map_err(err)?;
+        }
+        Ok(Self(out))
+    }
+    fn view(&self) -> JsonView<'_> {
+        JsonView::BorrowedArray(self)
+    }
+}
+impl aj::JsonArray for PublicKey {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+    fn get(&self, i: usize) -> Option<JsonView<'_>> {
+        self.0.get(i).map(|v| JsonView::String(v.as_str()))
+    }
+}
+impl serde::Serialize for PublicKey {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        serde::Serialize::serialize(&self.view(), s)
+    }
 }
 fn record_order_key(
     s: &mut Metered<'_, '_>,
     family: &str,
-    r: &ContentRef,
-) -> Result<(Vec<OrderPart>, Vec<String>), String> {
+    r: sc::RefView<'_>,
+) -> Result<(sc::CodecVec<OrderPart>, PublicKey), String> {
     use OrderPart::{Number as N, Text as T};
-    if r.kind != Kind::Object {
+    if r.kind() != Kind::Object {
         return Err(err("族记录不是对象"));
     }
-    Ok(match family {
+    let budget = allocation(s)?;
+    let mut order = bj::new_work(budget.as_ref());
+    let mut key = bj::new_work(budget.as_ref());
+    match family {
         "objects" => {
             let id = text(s, r, "object_id")?;
             let revision = number(s, r, "object_revision")?;
-            let order = match lookup_path(s, r, &[PathStep::Field("fact_key".into())]) {
-                Ok(fact) => vec![
-                    N(1),
-                    T(text(s, r, "kind")?),
-                    T(render(s, &fact)?
-                        .as_str()
-                        .ok_or_else(|| err("fact_key非文本"))?
-                        .into()),
-                    T(id.clone()),
-                    N(revision),
-                ],
-                Err(e) if e.code() == sc::path::path_code::PATH_FIELD_MISSING => vec![
-                    N(0),
-                    N(number(s, r, "window_start")?),
-                    N(number(s, r, "window_mid")?),
-                    N(number(s, r, "window_end")?),
-                    T(id.clone()),
-                    N(revision),
-                ],
+            match s.lookup_field_ref(r, "fact_key") {
+                Ok(fact) => {
+                    order.try_push(N(1)).map_err(err)?;
+                    order.try_push(T(text(s, r, "kind")?)).map_err(err)?;
+                    let rendered = render(s, fact.view())?;
+                    order
+                        .try_push(T(TextValue::from_str(
+                            rendered
+                                .view()
+                                .as_str()
+                                .ok_or_else(|| err("fact_key非文本"))?,
+                            budget.as_ref(),
+                        )?))
+                        .map_err(err)?;
+                    order.try_push(T(id.try_clone()?)).map_err(err)?;
+                    order.try_push(N(revision)).map_err(err)?;
+                }
+                Err(e) if e.code() == sc::path::path_code::PATH_FIELD_MISSING => {
+                    for n in [
+                        0,
+                        number(s, r, "window_start")?,
+                        number(s, r, "window_mid")?,
+                        number(s, r, "window_end")?,
+                    ] {
+                        order.try_push(N(n)).map_err(err)?;
+                    }
+                    order.try_push(T(id.try_clone()?)).map_err(err)?;
+                    order.try_push(N(revision)).map_err(err)?;
+                }
                 Err(e) => return Err(err(e)),
-            };
-            (order, vec![id])
+            }
+            key.try_push(id).map_err(err)?;
         }
         "withdrawn_objects" => {
             let id = text(s, r, "object_id")?;
-            (
-                vec![
-                    N(number(s, r, "withdrawn_generation")?),
-                    T(id.clone()),
-                    N(number(s, r, "object_revision")?),
-                ],
-                vec![id],
-            )
+            order
+                .try_push(N(number(s, r, "withdrawn_generation")?))
+                .map_err(err)?;
+            order.try_push(T(id.try_clone()?)).map_err(err)?;
+            order
+                .try_push(N(number(s, r, "object_revision")?))
+                .map_err(err)?;
+            key.try_push(id).map_err(err)?;
         }
         "witnesses" => {
             let id = text(s, r, "witness_id")?;
-            (
-                vec![
-                    T(text(s, r, "object_id")?),
-                    N(number(s, r, "slot")?),
-                    T(id.clone()),
-                ],
-                vec![id],
-            )
+            order.try_push(T(text(s, r, "object_id")?)).map_err(err)?;
+            order.try_push(N(number(s, r, "slot")?)).map_err(err)?;
+            order.try_push(T(id.try_clone()?)).map_err(err)?;
+            key.try_push(id).map_err(err)?;
         }
         "relations" => {
-            let key = ["subject", "relation_type", "object"]
-                .iter()
-                .map(|k| text(s, r, k))
-                .collect::<Result<Vec<_>, _>>()?;
-            (key.iter().cloned().map(T).collect(), key)
+            for name in ["subject", "relation_type", "object"] {
+                key.try_push(text(s, r, name)?).map_err(err)?;
+            }
+            for v in &key {
+                order.try_push(T(v.try_clone()?)).map_err(err)?;
+            }
         }
         "observations" => {
             let id = text(s, r, "observation_id")?;
             let w = field(s, r, "window_start")?;
-            let n = if w.kind == Kind::Null {
+            let n = if w.kind() == Kind::Null {
                 -1
             } else {
                 number(s, r, "window_start")?
             };
-            (vec![T(text(s, r, "kind")?), N(n), T(id.clone())], vec![id])
+            order.try_push(T(text(s, r, "kind")?)).map_err(err)?;
+            order.try_push(N(n)).map_err(err)?;
+            order.try_push(T(id.try_clone()?)).map_err(err)?;
+            key.try_push(id).map_err(err)?;
         }
         "raw_history" => {
             let id = text(s, r, "identity_key")?;
             let rev = text(s, r, "revision")?;
-            (
-                vec![
-                    N(number(s, r, "seq")?),
-                    T(id.clone()),
-                    N(parse_canonical_i64(&rev, "revision")?),
-                ],
-                vec![id, rev],
-            )
+            order.try_push(N(number(s, r, "seq")?)).map_err(err)?;
+            order.try_push(T(id.try_clone()?)).map_err(err)?;
+            order
+                .try_push(N(parse_canonical_i64(&rev, "revision")?))
+                .map_err(err)?;
+            key.try_push(id).map_err(err)?;
+            key.try_push(rev).map_err(err)?;
         }
         _ => return Err(err("未知记录族")),
-    })
+    }
+    Ok((order, PublicKey(key)))
 }
-
 fn build_catalog(
     tx: &Transaction<'_>,
     s: &mut Metered<'_, '_>,
-    fixed: &Value,
-    evidence: &ContentRef,
-    empty: &ContentRef,
+    fixed: JsonView<'_>,
+    evidence: &RefValue,
+    empty: &RefValue,
     generation: i64,
-) -> Result<ContentRef, String> {
+) -> Result<RefValue, String> {
     let axes = if generation == 0 {
         None
     } else {
-        Some(field(s, evidence, "axes")?)
+        Some(field(s, evidence.view(), "axes")?)
     };
-    let mut stmt = tx
-        .prepare(
-            "SELECT catalog_id,kind,title,domain,branches_json FROM catalog ORDER BY catalog_id",
-        )
-        .map_err(err)?;
-    let mut sql_rows = stmt.query([]).map_err(err)?;
-    let mut items = Vec::new();
-    let mut counts = BTreeMap::from([
-        ("implemented", 0u64),
-        ("not_implemented", 0),
-        ("run", 0),
-        ("not_run", 0),
-    ]);
-    while let Some(row) = sql_rows.next().map_err(err)? {
+    let mut stmt = CheckedStatement::prepare(
+        tx,
+        c"SELECT catalog_id,kind,title,domain,branches_json FROM catalog ORDER BY catalog_id",
+    )
+    .map_err(err)?;
+    let budget = allocation(s)?;
+    let mut items = bj::new_work(budget.as_ref());
+    let mut counts = [0u64; 4];
+    let names = ["implemented", "not_implemented", "run", "not_run"];
+    while let Some(mut row) = stmt.next().map_err(err)? {
         s.job.pre_io_check().map_err(err)?;
-        let id: String = row.get(0).map_err(err)?;
+        let id = TextValue::from_sql(&mut row, 0, budget.as_ref()).map_err(err)?;
         let (implemented, proof, run, ev) =
             if catalog_evidence::AXIS_IDS.contains(&id.as_str()) && axes.is_some() {
-                let axis = field(s, axes.as_ref().unwrap(), &id)?;
+                let axis = field(s, axes.as_ref().unwrap().view(), &id)?;
                 (
-                    text(s, &axis, "impl_status")?,
-                    text(s, &axis, "proof_status")?,
-                    text(s, &axis, "run_status")?,
-                    field(s, &axis, "evidence")?,
+                    text(s, axis.view(), "impl_status")?,
+                    text(s, axis.view(), "proof_status")?,
+                    text(s, axis.view(), "run_status")?,
+                    field(s, axis.view(), "evidence")?,
                 )
             } else {
                 (
-                    "not_implemented".into(),
-                    "not_proved".into(),
-                    "not_run".into(),
+                    TextValue::from_str("not_implemented", budget.as_ref())?,
+                    TextValue::from_str("not_proved", budget.as_ref())?,
+                    TextValue::from_str("not_run", budget.as_ref())?,
                     empty.clone(),
                 )
             };
-        if let Some(n) = counts.get_mut(implemented.as_str()) {
-            *n += 1;
+        if let Some(i) = names.iter().position(|name| *name == implemented.as_str()) {
+            counts[i] += 1;
         }
-        if let Some(n) = counts.get_mut(run.as_str()) {
-            *n += 1;
+        if let Some(i) = names.iter().position(|name| *name == run.as_str()) {
+            counts[i] += 1;
         }
-        let branches: String = row.get(4).map_err(err)?;
-        let item = json!({"id":id,"kind":row.get::<_,String>(1).map_err(err)?,"title":row.get::<_,String>(2).map_err(err)?,"domain":row.get::<_,String>(3).map_err(err)?,
-            "branches":project_wire_integers(&strict_json(branches.as_bytes())?),"implementation_status":implemented,"proof_status":proof,"run_status":run,"evidence":ev.to_transport_json()});
-        items.push(
-            edge_object(s, &item, &[("evidence", &ev)])?
-                .digest()
-                .map_err(err)?,
-        );
+        let branches = TextValue::from_sql(&mut row, 4, budget.as_ref()).map_err(err)?;
+        let kind = TextValue::from_sql(&mut row, 1, budget.as_ref()).map_err(err)?;
+        let title = TextValue::from_sql(&mut row, 2, budget.as_ref()).map_err(err)?;
+        let domain = TextValue::from_sql(&mut row, 3, budget.as_ref()).map_err(err)?;
+        let parsed = decode(branches.as_bytes(), budget.as_ref())?;
+        let projected = bj::project_wire_integers_with_owner(parsed.view(), budget.as_ref())?;
+        let ev_transport = TransportView::new(ev.view());
+        let item_fields = [
+            ("id", JsonView::String(&id)),
+            ("kind", JsonView::String(&kind)),
+            ("title", JsonView::String(&title)),
+            ("domain", JsonView::String(&domain)),
+            ("branches", projected.view()),
+            ("implementation_status", JsonView::String(&implemented)),
+            ("proof_status", JsonView::String(&proof)),
+            ("run_status", JsonView::String(&run)),
+            ("evidence", ev_transport.view()),
+        ];
+        let item = JsonView::object_fields(&item_fields).map_err(err)?;
+        items
+            .try_push(sc::ValueView::Edge(
+                edge_object(s, item, &[("evidence", &ev)])?
+                    .digest()
+                    .map_err(err)?,
+            ))
+            .map_err(err)?;
     }
-    let items = sc::write_value(s, &V::Array(items.into_iter().map(V::Edge).collect()))
-        .map_err(err)?
-        .content_ref();
-    let mut header = serde_json::Map::new();
-    for key in [
-        "session_id",
-        "structure_cut",
-        "catalog_revision",
-        "index_frontier",
-        "input_frontier",
-        "seq_range",
-        "catalog_run_status",
-        "catalog_evidence",
-        "scope",
-    ] {
-        header.insert(key.into(), fixed[key].clone());
-    }
-    header.insert("generation".into(), fixed["cut_generation"].clone());
-    header.insert("items".into(), items.to_transport_json());
-    header.insert(
-        "counts".into(),
-        json!(counts
-            .into_iter()
-            .map(|(k, v)| (k, v.to_string()))
-            .collect::<BTreeMap<_, _>>()),
-    );
+    stmt.finalize().map_err(err)?;
+    let items = write_value(s, sc::ValueView::Array(&items))?;
+    let item_transport = TransportView::new(items.view());
+    let decimals = counts.map(UDecimal::new);
+    let count_fields = [
+        (names[0], JsonView::String(decimals[0].text())),
+        (names[1], JsonView::String(decimals[1].text())),
+        (names[2], JsonView::String(decimals[2].text())),
+        (names[3], JsonView::String(decimals[3].text())),
+    ];
+    let fields = [
+        ("session_id", bj::field(fixed, "session_id")),
+        ("structure_cut", bj::field(fixed, "structure_cut")),
+        ("catalog_revision", bj::field(fixed, "catalog_revision")),
+        ("index_frontier", bj::field(fixed, "index_frontier")),
+        ("input_frontier", bj::field(fixed, "input_frontier")),
+        ("seq_range", bj::field(fixed, "seq_range")),
+        ("catalog_run_status", bj::field(fixed, "catalog_run_status")),
+        ("catalog_evidence", bj::field(fixed, "catalog_evidence")),
+        ("scope", bj::field(fixed, "scope")),
+        ("generation", bj::field(fixed, "cut_generation")),
+        ("items", item_transport.view()),
+        (
+            "counts",
+            JsonView::object_fields(&count_fields).map_err(err)?,
+        ),
+    ];
     edge_object(
         s,
-        &Value::Object(header),
+        JsonView::object_fields(&fields).map_err(err)?,
         &[("catalog_evidence", evidence), ("items", &items)],
     )
 }
-
 struct Metered<'a, 'b> {
     graph: &'a mut history::HashReader<'b>,
     job: &'a mut dyn Access,
     metadata_remaining: u64,
+}
+impl Metered<'_, '_> {
+    fn lookup_field_ref(
+        &mut self,
+        r: sc::RefView<'_>,
+        key: &str,
+    ) -> Result<RefValue, sc::CodecError> {
+        if self.graph.allocation_budget().is_some() {
+            self.graph.q_lookup_field(r, key, self.job)
+        } else {
+            self.lookup_ref(r, &[sc::path::PathStep::Field(key.into())])
+        }
+    }
 }
 impl NodeSource for Metered<'_, '_> {
     fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
@@ -395,35 +728,83 @@ impl NodeSource for Metered<'_, '_> {
 }
 impl NodeSink for Metered<'_, '_> {
     fn put(&mut self, d: NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
-        // 此sink类型固定为内存派生层。写前节点准入失败不写；不承诺磁盘事务或空间计费。
         self.job.accept_node(&d, tag, body)?;
         self.graph.put(d, tag, body)?;
         self.job.pre_io_check()
+    }
+}
+impl CodecRead for Metered<'_, '_> {
+    fn allocation_budget(&self) -> Option<OwnedBudget> {
+        self.graph.allocation_budget()
+    }
+    fn generic_source(&mut self) -> &mut dyn NodeSource {
+        self
+    }
+    fn lookup_ref(
+        &mut self,
+        r: sc::RefView<'_>,
+        p: &[sc::path::PathStep],
+    ) -> Result<RefValue, sc::CodecError> {
+        if self.graph.allocation_budget().is_some() {
+            self.graph.q_lookup_ref(r, p, self.job)
+        } else {
+            sc::path::lookup_path_refview(self, r, p).map(RefValue::Plain)
+        }
+    }
+    fn render_ref(
+        &mut self,
+        r: sc::RefView<'_>,
+        out: &mut dyn std::io::Write,
+    ) -> Result<(), sc::CodecError> {
+        if self.graph.allocation_budget().is_some() {
+            self.graph.q_render_ref(r, out, self.job)
+        } else {
+            sc::render_refview(self, r, out)
+        }
+    }
+}
+impl CodecStore for Metered<'_, '_> {
+    fn generic_store(&mut self) -> &mut dyn sc::NodeStore {
+        self
+    }
+    fn write_value_view(&mut self, v: sc::ValueView<'_>) -> Result<sc::Built, sc::CodecError> {
+        if self.graph.allocation_budget().is_some() {
+            self.graph.q_write_value_view(v, self.job)
+        } else {
+            sc::write_value_view(self, v)
+        }
+    }
+    fn write_json_view(&mut self, v: JsonView<'_>) -> Result<sc::Built, sc::CodecError> {
+        if self.graph.allocation_budget().is_some() {
+            self.graph.q_write_json_view(v, self.job)
+        } else {
+            sc::write_json_view(self, v)
+        }
     }
 }
 fn err(e: impl std::fmt::Display) -> String {
     format!("Q3ProjectionInvalid：{e}")
 }
 fn field<'r>(
-    s: &mut dyn NodeSource,
+    s: &mut Metered<'_, '_>,
     r: impl Into<sc::RefView<'r>>,
     k: &str,
-) -> Result<ContentRef, String> {
-    sc::path::lookup_path_refview(s, r.into(), &[PathStep::Field(k.into())]).map_err(err)
+) -> Result<RefValue, String> {
+    s.lookup_field_ref(r.into(), k).map_err(err)
 }
-/// 这里只物化排序/固定头的元数据；字节预算累计，不能借共享DAG放大输出。
-/// 这是内部显式构造上界，尚不替代Q capture/cache的独立资源检查或峰值内存测量。
-fn render(s: &mut Metered<'_, '_>, r: &ContentRef) -> Result<Value, String> {
+fn render<'r>(s: &mut Metered<'_, '_>, r: impl Into<sc::RefView<'r>>) -> Result<JsonOwner, String> {
+    let r = r.into();
     let limit = s.metadata_remaining;
-    if matches!(r.kind, Kind::String | Kind::Number) && r.extent.is_some_and(|n| n > limit) {
+    if matches!(r.kind(), Kind::String | Kind::Number) && r.extent().is_some_and(|n| n > limit) {
         return Err(err(
             "Incomplete/ProjectionMetadataLimit：元数据长度超过剩余额度",
         ));
     }
     struct Buffer {
-        bytes: Vec<u8>,
+        bytes: sc::CodecVec<u8>,
         limit: u64,
         exceeded: bool,
+        allocation_error: Option<sc::CodecError>,
     }
     impl std::io::Write for Buffer {
         fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
@@ -431,95 +812,122 @@ fn render(s: &mut Metered<'_, '_>, r: &ContentRef) -> Result<Value, String> {
                 self.exceeded = true;
                 return Err(std::io::Error::other("元数据输出超限"));
             }
-            self.bytes.extend_from_slice(bytes);
-            Ok(bytes.len())
+            match self.bytes.try_extend_bytes(bytes) {
+                Ok(()) => Ok(bytes.len()),
+                Err(e) => {
+                    self.allocation_error = Some(e);
+                    Err(std::io::ErrorKind::Other.into())
+                }
+            }
         }
         fn flush(&mut self) -> std::io::Result<()> {
             Ok(())
         }
     }
+    let budget = allocation(s)?;
     let mut out = Buffer {
-        bytes: vec![],
+        bytes: bj::new_work(budget.as_ref()),
         limit,
         exceeded: false,
+        allocation_error: None,
     };
-    let result = sc::render_canonical(s, r, &mut out);
+    let result = s.render_ref(r, &mut out);
     s.metadata_remaining -= out.bytes.len() as u64;
     if out.exceeded {
         return Err(err(
             "Incomplete/ProjectionMetadataLimit：元数据展开或转义超过剩余额度",
         ));
     }
+    if let Some(e) = out.allocation_error {
+        return Err(err(e));
+    }
     result.map_err(err)?;
     s.job.pre_io_check().map_err(err)?;
-    strict_json(&out.bytes)
+    decode(&out.bytes, budget.as_ref())
 }
 fn scalar_json<'r>(
     s: &mut Metered<'_, '_>,
     r: impl Into<sc::RefView<'r>>,
     k: &str,
-) -> Result<Value, String> {
+) -> Result<JsonOwner, String> {
     let child = field(s, r, k)?;
-    render(s, &child)
+    render(s, child.view())
 }
 fn text<'r>(
     s: &mut Metered<'_, '_>,
     r: impl Into<sc::RefView<'r>>,
     k: &str,
-) -> Result<String, String> {
-    scalar_json(s, r, k)?
-        .as_str()
-        .map(str::to_owned)
-        .ok_or_else(|| err(format!("{k}不是规范文本")))
+) -> Result<TextValue, String> {
+    let value = scalar_json(s, r, k)?;
+    let budget = allocation(s)?;
+    TextValue::from_str(
+        value
+            .view()
+            .as_str()
+            .ok_or_else(|| err(format!("{k}不是规范文本")))?,
+        budget.as_ref(),
+    )
 }
-fn number(s: &mut Metered<'_, '_>, r: &ContentRef, k: &str) -> Result<i64, String> {
+fn number(s: &mut Metered<'_, '_>, r: sc::RefView<'_>, k: &str) -> Result<i64, String> {
     parse_canonical_i64(&text(s, r, k)?, k)
 }
-fn cv(v: &Value) -> Result<V, String> {
-    Ok(match v {
-        Value::Null => V::Null,
-        Value::Bool(b) => V::Bool(*b),
-        Value::String(t) => V::String(t.clone()),
-        Value::Number(n) => V::Number(sc::NumberToken::parse(&n.to_string()).map_err(err)?),
-        Value::Array(xs) => V::Array(xs.iter().map(cv).collect::<Result<_, _>>()?),
-        Value::Object(xs) => V::Object(
-            xs.iter()
-                .map(|(k, v)| Ok((k.clone(), cv(v)?)))
-                .collect::<Result<_, String>>()?,
-        ),
-    })
+fn built_ref(s: &(impl CodecRead + ?Sized), built: sc::Built) -> Result<RefValue, String> {
+    if s.allocation_budget().is_some() {
+        #[cfg(feature = "s_allocation_json_testonly")]
+        {
+            return Ok(RefValue::Owned(built.owned_ref()));
+        }
+        #[cfg(not(feature = "s_allocation_json_testonly"))]
+        {
+            return Err(err("owned引用执行未启用"));
+        }
+    }
+    Ok(RefValue::Plain(built.content_ref()))
 }
-fn write(s: &mut dyn NodeSink, v: &Value) -> Result<ContentRef, String> {
-    sc::write_value(s, &cv(v)?)
-        .map(|v| v.content_ref())
-        .map_err(err)
+fn write(s: &mut Metered<'_, '_>, v: JsonView<'_>) -> Result<RefValue, String> {
+    let built = s.write_json_view(v).map_err(err)?;
+    built_ref(s, built)
+}
+fn write_value(s: &mut Metered<'_, '_>, v: sc::ValueView<'_>) -> Result<RefValue, String> {
+    let built = s.write_value_view(v).map_err(err)?;
+    built_ref(s, built)
 }
 fn edge_object(
-    s: &mut dyn NodeSink,
-    value: &Value,
-    edges: &[(&str, &ContentRef)],
-) -> Result<ContentRef, String> {
-    let fields = value
-        .as_object()
-        .ok_or_else(|| err("投影值非对象"))?
-        .iter()
-        .map(|(k, v)| {
-            let value = match edges.iter().find(|(name, _)| *name == k) {
-                Some((_, r)) => V::Edge(r.digest().map_err(err)?),
-                None => cv(v)?,
-            };
-            Ok((k.clone(), value))
-        })
-        .collect::<Result<Vec<_>, String>>()?;
-    sc::write_value(s, &V::Object(fields))
-        .map(|v| v.content_ref())
-        .map_err(err)
+    s: &mut Metered<'_, '_>,
+    value: JsonView<'_>,
+    edges: &[(&str, &RefValue)],
+) -> Result<RefValue, String> {
+    let object = value.as_object().ok_or_else(|| err("投影值非对象"))?;
+    let budget = allocation(s)?;
+    let mut fields = bj::new_work(budget.as_ref());
+    for (k, v) in object.iter() {
+        let value = match edges.iter().find(|(name, _)| *name == k) {
+            Some((_, r)) => sc::ValueView::Edge(r.digest().map_err(err)?),
+            None => sc::ValueView::Json(v),
+        };
+        fields.try_push((k, value)).map_err(err)?;
+    }
+    write_value(s, sc::ValueView::Object(&fields))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sc::path::PathStep;
     const METADATA: u64 = 1_048_576;
+    fn plain_wire(p: &Projection) -> &Value {
+        match &p.wire {
+            JsonOwner::Plain(v) => v,
+            #[cfg(feature = "s_allocation_json_testonly")]
+            JsonOwner::Owned(_) => panic!("测试oracle只接普通投影"),
+        }
+    }
+    fn normal_write(s: &mut dyn NodeSink, value: &Value) -> Result<RefValue, String> {
+        sc::write_json_view(s, value.into())
+            .map(|v| RefValue::Plain(v.content_ref()))
+            .map_err(err)
+    }
+
     fn render_fixture<'r>(
         s: &mut dyn NodeSource,
         r: impl Into<sc::RefView<'r>>,
@@ -548,11 +956,234 @@ mod tests {
         let p = build(&tx, &audited, &mut graph, g, mode, METADATA, &mut job()).unwrap();
         let catalog = render_fixture(
             &mut graph,
-            &ContentRef::from_transport_json(&p.wire["catalog"]).unwrap(),
+            &ContentRef::from_transport_json(&plain_wire(&p)["catalog"]).unwrap(),
         )
         .unwrap();
         let logical = render_fixture(&mut graph, &p.root).unwrap();
         (p, catalog, logical)
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    fn owned_capture(tx: &Transaction<'_>, budget: &OwnedBudget) -> sc::AuditCapture {
+        sc::AuditCapture::from_slab_for_allocation_prototype(
+            content_store::capture_slab_for_prototype(
+                tx,
+                budget,
+                &content_store::CaptureCancellation::never(),
+            )
+            .unwrap(),
+        )
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    fn with_projection_capture<'c, T>(
+        capture: &'c sc::AuditCapture,
+        budget: &OwnedBudget,
+        run: impl FnOnce(&mut history::HashReader<'c>) -> T,
+    ) -> T {
+        history::with_overlay_prototype(
+            history::OverlayPrototype {
+                slots: 8192,
+                bytes: 1_048_576,
+                budget: budget.clone(),
+                peaks: std::rc::Rc::new(std::cell::Cell::new((0, 0))),
+            },
+            || run(&mut history::HashReader::captured_for_audit(capture, None).unwrap()),
+        )
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_projection_two_input_complete_wire_roots_digest_anchor_and_job_match_plain() {
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        publish(&mut f, 2);
+        let tx = f.conn.transaction().unwrap();
+        let audited = state::audit(&tx).unwrap();
+        let budget = OwnedBudget::new(67_108_864);
+        let capture = owned_capture(&tx, &budget);
+        for mode in [HistoryMode::AsKnown, HistoryMode::RecomputedWithRevision] {
+            let mut source = content_store::ReadStore::new(&tx).unwrap();
+            let mut plain_graph = history::HashReader::new(&mut source);
+            let mut plain_job = job();
+            let plain = build(
+                &tx,
+                &audited,
+                &mut plain_graph,
+                2,
+                mode,
+                METADATA,
+                &mut plain_job,
+            )
+            .unwrap();
+            let plain_logical = render_fixture(&mut plain_graph, plain.root.view()).unwrap();
+            let plain_anchor = plain.anchor();
+            with_projection_capture(&capture, &budget, |graph| {
+                let mut owned_job = job();
+                let owned = build(&tx, &audited, graph, 2, mode, METADATA, &mut owned_job).unwrap();
+                assert_eq!(owned.root, plain.root);
+                assert_eq!(owned.digest, plain.digest);
+                assert_eq!(owned.wire.view(), plain.wire.view());
+                let (a, b) = (plain_job.snapshot(), owned_job.snapshot());
+                assert_eq!(
+                    (a.nodes, a.node_bytes, a.records),
+                    (b.nodes, b.node_bytes, b.records)
+                );
+                let anchor = owned.anchor_with_budget(Some(&budget)).unwrap();
+                assert_eq!(anchor.view(), JsonView::Plain(&plain_anchor));
+                assert!(owned.anchor_with_budget(None).is_err());
+                let mut reading_job = job();
+                let mut metered = Metered {
+                    graph,
+                    job: &mut reading_job,
+                    metadata_remaining: METADATA,
+                };
+                let logical = render(&mut metered, owned.root.view()).unwrap();
+                assert_eq!(logical.view(), JsonView::Plain(&plain_logical));
+                assert_eq!(
+                    bj::field(owned.wire.view(), "rows")
+                        .as_array()
+                        .unwrap()
+                        .len(),
+                    a.records as usize
+                );
+            });
+        }
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_projection_real_source_metadata_limit_and_missing_root_reject_without_writes() {
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        publish(&mut f, 2);
+        let tx = f.conn.transaction().unwrap();
+        let audited = state::audit(&tx).unwrap();
+        let budget = OwnedBudget::new(67_108_864);
+        let capture = owned_capture(&tx, &budget);
+        let before = tx.total_changes();
+        with_projection_capture(&capture, &budget, |graph| {
+            let error = build(&tx, &audited, graph, 2, HistoryMode::AsKnown, 1, &mut job())
+                .err()
+                .unwrap();
+            assert!(error.contains("ProjectionMetadataLimit"), "{error}");
+        });
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        assert_eq!(tx.total_changes(), before);
+        let digest = audited.cuts[1].snapshot.digest().unwrap();
+        tx.execute(
+            "DELETE FROM s_content_nodes WHERE digest=?1",
+            params![&digest[..]],
+        )
+        .unwrap();
+        let before = tx.total_changes();
+        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        let mut plain = history::HashReader::new(&mut source);
+        let normal = build(
+            &tx,
+            &audited,
+            &mut plain,
+            2,
+            HistoryMode::AsKnown,
+            METADATA,
+            &mut job(),
+        )
+        .err()
+        .unwrap();
+        assert!(normal.contains(sc::code::NODE_MISSING), "{normal}");
+        let capture = owned_capture(&tx, &budget);
+        with_projection_capture(&capture, &budget, |graph| {
+            let error = build(
+                &tx,
+                &audited,
+                graph,
+                2,
+                HistoryMode::AsKnown,
+                METADATA,
+                &mut job(),
+            )
+            .err()
+            .unwrap();
+            assert!(error.contains(sc::code::NODE_MISSING), "{error}");
+        });
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        assert_eq!(tx.total_changes(), before);
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_projection_real_source_zero_and_short_budget_keep_prior_projection_owner_and_drop() {
+        use sc::capture_allocation::CaptureSlab;
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        publish(&mut f, 2);
+        let tx = f.conn.transaction().unwrap();
+        let audited = state::audit(&tx).unwrap();
+        let budget = OwnedBudget::new(67_108_864);
+        let capture = owned_capture(&tx, &budget);
+        with_projection_capture(&capture, &budget, |graph| {
+            let prior = build(
+                &tx,
+                &audited,
+                graph,
+                2,
+                HistoryMode::AsKnown,
+                METADATA,
+                &mut job(),
+            )
+            .unwrap();
+            let prior_digest = prior.root.digest().unwrap();
+            let prior_rows = bj::field(prior.wire.view(), "rows")
+                .as_array()
+                .unwrap()
+                .len();
+            let profile = v2::control_meta_text(&tx, "profile_id", Some(&budget))
+                .unwrap()
+                .unwrap();
+            let request = budget.allocation_request_probe().last_request_bytes;
+            drop(profile);
+            for remaining in [0, request - 1] {
+                let live = budget.snapshot().live_requested_layout_bytes;
+                let fill =
+                    CaptureSlab::new(0, budget.snapshot().limit_bytes - live - remaining, &budget)
+                        .unwrap();
+                let error = build(
+                    &tx,
+                    &audited,
+                    graph,
+                    2,
+                    HistoryMode::AsKnown,
+                    METADATA,
+                    &mut job(),
+                )
+                .err()
+                .unwrap();
+                assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
+                assert_eq!(prior.root.digest().unwrap(), prior_digest);
+                assert_eq!(
+                    bj::field(prior.wire.view(), "rows")
+                        .as_array()
+                        .unwrap()
+                        .len(),
+                    prior_rows
+                );
+                assert!(prior_rows > 0);
+                drop(fill);
+            }
+            let again = build(
+                &tx,
+                &audited,
+                graph,
+                2,
+                HistoryMode::AsKnown,
+                METADATA,
+                &mut job(),
+            )
+            .unwrap();
+            assert_eq!(again.wire.view(), prior.wire.view());
+            assert_eq!(again.root, prior.root);
+        });
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
     /// 使用仓内原Q的排序/键函数作为独立oracle；不复写其六族判据。
     fn python_rows(snapshot: &Value) -> Value {
@@ -596,11 +1227,11 @@ mod tests {
             &mut budget,
         )
         .unwrap();
-        assert_eq!(p.wire.as_object().unwrap().len(), 7);
-        assert_eq!(p.wire["fixed_cut"].as_object().unwrap().len(), 16);
-        assert_eq!(p.wire["counts"].as_object().unwrap().len(), 7);
-        assert_eq!(p.wire["order_version"], "s-record-order/2");
-        assert_eq!(p.wire["omissions"], json!([]));
+        assert_eq!(plain_wire(&p).as_object().unwrap().len(), 7);
+        assert_eq!(plain_wire(&p)["fixed_cut"].as_object().unwrap().len(), 16);
+        assert_eq!(plain_wire(&p)["counts"].as_object().unwrap().len(), 7);
+        assert_eq!(plain_wire(&p)["order_version"], "s-record-order/2");
+        assert_eq!(plain_wire(&p)["omissions"], json!([]));
         let logical = render_fixture(&mut graph, &p.root).unwrap();
         let expected = python_rows(&snapshot);
         assert_eq!(logical["rows"], expected);
@@ -613,15 +1244,16 @@ mod tests {
             logical["fixed_cut"]["catalog_evidence"],
             snapshot["catalog_evidence"]
         );
-        let mut independently_composed = p.wire.clone();
+        let mut independently_composed = plain_wire(&p).clone();
         independently_composed["rows"] = expected;
         independently_composed["catalog"] = logical["catalog"].clone();
         independently_composed["fixed_cut"]["catalog_evidence"] =
             snapshot["catalog_evidence"].clone();
-        let expected_root = write(&mut sc::MemoryNodes::new(), &independently_composed).unwrap();
+        let expected_root =
+            normal_write(&mut sc::MemoryNodes::new(), &independently_composed).unwrap();
         assert_eq!(expected_root, p.root);
         assert_ne!(
-            write(&mut sc::MemoryNodes::new(), &p.wire).unwrap(),
+            normal_write(&mut sc::MemoryNodes::new(), &plain_wire(&p)).unwrap(),
             p.root,
             "引用carrier不能作为普通JSON进入逻辑根"
         );
@@ -632,7 +1264,7 @@ mod tests {
         assert_eq!(p.digest, format!("qcut3-{}", sha256_hex(&bytes)));
         independently_composed["rows"][0]["record"]["proof_body_changed"] = json!(true);
         assert_ne!(
-            write(&mut sc::MemoryNodes::new(), &independently_composed).unwrap(),
+            normal_write(&mut sc::MemoryNodes::new(), &independently_composed).unwrap(),
             p.root
         );
     }
@@ -640,14 +1272,14 @@ mod tests {
     fn zero_and_historical_catalog_use_their_own_axes_after_later_commit() {
         let mut f = Fixture::with_retain(1);
         let (zero, cat, _) = projected(&mut f, 0, HistoryMode::AsKnown);
-        assert_eq!(zero.wire["counts"]["total"], "0");
-        assert_eq!(zero.wire["fixed_cut"]["input_frontier"], "-1");
+        assert_eq!(plain_wire(&zero)["counts"]["total"], "0");
+        assert_eq!(plain_wire(&zero)["fixed_cut"]["input_frontier"], "-1");
         assert_eq!(
-            zero.wire["fixed_cut"]["seq_range"],
+            plain_wire(&zero)["fixed_cut"]["seq_range"],
             json!({"from":"0","to":"-1"})
         );
-        assert_eq!(zero.wire["fixed_cut"]["index_frontier"], "");
-        assert_eq!(zero.wire["fixed_cut"]["profile_id"], tb02a::PROFILE);
+        assert_eq!(plain_wire(&zero)["fixed_cut"]["index_frontier"], "");
+        assert_eq!(plain_wire(&zero)["fixed_cut"]["profile_id"], tb02a::PROFILE);
         for item in cat["items"].as_array().unwrap() {
             assert_eq!(item["implementation_status"], "not_implemented");
             assert_eq!(item["proof_status"], "not_proved");
@@ -688,11 +1320,14 @@ mod tests {
         let (again, again_catalog, _) = projected(&mut f, 1, HistoryMode::AsKnown);
         assert_eq!(again.root, old.root);
         assert_eq!(again.digest, old.digest);
-        assert_eq!(again.wire, old.wire);
+        assert_eq!(plain_wire(&again), plain_wire(&old));
         assert_eq!(again_catalog, old_catalog);
         assert_eq!(projected(&mut f, 0, HistoryMode::AsKnown).0.root, zero.root);
         let current = projected(&mut f, 2, HistoryMode::RecomputedWithRevision).0;
-        assert_eq!(current.wire["fixed_cut"]["as_of_generation"], Value::Null);
+        assert_eq!(
+            plain_wire(&current)["fixed_cut"]["as_of_generation"],
+            Value::Null
+        );
         assert_ne!(current.digest, old.digest);
     }
     #[test]
@@ -819,6 +1454,7 @@ mod tests {
         )
         .is_err());
         assert!(budget.snapshot().stopped.is_some());
+        drop(graph);
         drop(tx);
         assert_eq!(f.conn.total_changes(), before);
     }
@@ -826,8 +1462,8 @@ mod tests {
     #[test]
     fn metadata_limits_bound_expansion_escaping_and_cumulative_reads() {
         let mut nodes = sc::MemoryNodes::new();
-        let small = write(&mut nodes, &json!("abcd")).unwrap();
-        let escaped = write(&mut nodes, &json!("\0".repeat(30))).unwrap();
+        let small = normal_write(&mut nodes, &json!("abcd")).unwrap();
+        let escaped = normal_write(&mut nodes, &json!("\0".repeat(30))).unwrap();
         let large = sc::ContentRef::new(Kind::String, &[7; 32], Some(1u64 << 43));
         let mut graph = history::HashReader::new(&mut nodes);
         let mut budget = job();
@@ -836,19 +1472,25 @@ mod tests {
             job: &mut budget,
             metadata_remaining: 11,
         };
-        assert_eq!(render(&mut source, &small).unwrap(), json!("abcd"));
+        assert_eq!(
+            render(&mut source, &small).unwrap().view(),
+            JsonView::Plain(&json!("abcd"))
+        );
         assert_eq!(source.metadata_remaining, 5);
         assert!(render(&mut source, &small)
-            .unwrap_err()
+            .err()
+            .unwrap()
             .contains("ProjectionMetadataLimit"));
         source.metadata_remaining = 100;
         assert!(render(&mut source, &escaped)
-            .unwrap_err()
+            .err()
+            .unwrap()
             .contains("ProjectionMetadataLimit"));
         assert!(source.metadata_remaining < 100, "转义失败仍扣已输出前缀");
         // 声明长度已越界时先停，不追逐假根、更不尝试8TiB展开。
         assert!(render(&mut source, &large)
-            .unwrap_err()
+            .err()
+            .unwrap()
             .contains("ProjectionMetadataLimit"));
     }
 
@@ -874,7 +1516,7 @@ mod tests {
         for family in FAMILIES {
             let mut ordered = Vec::new();
             for record in fixtures[family].as_array().unwrap() {
-                let r = write(&mut nodes, record).unwrap();
+                let r = normal_write(&mut nodes, record).unwrap();
                 let mut graph = history::HashReader::new(&mut nodes);
                 let mut budget = job();
                 let mut source = Metered {
@@ -882,10 +1524,10 @@ mod tests {
                     job: &mut budget,
                     metadata_remaining: METADATA,
                 };
-                let (order, key) = record_order_key(&mut source, family, &r).unwrap();
+                let (order, key) = record_order_key(&mut source, family, r.view()).unwrap();
                 ordered.push((order, json!({"family":family,"key":key,"record":record})));
             }
-            ordered.sort_by(|a, b| a.0.cmp(&b.0));
+            ordered.sort_by(|a, b| a.0[..].cmp(&b.0[..]));
             actual.extend(ordered.into_iter().map(|(_, record)| record));
         }
         assert_eq!(json!(actual), oracle);

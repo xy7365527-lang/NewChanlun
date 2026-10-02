@@ -7,13 +7,16 @@ use super::*;
 use newchan_rust::s_content::access::Access;
 #[cfg(test)]
 use newchan_rust::s_content::job::Job;
+use newchan_rust::s_content::{self as sc, TransportRef};
 use newchan_rust::s_content::{
     fragment::{self, Fragment, Unit},
     path::PathStep,
     ContentRef,
 };
-use newchan_rust::session_protocol::required;
+use newchan_rust::session_protocol::required_view;
+use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::Transaction;
+use sc::capture_allocation::audit_json::{self as aj, JsonView};
 
 /// 调用方在请求内持有这个事务；返回后不得跨请求继续持锁。
 pub(super) fn delta_fragment(
@@ -50,6 +53,42 @@ pub(super) fn validated_delta<'a>(
     audited: &'a state::AuditedState,
     anchor: &Value,
 ) -> Result<&'a history::PublishedCut, String> {
+    validated_delta_view(tx, audited, anchor.into())
+}
+fn anchor_fields(anchor: JsonView<'_>, fields: &[&str], kind: &str) -> bool {
+    anchor
+        .as_object()
+        .is_some_and(|o| o.len() == fields.len() && o.keys().all(|k| fields.contains(&k)))
+        && anchor.get("kind").and_then(JsonView::as_str) == Some(kind)
+}
+fn first_available(tx: &Transaction<'_>) -> Result<i64, String> {
+    let error = |e| {
+        err(crate::evidence_store::sql_columns(
+            e,
+            &["first_available_generation"],
+        ))
+    };
+    let mut stmt = CheckedStatement::prepare(
+        tx,
+        c"SELECT first_available_generation FROM s_delivery_policy WHERE singleton=1",
+    )
+    .map_err(error)?;
+    let value = stmt
+        .next()
+        .map_err(error)?
+        .ok_or(rusqlite::Error::QueryReturnedNoRows)
+        .map_err(error)?
+        .integer(0)
+        .map_err(error)?;
+    stmt.finalize().map_err(error)?;
+    Ok(value)
+}
+/// 借用transport声明只核形状；format/root摘要仍留在原来的实际内容读取门。
+pub(super) fn validated_delta_view<'a>(
+    tx: &Transaction<'_>,
+    audited: &'a state::AuditedState,
+    anchor: JsonView<'_>,
+) -> Result<&'a history::PublishedCut, String> {
     const FIELDS: [&str; 8] = [
         "kind",
         "session_id",
@@ -60,22 +99,13 @@ pub(super) fn validated_delta<'a>(
         "index_frontier",
         "delta_ref",
     ];
-    if !anchor
-        .as_object()
-        .is_some_and(|o| o.len() == FIELDS.len() && o.keys().all(|k| FIELDS.contains(&k.as_str())))
-        || anchor["kind"] != "delta"
-    {
+    if !anchor_fields(anchor, &FIELDS, "delta") {
         return Err("SchemaUnsupported：Delta anchor字段必须exact且不能混入projection".into());
     }
-    let generation = positive(required(anchor, "generation")?, "delta generation")?;
-    let claimed = ContentRef::from_transport_json(&anchor["delta_ref"]).map_err(err)?;
-    let first: i64 = tx
-        .query_row(
-            "SELECT first_available_generation FROM s_delivery_policy WHERE singleton=1",
-            [],
-            |r| r.get(0),
-        )
+    let generation = positive(required_view(anchor, "generation")?, "delta generation")?;
+    let claimed = TransportRef::from_json_view(anchor.get("delta_ref").unwrap_or(JsonView::Null))
         .map_err(err)?;
+    let first = first_available(tx)?;
     let cut = audited
         .cuts
         .iter()
@@ -87,17 +117,100 @@ pub(super) fn validated_delta<'a>(
                 .into(),
         );
     }
-    let expected = delta_anchor(cut);
-    if super::audit_store::RefValue::Plain(claimed) != cut.delta || *anchor != expected {
+    let reference = cut.delta.view();
+    let expected = delta_anchor_view(cut);
+    if claimed.format() != reference.format()
+        || claimed.root() != reference.root()
+        || claimed.kind() != reference.kind()
+        || claimed.extent() != reference.extent()
+        || anchor != expected.view()
+    {
         return Err("IdentityConflict：anchor与当前完整核验所得的同会话已发布Delta不同".into());
     }
     Ok(cut)
 }
-pub(super) fn delta_anchor(cut: &history::PublishedCut) -> Value {
-    json!({"kind":"delta","session_id":cut.metadata.session_id,"session_generation":cut.metadata.session_generation,
-        "generation":cut.metadata.generation.to_string(),"base_cut":cut.metadata.base_cut,"next_cut":cut.metadata.structure_cut,
-        "index_frontier":cut.batch_id,"delta_ref":cut.delta})
+pub(super) struct DeltaAnchor<'a> {
+    cut: &'a history::PublishedCut,
+    generation: [u8; 20],
+    start: usize,
+    reference: projection::TransportView<'a>,
 }
+pub(super) fn delta_anchor_view(cut: &history::PublishedCut) -> DeltaAnchor<'_> {
+    let mut generation = [0u8; 20];
+    let mut n = cut.metadata.generation.unsigned_abs();
+    let mut start = 20;
+    loop {
+        start -= 1;
+        generation[start] = b'0' + (n % 10) as u8;
+        n /= 10;
+        if n == 0 {
+            break;
+        }
+    }
+    if cut.metadata.generation < 0 {
+        start -= 1;
+        generation[start] = b'-';
+    }
+    DeltaAnchor {
+        cut,
+        generation,
+        start,
+        reference: projection::TransportView::new(cut.delta.view()),
+    }
+}
+impl DeltaAnchor<'_> {
+    pub(super) fn view(&self) -> JsonView<'_> {
+        JsonView::borrowed_object(self).expect("Delta anchor八字段唯一")
+    }
+}
+impl aj::JsonObject for DeltaAnchor<'_> {
+    fn len(&self) -> usize {
+        8
+    }
+    fn field(&self, index: usize) -> Option<(&str, JsonView<'_>)> {
+        let h = &self.cut.metadata;
+        Some(match index {
+            0 => ("kind", JsonView::String("delta")),
+            1 => ("session_id", JsonView::String(h.session_id.as_str())),
+            2 => (
+                "session_generation",
+                JsonView::String(h.session_generation.as_str()),
+            ),
+            3 => (
+                "generation",
+                JsonView::String(
+                    std::str::from_utf8(&self.generation[self.start..]).expect("ASCII整数"),
+                ),
+            ),
+            4 => ("base_cut", JsonView::String(h.base_cut.as_str())),
+            5 => ("next_cut", JsonView::String(h.structure_cut.as_str())),
+            6 => (
+                "index_frontier",
+                JsonView::String(self.cut.batch_id.as_str()),
+            ),
+            7 => ("delta_ref", self.reference.view()),
+            _ => return None,
+        })
+    }
+}
+/// 普通旧Value入口仍由同一借用表示核构造；Owned调用方直接持view或显式预算输出。
+pub(super) fn delta_anchor(cut: &history::PublishedCut) -> Value {
+    assert!(
+        matches!(&cut.delta, audit_store::RefValue::Plain(_))
+            && [
+                &cut.metadata.session_id,
+                &cut.metadata.session_generation,
+                &cut.metadata.base_cut,
+                &cut.metadata.structure_cut,
+                &cut.batch_id
+            ]
+            .iter()
+            .all(|v| matches!(v, super::business_json::TextValue::Plain(_))),
+        "旧Value anchor仅属于普通cut；Owned请借delta_anchor_view"
+    );
+    serde_json::to_value(delta_anchor_view(cut).view()).expect("已核Delta anchor仅含JSON值")
+}
+
 fn err(e: impl std::fmt::Display) -> String {
     format!("S3ContentReadInvalid：{e}")
 }
@@ -114,29 +227,28 @@ pub(super) fn projection_fragment(
     max_metadata_bytes: u64,
     job: &mut dyn Access,
 ) -> Result<Fragment, String> {
+    let anchor_view: JsonView<'_> = anchor.into();
     const FIELDS: [&str; 4] = [
         "kind",
         "fixed_cut",
         "cut_projection_digest",
         "projection_ref",
     ];
-    if !anchor
-        .as_object()
-        .is_some_and(|o| o.len() == FIELDS.len() && o.keys().all(|k| FIELDS.contains(&k.as_str())))
-        || anchor["kind"] != "projection"
-    {
+    if !anchor_fields(anchor_view, &FIELDS, "projection") {
         return Err("SchemaUnsupported：projection anchor必须是exact四字段".into());
     }
+    let fixed = anchor_view.get("fixed_cut").unwrap_or(JsonView::Null);
     let generation = newchan_rust::session_protocol::nonnegative(
-        required(&anchor["fixed_cut"], "cut_generation")?,
+        required_view(fixed, "cut_generation")?,
         "cut_generation",
     )?;
-    let mode = match required(&anchor["fixed_cut"], "history_mode")? {
+    let mode = match required_view(fixed, "history_mode")? {
         "AsKnown" => projection::HistoryMode::AsKnown,
         "RecomputedWithRevision" => projection::HistoryMode::RecomputedWithRevision,
         _ => return Err("SchemaUnsupported：history_mode不符".into()),
     };
-    ContentRef::from_transport_json(&anchor["projection_ref"]).map_err(err)?;
+    TransportRef::from_json_view(anchor_view.get("projection_ref").unwrap_or(JsonView::Null))
+        .map_err(err)?;
     job.begin_first_read().map_err(err)?;
     let audited = state::audit(tx)?;
     job.pre_io_check().map_err(err)?;
@@ -152,9 +264,9 @@ pub(super) fn projection_fragment(
         job,
     )?;
     check_projection_anchor(&actual, anchor)?;
-    fragment::read(
+    fragment::read_refview(
         &mut graph,
-        &actual.root,
+        actual.root.view(),
         path,
         unit,
         offset,
@@ -168,7 +280,13 @@ pub(super) fn check_projection_anchor(
     actual: &projection::Projection,
     anchor: &Value,
 ) -> Result<(), String> {
-    if *anchor != actual.anchor() {
+    check_projection_anchor_view(actual, anchor.into())
+}
+pub(super) fn check_projection_anchor_view(
+    actual: &projection::Projection,
+    anchor: JsonView<'_>,
+) -> Result<(), String> {
+    if anchor != actual.anchor_view().view() {
         Err("IdentityConflict：projection anchor与同一读集的完整投影不同".into())
     } else {
         Ok(())
@@ -216,6 +334,52 @@ mod tests {
         )
     }
 
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn actual_delta_anchor_views_keep_legacy_order_without_early_digest_or_owner_copy() {
+        use sc::capture_allocation::{audit_json::OwnedJson, OwnedBudget};
+        let mut f = Fixture::with_retain(1);
+        let old = publish(&mut f, 1);
+        let current = publish(&mut f, 2);
+        let tx = f.conn.transaction().unwrap();
+        let audited = state::audit(&tx).unwrap();
+        let budget = OwnedBudget::new(1_048_576);
+        let owned = OwnedJson::from_view((&current).into(), &budget).unwrap();
+        let before = budget.snapshot();
+        let plain = validated_delta(&tx, &audited, &current).unwrap();
+        let borrowed = validated_delta_view(&tx, &audited, owned.view()).unwrap();
+        assert!(std::ptr::eq(plain, borrowed));
+        assert_eq!(delta_anchor_view(plain).view(), (&current).into());
+        assert_eq!(
+            budget.snapshot().live_requested_layout_bytes,
+            before.live_requested_layout_bytes
+        );
+        drop(owned);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        let mut unpublished = current.clone();
+        unpublished["generation"] = json!("3");
+        unpublished["delta_ref"]["format"] = json!("unknown");
+        let mut expired = old.clone();
+        expired["delta_ref"]["format"] = json!("unknown");
+        let mut bad_identity = current.clone();
+        bad_identity["delta_ref"]["format"] = json!("unknown");
+        for (anchor, first) in [
+            (unpublished, "指定Delta未发布"),
+            (expired, "保留窗口"),
+            (bad_identity, "IdentityConflict"),
+        ] {
+            let plain = validated_delta(&tx, &audited, &anchor).err().unwrap();
+            let owned = OwnedJson::from_view((&anchor).into(), &budget).unwrap();
+            let borrowed = validated_delta_view(&tx, &audited, owned.view())
+                .err()
+                .unwrap();
+            assert_eq!(plain, borrowed);
+            assert!(borrowed.contains(first), "{borrowed}");
+            assert!(!borrowed.contains("ContentRef.format"), "{borrowed}");
+            drop(owned);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        }
+    }
     #[test]
     fn persisted_delta_fragments_survive_next_commit_and_verify_without_database() {
         let mut f = Fixture::new();

@@ -4,6 +4,7 @@
 //! 或访问授权。只有真实 `CheckedNodeUsage` 能进入 receipt，重放仍经过目标 Job 的
 //! 期限、停止、节点额度和记录额度门。
 
+use super::business_json::{self as bj, BusinessMap};
 use newchan_rust::s_content as sc;
 #[cfg(test)]
 use newchan_rust::s_content::job::Job;
@@ -12,7 +13,7 @@ use newchan_rust::s_content::{
     NodeDigest,
 };
 use sc::access::Access;
-use std::{cell::RefCell, collections::BTreeMap, mem::size_of};
+use std::{cell::RefCell, mem::size_of};
 
 pub(super) trait Budget {
     fn precheck(&self) -> Result<(), sc::CodecError>;
@@ -26,25 +27,48 @@ pub(super) trait Budget {
 
 pub(super) struct AuditJob<'j> {
     job: RefCell<&'j mut dyn Access>,
-    nodes: RefCell<BTreeMap<NodeDigest, CheckedNodeUsage>>,
+    nodes: RefCell<BusinessMap<NodeDigest, CheckedNodeUsage>>,
     records: RefCell<u64>,
+    allocation: Option<sc::capture_allocation::OwnedBudget>,
 }
 
 impl<'j> AuditJob<'j> {
     pub(super) fn new(job: &'j mut dyn Access) -> Self {
+        Self::with_allocation(job, None)
+    }
+    pub(super) fn with_allocation(
+        job: &'j mut dyn Access,
+        allocation: Option<&sc::capture_allocation::OwnedBudget>,
+    ) -> Self {
         Self {
             job: RefCell::new(job),
-            nodes: RefCell::new(BTreeMap::new()),
+            nodes: RefCell::new(bj::new_map(allocation)),
             records: RefCell::new(0),
+            allocation: allocation.cloned(),
         }
     }
 
     pub(super) fn finish(self) -> Receipt {
-        let nodes = self.nodes.into_inner().into_values().collect();
-        Receipt {
+        self.try_finish()
+            .expect("普通审计receipt没有fallible分配账本")
+    }
+    pub(super) fn try_finish(self) -> Result<Receipt, String> {
+        let map = self.nodes.into_inner();
+        let mut ordered = bj::new_work(self.allocation.as_ref());
+        for (digest, usage) in map.iter() {
+            ordered
+                .try_push((*digest, *usage))
+                .map_err(|e| e.to_string())?;
+        }
+        ordered.sort_unstable_by_key(|entry| entry.0);
+        let mut nodes = bj::new_work(self.allocation.as_ref());
+        for (_, usage) in ordered {
+            nodes.try_push(usage).map_err(|e| e.to_string())?;
+        }
+        Ok(Receipt {
             nodes,
             records: self.records.into_inner(),
-        }
+        })
     }
 
     fn record_usage(&self, usage: CheckedNodeUsage, body_len: usize) -> Result<(), sc::CodecError> {
@@ -61,7 +85,7 @@ impl<'j> AuditJob<'j> {
                 ));
             }
         } else {
-            nodes.insert(*digest, usage);
+            nodes.insert(*digest, usage)?;
             #[cfg(test)]
             {
                 unique = true;
@@ -108,7 +132,7 @@ impl Budget for AuditJob<'_> {
 
 /// 只能由 `AuditJob::finish` 产生；不实现序列化，也不提供 unchecked 构造。
 pub(super) struct Receipt {
-    nodes: Vec<CheckedNodeUsage>,
+    nodes: sc::CodecVec<CheckedNodeUsage>,
     records: u64,
 }
 

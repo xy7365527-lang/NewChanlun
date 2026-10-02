@@ -1763,6 +1763,18 @@ impl Drop for ObjectMut<'_> {
 pub struct BusinessMap<K, V>(super::work::WorkMap<K, V>);
 /// 两种allocator使用同一hashbrown迭代器，不装Box、不复制key/value。
 pub struct BusinessIter<'a, K, V>(hashbrown::hash_map::Iter<'a, K, V>);
+pub struct BusinessIterMut<'a, K, V>(hashbrown::hash_map::IterMut<'a, K, V>);
+impl<'a, K: 'a, V: 'a> Iterator for BusinessIterMut<'a, K, V> {
+    type Item = (&'a K, &'a mut V);
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
+    }
+}
+impl<K, V> ExactSizeIterator for BusinessIterMut<'_, K, V> {}
+impl<K, V> std::iter::FusedIterator for BusinessIterMut<'_, K, V> {}
 impl<'a, K: 'a, V: 'a> Iterator for BusinessIter<'a, K, V> {
     type Item = (&'a K, &'a V);
     fn next(&mut self) -> Option<Self::Item> {
@@ -1775,6 +1787,12 @@ impl<'a, K: 'a, V: 'a> Iterator for BusinessIter<'a, K, V> {
 impl<K, V> ExactSizeIterator for BusinessIter<'_, K, V> {}
 impl<K, V> std::iter::FusedIterator for BusinessIter<'_, K, V> {}
 impl<K: Eq + std::hash::Hash, V> BusinessMap<K, V> {
+    pub fn retain(&mut self, f: impl FnMut(&K, &mut V) -> bool) {
+        self.0.retain(f)
+    }
+    pub fn iter_mut(&mut self) -> BusinessIterMut<'_, K, V> {
+        BusinessIterMut(self.0.iter_mut())
+    }
     pub fn plain() -> Self {
         Self(super::work::WorkMap::new(None))
     }

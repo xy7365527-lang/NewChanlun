@@ -38,9 +38,9 @@ mod closed;
 mod ref_owner;
 pub use capture_allocation::work::{CodecFields, CodecVec};
 use capture_allocation::work::{WorkMap, WorkSet, WorkVec};
-#[doc(hidden)]
-pub use closed::ClosedCapturedOwner;
 use closed::CodecContext;
+#[doc(hidden)]
+pub use closed::{ClosedAccess, ClosedCapturedOwner, ClosedReadObserver};
 #[doc(hidden)]
 pub use ref_owner::{OwnedRefFields, RefOwner, RefView, TransportRef};
 /// 整次操作的累计资源与期限（#1394 采纳 C §5.6.1）。

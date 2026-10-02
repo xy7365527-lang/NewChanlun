@@ -27,15 +27,22 @@ use std::{
 /// 仍由冻结resources及各实际调用点执行；不能把None称作无限Job。
 struct ServerAccess<'a> {
     _resources: &'a QResources,
+    allocation: Option<&'a newchan_rust::s_content::capture_allocation::OwnedBudget>,
 }
 impl<'a> ServerAccess<'a> {
     fn new(resources: &'a QResources) -> Self {
         Self {
             _resources: resources,
+            allocation: None,
         }
     }
 }
 impl Access for ServerAccess<'_> {
+    fn allocation_budget(
+        &self,
+    ) -> Option<&newchan_rust::s_content::capture_allocation::OwnedBudget> {
+        self.allocation
+    }
     fn owner_job(&mut self) -> Option<&mut Job> {
         None
     }
@@ -57,9 +64,17 @@ impl Runtime {
         resources: Arc<QResources>,
         epoch: &str,
     ) -> Result<Self, String> {
+        Self::new_with_allocation(path, resources, epoch, None)
+    }
+    pub(crate) fn new_with_allocation(
+        path: PathBuf,
+        resources: Arc<QResources>,
+        epoch: &str,
+        allocation: Option<super::q_allocation::Profile>,
+    ) -> Result<Self, String> {
         positive(epoch, "Q producer_epoch")?;
         Ok(Self {
-            executor: Executor::new(path, resources)?,
+            executor: Executor::new_with_allocation(path, resources, allocation)?,
             epoch: epoch.into(),
             control_instance_id: String::new(),
         })
@@ -160,6 +175,26 @@ impl Runtime {
 }
 
 fn parse_request(path: &str, body: &[u8], resources: &QResources) -> Result<Request, String> {
+    parse_request_with_allocation(path, body, resources, None)
+}
+fn parse_request_with_allocation(
+    path: &str,
+    body: &[u8],
+    resources: &QResources,
+    allocation: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+) -> Result<Request, String> {
+    if let Some(b) = allocation {
+        return Ok(match path {
+            "/api/v3/snapshot" => {
+                Request::Snapshot(q_snapshot::Request::parse_owned(body, resources, b)?)
+            }
+            "/api/v3/content" => {
+                Request::Content(q_content::Request::parse_owned(body, resources, b)?)
+            }
+            "/api/v3/watch" => Request::Watch(q_watch::Request::parse_owned(body, resources, b)?),
+            _ => return Err("QRouteInvalid：不是已声明的v3查询路由".into()),
+        });
+    }
     // 每个解析器先核完整frame和exact envelope/payload。无资源配置来自请求。
     Ok(match path {
         "/api/v3/snapshot" => Request::Snapshot(q_snapshot::Request::parse(body, resources)?),
@@ -190,13 +225,14 @@ fn execute_captured(
     request: Request,
     access: &mut dyn Access,
 ) -> Result<q_watch::Reply, String> {
+    let allocation = capture.allocation_budget().cloned();
+    let wrap = |body: newchan_rust::s_content::CodecVec<u8>| match allocation.as_ref() {
+        Some(b) => q_watch::Reply::owned(body, resources, b),
+        None => q_watch::Reply::plain(body.try_into_plain().map_err(|e| e.to_string())?, resources),
+    };
     match request {
-        Request::Snapshot(request) => {
-            q_watch::Reply::plain(capture.snapshot(&request, epoch, access)?, resources)
-        }
-        Request::Content(request) => {
-            q_watch::Reply::plain(capture.content(&request, epoch, access)?, resources)
-        }
+        Request::Snapshot(request) => wrap(capture.snapshot(&request, epoch, access)?),
+        Request::Content(request) => wrap(capture.content(&request, epoch, access)?),
         Request::Watch(request) => capture.watch(&request, leases, epoch, access),
     }
 }
@@ -209,6 +245,7 @@ fn serve_http<S: q_http_input::TimedRead + q_watch::TimedWrite>(
     epoch: &str,
     control_instance_id: &str,
 ) -> Result<(), String> {
+    let allocation = reader.allocation_profile().cloned();
     let mut input = match q_http_input::Input::new(stream, resources) {
         Ok(input) => input,
         Err(failure) => return send_failure(stream, resources, leases, epoch, None, None, failure),
@@ -254,19 +291,39 @@ fn serve_http<S: q_http_input::TimedRead + q_watch::TimedWrite>(
         }
         let result = reader.with_capture(
             resources,
-            &mut ServerAccess::new(resources),
+            &mut ServerAccess {
+                _resources: resources,
+                allocation: allocation.as_ref().map(|p| &p.budget),
+            },
             |capture, _| {
-                let payload = json!({
-                    "ok": true,
-                    "cut": capture.ready_cut()?,
-                    "producer_epoch": epoch,
-                    "control_instance_id": control_instance_id,
-                });
-                let mut access = ServerAccess::new(resources);
-                let body =
-                    q_wire::encode(&payload, resources.limit(Limit::ReplyBytes), &mut access)?
-                        .ok_or_else(|| "Incomplete：ready回复超过max_reply_bytes".to_string())?;
-                q_watch::Reply::plain(body, resources)
+                use newchan_rust::s_content::capture_allocation::audit_json::JsonView;
+                let cut = capture.ready_cut()?;
+                let fields = [
+                    ("ok", JsonView::Bool(true)),
+                    ("cut", cut.view()),
+                    ("producer_epoch", JsonView::String(epoch)),
+                    ("control_instance_id", JsonView::String(control_instance_id)),
+                ];
+                let payload = JsonView::object_fields(&fields).map_err(|e| e.to_string())?;
+                let budget = capture.allocation_budget().cloned();
+                let mut access = ServerAccess {
+                    _resources: resources,
+                    allocation: budget.as_ref(),
+                };
+                let body = q_wire::encode_view(
+                    payload,
+                    resources.limit(Limit::ReplyBytes),
+                    &mut access,
+                    budget.as_ref(),
+                )?
+                .ok_or("Incomplete：ready回复超过max_reply_bytes")?;
+                match budget.as_ref() {
+                    Some(b) => q_watch::Reply::owned(body, resources, b),
+                    None => q_watch::Reply::plain(
+                        body.try_into_plain().map_err(|e| e.to_string())?,
+                        resources,
+                    ),
+                }
             },
         );
         return match result {
@@ -319,21 +376,27 @@ fn serve_http<S: q_http_input::TimedRead + q_watch::TimedWrite>(
         Err(failure) => return send_failure(stream, resources, leases, epoch, None, None, failure),
     };
     let path = path.to_string();
-    let envelope = match q_wire::parse(&body, resources) {
-        Ok(envelope) => envelope,
-        Err(detail) => {
-            return send_failure(
-                stream,
-                resources,
-                leases,
-                epoch,
-                None,
-                None,
-                failure(detail, false),
-            )
-        }
-    };
-    let request = match parse_request(&path, &body, resources) {
+    let envelope =
+        match q_wire::parse_owner(&body, resources, allocation.as_ref().map(|p| &p.budget)) {
+            Ok(envelope) => envelope,
+            Err(detail) => {
+                return send_failure(
+                    stream,
+                    resources,
+                    leases,
+                    epoch,
+                    None,
+                    None,
+                    failure(detail, false),
+                )
+            }
+        };
+    let request = match parse_request_with_allocation(
+        &path,
+        &body,
+        resources,
+        allocation.as_ref().map(|p| &p.budget),
+    ) {
         Ok(request) => request,
         Err(detail) => {
             return send_failure(
@@ -341,7 +404,7 @@ fn serve_http<S: q_http_input::TimedRead + q_watch::TimedWrite>(
                 resources,
                 leases,
                 epoch,
-                Some(&envelope),
+                Some(&serde_json::to_value(envelope.view()).map_err(|e| e.to_string())?),
                 None,
                 failure(detail, false),
             )
@@ -350,7 +413,10 @@ fn serve_http<S: q_http_input::TimedRead + q_watch::TimedWrite>(
     let mut identity = None;
     let result = reader.with_capture(
         resources,
-        &mut ServerAccess::new(resources),
+        &mut ServerAccess {
+            _resources: resources,
+            allocation: allocation.as_ref().map(|p| &p.budget),
+        },
         |capture, access| {
             identity = Some(capture.identity()?);
             execute_captured(capture, resources, leases, epoch, request, access)
@@ -363,8 +429,11 @@ fn serve_http<S: q_http_input::TimedRead + q_watch::TimedWrite>(
             resources,
             leases,
             epoch,
-            Some(&envelope),
-            identity.as_ref(),
+            Some(&serde_json::to_value(envelope.view()).map_err(|e| e.to_string())?),
+            identity
+                .as_ref()
+                .map(|(s, g)| (s.to_string(), g.to_string()))
+                .as_ref(),
             failure(detail, identity.is_none()),
         ),
     }
@@ -514,17 +583,17 @@ mod tests {
         os::unix::net::UnixStream,
         time::Duration,
     };
-    fn resources() -> Arc<QResources> {
+    pub(super) fn resources() -> Arc<QResources> {
         let mut v = q_resources::tests::input();
         v["limits"]["max_query_workers"] = json!("1");
         Arc::new(QResources::parse(canonical_json(&v).as_bytes()).unwrap())
     }
-    fn publish(f: &mut Fixture, n: i64) {
+    pub(super) fn publish(f: &mut Fixture, n: i64) {
         let id = format!("raw-{n}");
         let (e, t) = f.accept_begin(n, (&id, n * 10, 6 + n, 12 + n, 3 + n, 7 + n), 1);
         f.publish(&e, &t).unwrap();
     }
-    fn projection(f: &Fixture, r: &QResources) -> Projection {
+    pub(super) fn projection(f: &Fixture, r: &QResources) -> Projection {
         let mut reader = AuditReader::new(f.db_path(), r);
         reader
             .with_capture(r, &mut ServerAccess::new(r), |c, a| {
@@ -532,21 +601,30 @@ mod tests {
             })
             .unwrap()
     }
-    fn envelope(fixed: &Value, payload: Value) -> Vec<u8> {
+    pub(super) fn envelope(fixed: &Value, payload: Value) -> Vec<u8> {
         canonical_json(&json!({"schema_revision":"s-session/3","session_id":fixed["session_id"],"session_generation":fixed["session_generation"],"source_namespace":"q-runtime-test","source_epoch":"1","message_id":"request","producer_id":"test-client","producer_epoch":"1","payload_hash":sha256_hex(canonical_json(&payload).as_bytes()),"causal_refs":[],"payload":payload})).into_bytes()
     }
-    fn snapshot(p: &Projection) -> Vec<u8> {
-        let f = &p.wire["fixed_cut"];
+    fn plain_wire(p: &Projection) -> &Value {
+        match &p.wire {
+            super::super::business_json::JsonOwner::Plain(value) => value,
+            #[cfg(feature = "s_allocation_json_testonly")]
+            super::super::business_json::JsonOwner::Owned(_) => {
+                panic!("测试oracle只接普通投影")
+            }
+        }
+    }
+    pub(super) fn snapshot(p: &Projection) -> Vec<u8> {
+        let f = &plain_wire(p)["fixed_cut"];
         envelope(
             f,
-            json!({"op":"snapshot","session_id":f["session_id"],"session_generation":f["session_generation"],"scope":f["scope"],"history_mode":"AsKnown","as_of_generation":"1","page_size":"1","order_version":p.wire["order_version"]}),
+            json!({"op":"snapshot","session_id":f["session_id"],"session_generation":f["session_generation"],"scope":f["scope"],"history_mode":"AsKnown","as_of_generation":"1","page_size":"1","order_version":plain_wire(p)["order_version"]}),
         )
     }
-    fn watch(p: &Projection) -> Vec<u8> {
-        let f = &p.wire["fixed_cut"];
+    pub(super) fn watch(p: &Projection) -> Vec<u8> {
+        let f = &plain_wire(p)["fixed_cut"];
         envelope(
             f,
-            json!({"op":"watch","cursor":{"session_id":f["session_id"],"session_generation":f["session_generation"],"catalog_revision":f["catalog_revision"],"scope":f["scope"],"after_generation":"0","base_cut":"cut-0","index_frontier":"","last_seq":"-1","order_version":p.wire["order_version"]},"max_batches":"1","client_id":"runtime-client"}),
+            json!({"op":"watch","cursor":{"session_id":f["session_id"],"session_generation":f["session_generation"],"catalog_revision":f["catalog_revision"],"scope":f["scope"],"after_generation":"0","base_cut":"cut-0","index_frontier":"","last_seq":"-1","order_version":plain_wire(p)["order_version"]},"max_batches":"1","client_id":"runtime-client"}),
         )
     }
     fn call(rt: &Runtime, path: &str, body: &[u8]) -> q_watch::Reply {
@@ -569,7 +647,7 @@ mod tests {
         assert_eq!(rt.resource_digest(), r.digest());
         let first = call(&rt, "/api/v3/snapshot", &snapshot(&p));
         let page = strict_json(first.body()).unwrap();
-        assert_eq!(page["payload"]["fixed_cut"], p.wire["fixed_cut"]);
+        assert_eq!(page["payload"]["fixed_cut"], plain_wire(&p)["fixed_cut"]);
         assert_eq!(page["producer_epoch"], "7");
         let token = page["payload"]["next_token"].clone();
         assert!(token.is_object());
@@ -578,18 +656,18 @@ mod tests {
             &rt,
             "/api/v3/snapshot",
             &envelope(
-                &p.wire["fixed_cut"],
+                &plain_wire(&p)["fixed_cut"],
                 json!({"op":"snapshot","snapshot_token":token}),
             ),
         );
         let next = strict_json(next.body()).unwrap();
-        assert_eq!(next["payload"]["fixed_cut"], p.wire["fixed_cut"]);
+        assert_eq!(next["payload"]["fixed_cut"], plain_wire(&p)["fixed_cut"]);
         assert_ne!(
             next["payload"]["validated_capture_digest"],
             page["payload"]["validated_capture_digest"]
         );
         let content = envelope(
-            &p.wire["fixed_cut"],
+            &plain_wire(&p)["fixed_cut"],
             json!({"op":"content","anchor":p.anchor(),"path":[{"field":"rows"}],"unit":"items","offset":"0","limit":"1"}),
         );
         let content = call(&rt, "/api/v3/content", &content);
@@ -781,7 +859,7 @@ mod tests {
             .unwrap();
         (client, server)
     }
-    fn http_request(path: &str, body: &[u8]) -> Vec<u8> {
+    pub(super) fn http_request(path: &str, body: &[u8]) -> Vec<u8> {
         let mut wire = format!(
             "POST {path} HTTP/1.1\r\nHost: localhost\r\nContent-Length: {}\r\n\r\n",
             body.len()
@@ -790,7 +868,7 @@ mod tests {
         wire.extend_from_slice(body);
         wire
     }
-    fn exchange(rt: &Runtime, wire: &[u8]) -> (Result<(), String>, Vec<u8>) {
+    pub(super) fn exchange(rt: &Runtime, wire: &[u8]) -> (Result<(), String>, Vec<u8>) {
         let (mut client, server) = tcp_pair();
         client.write_all(wire).unwrap();
         client.shutdown(std::net::Shutdown::Write).unwrap();
@@ -800,7 +878,7 @@ mod tests {
         let result = pending.and_then(|p| p.recv());
         (result, response)
     }
-    fn http_parts(wire: &[u8]) -> (u16, Value) {
+    pub(super) fn http_parts(wire: &[u8]) -> (u16, Value) {
         let end = wire.windows(4).position(|v| v == b"\r\n\r\n").unwrap();
         let head = std::str::from_utf8(&wire[..end]).unwrap();
         assert!(head.contains("Cache-Control: no-store"));
@@ -851,7 +929,7 @@ sys.stdout.buffer.write(canonical(r))"#;
         let p = projection(&f, &r);
         let rt = Runtime::new(f.db_path(), r, "1").unwrap();
         let content = envelope(
-            &p.wire["fixed_cut"],
+            &plain_wire(&p)["fixed_cut"],
             json!({"op":"content","anchor":p.anchor(),"path":[{"field":"rows"}],"unit":"items","offset":"0","limit":"1"}),
         );
         for (path, body) in [
@@ -891,7 +969,7 @@ sys.stdout.buffer.write(canonical(r))"#;
             assert_eq!(actual,status);assert_eq!(payload["error"],error);
             assert!(payload.get("identity_binding").is_none());
         }
-        let invalid = envelope(&p.wire["fixed_cut"], json!({"op":"watch"}));
+        let invalid = envelope(&plain_wire(&p)["fixed_cut"], json!({"op":"watch"}));
         let (result, wire) = exchange(&rt, &http_request("/api/v3/snapshot", &invalid));
         result.unwrap();
         let (status, reply) = http_parts(&wire);
@@ -904,7 +982,7 @@ sys.stdout.buffer.write(canonical(r))"#;
         );
         let mut payload = strict_json(&snapshot(&p)).unwrap()["payload"].clone();
         payload["as_of_generation"] = json!("999");
-        let unknown_generation = envelope(&p.wire["fixed_cut"], payload);
+        let unknown_generation = envelope(&plain_wire(&p)["fixed_cut"], payload);
         let (result, wire) = exchange(&rt, &http_request("/api/v3/snapshot", &unknown_generation));
         result.unwrap();
         let (status, reply) = http_parts(&wire);
@@ -916,7 +994,7 @@ sys.stdout.buffer.write(canonical(r))"#;
         error_reply_matches_original_python(
             &unknown_generation,
             &reply,
-            json!({"meta":{"session_id":p.wire["fixed_cut"]["session_id"]},"protocol":{"session_generation":p.wire["fixed_cut"]["session_generation"]}}),
+            json!({"meta":{"session_id":plain_wire(&p)["fixed_cut"]["session_id"]},"protocol":{"session_generation":plain_wire(&p)["fixed_cut"]["session_generation"]}}),
         );
         let unavailable = Runtime::new(f.db_path().with_extension("absent"), r, "2").unwrap();
         let (result, wire) = exchange(
@@ -953,7 +1031,7 @@ sys.stdout.buffer.write(canonical(r))"#;
         let cut = body["cut"].as_object().unwrap();
         assert_eq!(cut.len(), 6);
         let p = projection(&f, &r);
-        let fixed = &p.wire["fixed_cut"];
+        let fixed = &plain_wire(&p)["fixed_cut"];
         assert_eq!(
             body["cut"],
             json!({"session_id":fixed["session_id"],
@@ -1174,5 +1252,122 @@ sys.stdout.buffer.write(canonical(r))"#;
         let (result, wire) = exchange(&rt, &http_request("/api/v3/snapshot", &snapshot(&p)));
         result.unwrap();
         assert_eq!(http_parts(&wire).0, 200);
+    }
+}
+
+#[cfg(all(
+    test,
+    feature = "s_allocation_json_testonly",
+    feature = "s_allocation_sqlite_testonly"
+))]
+mod actual_owned_http_probe {
+    use super::super::{prepared::tests::Fixture, q_allocation::Profile};
+    use super::*;
+    use newchan_rust::s_content::capture_allocation::{
+        sqlite::TestOnlySqliteAllocator, OwnedBudget,
+    };
+    #[test]
+    #[ignore = "only this exact test in a fresh SQLite process"]
+    fn actual_owned_tcp_three_routes_preserve_complete_replies_cache_refusal_and_release() {
+        let budget = OwnedBudget::new(50 * 1024 * 1024);
+        // SAFETY: fresh exact process before fixture/open; all worker/fixture SQL drops before finish.
+        let guard = unsafe { TestOnlySqliteAllocator::install(&budget) }.unwrap();
+        let control = guard.control();
+        let mut fixture = Fixture::new();
+        tests::publish(&mut fixture, 1);
+        tests::publish(&mut fixture, 2);
+        let resources = tests::resources();
+        let projection = tests::projection(&fixture, &resources);
+        let fixed = match &projection.wire {
+            super::super::business_json::JsonOwner::Plain(v) => &v["fixed_cut"],
+            _ => panic!("oracle must be Plain"),
+        };
+        let content = tests::envelope(
+            fixed,
+            serde_json::json!({"op":"content","anchor":projection.anchor(),"path":[{"field":"rows"}],"unit":"items","offset":"0","limit":"1"}),
+        );
+        let routes = [
+            ("/api/v3/snapshot", tests::snapshot(&projection)),
+            ("/api/v3/content", content),
+            ("/api/v3/watch", tests::watch(&projection)),
+        ];
+        let normal = Runtime::new(fixture.db_path(), Arc::clone(&resources), "1").unwrap();
+        let owned = Runtime::new_with_allocation(
+            fixture.db_path(),
+            Arc::clone(&resources),
+            "1",
+            Some(Profile {
+                budget: budget.clone(),
+                overlay_slots: 32768,
+                overlay_bytes: 1_000_000,
+            }),
+        )
+        .unwrap();
+        for (path, request) in &routes {
+            let input = tests::http_request(path, request);
+            let (n, nwire) = tests::exchange(&normal, &input);
+            n.unwrap();
+            let (o, owire) = tests::exchange(&owned, &input);
+            o.unwrap();
+            let (ns, nbody) = tests::http_parts(&nwire);
+            let (os, obody) = tests::http_parts(&owire);
+            assert_eq!((ns, os), (200, 200));
+            assert_eq!(nbody, obody);
+            assert_eq!(
+                &nwire[nwire.windows(4).position(|v| v == b"\r\n\r\n").unwrap() + 4..],
+                &owire[owire.windows(4).position(|v| v == b"\r\n\r\n").unwrap() + 4..]
+            );
+        }
+        assert_eq!(
+            owned
+                .executor
+                .leases()
+                .delivered_generation("runtime-client"),
+            normal
+                .executor
+                .leases()
+                .delivered_generation("runtime-client")
+        );
+        let live = budget.snapshot();
+        assert!(live.live_requested_layout_bytes > budget.ledger_health().sqlite_live_layout_bytes);
+        let old_delivery = owned
+            .executor
+            .leases()
+            .delivered_generation("runtime-client");
+        control.refuse_sqlite_allocations_for_testonly();
+        let (failed, wire) =
+            tests::exchange(&owned, &tests::http_request(routes[1].0, &routes[1].1));
+        let (status, _) = tests::http_parts(&wire);
+        assert_eq!(status, 503);
+        assert!(failed.is_ok());
+        assert!(budget.ledger_health().sqlite_rejected_layouts > 0);
+        assert_eq!(
+            owned
+                .executor
+                .leases()
+                .delivered_generation("runtime-client"),
+            old_delivery
+        );
+        control.clear_refusal_for_testonly();
+        let (retry, wire) =
+            tests::exchange(&owned, &tests::http_request(routes[1].0, &routes[1].1));
+        retry.unwrap();
+        assert_eq!(tests::http_parts(&wire).0, 200);
+        drop(owned);
+        drop(normal);
+        drop(projection);
+        drop(fixture);
+        drop(resources);
+        // SAFETY: both runtime worker pools joined, all SQLite connections are dropped.
+        unsafe { guard.finish() }.unwrap();
+        let final_meter = budget.snapshot();
+        let final_health = budget.ledger_health();
+        println!(
+            "REAL_Q_HTTP_OWNER_RECEIPT {}",
+            serde_json::json!({"scope":"actual worker/TCP three Q routes in explicit named fixture; no production/whole audit/RSS/IO claim","before_fault":live,"final":final_meter,"health":final_health,"whole_audit_allocation_admitted":false,"production_capture_enabled":false,"formal9011_complete":false})
+        );
+        assert_eq!(final_meter.live_requested_layout_bytes, 0);
+        assert_eq!(final_meter.allocated_layouts, final_meter.released_layouts);
+        assert!(!final_health.invariant_broken);
     }
 }

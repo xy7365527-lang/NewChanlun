@@ -865,26 +865,42 @@ pub(crate) fn capture_for_prototype(
 }
 
 /// #1394：封闭测试取消策略。只能数检查点，不能执行任意回调或持有事务。
-#[cfg(test)]
+#[cfg(any(test, feature = "s_allocation_json_testonly"))]
 pub(crate) struct CaptureCancellation {
     checks: std::cell::Cell<usize>,
     cancel_at: Option<usize>,
+    deadline: Option<std::time::Instant>,
 }
-#[cfg(test)]
+#[cfg(any(test, feature = "s_allocation_json_testonly"))]
 impl CaptureCancellation {
     pub(crate) fn never() -> Self {
         Self {
             checks: std::cell::Cell::new(0),
             cancel_at: None,
+            deadline: None,
         }
     }
     fn at_check(check: usize) -> Self {
         Self {
             checks: std::cell::Cell::new(0),
             cancel_at: Some(check),
+            deadline: None,
+        }
+    }
+    pub(crate) fn until(deadline: Option<std::time::Instant>) -> Self {
+        Self {
+            checks: std::cell::Cell::new(0),
+            cancel_at: None,
+            deadline,
         }
     }
     fn check(&self) -> Result<(), CodecError> {
+        if self
+            .deadline
+            .is_some_and(|d| std::time::Instant::now() >= d)
+        {
+            return Err(CodecError::new("verify_deadline", "捕获读集期限已到"));
+        }
         let checks = self.checks.get().saturating_add(1);
         self.checks.set(checks);
         if self.cancel_at.is_some_and(|at| checks >= at) {
@@ -899,7 +915,7 @@ impl CaptureCancellation {
 }
 
 /// #1394：显式测试额度，局部 capture 两个固定 Layout 的写前门。绝非全 audit 准入。
-#[cfg(test)]
+#[cfg(any(test, feature = "s_allocation_json_testonly"))]
 pub(crate) fn capture_slab_for_prototype(
     tx: &Transaction<'_>,
     budget: &s_content::capture_allocation::OwnedBudget,
@@ -910,34 +926,29 @@ pub(crate) fn capture_slab_for_prototype(
     // Two passes in the same transaction. Read borrowed BLOBs, never row.get::<Vec<u8>>.
     // No LENGTH/SUM allocation estimate and no count-to-byte unit mixing.
     fn borrowed_row<'a>(
-        r: &'a rusqlite::Row<'_>,
+        r: &'a mut newchan_rust::sqlite_checked::CheckedRow<'_>,
     ) -> Result<(NodeDigest, u8, &'a [u8]), CodecError> {
         let digest: NodeDigest = r
-            .get_ref(0)
-            .map_err(storage_error)?
-            .as_blob()
+            .blob(0)
             .map_err(storage_error)?
             .try_into()
             .map_err(|_| storage_error("捕获摘要长度"))?;
-        let tag: i64 = r.get(1).map_err(storage_error)?;
+        let tag: i64 = r.integer(1).map_err(storage_error)?;
         let tag: u8 = tag.try_into().map_err(|_| storage_error("捕获标签域"))?;
-        let body = r
-            .get_ref(2)
-            .map_err(storage_error)?
-            .as_blob()
-            .map_err(storage_error)?;
+        let body = r.blob(2).map_err(storage_error)?;
         Ok((digest, tag, body))
     }
-    let mut stmt = tx
-        .prepare("SELECT digest,tag,body FROM s_content_nodes ORDER BY digest")
-        .map_err(storage_error)?;
+    let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
+        tx,
+        c"SELECT digest,tag,body FROM s_content_nodes ORDER BY digest",
+    )
+    .map_err(storage_error)?;
     let mut count = 0usize;
     let mut bodies = 0usize;
     {
-        let mut rows = stmt.query([]).map_err(storage_error)?;
-        while let Some(r) = rows.next().map_err(storage_error)? {
+        while let Some(mut r) = stmt.next().map_err(storage_error)? {
             cancellation.check()?;
-            let (_, _, body) = borrowed_row(r)?;
+            let (_, _, body) = borrowed_row(&mut r)?;
             count = count
                 .checked_add(1)
                 .ok_or_else(|| storage_error("节点数溢出"))?;
@@ -949,15 +960,16 @@ pub(crate) fn capture_slab_for_prototype(
     }
     cancellation.check()?;
     let mut slab = CaptureSlab::new(count, bodies, budget)?;
+    stmt.reset().map_err(storage_error)?;
     {
-        let mut rows = stmt.query([]).map_err(storage_error)?;
-        while let Some(r) = rows.next().map_err(storage_error)? {
+        while let Some(mut r) = stmt.next().map_err(storage_error)? {
             cancellation.check()?;
-            let (d, t, body) = borrowed_row(r)?;
+            let (d, t, body) = borrowed_row(&mut r)?;
             slab.push(d, t, body)?;
         }
     }
     cancellation.check()?;
+    stmt.finalize().map_err(storage_error)?;
     slab.finish()
 }
 

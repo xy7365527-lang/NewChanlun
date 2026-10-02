@@ -54,6 +54,7 @@ pub(super) mod object_index;
 mod object_records;
 mod prepared;
 mod projection;
+mod q_allocation;
 mod q_content;
 mod q_delta;
 #[cfg(unix)]

@@ -3677,25 +3677,12 @@ fn canonical_bytes_of_value(v: &Value) -> Vec<u8> {
 /// bool 仍 bool、null 仍 null、浮点/非整数原值保持。用于已发布历史/Delta/Catalog 的读取输出，
 /// 不改变内部存储/已发布 DB/BLOB/hash/cut/first_known。
 fn project_wire_integers(v: &Value) -> Value {
-    match v {
-        Value::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                Value::String(i.to_string())
-            } else if let Some(u) = n.as_u64() {
-                Value::String(u.to_string())
-            } else {
-                Value::Number(n.clone())
-            }
-        }
-        Value::Array(arr) => Value::Array(arr.iter().map(project_wire_integers).collect()),
-        Value::Object(map) => {
-            let mut out = serde_json::Map::new();
-            for (k, val) in map {
-                out.insert(k.clone(), project_wire_integers(val));
-            }
-            Value::Object(out)
-        }
-        other => other.clone(),
+    match v3::business_json::project_wire_integers_with_owner(v.into(), None)
+        .expect("普通 wire 整数投影")
+    {
+        v3::business_json::JsonOwner::Plain(v) => v,
+        #[cfg(feature = "s_allocation_json_testonly")]
+        v3::business_json::JsonOwner::Owned(_) => unreachable!("None入口不返回owned"),
     }
 }
 

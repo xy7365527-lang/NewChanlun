@@ -86,6 +86,16 @@ pub(super) struct Executor {
 
 impl Executor {
     pub(super) fn new(path: PathBuf, resources: Arc<QResources>) -> Result<Self, String> {
+        Self::new_with_allocation(path, resources, None)
+    }
+    pub(crate) fn new_with_allocation(
+        path: PathBuf,
+        resources: Arc<QResources>,
+        allocation: Option<super::q_allocation::Profile>,
+    ) -> Result<Self, String> {
+        if let Some(p) = &allocation {
+            p.validate()?;
+        }
         let worker_count = resources.limit(Limit::QueryWorkers);
         let worker_count_usize = usize::try_from(worker_count)
             .map_err(|_| "Incomplete：max_query_workers 超出本机线程索引范围".to_string())?;
@@ -108,7 +118,10 @@ impl Executor {
             capacity,
             queue_timeout: Duration::from_millis(resources.limit(Limit::SocketReadMs)),
         });
-        let leases = Arc::new(ClientLeases::new(resources.as_ref()));
+        let leases = Arc::new(ClientLeases::with_allocation(
+            resources.as_ref(),
+            allocation.as_ref().map(|p| &p.budget),
+        )?);
         // 不按配置值预分配句柄或队列；只有成功创建的 worker 才占用实际 Vec 容量。
         let mut workers = Vec::new();
         for index in 0..worker_count_usize {
@@ -116,9 +129,16 @@ impl Executor {
             let worker_resources = Arc::clone(&resources);
             let worker_leases = Arc::clone(&leases);
             let worker_path = path.clone();
+            let worker_allocation = allocation.clone();
             let name = format!("s-query-{index}");
             let spawned = thread::Builder::new().name(name).spawn(move || {
-                worker_loop(worker_path, worker_resources, worker_leases, worker_shared)
+                worker_loop(
+                    worker_path,
+                    worker_resources,
+                    worker_leases,
+                    worker_shared,
+                    worker_allocation,
+                )
             });
             match spawned {
                 Ok(handle) => workers.push(handle),
@@ -252,9 +272,10 @@ fn worker_loop(
     resources: Arc<QResources>,
     leases: Arc<ClientLeases>,
     shared: Arc<Shared>,
+    allocation: Option<super::q_allocation::Profile>,
 ) {
     let reader_path = path.clone();
-    let mut reader = AuditReader::new(path, resources.as_ref());
+    let mut reader = AuditReader::new_with_allocation(path, resources.as_ref(), allocation.clone());
     loop {
         let task = match take_task(&shared) {
             Some(task) => task,
@@ -283,7 +304,11 @@ fn worker_loop(
             }
             Ok(RunOutcome::ResetReader(completion)) => {
                 let _ = catch_unwind(AssertUnwindSafe(|| reader.close()));
-                reader = AuditReader::new(reader_path.clone(), resources.as_ref());
+                reader = AuditReader::new_with_allocation(
+                    reader_path.clone(),
+                    resources.as_ref(),
+                    allocation.clone(),
+                );
                 release_slot(&shared);
                 completion();
             }
@@ -291,7 +316,11 @@ fn worker_loop(
                 let _ = catch_unwind(AssertUnwindSafe(|| reader.close()));
                 // The task closure was consumed before the outer panic, so its receiver
                 // observes a disconnected channel. The slot is still released below.
-                reader = AuditReader::new(reader_path.clone(), resources.as_ref());
+                reader = AuditReader::new_with_allocation(
+                    reader_path.clone(),
+                    resources.as_ref(),
+                    allocation.clone(),
+                );
                 release_slot(&shared);
             }
         }

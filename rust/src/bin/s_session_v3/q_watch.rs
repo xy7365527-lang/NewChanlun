@@ -1,31 +1,35 @@
-//! #1394 C §5.5/5.6.1：当前已核捕获上的Watch、Gap和完整发送后租约推进。
-//! 尚未注册HTTP服务；body发送适配不包含HTTP头，也不代表客户端已安装Delta。
+//! #1394 C §5.5/5.6.1：Watch/Gap、完整Delta门及发送后租约推进；普通/Owned共借用核。
 use super::{
-    history::PublishedCut,
-    projection::Projection,
+    audit_store::{CodecRead, RefValue},
+    business_json::{self as bj, JsonOwner, TextValue},
+    history::{self, PublishedCut},
+    projection::{Projection, TransportView},
     q_delta,
     q_lease::ClientLeases,
     q_resources::{Limit, QResources},
     q_snapshot, q_wire,
 };
-use newchan_rust::s_content::access::Access;
 #[cfg(test)]
 use newchan_rust::s_content::job::Job;
-use newchan_rust::{
-    s_content::{
-        self as sc,
-        access::MeteredSource,
-        path::{lookup_path_refview, PathStep},
-        NodeSource,
+use newchan_rust::s_content::{
+    self as sc,
+    access::{Access, MeteredSource},
+    capture_allocation::{
+        audit_json::{self as aj, JsonView},
+        OwnedBudget,
     },
-    session_protocol::{nonnegative, positive, required, strict_json},
+    path::{lookup_path_refview, PathStep},
+    CodecVec, NodeSource,
 };
+use newchan_rust::session_protocol::{
+    nonnegative, positive, required_view, strict_json, validate_envelope_view_with_owner,
+};
+#[cfg(test)]
 use serde_json::{json, Value};
 use std::{
     io::{self, Write},
     time::{Duration, Instant},
 };
-
 const CURSOR_FIELDS: [&str; 9] = [
     "session_id",
     "session_generation",
@@ -38,46 +42,97 @@ const CURSOR_FIELDS: [&str; 9] = [
     "order_version",
 ];
 pub(super) struct Request {
-    envelope: Value,
-    cursor: Value,
-    client: String,
+    envelope: JsonOwner,
+    client: TextValue,
     after: i64,
     maximum: u64,
     bytes: usize,
 }
 impl Request {
     pub(super) fn parse(bytes: &[u8], resources: &QResources) -> Result<Self, String> {
-        let envelope = q_wire::parse(bytes, resources)?;
-        let payload = &envelope["payload"];
+        Self::parse_owner(
+            JsonOwner::Plain(q_wire::parse(bytes, resources)?),
+            bytes.len(),
+            resources,
+            None,
+        )
+    }
+    pub(super) fn parse_owned(
+        bytes: &[u8],
+        resources: &QResources,
+        budget: &OwnedBudget,
+    ) -> Result<Self, String> {
+        if bytes.len() as u128 > u128::from(resources.limit(Limit::FrameBytes)) {
+            return Err("QReplyInvalid：Incomplete：完整请求超过max_frame_bytes".into());
+        }
+        #[cfg(feature = "s_allocation_json_testonly")]
+        {
+            let envelope = aj::OwnedJson::parse(bytes, budget).map_err(err)?;
+            validate_envelope_view_with_owner(envelope.view(), "s-session/3", Some(budget))?;
+            return Self::parse_owner(
+                JsonOwner::Owned(envelope),
+                bytes.len(),
+                resources,
+                Some(budget),
+            );
+        }
+        #[cfg(not(feature = "s_allocation_json_testonly"))]
+        {
+            let _ = budget;
+            Err("prototype_audit_allocation_incomplete：owned Watch请求未启用".into())
+        }
+    }
+    fn parse_owner(
+        envelope: JsonOwner,
+        bytes: usize,
+        resources: &QResources,
+        allocation: Option<&OwnedBudget>,
+    ) -> Result<Self, String> {
+        let payload = bj::field(envelope.view(), "payload");
         exact(payload, &["op", "cursor", "max_batches", "client_id"])?;
-        if payload["op"] != "watch" {
+        if bj::field(payload, "op").as_str() != Some("watch") {
             return Err(err("op必须是watch"));
         }
-        let cursor = payload["cursor"].clone();
-        exact(&cursor, &CURSOR_FIELDS)?;
-        required(&cursor, "session_id")?;
+        let cursor = bj::field(payload, "cursor");
+        exact(cursor, &CURSOR_FIELDS)?;
+        required_view(cursor, "session_id")?;
         positive(
-            required(&cursor, "session_generation")?,
+            required_view(cursor, "session_generation")?,
             "session_generation",
         )?;
         for key in ["session_id", "session_generation"] {
-            if envelope[key] != cursor[key] {
+            if bj::field(envelope.view(), key) != bj::field(cursor, key) {
                 return Err(err("外层消息与cursor身份不同"));
             }
         }
-        let after = nonnegative(required(&cursor, "after_generation")?, "after_generation")?;
-        let maximum = positive(required(payload, "max_batches")?, "max_batches")? as u64;
-        let client = required(payload, "client_id")?.to_owned();
+        let after = nonnegative(
+            required_view(cursor, "after_generation")?,
+            "after_generation",
+        )?;
+        let maximum = positive(required_view(payload, "max_batches")?, "max_batches")? as u64;
+        let client = TextValue::from_str(required_view(payload, "client_id")?, allocation)?;
         let request = Self {
             envelope,
-            cursor,
             client,
             after,
             maximum,
-            bytes: bytes.len(),
+            bytes,
         };
         request.validate_resources(resources)?;
         Ok(request)
+    }
+    pub(super) fn envelope_view(&self) -> JsonView<'_> {
+        self.envelope.view()
+    }
+    pub(super) fn cursor_view(&self) -> JsonView<'_> {
+        bj::field(bj::field(self.envelope.view(), "payload"), "cursor")
+    }
+    pub(super) fn allocation_budget(&self) -> Option<&OwnedBudget> {
+        match &self.envelope {
+            JsonOwner::Plain(_) => None,
+            #[cfg(feature = "s_allocation_json_testonly")]
+            JsonOwner::Owned(v) => Some(v.budget()),
+        }
     }
     pub(super) fn validate_resources(&self, resources: &QResources) -> Result<(), String> {
         if self.bytes as u128 > u128::from(resources.limit(Limit::FrameBytes))
@@ -89,36 +144,278 @@ impl Request {
     }
 }
 pub(super) struct Policy {
-    pub revision: String,
+    pub revision: TextValue,
     pub retain: i64,
     pub first: i64,
     pub head: i64,
 }
-/// 完整当前projection与已核历史来自同一捕获；零代没有出版物，旧代cursor仍按实际历史取值。
-pub(super) fn cursor_at(
+pub(super) fn cursor_at_with_budget(
     current: &Projection,
     cuts: &[PublishedCut],
     generation: i64,
-) -> Result<Value, String> {
-    let fixed = &current.wire["fixed_cut"];
+    allocation: Option<&OwnedBudget>,
+) -> Result<JsonOwner, String> {
+    let fixed = bj::field(current.wire.view(), "fixed_cut");
+    let last_decimal;
     let (base, index, last) = if generation == 0 {
-        ("cut-0", "", "-1".into())
+        ("cut-0", "", "-1")
     } else {
         let cut = cuts
             .iter()
             .find(|c| c.metadata.generation == generation)
             .ok_or_else(|| err("cursor代号未发布"))?;
+        last_decimal = bj::Decimal::new(cut.metadata.input_frontier);
         (
             cut.metadata.structure_cut.as_str(),
             cut.batch_id.as_str(),
-            cut.metadata.input_frontier.to_string(),
+            last_decimal.text(),
         )
     };
-    Ok(
-        json!({"session_id":fixed["session_id"],"session_generation":fixed["session_generation"],"catalog_revision":fixed["catalog_revision"],
-        "scope":fixed["scope"],"after_generation":generation.to_string(),"base_cut":base,"index_frontier":index,"last_seq":last,
-        "order_version":current.wire["order_version"]}),
-    )
+    let generation = bj::Decimal::new(generation);
+    let fields = [
+        ("session_id", bj::field(fixed, "session_id")),
+        ("session_generation", bj::field(fixed, "session_generation")),
+        ("catalog_revision", bj::field(fixed, "catalog_revision")),
+        ("scope", bj::field(fixed, "scope")),
+        ("after_generation", JsonView::String(generation.text())),
+        ("base_cut", JsonView::String(base)),
+        ("index_frontier", JsonView::String(index)),
+        ("last_seq", JsonView::String(last)),
+        (
+            "order_version",
+            bj::field(current.wire.view(), "order_version"),
+        ),
+    ];
+    bj::json_from_view(JsonView::object_fields(&fields).map_err(err)?, allocation)
+}
+pub(super) fn cursor_at(
+    current: &Projection,
+    cuts: &[PublishedCut],
+    generation: i64,
+) -> Result<serde_json::Value, String> {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    if matches!(current.wire, JsonOwner::Owned(_)) {
+        return Err(err("旧cursor_at仅支持None投影"));
+    }
+    match cursor_at_with_budget(current, cuts, generation, None)? {
+        JsonOwner::Plain(v) => Ok(v),
+        #[cfg(feature = "s_allocation_json_testonly")]
+        JsonOwner::Owned(_) => Err(err("None cursor不能擦除Owned")),
+    }
+}
+enum Source<'a, 'b> {
+    Plain(&'a mut dyn NodeSource),
+    Actual(&'a mut history::HashReader<'b>),
+}
+impl Source<'_, '_> {
+    fn allocation(&self) -> Option<OwnedBudget> {
+        match self {
+            Self::Plain(_) => None,
+            Self::Actual(g) => g.allocation_budget(),
+        }
+    }
+    fn measure(
+        &mut self,
+        cut: &PublishedCut,
+        resources: &QResources,
+        job: &mut dyn Access,
+    ) -> Result<(), String> {
+        match self {
+            Self::Plain(s) => {
+                q_delta::measure(*s, &cut.delta, resources, job)?;
+            }
+            Self::Actual(g) => {
+                let owner = g
+                    .closed_owner_mut()
+                    .map_err(err)?
+                    .ok_or_else(|| err("owned Watch缺实际Closed源"))?;
+                q_delta::measure_closed(owner, cut.delta.view(), resources, job)?;
+            }
+        }
+        Ok(())
+    }
+    fn delta_wire(
+        &mut self,
+        cut: &PublishedCut,
+        job: &mut dyn Access,
+        allocation: Option<&OwnedBudget>,
+    ) -> Result<JsonOwner, String> {
+        let mut values = bj::new_work(allocation);
+        for key in [
+            "generation",
+            "session_id",
+            "catalog_revision",
+            "base_cut",
+            "next_cut",
+            "seq_range",
+            "index_frontier",
+            "input_frontier",
+            "catalog_run_status",
+            "catalog_evidence",
+        ] {
+            let value = match self {
+                Self::Plain(s) => {
+                    let mut source = MeteredSource::new(job, *s);
+                    let field = lookup_path_refview(
+                        &mut source,
+                        cut.delta.view(),
+                        &[PathStep::Field(key.into())],
+                    )
+                    .map_err(err)?;
+                    if key == "catalog_evidence" {
+                        bj::json_from_view(TransportView::new((&field).into()).view(), None)?
+                    } else {
+                        let mut bytes = Vec::new();
+                        sc::render_canonical(&mut source, &field, &mut bytes).map_err(err)?;
+                        JsonOwner::Plain(strict_json(&bytes)?)
+                    }
+                }
+                Self::Actual(g) => {
+                    let mut access = WatchAccess { job, active: false };
+                    let field = g.q_lookup_field(cut.delta.view(), key, &mut access);
+                    let field = access.after(field).map_err(err)?;
+                    if key == "catalog_evidence" {
+                        bj::json_from_view(TransportView::new(field.view()).view(), allocation)?
+                    } else {
+                        let mut output = CodecBuffer {
+                            bytes: bj::new_work(allocation),
+                            cause: None,
+                        };
+                        let result = g.q_render_ref(field.view(), &mut output, &mut access);
+                        let result = access.after(result);
+                        if let Some(e) = output.cause {
+                            return Err(err(e));
+                        }
+                        result.map_err(err)?;
+                        decode(&output.bytes, allocation)?
+                    }
+                }
+            };
+            values.try_push((key, value)).map_err(err)?;
+        }
+        let transport = TransportView::new(cut.delta.view());
+        let mut fields = bj::new_work(allocation);
+        for (key, value) in &values {
+            fields.try_push((*key, value.view())).map_err(err)?;
+        }
+        fields.try_push(("delta", transport.view())).map_err(err)?;
+        bj::json_from_view(JsonView::object_fields(&fields).map_err(err)?, allocation)
+    }
+}
+struct WatchAccess<'a> {
+    job: &'a mut dyn Access,
+    active: bool,
+}
+impl WatchAccess<'_> {
+    fn after<T>(&mut self, result: Result<T, sc::CodecError>) -> Result<T, sc::CodecError> {
+        if self.active
+            && result
+                .as_ref()
+                .is_err_and(|e| e.code() == sc::code::NODE_MISSING)
+        {
+            self.active = false;
+            self.job.pre_io_check()?;
+        }
+        result
+    }
+}
+impl Access for WatchAccess<'_> {
+    fn owner_job(&mut self) -> Option<&mut sc::job::Job> {
+        self.job.owner_job()
+    }
+    fn pre_io_check(&mut self) -> Result<(), sc::CodecError> {
+        if self.active {
+            self.active = false;
+            self.job.pre_io_check()
+        } else {
+            self.active = true;
+            self.job.begin_first_read()
+        }
+    }
+    fn accept_node(
+        &mut self,
+        d: &sc::NodeDigest,
+        t: u8,
+        b: &[u8],
+    ) -> Result<sc::job::NodeAcceptance, sc::CodecError> {
+        self.job.accept_node(d, t, b)
+    }
+}
+struct CodecBuffer {
+    bytes: CodecVec<u8>,
+    cause: Option<sc::CodecError>,
+}
+impl Write for CodecBuffer {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        match self.bytes.try_extend_bytes(bytes) {
+            Ok(()) => Ok(bytes.len()),
+            Err(e) => {
+                self.cause = Some(e);
+                Err(io::ErrorKind::Other.into())
+            }
+        }
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+fn decode(bytes: &[u8], allocation: Option<&OwnedBudget>) -> Result<JsonOwner, String> {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    if let Some(b) = allocation {
+        return aj::OwnedJson::parse(bytes, b)
+            .map(JsonOwner::Owned)
+            .map_err(err);
+    }
+    if allocation.is_some() {
+        return Err(err("owned Watch JSON未启用"));
+    }
+    strict_json(bytes).map(JsonOwner::Plain)
+}
+struct Candidate {
+    wire: JsonOwner,
+    cursor: JsonOwner,
+    generation: i64,
+}
+struct Deltas<'a>(&'a [Candidate]);
+impl aj::JsonArray for Deltas<'_> {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+    fn get(&self, i: usize) -> Option<JsonView<'_>> {
+        self.0.get(i).map(|c| c.wire.view())
+    }
+}
+struct Payload<'a> {
+    deltas: &'a dyn aj::JsonArray,
+    cursor: JsonView<'a>,
+    fixed: JsonView<'a>,
+    frontier: JsonView<'a>,
+    has_more: bool,
+    gap: JsonView<'a>,
+    digest: &'a str,
+}
+impl Payload<'_> {
+    fn view(&self) -> JsonView<'_> {
+        JsonView::borrowed_object(self).expect("Watch八固定字段唯一")
+    }
+}
+impl aj::JsonObject for Payload<'_> {
+    fn len(&self) -> usize {
+        8
+    }
+    fn field(&self, i: usize) -> Option<(&str, JsonView<'_>)> {
+        Some(match i {
+            0 => ("deltas", JsonView::BorrowedArray(self.deltas)),
+            1 => ("next_cursor", self.cursor),
+            2 => ("observed_head", self.fixed),
+            3 => ("delivery_frontier", self.frontier),
+            4 => ("has_more", JsonView::Bool(self.has_more)),
+            5 => ("gap", self.gap),
+            6 => ("validated_capture_digest", JsonView::String(self.digest)),
+            7 => ("ok", JsonView::Bool(true)),
+            _ => return None,
+        })
+    }
 }
 pub(super) fn prepare(
     request: &Request,
@@ -132,14 +429,71 @@ pub(super) fn prepare(
     epoch: &str,
     job: &mut dyn Access,
 ) -> Result<Reply, String> {
+    prepare_core(
+        request,
+        current,
+        cuts,
+        Source::Plain(source),
+        policy,
+        capture_digest,
+        resources,
+        leases,
+        epoch,
+        job,
+    )
+}
+pub(super) fn prepare_owned(
+    request: &Request,
+    current: Projection,
+    cuts: &[PublishedCut],
+    source: &mut history::HashReader<'_>,
+    policy: Policy,
+    capture_digest: &str,
+    resources: &QResources,
+    leases: &ClientLeases,
+    epoch: &str,
+    job: &mut dyn Access,
+) -> Result<Reply, String> {
+    if source.allocation_budget().is_none() {
+        return Err(err("owned Watch缺实际预算"));
+    }
+    prepare_core(
+        request,
+        current,
+        cuts,
+        Source::Actual(source),
+        policy,
+        capture_digest,
+        resources,
+        leases,
+        epoch,
+        job,
+    )
+}
+fn prepare_core(
+    request: &Request,
+    current: Projection,
+    cuts: &[PublishedCut],
+    mut source: Source<'_, '_>,
+    policy: Policy,
+    capture_digest: &str,
+    resources: &QResources,
+    leases: &ClientLeases,
+    epoch: &str,
+    job: &mut dyn Access,
+) -> Result<Reply, String> {
     request.validate_resources(resources)?;
     if leases.resource_digest() != resources.digest() {
         return Err(err("租约与当前读取不是同一冻结资源配置"));
     }
-    let fixed = &current.wire["fixed_cut"];
-    let session = required(fixed, "session_id")?.to_owned();
-    let incarnation = required(fixed, "session_generation")?.to_owned();
-    let head = nonnegative(required(fixed, "cut_generation")?, "cut_generation")?;
+    let allocation = source.allocation();
+    let fixed = bj::field(current.wire.view(), "fixed_cut");
+    let session = TextValue::from_str(required_view(fixed, "session_id")?, allocation.as_ref())?;
+    let incarnation = TextValue::from_str(
+        required_view(fixed, "session_generation")?,
+        allocation.as_ref(),
+    )?;
+    let head = nonnegative(required_view(fixed, "cut_generation")?, "cut_generation")?;
     if policy.head != head
         || policy.first < 1
         || policy.retain < 1
@@ -147,98 +501,179 @@ pub(super) fn prepare(
     {
         return Err(err("已核交付策略与head不一致"));
     }
+    if let Some(b) = allocation.as_ref() {
+        if !request
+            .allocation_budget()
+            .is_some_and(|a| a.same_ledger(b))
+            || !leases.allocation_budget().is_some_and(|a| a.same_ledger(b))
+        {
+            return Err(err(
+                "prototype_audit_allocation_incomplete：Watch请求/lease与实际捕获不是同账",
+            ));
+        }
+    }
     job.begin_first_read().map_err(err)?;
-    let mut output = json!({"deltas":[],"next_cursor":request.cursor,"observed_head":fixed,
-        "delivery_frontier":{"policy_revision":policy.revision,"retain_generations":policy.retain.to_string(),
-            "first_available_generation":policy.first.to_string(),"head_generation":policy.head.to_string()},
-        "has_more":false,"gap":null,"validated_capture_digest":capture_digest,"ok":true});
-    let same = request.cursor["session_id"] == session
-        && request.cursor["session_generation"] == incarnation;
-    let (reason, missing) = if !same {
-        (Some("session_identity_changed"), Value::Null)
+    let retain = bj::Decimal::new(policy.retain);
+    let first = bj::Decimal::new(policy.first);
+    let policy_head = bj::Decimal::new(policy.head);
+    let frontier_fields = [
+        ("policy_revision", JsonView::String(&policy.revision)),
+        ("retain_generations", JsonView::String(retain.text())),
+        ("first_available_generation", JsonView::String(first.text())),
+        ("head_generation", JsonView::String(policy_head.text())),
+    ];
+    let frontier = JsonView::object_fields(&frontier_fields).map_err(err)?;
+    let cursor = request.cursor_view();
+    let same = bj::field(cursor, "session_id").as_str() == Some(session.as_str())
+        && bj::field(cursor, "session_generation").as_str() == Some(incarnation.as_str());
+    let (reason, missing_end) = if !same {
+        (Some("session_identity_changed"), None)
     } else if request.after > head {
         return Err(err("同会话cursor超出永久发布历史"));
-    } else if request.cursor != cursor_at(&current, cuts, request.after)? {
-        return Err(err(
-            "cursor base/index/seq/catalog/scope/order与实际切面不符",
-        ));
-    } else if request.after < policy.first - 1 {
-        (
-            Some("delivery_retention_gap"),
-            json!({"from_generation":(request.after+1).to_string(),"to_generation":(policy.first-1).to_string()}),
-        )
-    } else if leases.observe(
-        &request.client,
-        (&session, &incarnation),
-        request.after,
-        head,
-        Instant::now(),
-    )? {
-        (
-            Some("client_backlog_overflow"),
-            json!({"from_generation":(request.after+1).to_string(),"to_generation":head.to_string()}),
-        )
     } else {
-        (None, Value::Null)
+        let actual = cursor_at_with_budget(&current, cuts, request.after, allocation.as_ref())?;
+        if cursor != actual.view() {
+            return Err(err(
+                "cursor base/index/seq/catalog/scope/order与实际切面不符",
+            ));
+        }
+        if request.after < policy.first - 1 {
+            (Some("delivery_retention_gap"), Some(policy.first - 1))
+        } else if leases.observe(
+            &request.client,
+            (&session, &incarnation),
+            request.after,
+            head,
+            Instant::now(),
+        )? {
+            (Some("client_backlog_overflow"), Some(head))
+        } else {
+            (None, None)
+        }
     };
+    let empty = Deltas(&[]);
     if let Some(reason) = reason {
-        output["gap"] = json!({"requested_identity":request.cursor,"reason":reason,"missing_range":missing,"rebuild":fixed,
-            "snapshot_token":q_snapshot::token(&current,capture_digest,resources.limit(Limit::PageSize),0)});
-        let body = q_wire::reply(
-            &request.envelope,
-            output,
+        let from = bj::Decimal::new(if missing_end.is_some() {
+            request.after + 1
+        } else {
+            0
+        });
+        let to = missing_end.map(bj::Decimal::new);
+        let missing_fields = [
+            ("from_generation", JsonView::String(from.text())),
+            (
+                "to_generation",
+                to.as_ref()
+                    .map_or(JsonView::Null, |v| JsonView::String(v.text())),
+            ),
+        ];
+        let missing = if missing_end.is_some() {
+            JsonView::object_fields(&missing_fields).map_err(err)?
+        } else {
+            JsonView::Null
+        };
+        let token = q_snapshot::token_with_budget(
+            &current,
+            capture_digest,
+            resources.limit(Limit::PageSize),
+            0,
+            allocation.as_ref(),
+        )?;
+        let gap_fields = [
+            ("requested_identity", cursor),
+            ("reason", JsonView::String(reason)),
+            ("missing_range", missing),
+            ("rebuild", fixed),
+            ("snapshot_token", token.view()),
+        ];
+        let gap = JsonView::object_fields(&gap_fields).map_err(err)?;
+        let payload = Payload {
+            deltas: &empty,
+            cursor,
+            fixed,
+            frontier,
+            has_more: false,
+            gap,
+            digest: capture_digest,
+        };
+        let body = q_wire::reply_view(
+            request.envelope_view(),
+            payload.view(),
             &session,
             &incarnation,
             epoch,
             resources,
             job,
+            allocation.as_ref(),
         )?;
-        return Ok(Reply::new(body, None, resources));
+        return Reply::new(body, None, resources, allocation.as_ref());
     }
-    // 所有拟交付候选先过完整Delta三门，不能用回复装不下掩盖后批原子超限。
-    let mut candidates = Vec::new();
+    // 与旧路径相同，所有候选先过完整Delta三门，再尝试任何完整回复前缀。
+    let mut candidates = bj::new_work(allocation.as_ref());
     for cut in cuts
         .iter()
         .filter(|c| c.metadata.generation > request.after)
         .take(request.maximum as usize)
     {
-        q_delta::measure(source, &cut.delta, resources, job)?;
-        let wire = delta_wire(source, cut, job)?;
-        candidates.push((
-            wire,
-            cursor_at(&current, cuts, cut.metadata.generation)?,
-            cut.metadata.generation,
-        ));
+        source.measure(cut, resources, job)?;
+        let wire = source.delta_wire(cut, job, allocation.as_ref())?;
+        let cursor =
+            cursor_at_with_budget(&current, cuts, cut.metadata.generation, allocation.as_ref())?;
+        candidates
+            .try_push(Candidate {
+                wire,
+                cursor,
+                generation: cut.metadata.generation,
+            })
+            .map_err(err)?;
     }
     let mut accepted = None;
     let mut through = request.after;
     if candidates.is_empty() {
-        accepted = Some(q_wire::reply(
-            &request.envelope,
-            output,
+        let payload = Payload {
+            deltas: &empty,
+            cursor,
+            fixed,
+            frontier,
+            has_more: false,
+            gap: JsonView::Null,
+            digest: capture_digest,
+        };
+        accepted = Some(q_wire::reply_view(
+            request.envelope_view(),
+            payload.view(),
             &session,
             &incarnation,
             epoch,
             resources,
             job,
+            allocation.as_ref(),
         )?);
     } else {
-        for (wire, cursor, generation) in candidates {
-            output["deltas"].as_array_mut().unwrap().push(wire);
-            output["next_cursor"] = cursor;
-            output["has_more"] = json!(generation < head);
-            match q_wire::try_reply(
-                &request.envelope,
-                output.clone(),
+        for (i, candidate) in candidates.iter().enumerate() {
+            let deltas = Deltas(&candidates[..=i]);
+            let payload = Payload {
+                deltas: &deltas,
+                cursor: candidate.cursor.view(),
+                fixed,
+                frontier,
+                has_more: candidate.generation < head,
+                gap: JsonView::Null,
+                digest: capture_digest,
+            };
+            match q_wire::try_reply_view(
+                request.envelope_view(),
+                payload.view(),
                 &session,
                 &incarnation,
                 epoch,
                 resources,
                 job,
+                allocation.as_ref(),
             )? {
                 Some(body) => {
                     accepted = Some(body);
-                    through = generation;
+                    through = candidate.generation;
                 }
                 None if accepted.is_none() => {
                     return Err(err("Incomplete：首批完整Watch消息体超过max_reply_bytes"))
@@ -248,79 +683,65 @@ pub(super) fn prepare(
         }
     }
     job.pre_io_check().map_err(err)?;
-    Ok(Reply::new(
+    Reply::new(
         accepted.ok_or_else(|| err("无完整Watch回复"))?,
         Some(Delivery {
-            client: request.client.clone(),
+            client: TextValue::from_str(&request.client, allocation.as_ref())?,
             session,
             incarnation,
             after: through,
         }),
         resources,
-    ))
-}
-fn delta_wire(
-    source: &mut dyn NodeSource,
-    cut: &PublishedCut,
-    job: &mut dyn Access,
-) -> Result<Value, String> {
-    let mut source = MeteredSource::new(job, source);
-    let mut wire = json!({});
-    for key in [
-        "generation",
-        "session_id",
-        "catalog_revision",
-        "base_cut",
-        "next_cut",
-        "seq_range",
-        "index_frontier",
-        "input_frontier",
-        "catalog_run_status",
-        "catalog_evidence",
-    ] {
-        let field = lookup_path_refview(
-            &mut source,
-            cut.delta.view(),
-            &[PathStep::Field(key.into())],
-        )
-        .map_err(err)?;
-        wire[key] = if key == "catalog_evidence" {
-            field.to_transport_json()
-        } else {
-            let mut bytes = Vec::new();
-            sc::render_canonical(&mut source, &field, &mut bytes).map_err(err)?;
-            strict_json(&bytes)?
-        };
-    }
-    wire["delta"] = serde_json::to_value(&cut.delta).map_err(err)?;
-    Ok(wire)
+        allocation.as_ref(),
+    )
 }
 struct Delivery {
-    client: String,
-    session: String,
-    incarnation: String,
+    client: TextValue,
+    session: TextValue,
+    incarnation: TextValue,
     after: i64,
 }
 pub(super) struct Reply {
-    body: Vec<u8>,
+    body: CodecVec<u8>,
     delivery: Option<Delivery>,
-    resource_digest: String,
+    resource_digest: TextValue,
     write_ms: u64,
 }
 impl Reply {
-    fn new(body: Vec<u8>, delivery: Option<Delivery>, resources: &QResources) -> Self {
-        Self {
+    fn new(
+        body: CodecVec<u8>,
+        delivery: Option<Delivery>,
+        resources: &QResources,
+        allocation: Option<&OwnedBudget>,
+    ) -> Result<Self, String> {
+        Ok(Self {
             body,
             delivery,
-            resource_digest: resources.digest().into(),
+            resource_digest: TextValue::from_str(resources.digest(), allocation)?,
             write_ms: resources.limit(Limit::SocketWriteMs),
-        }
+        })
     }
     pub(super) fn plain(body: Vec<u8>, resources: &QResources) -> Result<Self, String> {
         if body.len() as u128 > u128::from(resources.limit(Limit::ReplyBytes)) {
             return Err(err("完整Q回复超过max_reply_bytes"));
         }
-        Ok(Self::new(body, None, resources))
+        Self::new(CodecVec::from_plain(body), None, resources, None)
+    }
+    pub(super) fn owned(
+        body: CodecVec<u8>,
+        resources: &QResources,
+        allocation: &OwnedBudget,
+    ) -> Result<Self, String> {
+        if body.len() as u128 > u128::from(resources.limit(Limit::ReplyBytes)) {
+            return Err(err("完整Q回复超过max_reply_bytes"));
+        }
+        if !body
+            .allocation_budget()
+            .is_some_and(|b| b.same_ledger(allocation))
+        {
+            return Err(err("owned回复body与原Profile预算不同"));
+        }
+        Self::new(body, None, resources, Some(allocation))
     }
     pub(super) fn body(&self) -> &[u8] {
         &self.body
@@ -332,7 +753,7 @@ impl Reply {
         leases: &ClientLeases,
         job: &mut dyn Access,
     ) -> Result<(), String> {
-        if leases.resource_digest() != self.resource_digest {
+        if leases.resource_digest() != self.resource_digest.as_str() {
             return Err(err("送达租约与编码时资源不同"));
         }
         let local = Instant::now()
@@ -395,10 +816,10 @@ fn set_timeout<W: TimedWrite>(writer: &mut W, deadline: Instant) -> Result<(), S
     }
     writer.set_timeout(left).map_err(err)
 }
-fn exact(value: &Value, fields: &[&str]) -> Result<(), String> {
+fn exact(value: JsonView<'_>, fields: &[&str]) -> Result<(), String> {
     if value
         .as_object()
-        .is_some_and(|o| o.len() == fields.len() && o.keys().all(|k| fields.contains(&k.as_str())))
+        .is_some_and(|o| o.len() == fields.len() && o.keys().all(|k| fields.contains(&k)))
     {
         Ok(())
     } else {
@@ -428,6 +849,13 @@ mod tests {
             Arc,
         },
     };
+    fn plain_wire(p: &Projection) -> &Value {
+        match &p.wire {
+            JsonOwner::Plain(v) => v,
+            #[cfg(feature = "s_allocation_json_testonly")]
+            JsonOwner::Owned(_) => panic!("普通oracle仅Plain"),
+        }
+    }
     fn limits() -> JobLimits {
         JobLimits::from_canonical_json(&json!({"max_total_wire_bytes":"16777216","max_total_node_bytes":"16777216","max_total_nodes":"100000","max_total_records":"10000","max_total_requests":"100","max_elapsed_ms":"20000","max_staged_bytes":"1048576","max_store_bytes":"33554432"})).unwrap()
     }
@@ -456,9 +884,9 @@ mod tests {
                 &mut job(),
             )
             .unwrap();
-        let c = &p.wire["fixed_cut"];
+        let c = &plain_wire(&p)["fixed_cut"];
         json!({"session_id":c["session_id"],"session_generation":c["session_generation"],"catalog_revision":c["catalog_revision"],"scope":c["scope"],
-            "after_generation":g.to_string(),"base_cut":c["structure_cut"],"index_frontier":c["index_frontier"],"last_seq":c["input_frontier"],"order_version":p.wire["order_version"]})
+            "after_generation":g.to_string(),"base_cut":c["structure_cut"],"index_frontier":c["index_frontier"],"last_seq":c["input_frontier"],"order_version":plain_wire(&p)["order_version"]})
     }
     fn envelope(identity: &Value, payload: Value) -> Value {
         json!({"schema_revision":"s-session/3","session_id":identity["session_id"],"session_generation":identity["session_generation"],
@@ -500,6 +928,57 @@ mod tests {
         reply.send_body(&mut out, leases, job).unwrap();
         out.shutdown(Shutdown::Write).unwrap();
         reader.join().unwrap()
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_watch_two_input_full_delta_reply_and_delivered_lease_match_plain_and_drop() {
+        use super::super::{capture::AuditReader, q_allocation::Profile};
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        publish(&mut f, 2);
+        let r = q_resources::tests::resources();
+        let c = cursor(&f, &r, 0);
+        let normal_leases = ClientLeases::new(&r);
+        let normal_request = request(&c, 2, "owner-watch", &r);
+        let expected = capture_configured(&f.db_path(), &r, &mut job())
+            .unwrap()
+            .watch(&normal_request, &normal_leases, "4", &mut job())
+            .unwrap();
+        let budget = OwnedBudget::new(50 * 1024 * 1024);
+        let leases = ClientLeases::with_allocation(&r, Some(&budget)).unwrap();
+        let mut reader = AuditReader::new_with_allocation(
+            f.db_path(),
+            &r,
+            Some(Profile {
+                budget: budget.clone(),
+                overlay_slots: 32768,
+                overlay_bytes: 1_000_000,
+            }),
+        );
+        let bytes = canonical_json(&envelope(
+            &c,
+            json!({"op":"watch","cursor":c,"max_batches":"2","client_id":"owner-watch"}),
+        ))
+        .into_bytes();
+        let owned_request = Request::parse_owned(&bytes, &r, &budget).unwrap();
+        let actual = reader
+            .with_capture(&r, &mut job(), |capture, job| {
+                capture.watch(&owned_request, &leases, "4", job)
+            })
+            .unwrap();
+        assert_eq!(actual.body(), expected.body());
+        assert_eq!(leases.delivered_generation("owner-watch"), Some(0));
+        let (mut tx, mut rx) = UnixStream::pair().unwrap();
+        actual.send_body(&mut tx, &leases, &mut job()).unwrap();
+        tx.shutdown(Shutdown::Write).unwrap();
+        let mut delivered = Vec::new();
+        rx.read_to_end(&mut delivered).unwrap();
+        assert_eq!(delivered, expected.body());
+        assert_eq!(leases.delivered_generation("owner-watch"), Some(2));
+        drop(owned_request);
+        drop(reader);
+        drop(leases);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
     #[test]
     fn real_batches_bind_cursor_and_content_and_delivery_follows_actual_complete_write() {

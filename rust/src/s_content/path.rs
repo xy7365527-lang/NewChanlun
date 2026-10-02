@@ -77,6 +77,83 @@ pub enum PathStep {
     JsonText,
 }
 
+/// 借用步骤只改变所有者表示；导航、类型与 JsonInner 判据仍由同一 navigate 核执行。
+#[derive(Clone, Copy, Debug)]
+pub enum PathStepView<'a> {
+    Field(&'a str),
+    Index(u64),
+    JsonText,
+}
+pub trait PathView {
+    fn len(&self) -> usize;
+    fn step(&self, index: usize) -> Option<PathStepView<'_>>;
+    /// 普通公开source的既有路径回调保持原prefix；Closed borrowed路径不擦除成String。
+    fn plain_prefix(&self, _end: usize) -> Option<&[PathStep]> {
+        None
+    }
+}
+impl PathView for [PathStep] {
+    fn len(&self) -> usize {
+        self.len()
+    }
+    fn step(&self, index: usize) -> Option<PathStepView<'_>> {
+        self.get(index).map(|step| match step {
+            PathStep::Field(s) => PathStepView::Field(s),
+            PathStep::Index(i) => PathStepView::Index(*i),
+            PathStep::JsonText => PathStepView::JsonText,
+        })
+    }
+    fn plain_prefix(&self, end: usize) -> Option<&[PathStep]> {
+        self.get(..end)
+    }
+}
+impl PathView for &[PathStep] {
+    fn len(&self) -> usize {
+        (*self).len()
+    }
+    fn step(&self, index: usize) -> Option<PathStepView<'_>> {
+        (*self).step(index)
+    }
+    fn plain_prefix(&self, end: usize) -> Option<&[PathStep]> {
+        (*self).plain_prefix(end)
+    }
+}
+impl<const N: usize> PathView for [PathStep; N] {
+    fn len(&self) -> usize {
+        N
+    }
+    fn step(&self, index: usize) -> Option<PathStepView<'_>> {
+        self.as_slice().step(index)
+    }
+    fn plain_prefix(&self, end: usize) -> Option<&[PathStep]> {
+        self.as_slice().plain_prefix(end)
+    }
+}
+/// 保留原请求路径，不为每个Fragment item复制整份字段文本。
+pub struct ExtendedPath<'a> {
+    pub base: &'a dyn PathView,
+    pub last: PathStepView<'a>,
+}
+impl PathView for ExtendedPath<'_> {
+    fn len(&self) -> usize {
+        self.base.len() + 1
+    }
+    fn step(&self, index: usize) -> Option<PathStepView<'_>> {
+        if index == self.base.len() {
+            Some(self.last)
+        } else {
+            self.base.step(index)
+        }
+    }
+    fn plain_prefix(&self, end: usize) -> Option<&[PathStep]> {
+        if end <= self.base.len() {
+            self.base.plain_prefix(end)
+        } else {
+            None
+        }
+    }
+}
+
 /// 按 §5.6 的 path 从 `reference` 指出的根定位目标值。
 ///
 /// 返回的目标 `ContentRef` 由**实际节点**的 tag/body 决定（kind、extent、root 逐项重算）；
@@ -101,7 +178,15 @@ pub(super) fn lookup_path_output<R: RefOutput>(
     reference: RefView<'_>,
     path: &[PathStep],
 ) -> Result<R, CodecError> {
-    let descent = navigate_view(source, reference, path, false)?;
+    lookup_path_view_output(source, reference, &path, false)
+}
+pub(super) fn lookup_path_view_output<R: RefOutput>(
+    source: &mut CodecContext<'_, '_>,
+    reference: RefView<'_>,
+    path: &dyn PathView,
+    forbid_json_text: bool,
+) -> Result<R, CodecError> {
+    let descent = navigate_path_view(source, reference, path, forbid_json_text)?;
     let kind =
         Kind::from_tag(descent.tag).ok_or_else(|| unsupported_value_tag_error(descent.tag))?;
     let extent = header_extent(descent.tag, &descent.body)?;
@@ -126,7 +211,7 @@ pub(super) fn lookup_array_items_owned_ctx(
 ) -> Result<WorkVec<RefOwner>, CodecError> {
     lookup_array_output(&mut CodecContext::Closed(source), reference)
 }
-fn lookup_array_output<R: RefOutput>(
+pub(super) fn lookup_array_output<R: RefOutput>(
     source: &mut CodecContext<'_, '_>,
     reference: RefView<'_>,
 ) -> Result<WorkVec<R>, CodecError> {
@@ -197,7 +282,7 @@ pub(super) fn lookup_object_fields_owned_ctx<'names>(
 ) -> Result<OwnedRefFields<'names>, CodecError> {
     object_fields_output(&mut CodecContext::Closed(source), reference, names, exact)
 }
-trait FieldOutput<'names>: Sized {
+pub(super) trait FieldOutput<'names>: Sized {
     type Reference: RefOutput;
     fn new(budget: Option<&super::capture_allocation::OwnedBudget>) -> Result<Self, CodecError>;
     fn append(&mut self, name: &'names str, reference: Self::Reference) -> Result<(), CodecError>;
@@ -233,7 +318,7 @@ fn object_fields(
 ) -> Result<CodecFields, CodecError> {
     object_fields_output(source, reference.into(), names, exact)
 }
-fn object_fields_output<'names, O: FieldOutput<'names>>(
+pub(super) fn object_fields_output<'names, O: FieldOutput<'names>>(
     source: &mut CodecContext<'_, '_>,
     reference: RefView<'_>,
     names: &[&'names str],
@@ -372,8 +457,14 @@ pub(super) fn check_range_root_ctx(
     source: &mut CodecContext<'_, '_>,
     reference: &ContentRef,
 ) -> Result<(), CodecError> {
-    let node = navigate(source, reference, &[], false)?;
-    let count = match reference.kind {
+    check_range_root_view_ctx(source, reference.into())
+}
+pub(super) fn check_range_root_view_ctx(
+    source: &mut CodecContext<'_, '_>,
+    reference: RefView<'_>,
+) -> Result<(), CodecError> {
+    let node = navigate_view(source, reference, &[], false)?;
+    let count = match reference.kind() {
         Kind::Array | Kind::Object => framed_len(&node.body, "集合")?,
         Kind::String | Kind::Number => {
             framed_len(&node.body, "字节值")?.div_ceil(CHUNK_BYTES as u64)
@@ -400,7 +491,14 @@ pub(super) fn object_key_at_ctx(
     reference: &ContentRef,
     index: u64,
 ) -> Result<ContentRef, CodecError> {
-    let node = navigate(source, reference, &[], false)?;
+    object_key_at_view_ctx(source, reference.into(), index)
+}
+pub(super) fn object_key_at_view_ctx<R: RefOutput>(
+    source: &mut CodecContext<'_, '_>,
+    reference: RefView<'_>,
+    index: u64,
+) -> Result<R, CodecError> {
+    let node = navigate_view(source, reference, &[], false)?;
     if node.tag != tag::OBJECT {
         return Err(step_kind_error("对象位置", "0x06 对象", node.tag));
     }
@@ -428,11 +526,11 @@ pub(super) fn object_key_at_ctx(
             }
         }
     }
-    let reference = super::content_ref_ctx(source, &root_string(&key))?;
-    if reference.kind != Kind::String {
+    let (kind, extent) = reference_header(source, &key)?;
+    if kind != Kind::String {
         return Err(step_kind_error("对象键", "0x03 字符串", node.tag));
     }
-    Ok(reference)
+    Ok(R::from_checked(kind, key, extent))
 }
 
 /// 只读取覆盖所求区间的规范字节块；不会线性扫描 offset 之前的叶。
@@ -442,8 +540,16 @@ pub(super) fn bytes_between_ctx(
     offset: u64,
     end: u64,
 ) -> Result<WorkVec<u8>, CodecError> {
-    let node = navigate(source, reference, &[], false)?;
-    if !matches!(reference.kind, Kind::String | Kind::Number) {
+    bytes_between_view_ctx(source, reference.into(), offset, end)
+}
+pub(super) fn bytes_between_view_ctx(
+    source: &mut CodecContext<'_, '_>,
+    reference: RefView<'_>,
+    offset: u64,
+    end: u64,
+) -> Result<WorkVec<u8>, CodecError> {
+    let node = navigate_view(source, reference, &[], false)?;
+    if !matches!(reference.kind(), Kind::String | Kind::Number) {
         return Err(step_kind_error("bytes", "字符串或数字", node.tag));
     }
     let total = framed_len(&node.body, "字节值")?;
@@ -452,7 +558,7 @@ pub(super) fn bytes_between_ctx(
     }
     let count = total.div_ceil(CHUNK_BYTES as u64);
     let root = digest_at(&node.body, 8);
-    check_range_root_ctx(source, reference)?;
+    check_range_root_view_ctx(source, reference)?;
     let budget = source.budget();
     let mut output = WorkVec::new(budget.as_ref());
     if offset == end {
@@ -491,7 +597,7 @@ pub(super) fn replace_batch_placeholder_ctx(
 ) -> Result<ContentRef, CodecError> {
     replace_output(store, reference.into(), path, batch_id)
 }
-fn replace_output<R: RefOutput>(
+pub(super) fn replace_output<R: RefOutput>(
     store: &mut CodecContext<'_, '_>,
     reference: RefView<'_>,
     path: &[PathStep],
@@ -613,6 +719,14 @@ fn navigate_view(
     path: &[PathStep],
     forbid_json_text: bool,
 ) -> Result<Descent, CodecError> {
+    navigate_path_view(source, reference, &path, forbid_json_text)
+}
+fn navigate_path_view(
+    source: &mut CodecContext<'_, '_>,
+    reference: RefView<'_>,
+    path: &dyn PathView,
+    forbid_json_text: bool,
+) -> Result<Descent, CodecError> {
     let root = reference.digest()?;
     let (mut cur_tag, mut cur_body) = source.read(&root)?;
     let root_kind = Kind::from_tag(cur_tag).ok_or_else(|| unsupported_value_tag_error(cur_tag))?;
@@ -644,9 +758,12 @@ fn navigate_view(
     let budget = source.budget();
     let mut ancestors: WorkVec<Ancestor> =
         WorkVec::with_capacity(path.len().min(64), budget.as_ref())?;
-    for (step_position, step) in path.iter().enumerate() {
-        match step {
-            PathStep::Field(name) => {
+    for step_position in 0..path.len() {
+        match path
+            .step(step_position)
+            .ok_or_else(|| sequence_shape_error("借用path步骤缺失"))?
+        {
+            PathStepView::Field(name) => {
                 if cur_tag != tag::OBJECT {
                     return Err(step_kind_error("field", "0x06 对象", cur_tag));
                 }
@@ -661,22 +778,22 @@ fn navigate_view(
                 let (t, body) = read_value_node(source, &value, json_inner)?;
                 (cur_tag, cur_body, cur_digest) = (t, body, value);
             }
-            PathStep::Index(index) => {
+            PathStepView::Index(index) => {
                 if cur_tag != tag::ARRAY {
                     return Err(step_kind_error("index", "0x05 数组", cur_tag));
                 }
                 let declared = framed_len(&cur_body, "数组")?;
-                if *index >= declared {
-                    return Err(index_range_error(*index, declared));
+                if index >= declared {
+                    return Err(index_range_error(index, declared));
                 }
-                source.before_path_index(&path[..step_position], *index)?;
+                source.before_path_view_index(path, step_position, index)?;
                 let elements_root = digest_at(&cur_body, 8);
-                let (branches, leaf) = descend_seq(source, &elements_root, declared, *index)?;
+                let (branches, leaf) = descend_seq(source, &elements_root, declared, index)?;
                 ancestors.push(Ancestor::Array { declared, branches })?;
                 let (t, body) = read_value_node(source, &leaf, json_inner)?;
                 (cur_tag, cur_body, cur_digest) = (t, body, leaf);
             }
-            PathStep::JsonText => {
+            PathStepView::JsonText => {
                 if forbid_json_text {
                     return Err(CodecError::new(
                         path_code::PATH_JSON_TEXT,

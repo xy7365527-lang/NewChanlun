@@ -17,6 +17,8 @@ pub(super) struct Packed {
     receipt: Option<audit_budget::Receipt>,
     // #1394: keep the same allocation ledger across packing and checkout.
     budget: Option<OwnedBudget>,
+    allocation: Option<super::super::q_allocation::Profile>,
+    q_source: Option<newchan_rust::s_content::AuditCapture>,
 }
 
 /// #1394：仅唯一鲜进程执行，安装真实 SQLite shim 后验证实际 Q 缓存所有权。
@@ -50,13 +52,18 @@ mod isolated_sqlite_owned_cache_tests {
         assert!(after_fixture.1.sqlite_live_layout_bytes > 0);
         // The existing Q capture-image limit stays separate from the TestOnly ledger limit.
         let max = 16 * 1024 * 1024;
-        let mut proof = capture_verified(
+        let proof = capture_verified_with_allocation(
             &fixture.db_path(),
             Limits {
                 max_capture_bytes: max,
                 capture_deadline_ms: 20000,
                 verify_deadline_ms: 20000,
             },
+            Some(super::super::super::q_allocation::Profile {
+                budget: budget.clone(),
+                overlay_slots: 32768,
+                overlay_bytes: 1_000_000,
+            }),
         )
         .unwrap();
         let expected_rows = serde_json::to_value(&proof.audited.raw).unwrap();
@@ -64,34 +71,17 @@ mod isolated_sqlite_owned_cache_tests {
         let expected_cuts = proof.audited.cuts.len();
         let expected_objects = proof.audited.objects.len();
         let after_capture = (budget.snapshot(), budget.ledger_health());
-        let peaks = std::rc::Rc::new(std::cell::Cell::new((0, 0)));
-        let tx = proof.db.transaction().unwrap();
-        let owned = history::with_overlay_prototype(
-            history::OverlayPrototype {
-                slots: 32768,
-                bytes: 1_000_000,
-                budget: budget.clone(),
-                peaks: peaks.clone(),
-            },
-            || state::audit_owned_capture_for_testonly(&tx, &budget),
-        )
-        .unwrap();
-        drop(tx);
-        assert!(matches!(&owned.raw, RawEvents::Owned(_)));
-        assert!(owned.budget.as_ref().unwrap().same_ledger(&budget));
-        assert_eq!(serde_json::to_value(&owned.raw).unwrap(), expected_rows);
-        assert_eq!(owned.cuts.len(), expected_cuts);
-        assert_eq!(owned.objects.len(), expected_objects);
+        assert!(matches!(&proof.audited.raw, RawEvents::Owned(_)));
+        assert!(proof.audited.budget.as_ref().unwrap().same_ledger(&budget));
         assert!(matches!(
-            &owned.cuts[0].metadata.session_id,
+            &proof.audited.cuts[0].metadata.session_id,
             super::super::super::business_json::TextValue::Owned(_)
         ));
         assert!(matches!(
-            &owned.cuts[0].delta,
+            &proof.audited.cuts[0].delta,
             super::super::super::audit_store::RefValue::Owned(_)
         ));
-        proof.audited = owned;
-        let after_owned_audit = (budget.snapshot(), budget.ledger_health());
+        let after_owned_audit = after_capture;
         let deadline = Instant::now() + std::time::Duration::from_secs(30);
         let mut packed = Packed::new(proof, max, deadline).unwrap();
         assert!(packed.budget.as_ref().unwrap().same_ledger(&budget));
@@ -263,7 +253,7 @@ mod isolated_sqlite_owned_cache_tests {
                 "existing_q_image_limit_bytes":max,
                 "overlay_slots":32768,
                 "overlay_body_bytes":1_000_000,
-                "overlay_peak_used":peaks.get(),
+                "overlay_peak_used":"profile driven cold capture; no posthoc owner replacement",
                 "after_fixture":after_fixture,
                 "after_capture":after_capture,
                 "after_owned_audit":after_owned_audit,
@@ -286,27 +276,27 @@ mod isolated_sqlite_owned_cache_tests {
                 "numeric_quota_failure_claimed":false,
                 "whole_audit_allocation_admitted":false,
                 "production_capture_enabled":false,
-                "uncovered":["ordinary capture/projection/fragment temporary Rust containers", "outer errors and diagnostics", "allocator overhead and physical RSS/IO"]
+                "uncovered":["outer errors and diagnostics", "allocator overhead and physical RSS/IO"]
             })
         );
     }
 }
 
 impl Packed {
+    #[cfg(test)]
+    pub(super) fn page_digest_for_testonly(&self) -> [u8; 32] {
+        use sha2::{Digest, Sha256};
+        Sha256::digest(&self.bytes).into()
+    }
+
     pub(super) fn new(
         mut proof: VerifiedCapture,
         max: u64,
         deadline: Instant,
     ) -> Result<Self, String> {
         check(deadline, "Verify")?;
-        let pages: i64 = proof
-            .db
-            .query_row("PRAGMA page_count", [], |r| r.get(0))
-            .map_err(err)?;
-        let page_size: i64 = proof
-            .db
-            .query_row("PRAGMA page_size", [], |r| r.get(0))
-            .map_err(err)?;
+        let pages = scalar(&proof.db, c"PRAGMA page_count")?;
+        let page_size = scalar(&proof.db, c"PRAGMA page_size")?;
         if pages < 0
             || page_size <= 0
             || pages.checked_mul(page_size).is_none_or(|n| n as u64 > max)
@@ -315,7 +305,17 @@ impl Packed {
                 "Incomplete/RetainedBytes：私有数据库页超过保留图像上限",
             ));
         }
-        let budget = proof.audited.budget.clone();
+        let allocation = proof.allocation.clone();
+        let budget = allocation.as_ref().map(|p| p.budget.clone());
+        match (&budget, &proof.audited.budget) {
+            (None, None) => {}
+            (Some(a), Some(b)) if a.same_ledger(b) => {}
+            _ => {
+                return Err(err(
+                    "prototype_audit_allocation_incomplete：捕获原预算与真实audit owner不同",
+                ))
+            }
+        }
         let serialized = proof.db.serialize(rusqlite::MAIN_DB).map_err(err)?;
         let bytes = copy_bytes(&serialized, budget.as_ref())?;
         drop(serialized);
@@ -330,6 +330,8 @@ impl Packed {
             retained_bytes: 0,
             receipt: proof.audit_receipt,
             budget,
+            allocation,
+            q_source: proof.q_source.take(),
         };
         // 审计后的完整原始账逐条保留规范JSON字节；所有类型/字段/原文均保留。
         let decoded = std::mem::take(&mut proof.audited.raw);
@@ -366,6 +368,8 @@ impl Packed {
             verify_deadline: deadline,
             // 用量收据仍由Packed持有，不能通过借出方法复制成第二份授权。
             audit_receipt: None,
+            allocation: self.allocation.clone(),
+            q_source: self.q_source.take(),
         })
     }
     pub(super) fn replay(
@@ -378,8 +382,14 @@ impl Packed {
             .replay(job)
     }
     pub(super) fn restore(&mut self, mut proof: VerifiedCapture) {
+        debug_assert!(match (&self.allocation, &proof.allocation) {
+            (None, None) => true,
+            (Some(a), Some(b)) => a.budget.same_ledger(&b.budget),
+            _ => false,
+        });
         // 此模块的调用口不开放db写入或审计元数据修改；仅释放本次临时解码和私有句柄。
         proof.audited.raw = RawEvents::default();
+        self.q_source = proof.q_source.take();
         self.audited = Some(proof.audited);
     }
     pub(super) fn measure(&self, max: u64, deadline: Instant) -> Result<u64, String> {
@@ -392,6 +402,9 @@ impl Packed {
         m.add(size_of::<Self>())?;
         if let Some(receipt) = &self.receipt {
             m.add(usize::try_from(receipt.retained_heap_bytes()?).map_err(err)?)?;
+        }
+        if let Some(source) = &self.q_source {
+            m.add(usize::try_from(source.retained_layout_bytes().map_err(err)?).map_err(err)?)?;
         }
         m.add(self.bytes.capacity())?;
         m.add(self.digest.capacity())?;
@@ -690,35 +703,27 @@ mod owned_cache_tests {
             fixture.publish(&event, &token).unwrap();
         }
         let max = 16 * 1024 * 1024;
-        let mut proof = capture_verified(
+        let budget = OwnedBudget::new(max as usize);
+        let proof = capture_verified_with_allocation(
             &fixture.db_path(),
             Limits {
                 max_capture_bytes: max,
                 capture_deadline_ms: 20000,
                 verify_deadline_ms: 20000,
             },
+            Some(super::super::super::q_allocation::Profile {
+                budget: budget.clone(),
+                overlay_slots: 4096,
+                overlay_bytes: 2 * 1024 * 1024,
+            }),
         )
         .unwrap();
         let expected_rows = serde_json::to_value(&proof.audited.raw).unwrap();
         let expected_digest = proof.digest;
         let expected_cuts = proof.audited.cuts.len();
         let expected_objects = proof.audited.objects.len();
-        let budget = OwnedBudget::new(max as usize);
-        let tx = proof.db.transaction().unwrap();
-        let owned = history::with_overlay_prototype(
-            history::OverlayPrototype {
-                slots: 4096,
-                bytes: 2 * 1024 * 1024,
-                budget: budget.clone(),
-                peaks: std::rc::Rc::new(std::cell::Cell::new((0, 0))),
-            },
-            || state::audit_owned_capture_for_testonly(&tx, &budget),
-        )
-        .unwrap();
-        drop(tx);
-        assert!(matches!(&owned.raw, RawEvents::Owned(_)));
-        assert!(owned.budget.as_ref().unwrap().same_ledger(&budget));
-        proof.audited = owned;
+        assert!(matches!(&proof.audited.raw, RawEvents::Owned(_)));
+        assert!(proof.audited.budget.as_ref().unwrap().same_ledger(&budget));
         let deadline = Instant::now() + std::time::Duration::from_secs(30);
         let mut packed = Packed::new(proof, max, deadline).unwrap();
         assert!(packed.budget.as_ref().unwrap().same_ledger(&budget));

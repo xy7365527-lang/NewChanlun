@@ -15,6 +15,12 @@ pub trait Access {
     /// 返回调用方持有的消费者 Job；无消费者账本时返回 None。
     fn owner_job(&mut self) -> Option<&mut Job>;
 
+    /// 实际调用方的分配所有者，与消费者 Job 和冻结 Q21 资源分别持有。
+    /// 不从其它 byte 限额推导新 heap 数值；未显式提供时为 None。
+    fn allocation_budget(&self) -> Option<&super::capture_allocation::OwnedBudget> {
+        None
+    }
+
     fn pre_io_check(&mut self) -> Result<(), CodecError> {
         match self.owner_job() {
             Some(job) => job.pre_io_check(),

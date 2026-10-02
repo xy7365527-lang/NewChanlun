@@ -912,6 +912,16 @@ pub(crate) enum JsonOwner {
     #[cfg(feature = "s_allocation_json_testonly")]
     Owned(aj::OwnedJson),
 }
+impl PartialEq for JsonOwner {
+    fn eq(&self, other: &Self) -> bool {
+        self.view() == other.view()
+    }
+}
+impl std::fmt::Debug for JsonOwner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(&self.view(), f)
+    }
+}
 impl JsonOwner {
     pub fn view(&self) -> JsonView<'_> {
         match self {
@@ -920,6 +930,104 @@ impl JsonOwner {
             Self::Owned(v) => v.view(),
         }
     }
+    pub(crate) fn object(allocation: Option<&OwnedBudget>) -> Result<Self, String> {
+        #[cfg(feature = "s_allocation_json_testonly")]
+        if let Some(b) = allocation {
+            return aj::OwnedJson::object(b)
+                .map(Self::Owned)
+                .map_err(|e| e.to_string());
+        }
+        let _ = allocation;
+        Ok(Self::Plain(Value::Object(serde_json::Map::new())))
+    }
+    pub(crate) fn array(allocation: Option<&OwnedBudget>) -> Result<Self, String> {
+        #[cfg(feature = "s_allocation_json_testonly")]
+        if let Some(b) = allocation {
+            return aj::OwnedJson::array(b)
+                .map(Self::Owned)
+                .map_err(|e| e.to_string());
+        }
+        let _ = allocation;
+        Ok(Self::Plain(Value::Array(Vec::new())))
+    }
+    pub(crate) fn insert(&mut self, key: &str, value: JsonView<'_>) -> Result<(), String> {
+        match self {
+            Self::Plain(v) => {
+                v.as_object_mut().ok_or("JSON非对象")?.insert(
+                    key.into(),
+                    serde_json::to_value(value).map_err(|e| e.to_string())?,
+                );
+                Ok(())
+            }
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Self::Owned(v) => v.insert_field(key, value).map_err(|e| e.to_string()),
+        }
+    }
+    pub(crate) fn push(&mut self, value: JsonView<'_>) -> Result<(), String> {
+        match self {
+            Self::Plain(v) => {
+                v.as_array_mut()
+                    .ok_or("JSON非数组")?
+                    .push(serde_json::to_value(value).map_err(|e| e.to_string())?);
+                Ok(())
+            }
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Self::Owned(v) => v.push(value).map_err(|e| e.to_string()),
+        }
+    }
+}
+pub(crate) fn json_from_view(
+    value: JsonView<'_>,
+    allocation: Option<&OwnedBudget>,
+) -> Result<JsonOwner, String> {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    if let Some(b) = allocation {
+        return aj::OwnedJson::from_view(value, b)
+            .map(JsonOwner::Owned)
+            .map_err(|e| e.to_string());
+    }
+    let _ = allocation;
+    serde_json::to_value(value)
+        .map(JsonOwner::Plain)
+        .map_err(|e| e.to_string())
+}
+/// 旧 wire 整数投影的共同核：只转换整数，浮点/空值/文本保持原值。
+pub(crate) fn project_wire_integers_with_owner(
+    value: JsonView<'_>,
+    allocation: Option<&OwnedBudget>,
+) -> Result<JsonOwner, String> {
+    if let Some(number) = value.number() {
+        if let Some(i) = number.as_i64() {
+            let decimal = Decimal::new(i);
+            return json_from_view(JsonView::String(decimal.text()), allocation);
+        }
+        if let Some(u) = number.as_u64() {
+            use std::fmt::Write;
+            let mut decimal = Decimal {
+                bytes: [0; 20],
+                len: 0,
+            };
+            write!(&mut decimal, "{u}").expect("u64最多20个ASCII字节");
+            return json_from_view(JsonView::String(decimal.text()), allocation);
+        }
+    }
+    if let Some(values) = value.as_array() {
+        let mut out = JsonOwner::array(allocation)?;
+        for v in values.iter() {
+            let projected = project_wire_integers_with_owner(v, allocation)?;
+            out.push(projected.view())?;
+        }
+        return Ok(out);
+    }
+    if let Some(fields) = value.as_object() {
+        let mut out = JsonOwner::object(allocation)?;
+        for (key, v) in fields.iter() {
+            let projected = project_wire_integers_with_owner(v, allocation)?;
+            out.insert(key, projected.view())?;
+        }
+        return Ok(out);
+    }
+    json_from_view(value, allocation)
 }
 /// 同一读取/渲染/严格解码核；预算随实际store选择，拒绝后没有Plain分支。
 pub(crate) fn render_json(

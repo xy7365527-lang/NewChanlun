@@ -99,7 +99,7 @@ fn verify_s3_markers_with_owner(
 pub(super) fn schema_ddls(conn: &Connection) -> Result<Vec<&'static str>, String> {
     schema_ddls_with_owner(conn, None).map(|v| v.into_iter().collect())
 }
-fn schema_ddls_with_owner(
+pub(crate) fn schema_ddls_with_owner(
     conn: &Connection,
     owner: Option<&OwnedBudget>,
 ) -> Result<CodecVec<&'static str>, String> {
@@ -123,7 +123,7 @@ fn schema_ddls_with_owner(
 pub(super) fn verify_s3_schema(conn: &Connection) -> Result<(), String> {
     verify_s3_schema_with_owner(conn, None)
 }
-fn verify_s3_schema_with_owner(
+pub(crate) fn verify_s3_schema_with_owner(
     conn: &Connection,
     owner: Option<&OwnedBudget>,
 ) -> Result<(), String> {

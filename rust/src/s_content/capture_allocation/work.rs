@@ -105,6 +105,11 @@ impl<T> Default for CodecVec<T> {
     }
 }
 impl<T> CodecVec<T> {
+    pub(crate) fn retained_layout_bytes(&self) -> Result<usize, CodecError> {
+        self.capacity()
+            .checked_mul(std::mem::size_of::<T>())
+            .ok_or_else(allocation_error)
+    }
     /// 只借实际allocator的原账本，不接受外来budget标记。
     pub fn allocation_budget(&self) -> Option<&OwnedBudget> {
         match &self.storage {
@@ -330,6 +335,11 @@ impl<T> IntoIterator for CodecVec<T> {
         }
     }
 }
+impl<T> AsRef<[T]> for CodecVec<T> {
+    fn as_ref(&self) -> &[T] {
+        self
+    }
+}
 
 pub(crate) enum WorkMap<K, V> {
     Plain(hashbrown::HashMap<K, V, RandomState, allocator_api2::alloc::Global>),
@@ -341,6 +351,18 @@ impl<K, V> Default for WorkMap<K, V> {
     }
 }
 impl<K: Eq + Hash, V> WorkMap<K, V> {
+    pub(crate) fn retain(&mut self, f: impl FnMut(&K, &mut V) -> bool) {
+        match self {
+            Self::Plain(m) => m.retain(f),
+            Self::Owned(m) => m.retain(f),
+        }
+    }
+    pub(crate) fn iter_mut(&mut self) -> hashbrown::hash_map::IterMut<'_, K, V> {
+        match self {
+            Self::Plain(m) => m.iter_mut(),
+            Self::Owned(m) => m.iter_mut(),
+        }
+    }
     pub(crate) fn new(b: Option<&OwnedBudget>) -> Self {
         match b {
             None => Self::default(),
@@ -348,6 +370,12 @@ impl<K: Eq + Hash, V> WorkMap<K, V> {
                 RandomState::new(),
                 LedgerAllocator::new_tag(b, std::any::type_name::<(K, V)>()),
             )),
+        }
+    }
+    pub(crate) fn retained_layout_bytes(&self) -> usize {
+        match self {
+            Self::Plain(m) => m.allocation_size(),
+            Self::Owned(m) => m.allocation_size(),
         }
     }
     pub(crate) fn insert(&mut self, k: K, v: V) -> Result<Option<V>, CodecError> {
@@ -437,6 +465,12 @@ impl<T: Eq + Hash> WorkSet<T> {
                 RandomState::new(),
                 LedgerAllocator::new_tag(b, std::any::type_name::<T>()),
             )),
+        }
+    }
+    pub(crate) fn retained_layout_bytes(&self) -> Option<usize> {
+        match self {
+            Self::Plain(_) => None,
+            Self::Owned(m) => Some(m.allocation_size()),
         }
     }
     pub(crate) fn insert(&mut self, v: T) -> Result<bool, CodecError> {

@@ -3,6 +3,13 @@
 //! 消费者的同一Job计唯一接纳节点与绝对期限；服务端沿自己的资源门读取。
 //! wire/request/六族顶层记录及磁盘分配由实际调用层计；接收验证仍强制消费者Job。
 
+#[cfg(feature = "s_allocation_json_testonly")]
+use super::capture_allocation::audit_json::OwnedJson;
+use super::capture_allocation::work::WorkMap;
+use super::capture_allocation::{
+    audit_json::{JsonArray, JsonObject, JsonView},
+    OwnedBudget,
+};
 use super::{
     access::Access,
     job::{CheckedFrame, Job},
@@ -10,7 +17,6 @@ use super::{
     *,
 };
 use serde_json::{json, Value as J};
-use std::collections::BTreeMap;
 
 pub const INVALID: &str = "content_fragment_invalid";
 pub const REPLY_LIMIT: &str = "content_fragment_reply_limit";
@@ -123,33 +129,305 @@ impl Fragment {
     }
 }
 
+/// Fragment 的实际 JSON/文本/数组所有者；只有普通读取可消费成旧的 std Fragment。
+/// fixed 数字和 RefOwner 在栈内；动态结果、证明文本与每个 array layout 跟随来源账本。
+pub struct OwnedFragment {
+    pub target_ref: RefOwner,
+    pub unit: Unit,
+    pub offset: u64,
+    pub end: u64,
+    pub total: u64,
+    pub done: bool,
+    items: FragmentValue,
+    nodes: WorkVec<OwnedProofNode>,
+    target_wire: ReferenceWire,
+    offsets: [Decimal; 3],
+}
+impl OwnedFragment {
+    pub fn fields_view(&self) -> Result<JsonView<'_>, CodecError> {
+        JsonView::borrowed_object(self)
+    }
+    pub fn allocation_budget(&self) -> Option<&OwnedBudget> {
+        self.nodes.allocation_budget()
+    }
+    pub fn into_plain(self) -> Result<Fragment, CodecError> {
+        let items = self.items.into_plain()?;
+        let mut nodes = Vec::new();
+        for node in self.nodes.into_plain()? {
+            nodes.push(ProofNode {
+                root: node.root.into_plain()?,
+                tag: node.tag.into_plain()?,
+                body_hex: node.body_hex.into_plain()?,
+            });
+        }
+        Ok(Fragment {
+            target_ref: ContentRef::new(
+                self.target_ref.kind(),
+                &self.target_ref.digest(),
+                self.target_ref.extent(),
+            ),
+            unit: self.unit,
+            offset: self.offset,
+            end: self.end,
+            total: self.total,
+            items,
+            nodes,
+            done: self.done,
+        })
+    }
+}
+impl JsonObject for OwnedFragment {
+    fn len(&self) -> usize {
+        8
+    }
+    fn field(&self, index: usize) -> Option<(&str, JsonView<'_>)> {
+        Some(match index {
+            0 => ("target_ref", self.target_wire.view()),
+            1 => ("unit", JsonView::String(self.unit.name())),
+            2 => ("offset", JsonView::String(self.offsets[0].text())),
+            3 => ("end", JsonView::String(self.offsets[1].text())),
+            4 => ("total", JsonView::String(self.offsets[2].text())),
+            5 => ("items", self.items.view()),
+            6 => ("nodes", JsonView::BorrowedArray(&self.nodes)),
+            7 => ("done", JsonView::Bool(self.done)),
+            _ => return None,
+        })
+    }
+}
+struct ReferenceWire {
+    reference: RefOwner,
+    extent: Option<Decimal>,
+}
+impl ReferenceWire {
+    fn new(reference: RefOwner) -> Self {
+        Self {
+            extent: reference.extent().map(Decimal::new),
+            reference,
+        }
+    }
+    fn view(&self) -> JsonView<'_> {
+        JsonView::borrowed_object(self).expect("fixed exact ref fields")
+    }
+}
+impl JsonObject for ReferenceWire {
+    fn len(&self) -> usize {
+        4
+    }
+    fn field(&self, index: usize) -> Option<(&str, JsonView<'_>)> {
+        Some(match index {
+            0 => ("format", JsonView::String(self.reference.format())),
+            1 => ("root", JsonView::String(self.reference.root())),
+            2 => ("kind", JsonView::String(self.reference.kind().name())),
+            3 => (
+                "extent",
+                self.extent
+                    .as_ref()
+                    .map_or(JsonView::Null, |v| JsonView::String(v.text())),
+            ),
+            _ => return None,
+        })
+    }
+}
+struct Decimal {
+    bytes: [u8; 20],
+    start: usize,
+}
+impl Decimal {
+    fn new(mut value: u64) -> Self {
+        let mut out = Self {
+            bytes: [0; 20],
+            start: 20,
+        };
+        loop {
+            out.start -= 1;
+            out.bytes[out.start] = b'0' + (value % 10) as u8;
+            value /= 10;
+            if value == 0 {
+                return out;
+            }
+        }
+    }
+    fn text(&self) -> &str {
+        std::str::from_utf8(&self.bytes[self.start..]).expect("decimal ASCII")
+    }
+}
+struct FragmentText {
+    bytes: WorkVec<u8>,
+}
+impl FragmentText {
+    fn copy(text: &str, budget: Option<&OwnedBudget>) -> Result<Self, CodecError> {
+        let mut bytes = WorkVec::new(budget);
+        bytes.extend_from_slice(text.as_bytes())?;
+        Ok(Self { bytes })
+    }
+    fn hex(raw: &[u8], budget: Option<&OwnedBudget>) -> Result<Self, CodecError> {
+        let mut bytes = WorkVec::new(budget);
+        let count = raw.len().checked_mul(2).ok_or_else(|| err("hex长度溢出"))?;
+        bytes.reserve_exact(count)?;
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+        for byte in raw {
+            bytes.extend_from_slice(&[HEX[(byte >> 4) as usize], HEX[(byte & 15) as usize]])?;
+        }
+        Ok(Self { bytes })
+    }
+    fn text(&self) -> &str {
+        std::str::from_utf8(&self.bytes).expect("private UTF8 text")
+    }
+    fn into_plain(self) -> Result<String, CodecError> {
+        String::from_utf8(self.bytes.into_plain()?).map_err(|_| super::utf8_error())
+    }
+}
+struct OwnedProofNode {
+    root: FragmentText,
+    tag: FragmentText,
+    body_hex: FragmentText,
+}
+impl OwnedProofNode {
+    fn new(
+        digest: &NodeDigest,
+        tag: u8,
+        body: &[u8],
+        budget: Option<&OwnedBudget>,
+    ) -> Result<Self, CodecError> {
+        let reference = RefOwner::new(Kind::Null, *digest, None);
+        Ok(Self {
+            root: FragmentText::copy(reference.root(), budget)?,
+            tag: FragmentText::hex(&[tag], budget)?,
+            body_hex: FragmentText::hex(body, budget)?,
+        })
+    }
+    fn view(&self) -> JsonView<'_> {
+        JsonView::borrowed_object(self).expect("fixed proof fields")
+    }
+}
+impl JsonObject for OwnedProofNode {
+    fn len(&self) -> usize {
+        3
+    }
+    fn field(&self, index: usize) -> Option<(&str, JsonView<'_>)> {
+        Some(match index {
+            0 => ("root", JsonView::String(self.root.text())),
+            1 => ("tag", JsonView::String(self.tag.text())),
+            2 => ("body_hex", JsonView::String(self.body_hex.text())),
+            _ => return None,
+        })
+    }
+}
+impl JsonArray for WorkVec<OwnedProofNode> {
+    fn len(&self) -> usize {
+        self[..].len()
+    }
+    fn get(&self, index: usize) -> Option<JsonView<'_>> {
+        self[..].get(index).map(OwnedProofNode::view)
+    }
+}
+enum FragmentValue {
+    Plain(J),
+    #[cfg(feature = "s_allocation_json_testonly")]
+    Owned(OwnedJson),
+}
+impl FragmentValue {
+    fn from_view(value: JsonView<'_>, budget: Option<&OwnedBudget>) -> Result<Self, CodecError> {
+        if let Some(budget) = budget {
+            #[cfg(feature = "s_allocation_json_testonly")]
+            {
+                return OwnedJson::from_view(value, budget).map(Self::Owned);
+            }
+            #[cfg(not(feature = "s_allocation_json_testonly"))]
+            {
+                let _ = budget;
+                return Err(CodecError::static_detail(
+                    capture_allocation::INCOMPLETE,
+                    "owned fragment JSON未启用",
+                ));
+            }
+        }
+        serde_json::to_value(value).map(Self::Plain).map_err(err)
+    }
+    fn view(&self) -> JsonView<'_> {
+        match self {
+            Self::Plain(v) => v.into(),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Self::Owned(v) => v.view(),
+        }
+    }
+    fn push(&mut self, value: JsonView<'_>) -> Result<(), CodecError> {
+        match self {
+            Self::Plain(J::Array(rows)) => {
+                rows.push(serde_json::to_value(value).map_err(err)?);
+                Ok(())
+            }
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Self::Owned(rows) => rows.push(value),
+            _ => Err(err("items非数组")),
+        }
+    }
+    fn into_plain(self) -> Result<J, CodecError> {
+        match self {
+            Self::Plain(v) => Ok(v),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Self::Owned(_) => Err(CodecError::static_detail(
+                capture_allocation::INCOMPLETE,
+                "owned fragment不能擦除为std JSON",
+            )),
+        }
+    }
+}
+
 /// transport path 的唯一 exact 解析：field / index / json_text 三者只取其一。
 pub fn parse_path(value: &J) -> Result<Vec<PathStep>, CodecError> {
-    let rows = value.as_array().ok_or_else(|| err("path须为数组"))?;
-    rows.iter()
-        .map(|row| {
-            let o = row
-                .as_object()
-                .filter(|o| o.len() == 1)
-                .ok_or_else(|| err("path步骤须exact单字段"))?;
-            if let Some(v) = o.get("field") {
-                return v
-                    .as_str()
-                    .map(|v| PathStep::Field(v.into()))
-                    .ok_or_else(|| err("field须为UTF-8字符串"));
-            }
-            if let Some(v) = o.get("index") {
-                return Ok(PathStep::Index(parse_canonical_u64(
-                    v.as_str().ok_or_else(|| err("index须为规范非负整数文本"))?,
-                    "index",
-                )?));
-            }
-            if o.get("json_text") == Some(&J::Bool(true)) {
-                return Ok(PathStep::JsonText);
-            }
-            Err(err("未知path步骤或json_text非true"))
+    use path::PathView;
+    let path = parse_path_view(value.into())?;
+    (0..path.len())
+        .map(|i| match path.step(i).expect("checked immutable path") {
+            path::PathStepView::Field(v) => Ok(PathStep::Field(v.into())),
+            path::PathStepView::Index(i) => Ok(PathStep::Index(i)),
+            path::PathStepView::JsonText => Ok(PathStep::JsonText),
         })
         .collect()
+}
+/// 私有有效域来自本次逐项exact解析；只借请求JSON的字段文本。
+pub struct WirePath<'a> {
+    value: JsonView<'a>,
+}
+impl path::PathView for WirePath<'_> {
+    fn len(&self) -> usize {
+        self.value.as_array().expect("checked path array").len()
+    }
+    fn step(&self, i: usize) -> Option<path::PathStepView<'_>> {
+        self.value
+            .index(i)
+            .map(|v| parse_step(v).expect("checked immutable path step"))
+    }
+}
+pub fn parse_path_view(value: JsonView<'_>) -> Result<WirePath<'_>, CodecError> {
+    let rows = value.as_array().ok_or_else(|| err("path须为数组"))?;
+    for row in rows.iter() {
+        parse_step(row)?;
+    }
+    Ok(WirePath { value })
+}
+fn parse_step(row: JsonView<'_>) -> Result<path::PathStepView<'_>, CodecError> {
+    let object = row
+        .as_object()
+        .filter(|o| o.len() == 1)
+        .ok_or_else(|| err("path步骤须exact单字段"))?;
+    if let Some(v) = object.get("field") {
+        return v
+            .as_str()
+            .map(path::PathStepView::Field)
+            .ok_or_else(|| err("field须为UTF-8字符串"));
+    }
+    if let Some(v) = object.get("index") {
+        return Ok(path::PathStepView::Index(parse_canonical_u64(
+            v.as_str().ok_or_else(|| err("index须为规范非负整数文本"))?,
+            "index",
+        )?));
+    }
+    if object.get("json_text").and_then(JsonView::as_bool) == Some(true) {
+        return Ok(path::PathStepView::JsonText);
+    }
+    Err(err("未知path步骤或json_text非true"))
 }
 
 /// 每片重新收齐其触碰到的证明，不能因调用方曾接纳过节点就省略祖先。
@@ -200,6 +478,52 @@ pub fn read_refview(
     )
 }
 
+/// 具体captured owner入口；不接受动态source的预算标记，不擦掉Closed资格。
+pub fn read_owned(
+    source: &mut ClosedCapturedOwner<'_>,
+    root: RefView<'_>,
+    path: &dyn path::PathView,
+    unit: Unit,
+    offset: u64,
+    limit: u64,
+    max_reply_bytes: u64,
+    access: &mut dyn Access,
+) -> Result<OwnedFragment, CodecError> {
+    read_kernel(
+        CodecContext::Closed(source),
+        root,
+        path,
+        unit,
+        offset,
+        limit,
+        max_reply_bytes,
+        access,
+        None,
+    )
+}
+/// 普通source也沿相同范围、证明、path与第一错误核，仅所有者表示选择None。
+pub fn read_view(
+    source: &mut dyn NodeSource,
+    root: RefView<'_>,
+    path: &dyn path::PathView,
+    unit: Unit,
+    offset: u64,
+    limit: u64,
+    max_reply_bytes: u64,
+    access: &mut dyn Access,
+) -> Result<OwnedFragment, CodecError> {
+    read_kernel(
+        CodecContext::Source(source),
+        root,
+        path,
+        unit,
+        offset,
+        limit,
+        max_reply_bytes,
+        access,
+        None,
+    )
+}
 fn read_with_filter(
     source: &mut dyn NodeSource,
     root: RefView<'_>,
@@ -211,6 +535,30 @@ fn read_with_filter(
     access: &mut dyn Access,
     record_filter: Option<fn(&[PathStep]) -> bool>,
 ) -> Result<Fragment, CodecError> {
+    read_kernel(
+        CodecContext::Source(source),
+        root,
+        &path,
+        unit,
+        offset,
+        limit,
+        max_reply_bytes,
+        access,
+        record_filter,
+    )?
+    .into_plain()
+}
+fn read_kernel<'read, 'capture>(
+    source: CodecContext<'read, 'capture>,
+    root: RefView<'_>,
+    path: &dyn path::PathView,
+    unit: Unit,
+    offset: u64,
+    limit: u64,
+    max_reply_bytes: u64,
+    access: &'read mut dyn Access,
+    record_filter: Option<fn(&[PathStep]) -> bool>,
+) -> Result<OwnedFragment, CodecError> {
     access.begin_first_read()?;
     if limit == 0
         || offset > MAX_FRAME_LEN
@@ -223,18 +571,20 @@ fn read_with_filter(
     let requested_end = offset
         .checked_add(limit)
         .ok_or_else(|| err("offset+limit溢出u64"))?;
+    let budget = source.budget();
     let mut source = Recorder {
         source,
         access,
-        nodes: BTreeMap::new(),
+        nodes: WorkMap::new(budget.as_ref()),
         reply_bytes: 0,
         max_reply_bytes,
         record_filter,
     };
-    let target = path::lookup_path_refview(&mut source, root, path)?;
-    let total = match (target.kind, unit) {
+    let target: RefOwner =
+        path::lookup_path_view_output(&mut CodecContext::Fragment(&mut source), root, path, false)?;
+    let total = match (target.kind(), unit) {
         (Kind::Array | Kind::Object, Unit::Items) | (Kind::String | Kind::Number, Unit::Bytes) => {
-            target.extent.ok_or_else(|| err("目标缺extent"))?
+            target.extent().ok_or_else(|| err("目标缺extent"))?
         }
         (Kind::Null | Kind::Bool | Kind::JsonText, Unit::Value) if limit == 1 => 1,
         _ => return Err(err("目标类型/unit/limit不匹配；公开值不允许模板占位")),
@@ -243,52 +593,74 @@ fn read_with_filter(
         return Err(err("offset超过total"));
     }
     let end = requested_end.min(total);
-    // 这里只预检构造的规范JSON大小，不记为已经发生的wire传输。
-    // 外层anchor/path/token/envelope仍须受同一实际回复上界检查。
-    let empty = Fragment {
-        target_ref: target.clone(),
-        unit,
-        offset,
-        end,
-        total,
-        items: if unit == Unit::Bytes {
-            json!("")
-        } else {
-            json!([])
-        },
-        nodes: vec![],
-        done: end == total,
+    let target_wire = ReferenceWire::new(target);
+    let offsets = [Decimal::new(offset), Decimal::new(end), Decimal::new(total)];
+    // 空值只借栈内组合计算长度，动态items/证明所有者随后按实际来源选择。
+    let initial_items = if unit == Unit::Bytes {
+        JsonView::String("")
+    } else {
+        JsonView::ArraySlice(&[])
     };
-    source.reserve_reply(encoded_len(&J::Object(empty.fields()))?)?;
-    path::check_range_root(&mut source, &target)?;
-    let items = match target.kind {
+    let empty_fields = [
+        ("target_ref", target_wire.view()),
+        ("unit", JsonView::String(unit.name())),
+        ("offset", JsonView::String(offsets[0].text())),
+        ("end", JsonView::String(offsets[1].text())),
+        ("total", JsonView::String(offsets[2].text())),
+        ("items", initial_items),
+        ("nodes", JsonView::ArraySlice(&[])),
+        ("done", JsonView::Bool(end == total)),
+    ];
+    source.reserve_reply(encoded_len(&JsonView::object_fields(&empty_fields)?)?)?;
+    path::check_range_root_view_ctx(&mut CodecContext::Fragment(&mut source), target.view())?;
+    let mut items = FragmentValue::from_view(initial_items, budget.as_ref())?;
+    match target.kind() {
         Kind::Array => {
-            let mut result = Vec::new();
             for i in offset..end {
-                let mut steps = path.to_vec();
-                steps.push(PathStep::Index(i));
-                let child = path::lookup_path_refview(&mut source, root, &steps)?;
-                public_header(&child)?;
-                let item = child.to_transport_json();
-                source.reserve_reply(encoded_len(&item)? + u64::from(!result.is_empty()))?;
-                result.push(item);
+                let steps = path::ExtendedPath {
+                    base: path,
+                    last: path::PathStepView::Index(i),
+                };
+                let child: RefOwner = path::lookup_path_view_output(
+                    &mut CodecContext::Fragment(&mut source),
+                    root,
+                    &steps,
+                    false,
+                )?;
+                public_header_view(child.view())?;
+                let wire = ReferenceWire::new(child);
+                source.reserve_reply(encoded_len(&wire.view())? + u64::from(i != offset))?;
+                items.push(wire.view())?;
             }
-            J::Array(result)
         }
         Kind::Object => {
-            let mut result = Vec::new();
             for i in offset..end {
-                let key_ref = path::object_key_at(&mut source, &target, i)?;
-                let key = source.read_key(&key_ref)?;
-                let mut steps = path.to_vec();
-                steps.push(PathStep::Field(key.clone()));
-                let child = path::lookup_path_refview(&mut source, root, &steps)?;
-                public_header(&child)?;
-                let item = json!({"key":key,"value_ref":child.to_transport_json()});
-                source.reserve_reply(encoded_len(&item)? + u64::from(!result.is_empty()))?;
-                result.push(item);
+                let key_ref: RefOwner = path::object_key_at_view_ctx(
+                    &mut CodecContext::Fragment(&mut source),
+                    target.view(),
+                    i,
+                )?;
+                let key = source.read_key(key_ref.view())?;
+                let steps = path::ExtendedPath {
+                    base: path,
+                    last: path::PathStepView::Field(key.text()),
+                };
+                let child: RefOwner = path::lookup_path_view_output(
+                    &mut CodecContext::Fragment(&mut source),
+                    root,
+                    &steps,
+                    false,
+                )?;
+                public_header_view(child.view())?;
+                let wire = ReferenceWire::new(child);
+                let fields = [
+                    ("key", JsonView::String(key.text())),
+                    ("value_ref", wire.view()),
+                ];
+                let item = JsonView::object_fields(&fields)?;
+                source.reserve_reply(encoded_len(&item)? + u64::from(i != offset))?;
+                items.push(item)?;
             }
-            J::Array(result)
         }
         Kind::String | Kind::Number => {
             source.reserve_reply(
@@ -296,31 +668,34 @@ fn read_with_filter(
                     .checked_mul(2)
                     .ok_or_else(|| err("回复字节溢出"))?,
             )?;
-            J::String(hex(&path::bytes_between(
-                &mut source,
-                &target,
+            let bytes = path::bytes_between_view_ctx(
+                &mut CodecContext::Fragment(&mut source),
+                target.view(),
                 offset,
                 end,
-            )?))
+            )?;
+            let text = FragmentText::hex(&bytes, budget.as_ref())?;
+            items = FragmentValue::from_view(JsonView::String(text.text()), budget.as_ref())?;
         }
-        _ => J::Array(if offset == end {
-            vec![]
-        } else {
-            source.reserve_reply(encoded_len(&target.to_transport_json())?)?;
-            vec![target.to_transport_json()]
-        }),
-    };
+        _ => {
+            if offset != end {
+                source.reserve_reply(encoded_len(&target_wire.view())?)?;
+                items.push(target_wire.view())?;
+            }
+        }
+    }
     source.access.pre_io_check()?;
-    let nodes = source
-        .nodes
-        .into_iter()
-        .map(|(digest, (tag, body))| ProofNode {
-            root: root_string(&digest),
-            tag: format!("{tag:02x}"),
-            body_hex: hex(&body),
-        })
-        .collect();
-    Ok(Fragment {
+    let mut roots = WorkVec::new(budget.as_ref());
+    for (digest, _) in source.nodes.iter() {
+        roots.push(*digest)?;
+    }
+    roots.sort_unstable();
+    let mut nodes = WorkVec::new(budget.as_ref());
+    for digest in roots {
+        let (tag, body) = source.nodes.remove(&digest).expect("recorded root");
+        nodes.push(OwnedProofNode::new(&digest, tag, &body, budget.as_ref())?)?;
+    }
+    Ok(OwnedFragment {
         target_ref: target,
         unit,
         offset,
@@ -329,6 +704,8 @@ fn read_with_filter(
         items,
         nodes,
         done: end == total,
+        target_wire,
+        offsets,
     })
 }
 
@@ -437,25 +814,41 @@ fn verify_impl(
     job.pre_io_check()
 }
 
-struct Recorder<'a> {
-    source: &'a mut dyn NodeSource,
-    access: &'a mut dyn Access,
-    nodes: BTreeMap<NodeDigest, (u8, Vec<u8>)>,
+/// 私有context适配器；外部NodeSource不能实现此trait或伪造Captured预算。
+pub(super) trait FragmentRead {
+    fn budget(&self) -> Option<OwnedBudget>;
+    fn read(&mut self, digest: &NodeDigest) -> Result<(u8, VerifierBody), CodecError>;
+    fn before_path_index(
+        &mut self,
+        prefix: &dyn path::PathView,
+        end: usize,
+        index: u64,
+    ) -> Result<(), CodecError>;
+}
+struct Recorder<'read, 'capture> {
+    source: CodecContext<'read, 'capture>,
+    access: &'read mut dyn Access,
+    nodes: WorkMap<NodeDigest, (u8, WorkVec<u8>)>,
     reply_bytes: u64,
     max_reply_bytes: u64,
     record_filter: Option<fn(&[PathStep]) -> bool>,
 }
-impl Recorder<'_> {
-    fn read_key(&mut self, reference: &ContentRef) -> Result<String, CodecError> {
+impl Recorder<'_, '_> {
+    fn read_key(&mut self, reference: RefView<'_>) -> Result<FragmentText, CodecError> {
         let remaining = self.max_reply_bytes - self.reply_bytes;
-        // JSON引号以外至少需要原UTF-8字节数；声明已超限时不展开共享DAG。
-        if reference.extent.unwrap_or(MAX_FRAME_LEN).saturating_add(2) > remaining {
+        if reference
+            .extent()
+            .unwrap_or(MAX_FRAME_LEN)
+            .saturating_add(2)
+            > remaining
+        {
             return Err(CodecError::new(REPLY_LIMIT, "对象键超过剩余回复上界"));
         }
         struct KeyBuffer {
-            bytes: Vec<u8>,
+            bytes: WorkVec<u8>,
             limit: u64,
             exceeded: bool,
+            failure: Option<CodecError>,
         }
         impl std::io::Write for KeyBuffer {
             fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
@@ -463,32 +856,60 @@ impl Recorder<'_> {
                     self.exceeded = true;
                     return Err(std::io::Error::other("对象键JSON转义超过回复上界"));
                 }
-                self.bytes.extend_from_slice(bytes);
+                if let Err(error) = self.bytes.extend_from_slice(bytes) {
+                    self.failure = Some(error);
+                    return Err(std::io::Error::other("owned key allocation refused"));
+                }
                 Ok(bytes.len())
             }
             fn flush(&mut self) -> std::io::Result<()> {
                 Ok(())
             }
         }
+        let budget = self.source.budget();
         let mut buffer = KeyBuffer {
-            bytes: vec![],
+            bytes: WorkVec::new(budget.as_ref()),
             limit: remaining,
             exceeded: false,
+            failure: None,
         };
-        let result = render_canonical(self, reference, &mut buffer);
+        let result = render_refview_ctx(CodecContext::Fragment(self), reference, &mut buffer);
         if buffer.exceeded {
             return Err(CodecError::new(
                 REPLY_LIMIT,
                 "对象键JSON转义超过剩余回复上界",
             ));
         }
+        if let Some(error) = buffer.failure {
+            return Err(error);
+        }
         result?;
         self.access.pre_io_check()?;
-        // 编码缓冲及解析后的String各受同一显式字节上界；新增证明和最终item仍统一预留。
-        serde_json::from_slice(&buffer.bytes)
-            .map_err(|e| CodecError::new(code::UTF8, e.to_string()))
+        if let Some(budget) = budget.as_ref() {
+            #[cfg(feature = "s_allocation_json_testonly")]
+            {
+                let parsed = OwnedJson::parse(&buffer.bytes, budget)?;
+                let text = parsed
+                    .view()
+                    .as_str()
+                    .ok_or_else(|| err("对象键非字符串"))?;
+                return FragmentText::copy(text, Some(budget));
+            }
+            #[cfg(not(feature = "s_allocation_json_testonly"))]
+            {
+                let _ = budget;
+                return Err(CodecError::static_detail(
+                    capture_allocation::INCOMPLETE,
+                    "owned key parser未启用",
+                ));
+            }
+        }
+        let text: String = serde_json::from_slice(&buffer.bytes)
+            .map_err(|e| CodecError::new(code::UTF8, e.to_string()))?;
+        Ok(FragmentText {
+            bytes: WorkVec::from_plain(text.into_bytes()),
+        })
     }
-
     fn reserve_reply(&mut self, bytes: u64) -> Result<(), CodecError> {
         self.reply_bytes = self
             .reply_bytes
@@ -497,58 +918,101 @@ impl Recorder<'_> {
             .ok_or_else(|| CodecError::new(REPLY_LIMIT, "片段字段/证明超过显式回复上界"))?;
         Ok(())
     }
-}
-impl NodeSource for Recorder<'_> {
-    fn before_path_index(&mut self, prefix: &[PathStep], _index: u64) -> Result<(), CodecError> {
-        if self.record_filter.is_some_and(|filter| filter(prefix)) {
-            self.access.charge_records(1)?;
+    fn record(&mut self, digest: &NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError> {
+        if let Some(old) = self.nodes.get(digest) {
+            if old.0 != tag || &old.1[..] != body {
+                return Err(err("同根不同原件"));
+            }
+        } else {
+            let budget = self.source.budget();
+            let proof = OwnedProofNode::new(digest, tag, body, budget.as_ref())?;
+            self.reserve_reply(encoded_len(&proof.view())? + u64::from(!self.nodes.is_empty()))?;
+            let mut copy = WorkVec::new(budget.as_ref());
+            copy.extend_from_slice(body)?;
+            self.nodes.insert(*digest, (tag, copy))?;
         }
         Ok(())
     }
-    fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+    /// 动态source仍按旧raw读取→gate/F→证明→post顺序；Closed从具体真实原件计费body读取。
+    fn read_record(&mut self, digest: &NodeDigest) -> Result<(u8, VerifierBody), CodecError> {
         self.access.pre_io_check()?;
-        let read = self.source.read(digest)?;
-        if let NodeRead::Found { tag, body } = &read {
-            self.access.accept_node(digest, *tag, body)?;
-            if let Some(old) = self.nodes.get(digest) {
-                if old.0 != *tag || old.1 != *body {
-                    return Err(err("同根不同原件"));
+        let (tag, body) = match &mut self.source {
+            CodecContext::Source(source) => match source.read(digest)? {
+                NodeRead::Missing => {
+                    self.access.pre_io_check()?;
+                    return Err(CodecError::new(
+                        code::NODE_MISSING,
+                        format!("节点缺失：{}", root_string(digest)),
+                    ));
                 }
-            } else {
-                let proof = ProofNode {
-                    root: root_string(digest),
-                    tag: format!("{tag:02x}"),
-                    body_hex: hex(body),
-                };
-                self.reserve_reply(encoded_len(&proof)? + u64::from(!self.nodes.is_empty()))?;
-                self.nodes.insert(*digest, (*tag, body.clone()));
+                NodeRead::Found { tag, body } => {
+                    self.access.accept_node(digest, tag, &body)?;
+                    (tag, VerifierBody::Plain(body))
+                }
+            },
+            CodecContext::Closed(owner) => owner.read_fragment(digest, self.access)?,
+            _ => {
+                return Err(CodecError::new(
+                    code::SOURCE,
+                    "fragment来源不是dynamic或实际Closed owner",
+                ))
+            }
+        };
+        self.record(digest, tag, &body)?;
+        self.access.pre_io_check()?;
+        Ok((tag, body))
+    }
+}
+impl FragmentRead for Recorder<'_, '_> {
+    fn budget(&self) -> Option<OwnedBudget> {
+        self.source.budget()
+    }
+    fn read(&mut self, digest: &NodeDigest) -> Result<(u8, VerifierBody), CodecError> {
+        self.read_record(digest)
+    }
+    fn before_path_index(
+        &mut self,
+        prefix: &dyn path::PathView,
+        end: usize,
+        _index: u64,
+    ) -> Result<(), CodecError> {
+        if let Some(filter) = self.record_filter {
+            let prefix = prefix
+                .plain_prefix(end)
+                .ok_or_else(|| err("record filter须保持原请求路径借用"))?;
+            if filter(prefix) {
+                self.access.charge_records(1)?;
             }
         }
-        self.access.pre_io_check()?;
-        Ok(read)
+        Ok(())
     }
-
+}
+// 仅普通旧调用/直接门序probe的适配；Closed没有NodeSource实现或owned→std逃逸。
+impl NodeSource for Recorder<'_, '_> {
+    fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+        let (tag, body) = self.read_record(digest)?;
+        match body {
+            VerifierBody::Plain(body) => Ok(NodeRead::Found { tag, body }),
+            VerifierBody::Metered(_) => Err(CodecError::static_detail(
+                capture_allocation::INCOMPLETE,
+                "owned Recorder不允许擦为NodeSource",
+            )),
+        }
+    }
     fn checked_read(&mut self, digest: &NodeDigest) -> Result<Option<CheckedFrame>, CodecError> {
         self.access.pre_io_check()?;
-        let read = self.source.read(digest)?;
+        let CodecContext::Source(source) = &mut self.source else {
+            return Err(CodecError::static_detail(
+                capture_allocation::INCOMPLETE,
+                "owned Recorder不允许擦为NodeSource",
+            ));
+        };
+        let read = source.read(digest)?;
         let checked = match read {
             NodeRead::Missing => None,
             NodeRead::Found { tag, body } => {
                 let frame = self.access.accept_frame(digest, tag, body)?;
-                if let Some(old) = self.nodes.get(digest) {
-                    if old.0 != frame.tag() || old.1 != frame.body() {
-                        return Err(err("同根不同原件"));
-                    }
-                } else {
-                    let proof = ProofNode {
-                        root: root_string(digest),
-                        tag: format!("{:02x}", frame.tag()),
-                        body_hex: hex(frame.body()),
-                    };
-                    self.reserve_reply(encoded_len(&proof)? + u64::from(!self.nodes.is_empty()))?;
-                    self.nodes
-                        .insert(*digest, (frame.tag(), frame.body().to_vec()));
-                }
+                self.record(digest, frame.tag(), frame.body())?;
                 Some(frame)
             }
         };
@@ -594,9 +1058,9 @@ mod checked_frame_tests {
             .unwrap();
             {
                 let mut recorder = Recorder {
-                    source: &mut source,
+                    source: CodecContext::Source(&mut source),
                     access: &mut job,
-                    nodes: BTreeMap::new(),
+                    nodes: WorkMap::new(None),
                     reply_bytes: 0,
                     max_reply_bytes: 1024,
                     record_filter: None,
@@ -604,7 +1068,7 @@ mod checked_frame_tests {
                 let result = if checked {
                     recorder.checked_read(&digest).map(|_| ())
                 } else {
-                    recorder.read(&digest).map(|_| ())
+                    NodeSource::read(&mut recorder, &digest).map(|_| ())
                 };
                 assert_eq!(
                     result.unwrap_err().code(),
@@ -616,6 +1080,16 @@ mod checked_frame_tests {
             assert_eq!(frame_calls_on_thread() - before, 1);
             assert_eq!(job.snapshot().nodes, 1, "F 后不得多加计账前期限门");
         }
+    }
+}
+fn public_header_view(r: RefView<'_>) -> Result<(), CodecError> {
+    if r.kind() == Kind::TemplateBatch {
+        Err(CodecError::new(
+            code::TEMPLATE_PLACEHOLDER,
+            "公开片段不能泄漏本批占位",
+        ))
+    } else {
+        Ok(())
     }
 }
 fn public_header(r: &ContentRef) -> Result<(), CodecError> {
@@ -672,4 +1146,204 @@ fn unhex(text: &str) -> Result<Vec<u8>, CodecError> {
                 + hex_val(pair[1]).ok_or_else(|| err("hex须为小写"))?)
         })
         .collect()
+}
+
+#[cfg(all(test, feature = "s_allocation_json_testonly"))]
+mod owned_fragment_tests {
+    use super::*;
+    struct NoJob;
+    impl Access for NoJob {
+        fn owner_job(&mut self) -> Option<&mut Job> {
+            None
+        }
+    }
+    fn captured(nodes: MemoryNodes, extra: usize) -> (AuditCapture, OwnedBudget, usize) {
+        let count = nodes.nodes.len();
+        let bytes = nodes.nodes.values().map(|(_, body)| body.len()).sum();
+        let base = capture_allocation::CaptureSlab::requested_bytes(count, bytes).unwrap();
+        let budget = OwnedBudget::new(base + extra);
+        let mut slab = capture_allocation::CaptureSlab::new(count, bytes, &budget).unwrap();
+        for (digest, (tag, body)) in nodes.nodes {
+            slab.push(digest, tag, &body).unwrap();
+        }
+        (
+            AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap()),
+            budget,
+            base,
+        )
+    }
+    fn job() -> Job {
+        let limits = job::JobLimits::from_canonical_json(&json!({"max_total_wire_bytes":"1000000","max_total_node_bytes":"1000000","max_total_nodes":"10000","max_total_records":"10000","max_total_requests":"10000","max_elapsed_ms":"10000","max_staged_bytes":"1000000","max_store_bytes":"1000000"})).unwrap();
+        let now = std::time::Instant::now();
+        Job::new(
+            limits,
+            job::Existing {
+                store_bytes: 0,
+                staged_bytes: 0,
+            },
+            Box::new(move || now),
+        )
+        .unwrap()
+    }
+    #[test]
+    fn owned_fragment_actual_source_common_kernel_proofs_values_and_drop0() {
+        let cases = [
+            (
+                Value::Array(vec![
+                    Value::Null,
+                    Value::string("nested"),
+                    Value::Bool(true),
+                ]),
+                Unit::Items,
+                1,
+                2,
+            ),
+            (
+                Value::Object(vec![
+                    ("a\\汉\"".into(), Value::Bool(false)),
+                    ("z".into(), Value::Null),
+                ]),
+                Unit::Items,
+                0,
+                2,
+            ),
+            (Value::string("汉abc".repeat(1600)), Unit::Bytes, 4088, 20),
+            (
+                Value::JsonText(Box::new(JsonValue::Array(vec![JsonValue::Null]))),
+                Unit::Value,
+                0,
+                1,
+            ),
+        ];
+        for (value, unit, offset, limit) in cases {
+            let mut nodes = MemoryNodes::new();
+            let built = write_value(&mut nodes, &value).unwrap();
+            let root = built.content_ref();
+            let mut ordinary_job = job();
+            let before = frame_calls_on_thread();
+            let ordinary = read(
+                &mut nodes.clone(),
+                &root,
+                &[],
+                unit,
+                offset,
+                limit,
+                1_000_000,
+                &mut ordinary_job,
+            )
+            .unwrap();
+            let ordinary_f = frame_calls_on_thread() - before;
+            let (capture, budget, base) = captured(nodes, 1_000_000);
+            let material = capture.original(&built.digest).unwrap().1.to_vec();
+            let mut owner = capture
+                .closed_codec_for_allocation_prototype(0, 0, None)
+                .unwrap();
+            let mut owned_job = job();
+            let before = frame_calls_on_thread();
+            let fragment = read_owned(
+                &mut owner,
+                (&root).into(),
+                &[],
+                unit,
+                offset,
+                limit,
+                1_000_000,
+                &mut owned_job,
+            )
+            .unwrap();
+            let owned_f = frame_calls_on_thread() - before;
+            assert_eq!(owned_f, ordinary_f, "同算法真实F读取计量");
+            assert_eq!(
+                owned_job.snapshot(),
+                ordinary_job.snapshot(),
+                "真实Job累计门与节点用量保持"
+            );
+            assert_eq!(
+                serde_json::to_value(fragment.fields_view().unwrap()).unwrap(),
+                J::Object(ordinary.fields())
+            );
+            assert!(fragment.allocation_budget().is_some());
+            assert!(budget.snapshot().live_requested_layout_bytes > base);
+            assert_eq!(capture.original(&built.digest).unwrap().1, material);
+            assert_eq!(owner.overlay_peak_used(), (0, 0));
+            assert!(
+                fragment.into_plain().is_err(),
+                "Owned结果不能擦成旧std Fragment"
+            );
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+            drop(owner);
+            drop(capture);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        }
+    }
+    #[test]
+    fn owned_fragment_readonly_scope_rejects_and_budget_refusal_preserves_capture() {
+        let mut nodes = MemoryNodes::new();
+        let built = write_value(&mut nodes, &Value::Array(vec![Value::Null])).unwrap();
+        let root = built.content_ref();
+        let (capture, budget, base) = captured(nodes.clone(), 100_000);
+        let mut owner = capture
+            .closed_codec_for_allocation_prototype(0, 0, None)
+            .unwrap();
+        for (offset, limit, unit) in [
+            (2, 1, Unit::Items),
+            (0, 0, Unit::Items),
+            (0, 1, Unit::Bytes),
+        ] {
+            let expected = read(
+                &mut nodes.clone(),
+                &root,
+                &[],
+                unit,
+                offset,
+                limit,
+                100_000,
+                &mut NoJob,
+            )
+            .unwrap_err();
+            let actual = read_owned(
+                &mut owner,
+                (&root).into(),
+                &[],
+                unit,
+                offset,
+                limit,
+                100_000,
+                &mut NoJob,
+            )
+            .err()
+            .unwrap();
+            assert_eq!(actual.code(), expected.code());
+            assert_eq!(actual.detail(), expected.detail());
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+            assert_eq!(owner.overlay_peak_used(), (0, 0));
+        }
+        drop(owner);
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        let (capture, budget, base) = captured(nodes, 0);
+        let material = capture.original(&built.digest).unwrap().1.to_vec();
+        let mut owner = capture
+            .closed_codec_for_allocation_prototype(0, 0, None)
+            .unwrap();
+        let error = read_owned(
+            &mut owner,
+            (&root).into(),
+            &[],
+            Unit::Items,
+            0,
+            1,
+            100_000,
+            &mut NoJob,
+        )
+        .err()
+        .unwrap();
+        assert_eq!(error.code(), capture_allocation::LIMIT);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        assert_eq!(capture.original(&built.digest).unwrap().1, material);
+        assert_eq!(owner.overlay_peak_used(), (0, 0));
+        drop(owner);
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
 }
