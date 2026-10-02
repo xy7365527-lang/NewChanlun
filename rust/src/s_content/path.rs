@@ -40,6 +40,7 @@
 //! 旧新 crosswalk。也不解析 transport 里的 path 文本：`{index: 规范非负整数文本}` 的解析与
 //! 溢出拒绝在调用方（编码面已有 `parse_root`/`checked_frame_len` 同类判据）。
 
+use super::ref_owner::RefOutput;
 use super::{
     be_u64, body_shape_error, byte_chunk_shape_error, byte_extent_error, checked_frame_len, code,
     digest_at, frame, framed_len, header_extent, is_sequence_tag, length_overflow_error,
@@ -48,6 +49,7 @@ use super::{
     NodeDigest, NodeSource, NodeStore, VerifierBody, WorkVec, CHUNK_BYTES, CONTENT_FORMAT,
     MAX_FRAME_LEN,
 };
+use super::{OwnedRefFields, RefOwner, RefView};
 use std::cmp::Ordering;
 
 /// 本模块的稳定拒绝码（与 §5.1–5.3 的 content codec 码互不冲突）。
@@ -85,16 +87,25 @@ pub(super) fn lookup_path_ctx(
     reference: &ContentRef,
     path: &[PathStep],
 ) -> Result<ContentRef, CodecError> {
-    let descent = navigate(source, reference, path, false)?;
+    lookup_path_output(source, reference.into(), path)
+}
+pub(super) fn lookup_path_owned_ctx(
+    source: &mut CodecContext<'_, '_>,
+    reference: RefView<'_>,
+    path: &[PathStep],
+) -> Result<RefOwner, CodecError> {
+    lookup_path_output(source, reference, path)
+}
+fn lookup_path_output<R: RefOutput>(
+    source: &mut CodecContext<'_, '_>,
+    reference: RefView<'_>,
+    path: &[PathStep],
+) -> Result<R, CodecError> {
+    let descent = navigate_view(source, reference, path, false)?;
     let kind =
         Kind::from_tag(descent.tag).ok_or_else(|| unsupported_value_tag_error(descent.tag))?;
     let extent = header_extent(descent.tag, &descent.body)?;
-    Ok(ContentRef {
-        format: CONTENT_FORMAT.to_string(),
-        root: root_string(&descent.digest),
-        kind,
-        extent,
-    })
+    Ok(R::from_checked(kind, descent.digest, extent))
 }
 
 /// 私有审计用的完整 root[] 枚举（#1394）：与旧逐 Index 的 Value 角色一致。
@@ -107,8 +118,20 @@ pub(super) fn lookup_array_items_ctx(
     source: &mut CodecContext<'_, '_>,
     reference: &ContentRef,
 ) -> Result<WorkVec<ContentRef>, CodecError> {
+    lookup_array_output(source, reference.into())
+}
+pub(super) fn lookup_array_items_owned_ctx(
+    source: &mut CodecContext<'_, '_>,
+    reference: RefView<'_>,
+) -> Result<WorkVec<RefOwner>, CodecError> {
+    lookup_array_output(source, reference)
+}
+fn lookup_array_output<R: RefOutput>(
+    source: &mut CodecContext<'_, '_>,
+    reference: RefView<'_>,
+) -> Result<WorkVec<R>, CodecError> {
     let (count, root) = {
-        let node = navigate(source, reference, &[], false)?;
+        let node = navigate_view(source, reference, &[], false)?;
         if node.tag != tag::ARRAY {
             return Err(step_kind_error("完整数组", "0x05 数组", node.tag));
         }
@@ -137,7 +160,7 @@ pub(super) fn lookup_array_items_ctx(
                 }
                 let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
                 let extent = header_extent(t, &body)?;
-                result.push(ContentRef::new(kind, &value, extent))?;
+                result.push(R::from_checked(kind, value, extent))?;
             }
         }
     }
@@ -166,13 +189,57 @@ pub(super) fn lookup_object_fields_subset_ctx(
     object_fields(source, reference, names, false)
 }
 
+pub(super) fn lookup_object_fields_owned_ctx<'names>(
+    source: &mut CodecContext<'_, '_>,
+    reference: RefView<'_>,
+    names: &[&'names str],
+    exact: bool,
+) -> Result<OwnedRefFields<'names>, CodecError> {
+    object_fields_output(source, reference, names, exact)
+}
+trait FieldOutput<'names>: Sized {
+    type Reference: RefOutput;
+    fn new(budget: Option<&super::capture_allocation::OwnedBudget>) -> Result<Self, CodecError>;
+    fn append(&mut self, name: &'names str, reference: Self::Reference) -> Result<(), CodecError>;
+}
+impl<'names> FieldOutput<'names> for CodecFields {
+    type Reference = ContentRef;
+    fn new(budget: Option<&super::capture_allocation::OwnedBudget>) -> Result<Self, CodecError> {
+        Ok(CodecFields::new(budget))
+    }
+    fn append(&mut self, name: &'names str, reference: ContentRef) -> Result<(), CodecError> {
+        CodecFields::append(self, name, reference)
+    }
+}
+impl<'names> FieldOutput<'names> for OwnedRefFields<'names> {
+    type Reference = RefOwner;
+    fn new(budget: Option<&super::capture_allocation::OwnedBudget>) -> Result<Self, CodecError> {
+        budget.map(OwnedRefFields::new).ok_or_else(|| {
+            CodecError::static_detail(
+                super::capture_allocation::INCOMPLETE,
+                "owned fields必须来自实际capture预算",
+            )
+        })
+    }
+    fn append(&mut self, name: &'names str, reference: RefOwner) -> Result<(), CodecError> {
+        OwnedRefFields::append(self, name, reference)
+    }
+}
 fn object_fields(
     source: &mut CodecContext<'_, '_>,
     reference: &ContentRef,
     names: &[&str],
     exact: bool,
 ) -> Result<CodecFields, CodecError> {
-    let node = navigate(source, reference, &[], false)?;
+    object_fields_output(source, reference.into(), names, exact)
+}
+fn object_fields_output<'names, O: FieldOutput<'names>>(
+    source: &mut CodecContext<'_, '_>,
+    reference: RefView<'_>,
+    names: &[&'names str],
+    exact: bool,
+) -> Result<O, CodecError> {
+    let node = navigate_view(source, reference, &[], false)?;
     if node.tag != tag::OBJECT {
         return Err(step_kind_error("对象字段集", "0x06 对象", node.tag));
     }
@@ -187,7 +254,7 @@ fn object_fields(
     if keys.windows(2).any(|pair| pair[0] == pair[1]) {
         return Err(CodecError::new(code::DUPLICATE_KEY, "exact 清单重复键"));
     }
-    let mut result = CodecFields::new(budget.as_ref());
+    let mut result = O::new(budget.as_ref())?;
     let mut stack = WorkVec::with_capacity(1, budget.as_ref())?;
     stack.push((digest_at(&node.body, 8), count))?;
     let mut at = 0;
@@ -249,7 +316,8 @@ fn object_fields(
                 {
                     return Err(field_missing_error(expected));
                 }
-                let reference = super::content_ref_ctx(source, &root_string(&value))?;
+                let (kind, extent) = reference_header(source, &value)?;
+                let reference = O::Reference::from_checked(kind, value, extent);
                 result.append(expected, reference)?;
                 at += 1;
             }
@@ -534,26 +602,35 @@ fn navigate(
     path: &[PathStep],
     forbid_json_text: bool,
 ) -> Result<Descent, CodecError> {
+    navigate_view(source, reference.into(), path, forbid_json_text)
+}
+fn navigate_view(
+    source: &mut CodecContext<'_, '_>,
+    reference: RefView<'_>,
+    path: &[PathStep],
+    forbid_json_text: bool,
+) -> Result<Descent, CodecError> {
     let root = reference.digest()?;
     let (mut cur_tag, mut cur_body) = source.read(&root)?;
     let root_kind = Kind::from_tag(cur_tag).ok_or_else(|| unsupported_value_tag_error(cur_tag))?;
-    if root_kind != reference.kind {
+    if root_kind != reference.kind() {
         return Err(CodecError::new(
             code::KIND,
             format!(
                 "ContentRef.kind={} 与真实节点 tag={cur_tag:02x}（{}）不符",
-                reference.kind.name(),
+                reference.kind().name(),
                 root_kind.name()
             ),
         ));
     }
     let root_extent = header_extent(cur_tag, &cur_body)?;
-    if root_extent != reference.extent {
+    if root_extent != reference.extent() {
         return Err(CodecError::new(
             code::EXTENT,
             format!(
                 "ContentRef.extent={:?} 与真实节点 header {:?} 不符",
-                reference.extent, root_extent
+                reference.extent(),
+                root_extent
             ),
         ));
     }
@@ -1227,4 +1304,88 @@ pub(super) fn bytes_between(
     e: u64,
 ) -> Result<Vec<u8>, CodecError> {
     bytes_between_ctx(&mut CodecContext::Source(s), r, o, e)?.into_plain()
+}
+
+/// Root node role/header kernel, also used by content_ref_ctx through the worker's adapter.
+pub(super) fn reference_header(
+    source: &mut CodecContext<'_, '_>,
+    digest: &NodeDigest,
+) -> Result<(Kind, Option<u64>), CodecError> {
+    let (t, body) = source.read(digest)?;
+    let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
+    let extent = header_extent(t, &body)?;
+    Ok((kind, extent))
+}
+
+#[cfg(test)]
+mod owned_error_order_tests {
+    use super::super::{write_value, MemoryNodes, NodeRead, Value};
+    use super::*;
+    #[test]
+    fn common_owned_result_kernel_keeps_sourceerr_and_index_gate_precedence() {
+        struct Failure {
+            nodes: MemoryNodes,
+            reads: usize,
+            gates: usize,
+            stop: usize,
+            gate_error: bool,
+        }
+        impl NodeSource for Failure {
+            fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, CodecError> {
+                self.reads += 1;
+                if self.reads == self.stop {
+                    return Err(CodecError::static_detail(
+                        code::SOURCE,
+                        "exact source failure",
+                    ));
+                }
+                self.nodes.read(d)
+            }
+            fn before_path_index(&mut self, _: &[PathStep], _: u64) -> Result<(), CodecError> {
+                self.gates += 1;
+                if self.gate_error {
+                    Err(CodecError::static_detail(
+                        code::SOURCE,
+                        "exact deadline/index gate",
+                    ))
+                } else {
+                    Ok(())
+                }
+            }
+        }
+        let mut nodes = MemoryNodes::new();
+        let reference = write_value(&mut nodes, &Value::Array(vec![Value::Null]))
+            .unwrap()
+            .content_ref();
+        for (stop, gate_error) in [(1, false), (2, false), (usize::MAX, true)] {
+            let mut normal = Failure {
+                nodes: nodes.clone(),
+                reads: 0,
+                gates: 0,
+                stop,
+                gate_error,
+            };
+            let mut owned = Failure {
+                nodes: nodes.clone(),
+                reads: 0,
+                gates: 0,
+                stop,
+                gate_error,
+            };
+            let steps = [PathStep::Index(0)];
+            let expected =
+                lookup_path_ctx(&mut CodecContext::Source(&mut normal), &reference, &steps)
+                    .unwrap_err();
+            // Test-only use of the shared representation kernel, not a public owned facade.
+            let actual = lookup_path_output::<RefOwner>(
+                &mut CodecContext::Source(&mut owned),
+                (&reference).into(),
+                &steps,
+            )
+            .unwrap_err();
+            assert_eq!(actual, expected);
+            assert_eq!(owned.reads, normal.reads);
+            assert_eq!(owned.gates, normal.gates);
+        }
+    }
 }

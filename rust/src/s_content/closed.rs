@@ -57,6 +57,82 @@ impl ClosedCapturedOwner<'_> {
     ) -> Result<ContentRef, CodecError> {
         path::lookup_path_ctx(&mut CodecContext::Closed(self), r, p)
     }
+    pub fn content_ref_owned(&mut self, root: &str) -> Result<RefOwner, CodecError> {
+        let digest = parse_root(root)?;
+        let (kind, extent) = path::reference_header(&mut CodecContext::Closed(self), &digest)?;
+        Ok(RefOwner::new(kind, digest, extent))
+    }
+    pub fn lookup_path_owned(
+        &mut self,
+        r: RefView<'_>,
+        p: &[path::PathStep],
+    ) -> Result<RefOwner, CodecError> {
+        path::lookup_path_owned_ctx(&mut CodecContext::Closed(self), r, p)
+    }
+    pub fn lookup_array_items_owned(
+        &mut self,
+        r: RefView<'_>,
+    ) -> Result<CodecVec<RefOwner>, CodecError> {
+        path::lookup_array_items_owned_ctx(&mut CodecContext::Closed(self), r)
+    }
+    pub fn lookup_object_fields_owned<'names>(
+        &mut self,
+        r: RefView<'_>,
+        n: &[&'names str],
+    ) -> Result<OwnedRefFields<'names>, CodecError> {
+        path::lookup_object_fields_owned_ctx(&mut CodecContext::Closed(self), r, n, true)
+    }
+    pub fn lookup_object_fields_subset_owned<'names>(
+        &mut self,
+        r: RefView<'_>,
+        n: &[&'names str],
+    ) -> Result<OwnedRefFields<'names>, CodecError> {
+        path::lookup_object_fields_owned_ctx(&mut CodecContext::Closed(self), r, n, false)
+    }
+    pub fn new_owned_ref_result(&self) -> CodecVec<RefOwner> {
+        WorkVec::new(Some(&self.budget))
+    }
+    pub fn render_canonical_owned(
+        &mut self,
+        r: RefView<'_>,
+        out: &mut dyn Write,
+    ) -> Result<(), CodecError> {
+        render_refview_ctx(CodecContext::Closed(self), r, out)
+    }
+    pub fn verify_fresh_owned(&mut self, r: RefView<'_>, mode: Mode) -> Result<(), CodecError> {
+        Verifier::with_context(CodecContext::Closed(self), mode, AuditMemo::default())
+            .verify_refview(r)
+            .map(|_| ())
+    }
+    pub fn verify_cached_owned(&mut self, r: RefView<'_>, mode: Mode) -> Result<(), CodecError> {
+        if self.capture.contains(&r.digest()?) {
+            self.capture.verify_refview(r, mode)
+        } else {
+            self.verify_fresh_owned(r, mode)
+        }
+    }
+    pub fn verify_many_fresh_owned<'a>(
+        &mut self,
+        refs: impl IntoIterator<Item = RefView<'a>>,
+        mode: Mode,
+    ) -> Result<(), CodecError> {
+        let mut verifier =
+            Verifier::with_context(CodecContext::Closed(self), mode, AuditMemo::default());
+        for r in refs {
+            verifier.verify_refview(r)?;
+        }
+        Ok(())
+    }
+    pub fn verify_many_cached_owned<'a>(
+        &mut self,
+        refs: impl IntoIterator<Item = RefView<'a>>,
+        mode: Mode,
+    ) -> Result<(), CodecError> {
+        for r in refs {
+            self.verify_cached_owned(r, mode)?;
+        }
+        Ok(())
+    }
     pub fn new_ref_result(&self) -> CodecVec<ContentRef> {
         WorkVec::new(Some(&self.budget))
     }
@@ -129,6 +205,12 @@ impl ClosedCapturedOwner<'_> {
         b: &str,
     ) -> Result<ContentRef, CodecError> {
         path::replace_batch_placeholder_ctx(&mut CodecContext::Closed(self), r, p, b)
+    }
+    pub fn write_json_view(
+        &mut self,
+        v: capture_allocation::audit_json::JsonView<'_>,
+    ) -> Result<Built, CodecError> {
+        write_json_view_ctx(&mut CodecContext::Closed(self), v)
     }
     pub fn write_value(&mut self, v: &Value) -> Result<Built, CodecError> {
         write_in_mode(&mut CodecContext::Closed(self), v, Mode::Public)
@@ -233,7 +315,7 @@ impl<'body> FrameMaterial<'body> {
 pub(super) enum CodecContext<'read, 'capture> {
     Source(&'read mut dyn NodeSource),
     Store(&'read mut dyn NodeStore),
-    Sink(&'read mut dyn NodeSink),
+    Sink(&'read mut dyn NodeSink, Option<OwnedBudget>),
     Capture(&'read AuditCapture),
     Closed(&'read mut ClosedCapturedOwner<'capture>),
 }
@@ -245,6 +327,7 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
                 _ => None,
             },
             Self::Closed(c) => Some(c.budget.clone()),
+            Self::Sink(_, b) => b.clone(),
             _ => None,
         }
     }
@@ -252,7 +335,7 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
         match self {
             Self::Source(s) => CodecContext::Source(&mut **s),
             Self::Store(s) => CodecContext::Store(&mut **s),
-            Self::Sink(s) => CodecContext::Sink(&mut **s),
+            Self::Sink(s, b) => CodecContext::Sink(&mut **s, b.clone()),
             Self::Capture(c) => CodecContext::Capture(c),
             Self::Closed(c) => CodecContext::Closed(&mut **c),
         }
@@ -270,7 +353,7 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
                 }
             }
             Self::Closed(c) => c.read(d),
-            Self::Sink(_) => Err(CodecError::new(code::SOURCE, "只写context不可读节点")),
+            Self::Sink(_, _) => Err(CodecError::new(code::SOURCE, "只写context不可读节点")),
         }
     }
     pub(super) fn emit(&mut self, tag: u8, body: &[u8]) -> Result<NodeDigest, CodecError> {
@@ -278,7 +361,7 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
         let digest = m.digest;
         match self {
             Self::Store(s) => s.put(m.digest, m.tag, m.body)?,
-            Self::Sink(s) => s.put(m.digest, m.tag, m.body)?,
+            Self::Sink(s, _) => s.put(m.digest, m.tag, m.body)?,
             Self::Closed(c) => c.put_material(m)?,
             Self::Source(_) | Self::Capture(_) => {
                 return Err(CodecError::new(code::SOURCE, "只读context不可写节点"))
@@ -745,5 +828,352 @@ mod writer_error_cause_probe {
         assert_eq!(b.snapshot().allocated_layouts, 1);
         drop(owned);
         assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
+    }
+}
+
+#[cfg(test)]
+mod owned_ref_tests {
+    use super::*;
+    fn capture(nodes: MemoryNodes, extra: usize) -> (AuditCapture, OwnedBudget, usize) {
+        let count = nodes.nodes.len();
+        let bytes = nodes.nodes.values().map(|(_, b)| b.len()).sum();
+        let base = capture_allocation::CaptureSlab::requested_bytes(count, bytes).unwrap();
+        let budget = OwnedBudget::new(base + extra);
+        let mut slab = capture_allocation::CaptureSlab::new(count, bytes, &budget).unwrap();
+        for (d, (t, b)) in nodes.nodes {
+            slab.push(d, t, &b).unwrap();
+        }
+        (
+            AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap()),
+            budget,
+            base,
+        )
+    }
+    fn equal_fields(actual: &RefOwner, expected: &ContentRef) {
+        assert_eq!(actual.format(), expected.format);
+        assert_eq!(actual.root(), expected.root);
+        assert_eq!(actual.kind(), expected.kind);
+        assert_eq!(actual.extent(), expected.extent);
+        assert_eq!(actual.digest(), expected.digest().unwrap());
+    }
+    fn traced<T>(f: impl FnOnce() -> T) -> (T, Vec<(NodeDigest, u64)>, u64) {
+        let start = frame_calls_on_thread();
+        CAPTURE_BODY_READ_TRACE.with(|t| {
+            assert!(t.borrow().is_none());
+            *t.borrow_mut() = Some((start, Vec::new()));
+        });
+        let value = f();
+        let reads = CAPTURE_BODY_READ_TRACE.with(|t| t.borrow_mut().take().unwrap().1);
+        (value, reads, frame_calls_on_thread() - start)
+    }
+    struct TracedSource {
+        nodes: MemoryNodes,
+        start: u64,
+        reads: Vec<(NodeDigest, u64)>,
+    }
+    impl NodeSource for TracedSource {
+        fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, CodecError> {
+            self.reads.push((*d, frame_calls_on_thread() - self.start));
+            self.nodes.read(d)
+        }
+    }
+    #[test]
+    fn owned_lookup_matches_normal_fields_read_order_f_and_errors() {
+        let values = [
+            Value::Array(vec![
+                Value::Null,
+                Value::Bool(true),
+                Value::string("汉x".repeat(2500)),
+            ]),
+            Value::Object(vec![
+                ("a".into(), Value::Array(vec![Value::Null])),
+                ("b".into(), Value::Bool(false)),
+                ("c".into(), Value::string("x")),
+            ]),
+            Value::JsonText(Box::new(JsonValue::Array(vec![JsonValue::Null]))),
+        ];
+        for (case, value) in values.into_iter().enumerate() {
+            let mut nodes = MemoryNodes::new();
+            let root = write_value(&mut nodes, &value).unwrap().content_ref();
+            let (cap, budget, base) = capture(nodes.clone(), 32768);
+            let mut closed = cap
+                .closed_codec_for_allocation_prototype(0, 0, None)
+                .unwrap();
+            let paths = match case {
+                0 => vec![
+                    vec![],
+                    vec![path::PathStep::Index(2)],
+                    vec![path::PathStep::Index(3)],
+                    vec![path::PathStep::Field("a".into())],
+                ],
+                1 => vec![
+                    vec![],
+                    vec![path::PathStep::Field("a".into()), path::PathStep::Index(0)],
+                    vec![path::PathStep::Field("missing".into())],
+                ],
+                _ => vec![
+                    vec![],
+                    vec![path::PathStep::JsonText, path::PathStep::Index(0)],
+                    vec![path::PathStep::JsonText, path::PathStep::JsonText],
+                ],
+            };
+            for steps in paths {
+                let start = frame_calls_on_thread();
+                let mut plain = TracedSource {
+                    nodes: nodes.clone(),
+                    start,
+                    reads: Vec::new(),
+                };
+                let expected = path::lookup_path(&mut plain, &root, &steps);
+                let calls = frame_calls_on_thread() - start;
+                let (actual, reads, f) =
+                    traced(|| closed.lookup_path_owned((&root).into(), &steps));
+                match (actual, expected) {
+                    (Ok(a), Ok(e)) => equal_fields(&a, &e),
+                    (Err(a), Err(e)) => assert_eq!(a, e),
+                    pair => panic!("result mismatch {pair:?}"),
+                }
+                assert_eq!(reads, plain.reads);
+                assert_eq!(f, calls);
+            }
+            // Invalid incoming reference keeps format/root/kind/extent precedence.
+            for part in 0..4 {
+                let mut invalid = root.clone();
+                match part {
+                    0 => invalid.format = "bad".into(),
+                    1 => invalid.root = "bad".into(),
+                    2 => invalid.kind = Kind::TemplateBatch,
+                    _ => invalid.extent = Some(99),
+                };
+                let start = frame_calls_on_thread();
+                let mut plain = TracedSource {
+                    nodes: nodes.clone(),
+                    start,
+                    reads: Vec::new(),
+                };
+                let expected = path::lookup_path(&mut plain, &invalid, &[]).unwrap_err();
+                let calls = frame_calls_on_thread() - start;
+                let (actual, reads, f) =
+                    traced(|| closed.lookup_path_owned((&invalid).into(), &[]));
+                assert_eq!(actual.unwrap_err(), expected);
+                assert_eq!(reads, plain.reads);
+                assert_eq!(f, calls);
+            }
+            if case == 0 {
+                let start = frame_calls_on_thread();
+                let mut plain = TracedSource {
+                    nodes: nodes.clone(),
+                    start,
+                    reads: Vec::new(),
+                };
+                let expected = path::lookup_array_items(&mut plain, &root).unwrap();
+                let calls = frame_calls_on_thread() - start;
+                let (actual, reads, f) = traced(|| closed.lookup_array_items_owned((&root).into()));
+                let actual = actual.unwrap();
+                for (a, e) in actual.iter().zip(&expected) {
+                    equal_fields(a, e);
+                }
+                assert_eq!(actual.len(), expected.len());
+                assert_eq!(reads, plain.reads);
+                assert_eq!(f, calls);
+                drop(actual);
+            }
+            if case == 1 {
+                for (names, exact) in [
+                    (["c", "a", "b"].as_slice(), true),
+                    (["c", "a"].as_slice(), false),
+                ] {
+                    let start = frame_calls_on_thread();
+                    let mut plain = TracedSource {
+                        nodes: nodes.clone(),
+                        start,
+                        reads: Vec::new(),
+                    };
+                    let expected = if exact {
+                        path::lookup_object_fields(&mut plain, &root, names)
+                    } else {
+                        path::lookup_object_fields_subset(&mut plain, &root, names)
+                    }
+                    .unwrap();
+                    let calls = frame_calls_on_thread() - start;
+                    let (actual, reads, f) = traced(|| {
+                        if exact {
+                            closed.lookup_object_fields_owned((&root).into(), names)
+                        } else {
+                            closed.lookup_object_fields_subset_owned((&root).into(), names)
+                        }
+                    });
+                    let actual = actual.unwrap();
+                    for (name, r) in actual.iter() {
+                        equal_fields(r, &expected[name]);
+                    }
+                    assert_eq!(actual.len(), expected.len());
+                    assert_eq!(reads, plain.reads);
+                    assert_eq!(f, calls);
+                    drop(actual);
+                }
+                for (names, exact) in [
+                    (["missing"].as_slice(), false),
+                    (["a", "a", "c"].as_slice(), true),
+                    (["a"].as_slice(), true),
+                ] {
+                    let mut plain = nodes.clone();
+                    let expected = if exact {
+                        path::lookup_object_fields(&mut plain, &root, names)
+                    } else {
+                        path::lookup_object_fields_subset(&mut plain, &root, names)
+                    }
+                    .err()
+                    .unwrap();
+                    let actual = if exact {
+                        closed.lookup_object_fields_owned((&root).into(), names)
+                    } else {
+                        closed.lookup_object_fields_subset_owned((&root).into(), names)
+                    }
+                    .err()
+                    .unwrap();
+                    assert_eq!(actual, expected);
+                }
+            }
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+            drop(closed);
+            drop(cap);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        }
+    }
+    #[test]
+    fn owned_lookup_target_bad_material_and_missing_errors_match_normal() {
+        for missing in [false, true] {
+            let mut nodes = MemoryNodes::new();
+            let built = write_value(&mut nodes, &Value::Array(vec![Value::Bool(true)])).unwrap();
+            let child = frame(tag::BOOL_TRUE, &[]);
+            if missing {
+                nodes.nodes.remove(&child);
+            } else {
+                nodes.insert_unchecked(child, tag::BOOL_TRUE, vec![1]);
+            }
+            let reference = built.content_ref();
+            let mut plain = nodes.clone();
+            let expected =
+                path::lookup_path(&mut plain, &reference, &[path::PathStep::Index(0)]).unwrap_err();
+            let (cap, budget, _) = capture(nodes, 8192);
+            let mut closed = cap
+                .closed_codec_for_allocation_prototype(0, 0, None)
+                .unwrap();
+            assert_eq!(
+                closed
+                    .lookup_path_owned((&reference).into(), &[path::PathStep::Index(0)])
+                    .unwrap_err(),
+                expected
+            );
+            drop(closed);
+            drop(cap);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        }
+    }
+    #[test]
+    fn owned_ref_results_share_capture_ledger_on_move_clone_growth_and_drop() {
+        let size = std::mem::size_of::<RefOwner>();
+        let (cap, budget, _) = capture(MemoryNodes::new(), 3 * size - 1);
+        let closed = cap
+            .closed_codec_for_allocation_prototype(0, 0, None)
+            .unwrap();
+        let mut refs = closed.new_owned_ref_result();
+        refs.reserve_exact(1).unwrap();
+        refs.try_push(RefOwner::new(Kind::Null, [1; 32], None))
+            .unwrap();
+        let before = budget.snapshot();
+        assert_eq!(
+            refs.reserve_exact(1).unwrap_err().code(),
+            capture_allocation::LIMIT
+        );
+        assert_eq!(refs.len(), 1);
+        assert_eq!(refs[0].digest(), [1; 32]);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, size);
+        assert_eq!(
+            budget.snapshot().allocated_layouts,
+            before.allocated_layouts
+        );
+        drop(closed);
+        drop(cap);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, size);
+        let moved = refs;
+        drop(moved);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        let (cap, budget, _) = capture(MemoryNodes::new(), 16 * size);
+        let closed = cap
+            .closed_codec_for_allocation_prototype(0, 0, None)
+            .unwrap();
+        let mut refs = closed.new_owned_ref_result();
+        refs.try_push(RefOwner::new(Kind::Null, [2; 32], None))
+            .unwrap();
+        let copy = refs.try_clone().unwrap();
+        drop(closed);
+        drop(cap);
+        drop(refs);
+        assert!(budget.snapshot().live_requested_layout_bytes > 0);
+        assert_eq!(copy[0].digest(), [2; 32]);
+        drop(copy);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_lookup_global_observer_has_only_real_ledger_allocations() {
+        use capture_allocation::audit_json::tests::observed;
+        let mut nodes = MemoryNodes::new();
+        let object = write_value(
+            &mut nodes,
+            &Value::Object(vec![
+                ("a".into(), Value::Null),
+                ("b".into(), Value::Bool(true)),
+            ]),
+        )
+        .unwrap();
+        let array = write_value(
+            &mut nodes,
+            &Value::Array(vec![Value::Null, Value::Bool(true)]),
+        )
+        .unwrap();
+        let object_root = object.root();
+        let array_root = array.root();
+        let (cap, budget, _) = capture(nodes, 32768);
+        let mut closed = cap
+            .closed_codec_for_allocation_prototype(0, 0, None)
+            .unwrap();
+        frame_calls_on_thread();
+        for operation in 0..5 {
+            let attempts = budget.snapshot().allocation_attempts;
+            let ((), calls) = observed(|| {
+                let r = closed.content_ref_owned(&object_root).unwrap();
+                match operation {
+                    0 => {}
+                    1 => {
+                        closed.lookup_path_owned(r.view(), &[]).unwrap();
+                    }
+                    2 => {
+                        closed
+                            .lookup_object_fields_owned(r.view(), &["a", "b"])
+                            .unwrap();
+                    }
+                    3 => {
+                        closed
+                            .lookup_object_fields_subset_owned(r.view(), &["a"])
+                            .unwrap();
+                    }
+                    _ => {
+                        let r = closed.content_ref_owned(&array_root).unwrap();
+                        closed.lookup_array_items_owned(r.view()).unwrap();
+                    }
+                }
+            });
+            assert_eq!(
+                calls,
+                budget.snapshot().allocation_attempts - attempts,
+                "operation {operation}: unledgered alloc"
+            );
+        }
+        drop(closed);
+        drop(cap);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
 }
