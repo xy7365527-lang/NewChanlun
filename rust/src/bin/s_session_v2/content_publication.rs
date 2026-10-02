@@ -1016,6 +1016,132 @@ mod tests {
         sc::render_canonical(store, r, &mut out).unwrap();
         serde_json::from_slice(&out).unwrap()
     }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_publication_same_real_indexed_template_roots_and_f() {
+        use sc::capture_allocation::{CaptureSlab, OwnedBudget};
+        let mut db = Connection::open_in_memory().unwrap();
+        let tx = db.transaction().unwrap();
+        let (m, roots, manifest) = fixtures(&tx);
+        let mut nodes = sc::MemoryNodes::new();
+        let mut statement = tx
+            .prepare("SELECT digest,tag,body FROM s_content_nodes ORDER BY digest")
+            .unwrap();
+        let mut rows = statement.query([]).unwrap();
+        while let Some(row) = rows.next().unwrap() {
+            let digest: Vec<u8> = row.get(0).unwrap();
+            let t: u8 = row.get(1).unwrap();
+            let body: Vec<u8> = row.get(2).unwrap();
+            nodes.insert_unchecked(digest.try_into().unwrap(), t, body);
+        }
+        drop(rows);
+        drop(statement);
+        let legacy = sc::AuditCapture::new(nodes.clone());
+        let legacy_budget = OwnedBudget::new(2 * 1024 * 1024);
+        let (normal, normal_f) = crate::v3::audit_store::with_owned_store_probe(
+            &legacy,
+            &legacy_budget,
+            1024,
+            65536,
+            |store| {
+                let f = sc::frame_calls_on_thread();
+                let result = resolve_indexed_templates_pending(
+                    &tx,
+                    store,
+                    &m,
+                    &roots,
+                    &manifest.batch_id,
+                    0,
+                )
+                .unwrap();
+                (result, sc::frame_calls_on_thread() - f)
+            },
+        );
+        assert_eq!(legacy_budget.snapshot().live_requested_layout_bytes, 0);
+        let count = nodes.len();
+        let body_bytes = nodes.iter().map(|(_, _, b)| b.len()).sum();
+        let base = CaptureSlab::requested_bytes(count, body_bytes).unwrap();
+        let budget = OwnedBudget::new(base + 2 * 1024 * 1024);
+        let mut slab = CaptureSlab::new(count, body_bytes, &budget).unwrap();
+        for (d, t, b) in nodes.iter() {
+            slab.push(*d, t, b).unwrap();
+        }
+        let capture = sc::AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
+        let meta_owner = content_manifest::MetaOwner::from_view(m.view(), &budget).unwrap();
+        let roots_owner = content_manifest::RootsOwner::from_view(roots.view()).unwrap();
+        let (owned, owned_f) = crate::v3::audit_store::with_owned_store_probe(
+            &capture,
+            &budget,
+            1024,
+            65536,
+            |store| {
+                let f = sc::frame_calls_on_thread();
+                let result = resolve_indexed_templates_pending_view(
+                    &tx,
+                    store,
+                    meta_owner.view(),
+                    roots_owner.view(),
+                    &manifest.batch_id,
+                    0,
+                )
+                .unwrap();
+                (result, sc::frame_calls_on_thread() - f)
+            },
+        );
+        assert_eq!(owned.snapshot.view().root(), normal.snapshot.root);
+        assert_eq!(owned.delta.view().root(), normal.delta.root);
+        assert_eq!(owned.snapshot.view().kind(), normal.snapshot.kind);
+        assert_eq!(owned.delta.view().extent(), normal.delta.extent);
+        assert!(matches!(owned.snapshot, RefValue::Owned(_)));
+        assert!(matches!(owned.delta, RefValue::Owned(_)));
+        assert_eq!(owned_f, normal_f);
+        // The same invalid frontier rejects at the same source-independent gate.
+        let expected = crate::v3::audit_store::with_owned_store_probe(
+            &legacy,
+            &legacy_budget,
+            1024,
+            65536,
+            |store| {
+                resolve_indexed_templates_pending(
+                    &tx,
+                    store,
+                    &m,
+                    &roots,
+                    &manifest.batch_id,
+                    m.input_frontier,
+                )
+                .err()
+                .unwrap()
+            },
+        );
+        let actual = crate::v3::audit_store::with_owned_store_probe(
+            &capture,
+            &budget,
+            1024,
+            65536,
+            |store| {
+                resolve_indexed_templates_pending_view(
+                    &tx,
+                    store,
+                    meta_owner.view(),
+                    roots_owner.view(),
+                    &manifest.batch_id,
+                    m.input_frontier,
+                )
+                .err()
+                .unwrap()
+            },
+        );
+        assert_eq!(actual, expected);
+        println!(
+            "OWNED_PUBLICATION_RECEIPT {}",
+            serde_json::json!({"normal_f":normal_f,"owned_f":owned_f,"snapshot":owned.snapshot.root(),"delta":owned.delta.root(),"meter":budget.snapshot(),"error":actual,"whole_audit_allocation_admitted":false})
+        );
+        drop(owned);
+        drop(meta_owner);
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
     #[test]
     fn historical_template_resolution_ignores_future_births_and_withdrawals() {
         let mut db = Connection::open_in_memory().unwrap();
