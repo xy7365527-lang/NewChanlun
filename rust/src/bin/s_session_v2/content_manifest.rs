@@ -416,7 +416,15 @@ pub(crate) fn assemble_unpublished_in_store(
     metadata: &ManifestMetadata,
     roots: &ManifestRoots,
 ) -> Result<UnpublishedManifest, CodecError> {
-    let body = assemble_manifest_body(store, metadata.view(), roots.view())?;
+    assemble_unpublished_view_in_store(store, metadata.view(), roots.view())
+}
+/// 明确normal输出适配器，借用相同输入核；不创建临时normal元数据DTO。
+pub(crate) fn assemble_unpublished_view_in_store(
+    store: &mut crate::v3::audit_store::StoreView<'_, '_>,
+    metadata: MetadataView<'_>,
+    roots: RootsView<'_>,
+) -> Result<UnpublishedManifest, CodecError> {
+    let body = assemble_manifest_body(store, metadata, roots)?;
     Ok(UnpublishedManifest {
         value: body.value,
         batch_id: batch_text(&body.identity).as_str().to_owned(),
