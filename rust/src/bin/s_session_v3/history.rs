@@ -319,23 +319,35 @@ fn read_indexed_history_inner(
         ] {
             same_digest(&mut store, public, key, expected)?;
         }
-        let (withdrawals, replaces) = object_index::changes_at(&objects, generation)?;
-        let wire_withdrawals = withdrawals
+        let (withdrawals, replaces) =
+            object_index::changes_at_budgeted(&objects, generation, allocation.as_ref())?;
+        let mut wire_withdrawals = bj::WithdrawalArray(bj::new_work(allocation.as_ref()));
+        for v in withdrawals
+            .view()
+            .as_array()
+            .ok_or_else(|| err("withdrawals不是数组"))?
             .iter()
-            .map(|v| {
-                if let Some(b) = budget {
-                    b.record().map_err(err)?;
-                }
-                project_withdrawal_wire(v)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        same_json(&mut store, &delta, "withdrawals", json!(wire_withdrawals))?;
-        for _ in &replaces {
+        {
+            if let Some(b) = budget {
+                b.record().map_err(err)?;
+            }
+            wire_withdrawals
+                .0
+                .try_push(bj::WithdrawalWire::new(v)?)
+                .map_err(err)?;
+        }
+        same_json(&mut store, &delta, "withdrawals", wire_withdrawals.view())?;
+        for _ in replaces
+            .view()
+            .as_array()
+            .ok_or_else(|| err("replaces不是数组"))?
+            .iter()
+        {
             if let Some(b) = budget {
                 b.record().map_err(err)?;
             }
         }
-        same_json(&mut store, &delta, "replaces", json!(replaces))?;
+        same_json(&mut store, &delta, "replaces", replaces.view())?;
         for (public, is_delta) in [(&snapshot, false), (&delta, true)] {
             let members = aux_index::cut_members_metered(&auxiliary, generation, is_delta, budget)?;
             for (name, nodes) in ["witnesses", "relations", "observations"]
@@ -398,11 +410,11 @@ fn read_indexed_history_inner(
         }
         #[cfg(test)]
         super::state::trace_event("history_aux_members", Some(generation));
-        aux_index::verify_generated_members(
+        aux_index::verify_generated_members_with_changes(
             &mut store,
             &auxiliary,
             &roots.generated_state,
-            &replaces,
+            replaces.view(),
             raw.prefix(frontier as usize + 1)?,
             generation,
         )?;
@@ -468,55 +480,92 @@ fn read_indexed_history_inner(
         )?;
         #[cfg(test)]
         super::state::trace_event("history_public_fields", Some(generation));
-        let seq_range = json!({"from":(previous+1).to_string(),"to":frontier.to_string()});
+        let from_decimal = bj::Decimal::new(previous + 1);
+        let to_decimal = bj::Decimal::new(frontier);
+        let generation_decimal = bj::Decimal::new(generation);
+        let seq_fields = [
+            ("from", JsonView::String(from_decimal.text())),
+            ("to", JsonView::String(to_decimal.text())),
+        ];
+        let seq_range = JsonView::object_fields(&seq_fields).map_err(err)?;
         for public in [&snapshot, &delta] {
             same_json(
                 &mut store,
                 public,
                 "generation",
-                json!(generation.to_string()),
+                JsonView::String(generation_decimal.text()),
             )?;
-            same_json(&mut store, public, "session_id", json!(m.session_id))?;
+            same_json(
+                &mut store,
+                public,
+                "session_id",
+                JsonView::String(&m.session_id),
+            )?;
             same_json(
                 &mut store,
                 public,
                 "catalog_revision",
-                json!(m.catalog_revision),
+                JsonView::String(&m.catalog_revision),
             )?;
             same_json(
                 &mut store,
                 public,
                 "input_frontier",
-                json!(frontier.to_string()),
+                JsonView::String(to_decimal.text()),
             )?;
-            same_json(&mut store, public, "index_frontier", json!(batch_id))?;
-            same_json(&mut store, public, "seq_range", seq_range.clone())?;
+            same_json(
+                &mut store,
+                public,
+                "index_frontier",
+                JsonView::String(&batch_id),
+            )?;
+            same_json(&mut store, public, "seq_range", seq_range)?;
         }
         same_json(
             &mut store,
             &snapshot,
             "structure_cut",
-            json!(m.structure_cut),
+            JsonView::String(&m.structure_cut),
         )?;
         same_json(
             &mut store,
             &snapshot,
             "history_mode",
-            json!("RecomputedWithRevision"),
+            JsonView::String("RecomputedWithRevision"),
         )?;
-        same_json(&mut store, &snapshot, "as_of_generation", Value::Null)?;
-        same_json(&mut store, &snapshot, "profile_id", json!(m.profile_id))?;
-        same_json(&mut store, &snapshot, "profile_hash", json!(m.profile_hash))?;
+        same_json(&mut store, &snapshot, "as_of_generation", JsonView::Null)?;
+        same_json(
+            &mut store,
+            &snapshot,
+            "profile_id",
+            JsonView::String(&m.profile_id),
+        )?;
+        same_json(
+            &mut store,
+            &snapshot,
+            "profile_hash",
+            JsonView::String(&m.profile_hash),
+        )?;
         same_digest(
             &mut store,
             &snapshot,
             "scope",
             m.scope.digest().map_err(err)?,
         )?;
-        same_json(&mut store, &delta, "base_cut", json!(m.base_cut))?;
-        same_json(&mut store, &delta, "next_cut", json!(m.structure_cut))?;
-        if m.base_cut != format!("cut-{}", generation - 1)
-            || m.structure_cut != format!("cut-{generation}")
+        same_json(
+            &mut store,
+            &delta,
+            "base_cut",
+            JsonView::String(&m.base_cut),
+        )?;
+        same_json(
+            &mut store,
+            &delta,
+            "next_cut",
+            JsonView::String(&m.structure_cut),
+        )?;
+        if m.base_cut.strip_prefix("cut-") != Some(bj::Decimal::new(generation - 1).text())
+            || m.structure_cut.strip_prefix("cut-") != Some(generation_decimal.text())
         {
             return Err(err("manifest cut 链不连续"));
         }
@@ -536,16 +585,18 @@ fn read_indexed_history_inner(
             }
         }
         let stored_range = TextValue::from_sql(&mut row, 9, allocation.as_ref()).map_err(err)?;
-        if !history_canonical_equal((&seq_range).into(), &stored_range, allocation.as_ref())?
+        if !history_canonical_equal(seq_range, &stored_range, allocation.as_ref())?
             || row.integer(11).map_err(err)? != frontier
         {
             return Err(err("Delta 独立前沿不符"));
         }
+        let catalog_run_status =
+            TextValue::from_sql(&mut row, 12, allocation.as_ref()).map_err(err)?;
         same_json(
             &mut store,
             &delta,
             "catalog_run_status",
-            json!(TextValue::from_sql(&mut row, 12, allocation.as_ref()).map_err(err)?),
+            JsonView::String(&catalog_run_status),
         )?;
         let evidence = field(&mut store, &delta, "catalog_evidence")?;
         for (column, want) in [(13, &evidence), (14, &delta)] {
@@ -879,15 +930,16 @@ fn same_digest<'a>(
         Ok(())
     }
 }
-fn same_json<'a>(
+fn same_json<'r, 'j>(
     s: &mut HashReader<'_>,
-    r: impl Into<sc::RefView<'a>>,
+    r: impl Into<sc::RefView<'r>>,
     k: &str,
-    v: Value,
+    v: impl Into<JsonView<'j>>,
 ) -> Result<(), String> {
-    let expected = hash_json_in_store(s, &v, s.deadline, s.budget)?;
+    let expected = hash_json_in_store(s, v, s.deadline, s.budget)?;
     same_digest(s, r, k, expected)
 }
+
 fn cv(v: &Value) -> Result<V, String> {
     cv_until(v, None)
 }
@@ -3512,5 +3564,136 @@ mod explicit_empty_json_budget_probe {
         assert_eq!(b.snapshot().allocation_attempts, 0);
         drop((empty, capture));
         assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
+    }
+}
+
+#[cfg(all(test, feature = "s_allocation_json_testonly"))]
+mod borrowed_change_consumer_probe {
+    use super::*;
+    use sc::capture_allocation::CaptureSlab;
+    #[test]
+    fn owned_change_consumer_seq_range_and_scalar_preserve_full_types_and_root() {
+        let from = bj::Decimal::new(i64::MIN);
+        let to = bj::Decimal::new(i64::MAX);
+        let mut nodes = sc::MemoryNodes::new();
+        let built = sc::write_value(
+            &mut nodes,
+            &V::Object(vec![
+                (
+                    "seq_range".into(),
+                    V::Object(vec![
+                        ("from".into(), V::String(from.text().into())),
+                        ("to".into(), V::String(to.text().into())),
+                    ]),
+                ),
+                ("generation".into(), V::String(to.text().into())),
+                ("session_id".into(), V::String("源é😀".into())),
+                ("as_of_generation".into(), V::Null),
+            ]),
+        )
+        .unwrap();
+        let count = nodes.len();
+        let bytes = nodes.iter().map(|(_, _, b)| b.len()).sum();
+        let budget = OwnedBudget::new(1_000_000);
+        let mut slab = CaptureSlab::new(count, bytes, &budget).unwrap();
+        for (d, t, b) in nodes.iter() {
+            slab.push(*d, t, b).unwrap();
+        }
+        let capture = sc::AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
+        with_overlay_prototype(
+            OverlayPrototype {
+                slots: 8,
+                bytes: 256,
+                budget: budget.clone(),
+                peaks: std::rc::Rc::new(std::cell::Cell::new((0, 0))),
+            },
+            || {
+                let mut reader = HashReader::captured_for_audit(&capture, None).unwrap();
+                let fields = [
+                    ("from", JsonView::String(from.text())),
+                    ("to", JsonView::String(to.text())),
+                ];
+                let seq = JsonView::object_fields(&fields).unwrap();
+                same_json(&mut reader, &built.content_ref(), "seq_range", seq).unwrap();
+                same_json(
+                    &mut reader,
+                    &built.content_ref(),
+                    "generation",
+                    JsonView::String(to.text()),
+                )
+                .unwrap();
+                same_json(
+                    &mut reader,
+                    &built.content_ref(),
+                    "session_id",
+                    JsonView::String("源é😀"),
+                )
+                .unwrap();
+                same_json(
+                    &mut reader,
+                    &built.content_ref(),
+                    "as_of_generation",
+                    JsonView::Null,
+                )
+                .unwrap();
+                let wrong_type = serde_json::Number::from(i64::MAX);
+                let error = same_json(
+                    &mut reader,
+                    &built.content_ref(),
+                    "generation",
+                    JsonView::Number(&wrong_type),
+                )
+                .unwrap_err();
+                assert!(error.contains("generation与独立依据不同"), "{error}");
+                let canonical =
+                    format!("{{\"from\":\"{}\",\"to\":\"{}\"}}", from.text(), to.text());
+                assert!(history_canonical_equal(
+                    seq,
+                    &canonical,
+                    reader.allocation_budget().as_ref()
+                )
+                .unwrap());
+            },
+        );
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[test]
+    fn owned_change_consumer_projection_quota_failure_preserves_original_and_drops() {
+        let budget = OwnedBudget::new(1_000_000);
+        let capture = sc::AuditCapture::from_slab_for_allocation_prototype(
+            CaptureSlab::new(0, 0, &budget).unwrap().finish().unwrap(),
+        );
+        let original = r#"{"object_id":"形é😀","window_start":1,"window_mid":2,"window_end":3,"reason":"window_removed","superseded_by":null}"#.as_bytes();
+        super::super::audit_store::with_owned_store_probe(&capture, &budget, 0, 0, |s| {
+            let actual = s.allocation_budget().unwrap();
+            assert!(actual.same_ledger(&budget));
+            let owner = history_decode(original, Some(&actual))?;
+            let expected = strict_json(original)?;
+            let mut projection = bj::WithdrawalArray(bj::new_work(Some(&actual)));
+            let live = budget.snapshot().live_requested_layout_bytes;
+            let fill =
+                CaptureSlab::new(0, budget.snapshot().limit_bytes - live - 1, &budget).unwrap();
+            let error = projection
+                .0
+                .try_push(bj::WithdrawalWire::new(owner.view())?)
+                .unwrap_err();
+            assert_eq!(error.code(), sc::capture_allocation::LIMIT);
+            assert_eq!(owner.view(), JsonView::Plain(&expected));
+            assert!(projection.0.is_empty());
+            drop(fill);
+            projection
+                .0
+                .try_push(bj::WithdrawalWire::new(owner.view())?)
+                .map_err(err)?;
+            let normal = crate::project_withdrawal_wire(&expected)?;
+            let wire = projection.view().as_array().unwrap().get(0).unwrap();
+            assert_eq!(wire, JsonView::Plain(&normal));
+            assert_eq!(owner.view(), JsonView::Plain(&expected));
+            Ok::<_, String>(())
+        })
+        .unwrap();
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
 }

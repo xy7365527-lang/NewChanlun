@@ -32,6 +32,7 @@ use newchan_rust::s_content::{
 };
 use newchan_rust::session_protocol::{parse_canonical_i64, strict_json};
 use rusqlite::{params, OptionalExtension, Transaction};
+use sc::capture_allocation::audit_json::JsonView;
 use serde_json::Value;
 
 fn err(e: impl std::fmt::Display) -> String {
@@ -473,6 +474,8 @@ pub(super) fn verify_cut_metered<'a>(
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<(), String> {
+    let withdrawal_view = bj::ValuesArray(withdrawals);
+    let replacement_view = bj::ValuesArray(replaces);
     verify_cut_in_store(
         &mut super::audit_store::StoreView::generic(store),
         metadata.view(),
@@ -481,8 +484,8 @@ pub(super) fn verify_cut_metered<'a>(
         raw_prefix.into(),
         previous_frontier,
         counts,
-        withdrawals,
-        replaces,
+        JsonView::BorrowedArray(&withdrawal_view),
+        JsonView::BorrowedArray(&replacement_view),
         deadline,
         budget,
     )
@@ -496,8 +499,8 @@ pub(super) fn verify_cut_for_audit<'a, 'r>(
     raw_prefix: impl Into<RawEventsView<'a>>,
     previous_frontier: i64,
     counts: &super::source_audit::Counts,
-    withdrawals: &[Value],
-    replaces: &[Value],
+    withdrawals: JsonView<'_>,
+    replaces: JsonView<'_>,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<(), String> {
@@ -524,8 +527,8 @@ fn verify_cut_in_store(
     raw_prefix: RawEventsView<'_>,
     previous_frontier: i64,
     counts: &super::source_audit::Counts,
-    withdrawals: &[Value],
-    replaces: &[Value],
+    withdrawals: JsonView<'_>,
+    replaces: JsonView<'_>,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<(), String> {
@@ -575,13 +578,17 @@ fn verify_cut_in_store(
             return Err(err(format!("目录证据 {key} 与冻结元数据不同")));
         }
     }
+    let withdrawals_array = withdrawals
+        .as_array()
+        .ok_or_else(|| err("withdrawals不是数组"))?;
+    let replaces_array = replaces.as_array().ok_or_else(|| err("replaces不是数组"))?;
     for (key, want) in [
         ("classified_objects", counts.objects),
         ("windows_total", counts.windows),
         ("merged_bars", counts.groups),
         ("effective_source_positions", counts.effective),
-        ("withdrawals", withdrawals.len()),
-        ("replaces", replaces.len()),
+        ("withdrawals", withdrawals_array.len()),
+        ("replaces", replaces_array.len()),
         ("insufficient_knowledge", counts.insufficient),
         ("domain_not_satisfied", counts.outside_domain),
     ] {
@@ -620,7 +627,8 @@ fn verify_cut_in_store(
         .iter()
         .find(|entry| entry.id == "CC-056")
         .ok_or_else(|| err("目录轴缺 CC-056"))?;
-    let mut revisions = bj::ReferenceArray(bj::new_work(raw_prefix.budget()));
+    let allocation = store.allocation_budget();
+    let mut revisions = bj::ReferenceArray(bj::new_work(allocation.as_ref()));
     for event in raw_prefix {
         super::history::check_deadline(deadline)?;
         let seq = bj::field(event, "seq")
@@ -636,29 +644,21 @@ fn verify_cut_in_store(
                 .map_err(err)?;
         }
     }
-    let wire_withdrawals = withdrawals
-        .iter()
-        .map(|v| {
-            super::history::check_deadline(deadline)?;
-            crate::project_withdrawal_wire(v)
-        })
-        .collect::<Result<Vec<_>, String>>()
-        .map_err(err)?;
-    let withdrawals_view = bj::ValuesArray(&wire_withdrawals);
-    let replaces_view = bj::ValuesArray(replaces);
+    let mut withdrawals_view = bj::WithdrawalArray(bj::new_work(allocation.as_ref()));
+    for v in withdrawals_array.iter() {
+        super::history::check_deadline(deadline)?;
+        withdrawals_view
+            .0
+            .try_push(bj::WithdrawalWire::new(v).map_err(err)?)
+            .map_err(err)?;
+    }
     for (key, want) in [
         (
             "raw_revisions",
             sc::capture_allocation::audit_json::JsonView::BorrowedArray(&revisions),
         ),
-        (
-            "withdrawals",
-            sc::capture_allocation::audit_json::JsonView::BorrowedArray(&withdrawals_view),
-        ),
-        (
-            "replaces",
-            sc::capture_allocation::audit_json::JsonView::BorrowedArray(&replaces_view),
-        ),
+        ("withdrawals", withdrawals_view.view()),
+        ("replaces", replaces),
     ] {
         let got = array_field_ref(store, &cc056.evidence, key)?;
         if got.digest().map_err(err)?

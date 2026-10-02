@@ -1068,6 +1068,26 @@ pub(super) fn verify_generated_members<'a>(
 ) -> Result<(), String> {
     let raw = raw.into();
     let replaces = replaces.into();
+    verify_generated_members_in_view(s, index, state, JsonView::BorrowedArray(&replaces), raw, g)
+}
+pub(super) fn verify_generated_members_with_changes<'a>(
+    s: &mut (impl CodecStore + ?Sized),
+    index: &Index,
+    state: &(impl AuxRef + ?Sized),
+    replaces: JsonView<'_>,
+    raw: impl Into<RawEventsView<'a>>,
+    g: i64,
+) -> Result<(), String> {
+    verify_generated_members_in_view(s, index, state, replaces, raw.into(), g)
+}
+fn verify_generated_members_in_view(
+    s: &mut (impl CodecStore + ?Sized),
+    index: &Index,
+    state: &(impl AuxRef + ?Sized),
+    replaces: JsonView<'_>,
+    raw: RawEventsView<'_>,
+    g: i64,
+) -> Result<(), String> {
     let owned_budget = s.allocation_budget();
     if g < 1 {
         return Err(err("生成代非法"));
@@ -1134,7 +1154,11 @@ pub(super) fn verify_generated_members<'a>(
         }
     }
     let mut relation_candidates = state_members(s, state, "relations")?;
-    for replacement in replaces {
+    for replacement in replaces
+        .as_array()
+        .ok_or_else(|| err("replaces不是数组"))?
+        .iter()
+    {
         relation_candidates
             .try_push(replacement_relation(s, replacement)?)
             .map_err(err)?;

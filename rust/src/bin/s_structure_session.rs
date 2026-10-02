@@ -31,10 +31,10 @@
 #[path = "s_session_v2/mod.rs"]
 mod v2;
 // #1394 C §5.1/5.8：S3 新域（s-session/3）的隔离初始化与版本分派；本文件只挂模块与入口选择。
-#[path = "s_session_v3/mod.rs"]
-mod v3;
 #[path = "s_session_v3/raw_input.rs"]
 mod raw_input;
+#[path = "s_session_v3/mod.rs"]
+mod v3;
 // #1394 C：对象集对拍判据的共用纯函数（旧 S2 adapter 与 S3 新域共用一份，见 `compute_diff`）。
 #[path = "s_session_v3/object_diff.rs"]
 mod object_diff;
@@ -49,18 +49,18 @@ mod cache;
 #[path = "s_session_v2/delta_storage.rs"]
 mod delta_storage;
 // #1394 第二段：完整证据的私有内容寻址共享表示（evidence-graph/2）；旧库无该表即旧整块域。
-#[path = "s_session_v2/evidence_store.rs"]
-mod evidence_store;
 #[path = "s_session_v2/content_store.rs"]
 mod content_store;
+#[path = "s_session_v2/evidence_store.rs"]
+mod evidence_store;
 // #1394 采纳 C §5.2/5.3：S 生产侧从同核共享证据直接构造 CC-004 内容对象（生产构造器，
 // 供正式 S3 入口调用；本文件不接 S3Commit）。
-#[path = "s_session_v2/content_producer.rs"]
-mod content_producer;
 #[path = "s_session_v2/content_bi.rs"]
 mod content_bi;
 #[path = "s_session_v2/content_manifest.rs"]
 mod content_manifest;
+#[path = "s_session_v2/content_producer.rs"]
+mod content_producer;
 #[path = "s_session_v2/content_publication.rs"]
 mod content_publication;
 // #1394 2A-S：正式 S 的同代增量状态与稳定对象复用（进程内缓存；性能结构，不充任准入权威）。
@@ -435,21 +435,106 @@ fn batch_content_hash(batch_id: &str) -> Result<&str, String> {
 
 /// 全文/控制头共用同一条当前批次行与公开身份读取门。
 fn read_batch_row(conn: &Connection, batch_id: &str) -> Result<(Vec<u8>, usize), String> {
-    let row: Option<(Vec<u8>, i64)> = conn
-        .query_row(
-            "SELECT canonical_bytes, byte_len FROM batches WHERE batch_id=?1",
-            params![batch_id],
-            |r| Ok((r.get(0)?, r.get(1)?)),
+    let (blob, len) = read_batch_row_with_owner(conn, batch_id, None)?;
+    Ok((blob.try_into_plain().map_err(|e| e.to_string())?, len))
+}
+fn read_batch_row_with_owner(
+    conn: &Connection,
+    batch_id: &str,
+    owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+) -> Result<(newchan_rust::s_content::CodecVec<u8>, usize), String> {
+    let err = |e| {
+        format!(
+            "读 batch {batch_id} 失败：{}",
+            evidence_store::sql_columns(e, &["canonical_bytes", "byte_len"])
         )
-        .optional()
-        .map_err(|e| format!("读 batch {batch_id} 失败：{e}"))?;
-    let (blob, byte_len) = row.ok_or_else(|| {
+    };
+    let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
+        conn,
+        c"SELECT canonical_bytes, byte_len FROM batches WHERE batch_id=?1",
+    )
+    .map_err(err)?;
+    stmt.bind_text(1, batch_id).map_err(err)?;
+    let mut row = stmt.next().map_err(err)?.ok_or_else(|| {
         format!("StorageUnavailable：可达 batch `{batch_id}` 不存在（引用不完整，拒绝写入）")
     })?;
+    let mut blob = v3::business_json::new_work(owner);
+    blob.try_extend_bytes(row.blob(0).map_err(err)?)
+        .map_err(|e| e.to_string())?;
+    let byte_len = row.integer(1).map_err(err)?;
+    drop(row);
+    stmt.finalize().map_err(err)?;
     batch_content_hash(batch_id)?;
     let byte_len = usize::try_from(byte_len)
         .map_err(|_| format!("StorageUnavailable：batch `{batch_id}` byte_len 非负越界"))?;
     Ok((blob, byte_len))
+}
+/// 行、公开身份与物理域的共用判定门；Owned不从失败切回普通读取。
+fn read_batch_storage(
+    conn: &Connection,
+    batch_id: &str,
+    owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+) -> Result<(newchan_rust::s_content::CodecVec<u8>, usize, bool), String> {
+    let (blob, byte_len) = read_batch_row_with_owner(conn, batch_id, owner)?;
+    let expect_hash = batch_content_hash(batch_id)?;
+    let graph = match owner {
+        Some(_) => evidence_store::read_format_with_owner(conn, owner)?,
+        None => evidence_store::format(conn)?,
+    }
+    .graph();
+    if !graph {
+        if blob.is_empty()
+            || blob.len() != byte_len
+            || !evidence_store::hash_matches(&blob, expect_hash)
+        {
+            return Err(format!("StorageUnavailable：batch `{batch_id}` 规范字节/长度与内容寻址不符（坏 bytes/byte_len），拒绝写入"));
+        }
+    } else if !blob.is_empty() {
+        return Err(format!(
+            "StorageUnavailable：图域 batch `{batch_id}` 仍带整块字节（与私有根混写），拒绝写入"
+        ));
+    }
+    Ok((blob, byte_len, graph))
+}
+enum ProfileBatchBytes {
+    Plain(std::sync::Arc<[u8]>),
+    Owned(newchan_rust::s_content::CodecVec<u8>),
+}
+impl std::ops::Deref for ProfileBatchBytes {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        match self {
+            Self::Plain(b) => b,
+            Self::Owned(b) => b,
+        }
+    }
+}
+fn load_profile_batch_bytes(
+    conn: &Connection,
+    reader: &mut evidence_store::Reader<'_>,
+    batch_id: &str,
+    owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+) -> Result<ProfileBatchBytes, String> {
+    let Some(owner) = owner else {
+        return load_batch_bytes_with(conn, reader, batch_id).map(ProfileBatchBytes::Plain);
+    };
+    #[cfg(test)]
+    cache::counter(|c| c.batch_full_reads += 1);
+    let (blob, byte_len, graph) = read_batch_storage(conn, batch_id, Some(owner))?;
+    if !graph {
+        return Ok(ProfileBatchBytes::Owned(blob));
+    }
+    let root_key = evidence_store::batch_root_key_with_owner(batch_id, Some(owner))?;
+    let root = reader.read_root_owned(root_key.as_str())?;
+    #[cfg(test)]
+    cache::counter(|c| c.batch_expansions += 1);
+    verify_batch_root_binding(
+        batch_id,
+        byte_len,
+        root.declared_length,
+        root.content_sha256.as_str(),
+    )?;
+    Ok(ProfileBatchBytes::Owned(root.bytes))
 }
 
 fn verify_batch_root_binding(
@@ -528,16 +613,10 @@ fn load_batch_with(
 > {
     #[cfg(test)]
     cache::counter(|c| c.batch_full_reads += 1);
-    let (blob, byte_len) = read_batch_row(conn, batch_id)?;
-    let expect_hash = batch_content_hash(batch_id)?;
-    let graph = evidence_store::format(conn)?.graph();
+    let (blob, byte_len, graph) = read_batch_storage(conn, batch_id, None)?;
+    let blob = blob.try_into_plain().map_err(|e| e.to_string())?;
     if !graph {
         // 旧整块域：完整规范字节就在这一行。
-        if blob.is_empty() || blob.len() != byte_len || sha256_hex(&blob) != expect_hash {
-            return Err(format!(
-                "StorageUnavailable：batch `{batch_id}` 规范字节/长度与内容寻址不符（坏 bytes/byte_len），拒绝写入"
-            ));
-        }
         let bytes: std::sync::Arc<[u8]> = std::sync::Arc::from(blob.as_slice());
         let digest = blob_digest(&blob);
         // 整块域也走同一句柄缓存：命中要求当前行内字节与此前核过的完全一致。
@@ -557,12 +636,7 @@ fn load_batch_with(
         };
         return Ok((bytes, value, None));
     }
-    // 图域：批次行只留长度占位；完整字节必须由私有根无损展开，且根闭包必须完整。
-    if !blob.is_empty() {
-        return Err(format!(
-            "StorageUnavailable：图域 batch `{batch_id}` 仍带整块字节（与私有根混写），拒绝写入"
-        ));
-    }
+    // 图域：共用物理域门已拒绝整块混写。
     let root_key = evidence_store::batch_root_key(batch_id);
     let root = reader.read_root(&root_key, with_value)?;
     #[cfg(test)]
@@ -637,7 +711,8 @@ fn read_record_original_text(
     label: &str,
 ) -> Result<String, String> {
     let bytes = read_record_original(conn, reader, format, root_key, column, label)?;
-    String::from_utf8(bytes.to_vec()).map_err(|e| format!("StorageUnavailable：{label} 非 UTF-8：{e}"))
+    String::from_utf8(bytes.to_vec())
+        .map_err(|e| format!("StorageUnavailable：{label} 非 UTF-8：{e}"))
 }
 
 fn load_batch_value_with(
@@ -1064,14 +1139,17 @@ fn verify_profile_binding_with_owner(
         let mut sealed_ids = v3::business_json::new_work(owner);
         while let Some(mut row) = stmt.next().map_err(|e| e.to_string())? {
             sealed_ids
-                .try_push(TextValue::from_sql(&mut row,0,owner)?)
+                .try_push(TextValue::from_sql(&mut row, 0, owner)?)
                 .map_err(|e| e.to_string())?;
         }
-        stmt.finalize().map_err(|e|e.to_string())?;
+        stmt.finalize().map_err(|e| e.to_string())?;
         let mut sealed_found = false;
-        let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
+        let mut reader = match owner {
+            Some(b) => evidence_store::Reader::with_owner(conn, b),
+            None => evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET),
+        };
         for batch_id in &sealed_ids {
-            let bytes = load_batch_bytes_with(conn, &mut reader, batch_id)?;
+            let bytes = load_profile_batch_bytes(conn, &mut reader, batch_id, owner)?;
             #[cfg(feature = "s_allocation_json_testonly")]
             let batch = if let Some(b) = owner {
                 newchan_rust::s_content::capture_allocation::audit_json::OwnedJson::parse_legacy_shape(&bytes,b).map(v3::business_json::JsonOwner::Owned).map_err(|e|e.to_string())?
@@ -1299,7 +1377,6 @@ fn capture_reachable_batches(conn: &Connection) -> Result<Reachable, String> {
         _capture: reader.into_capture(),
     })
 }
-
 
 fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
     verified_root_raw_events(conn).map(|_| ())
@@ -2011,7 +2088,10 @@ fn check_read_deadline(deadline: Option<std::time::Instant>) -> Result<(), Strin
     }
 }
 
-fn read_raw_events_until(conn: &Connection, deadline: Option<std::time::Instant>) -> Result<Vec<Value>, String> {
+fn read_raw_events_until(
+    conn: &Connection,
+    deadline: Option<std::time::Instant>,
+) -> Result<Vec<Value>, String> {
     check_read_deadline(deadline)?;
     let mut stmt = conn
         .prepare(
@@ -2050,7 +2130,7 @@ fn read_raw_events_until(conn: &Connection, deadline: Option<std::time::Instant>
         })
         .collect::<Result<Vec<_>, String>>()?;
     tb02a::enrich_raw_until(conn, &mut rows, deadline)?;
-    v3::business_json::validate_raw(v3::business_json::RawEventsView::plain(&rows),deadline)?;
+    v3::business_json::validate_raw(v3::business_json::RawEventsView::plain(&rows), deadline)?;
     check_read_deadline(deadline)?;
     Ok(rows)
 }
@@ -2060,7 +2140,10 @@ fn read_effective_events(all: &[Value]) -> Result<Vec<Value>, String> {
     read_effective_events_until(all, None)
 }
 
-fn read_effective_events_until(all: &[Value], deadline: Option<std::time::Instant>) -> Result<Vec<Value>, String> {
+fn read_effective_events_until(
+    all: &[Value],
+    deadline: Option<std::time::Instant>,
+) -> Result<Vec<Value>, String> {
     check_read_deadline(deadline)?;
     let mut latest: BTreeMap<String, Value> = BTreeMap::new();
     for ev in all {
@@ -2446,7 +2529,7 @@ fn compute_diff(
                 // `plan` 的替代项必带新索引；本条为不可达防御，不 panic。
                 None => {
                     return Err(
-                        "StorageUnavailable：替代撤回缺候选索引（共用对拍不可达）".to_string(),
+                        "StorageUnavailable：替代撤回缺候选索引（共用对拍不可达）".to_string()
                     )
                 }
             },
@@ -2538,8 +2621,17 @@ fn cancel_own_begin(
 
 /// 同一 attempt 的阶段写入共用同一所有权判据，不现读新 epoch 自授予权限。
 /// 两代协议共用 Begin 占用的持久元数据；调用方持有写事务并已核写者/前沿。
-fn persist_begin_state(conn: &Connection, token: &str, gen: i64, frontier: i64) -> Result<(), String> {
-    meta_set(conn, "advance_state", &format!("begun:{token}:{gen}:{frontier}"))?;
+fn persist_begin_state(
+    conn: &Connection,
+    token: &str,
+    gen: i64,
+    frontier: i64,
+) -> Result<(), String> {
+    meta_set(
+        conn,
+        "advance_state",
+        &format!("begun:{token}:{gen}:{frontier}"),
+    )?;
     meta_set(conn, "begin_generation", &gen.to_string())?;
     meta_set(conn, "begin_input_frontier", &frontier.to_string())?;
     meta_set(conn, "begin_token", token)
@@ -3732,17 +3824,8 @@ fn project_object_wire(o: &Value) -> Result<Value, String> {
 }
 
 fn project_withdrawal_wire(w: &Value) -> Result<Value, String> {
-    if tb02a::typed(w) {
-        return Ok(w.clone());
-    }
-    Ok(json!({
-        "object_id": w["object_id"].clone(),
-        "window_start": num_to_str(&w["window_start"])?,
-        "window_mid": num_to_str(&w["window_mid"])?,
-        "window_end": num_to_str(&w["window_end"])?,
-        "reason": w["reason"].clone(),
-        "superseded_by": w["superseded_by"].clone(),
-    }))
+    let wire = v3::business_json::WithdrawalWire::new(w.into())?;
+    serde_json::to_value(wire.view()).map_err(|cause| cause.to_string())
 }
 
 fn project_witness_wire(w: &Value) -> Result<Value, String> {
@@ -4682,22 +4765,23 @@ fn delta_wire_rows(
         let mut stmt = conn
             .prepare(sql)
             .map_err(|e| format!("prepare 读 Delta 行失败：{e}"))?;
-        let rows = stmt.query_map(params![after_generation], |r| {
-            Ok((
-                r.get(0)?,
-                r.get(1)?,
-                r.get(2)?,
-                r.get(3)?,
-                r.get(4)?,
-                r.get(5)?,
-                r.get(6)?,
-                r.get(7)?,
-                r.get(8)?,
-            ))
-        })
-        .map_err(|e| format!("query 读 Delta 行失败：{e}"))?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| format!("collect 读 Delta 行失败：{e}"))?;
+        let rows = stmt
+            .query_map(params![after_generation], |r| {
+                Ok((
+                    r.get(0)?,
+                    r.get(1)?,
+                    r.get(2)?,
+                    r.get(3)?,
+                    r.get(4)?,
+                    r.get(5)?,
+                    r.get(6)?,
+                    r.get(7)?,
+                    r.get(8)?,
+                ))
+            })
+            .map_err(|e| format!("query 读 Delta 行失败：{e}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("collect 读 Delta 行失败：{e}"))?;
         rows
     };
     let format = evidence_store::format(conn)?;
@@ -9372,7 +9456,11 @@ mod staged_graph_audit_regressions {
         let warm = read_all_batches(&conn);
         let counters = cache::counters_snapshot();
         assert_eq!(cold, warm, "冷/暖完整原始 bytes 必须逐字节一致");
-        assert_eq!(cold_records, graph_record_texts(&conn), "冷/暖查询结果必须一致");
+        assert_eq!(
+            cold_records,
+            graph_record_texts(&conn),
+            "冷/暖查询结果必须一致"
+        );
         assert_eq!(cold_snapshot, snapshot_here(&files), "冷/暖快照必须一致");
         assert!(counters.batch_handle_hits > 0, "暖读必须复用已核句柄");
         assert_eq!(counters.batch_expansions, 0, "暖读不得重新展开");
@@ -9383,7 +9471,11 @@ mod staged_graph_audit_regressions {
         cache::configure(0);
         let zero = read_all_batches(&conn);
         assert_eq!(cold, zero, "零预算读出的 bytes 必须一致");
-        assert_eq!(cold_records, graph_record_texts(&conn), "零预算查询结果必须一致");
+        assert_eq!(
+            cold_records,
+            graph_record_texts(&conn),
+            "零预算查询结果必须一致"
+        );
         assert_eq!(cache::retained_bytes(), 0, "零预算不得保留任何跨请求持有");
 
         // ④ 不足预算：装不下的只失去复用，bytes 与自有预算仍必须成立。
@@ -9410,7 +9502,11 @@ mod staged_graph_audit_regressions {
         cache::counters_reset();
         let amply = read_all_batches(&conn);
         assert_eq!(cold, amply, "足预算读出的 bytes 必须一致");
-        assert_eq!(cold_records, graph_record_texts(&conn), "足预算查询结果必须一致");
+        assert_eq!(
+            cold_records,
+            graph_record_texts(&conn),
+            "足预算查询结果必须一致"
+        );
         assert_eq!(cold_snapshot, snapshot_here(&files), "足预算快照必须一致");
         assert!(cache::counters_snapshot().batch_handle_hits > 0);
         cache::configure(268_435_456);
@@ -9429,7 +9525,9 @@ mod staged_graph_audit_regressions {
                 // 捕获进行中：每读一个根，保留量 + 瞬时读集都必须在同一上限内。
                 let mut reader = evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET);
                 for id in all_batch_ids(&conn) {
-                    let _ = reader.read_fixed_cut(&evidence_store::batch_root_key(&id)).unwrap();
+                    let _ = reader
+                        .read_fixed_cut(&evidence_store::batch_root_key(&id))
+                        .unwrap();
                     assert!(
                         cache::retained_bytes().saturating_add(cache::capture_bytes_now()) <= limit,
                         "捕获中预算必须满足（limit={limit}）"
@@ -9628,7 +9726,10 @@ mod staged_graph_audit_regressions {
             )
             .unwrap_err()
         };
-        assert!(accept_refusal.contains("SchemaUnsupported"), "{accept_refusal}");
+        assert!(
+            accept_refusal.contains("SchemaUnsupported"),
+            "{accept_refusal}"
+        );
         // ② 混代：v3 产物把登记行改成 v2，delta/fact 根仍在 → 读写都必须拒绝。
         let mixed = TestFiles::new();
         build_oracle(&mixed, 3);
@@ -9752,7 +9853,10 @@ mod staged_graph_audit_regressions {
         let batch = fact["batch_id"].as_str().unwrap().to_string();
         // ① 同内容重复写：幂等。
         tb02a::save_fact(&conn, &fact, &batch).unwrap();
-        assert_eq!(tb02a::read_facts(&conn, None).unwrap().0.len(), active.len());
+        assert_eq!(
+            tb02a::read_facts(&conn, None).unwrap().0.len(),
+            active.len()
+        );
         // ② 同 ID 异内容：发布入口直接拒绝。
         let payload = fact["payload_json"].as_str().unwrap().to_string();
         let mut parsed: Value = serde_json::from_str(&payload).unwrap();
@@ -10231,5 +10335,136 @@ mod record_borrow_regressions {
                 assert_eq!(reused, oracle, "复用 batch 全文：{field}");
             }
         }
+    }
+}
+
+#[cfg(all(test, feature = "s_allocation_json_testonly"))]
+mod legacy_profile_owner_regressions {
+    use super::*;
+    use newchan_rust::s_content::capture_allocation::{audit_json as aj, OwnedBudget, LIMIT};
+
+    fn old_profile_fixture() -> (Connection, String) {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE batches(batch_id TEXT PRIMARY KEY,canonical_bytes BLOB NOT NULL,byte_len INTEGER NOT NULL); CREATE TABLE structure_deltas(generation INTEGER,index_frontier TEXT); CREATE TABLE meta(key TEXT PRIMARY KEY,value TEXT); CREATE TABLE raw_events(seq INTEGER)").unwrap();
+        let hash = "a".repeat(64);
+        for (key, value) in [
+            ("profile_id", "fixed"),
+            ("profile_hash", hash.as_str()),
+            ("input_profile", "fixed"),
+        ] {
+            conn.execute("INSERT INTO meta VALUES(?1,?2)", params![key, value])
+                .unwrap();
+        }
+        (conn, hash)
+    }
+    fn seal_blob(conn: &Connection, bytes: &[u8]) -> String {
+        let id = format!("batch-{}", sha256_hex(bytes));
+        conn.execute(
+            "INSERT INTO batches VALUES(?1,?2,?3)",
+            params![id, bytes, bytes.len() as i64],
+        )
+        .unwrap();
+        conn.execute("INSERT INTO structure_deltas VALUES(1,?1)", params![id])
+            .unwrap();
+        id
+    }
+    fn seal_graph(conn: &Connection, generation: i64, value: &Value) {
+        let bytes = canonical_bytes_of_value(value);
+        let id = format!("batch-{}", sha256_hex(&bytes));
+        let staged =
+            evidence_store::stage_complete(value, &[evidence_store::SlotSpec::number("9")])
+                .unwrap();
+        evidence_store::publish_refs(conn, &evidence_store::batch_root_key(&id), &staged).unwrap();
+        conn.execute(
+            "INSERT INTO batches VALUES(?1,?2,?3)",
+            params![id, Vec::<u8>::new(), bytes.len() as i64],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO structure_deltas VALUES(?1,?2)",
+            params![generation, id],
+        )
+        .unwrap();
+    }
+    #[test]
+    fn owned_legacy_profile_fallback_blob_keeps_duplicate_policy_and_bytes_decode_peak() {
+        let (conn, hash) = old_profile_fixture();
+        let blob =
+            format!(r#"{{"profile_id":"old","profile_id":"fixed","profile_hash":"{hash}"}}"#);
+        let id = seal_blob(&conn, blob.as_bytes());
+        let budget = OwnedBudget::new(1 << 20);
+        let binding = verify_profile_binding_with_owner(&conn, Some(&budget)).unwrap();
+        assert_eq!(binding.0.as_str(), "fixed");
+        assert_eq!(binding.1.as_str(), hash);
+        assert!(matches!(binding.0, v3::business_json::TextValue::Owned(_)));
+        drop(binding);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        let mut reader = evidence_store::Reader::with_owner(&conn, &budget);
+        let bytes = load_profile_batch_bytes(&conn, &mut reader, &id, Some(&budget)).unwrap();
+        assert_eq!(&bytes[..], blob.as_bytes());
+        let byte_live = budget.snapshot().live_requested_layout_bytes;
+        let json = aj::OwnedJson::parse_legacy_shape(&bytes, &budget).unwrap();
+        assert_eq!(
+            json.view().get("profile_id").and_then(|v| v.as_str()),
+            Some("fixed")
+        );
+        assert!(budget.snapshot().live_requested_layout_bytes > byte_live);
+        drop(json);
+        drop(bytes);
+        drop(reader);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[test]
+    fn owned_legacy_profile_fallback_graph_checks_slots_skips_empty_and_refuses_budget() {
+        let (conn, hash) = old_profile_fixture();
+        evidence_store::declare_new(&conn).unwrap();
+        seal_graph(&conn, 1, &json!({"profile_id":"","v":9}));
+        seal_graph(
+            &conn,
+            2,
+            &json!({"profile_id":"fixed","profile_hash":hash,"a":{"v":9},"b":{"v":9}}),
+        );
+        let budget = OwnedBudget::new(1 << 20);
+        let binding = verify_profile_binding_with_owner(&conn, Some(&budget)).unwrap();
+        assert_eq!(binding.0.as_str(), "fixed");
+        assert_eq!(binding.1.as_str(), hash);
+        drop(binding);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        let low = OwnedBudget::new(budget.snapshot().peak_requested_layout_bytes - 1);
+        let error = verify_profile_binding_with_owner(&conn, Some(&low))
+            .err()
+            .unwrap();
+        assert!(error.starts_with(LIMIT), "{error}");
+        assert!(low.snapshot().rejected_layouts > 0);
+        assert_eq!(low.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[test]
+    fn owned_legacy_profile_fallback_keeps_bad_source_first_error_and_definition_gate() {
+        let (conn, hash) = old_profile_fixture();
+        let bytes = canonical_bytes_of_value(&json!({"profile_id":"fixed","profile_hash":hash}));
+        seal_blob(&conn, &bytes);
+        conn.execute("UPDATE batches SET byte_len=-1", []).unwrap();
+        let plain = verify_profile_binding_with_owner(&conn, None)
+            .err()
+            .unwrap();
+        let budget = OwnedBudget::new(1 << 20);
+        let owned = verify_profile_binding_with_owner(&conn, Some(&budget))
+            .err()
+            .unwrap();
+        assert_eq!(plain, owned);
+        assert!(owned.contains("byte_len 非负越界"));
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        conn.execute(
+            "UPDATE batches SET byte_len=?1",
+            params![bytes.len() as i64],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO meta VALUES('profile_definition','{broken')",
+            [],
+        )
+        .unwrap();
+        assert!(verify_profile_binding_with_owner(&conn, Some(&budget)).is_err());
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
 }

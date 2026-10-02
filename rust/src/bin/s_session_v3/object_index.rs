@@ -16,8 +16,9 @@ use newchan_rust::s_content::{
 };
 use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::{params, Transaction};
+use sc::capture_allocation::{audit_json as aj, OwnedBudget};
 use serde_json::{json, Value};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 pub(super) const SCHEMA: &str = "CREATE TABLE IF NOT EXISTS s_content_objects (
  object_id TEXT PRIMARY KEY, object_revision INTEGER NOT NULL, kind TEXT NOT NULL,
@@ -199,7 +200,7 @@ const SHAPE_IMMUTABLE: &[&str] = &[
     "source_coords_json",
 ];
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub(super) enum Slot {
     Shape([i64; 3]),
     Typed {
@@ -420,36 +421,45 @@ pub(super) fn at_cut_metered(
     g: i64,
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<(Built, Built, Built), String> {
-    let mut active = index
+    let allocation = s.allocation_budget();
+    let mut active = bj::new_work(allocation.as_ref());
+    let mut dead = bj::new_work(allocation.as_ref());
+    // 三份工作集按旧求值顺序建立；尚未读取wire，budget gate仍在逐对象投影之前。
+    for (ordinal, e) in index.iter().enumerate().filter(|(_, e)| {
+        e.life.first_known_generation <= g && e.life.withdrawn_generation.is_none_or(|d| d > g)
+    }) {
+        active.try_push((ordinal, e)).map_err(err)?;
+    }
+    for (ordinal, e) in index
         .iter()
-        .filter(|e| {
-            e.life.first_known_generation <= g && e.life.withdrawn_generation.is_none_or(|d| d > g)
-        })
-        .collect::<Vec<_>>();
-    let mut dead = index
+        .enumerate()
+        .filter(|(_, e)| e.life.withdrawn_generation.is_some_and(|d| d <= g))
+    {
+        dead.try_push((ordinal, e)).map_err(err)?;
+    }
+    active.sort_unstable_by(|a, b| ordering(a.1, b.1, false).then(a.0.cmp(&b.0)));
+    dead.sort_unstable_by(|a, b| ordering(a.1, b.1, true).then(a.0.cmp(&b.0)));
+    let mut births = bj::new_work(allocation.as_ref());
+    for (ordinal, e) in index
         .iter()
-        .filter(|e| e.life.withdrawn_generation.is_some_and(|d| d <= g))
-        .collect::<Vec<_>>();
-    active.sort_by(|a, b| ordering(a, b, false));
-    dead.sort_by(|a, b| ordering(a, b, true));
-    let births = index
-        .iter()
-        .filter(|e| e.life.first_known_generation == g)
-        .collect::<Vec<_>>();
-    let mut collect = |items: Vec<&Entry>| -> Result<Built, String> {
-        let refs = items
-            .into_iter()
-            .map(|e| {
-                if let Some(b) = budget {
-                    b.record().map_err(err)?;
-                }
-                wire_at(s, e, g)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        .enumerate()
+        .filter(|(_, e)| e.life.first_known_generation == g)
+    {
+        births.try_push((ordinal, e)).map_err(err)?;
+    }
+    let mut collect = |items: sc::CodecVec<(usize, &Entry)>| -> Result<Built, String> {
+        let mut refs = bj::new_work(allocation.as_ref());
+        for (_, e) in items {
+            if let Some(b) = budget {
+                b.record().map_err(err)?;
+            }
+            refs.try_push(wire_at(s, e, g)?).map_err(err)?;
+        }
         array(s, &refs)
     };
     Ok((collect(active)?, collect(dead)?, collect(births)?))
 }
+
 pub(super) fn plan(
     s: &mut (impl CodecStore + ?Sized),
     objects: &[ProducedObject],
@@ -471,29 +481,31 @@ pub(super) fn plan(
     }
     let mut order = (0..old.len()).collect::<Vec<_>>();
     order.sort_by(|a, b| ordering(&old[*a], &old[*b], false));
-    let old_keys = order
-        .iter()
-        .map(|i| {
-            let e = &old[*i];
-            object_diff::Existing {
+    let allocation = s.allocation_budget();
+    let mut old_keys = bj::new_work(allocation.as_ref());
+    for i in &order {
+        let e = &old[*i];
+        old_keys
+            .try_push(object_diff::Existing {
                 key: object_diff::Key {
-                    object_id: e.id.as_str().to_owned(),
-                    slot: e.slot.key(),
+                    object_id: e.id.as_str(),
+                    slot: &e.slot,
                     immutable: object_diff::Ready(e.immutable.digest),
                 },
                 active: e.life.withdrawn_generation.is_none(),
-            }
-        })
-        .collect::<Vec<_>>();
-    let keys = new
-        .iter()
-        .map(|e| object_diff::Key {
-            object_id: e.id.as_str().to_owned(),
-            slot: e.slot.key(),
+            })
+            .map_err(err)?;
+    }
+    let mut keys = bj::new_work(allocation.as_ref());
+    for e in &new {
+        keys.try_push(object_diff::Key {
+            object_id: e.id.as_str(),
+            slot: &e.slot,
             immutable: object_diff::Ready(e.immutable.digest),
         })
-        .collect::<Vec<_>>();
-    let changes = object_diff::plan(&keys, &old_keys)?;
+        .map_err(err)?;
+    }
+    let changes = object_diff::plan_budgeted(&keys, &old_keys, allocation.as_ref())?;
     let mut index = Vec::new();
     for e in old {
         index.push(e.try_clone()?);
@@ -946,24 +958,110 @@ pub(super) fn stage(
     Ok(())
 }
 
+/// 两种存储共用字段投影；Owned数组直接复制借用字段，不经过普通JSON所有者。
+fn change_array(allocation: Option<&OwnedBudget>) -> Result<bj::JsonOwner, String> {
+    if let Some(allocation) = allocation {
+        #[cfg(feature = "s_allocation_json_testonly")]
+        {
+            return aj::OwnedJson::array(allocation)
+                .map(bj::JsonOwner::Owned)
+                .map_err(err);
+        }
+        #[cfg(not(feature = "s_allocation_json_testonly"))]
+        {
+            let _ = allocation;
+            return Err(err("owned变化JSON入口未启用"));
+        }
+    }
+    Ok(bj::JsonOwner::Plain(Value::Array(Vec::new())))
+}
+fn push_change(array: &mut bj::JsonOwner, view: aj::JsonView<'_>) -> Result<(), String> {
+    match array {
+        bj::JsonOwner::Plain(Value::Array(rows)) => {
+            rows.push(serde_json::to_value(view).map_err(err)?);
+            Ok(())
+        }
+        bj::JsonOwner::Plain(_) => Err(err("变化JSON不是数组")),
+        #[cfg(feature = "s_allocation_json_testonly")]
+        bj::JsonOwner::Owned(rows) => rows.push(view).map_err(err),
+    }
+}
+fn push_withdrawal(
+    array: &mut bj::JsonOwner,
+    e: &Entry,
+    reason: &str,
+    superseded_by: Option<&str>,
+) -> Result<(), String> {
+    use aj::JsonView as J;
+    let sup = superseded_by.map(J::String).unwrap_or(J::Null);
+    match &e.slot {
+        Slot::Shape(w) => {
+            let numbers = w.map(serde_json::Number::from);
+            let fields = [
+                ("object_id", J::String(e.id.as_str())),
+                ("window_start", J::Number(&numbers[0])),
+                ("window_mid", J::Number(&numbers[1])),
+                ("window_end", J::Number(&numbers[2])),
+                ("reason", J::String(reason)),
+                ("superseded_by", sup),
+            ];
+            push_change(array, J::object_fields(&fields).map_err(err)?)
+        }
+        Slot::Typed { fact_key, .. } => {
+            let fields = [
+                ("object_id", J::String(e.id.as_str())),
+                ("fact_key", J::String(fact_key.as_str())),
+                ("reason", J::String(reason)),
+                ("superseded_by", sup),
+            ];
+            push_change(array, J::object_fields(&fields).map_err(err)?)
+        }
+    }
+}
+fn push_replace(array: &mut bj::JsonOwner, old_id: &str, new_id: &str) -> Result<(), String> {
+    let fields = [
+        ("new_object_id", aj::JsonView::String(new_id)),
+        ("old_object_id", aj::JsonView::String(old_id)),
+    ];
+    push_change(array, aj::JsonView::object_fields(&fields).map_err(err)?)
+}
 /// 独立生命周期导出的本代变化集合，顺序沿上一代活动主序。
+/// 旧接口仅消费同一核心的普通数组，Owned所有者不能擦除为普通Vec。
 pub(super) fn changes_at(index: &[Entry], g: i64) -> Result<(Vec<Value>, Vec<Value>), String> {
-    let mut dead = index
+    let (withdrawals, replaces) = changes_at_budgeted(index, g, None)?;
+    let plain = |owner| match owner {
+        bj::JsonOwner::Plain(Value::Array(rows)) => Ok(rows),
+        _ => Err(err("变化JSON不是普通数组")),
+    };
+    Ok((plain(withdrawals)?, plain(replaces)?))
+}
+/// dead排序工作集和真实返回JSON所有者持续使用调用方实际OwnedBudget。
+pub(super) fn changes_at_budgeted(
+    index: &[Entry],
+    g: i64,
+    allocation: Option<&OwnedBudget>,
+) -> Result<(bj::JsonOwner, bj::JsonOwner), String> {
+    let mut dead = bj::new_work(allocation);
+    for (ordinal, e) in index
         .iter()
-        .filter(|e| e.life.withdrawn_generation == Some(g))
-        .collect::<Vec<_>>();
-    dead.sort_by(|a, b| ordering(a, b, false));
-    let mut withdrawals = Vec::new();
-    let mut replaces = Vec::new();
-    for e in dead {
+        .enumerate()
+        .filter(|(_, e)| e.life.withdrawn_generation == Some(g))
+    {
+        dead.try_push((ordinal, e)).map_err(err)?;
+    }
+    // 同一主序加原始序号，保留stable排序的平局行为；unstable排序不另分配std工作集。
+    dead.sort_unstable_by(|a, b| ordering(a.1, b.1, false).then(a.0.cmp(&b.0)));
+    let mut withdrawals = change_array(allocation)?;
+    let mut replaces = change_array(allocation)?;
+    for (_, e) in dead {
         let reason = e
             .life
             .withdrawal_reason
             .as_deref()
             .ok_or_else(|| err("撤回缺原因"))?;
-        withdrawals.push(raw_withdrawal(e, reason, e.life.superseded_by.as_deref()));
+        push_withdrawal(&mut withdrawals, e, reason, e.life.superseded_by.as_deref())?;
         if let Some(id) = &e.life.superseded_by {
-            replaces.push(json!({"new_object_id":id,"old_object_id":e.id}));
+            push_replace(&mut replaces, e.id.as_str(), id.as_str())?;
         }
     }
     Ok((withdrawals, replaces))
@@ -976,17 +1074,17 @@ pub(super) fn verify_generated_members<'a>(
     g: i64,
 ) -> Result<(), String> {
     let state = state.into();
-    let by_id = index
-        .iter()
-        .filter(|e| e.life.first_known_generation <= g)
-        .map(|e| (e.id.as_str(), e))
-        .collect::<BTreeMap<_, _>>();
+    let allocation = s.allocation_budget();
+    let mut by_id = bj::new_map(allocation.as_ref());
+    for e in index.iter().filter(|e| e.life.first_known_generation <= g) {
+        by_id.insert(e.id.as_str(), e).map_err(err)?;
+    }
     let objects = field_ref(s, state, "objects")?;
     if objects.kind() != Kind::Array {
         return Err(err("生成对象集不是数组"));
     }
-    let mut seen = BTreeSet::new();
-    let mut new = Vec::new();
+    let mut seen = bj::new_map(allocation.as_ref());
+    let mut new = bj::new_work(allocation.as_ref());
     let items = if s.audit_full_array_scan() {
         Some(s.lookup_array_ref(objects.view()).map_err(err)?)
     } else {
@@ -1000,7 +1098,7 @@ pub(super) fn verify_generated_members<'a>(
                 .map_err(err)?
         };
         let id = text_ref(s, object.view(), "object_id")?;
-        if !seen.insert(id.try_clone()?) {
+        if seen.insert(id.try_clone()?, ()).map_err(err)?.is_some() {
             return Err(err("生成集重复对象身份"));
         }
         let e = by_id
@@ -1029,47 +1127,51 @@ pub(super) fn verify_generated_members<'a>(
         if e.life.first_known_generation == g && object != built_ref(s, &e.generated) {
             return Err(err("出生原件不等于真实首次生成记录"));
         }
-        new.push(object_diff::Key {
-            object_id: id.as_str().to_owned(),
-            slot: e.slot.key(),
+        new.try_push(object_diff::Key {
+            object_id: id,
+            slot: &e.slot,
             immutable: object_diff::Ready(e.immutable.digest),
-        });
+        })
+        .map_err(err)?;
     }
-    let mut before = index
+    let mut before = bj::new_work(allocation.as_ref());
+    for (ordinal, e) in index
         .iter()
-        .filter(|e| e.life.first_known_generation < g)
-        .collect::<Vec<_>>();
-    before.sort_by(|a, b| ordering(a, b, false));
-    let old = before
-        .iter()
-        .map(|e| object_diff::Existing {
+        .enumerate()
+        .filter(|(_, e)| e.life.first_known_generation < g)
+    {
+        before.try_push((ordinal, e)).map_err(err)?;
+    }
+    before.sort_unstable_by(|a, b| ordering(a.1, b.1, false).then(a.0.cmp(&b.0)));
+    let mut old = bj::new_work(allocation.as_ref());
+    for (_, e) in &before {
+        old.try_push(object_diff::Existing {
             key: object_diff::Key {
-                object_id: e.id.as_str().to_owned(),
-                slot: e.slot.key(),
+                object_id: e.id.as_str(),
+                slot: &e.slot,
                 immutable: object_diff::Ready(e.immutable.digest),
             },
             active: e.life.withdrawn_generation.is_none_or(|d| d >= g),
         })
-        .collect::<Vec<_>>();
-    let changes = object_diff::plan(&new, &old)?;
-    let expected_births = index
-        .iter()
-        .filter(|e| e.life.first_known_generation == g)
-        .map(|e| e.id.as_str())
-        .collect::<Vec<_>>();
-    if changes
+        .map_err(err)?;
+    }
+    let changes = object_diff::plan_budgeted(&new, &old, allocation.as_ref())?;
+    if !changes
         .births
         .iter()
         .map(|i| new[*i].object_id.as_str())
-        .collect::<Vec<_>>()
-        != expected_births
+        .eq(index
+            .iter()
+            .filter(|e| e.life.first_known_generation == g)
+            .map(|e| e.id.as_str()))
     {
         return Err(err("真实出生顺序与独立索引不同"));
     }
-    let (expected_withdrawals, expected_replaces) = changes_at(index, g)?;
-    let mut withdrawals = Vec::new();
+    let (expected_withdrawals, expected_replaces) =
+        changes_at_budgeted(index, g, allocation.as_ref())?;
+    let mut withdrawals = change_array(allocation.as_ref())?;
     for w in changes.withdrawals {
-        let e = before[w.old_index];
+        let e = before[w.old_index].1;
         let (reason, sup) = match w.removal {
             object_diff::Removal::Removed => (
                 if e.slot.is_shape() {
@@ -1088,10 +1190,19 @@ pub(super) fn verify_generated_members<'a>(
                 ),
             ),
         };
-        withdrawals.push(raw_withdrawal(e, reason, sup));
+        push_withdrawal(&mut withdrawals, e, reason, sup)?;
     }
-    let replaces=changes.replaces.iter().map(|r|json!({"new_object_id":new[r.new_index].object_id,"old_object_id":before[r.old_index].id})).collect::<Vec<_>>();
-    if withdrawals != expected_withdrawals || replaces != expected_replaces {
+    let mut replaces = change_array(allocation.as_ref())?;
+    for r in changes.replaces {
+        push_replace(
+            &mut replaces,
+            before[r.old_index].1.id.as_str(),
+            new[r.new_index].object_id.as_str(),
+        )?;
+    }
+    if withdrawals.view() != expected_withdrawals.view()
+        || replaces.view() != expected_replaces.view()
+    {
         return Err(err("真实撤回/替代与独立索引不同"));
     }
     Ok(())
@@ -1122,6 +1233,124 @@ mod tests {
         init_schema(&tx).unwrap();
         tx.commit().unwrap();
         c
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_changes_keep_complete_shape_stable_order_and_live_return_owner() {
+        fn entry(id: &str, slot: Slot, sup: Option<&str>) -> Entry {
+            let built = Built {
+                digest: [0; 32],
+                kind: Kind::Null,
+                extent: None,
+            };
+            Entry {
+                id: id.into(),
+                revision: 1,
+                kind: if slot.is_shape() {
+                    SHAPE.into()
+                } else {
+                    "typed".into()
+                },
+                slot,
+                generated: built.clone(),
+                internal: built.clone(),
+                immutable: built.clone(),
+                birth_wire: built.content_ref().into(),
+                life: LifeOwner::from_normal(PublicationLife {
+                    first_known_generation: 1,
+                    first_known_cut: "cut-1".into(),
+                    published_generation: 1,
+                    withdrawn_generation: Some(2),
+                    withdrawal_reason: Some("superseded_by_revision".into()),
+                    superseded_by: sup.map(str::to_owned),
+                    batch: BatchRef::CurrentBatch,
+                }),
+            }
+        }
+        // 同起点shape保留插入序，typed按kind/fact/id/revision；未来撤回被排除。
+        let mut index = vec![
+            entry(
+                "typed😀",
+                Slot::Typed {
+                    kind: "typed".into(),
+                    fact_key: "facté".into(),
+                },
+                Some("new😀"),
+            ),
+            entry("shape-first", Slot::Shape([7, 8, 9]), None),
+            entry("shape-second", Slot::Shape([7, 9, 10]), Some("new-shape")),
+            entry("future", Slot::Shape([0, 1, 2]), None),
+        ];
+        index[3].life.withdrawn_generation = Some(3);
+        let budget = OwnedBudget::new(1_000_000);
+        let plain = changes_at(&index, 2).unwrap();
+        {
+            let owned = changes_at_budgeted(&index, 2, Some(&budget)).unwrap();
+            assert_eq!(
+                owned.0.view(),
+                aj::JsonView::Plain(&Value::Array(plain.0.clone()))
+            );
+            assert_eq!(
+                owned.1.view(),
+                aj::JsonView::Plain(&Value::Array(plain.1.clone()))
+            );
+            let rows = owned.0.view().as_array().unwrap();
+            assert_eq!(
+                rows.get(0).unwrap().get("object_id").unwrap().as_str(),
+                Some("shape-first")
+            );
+            assert_eq!(
+                rows.get(1).unwrap().get("object_id").unwrap().as_str(),
+                Some("shape-second")
+            );
+            assert_eq!(
+                rows.get(2).unwrap().get("object_id").unwrap().as_str(),
+                Some("typed😀")
+            );
+            assert_eq!(
+                rows.get(0).unwrap(),
+                aj::JsonView::Plain(&raw_withdrawal(&index[1], "superseded_by_revision", None))
+            );
+            assert_eq!(
+                rows.get(0).unwrap().get("superseded_by"),
+                Some(aj::JsonView::Null)
+            );
+            assert!(rows.get(0).unwrap().get("fact_key").is_none());
+            assert_eq!(
+                rows.get(2).unwrap().get("fact_key").unwrap().as_str(),
+                Some("facté")
+            );
+            assert!(rows.get(2).unwrap().get("window_start").is_none());
+            assert_eq!(owned.1.view().as_array().unwrap().len(), 2);
+            assert!(budget.snapshot().live_requested_layout_bytes > 0);
+            assert!(owned.0.view().allocation_budget().unwrap().is_some());
+            assert!(owned.1.view().allocation_budget().unwrap().is_some());
+        }
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        // 既覆盖工作集拒绝，也让数组头已获准后在真实JSON字段分配时失败并释放。
+        let mut saw_json_refusal = false;
+        for limit in [1, 64, 128, 256, 512, 1024, 2048] {
+            let tiny = OwnedBudget::new(limit);
+            let result = changes_at_budgeted(&index, 2, Some(&tiny));
+            match result {
+                Err(error) => {
+                    assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
+                    saw_json_refusal |= tiny.snapshot().allocation_attempts > 3;
+                }
+                Ok(owners) => drop(owners),
+            }
+            assert_eq!(tiny.snapshot().live_requested_layout_bytes, 0);
+        }
+        assert!(saw_json_refusal, "必须实测变化JSON所有者中途预算拒绝");
+        let mut invalid = index;
+        invalid[1].life.withdrawal_reason = None;
+        let old_error = changes_at(&invalid, 2).unwrap_err();
+        let owned_error = changes_at_budgeted(&invalid, 2, Some(&budget))
+            .err()
+            .unwrap();
+        assert_eq!(old_error, owned_error);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
     fn value(s: &mut dyn NodeSource, r: &ContentRef) -> Value {
         value_ref(s, r.into())

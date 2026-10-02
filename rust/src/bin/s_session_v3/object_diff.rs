@@ -27,7 +27,10 @@
 
 #![allow(dead_code)] // S3 侧接线落在下游切片；本模块 API 现由 root adapter 与本文件测试使用。
 
-use std::collections::BTreeMap;
+use crate::v3::business_json as bj;
+use newchan_rust::s_content::{capture_allocation::OwnedBudget, CodecVec};
+use std::borrow::Borrow;
+use std::hash::Hash;
 
 /// 不可变内容视图：只在真正需要比较时才读取。
 ///
@@ -51,20 +54,20 @@ impl<T: Eq + Clone> Content for Ready<T> {
 }
 
 /// 同一身份键：对象 ID + 发生槽位 + 不可变内容视图。
-pub(crate) struct Key<C: Content> {
-    pub object_id: String,
-    pub slot: String,
+pub(crate) struct Key<C: Content, Id = String, Slot = String> {
+    pub object_id: Id,
+    pub slot: Slot,
     pub immutable: C,
 }
 
 /// 既有持久身份：键 + 是否仍在活动集（活动身份构成撤回/替代扫描的主序）。
-pub(crate) struct Existing<C: Content> {
-    pub key: Key<C>,
+pub(crate) struct Existing<C: Content, Id = String, Slot = String> {
+    pub key: Key<C, Id, Slot>,
     pub active: bool,
 }
 
 /// 撤回分类；理由文本由各域 adapter 落字。
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) enum Removal {
     /// 槽位在本轮消失（旧域 `window_removed` / 事实域 `fact_removed`）。
     Removed,
@@ -73,7 +76,7 @@ pub(crate) enum Removal {
 }
 
 /// 一条撤回：旧索引 + 分类 + 替代目标（仅 `Superseded` 有）。
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Withdrawal {
     pub old_index: usize,
     pub removal: Removal,
@@ -81,7 +84,7 @@ pub(crate) struct Withdrawal {
 }
 
 /// 一对同槽位替换：旧索引与新索引。
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Replace {
     pub old_index: usize,
     pub new_index: usize,
@@ -104,24 +107,73 @@ where
     Old: Content,
     New: Content<Value = Old::Value>,
 {
-    let mut old_by_id: BTreeMap<&str, usize> = BTreeMap::new();
-    let mut active_by_id: BTreeMap<&str, usize> = BTreeMap::new();
+    let changes = plan_budgeted(new, old, None)?;
+    Ok(ChangeSet {
+        births: changes.births.try_into_plain().map_err(|e| e.to_string())?,
+        withdrawals: changes
+            .withdrawals
+            .try_into_plain()
+            .map_err(|e| e.to_string())?,
+        replaces: changes
+            .replaces
+            .try_into_plain()
+            .map_err(|e| e.to_string())?,
+    })
+}
+
+/// 实际工作集所有者：普通与Owned入口都调用下方唯一判定核。
+#[derive(Debug)]
+pub(crate) struct BudgetedChangeSet {
+    pub births: CodecVec<usize>,
+    pub withdrawals: CodecVec<Withdrawal>,
+    pub replaces: CodecVec<Replace>,
+}
+
+fn identity<Id: Borrow<str>>(id: &Id) -> &str {
+    id.borrow()
+}
+
+/// 键可直接借已有文本/槽位，三个映射和结果向量直接使用调用方原账本。
+pub(crate) fn plan_budgeted<Old, New, OldId, NewId, Slot>(
+    new: &[Key<New, NewId, Slot>],
+    old: &[Existing<Old, OldId, Slot>],
+    allocation: Option<&OwnedBudget>,
+) -> Result<BudgetedChangeSet, String>
+where
+    Old: Content,
+    New: Content<Value = Old::Value>,
+    OldId: Borrow<str>,
+    NewId: Borrow<str>,
+    Slot: Eq + Hash,
+{
+    #[cfg(not(feature = "s_allocation_json_testonly"))]
+    if allocation.is_some() {
+        return Err("prototype_audit_allocation_incomplete：owned对象diff入口未启用".into());
+    }
+    let mut old_by_id = bj::new_map::<&str, usize>(allocation);
+    let mut active_by_id = bj::new_map::<&str, usize>(allocation);
     for (index, entry) in old.iter().enumerate() {
-        old_by_id.insert(entry.key.object_id.as_str(), index);
+        old_by_id
+            .insert(identity(&entry.key.object_id), index)
+            .map_err(|e| e.to_string())?;
         if entry.active {
-            active_by_id.insert(entry.key.object_id.as_str(), index);
+            active_by_id
+                .insert(identity(&entry.key.object_id), index)
+                .map_err(|e| e.to_string())?;
         }
     }
     // 同槽位候选取**末位**：与旧实现 `new_objects.iter().collect::<BTreeMap<_,_>>()` 同语义。
-    let mut new_by_slot: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut new_by_slot = bj::new_map::<&Slot, usize>(allocation);
     for (index, key) in new.iter().enumerate() {
-        new_by_slot.insert(key.slot.as_str(), index);
+        new_by_slot
+            .insert(&key.slot, index)
+            .map_err(|e| e.to_string())?;
     }
 
-    let mut changes = ChangeSet {
-        births: Vec::new(),
-        withdrawals: Vec::new(),
-        replaces: Vec::new(),
+    let mut changes = BudgetedChangeSet {
+        births: bj::new_work(allocation),
+        withdrawals: bj::new_work(allocation),
+        replaces: bj::new_work(allocation),
     };
 
     // 1) 活动旧身份按给定主序：槽位消失 = 撤；槽位被异身份顶替 = 撤 + 替换对。
@@ -129,22 +181,33 @@ where
         if !entry.active {
             continue;
         }
-        match new_by_slot.get(entry.key.slot.as_str()).copied() {
-            None => changes.withdrawals.push(Withdrawal {
-                old_index,
-                removal: Removal::Removed,
-                new_index: None,
-            }),
-            Some(new_index) if new[new_index].object_id != entry.key.object_id => {
-                changes.withdrawals.push(Withdrawal {
+        match new_by_slot.get(&entry.key.slot).copied() {
+            None => changes
+                .withdrawals
+                .try_push(Withdrawal {
                     old_index,
-                    removal: Removal::Superseded,
-                    new_index: Some(new_index),
-                });
-                changes.replaces.push(Replace {
-                    old_index,
-                    new_index,
-                });
+                    removal: Removal::Removed,
+                    new_index: None,
+                })
+                .map_err(|e| e.to_string())?,
+            Some(new_index)
+                if identity(&new[new_index].object_id) != identity(&entry.key.object_id) =>
+            {
+                changes
+                    .withdrawals
+                    .try_push(Withdrawal {
+                        old_index,
+                        removal: Removal::Superseded,
+                        new_index: Some(new_index),
+                    })
+                    .map_err(|e| e.to_string())?;
+                changes
+                    .replaces
+                    .try_push(Replace {
+                        old_index,
+                        new_index,
+                    })
+                    .map_err(|e| e.to_string())?;
             }
             Some(_) => {}
         }
@@ -152,7 +215,7 @@ where
 
     // 2) 本次候选按给定序：同 ID 先核不可变内容，再定「未变化 / 拒绝复活 / 真实出生」。
     for (new_index, key) in new.iter().enumerate() {
-        let existing = old_by_id.get(key.object_id.as_str()).copied();
+        let existing = old_by_id.get(identity(&key.object_id)).copied();
         if let Some(old_index) = existing {
             // 先既有、后候选：与旧实现同一求值次序，读失败原样上报。
             let stored_content = old[old_index].key.immutable.read()?;
@@ -160,16 +223,16 @@ where
             if stored_content != candidate_content {
                 return Err(format!(
                     "IdentityConflict：object_id `{}` 已存在且不可变内容不同（同 ID 异内容不得覆盖或吞掉）",
-                    key.object_id
+                    identity(&key.object_id)
                 ));
             }
         }
-        match active_by_id.get(key.object_id.as_str()).copied() {
+        match active_by_id.get(identity(&key.object_id)).copied() {
             Some(old_index) => {
                 if old[old_index].key.slot != key.slot {
                     return Err(format!(
                         "StorageUnavailable：object_id `{}` 的活动发生区间与本次不一致",
-                        key.object_id
+                        identity(&key.object_id)
                     ));
                 }
                 // 未变化：不重发（changes-only 域的 Delta 不重复完整活动集）。
@@ -178,10 +241,13 @@ where
                 if existing.is_some() {
                     return Err(format!(
                         "IdentityConflict：object_id `{}` 是已撤回历史身份，不得复活",
-                        key.object_id
+                        identity(&key.object_id)
                     ));
                 }
-                changes.births.push(new_index);
+                changes
+                    .births
+                    .try_push(new_index)
+                    .map_err(|e| e.to_string())?;
             }
         }
     }
@@ -424,5 +490,93 @@ mod tests {
         let error = plan::<View, View>(&new, &old).unwrap_err();
         assert!(error.contains("缺不可变字段 kind"), "{error}");
         assert!(!error.contains("IdentityConflict"), "{error}");
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_plan_matches_legacy_order_conflicts_and_slot_last_wins() {
+        let budget = OwnedBudget::new(1_000_000);
+        let old = vec![
+            stored("dead", "S0", "v0", false),
+            stored("z", "S2", "v2", true),
+            stored("a", "S1", "v1", true),
+        ];
+        for new in [
+            vec![ready_key("a", "S1", "v1"), ready_key("b", "S1", "v3")],
+            vec![ready_key("fresh", "S9", "v9"), ready_key("z", "S2", "v2")],
+            vec![ready_key("dead", "S0", "v0")],
+            vec![ready_key("dead", "S0", "conflict")],
+            vec![ready_key("a", "wrong-slot", "v1")],
+        ] {
+            let plain = plan(&new, &old);
+            let owned = plan_budgeted(&new, &old, Some(&budget));
+            match (plain, owned) {
+                (Ok(plain), Ok(owned)) => {
+                    assert_eq!(plain.births.as_slice(), &*owned.births);
+                    assert_eq!(plain.withdrawals.as_slice(), &*owned.withdrawals);
+                    assert_eq!(plain.replaces.as_slice(), &*owned.replaces);
+                    assert!(budget.snapshot().live_requested_layout_bytes > 0);
+                    assert!(owned.births.allocation_budget().is_some());
+                }
+                (Err(plain), Err(owned)) => assert_eq!(plain, owned),
+                _ => panic!("普通和Owned判定不一致"),
+            }
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        }
+        // slot末位接管、活动主序和候选序直接锁定，不能仅依赖两臂一致。
+        let new = vec![ready_key("a", "S1", "v1"), ready_key("b", "S1", "v3")];
+        let owned = plan_budgeted(&new, &old, Some(&budget)).unwrap();
+        assert_eq!(&*owned.births, &[1]);
+        assert_eq!(
+            owned
+                .withdrawals
+                .iter()
+                .map(|w| w.old_index)
+                .collect::<Vec<_>>(),
+            [1, 2]
+        );
+        assert_eq!(owned.withdrawals[1].new_index, Some(1));
+        assert_eq!(owned.replaces[0].new_index, 1);
+        let plain_refusal = owned.births.try_into_plain().unwrap_err().to_string();
+        assert!(plain_refusal.contains("prototype_audit_allocation_incomplete"));
+        drop(owned.withdrawals);
+        drop(owned.replaces);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_plan_lazy_reads_prior_failure_and_budget_refusal_release_all() {
+        let budget = OwnedBudget::new(1_000_000);
+        let (birth, birth_reads) = View::unreadable();
+        let new = vec![key("fresh", "S1", birth)];
+        let result =
+            plan_budgeted::<View, View, String, String, String>(&new, &[], Some(&budget)).unwrap();
+        assert_eq!(&*result.births, &[0]);
+        assert_eq!(birth_reads.get(), 0);
+        drop(result);
+        let (prior, prior_reads) = View::unreadable();
+        let (candidate, candidate_reads) = View::unreadable();
+        let old = vec![Existing {
+            key: key("same", "S1", prior),
+            active: true,
+        }];
+        let new = vec![key("same", "S1", candidate)];
+        let error = plan_budgeted(&new, &old, Some(&budget)).unwrap_err();
+        assert!(error.contains("缺不可变字段 kind"));
+        assert_eq!((prior_reads.get(), candidate_reads.get()), (1, 0));
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        // 小账本在第一个映射真实分配时拒绝；预算失败不得继续读不可变内容。
+        let tiny = OwnedBudget::new(1);
+        let error = plan_budgeted(&new, &old, Some(&tiny)).unwrap_err();
+        assert!(
+            error.contains(newchan_rust::s_content::capture_allocation::LIMIT),
+            "{error}"
+        );
+        assert_eq!(tiny.snapshot().allocation_attempts, 0);
+        assert_eq!(tiny.snapshot().rejected_layouts, 1);
+        assert!(tiny.allocation_request_probe().refused_bytes > 1);
+        assert_eq!((prior_reads.get(), candidate_reads.get()), (1, 0));
+        assert_eq!(tiny.snapshot().live_requested_layout_bytes, 0);
     }
 }

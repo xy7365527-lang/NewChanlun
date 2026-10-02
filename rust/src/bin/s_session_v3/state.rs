@@ -251,13 +251,18 @@ fn audit_with_capture_impl(
             deadline,
             budget,
         )?;
-        let (withdrawals, replaces) = object_index::changes_at(&objects, cut.metadata.generation)?;
+        let allocation = super::audit_store::CodecRead::allocation_budget(&store);
+        let (withdrawals, replaces) = object_index::changes_at_budgeted(
+            &objects,
+            cut.metadata.generation,
+            allocation.as_ref(),
+        )?;
         #[cfg(test)]
         AUDIT_TRACE.with(|trace| {
             if let Some(t) = trace.borrow_mut().as_mut() {
                 t.events.push(
                     json!({"phase":"source_business_result","generation":cut.metadata.generation,
-                "counts":format!("{:?}",counts),"withdrawals":withdrawals,"replaces":replaces}),
+                "counts":format!("{:?}",counts),"withdrawals":withdrawals.view(),"replaces":replaces.view()}),
                 );
             }
         });
@@ -272,8 +277,8 @@ fn audit_with_capture_impl(
             prefix,
             previous,
             &counts,
-            &withdrawals,
-            &replaces,
+            withdrawals.view(),
+            replaces.view(),
             deadline,
             budget,
         )?;

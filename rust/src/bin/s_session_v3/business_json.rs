@@ -501,6 +501,69 @@ impl Decimal {
         std::str::from_utf8(&self.bytes[..self.len]).unwrap()
     }
 }
+/// 撤回 wire 的唯一投影核；typed 保留完整原件，shape 只将三个整数变成规范文本。
+/// 借用的子值与栈内十进制文本不制造临时 JSON 树；数组工作集仍由调用者实际账本持有。
+pub(crate) struct WithdrawalWire<'a> {
+    original: JsonView<'a>,
+    windows: Option<[Decimal; 3]>,
+}
+impl<'a> WithdrawalWire<'a> {
+    pub(crate) fn new(original: JsonView<'a>) -> Result<Self, String> {
+        let windows = if original.get("fact_key").is_some() {
+            None
+        } else {
+            let number = |key| {
+                field(original, key)
+                    .as_i64()
+                    .map(Decimal::new)
+                    .ok_or_else(|| "持久整数必须是 i64，不能是浮点、布尔、空值或文本".to_owned())
+            };
+            Some([
+                number("window_start")?,
+                number("window_mid")?,
+                number("window_end")?,
+            ])
+        };
+        Ok(Self { original, windows })
+    }
+    pub(crate) fn view(&self) -> JsonView<'_> {
+        if self.windows.is_none() {
+            return self.original;
+        }
+        JsonView::borrowed_object(self).expect("撤回 wire 六个固定字段唯一")
+    }
+}
+impl aj::JsonObject for WithdrawalWire<'_> {
+    fn len(&self) -> usize {
+        6
+    }
+    fn field(&self, index: usize) -> Option<(&str, JsonView<'_>)> {
+        let windows = self.windows.as_ref()?;
+        Some(match index {
+            0 => ("object_id", field(self.original, "object_id")),
+            1 => ("reason", field(self.original, "reason")),
+            2 => ("superseded_by", field(self.original, "superseded_by")),
+            3 => ("window_end", JsonView::String(windows[2].text())),
+            4 => ("window_mid", JsonView::String(windows[1].text())),
+            5 => ("window_start", JsonView::String(windows[0].text())),
+            _ => return None,
+        })
+    }
+}
+pub(crate) struct WithdrawalArray<'a>(pub sc::CodecVec<WithdrawalWire<'a>>);
+impl WithdrawalArray<'_> {
+    pub(crate) fn view(&self) -> JsonView<'_> {
+        JsonView::BorrowedArray(self)
+    }
+}
+impl aj::JsonArray for WithdrawalArray<'_> {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+    fn get(&self, index: usize) -> Option<JsonView<'_>> {
+        self.0.get(index).map(WithdrawalWire::view)
+    }
+}
 /// 源引用wire/numeric共用字段投影，只让revision/seq的值出现差异。
 pub(crate) struct RawReference<'a> {
     event: JsonView<'a>,
