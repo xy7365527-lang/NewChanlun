@@ -340,3 +340,23 @@ mod tests {
         assert_eq!(canonical_json(&reply), expected);
     }
 }
+
+/// #1394 非 default 实验入口：全部 JSON 结果与解码工作集继续持有调用者的 Layout 账本。
+/// ordinary strict_json 的公开接口不变；静态实验错误不会通过 serde 的 boxed Error 分配。
+#[cfg(feature = "s_allocation_json_testonly")]
+pub fn strict_json_owned(
+    bytes: &[u8],
+    budget: &crate::s_content::capture_allocation::OwnedBudget,
+) -> Result<crate::s_content::capture_allocation::audit_json::OwnedJson, crate::s_content::CodecError>
+{
+    crate::s_content::capture_allocation::audit_json::OwnedJson::parse(bytes, budget)
+}
+
+/// #1394 非 default 实验入口：借用 ordinary/owned 统一视图，编码缓冲及遍历栈同账。
+#[cfg(feature = "s_allocation_json_testonly")]
+pub fn canonical_json_owned(
+    value: crate::s_content::capture_allocation::audit_json::JsonView<'_>,
+    budget: &crate::s_content::capture_allocation::OwnedBudget,
+) -> Result<crate::s_content::CodecVec<u8>, crate::s_content::CodecError> {
+    crate::s_content::capture_allocation::audit_json::canonical_bytes(value, budget)
+}

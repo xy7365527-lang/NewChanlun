@@ -68,7 +68,7 @@ fn refused() -> CodecError {
 }
 impl OwnedBudget {
     pub fn new(limit: usize) -> Self {
-        Self(Arc::new(Mutex::new(Meter {
+        let budget = Self(Arc::new(Mutex::new(Meter {
             limit,
             live: 0,
             peak: 0,
@@ -95,7 +95,11 @@ impl OwnedBudget {
             sqlite_rejected: 0,
             test_ceiling: None,
             reject_sqlite_for_testonly: false,
-        })))
+        })));
+        // #1394: initialize the fixed accounting instrument before any metered operation
+        // or SQLite callback. macOS may allocate its first pthread mutex backing here.
+        drop(Self::lock(&budget.0));
+        budget
     }
     // Recovery never clears poisoned accounting. All later reservations refuse.
     fn lock(core: &Mutex<Meter>) -> MutexGuard<'_, Meter> {

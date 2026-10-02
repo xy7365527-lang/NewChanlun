@@ -209,6 +209,8 @@ fn audit_with_capture_impl(
         Some(c) => history::HashReader::captured_for_audit(c, max_render_bytes).map_err(err)?,
         None => history::HashReader::metered(&mut reader, deadline, max_render_bytes, budget),
     };
+    #[cfg(all(test, feature = "s_allocation_sqlite_testonly"))]
+    shared_sqlite_probe::arm_after_owned_reader();
     // 7a. 当前代对象索引已在同次history中完整加载并绑定原件；继续用它核逐代变化。
     let mut previous = -1i64;
     for cut in &cuts {
@@ -895,6 +897,133 @@ mod scoped_prototype_probe {
             "AUDIT_PROTOTYPE elapsed_ns={} sql={} f={} output_sha={}",
             elapsed, report["sql_node_reads"], report["f_calls"], report["complete_sha256"]
         );
+    }
+}
+
+// #1394: one exact fresh TestOnly process. The production audit and its SQL predicates
+// are unchanged; the optional fault starts only after the real capture/overlay exists.
+#[cfg(all(test, feature = "s_allocation_sqlite_testonly"))]
+mod shared_sqlite_probe {
+    use super::*;
+    use sc::capture_allocation::{sqlite, OwnedBudget};
+    thread_local! {
+        static FAULT: std::cell::RefCell<Option<sqlite::RefusalControl>> = const { std::cell::RefCell::new(None) };
+        static ARMED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+    pub(super) fn arm_after_owned_reader() {
+        FAULT.with(|f| {
+            if let Some(control) = f.borrow().as_ref() {
+                control.refuse_sqlite_allocations_for_testonly();
+                ARMED.with(|a| a.set(true));
+            }
+        });
+    }
+    #[test]
+    #[ignore]
+    fn actual_current_material_shared_sqlite() {
+        let db = std::env::var("AUDIT_PROTOTYPE_DB").unwrap();
+        let limit: usize = std::env::var("AUDIT_PROTOTYPE_OWNED_PAYLOAD_BYTES")
+            .unwrap()
+            .parse()
+            .unwrap();
+        let budget = OwnedBudget::new(limit);
+        // SAFETY: this exact test runs alone in a fresh process, before any SQLite open.
+        let guard = unsafe { sqlite::TestOnlySqliteAllocator::install(&budget) }.unwrap();
+        let control = guard.control();
+        let inject = std::env::var_os("AUDIT_SQLITE_INJECT_REFUSAL").is_some();
+        if inject {
+            FAULT.with(|f| *f.borrow_mut() = Some(control.clone()));
+        }
+        let mut conn =
+            Connection::open_with_flags(&db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+        let tx = conn.transaction().unwrap();
+        let peaks = std::rc::Rc::new(std::cell::Cell::new((0usize, 0usize)));
+        let config = history::OverlayPrototype {
+            slots: std::env::var("AUDIT_PROTOTYPE_OVERLAY_SLOTS")
+                .unwrap()
+                .parse()
+                .unwrap(),
+            bytes: std::env::var("AUDIT_PROTOTYPE_OVERLAY_BYTES")
+                .unwrap()
+                .parse()
+                .unwrap(),
+            budget: budget.clone(),
+            peaks: peaks.clone(),
+        };
+        let sql = content_store::sql_reads_on_thread();
+        let frames = sc::frame_calls_on_thread();
+        let started = std::time::Instant::now();
+        let (result, events, work) = history::with_overlay_prototype(config, || {
+            traced(true, || {
+                audit_with_capture_impl(&tx, None, None, None, true, Some(&budget))
+            })
+        });
+        let elapsed = started.elapsed().as_nanos();
+        let before_close = budget.snapshot();
+        let health_before_close = budget.ledger_health();
+        let request = budget.allocation_request_probe();
+        let armed = ARMED.with(|a| a.get());
+        FAULT.with(|f| {
+            f.borrow_mut().take();
+        });
+        control.clear_refusal_for_testonly();
+        let error = result.as_ref().err().cloned();
+        let (complete, retention) = match result {
+            Ok((state, retention)) => {
+                let cuts = state
+                    .cuts
+                    .iter()
+                    .map(|c| {
+                        format!(
+                            "{:?}|{:?}|{:?}|{:?}|{:?}",
+                            c.metadata, c.roots, c.batch_id, c.snapshot, c.delta
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let complete = json!({"raw":state.raw,"cuts":cuts,"objects":format!("{:?}",state.objects),"auxiliary":format!("{:?}",state.auxiliary),"clock":v2::stored_clock(&tx).unwrap().value});
+                (Some(complete), retention)
+            }
+            Err(_) => (None, None),
+        };
+        let frame_count = sc::frame_calls_on_thread() - frames;
+        let node_sql_reads = content_store::sql_reads_on_thread() - sql;
+        drop(tx);
+        drop(conn);
+        // SAFETY: all user statements, transaction, and connection are now dropped.
+        unsafe { guard.finish() }.unwrap();
+        let final_meter = budget.snapshot();
+        let final_health = budget.ledger_health();
+        let report = json!({
+            "scope":"selected closed codec plus SQLite requested Layout/header; JSON/business/outer diagnostics remain uncovered",
+            "whole_audit_allocation_admitted":false,"production_capture_enabled":false,
+            "fault_injection":inject,"armed_after_real_owned_reader":armed,
+            "error":error,"before_sql_close":before_close,"health_before_sql_close":health_before_close,
+            "last_layout":request,"after_all_drop":final_meter,"health_after_all_drop":final_health,
+            "elapsed_ns":elapsed.to_string(),"f_calls":frame_count,"sql_node_reads":node_sql_reads,
+            "events":events,"work":work,"capture":retention,
+            "overlay_peak_used_slots":peaks.get().0,"overlay_peak_used_body_bytes":peaks.get().1,
+            "complete_sha256":complete.as_ref().map(|v|sha256_hex(canonical_json(v).as_bytes())),"complete":complete,
+            "diagnostics_are_outside_payload_instrumentation":true
+        });
+        std::fs::write(
+            std::env::var("AUDIT_PROTOTYPE_REPORT").unwrap(),
+            canonical_json(&report),
+        )
+        .unwrap();
+        assert!(!final_health.invariant_broken);
+        assert_eq!(final_meter.live_requested_layout_bytes, 0);
+        assert_eq!(final_meter.allocated_layouts, final_meter.released_layouts);
+        if inject {
+            assert!(armed, "fault must start at the actual owned reader");
+            assert!(health_before_close.sqlite_rejected_layouts > 0);
+            let error = error.expect("actual SQL allocation refusal must propagate audit Err");
+            assert!(
+                error.contains("memory") || error.contains("Memory"),
+                "{error}"
+            );
+        } else {
+            assert!(report["complete"].is_object(), "{error:?}");
+        }
     }
 }
 

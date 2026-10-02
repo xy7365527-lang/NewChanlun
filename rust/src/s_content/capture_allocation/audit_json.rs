@@ -1,0 +1,1264 @@
+//! #1394 非 default 实验业务 JSON。节点、边、键、字符串、解析/编码栈与输出共用实际 Layout 账本。
+//! arena 内只存偏移；move 不退账，clone 复制全部 arena 且旧新并存。无 std Value 深复制兜底。
+use super::work::CodecVec;
+use super::OwnedBudget;
+use crate::s_content::CodecError;
+use serde_json::{Number, Value};
+use std::io::Write;
+
+mod number;
+const SCHEMA: &str = "SchemaUnsupported";
+fn invalid(detail: &'static str) -> CodecError {
+    CodecError::static_detail(SCHEMA, detail)
+}
+#[derive(Clone, Copy, Debug, Default)]
+struct Span {
+    start: usize,
+    len: usize,
+}
+#[derive(Clone, Debug)]
+enum Node {
+    Null,
+    Bool(bool),
+    Number(Number),
+    String(Span),
+    Array {
+        first: Option<usize>,
+        last: Option<usize>,
+        len: usize,
+    },
+    Object {
+        first: Option<usize>,
+        last: Option<usize>,
+        len: usize,
+    },
+}
+#[derive(Clone, Copy, Debug)]
+struct Edge {
+    key: Span,
+    value: usize,
+    next: Option<usize>,
+}
+pub struct OwnedJson {
+    nodes: CodecVec<Node>,
+    edges: CodecVec<Edge>,
+    text: CodecVec<u8>,
+    root: usize,
+    budget: OwnedBudget,
+}
+impl OwnedJson {
+    fn empty(budget: &OwnedBudget) -> Self {
+        Self {
+            nodes: CodecVec::new(Some(budget)),
+            edges: CodecVec::new(Some(budget)),
+            text: CodecVec::new(Some(budget)),
+            root: 0,
+            budget: budget.clone(),
+        }
+    }
+    fn add_node(&mut self, node: Node) -> Result<usize, CodecError> {
+        let id = self.nodes.len();
+        self.nodes.try_push(node)?;
+        Ok(id)
+    }
+    fn text(&self, s: Span) -> &str {
+        std::str::from_utf8(&self.text[s.start..s.start + s.len]).expect("validated arena UTF8")
+    }
+    fn copy_text(&mut self, s: &str) -> Result<Span, CodecError> {
+        let span = Span {
+            start: self.text.len(),
+            len: s.len(),
+        };
+        self.text.extend_from_slice(s.as_bytes())?;
+        Ok(span)
+    }
+    fn attach(&mut self, parent: usize, key: Span, value: usize) -> Result<(), CodecError> {
+        let id = self.edges.len();
+        self.edges.try_push(Edge {
+            key,
+            value,
+            next: None,
+        })?;
+        match &mut self.nodes[parent] {
+            Node::Array { first, last, len } | Node::Object { first, last, len } => {
+                if let Some(last) = *last {
+                    self.edges[last].next = Some(id);
+                } else {
+                    *first = Some(id);
+                }
+                *last = Some(id);
+                *len += 1;
+            }
+            _ => return Err(invalid("JSON parent must container")),
+        }
+        Ok(())
+    }
+    pub fn view(&self) -> JsonView<'_> {
+        JsonView::Owned(OwnedView {
+            tree: self,
+            id: self.root,
+        })
+    }
+    pub fn budget(&self) -> &OwnedBudget {
+        &self.budget
+    }
+    pub fn try_clone(&self) -> Result<Self, CodecError> {
+        // Node::Number is serde_json's finite inline number under the locked std-only feature set.
+        Ok(Self {
+            nodes: self.nodes.try_clone()?,
+            edges: self.edges.try_clone()?,
+            text: self.text.try_clone()?,
+            root: self.root,
+            budget: self.budget.clone(),
+        })
+    }
+    pub fn parse(bytes: &[u8], budget: &OwnedBudget) -> Result<Self, CodecError> {
+        Parser::new(bytes, budget).parse()
+    }
+    pub fn from_view(view: JsonView<'_>, budget: &OwnedBudget) -> Result<Self, CodecError> {
+        let mut tree = Self::empty(budget);
+        tree.root = tree.copy_view(view)?;
+        Ok(tree)
+    }
+    pub fn object(budget: &OwnedBudget) -> Result<Self, CodecError> {
+        let mut t = Self::empty(budget);
+        t.root = t.add_node(Node::Object {
+            first: None,
+            last: None,
+            len: 0,
+        })?;
+        Ok(t)
+    }
+    pub fn array(budget: &OwnedBudget) -> Result<Self, CodecError> {
+        let mut t = Self::empty(budget);
+        t.root = t.add_node(Node::Array {
+            first: None,
+            last: None,
+            len: 0,
+        })?;
+        Ok(t)
+    }
+    pub fn string(s: &str, budget: &OwnedBudget) -> Result<Self, CodecError> {
+        let mut t = Self::empty(budget);
+        let s = t.copy_text(s)?;
+        t.root = t.add_node(Node::String(s))?;
+        Ok(t)
+    }
+    pub fn insert_field(&mut self, key: &str, value: JsonView<'_>) -> Result<(), CodecError> {
+        let object = self
+            .view()
+            .as_object()
+            .ok_or_else(|| invalid("JSON insert requires object"))?;
+        let existing = object.owned_edge(key);
+        let value = self.copy_view(value)?;
+        if let Some(e) = existing {
+            self.edges[e].value = value;
+            return Ok(());
+        }
+        let key = self.copy_text(key)?;
+        self.attach(self.root, key, value)?;
+        self.sort_fields(self.root);
+        Ok(())
+    }
+    pub fn push(&mut self, value: JsonView<'_>) -> Result<(), CodecError> {
+        if self.view().as_array().is_none() {
+            return Err(invalid("JSON push requires array"));
+        }
+        let value = self.copy_view(value)?;
+        self.attach(self.root, Span::default(), value)
+    }
+    fn sort_fields(&mut self, id: usize) {
+        // Stable insertion into linked edges: no std sort scratch, no heap growth.
+        let (mut unsorted, len) = match self.nodes[id] {
+            Node::Object { first, len, .. } => (first, len),
+            _ => return,
+        };
+        let mut sorted: Option<usize> = None;
+        while let Some(e) = unsorted {
+            unsorted = self.edges[e].next;
+            let mut prev: Option<usize> = None;
+            let mut cursor = sorted;
+            while let Some(c) = cursor {
+                if self.text(self.edges[e].key) < self.text(self.edges[c].key) {
+                    break;
+                }
+                prev = Some(c);
+                cursor = self.edges[c].next;
+            }
+            self.edges[e].next = cursor;
+            if let Some(p) = prev {
+                self.edges[p].next = Some(e);
+            } else {
+                sorted = Some(e);
+            }
+        }
+        let mut last = sorted;
+        while let Some(e) = last {
+            if self.edges[e].next.is_none() {
+                break;
+            }
+            last = self.edges[e].next;
+        }
+        self.nodes[id] = Node::Object {
+            first: sorted,
+            last,
+            len,
+        };
+    }
+    fn shallow(&mut self, v: JsonView<'_>) -> Result<usize, CodecError> {
+        let n = match v.kind() {
+            JsonKind::Null => Node::Null,
+            JsonKind::Bool => Node::Bool(v.as_bool().unwrap()),
+            JsonKind::Number => Node::Number(v.number().unwrap().clone()),
+            JsonKind::String => Node::String(self.copy_text(v.as_str().unwrap())?),
+            JsonKind::Array => Node::Array {
+                first: None,
+                last: None,
+                len: 0,
+            },
+            JsonKind::Object => Node::Object {
+                first: None,
+                last: None,
+                len: 0,
+            },
+        };
+        self.add_node(n)
+    }
+    fn copy_view(&mut self, v: JsonView<'_>) -> Result<usize, CodecError> {
+        struct CopyFrame<'a> {
+            dest: usize,
+            children: Children<'a>,
+        }
+        let root = self.shallow(v)?;
+        let mut stack = CodecVec::new(Some(&self.budget));
+        if let Some(children) = v.children() {
+            stack.try_push(CopyFrame {
+                dest: root,
+                children,
+            })?;
+        }
+        while let Some(frame) = stack.last_mut() {
+            let Some((key, v)) = frame.children.next() else {
+                let done = stack.pop().unwrap();
+                self.sort_fields(done.dest);
+                continue;
+            };
+            let parent = frame.dest;
+            let key = self.copy_text(key)?;
+            let dest = self.shallow(v)?;
+            self.attach(parent, key, dest)?;
+            if let Some(children) = v.children() {
+                if stack.len() >= 127 {
+                    return Err(invalid("recursion limit exceeded"));
+                }
+                stack.try_push(CopyFrame { dest, children })?;
+            }
+        }
+        Ok(root)
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum JsonKind {
+    Null,
+    Bool,
+    Number,
+    String,
+    Array,
+    Object,
+}
+#[derive(Clone, Copy)]
+pub enum JsonView<'a> {
+    Plain(&'a Value),
+    Owned(OwnedView<'a>),
+}
+/// 只由 arena 的有效节点产生。索引及所有者不可由 safe 外部调用者构造或改写。
+/// ```compile_fail
+/// use newchan_rust::s_content::capture_allocation::audit_json::{JsonView, OwnedJson, OwnedView};
+/// fn forge(tree: &OwnedJson) {
+///     let _ = JsonView::Owned(OwnedView { tree, id: usize::MAX });
+/// }
+/// ```
+#[derive(Clone, Copy)]
+pub struct OwnedView<'a> {
+    tree: &'a OwnedJson,
+    id: usize,
+}
+impl<'a> From<&'a Value> for JsonView<'a> {
+    fn from(v: &'a Value) -> Self {
+        Self::Plain(v)
+    }
+}
+impl<'a> JsonView<'a> {
+    pub fn kind(self) -> JsonKind {
+        match self {
+            Self::Plain(v) => match v {
+                Value::Null => JsonKind::Null,
+                Value::Bool(_) => JsonKind::Bool,
+                Value::Number(_) => JsonKind::Number,
+                Value::String(_) => JsonKind::String,
+                Value::Array(_) => JsonKind::Array,
+                Value::Object(_) => JsonKind::Object,
+            },
+            Self::Owned(OwnedView { tree, id }) => match tree.nodes[id] {
+                Node::Null => JsonKind::Null,
+                Node::Bool(_) => JsonKind::Bool,
+                Node::Number(_) => JsonKind::Number,
+                Node::String(_) => JsonKind::String,
+                Node::Array { .. } => JsonKind::Array,
+                Node::Object { .. } => JsonKind::Object,
+            },
+        }
+    }
+    pub fn is_null(self) -> bool {
+        self.kind() == JsonKind::Null
+    }
+    pub fn is_object(self) -> bool {
+        self.kind() == JsonKind::Object
+    }
+    pub fn is_array(self) -> bool {
+        self.kind() == JsonKind::Array
+    }
+    pub fn is_string(self) -> bool {
+        self.kind() == JsonKind::String
+    }
+    pub fn is_number(self) -> bool {
+        self.kind() == JsonKind::Number
+    }
+    pub fn as_bool(self) -> Option<bool> {
+        match self {
+            Self::Plain(v) => v.as_bool(),
+            Self::Owned(OwnedView { tree, id }) => match tree.nodes[id] {
+                Node::Bool(b) => Some(b),
+                _ => None,
+            },
+        }
+    }
+    pub fn as_str(self) -> Option<&'a str> {
+        match self {
+            Self::Plain(v) => v.as_str(),
+            Self::Owned(OwnedView { tree, id }) => match tree.nodes[id] {
+                Node::String(s) => Some(tree.text(s)),
+                _ => None,
+            },
+        }
+    }
+    pub fn number(self) -> Option<&'a Number> {
+        match self {
+            Self::Plain(Value::Number(n)) => Some(n),
+            Self::Owned(OwnedView { tree, id }) => match &tree.nodes[id] {
+                Node::Number(n) => Some(n),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+    pub fn as_i64(self) -> Option<i64> {
+        self.number()?.as_i64()
+    }
+    pub fn as_u64(self) -> Option<u64> {
+        self.number()?.as_u64()
+    }
+    pub fn as_f64(self) -> Option<f64> {
+        self.number()?.as_f64()
+    }
+    pub fn as_array(self) -> Option<ArrayView<'a>> {
+        (self.kind() == JsonKind::Array).then_some(ArrayView(self))
+    }
+    pub fn as_object(self) -> Option<ObjectView<'a>> {
+        (self.kind() == JsonKind::Object).then_some(ObjectView(self))
+    }
+    pub fn get(self, key: &str) -> Option<Self> {
+        self.as_object()?.get(key)
+    }
+    pub fn index(self, i: usize) -> Option<Self> {
+        self.as_array()?.get(i)
+    }
+    fn children(self) -> Option<Children<'a>> {
+        match self.kind() {
+            JsonKind::Array => Some(Children::Array(self.as_array().unwrap().iter())),
+            JsonKind::Object => Some(Children::Object(self.as_object().unwrap().iter())),
+            _ => None,
+        }
+    }
+}
+impl std::fmt::Debug for JsonView<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.kind() {
+            JsonKind::Null => f.write_str("null"),
+            JsonKind::Bool => self.as_bool().fmt(f),
+            JsonKind::Number => self.number().fmt(f),
+            JsonKind::String => self.as_str().fmt(f),
+            JsonKind::Array => f
+                .debug_list()
+                .entries(self.as_array().unwrap().iter())
+                .finish(),
+            JsonKind::Object => f
+                .debug_map()
+                .entries(self.as_object().unwrap().iter())
+                .finish(),
+        }
+    }
+}
+impl PartialEq for JsonView<'_> {
+    fn eq(&self, o: &Self) -> bool {
+        if self.kind() != o.kind() {
+            return false;
+        }
+        match self.kind() {
+            JsonKind::Null => true,
+            JsonKind::Bool => self.as_bool() == o.as_bool(),
+            JsonKind::Number => self.number() == o.number(),
+            JsonKind::String => self.as_str() == o.as_str(),
+            JsonKind::Array => {
+                let a = self.as_array().unwrap();
+                let b = o.as_array().unwrap();
+                a.len() == b.len() && a.iter().zip(b.iter()).all(|(a, b)| a == b)
+            }
+            JsonKind::Object => {
+                let a = self.as_object().unwrap();
+                let b = o.as_object().unwrap();
+                a.len() == b.len() && a.iter().all(|(k, v)| b.get(k) == Some(v))
+            }
+        }
+    }
+}
+#[derive(Clone, Copy)]
+pub struct ArrayView<'a>(JsonView<'a>);
+impl<'a> ArrayView<'a> {
+    pub fn len(self) -> usize {
+        match self.0 {
+            JsonView::Plain(Value::Array(a)) => a.len(),
+            JsonView::Owned(OwnedView { tree, id }) => match tree.nodes[id] {
+                Node::Array { len, .. } => len,
+                _ => unreachable!(),
+            },
+            _ => unreachable!(),
+        }
+    }
+    pub fn is_empty(self) -> bool {
+        self.len() == 0
+    }
+    pub fn get(self, i: usize) -> Option<JsonView<'a>> {
+        self.iter().nth(i)
+    }
+    pub fn iter(self) -> ArrayIter<'a> {
+        match self.0 {
+            JsonView::Plain(Value::Array(a)) => ArrayIter::Plain(a.iter()),
+            JsonView::Owned(OwnedView { tree, id }) => match tree.nodes[id] {
+                Node::Array { first, .. } => ArrayIter::Owned(OwnedArrayIter { tree, next: first }),
+                _ => unreachable!(),
+            },
+            _ => unreachable!(),
+        }
+    }
+}
+pub enum ArrayIter<'a> {
+    Plain(std::slice::Iter<'a, Value>),
+    Owned(OwnedArrayIter<'a>),
+}
+/// 只由 ArrayView::iter 产生，私有游标沿真实 arena 边移动。
+/// ```compile_fail
+/// use newchan_rust::s_content::capture_allocation::audit_json::{ArrayIter, OwnedArrayIter, OwnedJson};
+/// fn forge(tree: &OwnedJson) {
+///     let _ = ArrayIter::Owned(OwnedArrayIter { tree, next: Some(usize::MAX) });
+/// }
+/// ```
+pub struct OwnedArrayIter<'a> {
+    tree: &'a OwnedJson,
+    next: Option<usize>,
+}
+impl<'a> Iterator for ArrayIter<'a> {
+    type Item = JsonView<'a>;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Plain(i) => i.next().map(JsonView::Plain),
+            Self::Owned(OwnedArrayIter { tree, next }) => {
+                let e = tree.edges[(*next)?];
+                *next = e.next;
+                Some(JsonView::Owned(OwnedView { tree, id: e.value }))
+            }
+        }
+    }
+}
+impl<'a> IntoIterator for ArrayView<'a> {
+    type Item = JsonView<'a>;
+    type IntoIter = ArrayIter<'a>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+#[derive(Clone, Copy)]
+pub struct ObjectView<'a>(JsonView<'a>);
+impl<'a> ObjectView<'a> {
+    pub fn len(self) -> usize {
+        match self.0 {
+            JsonView::Plain(Value::Object(a)) => a.len(),
+            JsonView::Owned(OwnedView { tree, id }) => match tree.nodes[id] {
+                Node::Object { len, .. } => len,
+                _ => unreachable!(),
+            },
+            _ => unreachable!(),
+        }
+    }
+    pub fn is_empty(self) -> bool {
+        self.len() == 0
+    }
+    fn owned_edge(self, key: &str) -> Option<usize> {
+        let JsonView::Owned(OwnedView { tree, id }) = self.0 else {
+            return None;
+        };
+        let Node::Object { first, .. } = tree.nodes[id] else {
+            return None;
+        };
+        let mut cursor = first;
+        while let Some(e) = cursor {
+            if tree.text(tree.edges[e].key) == key {
+                return Some(e);
+            }
+            cursor = tree.edges[e].next;
+        }
+        None
+    }
+    pub fn get(self, key: &str) -> Option<JsonView<'a>> {
+        match self.0 {
+            JsonView::Plain(v) => v.get(key).map(JsonView::Plain),
+            JsonView::Owned(OwnedView { tree, .. }) => self.owned_edge(key).map(|e| {
+                JsonView::Owned(OwnedView {
+                    tree,
+                    id: tree.edges[e].value,
+                })
+            }),
+        }
+    }
+    pub fn keys(self) -> impl Iterator<Item = &'a str> {
+        self.iter().map(|(k, _)| k)
+    }
+    pub fn iter(self) -> ObjectIter<'a> {
+        match self.0 {
+            JsonView::Plain(Value::Object(a)) => ObjectIter::Plain(a.iter()),
+            JsonView::Owned(OwnedView { tree, id }) => match tree.nodes[id] {
+                Node::Object { first, .. } => {
+                    ObjectIter::Owned(OwnedObjectIter { tree, next: first })
+                }
+                _ => unreachable!(),
+            },
+            _ => unreachable!(),
+        }
+    }
+}
+pub enum ObjectIter<'a> {
+    Plain(serde_json::map::Iter<'a>),
+    Owned(OwnedObjectIter<'a>),
+}
+/// 只由 ObjectView::iter 产生，私有游标沿真实 arena 边移动。
+/// ```compile_fail
+/// use newchan_rust::s_content::capture_allocation::audit_json::{ObjectIter, OwnedJson, OwnedObjectIter};
+/// fn forge(tree: &OwnedJson) {
+///     let _ = ObjectIter::Owned(OwnedObjectIter { tree, next: Some(usize::MAX) });
+/// }
+/// ```
+pub struct OwnedObjectIter<'a> {
+    tree: &'a OwnedJson,
+    next: Option<usize>,
+}
+impl<'a> Iterator for ObjectIter<'a> {
+    type Item = (&'a str, JsonView<'a>);
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Plain(i) => i.next().map(|(k, v)| (k.as_str(), JsonView::Plain(v))),
+            Self::Owned(OwnedObjectIter { tree, next }) => {
+                let e = tree.edges[(*next)?];
+                *next = e.next;
+                Some((
+                    tree.text(e.key),
+                    JsonView::Owned(OwnedView { tree, id: e.value }),
+                ))
+            }
+        }
+    }
+}
+enum Children<'a> {
+    Array(ArrayIter<'a>),
+    Object(ObjectIter<'a>),
+}
+impl<'a> Iterator for Children<'a> {
+    type Item = (&'a str, JsonView<'a>);
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Array(i) => i.next().map(|v| ("", v)),
+            Self::Object(i) => i.next(),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct ParseFrame {
+    node: usize,
+    object: bool,
+    state: u8,
+}
+struct Parser<'a> {
+    input: &'a [u8],
+    pos: usize,
+    tree: OwnedJson,
+    stack: CodecVec<ParseFrame>,
+}
+impl<'a> Parser<'a> {
+    fn new(input: &'a [u8], b: &OwnedBudget) -> Self {
+        Self {
+            input,
+            pos: 0,
+            tree: OwnedJson::empty(b),
+            stack: CodecVec::new(Some(b)),
+        }
+    }
+    fn ws(&mut self) {
+        while matches!(self.input.get(self.pos), Some(b' ' | b'\n' | b'\t' | b'\r')) {
+            self.pos += 1;
+        }
+    }
+    fn take(&mut self, c: u8) -> Result<(), CodecError> {
+        if self.input.get(self.pos) == Some(&c) {
+            self.pos += 1;
+            Ok(())
+        } else {
+            Err(invalid("invalid JSON syntax"))
+        }
+    }
+    fn parse(mut self) -> Result<OwnedJson, CodecError> {
+        self.ws();
+        let (root, container) = self.atom()?;
+        self.tree.root = root;
+        if let Some(object) = container {
+            self.stack.try_push(ParseFrame {
+                node: root,
+                object,
+                state: 0,
+            })?;
+        }
+        while let Some(frame) = self.stack.last().copied() {
+            self.ws();
+            let close = if frame.object { b'}' } else { b']' };
+            if frame.state == 2 {
+                match self.input.get(self.pos) {
+                    Some(c) if *c == close => {
+                        self.pos += 1;
+                        self.tree.sort_fields(frame.node);
+                        self.stack.pop();
+                        continue;
+                    }
+                    Some(b',') => {
+                        self.pos += 1;
+                        self.stack.last_mut().unwrap().state = 3;
+                        continue;
+                    }
+                    _ => return Err(invalid("expected comma or container end")),
+                }
+            }
+            if frame.state == 0 && self.input.get(self.pos) == Some(&close) {
+                self.pos += 1;
+                self.stack.pop();
+                continue;
+            }
+            let key = if frame.object {
+                self.take(b'"')?;
+                let k = self.string()?;
+                if (ObjectView(JsonView::Owned(OwnedView {
+                    tree: &self.tree,
+                    id: frame.node,
+                })))
+                .owned_edge(self.tree.text(k))
+                .is_some()
+                {
+                    return Err(CodecError::static_detail(SCHEMA, "duplicate key"));
+                }
+                self.ws();
+                self.take(b':')?;
+                self.ws();
+                k
+            } else {
+                Span::default()
+            };
+            let (child, container) = self.atom()?;
+            self.tree.attach(frame.node, key, child)?;
+            self.stack.last_mut().unwrap().state = 2;
+            if let Some(object) = container {
+                if self.stack.len() >= 127 {
+                    return Err(invalid("recursion limit exceeded"));
+                }
+                self.stack.try_push(ParseFrame {
+                    node: child,
+                    object,
+                    state: 0,
+                })?;
+            }
+        }
+        self.ws();
+        if self.pos != self.input.len() {
+            return Err(invalid("trailing characters"));
+        }
+        Ok(self.tree)
+    }
+    fn atom(&mut self) -> Result<(usize, Option<bool>), CodecError> {
+        let c = *self
+            .input
+            .get(self.pos)
+            .ok_or_else(|| invalid("EOF while parsing value"))?;
+        let (mut container, node) = (None, Node::Null);
+        let node = match c {
+            b'n' => {
+                self.literal(b"null")?;
+                node
+            }
+            b't' => {
+                self.literal(b"true")?;
+                Node::Bool(true)
+            }
+            b'f' => {
+                self.literal(b"false")?;
+                Node::Bool(false)
+            }
+            b'"' => {
+                self.pos += 1;
+                Node::String(self.string()?)
+            }
+            b'[' => {
+                self.pos += 1;
+                container = Some(false);
+                Node::Array {
+                    first: None,
+                    last: None,
+                    len: 0,
+                }
+            }
+            b'{' => {
+                self.pos += 1;
+                container = Some(true);
+                Node::Object {
+                    first: None,
+                    last: None,
+                    len: 0,
+                }
+            }
+            b'-' | b'0'..=b'9' => {
+                let (n, used) = number::parse(&self.input[self.pos..])?;
+                self.pos += used;
+                Node::Number(n)
+            }
+            _ => return Err(invalid("expected value")),
+        };
+        Ok((self.tree.add_node(node)?, container))
+    }
+    fn literal(&mut self, v: &[u8]) -> Result<(), CodecError> {
+        if self.input[self.pos..].starts_with(v) {
+            self.pos += v.len();
+            Ok(())
+        } else {
+            Err(invalid("expected identifier"))
+        }
+    }
+    fn hex(&mut self) -> Result<u16, CodecError> {
+        let mut v = 0;
+        for _ in 0..4 {
+            let b = *self
+                .input
+                .get(self.pos)
+                .ok_or_else(|| invalid("EOF while parsing string"))?;
+            self.pos += 1;
+            let n = match b {
+                b'0'..=b'9' => b - b'0',
+                b'a'..=b'f' => b - b'a' + 10,
+                b'A'..=b'F' => b - b'A' + 10,
+                _ => return Err(invalid("invalid escape")),
+            };
+            v = (v << 4) | u16::from(n);
+        }
+        Ok(v)
+    }
+    fn string(&mut self) -> Result<Span, CodecError> {
+        let start = self.tree.text.len();
+        loop {
+            let run = self.pos;
+            while let Some(c) = self.input.get(self.pos) {
+                if *c == b'"' || *c == b'\\' || *c < 0x20 {
+                    break;
+                }
+                self.pos += 1;
+            }
+            let raw = &self.input[run..self.pos];
+            std::str::from_utf8(raw).map_err(|_| invalid("invalid unicode code point"))?;
+            self.tree.text.extend_from_slice(raw)?;
+            let c = *self
+                .input
+                .get(self.pos)
+                .ok_or_else(|| invalid("EOF while parsing string"))?;
+            self.pos += 1;
+            if c == b'"' {
+                return Ok(Span {
+                    start,
+                    len: self.tree.text.len() - start,
+                });
+            }
+            if c != b'\\' {
+                return Err(invalid("control character while parsing string"));
+            }
+            let e = *self
+                .input
+                .get(self.pos)
+                .ok_or_else(|| invalid("EOF while parsing string"))?;
+            self.pos += 1;
+            match e {
+                b'"' | b'\\' | b'/' => self.tree.text.try_push(e)?,
+                b'b' => self.tree.text.try_push(8)?,
+                b'f' => self.tree.text.try_push(12)?,
+                b'n' => self.tree.text.try_push(10)?,
+                b'r' => self.tree.text.try_push(13)?,
+                b't' => self.tree.text.try_push(9)?,
+                b'u' => {
+                    let h = self.hex()?;
+                    let cp = if (0xD800..=0xDBFF).contains(&h) {
+                        self.take(b'\\')?;
+                        self.take(b'u')?;
+                        let l = self.hex()?;
+                        if !(0xDC00..=0xDFFF).contains(&l) {
+                            return Err(invalid("lone leading surrogate in hex escape"));
+                        }
+                        0x10000 + ((u32::from(h) - 0xD800) << 10) + (u32::from(l) - 0xDC00)
+                    } else if (0xDC00..=0xDFFF).contains(&h) {
+                        return Err(invalid("lone trailing surrogate in hex escape"));
+                    } else {
+                        u32::from(h)
+                    };
+                    let c =
+                        char::from_u32(cp).ok_or_else(|| invalid("invalid unicode code point"))?;
+                    let mut buf = [0; 4];
+                    self.tree
+                        .text
+                        .extend_from_slice(c.encode_utf8(&mut buf).as_bytes())?;
+                }
+                _ => return Err(invalid("invalid escape")),
+            }
+        }
+    }
+}
+fn quoted(out: &mut CodecVec<u8>, s: &str) -> Result<(), CodecError> {
+    out.try_push(b'"')?;
+    let mut start = 0;
+    for (i, b) in s.bytes().enumerate() {
+        let escaped = match b {
+            b'"' => Some(&b"\\\""[..]),
+            b'\\' => Some(&b"\\\\"[..]),
+            8 => Some(&b"\\b"[..]),
+            9 => Some(&b"\\t"[..]),
+            10 => Some(&b"\\n"[..]),
+            12 => Some(&b"\\f"[..]),
+            13 => Some(&b"\\r"[..]),
+            _ => None,
+        };
+        if escaped.is_some() || b < 0x20 {
+            out.extend_from_slice(&s.as_bytes()[start..i])?;
+            if let Some(e) = escaped {
+                out.extend_from_slice(e)?;
+            } else {
+                const H: &[u8; 16] = b"0123456789abcdef";
+                out.extend_from_slice(&[
+                    b'\\',
+                    b'u',
+                    b'0',
+                    b'0',
+                    H[(b >> 4) as usize],
+                    H[(b & 15) as usize],
+                ])?;
+            }
+            start = i + 1;
+        }
+    }
+    out.extend_from_slice(&s.as_bytes()[start..])?;
+    out.try_push(b'"')
+}
+struct NumberBuffer {
+    bytes: [u8; 64],
+    used: usize,
+}
+impl Write for NumberBuffer {
+    fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+        let end = self.used + b.len();
+        assert!(
+            end <= self.bytes.len(),
+            "finite serde_json Number exceeds 64 bytes"
+        );
+        self.bytes[self.used..end].copy_from_slice(b);
+        self.used = end;
+        Ok(b.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+/// 与 ordinary canonical_json 共用 serde_json 的有限数字 formatter；额度错误只在 fallible 输出处产生。
+pub fn canonical_bytes(
+    view: JsonView<'_>,
+    budget: &OwnedBudget,
+) -> Result<CodecVec<u8>, CodecError> {
+    struct Frame<'a> {
+        children: Children<'a>,
+        object: bool,
+        first: bool,
+    }
+    let mut out = CodecVec::new(Some(budget));
+    let mut stack = CodecVec::new(Some(budget));
+    let mut current = Some(view);
+    loop {
+        if let Some(v) = current.take() {
+            match v.kind() {
+                JsonKind::Null => out.extend_from_slice(b"null")?,
+                JsonKind::Bool => out.extend_from_slice(if v.as_bool().unwrap() {
+                    b"true"
+                } else {
+                    b"false"
+                })?,
+                JsonKind::String => quoted(&mut out, v.as_str().unwrap())?,
+                JsonKind::Number => {
+                    let mut b = NumberBuffer {
+                        bytes: [0; 64],
+                        used: 0,
+                    };
+                    serde_json::to_writer(&mut b, v.number().unwrap())
+                        .expect("finite inline Number to infallible stack writer");
+                    out.extend_from_slice(&b.bytes[..b.used])?;
+                }
+                JsonKind::Array | JsonKind::Object => {
+                    let object = v.is_object();
+                    out.try_push(if object { b'{' } else { b'[' })?;
+                    stack.try_push(Frame {
+                        children: v.children().unwrap(),
+                        object,
+                        first: true,
+                    })?;
+                }
+            }
+        }
+        let Some(frame) = stack.last_mut() else {
+            break;
+        };
+        if let Some((key, child)) = frame.children.next() {
+            if !frame.first {
+                out.try_push(b',')?;
+            }
+            frame.first = false;
+            if frame.object {
+                quoted(&mut out, key)?;
+                out.try_push(b':')?;
+            }
+            current = Some(child);
+        } else {
+            out.try_push(if frame.object { b'}' } else { b']' })?;
+            stack.pop();
+        }
+    }
+    Ok(out)
+}
+
+impl std::fmt::Debug for OwnedJson {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.view().fmt(f)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::session_protocol::{canonical_json, strict_json};
+    // Observation only: every requested allocation is forwarded unchanged to System.
+    // Per-thread activation avoids counting the test harness and concurrent test threads.
+    thread_local! { static GLOBAL_CALLS: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) }; }
+    struct ObserveAllocator;
+    #[global_allocator]
+    static OBSERVE: ObserveAllocator = ObserveAllocator;
+    unsafe impl std::alloc::GlobalAlloc for ObserveAllocator {
+        unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
+            let _ = GLOBAL_CALLS.try_with(|n| {
+                if let Some(v) = n.get() {
+                    n.set(Some(v + 1));
+                }
+            });
+            unsafe { std::alloc::System.alloc(layout) }
+        }
+        unsafe fn alloc_zeroed(&self, layout: std::alloc::Layout) -> *mut u8 {
+            let _ = GLOBAL_CALLS.try_with(|n| {
+                if let Some(v) = n.get() {
+                    n.set(Some(v + 1));
+                }
+            });
+            unsafe { std::alloc::System.alloc_zeroed(layout) }
+        }
+        unsafe fn realloc(&self, p: *mut u8, layout: std::alloc::Layout, size: usize) -> *mut u8 {
+            let _ = GLOBAL_CALLS.try_with(|n| {
+                if let Some(v) = n.get() {
+                    n.set(Some(v + 1));
+                }
+            });
+            unsafe { std::alloc::System.realloc(p, layout, size) }
+        }
+        unsafe fn dealloc(&self, p: *mut u8, layout: std::alloc::Layout) {
+            unsafe { std::alloc::System.dealloc(p, layout) }
+        }
+    }
+    fn observed<T>(f: impl FnOnce() -> T) -> (T, u64) {
+        struct Reset;
+        impl Drop for Reset {
+            fn drop(&mut self) {
+                GLOBAL_CALLS.with(|n| n.set(None));
+            }
+        }
+        GLOBAL_CALLS.with(|n| n.set(Some(0)));
+        let reset = Reset;
+        let value = f();
+        let calls = GLOBAL_CALLS.with(|n| n.get().unwrap());
+        drop(reset);
+        (value, calls)
+    }
+    #[test]
+    fn owned_json_readonly_global_observer_finds_no_unledgered_scratch_or_errors() {
+        let budget = OwnedBudget::new(100000);
+        let before = budget.snapshot().allocation_attempts;
+        let (tree, calls) = observed(|| {
+            OwnedJson::parse(br#"{"\u0061":"x\uD834\uDD1Ex","nested":[{"float":1.234567890123456789e-308},true,null]}"#,&budget)
+        });
+        let tree = tree.unwrap();
+        assert_eq!(calls, budget.snapshot().allocation_attempts - before);
+        let before = budget.snapshot().allocation_attempts;
+        let (copy, calls) = observed(|| tree.try_clone());
+        let copy = copy.unwrap();
+        assert_eq!(calls, budget.snapshot().allocation_attempts - before);
+        let before = budget.snapshot().allocation_attempts;
+        let (bytes, calls) = observed(|| canonical_bytes(tree.view(), &budget));
+        let bytes = bytes.unwrap();
+        assert_eq!(calls, budget.snapshot().allocation_attempts - before);
+        for input in [
+            &b"{\"a\":0,\"\\u0061\":[[[["[..],
+            &b"1e9999"[..],
+            &b"\"\\uD800\""[..],
+            &b"null trailing"[..],
+        ] {
+            let before = budget.snapshot().allocation_attempts;
+            let (error, calls) = observed(|| OwnedJson::parse(input, &budget));
+            assert!(error.is_err());
+            assert_eq!(calls, budget.snapshot().allocation_attempts - before);
+        }
+        let zero = OwnedBudget::new(0);
+        // macOS std Mutex may initialize a fixed native lock on first use.
+        // Fixed meter/control initialization is outside the payload scope; warm it before observation.
+        let _ = zero.snapshot();
+        let (error, calls) = observed(|| OwnedJson::parse(br#"{"large":"payload"}"#, &zero));
+        assert_eq!(error.unwrap_err().code(), super::super::LIMIT);
+        assert_eq!(calls, 0);
+        drop((bytes, copy, tree));
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    fn parity(input: &[u8]) {
+        let ordinary = strict_json(input);
+        let b = OwnedBudget::new(1_000_000);
+        let owned = OwnedJson::parse(input, &b);
+        assert_eq!(
+            ordinary.is_ok(),
+            owned.is_ok(),
+            "input {:?}",
+            String::from_utf8_lossy(input)
+        );
+        if let (Ok(v), Ok(t)) = (ordinary, owned) {
+            assert_eq!(t.view(), JsonView::Plain(&v));
+            let output = canonical_bytes(t.view(), &b).unwrap();
+            assert_eq!(&*output, canonical_json(&v).as_bytes());
+            let copy = OwnedJson::from_view(JsonView::Plain(&v), &b).unwrap();
+            assert_eq!(t.view(), copy.view());
+            let clone = t.try_clone().unwrap();
+            assert_eq!(clone.view(), t.view());
+            drop((output, copy, clone, t));
+        }
+        assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[test]
+    fn owned_json_strings_duplicates_tail_and_depth_parity() {
+        for input in [
+            &b"{\"z\":[true,null,{},[],\"\\b\\f\\n\\r\\t\\/\\\\\\\"\"],\"a\":\"\\u0000\\uD834\\uDD1E\"}"[..],
+            "{\"中文\":\"😀é\",\"é\":\"line\u{0001}\"}".as_bytes(),
+            &b"{\"a\":0,\"\\u0061\":[[[["[..],
+            &b"{\"\\uD834\\uDD1E\":0,\"\xf0\x9d\x84\x9e\":1}"[..],
+            &b"\"\\uD800\""[..], &b"\"\\uDC00\""[..], &b"\"\\uD800\\u0041\""[..],
+            &b"\"\xff\""[..], &b"\"\xed\xa0\x80\""[..], &b"\"\x00\""[..],
+            &b"[1,]"[..], &b"{\"a\":1,}"[..], &b"null garbage"[..], &b"truefalse"[..],
+            &b" \n\t\r [0,\"a\"] \r\n"[..], &b"[false]x"[..], &b""[..],
+        ] {parity(input);}
+        // Escaped controls are valid; raw controls are rejected.
+        for depth in [1, 126, 127, 128, 129] {
+            let input = format!("{}0{}", "[".repeat(depth), "]".repeat(depth));
+            parity(input.as_bytes());
+        }
+        parity(r#"{"é":"line\u0001","😀":["\uD834\uDD1E"]}"#.as_bytes());
+    }
+    #[test]
+    fn owned_json_locked_number_algorithm_parity() {
+        for input in [
+            "0",
+            "-0",
+            "1",
+            "-1",
+            "18446744073709551615",
+            "18446744073709551616",
+            "-9223372036854775808",
+            "-9223372036854775809",
+            "9999999999999999999999999999999999999999.1234",
+            "0.123456789012345678901234567890",
+            "2.2250738585072014e-308",
+            "1.7976931348623157e308",
+            "1e309",
+            "0e999999999999999999999",
+            "-0e999999999999999999999",
+            "1e-999999999999999999999",
+            "1e999999999999999999999",
+            "1e",
+            "1e+",
+            "1.",
+            "01",
+            "-01",
+            "+1",
+            "NaN",
+            "1E-324",
+            "-1E-324",
+        ] {
+            parity(input.as_bytes());
+        }
+        for mantissa in [
+            "0",
+            "1",
+            "-1",
+            "12345678901234567890",
+            "123456789012345678901",
+            "0.0000000000000000000000000000001",
+            "-1.23456789012345678901234567890",
+        ] {
+            for exponent in [-400, -324, -308, -20, 0, 20, 308, 309, 400] {
+                parity(format!("{mantissa}e{exponent}").as_bytes());
+            }
+        }
+        // Finite typed numbers preserve their exact Number value during deep copy/clone.
+        for bits in [
+            1u64,
+            0x8000000000000000,
+            0x0010000000000000,
+            0x3ff0000000000001,
+            0x7fefffffffffffff,
+        ] {
+            let value = Value::from(f64::from_bits(bits));
+            let b = OwnedBudget::new(10_000);
+            let t = OwnedJson::from_view((&value).into(), &b).unwrap();
+            assert_eq!(
+                t.view().as_f64().unwrap().to_bits(),
+                value.as_f64().unwrap().to_bits()
+            );
+            let bytes = canonical_bytes(t.view(), &b).unwrap();
+            assert_eq!(&*bytes, canonical_json(&value).as_bytes());
+            drop((bytes, t));
+            assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
+        }
+    }
+    #[test]
+    fn owned_json_quota_clone_and_move_hold_real_layouts() {
+        let b = OwnedBudget::new(8000);
+        let t = OwnedJson::parse(
+            br#"{"text":"a long retained string","array":[1,2,3,4,5]}"#,
+            &b,
+        )
+        .unwrap();
+        let before = b.snapshot().live_requested_layout_bytes;
+        assert!(before > 0);
+        let moved = t;
+        assert_eq!(b.snapshot().live_requested_layout_bytes, before);
+        let clone = moved.try_clone().unwrap();
+        assert_eq!(clone.view(), moved.view());
+        assert!(b.snapshot().live_requested_layout_bytes > before);
+        drop(clone);
+        assert_eq!(b.snapshot().live_requested_layout_bytes, before);
+        drop(moved);
+        assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
+        let measurement = OwnedBudget::new(10000);
+        let probe = OwnedJson::parse(
+            br#"{"long key":"a long string","array":[1,2,3,4]}"#,
+            &measurement,
+        )
+        .unwrap();
+        let cap = measurement.snapshot().peak_requested_layout_bytes;
+        drop(probe);
+        let b = OwnedBudget::new(cap);
+        let old =
+            OwnedJson::parse(br#"{"long key":"a long string","array":[1,2,3,4]}"#, &b).unwrap();
+        let before = b.snapshot();
+        let err = old.try_clone().unwrap_err();
+        assert_eq!(err.code(), super::super::LIMIT);
+        assert!(matches!(err.detail, std::borrow::Cow::Borrowed(_)));
+        assert_eq!(
+            old.view().get("long key").unwrap().as_str(),
+            Some("a long string")
+        );
+        assert_eq!(
+            b.snapshot().live_requested_layout_bytes,
+            before.live_requested_layout_bytes
+        );
+        drop(old);
+        assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[test]
+    fn owned_json_key_string_array_growth_rejected_before_alloc_and_drop_zero() {
+        for input in [
+            format!("{{\"{}\":0}}", "k".repeat(256)),
+            format!("\"{}\"", "s".repeat(256)),
+            format!("[{}]", vec!["0"; 128].join(",")),
+        ] {
+            let full = OwnedBudget::new(100000);
+            let t = OwnedJson::parse(input.as_bytes(), &full).unwrap();
+            let peak = full.snapshot().peak_requested_layout_bytes;
+            drop(t);
+            let b = OwnedBudget::new(peak - 1);
+            let error = OwnedJson::parse(input.as_bytes(), &b).unwrap_err();
+            assert_eq!(error.code(), super::super::LIMIT);
+            let p = b.allocation_request_probe();
+            assert!(p.live_before_refusal + p.refused_bytes > b.snapshot().limit_bytes);
+            assert!(b.snapshot().rejected_layouts > 0);
+            assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
+        }
+        // All failure prefixes preserve valid Utf8 and drop partially initialized owners safely.
+        for limit in 0..512 {
+            let b = OwnedBudget::new(limit);
+            let _ = OwnedJson::parse(
+                br#"{"escaped\u006bey":"x\uD834\uDD1Ex","a":[true,false,null,{}]}"#,
+                &b,
+            );
+            assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
+        }
+    }
+    #[test]
+    fn owned_json_builder_and_encoding_failure_do_not_erase_owners() {
+        let b = OwnedBudget::new(10000);
+        let mut tree = OwnedJson::object(&b).unwrap();
+        let mut arr = OwnedJson::array(&b).unwrap();
+        let s = OwnedJson::string("retained", &b).unwrap();
+        arr.push(s.view()).unwrap();
+        tree.insert_field("z", arr.view()).unwrap();
+        tree.insert_field("a", s.view()).unwrap();
+        tree.insert_field("a", JsonView::Plain(&Value::from(42)))
+            .unwrap();
+        let expected = serde_json::json!({"a":42,"z":["retained"]});
+        assert_eq!(tree.view(), JsonView::Plain(&expected));
+        let bytes = canonical_bytes(tree.view(), &b).unwrap();
+        assert_eq!(&*bytes, canonical_json(&expected).as_bytes());
+        drop(bytes);
+        let low = OwnedBudget::new(0);
+        let error = canonical_bytes(tree.view(), &low).unwrap_err();
+        assert_eq!(error.code(), super::super::LIMIT);
+        assert_eq!(tree.view(), JsonView::Plain(&expected));
+        assert_eq!(low.snapshot().allocation_attempts, 0);
+        drop((s, arr, tree));
+        assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
+    }
+}
