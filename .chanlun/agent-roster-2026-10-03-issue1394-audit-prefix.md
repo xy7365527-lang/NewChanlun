@@ -17,4 +17,6 @@
 - 已定位独立启动瓶颈：`open_with_request_and_mode` 无条件走普通 `state::audit`，Native 模式此前只影响三个写前入口。下一步单独适配显式 Native TestOnly 的启动同核完整捕获，不跳审计或改默认/Owned，旧失败域不重试、不放大观察上限。
 - Native 启动适配有限验收通过：3项靶向与独评 PASS；仅 CapturedNative 改同核完整现场捕获，普通/Owned及恢复顺序不变。新105→106两臂启动约13.5秒完成；eager handle 32.353秒提交106，staged在180.033秒停于HANDLE_RUNNING并终止回收。完整对拍 NOT_RUN，30秒网络及整体资源资格未成立，结果包 `.scratch/issue1394-native-startup-20261004/ROOT-RESULT.json` 保留 FAILURE_PRESERVED。
 - 下一限定修复：去掉暂存诊断的每put全map容量扫描、每put malloc采样与每INSERT全表COUNT；保留准确容量/实际插入计数、完整审计、全部持久及runtime联合根、全闭包SQL读取、旧节点和Job口径。有限验证与独评后，仅在新自有105副本重做一次同上限对照，不恢复旧失败域或直接启动9011。
+- 暂存计量修复完成：unique实际Vec容量增量累加、malloc仅阶段采样、flush前后各一次COUNT（含真实错误），4项靶向及独评PASS；第三次INSERT故障前计数2、全持久表/节点回滚和正常discard通过。一次Native release构建，640项源码前后及app/lib/binary冻结绑定一致。
+- 新冷105→106对照COMPLETE：两臂均106代、106 Committed、106 publication、318 clocks、idle；全非节点typed原bytes、回执、持久根原bytes、旧105节点保留与新缺失节点位于联合闭包外全部PASS。eager/staged handle分别32.606/30.768秒；少7167节点、477288 body bytes。原件stat/SHA不变，两个进程均回收。单样本不建立吞吐资格，两臂仍超过30秒；未重启9011、未取得整体资源或生产资格。证据 `.scratch/issue1394-staging-metrics-20261004/ROOT-RESULT.json`；旧失败包保持。
 - 禁止：旧未授权原件、main 合入/推送、GOAL 事件修改、新公共资源数值、前端 #1460、K4。

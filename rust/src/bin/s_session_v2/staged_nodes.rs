@@ -14,11 +14,13 @@ pub(super) struct StageOwner {
     kept: std::cell::Cell<usize>,
     flushed: std::cell::Cell<usize>,
     heap_sample_max: std::cell::Cell<usize>,
+    heap_samples: std::cell::Cell<usize>,
     heap_start: usize,
 }
 impl StageOwner {
     pub(super) fn new(tx: &Transaction<'_>) -> Self {
         // SQLite handle在Transaction按值传递时不变；owner由Runtime::commit单次栈上持有。
+        let heap_start = heap_sample();
         Self {
             connection: unsafe { tx.handle() } as usize,
             nodes: Default::default(),
@@ -26,8 +28,9 @@ impl StageOwner {
             puts: Default::default(),
             kept: Default::default(),
             flushed: Default::default(),
-            heap_sample_max: Default::default(),
-            heap_start: heap_sample(),
+            heap_sample_max: std::cell::Cell::new(heap_start),
+            heap_samples: std::cell::Cell::new(1),
+            heap_start,
         }
     }
     pub(super) fn check_transaction(&self, tx: &Transaction<'_>) -> Result<(), sc::CodecError> {
@@ -59,21 +62,28 @@ impl StageOwner {
                 ));
             }
         } else {
-            nodes.insert(d, (t, b.to_vec()));
+            let body = b.to_vec();
+            // #1394：本owner只追加、不删除；实际已存Vec容量之和就是组件峰值。
+            let capacity = body.capacity();
+            nodes.insert(d, (t, body));
+            self.peak_body_capacity
+                .set(self.peak_body_capacity.get() + capacity);
         }
-        let cap = nodes.values().map(|(_, b)| b.capacity()).sum();
-        self.peak_body_capacity
-            .set(self.peak_body_capacity.get().max(cap));
-        self.heap_sample_max
-            .set(self.heap_sample_max.get().max(heap_sample()));
         Ok(())
     }
+    fn sample_heap_phase(&self) {
+        self.heap_sample_max
+            .set(self.heap_sample_max.get().max(heap_sample()));
+        self.heap_samples.set(self.heap_samples.get() + 1);
+    }
     pub(super) fn report(&self) -> Value {
+        self.sample_heap_phase();
         let nodes = self.nodes.borrow();
-        json!({"new_unique_accepted":nodes.len(),"new_put_visits":self.puts.get(),"actual_body_capacity_peak_bytes":self.peak_body_capacity.get(),"body_length_bytes":nodes.values().map(|(_,b)|b.len()).sum::<usize>(),"digest_original_bytes":nodes.len()*32,"tuple_inline_size_bytes":nodes.len()*std::mem::size_of::<(NodeDigest,(u8,Vec<u8>))>(),"BTree_allocations_and_strict_heap_peak":"UNMEASURED; body capacity is not total heap","process_malloc_zones_start_bytes":self.heap_start,"process_malloc_zones_sampled_max_bytes":self.heap_sample_max.get(),"heap_scope":"actual process malloc zones sampled after staged put, not staging-exclusive or strict heap peak","final_union_new_kept":self.kept.get(),"new_physical_inserts":self.flushed.get(),"new_accepted_not_flushed":nodes.len().saturating_sub(self.flushed.get()),"Job_node_acceptance_cumulative":"existing interfaces not fully Job-wired; staging visits are diagnostic, never decrement upper-layer access charges","whole_Job_or_max_store_qualified":false,"physical_INSERT_error_timing":"delayed until final flush; not equivalent to eager injection timing"})
+        json!({"new_unique_accepted":nodes.len(),"new_put_visits":self.puts.get(),"actual_body_capacity_peak_bytes":self.peak_body_capacity.get(),"body_length_bytes":nodes.values().map(|(_,b)|b.len()).sum::<usize>(),"digest_original_bytes":nodes.len()*32,"tuple_inline_size_bytes":nodes.len()*std::mem::size_of::<(NodeDigest,(u8,Vec<u8>))>(),"BTree_allocations_and_strict_heap_peak":"UNMEASURED; body capacity is not total heap","process_malloc_zones_start_bytes":self.heap_start,"process_malloc_zones_sampled_max_bytes":self.heap_sample_max.get(),"process_malloc_zones_sample_count":self.heap_samples.get(),"heap_scope":"actual process malloc zones sampled at owner creation, flush entry and report; not staging-exclusive or strict heap peak","final_union_new_kept":self.kept.get(),"new_physical_inserts":self.flushed.get(),"physical_INSERT_count_basis":"node table row delta across final flush, checked on success and error; successful put alone does not imply INSERT","new_accepted_not_flushed":nodes.len().saturating_sub(self.flushed.get()),"Job_node_acceptance_cumulative":"existing interfaces not fully Job-wired; staging visits are diagnostic, never decrement upper-layer access charges","whole_Job_or_max_store_qualified":false,"physical_INSERT_error_timing":"delayed until final flush; not equivalent to eager injection timing"})
     }
     pub(super) fn flush(&self, tx: &Transaction<'_>, runtime: &[NodeDigest]) -> Result<(), String> {
         self.check_transaction(tx).map_err(|e| e.to_string())?;
+        self.sample_heap_phase();
         let mut roots = runtime.to_vec();
         for (table, cols) in [
             (
@@ -201,14 +211,24 @@ impl StageOwner {
             .query_row("SELECT count(*) FROM s_content_nodes", [], |r| r.get(0))
             .map_err(|e| e.to_string())?;
         let mut eager = content_store::TxStore::new(tx).map_err(|e| e.to_string())?;
-        for (d, (t, b)) in nodes.iter().filter(|(d, _)| seen.contains(*d)) {
-            eager.put(*d, *t, b).map_err(|e| e.to_string())?;
-            let count: i64 = tx
-                .query_row("SELECT count(*) FROM s_content_nodes", [], |r| r.get(0))
-                .map_err(|e| e.to_string())?;
-            self.flushed.set((count - initial) as usize);
-        }
-        Ok(())
+        let result = nodes
+            .iter()
+            .filter(|(d, _)| seen.contains(*d))
+            .try_for_each(|(d, (t, b))| eager.put(*d, *t, b).map_err(|e| e.to_string()));
+        // #1394：只在批次边界核对；INSERT中途失败也保留回滚前真实新增数。
+        // TxStore::put可能只验证已有原件并返回Ok，不能按Ok次数计INSERT。
+        let count: i64 = tx
+            .query_row("SELECT count(*) FROM s_content_nodes", [], |r| r.get(0))
+            .map_err(|e| match &result {
+                Err(original) => format!("{original}; flush计数核对失败：{e}"),
+                Ok(()) => e.to_string(),
+            })?;
+        self.flushed
+            .set(usize::try_from(count - initial).map_err(|e| match &result {
+                Err(original) => format!("{original}; flush新增行数无效：{e}"),
+                Ok(()) => format!("flush新增行数无效：{e}"),
+            })?);
+        result
     }
 }
 
@@ -234,6 +254,92 @@ fn heap_sample() -> usize {
 #[cfg(not(target_os = "macos"))]
 fn heap_sample() -> usize {
     0
+}
+
+#[test]
+fn staged_nodes_capacity_counts_unique_owned_vecs_without_per_put_heap_sampling() {
+    let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+    let tx = conn.transaction().unwrap();
+    let owner = StageOwner::new(&tx);
+    for len in [0, 1, 17, 4096] {
+        let body = vec![len as u8; len];
+        let digest = sc::frame(sc::tag::BYTES_CHUNK, &body);
+        owner.put_new(digest, sc::tag::BYTES_CHUNK, &body).unwrap();
+        let actual: usize = owner
+            .nodes
+            .borrow()
+            .values()
+            .map(|(_, body)| body.capacity())
+            .sum();
+        assert_eq!(owner.peak_body_capacity.get(), actual);
+        for _ in 0..128 {
+            owner.put_new(digest, sc::tag::BYTES_CHUNK, &body).unwrap();
+        }
+        assert_eq!(owner.peak_body_capacity.get(), actual);
+        assert!(owner.put_new(digest, sc::tag::NULL, b"conflict").is_err());
+        assert_eq!(owner.peak_body_capacity.get(), actual);
+    }
+    assert_eq!(owner.nodes.borrow().len(), 4);
+    assert_eq!(owner.heap_samples.get(), 1);
+    let report = owner.report();
+    assert_eq!(report["process_malloc_zones_sample_count"], json!(2));
+    assert!(report["heap_scope"]
+        .as_str()
+        .unwrap()
+        .contains("not staging-exclusive or strict heap peak"));
+    assert_eq!(report["whole_Job_or_max_store_qualified"], json!(false));
+}
+
+#[test]
+fn staged_nodes_flush_counts_rows_and_traverses_old_parent_to_new_child() {
+    let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+    conn.execute_batch(
+        "CREATE TABLE s_protocol_meta(singleton INTEGER PRIMARY KEY,protocol_revision TEXT NOT NULL);
+         INSERT INTO s_protocol_meta VALUES(1,'s-session/3');
+         CREATE TABLE s_content_publications(manifest_root BLOB,snapshot_root BLOB,delta_root BLOB);
+         CREATE TABLE s_content_objects(generated_root BLOB,internal_root BLOB,immutable_root BLOB,birth_wire_root BLOB);
+         CREATE TABLE s_content_witnesses(generated_root BLOB,wire_root BLOB);
+         CREATE TABLE s_content_relations(generated_root BLOB);
+         CREATE TABLE s_content_observations(generated_root BLOB,birth_wire_root BLOB);
+         CREATE TABLE structure_deltas(delta_json TEXT,catalog_evidence_json TEXT);
+         CREATE TABLE catalog(evidence_json TEXT);",
+    )
+    .unwrap();
+    let tx = conn.transaction().unwrap();
+    content_store::init_schema(&tx).unwrap();
+    let owner = StageOwner::new(&tx);
+    let child = sc::frame(sc::tag::BYTES_CHUNK, b"new-child");
+    let parent = sc::frame(sc::tag::SEQ_LEAF, &child);
+    let already = sc::frame(sc::tag::BYTES_CHUNK, b"already-inserted");
+    let orphan = sc::frame(sc::tag::BYTES_CHUNK, b"unreferenced");
+    owner
+        .put_new(child, sc::tag::BYTES_CHUNK, b"new-child")
+        .unwrap();
+    owner
+        .put_new(already, sc::tag::BYTES_CHUNK, b"already-inserted")
+        .unwrap();
+    owner
+        .put_new(orphan, sc::tag::BYTES_CHUNK, b"unreferenced")
+        .unwrap();
+    let mut eager = content_store::TxStore::new(&tx).unwrap();
+    // #1394：旧孤立parent可以引用本事务new child，mark不能停在旧节点。
+    eager.put(parent, sc::tag::SEQ_LEAF, &child).unwrap();
+    eager
+        .put(already, sc::tag::BYTES_CHUNK, b"already-inserted")
+        .unwrap();
+    owner.flush(&tx, &[parent, already]).unwrap();
+    let report = owner.report();
+    assert_eq!(report["new_unique_accepted"], json!(3));
+    assert_eq!(report["final_union_new_kept"], json!(2));
+    assert_eq!(report["new_physical_inserts"], json!(1));
+    assert_eq!(report["new_accepted_not_flushed"], json!(2));
+    assert_eq!(report["process_malloc_zones_sample_count"], json!(3));
+    assert!(eager.checked_read(&child).unwrap().is_some());
+    assert!(eager.checked_read(&parent).unwrap().is_some());
+    assert!(eager.checked_read(&already).unwrap().is_some());
+    assert!(eager.checked_read(&orphan).unwrap().is_none());
+    owner.flush(&tx, &[parent, already]).unwrap();
+    assert_eq!(owner.report()["new_physical_inserts"], json!(0));
 }
 
 #[test]
