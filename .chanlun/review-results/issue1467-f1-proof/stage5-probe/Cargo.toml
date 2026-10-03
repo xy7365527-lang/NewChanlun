@@ -1,0 +1,14 @@
+[package]
+name = "order-base-f2-contract-probe"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+newchan_rust = { path = "../../../../rust", default-features = false }
+
+[[bin]]
+name = "order-base-f2-contract"
+path = "../f2_contract_probe.rs"
