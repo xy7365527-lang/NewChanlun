@@ -1,0 +1,271 @@
+{
+  "date": "2026-10-04",
+  "issue": 1467,
+  "profile": "DIRECT-FLOW-REACHABILITY-v1",
+  "declaration": "DirectReach.exact_root",
+  "expected_type": "DirectReach.TRAJECTORY_TARGET ∧ DirectReach.GROUP_TARGET ∧ DirectReach.GEOMETRY_TARGET ∧ DirectReach.OBSTRUCTION_TARGET",
+  "actual_type": "And DirectReach.TRAJECTORY_TARGET\n  (And DirectReach.GROUP_TARGET (And DirectReach.GEOMETRY_TARGET DirectReach.OBSTRUCTION_TARGET))",
+  "run_id": "3babec358f1e438fa5f94b32df002dda",
+  "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/run-manifest.json",
+  "manifest_sha256": "07faa25c6b2c5d1f5a490e1e6b88323ff558ceccb5fafa56404ef1ffce7538d8",
+  "exact_root_passed": true,
+  "root_closure": {
+    "status": "closed",
+    "exact_root_passed": true,
+    "declaration_closed": true,
+    "scope": "expected Lean type in the recorded environment; semantic review is separate"
+  },
+  "semantic": {
+    "status": "not_reviewed",
+    "reused": false,
+    "semantic_sha256": "eac65ec01c8dc34d0c79ee377f0712e092ab4dbe3a1af6a248ba21c0b8d6ec98"
+  },
+  "axioms": [
+    "propext",
+    "Quot.sound"
+  ],
+  "unexpected_axioms": [],
+  "unknown_dependencies": [],
+  "unsafe_dependencies": [],
+  "lock": {
+    "path": "stage33-declaration-lock.json",
+    "unchanged": true,
+    "spec_sha256": "965527ec2bc553300de56b4e4a8f5f62b4528156945dc478630f208b78c53f01",
+    "fixture_sha256": "fb2dc401c3d9b0ad97e46c5c1bbb02dcb1b5f5903d8f991cf598de38bebe3608"
+  },
+  "source_copies_equal": true,
+  "LEAN_PATH": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean:/Users/silencehan/Documents/Codex/research-evidence/issue1467/lift-boundary-verified-v1/lean-verification-runs/70afcb63cad748cebe219c90e28e4091/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-v1-checked/lean-verification-runs/e0fff3aa5da843c3a33719390e0b6d82/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-v1/lean-verification-runs/6ba44fc8a81949c486cb4c8aab1743a5/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/source-hull-v1-checked/lean-verification-runs/b6e0219a0b234ea6a7556148fdedee02/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-packet-v1a-checked/lean-verification-runs/fc8e984887ab406f93e42575368bf071/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-exit-v1a-checked/lean-verification-runs/dd15be2da8f4453f9f16f2af857e5759/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-quote-verified-v1/lean-verification-runs/6fb6a2f71c86428997a7be2a9148863e/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-v1-checked/lean-verification-runs/dab78e23087045249ac84871dd73c164/lib",
+  "fixture": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-setup-v1/fixture.json",
+    "sha256": "eb0a6f92bac65ba8afe674f7bec84f8c53f05b61cce11b8cc5c11b8afa5a13bb",
+    "generator_sha256": "f4270f94d1b3b308b448cea061c5b17005e5deac42b2673f0bbbef3bab69e66a",
+    "events": 38,
+    "states": 39,
+    "blocks": 8,
+    "block_lengths": [
+      6,
+      4,
+      2,
+      9,
+      2,
+      7,
+      7,
+      1
+    ],
+    "known_at": [
+      7,
+      11,
+      13,
+      22,
+      24,
+      31,
+      38,
+      null
+    ],
+    "middle_event_count": 9
+  },
+  "commands": [
+    {
+      "kind": "source_dependencies",
+      "file": "DirectReachProof.lean",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--run",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/DiscoverImports.lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-project-v1/DirectReachProof.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.949499,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/cd87bce0a0f646c6b03166c1d6282606.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/cd87bce0a0f646c6b03166c1d6282606.stderr.log"
+    },
+    {
+      "kind": "source_dependencies",
+      "file": "DirectReachSpec.lean",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--run",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/DiscoverImports.lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-project-v1/DirectReachSpec.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.790857,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/a28b7e84dfc94deabbe5548bcd0421c5.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/a28b7e84dfc94deabbe5548bcd0421c5.stderr.log"
+    },
+    {
+      "kind": "source_dependencies",
+      "file": "DirectReachFixture.lean",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--run",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/DiscoverImports.lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-project-v1/DirectReachFixture.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.856197,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/36e1d51bcac74690b7a38a14843e948d.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/36e1d51bcac74690b7a38a14843e948d.stderr.log"
+    },
+    {
+      "kind": "import_resolution",
+      "file": "DirectReachFixture.lean",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--deps",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-project-v1/DirectReachFixture.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.049653,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/5e3edd6e4b34420080a41b011230911d.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/5e3edd6e4b34420080a41b011230911d.stderr.log"
+    },
+    {
+      "kind": "target",
+      "file": "DirectReachFixture.lean",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-project-v1",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/lib/DirectReachFixture.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-project-v1/DirectReachFixture.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.327549,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/f67da975bba641c5b4c5b41d4b05ffbf.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/f67da975bba641c5b4c5b41d4b05ffbf.stderr.log"
+    },
+    {
+      "kind": "import_resolution",
+      "file": "DirectReachSpec.lean",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--deps",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-project-v1/DirectReachSpec.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.047735,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/1f220151476b49e58fd1a46f566e2f13.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/1f220151476b49e58fd1a46f566e2f13.stderr.log"
+    },
+    {
+      "kind": "target",
+      "file": "DirectReachSpec.lean",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-project-v1",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/lib/DirectReachSpec.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-project-v1/DirectReachSpec.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.432541,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/a46aa95c46c541f784fe9a6db4a38c97.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/a46aa95c46c541f784fe9a6db4a38c97.stderr.log"
+    },
+    {
+      "kind": "import_resolution",
+      "file": "DirectReachProof.lean",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--deps",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-project-v1/DirectReachProof.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.047748,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/32c30e126738445fad85eaed9b31dc3b.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/32c30e126738445fad85eaed9b31dc3b.stderr.log"
+    },
+    {
+      "kind": "target",
+      "file": "DirectReachProof.lean",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-project-v1",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/lib/DirectReachProof.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-project-v1/DirectReachProof.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.799663,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/6fd8fb0807cb4f48b0a4d3c4e2f3f2f8.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/6fd8fb0807cb4f48b0a4d3c4e2f3f2f8.stderr.log"
+    },
+    {
+      "kind": "inspector_compile",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/lib/LeanVerifyProbe.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/LeanVerifyProbe.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.97226,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/605f0c4951ed4592b366b11d92c7dfe3.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/605f0c4951ed4592b366b11d92c7dfe3.stderr.log"
+    },
+    {
+      "kind": "declaration_inspection",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/InspectRoot.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.981689,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/5a839b5c79a04f3eb4495ad83e94bcfa.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1-checked/lean-verification-runs/3babec358f1e438fa5f94b32df002dda/logs/5a839b5c79a04f3eb4495ad83e94bcfa.stderr.log"
+    }
+  ],
+  "failed_attempt": {
+    "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-reach-v1/run-manifest.json",
+    "sha256": "8a874a89677b4176544656e99f93c3ed47be65b7bc94daf9d3e3bcbfaacacd72",
+    "run_id": "2e0cc513ae694353afd4c256ce95f98f",
+    "exit_code": 1,
+    "exact_root_passed": false
+  },
+  "freshness": {
+    "status": "current",
+    "snapshot_current": true,
+    "exact_root_passed": true,
+    "semantic_sha256": "eac65ec01c8dc34d0c79ee377f0712e092ab4dbe3a1af6a248ba21c0b8d6ec98",
+    "manifest_sha256": "07faa25c6b2c5d1f5a490e1e6b88323ff558ceccb5fafa56404ef1ffce7538d8",
+    "reasons": [],
+    "scope": "saved evidence and current Lean module resolution checked; no new kernel proof replay"
+  },
+  "storage": {
+    "directories": {
+      "direct-reach-setup-v1": 20392,
+      "direct-reach-project-v1": 21211,
+      "direct-reach-v1": 708791,
+      "direct-reach-v1-checked": 34568621
+    },
+    "total_bytes": 35319015,
+    "limit_bytes": 67108864
+  },
+  "source_fingerprints": "source-sha256-stage33.json",
+  "formal_source_changed": false,
+  "market_replay_repeated": false,
+  "limits": [
+    "synthetic price and unit-quantity model only",
+    "no order identity, FIFO, venue or physical clock qualification",
+    "completed refers to sign blocks, not full Moves",
+    "same source-template obstruction, not all-F1 impossibility",
+    "no independent semantic review or value result"
+  ]
+}

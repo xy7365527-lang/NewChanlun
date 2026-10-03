@@ -1,0 +1,19 @@
+{
+  ".chanlun/review-results/issue1467-f1-proof/Stage33WorkCard.md": "e883c898e40890668f27b7592158d4acc2d914d57c8d252b0fdeeb24a885f9bd",
+  ".chanlun/review-results/issue1467-f1-proof/stage33_fixture.mjs": "f4270f94d1b3b308b448cea061c5b17005e5deac42b2673f0bbbef3bab69e66a",
+  ".chanlun/review-results/issue1467-f1-proof/DirectReachFixture.lean": "fb2dc401c3d9b0ad97e46c5c1bbb02dcb1b5f5903d8f991cf598de38bebe3608",
+  ".chanlun/review-results/issue1467-f1-proof/DirectReachSpec.lean": "965527ec2bc553300de56b4e4a8f5f62b4528156945dc478630f208b78c53f01",
+  ".chanlun/review-results/issue1467-f1-proof/DirectReachProof.lean": "d7e5fc109c119d35782bbd80ffec23bbcb4f49b8e474db92807b562186fcbc51",
+  ".chanlun/review-results/issue1467-f1-proof/Stage33DirectReachability.md": "ab139963e22d8a6f47a0954990e0707302ebc2048b2c4db9e66dbcecd3477c5c",
+  ".chanlun/review-results/issue1467-f1-proof/Stage33PendingReview.md": "a79a8d5eb2cb3f79594e24ce79fec425ac405e32483e4ae567b4a0adc2e68394",
+  ".chanlun/review-results/issue1467-f1-proof/stage33-declaration-lock.json": "583025bc7755c2535f845d8136c1bc3ade7609d63c1482063a0c07a190e5ba8d",
+  ".chanlun/review-results/issue1467-f1-proof/MovingQuoteSpec.lean": "90d6289fba1f1cfeeaa7ceac234bad76dcda515f2ef63330c5d8e7c6a6aaa762",
+  ".chanlun/review-results/issue1467-f1-proof/MovingQuoteProof.lean": "5c4b37a7549e66e0fe5cb2843a3df3d46e8d73b971e0a55abcf2d42744526652",
+  ".chanlun/review-results/issue1467-f1-proof/MovingQuoteWireSpec.lean": "9c838d7ef90c84f497daee2420ba1bad4d002b31a11d6c6d383dfcd36a3d130a",
+  ".chanlun/review-results/issue1467-f1-proof/DirectQuoteSpec.lean": "df45e6e08d020edc6bc737c0885829b37454c289f1a72c71f4186d82627591ad",
+  ".chanlun/review-results/issue1467-f1-proof/DirectQuoteProof.lean": "a0189d52d43b3b98e6a3416a9effe904ed5a5207d90d2d6d94fd4dca6876759c",
+  ".chanlun/review-results/issue1467-f1-proof/ExitLiftSpec.lean": "fffa9d3aa4099b12686374b9d2a02ee9e14e12cef7b476d78fca261bb68bf591",
+  ".chanlun/review-results/issue1467-f1-proof/ExitLiftProof.lean": "3ddcf63c5bb3f5c14567934797b2e691f44d85efb57b06eb9e5d6bb17da26d28",
+  ".chanlun/review-results/issue1467-f1-proof/ExitSupportSpec.lean": "6ed678ddfe2d86b6c195e3ecf93069737561674ab8e5f36beb7bb2f3081ed491",
+  ".chanlun/review-results/issue1467-f1-proof/ExitSupportProof.lean": "493870baa4202dd941426269a59526f5bcd610db4e917028ff05026b44a92739"
+}

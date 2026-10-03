@@ -1,0 +1,10 @@
+{
+  "profile": "DIRECT-FLOW-REACHABILITY-v1",
+  "spec": ".chanlun/review-results/issue1467-f1-proof/DirectReachSpec.lean",
+  "spec_sha256": "965527ec2bc553300de56b4e4a8f5f62b4528156945dc478630f208b78c53f01",
+  "fixture": ".chanlun/review-results/issue1467-f1-proof/DirectReachFixture.lean",
+  "fixture_sha256": "fb2dc401c3d9b0ad97e46c5c1bbb02dcb1b5f5903d8f991cf598de38bebe3608",
+  "declaration": "DirectReach.exact_root",
+  "expected_type": "DirectReach.TRAJECTORY_TARGET ∧ DirectReach.GROUP_TARGET ∧ DirectReach.GEOMETRY_TARGET ∧ DirectReach.OBSTRUCTION_TARGET",
+  "frozen_before_proof": true
+}
