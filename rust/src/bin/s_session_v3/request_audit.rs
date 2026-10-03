@@ -1,4 +1,4 @@
-//! #1394 Native同一同步handler内纯历史结果；每事务重新绑定完整原件。
+//! #1394 Native同一同步handler或服务bootstrap局部scope内纯历史结果；每事务重新绑定完整原件。
 //! 不存Driver/Runtime/TLS，不接收跨请求材料，不授予提交许可。S7仍计跨请求保留。
 use super::{audit_header::AuditSourceCommit, state::ImmutableHistoricalAudit};
 use newchan_rust::s_content::AuditCapture;
@@ -17,7 +17,7 @@ pub(super) struct RequestAuditContext {
 }
 impl Drop for RequestAuditContext {
     fn drop(&mut self) {
-        // handler的正常/错误/重复receipt/COMMIT失败出口都在此释放slot原件。
+        // handler及Native bootstrap的正常/错误出口都在此释放slot原件，返回Driver前已释放。
         drop(self.slot.take());
         #[cfg(test)]
         super::state::trace_event("request_history_context_released", None);

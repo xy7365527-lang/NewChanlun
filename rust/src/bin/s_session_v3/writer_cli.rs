@@ -478,6 +478,31 @@ fn serve(options: ServeOptions) -> Result<Option<Value>, String> {
     let clock = v2::ClockPlan::load(&options.clock)?;
     checked_profile(&options.profile)?;
     serve_authorization(&resources)?;
+    #[cfg(feature = "s_capture_native_testonly")]
+    let native_bootstrap = matches!(mode, s_allocation::Mode::CapturedNative);
+    #[cfg(feature = "s_capture_native_testonly")]
+    let (mut driver, identity) = if native_bootstrap {
+        Driver::open_for_serve_with_identity(
+            &options.db,
+            &options.profile,
+            &options.epoch,
+            clock,
+            resources.limit("audit_cache_source_bytes"),
+            mode,
+        )?
+    } else {
+        let driver = Driver::open_for_serve_with_mode(
+            &options.db,
+            &options.profile,
+            &options.epoch,
+            clock,
+            resources.limit("audit_cache_source_bytes"),
+            mode,
+        )?;
+        let identity = driver.identity()?;
+        (driver, identity)
+    };
+    #[cfg(not(feature = "s_capture_native_testonly"))]
     let mut driver = Driver::open_for_serve_with_mode(
         &options.db,
         &options.profile,
@@ -486,6 +511,7 @@ fn serve(options: ServeOptions) -> Result<Option<Value>, String> {
         resources.limit("audit_cache_source_bytes"),
         mode,
     )?;
+    #[cfg(not(feature = "s_capture_native_testonly"))]
     let identity = driver.identity()?;
     let control_instance_id = std::env::var("S_CONTROL_INSTANCE_ID").ok();
     let bounds = resources.transport_bounds();

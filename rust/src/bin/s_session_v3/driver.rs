@@ -139,6 +139,57 @@ impl Driver {
         driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
         Ok(driver)
     }
+    /// #1394：仅服务Native bootstrap栈内复用纯历史，返回前释放；不跨至Ready请求。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn open_for_serve_with_identity(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        audit_cache_source_bytes: usize,
+        mode: s_allocation::Mode,
+    ) -> Result<(Self, (String, String, String)), String> {
+        state::check_audit_source_retention(audit_cache_source_bytes)?;
+        if !matches!(mode, s_allocation::Mode::CapturedNative) {
+            return Err("TestOnly Native bootstrap只接受显式CapturedNative模式".into());
+        }
+        let mut context = request_audit::RequestAuditContext::default();
+        let mut driver = Self::open_with_request_and_mode_context(
+            db,
+            profile,
+            epoch,
+            clock,
+            None,
+            mode,
+            Some(&mut context),
+        )?;
+        driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
+        let identity = driver.identity_in_bootstrap(&mut context)?;
+        drop(context);
+        Ok((driver, identity))
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn identity_in_bootstrap(
+        &self,
+        context: &mut request_audit::RequestAuditContext,
+    ) -> Result<(String, String, String), String> {
+        let result = (|| {
+            if !matches!(self.mode, s_allocation::Mode::CapturedNative) {
+                return Err("TestOnly Native bootstrap只接受显式CapturedNative模式".into());
+            }
+            let tx = self.conn.unchecked_transaction().map_err(err)?;
+            state::audit_native_in_request(&tx, context)?;
+            verify_writer_epoch(&tx, &self.epoch)?;
+            let control = control::S3Control::attach(&tx, &self.clock)?;
+            let (session, generation, epoch) = control.identity();
+            Ok((session.into(), generation.into(), epoch.into()))
+        })();
+        // #1394：BEGIN等前置SQL错误也必须释放旧slot，不能等待审计内核的take。
+        if result.is_err() {
+            drop(context.take());
+        }
+        result
+    }
     /// 服务回复只绑定经过当前持久审计的身份，不另建一份控制状态。
     pub(super) fn identity(&self) -> Result<(String, String, String), String> {
         let tx = self.conn.unchecked_transaction().map_err(err)?;
@@ -218,6 +269,18 @@ impl Driver {
         request: Option<&Value>,
         mode: s_allocation::Mode,
     ) -> Result<Self, String> {
+        Self::open_with_request_and_mode_context(db, profile, epoch, clock, request, mode, None)
+    }
+    // #1394：None保持原open；Some仅专有Native服务bootstrap调用，不保存context。
+    fn open_with_request_and_mode_context(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        request: Option<&Value>,
+        mode: s_allocation::Mode,
+        mut startup_context: Option<&mut request_audit::RequestAuditContext>,
+    ) -> Result<Self, String> {
         mode.validate()?;
         parse_writer_epoch(epoch, "configured writer_epoch")?;
         if !db.is_file() {
@@ -226,7 +289,15 @@ impl Driver {
         let lock = session_transport::process_lock(db, "S")?;
         let mut conn = open_db(db)?;
         let tx = conn.transaction().map_err(err)?;
-        s_allocation::audit_startup(&tx, &mode)?;
+        if let Some(context) = startup_context.as_deref_mut() {
+            if !matches!(mode, s_allocation::Mode::CapturedNative) {
+                return Err("TestOnly Native bootstrap只接受显式CapturedNative模式".into());
+            }
+            // 与Native cold同audit_core_fresh；额外精确binding读取错误直接拒绝。
+            state::audit_native_in_request(&tx, context)?;
+        } else {
+            s_allocation::audit_startup(&tx, &mode)?;
+        }
         verify_writer_epoch(&tx, epoch)?;
         let control = control::S3Control::attach(&tx, &clock)?;
         let (profile_value, profile_id, profile_hash) = load_profile(profile)?;
@@ -261,7 +332,7 @@ impl Driver {
             #[cfg(test)]
             stop_after: None,
         };
-        driver.resume_pending()?;
+        driver.resume_pending(startup_context)?;
         Ok(driver)
     }
 
@@ -401,7 +472,10 @@ impl Driver {
             .message_receipt)
     }
 
-    fn resume_pending(&mut self) -> Result<(), String> {
+    fn resume_pending(
+        &mut self,
+        mut bootstrap_context: Option<&mut request_audit::RequestAuditContext>,
+    ) -> Result<(), String> {
         let originals = {
             let mut stmt = self.conn.prepare("SELECT canonical_envelope FROM s_input_messages WHERE status='AcceptedPending' ORDER BY accepted_seq,message_id").map_err(err)?;
             let rows = stmt.query_map([], |r| r.get::<_, String>(0)).map_err(err)?;
@@ -414,6 +488,10 @@ impl Driver {
             );
         }
         for raw in originals {
+            // #1394：bootstrap slot不得跨入恢复请求；idle无pending才可复用到identity。
+            if let Some(context) = bootstrap_context.as_deref_mut() {
+                drop(context.take());
+            }
             let mut request_audit = request_audit::RequestAuditContext::default();
             self.advance(&strict_json(raw.as_bytes())?, &mut request_audit)?;
         }
@@ -564,6 +642,306 @@ mod tests {
     fn count(c: &Connection, t: &str) -> i64 {
         c.query_row(&format!("SELECT COUNT(*) FROM {t}"), [], |r| r.get(0))
             .unwrap()
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_bootstrap_idle_identity_hits_then_drops_and_ready_is_new_cold_default_paths_unchanged(
+    ) {
+        let f = Fixture::new();
+        let mut first = f.open("1").unwrap();
+        first.handle(Fixture::ingest(1)).unwrap();
+        let expected = first.identity().unwrap();
+        drop(first);
+        let (result, events, _) = state::traced(false, || {
+            Driver::open_for_serve_with_identity(
+                &f.db,
+                &f.profile,
+                "1",
+                f.clock.clone(),
+                1,
+                s_allocation::Mode::CapturedNative,
+            )
+        });
+        let (mut driver, identity) = result.unwrap();
+        assert_eq!(identity, expected);
+        let phase_count =
+            |events: &[Value], phase: &str| events.iter().filter(|e| e["phase"] == phase).count();
+        assert_eq!(phase_count(&events, "request_history_cold"), 1);
+        assert_eq!(phase_count(&events, "request_history_hit"), 1);
+        assert_eq!(phase_count(&events, "request_history_context_released"), 1);
+        assert_eq!(
+            events.last().unwrap()["phase"],
+            "request_history_context_released",
+            "返回Driver前已释放bootstrap原件"
+        );
+        let (ready, events, _) = state::traced(false, || {
+            driver.handle(envelope("bootstrap-ready", json!({"op":"ready"})))
+        });
+        assert_eq!(ready.unwrap()["kind"], "Ready");
+        assert_eq!(phase_count(&events, "request_history_cold"), 1);
+        assert_eq!(phase_count(&events, "request_history_hit"), 0);
+        assert_eq!(phase_count(&events, "request_history_context_released"), 1);
+        assert_eq!(state::AUDIT_SOURCE_RETAINED_BYTES, 0);
+        drop(driver);
+        let (result, events, _) = state::traced(false, || {
+            let driver = Driver::open_for_serve_with_mode(
+                &f.db,
+                &f.profile,
+                "1",
+                f.clock.clone(),
+                1,
+                s_allocation::Mode::Ordinary,
+            )?;
+            let identity = driver.identity()?;
+            Ok::<_, String>((driver, identity))
+        });
+        let (driver, identity) = result.unwrap();
+        assert_eq!(identity, expected);
+        assert!(!events
+            .iter()
+            .any(|e| e["phase"].as_str().unwrap().starts_with("request_history_")));
+        drop(driver);
+        let owned = s_allocation::Mode::Owned(q_allocation::Profile {
+            budget: newchan_rust::s_content::capture_allocation::OwnedBudget::new(32),
+            overlay_slots: 0,
+            overlay_bytes: 0,
+        });
+        let error = Driver::open_for_serve_with_identity(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            1,
+            owned.clone(),
+        )
+        .err()
+        .unwrap();
+        assert!(error.contains("只接受显式CapturedNative"));
+        #[cfg(not(feature = "s_allocation_json_testonly"))]
+        {
+            let (result, events, _) = state::traced(false, || {
+                Driver::open_for_serve_with_mode(&f.db, &f.profile, "1", f.clock.clone(), 1, owned)
+            });
+            assert!(result.err().unwrap().contains("此构建不支持实际分配原型"));
+            assert!(!events
+                .iter()
+                .any(|e| e["phase"].as_str().unwrap().starts_with("request_history_")));
+        }
+        println!("Native idle bootstrap cold=1 hit=1 released_before_return=1; Ready cold=1 hit=0 released=1; retained_source=0");
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_bootstrap_pending_drops_startup_slot_before_resume_then_identity_cold_matches_current_frontier(
+    ) {
+        let f = Fixture::new();
+        let normal = Fixture::new();
+        let mut baseline = normal.open("1").unwrap();
+        baseline.handle(Fixture::ingest(1)).unwrap();
+        let expected = baseline.handle(Fixture::ingest(2)).unwrap();
+        let mut first = f.open("1").unwrap();
+        first.handle(Fixture::ingest(1)).unwrap();
+        first.stop_after = Some("accept");
+        assert!(first
+            .handle(Fixture::ingest(2))
+            .unwrap_err()
+            .contains("stop_after_accept"));
+        drop(first);
+        let mut context = request_audit::RequestAuditContext::default();
+        let mut driver = Driver::open_with_request_and_mode_context(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            None,
+            s_allocation::Mode::CapturedNative,
+            Some(&mut context),
+        )
+        .unwrap();
+        assert_eq!((context.cold, context.hits), (1, 0));
+        assert!(!context.has_slot(), "startup原件不能跨着恢复请求保留");
+        assert_eq!(count(&driver.conn, "s_content_publications"), 2);
+        assert_eq!(count(&driver.conn, "s_clock_events"), 6);
+        assert_eq!(meta_i64(&driver.conn, "generation").unwrap(), 2);
+        assert_eq!(meta_i64(&driver.conn, "last_advance_frontier").unwrap(), 1);
+        let batch: String = driver
+            .conn
+            .query_row(
+                "SELECT batch_id FROM s_content_publications WHERE generation=2",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            meta_get_opt(&driver.conn, "index_frontier")
+                .unwrap()
+                .as_deref(),
+            Some(batch.as_str())
+        );
+        assert_eq!(
+            driver.identity_in_bootstrap(&mut context).unwrap(),
+            baseline.identity().unwrap()
+        );
+        assert_eq!((context.cold, context.hits), (2, 0));
+        assert!(context.has_slot());
+        drop(context);
+        assert_eq!(driver.handle(Fixture::ingest(2)).unwrap(), expected);
+        assert_eq!(
+            driver
+                .handle(envelope("after-resume-ready", json!({"op":"ready"})))
+                .unwrap(),
+            baseline
+                .handle(envelope("after-resume-ready", json!({"op":"ready"})))
+                .unwrap()
+        );
+        println!("Native pending bootstrap cold=2 hit=0 startup_slot_dropped_before_advance=1; generation=2 raw_frontier=1 index_frontier=publication_batch clocks=6; receipt/Ready=ordinary");
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_bootstrap_two_transactions_reject_current_damage_or_sql_error_without_old_proof() {
+        for sql in [
+            "UPDATE s_content_nodes SET body=x'00' WHERE digest=(SELECT snapshot_root FROM s_content_publications LIMIT 1)",
+            "CREATE TABLE unknown_bootstrap_domain(x)",
+            "UPDATE meta SET value='99' WHERE key='writer_epoch'",
+            "UPDATE s_content_objects SET immutable_root=generated_root WHERE rowid=(SELECT min(rowid) FROM s_content_objects)",
+            "UPDATE s_input_messages SET canonical_envelope='{}' WHERE first_published_generation=1",
+            "UPDATE s_clock_events SET semantic_ns='999' WHERE phase='commit'",
+            "INSERT INTO raw_ohlc SELECT 'bootstrap-orphan',revision,schema_revision,open,high,low,close FROM raw_ohlc LIMIT 1",
+            "ALTER TABLE s_content_nodes RENAME TO missing_bootstrap_nodes",
+        ] {
+            let f=Fixture::new();
+            let mut initial=f.open("1").unwrap();
+            initial.handle(Fixture::ingest(1)).unwrap();drop(initial);
+            let mut context=request_audit::RequestAuditContext::default();
+            let driver=Driver::open_with_request_and_mode_context(&f.db,&f.profile,"1",f.clock.clone(),None,
+                s_allocation::Mode::CapturedNative,Some(&mut context)).unwrap();
+            assert!(context.has_slot());
+            driver.conn.execute_batch(sql).unwrap();
+            let before=(count(&driver.conn,"s_input_messages"),count(&driver.conn,"s_clock_events"),count(&driver.conn,"s_content_publications"));
+            assert!(driver.identity_in_bootstrap(&mut context).is_err(),"{sql}");
+            assert!(!context.has_slot(),"{sql}");assert_eq!(context.hits,0);
+            assert_eq!((count(&driver.conn,"s_input_messages"),count(&driver.conn,"s_clock_events"),count(&driver.conn,"s_content_publications")),before);
+        }
+        // 实际SQL step中断也不能cold重试吞错。
+        let f = Fixture::new();
+        let mut context = request_audit::RequestAuditContext::default();
+        let driver = Driver::open_with_request_and_mode_context(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            None,
+            s_allocation::Mode::CapturedNative,
+            Some(&mut context),
+        )
+        .unwrap();
+        let once = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        driver
+            .conn
+            .progress_handler(
+                1,
+                Some(move || once.swap(false, std::sync::atomic::Ordering::SeqCst)),
+            )
+            .unwrap();
+        assert!(driver.identity_in_bootstrap(&mut context).is_err());
+        driver
+            .conn
+            .progress_handler(0, None::<fn() -> bool>)
+            .unwrap();
+        assert!(!context.has_slot());
+        assert_eq!((context.cold, context.hits), (1, 0));
+        driver.identity_in_bootstrap(&mut context).unwrap();
+        assert_eq!((context.cold, context.hits), (2, 0));
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_bootstrap_epoch_profile_idle_and_illegal_request_reject_before_pending_resume_and_release(
+    ) {
+        for fault in ["epoch", "profile", "idle", "request"] {
+            let f = Fixture::new();
+            let mut first = f.open("1").unwrap();
+            first.stop_after = Some("accept");
+            assert!(first
+                .handle(Fixture::ingest(1))
+                .unwrap_err()
+                .contains("stop_after_accept"));
+            drop(first);
+            let mut profile = f.profile.clone();
+            if fault == "profile" {
+                let mut value: Value =
+                    serde_json::from_slice(&std::fs::read(&profile).unwrap()).unwrap();
+                value["volume_unit"] = json!("17");
+                profile = f.path.join("foreign-profile.json");
+                std::fs::write(&profile, canonical_json(&value)).unwrap();
+            }
+            if fault == "idle" {
+                Connection::open(&f.db)
+                    .unwrap()
+                    .execute(
+                        "UPDATE meta SET value='not-idle' WHERE key='advance_state'",
+                        [],
+                    )
+                    .unwrap();
+            }
+            let c = Connection::open(&f.db).unwrap();
+            let before = (
+                count(&c, "s_input_messages"),
+                count(&c, "s_clock_events"),
+                count(&c, "s_content_publications"),
+            );
+            drop(c);
+            let request = envelope(
+                "invalid-bootstrap-request",
+                json!({"op":"ready","extra":"bad"}),
+            );
+            let (result, events, _) = state::traced(false, || {
+                if fault == "request" {
+                    let mut context = request_audit::RequestAuditContext::default();
+                    Driver::open_with_request_and_mode_context(
+                        &f.db,
+                        &profile,
+                        "1",
+                        f.clock.clone(),
+                        Some(&request),
+                        s_allocation::Mode::CapturedNative,
+                        Some(&mut context),
+                    )
+                    .map(|_| ())
+                } else {
+                    Driver::open_for_serve_with_identity(
+                        &f.db,
+                        &profile,
+                        if fault == "epoch" { "2" } else { "1" },
+                        f.clock.clone(),
+                        1,
+                        s_allocation::Mode::CapturedNative,
+                    )
+                    .map(|_| ())
+                }
+            });
+            assert!(result.is_err(), "{fault}");
+            assert_eq!(
+                events
+                    .iter()
+                    .filter(|e| e["phase"] == "request_history_context_released")
+                    .count(),
+                1,
+                "{fault}"
+            );
+            let c = Connection::open(&f.db).unwrap();
+            assert_eq!(
+                (
+                    count(&c, "s_input_messages"),
+                    count(&c, "s_clock_events"),
+                    count(&c, "s_content_publications")
+                ),
+                before,
+                "{fault}"
+            );
+        }
     }
 
     #[cfg(feature = "s_capture_native_testonly")]
