@@ -1,0 +1,404 @@
+{
+  "date": "2026-10-04",
+  "issue": 1467,
+  "profile": "FORCE-PARTITION-TRANSPORT-v1",
+  "declaration": "ForceTransport.exact_root",
+  "expected_type": "ForceTransport.COMPOSITION_TARGET ∧ ForceTransport.SEAM_TARGET ∧ ForceTransport.LOSS_TARGET ∧ ForceTransport.WITNESS_TARGET",
+  "actual_type": "And ForceTransport.COMPOSITION_TARGET\n  (And ForceTransport.SEAM_TARGET (And ForceTransport.LOSS_TARGET ForceTransport.WITNESS_TARGET))",
+  "run_id": "641f0b3fd32e419dbb334ae550c94350",
+  "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/run-manifest.json",
+  "manifest_sha256": "1bdacc380fbe84b353f79c550cd771300145dd4e183061dec1f16e61cec514cc",
+  "machine_verification_passed": true,
+  "exact_root_passed": true,
+  "root_closure": {
+    "status": "closed",
+    "exact_root_passed": true,
+    "declaration_closed": true,
+    "scope": "expected Lean type in the recorded environment; semantic review is separate"
+  },
+  "semantic": {
+    "status": "not_reviewed",
+    "reused": false,
+    "semantic_sha256": "abb73b79fe5f5f0c655e58ec4e2a4de90f727c85e77373d7699614b334d93cee"
+  },
+  "axioms": [
+    "propext",
+    "Classical.choice",
+    "Quot.sound"
+  ],
+  "unexpected_axioms": [],
+  "unsafe_dependencies": [],
+  "unknown_dependencies": [],
+  "loaded_module_count": 2267,
+  "statement_lock": {
+    "path": "stage27-declaration-lock.json",
+    "spec_sha256": "deb1d756f3cb8754a5d3a8499880ba7f1ca1f162306817680be564e7f86c465c",
+    "unchanged": true
+  },
+  "freshness": {
+    "status": "current",
+    "snapshot_current": true,
+    "exact_root_passed": true,
+    "semantic_sha256": "abb73b79fe5f5f0c655e58ec4e2a4de90f727c85e77373d7699614b334d93cee",
+    "manifest_sha256": "1bdacc380fbe84b353f79c550cd771300145dd4e183061dec1f16e61cec514cc",
+    "reasons": [],
+    "scope": "saved evidence and current Lean module resolution checked; no new kernel proof replay",
+    "command": [
+      "python3",
+      ".agents/research-tools/xsoc1-9e0da0c3/plugins/lean-verify/scripts/lean_evidence.py",
+      "--manifest",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/run-manifest.json"
+    ]
+  },
+  "environment": {
+    "LEAN_PATH": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean",
+    "lean": "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+    "lake": "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lake"
+  },
+  "runs": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1/run-manifest.json",
+      "sha256": "e94d6e402287ab560d4c4bab9c2f2fba838faf7d9545d71914d5a0b0ebe6f5a5",
+      "run_id": "7ceafa4dc2224fc2928909dec25c8eee",
+      "build_exit_code": 1,
+      "exact_root_passed": false,
+      "commands": [
+        {
+          "kind": "source_dependencies",
+          "file": "ForceTransportProof.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--run",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1/lean-verification-runs/7ceafa4dc2224fc2928909dec25c8eee/DiscoverImports.lean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1/ForceTransportProof.lean"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "elapsed_seconds": 5.146013,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1/lean-verification-runs/7ceafa4dc2224fc2928909dec25c8eee/logs/5588ca6963534c07b57cab51743eff80.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1/lean-verification-runs/7ceafa4dc2224fc2928909dec25c8eee/logs/5588ca6963534c07b57cab51743eff80.stderr.log"
+        },
+        {
+          "kind": "source_dependencies",
+          "file": "ForceTransportSpec.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--run",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1/lean-verification-runs/7ceafa4dc2224fc2928909dec25c8eee/DiscoverImports.lean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1/ForceTransportSpec.lean"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "elapsed_seconds": 0.728157,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1/lean-verification-runs/7ceafa4dc2224fc2928909dec25c8eee/logs/fa86af06867c4e8081fbb06d4cca7763.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1/lean-verification-runs/7ceafa4dc2224fc2928909dec25c8eee/logs/fa86af06867c4e8081fbb06d4cca7763.stderr.log"
+        },
+        {
+          "kind": "import_resolution",
+          "file": "ForceTransportSpec.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--deps",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1/ForceTransportSpec.lean"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "elapsed_seconds": 0.044912,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1/lean-verification-runs/7ceafa4dc2224fc2928909dec25c8eee/logs/f767d7c2555c4bb891ac12b8350988e3.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1/lean-verification-runs/7ceafa4dc2224fc2928909dec25c8eee/logs/f767d7c2555c4bb891ac12b8350988e3.stderr.log"
+        },
+        {
+          "kind": "target",
+          "file": "ForceTransportSpec.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "-R",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1",
+            "-o",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1/lean-verification-runs/7ceafa4dc2224fc2928909dec25c8eee/lib/ForceTransportSpec.olean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1/ForceTransportSpec.lean"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "elapsed_seconds": 0.21119,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1/lean-verification-runs/7ceafa4dc2224fc2928909dec25c8eee/logs/e675bf3e7496405d84a42f260ebac4f3.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1/lean-verification-runs/7ceafa4dc2224fc2928909dec25c8eee/logs/e675bf3e7496405d84a42f260ebac4f3.stderr.log"
+        },
+        {
+          "kind": "import_resolution",
+          "file": "ForceTransportProof.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--deps",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1/ForceTransportProof.lean"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "elapsed_seconds": 0.048748,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1/lean-verification-runs/7ceafa4dc2224fc2928909dec25c8eee/logs/598ea887463048a3ac879d87da3f9bdf.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1/lean-verification-runs/7ceafa4dc2224fc2928909dec25c8eee/logs/598ea887463048a3ac879d87da3f9bdf.stderr.log"
+        },
+        {
+          "kind": "target",
+          "file": "ForceTransportProof.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "-R",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1",
+            "-o",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1/lean-verification-runs/7ceafa4dc2224fc2928909dec25c8eee/lib/ForceTransportProof.olean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1/ForceTransportProof.lean"
+          ],
+          "exit_code": 1,
+          "status": "failed",
+          "elapsed_seconds": 0.257218,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1/lean-verification-runs/7ceafa4dc2224fc2928909dec25c8eee/logs/3bb5af6348d4470bbcefa00ac1fc33a3.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1/lean-verification-runs/7ceafa4dc2224fc2928909dec25c8eee/logs/3bb5af6348d4470bbcefa00ac1fc33a3.stderr.log"
+        }
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-checked/run-manifest.json",
+      "sha256": "8b51efae1b454f32ae793400e699567d20dd9d65e5332e51e02a14093308b347",
+      "run_id": "1c3b1a9526bf4647b9c4a999b7a7ea9e",
+      "build_exit_code": 1,
+      "exact_root_passed": false,
+      "commands": [
+        {
+          "kind": "source_dependencies",
+          "file": "ForceTransportProof.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--run",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-checked/lean-verification-runs/1c3b1a9526bf4647b9c4a999b7a7ea9e/DiscoverImports.lean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1/ForceTransportProof.lean"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "elapsed_seconds": 0.821572,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-checked/lean-verification-runs/1c3b1a9526bf4647b9c4a999b7a7ea9e/logs/849634cc918447fd9209d26e13f1ed48.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-checked/lean-verification-runs/1c3b1a9526bf4647b9c4a999b7a7ea9e/logs/849634cc918447fd9209d26e13f1ed48.stderr.log"
+        },
+        {
+          "kind": "source_dependencies",
+          "file": "ForceTransportSpec.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--run",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-checked/lean-verification-runs/1c3b1a9526bf4647b9c4a999b7a7ea9e/DiscoverImports.lean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1/ForceTransportSpec.lean"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "elapsed_seconds": 0.718403,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-checked/lean-verification-runs/1c3b1a9526bf4647b9c4a999b7a7ea9e/logs/142f4d224154492b8d8ac09e4b693586.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-checked/lean-verification-runs/1c3b1a9526bf4647b9c4a999b7a7ea9e/logs/142f4d224154492b8d8ac09e4b693586.stderr.log"
+        },
+        {
+          "kind": "import_resolution",
+          "file": "ForceTransportSpec.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--deps",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1/ForceTransportSpec.lean"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "elapsed_seconds": 0.048071,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-checked/lean-verification-runs/1c3b1a9526bf4647b9c4a999b7a7ea9e/logs/aa98eda96f5845ae954cc630859ddcd9.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-checked/lean-verification-runs/1c3b1a9526bf4647b9c4a999b7a7ea9e/logs/aa98eda96f5845ae954cc630859ddcd9.stderr.log"
+        },
+        {
+          "kind": "target",
+          "file": "ForceTransportSpec.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "-R",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1",
+            "-o",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-checked/lean-verification-runs/1c3b1a9526bf4647b9c4a999b7a7ea9e/lib/ForceTransportSpec.olean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1/ForceTransportSpec.lean"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "elapsed_seconds": 0.266781,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-checked/lean-verification-runs/1c3b1a9526bf4647b9c4a999b7a7ea9e/logs/03a0d9b125f445b59405330602140f7b.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-checked/lean-verification-runs/1c3b1a9526bf4647b9c4a999b7a7ea9e/logs/03a0d9b125f445b59405330602140f7b.stderr.log"
+        },
+        {
+          "kind": "import_resolution",
+          "file": "ForceTransportProof.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--deps",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1/ForceTransportProof.lean"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "elapsed_seconds": 0.043495,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-checked/lean-verification-runs/1c3b1a9526bf4647b9c4a999b7a7ea9e/logs/d87dd9f223b542ee958178c237adc2b6.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-checked/lean-verification-runs/1c3b1a9526bf4647b9c4a999b7a7ea9e/logs/d87dd9f223b542ee958178c237adc2b6.stderr.log"
+        },
+        {
+          "kind": "target",
+          "file": "ForceTransportProof.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "-R",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1",
+            "-o",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-checked/lean-verification-runs/1c3b1a9526bf4647b9c4a999b7a7ea9e/lib/ForceTransportProof.olean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1/ForceTransportProof.lean"
+          ],
+          "exit_code": 1,
+          "status": "failed",
+          "elapsed_seconds": 0.266521,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-checked/lean-verification-runs/1c3b1a9526bf4647b9c4a999b7a7ea9e/logs/90da9d16615c4dcb8d6f5dc1ac05de80.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-checked/lean-verification-runs/1c3b1a9526bf4647b9c4a999b7a7ea9e/logs/90da9d16615c4dcb8d6f5dc1ac05de80.stderr.log"
+        }
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/run-manifest.json",
+      "sha256": "1bdacc380fbe84b353f79c550cd771300145dd4e183061dec1f16e61cec514cc",
+      "run_id": "641f0b3fd32e419dbb334ae550c94350",
+      "build_exit_code": 0,
+      "exact_root_passed": true,
+      "commands": [
+        {
+          "kind": "source_dependencies",
+          "file": "ForceTransportProof.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--run",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/DiscoverImports.lean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1/ForceTransportProof.lean"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "elapsed_seconds": 6.418359,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/logs/d354d5c62ee44e54aaa724b3403dad94.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/logs/d354d5c62ee44e54aaa724b3403dad94.stderr.log"
+        },
+        {
+          "kind": "source_dependencies",
+          "file": "ForceTransportSpec.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--run",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/DiscoverImports.lean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1/ForceTransportSpec.lean"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "elapsed_seconds": 0.898373,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/logs/d14aea76fc1a4fb493a6d72f4e7f6d39.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/logs/d14aea76fc1a4fb493a6d72f4e7f6d39.stderr.log"
+        },
+        {
+          "kind": "import_resolution",
+          "file": "ForceTransportSpec.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--deps",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1/ForceTransportSpec.lean"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "elapsed_seconds": 0.043403,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/logs/cb80200d3ab34ef6b4f0e1ef07767c7a.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/logs/cb80200d3ab34ef6b4f0e1ef07767c7a.stderr.log"
+        },
+        {
+          "kind": "target",
+          "file": "ForceTransportSpec.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "-R",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1",
+            "-o",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/lib/ForceTransportSpec.olean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1/ForceTransportSpec.lean"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "elapsed_seconds": 0.263774,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/logs/c87a8e9653d44934810e4e92b0bea1e1.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/logs/c87a8e9653d44934810e4e92b0bea1e1.stderr.log"
+        },
+        {
+          "kind": "import_resolution",
+          "file": "ForceTransportProof.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--deps",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1/ForceTransportProof.lean"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "elapsed_seconds": 0.047441,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/logs/130ca876433345a8acd32bb8ee4c767e.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/logs/130ca876433345a8acd32bb8ee4c767e.stderr.log"
+        },
+        {
+          "kind": "target",
+          "file": "ForceTransportProof.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "-R",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1",
+            "-o",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/lib/ForceTransportProof.olean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-project-v1/ForceTransportProof.lean"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "elapsed_seconds": 0.254701,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/logs/2edf5cfa72774b9cb3f09b7f97a617b9.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/logs/2edf5cfa72774b9cb3f09b7f97a617b9.stderr.log"
+        },
+        {
+          "kind": "inspector_compile",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "-R",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350",
+            "-o",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/lib/LeanVerifyProbe.olean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/LeanVerifyProbe.lean"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "elapsed_seconds": 0.882499,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/logs/54bc2646241c4c0bb187b5488a2a0b36.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/logs/54bc2646241c4c0bb187b5488a2a0b36.stderr.log"
+        },
+        {
+          "kind": "declaration_inspection",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/InspectRoot.lean"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "elapsed_seconds": 0.905701,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/logs/68b88faf772a468ca96b2ebee7054027.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/force-transport-v1-check3/lean-verification-runs/641f0b3fd32e419dbb334ae550c94350/logs/68b88faf772a468ca96b2ebee7054027.stderr.log"
+        }
+      ]
+    }
+  ],
+  "storage": {
+    "directories": {
+      "force-transport-project-v1": 5570,
+      "force-transport-v1": 187687,
+      "force-transport-v1-checked": 183013,
+      "force-transport-v1-check3": 21338667
+    },
+    "total_bytes": 21714937,
+    "limit_bytes": 67108864
+  },
+  "scope": "actual impulse numeric transport over explicit lists and summaries; no canonical stroke extraction, completion, F2, independent semantic review or market result",
+  "source_fingerprints": "source-sha256-stage27.json",
+  "formal_source_changed": false
+}

@@ -1,0 +1,8 @@
+{
+  "profile": "FORCE-PARTITION-TRANSPORT-v1",
+  "spec": ".chanlun/review-results/issue1467-f1-proof/ForceTransportSpec.lean",
+  "spec_sha256": "deb1d756f3cb8754a5d3a8499880ba7f1ca1f162306817680be564e7f86c465c",
+  "expected_type": "ForceTransport.COMPOSITION_TARGET ∧ ForceTransport.SEAM_TARGET ∧ ForceTransport.LOSS_TARGET ∧ ForceTransport.WITNESS_TARGET",
+  "declaration": "ForceTransport.exact_root",
+  "frozen_before_proof": true
+}
