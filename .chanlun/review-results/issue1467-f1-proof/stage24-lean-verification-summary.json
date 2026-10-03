@@ -1,0 +1,144 @@
+{
+  "stage": 24,
+  "date": "2026-10-04",
+  "ticket": 1467,
+  "run_id": "99f242c63e744b848bcbfc7b39612dae",
+  "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-quote-v1/run-manifest.json",
+  "manifest_sha256": "0a2b8c043d6029473ffe5d82cbfcb2ddd2aa2f8316ee2a7632e04932e4016496",
+  "machine_verification_passed": true,
+  "exact_root_passed": true,
+  "root_closure": {
+    "status": "closed",
+    "exact_root_passed": true,
+    "declaration_closed": true,
+    "scope": "expected Lean type in the recorded environment; semantic review is separate"
+  },
+  "semantic": {
+    "status": "not_reviewed",
+    "reused": false,
+    "semantic_sha256": "fd53969771de6aa6e26cccdbeedce37ba20331e283eee9f751429a8b2fe6dfea"
+  },
+  "actual_type": "And BookQuote.COUNT_TARGET (And BookQuote.PREFIX_TARGET (And BookQuote.WIRE_TARGET BookQuote.WITNESS_TARGET))",
+  "expected_type": "BookQuote.COUNT_TARGET ∧ BookQuote.PREFIX_TARGET ∧ BookQuote.WIRE_TARGET ∧ BookQuote.WITNESS_TARGET",
+  "axioms": [
+    "propext",
+    "Quot.sound"
+  ],
+  "unexpected_axioms": [],
+  "unsafe_dependencies": [],
+  "unknown_dependencies": [],
+  "freshness": {
+    "status": "current",
+    "snapshot_current": true,
+    "exact_root_passed": true,
+    "declaration": "BookQuote.exact_root",
+    "semantic_sha256": "fd53969771de6aa6e26cccdbeedce37ba20331e283eee9f751429a8b2fe6dfea",
+    "manifest_sha256": "0a2b8c043d6029473ffe5d82cbfcb2ddd2aa2f8316ee2a7632e04932e4016496",
+    "reasons": [],
+    "scope": "saved evidence and current Lean module resolution checked; no new kernel proof replay"
+  },
+  "resource": {
+    "total_external_bytes": 22665831,
+    "limit_bytes": 100663296,
+    "within_limit": true
+  },
+  "attempts": 1,
+  "build_commands": [
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--run",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-quote-v1/lean-verification-runs/99f242c63e744b848bcbfc7b39612dae/DiscoverImports.lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-quote-project-v1/BookQuoteProof.lean"
+      ],
+      "file": "BookQuoteProof.lean",
+      "kind": "source_dependencies",
+      "exit_code": 0,
+      "elapsed_seconds": 7.021185
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--run",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-quote-v1/lean-verification-runs/99f242c63e744b848bcbfc7b39612dae/DiscoverImports.lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-quote-project-v1/BookQuoteSpec.lean"
+      ],
+      "file": "BookQuoteSpec.lean",
+      "kind": "source_dependencies",
+      "exit_code": 0,
+      "elapsed_seconds": 0.837241
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--deps",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-quote-project-v1/BookQuoteSpec.lean"
+      ],
+      "file": "BookQuoteSpec.lean",
+      "kind": "import_resolution",
+      "exit_code": 0,
+      "elapsed_seconds": 0.049356
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-quote-project-v1",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-quote-v1/lean-verification-runs/99f242c63e744b848bcbfc7b39612dae/lib/BookQuoteSpec.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-quote-project-v1/BookQuoteSpec.lean"
+      ],
+      "file": "BookQuoteSpec.lean",
+      "kind": "target",
+      "exit_code": 0,
+      "elapsed_seconds": 0.323289
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--deps",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-quote-project-v1/BookQuoteProof.lean"
+      ],
+      "file": "BookQuoteProof.lean",
+      "kind": "import_resolution",
+      "exit_code": 0,
+      "elapsed_seconds": 0.043234
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-quote-project-v1",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-quote-v1/lean-verification-runs/99f242c63e744b848bcbfc7b39612dae/lib/BookQuoteProof.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-quote-project-v1/BookQuoteProof.lean"
+      ],
+      "file": "BookQuoteProof.lean",
+      "kind": "target",
+      "exit_code": 0,
+      "elapsed_seconds": 0.375367
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-quote-v1/lean-verification-runs/99f242c63e744b848bcbfc7b39612dae",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-quote-v1/lean-verification-runs/99f242c63e744b848bcbfc7b39612dae/lib/LeanVerifyProbe.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-quote-v1/lean-verification-runs/99f242c63e744b848bcbfc7b39612dae/LeanVerifyProbe.lean"
+      ],
+      "kind": "inspector_compile",
+      "exit_code": 0,
+      "elapsed_seconds": 0.986963
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-quote-v1/lean-verification-runs/99f242c63e744b848bcbfc7b39612dae/InspectRoot.lean"
+      ],
+      "kind": "declaration_inspection",
+      "exit_code": 0,
+      "elapsed_seconds": 1.081406
+    }
+  ]
+}
