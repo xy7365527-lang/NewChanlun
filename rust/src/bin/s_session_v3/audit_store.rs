@@ -1,6 +1,6 @@
 //! #1394 封闭审计读取边界。动态来源没有捕获能力；唯有具体 HashReader 自己选择
 //! 与实际读取绑定的不可变 owner。两种路径都用同一业务函数，不传成功 token。
-use super::history::HashReader;
+pub(crate) use super::history::HashReader;
 use newchan_rust::s_content::{
     self as sc, CodecError, ContentRef, NodeDigest, NodeRead, NodeSink, NodeSource, NodeStore,
 };

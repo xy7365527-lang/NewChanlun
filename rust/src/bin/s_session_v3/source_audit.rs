@@ -630,6 +630,163 @@ const TYPED_SOURCE_FIELDS: [&str; 7] = [
     "payload_json",
     "fact_key",
 ];
+// #1394：只在本次 fresh Native audit 内分享纯身份；不带出 raw/cut 校验结果。
+#[derive(Debug, PartialEq, Eq, Hash)]
+struct NativeWitnessIdentityKey {
+    capture: usize,
+    object_id: String,
+    slot: usize,
+    mi: usize,
+    digest: NodeDigest,
+    kind: Kind,
+    extent: Option<u64>,
+}
+struct NativeWitnessIdentityMemo<'capture> {
+    capture: &'capture sc::AuditCapture,
+    entries: std::collections::HashMap<NativeWitnessIdentityKey, String>,
+    #[cfg(test)]
+    stats: NativeWitnessIdentityStats,
+}
+#[cfg(test)]
+#[derive(Default, Clone, Copy, serde::Serialize)]
+pub(super) struct NativeWitnessIdentityStats {
+    hits: u64,
+    misses: u64,
+    render_calls: u64,
+}
+#[cfg(test)]
+thread_local! {
+    static NATIVE_WITNESS_IDENTITY_STATS: std::cell::Cell<Option<NativeWitnessIdentityStats>> = const { std::cell::Cell::new(None) };
+}
+#[cfg(test)]
+pub(super) fn reset_native_witness_identity_stats() {
+    NATIVE_WITNESS_IDENTITY_STATS.with(|s| s.set(None));
+}
+#[cfg(test)]
+pub(super) fn native_witness_identity_stats() -> Option<NativeWitnessIdentityStats> {
+    NATIVE_WITNESS_IDENTITY_STATS.with(|s| s.get())
+}
+impl<'capture> NativeWitnessIdentityMemo<'capture> {
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn new(capture: &'capture sc::AuditCapture) -> Result<Self, String> {
+        if capture.is_allocation_prototype() {
+            return Err(err("Native身份memo不接收Owned capture"));
+        }
+        #[cfg(test)]
+        NATIVE_WITNESS_IDENTITY_STATS.with(|s| s.set(Some(NativeWitnessIdentityStats::default())));
+        Ok(Self {
+            capture,
+            entries: Default::default(),
+            #[cfg(test)]
+            stats: Default::default(),
+        })
+    }
+    fn key(
+        &self,
+        object_id: &str,
+        slot: usize,
+        mi: usize,
+        bars: &Built,
+    ) -> NativeWitnessIdentityKey {
+        NativeWitnessIdentityKey {
+            capture: std::ptr::from_ref(self.capture) as usize,
+            object_id: object_id.to_owned(),
+            slot,
+            mi,
+            digest: bars.digest,
+            kind: bars.kind,
+            extent: bars.extent,
+        }
+    }
+    #[cfg(test)]
+    fn record_render_attempt(&mut self, object_id: &str) {
+        self.stats.misses += 1;
+        // 原函数拒绝转义对象文本时尚未调用 renderer。
+        self.stats.render_calls += u64::from(!object_id.contains(['"', '\\']));
+        NATIVE_WITNESS_IDENTITY_STATS.with(|s| s.set(Some(self.stats)));
+    }
+    // 只能由下面同 Capture 构造的实际读取上下文在完整本 cut 核验后调用。
+    fn check_identity(
+        &mut self,
+        s: &mut (impl CodecRead + ?Sized),
+        stored: &str,
+        object_id: &str,
+        slot: usize,
+        mi: usize,
+        bars: &Built,
+    ) -> Result<(), String> {
+        if !self.capture.contains(&bars.digest) {
+            // 派生 overlay 根不取得缓存资格，明确沿原函数计算。
+            #[cfg(test)]
+            self.record_render_attempt(object_id);
+            let want = super::generation::witness_identity(s, object_id, slot, mi, bars)?;
+            return if stored == want {
+                Ok(())
+            } else {
+                Err(err("见证ID不符"))
+            };
+        }
+        // 根在 Capture 不等于完整闭包在 Capture；用不可变原件验证全部声明与闭包。
+        self.capture
+            .verify(&bars.content_ref(), sc::Mode::Public)
+            .map_err(err)?;
+        let key = self.key(object_id, slot, mi, bars);
+        if let Some(want) = self.entries.get(&key) {
+            #[cfg(test)]
+            {
+                self.stats.hits += 1;
+                NATIVE_WITNESS_IDENTITY_STATS.with(|s| s.set(Some(self.stats)));
+            }
+            return if stored == want {
+                Ok(())
+            } else {
+                Err(err("见证ID不符"))
+            };
+        }
+        #[cfg(test)]
+        self.record_render_attempt(object_id);
+        let want = super::generation::witness_identity(s, object_id, slot, mi, bars)?;
+        if stored != want {
+            return Err(err("见证ID不符"));
+        }
+        // 首次纯函数成功和本次 stored ID 比较都通过之后，才保留输入声明及结果文本。
+        self.entries.insert(key, want);
+        Ok(())
+    }
+}
+/// 私有 Native 当前审计上下文：源及身份 memo 都由同一不可变 Capture 构造。
+/// audit 不接外来 store、资格 bool 或跨请求数据；reader/overlay 随本次 audit 释放。
+pub(super) struct NativeSourceAudit<'capture> {
+    reader: super::history::HashReader<'capture>,
+    memo: NativeWitnessIdentityMemo<'capture>,
+}
+impl<'capture> NativeSourceAudit<'capture> {
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn new(capture: &'capture sc::AuditCapture) -> Result<Self, String> {
+        Ok(Self {
+            reader: super::history::HashReader::captured(capture, None),
+            memo: NativeWitnessIdentityMemo::new(capture)?,
+        })
+    }
+    pub(super) fn audit<'a>(
+        &mut self,
+        state: impl Into<sc::RefView<'a>>,
+        raw_prefix: impl Into<RawEventsView<'a>>,
+        profile: &str,
+        rule: &str,
+    ) -> Result<Counts, String> {
+        audit_generated_in_store(
+            &mut super::audit_store::StoreView::for_audit(&mut self.reader),
+            state.into(),
+            raw_prefix.into(),
+            profile,
+            rule,
+            None,
+            None,
+            Some(&mut self.memo),
+        )
+    }
+}
 /// raw_prefix 是同一次读集、截至本代 input_frontier 的独立原始账，不是manifest自己提供的值。
 pub(super) fn audit_generated<'a>(
     s: &mut dyn NodeStore,
@@ -667,6 +824,7 @@ pub(super) fn audit_generated_metered<'a>(
         rule,
         deadline,
         budget,
+        None,
     )
 }
 pub(super) fn audit_generated_for_audit<'a>(
@@ -686,6 +844,7 @@ pub(super) fn audit_generated_for_audit<'a>(
         rule,
         deadline,
         budget,
+        None,
     )
 }
 fn audit_generated_in_store(
@@ -696,6 +855,7 @@ fn audit_generated_in_store(
     rule: &str,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
+    mut native_identity: Option<&mut NativeWitnessIdentityMemo<'_>>,
 ) -> Result<Counts, String> {
     super::history::check_deadline(deadline)?;
     #[cfg(test)]
@@ -1095,15 +1255,23 @@ fn audit_generated_in_store(
                 return Err(err("见证raw_bars不是同cut真实原始成员"));
             }
         }
-        let want = super::generation::witness_identity(
-            s,
-            &object_id,
-            slot as usize,
-            mi as usize,
-            &built(bars.view())?,
-        )?;
-        if id != want {
-            return Err(err("见证ID不符"));
+        let bars = built(bars.view())?;
+        match native_identity.as_deref_mut() {
+            Some(memo) => {
+                memo.check_identity(s, &id, &object_id, slot as usize, mi as usize, &bars)?
+            }
+            None => {
+                let want = super::generation::witness_identity(
+                    s,
+                    &object_id,
+                    slot as usize,
+                    mi as usize,
+                    &bars,
+                )?;
+                if id != want {
+                    return Err(err("见证ID不符"));
+                }
+            }
         }
     }
     if seen.len() != shapes.len() * 3 {
@@ -1236,6 +1404,217 @@ mod tests {
         let generated = runtime.generate(&mut store, &input).unwrap();
         let root = generated.generated_state.clone();
         (store, root, raw, rule)
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_witness_identity_exact_inputs_and_success_only() {
+        let mut nodes = MemoryNodes::default();
+        let bars = sc::write_value(&mut nodes, &V::Array(vec![V::String("bar".into())])).unwrap();
+        let other =
+            sc::write_value(&mut nodes, &V::Array(vec![V::String("changed".into())])).unwrap();
+        let capture = sc::AuditCapture::new(nodes);
+        let mut memo = NativeWitnessIdentityMemo::new(&capture).unwrap();
+        let mut reader = super::super::history::HashReader::captured(&capture, None);
+        let original = |id: &str, slot, mi, bars: &Built| {
+            let mut reader = super::super::history::HashReader::captured(&capture, None);
+            super::super::generation::witness_identity(&mut reader, id, slot, mi, bars)
+        };
+        let expected = original("obj3-first", 0, 1, &bars).unwrap();
+        assert!(memo
+            .check_identity(&mut reader, "wrong", "obj3-first", 0, 1, &bars)
+            .is_err());
+        assert!(memo.entries.is_empty());
+        memo.check_identity(&mut reader, &expected, "obj3-first", 0, 1, &bars)
+            .unwrap();
+        let rendered = memo.stats.render_calls;
+        memo.check_identity(&mut reader, &expected, "obj3-first", 0, 1, &bars)
+            .unwrap();
+        assert_eq!(memo.stats.render_calls, rendered);
+        assert_eq!(memo.stats.hits, 1);
+        assert!(memo
+            .check_identity(&mut reader, "wrong", "obj3-first", 0, 1, &bars)
+            .is_err());
+        for (id, slot, mi, input) in [
+            ("obj3-second", 0, 1, &bars),
+            ("obj3-first", 1, 1, &bars),
+            ("obj3-first", 0, 2, &bars),
+            ("obj3-first", 0, 1, &other),
+        ] {
+            let expected = original(id, slot, mi, input).unwrap();
+            let before = memo.stats.render_calls;
+            memo.check_identity(&mut reader, &expected, id, slot, mi, input)
+                .unwrap();
+            assert_eq!(memo.stats.render_calls, before + 1);
+        }
+        let key = memo.key("obj3-first", 0, 1, &bars);
+        let mut changed = bars.clone();
+        changed.kind = Kind::Object;
+        assert_ne!(key, memo.key("obj3-first", 0, 1, &changed));
+        changed = bars.clone();
+        changed.extent = Some(999);
+        assert_ne!(key, memo.key("obj3-first", 0, 1, &changed));
+        let count = memo.entries.len();
+        assert!(memo
+            .check_identity(&mut reader, "unused", "bad\"id", 0, 1, &bars)
+            .is_err());
+        assert_eq!(memo.entries.len(), count);
+        assert!(memo
+            .check_identity(&mut reader, &expected, "obj3-first", 0, 1, &changed)
+            .is_err());
+        assert_eq!(memo.entries.len(), count);
+        let another = sc::AuditCapture::new(MemoryNodes::default());
+        let fresh = NativeWitnessIdentityMemo::new(&another).unwrap();
+        assert!(fresh.entries.is_empty());
+        assert_ne!(key, fresh.key("obj3-first", 0, 1, &bars));
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_witness_identity_keeps_current_cut_faults() {
+        let (mut nodes, state, raw, rule) = fixture();
+        let witnesses = field(&mut nodes, &state, "witnesses").unwrap();
+        let witnesses = elements(&mut nodes, &witnesses).unwrap();
+        let first = &witnesses[0];
+        let wrong_id = replace_field(
+            &mut nodes,
+            first,
+            WITNESS,
+            "witness_id",
+            V::String("wrong".into()),
+        );
+        let wrong_id = replace_member(&mut nodes, &state, "witnesses", 0, wrong_id);
+        let changed_bars = sc::write_value(&mut nodes, &V::Array(vec![])).unwrap();
+        let wrong_bars = replace_field(
+            &mut nodes,
+            first,
+            WITNESS,
+            "raw_bars",
+            V::Edge(changed_bars.digest),
+        );
+        let wrong_bars = replace_member(&mut nodes, &state, "witnesses", 0, wrong_bars);
+        let duplicate = replace_member(
+            &mut nodes,
+            &state,
+            "witnesses",
+            1,
+            built(first.view()).unwrap().content_ref(),
+        );
+        let missing = replace_field(
+            &mut nodes,
+            &state,
+            STATE,
+            "witnesses",
+            V::Array(
+                witnesses
+                    .iter()
+                    .skip(1)
+                    .map(|r| V::Edge(digest(r).unwrap()))
+                    .collect(),
+            ),
+        );
+        let capture = sc::AuditCapture::new(nodes);
+        let mut context = NativeSourceAudit::new(&capture).unwrap();
+        let run = |context: &mut NativeSourceAudit<'_>, state: &ContentRef, raw: &[Value]| {
+            context.audit(state, raw, tb02a::PROFILE, &rule)
+        };
+        let mut original_reader = super::super::history::HashReader::captured(&capture, None);
+        let original = audit_generated_for_audit(
+            &mut original_reader,
+            &state,
+            &raw,
+            tb02a::PROFILE,
+            &rule,
+            None,
+            None,
+        )
+        .unwrap();
+        let first = run(&mut context, &state, &raw).unwrap();
+        assert_eq!(format!("{original:?}"), format!("{first:?}"));
+        let renders = context.memo.stats.render_calls;
+        run(&mut context, &state, &raw).unwrap();
+        assert_eq!(context.memo.stats.render_calls, renders);
+        assert!(context.memo.stats.hits > 0);
+        for (state, message) in [
+            (&wrong_id, "见证ID不符"),
+            (&wrong_bars, "raw_bars成员数不同"),
+            (&duplicate, "见证槽位重复"),
+            (&missing, "缺完整三槽"),
+        ] {
+            assert!(run(&mut context, state, &raw)
+                .unwrap_err()
+                .contains(message));
+        }
+        let mut revised = raw.clone();
+        revised[0]["high"] = json!("999999");
+        assert!(run(&mut context, &state, &revised)
+            .unwrap_err()
+            .contains("raw_bars不是同cut真实原始成员"));
+        let mut revised = raw.clone();
+        let revision = revised[0]["revision"].as_i64().unwrap();
+        revised[0]["revision"] = json!(revision.checked_add(1).unwrap());
+        assert!(run(&mut context, &state, &revised)
+            .unwrap_err()
+            .contains("源引用不是本cut的真实完整八字段原件"));
+        let empty = sc::AuditCapture::new(MemoryNodes::default());
+        let mut wrong_source = NativeSourceAudit::new(&empty).unwrap();
+        assert!(run(&mut wrong_source, &state, &raw).is_err());
+        assert!(wrong_source.memo.entries.is_empty());
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_witness_identity_requires_original_complete_closure() {
+        let mut nodes = MemoryNodes::default();
+        let bars =
+            sc::write_value(&mut nodes, &V::Array(vec![V::String("original".into())])).unwrap();
+        let mut incomplete = MemoryNodes::default();
+        let (tag, body) = nodes.get(&bars.digest).unwrap();
+        incomplete.insert_unchecked(bars.digest, tag, body.to_vec());
+        let incomplete = sc::AuditCapture::new(incomplete);
+        let mut context = NativeSourceAudit::new(&incomplete).unwrap();
+        assert!(context
+            .memo
+            .check_identity(&mut context.reader, "unused", "obj3-first", 0, 1, &bars)
+            .is_err());
+        assert!(context.memo.entries.is_empty());
+        let capture = sc::AuditCapture::new(nodes);
+        let mut context = NativeSourceAudit::new(&capture).unwrap();
+        let overlay = sc::write_value(
+            &mut context.reader,
+            &V::Array(vec![V::String("overlay".into())]),
+        )
+        .unwrap();
+        assert!(!capture.contains(&overlay.digest));
+        let expected = super::super::generation::witness_identity(
+            &mut context.reader,
+            "obj3-overlay",
+            0,
+            1,
+            &overlay,
+        )
+        .unwrap();
+        for _ in 0..2 {
+            context
+                .memo
+                .check_identity(
+                    &mut context.reader,
+                    &expected,
+                    "obj3-overlay",
+                    0,
+                    1,
+                    &overlay,
+                )
+                .unwrap();
+        }
+        assert!(context.memo.entries.is_empty());
+        assert_eq!(context.memo.stats.hits, 0);
+        assert_eq!(context.memo.stats.render_calls, 2);
+        let budget = sc::capture_allocation::OwnedBudget::new(1024);
+        let owned = sc::AuditCapture::from_slab_for_allocation_prototype(
+            sc::capture_allocation::CaptureSlab::new(0, 0, &budget)
+                .unwrap()
+                .finish()
+                .unwrap(),
+        );
+        assert!(NativeSourceAudit::new(&owned).is_err());
     }
     fn replace_field<'a>(
         s: &mut dyn NodeStore,

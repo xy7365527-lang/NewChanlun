@@ -10,7 +10,8 @@
 
 use super::{canonical_json, content_manifest, content_store, meta_get_opt, sha256_hex, v2};
 use crate::v3::audit_store::CodecStore;
-use crate::v3::audit_store::RefValue;
+use crate::v3::audit_store::{RefFields, RefValue};
+use crate::v3::audit_store::HashReader;
 use content_manifest::Decimal;
 use content_manifest::{
     ManifestMetadata, ManifestRoots, MetadataView, RootsView, UnpublishedManifest,
@@ -22,6 +23,7 @@ use newchan_rust::session_protocol::{parse_canonical_i64, strict_json, validate_
 use rusqlite::{params, Transaction};
 use sc::ValueView as VV;
 use std::collections::{BTreeMap, BTreeSet};
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub(super) struct ResolvedTemplates {
@@ -146,6 +148,135 @@ pub(crate) fn resolve_indexed_templates_pending_view(
     batch_id: &str,
     previous_frontier: i64,
 ) -> Result<PendingRefTemplates, String> {
+    resolve_indexed_templates_pending_core(
+        tx,
+        store,
+        metadata,
+        roots,
+        batch_id,
+        previous_frontier,
+        None,
+    )
+}
+
+/// 仅当前Native历史审计能构造；寿命绑原始capture，不借overlay临时体。
+pub(crate) struct NativePublicationMemo<'capture> {
+    capture: &'capture sc::AuditCapture,
+    fields: BTreeMap<(String, String, &'static str, Option<u64>), Rc<RefFields<'static>>>,
+}
+impl<'capture> NativePublicationMemo<'capture> {
+    pub(crate) fn new(store: &HashReader<'capture>) -> Option<Self> {
+        store.native_projection_capture().map(|capture| Self {
+            capture,
+            fields: BTreeMap::new(),
+        })
+    }
+    fn check_store(&self, store: &HashReader<'_>) -> Result<(), String> {
+        if !store
+            .native_projection_capture()
+            .is_some_and(|c| std::ptr::eq(c, self.capture))
+        {
+            return Err(err("Native publication memo 与当前capture/审计权限不符"));
+        }
+        Ok(())
+    }
+    fn read_fields(
+        &mut self,
+        store: &mut (impl CodecStore + ?Sized),
+        record: sc::RefView<'_>,
+    ) -> Result<PublicationFields, String> {
+        // 来源在读取前分派：原capture之外的overlay记录按原口读取，不复用结论。
+        if !self.capture.contains(&record.digest().map_err(err)?) {
+            return read_publication_fields(store, record).map(PublicationFields::Direct);
+        }
+        // 检查完整原件绑定与声明；不是只凭根存在放行。capture内同上下文的核已成功
+        // 结果可复用，但失败不保留，也不转overlay以另一套判据重判。
+        self.capture
+            .verify_refview(record, sc::Mode::Template)
+            .map_err(err)?;
+        let key = (
+            record.format().to_owned(),
+            record.root().to_owned(),
+            record.kind().name(),
+            record.extent(),
+        );
+        if let Some(fields) = self.fields.get(&key) {
+            return Ok(PublicationFields::Shared(Rc::clone(fields)));
+        }
+        let fields = read_publication_fields(store, record)?;
+        // 单次DFS成功即已提取全部十字段；不记业务判断/失败，每cut原位重跑。
+        let fields = Rc::new(fields);
+        self.fields.insert(key, Rc::clone(&fields));
+        Ok(PublicationFields::Shared(fields))
+    }
+}
+const PUBLICATION_FIELD_NAMES: &[&str] = &[
+    "object_id",
+    "kind",
+    "object_revision",
+    "first_known_generation",
+    "first_known_cut",
+    "published_generation",
+    "withdrawn_generation",
+    "withdrawal_reason",
+    "superseded_by",
+    "lifecycle",
+];
+enum PublicationFields {
+    Direct(RefFields<'static>),
+    Shared(Rc<RefFields<'static>>),
+}
+impl PublicationFields {
+    fn get(&self, name: &str) -> Option<RefValue> {
+        match self {
+            Self::Direct(f) => f.get(name),
+            Self::Shared(f) => f.get(name),
+        }
+    }
+}
+#[cfg(test)]
+thread_local! {
+    static NATIVE_PUBLICATION_FIELDS_LOOKUPS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+fn read_publication_fields(
+    store: &mut (impl CodecStore + ?Sized),
+    record: sc::RefView<'_>,
+) -> Result<RefFields<'static>, String> {
+    #[cfg(test)]
+    NATIVE_PUBLICATION_FIELDS_LOOKUPS.with(|v| v.set(v.get() + 1));
+    store
+        .lookup_subset_ref(record, PUBLICATION_FIELD_NAMES)
+        .map_err(err)
+}
+pub(crate) fn resolve_native_indexed_templates_pending_view(
+    tx: &Transaction<'_>,
+    store: &mut HashReader<'_>,
+    metadata: MetadataView<'_>,
+    roots: RootsView<'_>,
+    batch_id: &str,
+    previous_frontier: i64,
+    memo: &mut NativePublicationMemo<'_>,
+) -> Result<PendingRefTemplates, String> {
+    memo.check_store(store)?;
+    resolve_indexed_templates_pending_core(
+        tx,
+        store,
+        metadata,
+        roots,
+        batch_id,
+        previous_frontier,
+        Some(memo),
+    )
+}
+fn resolve_indexed_templates_pending_core(
+    tx: &Transaction<'_>,
+    store: &mut (impl CodecStore + ?Sized),
+    metadata: MetadataView<'_>,
+    roots: RootsView<'_>,
+    batch_id: &str,
+    previous_frontier: i64,
+    mut memo: Option<&mut NativePublicationMemo<'_>>,
+) -> Result<PendingRefTemplates, String> {
     let objects = object_births(tx, &metadata, store)?;
     let observations = observation_births(tx, &metadata, store)?;
     let mut snapshot = ref_value(store, roots.publication_template)?;
@@ -185,6 +316,7 @@ pub(crate) fn resolve_indexed_templates_pending_view(
         &metadata,
         batch_id,
         ObjectFamily::Active,
+        memo.as_deref_mut(),
     )?;
     resolve_objects(
         store,
@@ -194,6 +326,7 @@ pub(crate) fn resolve_indexed_templates_pending_view(
         &metadata,
         batch_id,
         ObjectFamily::Withdrawn,
+        memo.as_deref_mut(),
     )?;
     resolve_objects(
         store,
@@ -203,6 +336,7 @@ pub(crate) fn resolve_indexed_templates_pending_view(
         &metadata,
         batch_id,
         ObjectFamily::Born,
+        memo.as_deref_mut(),
     )?;
     resolve_observations(
         store,
@@ -608,7 +742,9 @@ fn resolve_record_batch(
         if stored_batch == batch {
             return Err(err("旧出生记录不得换成本批身份"));
         }
-        match_field_view(store, record.view(), "batch_id", VV::String(stored_batch))?;
+        if value.digest().map_err(err)? != hash_view(store, VV::String(stored_batch))? {
+            return Err(err("batch_id 与独立记录不同"));
+        }
     }
     Ok(())
 }
@@ -620,6 +756,7 @@ fn resolve_objects(
     m: &MetadataView<'_>,
     batch: &str,
     family: ObjectFamily,
+    mut memo: Option<&mut NativePublicationMemo<'_>>,
 ) -> Result<(), String> {
     let expected: BTreeSet<_> = births
         .iter()
@@ -639,23 +776,10 @@ fn resolve_objects(
             .lookup_ref(array.view(), &[PathStep::Index(i)])
             .map_err(err)?;
         // 本模块通用于既有记录与S3记录，只取其共同控制字段，不裁载荷字段schema。
-        let fields = store
-            .lookup_subset_ref(
-                record.view(),
-                &[
-                    "object_id",
-                    "kind",
-                    "object_revision",
-                    "first_known_generation",
-                    "first_known_cut",
-                    "published_generation",
-                    "withdrawn_generation",
-                    "withdrawal_reason",
-                    "superseded_by",
-                    "lifecycle",
-                ],
-            )
-            .map_err(err)?;
+        let fields = match memo.as_deref_mut() {
+            Some(memo) => memo.read_fields(store, record.view())?,
+            None => PublicationFields::Direct(read_publication_fields(store, record.view())?),
+        };
         let id = fields
             .get("object_id")
             .ok_or_else(|| err("缺object_id"))?
@@ -810,6 +934,10 @@ mod tests {
         Observations,
         OldObservationPlaceholder,
         LegacyFullDelta,
+        #[cfg(feature = "s_capture_native_testonly")]
+        LifeMismatch,
+        #[cfg(feature = "s_capture_native_testonly")]
+        ForeignIdentity,
     }
 
     fn fixtures(tx: &Transaction<'_>) -> (ManifestMetadata, ManifestRoots, UnpublishedManifest) {
@@ -913,6 +1041,12 @@ mod tests {
                 V::String(format!("batch3-{}", "d".repeat(64))),
             );
         }
+        #[cfg(feature = "s_capture_native_testonly")]
+        match change {
+            FixtureChange::LifeMismatch => field_set(&mut old, "lifecycle", text("withdrawn")),
+            FixtureChange::ForeignIdentity => field_set(&mut old, "object_id", text("foreign-id")),
+            _ => {}
+        }
         let generated = cv(
             &json!({"generation":2,"structure_cut":"cut-2","input_frontier":1,"catalog_revision":"fixture-catalog","profile_id":tb02a::PROFILE,"profile_hash":"c".repeat(64),"rule_revision":"fixture-rule","raw_events":[],"effective_events":[],"objects":[],"witnesses":[],"relations":[],"observations":[],"scope":scope}),
         );
@@ -1015,6 +1149,336 @@ mod tests {
         let mut out = Vec::new();
         sc::render_canonical(store, r, &mut out).unwrap();
         serde_json::from_slice(&out).unwrap()
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn native_publication_fields_nodes(tx: &Transaction<'_>) -> sc::MemoryNodes {
+        let mut nodes = sc::MemoryNodes::new();
+        let mut statement = tx
+            .prepare("SELECT digest,tag,body FROM s_content_nodes")
+            .unwrap();
+        let mut rows = statement.query([]).unwrap();
+        while let Some(row) = rows.next().unwrap() {
+            let digest: Vec<u8> = row.get(0).unwrap();
+            nodes.insert_unchecked(
+                digest.try_into().unwrap(),
+                row.get(1).unwrap(),
+                row.get(2).unwrap(),
+            );
+        }
+        nodes
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_publication_fields_same_roots_output_and_fewer_real_lookups() {
+        use crate::v3::audit_store::CodecRead;
+        use crate::v3::audit_store::HashReader;
+        let mut db = Connection::open_in_memory().unwrap();
+        let tx = db.transaction().unwrap();
+        let (m, roots, manifest) = fixtures_with(&tx, FixtureChange::Observations);
+        let capture = sc::AuditCapture::new(native_publication_fields_nodes(&tx));
+        // 与生产相同：先核当前完整原件闭包，再开始该次历史循环的复用。
+        capture
+            .verify(&manifest.value.content_ref(), sc::Mode::Template)
+            .unwrap();
+        let mut control = HashReader::native_publication_fields_for_test(&capture);
+        let before = NATIVE_PUBLICATION_FIELDS_LOOKUPS.with(|v| v.get());
+        let expected = resolve_indexed_templates_pending_view(
+            &tx,
+            &mut control,
+            m.view(),
+            roots.view(),
+            &manifest.batch_id,
+            0,
+        )
+        .unwrap();
+        let control_lookups = NATIVE_PUBLICATION_FIELDS_LOOKUPS.with(|v| v.get()) - before;
+        control
+            .verify_many_ref(
+                [expected.snapshot.view(), expected.delta.view()],
+                sc::Mode::Public,
+            )
+            .unwrap();
+        let expected_output = [
+            rendered(&mut control, &normal_reference(expected.snapshot.view())),
+            rendered(&mut control, &normal_reference(expected.delta.view())),
+        ];
+        let mut reader = HashReader::native_publication_fields_for_test(&capture);
+        let mut memo = NativePublicationMemo::new(&reader).unwrap();
+        let before = NATIVE_PUBLICATION_FIELDS_LOOKUPS.with(|v| v.get());
+        let actual = resolve_native_indexed_templates_pending_view(
+            &tx,
+            &mut reader,
+            m.view(),
+            roots.view(),
+            &manifest.batch_id,
+            0,
+            &mut memo,
+        )
+        .unwrap();
+        let first_lookups = NATIVE_PUBLICATION_FIELDS_LOOKUPS.with(|v| v.get()) - before;
+        assert_eq!(actual.snapshot, expected.snapshot);
+        assert_eq!(actual.delta, expected.delta);
+        assert_eq!(control_lookups, 3);
+        assert_eq!(
+            first_lookups, 2,
+            "同一新record在snapshot/delta只读取一次十字段"
+        );
+        reader
+            .verify_many_ref(
+                [actual.snapshot.view(), actual.delta.view()],
+                sc::Mode::Public,
+            )
+            .unwrap();
+        assert_eq!(
+            [
+                rendered(&mut reader, &normal_reference(actual.snapshot.view())),
+                rendered(&mut reader, &normal_reference(actual.delta.view()))
+            ],
+            expected_output
+        );
+        reader.clear_overlay();
+        let before = NATIVE_PUBLICATION_FIELDS_LOOKUPS.with(|v| v.get());
+        let again = resolve_native_indexed_templates_pending_view(
+            &tx,
+            &mut reader,
+            m.view(),
+            roots.view(),
+            &manifest.batch_id,
+            0,
+            &mut memo,
+        )
+        .unwrap();
+        assert_eq!(again.snapshot, expected.snapshot);
+        assert_eq!(again.delta, expected.delta);
+        assert_eq!(
+            NATIVE_PUBLICATION_FIELDS_LOOKUPS.with(|v| v.get()),
+            before,
+            "clear_overlay后仍复用原件，必须真的省掉读取"
+        );
+        let fresh = sc::AuditCapture::new(native_publication_fields_nodes(&tx));
+        let mut foreign = HashReader::native_publication_fields_for_test(&fresh);
+        assert!(NativePublicationMemo::new(&foreign)
+            .unwrap()
+            .fields
+            .is_empty());
+        assert!(resolve_native_indexed_templates_pending_view(
+            &tx,
+            &mut foreign,
+            m.view(),
+            roots.view(),
+            &manifest.batch_id,
+            0,
+            &mut memo
+        )
+        .err()
+        .unwrap()
+        .contains("capture"));
+        let gated = HashReader::native_publication_fields_for_test(&capture)
+            .with_native_publication_deadline_for_test(
+                std::time::Instant::now() + std::time::Duration::from_secs(10),
+            );
+        assert!(
+            memo.check_store(&gated).is_err(),
+            "已命中memo仍须核当前权限门"
+        );
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_publication_fields_exact_declaration_failures_and_overlay_not_cached() {
+        use crate::v3::audit_store::CodecRead;
+        use crate::v3::audit_store::HashReader;
+        let mut nodes = sc::MemoryNodes::new();
+        let valid = sc::write_value(&mut nodes, &object("old", "1", text("batch-old")))
+            .unwrap()
+            .content_ref();
+        let mut missing = object("missing", "1", text("batch-old"));
+        let V::Object(fields) = &mut missing else {
+            unreachable!()
+        };
+        fields.retain(|(k, _)| k != "lifecycle");
+        let missing = sc::write_value(&mut nodes, &missing).unwrap().content_ref();
+        let mut damaged = nodes.clone();
+        damaged.insert_unchecked(valid.digest().unwrap(), sc::tag::OBJECT, Vec::new());
+        let capture = sc::AuditCapture::new(nodes);
+        let mut reader = HashReader::native_publication_fields_for_test(&capture);
+        let mut memo = NativePublicationMemo::new(&reader).unwrap();
+        memo.read_fields(&mut reader, (&valid).into()).unwrap();
+        assert_eq!(memo.fields.len(), 1);
+        for mut altered in [valid.clone(), valid.clone(), valid.clone()]
+            .into_iter()
+            .enumerate()
+        {
+            match altered.0 {
+                0 => altered.1.kind = Kind::Array,
+                1 => altered.1.extent = Some(valid.extent.unwrap() + 1),
+                _ => altered.1.format = "wrong-format".into(),
+            }
+            assert!(memo.read_fields(&mut reader, (&altered.1).into()).is_err());
+            assert_eq!(memo.fields.len(), 1);
+        }
+        for _ in 0..2 {
+            assert!(memo.read_fields(&mut reader, (&missing).into()).is_err());
+        }
+        assert_eq!(memo.fields.len(), 1, "缺字段失败不缓存");
+        let damaged = sc::AuditCapture::new(damaged);
+        let mut damaged_reader = HashReader::native_publication_fields_for_test(&damaged);
+        let mut damaged_memo = NativePublicationMemo::new(&damaged_reader).unwrap();
+        for _ in 0..2 {
+            assert!(damaged_memo
+                .read_fields(&mut damaged_reader, (&valid).into())
+                .is_err());
+        }
+        assert!(damaged_memo.fields.is_empty(), "坏原件失败不缓存");
+        let empty = sc::AuditCapture::new(sc::MemoryNodes::new());
+        let mut overlay = HashReader::native_publication_fields_for_test(&empty);
+        let overlay_record =
+            sc::write_value(&mut overlay, &object("overlay", "1", text("batch-old")))
+                .unwrap()
+                .content_ref();
+        let mut overlay_memo = NativePublicationMemo::new(&overlay).unwrap();
+        overlay_memo
+            .read_fields(&mut overlay, (&overlay_record).into())
+            .unwrap();
+        overlay_memo
+            .read_fields(&mut overlay, (&overlay_record).into())
+            .unwrap();
+        assert!(
+            overlay_memo.fields.is_empty(),
+            "明确overlay来源直接读取且不缓存"
+        );
+        overlay.clear_overlay();
+        assert!(overlay_memo
+            .read_fields(&mut overlay, (&overlay_record).into())
+            .is_err());
+        // 扩 schema 不属于本次十字段复用。
+        assert_eq!(
+            reader
+                .lookup_subset_ref((&valid).into(), PUBLICATION_FIELD_NAMES)
+                .unwrap()
+                .len(),
+            10
+        );
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_publication_fields_retains_per_cut_rejection_matrix() {
+        use crate::v3::audit_store::HashReader;
+        for change in [
+            FixtureChange::OldPlaceholder,
+            FixtureChange::CurrentBatchString,
+            FixtureChange::Duplicate,
+            FixtureChange::OldObservationPlaceholder,
+            FixtureChange::LegacyFullDelta,
+            FixtureChange::LifeMismatch,
+            FixtureChange::ForeignIdentity,
+        ] {
+            let mut db = Connection::open_in_memory().unwrap();
+            let tx = db.transaction().unwrap();
+            let (m, roots, manifest) = fixtures_with(&tx, change);
+            let capture = sc::AuditCapture::new(native_publication_fields_nodes(&tx));
+            let mut reader = HashReader::native_publication_fields_for_test(&capture);
+            let expected = resolve_indexed_templates_pending_view(
+                &tx,
+                &mut reader,
+                m.view(),
+                roots.view(),
+                &manifest.batch_id,
+                0,
+            )
+            .err()
+            .unwrap();
+            reader.clear_overlay();
+            let mut memo = NativePublicationMemo::new(&reader).unwrap();
+            for _ in 0..2 {
+                let actual = resolve_native_indexed_templates_pending_view(
+                    &tx,
+                    &mut reader,
+                    m.view(),
+                    roots.view(),
+                    &manifest.batch_id,
+                    0,
+                    &mut memo,
+                )
+                .err()
+                .unwrap();
+                assert_eq!(actual, expected);
+                reader.clear_overlay();
+            }
+        }
+        // 已命中的精确record仍须在每cut核life、成员、birth、observations与frontier。
+        for sql in ["UPDATE s_content_objects SET kind='other' WHERE object_id='obj3-old'", "UPDATE s_content_objects SET withdrawn_generation=2,withdrawal_reason='reason' WHERE object_id='obj3-old'", "DELETE FROM s_content_objects WHERE object_id='obj3-old'", "UPDATE s_content_objects SET batch_id='other' WHERE object_id='obj3-old'", "UPDATE s_content_objects SET first_known_generation=1,first_known_cut='cut-1' WHERE object_id='obj3-new'", "UPDATE s_content_observations SET published_generation=1 WHERE observation_id='ob-new'"] {
+            let mut db = Connection::open_in_memory().unwrap();
+            let tx = db.transaction().unwrap();
+            let (m, roots, manifest) = fixtures_with(&tx, FixtureChange::Observations);
+            let capture = sc::AuditCapture::new(native_publication_fields_nodes(&tx));
+            let mut reader = HashReader::native_publication_fields_for_test(&capture);
+            let mut memo = NativePublicationMemo::new(&reader).unwrap();
+            resolve_native_indexed_templates_pending_view(&tx, &mut reader, m.view(), roots.view(), &manifest.batch_id, 0, &mut memo).unwrap();
+            reader.clear_overlay();
+            tx.execute(sql, []).unwrap();
+            let expected = resolve_indexed_templates_pending_view(&tx, &mut reader, m.view(), roots.view(), &manifest.batch_id, 0).err().unwrap();
+            reader.clear_overlay();
+            assert_eq!(resolve_native_indexed_templates_pending_view(&tx, &mut reader, m.view(), roots.view(), &manifest.batch_id, 0, &mut memo).err().unwrap(), expected);
+        }
+        let mut db = Connection::open_in_memory().unwrap();
+        let tx = db.transaction().unwrap();
+        let (m, roots, manifest) = fixtures(&tx);
+        let capture = sc::AuditCapture::new(native_publication_fields_nodes(&tx));
+        let mut reader = HashReader::native_publication_fields_for_test(&capture);
+        let mut memo = NativePublicationMemo::new(&reader).unwrap();
+        assert!(resolve_native_indexed_templates_pending_view(
+            &tx,
+            &mut reader,
+            m.view(),
+            roots.view(),
+            &manifest.batch_id,
+            m.input_frontier,
+            &mut memo
+        )
+        .is_err());
+        let invalid_snapshot = reader
+            .replace_ref(
+                (&roots.publication_template).into(),
+                &[field("index_frontier")],
+                &manifest.batch_id,
+            )
+            .unwrap();
+        let mut invalid_roots = roots.view();
+        invalid_roots.publication_template = invalid_snapshot.view();
+        let expected = resolve_indexed_templates_pending_view(
+            &tx,
+            &mut reader,
+            m.view(),
+            invalid_roots,
+            &manifest.batch_id,
+            0,
+        )
+        .err()
+        .unwrap();
+        reader.clear_overlay();
+        // 非capture临时根在清除后重建，再走同一判据，不缓存该来源。
+        let invalid_snapshot = reader
+            .replace_ref(
+                (&roots.publication_template).into(),
+                &[field("index_frontier")],
+                &manifest.batch_id,
+            )
+            .unwrap();
+        invalid_roots.publication_template = invalid_snapshot.view();
+        assert_eq!(
+            resolve_native_indexed_templates_pending_view(
+                &tx,
+                &mut reader,
+                m.view(),
+                invalid_roots,
+                &manifest.batch_id,
+                0,
+                &mut memo
+            )
+            .err()
+            .unwrap(),
+            expected
+        );
     }
     #[cfg(feature = "s_allocation_json_testonly")]
     #[test]

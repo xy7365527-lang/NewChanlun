@@ -240,6 +240,8 @@ fn read_indexed_history_inner(
             sc::Mode::Template,
         )
         .map_err(err)?;
+    // 原始当前capture闭包全核之后才创建；仅本次历史循环持有，跨请求/阶段重建。
+    let mut publication_memo = content_publication::NativePublicationMemo::new(&store);
     let mut effective = bj::new_map::<i64, NodeDigest>(allocation.as_ref());
     let mut previous = -1i64;
     let mut output = bj::new_work(allocation.as_ref());
@@ -292,14 +294,25 @@ fn read_indexed_history_inner(
         }
         #[cfg(test)]
         super::state::trace_event("history_resolve_publication", Some(generation));
-        let resolved = content_publication::resolve_indexed_templates_pending_view(
-            tx,
-            &mut store,
-            m.view(),
-            roots.view(),
-            batch_id.as_str(),
-            previous,
-        )?;
+        let resolved = match &mut publication_memo {
+            Some(memo) => content_publication::resolve_native_indexed_templates_pending_view(
+                tx,
+                &mut store,
+                m.view(),
+                roots.view(),
+                batch_id.as_str(),
+                previous,
+                memo,
+            )?,
+            None => content_publication::resolve_indexed_templates_pending_view(
+                tx,
+                &mut store,
+                m.view(),
+                roots.view(),
+                batch_id.as_str(),
+                previous,
+            )?,
+        };
         if resolved.snapshot != snapshot || resolved.delta != delta {
             return Err(err("实际发布根不是 manifest 模板按独立出生索引解析的结果"));
         }
@@ -1225,7 +1238,7 @@ impl sc::ClosedReadObserver for AuditObserver<'_> {
 impl<'a> HashReader<'a> {
     /// 仅本轮 Native captured 历史审计可取到 owner；Owned、普通 reader、Q 与有门路径
     /// 均不开投影 memo。返回 owner 自身寿命，不借用或延长任何临时 overlay body。
-    pub(super) fn native_projection_capture(&self) -> Option<&'a sc::AuditCapture> {
+    pub(crate) fn native_projection_capture(&self) -> Option<&'a sc::AuditCapture> {
         #[cfg(feature = "s_capture_native_testonly")]
         if self.audit_full_arrays
             && self.owned.is_none()
@@ -1239,6 +1252,19 @@ impl<'a> HashReader<'a> {
             }
         }
         None
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(crate) fn native_publication_fields_for_test(capture: &'a sc::AuditCapture) -> Self {
+        let mut reader = Self::captured(capture, None);
+        reader.enable_full_arrays_for_test();
+        reader
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(crate) fn with_native_publication_deadline_for_test(
+        self,
+        deadline: std::time::Instant,
+    ) -> Self {
+        self.with_audit_gate(None, Some(deadline))
     }
     pub(crate) fn with_audit_gate(
         mut self,
@@ -2079,7 +2105,8 @@ mod tests {
 
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
-    fn native_cut_projection_gate_excludes_reader_dynamic_owned_and_deadline() {
+    fn native_cut_projection_gate_excludes_reader_dynamic_owned_and_deadline_native_publication_fields(
+    ) {
         struct Gate;
         impl super::super::audit_budget::Budget for Gate {
             fn precheck(&self) -> Result<(), sc::CodecError> {
@@ -2108,6 +2135,7 @@ mod tests {
             reader.native_projection_capture().is_none(),
             "普通 reader 没有历史审计资格"
         );
+        assert!(content_publication::NativePublicationMemo::new(&reader).is_none());
         reader.enable_full_arrays_for_test();
         assert!(std::ptr::eq(
             reader.native_projection_capture().unwrap(),
@@ -2115,13 +2143,16 @@ mod tests {
         ));
         reader.deadline = Some(std::time::Instant::now() + std::time::Duration::from_secs(10));
         assert!(reader.native_projection_capture().is_none());
+        assert!(content_publication::NativePublicationMemo::new(&reader).is_none());
         reader.deadline = None;
         reader.budget = Some(&gate);
         assert!(reader.native_projection_capture().is_none());
+        assert!(content_publication::NativePublicationMemo::new(&reader).is_none());
         let mut nodes = sc::MemoryNodes::new();
         let mut ordinary = HashReader::new(&mut nodes);
         ordinary.enable_full_arrays_for_test();
         assert!(ordinary.native_projection_capture().is_none());
+        assert!(content_publication::NativePublicationMemo::new(&ordinary).is_none());
         let budget = OwnedBudget::new(1_000_000);
         let slab = sc::capture_allocation::CaptureSlab::new(0, 0, &budget)
             .unwrap()
@@ -2134,6 +2165,7 @@ mod tests {
             owned_reader.native_projection_capture().is_none(),
             "Owned capture 不能进入 Native memo"
         );
+        assert!(content_publication::NativePublicationMemo::new(&owned_reader).is_none());
     }
 
     #[test]
