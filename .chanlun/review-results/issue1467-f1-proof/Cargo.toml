@@ -12,3 +12,11 @@ newchan_rust = { path = "../../../rust", default-features = false }
 [[bin]]
 name = "order-base-projection-probe"
 path = "projection_probe.rs"
+
+[[bin]]
+name = "order-base-semantic-counterexamples"
+path = "semantic_counterexamples.rs"
+
+[[bin]]
+name = "order-base-point-reference"
+path = "point_reference_probe.rs"

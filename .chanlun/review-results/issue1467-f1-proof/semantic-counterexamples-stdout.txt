@@ -1,0 +1,5 @@
+case=distinct_queue_updates_same_quantized_points bars=256 merged=64 fractals=62 strokes=61 segments=7 shared_fractal_k_strokes=61 disconnected_stroke_pairs=0 prefix_equal=256
+first_shared=(raw_start,raw_end,merged_start,merged_end)=(4, 8, 1, 2)
+case=short_reversal_after_valid_stroke bars=15 merged=15 fractals=5 strokes=2 segments=0 shared_fractal_k_strokes=0 disconnected_stroke_pairs=1 prefix_equal=15
+first_disconnected=[Stroke { direction: Up, start_index: 1, end_index: 6, start_price: 10033, end_price: 10089 }, Stroke { direction: Down, start_index: 8, end_index: 13, start_price: 10082, end_price: 10018 }]
+scope=two_synthetic_counterexamples_not_semantic_qualification_or_market_incidence

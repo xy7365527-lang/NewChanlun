@@ -1,0 +1,8 @@
+case=short_reversal bars=15 old_strokes=2 reference_strokes=2 downstream_segments=0
+reference_first_strokes=[Stroke { direction: Up, start_index: 1, end_index: 6, start_price: 20, end_price: 80 }, Stroke { direction: Down, start_index: 6, end_index: 13, start_price: 80, end_price: 10 }]
+case=repeated_quantized_points bars=256 old_strokes=61 reference_strokes=14 downstream_segments=0
+reference_first_strokes=[Stroke { direction: Down, start_index: 12, end_index: 24, start_price: 180, end_price: 20 }, Stroke { direction: Up, start_index: 24, end_index: 52, start_price: 20, end_price: 180 }, Stroke { direction: Down, start_index: 52, end_index: 64, start_price: 180, end_price: 20 }]
+case=initial_gradual_projection bars=757 old_strokes=61 reference_strokes=61 downstream_segments=7
+reference_first_strokes=[Stroke { direction: Down, start_index: 12, end_index: 24, start_price: 10155, end_price: 10065 }, Stroke { direction: Up, start_index: 24, end_index: 36, start_price: 10065, end_price: 10185 }, Stroke { direction: Down, start_index: 36, end_index: 48, start_price: 10185, end_price: 10045 }]
+exhaustive_finite_cases=87381 alphabet_size=4 max_length=8 necessary_conditions_and_stable_prefix=pass
+scope=research_reference_not_production_fix_not_full_uniqueness_or_F2_proof
