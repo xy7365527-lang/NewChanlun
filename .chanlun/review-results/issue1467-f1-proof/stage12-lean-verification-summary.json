@@ -1,0 +1,136 @@
+{
+  "run_id": "19b93c36720243229dc7fa9f9f7fa787",
+  "machine_verification_passed": true,
+  "exact_root_passed": true,
+  "semantic": {
+    "status": "not_reviewed",
+    "reused": false,
+    "semantic_sha256": "90fe46094a47a7e05b625cf8f21d4d5ccf93db1d0314dba2b912af195718eabe"
+  },
+  "root_closure": {
+    "status": "closed",
+    "exact_root_passed": true,
+    "declaration_closed": true,
+    "scope": "expected Lean type in the recorded environment; semantic review is separate"
+  },
+  "target": {
+    "declaration": "CenterFrame.exact_root",
+    "actual_type": "And CenterFrame.UPDATE_TARGET (And CenterFrame.B_TARGET CenterFrame.NINE_TARGET)",
+    "expected_type": "CenterFrame.UPDATE_TARGET ∧ CenterFrame.B_TARGET ∧ CenterFrame.NINE_TARGET",
+    "comparison": {
+      "binder_kinds_match": true,
+      "definitionally_equal": true,
+      "expected_type_expression": [
+        "app",
+        [
+          "app",
+          [
+            "const",
+            [
+              "And",
+              []
+            ]
+          ],
+          [
+            "const",
+            [
+              "CenterFrame.UPDATE_TARGET",
+              []
+            ]
+          ]
+        ],
+        [
+          "app",
+          [
+            "app",
+            [
+              "const",
+              [
+                "And",
+                []
+              ]
+            ],
+            [
+              "const",
+              [
+                "CenterFrame.B_TARGET",
+                []
+              ]
+            ]
+          ],
+          [
+            "const",
+            [
+              "CenterFrame.NINE_TARGET",
+              []
+            ]
+          ]
+        ]
+      ],
+      "expected_universes": [],
+      "status": "matched",
+      "universe_parameters_match": true
+    },
+    "axioms": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ],
+    "unexpected_axioms": [],
+    "unsafe_dependencies": [],
+    "unknown_dependencies": [],
+    "identity_mismatches": [],
+    "type_sha256": "4612618ba54962278bbef7eea4b91c036e61636bb1757421afa55e090a8e0d8a",
+    "semantic_sha256": "90fe46094a47a7e05b625cf8f21d4d5ccf93db1d0314dba2b912af195718eabe",
+    "environment_sha256": "97144de2ffbd8fc898439c1ad9339b2aed61d2b1ccf2f655b95aedf3869522fb",
+    "loaded_module_count": 2279
+  },
+  "environment": {
+    "lean_version": "Lean (version 4.31.0, arm64-apple-darwin24.6.0, commit 68218e876d2a38b1985b8590fff244a83c321783, Release)",
+    "lean_status": "passed",
+    "lake_version": "Lake version 5.0.0-src+68218e8 (Lean version 4.31.0)",
+    "lake_status": "passed",
+    "lean_toolchain": null,
+    "configuration_hashes": {},
+    "binary_hashes": {
+      "bin/lean": "1b370cfcbf44e80d1b004ab1b1ab9a4c73951f9f7c242140bcff9bc577576554",
+      "bin/lake": "58261a1a2fa1a362376c71e02ca854a093e71cc5e6ea64b287a931cb2565273d",
+      "lib/lean/libleanshared.dylib": "a695a9aa68481c42b99619e0103537e6b433c6fa7021927b184e19a686d03989"
+    },
+    "prefix": "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0",
+    "mode": "direct",
+    "inherited_lean_path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean",
+    "inherited_lean_src_path": "",
+    "sha256": "ab12fe9dc8a44913f3e981589728394c459467fdce1b4bd9fabf9642f84c3330"
+  },
+  "manifest": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-frame-v1/run-manifest.json",
+    "sha256": "17bb65b255995839dbca7011c4efed3c4e0cd2577ac2d3a126ab79d0747bb7c2"
+  },
+  "invocation": {
+    "command": [
+      "python3",
+      "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.agents/research-tools/xsoc1-9e0da0c3/plugins/lean-verify/scripts/verify_lean_project.py",
+      "--project",
+      "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof",
+      "--target-file",
+      "CenterFrameProof.lean",
+      "--declaration",
+      "CenterFrame.exact_root",
+      "--expected-type",
+      "CenterFrame.UPDATE_TARGET ∧ CenterFrame.B_TARGET ∧ CenterFrame.NINE_TARGET",
+      "--lean",
+      "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+      "--lake",
+      "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lake",
+      "--direct",
+      "--build-timeout",
+      "60",
+      "--strict-exit",
+      "--output",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-frame-v1"
+    ],
+    "cwd": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun",
+    "LEAN_PATH": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean"
+  }
+}
