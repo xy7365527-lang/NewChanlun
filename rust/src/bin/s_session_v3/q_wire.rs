@@ -11,27 +11,54 @@ pub(super) fn parse(bytes: &[u8], resources: &QResources) -> Result<Value, Strin
     }
     validate_envelope(strict_json(bytes)?, "s-session/3")
 }
+/// Frame及envelope的String原因仍属旧通道，尚未声明分配qualification。
+pub(crate) enum ParseOwnerError {
+    Legacy(String),
+    #[cfg(feature = "s_allocation_json_testonly")]
+    OwnedSyntax(sc::capture_allocation::audit_json::strict::Diagnostic),
+    Allocation(sc::CodecError),
+}
+impl std::fmt::Display for ParseOwnerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Legacy(cause) => f.write_str(cause),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Self::OwnedSyntax(cause) => write!(f, "SchemaUnsupported：{cause}"),
+            Self::Allocation(cause) => write!(f, "QReplyInvalid：{cause}"),
+        }
+    }
+}
 pub(crate) fn parse_owner(
     bytes: &[u8],
     resources: &QResources,
     allocation: Option<&OwnedBudget>,
-) -> Result<bj::JsonOwner, String> {
+) -> Result<bj::JsonOwner, ParseOwnerError> {
     if bytes.len() as u128 > resources.limit(Limit::FrameBytes) as u128 {
-        return Err(err("Incomplete：完整请求超过max_frame_bytes"));
+        return Err(ParseOwnerError::Legacy(err(
+            "Incomplete：完整请求超过max_frame_bytes",
+        )));
     }
     #[cfg(not(feature = "s_allocation_json_testonly"))]
     if allocation.is_some() {
-        return Err("prototype_audit_allocation_incomplete：owned Q请求未启用".into());
+        return Err(ParseOwnerError::Allocation(sc::CodecError::new(
+            sc::capture_allocation::INCOMPLETE,
+            "owned Q请求未启用",
+        )));
     }
     let owner = bj::strict_json_owner(bytes, allocation).map_err(|cause| match cause {
-        bj::StrictOwnerError::Syntax(cause) => format!("SchemaUnsupported：{cause}"),
-        bj::StrictOwnerError::Allocation(cause) => err(cause),
+        bj::StrictOwnerError::Syntax(cause) => {
+            ParseOwnerError::Legacy(format!("SchemaUnsupported：{cause}"))
+        }
+        #[cfg(feature = "s_allocation_json_testonly")]
+        bj::StrictOwnerError::OwnedSyntax(cause) => ParseOwnerError::OwnedSyntax(cause),
+        bj::StrictOwnerError::Allocation(cause) => ParseOwnerError::Allocation(cause),
     })?;
     newchan_rust::session_protocol::validate_envelope_view_with_owner(
         owner.view(),
         "s-session/3",
         allocation,
-    )?;
+    )
+    .map_err(ParseOwnerError::Legacy)?;
     Ok(owner)
 }
 /// payload必须由已核切面生成；源namespace/消息ID/因果回引沿共同Q配方。
@@ -247,19 +274,19 @@ pub(crate) fn try_reply_view(
 
 /// 错误公头只借用已核请求/身份。摘要与producer前缀由固定栈值生成，
 /// 无论None/Some都用本序列化核，预算拒绝不会转回普通JSON树或Vec。
-pub(crate) struct ErrorEnvelope<'a> {
+pub(crate) struct ErrorEnvelope<'a, P: serde::Serialize + ?Sized> {
     request: JsonView<'a>,
-    payload: JsonView<'a>,
+    payload: &'a P,
     session: &'a str,
     incarnation: &'a str,
     epoch: &'a str,
     payload_hash: [u8; 64],
     message_id: [u8; 70],
 }
-impl<'a> ErrorEnvelope<'a> {
+impl<'a, P: serde::Serialize + ?Sized> ErrorEnvelope<'a, P> {
     pub(crate) fn new(
         request: JsonView<'a>,
-        payload: JsonView<'a>,
+        payload: &'a P,
         session: &'a str,
         incarnation: &'a str,
         epoch: &'a str,
@@ -287,7 +314,7 @@ impl<'a> ErrorEnvelope<'a> {
         })
     }
 }
-fn stream_hash(value: &impl serde::Serialize) -> Result<[u8; 32], String> {
+fn stream_hash(value: &(impl serde::Serialize + ?Sized)) -> Result<[u8; 32], String> {
     use sha2::{Digest, Sha256};
     struct HashWriter(Sha256);
     impl Write for HashWriter {
@@ -303,7 +330,7 @@ fn stream_hash(value: &impl serde::Serialize) -> Result<[u8; 32], String> {
     serde_json::to_writer(&mut out, value).map_err(err)?;
     Ok(out.0.finalize().into())
 }
-impl serde::Serialize for ErrorEnvelope<'_> {
+impl<P: serde::Serialize + ?Sized> serde::Serialize for ErrorEnvelope<'_, P> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeMap;
         struct Producer<'a>(&'a str);

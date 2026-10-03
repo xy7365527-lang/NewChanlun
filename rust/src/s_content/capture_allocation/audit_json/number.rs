@@ -30,7 +30,7 @@ DEALINGS IN THE SOFTWARE.
 */
 use super::{invalid, CodecError};
 use serde_json::Number;
-type Result<T> = std::result::Result<T, CodecError>;
+type Result<T> = std::result::Result<T, PositionedError>;
 macro_rules! tri {
     ($e:expr $(,)?) => {
         $e?
@@ -48,7 +48,8 @@ enum ParserNumber {
     U64(u64),
     I64(i64),
 }
-enum ErrorCode {
+#[derive(Clone, Copy, Debug)]
+pub(super) enum ErrorCode {
     InvalidNumber,
     EofWhileParsingValue,
     NumberOutOfRange,
@@ -57,7 +58,22 @@ struct Numeric<'a> {
     input: &'a [u8],
     pos: usize,
 }
-pub(super) fn parse(input: &[u8]) -> Result<(Number, usize)> {
+/// Error cursor is relative to this numeric slice, before optional peek-position advance.
+#[derive(Debug)]
+pub(super) struct PositionedError {
+    pub kind: ErrorCode,
+    pub consumed: usize,
+    pub peek: bool,
+}
+pub(super) fn parse(input: &[u8]) -> std::result::Result<(Number, usize), CodecError> {
+    parse_positioned(input).map_err(|e| match e.kind {
+        ErrorCode::InvalidNumber => invalid("invalid number"),
+        ErrorCode::EofWhileParsingValue => invalid("EOF while parsing value"),
+        ErrorCode::NumberOutOfRange => invalid("number out of range"),
+    })
+}
+/// Same arithmetic and read order as `parse`, retaining error/peek_error cursor semantics.
+pub(super) fn parse_positioned(input: &[u8]) -> Result<(Number, usize)> {
     let mut p = Numeric { input, pos: 0 };
     let positive = if input.first() == Some(&b'-') {
         p.pos += 1;
@@ -69,7 +85,7 @@ pub(super) fn parse(input: &[u8]) -> Result<(Number, usize)> {
         ParserNumber::U64(n) => Number::from(n),
         ParserNumber::I64(n) => Number::from(n),
         ParserNumber::F64(n) => {
-            Number::from_f64(n).ok_or_else(|| invalid("number out of range"))?
+            Number::from_f64(n).ok_or_else(|| p.error(ErrorCode::NumberOutOfRange))?
         }
     };
     Ok((n, p.pos))
@@ -91,15 +107,19 @@ impl Numeric<'_> {
     fn eat_char(&mut self) {
         self.pos += 1;
     }
-    fn error(&self, e: ErrorCode) -> CodecError {
-        match e {
-            ErrorCode::InvalidNumber => invalid("invalid number"),
-            ErrorCode::EofWhileParsingValue => invalid("EOF while parsing value"),
-            ErrorCode::NumberOutOfRange => invalid("number out of range"),
+    fn error(&self, kind: ErrorCode) -> PositionedError {
+        PositionedError {
+            kind,
+            consumed: self.pos,
+            peek: false,
         }
     }
-    fn peek_error(&self, e: ErrorCode) -> CodecError {
-        self.error(e)
+    fn peek_error(&self, kind: ErrorCode) -> PositionedError {
+        PositionedError {
+            kind,
+            consumed: self.pos,
+            peek: true,
+        }
     }
     fn parse_integer(&mut self, positive: bool) -> Result<ParserNumber> {
         let next = match tri!(self.next_char()) {

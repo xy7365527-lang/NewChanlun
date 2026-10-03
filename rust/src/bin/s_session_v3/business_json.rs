@@ -1420,93 +1420,57 @@ mod checked_sql_owner_tests {
     }
 }
 
-/// Q 的严格语法核与旧 session_protocol::Strict 使用同一 serde grammar。
-/// 结果所有者在入场时选定；Owned 构造失败的原 CodecError 经侧道返回，
-/// 不生成 Plain 树、不重解析、不从错误文本猜测预算原因。
-/// 边界：serde_json 的 escaped-string scratch Vec 与错误 Box 尚未纳入预算。
+/// None保留旧serde grammar；Some只走一次owned严格解码，不重解析或转回Plain。
+/// Owned语法诊断与动态重复键所有者保留至错误回复flush；frame/envelope另属旧通道。
 pub(crate) enum StrictOwnerError {
     Syntax(serde_json::Error),
+    #[cfg(feature = "s_allocation_json_testonly")]
+    OwnedSyntax(aj::strict::Diagnostic),
     Allocation(sc::CodecError),
 }
 pub(crate) fn strict_json_owner(
     bytes: &[u8],
     allocation: Option<&OwnedBudget>,
 ) -> Result<JsonOwner, StrictOwnerError> {
-    #[cfg(not(feature = "s_allocation_json_testonly"))]
-    if allocation.is_some() {
-        return Err(StrictOwnerError::Allocation(sc::CodecError::new(
-            sc::capture_allocation::INCOMPLETE,
-            "Owned Q严格入口未启用",
-        )));
+    if let Some(budget) = allocation {
+        #[cfg(feature = "s_allocation_json_testonly")]
+        return aj::strict::parse(bytes, budget)
+            .map(JsonOwner::Owned)
+            .map_err(|cause| match cause {
+                aj::strict::ParseFailure::Syntax(cause) => StrictOwnerError::OwnedSyntax(cause),
+                aj::strict::ParseFailure::Allocation(cause) => StrictOwnerError::Allocation(cause),
+            });
+        #[cfg(not(feature = "s_allocation_json_testonly"))]
+        {
+            let _ = budget;
+            return Err(StrictOwnerError::Allocation(sc::CodecError::new(
+                sc::capture_allocation::INCOMPLETE,
+                "Owned Q严格入口未启用",
+            )));
+        }
     }
     use serde::de::DeserializeSeed;
-    let first = std::cell::RefCell::new(None);
-    let seed = StrictOwnerSeed {
-        allocation,
-        first: &first,
-    };
     let mut decoder = serde_json::Deserializer::from_slice(bytes);
-    let parsed = seed.deserialize(&mut decoder).and_then(|owner| {
+    let parsed = StrictOwnerSeed.deserialize(&mut decoder).and_then(|owner| {
         decoder.end()?;
         Ok(owner)
     });
-    if let Some(cause) = first.into_inner() {
-        return Err(StrictOwnerError::Allocation(cause));
-    }
     parsed.map_err(StrictOwnerError::Syntax)
 }
 #[derive(Clone, Copy)]
-struct StrictOwnerSeed<'a> {
-    allocation: Option<&'a OwnedBudget>,
-    first: &'a std::cell::RefCell<Option<sc::CodecError>>,
-}
-impl StrictOwnerSeed<'_> {
-    fn capture<T, E: serde::de::Error>(self, result: Result<T, sc::CodecError>) -> Result<T, E> {
-        result.map_err(|cause| {
-            let mut first = self.first.borrow_mut();
-            if first.is_none() {
-                *first = Some(cause);
-            }
-            // 仅让 serde 停止；公共原因取上面的 typed 首错，不输出本占位。
-            E::custom("Q owner allocation failed")
-        })
-    }
+struct StrictOwnerSeed;
+impl StrictOwnerSeed {
     fn scalar<E: serde::de::Error>(self, value: JsonView<'_>) -> Result<JsonOwner, E> {
-        #[cfg(feature = "s_allocation_json_testonly")]
-        if let Some(budget) = self.allocation {
-            return self
-                .capture(aj::OwnedJson::from_view(value, budget))
-                .map(JsonOwner::Owned);
-        }
         serde_json::to_value(value)
             .map(JsonOwner::Plain)
             .map_err(E::custom)
     }
-    fn container<E: serde::de::Error>(self, object: bool) -> Result<JsonOwner, E> {
-        #[cfg(feature = "s_allocation_json_testonly")]
-        if let Some(budget) = self.allocation {
-            return self
-                .capture(if object {
-                    aj::OwnedJson::object(budget)
-                } else {
-                    aj::OwnedJson::array(budget)
-                })
-                .map(JsonOwner::Owned);
-        }
-        Ok(JsonOwner::Plain(if object {
+    fn container(self, object: bool) -> JsonOwner {
+        JsonOwner::Plain(if object {
             Value::Object(serde_json::Map::new())
         } else {
             Value::Array(Vec::new())
-        }))
-    }
-    fn key<E: serde::de::Error>(self, key: &str) -> Result<TextValue, E> {
-        #[cfg(feature = "s_allocation_json_testonly")]
-        if let Some(budget) = self.allocation {
-            return self
-                .capture(aj::TextOwner::copy_from(key, budget))
-                .map(TextValue::Owned);
-        }
-        Ok(TextValue::Plain(key.to_owned()))
+        })
     }
     fn push<E: serde::de::Error>(self, parent: &mut JsonOwner, child: JsonOwner) -> Result<(), E> {
         match (parent, child) {
@@ -1514,43 +1478,31 @@ impl StrictOwnerSeed<'_> {
                 parent.push(child);
                 Ok(())
             }
-            #[cfg(feature = "s_allocation_json_testonly")]
-            (JsonOwner::Owned(parent), JsonOwner::Owned(child)) => {
-                self.capture(parent.push(child.view()))
-            }
             _ => Err(E::custom("Q owner representation mismatch")),
         }
     }
     fn insert<E: serde::de::Error>(
         self,
         parent: &mut JsonOwner,
-        key: TextValue,
+        key: String,
         child: JsonOwner,
     ) -> Result<(), E> {
-        match (parent, key, child) {
-            (
-                JsonOwner::Plain(Value::Object(parent)),
-                TextValue::Plain(key),
-                JsonOwner::Plain(child),
-            ) => {
+        match (parent, child) {
+            (JsonOwner::Plain(Value::Object(parent)), JsonOwner::Plain(child)) => {
                 parent.insert(key, child);
                 Ok(())
-            }
-            #[cfg(feature = "s_allocation_json_testonly")]
-            (JsonOwner::Owned(parent), TextValue::Owned(key), JsonOwner::Owned(child)) => {
-                self.capture(parent.insert_field(key.as_str(), child.view()))
             }
             _ => Err(E::custom("Q owner representation mismatch")),
         }
     }
 }
-impl<'de> serde::de::DeserializeSeed<'de> for StrictOwnerSeed<'_> {
+impl<'de> serde::de::DeserializeSeed<'de> for StrictOwnerSeed {
     type Value = JsonOwner;
     fn deserialize<D: serde::Deserializer<'de>>(self, decoder: D) -> Result<JsonOwner, D::Error> {
         decoder.deserialize_any(self)
     }
 }
-impl<'de> serde::de::Visitor<'de> for StrictOwnerSeed<'_> {
+impl<'de> serde::de::Visitor<'de> for StrictOwnerSeed {
     type Value = JsonOwner;
     fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("JSON without duplicate keys")
@@ -1565,7 +1517,6 @@ impl<'de> serde::de::Visitor<'de> for StrictOwnerSeed<'_> {
         self.scalar((&Value::Number(value.into())).into())
     }
     fn visit_f64<E: serde::de::Error>(self, value: f64) -> Result<JsonOwner, E> {
-        // 锁版serde JSON语法拒绝非有限数后才调用本visitor，不置默认Null/float。
         let number =
             serde_json::Number::from_f64(value).ok_or_else(|| E::custom("number out of range"))?;
         self.scalar((&Value::Number(number)).into())
@@ -1574,11 +1525,7 @@ impl<'de> serde::de::Visitor<'de> for StrictOwnerSeed<'_> {
         self.scalar(JsonView::String(value))
     }
     fn visit_string<E: serde::de::Error>(self, value: String) -> Result<JsonOwner, E> {
-        if self.allocation.is_none() {
-            Ok(JsonOwner::Plain(Value::String(value)))
-        } else {
-            self.visit_str(&value)
-        }
+        Ok(JsonOwner::Plain(Value::String(value)))
     }
     fn visit_unit<E: serde::de::Error>(self) -> Result<JsonOwner, E> {
         self.scalar(JsonView::Null)
@@ -1587,17 +1534,17 @@ impl<'de> serde::de::Visitor<'de> for StrictOwnerSeed<'_> {
         self.scalar(JsonView::Null)
     }
     fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut values: A) -> Result<JsonOwner, A::Error> {
-        let mut owner = self.container(false)?;
+        let mut owner = self.container(false);
         while let Some(child) = values.next_element_seed(self)? {
             self.push(&mut owner, child)?;
         }
         Ok(owner)
     }
     fn visit_map<A: serde::de::MapAccess<'de>>(self, mut values: A) -> Result<JsonOwner, A::Error> {
-        let mut owner = self.container(true)?;
-        while let Some(key) = values.next_key_seed(StrictKeySeed(self))? {
-            // 与原Strict一致：next_key完成之后、next_value之前拒绝，保serde行列位置。
-            if owner.view().get(key.as_str()).is_some() {
+        let mut owner = self.container(true);
+        while let Some(key) = values.next_key_seed(StrictKeySeed)? {
+            // 与原Strict一致：next_key之后、next_value之前拒绝，保serde行列位置。
+            if owner.view().get(&key).is_some() {
                 return Err(serde::de::Error::custom(format!("duplicate key {key}")));
             }
             self.insert(&mut owner, key, values.next_value_seed(self)?)?;
@@ -1605,27 +1552,23 @@ impl<'de> serde::de::Visitor<'de> for StrictOwnerSeed<'_> {
         Ok(owner)
     }
 }
-struct StrictKeySeed<'a>(StrictOwnerSeed<'a>);
-impl<'de> serde::de::DeserializeSeed<'de> for StrictKeySeed<'_> {
-    type Value = TextValue;
-    fn deserialize<D: serde::Deserializer<'de>>(self, decoder: D) -> Result<TextValue, D::Error> {
+struct StrictKeySeed;
+impl<'de> serde::de::DeserializeSeed<'de> for StrictKeySeed {
+    type Value = String;
+    fn deserialize<D: serde::Deserializer<'de>>(self, decoder: D) -> Result<String, D::Error> {
         decoder.deserialize_string(self)
     }
 }
-impl<'de> serde::de::Visitor<'de> for StrictKeySeed<'_> {
-    type Value = TextValue;
+impl<'de> serde::de::Visitor<'de> for StrictKeySeed {
+    type Value = String;
     fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("a string")
     }
-    fn visit_str<E: serde::de::Error>(self, key: &str) -> Result<TextValue, E> {
-        self.0.key(key)
+    fn visit_str<E: serde::de::Error>(self, key: &str) -> Result<String, E> {
+        Ok(key.to_owned())
     }
-    fn visit_string<E: serde::de::Error>(self, key: String) -> Result<TextValue, E> {
-        if self.0.allocation.is_none() {
-            Ok(TextValue::Plain(key))
-        } else {
-            self.visit_str(&key)
-        }
+    fn visit_string<E: serde::de::Error>(self, key: String) -> Result<String, E> {
+        Ok(key)
     }
 }
 
@@ -1688,6 +1631,30 @@ pub(crate) fn strict_owner_protocol_matrix() -> Vec<Vec<u8>> {
     .into_iter()
     .map(|v| v.as_bytes().to_vec())
     .collect();
+    // 动态诊断须保完整escaped巨键、五条legacy关键词与两prototype标记。
+    let giant_key = r#"\u4e2d\u6587\uD83D\uDE00\n\"\u005c"#.repeat(2048);
+    cases.push(format!("{{\"{giant_key}\":0,\"{giant_key}\":1}}").into_bytes());
+    for key in [
+        "Incomplete",
+        "CaptureDeadline",
+        "VerifyDeadline",
+        "CaptureBytes",
+        "atomic_delta_limit",
+        "prototype_capture_owned_payload_limit",
+        "prototype_audit_allocation_incomplete",
+        "中文😀\"\\\n",
+        "x at line 12 column 34",
+        "x at line 0 column 0",
+        "x at line 184467440737095516160 column 1",
+        "x at line 1 column 2 more",
+        "x at line 1 column 2 at line 3 column 4",
+        "x at line 1 column 2 at line bad",
+        "at line 1 column 2",
+        "x at line 1 column 2\n中文",
+    ] {
+        let wire_key = serde_json::to_string(key).unwrap();
+        cases.push(format!("{{\n{wire_key}:0,\n{wire_key}:1}}").into_bytes());
+    }
     cases.push(vec![b'"', 0xff, b'"']);
     cases.push(vec![b'"', 0xe4, 0xb8, b'"']);
     for depth in [127, 128] {
@@ -1706,6 +1673,7 @@ mod strict_owner_protocol_tests {
     fn diagnostic(result: Result<JsonOwner, StrictOwnerError>) -> Result<JsonOwner, String> {
         result.map_err(|error| match error {
             StrictOwnerError::Syntax(error) => format!("SchemaUnsupported：{error}"),
+            StrictOwnerError::OwnedSyntax(error) => format!("SchemaUnsupported：{error}"),
             StrictOwnerError::Allocation(error) => format!("unexpected allocation: {error}"),
         })
     }
@@ -1744,7 +1712,7 @@ mod strict_owner_protocol_tests {
         }
         // grammar先拒数字溢出，尚未走arena分配；零额度不能遮掉这个首错。
         match strict_json_owner(b"1e400", Some(&empty)) {
-            Err(StrictOwnerError::Syntax(error)) => assert_eq!(
+            Err(StrictOwnerError::OwnedSyntax(error)) => assert_eq!(
                 format!("SchemaUnsupported：{error}"),
                 strict_json(b"1e400").unwrap_err()
             ),

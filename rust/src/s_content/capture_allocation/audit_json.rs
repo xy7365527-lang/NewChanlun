@@ -9,6 +9,8 @@ use std::io::Write;
 
 #[cfg(feature = "s_allocation_json_testonly")]
 mod number;
+#[cfg(feature = "s_allocation_json_testonly")]
+pub mod strict;
 const SCHEMA: &str = "SchemaUnsupported";
 fn invalid(detail: &'static str) -> CodecError {
     CodecError::static_detail(SCHEMA, detail)

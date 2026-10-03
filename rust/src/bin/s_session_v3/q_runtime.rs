@@ -497,15 +497,13 @@ fn serve_http<S: q_http_input::TimedRead + q_watch::TimedWrite>(
     let envelope =
         match q_wire::parse_owner(&body, resources, allocation.as_ref().map(|p| &p.budget)) {
             Ok(envelope) => envelope,
-            Err(detail) => {
-                return send_failure(
+            Err(cause) => {
+                return send_parse_failure(
                     stream,
                     resources,
                     leases,
                     epoch,
-                    None,
-                    None,
-                    failure(detail, false),
+                    cause,
                     allocation.as_ref().map(|p| &p.budget),
                 )
             }
@@ -645,10 +643,103 @@ fn send_failure<S: q_watch::TimedWrite>(
     )
 }
 
+/// Some错误借用typed原因活到flush，None与旧frame/envelope失败保留原String通道。
+fn send_parse_failure<S: q_watch::TimedWrite>(
+    stream: &mut S,
+    resources: &QResources,
+    leases: &ClientLeases,
+    epoch: &str,
+    cause: q_wire::ParseOwnerError,
+    allocation: Option<&OwnedBudget>,
+) -> Result<(), String> {
+    let budget = match &cause {
+        q_wire::ParseOwnerError::Legacy(_) => {
+            if let q_wire::ParseOwnerError::Legacy(detail) = cause {
+                return send_failure(
+                    stream,
+                    resources,
+                    leases,
+                    epoch,
+                    None,
+                    None,
+                    failure(detail, false),
+                    allocation,
+                );
+            }
+            unreachable!()
+        }
+        #[cfg(feature = "s_allocation_json_testonly")]
+        q_wire::ParseOwnerError::OwnedSyntax(detail) => [
+            "Incomplete",
+            "CaptureDeadline",
+            "VerifyDeadline",
+            "CaptureBytes",
+            "atomic_delta_limit",
+        ]
+        .iter()
+        .any(|code| detail.contains(code)),
+        q_wire::ParseOwnerError::Allocation(_) => true,
+    };
+    let (status, error) = if budget {
+        (503, "QueryBudgetExceeded")
+    } else {
+        (400, "InvalidQuery")
+    };
+    send_error_payload_display(
+        stream,
+        resources,
+        leases,
+        epoch,
+        None,
+        None,
+        error,
+        Some(&cause),
+        status,
+        allocation,
+    )
+}
+
+struct DisplayDetail<'a>(&'a dyn std::fmt::Display);
+impl serde::Serialize for DisplayDetail<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        // 锁版serde_json 1.0.151直接向escaped writer写Display各段，无临时to_string。
+        serializer.collect_str(self.0)
+    }
+}
+struct ErrorPayload<'a> {
+    error: &'a str,
+    detail: Option<&'a dyn std::fmt::Display>,
+    identity_binding: Option<&'a str>,
+}
+impl serde::Serialize for ErrorPayload<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let budget = self.error == "QueryBudgetExceeded";
+        let len = 2
+            + usize::from(self.detail.is_some())
+            + usize::from(self.identity_binding.is_some())
+            + usize::from(budget);
+        let mut map = serializer.serialize_map(Some(len))?;
+        // 原JsonView对象UTF8键排序；不添加公共字段，不截断完整诊断。
+        if let Some(detail) = self.detail {
+            map.serialize_entry("detail", &DisplayDetail(detail))?;
+        }
+        map.serialize_entry("error", self.error)?;
+        if let Some(binding) = self.identity_binding {
+            map.serialize_entry("identity_binding", binding)?;
+        }
+        map.serialize_entry("ok", &false)?;
+        if budget {
+            map.serialize_entry("status", "Incomplete")?;
+        }
+        map.end()
+    }
+}
+
 fn send_error_payload<S: q_watch::TimedWrite>(
     stream: &mut S,
     resources: &QResources,
-    _leases: &ClientLeases,
+    leases: &ClientLeases,
     epoch: &str,
     request: Option<JsonView<'_>>,
     identity: Option<(&str, &str)>,
@@ -657,30 +748,43 @@ fn send_error_payload<S: q_watch::TimedWrite>(
     status: u16,
     allocation: Option<&OwnedBudget>,
 ) -> Result<(), String> {
-    let mut fields = [("", JsonView::Null); 5];
-    fields[0] = ("ok", JsonView::Bool(false));
-    fields[1] = ("error", JsonView::String(error));
-    let mut used = 2;
-    if let Some(detail) = detail {
-        fields[used] = ("detail", JsonView::String(detail));
-        used += 1;
-    }
-    if error == "QueryBudgetExceeded" {
-        fields[used] = ("status", JsonView::String("Incomplete"));
-        used += 1;
-    }
-    if request.is_some() {
-        fields[used] = (
-            "identity_binding",
-            JsonView::String(if identity.is_some() {
+    send_error_payload_display(
+        stream,
+        resources,
+        leases,
+        epoch,
+        request,
+        identity,
+        error,
+        detail.as_ref().map(|value| value as &dyn std::fmt::Display),
+        status,
+        allocation,
+    )
+}
+
+fn send_error_payload_display<S: q_watch::TimedWrite>(
+    stream: &mut S,
+    resources: &QResources,
+    _leases: &ClientLeases,
+    epoch: &str,
+    request: Option<JsonView<'_>>,
+    identity: Option<(&str, &str)>,
+    error: &str,
+    detail: Option<&dyn std::fmt::Display>,
+    status: u16,
+    allocation: Option<&OwnedBudget>,
+) -> Result<(), String> {
+    let payload = ErrorPayload {
+        error,
+        detail,
+        identity_binding: request.map(|_| {
+            if identity.is_some() {
                 "verified_current_capture"
             } else {
                 "request_echo_unverified"
-            }),
-        );
-        used += 1;
-    }
-    let payload = JsonView::object_fields(&fields[..used]).map_err(|e| e.to_string())?;
+            }
+        }),
+    };
     let mut access = ServerAccess::with_allocation(resources, allocation);
     if let Some(request) = request {
         let (session, incarnation) = match identity {
@@ -694,7 +798,7 @@ fn send_error_payload<S: q_watch::TimedWrite>(
                     .ok_or("已核请求缺化身")?,
             ),
         };
-        let envelope = q_wire::ErrorEnvelope::new(request, payload, session, incarnation, epoch)?;
+        let envelope = q_wire::ErrorEnvelope::new(request, &payload, session, incarnation, epoch)?;
         send_serialized(
             stream,
             &envelope,
@@ -1626,14 +1730,9 @@ sys.stdout.buffer.write(canonical(r))"#;
                 &mut ServerAccess::new(&r),
             )
             .unwrap();
-            let envelope = q_wire::ErrorEnvelope::new(
-                (&request).into(),
-                (&payload).into(),
-                session,
-                incarnation,
-                "7",
-            )
-            .unwrap();
+            let envelope =
+                q_wire::ErrorEnvelope::new((&request).into(), &payload, session, incarnation, "7")
+                    .unwrap();
             assert_eq!(serde_json::to_vec(&envelope).unwrap(), expected);
         }
     }
@@ -2075,8 +2174,9 @@ mod actual_owned_http_probe {
             assert_eq!(nwire, owire, "strict grammar HTTP {:?}", bytes);
             if let Err(original) = newchan_rust::session_protocol::strict_json(&bytes) {
                 let (status, payload) = tests::http_parts(&nwire);
-                assert_eq!(status, 400);
-                assert_eq!(payload["error"], "InvalidQuery");
+                let expected = failure(original.clone(), false);
+                assert_eq!(status, expected.status);
+                assert_eq!(payload["error"], expected.error);
                 if bytes.is_empty() {
                     // Head先拒绝零长度；不能由后续JSON EOF接管首错。
                     assert_eq!(payload["detail"], "Content-Length超出i64正整数域");
