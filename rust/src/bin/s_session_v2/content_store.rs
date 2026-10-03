@@ -229,6 +229,111 @@ impl SameMaterial {
     }
 }
 
+/// #1394 Native prepare only: exclusive, snapshot-bound node-read phase. No SQL/connection
+/// getter, Deref, savepoint, rollback or staged owner is exposed. Actual puts always stay cold.
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) struct NativeReadLease<'lease, 'conn> {
+    tx: &'lease mut Transaction<'conn>,
+    material: SameMaterial,
+    poisoned: bool,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
+    pub(super) fn new(tx: &'lease mut Transaction<'conn>) -> Result<Self, CodecError> {
+        if tx.is_autocommit() {
+            return Err(storage_error("Native读取租约要求活动事务"));
+        }
+        let isolation: i64 = tx
+            .query_row("PRAGMA read_uncommitted", [], |r| r.get(0))
+            .map_err(storage_error)?;
+        if isolation != 0 {
+            return Err(storage_error(
+                "Native读取租约要求read_uncommitted=0；不修改配置",
+            ));
+        }
+        ensure_format(tx)?;
+        Ok(Self {
+            tx,
+            material: Default::default(),
+            poisoned: false,
+        })
+    }
+    fn clear(&mut self) {
+        self.material = SameMaterial::default();
+    }
+    fn check_live(&mut self) -> Result<(), CodecError> {
+        if self.poisoned || self.tx.is_autocommit() {
+            self.clear();
+            self.poisoned = true;
+            return Err(storage_error(
+                "Native读取租约已失败或事务已结束；不得重试/回落",
+            ));
+        }
+        Ok(())
+    }
+    fn current_checked(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
+        self.check_live()?;
+        let result = (|| {
+            if let Some((frame, _)) = self.material.frames.get(digest) {
+                return frame
+                    .checked_same_material(digest, frame.tag(), frame.body().to_vec())
+                    .map(Some);
+            }
+            match read_material(self.tx, digest)? {
+                Some((tag, body)) => self.material.check(digest, tag, body).map(Some),
+                None => Ok(None), // No negative entry: only actual successful immutable material.
+            }
+        })();
+        if result.is_err() {
+            self.clear();
+            self.poisoned = true;
+        }
+        result
+    }
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl NodeSource for NativeReadLease<'_, '_> {
+    fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+        self.current_checked(digest).map(|frame| match frame {
+            None => NodeRead::Missing,
+            Some(frame) => {
+                let (tag, body) = frame.into_parts();
+                NodeRead::Found { tag, body }
+            }
+        })
+    }
+    fn checked_read(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
+        self.current_checked(digest)
+    }
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl NodeSink for NativeReadLease<'_, '_> {
+    fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError> {
+        // Clear even before an idempotent put or digest rejection. Triggers may touch old nodes.
+        self.clear();
+        self.check_live()?;
+        // Private short reborrow avoids a self-referential &mut Transaction + TxStore pair.
+        // Constructor already checked the format once, exactly as original TxStore::new does.
+        let result = TxStore {
+            tx: &*self.tx,
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            stage: None,
+        }
+        .put(digest, tag, body);
+        if result.is_err() {
+            self.clear();
+            self.poisoned = true;
+        }
+        result
+    }
+}
+
 pub(super) struct TxStore<'a, 'conn> {
     tx: &'a Transaction<'conn>,
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -730,6 +835,237 @@ mod tests {
         )
         .unwrap();
         conn
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_read_lease_sql_f_headers_and_cold_lifecycle() {
+        let mut conn = database("s-session/3");
+        let mut tx = conn.transaction().unwrap();
+        init_schema(&tx).unwrap();
+        let mut plain = TxStore::new(&tx).unwrap();
+        let root = s_content::write_value(
+            &mut plain,
+            &s_content::Value::Array(vec![s_content::Value::Bool(true)]),
+        )
+        .unwrap()
+        .content_ref();
+        drop(plain);
+        let digest = root.digest().unwrap();
+        let before = sql_reads_on_thread();
+        let f = s_content::frame_calls_on_thread();
+        let mut ordinary = TxStore::new(&tx).unwrap();
+        for _ in 0..8 {
+            ordinary.checked_read(&digest).unwrap().unwrap();
+        }
+        drop(ordinary);
+        assert_eq!(sql_reads_on_thread() - before, 8);
+        assert_eq!(s_content::frame_calls_on_thread() - f, 8);
+        let mut lease = NativeReadLease::new(&mut tx).unwrap();
+        let before = sql_reads_on_thread();
+        let f = s_content::frame_calls_on_thread();
+        for _ in 0..8 {
+            lease.checked_read(&digest).unwrap().unwrap();
+        }
+        assert_eq!(sql_reads_on_thread() - before, 1);
+        assert_eq!(s_content::frame_calls_on_thread() - f, 1);
+        s_content::verify(&mut lease, &root).unwrap();
+        for bad in [
+            s_content::ContentRef {
+                format: "bad".into(),
+                ..root.clone()
+            },
+            s_content::ContentRef {
+                kind: s_content::Kind::Object,
+                ..root.clone()
+            },
+            s_content::ContentRef {
+                extent: Some(2),
+                ..root.clone()
+            },
+        ] {
+            assert!(s_content::verify(&mut lease, &bad).is_err());
+        }
+        let missing = [0; 32];
+        assert!(matches!(lease.read(&missing).unwrap(), NodeRead::Missing));
+        assert!(!lease.material.frames.contains_key(&missing));
+        drop(lease);
+        let mut fresh = NativeReadLease::new(&mut tx).unwrap();
+        assert!(fresh.material.frames.is_empty());
+        let before = sql_reads_on_thread();
+        fresh.checked_read(&digest).unwrap();
+        assert_eq!(sql_reads_on_thread() - before, 1);
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_read_lease_put_trigger_errors_and_poison_do_not_repair() {
+        let mut conn = database("s-session/3");
+        let mut tx = conn.transaction().unwrap();
+        init_schema(&tx).unwrap();
+        let a = s_content::frame(s_content::tag::BOOL_TRUE, &[]);
+        let b = s_content::frame(s_content::tag::BOOL_FALSE, &[]);
+        TxStore::new(&tx)
+            .unwrap()
+            .put(a, s_content::tag::BOOL_TRUE, &[])
+            .unwrap();
+        tx.execute_batch(&format!("CREATE TRIGGER lease_corrupt AFTER INSERT ON s_content_nodes BEGIN UPDATE s_content_nodes SET body=x'01' WHERE digest=x'{}'; END;",&s_content::root_string(&a)[4..])).unwrap();
+        let mut lease = NativeReadLease::new(&mut tx).unwrap();
+        lease.checked_read(&a).unwrap();
+        assert!(!lease.material.frames.is_empty());
+        lease.put(b, s_content::tag::BOOL_FALSE, &[]).unwrap();
+        assert!(lease.material.frames.is_empty());
+        assert_eq!(
+            lease.checked_read(&a).unwrap_err().code(),
+            code::NODE_DIGEST
+        );
+        assert!(lease.poisoned && lease.material.frames.is_empty());
+        let before = sql_reads_on_thread();
+        assert!(lease.checked_read(&b).is_err());
+        assert!(lease.put(b, s_content::tag::BOOL_FALSE, &[]).is_err());
+        assert_eq!(sql_reads_on_thread(), before);
+        drop(lease);
+        tx.execute_batch("DROP TRIGGER lease_corrupt;CREATE TRIGGER lease_deny BEFORE INSERT ON s_content_nodes BEGIN SELECT RAISE(ABORT,'actual-insert-denied');END;").unwrap();
+        let mut lease = NativeReadLease::new(&mut tx).unwrap();
+        lease.checked_read(&b).unwrap();
+        let c = s_content::frame(s_content::tag::NULL, &[]);
+        assert!(lease
+            .put(c, s_content::tag::NULL, &[])
+            .unwrap_err()
+            .to_string()
+            .contains("actual-insert-denied"));
+        assert!(lease.poisoned && lease.material.frames.is_empty());
+        drop(lease);
+        let mut lease = NativeReadLease::new(&mut tx).unwrap();
+        lease.checked_read(&b).unwrap();
+        assert!(lease.put(b, s_content::tag::BOOL_TRUE, &[]).is_err());
+        assert!(lease.poisoned && lease.material.frames.is_empty());
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_read_lease_isolation_activity_and_actual_interrupt() {
+        let mut conn = database("s-session/3");
+        conn.execute_batch("PRAGMA read_uncommitted=1").unwrap();
+        let mut tx = conn.transaction().unwrap();
+        init_schema(&tx).unwrap();
+        assert!(NativeReadLease::new(&mut tx)
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("read_uncommitted=0"));
+        assert_eq!(
+            tx.query_row("PRAGMA read_uncommitted", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            1,
+            "constructor must not rewrite isolation"
+        );
+        tx.rollback().unwrap();
+        conn.execute_batch("PRAGMA read_uncommitted=0").unwrap();
+        let mut tx = conn.transaction().unwrap();
+        init_schema(&tx).unwrap();
+        let a = s_content::frame(s_content::tag::BOOL_TRUE, &[]);
+        TxStore::new(&tx)
+            .unwrap()
+            .put(a, s_content::tag::BOOL_TRUE, &[])
+            .unwrap();
+        let mut lease = NativeReadLease::new(&mut tx).unwrap();
+        lease.checked_read(&a).unwrap();
+        // Test-only private access installs a failing hook; the production lease exposes none.
+        lease.tx.progress_handler(1, Some(|| true)).unwrap();
+        assert_eq!(
+            lease.checked_read(&[0; 32]).unwrap_err().code(),
+            code::SOURCE
+        );
+        assert!(lease.poisoned && lease.material.frames.is_empty());
+        lease.tx.progress_handler(0, None::<fn() -> bool>).unwrap();
+        let before = sql_reads_on_thread();
+        assert!(lease.checked_read(&a).is_err());
+        assert_eq!(sql_reads_on_thread(), before);
+        drop(lease);
+        let mut lease = NativeReadLease::new(&mut tx).unwrap();
+        lease.checked_read(&a).unwrap();
+        fn deny(_: rusqlite::hooks::AuthContext<'_>) -> rusqlite::hooks::Authorization {
+            rusqlite::hooks::Authorization::Deny
+        }
+        lease.tx.authorizer(Some(deny)).unwrap();
+        assert_eq!(
+            lease.checked_read(&[0; 32]).unwrap_err().code(),
+            code::SOURCE
+        );
+        assert!(lease.poisoned && lease.material.frames.is_empty());
+        lease
+            .tx
+            .authorizer(
+                None::<fn(rusqlite::hooks::AuthContext<'_>) -> rusqlite::hooks::Authorization>,
+            )
+            .unwrap();
+        assert!(lease.checked_read(&a).is_err());
+        drop(lease);
+        tx.execute_batch("ROLLBACK").unwrap();
+        assert!(NativeReadLease::new(&mut tx)
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("活动事务"));
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_read_lease_wal_snapshot_and_upgrade_failure() {
+        let path = std::env::temp_dir().join(format!(
+            "s1394-lease-wal-{}-{}.sqlite",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let mut conn = Connection::open(&path).unwrap();
+        conn.execute_batch("PRAGMA journal_mode=WAL;PRAGMA read_uncommitted=0;")
+            .unwrap();
+        conn.execute_batch(super::super::v2::SCHEMA_V2).unwrap();
+        conn.execute(
+            "INSERT INTO s_protocol_meta VALUES(1,'s-session/3','1','test-clock','{}',1,'accept')",
+            [],
+        )
+        .unwrap();
+        let setup = conn.transaction().unwrap();
+        init_schema(&setup).unwrap();
+        let a = s_content::frame(s_content::tag::BOOL_TRUE, &[]);
+        TxStore::new(&setup)
+            .unwrap()
+            .put(a, s_content::tag::BOOL_TRUE, &[])
+            .unwrap();
+        setup.commit().unwrap();
+        let mut tx = conn.transaction().unwrap();
+        let mut lease = NativeReadLease::new(&mut tx).unwrap();
+        lease.checked_read(&a).unwrap();
+        let external = Connection::open(&path).unwrap();
+        external
+            .execute(
+                "DELETE FROM s_content_nodes WHERE digest=?1",
+                params![&a[..]],
+            )
+            .unwrap();
+        assert!(lease.checked_read(&a).unwrap().is_some());
+        // Force a real SQL read of the same snapshot, not only the cached result.
+        lease.clear();
+        assert!(lease.checked_read(&a).unwrap().is_some());
+        let b = s_content::frame(s_content::tag::BOOL_FALSE, &[]);
+        assert!(lease.put(b, s_content::tag::BOOL_FALSE, &[]).is_err());
+        assert!(lease.poisoned && lease.material.frames.is_empty());
+        drop(lease);
+        tx.rollback().unwrap();
+        let tx = conn.transaction().unwrap();
+        assert!(TxStore::new(&tx)
+            .unwrap()
+            .checked_read(&a)
+            .unwrap()
+            .is_none());
+        tx.rollback().unwrap();
+        drop(external);
+        drop(conn);
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+        }
     }
 
     #[test]

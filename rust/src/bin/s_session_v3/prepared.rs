@@ -13,11 +13,11 @@ use rusqlite::Transaction;
 /// #1394：事务局部业务 codec view。预算来自本次 AuditedState，同账覆盖辅助
 /// 业务工作集与跨请求业务缓存；不持 capture，不授予捕获能力或整堆分配资格。
 /// 原 TxStore 的 SQL 读写、检查帧和 generic codec 路径全部直接委托，None 保持原行为。
-struct BusinessTxStore<'a, 'conn> {
-    inner: content_store::TxStore<'a, 'conn>,
+struct BusinessTxStore<T: NodeStore> {
+    inner: T,
     budget: Option<sc::capture_allocation::OwnedBudget>,
 }
-impl sc::NodeSource for BusinessTxStore<'_, '_> {
+impl<T: NodeStore> sc::NodeSource for BusinessTxStore<T> {
     fn read(&mut self, digest: &sc::NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
         sc::NodeSource::read(&mut self.inner, digest)
     }
@@ -28,12 +28,12 @@ impl sc::NodeSource for BusinessTxStore<'_, '_> {
         sc::NodeSource::checked_read(&mut self.inner, digest)
     }
 }
-impl sc::NodeSink for BusinessTxStore<'_, '_> {
+impl<T: NodeStore> sc::NodeSink for BusinessTxStore<T> {
     fn put(&mut self, digest: sc::NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
         sc::NodeSink::put(&mut self.inner, digest, tag, body)
     }
 }
-impl audit_store::CodecRead for BusinessTxStore<'_, '_> {
+impl<T: NodeStore> audit_store::CodecRead for BusinessTxStore<T> {
     fn allocation_budget(&self) -> Option<sc::capture_allocation::OwnedBudget> {
         self.budget.clone()
     }
@@ -41,7 +41,7 @@ impl audit_store::CodecRead for BusinessTxStore<'_, '_> {
         &mut self.inner
     }
 }
-impl audit_store::CodecStore for BusinessTxStore<'_, '_> {
+impl<T: NodeStore> audit_store::CodecStore for BusinessTxStore<T> {
     fn generic_store(&mut self) -> &mut dyn NodeStore {
         &mut self.inner
     }
@@ -57,6 +57,8 @@ pub(super) struct Runtime {
     after_prepare: Option<fn(&Transaction<'_>) -> Result<(), String>>,
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     stage_new_nodes: bool,
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    native_read_lease: bool,
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     last_stage_report: Option<Value>,
 }
@@ -80,6 +82,8 @@ impl Runtime {
             after_prepare: None,
             #[cfg(all(test, feature = "s_capture_native_testonly"))]
             stage_new_nodes: false,
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            native_read_lease: true,
             #[cfg(all(test, feature = "s_capture_native_testonly"))]
             last_stage_report: None,
         }
@@ -146,7 +150,7 @@ impl Runtime {
     }
     fn commit_impl(
         &mut self,
-        tx: Transaction<'_>,
+        mut tx: Transaction<'_>,
         token: &str,
         envelope: &Value,
         context: Option<&mut request_audit::RequestAuditContext>,
@@ -162,7 +166,7 @@ impl Runtime {
         };
         let result = (|| {
             let prepared = self.prepare(
-                &tx,
+                &mut tx,
                 token,
                 envelope,
                 context,
@@ -210,7 +214,7 @@ impl Runtime {
 
     fn prepare(
         &mut self,
-        tx: &Transaction<'_>,
+        tx: &mut Transaction<'_>,
         token: &str,
         envelope: &Value,
         context: Option<&mut request_audit::RequestAuditContext>,
@@ -355,6 +359,67 @@ impl Runtime {
                 version_record: prior_version.as_ref(),
             },
         };
+        #[cfg(feature = "s_capture_native_testonly")]
+        let use_lease = matches!(self.mode, s_allocation::Mode::CapturedNative) && {
+            #[cfg(test)]
+            {
+                stage.is_none() && self.native_read_lease
+            }
+            #[cfg(not(test))]
+            {
+                true
+            }
+        };
+        #[cfg(not(feature = "s_capture_native_testonly"))]
+        let use_lease = false;
+        #[cfg(feature = "s_capture_native_testonly")]
+        if use_lease {
+            if audited.budget.is_some() {
+                return Err(err("Native读取租约不允许Owned业务预算"));
+            }
+            // End the only safe same-connection alias before the exclusive read phase.
+            drop(control);
+            let products = {
+                let mut store = BusinessTxStore {
+                    inner: content_store::NativeReadLease::new(tx).map_err(err)?,
+                    budget: None,
+                };
+                self.generate_node_products(
+                    &mut store,
+                    &input,
+                    &audited,
+                    &metadata,
+                    &scope_value,
+                    previous,
+                    generation,
+                    frontier,
+                )?
+            }; // The lease and all material proofs drop before any raw-SQL stage/hook/publish.
+            let NodeProducts {
+                generated: _generated,
+                objects,
+                axes,
+                counts: _counts,
+                auxiliary,
+                run: _run,
+                evidence: _evidence,
+                roots,
+                manifest,
+            } = products;
+            let mut store = BusinessTxStore {
+                inner: content_store::TxStore::new(tx).map_err(err)?,
+                budget: None,
+            };
+            object_index::stage(tx, &mut store, &objects, &manifest.batch_id)?;
+            aux_index::stage(tx, &mut store, &auxiliary, &manifest.batch_id)?;
+            catalog_evidence::stage_current(tx, &mut store, &axes)?;
+            return Ok(Prepared {
+                metadata,
+                roots,
+                manifest,
+            });
+        }
+        let _ = use_lease;
         let mut store = BusinessTxStore {
             #[cfg(all(test, feature = "s_capture_native_testonly"))]
             inner: content_store::TxStore::new_with_stage(tx, stage).map_err(err)?,
@@ -362,71 +427,26 @@ impl Runtime {
             inner: content_store::TxStore::new(tx).map_err(err)?,
             budget: audited.budget.clone(),
         };
-        sc::write_value(&mut store, &scope_value).map_err(err)?;
-        let mut generated = self
-            .generator
-            .as_mut()
-            .ok_or_else(|| err("生成器未绑定"))?
-            .generate_with_allocation(&mut store, &input, audited.budget.as_ref())?;
-        #[cfg(feature = "s_capture_native_testonly")]
-        let objects = if matches!(self.mode, s_allocation::Mode::CapturedNative) {
-            object_index::plan_native_union_for_testonly(
-                &mut store,
-                &generated.objects,
-                &audited.objects,
-                generation,
-            )?
-        } else {
-            object_index::plan(&mut store, &generated.objects, &audited.objects, generation)?
-        };
-        #[cfg(not(feature = "s_capture_native_testonly"))]
-        let objects =
-            object_index::plan(&mut store, &generated.objects, &audited.objects, generation)?;
-        generated.finish_axes(
+        let NodeProducts {
+            generated: _generated,
+            objects,
+            axes,
+            counts: _counts,
+            auxiliary,
+            run: _run,
+            evidence: _evidence,
+            roots,
+            manifest,
+        } = self.generate_node_products(
             &mut store,
-            previous,
-            &objects.withdrawals,
-            &objects.replaces,
-        )?;
-        let axes = generated
-            .catalog_axes
-            .clone()
-            .ok_or_else(|| err("目录轴完成后仍缺真实根"))?;
-        let counts = source_audit::audit_generated(
-            &mut store,
-            &generated.generated_state,
-            &audited.raw,
-            &metadata.profile_id,
-            &metadata.rule_revision,
-        )?;
-        let auxiliary = self.auxiliary.plan(
-            &mut store,
-            &audited.auxiliary,
-            &generated,
-            &objects.replaces,
-            &audited.raw,
-            previous,
-            frontier,
-            generation,
-        )?;
-        let (run, evidence) = catalog_evidence::build_template(
-            &mut store,
+            &input,
+            &audited,
             &metadata,
-            &generated.generated_state,
-            &counts,
-            &objects.withdrawals,
-            &objects.replaces,
+            &scope_value,
+            previous,
+            generation,
+            frontier,
         )?;
-        let (snapshot, delta) = templates(
-            &mut store, &metadata, previous, &objects, &auxiliary, &run, &evidence,
-        )?;
-        let roots = ManifestRoots {
-            generated_state: generated.generated_state.clone(),
-            publication_template: snapshot,
-            delta_template: delta,
-        };
-        let manifest =
-            content_manifest::assemble_unpublished(&mut store, &metadata, &roots).map_err(err)?;
         object_index::stage(tx, &mut store, &objects, &manifest.batch_id)?;
         aux_index::stage(tx, &mut store, &auxiliary, &manifest.batch_id)?;
         catalog_evidence::stage_current(tx, &mut store, &axes)?;
@@ -436,6 +456,102 @@ impl Runtime {
             manifest,
         })
     }
+    fn generate_node_products<'raw, S: NodeStore>(
+        &mut self,
+        store: &mut BusinessTxStore<S>,
+        input: &GenerationInput<'raw>,
+        audited: &state::AuditedState,
+        metadata: &ManifestMetadata,
+        scope_value: &V,
+        previous: i64,
+        generation: i64,
+        frontier: i64,
+    ) -> Result<NodeProducts<'raw>, String> {
+        sc::write_value(store, scope_value).map_err(err)?;
+        let mut generated = self
+            .generator
+            .as_mut()
+            .ok_or_else(|| err("生成器未绑定"))?
+            .generate_with_allocation(store, input, audited.budget.as_ref())?;
+        #[cfg(feature = "s_capture_native_testonly")]
+        let objects = if matches!(self.mode, s_allocation::Mode::CapturedNative) {
+            object_index::plan_native_union_for_testonly(
+                store,
+                &generated.objects,
+                &audited.objects,
+                generation,
+            )?
+        } else {
+            object_index::plan(store, &generated.objects, &audited.objects, generation)?
+        };
+        #[cfg(not(feature = "s_capture_native_testonly"))]
+        let objects = object_index::plan(store, &generated.objects, &audited.objects, generation)?;
+        generated.finish_axes(store, previous, &objects.withdrawals, &objects.replaces)?;
+        let axes = generated
+            .catalog_axes
+            .clone()
+            .ok_or_else(|| err("目录轴完成后仍缺真实根"))?;
+        let counts = source_audit::audit_generated(
+            store,
+            &generated.generated_state,
+            &audited.raw,
+            &metadata.profile_id,
+            &metadata.rule_revision,
+        )?;
+        let auxiliary = self.auxiliary.plan(
+            store,
+            &audited.auxiliary,
+            &generated,
+            &objects.replaces,
+            &audited.raw,
+            previous,
+            frontier,
+            generation,
+        )?;
+        let (run, evidence) = catalog_evidence::build_template(
+            store,
+            metadata,
+            &generated.generated_state,
+            &counts,
+            &objects.withdrawals,
+            &objects.replaces,
+        )?;
+        let (snapshot, delta) = templates(
+            store, metadata, previous, &objects, &auxiliary, &run, &evidence,
+        )?;
+        let roots = ManifestRoots {
+            generated_state: generated.generated_state.clone(),
+            publication_template: snapshot,
+            delta_template: delta,
+        };
+        let manifest =
+            content_manifest::assemble_unpublished(store, metadata, &roots).map_err(err)?;
+        Ok(NodeProducts {
+            generated,
+            objects,
+            axes,
+            counts,
+            auxiliary,
+            run,
+            evidence,
+            roots,
+            manifest,
+        })
+    }
+}
+
+// Raw lifetime is audited input, never the lease. These owners existed through legacy stage
+// already; retaining them avoids changing Owned peak/drop timing while separating Native SQL.
+struct NodeProducts<'raw> {
+    generated: generation::Generated<'raw>,
+    objects: object_index::Plan,
+    axes: sc::ContentRef,
+    counts: source_audit::Counts,
+    auxiliary: aux_index::Plan,
+    run: String,
+    evidence: sc::ContentRef,
+    roots: ManifestRoots,
+    manifest: UnpublishedManifest,
 }
 
 struct Prepared {
@@ -1060,12 +1176,38 @@ pub(crate) mod tests {
         assert!(withdrawn > 0, "真实修订必须发生撤回");
         assert_eq!(count(&f.conn, "s_clock_events"), 12);
     }
+    #[test]
+    fn generic_business_store_keeps_legacy_owned_layout() {
+        struct Before<'a, 'c> {
+            inner: content_store::TxStore<'a, 'c>,
+            budget: Option<sc::capture_allocation::OwnedBudget>,
+        }
+        assert_eq!(
+            std::mem::size_of::<BusinessTxStore<content_store::TxStore<'static, 'static>>>(),
+            std::mem::size_of::<Before<'static, 'static>>()
+        );
+        assert_eq!(
+            std::mem::align_of::<BusinessTxStore<content_store::TxStore<'static, 'static>>>(),
+            std::mem::align_of::<Before<'static, 'static>>()
+        );
+    }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn native_candidate_union_four_real_commits_match_ordinary_roots_rows_and_revision() {
         let mut native = Fixture::new();
         native.runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        let mut no_lease = Fixture::new();
+        no_lease.runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        no_lease.runtime.native_read_lease = false;
         let mut ordinary = Fixture::new();
+        assert_eq!(
+            native
+                .conn
+                .query_row("PRAGMA read_uncommitted", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            0,
+            "actual S config lease qualification"
+        );
         for (n, row, revision) in [
             (1, ("a", 0, 6, 12, 3, 7), 1),
             (2, ("b", 10, 8, 16, 6, 12), 1),
@@ -1074,9 +1216,34 @@ pub(crate) mod tests {
         ] {
             let (e, t) = native.accept_begin(n, row, revision);
             let (plain, pt) = ordinary.accept_begin(n, row, revision);
+            let (same_native, nt) = no_lease.accept_begin(n, row, revision);
+            let native_sql = content_store::sql_reads_on_thread();
+            let native_f = sc::frame_calls_on_thread();
+            let actual = native.publish(&e, &t).unwrap();
+            let native_sql = content_store::sql_reads_on_thread() - native_sql;
+            let native_f = sc::frame_calls_on_thread() - native_f;
+            let no_sql = content_store::sql_reads_on_thread();
+            let no_f = sc::frame_calls_on_thread();
+            let original_native = no_lease.publish(&same_native, &nt).unwrap();
+            let no_sql = content_store::sql_reads_on_thread() - no_sql;
+            let no_f = sc::frame_calls_on_thread() - no_f;
+            assert_eq!(actual.message_receipt, original_native.message_receipt);
+            assert!(
+                native_sql < no_sql,
+                "gen{n} same-Native actual node SQL lease {native_sql} off {no_sql}"
+            );
+            assert!(
+                native_f < no_f,
+                "gen{n} same-Native actual F lease {native_f} off {no_f}"
+            );
             assert_eq!(
-                native.publish(&e, &t).unwrap().message_receipt,
+                actual.message_receipt,
                 ordinary.publish(&plain, &pt).unwrap().message_receipt
+            );
+            assert_eq!(
+                runtime_root_tables(&native.conn, true),
+                runtime_root_tables(&no_lease.conn, true),
+                "same-Native lease only effect must be physical reads"
             );
             assert_eq!(
                 runtime_root_tables(&native.conn, true),
@@ -1086,6 +1253,43 @@ pub(crate) mod tests {
         }
         assert!(count(&native.conn, "s_content_objects") > 0);
         assert_eq!(meta_i64(&native.conn, "generation").unwrap(), 4);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_read_lease_boundary_cold_publish_fault_matrix_discards_runtime() {
+        for fault in 0..3 {
+            let mut f = Fixture::new();
+            f.runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+            let (e, token) = f.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
+            f.runtime.after_prepare = Some(match fault {
+                0 => |tx| {
+                    tx.execute("UPDATE s_content_nodes SET body=x'00' WHERE digest=(SELECT birth_wire_root FROM s_content_objects LIMIT 1)",[]).map_err(err)?;
+                    Ok(())
+                },
+                1 => |tx| {
+                    tx.execute("DELETE FROM s_content_nodes WHERE digest=(SELECT generated_root FROM s_content_objects LIMIT 1)",[]).map_err(err)?;
+                    Ok(())
+                },
+                _ => |tx| {
+                    tx.execute_batch("PRAGMA defer_foreign_keys=ON;INSERT INTO s_delivery_refs(generation) VALUES(999);").map_err(err)
+                },
+            });
+            assert!(
+                f.publish(&e, &token).is_err(),
+                "after-prepare fault {fault} must be checked through cold publication"
+            );
+            assert!(
+                f.runtime.binding.is_some() && f.runtime.generator.is_some(),
+                "discard preserves the original binding/generator shell"
+            );
+            assert!(f.runtime.visit_runtime_roots().unwrap().is_empty());
+            assert_eq!(count(&f.conn, "s_content_nodes"), 0);
+            assert_eq!(count(&f.conn, "s_content_publications"), 0);
+            assert_eq!(count(&f.conn, "s_content_objects"), 0);
+            f.runtime.after_prepare = None;
+            assert_eq!(f.publish(&e, &token).unwrap().generation, 1);
+        }
     }
 
     #[test]
