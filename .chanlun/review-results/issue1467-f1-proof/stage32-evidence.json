@@ -1,0 +1,423 @@
+{
+  "date": "2026-10-04",
+  "issue": 1467,
+  "profile": "EXIT-LIFT-READINESS-v1 plus EXIT-SUPPORT-CONTAINMENT-v1",
+  "checks": {
+    "initial": {
+      "declaration": "ExitLift.exact_root",
+      "expected_type": "ExitLift.PREFIX_TARGET ∧ ExitLift.SOURCE_TARGET ∧ ExitLift.FROZEN_TARGET ∧ ExitLift.LATE_TARGET",
+      "actual_type": "And ExitLift.PREFIX_TARGET (And ExitLift.SOURCE_TARGET (And ExitLift.FROZEN_TARGET ExitLift.LATE_TARGET))",
+      "run_id": "ce5412601f63429cbeb5cb4d40730cab",
+      "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/run-manifest.json",
+      "manifest_sha256": "4577076d21a7d3888f9c8f749778057ba044320d771643789efed883b20d37bd",
+      "exact_root_passed": true,
+      "root_closure": {
+        "status": "closed",
+        "exact_root_passed": true,
+        "declaration_closed": true,
+        "scope": "expected Lean type in the recorded environment; semantic review is separate"
+      },
+      "semantic": {
+        "status": "not_reviewed",
+        "reused": false,
+        "semantic_sha256": "e9577b244c8b398dbe008692bab29009a6f8a4beecbbf02e6171dc031b01b469"
+      },
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "unexpected_axioms": [],
+      "unknown_dependencies": [],
+      "unsafe_dependencies": [],
+      "statement_lock": {
+        "path": "stage32-declaration-lock.json",
+        "spec_sha256": "fffa9d3aa4099b12686374b9d2a02ee9e14e12cef7b476d78fca261bb68bf591",
+        "unchanged": true
+      },
+      "source_copies_equal": true,
+      "LEAN_PATH": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean:/Users/silencehan/Documents/Codex/research-evidence/issue1467/lift-boundary-verified-v1/lean-verification-runs/70afcb63cad748cebe219c90e28e4091/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-v1-checked/lean-verification-runs/e0fff3aa5da843c3a33719390e0b6d82/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-v1/lean-verification-runs/6ba44fc8a81949c486cb4c8aab1743a5/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/source-hull-v1-checked/lean-verification-runs/b6e0219a0b234ea6a7556148fdedee02/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-packet-v1a-checked/lean-verification-runs/fc8e984887ab406f93e42575368bf071/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-exit-v1a-checked/lean-verification-runs/dd15be2da8f4453f9f16f2af857e5759/lib",
+      "commands": [
+        {
+          "kind": "source_dependencies",
+          "file": "ExitLiftProof.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--run",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/DiscoverImports.lean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-project-v1/ExitLiftProof.lean"
+          ],
+          "status": "passed",
+          "exit_code": 0,
+          "elapsed_seconds": 0.867962,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/5d260e9f25414558ac7c0d425073bee5.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/5d260e9f25414558ac7c0d425073bee5.stderr.log"
+        },
+        {
+          "kind": "source_dependencies",
+          "file": "ExitLiftSpec.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--run",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/DiscoverImports.lean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-project-v1/ExitLiftSpec.lean"
+          ],
+          "status": "passed",
+          "exit_code": 0,
+          "elapsed_seconds": 0.71727,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/b9243b3f318f4ca8b993dce6f02d1f96.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/b9243b3f318f4ca8b993dce6f02d1f96.stderr.log"
+        },
+        {
+          "kind": "source_dependencies",
+          "file": "NineRegroupSpec.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--run",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/DiscoverImports.lean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-project-v1/NineRegroupSpec.lean"
+          ],
+          "status": "passed",
+          "exit_code": 0,
+          "elapsed_seconds": 0.719424,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/cfa73dc83611486a894d1fa50cac0a38.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/cfa73dc83611486a894d1fa50cac0a38.stderr.log"
+        },
+        {
+          "kind": "import_resolution",
+          "file": "NineRegroupSpec.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--deps",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-project-v1/NineRegroupSpec.lean"
+          ],
+          "status": "passed",
+          "exit_code": 0,
+          "elapsed_seconds": 0.045904,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/98548ac3cf9f44888716c554940d41b5.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/98548ac3cf9f44888716c554940d41b5.stderr.log"
+        },
+        {
+          "kind": "target",
+          "file": "NineRegroupSpec.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "-R",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-project-v1",
+            "-o",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/lib/NineRegroupSpec.olean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-project-v1/NineRegroupSpec.lean"
+          ],
+          "status": "passed",
+          "exit_code": 0,
+          "elapsed_seconds": 0.376244,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/f77151be656a43d8bd646fc7b192406e.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/f77151be656a43d8bd646fc7b192406e.stderr.log"
+        },
+        {
+          "kind": "import_resolution",
+          "file": "ExitLiftSpec.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--deps",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-project-v1/ExitLiftSpec.lean"
+          ],
+          "status": "passed",
+          "exit_code": 0,
+          "elapsed_seconds": 0.048462,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/ff09bef855dc4ab494015678569a9a21.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/ff09bef855dc4ab494015678569a9a21.stderr.log"
+        },
+        {
+          "kind": "target",
+          "file": "ExitLiftSpec.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "-R",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-project-v1",
+            "-o",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/lib/ExitLiftSpec.olean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-project-v1/ExitLiftSpec.lean"
+          ],
+          "status": "passed",
+          "exit_code": 0,
+          "elapsed_seconds": 0.378474,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/01167df50c42444f904f397eab721f88.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/01167df50c42444f904f397eab721f88.stderr.log"
+        },
+        {
+          "kind": "import_resolution",
+          "file": "ExitLiftProof.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--deps",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-project-v1/ExitLiftProof.lean"
+          ],
+          "status": "passed",
+          "exit_code": 0,
+          "elapsed_seconds": 0.05343,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/85dbbece57e440a1b3331f140b3a74c1.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/85dbbece57e440a1b3331f140b3a74c1.stderr.log"
+        },
+        {
+          "kind": "target",
+          "file": "ExitLiftProof.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "-R",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-project-v1",
+            "-o",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/lib/ExitLiftProof.olean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-project-v1/ExitLiftProof.lean"
+          ],
+          "status": "passed",
+          "exit_code": 0,
+          "elapsed_seconds": 0.657691,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/305df30bcc0442258dd6ec692228b11b.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/305df30bcc0442258dd6ec692228b11b.stderr.log"
+        },
+        {
+          "kind": "inspector_compile",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "-R",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab",
+            "-o",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/lib/LeanVerifyProbe.olean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/LeanVerifyProbe.lean"
+          ],
+          "status": "passed",
+          "exit_code": 0,
+          "elapsed_seconds": 1.008098,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/d95574d542eb40ec816c9c99f9bce2bd.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/d95574d542eb40ec816c9c99f9bce2bd.stderr.log"
+        },
+        {
+          "kind": "declaration_inspection",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/InspectRoot.lean"
+          ],
+          "status": "passed",
+          "exit_code": 0,
+          "elapsed_seconds": 0.944677,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/0169110b7d614fa3b07bf1470e10ed10.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/logs/0169110b7d614fa3b07bf1470e10ed10.stderr.log"
+        }
+      ],
+      "freshness": {
+        "status": "current",
+        "snapshot_current": true,
+        "exact_root_passed": true,
+        "semantic_sha256": "e9577b244c8b398dbe008692bab29009a6f8a4beecbbf02e6171dc031b01b469",
+        "manifest_sha256": "4577076d21a7d3888f9c8f749778057ba044320d771643789efed883b20d37bd",
+        "reasons": [],
+        "scope": "saved evidence and current Lean module resolution checked; no new kernel proof replay"
+      }
+    },
+    "support": {
+      "declaration": "ExitSupport.exact_root",
+      "expected_type": "ExitLift.PREFIX_TARGET ∧ ExitLift.SOURCE_TARGET ∧ ExitLift.FROZEN_TARGET ∧ ExitLift.LATE_TARGET ∧ ExitSupport.NONEMPTY_TARGET ∧ ExitSupport.GROW_TARGET ∧ ExitSupport.SPLIT_TARGET",
+      "actual_type": "And ExitLift.PREFIX_TARGET\n  (And ExitLift.SOURCE_TARGET\n    (And ExitLift.FROZEN_TARGET\n      (And ExitLift.LATE_TARGET\n        (And ExitSupport.NONEMPTY_TARGET (And ExitSupport.GROW_TARGET ExitSupport.SPLIT_TARGET)))))",
+      "run_id": "16407332e11c447aa8af2c87e00fd4ce",
+      "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/run-manifest.json",
+      "manifest_sha256": "1b4111d51c08e4c36c619a4feff792ba1516fc153727c6f5a89dae817c8737fc",
+      "exact_root_passed": true,
+      "root_closure": {
+        "status": "closed",
+        "exact_root_passed": true,
+        "declaration_closed": true,
+        "scope": "expected Lean type in the recorded environment; semantic review is separate"
+      },
+      "semantic": {
+        "status": "not_reviewed",
+        "reused": false,
+        "semantic_sha256": "f2c6911e87ce4b2f2e56c4494e9e21b83072539ff357361e8e301f093c02cbfb"
+      },
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "unexpected_axioms": [],
+      "unknown_dependencies": [],
+      "unsafe_dependencies": [],
+      "statement_lock": {
+        "path": "stage32-support-declaration-lock.json",
+        "spec_sha256": "6ed678ddfe2d86b6c195e3ecf93069737561674ab8e5f36beb7bb2f3081ed491",
+        "unchanged": true
+      },
+      "source_copies_equal": true,
+      "LEAN_PATH": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean:/Users/silencehan/Documents/Codex/research-evidence/issue1467/lift-boundary-verified-v1/lean-verification-runs/70afcb63cad748cebe219c90e28e4091/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-v1-checked/lean-verification-runs/e0fff3aa5da843c3a33719390e0b6d82/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-v1/lean-verification-runs/6ba44fc8a81949c486cb4c8aab1743a5/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/source-hull-v1-checked/lean-verification-runs/b6e0219a0b234ea6a7556148fdedee02/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-packet-v1a-checked/lean-verification-runs/fc8e984887ab406f93e42575368bf071/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-exit-v1a-checked/lean-verification-runs/dd15be2da8f4453f9f16f2af857e5759/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1-checked/lean-verification-runs/ce5412601f63429cbeb5cb4d40730cab/lib",
+      "commands": [
+        {
+          "kind": "source_dependencies",
+          "file": "ExitSupportProof.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--run",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/DiscoverImports.lean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-project-v1/ExitSupportProof.lean"
+          ],
+          "status": "passed",
+          "exit_code": 0,
+          "elapsed_seconds": 0.906693,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/logs/b5bd132c79bd49e4ba0431ba7725686a.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/logs/b5bd132c79bd49e4ba0431ba7725686a.stderr.log"
+        },
+        {
+          "kind": "source_dependencies",
+          "file": "ExitSupportSpec.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--run",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/DiscoverImports.lean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-project-v1/ExitSupportSpec.lean"
+          ],
+          "status": "passed",
+          "exit_code": 0,
+          "elapsed_seconds": 0.718464,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/logs/76eb15173d7c4f48beeaddf03396cd82.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/logs/76eb15173d7c4f48beeaddf03396cd82.stderr.log"
+        },
+        {
+          "kind": "import_resolution",
+          "file": "ExitSupportSpec.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--deps",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-project-v1/ExitSupportSpec.lean"
+          ],
+          "status": "passed",
+          "exit_code": 0,
+          "elapsed_seconds": 0.04855,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/logs/d378ae8a584c4208849345c998898842.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/logs/d378ae8a584c4208849345c998898842.stderr.log"
+        },
+        {
+          "kind": "target",
+          "file": "ExitSupportSpec.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "-R",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-project-v1",
+            "-o",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/lib/ExitSupportSpec.olean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-project-v1/ExitSupportSpec.lean"
+          ],
+          "status": "passed",
+          "exit_code": 0,
+          "elapsed_seconds": 0.367032,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/logs/c46758e59dd64daf95e588ab5c3dea61.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/logs/c46758e59dd64daf95e588ab5c3dea61.stderr.log"
+        },
+        {
+          "kind": "import_resolution",
+          "file": "ExitSupportProof.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--deps",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-project-v1/ExitSupportProof.lean"
+          ],
+          "status": "passed",
+          "exit_code": 0,
+          "elapsed_seconds": 0.048444,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/logs/d1c208c5264e4acbb2719916e17c9083.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/logs/d1c208c5264e4acbb2719916e17c9083.stderr.log"
+        },
+        {
+          "kind": "target",
+          "file": "ExitSupportProof.lean",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "-R",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-project-v1",
+            "-o",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/lib/ExitSupportProof.olean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-project-v1/ExitSupportProof.lean"
+          ],
+          "status": "passed",
+          "exit_code": 0,
+          "elapsed_seconds": 0.376925,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/logs/42699410e77c43849b6b6988bf49e941.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/logs/42699410e77c43849b6b6988bf49e941.stderr.log"
+        },
+        {
+          "kind": "inspector_compile",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "-R",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce",
+            "-o",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/lib/LeanVerifyProbe.olean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/LeanVerifyProbe.lean"
+          ],
+          "status": "passed",
+          "exit_code": 0,
+          "elapsed_seconds": 0.914389,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/logs/cbd813243fc4463c8ffb2484a6a8109e.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/logs/cbd813243fc4463c8ffb2484a6a8109e.stderr.log"
+        },
+        {
+          "kind": "declaration_inspection",
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/InspectRoot.lean"
+          ],
+          "status": "passed",
+          "exit_code": 0,
+          "elapsed_seconds": 1.053439,
+          "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/logs/ff235c30084f4f298a9e6a75d8a65ae4.stdout.log",
+          "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1-checked/lean-verification-runs/16407332e11c447aa8af2c87e00fd4ce/logs/ff235c30084f4f298a9e6a75d8a65ae4.stderr.log"
+        }
+      ],
+      "freshness": {
+        "status": "current",
+        "snapshot_current": true,
+        "exact_root_passed": true,
+        "semantic_sha256": "f2c6911e87ce4b2f2e56c4494e9e21b83072539ff357361e8e301f093c02cbfb",
+        "manifest_sha256": "1b4111d51c08e4c36c619a4feff792ba1516fc153727c6f5a89dae817c8737fc",
+        "reasons": [],
+        "scope": "saved evidence and current Lean module resolution checked; no new kernel proof replay"
+      }
+    }
+  },
+  "failed_attempts": [
+    {
+      "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-lift-v1/run-manifest.json",
+      "sha256": "989f53860220ecb68b3123073ed265f7cfbb3770eee03a7c8a2cb5a5a3b1f74a",
+      "run_id": "5cf4134851a34ea5919d3532f1718f28",
+      "exact_root_passed": false,
+      "build_exit_code": 1
+    },
+    {
+      "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/exit-support-v1/run-manifest.json",
+      "sha256": "9084def9a3507a08e6eeeb169701759149ac13f849e6b3de97d37cd001206df9",
+      "run_id": "a74278e90b0f43bba5944534b531ab0b",
+      "exact_root_passed": false,
+      "build_exit_code": 1
+    }
+  ],
+  "semantic": "not_reviewed",
+  "original_source_triplet_definition_unchanged": true,
+  "source_fingerprints": "source-sha256-stage32.json",
+  "storage": {
+    "directories": {
+      "exit-lift-project-v1": 9181,
+      "exit-lift-v1": 251886,
+      "exit-lift-v1-checked": 26448341,
+      "exit-support-project-v1": 1726,
+      "exit-support-v1": 78773,
+      "exit-support-v1-checked": 26533615
+    },
+    "total_bytes": 53323522,
+    "limit_bytes": 67108864
+  },
+  "formal_source_changed": false,
+  "market_replay_repeated": false,
+  "limits": [
+    "synthetic continuation, not a new market sample",
+    "arity and no-reuse are the named inheritance assumptions",
+    "growth obstruction keeps original center windows in first and third children",
+    "later repartition splits the original next-center window",
+    "no proof of actual retile trigger, child Move completion or full F2"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "profile": "EXIT-LIFT-READINESS-v1",
+  "spec": ".chanlun/review-results/issue1467-f1-proof/ExitLiftSpec.lean",
+  "spec_sha256": "fffa9d3aa4099b12686374b9d2a02ee9e14e12cef7b476d78fca261bb68bf591",
+  "declaration": "ExitLift.exact_root",
+  "expected_type": "ExitLift.PREFIX_TARGET ∧ ExitLift.SOURCE_TARGET ∧ ExitLift.FROZEN_TARGET ∧ ExitLift.LATE_TARGET",
+  "frozen_before_proof": true
+}

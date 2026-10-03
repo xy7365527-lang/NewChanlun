@@ -1,0 +1,8 @@
+{
+  "profile": "EXIT-SUPPORT-CONTAINMENT-v1",
+  "spec": ".chanlun/review-results/issue1467-f1-proof/ExitSupportSpec.lean",
+  "spec_sha256": "6ed678ddfe2d86b6c195e3ecf93069737561674ab8e5f36beb7bb2f3081ed491",
+  "declaration": "ExitSupport.exact_root",
+  "expected_type": "ExitLift.PREFIX_TARGET ∧ ExitLift.SOURCE_TARGET ∧ ExitLift.FROZEN_TARGET ∧ ExitLift.LATE_TARGET ∧ ExitSupport.NONEMPTY_TARGET ∧ ExitSupport.GROW_TARGET ∧ ExitSupport.SPLIT_TARGET",
+  "frozen_before_proof": true
+}
