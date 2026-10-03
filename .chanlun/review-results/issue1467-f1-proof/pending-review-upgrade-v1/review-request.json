@@ -1,0 +1,29 @@
+{
+  "status": "pending_reviewer_unavailable",
+  "native_spawn_identity": null,
+  "completion_identity": null,
+  "reason": "派发前父模型切换限制仍在，当前无相应工具",
+  "readback_files": {
+    "readback/DCFiniteCertificates.lean": "328f7d9097a6cef815392df81b2877a31fcc5ac4b46f3f3428b32d9f156059d4",
+    "readback/actual-statement-environment.json": "457db1f6fccae0a4eb4ff1452b306e34a99c4594743f219f3464245c9c3be310",
+    "readback/DCSemantics.lean": "a2fbd4becc7a692ba10b6aff6c84dd511ccb5062dae734c9a56616324db0a972",
+    "readback/UpgradeProof.lean": "fecfadbd5a3adb031d161144dd929ebfc5ac20b3636dbaf20e485e63d62563c9",
+    "readback/REQUEST.md": "9264a50ed49aa0435824873fc50d78e6c7e6c0921489c9c7797fdd1656dff6dc",
+    "readback/UpgradeSpec.lean": "dde681a9ea27d1dcb48bc97f7de25d2fe9c97039aecab0dd817be41bd2896055"
+  },
+  "comparison_inputs": {
+    "Stage8WorkCard.md": "17f64119c816ca8062b91a6e6e21e2a757aae55c76bcc89b5634850bfc1a52dc",
+    "Stage8UpgradeClosure.md": "a77b3bc976002dd16f80d04a33ab16821ccbb27a76d98d77a3f3f825aeacd36c",
+    "stage8-lean-verification-summary.json": "294888033d41012095ca5739bc4994a8a0175cd766d73afb785ce8d9fa3c8c4f",
+    "upgrade_closure_probe.rs": "c16f31cd9478e4bfadea0729537f64beb492f059d11a540a71e0f09122e6c5ca",
+    "upgrade-closure-stdout.txt": "4ee670bb3350216f866ad1a01e9e6fd80291eff5a6f976828debd388974c32c8"
+  },
+  "comparison_obligations": [
+    "有限证书是否真推出旧DC独立关系",
+    "反例是否满足全部原前提而非仅任意区间",
+    "共同核心的充分性是否被夸大为必要性或完整F2",
+    "正本的触发与计算是否被混为同一保证"
+  ],
+  "reviewer_output_directory": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/reviews/upgrade-v1",
+  "suggested_verdict": null
+}
