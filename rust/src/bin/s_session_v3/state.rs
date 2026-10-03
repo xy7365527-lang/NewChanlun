@@ -85,6 +85,24 @@ pub(super) fn audit_bounded(
 ) -> Result<AuditedState, String> {
     audit_with_budget(tx, deadline, max_render_bytes, None)
 }
+/// #1394：S 独立 Native TestOnly 臂。只从本次事务现场捕获，不接收外部 capture，
+/// 不创建 OwnedBudget；捕获随本次调用释放，返回的普通 AuditedState 保持调用方原生命周期。
+/// 仅三处写前入口选择此臂，startup/identity/preflight/recover 保持普通审计。
+pub(super) fn audit_native_current(tx: &Transaction<'_>) -> Result<AuditedState, String> {
+    #[cfg(feature = "s_capture_native_testonly")]
+    {
+        let capture = content_store::capture_for_prototype(tx).map_err(err)?;
+        let (audited, _) = audit_core(tx, None, None, None, false, None, Some(&capture))?;
+        drop(capture);
+        Ok(audited)
+    }
+    #[cfg(not(feature = "s_capture_native_testonly"))]
+    {
+        let _ = tx;
+        Err("SNativeCaptureTestOnlyUnsupported：此构建不支持 S_CAPTURE_NATIVE_TESTONLY".into())
+    }
+}
+
 /// 计费只覆盖实际访问；完整成功后才能留作同一不可变捕获的私有用量收据。
 pub(super) fn audit_with_access(
     tx: &Transaction<'_>,

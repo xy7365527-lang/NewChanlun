@@ -849,7 +849,8 @@ mod tests {
     }
 }
 
-#[cfg(test)]
+/// #1394：显式 Native TestOnly 当前事务捕获；普通容器，不附资源额度或生产资格。
+#[cfg(any(test, feature = "s_capture_native_testonly"))]
 pub(crate) fn capture_for_prototype(
     tx: &Transaction<'_>,
 ) -> Result<s_content::AuditCapture, CodecError> {

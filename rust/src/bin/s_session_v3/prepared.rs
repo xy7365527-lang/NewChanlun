@@ -48,8 +48,8 @@ impl audit_store::CodecStore for BusinessTxStore<'_, '_> {
 }
 
 pub(super) struct Runtime {
-    /// 私有 TESTONLY 分配档；只持预算与数值，不持捕获或审计结果。
-    allocation: Option<q_allocation::Profile>,
+    /// 与 Driver 同一启动模式；不持 capture/审计结果，Owned 业务缓存按真实生命周期计费。
+    mode: s_allocation::Mode,
     binding: Option<Vec<String>>,
     generator: Option<GenerationRuntime>,
     auxiliary: aux_index::Runtime,
@@ -63,8 +63,12 @@ impl Runtime {
     }
 
     pub(super) fn with_allocation(allocation: Option<q_allocation::Profile>) -> Self {
+        Self::with_mode(allocation.into())
+    }
+
+    pub(super) fn with_mode(mode: s_allocation::Mode) -> Self {
         Self {
-            allocation,
+            mode,
             binding: None,
             generator: None,
             auxiliary: Default::default(),
@@ -114,8 +118,7 @@ impl Runtime {
         envelope: &Value,
     ) -> Result<Prepared, String> {
         // 完整旧状态审计（读写共用同一份 state::audit）先于节点、索引、目录等第一次写入完成。
-        let audited =
-            s_allocation::audit(tx, self.allocation.as_ref(), s_allocation::Phase::Prepare)?;
+        let audited = s_allocation::audit(tx, &self.mode, s_allocation::Phase::Prepare)?;
         let clock = v2::stored_clock(tx)?;
         let control = control::S3Control::attach(tx, &clock)?;
         let view = control.load_pending(
@@ -640,9 +643,24 @@ pub(crate) mod tests {
         assert!(!budget.ledger_health().invariant_broken);
     }
 
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_capture_sqlite_commit_failure_retries_with_new_current_capture() {
+        s_allocation::probe::start(None);
+        check_sqlite_commit_failure_with_mode(s_allocation::Mode::CapturedNative);
+        let (attempts, captures) = s_allocation::probe::finish();
+        assert_eq!(attempts, [0, 0, 2]);
+        assert_eq!(captures[2].unwrap().capture_return_ordinal, 2);
+        assert_eq!(captures[2].unwrap().live_before, 0);
+    }
+
     fn check_sqlite_commit_failure(allocation: Option<q_allocation::Profile>) {
+        check_sqlite_commit_failure_with_mode(allocation.into());
+    }
+
+    fn check_sqlite_commit_failure_with_mode(mode: s_allocation::Mode) {
         let mut f = Fixture::new();
-        f.runtime = Runtime::with_allocation(allocation);
+        f.runtime = Runtime::with_mode(mode);
         let (e, token) = f.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
         let before = catalog(&f.conn);
         // 注入发生在写前审计之后；所有语句先成功，SQLite COMMIT才因外键失败。
@@ -703,7 +721,7 @@ pub(crate) mod tests {
             assert!(!budget.same_ledger(&other));
             if foreign_ledger {
                 // 只在测试私有域换账，证明活业务缓存不会把另一份预算当同账。
-                f.runtime.allocation = Some(q_allocation::Profile {
+                f.runtime.mode = s_allocation::Mode::Owned(q_allocation::Profile {
                     budget: other.clone(),
                     overlay_slots: 32768,
                     overlay_bytes: 1_000_000,
@@ -753,7 +771,7 @@ pub(crate) mod tests {
             assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
             assert_eq!(other.snapshot().live_requested_layout_bytes, 0);
             f.runtime.after_prepare = None;
-            f.runtime.allocation = Some(profile);
+            f.runtime.mode = s_allocation::Mode::Owned(profile);
             s_allocation::probe::start(None);
             let retried = f.publish(&e2, &t2).unwrap().message_receipt;
             let (attempts, captures) = s_allocation::probe::finish();

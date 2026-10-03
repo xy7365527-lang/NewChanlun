@@ -76,8 +76,8 @@ pub(super) fn check_request_before_resume(
 
 pub(super) struct Driver {
     conn: Connection,
-    /// 私有 TESTONLY 分配档；与 Runtime 共享同一 OwnedBudget，跨请求不保留捕获或审计结果。
-    allocation: Option<q_allocation::Profile>,
+    /// 启动前冻结的互斥私有模式；Owned 与 Runtime 同账，不保留 capture/审计结果。
+    mode: s_allocation::Mode,
     runtime: prepared::Runtime,
     clock: v2::ClockPlan,
     epoch: String,
@@ -116,9 +116,26 @@ impl Driver {
         audit_cache_source_bytes: usize,
         allocation: Option<q_allocation::Profile>,
     ) -> Result<Self, String> {
+        Self::open_for_serve_with_mode(
+            db,
+            profile,
+            epoch,
+            clock,
+            audit_cache_source_bytes,
+            allocation.into(),
+        )
+    }
+
+    pub(super) fn open_for_serve_with_mode(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        audit_cache_source_bytes: usize,
+        mode: s_allocation::Mode,
+    ) -> Result<Self, String> {
         state::check_audit_source_retention(audit_cache_source_bytes)?;
-        let mut driver =
-            Self::open_with_request_and_allocation(db, profile, epoch, clock, None, allocation)?;
+        let mut driver = Self::open_with_request_and_mode(db, profile, epoch, clock, None, mode)?;
         driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
         Ok(driver)
     }
@@ -188,9 +205,19 @@ impl Driver {
         request: Option<&Value>,
         allocation: Option<q_allocation::Profile>,
     ) -> Result<Self, String> {
-        if let Some(profile) = allocation.as_ref() {
-            profile.validate()?;
-        }
+        Self::open_with_request_and_mode(db, profile, epoch, clock, request, allocation.into())
+    }
+
+    /// startup/open 身份审计保留普通路径；在任何 pending 恢复之前绑定 Driver/Runtime 同模式。
+    pub(super) fn open_with_request_and_mode(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        request: Option<&Value>,
+        mode: s_allocation::Mode,
+    ) -> Result<Self, String> {
+        mode.validate()?;
         parse_writer_epoch(epoch, "configured writer_epoch")?;
         if !db.is_file() {
             return Err("StorageUnavailable：S3驱动只打开已初始化库".into());
@@ -222,8 +249,8 @@ impl Driver {
         drop(tx);
         let mut driver = Self {
             conn,
-            runtime: prepared::Runtime::with_allocation(allocation.clone()),
-            allocation,
+            runtime: prepared::Runtime::with_mode(mode.clone()),
+            mode,
             clock,
             epoch: epoch.into(),
             profile_id,
@@ -243,7 +270,7 @@ impl Driver {
             state::check_audit_source_retention(cap)?;
         }
         let tx = self.conn.transaction().map_err(err)?;
-        s_allocation::audit(&tx, self.allocation.as_ref(), s_allocation::Phase::Handle)?;
+        s_allocation::audit(&tx, &self.mode, s_allocation::Phase::Handle)?;
         verify_writer_epoch(&tx, &self.epoch)?;
         let control = control::S3Control::attach(&tx, &self.clock)?;
         let (sid, inc, _) = control.identity();
@@ -320,8 +347,7 @@ impl Driver {
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(err)?;
-        let audited =
-            s_allocation::audit(&tx, self.allocation.as_ref(), s_allocation::Phase::Advance)?;
+        let audited = s_allocation::audit(&tx, &self.mode, s_allocation::Phase::Advance)?;
         verify_writer_epoch(&tx, &self.epoch)?;
         if meta_get_opt(&tx, "advance_state")?.as_deref() != Some("idle") {
             return Err("StaleWriter：已有未完成Begin".into());
@@ -520,6 +546,197 @@ mod tests {
             .unwrap()
     }
 
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn native_driver(f: &Fixture) -> Driver {
+        Driver::open_with_request_and_mode(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            None,
+            s_allocation::Mode::CapturedNative,
+        )
+        .unwrap()
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_capture_three_commits_and_restart_match_ordinary_current_state() {
+        use s_allocation::{probe, Phase};
+        for restart_after_two in [false, true] {
+            let f = Fixture::new();
+            let ordinary = Fixture::new();
+            let mut d = native_driver(&f);
+            let mut plain = ordinary.open("1").unwrap();
+            for n in 1..=3 {
+                probe::start(None);
+                let input = Fixture::ingest(n);
+                let actual = d.handle(input.clone()).unwrap();
+                let expected = plain.handle(input).unwrap();
+                let (attempts, captures) = probe::finish();
+                assert_eq!(canonical_json(&actual), canonical_json(&expected));
+                assert_eq!(attempts, [1, 1, 1]);
+                for (i, (phase, raw, clocks, has_begin)) in [
+                    (Phase::Handle, (n - 1) as usize, 3 * (n - 1), false),
+                    (Phase::Advance, n as usize, 3 * (n - 1) + 1, false),
+                    (Phase::Prepare, n as usize, 3 * (n - 1) + 2, true),
+                ]
+                .into_iter()
+                .enumerate()
+                {
+                    let c = captures[i].unwrap();
+                    assert_eq!(
+                        (c.phase, c.raw, c.clocks, c.has_begin),
+                        (phase, raw, clocks, has_begin)
+                    );
+                    assert_eq!(c.capture_return_ordinal, i + 1);
+                    assert_eq!(c.live_before, 0, "Native不创建OwnedBudget");
+                }
+                assert_eq!(
+                    d.state_summary("native-testonly").unwrap(),
+                    plain.state_summary("native-testonly").unwrap()
+                );
+                let roots = |conn: &Connection| {
+                    conn.prepare("SELECT batch_id,hex(manifest_root),hex(snapshot_root),hex(delta_root) FROM s_content_publications ORDER BY generation")
+                        .unwrap().query_map([], |r| Ok((r.get::<_, String>(0)?,r.get::<_, String>(1)?,r.get::<_, String>(2)?,r.get::<_, String>(3)?)))
+                        .unwrap().collect::<Result<Vec<_>, _>>().unwrap()
+                };
+                assert_eq!(roots(&d.conn), roots(&plain.conn));
+                assert_eq!(count(&d.conn, "s_content_publications"), n);
+                assert_eq!(count(&d.conn, "structure_deltas"), n);
+                assert_eq!(count(&d.conn, "s_clock_events"), 3 * n);
+                assert_eq!(state::AUDIT_SOURCE_RETAINED_BYTES, 0);
+                if n == 2 && restart_after_two {
+                    drop(d);
+                    d = native_driver(&f);
+                }
+            }
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_mode_is_frozen_before_pending_resume_captures_advance_and_prepare() {
+        use s_allocation::probe;
+        let f = Fixture::new();
+        let mut ordinary = f.open("1").unwrap();
+        ordinary.stop_after = Some("accept");
+        assert!(ordinary
+            .handle(Fixture::ingest(1))
+            .unwrap_err()
+            .contains("stop_after_accept"));
+        drop(ordinary);
+        probe::start(None);
+        let d = native_driver(&f);
+        let (attempts, captures) = probe::finish();
+        assert_eq!(attempts, [0, 1, 1]);
+        assert_eq!(captures[1].unwrap().capture_return_ordinal, 1);
+        assert_eq!(captures[2].unwrap().capture_return_ordinal, 2);
+        assert_eq!(captures[1].unwrap().clocks, 1);
+        assert_eq!(captures[2].unwrap().clocks, 2);
+        assert_eq!(meta_i64(&d.conn, "generation").unwrap(), 1);
+        assert_eq!(count(&d.conn, "s_clock_events"), 3);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_capture_real_sql_failures_preserve_each_persistent_phase_boundary() {
+        use s_allocation::{probe, Phase};
+        for fault in [probe::Fault::SqlPrepare, probe::Fault::SqlStep] {
+            for (index, phase) in [Phase::Handle, Phase::Advance, Phase::Prepare]
+                .into_iter()
+                .enumerate()
+            {
+                let f = Fixture::new();
+                let mut d = native_driver(&f);
+                probe::start(Some((phase, fault)));
+                let error = d.handle(Fixture::ingest(1)).unwrap_err();
+                d.conn.progress_handler(0, None::<fn() -> bool>);
+                let (attempts, captures) = probe::finish();
+                let expected = match fault {
+                    // Native构造的节点SELECT复用rusqlite prepare，实际保留连接errmsg。
+                    probe::Fault::SqlPrepare => {
+                        "S3StateInvalid：source: S3 内容存储：no such table: s_content_nodes"
+                            .to_owned()
+                    }
+                    probe::Fault::SqlStep => {
+                        // ensure_format仍是CheckedStatement，保留原SQLITE_INTERRUPT code。
+                        let diagnostic = rusqlite::Error::SqliteFailure(
+                            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_INTERRUPT),
+                            None,
+                        );
+                        format!("S3StateInvalid：source: S3 内容存储：{diagnostic}")
+                    }
+                    _ => unreachable!(),
+                };
+                assert_eq!(error, expected, "{phase:?}");
+                for i in 0..3 {
+                    assert_eq!(attempts[i], usize::from(i <= index));
+                    assert_eq!(captures[i].is_some(), i < index);
+                }
+                assert_allocation_boundary(&d.conn, index);
+            }
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_capture_readonly_current_source_rejects_fresh_damage_without_writes() {
+        let f = Fixture::new();
+        let mut d = native_driver(&f);
+        d.handle(Fixture::ingest(1)).unwrap();
+        let readonly =
+            Connection::open_with_flags(&f.db, OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+        readonly.pragma_update(None, "query_only", true).unwrap();
+        {
+            let tx = readonly.unchecked_transaction().unwrap();
+            let audited = state::audit_native_current(&tx).unwrap();
+            assert!(audited.budget.is_none());
+            assert!(audited.raw.budget().is_none());
+            assert_eq!(audited.raw.len(), 1);
+            assert_eq!(audited.cuts.len(), 1);
+            let error = tx.execute("UPDATE meta SET value=value", []).unwrap_err();
+            assert_eq!(
+                error.sqlite_error_code(),
+                Some(rusqlite::ErrorCode::ReadOnly)
+            );
+        }
+        let (digest, mut body): (Vec<u8>, Vec<u8>) = d.conn.query_row(
+            "SELECT n.digest,n.body FROM s_content_nodes n JOIN s_content_publications p ON n.digest=p.snapshot_root WHERE p.generation=1",
+            [], |r| Ok((r.get(0)?,r.get(1)?)),
+        ).unwrap();
+        body[0] ^= 1;
+        d.conn
+            .execute(
+                "UPDATE s_content_nodes SET body=?1 WHERE digest=?2",
+                params![body, digest],
+            )
+            .unwrap();
+        let tx = readonly.unchecked_transaction().unwrap();
+        let error = state::audit_native_current(&tx).err().unwrap();
+        assert!(
+            error.contains(newchan_rust::s_content::code::NODE_DIGEST),
+            "{error}"
+        );
+        drop(tx);
+        s_allocation::probe::start(None);
+        let error = d.handle(Fixture::ingest(2)).unwrap_err();
+        let (attempts, captures) = s_allocation::probe::finish();
+        assert!(
+            error.contains(newchan_rust::s_content::code::NODE_DIGEST),
+            "{error}"
+        );
+        assert_eq!(attempts, [1, 0, 0]);
+        assert!(captures.iter().all(Option::is_none));
+        assert_eq!(meta_i64(&d.conn, "generation").unwrap(), 1);
+        assert_eq!(count(&d.conn, "raw_events"), 1);
+        assert_eq!(count(&d.conn, "s_input_messages"), 1);
+        assert_eq!(count(&d.conn, "s_content_publications"), 1);
+        assert_eq!(count(&d.conn, "structure_deltas"), 1);
+        assert_eq!(count(&d.conn, "s_clock_events"), 3);
+        assert_eq!(state::AUDIT_SOURCE_RETAINED_BYTES, 0);
+    }
+
     #[cfg(feature = "s_allocation_json_testonly")]
     fn allocation_profile() -> q_allocation::Profile {
         // 既有具名 TestOnly 对照域，绝非生产容量或资源默认值。
@@ -715,7 +932,10 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_allocation_json_testonly")]
+    #[cfg(any(
+        feature = "s_allocation_json_testonly",
+        feature = "s_capture_native_testonly"
+    ))]
     fn assert_allocation_boundary(conn: &Connection, completed_phases: usize) {
         assert_eq!(meta_i64(conn, "generation").unwrap(), 0);
         assert_eq!(count(conn, "raw_events"), i64::from(completed_phases > 0));
