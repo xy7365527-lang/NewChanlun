@@ -1,0 +1,8 @@
+{
+  "profile": "COARSE-CLOCK-IDENTIFIABILITY-v1",
+  "spec": ".chanlun/review-results/issue1467-f1-proof/CoarseClockSpec.lean",
+  "spec_sha256": "0270a7ffa594414cb7ed441a42d57dc249a29ddb1e8563f86463031721940b08",
+  "declaration": "CoarseClock.exact_root",
+  "expected_type": "CoarseClock.WITNESS_TARGET ∧ CoarseClock.AMBIGUITY_TARGET ∧ CoarseClock.NO_SELECTOR_TARGET ∧ CoarseClock.PARTIAL_TARGET",
+  "frozen_before_proof": true
+}

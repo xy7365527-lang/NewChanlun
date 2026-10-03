@@ -1,0 +1,18 @@
+{
+  ".chanlun/review-results/issue1467-f1-proof/Stage30WorkCard.md": "0309fb24b3b310edb61f5aa1a6cd325d7abe0e680732877c39807d190623d391",
+  ".chanlun/review-results/issue1467-f1-proof/CoarseClockSpec.lean": "0270a7ffa594414cb7ed441a42d57dc249a29ddb1e8563f86463031721940b08",
+  ".chanlun/review-results/issue1467-f1-proof/CoarseClockProof.lean": "e370f8e400196369d8c64bdef3189920f9650f224ad9969c67fd3384222b79ff",
+  ".chanlun/review-results/issue1467-f1-proof/Stage30BaseAndClockScope.md": "509b6a667da1742860c5a0c2efd097fd6c7ae5f14c29aca84b97a415883f12c2",
+  ".chanlun/review-results/issue1467-f1-proof/Stage30PendingReview.md": "1f51f549a15faf6a3250823ca7a3f991d9e05fc43200a15a81edd86b2a256acb",
+  ".chanlun/review-results/issue1467-f1-proof/stage30-declaration-lock.json": "e6e6843f2ffebc43feedfea6106c5b65aac08ace5a8a1be02a8cd4f433aaf2dc",
+  ".chanlun/review-results/issue1467-f1-proof/ClockEdgeSpec.lean": "8f050a1fd2a26cd3c5159fd5d282132b9e5b18bc0f149f03bfd70231f9993571",
+  ".chanlun/review-results/issue1467-f1-proof/ClockEdgeProof.lean": "de7e000cca0f12b0822a10b48e28cd4877437d4109a89f412d3754187e04f547",
+  ".chanlun/review-results/issue1467-f1-proof/PrimitiveSemantics.lean": "80db91f94ec1da1c4c130482bab7330115af547cc9dfd0c628c92798508e447f",
+  ".chanlun/review-results/issue1467-f1-proof/DCSemantics.lean": "a2fbd4becc7a692ba10b6aff6c84dd511ccb5062dae734c9a56616324db0a972",
+  ".chanlun/definitions/bi.md": "b4a0497ed0487a9d63fb239d20a4b564b6fbc8aa239b2abee7f18c895feb0a4b",
+  ".chanlun/definitions/beichi.md": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+  "docs/chanlun/text/blog/081-第81课.md": "18caff8a718f9cbccee454872e85350fcd99b051ebedda4b19578c341136d7b8",
+  "docs/chanlun/text/blog/084-第84课.md": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26",
+  "formal/Origin/ForceVelocity.lean": "9690245077a125451c97f3ab1ca67cfc3cd43553c671009a3eba682ace6a0773",
+  "formal/Origin/ChanlunElements.lean": "19c33e884e6949cdd56a51ff7c44dc086354994b7f54431f57bec4a0849fa201"
+}

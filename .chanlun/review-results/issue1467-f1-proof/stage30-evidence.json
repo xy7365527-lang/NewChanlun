@@ -1,0 +1,188 @@
+{
+  "date": "2026-10-04",
+  "issue": 1467,
+  "profile": "COARSE-CLOCK-IDENTIFIABILITY-v1",
+  "declaration": "CoarseClock.exact_root",
+  "expected_type": "CoarseClock.WITNESS_TARGET ∧ CoarseClock.AMBIGUITY_TARGET ∧ CoarseClock.NO_SELECTOR_TARGET ∧ CoarseClock.PARTIAL_TARGET",
+  "actual_type": "And CoarseClock.WITNESS_TARGET\n  (And CoarseClock.AMBIGUITY_TARGET (And CoarseClock.NO_SELECTOR_TARGET CoarseClock.PARTIAL_TARGET))",
+  "run_id": "9263b37160624a20988a98043e2d63cf",
+  "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/run-manifest.json",
+  "manifest_sha256": "39e7878e2e891ff42ccbde1b9b54b78d56dc9ba00bed79426b800625b42aad2a",
+  "exact_root_passed": true,
+  "root_closure": {
+    "status": "closed",
+    "exact_root_passed": true,
+    "declaration_closed": true,
+    "scope": "expected Lean type in the recorded environment; semantic review is separate"
+  },
+  "semantic": {
+    "status": "not_reviewed",
+    "reused": false,
+    "semantic_sha256": "65b96df9992603123269f4f5ef686ea0bd68e0b984e8334dc390535e4df8a9d8"
+  },
+  "axioms": [
+    "propext",
+    "Classical.choice",
+    "Quot.sound"
+  ],
+  "unexpected_axioms": [],
+  "unknown_dependencies": [],
+  "unsafe_dependencies": [],
+  "statement_lock": {
+    "path": "stage30-declaration-lock.json",
+    "spec_sha256": "0270a7ffa594414cb7ed441a42d57dc249a29ddb1e8563f86463031721940b08",
+    "unchanged": true
+  },
+  "source_copies_equal": true,
+  "first_attempt": true,
+  "LEAN_PATH": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean:/Users/silencehan/Documents/Codex/research-evidence/issue1467/lift-boundary-verified-v1/lean-verification-runs/70afcb63cad748cebe219c90e28e4091/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-quote-verified-v1/lean-verification-runs/6fb6a2f71c86428997a7be2a9148863e/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-v1-checked/lean-verification-runs/dab78e23087045249ac84871dd73c164/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/clock-edge-v1-check3/lean-verification-runs/14c54f0aafae4193921edef9d9fbf923/lib",
+  "commands": [
+    {
+      "kind": "source_dependencies",
+      "file": "CoarseClockProof.lean",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--run",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/DiscoverImports.lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-project-v1/CoarseClockProof.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 1.592665,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/logs/91d4b31688314d8ea6d1274270898a59.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/logs/91d4b31688314d8ea6d1274270898a59.stderr.log"
+    },
+    {
+      "kind": "source_dependencies",
+      "file": "CoarseClockSpec.lean",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--run",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/DiscoverImports.lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-project-v1/CoarseClockSpec.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.793381,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/logs/6f5952153fd54958b22f56c6ae24ab95.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/logs/6f5952153fd54958b22f56c6ae24ab95.stderr.log"
+    },
+    {
+      "kind": "import_resolution",
+      "file": "CoarseClockSpec.lean",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--deps",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-project-v1/CoarseClockSpec.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.043307,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/logs/1ef4e1c390bf446fa303cad9d40dfa72.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/logs/1ef4e1c390bf446fa303cad9d40dfa72.stderr.log"
+    },
+    {
+      "kind": "target",
+      "file": "CoarseClockSpec.lean",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-project-v1",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/lib/CoarseClockSpec.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-project-v1/CoarseClockSpec.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.371815,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/logs/52ea7dbff07440699acbbc01bb70f167.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/logs/52ea7dbff07440699acbbc01bb70f167.stderr.log"
+    },
+    {
+      "kind": "import_resolution",
+      "file": "CoarseClockProof.lean",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--deps",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-project-v1/CoarseClockProof.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.047817,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/logs/3befbce0995a4aec94cead97e39f5610.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/logs/3befbce0995a4aec94cead97e39f5610.stderr.log"
+    },
+    {
+      "kind": "target",
+      "file": "CoarseClockProof.lean",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-project-v1",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/lib/CoarseClockProof.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-project-v1/CoarseClockProof.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.374857,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/logs/cd27672a3b394b548b0d4f23cbbdd2d7.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/logs/cd27672a3b394b548b0d4f23cbbdd2d7.stderr.log"
+    },
+    {
+      "kind": "inspector_compile",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/lib/LeanVerifyProbe.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/LeanVerifyProbe.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.918361,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/logs/a6df003a451447b6891c19ced32afd5b.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/logs/a6df003a451447b6891c19ced32afd5b.stderr.log"
+    },
+    {
+      "kind": "declaration_inspection",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/InspectRoot.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.997401,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/logs/ef09526345384f41bc00ac995f4f9909.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/coarse-clock-v1/lean-verification-runs/9263b37160624a20988a98043e2d63cf/logs/ef09526345384f41bc00ac995f4f9909.stderr.log"
+    }
+  ],
+  "freshness": {
+    "status": "current",
+    "snapshot_current": true,
+    "exact_root_passed": true,
+    "semantic_sha256": "65b96df9992603123269f4f5ef686ea0bd68e0b984e8334dc390535e4df8a9d8",
+    "manifest_sha256": "39e7878e2e891ff42ccbde1b9b54b78d56dc9ba00bed79426b800625b42aad2a",
+    "reasons": [],
+    "scope": "saved evidence and current Lean module resolution checked; no new kernel proof replay"
+  },
+  "storage": {
+    "directories": {
+      "coarse-clock-project-v1": 3951,
+      "coarse-clock-v1": 22682813
+    },
+    "total_bytes": 22686764,
+    "limit_bytes": 67108864
+  },
+  "source_fingerprints": "source-sha256-stage30.json",
+  "formal_source_changed": false,
+  "source_scope_analysis": "research inference from named original text and doctrine; not certified by this Lean root",
+  "limits": [
+    "declared integer bucket observation model only",
+    "no claim Coinbase uses this coarsening model",
+    "numeric force comparator is not full structural divergence",
+    "no per-record ambiguity certificate for the 16 actual same-time units",
+    "no full F2, independent semantic review, or market value result"
+  ]
+}
