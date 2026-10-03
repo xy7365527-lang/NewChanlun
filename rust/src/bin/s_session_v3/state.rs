@@ -1003,6 +1003,8 @@ mod scoped_prototype_probe {
     #[test]
     #[ignore]
     fn owned_current_material() {
+        #[cfg(feature = "s_allocation_json_testonly")]
+        sc::capture_allocation::overlay::reset_first_overlay_refusal_for_testonly();
         let db = std::env::var("AUDIT_PROTOTYPE_DB").unwrap();
         let mut c =
             Connection::open_with_flags(db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
@@ -1036,8 +1038,13 @@ mod scoped_prototype_probe {
             None => run(),
         };
         let elapsed = started.elapsed().as_nanos();
+        #[cfg(feature = "s_allocation_json_testonly")]
+        let first_overlay_refusal =
+            sc::capture_allocation::overlay::take_first_overlay_refusal_for_testonly();
+        #[cfg(not(feature = "s_allocation_json_testonly"))]
+        let first_overlay_refusal: Option<()> = None;
         if let Err(error) = &result {
-            let failure = json!({"whole_audit_allocation_admitted":false,"testonly_failure_receipt":true,"error":error,"after_drop_meter":owned_budget.as_ref().map(|b|b.snapshot()),"last_layout":owned_budget.as_ref().map(|b|b.allocation_request_probe()),"f_calls":sc::frame_calls_on_thread()-f,"sql_node_reads":content_store::sql_reads_on_thread()-sql,"events":events,"work":work,"elapsed_ns":elapsed.to_string()});
+            let failure = json!({"whole_audit_allocation_admitted":false,"testonly_failure_receipt":true,"error":error,"first_overlay_refusal":first_overlay_refusal,"after_drop_meter":owned_budget.as_ref().map(|b|b.snapshot()),"last_layout":owned_budget.as_ref().map(|b|b.allocation_request_probe()),"f_calls":sc::frame_calls_on_thread()-f,"sql_node_reads":content_store::sql_reads_on_thread()-sql,"events":events,"work":work,"elapsed_ns":elapsed.to_string()});
             std::fs::write(
                 std::env::var("AUDIT_PROTOTYPE_REPORT").unwrap(),
                 canonical_json(&failure),
@@ -1056,7 +1063,7 @@ mod scoped_prototype_probe {
             })
             .collect::<Vec<_>>();
         let complete = json!({"raw":s.raw,"cuts":cuts,"objects":format!("{:?}",s.objects),"auxiliary":format!("{:?}",s.auxiliary),"clock":v2::stored_clock(&tx).unwrap().value});
-        let report = json!({"overlay_peak_used_slots":peaks.get().0,"overlay_peak_used_body_bytes":peaks.get().1,"whole_audit_allocation_admitted":false,"capture_meter_after_drop":owned_budget.as_ref().map(|b|b.snapshot()),"elapsed_ns":elapsed.to_string(),"capture_ns":capture.as_ref().and_then(|v|v.get("capture_ns")).cloned(),"capture":capture,"sql_node_reads":content_store::sql_reads_on_thread()-sql,"f_calls":sc::frame_calls_on_thread()-f,"work":work,"events":events,"complete":complete,"complete_sha256":sha256_hex(canonical_json(&complete).as_bytes())});
+        let report = json!({"overlay_peak_used_slots":peaks.get().0,"overlay_peak_used_body_bytes":peaks.get().1,"whole_audit_allocation_admitted":false,"first_overlay_refusal":first_overlay_refusal,"capture_meter_after_drop":owned_budget.as_ref().map(|b|b.snapshot()),"elapsed_ns":elapsed.to_string(),"capture_ns":capture.as_ref().and_then(|v|v.get("capture_ns")).cloned(),"capture":capture,"sql_node_reads":content_store::sql_reads_on_thread()-sql,"f_calls":sc::frame_calls_on_thread()-f,"work":work,"events":events,"complete":complete,"complete_sha256":sha256_hex(canonical_json(&complete).as_bytes())});
         std::fs::write(
             std::env::var("AUDIT_PROTOTYPE_REPORT").unwrap(),
             canonical_json(&report),

@@ -1,5 +1,67 @@
 use super::*;
 
+// #1394 fixed TestOnly instrument; this does not qualify whole-audit heap coverage.
+#[cfg(feature = "s_allocation_json_testonly")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TestOnlyOverlayRefusalReason {
+    Slots,
+    Body,
+    Both,
+    Overflow,
+}
+
+#[cfg(feature = "s_allocation_json_testonly")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct TestOnlyOverlayRefusal {
+    pub used_slots: usize,
+    pub needed_slots: Option<usize>,
+    pub slot_capacity: usize,
+    pub used_body_bytes: usize,
+    pub needed_body_bytes: Option<usize>,
+    pub body_capacity: usize,
+    pub reason: TestOnlyOverlayRefusalReason,
+}
+
+#[cfg(feature = "s_allocation_json_testonly")]
+thread_local! {
+    static FIRST_OVERLAY_REFUSAL: std::cell::Cell<Option<TestOnlyOverlayRefusal>> = const { std::cell::Cell::new(None) };
+}
+
+#[cfg(feature = "s_allocation_json_testonly")]
+#[doc(hidden)]
+pub fn reset_first_overlay_refusal_for_testonly() {
+    FIRST_OVERLAY_REFUSAL.with(|first| first.set(None));
+}
+
+#[cfg(feature = "s_allocation_json_testonly")]
+#[doc(hidden)]
+pub fn take_first_overlay_refusal_for_testonly() -> Option<TestOnlyOverlayRefusal> {
+    FIRST_OVERLAY_REFUSAL.with(|first| first.take())
+}
+
+#[cfg(feature = "s_allocation_json_testonly")]
+fn note_overlay_refusal(
+    s: &OverlayStorage,
+    new_slot: bool,
+    needed_body_bytes: Option<usize>,
+    reason: TestOnlyOverlayRefusalReason,
+) {
+    FIRST_OVERLAY_REFUSAL.with(|first| {
+        if first.get().is_none() {
+            first.set(Some(TestOnlyOverlayRefusal {
+                used_slots: s.used,
+                needed_slots: s.used.checked_add(usize::from(new_slot)),
+                slot_capacity: s.count,
+                used_body_bytes: s.body_used,
+                needed_body_bytes,
+                body_capacity: s.body.layout.size(),
+                reason,
+            }));
+        }
+    });
+}
+
 // #1394 overlay appends bodies in write order while sorting its digest index.
 // Its lengths must remain explicit; CaptureSlab's adjacent-offset rule does not apply.
 #[derive(Clone, Copy)]
@@ -93,8 +155,31 @@ impl OverlaySlab {
             .body_used
             .checked_sub(old_len)
             .and_then(|n| n.checked_add(body.len()))
-            .ok_or_else(refused)?;
+            .ok_or_else(|| {
+                #[cfg(feature = "s_allocation_json_testonly")]
+                note_overlay_refusal(
+                    s,
+                    old.is_none(),
+                    None,
+                    TestOnlyOverlayRefusalReason::Overflow,
+                );
+                refused()
+            })?;
         if (old.is_none() && s.used == s.count) || needed > s.body.layout.size() {
+            #[cfg(feature = "s_allocation_json_testonly")]
+            note_overlay_refusal(
+                s,
+                old.is_none(),
+                Some(needed),
+                match (
+                    old.is_none() && s.used == s.count,
+                    needed > s.body.layout.size(),
+                ) {
+                    (true, true) => TestOnlyOverlayRefusalReason::Both,
+                    (true, false) => TestOnlyOverlayRefusalReason::Slots,
+                    (false, _) => TestOnlyOverlayRefusalReason::Body,
+                },
+            );
             return Err(CodecError::new(
                 LIMIT,
                 "overlay 槽数或正文 arena 已满，复制前拒绝",
@@ -167,6 +252,164 @@ impl OverlaySlab {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn first_refusal_reports_exact_capacities_without_store_or_budget_changes() {
+        for (slots, bodies, digest, body, expected) in [
+            (
+                1,
+                8,
+                [2; 32],
+                &b"x"[..],
+                TestOnlyOverlayRefusal {
+                    used_slots: 1,
+                    needed_slots: Some(2),
+                    slot_capacity: 1,
+                    used_body_bytes: 3,
+                    needed_body_bytes: Some(4),
+                    body_capacity: 8,
+                    reason: TestOnlyOverlayRefusalReason::Slots,
+                },
+            ),
+            (
+                2,
+                3,
+                [1; 32],
+                &b"abcd"[..],
+                TestOnlyOverlayRefusal {
+                    used_slots: 1,
+                    needed_slots: Some(1),
+                    slot_capacity: 2,
+                    used_body_bytes: 3,
+                    needed_body_bytes: Some(4),
+                    body_capacity: 3,
+                    reason: TestOnlyOverlayRefusalReason::Body,
+                },
+            ),
+            (
+                1,
+                3,
+                [2; 32],
+                &b"x"[..],
+                TestOnlyOverlayRefusal {
+                    used_slots: 1,
+                    needed_slots: Some(2),
+                    slot_capacity: 1,
+                    used_body_bytes: 3,
+                    needed_body_bytes: Some(4),
+                    body_capacity: 3,
+                    reason: TestOnlyOverlayRefusalReason::Both,
+                },
+            ),
+        ] {
+            reset_first_overlay_refusal_for_testonly();
+            let bytes = OverlaySlab::requested_bytes(slots, bodies).unwrap();
+            let budget = OwnedBudget::new(bytes);
+            let mut overlay = OverlaySlab::new(slots, bodies, &budget).unwrap();
+            overlay.put([1; 32], 1, b"abc").unwrap();
+            assert_eq!(take_first_overlay_refusal_for_testonly(), None);
+            let before = budget.snapshot();
+            let error = overlay.put(digest, 2, body).unwrap_err();
+            assert_eq!(error.code(), LIMIT);
+            assert_eq!(error.detail(), "overlay 槽数或正文 arena 已满，复制前拒绝");
+            assert_eq!(overlay.original(&[1; 32]), Some((1, &b"abc"[..])));
+            assert_eq!(overlay.original(&[2; 32]), None);
+            assert_eq!((overlay.slab.used, overlay.slab.body_used), (1, 3));
+            assert_eq!(overlay.peak_used(), (1, 3));
+            assert_eq!(budget.snapshot().copied_rows, before.copied_rows);
+            assert_eq!(
+                budget.snapshot().copied_body_bytes,
+                before.copied_body_bytes
+            );
+            assert_eq!(
+                budget.snapshot().live_requested_layout_bytes,
+                before.live_requested_layout_bytes
+            );
+            assert_eq!(
+                budget.snapshot().allocation_attempts,
+                before.allocation_attempts
+            );
+            assert_eq!(
+                budget.snapshot().allocated_layouts,
+                before.allocated_layouts
+            );
+            assert_eq!(budget.snapshot().rejected_layouts, before.rejected_layouts);
+            assert_eq!(take_first_overlay_refusal_for_testonly(), Some(expected));
+            assert_eq!(take_first_overlay_refusal_for_testonly(), None);
+        }
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn first_refusal_is_retained_until_taken_or_explicitly_reset() {
+        reset_first_overlay_refusal_for_testonly();
+        let budget = OwnedBudget::new(OverlaySlab::requested_bytes(1, 3).unwrap());
+        let mut overlay = OverlaySlab::new(1, 3, &budget).unwrap();
+        overlay.put([1; 32], 1, b"abc").unwrap();
+        overlay.put([2; 32], 2, b"").unwrap_err();
+        overlay.put([1; 32], 1, b"abc").unwrap();
+        overlay.put([1; 32], 2, b"abcd").unwrap_err();
+        assert_eq!(
+            take_first_overlay_refusal_for_testonly(),
+            Some(TestOnlyOverlayRefusal {
+                used_slots: 1,
+                needed_slots: Some(2),
+                slot_capacity: 1,
+                used_body_bytes: 3,
+                needed_body_bytes: Some(3),
+                body_capacity: 3,
+                reason: TestOnlyOverlayRefusalReason::Slots,
+            })
+        );
+        overlay.put([1; 32], 2, b"abcd").unwrap_err();
+        reset_first_overlay_refusal_for_testonly();
+        assert_eq!(take_first_overlay_refusal_for_testonly(), None);
+        overlay.put([1; 32], 2, b"abcd").unwrap_err();
+        assert_eq!(
+            take_first_overlay_refusal_for_testonly().unwrap().reason,
+            TestOnlyOverlayRefusalReason::Body
+        );
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn arithmetic_overflow_keeps_the_original_error_and_no_copy() {
+        reset_first_overlay_refusal_for_testonly();
+        let budget = OwnedBudget::new(0);
+        let mut overlay = OverlaySlab::new(0, 0, &budget).unwrap();
+        // Synthetic internal counter exercises the arithmetic refusal without a
+        // huge allocation or constructing an invalid body slice.
+        overlay.slab.body_used = usize::MAX;
+        let before = budget.snapshot();
+        let error = overlay.put([1; 32], 1, b"x").unwrap_err();
+        assert_eq!(error.code(), LIMIT);
+        assert_eq!(error.detail(), "capture requested Layout 超过显式测试额度");
+        assert_eq!(overlay.original(&[1; 32]), None);
+        assert_eq!((overlay.slab.used, overlay.slab.body_used), (0, usize::MAX));
+        assert_eq!(overlay.peak_used(), (0, 0));
+        assert_eq!(budget.snapshot().copied_rows, before.copied_rows);
+        assert_eq!(
+            budget.snapshot().copied_body_bytes,
+            before.copied_body_bytes
+        );
+        assert_eq!(
+            budget.snapshot().allocation_attempts,
+            before.allocation_attempts
+        );
+        assert_eq!(
+            take_first_overlay_refusal_for_testonly(),
+            Some(TestOnlyOverlayRefusal {
+                used_slots: 0,
+                needed_slots: Some(1),
+                slot_capacity: 0,
+                used_body_bytes: usize::MAX,
+                needed_body_bytes: None,
+                body_capacity: 0,
+                reason: TestOnlyOverlayRefusalReason::Overflow,
+            })
+        );
+    }
 
     #[test]
     fn overlay_retains_old_layout_and_rejects_slots_as_bytes() {
