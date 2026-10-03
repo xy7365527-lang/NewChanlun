@@ -1,0 +1,8 @@
+{
+  "upstream_file": "coinbase_sample_audit.rs",
+  "upstream_sha256": "98869ec5bde684a04f70497b13a26d4340b442ff48bdca6df6276b3e9463f9e7",
+  "prefix_bytes": 16954,
+  "prefix_sha256": "34788ea66e36163f2fe2ab337e0d790ed31fa347014a8ef090da29be4c476e01",
+  "boundary": "fn checkpoint(path:",
+  "scope": "parser, record/state definitions and all State methods copied verbatim; new driver follows"
+}

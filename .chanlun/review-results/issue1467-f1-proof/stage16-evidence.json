@@ -1,0 +1,223 @@
+{
+  "scope": "fixed sample and named delivery mutations; no confirmation experiment or general protocol proof",
+  "baseline": {
+    "book_sha256": "0ed5637bc7b8dc12d82927b3800a53754b0bbb0372c343b49315a52dff266052",
+    "bounded_prefix_requested": false,
+    "emitted_new_trades": 205,
+    "eof_observed": true,
+    "executable_sha256": "13a3bb5923032fa26c05b4bda1cb4e6184509da68687552c8d177bcabb575d7b",
+    "final_frontier": "19247072117",
+    "final_ready": true,
+    "lines_consumed": 20868,
+    "pending_at_end": 0,
+    "raw_trade_count": 205,
+    "restored_from_line": 0,
+    "rows_emitted": 20868,
+    "schema": "coinbase-causal-view/1",
+    "scope": "fixed-sample causal views; no independent book oracle, signal qualification, execution or PnL",
+    "sequence_backwards_in_capture": 0,
+    "sequence_gaps_in_capture": 0,
+    "source_sha256": "8fa0b1a21a02140aafcc679fb656f39499f8e24c4b0928a436852b4f9d7407fd",
+    "state_sha256": "c17603a9b18a1d885d580663ff360560ebdcfc451f09700963af334687d2b1cf",
+    "status_counts": {
+      "awaiting_snapshot": 339,
+      "ready": 20529
+    },
+    "stop_after_line": null,
+    "trace_chain_sha256": "0b6497f5370c282bedecda500d47395a0330d208272508c58e6efe7fb2047212",
+    "trace_file_sha256": "a52374d3d1fc922eca44a692cc4243db2a083ee93346bc5b2181292ae66a47a5",
+    "transition_counts": {
+      "single_event": 20528,
+      "snapshot_batch": 1,
+      "unavailable": 339
+    }
+  },
+  "checks": {
+    "recoveries": [
+      {
+        "name": "empty",
+        "from_line": 0,
+        "suffix_equal": true,
+        "trace_chain_equal": true
+      },
+      {
+        "name": "before-snapshot",
+        "from_line": 339,
+        "suffix_equal": true,
+        "trace_chain_equal": true
+      },
+      {
+        "name": "after-snapshot",
+        "from_line": 340,
+        "suffix_equal": true,
+        "trace_chain_equal": true
+      },
+      {
+        "name": "middle",
+        "from_line": 10000,
+        "suffix_equal": true,
+        "trace_chain_equal": true
+      }
+    ],
+    "physical_prefixes": [
+      {
+        "lines": 339,
+        "physical_input_prefix_equal": true,
+        "final_ready": false
+      },
+      {
+        "lines": 340,
+        "physical_input_prefix_equal": true,
+        "final_ready": true
+      },
+      {
+        "lines": 1000,
+        "physical_input_prefix_equal": true,
+        "final_ready": true
+      },
+      {
+        "lines": 10000,
+        "physical_input_prefix_equal": true,
+        "final_ready": true
+      }
+    ],
+    "gap": {
+      "missing_original_line": 1001,
+      "missing_sequence": "19247052250",
+      "quote_withheld_after_gap": true,
+      "pending_at_end": 19867
+    },
+    "short_delay": {
+      "inserted_after_original_line": 1005,
+      "repaired_capture_line": 1005,
+      "changed_capture_time": "2021-01-01T00:00:04.1760299Z",
+      "applied": 5,
+      "delayed_applied": 4,
+      "old_gap_rows_unchanged": true,
+      "one_post_catchup_view": true,
+      "final_book_equal": true
+    },
+    "binding_rejections": [
+      "checkpoint/source binding mismatch",
+      "checkpoint/executable binding mismatch",
+      "checkpoint state checksum mismatch"
+    ],
+    "pending_recovery": {
+      "checkpoint_line": 10000,
+      "checkpoint_pending": 9000,
+      "repair_capture_line": 10005,
+      "delayed_applied_at_repair": 9004,
+      "total_applied_at_repair": 9005,
+      "restored_suffix_equal": true,
+      "final_trace_chain_equal": true,
+      "final_book_equal_original": true
+    },
+    "quote_contract": [
+      {
+        "name": "after-snapshot",
+        "line": 340,
+        "checkpoint_sha256": "321106b9a66d6021025bd4a3d22daab92450ed4d7207898ab726bc7da6a92478",
+        "quote_equal": true
+      },
+      {
+        "name": "middle",
+        "line": 10000,
+        "checkpoint_sha256": "803be4175822a0359cb8c52ab43708836843f4525ba8af8dbbcb1b1d317b4b97",
+        "quote_equal": true
+      },
+      {
+        "name": "one-sided",
+        "command": [
+          "/private/tmp/nc1467-cargo-target/debug/order-event-causal-view",
+          "replay",
+          "/Users/silencehan/Documents/Codex/research-evidence/issue1467/causal-view-v1/quote-contract-1/one-sided/input.ndjson",
+          "/Users/silencehan/Documents/Codex/research-evidence/issue1467/causal-view-v1/quote-contract-1/one-sided/checkpoints",
+          "/Users/silencehan/Documents/Codex/research-evidence/issue1467/causal-view-v1/quote-contract-1/one-sided/rows.jsonl",
+          "/Users/silencehan/Documents/Codex/research-evidence/issue1467/causal-view-v1/quote-contract-1/one-sided/report.json"
+        ],
+        "exit_code": 2,
+        "status": "missing_quote",
+        "quote_withheld": true,
+        "input_sha256": "442c03081ff6c49ccdb07449be47f29ef67d196fe646e4401ed265f05bdee853"
+      },
+      {
+        "name": "locked",
+        "command": [
+          "/private/tmp/nc1467-cargo-target/debug/order-event-causal-view",
+          "replay",
+          "/Users/silencehan/Documents/Codex/research-evidence/issue1467/causal-view-v1/quote-contract-1/locked/input.ndjson",
+          "/Users/silencehan/Documents/Codex/research-evidence/issue1467/causal-view-v1/quote-contract-1/locked/checkpoints",
+          "/Users/silencehan/Documents/Codex/research-evidence/issue1467/causal-view-v1/quote-contract-1/locked/rows.jsonl",
+          "/Users/silencehan/Documents/Codex/research-evidence/issue1467/causal-view-v1/quote-contract-1/locked/report.json"
+        ],
+        "exit_code": 2,
+        "status": "crossed_or_locked_quote",
+        "quote_withheld": true,
+        "input_sha256": "edad8d59303db08b9f51cf5dece572f1edc5963f6cd28456ab31127b9d7b5eee"
+      }
+    ],
+    "order_reaggregation": [
+      {
+        "checkpoint": "after-snapshot",
+        "line": 340,
+        "checkpoint_sha256": "321106b9a66d6021025bd4a3d22daab92450ed4d7207898ab726bc7da6a92478",
+        "quote_matches_order_reaggregation": true
+      },
+      {
+        "checkpoint": "middle",
+        "line": 10000,
+        "checkpoint_sha256": "803be4175822a0359cb8c52ab43708836843f4525ba8af8dbbcb1b1d317b4b97",
+        "quote_matches_order_reaggregation": true
+      }
+    ],
+    "all_passed": true
+  },
+  "artifact_receipts": {
+    "baseline": {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/causal-view-v1/report.json",
+      "sha256": "75c99e067bb17c81899fa1d70274e8f330ea5228a323db5a05ddccb03db1ad2f"
+    },
+    "matrix": {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/causal-view-v1/verification-1/summary.json",
+      "sha256": "52fec00d83214072448bc67f16e446bea06646f91845cda4d53a37e538919c23"
+    },
+    "gap_recovery": {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/causal-view-v1/gap-recovery-1/summary.json",
+      "sha256": "8b28af66af9dff60af65df80a752f81bc50bd9a154e44992bd97669dad325f89"
+    },
+    "quote_contract": {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/causal-view-v1/quote-contract-1/summary.json",
+      "sha256": "f7714e4b166f8b09619edc60076e9900db4d2f5b4322c70b11b233417e3a6195"
+    },
+    "old_order_reaggregation": {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/causal-view-v1/quote-source-check.json",
+      "sha256": "b870a479ca40e9355b63f8e02fe397207da156cc33ecb3ecaed5c18cbad3fcae"
+    }
+  },
+  "code_sha256": {
+    "coinbase_causal_view.rs": "5af9d8dcca3ddb66b459f321c1b671492ff4d77b1785affc6e2608fb129731df",
+    "stage16-replay/Cargo.toml": "a2872ab291db520b1d382f0769cad69053ad533f74f3fb489813115676eeb2a6",
+    "stage16-replay/Cargo.lock": "dceaae0858032878175b26c63981f53e98274f4ac4e83c0e4245656c6ca67c66",
+    "stage16_verify.mjs": "6de2b3577102c622db17f427a113cb453187f0e6491134bdf0b27b6749ef593e",
+    "stage16_gap_resume_verify.mjs": "82b97f54941af58cd71f13a7bd03f14ff2391943a28b91be6bdc216e512af3bf",
+    "stage16_quote_contract_verify.mjs": "372a757e3b40b395d0a145d15c358293db2433868c8d73d83a3ad9f6647815dc",
+    "stage16-core-origin.json": "13702550c6b5408408d2873bcbe8929a2fcc8b1ef9527b913c842a229dff1d89",
+    "Stage16WorkCard.md": "40392a20b77a441c47971d42a93e49b0fb02e5ff2a9e5864cb19de1050e36b56"
+  },
+  "frozen_core": {
+    "upstream_file": "coinbase_sample_audit.rs",
+    "upstream_sha256": "98869ec5bde684a04f70497b13a26d4340b442ff48bdca6df6276b3e9463f9e7",
+    "prefix_bytes": 16954,
+    "prefix_sha256": "34788ea66e36163f2fe2ab337e0d790ed31fa347014a8ef090da29be4c476e01",
+    "boundary": "fn checkpoint(path:",
+    "scope": "parser, record/state definitions and all State methods copied verbatim; new driver follows"
+  },
+  "evidence_bytes": 226628885,
+  "evidence_mib": 216.13,
+  "budget_mib": 300,
+  "independent_semantic_review": "not_reviewed",
+  "independent_exchange_terminal_snapshot": "not_available",
+  "old_stage9_source_unchanged": true,
+  "raw_input_unchanged": true,
+  "compiler_warning": "unused original Checkpoint type retained to keep frozen core byte-identical"
+}
