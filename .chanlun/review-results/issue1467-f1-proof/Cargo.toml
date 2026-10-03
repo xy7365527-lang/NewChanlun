@@ -20,3 +20,19 @@ path = "semantic_counterexamples.rs"
 [[bin]]
 name = "order-base-point-reference"
 path = "point_reference_probe.rs"
+
+[[bin]]
+name = "order-base-segment-evidence"
+path = "segment_evidence_probe.rs"
+
+[[bin]]
+name = "order-base-direct-flow-bridge"
+path = "direct_flow_bridge_probe.rs"
+
+[[bin]]
+name = "order-base-directional-change"
+path = "directional_change_probe.rs"
+
+[[bin]]
+name = "order-base-dc-replay"
+path = "dc_replay_probe.rs"

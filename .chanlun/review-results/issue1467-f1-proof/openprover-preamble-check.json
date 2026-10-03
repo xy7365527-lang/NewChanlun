@@ -1,0 +1,9 @@
+{
+  "scope": "upstream static preservation function and local Lean compilation only; no framework or LLM run",
+  "upstream_sha": "e200251b34349ab6c34548d30319abde86cb6bc6",
+  "original": "variable (P : Prop)\ntheorem target : P := by sorry\n",
+  "submitted": "def P : Prop := True\ntheorem target : P := by trivial\n#print target\n#print axioms target\n",
+  "checker_result": null,
+  "lean_exit": 0,
+  "lean_output": "theorem target : P :=\nTrue.intro\n'target' does not depend on any axioms\n"
+}

@@ -1,0 +1,8 @@
+clean_fresh_compile: pass
+proof_body_only: unchanged
+declaration_added_outside_original_namespace: rejected_by_lock_diff
+shared_variable_universe_changed: rejected_by_lock_diff
+definition_body_changed_theorem_type_unchanged: rejected_by_lock_diff
+declaration_removed: rejected_by_lock_diff
+axiom: rejected_by_axiom_gate
+sorry: rejected_by_axiom_gate

@@ -1,0 +1,4 @@
+'OrderBaseDC.first_hit_unique' depends on axioms: [propext, Quot.sound]
+'OrderBaseDC.maxIndex_spec' depends on axioms: [propext, Quot.sound]
+'OrderBaseDC.max_spec_unique' depends on axioms: [propext, Quot.sound]
+'OrderBaseDC.initial_hits_exclusive' depends on axioms: [propext, Quot.sound]

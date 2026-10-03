@@ -1,0 +1,9 @@
+geometry_kernel_level=1 input_units=62 centers=20 parents=20 child_memberships_checked=62
+geometry_kernel_level=2 input_units=20 centers=6 parents=6 child_memberships_checked=20
+geometry_kernel_level=3 input_units=6 centers=1 parents=1 child_memberships_checked=6
+geometry_kernel_stop_remaining_units=1 layer_count=3
+finite_sequence_parameter_cases=262143 alphabet_size=4 max_length=8 delta=1..3 reference_equality_geometry_and_prefixes=pass
+i64_extremes_comparison=pass
+fixed_quote_quantity_observations=757 delta=20 completed_dc_units=62 accepted_center_windows=60 repeated_observation_geometry=pass
+first_units=[Unit { direction: Up, start: Point { index: 0, value: 10025 }, end: Point { index: 12, value: 10155 }, known_at: 15 }, Unit { direction: Down, start: Point { index: 12, value: 10155 }, end: Point { index: 24, value: 10065 }, known_at: 26 }, Unit { direction: Up, start: Point { index: 24, value: 10065 }, end: Point { index: 36, value: 10185 }, known_at: 38 }]
+scope=additional_absolute_threshold_seed_candidate_not_chan_strokes_or_segments_not_profit_proof

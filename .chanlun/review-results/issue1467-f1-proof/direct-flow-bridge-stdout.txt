@@ -1,0 +1,7 @@
+block=Block { upward: true, events: [(0, CancelAsk), (1, AddBid)], known_at: 2 } touched_prices=[102, 100] support=[100,102] price_direction_witness=None
+block=Block { upward: false, events: [(2, CancelBid), (3, AddAsk)], known_at: 4 } touched_prices=[100, 102] support=[100,102] price_direction_witness=None
+block=Block { upward: true, events: [(4, CancelAsk), (5, AddBid)], known_at: 6 } touched_prices=[102, 100] support=[100,102] price_direction_witness=None
+block=Block { upward: false, events: [(6, CancelBid), (7, AddAsk)], known_at: 8 } touched_prices=[100, 102] support=[100,102] price_direction_witness=None
+block=Block { upward: true, events: [(8, CancelAsk), (9, AddBid)], known_at: 10 } touched_prices=[102, 100] support=[100,102] price_direction_witness=None
+completed_flow_blocks=5 geometric_endpoint_witnesses=0 center_kernel_accepts_first_three=true first_center=Some(Center { zd: 100, zg: 102, dd: 100, gg: 102, start_index: 0, end_index: 5 })
+scope=reject_copying_flow_sign_as_geometric_direction_not_all_direct_order_bases

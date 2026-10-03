@@ -1,0 +1,11 @@
+prefixes=758 final_segments=7 unique_signatures=7 changed_or_withdrawn_prefix_steps=0 pending_stroke_start=Some(53)
+segment=0 value=Segment { direction: Down, start_index: 12, end_index: 72, start_price: 10185, end_price: 10015 } span_prices=(10155, 10015) first_visible_at=121 ordered_extrema_witness=Some((36, 72)) span_boundary_price_pairs_match=false
+segment=1 value=Segment { direction: Up, start_index: 72, end_index: 156, start_price: 10015, end_price: 10195 } span_prices=(10015, 10195) first_visible_at=205 ordered_extrema_witness=Some((72, 156)) span_boundary_price_pairs_match=true
+segment=2 value=Segment { direction: Down, start_index: 156, end_index: 264, start_price: 10195, end_price: 10015 } span_prices=(10195, 10015) first_visible_at=313 ordered_extrema_witness=Some((156, 264)) span_boundary_price_pairs_match=true
+segment=3 value=Segment { direction: Up, start_index: 264, end_index: 348, start_price: 10015, end_price: 10195 } span_prices=(10015, 10195) first_visible_at=397 ordered_extrema_witness=Some((264, 348)) span_boundary_price_pairs_match=true
+segment=4 value=Segment { direction: Down, start_index: 348, end_index: 456, start_price: 10195, end_price: 10015 } span_prices=(10195, 10015) first_visible_at=505 ordered_extrema_witness=Some((348, 456)) span_boundary_price_pairs_match=true
+segment=5 value=Segment { direction: Up, start_index: 456, end_index: 540, start_price: 10015, end_price: 10195 } span_prices=(10015, 10195) first_visible_at=589 ordered_extrema_witness=Some((456, 540)) span_boundary_price_pairs_match=true
+segment=6 value=Segment { direction: Down, start_index: 540, end_index: 648, start_price: 10195, end_price: 10015 } span_prices=(10195, 10015) first_visible_at=697 ordered_extrema_witness=Some((540, 648)) span_boundary_price_pairs_match=true
+span_boundary_price_mismatches=1 no_ordered_extrema_witness=0 adjacent_price_endpoint_mismatches=0 independently_earliest_extrema_event_gaps=0
+first_center_window=Center { zd: 10015, zg: 10185, dd: 10015, gg: 10195, start_index: 12, end_index: 264 } child_first_seen=[121, 205, 313] availability_lower_bound=313 final_child_span_end=264 observation_gap=49
+scope=synthetic_reference_stroke_prefix_segment_readout_no_global_semantic_or_profit_claim
