@@ -1,0 +1,21 @@
+{
+  ".chanlun/review-results/issue1467-f1-proof/Stage10WorkCard.md": "2367160208897a0d3d9ebea0ef8389c81604e9e26e75a14ffc8d094f6ddadc55",
+  ".chanlun/review-results/issue1467-f1-proof/SeedAssemblySpec.lean": "2213fec35e3e9bd9d4602223734d38a6db02d7bdc03a0e0089b63986c428e94b",
+  ".chanlun/review-results/issue1467-f1-proof/SeedAssemblyProof.lean": "5adccb3bb73f29ebf4d0feb29940a70ddf63a634d38c55dae4a0c5842795604c",
+  ".chanlun/review-results/issue1467-f1-proof/DCOriginBridge.lean": "562d855fac34884a9929795cabaa18631ea7d8d7154acc2b69ed1bc4e00d825d",
+  ".chanlun/review-results/issue1467-f1-proof/DCGeometryProof.lean": "6fcae3098ed303ea57c059dd9fc65aec0e25a0855dae9e06839f6cc2322d1aef",
+  ".chanlun/review-results/issue1467-f1-proof/DCCanonicalProof.lean": "e81f76a21bee361242bf3db1c6c56b988f5fe39bb96b5c7c5d115bbcf7ae24d5",
+  ".chanlun/review-results/issue1467-f1-proof/DCSemantics.lean": "a2fbd4becc7a692ba10b6aff6c84dd511ccb5062dae734c9a56616324db0a972",
+  ".chanlun/review-results/issue1467-f1-proof/DCFiniteCertificates.lean": "328f7d9097a6cef815392df81b2877a31fcc5ac4b46f3f3428b32d9f156059d4",
+  ".chanlun/review-results/issue1467-f1-proof/seed-assembly-spec-v1.sha256": "df6fe8589da3d90834ab48391b0c08895e8a6ba8ec83bd97347d304e296b550c",
+  ".chanlun/review-results/issue1467-f1-proof/seed-assembly-spec-v1a.sha256": "22c24621c9910aa20b352b49fddbcbe201c43c2c9a67160a8992fc0792f829b2",
+  ".chanlun/review-results/issue1467-f1-proof/SeedAssemblySpec-v1-unparsed.txt": "5fa1e20ce469c37a2367aed4ecd98e210800e902aa6cdff3bfdf2979cdbf4fc8",
+  ".chanlun/review-results/issue1467-f1-proof/stage10-lean-verification-summary.json": "a8c134416107b66fe4679da63d29858c7f37e208140829bb99e6347dbb60f76b",
+  "formal/Origin/CenterComplete.lean": "478e34e703801742e6808c834488b7fe009d94bb0d896eb65e7d6a20105d64c2",
+  "formal/Origin/CenterConstruction.lean": "478a00a239e77b6ac66554c8428efaff7f1af69f9edbf73f2f4250aaa895bc3c",
+  "formal/Origin/ChanlunElements.lean": "19c33e884e6949cdd56a51ff7c44dc086354994b7f54431f57bec4a0849fa201",
+  ".chanlun/definitions/zhongshu.md": "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882",
+  ".chanlun/definitions/fenjie.md": "a09645ca57627e4dfe1197a9c1872c01e3326ba9387475f9b5378b509b4a9db0",
+  ".chanlun/definitions/level_recursion.md": "06ac7aee96b089536766ac172b52ff0f8d702f2e4ec01ca2b47b1f3a590e1637",
+  ".chanlun/review-results/issue1467-f1-proof/DirectionalChangeLemmas.lean": "84f2d0c1f8e48979480adce76bc1a290ce67520a68991bdb4a421f167fc21d2e"
+}

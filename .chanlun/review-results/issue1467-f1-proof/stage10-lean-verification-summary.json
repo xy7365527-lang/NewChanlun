@@ -1,0 +1,123 @@
+{
+  "run_id": "440c8a99f5034651a29bec765a1ab9ae",
+  "machine_verification_passed": true,
+  "exact_root_passed": true,
+  "semantic": {
+    "status": "not_reviewed",
+    "reused": false,
+    "semantic_sha256": "09d30adc70e2ecc078b51cc3e9ef850a488971b11355902434b630d370214d9c"
+  },
+  "root_closure": {
+    "status": "closed",
+    "exact_root_passed": true,
+    "declaration_closed": true,
+    "scope": "expected Lean type in the recorded environment; semantic review is separate"
+  },
+  "target": {
+    "declaration": "SeedAssembly.exact_root",
+    "actual_type": "And SeedAssembly.SEED_BOUND_TARGET SeedAssembly.SHARP_WITNESS_TARGET",
+    "expected_type": "SeedAssembly.SEED_BOUND_TARGET ∧ SeedAssembly.SHARP_WITNESS_TARGET",
+    "comparison": {
+      "binder_kinds_match": true,
+      "definitionally_equal": true,
+      "expected_type_expression": [
+        "app",
+        [
+          "app",
+          [
+            "const",
+            [
+              "And",
+              []
+            ]
+          ],
+          [
+            "const",
+            [
+              "SeedAssembly.SEED_BOUND_TARGET",
+              []
+            ]
+          ]
+        ],
+        [
+          "const",
+          [
+            "SeedAssembly.SHARP_WITNESS_TARGET",
+            []
+          ]
+        ]
+      ],
+      "expected_universes": [],
+      "status": "matched",
+      "universe_parameters_match": true
+    },
+    "axioms": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ],
+    "unexpected_axioms": [],
+    "unsafe_dependencies": [],
+    "unknown_dependencies": [],
+    "identity_mismatches": [],
+    "type_sha256": "55e64bd595b1d9d448fd8eec49dfc0cf4f2d7a88d7d3478426343af23e8ced97",
+    "semantic_sha256": "09d30adc70e2ecc078b51cc3e9ef850a488971b11355902434b630d370214d9c",
+    "environment_sha256": "c564f201a040a591afdd06033453df00ebfa72f815346862306fc13879f44964",
+    "loaded_module_count": 2274
+  },
+  "environment": {
+    "lean_version": "Lean (version 4.31.0, arm64-apple-darwin24.6.0, commit 68218e876d2a38b1985b8590fff244a83c321783, Release)",
+    "lean_status": "passed",
+    "lake_version": "Lake version 5.0.0-src+68218e8 (Lean version 4.31.0)",
+    "lake_status": "passed",
+    "lean_toolchain": null,
+    "configuration_hashes": {},
+    "binary_hashes": {
+      "bin/lean": "1b370cfcbf44e80d1b004ab1b1ab9a4c73951f9f7c242140bcff9bc577576554",
+      "bin/lake": "58261a1a2fa1a362376c71e02ca854a093e71cc5e6ea64b287a931cb2565273d",
+      "lib/lean/libleanshared.dylib": "a695a9aa68481c42b99619e0103537e6b433c6fa7021927b184e19a686d03989"
+    },
+    "prefix": "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0",
+    "mode": "direct",
+    "inherited_lean_path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean",
+    "inherited_lean_src_path": "",
+    "sha256": "ab12fe9dc8a44913f3e981589728394c459467fdce1b4bd9fabf9642f84c3330"
+  },
+  "manifest": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/seed-assembly-v1a/run-manifest.json",
+    "sha256": "a3097431b05314d384a77add2fa0793b784e41c889d277bcf3f87f407cda96b9"
+  },
+  "invocation": {
+    "command": [
+      "python3",
+      "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.agents/research-tools/xsoc1-9e0da0c3/plugins/lean-verify/scripts/verify_lean_project.py",
+      "--project",
+      "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof",
+      "--target-file",
+      "SeedAssemblyProof.lean",
+      "--declaration",
+      "SeedAssembly.exact_root",
+      "--expected-type",
+      "SeedAssembly.SEED_BOUND_TARGET ∧ SeedAssembly.SHARP_WITNESS_TARGET",
+      "--lean",
+      "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+      "--lake",
+      "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lake",
+      "--direct",
+      "--build-timeout",
+      "60",
+      "--strict-exit",
+      "--output",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/seed-assembly-v1a"
+    ],
+    "cwd": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun",
+    "LEAN_PATH": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean"
+  },
+  "definition_repair": {
+    "initial_sha256": "5fa1e20ce469c37a2367aed4ecd98e210800e902aa6cdff3bfdf2979cdbf4fc8",
+    "current_sha256": "2213fec35e3e9bd9d4602223734d38a6db02d7bdc03a0e0089b63986c428e94b",
+    "reason": "Unsupported unique-existence notation expanded to explicit existence and uniqueness. No mathematical premise or conclusion changed.",
+    "initial_source": "SeedAssemblySpec-v1-unparsed.txt",
+    "initial_failed_run": "1466798e0ce14a5c9d3c77a3e7c726cb"
+  }
+}

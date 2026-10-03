@@ -1,0 +1,54 @@
+import DCOriginBridge
+
+/- #1467：冻结的局部起点契约。不是完整 F₂ 或上层走势的完成谓词。 -/
+namespace SeedAssembly
+
+open NewChanlun.Origin
+
+def LocalCore (p : Nat → Int) (a b c : DCSpec.Unit) : Prop :=
+  CenterConfirmedComplete (DCOriginBridge.embed p a)
+    (DCOriginBridge.embed p b) (DCOriginBridge.embed p c)
+
+def CoreAt (p : Nat → Int) (a b c d : DCSpec.Unit) (i : Fin 2) : Prop :=
+  if i.val = 0 then LocalCore p a b c else LocalCore p b c d
+
+def FirstCore (p : Nat → Int) (a b c d : DCSpec.Unit) (i : Fin 2) : Prop :=
+  CoreAt p a b c d i ∧ ∀ j : Fin 2, j.val < i.val → ¬ CoreAt p a b c d j
+
+def SEED_BOUND_TARGET : Prop :=
+  ∀ (p : Nat → Int) (delta : Int), 0 < delta → ∀ len result,
+    DCSpec.Whole p delta len result →
+    ∀ (pre : List DCSpec.Unit) (a b c d : DCSpec.Unit) (rest : List DCSpec.Unit),
+      DCSpec.units result = pre ++ a :: b :: c :: d :: rest →
+      ∃! i : Fin 2, FirstCore p a b c d i
+
+def witnessPath : Nat → Int
+  | 0 => 10023 | 1 => 10025 | 2 => 10020
+  | 3 => 10022 | 4 => 10019 | _ => 10021
+
+def u0 : DCSpec.Unit := ⟨.up,0,1,2⟩
+def u1 : DCSpec.Unit := ⟨.down,1,2,3⟩
+def u2 : DCSpec.Unit := ⟨.up,2,3,4⟩
+def u3 : DCSpec.Unit := ⟨.down,3,4,5⟩
+def witnessUnits : List DCSpec.Unit := [u0,u1,u2,u3]
+def witnessTail : DCSpec.Tail := ⟨.up,4,5⟩
+def witnessResult : DCSpec.Result := .started .up 0 1 (witnessUnits,witnessTail)
+
+def quantity (i : Nat) : Int :=
+  let x := witnessPath i - 10000
+  (x*10000 + (200-x)/2)/(200-x)
+def projected (qb : Int) : Int :=
+  (2*(10200*qb+10000*10000)+(qb+10000))/(2*(qb+10000))
+
+def SHARP_WITNESS_TARGET : Prop :=
+  DCSpec.Whole witnessPath 1 6 witnessResult ∧
+  DCSpec.units witnessResult = [u0] ++ [u1,u2,u3] ∧
+  ¬ LocalCore witnessPath u0 u1 u2 ∧ LocalCore witnessPath u1 u2 u3 ∧
+  FirstCore witnessPath u0 u1 u2 u3 ⟨1,by decide⟩ ∧
+  computeZD (DCOriginBridge.embed witnessPath u1) (DCOriginBridge.embed witnessPath u2)
+    (DCOriginBridge.embed witnessPath u3) = 10020 ∧
+  computeZG (DCOriginBridge.embed witnessPath u1) (DCOriginBridge.embed witnessPath u2)
+    (DCOriginBridge.embed witnessPath u3) = 10022 ∧
+  (∀ i : Fin 6, 0 < quantity i.val ∧ projected (quantity i.val) = witnessPath i.val)
+
+end SeedAssembly
