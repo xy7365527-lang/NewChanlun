@@ -2208,6 +2208,12 @@ impl AuditCapture {
     pub fn contains(&self, digest: &NodeDigest) -> bool {
         self.original(digest).is_some()
     }
+    /// #1394：只读见证实际Native owner，不扫描原件或改变任何证明。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn native_frame_reuse_active_for_testonly(&self) -> bool {
+        matches!(&self.nodes, CaptureNodes::Native(_))
+    }
     pub fn original(&self, digest: &NodeDigest) -> Option<(u8, &[u8])> {
         match &self.nodes {
             CaptureNodes::Legacy(nodes) => nodes.get(digest).map(|(t, b)| (*t, b.as_slice())),

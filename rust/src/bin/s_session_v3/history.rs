@@ -1792,6 +1792,19 @@ impl NodeSink for HashReader<'_> {
                         "派生overlay不能遮蔽不可变捕获原件",
                     ));
                 }
+                // #1394：无计费Native完整审计保留同原件的source读取归属。
+                // 后续仍实际复制当前正文并核首次F；本put不预核摘要或减少访问trace。
+                #[cfg(feature = "s_capture_native_testonly")]
+                if capture.native_frame_reuse_active_for_testonly()
+                    && self.audit_full_arrays
+                    && self.owned.is_none()
+                    && self.budget.is_none()
+                    && self.deadline.is_none()
+                    && self.max_render_bytes.is_none()
+                    && matches!(&self.overlay, OverlayOwner::Dynamic(nodes) if !nodes.contains_key(&digest))
+                {
+                    return Ok(());
+                }
             }
         }
         self.overlay.put(digest, tag, body)
@@ -2164,6 +2177,234 @@ fn report_owned_overlay_peak((x, y): (usize, usize)) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_full_audit_duplicate_put_keeps_current_source_vec_and_first_f() {
+        let body = vec![0x5a; 4096];
+        let digest = sc::frame(sc::tag::BYTES_CHUNK, &body);
+        let mut nodes = sc::MemoryNodes::new();
+        nodes.insert_unchecked(digest, sc::tag::BYTES_CHUNK, body.clone());
+        let placeholder = sc::write_template(&mut nodes, &V::BatchSelf).unwrap();
+        let capture = sc::AuditCapture::new(nodes)
+            .enable_native_frame_reuse_for_testonly()
+            .unwrap();
+        assert!(capture.native_frame_reuse_active_for_testonly());
+        let mut reader = HashReader::captured_for_audit(&capture, None).unwrap();
+        reader.enable_full_arrays_for_test();
+        let before = sc::frame_calls_on_thread();
+        let ((first, second, current), _, work) = super::super::state::traced(true, || {
+            reader.put(digest, sc::tag::BYTES_CHUNK, &body).unwrap();
+            assert!(!reader.overlay.contains_key(&digest));
+            let first = reader.checked_read(&digest).unwrap().unwrap();
+            reader.put(digest, sc::tag::BYTES_CHUNK, &body).unwrap();
+            assert!(!reader.overlay.contains_key(&digest));
+            let second = reader.checked_read(&digest).unwrap().unwrap();
+            let current = reader.read(&digest).unwrap();
+            (first, second, current)
+        });
+        assert_eq!(sc::frame_calls_on_thread() - before, 1);
+        assert_eq!(work["overlay_puts"], json!(2));
+        assert_eq!(work["overlay_reads"], json!(0));
+        assert_eq!(work["source_reads"], json!(3));
+        assert_eq!(first.body(), body);
+        assert_eq!(second.body(), body);
+        assert_ne!(first.body().as_ptr(), second.body().as_ptr());
+        assert_ne!(
+            first.body().as_ptr(),
+            capture.original(&digest).unwrap().1.as_ptr()
+        );
+        let (_, current_second) = second.into_parts();
+        assert!(current_second.capacity() >= body.len());
+        let NodeRead::Found { tag, body: current } = current else {
+            panic!("实际source原件必须仍存在");
+        };
+        assert_eq!(tag, sc::tag::BYTES_CHUNK);
+        assert_eq!(current, body);
+        assert!(current.capacity() >= body.len());
+        let stats = capture.retention();
+        assert_eq!(stats["capture_reads"], json!(3));
+        assert_eq!(stats["native_frame_reuse"]["first_f_calls"], json!(1));
+        assert_eq!(stats["native_frame_reuse"]["same_material_hits"], json!(1));
+        reader
+            .put(placeholder.digest, sc::tag::BATCH_SELF, &[])
+            .unwrap();
+        reader
+            .verify_mode(&placeholder.content_ref(), sc::Mode::Template)
+            .unwrap();
+        for _ in 0..2 {
+            assert_eq!(
+                reader
+                    .verify_public(&placeholder.content_ref())
+                    .unwrap_err()
+                    .code(),
+                sc::code::TEMPLATE_PLACEHOLDER
+            );
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_full_audit_duplicate_put_keeps_conflict_bad_f_missing_and_existing_overlay() {
+        let body = b"source";
+        let digest = sc::frame(sc::tag::BYTES_CHUNK, body);
+        let bad_digest = [7; 32];
+        let mut nodes = sc::MemoryNodes::new();
+        nodes.insert_unchecked(digest, sc::tag::BYTES_CHUNK, body.to_vec());
+        nodes.insert_unchecked(bad_digest, sc::tag::BYTES_CHUNK, body.to_vec());
+        let capture = sc::AuditCapture::new(nodes)
+            .enable_native_frame_reuse_for_testonly()
+            .unwrap();
+        let mut reader = HashReader::captured(&capture, None);
+        reader.enable_full_arrays_for_test();
+        let before = sc::frame_calls_on_thread();
+        for (tag, bytes) in [
+            (sc::tag::NULL, body.as_slice()),
+            (sc::tag::BYTES_CHUNK, b"tamper".as_slice()),
+        ] {
+            assert_eq!(
+                reader.put(digest, tag, bytes).unwrap_err().code(),
+                sc::code::NODE_DIGEST
+            );
+            assert!(!reader.overlay.contains_key(&digest));
+        }
+        reader.put(bad_digest, sc::tag::BYTES_CHUNK, body).unwrap();
+        assert!(!reader.overlay.contains_key(&bad_digest));
+        assert_eq!(sc::frame_calls_on_thread(), before, "put不得提前核F");
+        assert_eq!(
+            reader.checked_read(&bad_digest).unwrap_err().code(),
+            sc::code::NODE_DIGEST
+        );
+        assert_eq!(sc::frame_calls_on_thread() - before, 1);
+        let added = sc::frame(sc::tag::BYTES_CHUNK, b"missing-from-capture");
+        reader
+            .put(added, sc::tag::BYTES_CHUNK, b"missing-from-capture")
+            .unwrap();
+        assert!(reader.overlay.contains_key(&added));
+        reader
+            .overlay
+            .put(digest, sc::tag::BYTES_CHUNK, b"old-overlay")
+            .unwrap();
+        reader.put(digest, sc::tag::BYTES_CHUNK, body).unwrap();
+        assert_eq!(
+            reader.overlay.get(&digest),
+            Some((sc::tag::BYTES_CHUNK, body.as_slice()))
+        );
+        let before = sc::frame_calls_on_thread();
+        for d in [added, digest] {
+            for _ in 0..2 {
+                assert!(reader.checked_read(&d).unwrap().is_some());
+            }
+        }
+        assert_eq!(
+            sc::frame_calls_on_thread() - before,
+            4,
+            "已有overlay继续逐次核F"
+        );
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_full_audit_duplicate_put_excludes_non_native_owned_bounded_and_gates() {
+        use sc::capture_allocation::{CaptureSlab, OwnedBudget};
+        #[derive(Default)]
+        struct Meter(std::cell::Cell<usize>);
+        impl super::super::audit_budget::Budget for Meter {
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                Ok(())
+            }
+            fn prepare_node(&self) -> Result<(), sc::CodecError> {
+                Ok(())
+            }
+            fn accept_prepared_frame(
+                &self,
+                _: &sc::job::CheckedFrame,
+            ) -> Result<(), sc::CodecError> {
+                Ok(())
+            }
+            fn node(&self, _: &NodeDigest, _: u8, _: &[u8]) -> Result<(), sc::CodecError> {
+                self.0.set(self.0.get() + 1);
+                Ok(())
+            }
+            fn record(&self) -> Result<(), sc::CodecError> {
+                Ok(())
+            }
+        }
+        let body = b"source";
+        let digest = sc::frame(sc::tag::BYTES_CHUNK, body);
+        let mut nodes = sc::MemoryNodes::new();
+        nodes.insert_unchecked(digest, sc::tag::BYTES_CHUNK, body.to_vec());
+        let legacy = sc::AuditCapture::new(nodes.clone());
+        let native = sc::AuditCapture::new(nodes.clone())
+            .enable_native_frame_reuse_for_testonly()
+            .unwrap();
+        assert!(!legacy.native_frame_reuse_active_for_testonly());
+        let meter = Meter::default();
+        for excluded in [
+            "legacy", "partial", "render", "deadline", "budget", "bounded",
+        ] {
+            let capture = if excluded == "legacy" {
+                &legacy
+            } else {
+                &native
+            };
+            let budget = OwnedBudget::new(100_000);
+            let mut reader = if excluded == "bounded" {
+                HashReader::captured_bounded(capture, None, 1, 64, &budget).unwrap()
+            } else {
+                HashReader::captured(capture, None)
+            };
+            if excluded != "partial" {
+                reader.enable_full_arrays_for_test();
+            }
+            match excluded {
+                "render" => reader.max_render_bytes = Some(64),
+                "deadline" => {
+                    reader.deadline =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(60))
+                }
+                "budget" => reader.budget = Some(&meter),
+                _ => {}
+            }
+            reader.put(digest, sc::tag::BYTES_CHUNK, body).unwrap();
+            assert!(reader.overlay.contains_key(&digest), "{excluded}");
+        }
+        assert_eq!(meter.0.get(), 1, "计费put仍经过原node门");
+        let mut dynamic = HashReader::new(&mut nodes);
+        dynamic.enable_full_arrays_for_test();
+        dynamic.put(digest, sc::tag::BYTES_CHUNK, body).unwrap();
+        assert!(dynamic.overlay.contains_key(&digest));
+        let budget = OwnedBudget::new(100_000);
+        let mut slab = CaptureSlab::new(1, body.len(), &budget).unwrap();
+        slab.push(digest, sc::tag::BYTES_CHUNK, body).unwrap();
+        let owned = sc::AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
+        assert!(!owned.native_frame_reuse_active_for_testonly());
+        let mut reader = HashReader::captured(&owned, None);
+        reader.enable_full_arrays_for_test();
+        reader.put(digest, sc::tag::BYTES_CHUNK, body).unwrap();
+        assert!(reader.overlay.contains_key(&digest));
+        reader.owned = Some(
+            owned
+                .closed_codec_for_allocation_prototype(1, 64, None)
+                .unwrap(),
+        );
+        reader.put(digest, sc::tag::BYTES_CHUNK, body).unwrap();
+        assert_eq!(
+            reader.owned.as_ref().unwrap().overlay_peak_used(),
+            (1, body.len())
+        );
+        let mut expired = HashReader::captured(&native, None);
+        expired.enable_full_arrays_for_test();
+        expired.deadline = Some(std::time::Instant::now());
+        assert_eq!(
+            expired
+                .put(digest, sc::tag::BYTES_CHUNK, body)
+                .unwrap_err()
+                .code(),
+            "verify_deadline"
+        );
+        assert!(!expired.overlay.contains_key(&digest));
+    }
 
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]

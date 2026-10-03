@@ -1,11 +1,11 @@
-# #1394 跨请求审计复用隔离工位
+# #1394 历史审计与暂存验证隔离工位
 
 - 状态：在跑，承接 #1394 TB-03-B 与已批准 #1340 C 5.1–5.9。
 - 工作区：`/Users/silencehan/.codex/worktrees/issue1394-audit-prefix/NewChanlun`。
 - 分支：`codex/1394-audit-prefix-20261003`；起点：`713e680d33c38de3d8f1f5272982c40d7f1bd4c5`。
-- 当前职责：已完成成本判向、全持久根可达性统计和 Native 测试专用运行态根观测；下一步由 Root 核定新节点暂存/保留的完整边界。不把请求局部上下文直接长期持有，不凭闭包外计数删除节点。
+- 当前职责：已完成请求内历史复用、Native新节点暂存及有限冷105→106对照；继续按完整历史增长和实际分配边界推进。没有跨请求keeper，不凭闭包外计数删除旧节点。
 - 硬约束：每次写前仍取得当前完整原件、独立索引与负依赖，实际读取失败立即拒绝。跨请求保留必须按 S7 原源成本计量和驱逐，缓存不携带提交许可；普通/Owned 路径与公开资源定义保持。
-- 隔离：正在运行的完整 9011 尝试仍使用 history-sweep 工作区冻结的 713e 版本及私有 S7=1；本工位不改其任何源、输入、参数或运行域。
+- 隔离：history-sweep 的713e完整9011尝试已失败封存（104回执/105持久提交，第105条DeliveryUnknown），进程已回收，B未启动。本工位仅在新具名自有副本诊断，原件只bytes-copy/hash，不改旧源、输入、参数或运行域。
 - 验收方向：冷/暖完整结果对拍、追加与修订失效、原件损坏拒绝、资源驱逐和实际成本；不预先声称 9011、容量资格或生产放行。
 - 已验观测：现成真实 S3 四代夹具（3 次 append、1 次 revision2）及 after_prepare 真实错误回滚/正常 discard；Ordinary/Native 全持久 typed 行和声明根闭包实际字节对拍通过，revision 产生 10 次撤回。单次 Native release 构建、1 项靶向通过、独评 PASS。
 - 观测结果：四个提交阶段的持久根与存活缓存根联合闭包外分别为 108/268/570/889 节点；第三代检索过上阶段 runtime-only 闭包内 11 节点。检索日志不单独证明缓存复用因果，也不给删除资格。
@@ -19,4 +19,7 @@
 - 下一限定修复：去掉暂存诊断的每put全map容量扫描、每put malloc采样与每INSERT全表COUNT；保留准确容量/实际插入计数、完整审计、全部持久及runtime联合根、全闭包SQL读取、旧节点和Job口径。有限验证与独评后，仅在新自有105副本重做一次同上限对照，不恢复旧失败域或直接启动9011。
 - 暂存计量修复完成：unique实际Vec容量增量累加、malloc仅阶段采样、flush前后各一次COUNT（含真实错误），4项靶向及独评PASS；第三次INSERT故障前计数2、全持久表/节点回滚和正常discard通过。一次Native release构建，640项源码前后及app/lib/binary冻结绑定一致。
 - 新冷105→106对照COMPLETE：两臂均106代、106 Committed、106 publication、318 clocks、idle；全非节点typed原bytes、回执、持久根原bytes、旧105节点保留与新缺失节点位于联合闭包外全部PASS。eager/staged handle分别32.606/30.768秒；少7167节点、477288 body bytes。原件stat/SHA不变，两个进程均回收。单样本不建立吞吐资格，两臂仍超过30秒；未重启9011、未取得整体资源或生产资格。证据 `.scratch/issue1394-staging-metrics-20261004/ROOT-RESULT.json`；旧失败包保持。
+- handle初段OS采样已完成：两臂各约5秒，测试线程3757/3761样本，harness等待排除；SHA树样本336/334，其中HashReader直接核帧215/213。完整两臂对拍及原件保全通过，4个进程均回收；采样耗时不计性能验收。证据 `.scratch/issue1394-handle-profile-20261004/ROOT-RESULT.json`。
+- 同原件overlay省除有限验收通过：仅实际Native owner、无门full-audit、Dynamic尚无该entry时，capture同tag/body逐字相同的put不再遮蔽source memo；put trace、首次F/冲突/角色拒绝及全部排除路径保留。7项靶向与独评PASS，一次Native构建，640项源码和app/lib/binary绑定一致。
+- 省除后新冷105→106完整对照PASS：eager/staged handle30.970/29.173秒，两个终态均106代idle；修复前后同臂DB/WAL/SHM的实际byte SHA全部相同、回执相同、14214项运行态owner/root多重集相同（诊断枚举顺序不声称相同）。少节点/正文仍7167/477288，原件保全与回收通过。staged仅内部handle低于30秒，正式网络、完整9011、整体资源与生产资格仍未成立。证据 `.scratch/issue1394-overlay-source-reuse-20261004/ROOT-RESULT.json`。
 - 禁止：旧未授权原件、main 合入/推送、GOAL 事件修改、新公共资源数值、前端 #1460、K4。
