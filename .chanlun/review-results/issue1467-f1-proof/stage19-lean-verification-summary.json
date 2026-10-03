@@ -1,0 +1,308 @@
+{
+  "stage": 19,
+  "date": "2026-10-03",
+  "ticket": 1467,
+  "roots": [
+    {
+      "run_id": "e0fff3aa5da843c3a33719390e0b6d82",
+      "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-v1-checked/run-manifest.json",
+      "manifest_sha256": "acbbb46a432571fe0bc7b553a68f09d3d37c8cd2e4961e834977a1ec8cc9c5ee",
+      "machine_verification_passed": true,
+      "exact_root_passed": true,
+      "root_closure": {
+        "status": "closed",
+        "exact_root_passed": true,
+        "declaration_closed": true,
+        "scope": "expected Lean type in the recorded environment; semantic review is separate"
+      },
+      "semantic": {
+        "status": "not_reviewed",
+        "reused": false,
+        "semantic_sha256": "223a21195efd33a18a809ab2290cd71e495bc9ec99a682af0010a8c08b2a3ece"
+      },
+      "actual_type": "And ComposeAudit.OVERLAP_TARGET ComposeAudit.RANGE_TARGET",
+      "expected_type": "ComposeAudit.OVERLAP_TARGET ∧ ComposeAudit.RANGE_TARGET",
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "unexpected_axioms": [],
+      "unsafe_dependencies": [],
+      "unknown_dependencies": [],
+      "freshness": {
+        "status": "current",
+        "snapshot_current": true,
+        "exact_root_passed": true,
+        "declaration": "ComposeAudit.exact_root",
+        "semantic_sha256": "223a21195efd33a18a809ab2290cd71e495bc9ec99a682af0010a8c08b2a3ece",
+        "manifest_sha256": "acbbb46a432571fe0bc7b553a68f09d3d37c8cd2e4961e834977a1ec8cc9c5ee",
+        "reasons": [],
+        "scope": "saved evidence and current Lean module resolution checked; no new kernel proof replay"
+      },
+      "build_commands": [
+        {
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--run",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-v1-checked/lean-verification-runs/e0fff3aa5da843c3a33719390e0b6d82/DiscoverImports.lean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-project-v1/ComposeAuditProof.lean"
+          ],
+          "file": "ComposeAuditProof.lean",
+          "kind": "source_dependencies",
+          "exit_code": 0,
+          "elapsed_seconds": 6.667817
+        },
+        {
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--run",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-v1-checked/lean-verification-runs/e0fff3aa5da843c3a33719390e0b6d82/DiscoverImports.lean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-project-v1/ComposeAuditSpec.lean"
+          ],
+          "file": "ComposeAuditSpec.lean",
+          "kind": "source_dependencies",
+          "exit_code": 0,
+          "elapsed_seconds": 0.777944
+        },
+        {
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--deps",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-project-v1/ComposeAuditSpec.lean"
+          ],
+          "file": "ComposeAuditSpec.lean",
+          "kind": "import_resolution",
+          "exit_code": 0,
+          "elapsed_seconds": 0.04114
+        },
+        {
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "-R",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-project-v1",
+            "-o",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-v1-checked/lean-verification-runs/e0fff3aa5da843c3a33719390e0b6d82/lib/ComposeAuditSpec.olean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-project-v1/ComposeAuditSpec.lean"
+          ],
+          "file": "ComposeAuditSpec.lean",
+          "kind": "target",
+          "exit_code": 0,
+          "elapsed_seconds": 0.432809
+        },
+        {
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--deps",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-project-v1/ComposeAuditProof.lean"
+          ],
+          "file": "ComposeAuditProof.lean",
+          "kind": "import_resolution",
+          "exit_code": 0,
+          "elapsed_seconds": 0.047445
+        },
+        {
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "-R",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-project-v1",
+            "-o",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-v1-checked/lean-verification-runs/e0fff3aa5da843c3a33719390e0b6d82/lib/ComposeAuditProof.olean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-project-v1/ComposeAuditProof.lean"
+          ],
+          "file": "ComposeAuditProof.lean",
+          "kind": "target",
+          "exit_code": 0,
+          "elapsed_seconds": 0.479267
+        },
+        {
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "-R",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-v1-checked/lean-verification-runs/e0fff3aa5da843c3a33719390e0b6d82",
+            "-o",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-v1-checked/lean-verification-runs/e0fff3aa5da843c3a33719390e0b6d82/lib/LeanVerifyProbe.olean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-v1-checked/lean-verification-runs/e0fff3aa5da843c3a33719390e0b6d82/LeanVerifyProbe.lean"
+          ],
+          "kind": "inspector_compile",
+          "exit_code": 0,
+          "elapsed_seconds": 0.975743
+        },
+        {
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-v1-checked/lean-verification-runs/e0fff3aa5da843c3a33719390e0b6d82/InspectRoot.lean"
+          ],
+          "kind": "declaration_inspection",
+          "exit_code": 0,
+          "elapsed_seconds": 0.950763
+        }
+      ]
+    },
+    {
+      "run_id": "6ba44fc8a81949c486cb4c8aab1743a5",
+      "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-v1/run-manifest.json",
+      "manifest_sha256": "6036015cdf3d98aeb4d6055481fad355a5518315e40ed087b1bfdebe630a851d",
+      "machine_verification_passed": true,
+      "exact_root_passed": true,
+      "root_closure": {
+        "status": "closed",
+        "exact_root_passed": true,
+        "declaration_closed": true,
+        "scope": "expected Lean type in the recorded environment; semantic review is separate"
+      },
+      "semantic": {
+        "status": "not_reviewed",
+        "reused": false,
+        "semantic_sha256": "af5020236d94f0895aec4a5eaac89df35c1136bab82fc95c72cfff557644c705"
+      },
+      "actual_type": "And ComposeMinimal.WITNESS_TARGET ComposeMinimal.LOWER_BOUND_TARGET",
+      "expected_type": "ComposeMinimal.WITNESS_TARGET ∧ ComposeMinimal.LOWER_BOUND_TARGET",
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "unexpected_axioms": [],
+      "unsafe_dependencies": [],
+      "unknown_dependencies": [],
+      "freshness": {
+        "status": "current",
+        "snapshot_current": true,
+        "exact_root_passed": true,
+        "declaration": "ComposeMinimal.exact_root",
+        "semantic_sha256": "af5020236d94f0895aec4a5eaac89df35c1136bab82fc95c72cfff557644c705",
+        "manifest_sha256": "6036015cdf3d98aeb4d6055481fad355a5518315e40ed087b1bfdebe630a851d",
+        "reasons": [],
+        "scope": "saved evidence and current Lean module resolution checked; no new kernel proof replay"
+      },
+      "build_commands": [
+        {
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--run",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-v1/lean-verification-runs/6ba44fc8a81949c486cb4c8aab1743a5/DiscoverImports.lean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-project-v1/ComposeMinimalProof.lean"
+          ],
+          "file": "ComposeMinimalProof.lean",
+          "kind": "source_dependencies",
+          "exit_code": 0,
+          "elapsed_seconds": 1.127916
+        },
+        {
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--run",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-v1/lean-verification-runs/6ba44fc8a81949c486cb4c8aab1743a5/DiscoverImports.lean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-project-v1/ComposeMinimalSpec.lean"
+          ],
+          "file": "ComposeMinimalSpec.lean",
+          "kind": "source_dependencies",
+          "exit_code": 0,
+          "elapsed_seconds": 0.645813
+        },
+        {
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--deps",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-project-v1/ComposeMinimalSpec.lean"
+          ],
+          "file": "ComposeMinimalSpec.lean",
+          "kind": "import_resolution",
+          "exit_code": 0,
+          "elapsed_seconds": 0.04821
+        },
+        {
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "-R",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-project-v1",
+            "-o",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-v1/lean-verification-runs/6ba44fc8a81949c486cb4c8aab1743a5/lib/ComposeMinimalSpec.olean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-project-v1/ComposeMinimalSpec.lean"
+          ],
+          "file": "ComposeMinimalSpec.lean",
+          "kind": "target",
+          "exit_code": 0,
+          "elapsed_seconds": 0.316673
+        },
+        {
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "--deps",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-project-v1/ComposeMinimalProof.lean"
+          ],
+          "file": "ComposeMinimalProof.lean",
+          "kind": "import_resolution",
+          "exit_code": 0,
+          "elapsed_seconds": 0.044089
+        },
+        {
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "-R",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-project-v1",
+            "-o",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-v1/lean-verification-runs/6ba44fc8a81949c486cb4c8aab1743a5/lib/ComposeMinimalProof.olean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-project-v1/ComposeMinimalProof.lean"
+          ],
+          "file": "ComposeMinimalProof.lean",
+          "kind": "target",
+          "exit_code": 0,
+          "elapsed_seconds": 0.324414
+        },
+        {
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "-R",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-v1/lean-verification-runs/6ba44fc8a81949c486cb4c8aab1743a5",
+            "-o",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-v1/lean-verification-runs/6ba44fc8a81949c486cb4c8aab1743a5/lib/LeanVerifyProbe.olean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-v1/lean-verification-runs/6ba44fc8a81949c486cb4c8aab1743a5/LeanVerifyProbe.lean"
+          ],
+          "kind": "inspector_compile",
+          "exit_code": 0,
+          "elapsed_seconds": 0.832405
+        },
+        {
+          "command": [
+            "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+            "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-v1/lean-verification-runs/6ba44fc8a81949c486cb4c8aab1743a5/InspectRoot.lean"
+          ],
+          "kind": "declaration_inspection",
+          "exit_code": 0,
+          "elapsed_seconds": 0.920426
+        }
+      ]
+    }
+  ],
+  "semantic": "not_reviewed",
+  "resource": {
+    "total_external_bytes": 55464580,
+    "limit_bytes": 67108864,
+    "within_limit": true,
+    "directories": [
+      {
+        "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-project-v1",
+        "bytes": 5418
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-v1",
+        "bytes": 207656
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-audit-v1-checked",
+        "bytes": 30092033
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-project-v1",
+        "bytes": 1872
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/compose-minimal-v1",
+        "bytes": 25157601
+      }
+    ]
+  },
+  "attempts": 3,
+  "formal_source_modified": false,
+  "market_replay_run": false
+}
