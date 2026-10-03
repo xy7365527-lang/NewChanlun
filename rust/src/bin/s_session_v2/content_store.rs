@@ -181,13 +181,18 @@ impl SameMaterial {
         max_bytes: usize,
         max_entries: usize,
     ) -> Result<s_content::job::CheckedFrame, CodecError> {
-        if let Some((old, _)) = self.frames.get(digest) {
-            if old.tag() == tag && old.body() == body.as_slice() {
-                return old.checked_same_material(digest, tag, body);
+        let body = if let Some((old, _)) = self.frames.get(digest) {
+            match old.try_rebind_same_material(digest, tag, body) {
+                s_content::job::SameMaterialRebind::Same(frame) => return Ok(frame),
+                s_content::job::SameMaterialRebind::Changed(body) => {
+                    let (_, capacity) = self.frames.remove(digest).expect("已找到的局部素材");
+                    self.retained_capacity -= capacity;
+                    body
+                }
             }
-            let (_, capacity) = self.frames.remove(digest).expect("已找到的局部素材");
-            self.retained_capacity -= capacity;
-        }
+        } else {
+            body
+        };
         let frame = s_content::job::CheckedFrame::checked(digest, tag, body)?;
         // 复制前先按长度/条数筛选，复制后再按 Vec 的实际 capacity 筛选。
         let remaining = max_bytes.saturating_sub(self.retained_capacity);

@@ -382,6 +382,14 @@ pub struct CheckedFrame {
     usage: CheckedNodeUsage,
 }
 
+/// 逐字核对当前 owned Vec 后的结果；变化时原 Vec 退回调用方，尚未核验新帧。
+pub enum SameMaterialRebind {
+    /// 纯 F 证明已重绑定到本次传入的 Vec。
+    Same(CheckedFrame),
+    /// 摘要、tag 或正文不同；调用方须核验这里退回的当前 Vec。
+    Changed(Vec<u8>),
+}
+
 impl CheckedFrame {
     /// 对新原件 `(tag, body)` 算一次 `F`，与声称摘要比较；不符即拒绝。
     pub fn checked(digest: &NodeDigest, tag: u8, body: Vec<u8>) -> Result<Self, CodecError> {
@@ -408,21 +416,35 @@ impl CheckedFrame {
     }
 
     /// 仅当摘要、tag 与完整 body 逐字相同，才将纯 F 证明重绑定到当前 owned Vec。
-    /// 任一不同均重新核验当前原件；本方法不证明 SQL 来源、角色或业务准入。
+    /// 只比较一次正文，不计算 F；变化时退回当前 Vec，供调用方驱逐旧证明后重新核验。
+    /// 本方法不证明 SQL 来源、角色或业务准入。
+    pub fn try_rebind_same_material(
+        &self,
+        digest: &NodeDigest,
+        tag: u8,
+        body: Vec<u8>,
+    ) -> SameMaterialRebind {
+        if self.digest() == digest && self.tag == tag && self.body == body {
+            SameMaterialRebind::Same(Self {
+                tag,
+                body,
+                usage: self.usage,
+            })
+        } else {
+            SameMaterialRebind::Changed(body)
+        }
+    }
+
+    /// 逐字相同则重绑定；任一不同均重新核验当前原件，保留原来的拒绝语义。
     pub fn checked_same_material(
         &self,
         digest: &NodeDigest,
         tag: u8,
         body: Vec<u8>,
     ) -> Result<Self, CodecError> {
-        if self.digest() == digest && self.tag == tag && self.body == body {
-            Ok(Self {
-                tag,
-                body,
-                usage: self.usage,
-            })
-        } else {
-            Self::checked(digest, tag, body)
+        match self.try_rebind_same_material(digest, tag, body) {
+            SameMaterialRebind::Same(frame) => Ok(frame),
+            SameMaterialRebind::Changed(body) => Self::checked(digest, tag, body),
         }
     }
 
@@ -1178,6 +1200,52 @@ impl NodeSource for JobNodeSource<'_> {
 #[cfg(test)]
 mod same_material_tests {
     use super::*;
+
+    #[test]
+    fn try_rebind_same_material_moves_current_vec_or_returns_it_without_hashing() {
+        let tag = super::super::tag::BYTES_CHUNK;
+        let digest = frame(tag, &[1, 2, 3]);
+        let original = CheckedFrame::checked(&digest, tag, vec![1, 2, 3]).unwrap();
+        let current = vec![1, 2, 3];
+        let ptr = current.as_ptr();
+        let before = super::super::frame_calls_on_thread();
+        let SameMaterialRebind::Same(rebound) =
+            original.try_rebind_same_material(&digest, tag, current)
+        else {
+            panic!("相同原件须重绑定");
+        };
+        assert_eq!(rebound.body().as_ptr(), ptr);
+        assert_ne!(rebound.body().as_ptr(), original.body().as_ptr());
+        assert_eq!(rebound.usage(), original.usage());
+        assert_eq!(super::super::frame_calls_on_thread(), before);
+
+        let (_, mut returned) = rebound.into_parts();
+        returned[0] = 9;
+        for (d, t, body) in [
+            (digest, tag, returned),
+            (digest, 0, vec![1, 2, 3]),
+            ([0; 32], tag, vec![1, 2, 3]),
+        ] {
+            let ptr = body.as_ptr();
+            let capacity = body.capacity();
+            let expected = body.clone();
+            let before = super::super::frame_calls_on_thread();
+            let SameMaterialRebind::Changed(current) =
+                original.try_rebind_same_material(&d, t, body)
+            else {
+                panic!("变化原件不得沿用旧证明");
+            };
+            assert_eq!(current.as_ptr(), ptr);
+            assert_eq!(current.capacity(), capacity);
+            assert_eq!(current, expected);
+            assert_eq!(super::super::frame_calls_on_thread(), before);
+            assert_eq!(
+                CheckedFrame::checked(&d, t, current).unwrap_err().code(),
+                code::NODE_DIGEST
+            );
+            assert_eq!(super::super::frame_calls_on_thread() - before, 1);
+        }
+    }
 
     #[test]
     fn checked_same_material_requires_exact_digest_tag_body_and_moves_current_vec() {
