@@ -451,6 +451,7 @@ mod tests {
                 json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"s3-driver","origin_utc":"2026-09-18T00:00:00Z","unit":"ns","events":{
                 "input-1":{"accept_ns":"10","attempts":[{"begin_ns":"11","commit_ns":"12"},{"begin_ns":"14","commit_ns":"15"}]},
                 "input-2":{"accept_ns":"20","attempts":[{"begin_ns":"21","commit_ns":"22"},{"begin_ns":"24","commit_ns":"25"}]},
+                "input-3":{"accept_ns":"30","attempts":[{"begin_ns":"31","commit_ns":"32"},{"begin_ns":"34","commit_ns":"35"}]},
                 "recover-1":{"recover_ns":"13"},"recover-2":{"recover_ns":"23"}}}),
             )
         }
@@ -492,10 +493,11 @@ mod tests {
             Driver::open(&self.db, &self.profile, epoch, self.clock.clone())
         }
         fn ingest(n: i64) -> Value {
-            let row = if n == 1 {
-                ("a", 0, 6, 12, 3, 7)
-            } else {
-                ("b", 10, 8, 16, 6, 12)
+            let row = match n {
+                1 => ("a", 0, 6, 12, 3, 7),
+                2 => ("b", 10, 8, 16, 6, 12),
+                3 => ("c", 20, 8, 13, 4, 7),
+                _ => panic!("driver Fixture only defines three inputs"),
             };
             let raw = located_ohlc_input(&[row]);
             envelope(
@@ -596,11 +598,85 @@ mod tests {
         assert_eq!(published.raw.len(), 1);
         drop(published);
         drop(tx);
+        // 同账业务缓存按真实生命周期留账；不为追求零读数主动清缓存。
+        assert!(budget.snapshot().live_requested_layout_bytes > 0);
+        assert_eq!(state::AUDIT_SOURCE_RETAINED_BYTES, 0);
+        drop(d);
         let meter = budget.snapshot();
         assert!(meter.peak_requested_layout_bytes > 0);
         assert_eq!(meter.live_requested_layout_bytes, 0);
         assert_eq!(meter.allocated_layouts, meter.released_layouts);
         assert!(!budget.ledger_health().invariant_broken);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn allocation_testonly_three_commits_match_ordinary_with_same_ledger_and_real_restart() {
+        use s_allocation::probe;
+        // 每个重启分支都是独立新夹具，绝不连接实测 A01 库。
+        for restart_after_two in [false, true] {
+            let f = Fixture::new();
+            let ordinary = Fixture::new();
+            let mut plain = ordinary.open("1").unwrap();
+            let profile = allocation_profile();
+            let budget = profile.budget.clone();
+            let mut d = allocation_driver(&f, profile);
+            for n in 1..=3 {
+                let live_before = budget.snapshot().live_requested_layout_bytes;
+                probe::start(None);
+                let input = Fixture::ingest(n);
+                let actual = d.handle(input.clone()).unwrap();
+                let expected = plain.handle(input).unwrap();
+                let (attempts, captures) = probe::finish();
+                assert_eq!(canonical_json(&actual), canonical_json(&expected));
+                assert_eq!(attempts, [1, 1, 1]);
+                assert_eq!(captures[0].unwrap().raw, (n - 1) as usize);
+                assert_eq!(captures[1].unwrap().raw, n as usize);
+                assert_eq!(captures[2].unwrap().raw, n as usize);
+                assert_eq!(captures[0].unwrap().clocks, 3 * (n - 1));
+                assert_eq!(captures[1].unwrap().clocks, 3 * (n - 1) + 1);
+                assert_eq!(captures[2].unwrap().clocks, 3 * (n - 1) + 2);
+                assert_eq!(captures[0].unwrap().live_before, live_before);
+                assert_eq!(captures[1].unwrap().live_before, live_before);
+                assert!(captures[2].unwrap().live_before > live_before);
+                assert_eq!(meta_i64(&d.conn, "generation").unwrap(), n);
+                assert_eq!(count(&d.conn, "s_content_publications"), n);
+                assert_eq!(count(&d.conn, "structure_deltas"), n);
+                assert_eq!(count(&d.conn, "s_clock_events"), 3 * n);
+                // Publication 根和 batch 逐字一致，覆盖生成、辅助索引、Snapshot/Delta。
+                let roots = |conn: &Connection| {
+                    conn.prepare("SELECT batch_id,hex(manifest_root),hex(snapshot_root),hex(delta_root) FROM s_content_publications ORDER BY generation")
+                        .unwrap().query_map([], |r| Ok((r.get::<_, String>(0)?,r.get::<_, String>(1)?,r.get::<_, String>(2)?,r.get::<_, String>(3)?)))
+                        .unwrap().collect::<Result<Vec<_>, _>>().unwrap()
+                };
+                assert_eq!(roots(&d.conn), roots(&plain.conn));
+                assert!(
+                    budget.snapshot().live_requested_layout_bytes > 0,
+                    "业务缓存真实跨请求持账"
+                );
+                assert_eq!(state::AUDIT_SOURCE_RETAINED_BYTES, 0);
+                if n == 2 && restart_after_two {
+                    drop(d);
+                    assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+                    // 相同私有预算重开，缓存从当前已发布原件重载，第三笔仍逐字对拍。
+                    d = allocation_driver(
+                        &f,
+                        q_allocation::Profile {
+                            budget: budget.clone(),
+                            overlay_slots: 32768,
+                            overlay_bytes: 1_000_000,
+                        },
+                    );
+                }
+            }
+            drop(d);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+            assert_eq!(
+                budget.snapshot().allocated_layouts,
+                budget.snapshot().released_layouts
+            );
+            assert!(!budget.ledger_health().invariant_broken);
+        }
     }
 
     #[cfg(feature = "s_allocation_json_testonly")]

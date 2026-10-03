@@ -10,6 +10,43 @@ use newchan_rust::s_content::{self as sc, ContentRef, NodeStore, Value as V};
 use newchan_rust::session_protocol::required;
 use rusqlite::Transaction;
 
+/// #1394：事务局部业务 codec view。预算来自本次 AuditedState，同账覆盖辅助
+/// 业务工作集与跨请求业务缓存；不持 capture，不授予捕获能力或整堆分配资格。
+/// 原 TxStore 的 SQL 读写、检查帧和 generic codec 路径全部直接委托，None 保持原行为。
+struct BusinessTxStore<'a, 'conn> {
+    inner: content_store::TxStore<'a, 'conn>,
+    budget: Option<sc::capture_allocation::OwnedBudget>,
+}
+impl sc::NodeSource for BusinessTxStore<'_, '_> {
+    fn read(&mut self, digest: &sc::NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+        sc::NodeSource::read(&mut self.inner, digest)
+    }
+    fn checked_read(
+        &mut self,
+        digest: &sc::NodeDigest,
+    ) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
+        sc::NodeSource::checked_read(&mut self.inner, digest)
+    }
+}
+impl sc::NodeSink for BusinessTxStore<'_, '_> {
+    fn put(&mut self, digest: sc::NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
+        sc::NodeSink::put(&mut self.inner, digest, tag, body)
+    }
+}
+impl audit_store::CodecRead for BusinessTxStore<'_, '_> {
+    fn allocation_budget(&self) -> Option<sc::capture_allocation::OwnedBudget> {
+        self.budget.clone()
+    }
+    fn generic_source(&mut self) -> &mut dyn sc::NodeSource {
+        &mut self.inner
+    }
+}
+impl audit_store::CodecStore for BusinessTxStore<'_, '_> {
+    fn generic_store(&mut self) -> &mut dyn NodeStore {
+        &mut self.inner
+    }
+}
+
 pub(super) struct Runtime {
     /// 私有 TESTONLY 分配档；只持预算与数值，不持捕获或审计结果。
     allocation: Option<q_allocation::Profile>,
@@ -206,7 +243,10 @@ impl Runtime {
                 version_record: prior_version.as_ref(),
             },
         };
-        let mut store = content_store::TxStore::new(tx).map_err(err)?;
+        let mut store = BusinessTxStore {
+            inner: content_store::TxStore::new(tx).map_err(err)?,
+            budget: audited.budget.clone(),
+        };
         sc::write_value(&mut store, &scope_value).map_err(err)?;
         let mut generated = self
             .generator
@@ -620,6 +660,119 @@ pub(crate) mod tests {
         assert_eq!(count(&f.conn, "s_clock_events"), 2);
         f.runtime.after_prepare = None;
         assert_eq!(f.publish(&e, &token).unwrap().generation, 1);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn allocation_testonly_second_commit_fault_discards_real_cache_and_reloads_current_ledger() {
+        for foreign_ledger in [false, true] {
+            let mut f = Fixture::new();
+            let mut ordinary = Fixture::new();
+            let profile = q_allocation::Profile {
+                budget: sc::capture_allocation::OwnedBudget::new(50 * 1024 * 1024),
+                overlay_slots: 32768,
+                overlay_bytes: 1_000_000,
+            };
+            let budget = profile.budget.clone();
+            f.runtime = Runtime::with_allocation(Some(profile.clone()));
+            let (e1, t1) = f.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
+            let (plain1, pt1) = ordinary.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
+            assert_eq!(
+                f.publish(&e1, &t1).unwrap().message_receipt,
+                ordinary.publish(&plain1, &pt1).unwrap().message_receipt
+            );
+            assert!(budget.snapshot().live_requested_layout_bytes > 0);
+            let delivery_refs = |conn: &Connection| {
+                conn.prepare("SELECT generation FROM s_delivery_refs ORDER BY generation")
+                    .unwrap()
+                    .query_map([], |r| r.get::<_, i64>(0))
+                    .unwrap()
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap()
+            };
+            let first_delivery_refs = delivery_refs(&f.conn);
+            assert_eq!(
+                first_delivery_refs,
+                vec![1],
+                "第一代真实 delivery ref 必须已持久"
+            );
+            let (e2, t2) = f.accept_begin(2, ("b", 10, 8, 16, 6, 12), 1);
+            let (plain2, pt2) = ordinary.accept_begin(2, ("b", 10, 8, 16, 6, 12), 1);
+            let expected = ordinary.publish(&plain2, &pt2).unwrap().message_receipt;
+            let other = sc::capture_allocation::OwnedBudget::new(50 * 1024 * 1024);
+            assert!(!budget.same_ledger(&other));
+            if foreign_ledger {
+                // 只在测试私有域换账，证明活业务缓存不会把另一份预算当同账。
+                f.runtime.allocation = Some(q_allocation::Profile {
+                    budget: other.clone(),
+                    overlay_slots: 32768,
+                    overlay_bytes: 1_000_000,
+                });
+            } else {
+                f.runtime.after_prepare = Some(|tx| {
+                    tx.execute_batch("PRAGMA defer_foreign_keys=ON; INSERT INTO s_delivery_refs(generation) VALUES(999);").map_err(err)
+                });
+            }
+            s_allocation::probe::start(None);
+            let error = f.publish(&e2, &t2).unwrap_err();
+            let (attempts, captures) = s_allocation::probe::finish();
+            assert_eq!(attempts, [0, 0, 1]);
+            assert_eq!(captures[2].unwrap().raw, 2);
+            assert_eq!(captures[2].unwrap().clocks, 5);
+            if foreign_ledger {
+                assert!(
+                    error
+                        .contains("prototype_audit_allocation_incomplete：缓存账本改变，须discard"),
+                    "{error}"
+                );
+            } else {
+                assert!(error.contains("FOREIGN KEY"), "{error}");
+            }
+            assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 1);
+            assert_eq!(count(&f.conn, "s_content_publications"), 1);
+            assert_eq!(count(&f.conn, "structure_deltas"), 1);
+            let retained_delivery_refs = delivery_refs(&f.conn);
+            assert_eq!(
+                retained_delivery_refs, first_delivery_refs,
+                "失败必须逐行保留第一代 refs"
+            );
+            assert!(
+                !retained_delivery_refs.contains(&2),
+                "未提交的第二代 ref 不得混入"
+            );
+            assert!(
+                !retained_delivery_refs.contains(&999),
+                "FK 故障 ref 不得混入"
+            );
+            assert_eq!(count(&f.conn, "s_clock_events"), 5);
+            assert_ne!(
+                meta_get_opt(&f.conn, "advance_state").unwrap().as_deref(),
+                Some("idle")
+            );
+            // commit 的真实失败路径调用 discard；不靠测试主动清缓存求归零。
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+            assert_eq!(other.snapshot().live_requested_layout_bytes, 0);
+            f.runtime.after_prepare = None;
+            f.runtime.allocation = Some(profile);
+            s_allocation::probe::start(None);
+            let retried = f.publish(&e2, &t2).unwrap().message_receipt;
+            let (attempts, captures) = s_allocation::probe::finish();
+            assert_eq!(retried, expected);
+            assert_eq!(attempts, [0, 0, 1]);
+            assert_eq!(captures[2].unwrap().live_before, 0);
+            assert_eq!(count(&f.conn, "s_clock_events"), 6);
+            assert_eq!(count(&f.conn, "s_content_publications"), 2);
+            assert_eq!(count(&f.conn, "structure_deltas"), 2);
+            assert!(budget.snapshot().live_requested_layout_bytes > 0);
+            assert_eq!(state::AUDIT_SOURCE_RETAINED_BYTES, 0);
+            drop(f);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+            assert_eq!(
+                budget.snapshot().allocated_layouts,
+                budget.snapshot().released_layouts
+            );
+            assert!(!budget.ledger_health().invariant_broken);
+        }
     }
 
     #[test]
