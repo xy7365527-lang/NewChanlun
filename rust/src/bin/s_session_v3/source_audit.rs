@@ -35,6 +35,77 @@ fn err(e: impl std::fmt::Display) -> String {
 fn f(k: &str) -> PathStep {
     PathStep::Field(k.into())
 }
+// Only immutable Native originals may enter these maps; no cut/business verdict is retained.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct NativeFieldRefKey {
+    format: String,
+    root: String,
+    kind: Kind,
+    extent: Option<u64>,
+    digest: NodeDigest,
+}
+impl NativeFieldRefKey {
+    fn new(r: sc::RefView<'_>) -> Result<Self, sc::CodecError> {
+        Ok(Self {
+            format: r.format().into(),
+            root: r.root().into(),
+            kind: r.kind(),
+            extent: r.extent(),
+            digest: r.digest()?,
+        })
+    }
+}
+#[derive(Default)]
+struct NativeScalarFields {
+    values: std::collections::HashMap<NativeFieldRefKey, Value>,
+    decodes: u64,
+    hits: u64,
+}
+struct NativeFieldMemo<'capture> {
+    capture: &'capture sc::AuditCapture,
+    fields: std::collections::HashMap<
+        (NativeFieldRefKey, Vec<String>),
+        std::collections::BTreeMap<String, ContentRef>,
+    >,
+    scalars: NativeScalarFields,
+    field_decodes: u64,
+    field_hits: u64,
+}
+impl<'capture> NativeFieldMemo<'capture> {
+    fn new(capture: &'capture sc::AuditCapture) -> Self {
+        Self {
+            capture,
+            fields: Default::default(),
+            scalars: Default::default(),
+            field_decodes: 0,
+            field_hits: 0,
+        }
+    }
+    fn qualified(&self, r: sc::RefView<'_>) -> Result<bool, sc::CodecError> {
+        // Root presence is insufficient; original public validation includes format/root/header
+        // and the complete immutable closure. Overlay-only records never obtain a handle.
+        if let sc::RefView::Normal(original) = r {
+            if self.capture.contains(&original.digest()?) {
+                self.capture.verify(original, sc::Mode::Public)?;
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+    fn clear(&mut self) {
+        self.fields.clear();
+        self.scalars.values.clear();
+    }
+}
+// Local adapter only; ordinary/Owned use the original scalar decoder.
+trait SourceFieldStore: CodecStore {
+    fn decoded_scalar(&mut self, r: sc::RefView<'_>) -> Result<bj::JsonOwner, String> {
+        scalar_value(self, r)
+    }
+}
+impl SourceFieldStore for dyn NodeStore + '_ {}
+impl SourceFieldStore for sc::MemoryNodes {}
+// Preserve the exact original layout: Object / Owned work collections must not grow.
 struct SourceFields<'names>(super::audit_store::RefFields<'names>);
 impl<'names> SourceFields<'names> {
     fn read_subset(
@@ -47,18 +118,31 @@ impl<'names> SourceFields<'names> {
     fn get(&self, k: &str) -> Result<RefValue, String> {
         self.0.get(k).ok_or_else(|| err(format!("原件缺字段{k}")))
     }
-    fn text(&self, s: &mut (impl CodecRead + ?Sized), k: &str) -> Result<bj::TextValue, String> {
-        let r = self.get(k)?;
-        text_value(s, r.view(), k)
+    fn scalar(
+        &self,
+        s: &mut (impl SourceFieldStore + ?Sized),
+        k: &str,
+    ) -> Result<bj::JsonOwner, String> {
+        s.decoded_scalar(self.get(k)?.view())
     }
-    fn integer(&self, s: &mut (impl CodecRead + ?Sized), k: &str) -> Result<i64, String> {
-        let r = self.get(k)?;
-        scalar_value(s, r.view())?
+    fn text(
+        &self,
+        s: &mut (impl SourceFieldStore + ?Sized),
+        k: &str,
+    ) -> Result<bj::TextValue, String> {
+        let value = self.scalar(s, k)?;
+        let view = value.view();
+        let text = view.as_str().ok_or_else(|| err(format!("{k}不是文本")))?;
+        bj::TextValue::from_str(text, s.allocation_budget().as_ref())
+    }
+    fn integer(&self, s: &mut (impl SourceFieldStore + ?Sized), k: &str) -> Result<i64, String> {
+        self.scalar(s, k)?
             .view()
             .as_i64()
             .ok_or_else(|| err(format!("{k}不是i64")))
     }
 }
+
 fn field<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
@@ -210,12 +294,13 @@ pub(super) fn elements<'a>(
     elements_ref(s, r.into())
 }
 /// 活期仅为本次完整来源审计；预算/期限 Some 强制原路径。
-struct ArrayAuditSource<'a, 'borrow, 'source> {
+struct ArrayAuditSource<'a, 'borrow, 'source, 'capture> {
     source: &'a mut super::audit_store::StoreView<'borrow, 'source>,
     full_arrays: bool,
     deadline: Option<std::time::Instant>,
+    fields: Option<&'a mut NativeFieldMemo<'capture>>,
 }
-impl NodeSource for ArrayAuditSource<'_, '_, '_> {
+impl NodeSource for ArrayAuditSource<'_, '_, '_, '_> {
     fn audit_full_array_scan(&self) -> bool {
         self.full_arrays && self.deadline.is_none()
     }
@@ -235,13 +320,13 @@ impl NodeSource for ArrayAuditSource<'_, '_, '_> {
         self.source.max_render_bytes()
     }
 }
-impl NodeSink for ArrayAuditSource<'_, '_, '_> {
+impl NodeSink for ArrayAuditSource<'_, '_, '_, '_> {
     fn put(&mut self, d: NodeDigest, t: u8, body: &[u8]) -> Result<(), sc::CodecError> {
         self.source.put(d, t, body)
     }
 }
 
-impl<'a, 'borrow, 'source> ArrayAuditSource<'a, 'borrow, 'source> {
+impl<'a, 'borrow, 'source, 'capture> ArrayAuditSource<'a, 'borrow, 'source, 'capture> {
     fn owned_role<T>(
         &mut self,
         operation: impl FnOnce(
@@ -255,7 +340,44 @@ impl<'a, 'borrow, 'source> ArrayAuditSource<'a, 'borrow, 'source> {
         result
     }
 }
-impl CodecRead for ArrayAuditSource<'_, '_, '_> {
+impl SourceFieldStore for ArrayAuditSource<'_, '_, '_, '_> {
+    fn decoded_scalar(&mut self, r: sc::RefView<'_>) -> Result<bj::JsonOwner, String> {
+        let eligible = self.full_arrays
+            && !self.source.owned_codec_active()
+            && self.deadline.is_none()
+            && self.source.allocation_budget().is_none()
+            && self.max_render_bytes().is_none()
+            && self
+                .fields
+                .as_ref()
+                .map(|m| m.qualified(r))
+                .transpose()
+                .map_err(err)?
+                .unwrap_or(false);
+        let key = if eligible {
+            Some(NativeFieldRefKey::new(r).map_err(err)?)
+        } else {
+            None
+        };
+        if let Some(key) = &key {
+            if let Some(memo) = self.fields.as_mut() {
+                if let Some(value) = memo.scalars.values.get(key).cloned() {
+                    memo.scalars.hits += 1;
+                    return Ok(bj::JsonOwner::Plain(value));
+                }
+            }
+        }
+        let value = scalar_value(self, r)?;
+        if let Some(key) = key {
+            if let (Some(memo), bj::JsonOwner::Plain(parsed)) = (self.fields.as_mut(), &value) {
+                memo.scalars.decodes += 1;
+                memo.scalars.values.insert(key, parsed.clone());
+            }
+        }
+        Ok(value)
+    }
+}
+impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
     fn content_ref_view(&mut self, r: &str) -> Result<RefValue, sc::CodecError> {
         if self.source.owned_codec_active() {
             self.owned_role(|s| s.content_ref_view(r))
@@ -294,8 +416,48 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_> {
         if self.source.owned_codec_active() {
             self.owned_role(|s| s.lookup_subset_ref(r, n))
         } else {
-            sc::path::lookup_fields_refview(self, r, n, true)
-                .map(super::audit_store::RefFields::Plain)
+            let eligible = self.full_arrays
+                && self.deadline.is_none()
+                && self.source.allocation_budget().is_none()
+                && self.max_render_bytes().is_none()
+                && self
+                    .fields
+                    .as_ref()
+                    .map(|m| m.qualified(r))
+                    .transpose()?
+                    .unwrap_or(false);
+            let key = if eligible {
+                Some((
+                    NativeFieldRefKey::new(r)?,
+                    n.iter().map(|name| (*name).to_owned()).collect::<Vec<_>>(),
+                ))
+            } else {
+                None
+            };
+            if let Some(key) = &key {
+                if let Some(memo) = self.fields.as_mut() {
+                    if let Some(fields) = memo.fields.get(key) {
+                        let fields = fields.clone();
+                        memo.field_hits += 1;
+                        return Ok(super::audit_store::RefFields::Plain(
+                            sc::CodecFields::from_plain(fields),
+                        ));
+                    }
+                }
+            }
+            let fields = sc::path::lookup_fields_refview(self, r, n, true)?;
+            if let Some(key) = key {
+                // Keep the exact requested name sequence (including duplicates) in the key.
+                let originals = n
+                    .iter()
+                    .filter_map(|name| fields.get(name).cloned().map(|r| ((*name).to_owned(), r)))
+                    .collect();
+                if let Some(memo) = self.fields.as_mut() {
+                    memo.field_decodes += 1;
+                    memo.fields.insert(key, originals);
+                }
+            }
+            Ok(super::audit_store::RefFields::Plain(fields))
         }
     }
     fn lookup_array_ref(
@@ -399,7 +561,7 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_> {
         }
     }
 }
-impl CodecStore for ArrayAuditSource<'_, '_, '_> {
+impl CodecStore for ArrayAuditSource<'_, '_, '_, '_> {
     fn write_json_view(
         &mut self,
         v: sc::capture_allocation::audit_json::JsonView<'_>,
@@ -806,6 +968,7 @@ pub(super) struct NativeSourceAudit<'capture> {
     reader: super::history::HashReader<'capture>,
     memo: NativeWitnessIdentityMemo<'capture>,
     source_memo: NativeSourceMemo<'capture>,
+    fields: NativeFieldMemo<'capture>,
     raw: RawEventsView<'capture>,
 }
 impl<'capture> NativeSourceAudit<'capture> {
@@ -819,6 +982,7 @@ impl<'capture> NativeSourceAudit<'capture> {
         }
         Ok(Self {
             source_memo: NativeSourceMemo::new(capture, raw),
+            fields: NativeFieldMemo::new(capture),
             raw,
             reader: super::history::HashReader::captured(capture, None),
             memo: NativeWitnessIdentityMemo::new(capture)?,
@@ -831,17 +995,24 @@ impl<'capture> NativeSourceAudit<'capture> {
         profile: &str,
         rule: &str,
     ) -> Result<Counts, String> {
-        audit_generated_in_store(
-            &mut super::audit_store::StoreView::for_audit(&mut self.reader),
-            state.into(),
-            self.raw.prefix(prefix_len)?,
-            profile,
-            rule,
-            None,
-            None,
-            Some(&mut self.memo),
-            Some(&mut self.source_memo),
-        )
+        let result = (|| {
+            audit_generated_in_store(
+                &mut super::audit_store::StoreView::for_audit(&mut self.reader),
+                state.into(),
+                self.raw.prefix(prefix_len)?,
+                profile,
+                rule,
+                None,
+                None,
+                Some(&mut self.memo),
+                Some(&mut self.source_memo),
+                Some(&mut self.fields),
+            )
+        })();
+        if result.is_err() {
+            self.fields.clear();
+        }
+        result
     }
 }
 /// raw_prefix 是同一次读集、截至本代 input_frontier 的独立原始账，不是manifest自己提供的值。
@@ -883,6 +1054,7 @@ pub(super) fn audit_generated_metered<'a>(
         budget,
         None,
         None,
+        None,
     )
 }
 pub(super) fn audit_generated_for_audit<'a>(
@@ -904,6 +1076,7 @@ pub(super) fn audit_generated_for_audit<'a>(
         budget,
         None,
         None,
+        None,
     )
 }
 fn audit_generated_in_store(
@@ -916,6 +1089,7 @@ fn audit_generated_in_store(
     budget: Option<&dyn super::audit_budget::Budget>,
     mut native_identity: Option<&mut NativeWitnessIdentityMemo<'_>>,
     mut native_sources: Option<&mut NativeSourceMemo<'_>>,
+    native_fields: Option<&mut NativeFieldMemo<'_>>,
 ) -> Result<Counts, String> {
     super::history::check_deadline(deadline)?;
     #[cfg(test)]
@@ -925,6 +1099,7 @@ fn audit_generated_in_store(
         source: s,
         full_arrays: budget.is_none(),
         deadline,
+        fields: native_fields,
     };
     let s = &mut array_source;
     #[cfg(test)]
@@ -963,7 +1138,11 @@ fn audit_generated_in_store(
     let mut groups = bj::new_map(allocation.as_ref());
     for record in elements_ref(s, object_array.view())? {
         super::history::check_deadline(deadline)?;
-        let kind = text(s, &record, "kind")?;
+        let kind = if s.fields.is_some() {
+            SourceFields::read_subset(s, record.view(), &["kind"])?.text(s, "kind")?
+        } else {
+            text(s, &record, "kind")?
+        };
         let names: &[&'static str] = if kind == CC006_SHAPE_KIND {
             &SHAPE_SOURCE_FIELDS
         } else {
@@ -1177,7 +1356,8 @@ fn audit_generated_in_store(
             let part_fields =
                 local_fields(s, &part, &["merged_index", "raw_refs", "dependency_refs"])?;
             let index = if let Some(fields) = &part_fields {
-                scalar_value(s, fields.get("merged_index").map_err(err)?.view())?
+                fields
+                    .scalar(s, "merged_index")?
                     .view()
                     .as_i64()
                     .ok_or_else(|| err("merged_index不是整数"))?
@@ -1242,8 +1422,8 @@ fn audit_generated_in_store(
                 return Err(err("形态窗口不等于同cut组锚"));
             }
             if let Some(fields) = local_fields(s, &group.payload, &["high", "low"])? {
-                highs[slot] = text_value(s, fields.get("high").map_err(err)?.view(), "high")?;
-                lows[slot] = text_value(s, fields.get("low").map_err(err)?.view(), "low")?;
+                highs[slot] = fields.text(s, "high")?;
+                lows[slot] = fields.text(s, "low")?;
             } else {
                 highs[slot] = text(s, &group.payload, "high")?;
                 lows[slot] = text(s, &group.payload, "low")?;
@@ -1508,6 +1688,179 @@ mod tests {
         let root = generated.generated_state.clone();
         (store, root, raw, rule)
     }
+    #[test]
+    fn source_fields_preserves_owned_collection_element_layout() {
+        assert_eq!(
+            std::mem::size_of::<SourceFields<'static>>(),
+            std::mem::size_of::<super::super::audit_store::RefFields<'static>>()
+        );
+        assert_eq!(
+            std::mem::align_of::<SourceFields<'static>>(),
+            std::mem::align_of::<super::super::audit_store::RefFields<'static>>()
+        );
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_fields_multi_cut_reuses_only_decoding_and_error_clears() {
+        let (mut nodes, first, raw, rule) = fixture();
+        let second = replace_field(
+            &mut nodes,
+            &first,
+            STATE,
+            "generation",
+            V::Number(sc::NumberToken::parse("2").unwrap()),
+        );
+        let second = replace_field(
+            &mut nodes,
+            &second,
+            STATE,
+            "structure_cut",
+            V::String("cut-2".into()),
+        );
+        let capture = sc::AuditCapture::new(nodes);
+        let mut native = NativeSourceAudit::new(&capture, (&raw).into()).unwrap();
+        let mut decodes = None;
+        for state in [&first, &second, &first] {
+            let mut ordinary = super::super::history::HashReader::captured(&capture, None);
+            let want = audit_generated_for_audit(
+                &mut ordinary,
+                state,
+                &raw,
+                tb02a::PROFILE,
+                &rule,
+                None,
+                None,
+            )
+            .unwrap();
+            let got = native
+                .audit(state, raw.len(), tb02a::PROFILE, &rule)
+                .unwrap();
+            assert_eq!(format!("{want:?}"), format!("{got:?}"));
+            let now = (native.fields.field_decodes, native.fields.scalars.decodes);
+            if let Some(first) = decodes {
+                assert_eq!(now, first);
+            } else {
+                decodes = Some(now);
+            }
+        }
+        assert!(native.fields.field_hits > 0 && native.fields.scalars.hits > 0);
+        assert!(native
+            .audit(&first, raw.len() + 1, tb02a::PROFILE, &rule)
+            .is_err());
+        assert!(native.fields.fields.is_empty() && native.fields.scalars.values.is_empty());
+        let before = native.fields.scalars.decodes;
+        native
+            .audit(&first, raw.len(), tb02a::PROFILE, &rule)
+            .unwrap();
+        assert!(native.fields.scalars.decodes > before);
+        let fresh = NativeSourceAudit::new(&capture, (&raw).into()).unwrap();
+        assert!(fresh.fields.fields.is_empty() && fresh.fields.scalars.values.is_empty());
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_fields_exact_headers_names_and_overlay_isolation() {
+        let mut nodes = MemoryNodes::default();
+        let root = sc::write_value(&mut nodes, &cv(&json!({"a":"original","b":7})).unwrap())
+            .unwrap()
+            .content_ref();
+        let capture = sc::AuditCapture::new(nodes);
+        let mut memo = NativeFieldMemo::new(&capture);
+        let mut reader = super::super::history::HashReader::captured(&capture, None);
+        {
+            let mut store = super::super::audit_store::StoreView::for_audit(&mut reader);
+            let mut source = ArrayAuditSource {
+                source: &mut store,
+                full_arrays: true,
+                deadline: None,
+                fields: Some(&mut memo),
+            };
+            let fields = SourceFields::read_subset(&mut source, (&root).into(), &["a"]).unwrap();
+            assert_eq!(fields.text(&mut source, "a").unwrap(), "original");
+            assert_eq!(fields.text(&mut source, "a").unwrap(), "original");
+            assert!(fields.get("b").is_err());
+            let scalar_root = built(fields.get("a").unwrap().view())
+                .unwrap()
+                .content_ref();
+            let mut forged_scalar = scalar_root.clone();
+            forged_scalar.format = "bad-scalar-format".into();
+            assert!(source.decoded_scalar((&forged_scalar).into()).is_err());
+            forged_scalar = scalar_root.clone();
+            forged_scalar.kind = Kind::Bool;
+            assert!(source.decoded_scalar((&forged_scalar).into()).is_err());
+            let b = SourceFields::read_subset(&mut source, (&root).into(), &["b"]).unwrap();
+            assert_eq!(b.integer(&mut source, "b").unwrap(), 7);
+            assert!(b.get("a").is_err());
+            for names in [&["a", "b"][..], &["b", "a"][..]] {
+                SourceFields::read_subset(&mut source, (&root).into(), names).unwrap();
+            }
+            let expected_decodes = source.fields.as_ref().unwrap().field_decodes;
+            SourceFields::read_subset(&mut source, (&root).into(), &["b", "a"]).unwrap();
+            assert_eq!(
+                source.fields.as_ref().unwrap().field_decodes,
+                expected_decodes
+            );
+            // Duplicate and reordered selections keep the original decoder's outcome;
+            // ordered names, including duplicate occurrences, never share a cache key.
+            let memo_handle = source.fields.take();
+            let ordinary_duplicate =
+                SourceFields::read_subset(&mut source, (&root).into(), &["a", "a"]);
+            source.fields = memo_handle;
+            let native_duplicate =
+                SourceFields::read_subset(&mut source, (&root).into(), &["a", "a"]);
+            assert_eq!(ordinary_duplicate.is_ok(), native_duplicate.is_ok());
+            if let (Ok(ordinary), Ok(native)) = (ordinary_duplicate, native_duplicate) {
+                assert_eq!(
+                    built(ordinary.get("a").unwrap().view()).unwrap().digest,
+                    built(native.get("a").unwrap().view()).unwrap().digest
+                );
+            }
+            let mut bad = root.clone();
+            bad.format = "invalid-format".into();
+            assert!(SourceFields::read_subset(&mut source, (&bad).into(), &["a"]).is_err());
+            bad = root.clone();
+            bad.extent = Some(root.extent.unwrap() + 1);
+            assert!(SourceFields::read_subset(&mut source, (&bad).into(), &["a"]).is_err());
+            bad = root.clone();
+            bad.kind = Kind::Array;
+            assert!(SourceFields::read_subset(&mut source, (&bad).into(), &["a"]).is_err());
+            // Full root text stays part of identity; a malformed spelling cannot reuse hot fields.
+            bad = root.clone();
+            bad.root.push('0');
+            assert!(SourceFields::read_subset(&mut source, (&bad).into(), &["a"]).is_err());
+            let field_count = source.fields.as_ref().unwrap().fields.len();
+            let scalar_count = source
+                .fields
+                .as_ref()
+                .unwrap()
+                .scalars
+                .values
+                .len();
+            let overlay = source
+                .write_json_view((&json!({"a":"overlay"})).into())
+                .unwrap()
+                .content_ref();
+            let fields = SourceFields::read_subset(&mut source, (&overlay).into(), &["a"]).unwrap();
+            assert_eq!(fields.text(&mut source, "a").unwrap(), "overlay");
+            assert_eq!(source.fields.as_ref().unwrap().fields.len(), field_count);
+            assert_eq!(
+                source
+                    .fields
+                    .as_ref()
+                    .unwrap()
+                    .scalars
+                    .values
+                    .len(),
+                scalar_count
+            );
+        }
+        assert!(memo.field_hits > 0 && memo.scalars.hits > 0);
+        let fresh = NativeFieldMemo::new(&capture);
+        assert!(fresh.fields.is_empty() && fresh.scalars.values.is_empty());
+        let other = sc::AuditCapture::new(MemoryNodes::default());
+        assert!(!NativeFieldMemo::new(&other)
+            .qualified((&root).into())
+            .unwrap());
+    }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn native_witness_identity_exact_inputs_and_success_only() {
@@ -1631,11 +1984,17 @@ mod tests {
         )
         .unwrap();
         let first = run(&mut context, &state, &raw).unwrap();
+        let field_decodes = context.fields.field_decodes;
+        let scalar_decodes = context.fields.scalars.decodes;
+        assert!(field_decodes > 0 && scalar_decodes > 0);
         assert_eq!(format!("{original:?}"), format!("{first:?}"));
         let renders = context.memo.stats.render_calls;
         let source_stats = context.source_memo.stats;
         run(&mut context, &state, &raw).unwrap();
         assert_eq!(context.memo.stats.render_calls, renders);
+        assert_eq!(context.fields.field_decodes, field_decodes);
+        assert_eq!(context.fields.scalars.decodes, scalar_decodes);
+        assert!(context.fields.field_hits > 0 && context.fields.scalars.hits > 0);
         assert!(context.memo.stats.hits > 0);
         assert!(context.source_memo.stats[0] > source_stats[0]);
         assert!(context.source_memo.stats[2] > source_stats[2]);
@@ -1644,6 +2003,7 @@ mod tests {
         assert!(context
             .audit(&state, raw.len() + 1, tb02a::PROFILE, &rule)
             .is_err());
+        assert!(context.fields.fields.is_empty() && context.fields.scalars.values.is_empty());
         // Future malformed/colliding raw cannot invalidate an earlier legal cut at init.
         for coord in ["-1", "01", raw[0]["source_coord"].as_str().unwrap()] {
             let mut future_raw = raw.clone();
@@ -1968,6 +2328,7 @@ mod tests {
                     source: &mut typed_view,
                     full_arrays: true,
                     deadline: None,
+                    fields: None,
                 };
                 let result = read_local(&mut s, root, names, legacy).unwrap();
                 drop(reader);
@@ -2057,6 +2418,7 @@ mod tests {
                     source: &mut typed_view,
                     full_arrays: false,
                     deadline,
+                    fields: None,
                 };
                 let result = read_local(&mut s, root, names, legacy);
                 drop(reader);
@@ -2136,6 +2498,7 @@ mod tests {
                 source: &mut typed_view,
                 full_arrays: !budget_some,
                 deadline,
+                fields: None,
             };
             assert!(!s.audit_full_array_scan());
             let fields = if legacy {
@@ -2524,6 +2887,7 @@ mod closed_array_role_probe {
             source: &mut view,
             full_arrays: true,
             deadline: None,
+            fields: None,
         };
         coords(&mut source, &RefValue::Plain(root.clone()))
     }
@@ -2706,6 +3070,7 @@ mod closed_array_role_probe {
                 source: &mut typed,
                 full_arrays: true,
                 deadline: None,
+                fields: None,
             };
             assert!(source.audit_full_array_scan());
             let got = source.lookup_object_fields_subset(&built.content_ref(), &["b"]);
@@ -2733,6 +3098,9 @@ mod closed_array_role_probe {
             || operation(&mut HashReader::captured_for_audit(&owned, None).unwrap()),
         );
         assert_eq!(actual, expected);
+        // #1394：成功返回的 Owned 字段仍持账，释放返回所有者后才只剩原件 slab。
+        assert!(budget.snapshot().live_requested_layout_bytes > base);
+        drop(actual.0);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
         println!(
             "CLOSED_ARRAY_ROLE_RECEIPT f={} reads={} meter={}",
