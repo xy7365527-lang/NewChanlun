@@ -1,0 +1,144 @@
+{
+  "stage": 25,
+  "date": "2026-10-04",
+  "ticket": 1467,
+  "run_id": "e5f7bf9c2561494385ce50efad73b4cd",
+  "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/located-v1-check2/run-manifest.json",
+  "manifest_sha256": "c71202865641f080a30a40dfabbeb232b1ac08c861e52363eadd89b1b7ede6d2",
+  "machine_verification_passed": true,
+  "exact_root_passed": true,
+  "root_closure": {
+    "status": "closed",
+    "exact_root_passed": true,
+    "declaration_closed": true,
+    "scope": "expected Lean type in the recorded environment; semantic review is separate"
+  },
+  "semantic": {
+    "status": "not_reviewed",
+    "reused": false,
+    "semantic_sha256": "ef1ecbae1a97554e0c4100c8aca1c6c3470ef40ec38f6f53adb6eeed9f3e5899"
+  },
+  "actual_type": "And LocatedProof.PROGRAM_TARGET\n  (And LocatedProof.MATCH_TARGET (And LocatedProof.CAUSAL_TARGET LocatedProof.WITNESS_TARGET))",
+  "expected_type": "LocatedProof.PROGRAM_TARGET ∧ LocatedProof.MATCH_TARGET ∧ LocatedProof.CAUSAL_TARGET ∧ LocatedProof.WITNESS_TARGET",
+  "axioms": [
+    "propext",
+    "Quot.sound"
+  ],
+  "unexpected_axioms": [],
+  "unsafe_dependencies": [],
+  "unknown_dependencies": [],
+  "freshness": {
+    "status": "current",
+    "snapshot_current": true,
+    "exact_root_passed": true,
+    "declaration": "LocatedProof.exact_root",
+    "semantic_sha256": "ef1ecbae1a97554e0c4100c8aca1c6c3470ef40ec38f6f53adb6eeed9f3e5899",
+    "manifest_sha256": "c71202865641f080a30a40dfabbeb232b1ac08c861e52363eadd89b1b7ede6d2",
+    "reasons": [],
+    "scope": "saved evidence and current Lean module resolution checked; no new kernel proof replay"
+  },
+  "resource": {
+    "total_external_bytes": 20003854,
+    "limit_bytes": 100663296,
+    "within_limit": true
+  },
+  "attempts": 2,
+  "build_commands": [
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--run",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/located-v1-check2/lean-verification-runs/e5f7bf9c2561494385ce50efad73b4cd/DiscoverImports.lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/located-project-v1/LocatedProof.lean"
+      ],
+      "file": "LocatedProof.lean",
+      "kind": "source_dependencies",
+      "exit_code": 0,
+      "elapsed_seconds": 7.319628
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--run",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/located-v1-check2/lean-verification-runs/e5f7bf9c2561494385ce50efad73b4cd/DiscoverImports.lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/located-project-v1/LocatedSpec.lean"
+      ],
+      "file": "LocatedSpec.lean",
+      "kind": "source_dependencies",
+      "exit_code": 0,
+      "elapsed_seconds": 0.849644
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--deps",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/located-project-v1/LocatedSpec.lean"
+      ],
+      "file": "LocatedSpec.lean",
+      "kind": "import_resolution",
+      "exit_code": 0,
+      "elapsed_seconds": 0.048655
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/located-project-v1",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/located-v1-check2/lean-verification-runs/e5f7bf9c2561494385ce50efad73b4cd/lib/LocatedSpec.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/located-project-v1/LocatedSpec.lean"
+      ],
+      "file": "LocatedSpec.lean",
+      "kind": "target",
+      "exit_code": 0,
+      "elapsed_seconds": 0.324635
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--deps",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/located-project-v1/LocatedProof.lean"
+      ],
+      "file": "LocatedProof.lean",
+      "kind": "import_resolution",
+      "exit_code": 0,
+      "elapsed_seconds": 0.04986
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/located-project-v1",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/located-v1-check2/lean-verification-runs/e5f7bf9c2561494385ce50efad73b4cd/lib/LocatedProof.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/located-project-v1/LocatedProof.lean"
+      ],
+      "file": "LocatedProof.lean",
+      "kind": "target",
+      "exit_code": 0,
+      "elapsed_seconds": 0.567138
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/located-v1-check2/lean-verification-runs/e5f7bf9c2561494385ce50efad73b4cd",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/located-v1-check2/lean-verification-runs/e5f7bf9c2561494385ce50efad73b4cd/lib/LeanVerifyProbe.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/located-v1-check2/lean-verification-runs/e5f7bf9c2561494385ce50efad73b4cd/LeanVerifyProbe.lean"
+      ],
+      "kind": "inspector_compile",
+      "exit_code": 0,
+      "elapsed_seconds": 0.992896
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/located-v1-check2/lean-verification-runs/e5f7bf9c2561494385ce50efad73b4cd/InspectRoot.lean"
+      ],
+      "kind": "declaration_inspection",
+      "exit_code": 0,
+      "elapsed_seconds": 0.930941
+    }
+  ]
+}
