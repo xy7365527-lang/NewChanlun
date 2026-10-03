@@ -1,0 +1,10 @@
+{
+  "source": "DirectQuoteProof.lean",
+  "source_sha256": "a0189d52d43b3b98e6a3416a9effe904ed5a5207d90d2d6d94fd4dca6876759c",
+  "target": "MovingQuoteProof.lean",
+  "start": "theorem group_sound",
+  "end_source": "theorem completed_transport",
+  "end_target": "theorem bid_unique",
+  "proof_text_sha256": "3e8d3d1141a84d37284e0343f27a7848c991d7496c5b37cc61606ad71d882697",
+  "scope": "same proof text re-elaborated over priced Event and new local declarations; source remains unchanged"
+}

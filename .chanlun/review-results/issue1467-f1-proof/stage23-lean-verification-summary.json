@@ -1,0 +1,183 @@
+{
+  "stage": 23,
+  "date": "2026-10-03",
+  "ticket": 1467,
+  "candidate": "R_D-Q-moving-v1",
+  "run_id": "dab78e23087045249ac84871dd73c164",
+  "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-v1-checked/run-manifest.json",
+  "manifest_sha256": "481cd87be8878fffa8352e043992eebe0dfbdb9a30dfe5f8bcf13febfdf4e158",
+  "machine_verification_passed": true,
+  "exact_root_passed": true,
+  "root_closure": {
+    "status": "closed",
+    "exact_root_passed": true,
+    "declaration_closed": true,
+    "scope": "expected Lean type in the recorded environment; semantic review is separate"
+  },
+  "semantic": {
+    "status": "not_reviewed",
+    "reused": false,
+    "semantic_sha256": "3e4e97f0f38f18bed522de1e5c7462e76baba70358146a9df612a15ad7ca981a"
+  },
+  "actual_type": "And MovingQuote.RUN_TARGET\n  (And MovingQuote.STEP_TARGET\n    (And MovingQuote.LEG_TARGET\n      (And MovingQuote.CAUSAL_TARGET\n        (And MovingQuote.WITNESS_TARGET (And MovingQuote.OUTPUT_TARGET MovingQuote.WIRE_WITNESS_TARGET)))))",
+  "expected_type": "MovingQuote.RUN_TARGET ∧ MovingQuote.STEP_TARGET ∧ MovingQuote.LEG_TARGET ∧ MovingQuote.CAUSAL_TARGET ∧ MovingQuote.WITNESS_TARGET ∧ MovingQuote.OUTPUT_TARGET ∧ MovingQuote.WIRE_WITNESS_TARGET",
+  "axioms": [
+    "propext",
+    "Classical.choice",
+    "Quot.sound"
+  ],
+  "unexpected_axioms": [],
+  "unsafe_dependencies": [],
+  "unknown_dependencies": [],
+  "freshness": {
+    "status": "current",
+    "snapshot_current": true,
+    "exact_root_passed": true,
+    "declaration": "MovingQuote.exact_root",
+    "semantic_sha256": "3e4e97f0f38f18bed522de1e5c7462e76baba70358146a9df612a15ad7ca981a",
+    "manifest_sha256": "481cd87be8878fffa8352e043992eebe0dfbdb9a30dfe5f8bcf13febfdf4e158",
+    "reasons": [],
+    "scope": "saved evidence and current Lean module resolution checked; no new kernel proof replay"
+  },
+  "resource": {
+    "total_external_bytes": 22051165,
+    "limit_bytes": 100663296,
+    "within_limit": true
+  },
+  "attempts": 2,
+  "build_commands": [
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--run",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-v1-checked/lean-verification-runs/dab78e23087045249ac84871dd73c164/DiscoverImports.lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-project-v1/MovingQuoteProof.lean"
+      ],
+      "file": "MovingQuoteProof.lean",
+      "kind": "source_dependencies",
+      "exit_code": 0,
+      "elapsed_seconds": 0.842098
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--run",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-v1-checked/lean-verification-runs/dab78e23087045249ac84871dd73c164/DiscoverImports.lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-project-v1/MovingQuoteWireSpec.lean"
+      ],
+      "file": "MovingQuoteWireSpec.lean",
+      "kind": "source_dependencies",
+      "exit_code": 0,
+      "elapsed_seconds": 0.72066
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--run",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-v1-checked/lean-verification-runs/dab78e23087045249ac84871dd73c164/DiscoverImports.lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-project-v1/MovingQuoteSpec.lean"
+      ],
+      "file": "MovingQuoteSpec.lean",
+      "kind": "source_dependencies",
+      "exit_code": 0,
+      "elapsed_seconds": 0.714414
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--deps",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-project-v1/MovingQuoteSpec.lean"
+      ],
+      "file": "MovingQuoteSpec.lean",
+      "kind": "import_resolution",
+      "exit_code": 0,
+      "elapsed_seconds": 0.042326
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-project-v1",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-v1-checked/lean-verification-runs/dab78e23087045249ac84871dd73c164/lib/MovingQuoteSpec.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-project-v1/MovingQuoteSpec.lean"
+      ],
+      "file": "MovingQuoteSpec.lean",
+      "kind": "target",
+      "exit_code": 0,
+      "elapsed_seconds": 0.384153
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--deps",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-project-v1/MovingQuoteWireSpec.lean"
+      ],
+      "file": "MovingQuoteWireSpec.lean",
+      "kind": "import_resolution",
+      "exit_code": 0,
+      "elapsed_seconds": 0.052232
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-project-v1",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-v1-checked/lean-verification-runs/dab78e23087045249ac84871dd73c164/lib/MovingQuoteWireSpec.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-project-v1/MovingQuoteWireSpec.lean"
+      ],
+      "file": "MovingQuoteWireSpec.lean",
+      "kind": "target",
+      "exit_code": 0,
+      "elapsed_seconds": 0.211989
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--deps",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-project-v1/MovingQuoteProof.lean"
+      ],
+      "file": "MovingQuoteProof.lean",
+      "kind": "import_resolution",
+      "exit_code": 0,
+      "elapsed_seconds": 0.048715
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-project-v1",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-v1-checked/lean-verification-runs/dab78e23087045249ac84871dd73c164/lib/MovingQuoteProof.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-project-v1/MovingQuoteProof.lean"
+      ],
+      "file": "MovingQuoteProof.lean",
+      "kind": "target",
+      "exit_code": 0,
+      "elapsed_seconds": 0.381296
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-v1-checked/lean-verification-runs/dab78e23087045249ac84871dd73c164",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-v1-checked/lean-verification-runs/dab78e23087045249ac84871dd73c164/lib/LeanVerifyProbe.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-v1-checked/lean-verification-runs/dab78e23087045249ac84871dd73c164/LeanVerifyProbe.lean"
+      ],
+      "kind": "inspector_compile",
+      "exit_code": 0,
+      "elapsed_seconds": 0.905953
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-v1-checked/lean-verification-runs/dab78e23087045249ac84871dd73c164/InspectRoot.lean"
+      ],
+      "kind": "declaration_inspection",
+      "exit_code": 0,
+      "elapsed_seconds": 0.863636
+    }
+  ]
+}
