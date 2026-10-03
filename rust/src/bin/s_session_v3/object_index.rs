@@ -443,6 +443,11 @@ impl NativeProjection<'_> {
     }
 }
 impl HistoryObjects<'_> {
+    pub(super) fn native_sweep(&self) -> Option<HistorySweep> {
+        self.native
+            .as_ref()
+            .map(|_| HistorySweep::new(self.entries()))
+    }
     pub(super) fn entries(&self) -> &[Entry] {
         &self.entries
     }
@@ -1166,6 +1171,115 @@ pub(super) fn changes_at_budgeted(
     }
     Ok((withdrawals, replaces))
 }
+/// 当前已核 Capture 内的纯派生生命周期事件；不跨 Capture 保存。
+pub(super) struct HistorySweep {
+    by_id: std::collections::HashMap<String, usize>,
+    births: std::collections::BTreeMap<i64, Vec<usize>>,
+    deaths: std::collections::BTreeMap<i64, Vec<usize>>,
+    ranks: Vec<usize>,
+    active: BTreeSet<(usize, usize)>,
+    previous: i64,
+    #[cfg(test)]
+    visits: SweepVisits,
+}
+#[cfg(test)]
+#[derive(Default)]
+struct SweepVisits {
+    initial_entries: usize,
+    births: usize,
+    deaths: usize,
+    active: std::cell::Cell<usize>,
+}
+impl HistorySweep {
+    fn new(index: &[Entry]) -> Self {
+        let mut order: Vec<_> = (0..index.len()).collect();
+        order.sort_unstable_by(|a, b| ordering(&index[*a], &index[*b], false).then(a.cmp(b)));
+        let mut ranks = vec![0; index.len()];
+        for (rank, i) in order.iter().enumerate() {
+            ranks[*i] = rank;
+        }
+        let mut out = Self {
+            by_id: Default::default(),
+            births: Default::default(),
+            deaths: Default::default(),
+            ranks,
+            active: Default::default(),
+            previous: 0,
+            #[cfg(test)]
+            visits: SweepVisits::default(),
+        };
+        for (i, e) in index.iter().enumerate() {
+            #[cfg(test)]
+            {
+                out.visits.initial_entries += 1;
+            }
+            out.by_id.insert(e.id.as_str().to_owned(), i);
+            out.births
+                .entry(e.life.first_known_generation)
+                .or_default()
+                .push(i);
+        }
+        for i in order {
+            if let Some(g) = index[i].life.withdrawn_generation {
+                out.deaths.entry(g).or_default().push(i);
+            }
+        }
+        out
+    }
+    fn active_ordinals(&self) -> impl Iterator<Item = usize> + '_ {
+        self.active.iter().map(|(_, i)| {
+            #[cfg(test)]
+            self.visits.active.set(self.visits.active.get() + 1);
+            *i
+        })
+    }
+    pub(super) fn advance(&mut self, g: i64) -> Result<(), String> {
+        if g <= self.previous {
+            return Err(err("生命周期 sweep 代号不递增"));
+        }
+        for (_, ids) in self.births.range(self.previous..g) {
+            for i in ids {
+                self.active.insert((self.ranks[*i], *i));
+                #[cfg(test)]
+                {
+                    self.visits.births += 1;
+                }
+            }
+        }
+        for (_, ids) in self.deaths.range(self.previous..g) {
+            for i in ids {
+                self.active.remove(&(self.ranks[*i], *i));
+                #[cfg(test)]
+                {
+                    self.visits.deaths += 1;
+                }
+            }
+        }
+        self.previous = g;
+        Ok(())
+    }
+    pub(super) fn changes(
+        &self,
+        index: &[Entry],
+        g: i64,
+    ) -> Result<(bj::JsonOwner, bj::JsonOwner), String> {
+        let mut withdrawals = change_array(None)?;
+        let mut replaces = change_array(None)?;
+        for i in self.deaths.get(&g).into_iter().flatten() {
+            let e = &index[*i];
+            let reason = e
+                .life
+                .withdrawal_reason
+                .as_deref()
+                .ok_or_else(|| err("撤回缺原因"))?;
+            push_withdrawal(&mut withdrawals, e, reason, e.life.superseded_by.as_deref())?;
+            if let Some(id) = &e.life.superseded_by {
+                push_replace(&mut replaces, e.id.as_str(), id.as_str())?;
+            }
+        }
+        Ok((withdrawals, replaces))
+    }
+}
 /// 按该代真实候选序复用同一diff判据，再对拍独立生命周期；不假定候选槽位唯一。
 pub(super) fn verify_generated_members<'a>(
     s: &mut (impl CodecStore + ?Sized),
@@ -1173,11 +1287,22 @@ pub(super) fn verify_generated_members<'a>(
     state: impl Into<sc::RefView<'a>>,
     g: i64,
 ) -> Result<(), String> {
+    verify_generated_members_swept(s, index, state, g, None)
+}
+pub(super) fn verify_generated_members_swept<'a>(
+    s: &mut (impl CodecStore + ?Sized),
+    index: &[Entry],
+    state: impl Into<sc::RefView<'a>>,
+    g: i64,
+    sweep: Option<&HistorySweep>,
+) -> Result<(), String> {
     let state = state.into();
     let allocation = s.allocation_budget();
     let mut by_id = bj::new_map(allocation.as_ref());
-    for e in index.iter().filter(|e| e.life.first_known_generation <= g) {
-        by_id.insert(e.id.as_str(), e).map_err(err)?;
+    if sweep.is_none() {
+        for e in index.iter().filter(|e| e.life.first_known_generation <= g) {
+            by_id.insert(e.id.as_str(), e).map_err(err)?;
+        }
     }
     let objects = field_ref(s, state, "objects")?;
     if objects.kind() != Kind::Array {
@@ -1201,9 +1326,15 @@ pub(super) fn verify_generated_members<'a>(
         if seen.insert(id.try_clone()?, ()).map_err(err)?.is_some() {
             return Err(err("生成集重复对象身份"));
         }
-        let e = by_id
-            .get(id.as_str())
-            .ok_or_else(|| err("生成对象不在独立身份史内"))?;
+        let e = match sweep {
+            Some(sweep) => sweep
+                .by_id
+                .get(id.as_str())
+                .map(|i| &index[*i])
+                .filter(|e| e.life.first_known_generation <= g),
+            None => by_id.get(id.as_str()).copied(),
+        }
+        .ok_or_else(|| err("生成对象不在独立身份史内"))?;
         let fields = OwnerFields::read(
             s,
             object.view(),
@@ -1237,6 +1368,7 @@ pub(super) fn verify_generated_members<'a>(
     let mut before = bj::new_work(allocation.as_ref());
     for (ordinal, e) in index
         .iter()
+        .take(if sweep.is_none() { index.len() } else { 0 })
         .enumerate()
         .filter(|(_, e)| e.life.first_known_generation < g)
     {
@@ -1255,23 +1387,70 @@ pub(super) fn verify_generated_members<'a>(
         })
         .map_err(err)?;
     }
-    let changes = object_diff::plan_budgeted(&new, &old, allocation.as_ref())?;
+    let changes = if let Some(sweep) = sweep {
+        object_diff::plan_indexed_budgeted(
+            &new,
+            |i| object_diff::Existing {
+                key: object_diff::Key {
+                    object_id: index[i].id.as_str(),
+                    slot: &index[i].slot,
+                    immutable: object_diff::Ready(index[i].immutable.digest),
+                },
+                active: false,
+            },
+            sweep.active_ordinals(),
+            |id| {
+                sweep
+                    .by_id
+                    .get(id)
+                    .copied()
+                    .filter(|i| index[*i].life.first_known_generation < g)
+            },
+            |id| {
+                sweep.by_id.get(id).copied().filter(|i| {
+                    index[*i].life.first_known_generation < g
+                        && index[*i].life.withdrawn_generation.is_none_or(|d| d >= g)
+                })
+            },
+            None,
+        )?
+    } else {
+        object_diff::plan_budgeted(&new, &old, allocation.as_ref())?
+    };
     if !changes
         .births
         .iter()
         .map(|i| new[*i].object_id.as_str())
-        .eq(index
-            .iter()
-            .filter(|e| e.life.first_known_generation == g)
-            .map(|e| e.id.as_str()))
+        .eq(match sweep {
+            Some(sweep) => Box::new(
+                sweep
+                    .births
+                    .get(&g)
+                    .into_iter()
+                    .flatten()
+                    .map(|i| index[*i].id.as_str()),
+            ) as Box<dyn Iterator<Item = &str>>,
+            None => Box::new(
+                index
+                    .iter()
+                    .filter(|e| e.life.first_known_generation == g)
+                    .map(|e| e.id.as_str()),
+            ),
+        })
     {
         return Err(err("真实出生顺序与独立索引不同"));
     }
-    let (expected_withdrawals, expected_replaces) =
-        changes_at_budgeted(index, g, allocation.as_ref())?;
+    let (expected_withdrawals, expected_replaces) = match sweep {
+        Some(sweep) => sweep.changes(index, g)?,
+        None => changes_at_budgeted(index, g, allocation.as_ref())?,
+    };
     let mut withdrawals = change_array(allocation.as_ref())?;
     for w in changes.withdrawals {
-        let e = before[w.old_index].1;
+        let e = if sweep.is_some() {
+            &index[w.old_index]
+        } else {
+            before[w.old_index].1
+        };
         let (reason, sup) = match w.removal {
             object_diff::Removal::Removed => (
                 if e.slot.is_shape() {
@@ -1296,7 +1475,11 @@ pub(super) fn verify_generated_members<'a>(
     for r in changes.replaces {
         push_replace(
             &mut replaces,
-            before[r.old_index].1.id.as_str(),
+            if sweep.is_some() {
+                index[r.old_index].id.as_str()
+            } else {
+                before[r.old_index].1.id.as_str()
+            },
             new[r.new_index].object_id.as_str(),
         )?;
     }
@@ -1323,6 +1506,98 @@ mod tests {
     };
     use newchan_rust::s_content::NodeSink;
     use rusqlite::Connection;
+    #[test]
+    fn native_history_sweep_lifecycle_events_match_old_scans_and_bound_visits() {
+        fn entry(i: usize, first: i64, death: Option<i64>) -> Entry {
+            let built = Built {
+                digest: [i as u8; 32],
+                kind: Kind::Null,
+                extent: None,
+            };
+            Entry {
+                id: format!("id-{i}").into(),
+                revision: 1,
+                kind: SHAPE.into(),
+                // 同主序、重复槽位仍按ordinal保留所有身份。
+                slot: Slot::Shape([0, 1, 2]),
+                generated: built.clone(),
+                internal: built.clone(),
+                immutable: built.clone(),
+                birth_wire: built.content_ref().into(),
+                life: LifeOwner::from_normal(PublicationLife {
+                    first_known_generation: first,
+                    first_known_cut: format!("cut-{first}"),
+                    published_generation: first,
+                    withdrawn_generation: death,
+                    withdrawal_reason: death.map(|_| "window_removed".to_owned()),
+                    superseded_by: None,
+                    batch: BatchRef::CurrentBatch,
+                }),
+            }
+        }
+        let mut index = (0..100).map(|i| entry(i, 1, Some(2))).collect::<Vec<_>>();
+        index.extend([
+            entry(100, 1, None),
+            entry(101, 3, Some(3)),
+            entry(102, 5, None),
+        ]);
+        let mut sweep = HistorySweep::new(&index);
+        let mut active_visits = 0;
+        let mut birth_event_visits = 0;
+        let mut death_event_visits = 0;
+        for g in 1..=8 {
+            birth_event_visits += sweep
+                .births
+                .range(sweep.previous..g)
+                .map(|(_, v)| v.len())
+                .sum::<usize>();
+            death_event_visits += sweep
+                .deaths
+                .range(sweep.previous..g)
+                .map(|(_, v)| v.len())
+                .sum::<usize>();
+            sweep.advance(g).unwrap();
+            let mut expected = index
+                .iter()
+                .enumerate()
+                .filter(|(_, e)| {
+                    e.life.first_known_generation < g
+                        && e.life.withdrawn_generation.is_none_or(|d| d >= g)
+                })
+                .map(|(i, _)| i)
+                .collect::<Vec<_>>();
+            expected
+                .sort_unstable_by(|a, b| ordering(&index[*a], &index[*b], false).then(a.cmp(b)));
+            let actual = sweep.active_ordinals().collect::<Vec<_>>();
+            active_visits += actual.len();
+            assert_eq!(actual, expected, "cut-{g}");
+            let old = changes_at_budgeted(&index, g, None).unwrap();
+            let new = sweep.changes(&index, g).unwrap();
+            assert_eq!(old.0.view(), new.0.view());
+            assert_eq!(old.1.view(), new.1.view());
+            if g == 2 {
+                assert_eq!(actual.len(), 101, "death==g仍参与本代");
+            }
+            if g == 3 {
+                assert_eq!(actual, [100], "birth==g不在before");
+            }
+            if g == 4 {
+                assert_eq!(actual, [100], "同代出生撤回不应残留");
+            }
+        }
+        assert_eq!(birth_event_visits, index.len());
+        assert_eq!(death_event_visits, 101);
+        assert_eq!(active_visits, 110);
+        assert_eq!(sweep.visits.initial_entries, index.len());
+        assert_eq!(sweep.visits.births, birth_event_visits);
+        assert_eq!(sweep.visits.deaths, death_event_visits);
+        assert_eq!(sweep.visits.active.get(), active_visits);
+        // 老五条全历史过滤每cut各看103项；sweep初始化一次，事件各过一次。
+        assert_eq!(5 * index.len() * 8, 4120);
+        assert!(index.len() + birth_event_visits + death_event_visits + active_visits < 4120);
+        assert!(sweep.advance(8).is_err());
+    }
+
     fn database() -> Connection {
         let mut c = Connection::open_in_memory().unwrap();
         c.execute_batch(crate::SCHEMA).unwrap();
@@ -1916,11 +2191,29 @@ mod tests {
             )
             .unwrap();
             verify_generated_members(&mut s, &stored, &member_state.content_ref(), g).unwrap();
+            let mut sweep = HistorySweep::new(&stored);
+            sweep.advance(g).unwrap();
+            verify_generated_members_swept(
+                &mut s,
+                &stored,
+                &member_state.content_ref(),
+                g,
+                Some(&sweep),
+            )
+            .unwrap();
             if let Some(position) = duplicate_position {
                 generated.objects.remove(position);
             }
             // 恢复真实单次输入的原生成集，独立再次验证同一出生/撤回结果；生产断言仍是三代真输入。
             verify_generated_members(&mut s, &stored, &generated.generated_state, g).unwrap();
+            verify_generated_members_swept(
+                &mut s,
+                &stored,
+                &generated.generated_state,
+                g,
+                Some(&sweep),
+            )
+            .unwrap();
             let (actual_active, actual_dead, actual_new) = at_cut(&mut s, &stored, g).unwrap();
             assert_eq!(actual_active.extent, Some(generated.objects.len() as u64));
             assert_eq!(actual_new.extent, Some(p.births.len() as u64));

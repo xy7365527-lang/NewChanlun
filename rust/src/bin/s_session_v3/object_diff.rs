@@ -43,6 +43,13 @@ pub(crate) trait Content {
     fn read(&self) -> Result<Self::Value, String>;
 }
 
+impl<C: Content> Content for &C {
+    type Value = C::Value;
+    fn read(&self) -> Result<Self::Value, String> {
+        <C as Content>::read(*self)
+    }
+}
+
 /// 已就绪的不可变内容（S3 新域直接给内容根）。
 pub(crate) struct Ready<T>(pub T);
 
@@ -162,6 +169,37 @@ where
                 .map_err(|e| e.to_string())?;
         }
     }
+    plan_indexed_budgeted(
+        new,
+        |i| &old[i],
+        old.iter()
+            .enumerate()
+            .filter(|(_, e)| e.active)
+            .map(|(i, _)| i),
+        |id| old_by_id.get(id).copied(),
+        |id| active_by_id.get(id).copied(),
+        allocation,
+    )
+}
+
+/// 唯一身份判定核：旧切片适配和当前 Capture 生命周期 sweep 共用。
+/// old 索引可为原始 ordinal；known 只返回本 cut 前已出生身份。
+pub(crate) fn plan_indexed_budgeted<Old, New, OldId, NewId, Slot, E>(
+    new: &[Key<New, NewId, Slot>],
+    old: impl Fn(usize) -> E,
+    active: impl IntoIterator<Item = usize>,
+    known: impl Fn(&str) -> Option<usize>,
+    active_known: impl Fn(&str) -> Option<usize>,
+    allocation: Option<&OwnedBudget>,
+) -> Result<BudgetedChangeSet, String>
+where
+    Old: Content,
+    New: Content<Value = Old::Value>,
+    OldId: Borrow<str>,
+    NewId: Borrow<str>,
+    Slot: Eq + Hash,
+    E: Borrow<Existing<Old, OldId, Slot>>,
+{
     // 同槽位候选取**末位**：与旧实现 `new_objects.iter().collect::<BTreeMap<_,_>>()` 同语义。
     let mut new_by_slot = bj::new_map::<&Slot, usize>(allocation);
     for (index, key) in new.iter().enumerate() {
@@ -177,10 +215,9 @@ where
     };
 
     // 1) 活动旧身份按给定主序：槽位消失 = 撤；槽位被异身份顶替 = 撤 + 替换对。
-    for (old_index, entry) in old.iter().enumerate() {
-        if !entry.active {
-            continue;
-        }
+    for old_index in active {
+        let owner = old(old_index);
+        let entry = owner.borrow();
         match new_by_slot.get(&entry.key.slot).copied() {
             None => changes
                 .withdrawals
@@ -215,10 +252,10 @@ where
 
     // 2) 本次候选按给定序：同 ID 先核不可变内容，再定「未变化 / 拒绝复活 / 真实出生」。
     for (new_index, key) in new.iter().enumerate() {
-        let existing = old_by_id.get(identity(&key.object_id)).copied();
+        let existing = known(identity(&key.object_id));
         if let Some(old_index) = existing {
             // 先既有、后候选：与旧实现同一求值次序，读失败原样上报。
-            let stored_content = old[old_index].key.immutable.read()?;
+            let stored_content = old(old_index).borrow().key.immutable.read()?;
             let candidate_content = key.immutable.read()?;
             if stored_content != candidate_content {
                 return Err(format!(
@@ -227,9 +264,9 @@ where
                 ));
             }
         }
-        match active_by_id.get(identity(&key.object_id)).copied() {
+        match active_known(identity(&key.object_id)) {
             Some(old_index) => {
-                if old[old_index].key.slot != key.slot {
+                if old(old_index).borrow().key.slot != key.slot {
                     return Err(format!(
                         "StorageUnavailable：object_id `{}` 的活动发生区间与本次不一致",
                         identity(&key.object_id)
@@ -260,6 +297,126 @@ mod tests {
     use super::*;
     use std::cell::Cell;
     use std::rc::Rc;
+
+    #[test]
+    fn indexed_core_matches_slice_with_dead_history_and_duplicate_slots() {
+        for mask in 0..16usize {
+            let old = (0..4)
+                .map(|i| {
+                    stored(
+                        &format!("id{i}"),
+                        if i % 2 == 0 { "s0" } else { "s1" },
+                        "v",
+                        mask & (1 << i) != 0,
+                    )
+                })
+                .collect::<Vec<_>>();
+            for ids in [vec![], vec![0], vec![1, 0], vec![0, 1, 4], vec![2, 4]] {
+                let new = ids
+                    .iter()
+                    .map(|i| {
+                        ready_key(&format!("id{i}"), if i % 2 == 0 { "s0" } else { "s1" }, "v")
+                    })
+                    .collect::<Vec<_>>();
+                let ordinary = plan_budgeted(&new, &old, None);
+                let indexed = plan_indexed_budgeted(
+                    &new,
+                    |i| &old[i],
+                    (0..old.len()).filter(|i| old[*i].active),
+                    |id| old.iter().position(|e| e.key.object_id == id),
+                    |id| {
+                        old.iter()
+                            .enumerate()
+                            .rfind(|(_, e)| e.active && e.key.object_id == id)
+                            .map(|(i, _)| i)
+                    },
+                    None,
+                );
+                match (ordinary, indexed) {
+                    (Ok(a), Ok(b)) => {
+                        assert_eq!(
+                            a.births.iter().collect::<Vec<_>>(),
+                            b.births.iter().collect::<Vec<_>>()
+                        );
+                        assert_eq!(
+                            a.withdrawals.iter().collect::<Vec<_>>(),
+                            b.withdrawals.iter().collect::<Vec<_>>()
+                        );
+                        assert_eq!(
+                            a.replaces.iter().collect::<Vec<_>>(),
+                            b.replaces.iter().collect::<Vec<_>>()
+                        );
+                    }
+                    (Err(a), Err(b)) => assert_eq!(a, b),
+                    _ => panic!("adapter disagreement"),
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn indexed_core_preserves_distinct_last_known_and_last_active_duplicate_id() {
+        for old in [
+            vec![
+                stored("same", "active", "v", true),
+                stored("same", "dead", "v", false),
+            ],
+            vec![
+                stored("same", "dead", "v", false),
+                stored("same", "active", "v", true),
+            ],
+            vec![
+                stored("same", "active", "v", true),
+                stored("same", "dead", "different", false),
+            ],
+        ] {
+            for slot in ["active", "dead"] {
+                let new = vec![ready_key("same", slot, "v")];
+                let a = plan_budgeted(&new, &old, None);
+                let b = plan_indexed_budgeted(
+                    &new,
+                    |i| &old[i],
+                    (0..old.len()).filter(|i| old[*i].active),
+                    |id| old.iter().rposition(|e| e.key.object_id == id),
+                    |id| {
+                        old.iter()
+                            .enumerate()
+                            .rfind(|(_, e)| e.active && e.key.object_id == id)
+                            .map(|(i, _)| i)
+                    },
+                    None,
+                );
+                match (a, b) {
+                    (Ok(a), Ok(b)) => {
+                        assert_eq!(
+                            a.births.iter().collect::<Vec<_>>(),
+                            b.births.iter().collect::<Vec<_>>()
+                        );
+                        assert_eq!(
+                            a.withdrawals.iter().collect::<Vec<_>>(),
+                            b.withdrawals.iter().collect::<Vec<_>>()
+                        );
+                        assert_eq!(
+                            a.replaces.iter().collect::<Vec<_>>(),
+                            b.replaces.iter().collect::<Vec<_>>()
+                        );
+                    }
+                    (Err(a), Err(b)) => assert_eq!(a, b),
+                    _ => panic!("duplicate ID disagreement"),
+                }
+            }
+        }
+        // 末条inactive不改变末个active的准入；内容比较仍取末条known。
+        let old = vec![
+            stored("same", "active", "v", true),
+            stored("same", "dead", "v", false),
+        ];
+        assert!(plan(&[ready_key("same", "active", "v")], &old).is_ok());
+        let mut old = old;
+        old[1] = stored("same", "dead", "different", false);
+        let error = plan(&[ready_key("same", "active", "v")], &old).unwrap_err();
+        assert!(error.contains("不可变内容不同"));
+    }
 
     fn key<C: Content>(object_id: &str, slot: &str, immutable: C) -> Key<C> {
         Key {

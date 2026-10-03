@@ -241,6 +241,7 @@ fn read_indexed_history_inner(
         )
         .map_err(err)?;
     // 原始当前capture闭包全核之后才创建；仅本次历史循环持有，跨请求/阶段重建。
+    let mut object_sweep = objects.native_sweep();
     let mut publication_memo = content_publication::NativePublicationMemo::new(&store);
     let mut effective = bj::new_map::<i64, NodeDigest>(allocation.as_ref());
     let mut previous = -1i64;
@@ -320,11 +321,15 @@ fn read_indexed_history_inner(
         resolved_roots.try_push(resolved.delta).map_err(err)?;
         #[cfg(test)]
         super::state::trace_event("history_object_members", Some(generation));
-        object_index::verify_generated_members(
+        if let Some(sweep) = &mut object_sweep {
+            sweep.advance(generation)?;
+        }
+        object_index::verify_generated_members_swept(
             &mut store,
             objects.entries(),
             roots.generated_state.view(),
             generation,
+            object_sweep.as_ref(),
         )?;
         let (active, withdrawn, upserts) = objects.at_cut(&mut store, generation, budget)?;
         for (public, key, expected) in [
@@ -334,8 +339,14 @@ fn read_indexed_history_inner(
         ] {
             same_digest(&mut store, public, key, expected)?;
         }
-        let (withdrawals, replaces) =
-            object_index::changes_at_budgeted(objects.entries(), generation, allocation.as_ref())?;
+        let (withdrawals, replaces) = match &object_sweep {
+            Some(sweep) => sweep.changes(objects.entries(), generation)?,
+            None => object_index::changes_at_budgeted(
+                objects.entries(),
+                generation,
+                allocation.as_ref(),
+            )?,
+        };
         let mut wire_withdrawals = bj::WithdrawalArray(bj::new_work(allocation.as_ref()));
         for v in withdrawals
             .view()
