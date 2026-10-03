@@ -862,7 +862,7 @@ fn send_error_payload_display<S: q_watch::TimedWrite>(
 }
 
 /// 先计完整规范字节再发头；值、已核公头和诊断文本借用活到flush。
-/// 两遍都走serde_json同核，栈writer不另造body owner或默认资源数。
+/// 两遍都走受控compact JSON同核，栈writer不另造body owner或默认资源数。
 fn send_serialized<W: q_watch::TimedWrite>(
     writer: &mut W,
     value: &impl serde::Serialize,
@@ -885,7 +885,8 @@ fn send_serialized<W: q_watch::TimedWrite>(
         }
     }
     let mut count = Count { len: 0 };
-    serde_json::to_writer(&mut count, value).map_err(|e| format!("QReplyInvalid：{e}"))?;
+    newchan_rust::s_content::json_writer::write_json(&mut count, value)
+        .map_err(|e| format!("QReplyInvalid：{e}"))?;
     if count.len > resources.limit(Limit::ReplyBytes) as u128 || count.len > usize::MAX as u128 {
         return Err(too_large.into());
     }
@@ -973,7 +974,7 @@ fn send_serialized<W: q_watch::TimedWrite>(
         deadline,
         first: None,
     };
-    let encoded = serde_json::to_writer(&mut body, value);
+    let encoded = newchan_rust::s_content::json_writer::write_json(&mut body, value);
     if let Some(cause) = body.first.take() {
         return Err(format!("QWatchInvalid：{cause}"));
     }

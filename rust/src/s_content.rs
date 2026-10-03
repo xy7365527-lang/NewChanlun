@@ -35,6 +35,8 @@ pub mod access;
 #[doc(hidden)]
 pub mod capture_allocation;
 mod closed;
+/// 受控 compact JSON 写出（#1394 局部发送失败闭合）。
+pub mod json_writer;
 mod ref_owner;
 pub use capture_allocation::work::{CodecFields, CodecVec};
 use capture_allocation::work::{WorkMap, WorkSet, WorkVec};

@@ -316,7 +316,7 @@ pub(crate) fn encode_view(
         exceeded: false,
         cause: None,
     };
-    let result = serde_json::to_writer(&mut out, &value);
+    let result = newchan_rust::s_content::json_writer::write_json(&mut out, &value);
     out.job.pre_io_check().map_err(err)?;
     if let Some(cause) = out.cause {
         return Err(err(cause));
@@ -475,7 +475,7 @@ fn stream_hash(value: &(impl serde::Serialize + ?Sized)) -> Result<[u8; 32], Str
         }
     }
     let mut out = HashWriter(Sha256::new());
-    serde_json::to_writer(&mut out, value).map_err(err)?;
+    newchan_rust::s_content::json_writer::write_json(&mut out, value).map_err(err)?;
     Ok(out.0.finalize().into())
 }
 impl<P: serde::Serialize + ?Sized> serde::Serialize for ErrorEnvelope<'_, P> {
@@ -490,8 +490,7 @@ impl<P: serde::Serialize + ?Sized> serde::Serialize for ErrorEnvelope<'_, P> {
         }
         impl serde::Serialize for Producer<'_> {
             fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-                // Cargo.lock serde_json 1.0.151 ser.rs:410-458 overrides collect_str:
-                // fmt::Write适配器逐段format_escaped_str_contents，无to_string临时heap。
+                // 受控json_writer逐段转义Display；保持旧serde_json compact字节。
                 serializer.collect_str(self)
             }
         }
@@ -504,6 +503,8 @@ impl<P: serde::Serialize + ?Sized> serde::Serialize for ErrorEnvelope<'_, P> {
             ("message_id", bj::field(self.request, "message_id")),
             ("payload_hash", bj::field(self.request, "payload_hash")),
         ];
+        // 四个键是上方固定且互异的字面量；object_fields的重复键错误在此不可达。
+        // 保留原custom诊断分支，不削减异常信息。
         let causal = [JsonView::object_fields(&causal_fields).map_err(serde::ser::Error::custom)?];
         // 与reply_view的JsonView UTF8键排序逐字一致。
         let mut map = serializer.serialize_map(Some(11))?;

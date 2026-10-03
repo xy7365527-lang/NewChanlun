@@ -113,7 +113,7 @@ impl RefDiagnostic<'_> {
                         Ok(())
                     }
                 }
-                serde_json::to_writer(Out(f), v).map_err(|_| std::fmt::Error)
+                super::json_writer::write_json(&mut Out(f), v).map_err(|_| std::fmt::Error)
             }
             Self::KindExtent(k) => write!(
                 f,
