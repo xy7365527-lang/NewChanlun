@@ -1015,7 +1015,7 @@ fn validate_life(
 ) -> Result<(), RecordError> {
     validate_life_view(life.view(), current_generation, object_id)
 }
-fn validate_life_view(
+pub(super) fn validate_life_view(
     life: LifeView<'_>,
     current_generation: i64,
     object_id: &str,

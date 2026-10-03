@@ -3,7 +3,7 @@
 //! 本层证明索引与这些原件互相绑定；原件是否由真实源按正确业务规则产生仍归来源审计。
 use super::audit_store::RefValue;
 use super::business_json::{self as bj, TextValue};
-use super::object_records::{BatchOwner, BatchView, LifeOwner};
+use super::object_records::{BatchOwner, BatchView, LifeOwner, LifeView};
 use super::{
     generation::ProducedObject,
     object_records::{self, BatchRef, BorrowedObject, PublicationLife},
@@ -359,19 +359,10 @@ fn candidate(
 }
 /// 返回本代模板：新生维持08，已有记录只借出生字段并改写小生命周期元数据。
 fn wire_at(s: &mut (impl CodecStore + ?Sized), e: &Entry, g: i64) -> Result<RefValue, String> {
-    if e.life.first_known_generation > g {
-        return Err(err("对象尚未出生"));
-    }
-    let mut life = e.life.view();
-    if life.withdrawn_generation.is_some_and(|d| d > g) {
-        life.withdrawn_generation = None;
-        life.withdrawal_reason = None;
-        life.superseded_by = None;
-    }
-    let saved = life.batch;
-    if life.first_known_generation == g {
-        life.batch = BatchView::CurrentBatch;
-    }
+    #[cfg(test)]
+    WIRE_PROJECTIONS.with(|calls| calls.set(calls.get() + 1));
+    let life = effective_life(e, g)?;
+    let saved = e.life.view().batch;
     let built =
         object_records::reproject_stored_wire_view(s, e.birth_wire.view(), life, g).map_err(err)?;
     let mut wire = if s.allocation_budget().is_some() {
@@ -394,6 +385,87 @@ fn wire_at(s: &mut (impl CodecStore + ?Sized), e: &Entry, g: i64) -> Result<RefV
         }
     }
     Ok(wire)
+}
+
+/// cut 上下文仍逐次建立；出生 CurrentBatch 是中间态，最终 wire 恢复固定首版批号。
+fn effective_life(e: &Entry, g: i64) -> Result<LifeView<'_>, String> {
+    if e.life.first_known_generation > g {
+        return Err(err("对象尚未出生"));
+    }
+    let mut life = e.life.view();
+    if life.withdrawn_generation.is_some_and(|d| d > g) {
+        life.withdrawn_generation = None;
+        life.withdrawal_reason = None;
+        life.superseded_by = None;
+    }
+    if life.first_known_generation == g {
+        life.batch = BatchView::CurrentBatch;
+    }
+    Ok(life)
+}
+
+/// 只能由本次 load 成功构造；私有索引只读，memo 随本轮历史审计销毁，不进入返回状态。
+pub(super) struct HistoryObjects<'capture> {
+    entries: sc::CodecVec<Entry>,
+    native: Option<NativeProjection<'capture>>,
+}
+struct NativeProjection<'capture> {
+    capture: &'capture sc::AuditCapture,
+    // 序号由私有、不可变 entries 给定；同一对象只有 active / withdrawn 两个最终 wire。
+    wires: Vec<[Option<RefValue>; 2]>,
+}
+impl NativeProjection<'_> {
+    fn wire(
+        &mut self,
+        s: &mut (impl CodecStore + ?Sized),
+        e: &Entry,
+        ordinal: usize,
+        g: i64,
+    ) -> Result<RefValue, String> {
+        let life = effective_life(e, g)?;
+        let phase = usize::from(life.withdrawn_generation.is_some());
+        if let Some(wire) = &self.wires[ordinal][phase] {
+            // 命中也必须按本 cut 跑唯一生命周期判据；不能拿旧代成功代替当前准入。
+            object_records::validate_life_view(life, g, e.id.as_str()).map_err(err)?;
+            self.capture
+                .verify_refview(wire.view(), sc::Mode::Public)
+                .map_err(err)?;
+            return Ok(wire.clone());
+        }
+        let wire = wire_at(s, e, g)?;
+        // clear_overlay 每 cut 清除派生 body。只允许当前 capture 自己证明的完整 Public
+        // 闭包进入 memo，不保留临时 overlay 引用，也不靠 root 存在替代闭包检查。
+        self.capture
+            .verify_refview(wire.view(), sc::Mode::Public)
+            .map_err(err)?;
+        self.wires[ordinal][phase] = Some(wire.clone());
+        Ok(wire)
+    }
+}
+impl HistoryObjects<'_> {
+    pub(super) fn entries(&self) -> &[Entry] {
+        &self.entries
+    }
+    pub(super) fn into_entries(self) -> sc::CodecVec<Entry> {
+        self.entries
+    }
+    pub(super) fn at_cut(
+        &mut self,
+        s: &mut super::history::HashReader<'_>,
+        g: i64,
+        budget: Option<&dyn super::audit_budget::Budget>,
+    ) -> Result<(Built, Built, Built), String> {
+        if let Some(native) = &self.native {
+            if budget.is_some()
+                || !s
+                    .native_projection_capture()
+                    .is_some_and(|current| std::ptr::eq(current, native.capture))
+            {
+                return Err(err("Native投影不属于本次捕获审计上下文"));
+            }
+        }
+        at_cut_projected(s, &self.entries, g, budget, self.native.as_mut())
+    }
 }
 
 fn array(s: &mut (impl CodecStore + ?Sized), refs: &[RefValue]) -> Result<Built, String> {
@@ -420,6 +492,15 @@ pub(super) fn at_cut_metered(
     index: &[Entry],
     g: i64,
     budget: Option<&dyn super::audit_budget::Budget>,
+) -> Result<(Built, Built, Built), String> {
+    at_cut_projected(s, index, g, budget, None)
+}
+fn at_cut_projected(
+    s: &mut (impl CodecStore + ?Sized),
+    index: &[Entry],
+    g: i64,
+    budget: Option<&dyn super::audit_budget::Budget>,
+    mut native: Option<&mut NativeProjection<'_>>,
 ) -> Result<(Built, Built, Built), String> {
     let allocation = s.allocation_budget();
     let mut active = bj::new_work(allocation.as_ref());
@@ -449,11 +530,15 @@ pub(super) fn at_cut_metered(
     }
     let mut collect = |items: sc::CodecVec<(usize, &Entry)>| -> Result<Built, String> {
         let mut refs = bj::new_work(allocation.as_ref());
-        for (_, e) in items {
+        for (ordinal, e) in items {
             if let Some(b) = budget {
                 b.record().map_err(err)?;
             }
-            refs.try_push(wire_at(s, e, g)?).map_err(err)?;
+            let wire = match native.as_deref_mut() {
+                Some(native) => native.wire(s, e, ordinal, g)?,
+                None => wire_at(s, e, g)?,
+            };
+            refs.try_push(wire).map_err(err)?;
         }
         array(s, &refs)
     };
@@ -785,6 +870,21 @@ pub(super) fn load_for_audit(
     latest: i64,
 ) -> Result<sc::CodecVec<Entry>, String> {
     load_in_store(tx, &mut super::audit_store::StoreView::for_audit(s), latest)
+}
+pub(super) fn load_for_history<'capture>(
+    tx: &Transaction<'_>,
+    s: &mut super::history::HashReader<'capture>,
+    latest: i64,
+) -> Result<HistoryObjects<'capture>, String> {
+    // 不接受外部旧 index/memo。先全核本事务原件，成功之后才能开当前索引的两个槽。
+    let entries = load_for_audit(tx, s, latest)?;
+    let native = s
+        .native_projection_capture()
+        .map(|capture| NativeProjection {
+            capture,
+            wires: vec![[None, None]; entries.len()],
+        });
+    Ok(HistoryObjects { entries, native })
 }
 fn load_in_store(
     tx: &Transaction<'_>,
@@ -1209,6 +1309,10 @@ pub(super) fn verify_generated_members<'a>(
 }
 
 #[cfg(test)]
+thread_local! {
+    static WIRE_PROJECTIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+#[cfg(test)]
 mod tests {
     use super::super::generation::{GenerationInput, GenerationRuntime};
     use super::*;
@@ -1217,6 +1321,7 @@ mod tests {
         meta_get_opt, meta_set, open_db, read_effective_events, read_raw_events, tb02a,
         tests::{accept_ohlc, init_test_db, located_ohlc_input, tb02b_oracle_rows, TestFiles},
     };
+    use newchan_rust::s_content::NodeSink;
     use rusqlite::Connection;
     fn database() -> Connection {
         let mut c = Connection::open_in_memory().unwrap();
@@ -1360,6 +1465,277 @@ mod tests {
         sc::render_refview(s, r, &mut b).unwrap();
         serde_json::from_slice(&b).unwrap()
     }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn projection_fixture() -> (sc::MemoryNodes, Vec<Entry>) {
+        // 仅投影/排序夹具；真实 producer 与成功 load 的绑定由 real_generations 另核。
+        let mut nodes = sc::MemoryNodes::new();
+        let mut entries = Vec::new();
+        for (id, shape, first, death, sup) in [
+            ("typed-z", false, 1, Some(3), Some("typed-a")),
+            ("shape-first", true, 1, Some(3), Some("shape-replacement")),
+            ("shape-second", true, 1, None, None),
+            ("typed-b", false, 1, None, None),
+            ("future-born", false, 2, None, None),
+            ("shape-replacement", true, 3, None, None),
+            ("typed-a", false, 3, None, None),
+        ] {
+            let batch = format!("batch3-{}", "a".repeat(64));
+            let mut wire = json!({
+                "object_id":id,"object_revision":"1","kind":if shape {SHAPE} else {"typed"},
+                "batch_id":batch,"input_refs":[],"source_coords":[],
+                "first_known_generation":first.to_string(),"first_known_cut":format!("cut-{first}"),
+                "published_generation":first.to_string(),"withdrawn_generation":null,
+                "withdrawal_reason":null,"superseded_by":null,"lifecycle":"active"
+            });
+            let slot = if shape {
+                let window = if id == "shape-second" {
+                    [7, 9, 10]
+                } else {
+                    [7, 8, 9]
+                };
+                wire["branch"] = json!("test");
+                wire["dir_ab"] = json!("up");
+                wire["dir_bc"] = json!("down");
+                for (name, n) in ["window_start", "window_mid", "window_end"]
+                    .into_iter()
+                    .zip(window)
+                {
+                    wire[name] = json!(n.to_string());
+                }
+                wire["comparisons"] = json!([]);
+                Slot::Shape(window)
+            } else {
+                wire["fact_key"] = json!("fact");
+                wire["payload"] = json!({"body":"x".repeat(5000)});
+                Slot::Typed {
+                    kind: "typed".into(),
+                    fact_key: "fact".into(),
+                }
+            };
+            let birth = sc::write_json_view(&mut nodes, aj::JsonView::Plain(&wire)).unwrap();
+            let e = Entry {
+                id: id.into(),
+                revision: 1,
+                kind: if shape { SHAPE.into() } else { "typed".into() },
+                slot,
+                generated: birth.clone(),
+                internal: birth.clone(),
+                immutable: birth.clone(),
+                birth_wire: birth.content_ref().into(),
+                life: LifeOwner::from_normal(PublicationLife {
+                    first_known_generation: first,
+                    first_known_cut: format!("cut-{first}"),
+                    published_generation: first,
+                    withdrawn_generation: death,
+                    withdrawal_reason: death.map(|_| "superseded_by_revision".into()),
+                    superseded_by: sup.map(str::to_owned),
+                    batch: BatchRef::Existing(batch),
+                }),
+            };
+            wire_at(&mut nodes, &e, first).unwrap();
+            if let Some(death) = death {
+                wire_at(&mut nodes, &e, death).unwrap();
+            }
+            entries.push(e);
+        }
+        (nodes, entries)
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn projection_memo(capture: &sc::AuditCapture, count: usize) -> NativeProjection<'_> {
+        NativeProjection {
+            capture,
+            wires: vec![[None, None]; count],
+        }
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[derive(Default)]
+    struct RecordMeter {
+        records: std::cell::Cell<usize>,
+        stop: bool,
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    impl super::super::audit_budget::Budget for RecordMeter {
+        fn precheck(&self) -> Result<(), sc::CodecError> {
+            Ok(())
+        }
+        fn prepare_node(&self) -> Result<(), sc::CodecError> {
+            Ok(())
+        }
+        fn accept_prepared_frame(&self, _: &sc::job::CheckedFrame) -> Result<(), sc::CodecError> {
+            Ok(())
+        }
+        fn node(&self, _: &NodeDigest, _: u8, _: &[u8]) -> Result<(), sc::CodecError> {
+            Ok(())
+        }
+        fn record(&self) -> Result<(), sc::CodecError> {
+            self.records.set(self.records.get() + 1);
+            if self.stop {
+                Err(sc::CodecError::new("record_stop", "记录门拒绝"))
+            } else {
+                Ok(())
+            }
+        }
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_cut_projection_endpoints_sort_ties_records_and_overlay_lifetime() {
+        let (mut nodes, entries) = projection_fixture();
+        let capture = sc::AuditCapture::new(nodes.clone());
+        let mut store = super::super::history::HashReader::captured(&capture, None);
+        let mut memo = projection_memo(&capture, entries.len());
+        let old_meter = RecordMeter::default();
+        let memo_meter = RecordMeter::default();
+        for g in 1..=6 {
+            let oracle = at_cut_metered(&mut nodes, &entries, g, Some(&old_meter)).unwrap();
+            // 测共用 collect 的记录门；生产 Native 构造门仍只允许 budget=None。
+            let actual =
+                at_cut_projected(&mut store, &entries, g, Some(&memo_meter), Some(&mut memo))
+                    .unwrap();
+            assert_eq!(oracle, actual, "cut-{g} 三根/头必须一致");
+            for (old, new) in [
+                (&oracle.0, &actual.0),
+                (&oracle.1, &actual.1),
+                (&oracle.2, &actual.2),
+            ] {
+                assert_eq!(
+                    value(&mut nodes, &old.content_ref()),
+                    value(&mut store, &new.content_ref())
+                );
+            }
+            assert_eq!(old_meter.records.get(), memo_meter.records.get());
+            let ids = |v: Value| {
+                v.as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|row| row["object_id"].as_str().unwrap().to_owned())
+                    .collect::<Vec<_>>()
+            };
+            if g == 1 {
+                assert_eq!(
+                    ids(value(&mut store, &actual.0.content_ref())),
+                    ["shape-first", "shape-second", "typed-b", "typed-z"]
+                );
+                assert_eq!(
+                    ids(value(&mut store, &actual.2.content_ref())),
+                    ["typed-z", "shape-first", "shape-second", "typed-b"]
+                );
+            }
+            if g == 3 {
+                assert_eq!(
+                    ids(value(&mut store, &actual.1.content_ref())),
+                    ["shape-first", "typed-z"]
+                );
+                assert_eq!(
+                    ids(value(&mut store, &actual.2.content_ref())),
+                    ["shape-replacement", "typed-a"]
+                );
+            }
+            store.clear_overlay();
+            // 已填 memo 的每条 wire 闭包只读当前 capture，清除所有派生 body 后仍可渲染。
+            for wire in memo.wires.iter().flatten().flatten() {
+                capture
+                    .verify_refview(wire.view(), sc::Mode::Public)
+                    .unwrap();
+                value_ref(&mut store, wire.view());
+            }
+        }
+        let stop = RecordMeter {
+            records: std::cell::Cell::new(0),
+            stop: true,
+        };
+        WIRE_PROJECTIONS.with(|calls| calls.set(0));
+        assert!(
+            at_cut_projected(&mut store, &entries, 6, Some(&stop), Some(&mut memo))
+                .unwrap_err()
+                .contains("record_stop")
+        );
+        assert_eq!(stop.records.get(), 1);
+        assert_eq!(
+            WIRE_PROJECTIONS.with(|calls| calls.get()),
+            0,
+            "记录门必须在命中前拒绝"
+        );
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_cut_projection_life_checked_on_hits_and_first_failure_not_cached() {
+        let (nodes, mut entries) = projection_fixture();
+        let capture = sc::AuditCapture::new(nodes);
+        let mut store = super::super::history::HashReader::captured(&capture, None);
+        let mut memo = projection_memo(&capture, entries.len());
+        memo.wire(&mut store, &entries[0], 0, 1).unwrap();
+        assert!(memo
+            .wire(&mut store, &entries[0], 0, 0)
+            .unwrap_err()
+            .contains("尚未出生"));
+        for g in [1, 2] {
+            let original = entries[0].life.published_generation;
+            entries[0].life.published_generation = 10;
+            assert!(memo
+                .wire(&mut store, &entries[0], 0, g)
+                .unwrap_err()
+                .contains("晚于本次生成代"));
+            entries[0].life.published_generation = original;
+        }
+        memo.wire(&mut store, &entries[0], 0, 3).unwrap();
+        entries[0].life.withdrawal_reason = None;
+        for g in [3, 4, 6] {
+            assert!(memo
+                .wire(&mut store, &entries[0], 0, g)
+                .unwrap_err()
+                .contains("撤回必须携带"));
+        }
+        // 第一次 exact 字段检查失败，不能留下成功槽；同一错误重试也必须拒绝。
+        let empty = sc::write_value(&mut store, &V::Object(Vec::new())).unwrap();
+        entries[1].birth_wire = empty.content_ref().into();
+        for _ in 0..2 {
+            assert!(memo.wire(&mut store, &entries[1], 1, 1).is_err());
+            assert!(memo.wires[1].iter().all(Option::is_none));
+        }
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_cut_projection_missing_corrupt_or_overlay_only_closure_never_cached() {
+        let (nodes, entries) = projection_fixture();
+        let (leaf, tag, body) = nodes
+            .iter()
+            .find(|(_, tag, body)| *tag == sc::tag::BYTES_CHUNK && body.len() == 4096)
+            .unwrap();
+        let leaf = *leaf;
+        for corrupt in [false, true] {
+            let mut damaged = sc::MemoryNodes::new();
+            for (d, t, b) in nodes.iter() {
+                if *d == leaf {
+                    if corrupt {
+                        damaged.insert_unchecked(*d, t, vec![0]);
+                    }
+                } else {
+                    damaged.insert_unchecked(*d, t, b.to_vec());
+                }
+            }
+            let capture = sc::AuditCapture::new(damaged);
+            let mut store = super::super::history::HashReader::captured(&capture, None);
+            // 缺叶可临时补进 overlay 让旧投影成功，但它不能授予跨 cut 存活资格。
+            if !corrupt {
+                store.put(leaf, tag, body).unwrap();
+            }
+            let mut memo = projection_memo(&capture, entries.len());
+            for _ in 0..2 {
+                let error = memo.wire(&mut store, &entries[0], 0, 1).unwrap_err();
+                assert!(
+                    error.contains(if corrupt {
+                        sc::code::NODE_DIGEST
+                    } else {
+                        sc::code::NODE_MISSING
+                    }),
+                    "{error}"
+                );
+                assert!(memo.wires[0].iter().all(Option::is_none));
+            }
+            store.clear_overlay();
+            assert!(memo.wire(&mut store, &entries[0], 0, 2).is_err());
+        }
+    }
     fn legacy_value(s: &mut dyn NodeSource, e: &Entry) -> Value {
         let mut v = value(s, &e.generated.content_ref());
         v["batch_id"] = match &e.life.batch {
@@ -1373,6 +1749,16 @@ mod tests {
     }
     #[test]
     fn three_real_generations_match_shared_diff_and_preserve_historical_cut_and_prior() {
+        real_generations(false);
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_cut_projection_real_generations_reuse_exact_wire_after_overlay_clear() {
+        real_generations(true);
+    }
+    fn real_generations(native_projection: bool) {
+        #[cfg(not(feature = "s_capture_native_testonly"))]
+        let _ = native_projection;
         let files = TestFiles::new();
         init_test_db(&files);
         let rows = tb02b_oracle_rows();
@@ -1580,6 +1966,56 @@ mod tests {
                     .contains("IdentityConflict"));
             }
             let _ = actual_dead;
+            #[cfg(feature = "s_capture_native_testonly")]
+            if native_projection && g == 3 {
+                let capture = content_store::capture_for_prototype(&tx).unwrap();
+                let mut captured = super::super::history::HashReader::captured(&capture, None);
+                captured.enable_full_arrays_for_test();
+                let mut current = load_for_history(&tx, &mut captured, g).unwrap();
+                assert!(current.native.is_some());
+                let other_capture = content_store::capture_for_prototype(&tx).unwrap();
+                let mut other_store =
+                    super::super::history::HashReader::captured(&other_capture, None);
+                other_store.enable_full_arrays_for_test();
+                assert!(current
+                    .at_cut(&mut other_store, 1, None)
+                    .unwrap_err()
+                    .contains("不属于本次捕获"));
+                let records = RecordMeter::default();
+                assert!(current
+                    .at_cut(&mut captured, 1, Some(&records))
+                    .unwrap_err()
+                    .contains("不属于本次捕获"));
+                let mut ordinary_store =
+                    super::super::history::HashReader::captured(&capture, None);
+                let ordinary = load_for_history(&tx, &mut ordinary_store, g).unwrap();
+                assert!(
+                    ordinary.native.is_none(),
+                    "普通 captured reader 不能取得 memo"
+                );
+                WIRE_PROJECTIONS.with(|calls| calls.set(0));
+                for cut in 1..=6 {
+                    let oracle = at_cut(&mut s, &stored, cut).unwrap();
+                    let before = WIRE_PROJECTIONS.with(|calls| calls.get());
+                    let actual = current.at_cut(&mut captured, cut, None).unwrap();
+                    let projection_count = WIRE_PROJECTIONS.with(|calls| calls.get() - before);
+                    for (want, got) in [
+                        (&oracle.0, &actual.0),
+                        (&oracle.1, &actual.1),
+                        (&oracle.2, &actual.2),
+                    ] {
+                        assert_eq!(want, got, "cut-{cut} 三根必须逐位一致");
+                        assert_eq!(
+                            value(&mut s, &want.content_ref()),
+                            value(&mut captured, &got.content_ref())
+                        );
+                    }
+                    if cut > 3 {
+                        assert_eq!(projection_count, 0, "相同撤回/活动态不应在后续 cut 重编码");
+                    }
+                    captured.clear_overlay();
+                }
+            }
             tx.commit().unwrap();
             previous_raw = raw;
         }

@@ -175,7 +175,7 @@ fn read_indexed_history_inner(
     )?;
     #[cfg(test)]
     super::state::trace_event("history_object_index", None);
-    let objects = object_index::load_for_audit(
+    let mut objects = object_index::load_for_history(
         tx,
         &mut store,
         v2::control_meta_i64(tx, "generation", allocation.as_ref())?,
@@ -309,12 +309,11 @@ fn read_indexed_history_inner(
         super::state::trace_event("history_object_members", Some(generation));
         object_index::verify_generated_members(
             &mut store,
-            &objects,
+            objects.entries(),
             roots.generated_state.view(),
             generation,
         )?;
-        let (active, withdrawn, upserts) =
-            object_index::at_cut_metered(&mut store, &objects, generation, budget)?;
+        let (active, withdrawn, upserts) = objects.at_cut(&mut store, generation, budget)?;
         for (public, key, expected) in [
             (&snapshot, "objects", active.digest),
             (&snapshot, "withdrawn_objects", withdrawn.digest),
@@ -323,7 +322,7 @@ fn read_indexed_history_inner(
             same_digest(&mut store, public, key, expected)?;
         }
         let (withdrawals, replaces) =
-            object_index::changes_at_budgeted(&objects, generation, allocation.as_ref())?;
+            object_index::changes_at_budgeted(objects.entries(), generation, allocation.as_ref())?;
         let mut wire_withdrawals = bj::WithdrawalArray(bj::new_work(allocation.as_ref()));
         for v in withdrawals
             .view()
@@ -647,7 +646,7 @@ fn read_indexed_history_inner(
     }
     Ok(IndexedHistory {
         cuts: output,
-        objects,
+        objects: objects.into_entries(),
         auxiliary,
     })
 }
@@ -1224,6 +1223,23 @@ impl sc::ClosedReadObserver for AuditObserver<'_> {
     }
 }
 impl<'a> HashReader<'a> {
+    /// 仅本轮 Native captured 历史审计可取到 owner；Owned、普通 reader、Q 与有门路径
+    /// 均不开投影 memo。返回 owner 自身寿命，不借用或延长任何临时 overlay body。
+    pub(super) fn native_projection_capture(&self) -> Option<&'a sc::AuditCapture> {
+        #[cfg(feature = "s_capture_native_testonly")]
+        if self.audit_full_arrays
+            && self.owned.is_none()
+            && self.budget.is_none()
+            && self.deadline.is_none()
+        {
+            if let ReadOwner::Captured(capture) = self.source {
+                if !capture.is_allocation_prototype() {
+                    return Some(capture);
+                }
+            }
+        }
+        None
+    }
     pub(crate) fn with_audit_gate(
         mut self,
         budget: Option<&'a dyn super::audit_budget::Budget>,
@@ -2060,6 +2076,65 @@ fn report_owned_overlay_peak((x, y): (usize, usize)) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_cut_projection_gate_excludes_reader_dynamic_owned_and_deadline() {
+        struct Gate;
+        impl super::super::audit_budget::Budget for Gate {
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                Ok(())
+            }
+            fn prepare_node(&self) -> Result<(), sc::CodecError> {
+                Ok(())
+            }
+            fn accept_prepared_frame(
+                &self,
+                _: &sc::job::CheckedFrame,
+            ) -> Result<(), sc::CodecError> {
+                Ok(())
+            }
+            fn node(&self, _: &NodeDigest, _: u8, _: &[u8]) -> Result<(), sc::CodecError> {
+                Ok(())
+            }
+            fn record(&self) -> Result<(), sc::CodecError> {
+                Ok(())
+            }
+        }
+        let gate = Gate;
+        let capture = sc::AuditCapture::new(sc::MemoryNodes::new());
+        let mut reader = HashReader::captured(&capture, None);
+        assert!(
+            reader.native_projection_capture().is_none(),
+            "普通 reader 没有历史审计资格"
+        );
+        reader.enable_full_arrays_for_test();
+        assert!(std::ptr::eq(
+            reader.native_projection_capture().unwrap(),
+            &capture
+        ));
+        reader.deadline = Some(std::time::Instant::now() + std::time::Duration::from_secs(10));
+        assert!(reader.native_projection_capture().is_none());
+        reader.deadline = None;
+        reader.budget = Some(&gate);
+        assert!(reader.native_projection_capture().is_none());
+        let mut nodes = sc::MemoryNodes::new();
+        let mut ordinary = HashReader::new(&mut nodes);
+        ordinary.enable_full_arrays_for_test();
+        assert!(ordinary.native_projection_capture().is_none());
+        let budget = OwnedBudget::new(1_000_000);
+        let slab = sc::capture_allocation::CaptureSlab::new(0, 0, &budget)
+            .unwrap()
+            .finish()
+            .unwrap();
+        let owned = sc::AuditCapture::from_slab_for_allocation_prototype(slab);
+        let mut owned_reader = HashReader::captured(&owned, None);
+        owned_reader.enable_full_arrays_for_test();
+        assert!(
+            owned_reader.native_projection_capture().is_none(),
+            "Owned capture 不能进入 Native memo"
+        );
+    }
 
     #[test]
     fn allocation_owned_history_root_field_text_red() {
@@ -3089,6 +3164,54 @@ mod tests {
         assert!(cut.batch_id.starts_with("batch3-"));
         assert_ne!(cut.roots.publication_template, cut.snapshot);
         assert_ne!(cut.roots.delta_template, cut.delta);
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_cut_projection_full_history_matches_ordinary_and_rejects_fresh_damage() {
+        let mut f = published();
+        let tx = f.conn.transaction().unwrap();
+        let raw = read_raw_events(&tx).unwrap();
+        let ordinary = read_indexed_history_for_audit(
+            &tx,
+            &raw,
+            control_audit::prepare_s3_control_history(&tx).unwrap(),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        let capture = content_store::capture_for_prototype(&tx).unwrap();
+        let native = read_indexed_history_for_audit_captured(
+            &tx,
+            &raw,
+            control_audit::prepare_s3_control_history(&tx).unwrap(),
+            None,
+            None,
+            None,
+            Some(&capture),
+        )
+        .unwrap();
+        assert_eq!(ordinary.cuts.len(), native.cuts.len());
+        for (a, b) in ordinary.cuts.iter().zip(native.cuts.iter()) {
+            assert_eq!(a.metadata.generation, b.metadata.generation);
+            assert_eq!(a.batch_id, b.batch_id);
+            assert_eq!(a.snapshot, b.snapshot);
+            assert_eq!(a.delta, b.delta);
+        }
+        assert_eq!(ordinary.objects.len(), native.objects.len());
+        // 下一次 fresh Capture 不能继承上一轮 memo。真实根的原件损坏仍在当前闭包拒绝。
+        tx.execute("UPDATE s_content_nodes SET body=x'00' WHERE digest=(SELECT snapshot_root FROM s_content_publications LIMIT 1)",[]).unwrap();
+        let damaged = content_store::capture_for_prototype(&tx).unwrap();
+        assert!(read_indexed_history_for_audit_captured(
+            &tx,
+            &raw,
+            control_audit::prepare_s3_control_history(&tx).unwrap(),
+            None,
+            None,
+            None,
+            Some(&damaged)
+        )
+        .is_err());
     }
 
     #[test]
