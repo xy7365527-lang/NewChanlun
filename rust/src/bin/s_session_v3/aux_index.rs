@@ -954,6 +954,7 @@ fn relation(
     generated: RefValue,
     g: i64,
 ) -> Result<Relation, String> {
+    audit_count(2);
     s.verify_many_ref_fresh([generated.view()], sc::Mode::Public)
         .map_err(err)?;
     exact(&generated, 3)?;
@@ -1092,6 +1093,229 @@ fn state_members(
     array_elements(s, &members)
 }
 
+#[cfg(test)]
+thread_local! {static AUX_AUDIT_STATS:std::cell::Cell<[u64;6]>=const{std::cell::Cell::new([0;6])};}
+#[cfg(test)]
+pub(super) fn reset_aux_audit_stats() {
+    AUX_AUDIT_STATS.with(|s| s.set([0; 6]));
+}
+#[cfg(test)]
+pub(super) fn aux_audit_stats() -> [u64; 6] {
+    AUX_AUDIT_STATS.with(std::cell::Cell::get)
+}
+fn audit_count(slot: usize) {
+    #[cfg(test)]
+    AUX_AUDIT_STATS.with(|s| {
+        let mut v = s.get();
+        v[slot] += 1;
+        s.set(v);
+    });
+    #[cfg(not(test))]
+    let _ = slot;
+}
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct RelationRefKey {
+    format: String,
+    root: String,
+    kind: Kind,
+    extent: Option<u64>,
+}
+impl RelationRefKey {
+    fn new(r: &RefValue) -> Self {
+        Self {
+            format: r.view().format().into(),
+            root: r.view().root().into(),
+            kind: r.kind(),
+            extent: r.extent(),
+        }
+    }
+}
+struct RelationCore {
+    id: TextValue,
+    subject: TextValue,
+    relation_type: TextValue,
+    object: TextValue,
+    generated: RefValue,
+}
+impl RelationCore {
+    fn at(&self, g: i64) -> Result<Relation, String> {
+        Ok(Relation {
+            id: self.id.try_clone()?,
+            subject: self.subject.try_clone()?,
+            relation_type: self.relation_type.try_clone()?,
+            object: self.object.try_clone()?,
+            generated: self.generated.clone(),
+            first: g,
+        })
+    }
+}
+fn native_tables<'i, T>(
+    rows: &'i [T],
+    id: fn(&T) -> &str,
+    first: fn(&T) -> i64,
+) -> (
+    std::collections::HashMap<&'i str, &'i T>,
+    std::collections::BTreeMap<i64, Vec<&'i str>>,
+    Option<i64>,
+) {
+    let mut map = std::collections::HashMap::<&'i str, &'i T>::new();
+    let mut born = std::collections::BTreeMap::<i64, Vec<&str>>::new();
+    let mut duplicate = None;
+    for row in rows {
+        audit_count(0);
+        audit_count(1);
+        let name = id(row);
+        let g = first(row);
+        born.entry(g).or_default().push(name);
+        if let Some(previous) = map.get(name).copied() {
+            let from = g.max(first(previous));
+            duplicate = Some(duplicate.map_or(from, |old: i64| old.min(from)));
+            if g < first(previous) {
+                map.insert(name, row);
+            }
+        } else {
+            map.insert(name, row);
+        }
+    }
+    (map, born, duplicate)
+}
+/// One complete-load Native history owner; audit cannot replace its index/raw borrow.
+pub(super) struct NativeAuxAudit<'index, 'capture, 'raw> {
+    capture: &'capture sc::AuditCapture,
+    index: &'index Index,
+    raw: RawEventsView<'raw>,
+    witnesses: std::collections::HashMap<&'index str, &'index Witness>,
+    relations: std::collections::HashMap<&'index str, &'index Relation>,
+    observations: std::collections::HashMap<&'index str, &'index Observation>,
+    born: [std::collections::BTreeMap<i64, Vec<&'index str>>; 3],
+    duplicates: [Option<i64>; 3],
+    relation_memo: std::collections::HashMap<RelationRefKey, RelationCore>,
+    raw_memo: std::collections::HashMap<usize, Option<RefValue>>,
+}
+impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
+    pub(super) fn from_loaded(
+        s: &super::history::HashReader<'capture>,
+        index: &'index Index,
+        raw: RawEventsView<'raw>,
+    ) -> Option<Self> {
+        if index.budget.is_some() || raw.budget().is_some() {
+            return None;
+        }
+        let capture = s.native_projection_capture()?;
+        let (w, bw, dw) = native_tables(&index.witnesses, |r| r.id.as_str(), |r| r.first);
+        let (r, br, dr) = native_tables(&index.relations, |r| r.id.as_str(), |r| r.first);
+        let (o, bo, do_) = native_tables(&index.observations, |r| r.id.as_str(), |r| r.first);
+        Some(Self {
+            capture,
+            index,
+            raw,
+            witnesses: w,
+            relations: r,
+            observations: o,
+            born: [bw, br, bo],
+            duplicates: [dw, dr, do_],
+            relation_memo: Default::default(),
+            raw_memo: Default::default(),
+        })
+    }
+    pub(super) fn audit(
+        &mut self,
+        s: &mut super::history::HashReader<'_>,
+        state: &(impl AuxRef + ?Sized),
+        replaces: JsonView<'_>,
+        prefix: usize,
+        g: i64,
+    ) -> Result<(), String> {
+        let result = (|| {
+            if !s
+                .native_projection_capture()
+                .is_some_and(|c| std::ptr::eq(c, self.capture))
+            {
+                return Err(err("Native aux owner capture/权限不符"));
+            }
+            let raw = self.raw.prefix(prefix)?;
+            let index = self.index;
+            verify_generated_members_in_view(s, index, state, replaces, raw, g, Some(self))
+        })();
+        if result.is_err() {
+            self.relation_memo.clear();
+            self.raw_memo.clear();
+        }
+        result
+    }
+    fn duplicate(&self, role: usize, g: i64) -> bool {
+        self.duplicates[role].is_some_and(|first| first <= g)
+    }
+    fn born(&self, role: usize, g: i64) -> &[&'index str] {
+        self.born[role].get(&g).map(Vec::as_slice).unwrap_or(&[])
+    }
+    fn relation(
+        &mut self,
+        s: &mut (impl CodecStore + ?Sized),
+        candidate: RefValue,
+        g: i64,
+    ) -> Result<Relation, String> {
+        if !self.capture.contains(&candidate.digest().map_err(err)?) {
+            return relation(s, candidate, g);
+        }
+        self.capture
+            .verify_refview(candidate.view(), sc::Mode::Public)
+            .map_err(err)?;
+        let key = RelationRefKey::new(&candidate);
+        if let Some(core) = self.relation_memo.get(&key) {
+            return core.at(g);
+        }
+        let parsed = relation(s, candidate, g)?;
+        let core = RelationCore {
+            id: parsed.id,
+            subject: parsed.subject,
+            relation_type: parsed.relation_type,
+            object: parsed.object,
+            generated: parsed.generated,
+        };
+        let result = core.at(g)?;
+        self.relation_memo.insert(key, core);
+        Ok(result)
+    }
+    fn raw_relation(
+        &mut self,
+        s: &mut (impl CodecStore + ?Sized),
+        ordinal: usize,
+    ) -> Result<Option<RefValue>, String> {
+        if let Some(value) = self.raw_memo.get(&ordinal) {
+            if let Some(r) = value {
+                self.capture
+                    .verify_refview(r.view(), sc::Mode::Public)
+                    .map_err(err)?;
+            }
+            return Ok(value.clone());
+        }
+        audit_count(5);
+        let event = self
+            .raw
+            .get(ordinal)
+            .ok_or_else(|| err("raw ordinal越界"))?;
+        let value = supersedes_relation(s, event)?;
+        let eligible = match &value {
+            None => true,
+            Some(r) => {
+                if self.capture.contains(&r.digest().map_err(err)?) {
+                    self.capture
+                        .verify_refview(r.view(), sc::Mode::Public)
+                        .map_err(err)?;
+                    true
+                } else {
+                    false
+                }
+            }
+        };
+        if eligible {
+            self.raw_memo.insert(ordinal, value.clone());
+        }
+        Ok(value)
+    }
+}
+
 /// 生成态与见证/关系/观察独立索引的来源绑定核验。
 ///
 /// 这里只消费调用方已核过的原始前缀；不重跑结构分类，也不展开观察 detail 或 raw_bars
@@ -1107,7 +1331,15 @@ pub(super) fn verify_generated_members<'a>(
 ) -> Result<(), String> {
     let raw = raw.into();
     let replaces = replaces.into();
-    verify_generated_members_in_view(s, index, state, JsonView::BorrowedArray(&replaces), raw, g)
+    verify_generated_members_in_view(
+        s,
+        index,
+        state,
+        JsonView::BorrowedArray(&replaces),
+        raw,
+        g,
+        None,
+    )
 }
 pub(super) fn verify_generated_members_with_changes<'a>(
     s: &mut (impl CodecStore + ?Sized),
@@ -1117,7 +1349,7 @@ pub(super) fn verify_generated_members_with_changes<'a>(
     raw: impl Into<RawEventsView<'a>>,
     g: i64,
 ) -> Result<(), String> {
-    verify_generated_members_in_view(s, index, state, replaces, raw.into(), g)
+    verify_generated_members_in_view(s, index, state, replaces, raw.into(), g, None)
 }
 fn verify_generated_members_in_view(
     s: &mut (impl CodecStore + ?Sized),
@@ -1126,6 +1358,7 @@ fn verify_generated_members_in_view(
     replaces: JsonView<'_>,
     raw: RawEventsView<'_>,
     g: i64,
+    mut native: Option<&mut NativeAuxAudit<'_, '_, '_>>,
 ) -> Result<(), String> {
     let owned_budget = s.allocation_budget();
     if g < 1 {
@@ -1133,14 +1366,21 @@ fn verify_generated_members_in_view(
     }
 
     let mut witness_by_id = work_map::<&str, &Witness>(owned_budget.as_ref());
-    for row in &index.witnesses {
-        if row.first <= g {
-            if witness_by_id
-                .insert(row.id.as_str(), row)
-                .map_err(err)?
-                .is_some()
-            {
-                return Err(err("见证独立索引重复身份"));
+    if let Some(owner) = native.as_ref() {
+        if owner.duplicate(0, g) {
+            return Err(err("见证独立索引重复身份"));
+        }
+    } else {
+        for row in &index.witnesses {
+            audit_count(0);
+            if row.first <= g {
+                if witness_by_id
+                    .insert(row.id.as_str(), row)
+                    .map_err(err)?
+                    .is_some()
+                {
+                    return Err(err("见证独立索引重复身份"));
+                }
             }
         }
     }
@@ -1148,6 +1388,7 @@ fn verify_generated_members_in_view(
     let mut seen = work_map(owned_budget.as_ref());
     let mut generated_births = bj::new_work(owned_budget.as_ref());
     for generated in generated_witnesses {
+        audit_count(3);
         let id = text(s, &generated, "witness_id")?;
         let generated_digest = digest(&generated)?;
         if seen
@@ -1157,9 +1398,16 @@ fn verify_generated_members_in_view(
         {
             return Err(err("生成见证重复身份"));
         }
-        let row = witness_by_id
-            .get(&id.as_str())
-            .ok_or_else(|| err("生成见证不在独立索引内"))?;
+        let row = if let Some(owner) = native.as_ref() {
+            owner
+                .witnesses
+                .get(id.as_str())
+                .copied()
+                .filter(|r| r.first <= g)
+        } else {
+            witness_by_id.get(&id.as_str()).copied()
+        }
+        .ok_or_else(|| err("生成见证不在独立索引内"))?;
         if row.generated != generated {
             return Err(err("生成见证原件与独立索引不一致"));
         }
@@ -1168,27 +1416,45 @@ fn verify_generated_members_in_view(
         }
     }
     let mut indexed_births = bj::new_work(owned_budget.as_ref());
-    for row in index.witnesses.iter().filter(|row| row.first == g) {
-        indexed_births.try_push(row.id.as_str()).map_err(err)?;
+    if native.is_none() {
+        for row in index.witnesses.iter().filter(|row| {
+            audit_count(1);
+            row.first == g
+        }) {
+            indexed_births.try_push(row.id.as_str()).map_err(err)?;
+        }
     }
-    if generated_births.len() != indexed_births.len()
+    let indexed_births_view = if let Some(owner) = native.as_ref() {
+        owner.born(0, g)
+    } else {
+        &indexed_births
+    };
+    audit_count(4);
+    if generated_births.len() != indexed_births_view.len()
         || generated_births
             .iter()
-            .zip(&indexed_births)
+            .zip(indexed_births_view)
             .any(|(a, b)| a.as_str() != *b)
     {
         return Err(err("见证出生集合或顺序与独立索引不同"));
     }
 
     let mut relation_by_id = work_map::<&str, &Relation>(owned_budget.as_ref());
-    for row in &index.relations {
-        if row.first <= g {
-            if relation_by_id
-                .insert(row.id.as_str(), row)
-                .map_err(err)?
-                .is_some()
-            {
-                return Err(err("关系独立索引重复身份"));
+    if let Some(owner) = native.as_ref() {
+        if owner.duplicate(1, g) {
+            return Err(err("关系独立索引重复身份"));
+        }
+    } else {
+        for row in &index.relations {
+            audit_count(0);
+            if row.first <= g {
+                if relation_by_id
+                    .insert(row.id.as_str(), row)
+                    .map_err(err)?
+                    .is_some()
+                {
+                    return Err(err("关系独立索引重复身份"));
+                }
             }
         }
     }
@@ -1202,15 +1468,26 @@ fn verify_generated_members_in_view(
             .try_push(replacement_relation(s, replacement)?)
             .map_err(err)?;
     }
-    for event in raw {
-        if let Some(r) = supersedes_relation(s, event)? {
+    for (ordinal, event) in raw.into_iter().enumerate() {
+        let value = if let Some(owner) = native.as_deref_mut() {
+            owner.raw_relation(s, ordinal)?
+        } else {
+            audit_count(5);
+            supersedes_relation(s, event)?
+        };
+        if let Some(r) = value {
             relation_candidates.try_push(r).map_err(err)?;
         }
     }
     let mut relation_seen = work_map(owned_budget.as_ref());
     let mut relation_births = bj::new_work(owned_budget.as_ref());
     for candidate in relation_candidates {
-        let row = relation(s, candidate, g)?;
+        audit_count(3);
+        let row = if let Some(owner) = native.as_deref_mut() {
+            owner.relation(s, candidate, g)?
+        } else {
+            relation(s, candidate, g)?
+        };
         let row_digest = digest(&row.generated)?;
         if let Some(previous) = relation_seen
             .insert(row.id.try_clone()?, row_digest)
@@ -1221,9 +1498,16 @@ fn verify_generated_members_in_view(
             }
             continue;
         }
-        let stored = relation_by_id
-            .get(&row.id.as_str())
-            .ok_or_else(|| err("生成关系不在独立索引内"))?;
+        let stored = if let Some(owner) = native.as_ref() {
+            owner
+                .relations
+                .get(row.id.as_str())
+                .copied()
+                .filter(|r| r.first <= g)
+        } else {
+            relation_by_id.get(&row.id.as_str()).copied()
+        }
+        .ok_or_else(|| err("生成关系不在独立索引内"))?;
         if stored.generated != row.generated {
             return Err(err("生成关系原件与独立索引不一致"));
         }
@@ -1232,29 +1516,47 @@ fn verify_generated_members_in_view(
         }
     }
     let mut indexed_relation_births = bj::new_work(owned_budget.as_ref());
-    for row in index.relations.iter().filter(|row| row.first == g) {
-        indexed_relation_births
-            .try_push(row.id.as_str())
-            .map_err(err)?;
+    if native.is_none() {
+        for row in index.relations.iter().filter(|row| {
+            audit_count(1);
+            row.first == g
+        }) {
+            indexed_relation_births
+                .try_push(row.id.as_str())
+                .map_err(err)?;
+        }
     }
-    if relation_births.len() != indexed_relation_births.len()
+    let indexed_relation_births_view = if let Some(owner) = native.as_ref() {
+        owner.born(1, g)
+    } else {
+        &indexed_relation_births
+    };
+    audit_count(4);
+    if relation_births.len() != indexed_relation_births_view.len()
         || relation_births
             .iter()
-            .zip(&indexed_relation_births)
+            .zip(indexed_relation_births_view)
             .any(|(a, b)| a.as_str() != *b)
     {
         return Err(err("关系出生集合或顺序与独立索引不同"));
     }
 
     let mut observation_by_id = work_map::<&str, &Observation>(owned_budget.as_ref());
-    for row in &index.observations {
-        if row.first <= g {
-            if observation_by_id
-                .insert(row.id.as_str(), row)
-                .map_err(err)?
-                .is_some()
-            {
-                return Err(err("观察独立索引重复身份"));
+    if let Some(owner) = native.as_ref() {
+        if owner.duplicate(2, g) {
+            return Err(err("观察独立索引重复身份"));
+        }
+    } else {
+        for row in &index.observations {
+            audit_count(0);
+            if row.first <= g {
+                if observation_by_id
+                    .insert(row.id.as_str(), row)
+                    .map_err(err)?
+                    .is_some()
+                {
+                    return Err(err("观察独立索引重复身份"));
+                }
             }
         }
     }
@@ -1262,6 +1564,7 @@ fn verify_generated_members_in_view(
     let mut observation_seen = work_map(owned_budget.as_ref());
     let mut observation_births = bj::new_work(owned_budget.as_ref());
     for generated in generated_observations {
+        audit_count(3);
         let id = observation_id(s, &generated)?;
         if observation_seen
             .insert(id.try_clone()?, ())
@@ -1270,9 +1573,16 @@ fn verify_generated_members_in_view(
         {
             return Err(err("生成观察重复身份"));
         }
-        let stored = observation_by_id
-            .get(&id.as_str())
-            .ok_or_else(|| err("生成观察不在独立索引内"))?;
+        let stored = if let Some(owner) = native.as_ref() {
+            owner
+                .observations
+                .get(id.as_str())
+                .copied()
+                .filter(|r| r.first <= g)
+        } else {
+            observation_by_id.get(&id.as_str()).copied()
+        }
+        .ok_or_else(|| err("生成观察不在独立索引内"))?;
         if observation_identity_value(s, &stored.generated)?
             != observation_identity_value(s, &generated)?
         {
@@ -1286,15 +1596,26 @@ fn verify_generated_members_in_view(
         }
     }
     let mut indexed_observation_births = bj::new_work(owned_budget.as_ref());
-    for row in index.observations.iter().filter(|row| row.first == g) {
-        indexed_observation_births
-            .try_push(row.id.as_str())
-            .map_err(err)?;
+    if native.is_none() {
+        for row in index.observations.iter().filter(|row| {
+            audit_count(1);
+            row.first == g
+        }) {
+            indexed_observation_births
+                .try_push(row.id.as_str())
+                .map_err(err)?;
+        }
     }
-    if observation_births.len() != indexed_observation_births.len()
+    let indexed_observation_births_view = if let Some(owner) = native.as_ref() {
+        owner.born(2, g)
+    } else {
+        &indexed_observation_births
+    };
+    audit_count(4);
+    if observation_births.len() != indexed_observation_births_view.len()
         || observation_births
             .iter()
-            .zip(&indexed_observation_births)
+            .zip(indexed_observation_births_view)
             .any(|(a, b)| a.as_str() != *b)
     {
         return Err(err("观察出生集合或顺序与独立索引不同"));
@@ -1663,6 +1984,271 @@ mod tests {
     use rusqlite::Connection;
 
     // 此夹具只验证真实生成器→辅助索引→SQLite，不声称完整 S3 控制/对象发布已接线。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_aux_owner_prefix_duplicates_reference_and_overlay_matrix() {
+        fn state(s: &mut impl CodecStore, relations: &[RefValue]) -> RefValue {
+            let values = relations
+                .iter()
+                .map(|r| VV::Edge(r.digest().unwrap()))
+                .collect::<Vec<_>>();
+            let rel = s.write_value_view(VV::Array(&values)).unwrap();
+            let empty = s.write_value_view(VV::Array(&[])).unwrap();
+            let fields = [
+                ("witnesses", VV::Edge(empty.digest)),
+                ("relations", VV::Edge(rel.digest)),
+                ("observations", VV::Edge(empty.digest)),
+            ];
+            RefValue::Plain(
+                s.write_value_view(VV::Object(&fields))
+                    .unwrap()
+                    .content_ref(),
+            )
+        }
+        let raw = vec![
+            json!({"supersedes_revision":null}),
+            json!({"identity_key":"raw","revision":2,"supersedes_revision":1}),
+            json!({"identity_key":"raw","revision":3,"supersedes_revision":2}),
+            json!({"revision":4,"supersedes_revision":3}),
+        ];
+        let mut nodes = sc::MemoryNodes::new();
+        let r1 = supersedes_relation(&mut nodes, (&raw[1]).into())
+            .unwrap()
+            .unwrap();
+        let r2 = supersedes_relation(&mut nodes, (&raw[2]).into())
+            .unwrap()
+            .unwrap();
+        let empty = state(&mut nodes, &[]);
+        let repeated = state(&mut nodes, &[r1.clone(), r1.clone()]);
+        let reordered = state(&mut nodes, &[r2.clone(), r1.clone()]);
+        let mut index = Index::default();
+        index
+            .relations
+            .try_push(relation(&mut nodes, r1.clone(), 2).unwrap())
+            .unwrap();
+        index
+            .relations
+            .try_push(relation(&mut nodes, r2.clone(), 2).unwrap())
+            .unwrap();
+        let capture = sc::AuditCapture::new(nodes);
+        let mut reader =
+            super::super::history::HashReader::captured_for_audit(&capture, None).unwrap();
+        reader.enable_full_arrays_for_test();
+        let mut owner = NativeAuxAudit::from_loaded(&reader, &index, (&raw).into()).unwrap();
+        owner
+            .audit(
+                &mut reader,
+                &empty,
+                JsonView::BorrowedArray(&RawEventsView::plain(&[])),
+                1,
+                1,
+            )
+            .unwrap();
+        assert!(
+            owner
+                .audit(
+                    &mut reader,
+                    &repeated,
+                    JsonView::BorrowedArray(&RawEventsView::plain(&[])),
+                    0,
+                    1
+                )
+                .is_err(),
+            "future births must not enter lookup"
+        );
+        // Both rows born at g2: raw prefix ordinal gives r1,r2 in the real insertion order.
+        owner
+            .audit(
+                &mut reader,
+                &empty,
+                JsonView::BorrowedArray(&RawEventsView::plain(&[])),
+                3,
+                2,
+            )
+            .unwrap();
+        reader.clear_overlay();
+        owner
+            .audit(
+                &mut reader,
+                &empty,
+                JsonView::BorrowedArray(&RawEventsView::plain(&[])),
+                1,
+                1,
+            )
+            .unwrap();
+        assert!(owner
+            .audit(
+                &mut reader,
+                &reordered,
+                JsonView::BorrowedArray(&RawEventsView::plain(&[])),
+                3,
+                2
+            )
+            .unwrap_err()
+            .contains("出生集合或顺序"));
+        assert!(owner
+            .audit(
+                &mut reader,
+                &empty,
+                JsonView::BorrowedArray(&RawEventsView::plain(&[])),
+                4,
+                2
+            )
+            .unwrap_err()
+            .contains("源身份缺失"));
+        assert!(owner.raw_memo.is_empty() && owner.relation_memo.is_empty());
+        let other = sc::AuditCapture::new(sc::MemoryNodes::new());
+        let mut foreign =
+            super::super::history::HashReader::captured_for_audit(&other, None).unwrap();
+        foreign.enable_full_arrays_for_test();
+        assert!(owner
+            .audit(
+                &mut foreign,
+                &empty,
+                JsonView::BorrowedArray(&RawEventsView::plain(&[])),
+                1,
+                1
+            )
+            .is_err());
+        // Ref declarations are not encoded by Edge; pass the malformed STATE declaration
+        // directly into the actual owner entry instead of panicking in the builder.
+        let mut malformed_state = empty.clone();
+        if let RefValue::Plain(r) = &mut malformed_state {
+            r.format = "bad-format".into();
+        }
+        assert!(owner
+            .audit(
+                &mut reader,
+                &malformed_state,
+                JsonView::BorrowedArray(&RawEventsView::plain(&[])),
+                1,
+                1
+            )
+            .is_err());
+        let mut malformed_relation = r1.clone();
+        if let RefValue::Plain(r) = &mut malformed_relation {
+            r.extent = Some(4);
+        }
+        assert!(owner.relation(&mut reader, malformed_relation, 2).is_err());
+        drop(owner);
+        let mut changed = index.try_clone().unwrap();
+        changed.relations[0].first = 1;
+        changed.relations[0].generated = r2.clone();
+        let mut owner =
+            NativeAuxAudit::from_loaded(&reader, &changed, RawEventsView::plain(&[])).unwrap();
+        assert!(owner
+            .audit(
+                &mut reader,
+                &repeated,
+                JsonView::BorrowedArray(&RawEventsView::plain(&[])),
+                0,
+                1
+            )
+            .unwrap_err()
+            .contains("原件与独立索引不一致"));
+        drop(owner);
+        let missing = Index::default();
+        let mut owner =
+            NativeAuxAudit::from_loaded(&reader, &missing, RawEventsView::plain(&[])).unwrap();
+        assert!(owner
+            .audit(
+                &mut reader,
+                &repeated,
+                JsonView::BorrowedArray(&RawEventsView::plain(&[])),
+                0,
+                1
+            )
+            .is_err());
+        drop(owner);
+        let mut duplicated = index.try_clone().unwrap();
+        duplicated.relations[0].first = 1;
+        let mut future = duplicated.relations[0].try_clone().unwrap();
+        future.first = 3;
+        let rows = std::mem::take(&mut duplicated.relations);
+        duplicated.relations.try_push(future).unwrap();
+        for row in rows {
+            duplicated.relations.try_push(row).unwrap();
+        }
+
+        let mut owner =
+            NativeAuxAudit::from_loaded(&reader, &duplicated, RawEventsView::plain(&[])).unwrap();
+        owner
+            .audit(
+                &mut reader,
+                &repeated,
+                JsonView::BorrowedArray(&RawEventsView::plain(&[])),
+                0,
+                1,
+            )
+            .unwrap();
+        assert!(owner
+            .audit(
+                &mut reader,
+                &repeated,
+                JsonView::BorrowedArray(&RawEventsView::plain(&[])),
+                0,
+                3
+            )
+            .unwrap_err()
+            .contains("独立索引重复"));
+        drop(owner);
+        let mut owner =
+            NativeAuxAudit::from_loaded(&reader, &index, RawEventsView::plain(&[])).unwrap();
+        let overlay = supersedes_relation(
+            &mut reader,
+            (&json!({"identity_key":"overlay","revision":9,"supersedes_revision":8})).into(),
+        )
+        .unwrap()
+        .unwrap();
+        let overlay_state = state(&mut reader, &[overlay]);
+        assert!(owner
+            .audit(
+                &mut reader,
+                &overlay_state,
+                JsonView::BorrowedArray(&RawEventsView::plain(&[])),
+                0,
+                2
+            )
+            .is_err());
+        assert!(owner.raw_memo.is_empty() && owner.relation_memo.is_empty());
+        reader.clear_overlay();
+        drop(owner);
+        let mut overlay_index = Index::default();
+        let original_overlay = supersedes_relation(
+            &mut reader,
+            (&json!({"identity_key":"overlay","revision":9,"supersedes_revision":8})).into(),
+        )
+        .unwrap()
+        .unwrap();
+        overlay_index
+            .relations
+            .try_push(relation(&mut reader, original_overlay.clone(), 1).unwrap())
+            .unwrap();
+        let mut overlay_owner =
+            NativeAuxAudit::from_loaded(&reader, &overlay_index, RawEventsView::plain(&[]))
+                .unwrap();
+        for _ in 0..2 {
+            let current = supersedes_relation(
+                &mut reader,
+                (&json!({"identity_key":"overlay","revision":9,"supersedes_revision":8})).into(),
+            )
+            .unwrap()
+            .unwrap();
+            let current_state = state(&mut reader, &[current]);
+            overlay_owner
+                .audit(
+                    &mut reader,
+                    &current_state,
+                    JsonView::BorrowedArray(&RawEventsView::plain(&[])),
+                    0,
+                    1,
+                )
+                .unwrap();
+            assert!(overlay_owner.relation_memo.is_empty());
+            reader.clear_overlay();
+        }
+    }
+
     fn database() -> Connection {
         let mut conn = Connection::open_in_memory().unwrap();
         conn.execute_batch(crate::SCHEMA).unwrap();
@@ -2218,6 +2804,201 @@ mod tests {
                 g,
             )
             .unwrap();
+            #[cfg(feature = "s_capture_native_testonly")]
+            {
+                let capture = content_store::capture_for_prototype(&tx).unwrap();
+                let mut reader =
+                    super::super::history::HashReader::captured_for_audit(&capture, None).unwrap();
+                reader.enable_full_arrays_for_test();
+                reset_aux_audit_stats();
+                let mut owner =
+                    NativeAuxAudit::from_loaded(&reader, &stored, (&raw).into()).unwrap();
+                owner
+                    .audit(
+                        &mut reader,
+                        &generated.generated_state,
+                        JsonView::BorrowedArray(&RawEventsView::plain(&[])),
+                        frontier as usize + 1,
+                        g,
+                    )
+                    .unwrap();
+                let first = aux_audit_stats();
+                let n = (stored.witnesses.len()
+                    + stored.relations.len()
+                    + stored.observations.len()) as u64;
+                assert_eq!(first[0], n);
+                assert_eq!(first[1], n);
+                reader.clear_overlay();
+                owner
+                    .audit(
+                        &mut reader,
+                        &generated.generated_state,
+                        JsonView::BorrowedArray(&RawEventsView::plain(&[])),
+                        frontier as usize + 1,
+                        g,
+                    )
+                    .unwrap();
+                let repeated = aux_audit_stats();
+                assert_eq!(repeated[0], n);
+                assert_eq!(repeated[1], n);
+                assert_eq!(
+                    repeated[2], first[2],
+                    "actual eligible relation decode must not repeat"
+                );
+                assert_eq!(
+                    repeated[4], 6,
+                    "all three birth comparisons execute each cut"
+                );
+                assert!(repeated[3] > first[3]);
+                drop(owner);
+                if g == 1 {
+                    fn replacement_state(
+                        s: &mut super::super::history::HashReader<'_>,
+                        original: &ContentRef,
+                        name: &str,
+                        items: &[RefValue],
+                    ) -> RefValue {
+                        let mut roots = Vec::new();
+                        for field_name in ["witnesses", "relations", "observations"] {
+                            let r = if field_name == name {
+                                let v = items
+                                    .iter()
+                                    .map(|r| VV::Edge(r.digest().unwrap()))
+                                    .collect::<Vec<_>>();
+                                RefValue::Plain(
+                                    s.write_value_view(VV::Array(&v)).unwrap().content_ref(),
+                                )
+                            } else {
+                                field(s, original, field_name).unwrap()
+                            };
+                            roots.push((field_name, VV::Edge(r.digest().unwrap())));
+                        }
+                        RefValue::Plain(
+                            s.write_value_view(VV::Object(&roots))
+                                .unwrap()
+                                .content_ref(),
+                        )
+                    }
+                    for name in ["witnesses", "observations"] {
+                        let original = state_members(&mut reader, &generated.generated_state, name)
+                            .unwrap()
+                            .into_iter()
+                            .collect::<Vec<_>>();
+                        assert!(!original.is_empty(), "real fixture {name}");
+                        for (label, items) in [
+                            ("duplicate", {
+                                let mut v = original.clone();
+                                v.push(v[0].clone());
+                                v
+                            }),
+                            ("missing", original[1..].to_vec()),
+                        ] {
+                            let badstate = replacement_state(
+                                &mut reader,
+                                &generated.generated_state,
+                                name,
+                                &items,
+                            );
+                            let old = verify_generated_members_with_changes(
+                                &mut reader,
+                                &stored,
+                                &badstate,
+                                JsonView::BorrowedArray(&RawEventsView::plain(&[])),
+                                &raw,
+                                g,
+                            )
+                            .is_err();
+                            let mut owner =
+                                NativeAuxAudit::from_loaded(&reader, &stored, (&raw).into())
+                                    .unwrap();
+                            let new = owner
+                                .audit(
+                                    &mut reader,
+                                    &badstate,
+                                    JsonView::BorrowedArray(&RawEventsView::plain(&[])),
+                                    raw.len(),
+                                    g,
+                                )
+                                .is_err();
+                            assert!(
+                                old && new,
+                                "{name} {label} must reject in actual new owner entry"
+                            );
+                        }
+                    }
+                    if stored.witnesses.len() > 1 {
+                        let items =
+                            state_members(&mut reader, &generated.generated_state, "witnesses")
+                                .unwrap()
+                                .into_iter()
+                                .collect::<Vec<_>>();
+                        let mut reverse = items.clone();
+                        reverse.swap(0, 1);
+                        let badstate = replacement_state(
+                            &mut reader,
+                            &generated.generated_state,
+                            "witnesses",
+                            &reverse,
+                        );
+                        let mut owner =
+                            NativeAuxAudit::from_loaded(&reader, &stored, (&raw).into()).unwrap();
+                        assert!(owner
+                            .audit(
+                                &mut reader,
+                                &badstate,
+                                JsonView::BorrowedArray(&RawEventsView::plain(&[])),
+                                raw.len(),
+                                g
+                            )
+                            .unwrap_err()
+                            .contains("出生集合或顺序"));
+                    }
+                    let bad_replaces = json!([{}]);
+                    let mut owner =
+                        NativeAuxAudit::from_loaded(&reader, &stored, (&raw).into()).unwrap();
+                    assert!(owner
+                        .audit(
+                            &mut reader,
+                            &generated.generated_state,
+                            (&bad_replaces).into(),
+                            raw.len(),
+                            g
+                        )
+                        .is_err());
+                }
+                if g == 1 {
+                    let mut bad = stored.try_clone().unwrap();
+                    let removed = bad.witnesses.pop().unwrap();
+                    let mut owner =
+                        NativeAuxAudit::from_loaded(&reader, &bad, (&raw).into()).unwrap();
+                    assert!(owner
+                        .audit(
+                            &mut reader,
+                            &generated.generated_state,
+                            JsonView::BorrowedArray(&RawEventsView::plain(&[])),
+                            raw.len(),
+                            g
+                        )
+                        .is_err());
+                    drop(owner);
+                    bad.witnesses.try_push(removed).unwrap();
+                    bad.witnesses
+                        .try_push(bad.witnesses[0].try_clone().unwrap())
+                        .unwrap();
+                    let mut owner =
+                        NativeAuxAudit::from_loaded(&reader, &bad, (&raw).into()).unwrap();
+                    assert!(owner
+                        .audit(
+                            &mut reader,
+                            &generated.generated_state,
+                            JsonView::BorrowedArray(&RawEventsView::plain(&[])),
+                            raw.len(),
+                            g
+                        )
+                        .unwrap_err()
+                        .contains("独立索引重复"));
+                }
+            }
             if g == 1 {
                 let first = stored
                     .witnesses

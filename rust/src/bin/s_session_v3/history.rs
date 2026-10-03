@@ -377,6 +377,7 @@ fn read_indexed_history_inner(
     // 原始当前capture闭包全核之后才创建；仅本次历史循环持有，跨请求/阶段重建。
     let mut object_sweep = objects.native_sweep();
     let publication_memo = content_publication::NativePublicationMemo::new(&store);
+    let mut native_aux = aux_index::NativeAuxAudit::from_loaded(&store, &auxiliary, raw);
     let mut effective = bj::new_map::<i64, NodeDigest>(allocation.as_ref());
     let mut previous = -1i64;
     let mut output = bj::new_work(allocation.as_ref());
@@ -617,14 +618,24 @@ fn read_indexed_history_inner(
         }
         #[cfg(test)]
         super::state::trace_event("history_aux_members", Some(generation));
-        aux_index::verify_generated_members_with_changes(
-            &mut store,
-            &auxiliary,
-            &roots.generated_state,
-            replaces.view(),
-            raw.prefix(frontier as usize + 1)?,
-            generation,
-        )?;
+        if let Some(owner) = &mut native_aux {
+            owner.audit(
+                &mut store,
+                &roots.generated_state,
+                replaces.view(),
+                frontier as usize + 1,
+                generation,
+            )?;
+        } else {
+            aux_index::verify_generated_members_with_changes(
+                &mut store,
+                &auxiliary,
+                &roots.generated_state,
+                replaces.view(),
+                raw.prefix(frontier as usize + 1)?,
+                generation,
+            )?;
+        }
         #[cfg(test)]
         super::state::trace_event("history_raw_members", Some(generation));
         for n in (previous + 1)..=frontier {
@@ -840,6 +851,7 @@ fn read_indexed_history_inner(
         .map_err(err)?;
     control.finish()?;
     verify_current_frontiers(tx, &output, previous, allocation.as_ref())?;
+    drop(native_aux);
     Ok(IndexedHistory {
         cuts: output,
         objects: objects.into_entries(),
@@ -3772,6 +3784,7 @@ mod tests {
         let tx = fixture.conn.transaction().unwrap();
         let raw = read_raw_events(&tx).unwrap();
         content_publication::reset_record_resolver_counts();
+        aux_index::reset_aux_audit_stats();
         let ordinary = read_indexed_history_for_audit(
             &tx,
             &raw,
@@ -3781,10 +3794,12 @@ mod tests {
             None,
         )
         .unwrap();
+        let old_aux = aux_index::aux_audit_stats();
         let old = content_publication::record_resolver_counts();
         assert!(old[0] > 0 && old[1] > 0 && old[2] > 0);
         let capture = content_store::capture_for_prototype(&tx).unwrap();
         content_publication::reset_record_resolver_counts();
+        aux_index::reset_aux_audit_stats();
         let native = read_indexed_history_for_audit_captured(
             &tx,
             &raw,
@@ -3796,6 +3811,29 @@ mod tests {
         )
         .unwrap();
         assert_eq!(content_publication::record_resolver_counts(), [0, 0, 0]);
+        let new_aux = aux_index::aux_audit_stats();
+        let n = (ordinary.auxiliary.witnesses.len()
+            + ordinary.auxiliary.relations.len()
+            + ordinary.auxiliary.observations.len()) as u64;
+        assert_eq!(old_aux[0], 4 * n);
+        assert_eq!(new_aux[0], n, "actual by-id construction scans G*N -> N");
+        assert_eq!(old_aux[1], 4 * n);
+        assert_eq!(
+            new_aux[1], n,
+            "birth insertion groups built once in original row order"
+        );
+        assert_eq!(
+            old_aux[3], new_aux[3],
+            "all candidate membership comparisons still happen per cut"
+        );
+        assert_eq!(old_aux[4], 12);
+        assert_eq!(new_aux[4], 12, "all born-set order checks still per cut");
+        assert!(new_aux[2] <= old_aux[2]);
+        assert_eq!(
+            new_aux[5],
+            raw.len() as u64,
+            "actual raw pure derivation is lazy ordinal-once"
+        );
         assert_eq!(ordinary.cuts.len(), 4);
         assert_eq!(native.cuts.len(), 4);
         for (a, b) in ordinary.cuts.iter().zip(native.cuts.iter()) {
