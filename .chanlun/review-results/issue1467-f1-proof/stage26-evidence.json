@@ -1,0 +1,424 @@
+{
+  "date": "2026-10-04",
+  "issue": 1467,
+  "related_issue": 1468,
+  "profile": "rd-q-native-available/1",
+  "status": "finite_profile_checks_passed",
+  "semantic": "not_reviewed",
+  "evidence_class": "author implementation plus independent author reference implementation and machine checks",
+  "input": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/data-readiness-v1/coinbase-20210101-0000-btcusd-full.ndjson",
+    "sha256": "8fa0b1a21a02140aafcc679fb656f39499f8e24c4b0928a436852b4f9d7407fd"
+  },
+  "executable": {
+    "path": "/tmp/nc1467-cargo-target/debug/order-event-native-quote-blocks",
+    "sha256": "280b6a0ed59a02aaf03eb7b75cb3c0bf993a878cc46fcce60aed2b59ea0968cf"
+  },
+  "evidence_root": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1",
+  "baseline": {
+    "lines": 20868,
+    "applied_records": 20571,
+    "delayed_records": 43,
+    "model_events": 13489,
+    "completed_blocks": 6835,
+    "completed_without_geometry": 0,
+    "epochs": 1,
+    "barriers": 0,
+    "frontier": "19247072117",
+    "pending": 0,
+    "native_effects": {
+      "change": 2,
+      "done": 6601,
+      "match": 201,
+      "open": 6685
+    },
+    "normalizations": {
+      "resting_canceled_done": 6601,
+      "resting_match": 201,
+      "resting_open": 6685,
+      "resting_size_decrease": 2
+    },
+    "noops": {
+      "nonresting_change": 1,
+      "nonresting_done": 229,
+      "received_no_book_effect": 6852
+    },
+    "eof_confirms_tail": false,
+    "state_sha256": "c17603a9b18a1d885d580663ff360560ebdcfc451f09700963af334687d2b1cf",
+    "observer_sha256": "5db7674654a4fc3e6b0d4d6a7204a4bac48f57cf74c2d2390ae1547cde076b0a",
+    "price_book_sha256": "1c9dbd12ea2f3df7f32354a6b73a240d173459d54ab7634752cd2a724da474f3",
+    "output_chain_sha256": "5219927f0a958eafa645ee5c9f1511a68435810cb1328b0c65fb189840d8f388",
+    "shape_chain_sha256": "043eaebb38507ccfb8544fb99121127e0a56f376a9811016c41c1d10905d9b9f",
+    "output_file_sha256": "6a3c7eb8a47c5c2e9cdbbee77200286be6133349f2a5d328d3cec300c0496b30"
+  },
+  "baseline_elapsed_ms": 13922,
+  "baseline_delayed_confirmations": 10,
+  "validation": {
+    "all_passed": true,
+    "legacy_state_equal": true,
+    "recovery_lines": [
+      339,
+      340,
+      10000
+    ],
+    "physical_prefixes": [
+      340,
+      10000
+    ],
+    "gap": {
+      "inspection": {
+        "passed": true,
+        "lines": 20868,
+        "model_events": 13489,
+        "completed": 6835,
+        "unpriced": 0,
+        "epochs": 1,
+        "barriers": 0,
+        "applied": 20571,
+        "delayed": 9047,
+        "delayed_confirmations": 3047,
+        "price_book_sha256": "1c9dbd12ea2f3df7f32354a6b73a240d173459d54ab7634752cd2a724da474f3",
+        "report_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/long-gap/report.json",
+        "scope": "independent author implementation over the named finite profile, not independent semantic-agent review"
+      },
+      "shape_equal": true,
+      "price_book_equal": true,
+      "pending_checkpoint": 9000,
+      "burst_line": 10005,
+      "burst_applications": 9005,
+      "burst_confirmations": 3037,
+      "resume_equal": true
+    },
+    "synthetic": {
+      "passed": true,
+      "lines": 20,
+      "model_events": 14,
+      "completed": 7,
+      "unpriced": 1,
+      "epochs": 4,
+      "barriers": 1,
+      "applied": 15,
+      "delayed": 0,
+      "delayed_confirmations": 0,
+      "price_book_sha256": "a9f2b002fea24bb2d9682ec9b5ca39224ea8136f906a8db2f9c4700f51f05198",
+      "report_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/synthetic/report.json",
+      "scope": "independent author implementation over the named finite profile, not independent semantic-agent review"
+    },
+    "synthetic_unfinished_domain_exits": 3,
+    "missing_sequence_stays_unpublished": true,
+    "negative_controls": 6,
+    "receipts": [
+      {
+        "dir": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/resume-339",
+        "exit_code": 0,
+        "timed_out": false,
+        "elapsed_ms": 11285
+      },
+      {
+        "dir": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/resume-340",
+        "exit_code": 0,
+        "timed_out": false,
+        "elapsed_ms": 11696
+      },
+      {
+        "dir": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/resume-10000",
+        "exit_code": 0,
+        "timed_out": false,
+        "elapsed_ms": 7018
+      },
+      {
+        "dir": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/prefix-340",
+        "exit_code": 0,
+        "timed_out": false,
+        "elapsed_ms": 1210
+      },
+      {
+        "dir": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/prefix-10000",
+        "exit_code": 0,
+        "timed_out": false,
+        "elapsed_ms": 5965
+      },
+      {
+        "dir": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/long-gap",
+        "exit_code": 0,
+        "timed_out": false,
+        "elapsed_ms": 11941
+      },
+      {
+        "dir": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/gap-resume",
+        "exit_code": 0,
+        "timed_out": false,
+        "elapsed_ms": 9904
+      },
+      {
+        "dir": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/missing-sequence",
+        "exit_code": 0,
+        "timed_out": false,
+        "elapsed_ms": 3621
+      },
+      {
+        "dir": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/synthetic",
+        "exit_code": 0,
+        "timed_out": false,
+        "elapsed_ms": 128
+      },
+      {
+        "dir": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/synthetic-resume",
+        "exit_code": 0,
+        "timed_out": false,
+        "elapsed_ms": 113
+      },
+      {
+        "dir": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/reject-source",
+        "exit_code": 1,
+        "timed_out": false,
+        "elapsed_ms": 612
+      },
+      {
+        "dir": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/reject-executable",
+        "exit_code": 1,
+        "timed_out": false,
+        "elapsed_ms": 607
+      },
+      {
+        "dir": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/reject-state",
+        "exit_code": 1,
+        "timed_out": false,
+        "elapsed_ms": 900
+      },
+      {
+        "dir": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/reject-observer",
+        "exit_code": 1,
+        "timed_out": false,
+        "elapsed_ms": 1210
+      },
+      {
+        "dir": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/snapshot-conflict",
+        "exit_code": 1,
+        "timed_out": false,
+        "elapsed_ms": 101
+      },
+      {
+        "dir": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/snapshot-rewind",
+        "exit_code": 1,
+        "timed_out": false,
+        "elapsed_ms": 102
+      }
+    ]
+  },
+  "storage": {
+    "bytes_before_matrix_summary": 112768456,
+    "bytes_after_matrix_summary": 112781591,
+    "files": 101,
+    "limit_bytes": 402653184,
+    "archives": [
+      {
+        "original_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/resume-339/rows.jsonl",
+        "archive_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/resume-339/rows.jsonl.gz",
+        "original_bytes": 68572009,
+        "archive_bytes": 2571615,
+        "original_sha256": "23ee4b9506a2631d8a5ed58052c020e6d7576cee66967b7acc02cd08428e84c3",
+        "archive_sha256": "70238a06ae3809fa50131eccb30367f35c4ff046db9f475e1343cf3bd7995a9c",
+        "decompressed_verified": true
+      },
+      {
+        "original_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/resume-340/rows.jsonl",
+        "archive_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/resume-340/rows.jsonl.gz",
+        "original_bytes": 68489325,
+        "archive_bytes": 2567655,
+        "original_sha256": "c5d67c613a20c7e2382b3b76e88905be0b49070dd7bb6daebc525e0adf3b2ac3",
+        "archive_sha256": "0a6ab4b5b28ab5be26cd55dd3029f1657e6b5a8787964e2c0e46951957545833",
+        "decompressed_verified": true
+      },
+      {
+        "original_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/resume-10000/rows.jsonl",
+        "archive_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/resume-10000/rows.jsonl.gz",
+        "original_bytes": 36265088,
+        "archive_bytes": 1359172,
+        "original_sha256": "c28842bf3f837203c237295aedfd99d01670ccf1458c4a2729605ea17581ff9c",
+        "archive_sha256": "dbfeb8cb9246a8c4492adae720550d325fb36ff753393c6ccbf5df0e82857964",
+        "decompressed_verified": true
+      },
+      {
+        "original_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/prefix-340/rows.jsonl",
+        "archive_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/prefix-340/rows.jsonl.gz",
+        "original_bytes": 186331,
+        "archive_bytes": 10128,
+        "original_sha256": "73c408009613494f4b8183bcdba075ff9eef1b799008af111dc1103fb48c8c75",
+        "archive_sha256": "ee0bb4e9e16aed43566d2bb77461649c715a305dee1429de7ea0de2bf2cf32f0",
+        "decompressed_verified": true
+      },
+      {
+        "original_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/prefix-10000/rows.jsonl",
+        "archive_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/prefix-10000/rows.jsonl.gz",
+        "original_bytes": 32410568,
+        "archive_bytes": 1219169,
+        "original_sha256": "cdd1c1e31212824acf2cd71463bd5f41200f6c09a24531218df70de7afe5698a",
+        "archive_sha256": "f0c6114f30a976f38415a52f843c5c426b7712ff19d8d92e7abddc6896564b59",
+        "decompressed_verified": true
+      },
+      {
+        "original_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/long-gap/rows.jsonl",
+        "archive_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/long-gap/rows.jsonl.gz",
+        "original_bytes": 61008076,
+        "archive_bytes": 2463338,
+        "original_sha256": "f9eef201d773d25c5e3c6d606a33c3991a8bcf19dc6b4fc0a96cc7ed2f12eada",
+        "archive_sha256": "9cac2e635bd20db8a13e100e24e84537959138efc169ddb3412958b624a6568a",
+        "decompressed_verified": true
+      },
+      {
+        "original_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/gap-resume/rows.jsonl",
+        "archive_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/gap-resume/rows.jsonl.gz",
+        "original_bytes": 55828947,
+        "archive_bytes": 2225663,
+        "original_sha256": "7622838697a0bc9ec9913b6f3192f2596b2ddb9e18c7c3eaba86eca8ce30d908",
+        "archive_sha256": "da508755d018d9d6085e46e4a8a75fb701788318186f958dba6a369a4d63962c",
+        "decompressed_verified": true
+      },
+      {
+        "original_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/missing-sequence/rows.jsonl",
+        "archive_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/missing-sequence/rows.jsonl.gz",
+        "original_bytes": 8594095,
+        "archive_bytes": 409955,
+        "original_sha256": "cc2ec0276d534d410dd7297b8fba9efcbeebbf31b0a48bf211bf3c20d353593c",
+        "archive_sha256": "8b6e5d1c3fdbf4ea7b1b344d08fdad1011605a2974244133b29452cd832ecc88",
+        "decompressed_verified": true
+      },
+      {
+        "original_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/baseline/rows.jsonl",
+        "archive_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/baseline/rows.jsonl.gz",
+        "original_bytes": 68675656,
+        "archive_bytes": 2577319,
+        "original_sha256": "6a3c7eb8a47c5c2e9cdbbee77200286be6133349f2a5d328d3cec300c0496b30",
+        "archive_sha256": "5c233367178b64ddbcd992bf869793f4bf12a415ed90d50d1ee1d481d04763cf",
+        "decompressed_verified": true
+      }
+    ],
+    "archive_receipts_rechecked": true,
+    "raw_and_checkpoint_files_preserved": true
+  },
+  "closeout": {
+    "core_prefix_bytes": 16954,
+    "core_prefix_sha256": "34788ea66e36163f2fe2ab337e0d790ed31fa347014a8ef090da29be4c476e01",
+    "core_copy_identical": true,
+    "binary_and_input_hashes_match": true,
+    "js_syntax": "three_scripts_passed",
+    "cargo_fmt": "passed",
+    "cargo_build": "offline_locked_passed",
+    "build_warning": "unchanged legacy Checkpoint is never constructed",
+    "formal_source_changed": false,
+    "full_matrix_rerun": false,
+    "identity_keys_absent_in_archived_rows": true
+  },
+  "artifacts": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/baseline/report.json",
+      "sha256": "cbb357d8b05e7ce83b8378d2790253d2d73f34ca9bd10ee47c11e40aeb156d76",
+      "bytes": 3014
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/baseline/receipt.json",
+      "sha256": "454bf3f4d57bdcc913d4e1cf6d91ab7f4cafc0e5b8b80a827e8aa69337437ab7",
+      "bytes": 5141
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/baseline-inspection.json",
+      "sha256": "b5d11c8467bafef6d2c6cffdf218a76cc129294ed406d457f8716ad1d66900a5",
+      "bytes": 617
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/summary.json",
+      "sha256": "b419cb22a827df4b3480c1262e19f3fe12c8b39a76d2c46b49212053097c4895",
+      "bytes": 13135
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/resume-339/receipt.json",
+      "sha256": "eb3b0ddf4a02c768a634410fde6e820df3bfcd58e2aec0a7c5e33191332aa6b1",
+      "bytes": 5221
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/resume-340/receipt.json",
+      "sha256": "34c26f9dfed9879e0696edcad55068e5b3c3a230c3a0f1464a7e9bef5b2e871d",
+      "bytes": 5221
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/resume-10000/receipt.json",
+      "sha256": "1ac3fd0ef06395d541dad21da4bf20b317862cc2ca11917853c8bb5dd6ae61e2",
+      "bytes": 5232
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/prefix-340/receipt.json",
+      "sha256": "5f1d586ce59463bed21cc1263ae94f8b13c58b6d7f23fb1bfa54b4ae13207729",
+      "bytes": 7476
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/prefix-10000/receipt.json",
+      "sha256": "d217bfa3c03ee079176e18be754745313d7c1e88ce249ff0c0dce52a51762c2f",
+      "bytes": 5204
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/long-gap/receipt.json",
+      "sha256": "eb2eed7b9ca30f0c1eb2ef46b3f29107f9bdf3a30e64e492c35a1f0a205d621b",
+      "bytes": 5221
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/gap-resume/receipt.json",
+      "sha256": "0805015078f2484069f71b64e6357096353fae59348e2eea048ee2604f692aab",
+      "bytes": 5244
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/missing-sequence/receipt.json",
+      "sha256": "7ef32eaec3bc0e50e567a51a5c21c3b872e8b52c732c59bb2a2d9e5e8d024e0b",
+      "bytes": 5765
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/synthetic/receipt.json",
+      "sha256": "af2a74efa24551b3c7ecf5984ffd1658630e71cd5f4ad041d3ded84a65b818f7",
+      "bytes": 4982
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/synthetic-resume/receipt.json",
+      "sha256": "aabf4a7303b3ddf5eaa578a655a60fd4bea071c901114230fbd6cd82efa98e06",
+      "bytes": 5022
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/reject-source/receipt.json",
+      "sha256": "0fc7972b65763a8d0cfc55d0866989b8f22713de6b9251e934396d9cafa7a452",
+      "bytes": 1235
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/reject-executable/receipt.json",
+      "sha256": "193a49e4404a3f6b945b0423a8f556b91d76784edecd70f5e40737810c4ad44e",
+      "bytes": 1255
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/reject-state/receipt.json",
+      "sha256": "1b53a670f6f3e563b34745e29069d5623ef7b31584e9f345f9748999140aab39",
+      "bytes": 1221
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/reject-observer/receipt.json",
+      "sha256": "1a9aaaf40de13192d845514c7e84c8672d2381b0af93bf076ea3efb0b900e1b7",
+      "bytes": 1237
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/snapshot-conflict/receipt.json",
+      "sha256": "85734555f3e82a0063c01e7e16cb1f92e286a5502b64aa3839d6c6414bd4f3ef",
+      "bytes": 1269
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/snapshot-rewind/receipt.json",
+      "sha256": "ad6fada423357ef14c7239516925cc372bb3ddbc8a3793106f43fe6823e6516e",
+      "bytes": 1246
+    }
+  ],
+  "source_fingerprints": "source-sha256-stage26.json",
+  "limits": [
+    "one historical minute and named synthetic cases",
+    "no full Rust refinement",
+    "no semantic-agent review",
+    "no complete Move or F2 qualification",
+    "no prediction or trading value result"
+  ],
+  "next": "complete F2 semantics and lifecycle obligations remain open; keep goal active"
+}

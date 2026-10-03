@@ -1,0 +1,7 @@
+{
+  "source": "coinbase_causal_view.rs",
+  "source_sha256": "5af9d8dcca3ddb66b459f321c1b671492ff4d77b1785affc6e2608fb129731df",
+  "prefix_bytes": 16954,
+  "prefix_sha256": "34788ea66e36163f2fe2ab337e0d790ed31fa347014a8ef090da29be4c476e01",
+  "scope": "parser, all State fields and methods copied unchanged; separate driver observes scheduled applications"
+}
