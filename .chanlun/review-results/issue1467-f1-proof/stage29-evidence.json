@@ -1,0 +1,212 @@
+{
+  "date": "2026-10-04",
+  "issue": 1467,
+  "profile": "RW-DC-native-state-time/1",
+  "evidence_kind": "finite timestamp provenance and exact candidate-rate calculations",
+  "author_checks_passed": true,
+  "semantic": "not_reviewed",
+  "summary_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/rw-native-time-v1/summary.json",
+  "summary_sha256": "65a0f9ea18199902ea90bd3442b9f61bbcccda494a367219add64c5c2ee5101e",
+  "result": {
+    "profile": "RW-DC-native-state-time/1",
+    "passed": true,
+    "baseline": {
+      "name": "baseline",
+      "epochs": 1,
+      "observations": 1677,
+      "missing_times": 0,
+      "tied_adjacent_times": 55,
+      "reversed_adjacent_times": 0,
+      "weighted": {
+        "confirmed": 911,
+        "confirmed_rates": {
+          "defined": 895,
+          "zero_native_duration": 16
+        },
+        "active_checks": 20529,
+        "active_rates": {
+          "direction_not_initialized": 424,
+          "defined": 19948,
+          "zero_native_duration": 157
+        }
+      },
+      "midpoint": {
+        "confirmed": 512,
+        "confirmed_rates": {
+          "defined": 512
+        },
+        "active_checks": 20529,
+        "active_rates": {
+          "direction_not_initialized": 424,
+          "defined": 20105
+        }
+      },
+      "output": {
+        "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/rw-native-time-v1/baseline-rates.jsonl",
+        "bytes": 2341775,
+        "sha256": "a7d03f71b05e6663f5cfb227eadfd239a2f66664c8132629d9111b2617c0ac1d",
+        "records": 5722
+      },
+      "inputs": {
+        "published_rows": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/rows.jsonl",
+        "published_rows_sha256": "270589a4b3a93619fd3b609ce984b0d34ff1d74dc4a025ac3441298c3b62c978",
+        "published_report_sha256": "194ab359417626e7440c6346c767f2b44f2b9f83656177b762b8ad47eb6d2e5a",
+        "native_archive": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/baseline/rows.jsonl.gz",
+        "native_archive_sha256": "5c233367178b64ddbcd992bf869793f4bf12a415ed90d50d1ee1d481d04763cf",
+        "native_rows_sha256": "6a3c7eb8a47c5c2e9cdbbee77200286be6133349f2a5d328d3cec300c0496b30",
+        "native_report_sha256": "cbb357d8b05e7ce83b8378d2790253d2d73f34ca9bd10ee47c11e40aeb156d76"
+      },
+      "scope": "same original DC output, native state timestamps from admitted records, exact rational candidate rates"
+    },
+    "gap": {
+      "name": "long-gap",
+      "epochs": 2,
+      "observations": 868,
+      "missing_times": 0,
+      "tied_adjacent_times": 36,
+      "reversed_adjacent_times": 0,
+      "weighted": {
+        "confirmed": 441,
+        "confirmed_rates": {
+          "defined": 431,
+          "zero_native_duration": 10
+        },
+        "active_checks": 11525,
+        "active_rates": {
+          "direction_not_initialized": 463,
+          "defined": 11000,
+          "zero_native_duration": 62
+        }
+      },
+      "midpoint": {
+        "confirmed": 263,
+        "confirmed_rates": {
+          "defined": 263
+        },
+        "active_checks": 11525,
+        "active_rates": {
+          "direction_not_initialized": 463,
+          "defined": 11062
+        }
+      },
+      "output": {
+        "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/rw-native-time-v1/long-gap-rates.jsonl",
+        "bytes": 1188559,
+        "sha256": "baf97ab9431fac6912a19f351353434c8b3a7b0f91caab2404e4de7bdffcc4d2",
+        "records": 2926
+      },
+      "inputs": {
+        "published_rows": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/verification-1/long-gap/rows.jsonl",
+        "published_rows_sha256": "606164103c291b32d3ace35000b159f14c723c0e0f972ca49803e34d8bf5e5e1",
+        "published_report_sha256": "9fb9ee4dddf25f069498ad7a0cc33e14b5458fe5d1a08d04e0446a6c306a6214",
+        "native_archive": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/long-gap/rows.jsonl.gz",
+        "native_archive_sha256": "9cac2e635bd20db8a13e100e24e84537959138efc169ddb3412958b624a6568a",
+        "native_rows_sha256": "f9eef201d773d25c5e3c6d606a33c3991a8bcf19dc6b4fc0a96cc7ed2f12eada",
+        "native_report_sha256": "7516532dc5a0633faf42ca0232462466e4bbfe88d9e07e429fb37feddb92f3d0"
+      },
+      "scope": "same original DC output, native state timestamps from admitted records, exact rational candidate rates"
+    },
+    "undefined_controls": [
+      {
+        "name": "missing",
+        "result": "missing_endpoint_time"
+      },
+      {
+        "name": "same-time",
+        "result": "zero_native_duration"
+      },
+      {
+        "name": "backward",
+        "result": "clock_reversal_within_span"
+      },
+      {
+        "name": "interior-backward",
+        "result": "clock_reversal_within_span"
+      },
+      {
+        "name": "interior-missing",
+        "result": "missing_interior_time"
+      }
+    ],
+    "source_controls": [
+      {
+        "name": "frontier-mismatch",
+        "rejected": true
+      },
+      {
+        "name": "quote-mismatch",
+        "rejected": true
+      },
+      {
+        "name": "future-source-line",
+        "rejected": true
+      }
+    ],
+    "checker_sha256": "471aa843137b0443a6cefc69dc191a051b152824f3c9d1f140e11a948103251d",
+    "semantic": "not_reviewed",
+    "limits": [
+      "one historical minute and one delayed capture perturbation",
+      "native message time is an explicit candidate coordinate, not a proved physical or canonical Chan clock",
+      "no new F1 decomposition or completion status",
+      "no canonical atom, full F2 or market value qualification"
+    ]
+  },
+  "parent_binding": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/rw-native-time-v1/parent-binding-check.json",
+    "sha256": "f58dbe7859decb54d8fd88c270f62ac85d09fb819212768630322719b1b5ab31",
+    "result": {
+      "passed": true,
+      "checks": [
+        {
+          "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/rows.jsonl",
+          "sha256": "270589a4b3a93619fd3b609ce984b0d34ff1d74dc4a025ac3441298c3b62c978"
+        },
+        {
+          "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/report.json",
+          "sha256": "194ab359417626e7440c6346c767f2b44f2b9f83656177b762b8ad47eb6d2e5a"
+        },
+        {
+          "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/verification-1/long-gap/receipt.json",
+          "sha256": "aec8153e7fd8d189744b3d7920c5911b50893f6fd242a2fa65f2ec70115cce00"
+        },
+        {
+          "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/baseline/report.json",
+          "sha256": "cbb357d8b05e7ce83b8378d2790253d2d73f34ca9bd10ee47c11e40aeb156d76"
+        },
+        {
+          "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/verification-1/long-gap/receipt.json",
+          "sha256": "eb2eed7b9ca30f0c1eb2ef46b3f29107f9bdf3a30e64e492c35a1f0a205d621b"
+        }
+      ],
+      "gap_reports_equal_receipts": true
+    }
+  },
+  "second_numeric_check": {
+    "checked_defined_records": 5984,
+    "method": "cross multiply recorded rational and independently recompute same-date duration from UTC clock components",
+    "passed": true
+  },
+  "command": [
+    "node",
+    ".chanlun/review-results/issue1467-f1-proof/stage29_native_time.mjs",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/rw-native-time-v1"
+  ],
+  "exit_code": 0,
+  "syntax_check": "passed",
+  "storage": {
+    "bytes": 3536440,
+    "limit_bytes": 33554432
+  },
+  "formal_source_changed": false,
+  "new_lean_root": false,
+  "market_replay_repeated": false,
+  "source_fingerprints": "source-sha256-stage29.json",
+  "web_source": {
+    "url": "https://docs.cdp.coinbase.com/exchange/websocket-feed/channels#received",
+    "title": "Exchange WebSocket Channels — Received",
+    "read_date": "2026-10-04",
+    "use": "current received-message semantics only; no guarantee about 2021 timestamp precision or strict monotonicity"
+  }
+}
