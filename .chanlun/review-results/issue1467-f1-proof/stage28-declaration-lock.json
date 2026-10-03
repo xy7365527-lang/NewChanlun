@@ -1,0 +1,8 @@
+{
+  "profile": "ORDER-CLOCK-EDGE-v1",
+  "spec": ".chanlun/review-results/issue1467-f1-proof/ClockEdgeSpec.lean",
+  "spec_sha256": "8f050a1fd2a26cd3c5159fd5d282132b9e5b18bc0f149f03bfd70231f9993571",
+  "declaration": "ClockEdge.exact_root",
+  "expected_type": "ClockEdge.CLOCK_TARGET ∧ ClockEdge.ZERO_TARGET ∧ ClockEdge.EDGE_TARGET",
+  "frozen_before_proof": true
+}

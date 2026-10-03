@@ -1,0 +1,18 @@
+{
+  ".chanlun/review-results/issue1467-f1-proof/Stage28WorkCard.md": "9984fbdd8e809df47d7ec30f8b00d368463f9a67676e65d585332c17edab4940",
+  ".chanlun/review-results/issue1467-f1-proof/ClockEdgeSpec.lean": "8f050a1fd2a26cd3c5159fd5d282132b9e5b18bc0f149f03bfd70231f9993571",
+  ".chanlun/review-results/issue1467-f1-proof/ClockEdgeProof.lean": "de7e000cca0f12b0822a10b48e28cd4877437d4109a89f412d3754187e04f547",
+  ".chanlun/review-results/issue1467-f1-proof/stage28_inspect.mjs": "873e0cfffb7897d3975f5ddcfc46d3cc2e8b20fc19f6e2279130d0d701e637a7",
+  ".chanlun/review-results/issue1467-f1-proof/Stage28ClockAndEdges.md": "7fc683a6660d2561b9ed6cd4101569df709b90dcfb87f8da91e8e9c133bc563b",
+  ".chanlun/review-results/issue1467-f1-proof/Stage28PendingReview.md": "dbb1bb7e834fd3266cd103f83d81d727fd0cb0660bed589cc5262bdfab185e1c",
+  ".chanlun/review-results/issue1467-f1-proof/stage28-declaration-lock.json": "81d81682e78daadb8b7f55f924b9966a4efa52937c2c30714da0551339e54d2c",
+  ".chanlun/review-results/issue1467-f1-proof/DCSemantics.lean": "a2fbd4becc7a692ba10b6aff6c84dd511ccb5062dae734c9a56616324db0a972",
+  ".chanlun/review-results/issue1467-f1-proof/DCFiniteCertificates.lean": "328f7d9097a6cef815392df81b2877a31fcc5ac4b46f3f3428b32d9f156059d4",
+  ".chanlun/review-results/issue1467-f1-proof/MovingQuoteSpec.lean": "90d6289fba1f1cfeeaa7ceac234bad76dcda515f2ef63330c5d8e7c6a6aaa762",
+  ".chanlun/review-results/issue1467-f1-proof/DirectQuoteSpec.lean": "df45e6e08d020edc6bc737c0885829b37454c289f1a72c71f4186d82627591ad",
+  ".chanlun/review-results/issue1467-f1-proof/DirectQuoteProof.lean": "a0189d52d43b3b98e6a3416a9effe904ed5a5207d90d2d6d94fd4dca6876759c",
+  ".chanlun/review-results/issue1467-f1-proof/native_quote_blocks.rs": "d06e47ed4c2bddbf5b1fdce2d1d0bac1d8dcd44cdb1f118a1642b87281b1c3f9",
+  "formal/Origin/ForceVelocity.lean": "9690245077a125451c97f3ab1ca67cfc3cd43553c671009a3eba682ace6a0773",
+  "formal/Origin/ChanlunElements.lean": "19c33e884e6949cdd56a51ff7c44dc086354994b7f54431f57bec4a0849fa201",
+  ".chanlun/definitions/beichi.md": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6"
+}
