@@ -28,4 +28,6 @@
 - Native候选Public联合核验已实施：只在实际CapturedNative模式，把纯根迭代的完整Public核验放在candidate写入之前；每根声明/header仍核、共享内部闭包去重。元数据/身份/slot/wire/immutable全部保留，混预算入口前拒绝；默认/Owned/Job不变。接受仅Native多错首报和wire故障触达顺序差异，不声称错误顺序完全等价。
 - 联合核验7项靶向与独评PASS：三代SQL读取223773→197081、469185→395391、361261→314024，完整plan不变；Native四代修订全行/节点对Ordinary逐字相同。坏第二root、坏声明/缺失/损坏/角色/未来补子均在candidate put前拒绝，真实SQL/commit故障回滚discard及重试通过。首编测试签名Serialize错误保留，r2仅改3个测试RefValue包装；640源码/app/lib/binary绑定有效。
 - 新105→106联合核验对照COMPLETE：eager/staged handle27.387/25.425秒，均106代idle；全字节/闭包/旧105/原件保全与回收PASS。同臂与前轮overlay版本的实际DB/WAL/SHM SHA、回执及runtime owner/root多重集完全一致。证据 `.scratch/issue1394-candidate-union-20261004/ROOT-RESULT.json`。两臂仅内部handle低于30秒，下一步为正式入口有限增长验证的准备；不直接重启9011、不加超时，整体资源和生产资格仍未成立。
+- 正式S独立复制105窗口已实际启动并失败保全：使用非test服务binary a33635c5…、真实Controller及原启动30秒，期限内无socket/Ready，106–112均未发送；新库仍105代idle，PID35869已由Controller停止并同Popen回收，原件stat/SHA保持。原104回执/105持久及第105DeliveryUnknown不改。窗口脚本独评后执行，未重试/延时；证据 `.scratch/issue1394-formal-window106-112-20261004/ROOT-RESULT.json`。
+- 新启动定位：serve在Native open后、bind前还调用ordinary `Driver::identity`完整审计；Ready本身亦走新请求审计。无阶段采样，不能声称进程被终止的准确PC。下一候选是仅Native bootstrap局部复用open纯历史，identity仍在新事务读取完整当前capture/binding/control/raw，pending变化则重审；返回前drop且Driver不持keeper，Ready仍冷审计。只读可行性已核，尚未实施，不能预保证30秒启动。
 - 禁止：旧未授权原件、main 合入/推送、GOAL 事件修改、新公共资源数值、前端 #1460、K4。
