@@ -2,7 +2,9 @@
 //! 保存内部记录、生成态、不可变内容和出生 wire 四根；所有来源/载荷保持内容边。
 //! 本层证明索引与这些原件互相绑定；原件是否由真实源按正确业务规则产生仍归来源审计。
 use super::audit_store::RefValue;
+// Re-export only the opaque type; its fields and constructor stay history-private.
 use super::business_json::{self as bj, TextValue};
+pub(crate) use super::history::NativeCutProjection;
 use super::object_records::{BatchOwner, BatchView, LifeOwner, LifeView};
 use super::{
     generation::ProducedObject,
@@ -544,6 +546,103 @@ impl HistoryObjects<'_> {
             }
         }
         at_cut_projected(s, &self.entries, g, budget, self.native.as_mut())
+    }
+}
+
+impl HistoryObjects<'_> {
+    /// Only this complete-load Native owner can produce both projections. No arbitrary arrays.
+    pub(super) fn native_dual_at_cut(
+        &mut self,
+        s: &mut super::history::HashReader<'_>,
+        g: i64,
+        batch: &str,
+    ) -> Result<[(Built, Built); 3], String> {
+        let native = self
+            .native
+            .as_mut()
+            .ok_or_else(|| err("缺Native完整索引资格"))?;
+        if !s
+            .native_projection_capture()
+            .is_some_and(|c| std::ptr::eq(c, native.capture))
+        {
+            return Err(err("双投影capture不符"));
+        }
+        let mut active = self
+            .entries
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| {
+                e.life.first_known_generation <= g
+                    && e.life.withdrawn_generation.is_none_or(|d| d > g)
+            })
+            .collect::<Vec<_>>();
+        let mut dead = self
+            .entries
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| e.life.withdrawn_generation.is_some_and(|d| d <= g))
+            .collect::<Vec<_>>();
+        active.sort_unstable_by(|a, b| ordering(a.1, b.1, false).then(a.0.cmp(&b.0)));
+        dead.sort_unstable_by(|a, b| ordering(a.1, b.1, true).then(a.0.cmp(&b.0)));
+        let births = self
+            .entries
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| e.life.first_known_generation == g)
+            .collect::<Vec<_>>();
+        // Local to this cut: derived Template references never enter persistent Public slots.
+        let mut pairs = std::collections::BTreeMap::<usize, (RefValue, RefValue)>::new();
+        let mut collect = |items: Vec<(usize, &Entry)>| -> Result<(Built, Built), String> {
+            let mut template = Vec::new();
+            let mut public = Vec::new();
+            for (ordinal, e) in items {
+                if e.life.published_generation > g {
+                    return Err(err("对象出生后发布代号被改写"));
+                }
+                let saved = match e.life.view().batch {
+                    BatchView::Existing(v) => v,
+                    BatchView::CurrentBatch => return Err(err("历史索引未绑定实际出生batch")),
+                };
+                if (e.life.first_known_generation == g) != (saved == batch) {
+                    return Err(err("出生/旧代batch与当前cut不符"));
+                }
+                if !pairs.contains_key(&ordinal) {
+                    let life = effective_life(e, g)?;
+                    object_records::validate_life_view(life, g, e.id.as_str()).map_err(err)?;
+                    let phase = usize::from(life.withdrawn_generation.is_some());
+                    let pair = if e.life.first_known_generation == g {
+                        #[cfg(test)]
+                        WIRE_PROJECTIONS.with(|v| v.set(v.get() + 1));
+                        let b = object_records::reproject_stored_wire_view(
+                            s,
+                            e.birth_wire.view(),
+                            life,
+                            g,
+                        )
+                        .map_err(err)?;
+                        let template = RefValue::Plain(b.content_ref());
+                        let public = s
+                            .replace_ref(template.view(), &[f("batch_id")], saved)
+                            .map_err(err)?;
+                        native
+                            .capture
+                            .verify_refview(public.view(), sc::Mode::Public)
+                            .map_err(err)?;
+                        native.wires[ordinal][phase] = Some(public.clone());
+                        (template, public)
+                    } else {
+                        let public = native.wire(s, e, ordinal, g)?;
+                        (public.clone(), public)
+                    };
+                    pairs.insert(ordinal, pair);
+                }
+                let (a, b) = pairs.get(&ordinal).unwrap();
+                template.push(a.clone());
+                public.push(b.clone());
+            }
+            Ok((array(s, &template)?, array(s, &public)?))
+        };
+        Ok([collect(active)?, collect(dead)?, collect(births)?])
     }
 }
 
@@ -3012,6 +3111,30 @@ mod tests {
                 let mut captured = super::super::history::HashReader::captured(&capture, None);
                 captured.enable_full_arrays_for_test();
                 let mut current = load_for_history(&tx, &mut captured, g).unwrap();
+                let dual = current
+                    .native_dual_at_cut(&mut captured, g, &batch)
+                    .unwrap();
+                assert_eq!(
+                    [dual[0].1.digest, dual[1].1.digest, dual[2].1.digest],
+                    [actual_active.digest, actual_dead.digest, actual_new.digest]
+                );
+                let old_batch = format!("batch3-{}", "1".repeat(64));
+                let dual_old = current
+                    .native_dual_at_cut(&mut captured, 1, &old_batch)
+                    .unwrap();
+                assert_eq!(
+                    [
+                        dual_old[0].1.digest,
+                        dual_old[1].1.digest,
+                        dual_old[2].1.digest
+                    ],
+                    [
+                        historical.0.digest,
+                        historical.1.digest,
+                        historical.2.digest
+                    ]
+                );
+
                 assert!(current.native.is_some());
                 let other_capture = content_store::capture_for_prototype(&tx).unwrap();
                 let mut other_store =

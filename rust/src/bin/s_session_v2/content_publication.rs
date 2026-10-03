@@ -11,7 +11,7 @@
 use super::{canonical_json, content_manifest, content_store, meta_get_opt, sha256_hex, v2};
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 use crate::staged_nodes;
-use crate::v3::audit_store::CodecStore;
+use crate::v3::audit_store::{CodecRead, CodecStore};
 use crate::v3::audit_store::HashReader;
 use crate::v3::audit_store::{RefFields, RefValue};
 use content_manifest::Decimal;
@@ -304,19 +304,13 @@ pub(crate) fn resolve_native_indexed_templates_pending_view(
         Some(memo),
     )
 }
-fn resolve_indexed_templates_pending_core(
-    tx: &Transaction<'_>,
+fn check_resolution_header(
     store: &mut (impl CodecStore + ?Sized),
+    snapshot: &RefValue,
+    delta: &RefValue,
     metadata: MetadataView<'_>,
-    roots: RootsView<'_>,
-    batch_id: &str,
     previous_frontier: i64,
-    mut memo: Option<&mut NativePublicationMemo<'_>>,
-) -> Result<PendingRefTemplates, String> {
-    let objects = object_births(tx, &metadata, store)?;
-    let observations = observation_births(tx, &metadata, store)?;
-    let mut snapshot = ref_value(store, roots.publication_template)?;
-    let mut delta = ref_value(store, roots.delta_template)?;
+) -> Result<(), String> {
     match_field_view(
         store,
         snapshot.view(),
@@ -341,9 +335,115 @@ fn resolve_indexed_templates_pending_core(
         ("from", VV::String(from_text.as_str())),
         ("to", VV::String(to_text.as_str())),
     ];
-    for root in [&snapshot, &delta] {
+    for root in [snapshot, delta] {
         match_field_view(store, root.view(), "seq_range", VV::Object(&seq_fields))?;
     }
+    Ok(())
+}
+
+/// Consumes only history's opaque complete-load cut projection; never used by writer publish.
+pub(crate) fn resolve_native_dual_templates_pending_view(
+    tx: &Transaction<'_>,
+    store: &mut HashReader<'_>,
+    metadata: MetadataView<'_>,
+    roots: RootsView<'_>,
+    batch: &str,
+    previous: i64,
+    projection: &crate::v3::object_index::NativeCutProjection<'_, '_, '_>,
+) -> Result<PendingRefTemplates, String> {
+    projection.check_scope(tx, store, metadata, roots, batch, previous)?;
+    let capture = store
+        .native_projection_capture()
+        .ok_or_else(|| err("双投影缺Native capture"))?;
+    capture
+        .verify_refview(roots.publication_template, sc::Mode::Template)
+        .map_err(err)?;
+    capture
+        .verify_refview(roots.delta_template, sc::Mode::Template)
+        .map_err(err)?;
+    let mut snapshot = ref_value(store, roots.publication_template)?;
+    let mut delta = ref_value(store, roots.delta_template)?;
+    check_resolution_header(store, &snapshot, &delta, metadata, previous)?;
+    // Field sets share the unchanged manifest exact_object kernel's canonical lists.
+    use content_manifest::{DELTA_FIELDS as DELTA, SNAPSHOT_FIELDS as SNAPSHOT};
+    for (root, names, replacements) in [
+        (
+            &mut snapshot,
+            SNAPSHOT,
+            &[
+                ("objects", 0usize),
+                ("withdrawn_objects", 1),
+                ("observations", 3),
+            ][..],
+        ),
+        (
+            &mut delta,
+            DELTA,
+            &[("upserts", 2usize), ("observations", 4)][..],
+        ),
+    ] {
+        let fields = store.lookup_fields_ref(root.view(), names).map_err(err)?;
+        for (name, ordinal) in replacements {
+            let actual = fields.get(name).ok_or_else(|| err("模板缺数组字段"))?;
+            let expected = &projection.arrays()[*ordinal].0;
+            capture
+                .verify_refview(actual.view(), sc::Mode::Template)
+                .map_err(err)?;
+            if actual.kind() != Kind::Array
+                || actual.extent() != expected.extent
+                || normal_reference(actual.view()) != expected.content_ref()
+            {
+                return Err(err("真实Template数组与独立有序双投影不同"));
+            }
+        }
+        let values = names
+            .iter()
+            .map(|name| {
+                let digest =
+                    if let Some((_, ordinal)) = replacements.iter().find(|(k, _)| k == name) {
+                        projection.arrays()[*ordinal].1.digest
+                    } else {
+                        fields
+                            .get(name)
+                            .ok_or_else(|| err("模板缺字段"))?
+                            .digest()
+                            .map_err(err)?
+                    };
+                Ok((*name, VV::Edge(digest)))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        *root = RefValue::Plain(
+            store
+                .write_template_view(VV::Object(&values))
+                .map_err(err)?
+                .content_ref(),
+        );
+    }
+    for root in [&mut snapshot, &mut delta] {
+        for path in [
+            vec![field("index_frontier")],
+            vec![field("catalog_evidence"), field("batch_id")],
+        ] {
+            *root = store.replace_ref(root.view(), &path, batch).map_err(err)?;
+        }
+    }
+    Ok(PendingRefTemplates { snapshot, delta })
+}
+
+fn resolve_indexed_templates_pending_core(
+    tx: &Transaction<'_>,
+    store: &mut (impl CodecStore + ?Sized),
+    metadata: MetadataView<'_>,
+    roots: RootsView<'_>,
+    batch_id: &str,
+    previous_frontier: i64,
+    mut memo: Option<&mut NativePublicationMemo<'_>>,
+) -> Result<PendingRefTemplates, String> {
+    let objects = object_births(tx, &metadata, store)?;
+    let observations = observation_births(tx, &metadata, store)?;
+    let mut snapshot = ref_value(store, roots.publication_template)?;
+    let mut delta = ref_value(store, roots.delta_template)?;
+    check_resolution_header(store, &snapshot, &delta, metadata, previous_frontier)?;
     resolve_objects(
         store,
         &mut snapshot,
@@ -784,6 +884,22 @@ fn resolve_record_batch(
     }
     Ok(())
 }
+#[cfg(test)]
+thread_local! { static RECORD_RESOLVERS: std::cell::Cell<[u64;2]> = const {std::cell::Cell::new([0,0])}; }
+#[cfg(test)]
+pub(crate) fn reset_record_resolver_counts() {
+    RECORD_RESOLVERS.with(|v| v.set([0, 0]));
+    NATIVE_PUBLICATION_FIELDS_LOOKUPS.with(|v| v.set(0));
+}
+#[cfg(test)]
+pub(crate) fn record_resolver_counts() -> [u64; 3] {
+    let v = RECORD_RESOLVERS.with(std::cell::Cell::get);
+    [
+        v[0],
+        v[1],
+        NATIVE_PUBLICATION_FIELDS_LOOKUPS.with(std::cell::Cell::get) as u64,
+    ]
+}
 fn resolve_objects(
     store: &mut (impl CodecStore + ?Sized),
     root: &mut RefValue,
@@ -794,6 +910,12 @@ fn resolve_objects(
     family: ObjectFamily,
     mut memo: Option<&mut NativePublicationMemo<'_>>,
 ) -> Result<(), String> {
+    #[cfg(test)]
+    RECORD_RESOLVERS.with(|v| {
+        let mut n = v.get();
+        n[0] += 1;
+        v.set(n);
+    });
     let expected: BTreeSet<_> = births
         .iter()
         .filter(|(_, b)| member(b, m, family))
@@ -882,6 +1004,12 @@ fn resolve_observations(
     batch: &str,
     delta: bool,
 ) -> Result<(), String> {
+    #[cfg(test)]
+    RECORD_RESOLVERS.with(|v| {
+        let mut n = v.get();
+        n[1] += 1;
+        v.set(n);
+    });
     let expected: BTreeSet<_> = births
         .iter()
         .filter(|(_, b)| !delta || b.first == m.generation)

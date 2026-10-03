@@ -24,6 +24,157 @@ use sc::capture_allocation::{
     OwnedBudget,
 };
 
+/// Opaque per-cut proof: constructed only in this module's complete-load read-only chain.
+/// No constructor accepts caller-provided arrays, SQL-index substitutes, or authority bools.
+pub(crate) struct NativeCutProjection<'scope, 'connection, 'capture> {
+    capture: &'capture sc::AuditCapture,
+    transaction: &'scope Transaction<'connection>,
+    batch: String,
+    binding: Vec<String>,
+    arrays: [(sc::Built, sc::Built); 5],
+    snapshot_members: [sc::CodecVec<NodeDigest>; 3],
+    delta_members: [sc::CodecVec<NodeDigest>; 3],
+}
+fn compare_cut_array(
+    s: &mut HashReader<'_>,
+    public: &RefValue,
+    name: &str,
+    nodes: &[NodeDigest],
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+    allocation: Option<&OwnedBudget>,
+) -> Result<(), String> {
+    same_digest(
+        s,
+        public,
+        name,
+        hash_array_metered_with_owner(nodes, deadline, budget, false, allocation)?,
+    )
+}
+fn native_cut_binding(
+    m: content_manifest::MetadataView<'_>,
+    r: content_manifest::RootsView<'_>,
+    previous: i64,
+) -> Vec<String> {
+    let c = m.source_commit;
+    let mut out = [
+        m.session_id,
+        m.session_generation,
+        m.writer_epoch,
+        m.base_cut,
+        m.structure_cut,
+        m.clock_plan_hash,
+        m.semantic_commit_ns,
+        m.profile_id,
+        m.profile_hash,
+        m.rule_revision,
+        m.catalog_revision,
+        c.source_namespace,
+        c.source_epoch,
+        c.message_id,
+        c.payload_hash,
+        c.producer_id,
+        c.producer_epoch,
+        c.clock_event_id,
+    ]
+    .iter()
+    .map(|s| (*s).to_owned())
+    .collect::<Vec<_>>();
+    out.extend([
+        m.generation.to_string(),
+        m.input_frontier.to_string(),
+        c.attempt_index.to_string(),
+        previous.to_string(),
+    ]);
+    for v in [
+        m.scope,
+        r.generated_state,
+        r.publication_template,
+        r.delta_template,
+    ] {
+        out.extend([
+            v.format().into(),
+            v.root().into(),
+            v.kind().name().into(),
+            format!("{:?}", v.extent()),
+        ]);
+    }
+    out
+}
+impl NativeCutProjection<'_, '_, '_> {
+    pub(crate) fn check_scope(
+        &self,
+        tx: &Transaction<'_>,
+        s: &HashReader<'_>,
+        m: content_manifest::MetadataView<'_>,
+        r: content_manifest::RootsView<'_>,
+        batch: &str,
+        previous: i64,
+    ) -> Result<(), String> {
+        if !std::ptr::eq(self.transaction, tx)
+            || self.batch != batch
+            || self.binding != native_cut_binding(m, r, previous)
+            || !s
+                .native_projection_capture()
+                .is_some_and(|c| std::ptr::eq(c, self.capture))
+        {
+            return Err(err(
+                "Native双投影scope/capture/transaction/cut/index绑定不符",
+            ));
+        }
+        Ok(())
+    }
+    pub(crate) fn arrays(&self) -> &[(sc::Built, sc::Built); 5] {
+        &self.arrays
+    }
+}
+fn native_cut_projection<'scope, 'connection, 'capture>(
+    tx: &'scope Transaction<'connection>,
+    s: &mut HashReader<'capture>,
+    objects: &mut object_index::HistoryObjects<'capture>,
+    aux: &aux_index::Index,
+    m: content_manifest::MetadataView<'_>,
+    roots: content_manifest::RootsView<'_>,
+    batch: &str,
+    previous: i64,
+) -> Result<Option<NativeCutProjection<'scope, 'connection, 'capture>>, String> {
+    let Some(capture) = s.native_projection_capture() else {
+        return Ok(None);
+    };
+    let o = objects.native_dual_at_cut(s, m.generation, batch)?;
+    let (snapshot_members, snapshot_template) =
+        aux_index::native_cut_members(aux, s, m.generation, false, batch)?;
+    let (delta_members, delta_template) =
+        aux_index::native_cut_members(aux, s, m.generation, true, batch)?;
+    let public_array =
+        |s: &mut HashReader<'_>, nodes: &[NodeDigest]| -> Result<sc::Built, String> {
+            let values = nodes
+                .iter()
+                .copied()
+                .map(sc::ValueView::Edge)
+                .collect::<Vec<_>>();
+            s.write_template_view(sc::ValueView::Array(&values))
+                .map_err(err)
+        };
+    let snapshot_public = public_array(s, &snapshot_members[2])?;
+    let delta_public = public_array(s, &delta_members[2])?;
+    Ok(Some(NativeCutProjection {
+        capture,
+        transaction: tx,
+        batch: batch.into(),
+        binding: native_cut_binding(m, roots, previous),
+        arrays: [
+            o[0].clone(),
+            o[1].clone(),
+            o[2].clone(),
+            (snapshot_template, snapshot_public),
+            (delta_template, delta_public),
+        ],
+        snapshot_members,
+        delta_members,
+    }))
+}
+
 pub(super) struct PublishedCut {
     pub metadata: AuditMetadata,
     pub roots: AuditRoots,
@@ -225,7 +376,7 @@ fn read_indexed_history_inner(
         .map_err(err)?;
     // 原始当前capture闭包全核之后才创建；仅本次历史循环持有，跨请求/阶段重建。
     let mut object_sweep = objects.native_sweep();
-    let mut publication_memo = content_publication::NativePublicationMemo::new(&store);
+    let publication_memo = content_publication::NativePublicationMemo::new(&store);
     let mut effective = bj::new_map::<i64, NodeDigest>(allocation.as_ref());
     let mut previous = -1i64;
     let mut output = bj::new_work(allocation.as_ref());
@@ -278,24 +429,44 @@ fn read_indexed_history_inner(
         }
         #[cfg(test)]
         super::state::trace_event("history_resolve_publication", Some(generation));
-        let resolved = match &mut publication_memo {
-            Some(memo) => content_publication::resolve_native_indexed_templates_pending_view(
+        // Native array/birth projection can report one of several simultaneous faults earlier;
+        // the final ordered Public equations and full closure verification remain mandatory.
+        let dual = if publication_memo.is_some() {
+            Some(
+                native_cut_projection(
+                    tx,
+                    &mut store,
+                    &mut objects,
+                    &auxiliary,
+                    m.view(),
+                    roots.view(),
+                    batch_id.as_str(),
+                    previous,
+                )?
+                .ok_or_else(|| err("Native双投影资格失效；不回退重判"))?,
+            )
+        } else {
+            None
+        };
+        let resolved = if let Some(projection) = &dual {
+            content_publication::resolve_native_dual_templates_pending_view(
                 tx,
                 &mut store,
                 m.view(),
                 roots.view(),
                 batch_id.as_str(),
                 previous,
-                memo,
-            )?,
-            None => content_publication::resolve_indexed_templates_pending_view(
+                projection,
+            )?
+        } else {
+            content_publication::resolve_indexed_templates_pending_view(
                 tx,
                 &mut store,
                 m.view(),
                 roots.view(),
                 batch_id.as_str(),
                 previous,
-            )?,
+            )?
         };
         if resolved.snapshot != snapshot || resolved.delta != delta {
             return Err(err("实际发布根不是 manifest 模板按独立出生索引解析的结果"));
@@ -314,7 +485,15 @@ fn read_indexed_history_inner(
             generation,
             object_sweep.as_ref(),
         )?;
-        let (active, withdrawn, upserts) = objects.at_cut(&mut store, generation, budget)?;
+        let (active, withdrawn, upserts) = if let Some(p) = &dual {
+            (
+                p.arrays[0].1.clone(),
+                p.arrays[1].1.clone(),
+                p.arrays[2].1.clone(),
+            )
+        } else {
+            objects.at_cut(&mut store, generation, budget)?
+        };
         for (public, key, expected) in [
             (&snapshot, "objects", active.digest),
             (&snapshot, "withdrawn_objects", withdrawn.digest),
@@ -358,27 +537,46 @@ fn read_indexed_history_inner(
         }
         same_json(&mut store, &delta, "replaces", replaces.view())?;
         for (public, is_delta) in [(&snapshot, false), (&delta, true)] {
-            let members = aux_index::cut_members_metered(&auxiliary, generation, is_delta, budget)?;
-            for (name, nodes) in ["witnesses", "relations", "observations"]
-                .into_iter()
-                .zip(members)
-            {
-                same_digest(
-                    &mut store,
-                    public,
-                    name,
-                    hash_array_metered_with_owner(
+            if let Some(p) = &dual {
+                let members = if is_delta {
+                    &p.delta_members
+                } else {
+                    &p.snapshot_members
+                };
+                for (name, nodes) in ["witnesses", "relations", "observations"]
+                    .into_iter()
+                    .zip(members.iter())
+                {
+                    compare_cut_array(
+                        &mut store,
+                        public,
+                        name,
+                        nodes,
+                        deadline,
+                        budget,
+                        allocation.as_ref(),
+                    )?;
+                }
+            } else {
+                let members =
+                    aux_index::cut_members_metered(&auxiliary, generation, is_delta, budget)?;
+                // Preserve ordinary/Owned by-value consuming iterator and per-item owner drop.
+                for (name, nodes) in ["witnesses", "relations", "observations"]
+                    .into_iter()
+                    .zip(members)
+                {
+                    compare_cut_array(
+                        &mut store,
+                        public,
+                        name,
                         &nodes,
                         deadline,
                         budget,
-                        false,
                         allocation.as_ref(),
-                    )?,
-                )?;
+                    )?;
+                }
             }
         }
-        #[cfg(test)]
-        super::state::trace_event("history_metadata_source", Some(generation));
         for (key, actual) in [
             ("session_id", &m.session_id),
             ("profile_id", &m.profile_id),
@@ -3506,6 +3704,7 @@ mod tests {
         let mut f = published();
         let tx = f.conn.transaction().unwrap();
         let raw = read_raw_events(&tx).unwrap();
+        content_publication::reset_record_resolver_counts();
         let ordinary = read_indexed_history_for_audit(
             &tx,
             &raw,
@@ -3515,6 +3714,9 @@ mod tests {
             None,
         )
         .unwrap();
+        let ordinary_calls = content_publication::record_resolver_counts();
+        assert!(ordinary_calls[0] > 0 && ordinary_calls[1] > 0);
+        content_publication::reset_record_resolver_counts();
         let capture = content_store::capture_for_prototype(&tx).unwrap();
         let native = read_indexed_history_for_audit_captured(
             &tx,
@@ -3526,6 +3728,11 @@ mod tests {
             Some(&capture),
         )
         .unwrap();
+        assert_eq!(
+            content_publication::record_resolver_counts(),
+            [0, 0, 0],
+            "Native actual history must not call record resolvers or ten-field match decoder"
+        );
         assert_eq!(ordinary.cuts.len(), native.cuts.len());
         for (a, b) in ordinary.cuts.iter().zip(native.cuts.iter()) {
             assert_eq!(a.metadata.generation, b.metadata.generation);
@@ -3547,6 +3754,534 @@ mod tests {
             Some(&damaged)
         )
         .is_err());
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_dual_real_multicut_roots_and_scoped_projection() {
+        let mut fixture = super::prepared::tests::Fixture::new();
+        for (n, row, revision) in [
+            (1, ("a", 0, 6, 12, 3, 7), 1),
+            (2, ("b", 10, 8, 16, 6, 12), 1),
+            (3, ("c", 20, 8, 13, 4, 7), 1),
+            (4, ("b", 10, 8, 17, 6, 12), 2),
+        ] {
+            let (e, token) = fixture.accept_begin(n, row, revision);
+            fixture.publish(&e, &token).unwrap();
+        }
+        let tx = fixture.conn.transaction().unwrap();
+        let raw = read_raw_events(&tx).unwrap();
+        content_publication::reset_record_resolver_counts();
+        let ordinary = read_indexed_history_for_audit(
+            &tx,
+            &raw,
+            control_audit::prepare_s3_control_history(&tx).unwrap(),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        let old = content_publication::record_resolver_counts();
+        assert!(old[0] > 0 && old[1] > 0 && old[2] > 0);
+        let capture = content_store::capture_for_prototype(&tx).unwrap();
+        content_publication::reset_record_resolver_counts();
+        let native = read_indexed_history_for_audit_captured(
+            &tx,
+            &raw,
+            control_audit::prepare_s3_control_history(&tx).unwrap(),
+            None,
+            None,
+            None,
+            Some(&capture),
+        )
+        .unwrap();
+        assert_eq!(content_publication::record_resolver_counts(), [0, 0, 0]);
+        assert_eq!(ordinary.cuts.len(), 4);
+        assert_eq!(native.cuts.len(), 4);
+        for (a, b) in ordinary.cuts.iter().zip(native.cuts.iter()) {
+            assert_eq!(a.snapshot, b.snapshot);
+            assert_eq!(a.delta, b.delta);
+            assert_eq!(a.batch_id, b.batch_id);
+            for (x, y) in [
+                (
+                    a.roots.generated_state.view(),
+                    b.roots.generated_state.view(),
+                ),
+                (
+                    a.roots.publication_template.view(),
+                    b.roots.publication_template.view(),
+                ),
+                (a.roots.delta_template.view(), b.roots.delta_template.view()),
+            ] {
+                assert_eq!(x.root(), y.root());
+                assert_eq!(x.kind(), y.kind());
+                assert_eq!(x.extent(), y.extent());
+            }
+        }
+        let mut reader = HashReader::captured_for_audit(&capture, None).unwrap();
+        reader.audit_full_arrays = true;
+        let auxiliary = aux_index::load(&tx, &mut reader, 4).unwrap();
+        let mut objects = object_index::load_for_history(&tx, &mut reader, 4).unwrap();
+        let (bytes, batch): (Vec<u8>, String) = tx
+            .query_row(
+                "SELECT manifest_root,batch_id FROM s_content_publications WHERE generation=1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        let manifest = root_ref_bytes(&mut reader, &bytes).unwrap();
+        let (m, roots) = decode_manifest(&mut reader, manifest.view()).unwrap();
+        let mut projection = native_cut_projection(
+            &tx,
+            &mut reader,
+            &mut objects,
+            &auxiliary,
+            m.view(),
+            roots.view(),
+            &batch,
+            -1,
+        )
+        .unwrap()
+        .unwrap();
+        let result = content_publication::resolve_native_dual_templates_pending_view(
+            &tx,
+            &mut reader,
+            m.view(),
+            roots.view(),
+            &batch,
+            -1,
+            &projection,
+        )
+        .unwrap();
+        assert_eq!(result.snapshot, native.cuts[0].snapshot);
+        assert_eq!(result.delta, native.cuts[0].delta);
+        assert!(projection
+            .check_scope(&tx, &reader, m.view(), roots.view(), "wrong-batch", -1)
+            .is_err());
+        assert!(projection
+            .check_scope(&tx, &reader, m.view(), roots.view(), &batch, 0)
+            .is_err());
+        let other = content_store::capture_for_prototype(&tx).unwrap();
+        let foreign = HashReader::captured_for_audit(&other, None).unwrap();
+        assert!(projection
+            .check_scope(&tx, &foreign, m.view(), roots.view(), &batch, -1)
+            .is_err());
+        // Private test mutation only; no production constructor can supply arbitrary roots.
+        for ordinal in 0..5 {
+            let saved = projection.arrays[ordinal].clone();
+            projection.arrays[ordinal].0.extent = Some(saved.0.extent.unwrap() + 1);
+            assert!(
+                content_publication::resolve_native_dual_templates_pending_view(
+                    &tx,
+                    &mut reader,
+                    m.view(),
+                    roots.view(),
+                    &batch,
+                    -1,
+                    &projection
+                )
+                .is_err()
+            );
+            projection.arrays[ordinal] = saved;
+        }
+        // Fresh index load still checks current SQL facts; an old capture cannot bless a new index.
+        assert_eq!(tx.execute(
+            "UPDATE s_content_observations SET kind='forged-kind' WHERE observation_id=(SELECT observation_id FROM s_content_observations LIMIT 1)",[],
+        ).unwrap(),1);
+        assert!(read_indexed_history_for_audit_captured(
+            &tx,
+            &raw,
+            control_audit::prepare_s3_control_history(&tx).unwrap(),
+            None,
+            None,
+            None,
+            Some(&capture)
+        )
+        .is_err());
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_dual_actual_template_negative_matrix() {
+        // Component-level valid-Merkle negatives, not service/e2e acceptance.
+        fn normal(r: sc::RefView<'_>) -> ContentRef {
+            sc::Built {
+                digest: r.digest().unwrap(),
+                kind: r.kind(),
+                extent: r.extent(),
+            }
+            .content_ref()
+        }
+        fn names(s: &mut impl CodecStore, public: &ContentRef) -> Vec<String> {
+            let mut bytes = Vec::new();
+            s.render_ref(public.into(), &mut bytes).unwrap();
+            strict_json(&bytes)
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .keys()
+                .cloned()
+                .collect()
+        }
+        fn replace(
+            s: &mut impl CodecStore,
+            actual: &ContentRef,
+            keys: &[String],
+            key: &str,
+            value: sc::ValueView<'_>,
+        ) -> ContentRef {
+            let requested = keys.iter().map(String::as_str).collect::<Vec<_>>();
+            let fields = s.lookup_fields_ref(actual.into(), &requested).unwrap();
+            let changed = match value {
+                sc::ValueView::Edge(digest) => digest,
+                value => s.write_template_view(value).unwrap().digest,
+            };
+            let values = requested
+                .iter()
+                .map(|name| {
+                    (
+                        *name,
+                        sc::ValueView::Edge(if *name == key {
+                            changed
+                        } else {
+                            fields.get(name).unwrap().digest().unwrap()
+                        }),
+                    )
+                })
+                .collect::<Vec<_>>();
+            s.write_template_view(sc::ValueView::Object(&values))
+                .unwrap()
+                .content_ref()
+        }
+        fn array(s: &mut impl CodecStore, items: &[RefValue]) -> ContentRef {
+            let values = items
+                .iter()
+                .map(|r| sc::ValueView::Edge(r.digest().unwrap()))
+                .collect::<Vec<_>>();
+            s.write_template_view(sc::ValueView::Array(&values))
+                .unwrap()
+                .content_ref()
+        }
+        let mut fixture = super::prepared::tests::Fixture::new();
+        for (n, row, revision) in [
+            (1, ("a", 0, 6, 12, 3, 7), 1),
+            (2, ("b", 10, 8, 16, 6, 12), 1),
+            (3, ("c", 20, 8, 13, 4, 7), 1),
+            (4, ("b", 10, 8, 17, 6, 12), 2),
+        ] {
+            let (e, token) = fixture.accept_begin(n, row, revision);
+            fixture.publish(&e, &token).unwrap();
+        }
+        let tx = fixture.conn.transaction().unwrap();
+        let (manifest_bytes,snapshot_bytes,delta_bytes,batch):(Vec<u8>,Vec<u8>,Vec<u8>,String)=tx.query_row("SELECT manifest_root,snapshot_root,delta_root,batch_id FROM s_content_publications WHERE generation=4",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).unwrap();
+        let previous: i64 = tx
+            .query_row(
+                "SELECT input_frontier FROM structure_deltas WHERE generation=3",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let initial = content_store::capture_for_prototype(&tx).unwrap();
+        let mut initial_reader = HashReader::captured_for_audit(&initial, None).unwrap();
+        let manifest = root_ref_bytes(&mut initial_reader, &manifest_bytes).unwrap();
+        let (m, roots) = decode_manifest(&mut initial_reader, manifest.view()).unwrap();
+        let actual_snapshot = normal(
+            root_ref_bytes(&mut initial_reader, &snapshot_bytes)
+                .unwrap()
+                .view(),
+        );
+        let actual_delta = normal(
+            root_ref_bytes(&mut initial_reader, &delta_bytes)
+                .unwrap()
+                .view(),
+        );
+        let original = ManifestRoots {
+            generated_state: normal(roots.generated_state.view()),
+            publication_template: normal(roots.publication_template.view()),
+            delta_template: normal(roots.delta_template.view()),
+        };
+        let mut sql = content_store::TxStore::new(&tx).unwrap();
+        let snapshot_keys = content_manifest::SNAPSHOT_FIELDS
+            .iter()
+            .map(|v| (*v).to_owned())
+            .collect::<Vec<_>>();
+        let delta_keys = content_manifest::DELTA_FIELDS
+            .iter()
+            .map(|v| (*v).to_owned())
+            .collect::<Vec<_>>();
+        let active = sql
+            .lookup_ref(
+                (&original.publication_template).into(),
+                &[PathStep::Field("objects".into())],
+            )
+            .unwrap();
+        let public_active = sql
+            .lookup_ref(
+                (&actual_snapshot).into(),
+                &[PathStep::Field("objects".into())],
+            )
+            .unwrap();
+        let items = sql
+            .lookup_array_ref(active.view())
+            .unwrap()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let public_items = sql
+            .lookup_array_ref(public_active.view())
+            .unwrap()
+            .into_iter()
+            .collect::<Vec<_>>();
+        assert!(
+            items.len() >= 2,
+            "real snapshot must exercise duplicate/missing/order negatives"
+        );
+        let old = items
+            .iter()
+            .position(|r| {
+                sql.lookup_ref(r.view(), &[PathStep::Field("batch_id".into())])
+                    .unwrap()
+                    .kind()
+                    != Kind::TemplateBatch
+            })
+            .expect("real old record");
+        let upserts = sql
+            .lookup_ref(
+                (&original.delta_template).into(),
+                &[PathStep::Field("upserts".into())],
+            )
+            .unwrap();
+        let public_upserts = sql
+            .lookup_ref((&actual_delta).into(), &[PathStep::Field("upserts".into())])
+            .unwrap();
+        let born = sql
+            .lookup_array_ref(upserts.view())
+            .unwrap()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let public_born = sql
+            .lookup_array_ref(public_upserts.view())
+            .unwrap()
+            .into_iter()
+            .collect::<Vec<_>>();
+        assert!(!born.is_empty(), "real born record");
+        assert_eq!(
+            sql.lookup_ref(born[0].view(), &[PathStep::Field("batch_id".into())])
+                .unwrap()
+                .kind(),
+            Kind::TemplateBatch
+        );
+        let born_keys = names(&mut sql, &normal(public_born[0].view()));
+        let old_keys = names(&mut sql, &normal(public_items[old].view()));
+        let mut cases = Vec::<(&str, ManifestRoots)>::new();
+        let born_string = replace(
+            &mut sql,
+            &normal(born[0].view()),
+            &born_keys,
+            "batch_id",
+            sc::ValueView::String(&batch),
+        );
+        let mut changed = born.clone();
+        changed[0] = RefValue::Plain(born_string);
+        let changed_array = array(&mut sql, &changed);
+        let mut case = original.clone();
+        case.delta_template = replace(
+            &mut sql,
+            &original.delta_template,
+            &delta_keys,
+            "upserts",
+            sc::ValueView::Edge(changed_array.digest().unwrap()),
+        );
+        cases.push(("born-filled-string", case));
+        let old_placeholder = replace(
+            &mut sql,
+            &normal(items[old].view()),
+            &old_keys,
+            "batch_id",
+            sc::ValueView::BatchSelf,
+        );
+        let mut changed = items.clone();
+        changed[old] = RefValue::Plain(old_placeholder);
+        let changed_array = array(&mut sql, &changed);
+        let mut case = original.clone();
+        case.publication_template = replace(
+            &mut sql,
+            &original.publication_template,
+            &snapshot_keys,
+            "objects",
+            sc::ValueView::Edge(changed_array.digest().unwrap()),
+        );
+        cases.push(("old-top-level-placeholder", case));
+        let protected = [
+            "object_id",
+            "kind",
+            "object_revision",
+            "first_known_generation",
+            "first_known_cut",
+            "published_generation",
+            "withdrawn_generation",
+            "withdrawal_reason",
+            "superseded_by",
+            "lifecycle",
+            "batch_id",
+        ];
+        let wrong_position = born_keys
+            .iter()
+            .find(|k| !protected.contains(&k.as_str()))
+            .map(String::as_str)
+            .unwrap_or("kind");
+        let wrong = replace(
+            &mut sql,
+            &normal(born[0].view()),
+            &born_keys,
+            wrong_position,
+            sc::ValueView::BatchSelf,
+        );
+        let mut changed = born.clone();
+        changed[0] = RefValue::Plain(wrong);
+        let changed_array = array(&mut sql, &changed);
+        let mut case = original.clone();
+        case.delta_template = replace(
+            &mut sql,
+            &original.delta_template,
+            &delta_keys,
+            "upserts",
+            sc::ValueView::Edge(changed_array.digest().unwrap()),
+        );
+        cases.push(("non-batch-position-placeholder", case));
+        for (label, changed) in [
+            ("duplicate-member", {
+                let mut v = items.clone();
+                v[1] = v[0].clone();
+                v
+            }),
+            ("missing-member", items[1..].to_vec()),
+            ("reordered-members", {
+                let mut v = items.clone();
+                v.swap(0, 1);
+                v
+            }),
+        ] {
+            let changed_array = array(&mut sql, &changed);
+            let mut case = original.clone();
+            case.publication_template = replace(
+                &mut sql,
+                &original.publication_template,
+                &snapshot_keys,
+                "objects",
+                sc::ValueView::Edge(changed_array.digest().unwrap()),
+            );
+            cases.push((label, case));
+        }
+        drop(sql);
+        let capture = content_store::capture_for_prototype(&tx).unwrap();
+        // Every negative actually is a valid Template Merkle graph, not a corrupt-header stub.
+        for (_, case) in &cases {
+            capture
+                .verify(&case.publication_template, sc::Mode::Template)
+                .unwrap();
+            capture
+                .verify(&case.delta_template, sc::Mode::Template)
+                .unwrap();
+        }
+        for (label, case) in std::iter::once(("valid", &original))
+            .chain(cases.iter().map(|(name, roots)| (*name, roots)))
+        {
+            let mut fast = HashReader::captured_for_audit(&capture, None).unwrap();
+            fast.audit_full_arrays = true;
+            let aux = aux_index::load(&tx, &mut fast, 4).unwrap();
+            let mut objects = object_index::load_for_history(&tx, &mut fast, 4).unwrap();
+            // Bind THIS case's actual roots; expected arrays still derive from the real indexes.
+            let projection = native_cut_projection(
+                &tx,
+                &mut fast,
+                &mut objects,
+                &aux,
+                m.view(),
+                case.view(),
+                &batch,
+                previous,
+            )
+            .unwrap()
+            .unwrap();
+            content_publication::reset_record_resolver_counts();
+            let got = content_publication::resolve_native_dual_templates_pending_view(
+                &tx,
+                &mut fast,
+                m.view(),
+                case.view(),
+                &batch,
+                previous,
+                &projection,
+            );
+            assert_eq!(
+                content_publication::record_resolver_counts(),
+                [0, 0, 0],
+                "{label}: no old resolver fallback"
+            );
+            let mut old = HashReader::captured_for_audit(&capture, None).unwrap();
+            let legacy = content_publication::resolve_indexed_templates_pending_view(
+                &tx,
+                &mut old,
+                m.view(),
+                case.view(),
+                &batch,
+                previous,
+            );
+            // Old resolver alone may accept order/non-batch placeholders temporarily. Include
+            // unchanged history's persisted Public-root equality, ordered arrays and Public closure.
+            let legacy_accept = legacy.as_ref().is_ok_and(|v| {
+                if normal(v.snapshot.view()) != actual_snapshot
+                    || normal(v.delta.view()) != actual_delta
+                {
+                    return false;
+                }
+                for (root, name, ordinal) in [
+                    (&v.snapshot, "objects", 0usize),
+                    (&v.snapshot, "withdrawn_objects", 1),
+                    (&v.delta, "upserts", 2),
+                    (&v.snapshot, "observations", 3),
+                    (&v.delta, "observations", 4),
+                ] {
+                    if old
+                        .lookup_ref(root.view(), &[PathStep::Field(name.into())])
+                        .map(|r| normal(r.view()) != projection.arrays[ordinal].1.content_ref())
+                        .unwrap_or(true)
+                    {
+                        return false;
+                    }
+                }
+                old.verify_many_ref([v.snapshot.view(), v.delta.view()], sc::Mode::Public)
+                    .is_ok()
+            });
+            assert_eq!(
+                got.is_ok(),
+                legacy_accept,
+                "{label}: full old post-gate oracle"
+            );
+            if label == "valid" {
+                let got = got.unwrap();
+                assert_eq!(normal(got.snapshot.view()), actual_snapshot);
+                assert_eq!(normal(got.delta.view()), actual_delta);
+                let mut other_conn = Connection::open_in_memory().unwrap();
+                let other_tx = other_conn.transaction().unwrap();
+                content_publication::reset_record_resolver_counts();
+                assert!(
+                    content_publication::resolve_native_dual_templates_pending_view(
+                        &other_tx,
+                        &mut fast,
+                        m.view(),
+                        case.view(),
+                        &batch,
+                        previous,
+                        &projection
+                    )
+                    .is_err()
+                );
+                assert_eq!(content_publication::record_resolver_counts(), [0, 0, 0]);
+            } else {
+                assert!(got.is_err(), "{label}");
+            }
+        }
     }
 
     #[test]

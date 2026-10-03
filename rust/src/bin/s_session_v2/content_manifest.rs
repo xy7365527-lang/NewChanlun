@@ -31,7 +31,7 @@ const GENERATED_FIELDS: &[&str] = &[
     "observations",
     "scope",
 ];
-const SNAPSHOT_FIELDS: &[&str] = &[
+pub(crate) const SNAPSHOT_FIELDS: &[&str] = &[
     "session_id",
     "generation",
     "structure_cut",
@@ -53,7 +53,7 @@ const SNAPSHOT_FIELDS: &[&str] = &[
     "catalog_run_status",
     "catalog_evidence",
 ];
-const DELTA_FIELDS: &[&str] = &[
+pub(crate) const DELTA_FIELDS: &[&str] = &[
     "generation",
     "session_id",
     "catalog_revision",

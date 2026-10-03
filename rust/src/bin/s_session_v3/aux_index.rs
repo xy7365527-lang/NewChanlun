@@ -1420,6 +1420,29 @@ pub(super) fn cut_members_metered(
     delta: bool,
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<[CodecVec<NodeDigest>; 3], String> {
+    cut_members_projected(index, generation, delta, budget, None).map(|v| v.0)
+}
+pub(super) fn native_cut_members(
+    index: &Index,
+    s: &mut super::history::HashReader<'_>,
+    generation: i64,
+    delta: bool,
+    batch: &str,
+) -> Result<([CodecVec<NodeDigest>; 3], sc::Built), String> {
+    if index.budget.is_some() || s.native_projection_capture().is_none() {
+        return Err(err("Native观察双投影资格不符"));
+    }
+    let (members, template) =
+        cut_members_projected(index, generation, delta, None, Some((s, batch)))?;
+    Ok((members, template.ok_or_else(|| err("缺Native观察模板"))?))
+}
+fn cut_members_projected(
+    index: &Index,
+    generation: i64,
+    delta: bool,
+    budget: Option<&dyn super::audit_budget::Budget>,
+    mut native: Option<(&mut super::history::HashReader<'_>, &str)>,
+) -> Result<([CodecVec<NodeDigest>; 3], Option<sc::Built>), String> {
     let member = |first| {
         if delta {
             first == generation
@@ -1466,6 +1489,7 @@ pub(super) fn cut_members_metered(
     let mut witnesses = bj::new_work(owned);
     let mut relations = bj::new_work(owned);
     let mut observations = bj::new_work(owned);
+    let mut template_observations = native.as_ref().map(|_| Vec::new());
     for row in w {
         if let Some(b) = budget {
             b.record().map_err(err)?;
@@ -1482,9 +1506,68 @@ pub(super) fn cut_members_metered(
         if let Some(b) = budget {
             b.record().map_err(err)?;
         }
+        if let Some((s, batch)) = native.as_mut() {
+            let saved = row
+                .batch
+                .as_ref()
+                .ok_or_else(|| err("历史观察缺实际batch"))?;
+            if (row.first == generation) != (saved.as_str() == *batch) {
+                return Err(err("观察出生/旧代batch不符"));
+            }
+            let capture = s
+                .native_projection_capture()
+                .ok_or_else(|| err("观察capture丢失"))?;
+            capture
+                .verify_refview(row.wire.view(), sc::Mode::Public)
+                .map_err(err)?;
+            let template = if row.first == generation {
+                const NAMES: &[&str] = &[
+                    "observation_id",
+                    "batch_id",
+                    "kind",
+                    "reason",
+                    "detail",
+                    "window_start",
+                    "window_mid",
+                    "window_end",
+                ];
+                let fields = s.lookup_fields_ref(row.wire.view(), NAMES).map_err(err)?;
+                let mut values = Vec::new();
+                for name in NAMES {
+                    let r = fields.get(name).ok_or_else(|| err("观察wire缺字段"))?;
+                    values.push((
+                        *name,
+                        if *name == "batch_id" {
+                            VV::BatchSelf
+                        } else {
+                            VV::Edge(r.digest().map_err(err)?)
+                        },
+                    ));
+                }
+                s.write_template_view(VV::Object(&values))
+                    .map_err(err)?
+                    .digest
+            } else {
+                digest(&row.wire)?
+            };
+            template_observations.as_mut().unwrap().push(template);
+        }
         observations.try_push(digest(&row.wire)?).map_err(err)?;
     }
-    Ok([witnesses, relations, observations])
+    let template = if let Some(nodes) = template_observations {
+        let values = nodes.iter().copied().map(VV::Edge).collect::<Vec<_>>();
+        Some(
+            native
+                .as_mut()
+                .unwrap()
+                .0
+                .write_template_view(VV::Array(&values))
+                .map_err(err)?,
+        )
+    } else {
+        None
+    };
+    Ok(([witnesses, relations, observations], template))
 }
 fn check_batch(batch: &str) -> Result<(), String> {
     if batch.strip_prefix("batch3-").is_none_or(|h| {
