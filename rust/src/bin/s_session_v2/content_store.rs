@@ -1104,8 +1104,19 @@ mod capture_allocation_tests {
                 serde_json::to_string(&budget.snapshot()).unwrap()
             );
         }
-        // A slot is NOT a byte: one fixed record costs size_of<Record>, plus its body bytes.
-        assert!(CaptureSlab::requested_bytes(1, 0).unwrap() >= 49);
+        // A slot is NOT a byte: charge the actual columns, alignment and final padding.
+        let (index, _) = std::alloc::Layout::array::<NodeDigest>(1)
+            .unwrap()
+            .extend(std::alloc::Layout::array::<usize>(1).unwrap())
+            .unwrap();
+        let (index, _) = index
+            .extend(std::alloc::Layout::array::<u8>(1).unwrap())
+            .unwrap();
+        assert_eq!(
+            CaptureSlab::requested_bytes(1, 0).unwrap(),
+            index.pad_to_align().size()
+        );
+        assert!(CaptureSlab::requested_bytes(1, 0).unwrap() > 1);
         assert!(CaptureSlab::requested_bytes(usize::MAX, 1).is_err());
         let count: usize = tx
             .query_row("SELECT count(*) FROM s_content_nodes", [], |r| {
@@ -1224,8 +1235,20 @@ mod capture_allocation_tests {
     fn slab_owner_preserves_bytes_digest_errors_and_cold_binding() {
         let mut c = fixture();
         let tx = c.transaction().unwrap();
-        let budget = OwnedBudget::new(required(&tx));
+        let capture_required = required(&tx);
+        // This semantic fixture also verifies through same-ledger memo/work owners.
+        // Exact capture-only admission remains locked by the separate boundary tests.
+        let verification_testonly_headroom = 1024 * 1024;
+        let budget = OwnedBudget::new(
+            capture_required
+                .checked_add(verification_testonly_headroom)
+                .unwrap(),
+        );
         let slab = capture_slab_for_prototype(&tx, &budget, &CaptureCancellation::never()).unwrap();
+        assert_eq!(
+            budget.snapshot().live_requested_layout_bytes,
+            capture_required
+        );
         let legacy = capture_for_prototype(&tx).unwrap();
         let mut stmt = tx.prepare("SELECT digest FROM s_content_nodes").unwrap();
         let mut rows = stmt.query([]).unwrap();
@@ -1267,6 +1290,10 @@ mod capture_allocation_tests {
         .unwrap();
         let broken = s_content::AuditCapture::from_slab_for_allocation_prototype(
             capture_slab_for_prototype(&tx, &budget, &CaptureCancellation::never()).unwrap(),
+        );
+        assert_eq!(
+            budget.snapshot().live_requested_layout_bytes,
+            capture_required
         );
         for _ in 0..2 {
             assert_eq!(
