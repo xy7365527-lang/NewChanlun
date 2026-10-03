@@ -1,0 +1,10 @@
+case=nine_units confirmed_dc_units=9 centers=[Zhongshu { high: 10033.0, low: 10027.0, gg: 10041.0, dd: 10025.0, units: [0, 1, 2, 3, 4, 5, 6, 7, 8], level: 0 }]
+case=nine_units trend=0 kind=Consolidation completed=false center_count=1 span=Some((0, 9))
+case=nine_units next_units=[]
+case=nine_units iterate_level_count=1 per_level_centers=[1] per_level_next_counts=[0]
+case=connector confirmed_dc_units=7 centers=[Zhongshu { high: 10035.0, low: 10027.0, gg: 10039.0, dd: 10025.0, units: [0, 1, 2], level: 0 }, Zhongshu { high: 10045.0, low: 10041.0, gg: 10047.0, dd: 10037.0, units: [4, 5, 6], level: 0 }]
+case=connector trend=0 kind=Consolidation completed=true center_count=1 span=Some((0, 4))
+case=connector trend=1 kind=Consolidation completed=false center_count=1 span=Some((4, 7))
+case=connector next_units=[Unit { high: 10039.0, low: 10025.0, start_bar: 0, end_bar: 4, direction: Up, level: 1, inner_zhongshu_count: 1, area_pos: 0.0, area_neg: 0.0 }]
+case=connector iterate_level_count=1 per_level_centers=[2] per_level_next_counts=[1]
+scope=two_existing_dc_witnesses_through_actual_standalone_T_not_full_repo_qualification_or_profit
