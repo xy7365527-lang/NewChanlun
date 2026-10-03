@@ -1,0 +1,163 @@
+{
+  "run_id": "133de82274314a7da367a6e84ce5e815",
+  "machine_verification_passed": true,
+  "exact_root_passed": true,
+  "semantic": {
+    "status": "not_reviewed",
+    "reused": false,
+    "semantic_sha256": "19a8e7b28848c8e30527fb92966240c6bfa8452f863a8a0edd320e448213927d"
+  },
+  "root_closure": {
+    "status": "closed",
+    "exact_root_passed": true,
+    "declaration_closed": true,
+    "scope": "expected Lean type in the recorded environment; semantic review is separate"
+  },
+  "target": {
+    "declaration": "Retile.exact_root",
+    "actual_type": "And Retile.PARTITION_TARGET (And Retile.CELL_TARGET (And Retile.DC_REJECT_TARGET Retile.WITNESS_TARGET))",
+    "expected_type": "Retile.PARTITION_TARGET ∧ Retile.CELL_TARGET ∧ Retile.DC_REJECT_TARGET ∧ Retile.WITNESS_TARGET",
+    "comparison": {
+      "binder_kinds_match": true,
+      "definitionally_equal": true,
+      "expected_type_expression": [
+        "app",
+        [
+          "app",
+          [
+            "const",
+            [
+              "And",
+              []
+            ]
+          ],
+          [
+            "const",
+            [
+              "Retile.PARTITION_TARGET",
+              []
+            ]
+          ]
+        ],
+        [
+          "app",
+          [
+            "app",
+            [
+              "const",
+              [
+                "And",
+                []
+              ]
+            ],
+            [
+              "const",
+              [
+                "Retile.CELL_TARGET",
+                []
+              ]
+            ]
+          ],
+          [
+            "app",
+            [
+              "app",
+              [
+                "const",
+                [
+                  "And",
+                  []
+                ]
+              ],
+              [
+                "const",
+                [
+                  "Retile.DC_REJECT_TARGET",
+                  []
+                ]
+              ]
+            ],
+            [
+              "const",
+              [
+                "Retile.WITNESS_TARGET",
+                []
+              ]
+            ]
+          ]
+        ]
+      ],
+      "expected_universes": [],
+      "status": "matched",
+      "universe_parameters_match": true
+    },
+    "axioms": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ],
+    "unexpected_axioms": [],
+    "unsafe_dependencies": [],
+    "unknown_dependencies": [],
+    "identity_mismatches": [],
+    "type_sha256": "1585a22ec58ba331c037c889c29dfcc7dfc64f6c1805d2021dcc3d821819f8f2",
+    "semantic_sha256": "19a8e7b28848c8e30527fb92966240c6bfa8452f863a8a0edd320e448213927d",
+    "environment_sha256": "00111bfd218230dc2c111789716bf9f1fb9d3d80525a0a4da385a6dc68dfa035",
+    "loaded_module_count": 2283
+  },
+  "environment": {
+    "lean_version": "Lean (version 4.31.0, arm64-apple-darwin24.6.0, commit 68218e876d2a38b1985b8590fff244a83c321783, Release)",
+    "lean_status": "passed",
+    "lake_version": "Lake version 5.0.0-src+68218e8 (Lean version 4.31.0)",
+    "lake_status": "passed",
+    "lean_toolchain": null,
+    "configuration_hashes": {},
+    "binary_hashes": {
+      "bin/lean": "1b370cfcbf44e80d1b004ab1b1ab9a4c73951f9f7c242140bcff9bc577576554",
+      "bin/lake": "58261a1a2fa1a362376c71e02ca854a093e71cc5e6ea64b287a931cb2565273d",
+      "lib/lean/libleanshared.dylib": "a695a9aa68481c42b99619e0103537e6b433c6fa7021927b184e19a686d03989"
+    },
+    "prefix": "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0",
+    "mode": "direct",
+    "inherited_lean_path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean",
+    "inherited_lean_src_path": "",
+    "sha256": "ab12fe9dc8a44913f3e981589728394c459467fdce1b4bd9fabf9642f84c3330"
+  },
+  "manifest": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-v1a/run-manifest.json",
+    "sha256": "20f5c63c6df9694ce9ce1d3e64bd4127374b946c724d59883c6d8914bc2efbc9"
+  },
+  "invocation": {
+    "command": [
+      "python3",
+      "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.agents/research-tools/xsoc1-9e0da0c3/plugins/lean-verify/scripts/verify_lean_project.py",
+      "--project",
+      "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof",
+      "--target-file",
+      "RetileProof.lean",
+      "--declaration",
+      "Retile.exact_root",
+      "--expected-type",
+      "Retile.PARTITION_TARGET ∧ Retile.CELL_TARGET ∧ Retile.DC_REJECT_TARGET ∧ Retile.WITNESS_TARGET",
+      "--lean",
+      "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+      "--lake",
+      "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lake",
+      "--direct",
+      "--build-timeout",
+      "60",
+      "--strict-exit",
+      "--output",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-v1a"
+    ],
+    "cwd": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun",
+    "LEAN_PATH": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean"
+  },
+  "elaboration_repair": {
+    "initial_spec": "RetileSpec-v1-elaboration-failed.txt",
+    "initial_sha256": "47f8ada74b0b23a79ba786fefbb9a24be91631d8fa17c66b0f166322123c3112",
+    "current_sha256": "5fbc32efbe7fac1278bbfd2aa87a7695205beb7e0193ef33c1984bd7d6937f55",
+    "change": "Decidable instance proof additionally unfolds CenterConfirmedComplete; predicate and target statements unchanged",
+    "initial_failed_run": "27c9e2d1e3ae49e58b7305f25dd8c09f"
+  }
+}
