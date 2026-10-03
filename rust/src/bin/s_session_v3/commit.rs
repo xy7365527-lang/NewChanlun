@@ -52,6 +52,41 @@ pub(super) fn publish_prepared(
     roots: &ManifestRoots,
     manifest: &UnpublishedManifest,
 ) -> Result<CommitReceipt, String> {
+    publish_prepared_inner(
+        tx,
+        begin_token,
+        metadata,
+        roots,
+        manifest,
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        None,
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        &[],
+    )
+}
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(super) fn publish_prepared_staged(
+    tx: Transaction<'_>,
+    token: &str,
+    m: &ManifestMetadata,
+    roots: &ManifestRoots,
+    manifest: &UnpublishedManifest,
+    stage: &staged_nodes::StageOwner,
+    runtime: &[sc::NodeDigest],
+) -> Result<CommitReceipt, String> {
+    publish_prepared_inner(tx, token, m, roots, manifest, Some(stage), runtime)
+}
+fn publish_prepared_inner(
+    tx: Transaction<'_>,
+    begin_token: &str,
+    metadata: &ManifestMetadata,
+    roots: &ManifestRoots,
+    manifest: &UnpublishedManifest,
+    #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
+        &staged_nodes::StageOwner,
+    >,
+    #[cfg(all(test, feature = "s_capture_native_testonly"))] runtime: &[sc::NodeDigest],
+) -> Result<CommitReceipt, String> {
     let m = metadata;
     let (count, head): (i64, i64) = tx
         .query_row(
@@ -63,6 +98,19 @@ pub(super) fn publish_prepared(
     if count != head || m.generation.checked_sub(1) != Some(head) {
         return Err(err("发布历史缺代或本次代号不是下一代"));
     }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    let resolved = match stage {
+        Some(stage) => content_publication::resolve_current_births_staged(
+            &tx,
+            begin_token,
+            m,
+            roots,
+            manifest,
+            stage,
+        )?,
+        None => content_publication::resolve_current_births(&tx, begin_token, m, roots, manifest)?,
+    };
+    #[cfg(not(all(test, feature = "s_capture_native_testonly")))]
     let resolved =
         content_publication::resolve_current_births(&tx, begin_token, m, roots, manifest)?;
     let clock = v2::stored_clock(&tx)?;
@@ -81,6 +129,9 @@ pub(super) fn publish_prepared(
     }
 
     let (seq_range, run, evidence_ref) = {
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        let mut store = content_store::TxStore::new_with_stage(&tx, stage).map_err(err)?;
+        #[cfg(not(all(test, feature = "s_capture_native_testonly")))]
         let mut store = content_store::TxStore::new(&tx).map_err(err)?;
         let seq_range = small_field(&mut store, &resolved.delta, "seq_range")?;
         let run = small_field(&mut store, &resolved.delta, "catalog_run_status")?;
@@ -135,6 +186,10 @@ pub(super) fn publish_prepared(
         &source.message_id,
         &source.payload_hash,
     )?;
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    if let Some(stage) = stage {
+        stage.flush(&tx, runtime)?;
+    }
     tx.commit().map_err(err)?;
     Ok(CommitReceipt {
         generation: m.generation,

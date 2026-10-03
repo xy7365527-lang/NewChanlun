@@ -231,25 +231,62 @@ impl SameMaterial {
 
 pub(super) struct TxStore<'a, 'conn> {
     tx: &'a Transaction<'conn>,
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    stage: Option<&'a super::staged_nodes::StageOwner>,
 }
 
 impl<'a, 'conn> TxStore<'a, 'conn> {
     pub(super) fn new(tx: &'a Transaction<'conn>) -> Result<Self, CodecError> {
         ensure_format(tx)?;
-        Ok(Self { tx })
+        Ok(Self {
+            tx,
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            stage: None,
+        })
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn new_with_stage(
+        tx: &'a Transaction<'conn>,
+        stage: Option<&'a super::staged_nodes::StageOwner>,
+    ) -> Result<Self, CodecError> {
+        let mut store = Self::new(tx)?;
+        if let Some(owner) = stage {
+            owner.check_transaction(tx)?;
+        }
+        store.stage = stage;
+        Ok(store)
     }
 }
 
 impl NodeSource for TxStore<'_, '_> {
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
-        read_node(self.tx, digest)
+        let current = read_node(self.tx, digest)?;
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        if matches!(current, NodeRead::Missing) {
+            if let Some(stage) = self.stage {
+                if let Some((tag, body)) = stage.read(digest) {
+                    check_digest(digest, tag, &body)?;
+                    return Ok(NodeRead::Found { tag, body });
+                }
+            }
+        }
+        Ok(current)
     }
 
     fn checked_read(
         &mut self,
         digest: &NodeDigest,
     ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
-        read_checked_node(self.tx, digest)
+        let current = read_checked_node(self.tx, digest)?;
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        if current.is_none() {
+            if let Some(stage) = self.stage {
+                if let Some((tag, body)) = stage.read(digest) {
+                    return s_content::job::CheckedFrame::checked(digest, tag, body).map(Some);
+                }
+            }
+        }
+        Ok(current)
     }
 }
 
@@ -269,6 +306,10 @@ impl NodeSink for TxStore<'_, '_> {
                 }
             }
             NodeRead::Missing => {
+                #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                if let Some(stage) = self.stage {
+                    return stage.put_new(digest, tag, body);
+                }
                 self.tx
                     .prepare_cached(
                         "INSERT INTO s_content_nodes(digest, tag, body) VALUES(?1, ?2, ?3)",

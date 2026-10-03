@@ -55,6 +55,10 @@ pub(super) struct Runtime {
     auxiliary: aux_index::Runtime,
     #[cfg(test)]
     after_prepare: Option<fn(&Transaction<'_>) -> Result<(), String>>,
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    stage_new_nodes: bool,
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    last_stage_report: Option<Value>,
 }
 
 impl Runtime {
@@ -74,6 +78,10 @@ impl Runtime {
             auxiliary: Default::default(),
             #[cfg(test)]
             after_prepare: None,
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            stage_new_nodes: false,
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            last_stage_report: None,
         }
     }
 
@@ -128,11 +136,44 @@ impl Runtime {
         envelope: &Value,
         context: Option<&mut request_audit::RequestAuditContext>,
     ) -> Result<commit::CommitReceipt, String> {
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        let stage = if self.stage_new_nodes {
+            if !matches!(self.mode, s_allocation::Mode::CapturedNative) {
+                return Err("TestOnly staging只允许Native".into());
+            }
+            Some(staged_nodes::StageOwner::new(&tx))
+        } else {
+            None
+        };
         let result = (|| {
-            let prepared = self.prepare(&tx, token, envelope, context)?;
+            let prepared = self.prepare(
+                &tx,
+                token,
+                envelope,
+                context,
+                #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                stage.as_ref(),
+            )?;
             #[cfg(test)]
             if let Some(inject) = self.after_prepare {
                 inject(&tx)?;
+            }
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            if let Some(stage) = &stage {
+                let roots = self
+                    .visit_runtime_roots()?
+                    .into_iter()
+                    .map(|(_, d)| d)
+                    .collect::<Vec<_>>();
+                return commit::publish_prepared_staged(
+                    tx,
+                    token,
+                    &prepared.metadata,
+                    &prepared.roots,
+                    &prepared.manifest,
+                    stage,
+                    &roots,
+                );
             }
             commit::publish_prepared(
                 tx,
@@ -142,6 +183,10 @@ impl Runtime {
                 &prepared.manifest,
             )
         })();
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        {
+            self.last_stage_report = stage.as_ref().map(|owner| owner.report());
+        }
         if result.is_err() {
             self.discard();
         }
@@ -154,6 +199,9 @@ impl Runtime {
         token: &str,
         envelope: &Value,
         context: Option<&mut request_audit::RequestAuditContext>,
+        #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
+            &staged_nodes::StageOwner,
+        >,
     ) -> Result<Prepared, String> {
         // 完整旧状态审计（读写共用同一份 state::audit）先于节点、索引、目录等第一次写入完成。
         let audited = match context {
@@ -293,6 +341,9 @@ impl Runtime {
             },
         };
         let mut store = BusinessTxStore {
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            inner: content_store::TxStore::new_with_stage(tx, stage).map_err(err)?,
+            #[cfg(not(all(test, feature = "s_capture_native_testonly")))]
             inner: content_store::TxStore::new(tx).map_err(err)?,
             budget: audited.budget.clone(),
         };
@@ -557,6 +608,118 @@ pub(crate) mod tests {
         }
     }
 
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    #[ignore]
+    fn staged_new_nodes_complete_commit_observation() {
+        let out = PathBuf::from(std::env::var("STAGED_NODES_OUTPUT").unwrap());
+        assert!(!out.exists());
+        std::fs::create_dir_all(&out).unwrap();
+        let mut staged = Fixture::new();
+        staged.runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        staged.runtime.stage_new_nodes = true;
+        let mut eager = Fixture::new();
+        eager.runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        let mut stages = Vec::new();
+        for (n, row, revision) in [
+            (1, ("a", 0, 6, 12, 3, 7), 1),
+            (2, ("b", 10, 8, 16, 6, 12), 1),
+            (3, ("c", 20, 8, 13, 4, 7), 1),
+            (4, ("b", 10, 8, 17, 6, 12), 2),
+        ] {
+            let (envelope, token) = staged.accept_begin(n, row, revision);
+            let (plain, plain_token) = eager.accept_begin(n, row, revision);
+            let old = staged_node_material(&staged.conn);
+            if n == 4 {
+                for fault in ["after_prepare", "flush_INSERT"] {
+                    let before = runtime_root_tables(&staged.conn, true);
+                    staged.runtime.after_prepare = Some(if fault == "after_prepare" {
+                        |_| Err("TestOnlyStageAfterPrepare".into())
+                    } else {
+                        |tx| {
+                            tx.execute_batch(&format!("CREATE TEMP TRIGGER stage_flush_fault BEFORE INSERT ON main.s_content_nodes WHEN (SELECT count(*) FROM s_content_nodes)>{} BEGIN SELECT RAISE(ABORT,'TestOnlyStageFlushINSERT'); END;",tx.query_row("SELECT count(*)+1 FROM s_content_nodes",[],|r|r.get::<_,i64>(0)).map_err(err)?)).map_err(err)?;
+                            Ok(())
+                        }
+                    });
+                    let failure = staged.publish(&envelope, &token).unwrap_err();
+                    assert!(
+                        failure.contains(if fault == "after_prepare" {
+                            "TestOnlyStageAfterPrepare"
+                        } else {
+                            "TestOnlyStageFlushINSERT"
+                        }),
+                        "{failure}"
+                    );
+                    if fault == "flush_INSERT" {
+                        assert_eq!(
+                            staged.runtime.last_stage_report.as_ref().unwrap()
+                                ["new_physical_inserts"],
+                            json!(2)
+                        );
+                    }
+                    // 两臂重试从相同正常discard状态出发；eager故障时点明确不冒充flush等价。
+                    eager.runtime.after_prepare =
+                        Some(|_| Err("TestOnlyEagerAlignedRollback".into()));
+                    let eager_failure = eager.publish(&plain, &plain_token).unwrap_err();
+                    assert!(
+                        eager_failure.contains("TestOnlyEagerAlignedRollback"),
+                        "{eager_failure}"
+                    );
+                    eager.runtime.after_prepare = None;
+                    assert_eq!(before, runtime_root_tables(&staged.conn, true));
+                    assert!(staged.runtime.visit_runtime_roots().unwrap().is_empty());
+                    stages.push(json!({"fault":fault,"returned_success_receipt":false,"all_persistent_rows_and_nodes_rolled_back_exact":true,"normal_Runtime_discard_empty_roots":true,"staging":staged.runtime.last_stage_report}));
+                    staged.runtime.after_prepare = None;
+                }
+            }
+            content_store::begin_runtime_reads();
+            let started = std::time::Instant::now();
+            let actual = staged.publish(&envelope, &token).unwrap();
+            let elapsed = started.elapsed().as_nanos();
+            let reads = content_store::end_runtime_reads();
+            let expected = eager.publish(&plain, &plain_token).unwrap();
+            assert_eq!(actual.batch_id, expected.batch_id);
+            assert_eq!(actual.snapshot, expected.snapshot);
+            assert_eq!(actual.delta, expected.delta);
+            assert_eq!(
+                runtime_root_tables(&staged.conn, false),
+                runtime_root_tables(&eager.conn, false)
+            );
+            runtime_root_compare_reachable_bytes(&staged.conn, &eager.conn);
+            let current = staged_node_material(&staged.conn);
+            let eager_nodes = staged_node_material(&eager.conn);
+            for (digest, original) in &old {
+                assert_eq!(current.get(digest), Some(original));
+            }
+            for (digest, original) in &current {
+                assert_eq!(eager_nodes.get(digest), Some(original));
+            }
+            let label = format!("staged-{n}");
+            let mut snap = runtime_roots_snapshot(&staged, &out, &label, &reads, elapsed);
+            snap["staging"] = staged.runtime.last_stage_report.clone().unwrap();
+            snap["old_nodes_all_preserved"] = json!(true);
+            snap["complete_non_node_rows_and_declared_root_bytes_equal"] = json!(true);
+            snap["current_node_rows"] = json!(current.len());
+            snap["eager_node_rows"] = json!(eager_nodes.len());
+            stages.push(snap);
+            let _ = runtime_roots_snapshot(&eager, &out, &format!("eager-{n}"), &[], 0);
+        }
+        std::fs::write(out.join("STAGED-OBSERVATION.json"),serde_json::to_vec_pretty(&json!({"stages":stages,"Native_testonly":true,"shared_owner_all_three_stores":true,"old_material_audit_unchanged":true,"read_modes":"both Runtime Mode::CapturedNative, eager default stage=false vs explicit staged=true; no silent fallback","physical_INSERT_failure_timing_equivalent":false,"105_or_9011_qualification":false,"Job_max_store_or_strict_heap_qualification":false})).unwrap()).unwrap();
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn staged_node_material(c: &Connection) -> std::collections::BTreeMap<Vec<u8>, (u8, Vec<u8>)> {
+        c.prepare("SELECT digest,tag,body FROM s_content_nodes ORDER BY digest")
+            .unwrap()
+            .query_map([], |r| {
+                Ok((
+                    r.get::<_, Vec<u8>>(0)?,
+                    (r.get::<_, u8>(1)?, r.get::<_, Vec<u8>>(2)?),
+                ))
+            })
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     #[ignore]

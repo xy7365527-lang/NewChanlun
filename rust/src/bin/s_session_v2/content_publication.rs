@@ -9,9 +9,11 @@
 #![allow(dead_code)]
 
 use super::{canonical_json, content_manifest, content_store, meta_get_opt, sha256_hex, v2};
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+use crate::staged_nodes;
 use crate::v3::audit_store::CodecStore;
-use crate::v3::audit_store::{RefFields, RefValue};
 use crate::v3::audit_store::HashReader;
+use crate::v3::audit_store::{RefFields, RefValue};
 use content_manifest::Decimal;
 use content_manifest::{
     ManifestMetadata, ManifestRoots, MetadataView, RootsView, UnpublishedManifest,
@@ -44,7 +46,41 @@ pub(super) fn resolve_current_births(
     roots: &ManifestRoots,
     manifest: &UnpublishedManifest,
 ) -> Result<ResolvedTemplates, String> {
+    resolve_current_births_inner(
+        tx,
+        begin_token,
+        metadata,
+        roots,
+        manifest,
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        None,
+    )
+}
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(super) fn resolve_current_births_staged(
+    tx: &Transaction<'_>,
+    token: &str,
+    m: &ManifestMetadata,
+    roots: &ManifestRoots,
+    manifest: &UnpublishedManifest,
+    stage: &staged_nodes::StageOwner,
+) -> Result<ResolvedTemplates, String> {
+    resolve_current_births_inner(tx, token, m, roots, manifest, Some(stage))
+}
+fn resolve_current_births_inner(
+    tx: &Transaction<'_>,
+    begin_token: &str,
+    metadata: &ManifestMetadata,
+    roots: &ManifestRoots,
+    manifest: &UnpublishedManifest,
+    #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
+        &staged_nodes::StageOwner,
+    >,
+) -> Result<ResolvedTemplates, String> {
     verify_current_begin(tx, begin_token, metadata)?;
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    let mut store = content_store::TxStore::new_with_stage(tx, stage).map_err(err)?;
+    #[cfg(not(all(test, feature = "s_capture_native_testonly")))]
     let mut store = content_store::TxStore::new(tx).map_err(err)?;
     let computed =
         content_manifest::assemble_unpublished(&mut store, metadata, roots).map_err(err)?;

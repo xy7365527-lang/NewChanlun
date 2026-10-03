@@ -53,6 +53,9 @@ mod delta_storage;
 mod content_store;
 #[path = "s_session_v2/evidence_store.rs"]
 mod evidence_store;
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[path = "s_session_v2/staged_nodes.rs"]
+mod staged_nodes;
 // #1394 采纳 C §5.2/5.3：S 生产侧从同核共享证据直接构造 CC-004 内容对象（生产构造器，
 // 供正式 S3 入口调用；本文件不接 S3Commit）。
 #[path = "s_session_v2/content_bi.rs"]

@@ -10,4 +10,7 @@
 - 已验观测：现成真实 S3 四代夹具（3 次 append、1 次 revision2）及 after_prepare 真实错误回滚/正常 discard；Ordinary/Native 全持久 typed 行和声明根闭包实际字节对拍通过，revision 产生 10 次撤回。单次 Native release 构建、1 项靶向通过、独评 PASS。
 - 观测结果：四个提交阶段的持久根与存活缓存根联合闭包外分别为 108/268/570/889 节点；第三代检索过上阶段 runtime-only 闭包内 11 节点。检索日志不单独证明缓存复用因果，也不给删除资格。
 - 观测证据：`.scratch/issue1394-runtime-roots-20261003/ROOT-ACCEPTANCE.json`；测试专用代码入仓，scratch 证据不入仓。105 完整运行态、inflight 局部和其他进程缓存未覆盖。
+- Native 测试专用暂存原型：prepare/resolve/publish 显式共享本事务 owner；原审计和原 SQL 错误拒绝保留，最终仅 flush 持久根与存活缓存根闭包所需的新节点，旧节点不删。默认关闭，生产/Ordinary/Owned 路径不启用。
+- 暂存原型验收：2 项靶向通过、独评 PASS；四代完整非节点 typed 行、根及其原 bytes 一致，最终节点 7847→6960。after_prepare 及已 INSERT 两条后第三次失败均完整回滚、正常 discard 并可重试。物理 INSERT 错误时点不声明与 eager 等价；heap/Job/max_store 资格未成立。证据为 `.scratch/issue1394-staged-new-nodes-20261004/ROOT-ACCEPTANCE.json`。
+- 下一验证：可用两个新自有105副本，经原 Driver/profile/clock 输入冻结第106条作冷重启对照；不从零重建105，不据直接 handle 诊断宣称30秒网络或完整9011通过。
 - 禁止：旧未授权原件、main 合入/推送、GOAL 事件修改、新公共资源数值、前端 #1460、K4。
