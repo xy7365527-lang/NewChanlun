@@ -1892,9 +1892,46 @@ impl AuditMemo {
 /// 仅复用本捕获内 Public/Template 独立验证上下文，不授予来源或业务资格。
 enum CaptureNodes {
     Legacy(BTreeMap<NodeDigest, (u8, Vec<u8>)>),
+    #[cfg(feature = "s_capture_native_testonly")]
+    Native(NativeCaptureNodes),
     AllocationPrototype(capture_allocation::CaptureSlab),
 }
-// #1394 Native TestOnly：只留本次捕获内的纯 F 证明，逐次读取后才可重绑定。
+// #1394 Native TestOnly：原件与纯 F 证明共用完整摘要索引；正文仍逐次复制后重绑定。
+#[cfg(feature = "s_capture_native_testonly")]
+struct NativeNode {
+    tag: u8,
+    body: Vec<u8>,
+    // 成功后才分配证明；未读节点不常驻完整 CheckedFrame。
+    proof: std::cell::RefCell<Option<allocator_api2::boxed::Box<NativeFrameProof>>>,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl NativeNode {
+    fn new(tag: u8, body: Vec<u8>) -> Self {
+        Self {
+            tag,
+            body,
+            proof: Default::default(),
+        }
+    }
+}
+#[cfg(feature = "s_capture_native_testonly")]
+struct NativeCaptureNodes {
+    // 标准 RandomState；未核摘要不使用弱哈希。
+    nodes: std::collections::HashMap<NodeDigest, NativeNode>,
+    memo: std::cell::RefCell<NativeFrameMemo>,
+    #[cfg(test)]
+    index_lookups: std::cell::Cell<u64>,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl NativeCaptureNodes {
+    fn get(&self, digest: &NodeDigest) -> Option<&NativeNode> {
+        #[cfg(test)]
+        self.index_lookups
+            .set(self.index_lookups.get().saturating_add(1));
+        // 计数紧贴实际容器访问；原件与 proof 都只能从此次返回的 entry 取。
+        self.nodes.get(digest)
+    }
+}
 #[cfg(feature = "s_capture_native_testonly")]
 struct NativeFrameProof {
     frame: job::CheckedFrame,
@@ -1902,9 +1939,9 @@ struct NativeFrameProof {
 }
 #[cfg(feature = "s_capture_native_testonly")]
 struct NativeFrameMemo {
-    frames: std::collections::HashMap<NodeDigest, NativeFrameProof>,
     entry_limit: usize,
     body_capacity_limit: usize,
+    retained_entries: usize,
     retained_body_capacity: usize,
     same_material_hits: u64,
     first_f_calls: u64,
@@ -1915,68 +1952,111 @@ struct NativeFrameMemo {
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl NativeFrameMemo {
-    fn remove(&mut self, digest: &NodeDigest) {
-        if let Some(old) = self.frames.remove(digest) {
-            self.retained_body_capacity -= old.body_capacity;
+    fn new(entry_limit: usize, body_capacity_limit: usize) -> Self {
+        Self {
+            entry_limit,
+            body_capacity_limit,
+            retained_entries: 0,
+            retained_body_capacity: 0,
+            same_material_hits: 0,
+            first_f_calls: 0,
+            changed_f_calls: 0,
+            strict_f_calls: 0,
+            failed_f_calls: 0,
+            retention_skips: 0,
         }
     }
-    fn retain(&mut self, frame: &job::CheckedFrame) {
+    fn remove(&mut self, proof: &mut Option<allocator_api2::boxed::Box<NativeFrameProof>>) {
+        if let Some(old) = proof.take() {
+            self.retained_body_capacity = self
+                .retained_body_capacity
+                .checked_sub(old.body_capacity)
+                .expect("Native retained body capacity invariant");
+            self.retained_entries = self
+                .retained_entries
+                .checked_sub(1)
+                .expect("Native retained entry invariant");
+        }
+    }
+    fn retain(
+        &mut self,
+        slot: &mut Option<allocator_api2::boxed::Box<NativeFrameProof>>,
+        frame: &job::CheckedFrame,
+    ) {
         // 先检查本次原件长度；复制后以 Vec 的实际 capacity 再核保留资格。
-        let remaining = self.body_capacity_limit - self.retained_body_capacity;
-        if self.frames.len() >= self.entry_limit || frame.body().len() > remaining {
+        let remaining = self
+            .body_capacity_limit
+            .saturating_sub(self.retained_body_capacity);
+        if self.retained_entries >= self.entry_limit || frame.body().len() > remaining {
             self.retention_skips = self.retention_skips.saturating_add(1);
             return;
         }
         let mut body = Vec::new();
-        if self.frames.try_reserve(1).is_err()
-            || body.try_reserve_exact(frame.body().len()).is_err()
-        {
+        if body.try_reserve_exact(frame.body().len()).is_err() {
             self.retention_skips = self.retention_skips.saturating_add(1);
             return;
         }
         body.extend_from_slice(frame.body());
-        self.retain_copy(frame, body);
+        self.retain_copy(slot, frame, body);
     }
-    fn retain_copy(&mut self, frame: &job::CheckedFrame, body: Vec<u8>) {
+    fn retain_copy(
+        &mut self,
+        slot: &mut Option<allocator_api2::boxed::Box<NativeFrameProof>>,
+        frame: &job::CheckedFrame,
+        body: Vec<u8>,
+    ) {
         let capacity = body.capacity();
         let Some(retained) = self.retained_body_capacity.checked_add(capacity) else {
             self.retention_skips = self.retention_skips.saturating_add(1);
             return;
         };
-        if retained > self.body_capacity_limit {
+        let Some(entries) = self.retained_entries.checked_add(1) else {
+            self.retention_skips = self.retention_skips.saturating_add(1);
+            return;
+        };
+        if slot.is_some() || entries > self.entry_limit || retained > self.body_capacity_limit {
             self.retention_skips = self.retention_skips.saturating_add(1);
             return;
         }
         if let job::SameMaterialRebind::Same(proof) =
             frame.try_rebind_same_material(frame.digest(), frame.tag(), body)
         {
-            self.frames.insert(
-                *frame.digest(),
-                NativeFrameProof {
-                    frame: proof,
-                    body_capacity: capacity,
-                },
-            );
+            let Ok(proof) = allocator_api2::boxed::Box::try_new(NativeFrameProof {
+                frame: proof,
+                body_capacity: capacity,
+            }) else {
+                self.retention_skips = self.retention_skips.saturating_add(1);
+                return;
+            };
+            *slot = Some(proof);
+            self.retained_entries = entries;
             self.retained_body_capacity = retained;
         }
     }
     fn checked_current(
         &mut self,
         digest: &NodeDigest,
+        node: Option<&NativeNode>,
         current: Result<NodeRead, CodecError>,
     ) -> Result<Option<job::CheckedFrame>, CodecError> {
         let (tag, mut body) = match current {
             Ok(NodeRead::Found { tag, body }) => (tag, body),
             Ok(NodeRead::Missing) => {
-                self.remove(digest);
+                if let Some(node) = node {
+                    self.remove(&mut node.proof.borrow_mut());
+                }
                 return Ok(None);
             }
             Err(error) => {
-                self.remove(digest);
+                if let Some(node) = node {
+                    self.remove(&mut node.proof.borrow_mut());
+                }
                 return Err(error);
             }
         };
-        let changed = if let Some(old) = self.frames.get(digest) {
+        let node = node.expect("Native Found must come from the same index entry");
+        let mut proof = node.proof.borrow_mut();
+        let changed = if let Some(old) = proof.as_ref() {
             match old.frame.try_rebind_same_material(digest, tag, body) {
                 job::SameMaterialRebind::Same(frame) => {
                     self.same_material_hits = self.same_material_hits.saturating_add(1);
@@ -1984,7 +2064,7 @@ impl NativeFrameMemo {
                 }
                 job::SameMaterialRebind::Changed(current) => body = current,
             }
-            self.remove(digest);
+            self.remove(&mut proof);
             true
         } else {
             false
@@ -2002,14 +2082,12 @@ impl NativeFrameMemo {
                 return Err(error);
             }
         };
-        self.retain(&frame);
+        self.retain(&mut proof, &frame);
         Ok(Some(frame))
     }
 }
 pub struct AuditCapture {
     nodes: CaptureNodes,
-    #[cfg(feature = "s_capture_native_testonly")]
-    native_frames: Option<std::cell::RefCell<NativeFrameMemo>>,
     public: std::cell::RefCell<AuditMemo>,
     template: std::cell::RefCell<AuditMemo>,
     reads: std::cell::Cell<u64>,
@@ -2018,8 +2096,6 @@ impl AuditCapture {
     pub fn new(nodes: MemoryNodes) -> Self {
         Self {
             nodes: CaptureNodes::Legacy(nodes.nodes),
-            #[cfg(feature = "s_capture_native_testonly")]
-            native_frames: None,
             public: Default::default(),
             template: Default::default(),
             reads: Default::default(),
@@ -2030,8 +2106,6 @@ impl AuditCapture {
         let budget = slab.owned_budget();
         Self {
             nodes: CaptureNodes::AllocationPrototype(slab),
-            #[cfg(feature = "s_capture_native_testonly")]
-            native_frames: None,
             public: std::cell::RefCell::new(AuditMemo::new(Some(&budget))),
             template: std::cell::RefCell::new(AuditMemo::new(Some(&budget))),
             reads: Default::default(),
@@ -2042,6 +2116,18 @@ impl AuditCapture {
     #[cfg(feature = "s_capture_native_testonly")]
     #[doc(hidden)]
     pub fn enable_native_frame_reuse_for_testonly(mut self) -> Result<Self, CodecError> {
+        if let CaptureNodes::Native(native) = &mut self.nodes {
+            let body_capacity_limit = native.nodes.values().try_fold(0usize, |sum, node| {
+                sum.checked_add(node.body.len())
+                    .ok_or_else(|| CodecError::new(code::SOURCE, "Native捕获body总长度溢出"))
+            })?;
+            // 保留旧重复 opt-in 的冷 proof 语义；不重置原件、reads 或语义 memo。
+            for node in native.nodes.values_mut() {
+                *node.proof.get_mut() = None;
+            }
+            *native.memo.get_mut() = NativeFrameMemo::new(native.nodes.len(), body_capacity_limit);
+            return Ok(self);
+        }
         let CaptureNodes::Legacy(nodes) = &self.nodes else {
             return Err(CodecError::new(
                 code::SOURCE,
@@ -2052,18 +2138,26 @@ impl AuditCapture {
             sum.checked_add(body.len())
                 .ok_or_else(|| CodecError::new(code::SOURCE, "Native捕获body总长度溢出"))
         })?;
-        self.native_frames = Some(std::cell::RefCell::new(NativeFrameMemo {
-            frames: Default::default(),
-            entry_limit: nodes.len(),
-            body_capacity_limit,
-            retained_body_capacity: 0,
-            same_material_hits: 0,
-            first_f_calls: 0,
-            changed_f_calls: 0,
-            strict_f_calls: 0,
-            failed_f_calls: 0,
-            retention_skips: 0,
-        }));
+        let entry_limit = nodes.len();
+        let mut native_nodes = std::collections::HashMap::new();
+        native_nodes
+            .try_reserve(entry_limit)
+            .map_err(|_| CodecError::new(code::SOURCE, "Native捕获索引分配失败"))?;
+        let CaptureNodes::Legacy(nodes) =
+            std::mem::replace(&mut self.nodes, CaptureNodes::Legacy(BTreeMap::new()))
+        else {
+            unreachable!()
+        };
+        // 移动原件 Vec，不预核 F、不复制全部正文，不改变第一处严格拒绝的位置。
+        for (digest, (tag, body)) in nodes {
+            native_nodes.insert(digest, NativeNode::new(tag, body));
+        }
+        self.nodes = CaptureNodes::Native(NativeCaptureNodes {
+            nodes: native_nodes,
+            memo: std::cell::RefCell::new(NativeFrameMemo::new(entry_limit, body_capacity_limit)),
+            #[cfg(test)]
+            index_lookups: Default::default(),
+        });
         Ok(self)
     }
     pub fn contains(&self, digest: &NodeDigest) -> bool {
@@ -2072,6 +2166,8 @@ impl AuditCapture {
     pub fn original(&self, digest: &NodeDigest) -> Option<(u8, &[u8])> {
         match &self.nodes {
             CaptureNodes::Legacy(nodes) => nodes.get(digest).map(|(t, b)| (*t, b.as_slice())),
+            #[cfg(feature = "s_capture_native_testonly")]
+            CaptureNodes::Native(nodes) => nodes.get(digest).map(|n| (n.tag, n.body.as_slice())),
             CaptureNodes::AllocationPrototype(slab) => slab.original(digest),
         }
     }
@@ -2126,6 +2222,17 @@ impl AuditCapture {
                 nodes.values().map(|(_, b)| b.capacity()).sum::<usize>(),
                 serde_json::Value::Null,
             ),
+            #[cfg(feature = "s_capture_native_testonly")]
+            CaptureNodes::Native(native) => (
+                native.nodes.len(),
+                native.nodes.values().map(|n| n.body.len()).sum::<usize>(),
+                native
+                    .nodes
+                    .values()
+                    .map(|n| n.body.capacity())
+                    .sum::<usize>(),
+                serde_json::Value::Null,
+            ),
             CaptureNodes::AllocationPrototype(slab) => (
                 slab.len(),
                 slab.body_bytes(),
@@ -2141,34 +2248,61 @@ impl AuditCapture {
             "retention_skips":0
         });
         #[cfg(feature = "s_capture_native_testonly")]
-        let native_frame_reuse = match &self.native_frames {
-            Some(slot) => {
-                let m = slot.borrow();
+        let native_frame_reuse = match &self.nodes {
+            CaptureNodes::Native(native) => {
+                let m = native.memo.borrow();
                 serde_json::json!({
-                    "enabled":true,"retained_entries":m.frames.len(),
+                    "enabled":true,"retained_entries":m.retained_entries,
                     "retained_body_vec_capacity_bytes":m.retained_body_capacity,
                     "entry_limit":m.entry_limit,"body_capacity_limit_bytes":m.body_capacity_limit,
                     "same_material_hits":m.same_material_hits,"first_f_calls":m.first_f_calls,
                     "changed_f_calls":m.changed_f_calls,"strict_f_calls":m.strict_f_calls,
-                    "failed_f_calls":m.failed_f_calls,"retention_skips":m.retention_skips
+                    "failed_f_calls":m.failed_f_calls,"retention_skips":m.retention_skips,
+                    "source_index_capacity":native.nodes.capacity(),
+                    "source_index_capacity_payload_bytes":native.nodes.capacity().saturating_mul(std::mem::size_of::<(NodeDigest,NativeNode)>()),
+                    "proof_slot_bytes_per_entry":std::mem::size_of::<std::cell::RefCell<Option<allocator_api2::boxed::Box<NativeFrameProof>>>>(),
+                    "retained_proof_box_payload_bytes":m.retained_entries.saturating_mul(std::mem::size_of::<NativeFrameProof>())
                 })
             }
-            None => native_frame_reuse,
+            _ => native_frame_reuse,
         };
         serde_json::json!({"captured_nodes":nodes,"body_len_bytes":body_len,
             "body_vec_capacity_bytes":body_capacity,"capture_allocation_prototype":allocation,
             "capture_string_capacity_bytes":0,"capture_reads":self.reads.get(),
             "native_frame_reuse":native_frame_reuse,
             "public":memo(&self.public.borrow()),"template":memo(&self.template.borrow()),
-            "scope":"retained Vec/String and map/set capacity payload; Native proof entries and body Vec actual capacity only; excludes BTree/HashMap bucket/control allocation, allocator overhead, transient reads, total heap/RSS/IO peak; no resource eligibility"})
+            "scope":"retained Vec/String and map/set capacity payload; Native source index capacity payload, proof box payload and body Vec actual capacity; excludes BTree allocation, HashMap control bytes, allocator overhead, transient reads, total heap/RSS/IO peak; no resource eligibility"})
     }
 }
 struct CaptureReader<'a>(&'a AuditCapture);
+impl CaptureReader<'_> {
+    fn record_read(&self, digest: &NodeDigest) {
+        #[cfg(test)]
+        trace_capture_body_read(digest);
+        #[cfg(not(test))]
+        let _ = digest;
+        self.0.reads.set(self.0.reads.get().saturating_add(1));
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn checked_native_current(
+        &self,
+        digest: &NodeDigest,
+        native: &NativeCaptureNodes,
+        read_current: impl FnOnce(Option<&NativeNode>) -> Result<NodeRead, CodecError>,
+    ) -> Result<Option<job::CheckedFrame>, CodecError> {
+        self.record_read(digest);
+        let node = native.get(digest);
+        // 本次原件先实际读取/完整复制；proof 槽沿用同一次实际 get 返回的 entry。
+        let current = read_current(node);
+        native
+            .memo
+            .borrow_mut()
+            .checked_current(digest, node, current)
+    }
+}
 impl NodeSource for CaptureReader<'_> {
     fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, CodecError> {
-        #[cfg(test)]
-        trace_capture_body_read(d);
-        self.0.reads.set(self.0.reads.get().saturating_add(1));
+        self.record_read(d);
         Ok(match self.0.original(d) {
             Some((t, b)) => NodeRead::Found {
                 tag: t,
@@ -2181,13 +2315,19 @@ impl NodeSource for CaptureReader<'_> {
         &mut self,
         digest: &NodeDigest,
     ) -> Result<Option<job::CheckedFrame>, CodecError> {
-        // 原 read 的读取、trace 与 Missing/Err 顺序均保留；不能先按摘要命中证明。
-        let current = self.read(digest);
         #[cfg(feature = "s_capture_native_testonly")]
-        if let Some(slot) = &self.0.native_frames {
-            return slot.borrow_mut().checked_current(digest, current);
+        if let CaptureNodes::Native(native) = &self.0.nodes {
+            return self.checked_native_current(digest, native, |node| {
+                Ok(match node {
+                    Some(node) => NodeRead::Found {
+                        tag: node.tag,
+                        body: node.body.to_vec(),
+                    },
+                    None => NodeRead::Missing,
+                })
+            });
         }
-        match current? {
+        match self.read(digest)? {
             NodeRead::Missing => Ok(None),
             NodeRead::Found { tag, body } => {
                 job::CheckedFrame::checked(digest, tag, body).map(Some)
@@ -2209,11 +2349,26 @@ mod native_frame_reuse_tests {
             .unwrap();
         (capture, nodes, digest)
     }
-    fn legacy_nodes(capture: &mut AuditCapture) -> &mut BTreeMap<NodeDigest, (u8, Vec<u8>)> {
-        let CaptureNodes::Legacy(nodes) = &mut capture.nodes else {
+    fn native(capture: &AuditCapture) -> &NativeCaptureNodes {
+        let CaptureNodes::Native(nodes) = &capture.nodes else {
             panic!("test Native source")
         };
         nodes
+    }
+    fn native_mut(capture: &mut AuditCapture) -> &mut NativeCaptureNodes {
+        let CaptureNodes::Native(nodes) = &mut capture.nodes else {
+            panic!("test Native source")
+        };
+        nodes
+    }
+    fn replace_original(capture: &mut AuditCapture, digest: NodeDigest, tag: u8, body: Vec<u8>) {
+        let nodes = &mut native_mut(capture).nodes;
+        if let Some(node) = nodes.get_mut(&digest) {
+            node.tag = tag;
+            node.body = body;
+        } else {
+            nodes.insert(digest, NativeNode::new(tag, body));
+        }
     }
     fn stats(capture: &AuditCapture) -> serde_json::Value {
         capture.retention()["native_frame_reuse"].clone()
@@ -2230,6 +2385,195 @@ mod native_frame_reuse_tests {
     ) -> Result<Option<job::CheckedFrame>, CodecError> {
         // 未覆写 checked_read 的 MemoryNodes 是同次原实现 oracle。
         nodes.checked_read(digest)
+    }
+    #[test]
+    fn native_single_index_optin_moves_original_buffers_and_keeps_default_representation() {
+        let mut body = Vec::with_capacity(128);
+        body.extend_from_slice(b"material");
+        let pointer = body.as_ptr();
+        let capacity = body.capacity();
+        let digest = frame(tag::BYTES_CHUNK, &body);
+        let mut nodes = MemoryNodes::new();
+        nodes.insert_unchecked(digest, tag::BYTES_CHUNK, body);
+        let capture = AuditCapture::new(nodes);
+        assert!(matches!(&capture.nodes, CaptureNodes::Legacy(_)));
+        assert!(!capture.is_allocation_prototype());
+        let capture = capture.enable_native_frame_reuse_for_testonly().unwrap();
+        assert!(!capture.is_allocation_prototype());
+        let node = native(&capture).nodes.get(&digest).unwrap();
+        assert_eq!(node.body.as_ptr(), pointer);
+        assert_eq!(node.body.capacity(), capacity);
+        assert!(node.proof.borrow().is_none());
+        assert_eq!(
+            capture.original(&digest),
+            Some((tag::BYTES_CHUNK, b"material".as_slice()))
+        );
+        assert!(capture.contains(&digest));
+        assert_eq!(stats(&capture)["entry_limit"], 1);
+        assert_eq!(stats(&capture)["body_capacity_limit_bytes"], 8);
+        assert_eq!(capture.retention()["body_vec_capacity_bytes"], capacity);
+    }
+    #[test]
+    fn native_single_index_repeat_optin_preserves_original_and_semantic_memos_but_cools_proof() {
+        let mut body = Vec::with_capacity(128);
+        body.extend_from_slice(b"material");
+        let pointer = body.as_ptr();
+        let capacity = body.capacity();
+        let digest = frame(tag::BYTES_CHUNK, &body);
+        let mut nodes = MemoryNodes::new();
+        nodes.insert_unchecked(digest, tag::BYTES_CHUNK, body);
+        let null = write_value(&mut nodes, &Value::Null).unwrap().content_ref();
+        let mut oracle = nodes.clone();
+        let expected = strict_result(&mut oracle, &digest)
+            .unwrap()
+            .unwrap()
+            .into_parts();
+        let capture = AuditCapture::new(nodes)
+            .enable_native_frame_reuse_for_testonly()
+            .unwrap();
+        for mode in [Mode::Public, Mode::Template] {
+            capture.verify(&null, mode).unwrap();
+        }
+        assert_eq!(
+            read(&capture, &digest).unwrap().unwrap().into_parts(),
+            expected
+        );
+        let before = capture.retention();
+        assert_eq!(before["native_frame_reuse"]["retained_entries"], 2);
+        let source_capacity = native(&capture).nodes.capacity();
+        let capture = capture.enable_native_frame_reuse_for_testonly().unwrap();
+        let after = capture.retention();
+        assert_eq!(after["public"], before["public"]);
+        assert_eq!(after["template"], before["template"]);
+        assert_eq!(after["capture_reads"], before["capture_reads"]);
+        assert_eq!(native(&capture).nodes.capacity(), source_capacity);
+        let node = native(&capture).nodes.get(&digest).unwrap();
+        assert_eq!(node.body.as_ptr(), pointer);
+        assert_eq!(node.body.capacity(), capacity);
+        assert!(native(&capture)
+            .nodes
+            .values()
+            .all(|n| n.proof.borrow().is_none()));
+        assert_eq!(stats(&capture)["retained_entries"], 0);
+        assert_eq!(stats(&capture)["retained_body_vec_capacity_bytes"], 0);
+        assert_eq!(stats(&capture)["strict_f_calls"], 0);
+        assert_eq!(stats(&capture)["same_material_hits"], 0);
+        assert_eq!(stats(&capture)["entry_limit"], 2);
+        assert_eq!(stats(&capture)["body_capacity_limit_bytes"], 8);
+        let start = frame_calls_on_thread();
+        assert_eq!(
+            read(&capture, &digest).unwrap().unwrap().into_parts(),
+            expected
+        );
+        assert_eq!(frame_calls_on_thread() - start, 1);
+        assert_eq!(stats(&capture)["first_f_calls"], 1);
+        assert_eq!(stats(&capture)["same_material_hits"], 0);
+        assert_eq!(
+            capture.reads.get(),
+            before["capture_reads"].as_u64().unwrap() + 1
+        );
+    }
+    #[test]
+    fn native_single_index_checked_read_uses_one_actual_lookup_for_original_and_proof() {
+        let (capture, _, digest) = capture_node(tag::BYTES_CHUNK, b"material");
+        let nodes = native(&capture);
+        let start = frame_calls_on_thread();
+        for expected in 1..=4 {
+            let current = read(&capture, &digest).unwrap().unwrap();
+            assert_eq!(current.digest(), &digest);
+            assert_eq!(current.tag(), tag::BYTES_CHUNK);
+            assert_eq!(current.body(), b"material");
+            let node = nodes.nodes.get(&digest).unwrap();
+            assert_ne!(current.body().as_ptr(), node.body.as_ptr());
+            assert_ne!(
+                current.body().as_ptr(),
+                node.proof.borrow().as_ref().unwrap().frame.body().as_ptr()
+            );
+            assert_eq!(nodes.index_lookups.get(), expected);
+            assert_eq!(capture.reads.get(), expected);
+        }
+        assert_eq!(frame_calls_on_thread() - start, 1);
+        assert_eq!(stats(&capture)["same_material_hits"], 3);
+        assert_eq!(stats(&capture)["retained_entries"], 1);
+        let missing = frame(tag::NULL, b"");
+        assert!(read(&capture, &missing).unwrap().is_none());
+        assert_eq!(nodes.index_lookups.get(), 5);
+        assert_eq!(capture.reads.get(), 5);
+        assert_eq!(stats(&capture)["retained_entries"], 1);
+        assert_eq!(stats(&capture)["strict_f_calls"], 1);
+    }
+    #[test]
+    fn native_single_index_rebind_returns_the_complete_current_vec_and_capacity() {
+        let (capture, _, digest) = capture_node(tag::BYTES_CHUNK, b"material");
+        read(&capture, &digest).unwrap().unwrap();
+        let mut current = Vec::with_capacity(128);
+        current.extend_from_slice(b"material");
+        let pointer = current.as_ptr();
+        let capacity = current.capacity();
+        let start = frame_calls_on_thread();
+        let rebound = CaptureReader(&capture)
+            .checked_native_current(&digest, native(&capture), |_| {
+                Ok(NodeRead::Found {
+                    tag: tag::BYTES_CHUNK,
+                    body: current,
+                })
+            })
+            .unwrap()
+            .unwrap();
+        let (_, body) = rebound.into_parts();
+        assert_eq!(body.as_ptr(), pointer);
+        assert_eq!(body.capacity(), capacity);
+        assert_eq!(body, b"material");
+        assert_eq!(frame_calls_on_thread(), start);
+        assert_eq!(stats(&capture)["same_material_hits"], 1);
+        assert_eq!(stats(&capture)["retained_body_vec_capacity_bytes"], 8);
+        assert_eq!(native(&capture).index_lookups.get(), 2);
+    }
+    #[test]
+    fn native_single_index_capacity_skip_cleanup_and_empty_proof_counts_stay_symmetric() {
+        let (capture, _, digest) = capture_node(tag::BYTES_CHUNK, b"material");
+        let nodes = native(&capture);
+        let node = nodes.nodes.get(&digest).unwrap();
+        let frame =
+            job::CheckedFrame::checked(&digest, tag::BYTES_CHUNK, b"material".to_vec()).unwrap();
+        let mut oversized = Vec::with_capacity(64);
+        oversized.extend_from_slice(frame.body());
+        nodes
+            .memo
+            .borrow_mut()
+            .retain_copy(&mut node.proof.borrow_mut(), &frame, oversized);
+        assert_eq!(stats(&capture)["retention_skips"], 1);
+        assert_eq!(stats(&capture)["retained_entries"], 0);
+        assert_eq!(stats(&capture)["retained_body_vec_capacity_bytes"], 0);
+        for _ in 0..2 {
+            read(&capture, &digest).unwrap().unwrap();
+            assert_eq!(stats(&capture)["retained_entries"], 1);
+            assert_eq!(stats(&capture)["retained_body_vec_capacity_bytes"], 8);
+            for _ in 0..2 {
+                assert!(CaptureReader(&capture)
+                    .checked_native_current(&digest, nodes, |_| Ok(NodeRead::Missing))
+                    .unwrap()
+                    .is_none());
+                assert_eq!(stats(&capture)["retained_entries"], 0);
+                assert_eq!(stats(&capture)["retained_body_vec_capacity_bytes"], 0);
+            }
+        }
+        assert_eq!(stats(&capture)["first_f_calls"], 2);
+        assert_eq!(stats(&capture)["same_material_hits"], 0);
+        assert_eq!(stats(&capture)["retention_skips"], 1);
+        let (empty, _, digest) = capture_node(tag::NULL, b"");
+        read(&empty, &digest).unwrap().unwrap();
+        assert_eq!(stats(&empty)["retained_entries"], 1);
+        assert_eq!(stats(&empty)["retained_body_vec_capacity_bytes"], 0);
+        assert!(CaptureReader(&empty)
+            .checked_native_current(&digest, native(&empty), |_| Ok(NodeRead::Missing))
+            .unwrap()
+            .is_none());
+        assert_eq!(stats(&empty)["retained_entries"], 0);
+        assert_eq!(stats(&empty)["retained_body_vec_capacity_bytes"], 0);
+        read(&empty, &digest).unwrap().unwrap();
+        assert_eq!(stats(&empty)["first_f_calls"], 2);
+        assert_eq!(stats(&empty)["retained_entries"], 1);
     }
     #[test]
     fn native_frame_reuse_rebinds_f_but_repeats_actual_read_across_readers() {
@@ -2266,12 +2610,9 @@ mod native_frame_reuse_tests {
             let requested = if change == 0 {
                 let other = frame(tag::BYTES_CHUNK, b"other");
                 // 模拟摘要键关联错位，证明本身仍携带原请求，不能凭map命中复用。
-                let slot = capture.native_frames.as_ref().unwrap();
-                let mut memo = slot.borrow_mut();
-                let old = memo.frames.remove(&digest).unwrap();
-                memo.frames.insert(other, old);
-                drop(memo);
-                legacy_nodes(&mut capture).insert(other, (tag::BYTES_CHUNK, b"material".to_vec()));
+                let nodes = &mut native_mut(&mut capture).nodes;
+                let old = nodes.remove(&digest).unwrap();
+                nodes.insert(other, old);
                 oracle.insert_unchecked(other, tag::BYTES_CHUNK, b"material".to_vec());
                 other
             } else {
@@ -2280,7 +2621,7 @@ mod native_frame_reuse_tests {
                 } else {
                     (tag::BYTES_CHUNK, b"changed!".to_vec())
                 };
-                legacy_nodes(&mut capture).insert(digest, (tag, body.clone()));
+                replace_original(&mut capture, digest, tag, body.clone());
                 oracle.insert_unchecked(digest, tag, body);
                 digest
             };
@@ -2297,7 +2638,7 @@ mod native_frame_reuse_tests {
     #[test]
     fn native_frame_reuse_bad_first_frame_never_becomes_success_cache() {
         let (mut capture, mut oracle, digest) = capture_node(tag::BYTES_CHUNK, b"material");
-        legacy_nodes(&mut capture).insert(digest, (tag::BYTES_CHUNK, b"corrupt".to_vec()));
+        replace_original(&mut capture, digest, tag::BYTES_CHUNK, b"corrupt".to_vec());
         oracle.insert_unchecked(digest, tag::BYTES_CHUNK, b"corrupt".to_vec());
         let expected = strict_result(&mut oracle, &digest).unwrap_err();
         let start = frame_calls_on_thread();
@@ -2307,7 +2648,7 @@ mod native_frame_reuse_tests {
         assert_eq!(frame_calls_on_thread() - start, 2);
         assert_eq!(stats(&capture)["failed_f_calls"], 2);
         assert_eq!(stats(&capture)["retained_entries"], 0);
-        legacy_nodes(&mut capture).insert(digest, (tag::BYTES_CHUNK, b"material".to_vec()));
+        replace_original(&mut capture, digest, tag::BYTES_CHUNK, b"material".to_vec());
         read(&capture, &digest).unwrap().unwrap();
         assert_eq!(frame_calls_on_thread() - start, 3);
         assert_eq!(stats(&capture)["retained_entries"], 1);
@@ -2316,24 +2657,23 @@ mod native_frame_reuse_tests {
     fn native_frame_reuse_missing_and_read_error_evict_without_old_success() {
         let (mut capture, _, digest) = capture_node(tag::BYTES_CHUNK, b"material");
         read(&capture, &digest).unwrap().unwrap();
-        legacy_nodes(&mut capture).remove(&digest);
         let start = frame_calls_on_thread();
-        assert!(read(&capture, &digest).unwrap().is_none());
+        // 不可变生产原件无 Missing/Err 来源；在同一次实际 get 后模拟读取失败。
+        assert!(CaptureReader(&capture)
+            .checked_native_current(&digest, native(&capture), |_| Ok(NodeRead::Missing))
+            .unwrap()
+            .is_none());
         assert_eq!(frame_calls_on_thread(), start);
         assert_eq!(capture.reads.get(), 2);
         assert_eq!(stats(&capture)["retained_entries"], 0);
-        legacy_nodes(&mut capture).insert(digest, (tag::BYTES_CHUNK, b"material".to_vec()));
+        replace_original(&mut capture, digest, tag::BYTES_CHUNK, b"material".to_vec());
         read(&capture, &digest).unwrap().unwrap();
         let failure = CodecError::new(code::SOURCE, "exact original read error");
-        // CaptureReader::read 当前无Err来源；在紧接read的同一私有分支模拟其Err。
+        // 同一次实际 get 后的 Err 必须驱逐该 entry 的旧证明，保留原错误。
         let start = frame_calls_on_thread();
         assert_eq!(
-            capture
-                .native_frames
-                .as_ref()
-                .unwrap()
-                .borrow_mut()
-                .checked_current(&digest, Err(failure.clone()))
+            CaptureReader(&capture)
+                .checked_native_current(&digest, native(&capture), |_| Err(failure.clone()))
                 .unwrap_err(),
             failure
         );
@@ -2409,6 +2749,8 @@ mod native_frame_reuse_tests {
         let mut slab = capture_allocation::CaptureSlab::new(1, bytes.len(), &budget).unwrap();
         slab.push(digest, tag::BYTES_CHUNK, bytes).unwrap();
         let owned = AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
+        assert!(matches!(&owned.nodes, CaptureNodes::AllocationPrototype(_)));
+        assert!(owned.is_allocation_prototype());
         let start = frame_calls_on_thread();
         for _ in 0..2 {
             read(&owned, &digest).unwrap().unwrap();
@@ -2439,7 +2781,7 @@ mod native_frame_reuse_tests {
             };
             let other = frame(other_tag, bytes);
             // 仅测试私有原件变动，使超出初始捕获保留资格的新好帧可达。
-            legacy_nodes(&mut capture).insert(other, (other_tag, bytes.to_vec()));
+            replace_original(&mut capture, other, other_tag, bytes.to_vec());
             let start = frame_calls_on_thread();
             for _ in 0..2 {
                 assert_eq!(read(&capture, &other).unwrap().unwrap().body(), bytes);
@@ -2465,12 +2807,12 @@ mod native_frame_reuse_tests {
         let mut copied = Vec::with_capacity(64);
         copied.extend_from_slice(frame.body());
         assert!(copied.capacity() > 8);
-        capture
-            .native_frames
-            .as_ref()
-            .unwrap()
+        let nodes = native(&capture);
+        let node = nodes.nodes.get(&digest).unwrap();
+        nodes
+            .memo
             .borrow_mut()
-            .retain_copy(&frame, copied);
+            .retain_copy(&mut node.proof.borrow_mut(), &frame, copied);
         assert_eq!(stats(&capture)["retention_skips"], 1);
         assert_eq!(stats(&capture)["retained_entries"], 0);
         let start = frame_calls_on_thread();
