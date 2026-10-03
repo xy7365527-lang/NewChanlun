@@ -305,6 +305,28 @@ pub(super) struct GenerationRuntime {
 }
 
 impl GenerationRuntime {
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn visit_runtime_roots(&self, f: &mut dyn FnMut(&'static str, NodeDigest)) {
+        self.producer.visit_runtime_roots(f);
+        self.bi.visit_runtime_roots(f);
+        for root in self.event_nodes.values() {
+            f("generation.event_nodes", *root);
+        }
+        for (name, memo) in [
+            ("generation.raw_events_seq", &self.raw_events_seq),
+            (
+                "generation.effective_events_seq",
+                &self.effective_events_seq,
+            ),
+            ("generation.objects_seq", &self.objects_seq),
+            ("generation.witnesses_seq", &self.witnesses_seq),
+            ("generation.relations_seq", &self.relations_seq),
+            ("generation.observations_seq", &self.observations_seq),
+        ] {
+            memo.visit_runtime_roots(name, f);
+        }
+    }
+
     /// `lane_key` 按 `s_fact_cache::lane_key` 的持久身份口径给出（库/会话/规则/档案/目录）。
     pub(super) fn new(lane_key: String, profile_id: &str, rule_revision: &str) -> Self {
         GenerationRuntime {
@@ -829,6 +851,20 @@ pub(super) struct SequenceMemo {
 }
 
 impl SequenceMemo {
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn visit_runtime_roots(
+        &self,
+        name: &'static str,
+        f: &mut dyn FnMut(&'static str, NodeDigest),
+    ) {
+        for root in &self.keys {
+            f(name, *root);
+        }
+        if let Some(seq) = self.seq {
+            f(name, seq.root());
+        }
+    }
+
     fn discard(&mut self) {
         self.keys.clear();
         self.seq = None;

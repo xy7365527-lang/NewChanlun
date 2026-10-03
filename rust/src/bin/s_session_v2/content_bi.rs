@@ -1008,6 +1008,18 @@ pub(super) struct ContentBi {
 }
 
 impl ContentBi {
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn visit_runtime_roots(&self, f: &mut dyn FnMut(&'static str, NodeDigest)) {
+        if self.coords.coords.is_empty() {
+            return;
+        }
+        f("bi.RawCoords.text", self.coords.text.root());
+        f("bi.RawCoords.refs", self.coords.refs.root());
+        for root in &self.coords.refs_leaves {
+            f("bi.RawCoords.refs_leaves", *root);
+        }
+    }
+
     pub(super) fn new() -> Self {
         ContentBi {
             coords: RawCoords::new(),

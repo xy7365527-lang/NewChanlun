@@ -85,6 +85,17 @@ impl Runtime {
         self.after_prepare = hook;
     }
 
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    fn visit_runtime_roots(&self) -> Result<Vec<(&'static str, sc::NodeDigest)>, String> {
+        let mut roots = Vec::new();
+        let mut f = |name, root| roots.push((name, root));
+        if let Some(generator) = &self.generator {
+            generator.visit_runtime_roots(&mut f);
+        }
+        self.auxiliary.visit_runtime_roots(&mut f)?;
+        Ok(roots)
+    }
+
     fn discard(&mut self) {
         if let Some(generator) = &mut self.generator {
             generator.discard_runtime_state();
@@ -545,6 +556,258 @@ pub(crate) mod tests {
             self.runtime.commit(tx, token, envelope)
         }
     }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    #[ignore]
+    fn runtime_roots_append_revision_error_observation() {
+        let out = PathBuf::from(std::env::var("RUNTIME_ROOTS_OUTPUT").unwrap());
+        assert!(!out.exists());
+        std::fs::create_dir_all(&out).unwrap();
+        let mut native = Fixture::new();
+        native.runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        let mut ordinary = Fixture::new();
+        let mut reports = Vec::new();
+        let rows = [
+            (1, ("a", 0, 6, 12, 3, 7), 1),
+            (2, ("b", 10, 8, 16, 6, 12), 1),
+            (3, ("c", 20, 8, 13, 4, 7), 1),
+            (4, ("b", 10, 8, 17, 6, 12), 2),
+        ];
+        for (n, row, revision) in rows {
+            let (envelope, token) = native.accept_begin(n, row, revision);
+            let (plain, plain_token) = ordinary.accept_begin(n, row, revision);
+            if n == 4 {
+                let persisted_before = runtime_root_tables(&native.conn, true);
+                native.runtime.after_prepare =
+                    Some(|_| Err("TestOnlyRuntimeRootFailureAfterPrepare".into()));
+                content_store::begin_runtime_reads();
+                let started = std::time::Instant::now();
+                assert!(native
+                    .publish(&envelope, &token)
+                    .unwrap_err()
+                    .contains("TestOnlyRuntimeRootFailureAfterPrepare"));
+                let reads = content_store::end_runtime_reads();
+                assert_eq!(persisted_before, runtime_root_tables(&native.conn, true));
+                reports.push(runtime_roots_snapshot(
+                    &native,
+                    &out,
+                    "error-cleanup",
+                    &reads,
+                    started.elapsed().as_nanos(),
+                ));
+                native.runtime.after_prepare = None;
+                assert!(native.runtime.visit_runtime_roots().unwrap().is_empty());
+            }
+            content_store::begin_runtime_reads();
+            let started = std::time::Instant::now();
+            let receipt = native.publish(&envelope, &token).unwrap();
+            let reads = content_store::end_runtime_reads();
+            let expected = ordinary.publish(&plain, &plain_token).unwrap();
+            assert_eq!(receipt.batch_id, expected.batch_id);
+            assert_eq!(receipt.snapshot, expected.snapshot);
+            assert_eq!(receipt.delta, expected.delta);
+            assert_eq!(
+                runtime_root_tables(&native.conn, false),
+                runtime_root_tables(&ordinary.conn, false)
+            );
+            runtime_root_compare_reachable_bytes(&native.conn, &ordinary.conn);
+            let stage = format!("committed-{n}");
+            let mut report =
+                runtime_roots_snapshot(&native, &out, &stage, &reads, started.elapsed().as_nanos());
+            report["ordinary_full_persistent_typed_rows_and_reachable_content_bytes_exact_equal"] =
+                json!(true);
+            report["normal_append"] = json!(n < 4);
+            report["true_revision"] = json!(n == 4);
+            reports.push(report);
+        }
+        let withdrawn: i64 = native
+            .conn
+            .query_row(
+                "SELECT count(*) FROM s_content_objects WHERE withdrawn_generation=4",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(withdrawn > 0);
+        std::fs::write(out.join("RUNTIME-ROOTS.json"),serde_json::to_vec_pretty(&json!({"testonly":true,"formal_driver_network_path":false,"large_frozen_105_runtime_reconstructed":false,"scope":"existing real S3 fixture accept/Begin/Runtime.commit; full audit and real generation/publication unchanged; ordinary exact comparison","stages":reports,"revision_withdrawals":withdrawn,"manual_cache_discard_or_GC":false,"root_exclusions":{"aux.raw_wires.key":"canonical JSON SHA memo fingerprint, not a content node root","bi.RawCoords.empty":"uninitialized empty sequence sentinel is omitted; after normal error cleanup visitor is empty","producer.fractal_histories.union_tail":"integer coordinate tree, no content digest","ArrayCache.tree":"Rc coordinate tree and address key, no content digest","producer.raw_tokens/prepared_raw_keys":"identity tokens and raw logical key strings, no content roots","aux.observation_ids.value":"observation identifier string, not a content pointer","generation.lane_key":"facts lane holds ordinary typed facts, no s-content roots"}})).unwrap()).unwrap();
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[derive(Debug, PartialEq, Eq)]
+    enum RuntimeRootCell {
+        Null,
+        Integer(i64),
+        RealBits(u64),
+        Text(Vec<u8>),
+        Blob(Vec<u8>),
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn runtime_root_tables(
+        conn: &Connection,
+        include_nodes: bool,
+    ) -> Vec<(String, Vec<Vec<RuntimeRootCell>>)> {
+        use rusqlite::types::ValueRef;
+        let tables = conn
+            .prepare("SELECT name FROM sqlite_schema WHERE type='table' ORDER BY name")
+            .unwrap()
+            .query_map([], |r| r.get::<_, String>(0))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        tables
+            .into_iter()
+            .filter(|t| include_nodes || t != "s_content_nodes")
+            .map(|table| {
+                let order = if table == "s_content_nodes" {
+                    "digest"
+                } else {
+                    "rowid"
+                };
+                let mut stmt = conn
+                    .prepare(&format!("SELECT * FROM {table} ORDER BY {order}"))
+                    .unwrap();
+                let count = stmt.column_count();
+                let rows = stmt
+                    .query_map([], |row| {
+                        (0..count)
+                            .map(|i| {
+                                Ok(match row.get_ref(i)? {
+                                    ValueRef::Null => RuntimeRootCell::Null,
+                                    ValueRef::Integer(v) => RuntimeRootCell::Integer(v),
+                                    ValueRef::Real(v) => RuntimeRootCell::RealBits(v.to_bits()),
+                                    ValueRef::Text(v) => RuntimeRootCell::Text(v.to_vec()),
+                                    ValueRef::Blob(v) => RuntimeRootCell::Blob(v.to_vec()),
+                                })
+                            })
+                            .collect::<rusqlite::Result<Vec<_>>>()
+                    })
+                    .unwrap()
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap();
+                (table, rows)
+            })
+            .collect()
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn runtime_root_compare_reachable_bytes(left: &Connection, right: &Connection) {
+        use std::collections::{BTreeMap, BTreeSet};
+        let nodes = |c: &Connection| {
+            c.prepare("SELECT digest,tag,body FROM s_content_nodes ORDER BY digest")
+                .unwrap()
+                .query_map([], |r| {
+                    Ok((
+                        r.get::<_, Vec<u8>>(0)?,
+                        (r.get::<_, u8>(1)?, r.get::<_, Vec<u8>>(2)?),
+                    ))
+                })
+                .unwrap()
+                .collect::<Result<BTreeMap<_, _>, _>>()
+                .unwrap()
+        };
+        let roots = |c: &Connection| {
+            let mut roots = Vec::new();
+            for (table, columns) in [
+                (
+                    "s_content_publications",
+                    vec!["manifest_root", "snapshot_root", "delta_root"],
+                ),
+                (
+                    "s_content_objects",
+                    vec![
+                        "generated_root",
+                        "internal_root",
+                        "immutable_root",
+                        "birth_wire_root",
+                    ],
+                ),
+                ("s_content_witnesses", vec!["generated_root", "wire_root"]),
+                ("s_content_relations", vec!["generated_root"]),
+                (
+                    "s_content_observations",
+                    vec!["generated_root", "birth_wire_root"],
+                ),
+            ] {
+                for column in columns {
+                    roots.extend(
+                        c.prepare(&format!("SELECT {column} FROM {table}"))
+                            .unwrap()
+                            .query_map([], |r| r.get::<_, Vec<u8>>(0))
+                            .unwrap()
+                            .collect::<Result<Vec<_>, _>>()
+                            .unwrap(),
+                    );
+                }
+            }
+            for (table, column) in [
+                ("structure_deltas", "delta_json"),
+                ("structure_deltas", "catalog_evidence_json"),
+                ("catalog", "evidence_json"),
+            ] {
+                for raw in c
+                    .prepare(&format!("SELECT {column} FROM {table}"))
+                    .unwrap()
+                    .query_map([], |r| r.get::<_, String>(0))
+                    .unwrap()
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap()
+                {
+                    let value = strict_json(raw.as_bytes()).unwrap();
+                    if value == json!({}) {
+                        continue;
+                    }
+                    let r = sc::TransportRef::from_json_view((&value).into()).unwrap();
+                    roots.push(r.digest().unwrap().to_vec());
+                }
+            }
+            roots
+        };
+        let a = nodes(left);
+        let b = nodes(right);
+        let mut todo = roots(left);
+        assert_eq!(todo, roots(right));
+        let mut seen = BTreeSet::new();
+        while let Some(root) = todo.pop() {
+            if !seen.insert(root.clone()) {
+                continue;
+            }
+            let (tag, body) = a.get(&root).unwrap();
+            assert_eq!(a.get(&root), b.get(&root));
+            let offsets: &[usize] = match tag {
+                3 | 4 | 5 | 6 => &[8],
+                7 | 18 => &[0],
+                19 => &[8, 40],
+                20 => &[0, 32],
+                _ => &[],
+            };
+            for &offset in offsets {
+                todo.push(body[offset..offset + 32].to_vec());
+            }
+        }
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn runtime_roots_snapshot(
+        f: &Fixture,
+        out: &Path,
+        stage: &str,
+        reads: &[sc::NodeDigest],
+        elapsed: u128,
+    ) -> Value {
+        let roots = f.runtime.visit_runtime_roots().unwrap();
+        let folder = out.join(stage);
+        std::fs::create_dir(&folder).unwrap();
+        for name in ["s.sqlite", "s.sqlite-wal", "s.sqlite-shm"] {
+            let source = f.path.join(name);
+            assert!(source.is_file());
+            std::fs::copy(source, folder.join(name)).unwrap();
+        }
+        let list = roots
+            .into_iter()
+            .map(|(owner, digest)| json!({"owner":owner,"root":sc::root_string(&digest)}))
+            .collect::<Vec<_>>();
+        json!({"stage":stage,"generation":meta_i64(&f.conn,"generation").unwrap(),"owned_snapshot":folder,"runtime_roots":list,"SQL_node_reads":reads.iter().map(sc::root_string).collect::<Vec<_>>(),"elapsed_ns":elapsed.to_string(),"scope":"postcommit or after existing error rollback/discard; no inflight locals or external process caches","error_persistent_rows_and_nodes_exact_unchanged":stage=="error-cleanup"})
+    }
+
     fn count(conn: &Connection, table: &str) -> i64 {
         conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))
             .unwrap()

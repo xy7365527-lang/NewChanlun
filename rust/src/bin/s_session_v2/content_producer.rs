@@ -589,6 +589,35 @@ pub(super) struct MemoCounts {
 }
 
 impl Cc004Producer {
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn visit_runtime_roots(&self, f: &mut dyn FnMut(&'static str, NodeDigest)) {
+        for (_, root) in self.sources.values() {
+            f("producer.sources", *root);
+        }
+        for root in self.shape_sources.values() {
+            f("producer.shape_sources", *root);
+        }
+        for root in self.coord_text.values() {
+            f("producer.coord_text", *root);
+        }
+        for (name, cache) in [
+            ("producer.text_arrays", &self.text_arrays),
+            ("producer.ref_arrays", &self.ref_arrays),
+            ("producer.shape_ref_arrays", &self.shape_ref_arrays),
+        ] {
+            for entry in cache.entries.values() {
+                f(name, entry.root);
+                f(name, entry.seq.root());
+            }
+        }
+        for history in self.fractal_histories.values() {
+            f(
+                "producer.fractal_histories.sequence",
+                history.sequence.root(),
+            );
+        }
+    }
+
     /// 会话冻结身份（进 §5.3 的六字段配方）。
     pub(super) fn new(profile_id: &str, rule_revision: &str) -> Self {
         Cc004Producer {

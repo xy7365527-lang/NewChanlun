@@ -127,6 +127,12 @@ fn read_material(
     };
     let tag = u8::try_from(stored_tag)
         .map_err(|_| CodecError::new(code::NODE_DIGEST, "节点 tag 超过一个字节"))?;
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    RUNTIME_READS.with(|reads| {
+        if let Some(reads) = reads.borrow_mut().as_mut() {
+            reads.insert(*digest);
+        }
+    });
     Ok(Some((tag, body)))
 }
 
@@ -136,6 +142,20 @@ thread_local! { static SQL_READS: std::cell::Cell<u64> = const { std::cell::Cell
 #[cfg(test)]
 pub(super) fn sql_reads_on_thread() -> u64 {
     SQL_READS.with(std::cell::Cell::get)
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+thread_local! { static RUNTIME_READS: std::cell::RefCell<Option<std::collections::BTreeSet<NodeDigest>>> = const { std::cell::RefCell::new(None) }; }
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(super) fn begin_runtime_reads() {
+    RUNTIME_READS.with(|reads| {
+        assert!(reads.borrow().is_none());
+        *reads.borrow_mut() = Some(Default::default());
+    });
+}
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(super) fn end_runtime_reads() -> Vec<NodeDigest> {
+    RUNTIME_READS.with(|reads| reads.borrow_mut().take().unwrap().into_iter().collect())
 }
 
 fn read_checked_node(

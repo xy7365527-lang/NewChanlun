@@ -429,6 +429,45 @@ pub(super) struct Runtime {
     sequences: [SequenceMemo; 8],
 }
 impl Runtime {
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn visit_runtime_roots(
+        &self,
+        f: &mut dyn FnMut(&'static str, NodeDigest),
+    ) -> Result<(), String> {
+        if let Some(map) = &self.witness_wires.map {
+            for ((root, _), value) in map.iter() {
+                f("aux.witness_wires.key", *root);
+                f("aux.witness_wires.value", value.digest().map_err(err)?);
+            }
+        }
+        if let Some(map) = &self.bar_wires.map {
+            for (root, value) in map.iter() {
+                f("aux.bar_wires.key", *root);
+                f("aux.bar_wires.value", value.digest().map_err(err)?);
+            }
+        }
+        if let Some(map) = &self.observation_ids.map {
+            for (root, _) in map.iter() {
+                f("aux.observation_ids.key", *root);
+            }
+        }
+        if let Some(map) = &self.raw_wires.map {
+            for (_, value) in map.iter() {
+                f("aux.raw_wires.value", *value);
+            }
+        }
+        for (name, memo) in [
+            "aux.seq0", "aux.seq1", "aux.seq2", "aux.seq3", "aux.seq4", "aux.seq5", "aux.seq6",
+            "aux.seq7",
+        ]
+        .into_iter()
+        .zip(&self.sequences)
+        {
+            memo.visit_runtime_roots(name, f);
+        }
+        Ok(())
+    }
+
     pub(super) fn discard(&mut self) {
         *self = Self::default();
     }
