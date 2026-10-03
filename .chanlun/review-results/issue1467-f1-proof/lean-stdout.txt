@@ -1,0 +1,5 @@
+'OrderBaseBoundary.semantic_unique_composes' does not depend on any axioms
+'OrderBaseBoundary.selector_does_not_supply_semantic_uniqueness' depends on axioms: [propext, Quot.sound]
+'OrderBaseBoundary.no_exact_scalar_order_reflection' depends on axioms: [propext]
+'OrderBaseBoundary.weighted_numerator_bounds' does not depend on any axioms
+'OrderBaseBoundary.pulse_observation_changes' does not depend on any axioms

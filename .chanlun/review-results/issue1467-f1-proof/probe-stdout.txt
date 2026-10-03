@@ -1,0 +1,8 @@
+scope=synthetic_queue_projection_module_probe min_gap=3 metadata_volume=0 untradable=true
+case=quantity_projection bars=757 merged=753 fractals=62 strokes=61 segments=7 certified_segments=6 certified_center_windows=4 checked_prefixes=757
+first_segment=Segment { direction: Down, start_index: 12, end_index: 72, start_price: 10185, end_price: 10015 }
+first_center_window=Center { zd: 10015, zg: 10185, dd: 10015, gg: 10195, start_index: 12, end_index: 264 }
+case=unchanged_quotes_midpoint bars=757 merged=757 fractals=0 strokes=0 segments=0 certified_segments=0 certified_center_windows=0 checked_prefixes=757
+case=short_clock_once bars=16 merged=16 fractals=14 strokes=0 segments=0 certified_segments=0 certified_center_windows=0 checked_prefixes=16
+case=short_clock_repeat4 bars=64 merged=16 fractals=14 strokes=13 segments=1 certified_segments=0 certified_center_windows=0 checked_prefixes=64
+first_segment=Segment { direction: Down, start_index: 4, end_index: 24, start_price: 10185, end_price: 10015 }
