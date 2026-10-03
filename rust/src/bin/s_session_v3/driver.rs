@@ -76,6 +76,8 @@ pub(super) fn check_request_before_resume(
 
 pub(super) struct Driver {
     conn: Connection,
+    /// 私有 TESTONLY 分配档；与 Runtime 共享同一 OwnedBudget，跨请求不保留捕获或审计结果。
+    allocation: Option<q_allocation::Profile>,
     runtime: prepared::Runtime,
     clock: v2::ClockPlan,
     epoch: String,
@@ -96,8 +98,27 @@ impl Driver {
         clock: v2::ClockPlan,
         audit_cache_source_bytes: usize,
     ) -> Result<Self, String> {
+        Self::open_for_serve_with_allocation(
+            db,
+            profile,
+            epoch,
+            clock,
+            audit_cache_source_bytes,
+            None,
+        )
+    }
+
+    pub(super) fn open_for_serve_with_allocation(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        audit_cache_source_bytes: usize,
+        allocation: Option<q_allocation::Profile>,
+    ) -> Result<Self, String> {
         state::check_audit_source_retention(audit_cache_source_bytes)?;
-        let mut driver = Self::open(db, profile, epoch, clock)?;
+        let mut driver =
+            Self::open_with_request_and_allocation(db, profile, epoch, clock, None, allocation)?;
         driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
         Ok(driver)
     }
@@ -155,6 +176,21 @@ impl Driver {
         clock: v2::ClockPlan,
         request: Option<&Value>,
     ) -> Result<Self, String> {
+        Self::open_with_request_and_allocation(db, profile, epoch, clock, request, None)
+    }
+
+    /// 在恢复 pending 之前冻结私有 TestOnly 档；启动身份审计仍走原入口。
+    pub(super) fn open_with_request_and_allocation(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        request: Option<&Value>,
+        allocation: Option<q_allocation::Profile>,
+    ) -> Result<Self, String> {
+        if let Some(profile) = allocation.as_ref() {
+            profile.validate()?;
+        }
         parse_writer_epoch(epoch, "configured writer_epoch")?;
         if !db.is_file() {
             return Err("StorageUnavailable：S3驱动只打开已初始化库".into());
@@ -186,7 +222,8 @@ impl Driver {
         drop(tx);
         let mut driver = Self {
             conn,
-            runtime: prepared::Runtime::new(),
+            runtime: prepared::Runtime::with_allocation(allocation.clone()),
+            allocation,
             clock,
             epoch: epoch.into(),
             profile_id,
@@ -206,7 +243,7 @@ impl Driver {
             state::check_audit_source_retention(cap)?;
         }
         let tx = self.conn.transaction().map_err(err)?;
-        state::audit(&tx)?;
+        s_allocation::audit(&tx, self.allocation.as_ref(), s_allocation::Phase::Handle)?;
         verify_writer_epoch(&tx, &self.epoch)?;
         let control = control::S3Control::attach(&tx, &self.clock)?;
         let (sid, inc, _) = control.identity();
@@ -283,7 +320,8 @@ impl Driver {
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(err)?;
-        let audited = state::audit(&tx)?;
+        let audited =
+            s_allocation::audit(&tx, self.allocation.as_ref(), s_allocation::Phase::Advance)?;
         verify_writer_epoch(&tx, &self.epoch)?;
         if meta_get_opt(&tx, "advance_state")?.as_deref() != Some("idle") {
             return Err("StaleWriter：已有未完成Begin".into());
@@ -478,6 +516,234 @@ mod tests {
     fn count(c: &Connection, t: &str) -> i64 {
         c.query_row(&format!("SELECT COUNT(*) FROM {t}"), [], |r| r.get(0))
             .unwrap()
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    fn allocation_profile() -> q_allocation::Profile {
+        // 既有具名 TestOnly 对照域，绝非生产容量或资源默认值。
+        q_allocation::Profile {
+            budget: newchan_rust::s_content::capture_allocation::OwnedBudget::new(50 * 1024 * 1024),
+            overlay_slots: 32768,
+            overlay_bytes: 1_000_000,
+        }
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    fn allocation_driver(f: &Fixture, profile: q_allocation::Profile) -> Driver {
+        Driver::open_with_request_and_allocation(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            None,
+            Some(profile),
+        )
+        .unwrap()
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn allocation_testonly_real_ingest_captures_current_three_phases_and_preserves_receipt() {
+        use s_allocation::{probe, Phase};
+        let f = Fixture::new();
+        let ordinary = Fixture::new();
+        let expected = ordinary
+            .open("1")
+            .unwrap()
+            .handle(Fixture::ingest(1))
+            .unwrap();
+        let profile = allocation_profile();
+        let budget = profile.budget.clone();
+        let mut d = allocation_driver(&f, profile);
+        probe::start(None);
+        let receipt = d.handle(Fixture::ingest(1)).unwrap();
+        let (attempts, captures) = probe::finish();
+        assert_eq!(receipt, expected, "公开回复与普通路径逐字相同");
+        assert_eq!(attempts, [1, 1, 1]);
+        for (index, (phase, raw, clocks, has_begin)) in [
+            (Phase::Handle, 0, 0, false),
+            (Phase::Advance, 1, 1, false),
+            (Phase::Prepare, 1, 2, true),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let observed = captures[index].unwrap();
+            assert_eq!(observed.phase, phase);
+            assert_eq!(observed.raw, raw);
+            assert_eq!(observed.clocks, clocks);
+            assert_eq!(observed.has_begin, has_begin);
+            assert_eq!(observed.capture_return_ordinal, index + 1);
+        }
+        assert_eq!(captures[0].unwrap().live_before, 0);
+        assert_eq!(
+            captures[1].unwrap().live_before,
+            0,
+            "handle 的审计结果与 capture 已释放"
+        );
+        assert!(
+            captures[2].unwrap().live_before > 0,
+            "advance 审计结果跨 prepare 存活并持续计费"
+        );
+        assert_eq!(meta_i64(&d.conn, "generation").unwrap(), 1);
+        assert_eq!(count(&d.conn, "raw_events"), 1);
+        assert_eq!(count(&d.conn, "s_content_publications"), 1);
+        assert_eq!(count(&d.conn, "structure_deltas"), 1);
+        assert_eq!(count(&d.conn, "s_clock_events"), 3);
+        let tx = d.conn.transaction().unwrap();
+        let published = state::audit(&tx).unwrap();
+        assert_eq!(published.cuts.len(), 1);
+        assert_eq!(published.raw.len(), 1);
+        drop(published);
+        drop(tx);
+        let meter = budget.snapshot();
+        assert!(meter.peak_requested_layout_bytes > 0);
+        assert_eq!(meter.live_requested_layout_bytes, 0);
+        assert_eq!(meter.allocated_layouts, meter.released_layouts);
+        assert!(!budget.ledger_health().invariant_broken);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn allocation_testonly_each_phase_budget_refuses_without_fallback_or_crossing_persistent_boundary(
+    ) {
+        use s_allocation::{probe, Phase};
+        for (index, phase) in [Phase::Handle, Phase::Advance, Phase::Prepare]
+            .into_iter()
+            .enumerate()
+        {
+            let f = Fixture::new();
+            let profile = allocation_profile();
+            let budget = profile.budget.clone();
+            let mut d = allocation_driver(&f, profile);
+            probe::start(Some((phase, probe::Fault::Budget)));
+            let error = d.handle(Fixture::ingest(1)).unwrap_err();
+            let (attempts, captures) = probe::finish();
+            assert!(
+                error.contains(newchan_rust::s_content::capture_allocation::LIMIT),
+                "{phase:?}: {error}"
+            );
+            for i in 0..3 {
+                assert_eq!(attempts[i], usize::from(i <= index));
+                assert_eq!(captures[i].is_some(), i < index);
+            }
+            assert_allocation_boundary(&d.conn, index);
+            let meter = budget.snapshot();
+            assert!(
+                meter.rejected_layouts > 0,
+                "真实 OwnedBudget 必须拒绝实际申请"
+            );
+            assert_eq!(meter.live_requested_layout_bytes, 0);
+            assert_eq!(meter.allocated_layouts, meter.released_layouts);
+            assert!(!budget.ledger_health().invariant_broken);
+        }
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    fn assert_allocation_boundary(conn: &Connection, completed_phases: usize) {
+        assert_eq!(meta_i64(conn, "generation").unwrap(), 0);
+        assert_eq!(count(conn, "raw_events"), i64::from(completed_phases > 0));
+        assert_eq!(
+            count(conn, "s_input_messages"),
+            i64::from(completed_phases > 0)
+        );
+        assert_eq!(count(conn, "s_clock_events"), completed_phases as i64);
+        assert_eq!(
+            meta_get_opt(conn, "advance_state").unwrap().as_deref() == Some("idle"),
+            completed_phases < 2
+        );
+        let pending: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM s_input_messages WHERE status='AcceptedPending'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(pending, i64::from(completed_phases > 0));
+        for table in [
+            "s_content_nodes",
+            "s_content_objects",
+            "s_content_publications",
+            "structure_deltas",
+        ] {
+            assert_eq!(count(conn, table), 0, "{table}");
+        }
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn allocation_testonly_real_sql_prepare_and_step_errors_propagate_at_each_phase() {
+        use s_allocation::{probe, Phase};
+        for fault in [probe::Fault::SqlPrepare, probe::Fault::SqlStep] {
+            for (index, phase) in [Phase::Handle, Phase::Advance, Phase::Prepare]
+                .into_iter()
+                .enumerate()
+            {
+                let f = Fixture::new();
+                let profile = allocation_profile();
+                let budget = profile.budget.clone();
+                let mut d = allocation_driver(&f, profile);
+                probe::start(Some((phase, fault)));
+                let error = d.handle(Fixture::ingest(1)).unwrap_err();
+                d.conn.progress_handler(0, None::<fn() -> bool>);
+                let (attempts, captures) = probe::finish();
+                // CheckedStatement 保留 sqlite3_prepare_v2 / sqlite3_step 的真实 code，
+                // SqliteFailure(_, None) 不携带连接 errmsg。锁 code 和完整既有封装，
+                // 不能要求已被该 checked 边界舍弃的 "no such table" 文本。
+                let code = match fault {
+                    probe::Fault::SqlPrepare => rusqlite::ffi::SQLITE_ERROR,
+                    probe::Fault::SqlStep => rusqlite::ffi::SQLITE_INTERRUPT,
+                    _ => unreachable!(),
+                };
+                let diagnostic =
+                    rusqlite::Error::SqliteFailure(rusqlite::ffi::Error::new(code), None);
+                let expected = format!("S3StateInvalid：source: S3 内容存储：{diagnostic}");
+                assert_eq!(error, expected, "{phase:?}: actual SQLite code {code}");
+                for i in 0..3 {
+                    assert_eq!(attempts[i], usize::from(i <= index));
+                    assert_eq!(captures[i].is_some(), i < index);
+                }
+                assert_allocation_boundary(&d.conn, index);
+                assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+                assert!(!budget.ledger_health().invariant_broken);
+            }
+        }
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn allocation_testonly_is_bound_before_resume_pending_advances() {
+        use s_allocation::{probe, Phase};
+        let f = Fixture::new();
+        let mut ordinary = f.open("1").unwrap();
+        ordinary.stop_after = Some("accept");
+        assert!(ordinary
+            .handle(Fixture::ingest(1))
+            .unwrap_err()
+            .contains("stop_after_accept"));
+        drop(ordinary);
+        let profile = allocation_profile();
+        let budget = profile.budget.clone();
+        probe::start(Some((Phase::Advance, probe::Fault::Budget)));
+        let error = Driver::open_with_request_and_allocation(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            None,
+            Some(profile),
+        )
+        .err()
+        .unwrap();
+        let (attempts, _) = probe::finish();
+        assert!(
+            error.contains(newchan_rust::s_content::capture_allocation::LIMIT),
+            "{error}"
+        );
+        assert_eq!(attempts, [0, 1, 0]);
+        let conn = open_db(&f.db).unwrap();
+        assert_allocation_boundary(&conn, 1);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
 
     #[test]

@@ -465,6 +465,7 @@ fn verify_control_resource_digest(
 
 /// 全部参数/资源核验后，先持唯一写锁、完整审计/profile/clock/pending，再监听。
 fn serve(options: ServeOptions) -> Result<Option<Value>, String> {
+    let allocation = s_allocation::load_testonly_environment()?;
     let resources = SResources::load(&options.resources)?;
     let expected = match std::env::var("S_CONTROL_RESOURCE_SHA256") {
         Ok(value) => Some(value),
@@ -477,12 +478,13 @@ fn serve(options: ServeOptions) -> Result<Option<Value>, String> {
     let clock = v2::ClockPlan::load(&options.clock)?;
     checked_profile(&options.profile)?;
     serve_authorization(&resources)?;
-    let mut driver = Driver::open_for_serve(
+    let mut driver = Driver::open_for_serve_with_allocation(
         &options.db,
         &options.profile,
         &options.epoch,
         clock,
         resources.limit("audit_cache_source_bytes"),
+        allocation,
     )?;
     let identity = driver.identity()?;
     let control_instance_id = std::env::var("S_CONTROL_INSTANCE_ID").ok();
@@ -535,6 +537,7 @@ fn reply(
 /// 一次性推进：打开唯一 Driver（`open` 内部按库中原件 `resume_pending`，不重写原身份），
 /// 打印真实持久摘要后退出；不监听、不常驻。
 fn advance(options: AdvanceOptions) -> Result<Option<Value>, String> {
+    let allocation = s_allocation::load_testonly_environment()?;
     let clock = v2::ClockPlan::load(&options.clock)?;
     checked_profile(&options.profile)?;
     let input = options
@@ -545,12 +548,13 @@ fn advance(options: AdvanceOptions) -> Result<Option<Value>, String> {
     if let Some(ref envelope) = input {
         preflight_input(&options, &clock, envelope)?;
     }
-    let mut driver = Driver::open_with_request(
+    let mut driver = Driver::open_with_request_and_allocation(
         &options.db,
         &options.profile,
         &options.epoch,
         clock,
         input.as_ref(),
+        allocation,
     )?;
     match input {
         Some(envelope) => Ok(Some(driver.handle(envelope)?)),

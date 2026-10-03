@@ -11,6 +11,8 @@ use newchan_rust::session_protocol::required;
 use rusqlite::Transaction;
 
 pub(super) struct Runtime {
+    /// 私有 TESTONLY 分配档；只持预算与数值，不持捕获或审计结果。
+    allocation: Option<q_allocation::Profile>,
     binding: Option<Vec<String>>,
     generator: Option<GenerationRuntime>,
     auxiliary: aux_index::Runtime,
@@ -20,7 +22,12 @@ pub(super) struct Runtime {
 
 impl Runtime {
     pub(super) fn new() -> Self {
+        Self::with_allocation(None)
+    }
+
+    pub(super) fn with_allocation(allocation: Option<q_allocation::Profile>) -> Self {
         Self {
+            allocation,
             binding: None,
             generator: None,
             auxiliary: Default::default(),
@@ -70,7 +77,8 @@ impl Runtime {
         envelope: &Value,
     ) -> Result<Prepared, String> {
         // 完整旧状态审计（读写共用同一份 state::audit）先于节点、索引、目录等第一次写入完成。
-        let audited = state::audit(tx)?;
+        let audited =
+            s_allocation::audit(tx, self.allocation.as_ref(), s_allocation::Phase::Prepare)?;
         let clock = v2::stored_clock(tx)?;
         let control = control::S3Control::attach(tx, &clock)?;
         let view = control.load_pending(
@@ -570,7 +578,31 @@ pub(crate) mod tests {
 
     #[test]
     fn sqlite_commit_failure_cannot_return_a_receipt_or_keep_real_prepared_state() {
+        check_sqlite_commit_failure(None);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn allocation_testonly_sqlite_commit_failure_cannot_return_receipt_or_keep_prepared_state() {
+        let profile = q_allocation::Profile {
+            budget: sc::capture_allocation::OwnedBudget::new(50 * 1024 * 1024),
+            overlay_slots: 32768,
+            overlay_bytes: 1_000_000,
+        };
+        let budget = profile.budget.clone();
+        s_allocation::probe::start(None);
+        check_sqlite_commit_failure(Some(profile));
+        let (attempts, captures) = s_allocation::probe::finish();
+        // 两次真实 prepare：失败 COMMIT 后保持原 Runtime 重试，两次都 fresh capture。
+        assert_eq!(attempts, [0, 0, 2]);
+        assert_eq!(captures[2].unwrap().capture_return_ordinal, 2);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        assert!(!budget.ledger_health().invariant_broken);
+    }
+
+    fn check_sqlite_commit_failure(allocation: Option<q_allocation::Profile>) {
         let mut f = Fixture::new();
+        f.runtime = Runtime::with_allocation(allocation);
         let (e, token) = f.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
         let before = catalog(&f.conn);
         // 注入发生在写前审计之后；所有语句先成功，SQLite COMMIT才因外键失败。

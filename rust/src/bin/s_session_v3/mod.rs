@@ -73,6 +73,7 @@ mod q_snapshot;
 mod q_watch;
 mod q_wire;
 mod reader;
+mod s_allocation;
 mod source_audit;
 mod state;
 mod writer_cli;
