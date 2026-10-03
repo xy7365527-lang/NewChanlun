@@ -1,0 +1,170 @@
+{
+  "run_id": "70afcb63cad748cebe219c90e28e4091",
+  "machine_verification_passed": true,
+  "exact_root_passed": true,
+  "semantic": {
+    "status": "not_reviewed",
+    "reused": false,
+    "semantic_sha256": "d1fdc647695c58e63568ef80a4975b6d31eb5306551a2d4fdf7d34afaa24dd05"
+  },
+  "root_closure": {
+    "status": "closed",
+    "exact_root_passed": true,
+    "declaration_closed": true,
+    "scope": "expected Lean type in the recorded environment; semantic review is separate"
+  },
+  "target": {
+    "declaration": "LiftBoundary.exact_root",
+    "actual_type": "And LiftBoundary.INTERSECTION_TARGET\n  (And LiftBoundary.WITNESS_TARGET (And LiftBoundary.ORIGIN_REJECTION_TARGET (Not LiftBoundary.AutomaticStrictLift)))",
+    "expected_type": "LiftBoundary.INTERSECTION_TARGET ∧ LiftBoundary.WITNESS_TARGET ∧ LiftBoundary.ORIGIN_REJECTION_TARGET ∧ ¬ LiftBoundary.AutomaticStrictLift",
+    "comparison": {
+      "binder_kinds_match": true,
+      "definitionally_equal": true,
+      "expected_type_expression": [
+        "app",
+        [
+          "app",
+          [
+            "const",
+            [
+              "And",
+              []
+            ]
+          ],
+          [
+            "const",
+            [
+              "LiftBoundary.INTERSECTION_TARGET",
+              []
+            ]
+          ]
+        ],
+        [
+          "app",
+          [
+            "app",
+            [
+              "const",
+              [
+                "And",
+                []
+              ]
+            ],
+            [
+              "const",
+              [
+                "LiftBoundary.WITNESS_TARGET",
+                []
+              ]
+            ]
+          ],
+          [
+            "app",
+            [
+              "app",
+              [
+                "const",
+                [
+                  "And",
+                  []
+                ]
+              ],
+              [
+                "const",
+                [
+                  "LiftBoundary.ORIGIN_REJECTION_TARGET",
+                  []
+                ]
+              ]
+            ],
+            [
+              "app",
+              [
+                "const",
+                [
+                  "Not",
+                  []
+                ]
+              ],
+              [
+                "const",
+                [
+                  "LiftBoundary.AutomaticStrictLift",
+                  []
+                ]
+              ]
+            ]
+          ]
+        ]
+      ],
+      "expected_universes": [],
+      "status": "matched",
+      "universe_parameters_match": true
+    },
+    "axioms": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ],
+    "unexpected_axioms": [],
+    "unsafe_dependencies": [],
+    "unknown_dependencies": [],
+    "identity_mismatches": [],
+    "type_sha256": "86376bf25eb211dea66e0b7446215358af4709a84a3497b1244f5bd786aed773",
+    "semantic_sha256": "d1fdc647695c58e63568ef80a4975b6d31eb5306551a2d4fdf7d34afaa24dd05",
+    "environment_sha256": "1b9404d3b250a7b64c52ba8b4670f80c563654a1bbcd12534d55699da6a864d2",
+    "loaded_module_count": 2285
+  },
+  "environment": {
+    "lean_version": "Lean (version 4.31.0, arm64-apple-darwin24.6.0, commit 68218e876d2a38b1985b8590fff244a83c321783, Release)",
+    "lean_status": "passed",
+    "lake_version": "Lake version 5.0.0-src+68218e8 (Lean version 4.31.0)",
+    "lake_status": "passed",
+    "lean_toolchain": null,
+    "configuration_hashes": {},
+    "binary_hashes": {
+      "bin/lean": "1b370cfcbf44e80d1b004ab1b1ab9a4c73951f9f7c242140bcff9bc577576554",
+      "bin/lake": "58261a1a2fa1a362376c71e02ca854a093e71cc5e6ea64b287a931cb2565273d",
+      "lib/lean/libleanshared.dylib": "a695a9aa68481c42b99619e0103537e6b433c6fa7021927b184e19a686d03989"
+    },
+    "prefix": "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0",
+    "mode": "direct",
+    "inherited_lean_path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean",
+    "inherited_lean_src_path": "",
+    "sha256": "ab12fe9dc8a44913f3e981589728394c459467fdce1b4bd9fabf9642f84c3330"
+  },
+  "manifest": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/lift-boundary-verified-v1/run-manifest.json",
+    "sha256": "8b6dcd634aa07e95d9d2205fbf44ed6fd3aa13633d2034fe0c45c7b5f2658775"
+  },
+  "invocation": {
+    "command": [
+      "python3",
+      "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.agents/research-tools/xsoc1-9e0da0c3/plugins/lean-verify/scripts/verify_lean_project.py",
+      "--project",
+      "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof",
+      "--target-file",
+      "LiftBoundaryProof.lean",
+      "--declaration",
+      "LiftBoundary.exact_root",
+      "--expected-type",
+      "LiftBoundary.INTERSECTION_TARGET ∧ LiftBoundary.WITNESS_TARGET ∧ LiftBoundary.ORIGIN_REJECTION_TARGET ∧ ¬ LiftBoundary.AutomaticStrictLift",
+      "--lean",
+      "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+      "--lake",
+      "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lake",
+      "--direct",
+      "--build-timeout",
+      "60",
+      "--strict-exit",
+      "--output",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/lift-boundary-verified-v1"
+    ],
+    "cwd": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun",
+    "LEAN_PATH": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean"
+  },
+  "development_failure": {
+    "run_id": "cc7e0da79d5d44f6a9c5e147b09cbea8",
+    "reason": "record projections and closedTouches had to be unfolded in proof bodies; frozen declarations and inputs were unchanged"
+  }
+}
