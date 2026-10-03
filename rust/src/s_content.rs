@@ -2093,6 +2093,51 @@ pub struct AuditCapture {
     reads: std::cell::Cell<u64>,
 }
 impl AuditCapture {
+    /// #1394 私有Native请求复用的原件绑定：比较完整digest/tag/body集合；不读取证明或摘要替代正文。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn exact_original_tuples_equal(&self, other: &Self) -> Result<bool, CodecError> {
+        let count = |nodes: &CaptureNodes| match nodes {
+            CaptureNodes::Legacy(nodes) => Some(nodes.len()),
+            CaptureNodes::Native(nodes) => Some(nodes.nodes.len()),
+            CaptureNodes::AllocationPrototype(_) => None,
+        };
+        let Some(left_len) = count(&self.nodes) else {
+            return Err(CodecError::new(
+                code::SOURCE,
+                "Owned捕获不得参与Native请求历史复用",
+            ));
+        };
+        let Some(right_len) = count(&other.nodes) else {
+            return Err(CodecError::new(
+                code::SOURCE,
+                "Owned捕获不得参与Native请求历史复用",
+            ));
+        };
+        if left_len != right_len {
+            return Ok(false);
+        }
+        let matches = |digest: &NodeDigest, tag: u8, body: &[u8]| match &other.nodes {
+            CaptureNodes::Legacy(nodes) => nodes
+                .get(digest)
+                .is_some_and(|(t, b)| *t == tag && b.as_slice() == body),
+            CaptureNodes::Native(nodes) => nodes
+                .nodes
+                .get(digest)
+                .is_some_and(|node| node.tag == tag && node.body.as_slice() == body),
+            CaptureNodes::AllocationPrototype(_) => false,
+        };
+        Ok(match &self.nodes {
+            CaptureNodes::Legacy(nodes) => nodes
+                .iter()
+                .all(|(digest, (tag, body))| matches(digest, *tag, body)),
+            CaptureNodes::Native(nodes) => nodes
+                .nodes
+                .iter()
+                .all(|(digest, node)| matches(digest, node.tag, &node.body)),
+            CaptureNodes::AllocationPrototype(_) => unreachable!(),
+        })
+    }
     pub fn new(nodes: MemoryNodes) -> Self {
         Self {
             nodes: CaptureNodes::Legacy(nodes.nodes),
@@ -5436,6 +5481,38 @@ mod sha256_backend_tests {
                     "len={len} chunk={chunk}"
                 );
             }
+        }
+    }
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+mod request_original_tuple_tests {
+    use super::*;
+    #[test]
+    fn request_original_tuple_binding_compares_body_tag_digest_and_complete_set() {
+        let mut nodes = MemoryNodes::new();
+        nodes.nodes.insert([1; 32], (7, vec![1, 2, 3]));
+        let original = AuditCapture::new(nodes.clone())
+            .enable_native_frame_reuse_for_testonly()
+            .unwrap();
+        assert!(original
+            .exact_original_tuples_equal(&AuditCapture::new(nodes.clone()))
+            .unwrap());
+        for variant in 0..4 {
+            let mut changed = nodes.clone();
+            match variant {
+                0 => changed.nodes.get_mut(&[1; 32]).unwrap().1[2] = 4,
+                1 => changed.nodes.get_mut(&[1; 32]).unwrap().0 = 8,
+                2 => {
+                    changed.nodes.clear();
+                }
+                _ => {
+                    changed.nodes.insert([2; 32], (7, vec![1, 2, 3]));
+                }
+            }
+            assert!(!original
+                .exact_original_tuples_equal(&AuditCapture::new(changed))
+                .unwrap());
         }
     }
 }

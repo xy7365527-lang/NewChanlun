@@ -77,6 +77,14 @@ impl Runtime {
         }
     }
 
+    #[cfg(test)]
+    pub(super) fn set_after_prepare_for_request_test(
+        &mut self,
+        hook: Option<fn(&Transaction<'_>) -> Result<(), String>>,
+    ) {
+        self.after_prepare = hook;
+    }
+
     fn discard(&mut self) {
         if let Some(generator) = &mut self.generator {
             generator.discard_runtime_state();
@@ -91,8 +99,26 @@ impl Runtime {
         token: &str,
         envelope: &Value,
     ) -> Result<commit::CommitReceipt, String> {
+        self.commit_impl(tx, token, envelope, None)
+    }
+    pub(super) fn commit_in_request(
+        &mut self,
+        tx: Transaction<'_>,
+        token: &str,
+        envelope: &Value,
+        context: &mut request_audit::RequestAuditContext,
+    ) -> Result<commit::CommitReceipt, String> {
+        self.commit_impl(tx, token, envelope, Some(context))
+    }
+    fn commit_impl(
+        &mut self,
+        tx: Transaction<'_>,
+        token: &str,
+        envelope: &Value,
+        context: Option<&mut request_audit::RequestAuditContext>,
+    ) -> Result<commit::CommitReceipt, String> {
         let result = (|| {
-            let prepared = self.prepare(&tx, token, envelope)?;
+            let prepared = self.prepare(&tx, token, envelope, context)?;
             #[cfg(test)]
             if let Some(inject) = self.after_prepare {
                 inject(&tx)?;
@@ -116,9 +142,18 @@ impl Runtime {
         tx: &Transaction<'_>,
         token: &str,
         envelope: &Value,
+        context: Option<&mut request_audit::RequestAuditContext>,
     ) -> Result<Prepared, String> {
         // 完整旧状态审计（读写共用同一份 state::audit）先于节点、索引、目录等第一次写入完成。
-        let audited = s_allocation::audit(tx, &self.mode, s_allocation::Phase::Prepare)?;
+        let audited = match context {
+            Some(context) => s_allocation::audit_in_request(
+                tx,
+                &self.mode,
+                s_allocation::Phase::Prepare,
+                context,
+            )?,
+            None => s_allocation::audit(tx, &self.mode, s_allocation::Phase::Prepare)?,
+        };
         let clock = v2::stored_clock(tx)?;
         let control = control::S3Control::attach(tx, &clock)?;
         let view = control.load_pending(

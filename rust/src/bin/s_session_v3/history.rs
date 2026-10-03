@@ -183,24 +183,7 @@ fn read_indexed_history_inner(
     #[cfg(test)]
     super::state::trace_event("history_raw_hashes", None);
     store.clear_overlay();
-    let mut raw_nodes = bj::new_work(allocation.as_ref());
-    for v in raw.iter() {
-        raw_nodes
-            .try_push(hash_json_in_store(&store, v, deadline, budget)?)
-            .map_err(err)?;
-    }
-    let mut raw_wire_nodes = bj::new_work(allocation.as_ref());
-    for event in raw.iter() {
-        check_deadline(deadline)?;
-        raw_wire_nodes
-            .try_push(hash_json_in_store(
-                &store,
-                bj::RawWire::new(event)?.view(),
-                deadline,
-                budget,
-            )?)
-            .map_err(err)?;
-    }
+    let (raw_nodes, raw_wire_nodes) = hash_current_raw(&store, raw, deadline, budget)?;
     // 同一事务、同一公开上下文下全核所有历史公开根，共享子图在这一调用内只核一次。
     #[cfg(test)]
     super::state::trace_event("history_public_closures", None);
@@ -658,21 +641,89 @@ fn read_indexed_history_inner(
         .verify_many_ref(resolved_roots.iter().map(RefValue::view), sc::Mode::Public)
         .map_err(err)?;
     control.finish()?;
-    if v2::control_meta_i64(tx, "last_advance_frontier", allocation.as_ref())? != previous {
-        return Err(err("根前沿与完整发布史不符"));
-    }
-    if let Some(last) = output.last() {
-        if v2::control_meta_text(tx, "index_frontier", allocation.as_ref())?.as_deref()
-            != Some(last.batch_id.as_str())
-        {
-            return Err(err("根批次与完整发布史末代不符"));
-        }
-    }
+    verify_current_frontiers(tx, &output, previous, allocation.as_ref())?;
     Ok(IndexedHistory {
         cuts: output,
         objects: objects.into_entries(),
         auxiliary,
     })
+}
+
+/// 两条路径共用全raw（包括未发布尾部）的hash及RawWire验证义务。
+fn hash_current_raw(
+    store: &HashReader<'_>,
+    raw: RawEventsView<'_>,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+) -> Result<(sc::CodecVec<NodeDigest>, sc::CodecVec<NodeDigest>), String> {
+    let allocation = history_allocation(store)?;
+    let mut raw_nodes = bj::new_work(allocation.as_ref());
+    for v in raw.iter() {
+        raw_nodes
+            .try_push(hash_json_in_store(store, v, deadline, budget)?)
+            .map_err(err)?;
+    }
+    let mut raw_wire_nodes = bj::new_work(allocation.as_ref());
+    for event in raw.iter() {
+        check_deadline(deadline)?;
+        raw_wire_nodes
+            .try_push(hash_json_in_store(
+                store,
+                bj::RawWire::new(event)?.view(),
+                deadline,
+                budget,
+            )?)
+            .map_err(err)?;
+    }
+    Ok((raw_nodes, raw_wire_nodes))
+}
+fn verify_current_frontiers(
+    tx: &Transaction<'_>,
+    output: &sc::CodecVec<PublishedCut>,
+    previous: i64,
+    allocation: Option<&OwnedBudget>,
+) -> Result<(), String> {
+    if v2::control_meta_i64(tx, "last_advance_frontier", allocation)? != previous {
+        return Err(err("根前沿与完整发布史不符"));
+    }
+    if let Some(last) = output.last() {
+        if v2::control_meta_text(tx, "index_frontier", allocation)?.as_deref()
+            != Some(last.batch_id.as_str())
+        {
+            return Err(err("根批次与完整发布史末代不符"));
+        }
+    }
+    Ok(())
+}
+/// 当前事务重新消费控制头；缓存没有已消费ControlHistory或提交许可。
+pub(super) fn revalidate_current_for_reuse(
+    tx: &Transaction<'_>,
+    raw: RawEventsView<'_>,
+    mut control: v2::ControlHistory,
+    capture: &sc::AuditCapture,
+    cuts: &sc::CodecVec<PublishedCut>,
+) -> Result<(), String> {
+    verify_required_meta(tx)?;
+    let mut store = HashReader::captured_for_audit(capture, None).map_err(err)?;
+    store.audit_full_arrays = true;
+    hash_current_raw(&store, raw, None, None)?;
+    for cut in cuts {
+        let m = &cut.metadata;
+        control.consume_header(
+            m.generation,
+            &cut.batch_id,
+            Some(&m.session_generation),
+            Some(&m.clock_plan_hash),
+            Some(&m.semantic_commit_ns),
+        )?;
+    }
+    control.finish()?;
+    verify_current_frontiers(
+        tx,
+        cuts,
+        cuts.last().map_or(-1, |c| c.metadata.input_frontier),
+        None,
+    )
 }
 
 fn verify_source(

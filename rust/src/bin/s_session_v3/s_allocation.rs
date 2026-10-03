@@ -53,6 +53,26 @@ pub(super) fn audit(
     mode: &Mode,
     phase: Phase,
 ) -> Result<state::AuditedState, String> {
+    audit_impl(tx, mode, phase, None)
+}
+pub(super) fn audit_in_request(
+    tx: &Transaction<'_>,
+    mode: &Mode,
+    phase: Phase,
+    context: &mut super::request_audit::RequestAuditContext,
+) -> Result<state::AuditedState, String> {
+    let result = audit_impl(tx, mode, phase, Some(&mut *context));
+    if result.is_err() {
+        drop(context.take());
+    }
+    result
+}
+fn audit_impl(
+    tx: &Transaction<'_>,
+    mode: &Mode,
+    phase: Phase,
+    context: Option<&mut super::request_audit::RequestAuditContext>,
+) -> Result<state::AuditedState, String> {
     let profile = match mode {
         Mode::Ordinary => return state::audit(tx),
         Mode::Owned(profile) => Some(profile),
@@ -80,7 +100,10 @@ pub(super) fn audit(
             drop(capture);
             audited
         }
-        Mode::CapturedNative => state::audit_native_current(tx)?,
+        Mode::CapturedNative => match context {
+            Some(context) => state::audit_native_in_request(tx, context)?,
+            None => state::audit_native_current(tx)?,
+        },
         Mode::Ordinary => unreachable!(),
     };
     #[cfg(all(

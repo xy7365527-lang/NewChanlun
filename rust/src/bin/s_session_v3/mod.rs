@@ -53,6 +53,7 @@ mod history;
 pub(super) mod object_index;
 mod object_records;
 mod prepared;
+mod request_audit;
 mod projection;
 mod q_allocation;
 mod q_content;

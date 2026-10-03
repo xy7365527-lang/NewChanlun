@@ -40,12 +40,30 @@ pub(super) struct AuditedState {
     /// 同一快照内的真实原始账（`raw_events` 逐序回读）。
     pub raw: super::business_json::RawEvents,
     pub budget: Option<sc::capture_allocation::OwnedBudget>,
+    historical: HistoricalOwner,
+}
+
+/// 只有全部旧历史判据成功后的纯结果；没有raw尾部、控制消费状态或提交许可。
+pub(super) struct ImmutableHistoricalAudit {
     /// 逐代已发布闭包（manifest、实际根、批次身份与快照/Delta 根）。
     pub cuts: sc::CodecVec<history::PublishedCut>,
     /// 当前已发布代的对象索引（独立出生/撤回行）。
     pub objects: sc::CodecVec<object_index::Entry>,
     /// 当前已发布代的辅助索引（见证/关系/观察）。
     pub auxiliary: aux_index::Index,
+}
+enum HistoricalOwner {
+    Unique(ImmutableHistoricalAudit),
+    Shared(std::rc::Rc<ImmutableHistoricalAudit>),
+}
+impl std::ops::Deref for AuditedState {
+    type Target = ImmutableHistoricalAudit;
+    fn deref(&self) -> &Self::Target {
+        match &self.historical {
+            HistoricalOwner::Unique(value) => value,
+            HistoricalOwner::Shared(value) => value,
+        }
+    }
 }
 
 /// #1394：第七资源门仍计跨请求审计源保留字节。
@@ -102,6 +120,80 @@ pub(super) fn audit_native_current(tx: &Transaction<'_>) -> Result<AuditedState,
     #[cfg(not(feature = "s_capture_native_testonly"))]
     {
         let _ = tx;
+        Err("SNativeCaptureTestOnlyUnsupported：此构建不支持 S_CAPTURE_NATIVE_TESTONLY".into())
+    }
+}
+
+/// 每阶段仍现场取得完整节点、控制与raw；只在同一handler内绑定成功后复用纯历史。
+pub(super) fn audit_native_in_request(
+    tx: &Transaction<'_>,
+    context: &mut super::request_audit::RequestAuditContext,
+) -> Result<AuditedState, String> {
+    #[cfg(feature = "s_capture_native_testonly")]
+    {
+        // take保证任何读取/校验错误都不留下可继续使用的旧slot。
+        let prior = context.take();
+        let capture = content_store::capture_for_prototype(tx)
+            .map_err(err)?
+            .enable_native_frame_reuse_for_testonly()
+            .map_err(err)?;
+        let control = control_audit::prepare_s3_control_history_with_owner(tx, None)?;
+        let raw = super::business_json::RawEvents::Plain(read_raw_events_until(tx, None)?);
+        if let Some(prior) = prior {
+            #[cfg(test)]
+            context.before_binding(tx);
+            let binding =
+                super::request_audit::HistoricalDependencyBinding::read(tx, &prior.result)?;
+            if binding == prior.binding
+                && capture
+                    .exact_original_tuples_equal(&prior.capture)
+                    .map_err(err)?
+            {
+                history::revalidate_current_for_reuse(
+                    tx,
+                    raw.view(),
+                    control,
+                    &capture,
+                    &prior.result.cuts,
+                )?;
+                #[cfg(test)]
+                trace_event("request_history_hit", None);
+                let result = prior.result.clone();
+                context.retain(binding, capture, result.clone(), true);
+                return Ok(AuditedState {
+                    budget: None,
+                    raw,
+                    historical: HistoricalOwner::Shared(result),
+                });
+            }
+        }
+        #[cfg(test)]
+        trace_event("request_history_cold", None);
+        let (audited, _) = audit_core_fresh(
+            tx,
+            None,
+            None,
+            None,
+            false,
+            None,
+            Some(&capture),
+            Some((control, raw)),
+        )?;
+        let HistoricalOwner::Unique(result) = audited.historical else {
+            unreachable!()
+        };
+        let result = std::rc::Rc::new(result);
+        let binding = super::request_audit::HistoricalDependencyBinding::read(tx, &result)?;
+        context.retain(binding, capture, result.clone(), false);
+        Ok(AuditedState {
+            budget: audited.budget,
+            raw: audited.raw,
+            historical: HistoricalOwner::Shared(result),
+        })
+    }
+    #[cfg(not(feature = "s_capture_native_testonly"))]
+    {
+        let _ = (tx, context);
         Err("SNativeCaptureTestOnlyUnsupported：此构建不支持 S_CAPTURE_NATIVE_TESTONLY".into())
     }
 }
@@ -266,6 +358,27 @@ fn audit_core(
     owned_budget: Option<&sc::capture_allocation::OwnedBudget>,
     external_capture: Option<&sc::AuditCapture>,
 ) -> Result<(AuditedState, Option<Value>), String> {
+    audit_core_fresh(
+        tx,
+        deadline,
+        max_render_bytes,
+        budget,
+        enable_prototype_capture,
+        owned_budget,
+        external_capture,
+        None,
+    )
+}
+fn audit_core_fresh(
+    tx: &Transaction<'_>,
+    deadline: Option<std::time::Instant>,
+    max_render_bytes: Option<u64>,
+    budget: Option<&dyn audit_budget::Budget>,
+    enable_prototype_capture: bool,
+    owned_budget: Option<&sc::capture_allocation::OwnedBudget>,
+    external_capture: Option<&sc::AuditCapture>,
+    fresh: Option<(v2::ControlHistory, super::business_json::RawEvents)>,
+) -> Result<(AuditedState, Option<Value>), String> {
     // 外部不能带入旧捕获；只有本次fresh audit在None/None内可新建自有读集。
     #[cfg(test)]
     let capture_started = std::time::Instant::now();
@@ -324,21 +437,29 @@ fn audit_core(
     });
     #[cfg(not(feature = "s_allocation_json_testonly"))]
     let control_owner = None;
-    let control = control_audit::prepare_s3_control_history_with_owner(tx, control_owner)?;
-    #[cfg(test)]
-    trace_event("raw", None);
-    // 2. 真实原始账：逐序回读并做身份/修订链/内容hash/receipt 自检。
-    #[cfg(feature = "s_allocation_json_testonly")]
-    let raw = match owned_budget.filter(|_| {
-        capture
-            .as_ref()
-            .is_some_and(|c| c.is_allocation_prototype())
-    }) {
-        Some(b) => super::business_json::read_owned(tx, deadline, b)?,
-        None => super::business_json::RawEvents::Plain(read_raw_events_until(tx, deadline)?),
+    let (control, raw) = match fresh {
+        Some(fresh) => fresh,
+        None => {
+            let control = control_audit::prepare_s3_control_history_with_owner(tx, control_owner)?;
+            #[cfg(test)]
+            trace_event("raw", None);
+            // 2. 真实原始账：逐序回读并做身份/修订链/内容hash/receipt 自检。
+            #[cfg(feature = "s_allocation_json_testonly")]
+            let raw = match owned_budget.filter(|_| {
+                capture
+                    .as_ref()
+                    .is_some_and(|c| c.is_allocation_prototype())
+            }) {
+                Some(b) => super::business_json::read_owned(tx, deadline, b)?,
+                None => {
+                    super::business_json::RawEvents::Plain(read_raw_events_until(tx, deadline)?)
+                }
+            };
+            #[cfg(not(feature = "s_allocation_json_testonly"))]
+            let raw = super::business_json::RawEvents::Plain(read_raw_events_until(tx, deadline)?);
+            (control, raw)
+        }
     };
-    #[cfg(not(feature = "s_allocation_json_testonly"))]
-    let raw = super::business_json::RawEvents::Plain(read_raw_events_until(tx, deadline)?);
     #[cfg(test)]
     trace_event("history", None);
     // 3. 逐代发布闭包：消费每代控制头并核内容闭包、原始/生效账与独立变化集合（唯一判据在 history）。
@@ -476,9 +597,11 @@ fn audit_core(
         AuditedState {
             budget: raw.budget().cloned(),
             raw,
-            cuts,
-            objects,
-            auxiliary,
+            historical: HistoricalOwner::Unique(ImmutableHistoricalAudit {
+                cuts,
+                objects,
+                auxiliary,
+            }),
         },
         capacity,
     ))

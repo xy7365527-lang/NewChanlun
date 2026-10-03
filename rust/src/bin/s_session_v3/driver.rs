@@ -265,12 +265,18 @@ impl Driver {
     }
 
     pub(super) fn handle(&mut self, envelope: Value) -> Result<Value, String> {
+        let mut request_audit = request_audit::RequestAuditContext::default();
         let envelope = validate_request(envelope)?;
         if let Some(cap) = self.audit_cache_source_bytes {
             state::check_audit_source_retention(cap)?;
         }
         let tx = self.conn.transaction().map_err(err)?;
-        s_allocation::audit(&tx, &self.mode, s_allocation::Phase::Handle)?;
+        s_allocation::audit_in_request(
+            &tx,
+            &self.mode,
+            s_allocation::Phase::Handle,
+            &mut request_audit,
+        )?;
         verify_writer_epoch(&tx, &self.epoch)?;
         let control = control::S3Control::attach(&tx, &self.clock)?;
         let (sid, inc, _) = control.identity();
@@ -336,18 +342,27 @@ impl Driver {
                     drop(tx);
                     original
                 };
-                self.advance(&original)
+                self.advance(&original, &mut request_audit)
             }
             _ => Err("SchemaUnsupported：未知S3 op；recover只属于监督器".into()),
         }
     }
 
-    fn advance(&mut self, envelope: &Value) -> Result<Value, String> {
+    fn advance(
+        &mut self,
+        envelope: &Value,
+        request_audit: &mut request_audit::RequestAuditContext,
+    ) -> Result<Value, String> {
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(err)?;
-        let audited = s_allocation::audit(&tx, &self.mode, s_allocation::Phase::Advance)?;
+        let audited = s_allocation::audit_in_request(
+            &tx,
+            &self.mode,
+            s_allocation::Phase::Advance,
+            request_audit,
+        )?;
         verify_writer_epoch(&tx, &self.epoch)?;
         if meta_get_opt(&tx, "advance_state")?.as_deref() != Some("idle") {
             return Err("StaleWriter：已有未完成Begin".into());
@@ -379,7 +394,10 @@ impl Driver {
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(err)?;
-        Ok(self.runtime.commit(tx, &token, envelope)?.message_receipt)
+        Ok(self
+            .runtime
+            .commit_in_request(tx, &token, envelope, request_audit)?
+            .message_receipt)
     }
 
     fn resume_pending(&mut self) -> Result<(), String> {
@@ -395,7 +413,8 @@ impl Driver {
             );
         }
         for raw in originals {
-            self.advance(&strict_json(raw.as_bytes())?)?;
+            let mut request_audit = request_audit::RequestAuditContext::default();
+            self.advance(&strict_json(raw.as_bytes())?, &mut request_audit)?;
         }
         Ok(())
     }
@@ -557,6 +576,115 @@ mod tests {
             s_allocation::Mode::CapturedNative,
         )
         .unwrap()
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn request_history_real_driver_three_stages_reuse_and_repost_starts_cold() {
+        let fixture = Fixture::new();
+        let ordinary = Fixture::new();
+        let mut native = native_driver(&fixture);
+        let mut baseline = ordinary.open("1").unwrap();
+        for n in 1..=3 {
+            let (actual, events, _) = state::traced(false, || native.handle(Fixture::ingest(n)));
+            assert_eq!(
+                actual.unwrap(),
+                baseline.handle(Fixture::ingest(n)).unwrap()
+            );
+            assert_eq!(
+                events
+                    .iter()
+                    .filter(|e| e["phase"] == "request_history_cold")
+                    .count(),
+                1
+            );
+            assert_eq!(
+                events
+                    .iter()
+                    .filter(|e| e["phase"] == "request_history_hit")
+                    .count(),
+                2
+            );
+            let (_, events, _) =
+                state::traced(false, || native.handle(Fixture::ingest(n)).unwrap());
+            assert_eq!(
+                events
+                    .iter()
+                    .filter(|e| e["phase"] == "request_history_cold")
+                    .count(),
+                1
+            );
+            assert_eq!(
+                events
+                    .iter()
+                    .filter(|e| e["phase"] == "request_history_hit")
+                    .count(),
+                0
+            );
+        }
+        let tx = native.conn.transaction().unwrap();
+        let a = state::audit(&tx).unwrap();
+        let other = baseline.conn.transaction().unwrap();
+        let b = state::audit(&other).unwrap();
+        assert_eq!(a.cuts.len(), b.cuts.len());
+        for (a, b) in a.cuts.iter().zip(b.cuts.iter()) {
+            assert_eq!(a.snapshot.digest().unwrap(), b.snapshot.digest().unwrap());
+            assert_eq!(a.delta.digest().unwrap(), b.delta.digest().unwrap());
+            assert_eq!(a.batch_id.as_str(), b.batch_id.as_str());
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn request_history_handler_sql_and_commit_failures_release_context() {
+        use s_allocation::{probe, Phase};
+        for phase in [Phase::Handle, Phase::Advance, Phase::Prepare] {
+            let fixture = Fixture::new();
+            let mut driver = native_driver(&fixture);
+            probe::start(Some((phase, probe::Fault::SqlStep)));
+            let (result, events, _) = state::traced(false, || driver.handle(Fixture::ingest(1)));
+            assert!(result.is_err());
+            driver
+                .conn
+                .progress_handler(0, None::<fn() -> bool>)
+                .unwrap();
+            probe::finish();
+            assert_eq!(
+                events
+                    .iter()
+                    .filter(|e| e["phase"] == "request_history_context_released")
+                    .count(),
+                1
+            );
+        }
+        // 真SQLITE COMMIT hook拒绝：prepare/写节点完成后final tx.commit失败并回滚。
+        let fixture = Fixture::new();
+        let mut driver = native_driver(&fixture);
+        driver
+            .runtime
+            .set_after_prepare_for_request_test(Some(|tx| {
+                tx.commit_hook(Some(|| true)).map_err(err)?;
+                Ok(())
+            }));
+        let (result, events, _) = state::traced(false, || driver.handle(Fixture::ingest(1)));
+        assert!(result.is_err());
+        driver.conn.commit_hook(None::<fn() -> bool>).unwrap();
+        assert_eq!(
+            events
+                .iter()
+                .filter(|e| e["phase"] == "request_history_hit")
+                .count(),
+            2
+        );
+        assert_eq!(
+            events
+                .iter()
+                .filter(|e| e["phase"] == "request_history_context_released")
+                .count(),
+            1
+        );
+        assert_eq!(count(&driver.conn, "s_content_publications"), 0);
+        assert_eq!(count(&driver.conn, "raw_events"), 1);
     }
 
     #[cfg(feature = "s_capture_native_testonly")]
