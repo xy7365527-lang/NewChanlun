@@ -1,0 +1,2 @@
+lean_witness=[0,3,0] delta=2 initialization=1 unit=Up(0,1) known_at=2 active=Down(1,2) rust_incremental_and_reference=pass
+scope=one_formally_certified_witness_not_full_rust_refinement

@@ -1,0 +1,18 @@
+{
+  ".chanlun/review-results/issue1467-f1-proof/DCSemantics.lean": "a2fbd4becc7a692ba10b6aff6c84dd511ccb5062dae734c9a56616324db0a972",
+  ".chanlun/review-results/issue1467-f1-proof/DCCanonicalProof.lean": "e81f76a21bee361242bf3db1c6c56b988f5fe39bb96b5c7c5d115bbcf7ae24d5",
+  ".chanlun/review-results/issue1467-f1-proof/DCGeometryProof.lean": "6fcae3098ed303ea57c059dd9fc65aec0e25a0855dae9e06839f6cc2322d1aef",
+  ".chanlun/review-results/issue1467-f1-proof/DCCausalProof.lean": "a344c17a3090e6b5ab5bc87b008b0ab62f063a2cdf3769c7c9991945a2b3d25f",
+  ".chanlun/review-results/issue1467-f1-proof/DCWitness.lean": "717fd6b12c53345c098bc38532c67e9a9e2f4435f51e642f07f98fcc8bc97a92",
+  ".chanlun/review-results/issue1467-f1-proof/DCAcceptance.lean": "60b9b934b2285759bbae3472713b7a256878058b8edec29192be641af1426e06",
+  ".chanlun/review-results/issue1467-f1-proof/DirectionalChangeLemmas.lean": "84f2d0c1f8e48979480adce76bc1a290ce67520a68991bdb4a421f167fc21d2e",
+  ".chanlun/review-results/issue1467-f1-proof/check_dc_proofs.sh": "ac2eb8a6971f0c74411e1fde7006ed6bab3620ecf396b9086d65af04b731e018",
+  ".chanlun/review-results/issue1467-f1-proof/dc-proof-contract-v1.sha256": "d3426d5803e7744033015bcc1063188906f3aa1ea0c837d650f174657a43f7cf",
+  ".chanlun/review-results/issue1467-f1-proof/dc-spec-v1.sha256": "d25b1a506e00b280f38a072062e3b4fb5268ca080a680962520814ac20682216",
+  ".chanlun/review-results/issue1467-f1-proof/Stage4WorkCard.md": "9f1ef9a893a2fe80e1ed6b96a4ac51cfdd3624cc1918ab75a9f3db39c628008f",
+  ".chanlun/review-results/issue1467-f1-proof/Stage4FormalSemantics.md": "2055d393cd86e07ac226f8ef805ddefe0ab8fc36947a7208aca94f486be0523f",
+  ".chanlun/review-results/issue1467-f1-proof/dc-proofs-stdout.txt": "a0859ef0357404a7615c100db82844ddbd4d0ab7a7234552b306899776c61714",
+  ".chanlun/review-results/issue1467-f1-proof/dc_formal_witness_probe.rs": "e258be2df177526767f757c0d7606d8c901b789eacfb5322c45e8c6e6b158727",
+  ".chanlun/review-results/issue1467-f1-proof/directional_change.rs": "fbefcdbc6939200cfaac802ad9638f30c0e5b64f68f27d99ad2fe08bf4795811",
+  ".chanlun/review-results/issue1467-f1-proof/dc-formal-witness-stdout.txt": "005a554a2aed3e0be75b2ef6b06d7c0a062feb8581b05ae7edde94ac7d44eafd"
+}

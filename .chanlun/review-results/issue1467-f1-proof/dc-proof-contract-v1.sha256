@@ -1,0 +1,10 @@
+a2fbd4becc7a692ba10b6aff6c84dd511ccb5062dae734c9a56616324db0a972  .chanlun/review-results/issue1467-f1-proof/DCSemantics.lean
+60b9b934b2285759bbae3472713b7a256878058b8edec29192be641af1426e06  .chanlun/review-results/issue1467-f1-proof/DCAcceptance.lean
+ac2eb8a6971f0c74411e1fde7006ed6bab3620ecf396b9086d65af04b731e018  .chanlun/review-results/issue1467-f1-proof/check_dc_proofs.sh
+d25b1a506e00b280f38a072062e3b4fb5268ca080a680962520814ac20682216  .chanlun/review-results/issue1467-f1-proof/dc-spec-v1.sha256
+84f2d0c1f8e48979480adce76bc1a290ce67520a68991bdb4a421f167fc21d2e  .chanlun/review-results/issue1467-f1-proof/DirectionalChangeLemmas.lean
+18a55763c6f8fdd08322beec01af37ee89a004789806fa1bf3f533ff61ec5f04  .chanlun/review-results/issue1467-f1-proof/ResearchContract-v1.md
+775c2eaf0ccd91c6e2182fe45373830110d3d87a99ffa687308e924d0d724373  .chanlun/review-results/issue1467-f1-proof/Stage3Construction.md
+9f1ef9a893a2fe80e1ed6b96a4ac51cfdd3624cc1918ab75a9f3db39c628008f  .chanlun/review-results/issue1467-f1-proof/Stage4WorkCard.md
+5959140d013cc2761ccb49dfd6d01cc24df4a263b14b170300a22fd4482da534  .chanlun/review-results/issue1467-f1-proof/imports-v1.sha256
+3736756da8bde35bd0454e07bb977d28449cd4128a9c1b7aed35f45fc8bfe602  .chanlun/review-results/issue1467-f1-proof/lean-version-v1.txt

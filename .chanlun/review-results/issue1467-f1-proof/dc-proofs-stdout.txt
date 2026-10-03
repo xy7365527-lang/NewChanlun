@@ -1,0 +1,85 @@
+.chanlun/review-results/issue1467-f1-proof/DCSemantics.lean: OK
+.chanlun/review-results/issue1467-f1-proof/DCAcceptance.lean: OK
+.chanlun/review-results/issue1467-f1-proof/check_dc_proofs.sh: OK
+.chanlun/review-results/issue1467-f1-proof/dc-spec-v1.sha256: OK
+.chanlun/review-results/issue1467-f1-proof/DirectionalChangeLemmas.lean: OK
+.chanlun/review-results/issue1467-f1-proof/ResearchContract-v1.md: OK
+.chanlun/review-results/issue1467-f1-proof/Stage3Construction.md: OK
+.chanlun/review-results/issue1467-f1-proof/Stage4WorkCard.md: OK
+.chanlun/review-results/issue1467-f1-proof/imports-v1.sha256: OK
+.chanlun/review-results/issue1467-f1-proof/lean-version-v1.txt: OK
+../.chanlun/review-results/issue1467-f1-proof/DCSemantics.lean: OK
+'OrderBaseDC.first_hit_unique' depends on axioms: [propext, Quot.sound]
+'OrderBaseDC.maxIndex_spec' depends on axioms: [propext, Quot.sound]
+'OrderBaseDC.max_spec_unique' depends on axioms: [propext, Quot.sound]
+'OrderBaseDC.initial_hits_exclusive' depends on axioms: [propext, Quot.sound]
+'DCSpec.dc_canon' depends on axioms: [propext, Classical.choice, Quot.sound]
+'DCSpec.dc_geometry' depends on axioms: [propext, Classical.choice, Quot.sound]
+'DCSpec.dc_causal' depends on axioms: [propext, Classical.choice, Quot.sound]
+'DCSpec.nonempty_witness' depends on axioms: [propext, Quot.sound]
+ACCEPTED DCSpec.dc_canon
+TYPE Lean.Expr.const `DCSpec.DC_CANON_TARGET []
+AXIOMS #[`propext, `Classical.choice, `Quot.sound]
+ACCEPTED DCSpec.dc_causal
+TYPE Lean.Expr.const `DCSpec.DC_CAUSAL_TARGET []
+AXIOMS #[`propext, `Classical.choice, `Quot.sound]
+ACCEPTED DCSpec.dc_geometry
+TYPE Lean.Expr.const `DCSpec.DC_GEOMETRY_TARGET []
+AXIOMS #[`propext, `Classical.choice, `Quot.sound]
+ACCEPTED DCSpec.nonempty_witness
+TYPE Lean.Expr.app
+  (Lean.Expr.app
+    (Lean.Expr.app
+      (Lean.Expr.app (Lean.Expr.const `DCSpec.Whole []) (Lean.Expr.const `DCSpec.witnessPath []))
+      (Lean.Expr.app
+        (Lean.Expr.app
+          (Lean.Expr.app (Lean.Expr.const `OfNat.ofNat [Lean.Level.zero]) (Lean.Expr.const `Int []))
+          (Lean.Expr.lit (Lean.Literal.natVal 2)))
+        (Lean.Expr.app (Lean.Expr.const `instOfNat []) (Lean.Expr.lit (Lean.Literal.natVal 2)))))
+    (Lean.Expr.app
+      (Lean.Expr.app
+        (Lean.Expr.app (Lean.Expr.const `OfNat.ofNat [Lean.Level.zero]) (Lean.Expr.const `Nat []))
+        (Lean.Expr.lit (Lean.Literal.natVal 3)))
+      (Lean.Expr.app (Lean.Expr.const `instOfNatNat []) (Lean.Expr.lit (Lean.Literal.natVal 3)))))
+  (Lean.Expr.const `DCSpec.witnessResult [])
+AXIOMS #[`propext, `Quot.sound]
+ACCEPTED DCSpec.nonempty_witness_has_one_unit
+TYPE Lean.Expr.app
+  (Lean.Expr.app
+    (Lean.Expr.app (Lean.Expr.const `Eq [Lean.Level.succ (Lean.Level.zero)]) (Lean.Expr.const `Nat []))
+    (Lean.Expr.app
+      (Lean.Expr.app (Lean.Expr.const `List.length [Lean.Level.zero]) (Lean.Expr.const `DCSpec.Unit []))
+      (Lean.Expr.app (Lean.Expr.const `DCSpec.units []) (Lean.Expr.const `DCSpec.witnessResult []))))
+  (Lean.Expr.app
+    (Lean.Expr.app
+      (Lean.Expr.app (Lean.Expr.const `OfNat.ofNat [Lean.Level.zero]) (Lean.Expr.const `Nat []))
+      (Lean.Expr.lit (Lean.Literal.natVal 1)))
+    (Lean.Expr.app (Lean.Expr.const `instOfNatNat []) (Lean.Expr.lit (Lean.Literal.natVal 1))))
+AXIOMS #[`propext]
+def DCSpec.DC_CANON_TARGET : Prop :=
+∀ (p : Nat → Int) (delta : Int),
+  0 < delta →
+    ∀ (len : Nat),
+      ∃ result,
+        DCSpec.Whole p delta len result ∧ ∀ (other : DCSpec.Result), DCSpec.Whole p delta len other → other = result
+def DCSpec.DC_CAUSAL_TARGET : Prop :=
+∀ (p q : Nat → Int) (delta : Int),
+  0 < delta →
+    ∀ (len₁ len₂ t : Nat) (r₁ r₂ : DCSpec.Result),
+      t < len₁ →
+        t < len₂ →
+          (∀ (i : Nat), i ≤ t → p i = q i) →
+            DCSpec.Whole p delta len₁ r₁ →
+              DCSpec.Whole q delta len₂ r₂ →
+                List.filter (fun u => decide (u.knownAt ≤ t)) (DCSpec.units r₁) =
+                  List.filter (fun u => decide (u.knownAt ≤ t)) (DCSpec.units r₂)
+def DCSpec.DC_GEOMETRY_TARGET : Prop :=
+∀ (p : Nat → Int) (delta : Int),
+  0 < delta →
+    ∀ (len : Nat) (result : DCSpec.Result),
+      DCSpec.Whole p delta len result →
+        (∀ (u : DCSpec.Unit), u ∈ DCSpec.units result → DCSpec.UnitGeometry p delta len u) ∧
+          List.Pairwise (fun a b => a.knownAt < b.knownAt) (DCSpec.units result) ∧
+            ∀ (pre : List DCSpec.Unit) (a b : DCSpec.Unit) (post : List DCSpec.Unit),
+              DCSpec.units result = pre ++ a :: b :: post → a.finish = b.start ∧ DCSpec.flip a.direction = b.direction
+dc-proof-contract-v1: fresh_compile_exact_targets_and_axiom_gate=pass
