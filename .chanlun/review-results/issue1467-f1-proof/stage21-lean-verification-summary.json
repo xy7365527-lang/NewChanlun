@@ -1,0 +1,153 @@
+{
+  "stage": 21,
+  "date": "2026-10-03",
+  "ticket": 1467,
+  "run_id": "fc8e984887ab406f93e42575368bf071",
+  "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-packet-v1a-checked/run-manifest.json",
+  "manifest_sha256": "42211f0d62efd41c8abb08cc33bcf28eea977fc8c513a11bec91993ebbac5f76",
+  "machine_verification_passed": true,
+  "exact_root_passed": true,
+  "root_closure": {
+    "status": "closed",
+    "exact_root_passed": true,
+    "declaration_closed": true,
+    "scope": "expected Lean type in the recorded environment; semantic review is separate"
+  },
+  "semantic": {
+    "status": "not_reviewed",
+    "reused": false,
+    "semantic_sha256": "f659ababee446bab47521dff93b70f4b1eba0f66b8c83850350293a9e9caa631"
+  },
+  "actual_type": "And RetilePacket.FIDELITY_TARGET\n  (And RetilePacket.PACKET_TARGET (And RetilePacket.ROLE_TARGET RetilePacket.WITNESS_TARGET))",
+  "expected_type": "RetilePacket.FIDELITY_TARGET ∧ RetilePacket.PACKET_TARGET ∧ RetilePacket.ROLE_TARGET ∧ RetilePacket.WITNESS_TARGET",
+  "axioms": [
+    "propext",
+    "Classical.choice",
+    "Quot.sound"
+  ],
+  "unexpected_axioms": [],
+  "unsafe_dependencies": [],
+  "unknown_dependencies": [],
+  "freshness": {
+    "status": "current",
+    "snapshot_current": true,
+    "exact_root_passed": true,
+    "declaration": "RetilePacket.exact_root",
+    "semantic_sha256": "f659ababee446bab47521dff93b70f4b1eba0f66b8c83850350293a9e9caa631",
+    "manifest_sha256": "42211f0d62efd41c8abb08cc33bcf28eea977fc8c513a11bec91993ebbac5f76",
+    "reasons": [],
+    "scope": "saved evidence and current Lean module resolution checked; no new kernel proof replay"
+  },
+  "source_revision": {
+    "current": "v1a",
+    "change": "remove unused invalid SourceHull.Interval import alias only",
+    "old_snapshot_matches_v1_lock": true
+  },
+  "resource": {
+    "total_external_bytes": 28784822,
+    "limit_bytes": 100663296,
+    "within_limit": true
+  },
+  "attempts": {
+    "spec_elaboration": 1,
+    "exact_verifier": 2
+  },
+  "build_commands": [
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--run",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-packet-v1a-checked/lean-verification-runs/fc8e984887ab406f93e42575368bf071/DiscoverImports.lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-packet-project-v1a/RetilePacketProof.lean"
+      ],
+      "file": "RetilePacketProof.lean",
+      "kind": "source_dependencies",
+      "exit_code": 0,
+      "elapsed_seconds": 6.422618
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--run",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-packet-v1a-checked/lean-verification-runs/fc8e984887ab406f93e42575368bf071/DiscoverImports.lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-packet-project-v1a/RetilePacketSpec.lean"
+      ],
+      "file": "RetilePacketSpec.lean",
+      "kind": "source_dependencies",
+      "exit_code": 0,
+      "elapsed_seconds": 0.783488
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--deps",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-packet-project-v1a/RetilePacketSpec.lean"
+      ],
+      "file": "RetilePacketSpec.lean",
+      "kind": "import_resolution",
+      "exit_code": 0,
+      "elapsed_seconds": 0.039122
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-packet-project-v1a",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-packet-v1a-checked/lean-verification-runs/fc8e984887ab406f93e42575368bf071/lib/RetilePacketSpec.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-packet-project-v1a/RetilePacketSpec.lean"
+      ],
+      "file": "RetilePacketSpec.lean",
+      "kind": "target",
+      "exit_code": 0,
+      "elapsed_seconds": 0.473736
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--deps",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-packet-project-v1a/RetilePacketProof.lean"
+      ],
+      "file": "RetilePacketProof.lean",
+      "kind": "import_resolution",
+      "exit_code": 0,
+      "elapsed_seconds": 0.046302
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-packet-project-v1a",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-packet-v1a-checked/lean-verification-runs/fc8e984887ab406f93e42575368bf071/lib/RetilePacketProof.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-packet-project-v1a/RetilePacketProof.lean"
+      ],
+      "file": "RetilePacketProof.lean",
+      "kind": "target",
+      "exit_code": 0,
+      "elapsed_seconds": 0.555082
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-packet-v1a-checked/lean-verification-runs/fc8e984887ab406f93e42575368bf071",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-packet-v1a-checked/lean-verification-runs/fc8e984887ab406f93e42575368bf071/lib/LeanVerifyProbe.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-packet-v1a-checked/lean-verification-runs/fc8e984887ab406f93e42575368bf071/LeanVerifyProbe.lean"
+      ],
+      "kind": "inspector_compile",
+      "exit_code": 0,
+      "elapsed_seconds": 0.906871
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/retile-packet-v1a-checked/lean-verification-runs/fc8e984887ab406f93e42575368bf071/InspectRoot.lean"
+      ],
+      "kind": "declaration_inspection",
+      "exit_code": 0,
+      "elapsed_seconds": 1.010976
+    }
+  ]
+}
