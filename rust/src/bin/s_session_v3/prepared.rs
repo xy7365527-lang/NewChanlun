@@ -368,6 +368,18 @@ impl Runtime {
             .as_mut()
             .ok_or_else(|| err("生成器未绑定"))?
             .generate_with_allocation(&mut store, &input, audited.budget.as_ref())?;
+        #[cfg(feature = "s_capture_native_testonly")]
+        let objects = if matches!(self.mode, s_allocation::Mode::CapturedNative) {
+            object_index::plan_native_union_for_testonly(
+                &mut store,
+                &generated.objects,
+                &audited.objects,
+                generation,
+            )?
+        } else {
+            object_index::plan(&mut store, &generated.objects, &audited.objects, generation)?
+        };
+        #[cfg(not(feature = "s_capture_native_testonly"))]
         let objects =
             object_index::plan(&mut store, &generated.objects, &audited.objects, generation)?;
         generated.finish_axes(
@@ -1047,6 +1059,33 @@ pub(crate) mod tests {
             .unwrap();
         assert!(withdrawn > 0, "真实修订必须发生撤回");
         assert_eq!(count(&f.conn, "s_clock_events"), 12);
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_candidate_union_four_real_commits_match_ordinary_roots_rows_and_revision() {
+        let mut native = Fixture::new();
+        native.runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        let mut ordinary = Fixture::new();
+        for (n, row, revision) in [
+            (1, ("a", 0, 6, 12, 3, 7), 1),
+            (2, ("b", 10, 8, 16, 6, 12), 1),
+            (3, ("c", 20, 8, 13, 4, 7), 1),
+            (4, ("b", 10, 8, 17, 6, 12), 2),
+        ] {
+            let (e, t) = native.accept_begin(n, row, revision);
+            let (plain, pt) = ordinary.accept_begin(n, row, revision);
+            assert_eq!(
+                native.publish(&e, &t).unwrap().message_receipt,
+                ordinary.publish(&plain, &pt).unwrap().message_receipt
+            );
+            assert_eq!(
+                runtime_root_tables(&native.conn, true),
+                runtime_root_tables(&ordinary.conn, true),
+                "gen{n}真实全部持久行与节点须逐字相同"
+            );
+        }
+        assert!(count(&native.conn, "s_content_objects") > 0);
+        assert_eq!(meta_i64(&native.conn, "generation").unwrap(), 4);
     }
 
     #[test]

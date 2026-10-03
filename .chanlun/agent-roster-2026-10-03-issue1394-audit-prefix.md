@@ -25,4 +25,7 @@
 - 全handle采样：第一轮因主进程结束时过早终止符号处理而未出报告，失败包保留；r2先回收主进程，再在sampler原45秒截止前等待自然落盘，已独审并实际取得两臂有效报告。初始轮询/启动缺口未测、harness等待排除、耗时受污染。object_index::plan占handle样本约18–21%，其中candidate逐个完整Public闭包核验形成重复；批量联合核验仍待源变化/多错首报边界裁定，尚未实施。全部业务对拍、原件保全及4进程回收通过；证据 `.scratch/issue1394-handle-full-profile-r2-20261004/ROOT-RESULT.json`。
 - 14份SequenceMemo持久keys完成局部Owned接线（6生成+8aux），统一取本次原账，首次成功含空同步才冻结模式/账，首次失败不暗绑定；真实扩容同时占旧新块、拒绝保keys/seq、discard实际释放后可重绑，Plain容量复用保持。独评PASS；dual 11项独立验收（r1无关7项复用、修复统一错误文本后4项复验）及Native-only缺JSON支持拒绝1项实际通过，共12项。额度与测试未放宽，失败原件保留，两构建feature的640源码/app/lib/binary均绑定。
 - keys证据 `.scratch/issue1394-sequence-keys-owned-20261004/ROOT-RESULT.json`；仅关闭这14个持久数组。内部sequence HashMap、节点/数组Vec、写栈、其他生成容器/ArrayCache、诊断字符串和整体Job/heap/max_store仍未闭合；这不是Native正式9011的新前置，也不是完整资源资格。
+- Native候选Public联合核验已实施：只在实际CapturedNative模式，把纯根迭代的完整Public核验放在candidate写入之前；每根声明/header仍核、共享内部闭包去重。元数据/身份/slot/wire/immutable全部保留，混预算入口前拒绝；默认/Owned/Job不变。接受仅Native多错首报和wire故障触达顺序差异，不声称错误顺序完全等价。
+- 联合核验7项靶向与独评PASS：三代SQL读取223773→197081、469185→395391、361261→314024，完整plan不变；Native四代修订全行/节点对Ordinary逐字相同。坏第二root、坏声明/缺失/损坏/角色/未来补子均在candidate put前拒绝，真实SQL/commit故障回滚discard及重试通过。首编测试签名Serialize错误保留，r2仅改3个测试RefValue包装；640源码/app/lib/binary绑定有效。
+- 新105→106联合核验对照COMPLETE：eager/staged handle27.387/25.425秒，均106代idle；全字节/闭包/旧105/原件保全与回收PASS。同臂与前轮overlay版本的实际DB/WAL/SHM SHA、回执及runtime owner/root多重集完全一致。证据 `.scratch/issue1394-candidate-union-20261004/ROOT-RESULT.json`。两臂仅内部handle低于30秒，下一步为正式入口有限增长验证的准备；不直接重启9011、不加超时，整体资源和生产资格仍未成立。
 - 禁止：旧未授权原件、main 合入/推送、GOAL 事件修改、新公共资源数值、前端 #1460、K4。

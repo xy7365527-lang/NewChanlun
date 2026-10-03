@@ -314,6 +314,15 @@ fn candidate(
     let generated = o.generated().clone();
     s.verify_audit_fresh(&generated.content_ref(), sc::Mode::Public)
         .map_err(err)?;
+    candidate_verified(s, o, g)
+}
+// #1394：仅本模块完整Public核验成功的控制流调用，不导出skip开关或成功token。
+fn candidate_verified(
+    s: &mut (impl CodecStore + ?Sized),
+    o: &ProducedObject,
+    g: i64,
+) -> Result<Entry, String> {
+    let generated = o.generated().clone();
     if integer(s, &generated.content_ref(), "first_known_generation")? != g
         || integer(s, &generated.content_ref(), "published_generation")? != g
         || text(s, &generated.content_ref(), "first_known_cut")? != format!("cut-{g}")
@@ -563,6 +572,42 @@ pub(super) fn plan(
         .iter()
         .map(|o| candidate(s, o, g))
         .collect::<Result<Vec<_>, _>>()?;
+    plan_from_candidates(s, new, old, g)
+}
+
+/// #1394：只由Runtime显式CapturedNative模式选择，预算存在时拒绝。
+/// 联合核验同事务生成完成的Public根，先于任何candidate wire/immutable写入。
+/// 多处坏状态或wire故障的首报次序可改变，不扩至默认/Owned/Job路径。
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) fn plan_native_union_for_testonly(
+    s: &mut (impl CodecStore + ?Sized),
+    objects: &[ProducedObject],
+    old: &[Entry],
+    g: i64,
+) -> Result<Plan, String> {
+    if g < 1 {
+        return Err(err("非法代号"));
+    }
+    if s.allocation_budget().is_some() {
+        return Err(err("Native候选联合核验拒绝allocation预算"));
+    }
+    s.verify_audit_many_fresh(
+        objects.iter().map(|o| o.generated().content_ref()),
+        sc::Mode::Public,
+    )
+    .map_err(err)?;
+    let new = objects
+        .iter()
+        .map(|o| candidate_verified(s, o, g))
+        .collect::<Result<Vec<_>, _>>()?;
+    plan_from_candidates(s, new, old, g)
+}
+fn plan_from_candidates(
+    s: &mut (impl CodecStore + ?Sized),
+    new: Vec<Entry>,
+    old: &[Entry],
+    g: i64,
+) -> Result<Plan, String> {
     let mut ids = BTreeSet::new();
     for e in &new {
         if !ids.insert(e.id.try_clone()?) {
@@ -1506,6 +1551,241 @@ mod tests {
     };
     use newchan_rust::s_content::NodeSink;
     use rusqlite::Connection;
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn candidate_plan_signature(p: &Plan) -> Value {
+        json!({"generation":p.generation,"index":format!("{:?}",p.index),"births":format!("{:?}",p.births),
+            "withdrawals":p.withdrawals,"replaces":p.replaces,
+            "active":RefValue::from(p.active.content_ref()),"withdrawn":RefValue::from(p.withdrawn.content_ref()),"upserts":RefValue::from(p.upserts.content_ref())})
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn native_candidate_fixture() -> (sc::MemoryNodes, Vec<ProducedObject>) {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept_ohlc(&files, &located_ohlc_input(&tb02b_oracle_rows()[..8]));
+        let source = open_db(&files.db()).unwrap();
+        let raw = read_raw_events(&source).unwrap();
+        let effective = read_effective_events(&raw).unwrap();
+        let get = |k| meta_get_opt(&source, k).unwrap().unwrap();
+        let profile_hash = get("profile_hash");
+        let rule = get("rule_revision");
+        let catalog = get("catalog_revision");
+        let scope = serde_json::from_str(&get("scope")).unwrap();
+        let input = GenerationInput {
+            all_events: (&raw).into(),
+            effective: (&effective).into(),
+            generation: 1,
+            structure_cut: "cut-1",
+            input_frontier: raw.len() as i64 - 1,
+            profile_id: tb02a::PROFILE,
+            profile_hash: &profile_hash,
+            rule_revision: &rule,
+            catalog_revision: &catalog,
+            scope: &scope,
+            semantic_commit_ns: None,
+            prior: PriorState {
+                bi_records: Vec::new(),
+                version_record: None,
+            },
+        };
+        let mut nodes = sc::MemoryNodes::new();
+        let mut runtime = GenerationRuntime::new(
+            format!("candidate-union/{}", files.db().display()),
+            tb02a::PROFILE,
+            &rule,
+        );
+        let generated = runtime.generate(&mut nodes, &input).unwrap();
+        (nodes, generated.objects)
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[derive(Default)]
+    struct CandidateProbe {
+        nodes: sc::MemoryNodes,
+        puts: usize,
+        reads: usize,
+        singles: usize,
+        unions: usize,
+        budget: Option<OwnedBudget>,
+        second_declaration: Option<&'static str>,
+        second_reference: Option<ContentRef>,
+        future_put_restore: Option<(NodeDigest, u8, Vec<u8>)>,
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    impl NodeSource for CandidateProbe {
+        fn read(&mut self, d: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+            self.reads += 1;
+            self.nodes.read(d)
+        }
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    impl NodeSink for CandidateProbe {
+        fn put(&mut self, d: NodeDigest, t: u8, b: &[u8]) -> Result<(), sc::CodecError> {
+            self.puts += 1;
+            if let Some((digest, tag, body)) = self.future_put_restore.take() {
+                self.nodes.put(digest, tag, &body)?;
+            }
+            self.nodes.put(d, t, b)
+        }
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    impl CodecRead for CandidateProbe {
+        fn generic_source(&mut self) -> &mut dyn NodeSource {
+            self
+        }
+        fn allocation_budget(&self) -> Option<OwnedBudget> {
+            self.budget.clone()
+        }
+        fn verify_audit_fresh(
+            &mut self,
+            r: &ContentRef,
+            mode: sc::Mode,
+        ) -> Result<(), sc::CodecError> {
+            self.singles += 1;
+            sc::audit_verify(self, r, mode)
+        }
+        fn verify_audit_many_fresh(
+            &mut self,
+            roots: impl IntoIterator<Item = ContentRef>,
+            mode: sc::Mode,
+        ) -> Result<(), sc::CodecError> {
+            self.unions += 1;
+            let declaration = self.second_declaration;
+            let replacement = self.second_reference.clone();
+            sc::audit_verify_many(
+                self,
+                roots.into_iter().enumerate().map(move |(i, mut r)| {
+                    if i == 1 {
+                        if let Some(replacement) = &replacement {
+                            r = replacement.clone();
+                        }
+                        match declaration {
+                            Some("kind") => r.kind = Kind::Bool,
+                            Some("extent") => r.extent = Some(r.extent.unwrap() + 1),
+                            Some("format") => r.format = "bad-format".into(),
+                            _ => {}
+                        }
+                    }
+                    r
+                }),
+                mode,
+            )
+        }
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    impl CodecStore for CandidateProbe {
+        fn generic_store(&mut self) -> &mut dyn NodeStore {
+            self
+        }
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_candidate_union_second_root_errors_have_no_put_or_future_wire_repair_and_budget_refuses(
+    ) {
+        let (nodes, objects) = native_candidate_fixture();
+        let objects = &objects[..2];
+        let first = objects[0].generated().content_ref();
+        let second = objects[1].generated().content_ref();
+        assert_ne!(first.root, second.root);
+        let leaf = sc::frame(sc::tag::BYTES_CHUNK, objects[1].object_id().as_bytes());
+        assert!(nodes.iter().any(|(d, _, _)| *d == leaf));
+        for (fault, code) in [
+            ("kind", sc::code::KIND),
+            ("extent", sc::code::EXTENT),
+            ("format", sc::code::FORMAT),
+            ("seen-root-kind", sc::code::KIND),
+            ("missing-child", sc::code::NODE_MISSING),
+            ("damaged-root", sc::code::NODE_DIGEST),
+            ("public-role", sc::code::TEMPLATE_PLACEHOLDER),
+        ] {
+            let mut store = CandidateProbe {
+                nodes: nodes.clone(),
+                ..Default::default()
+            };
+            match fault {
+                "kind" | "extent" | "format" => store.second_declaration = Some(fault),
+                "seen-root-kind" => {
+                    store.second_reference = Some(first.clone());
+                    store.second_declaration = Some("kind");
+                }
+                "missing-child" => {
+                    let mut missing = sc::MemoryNodes::new();
+                    for (d, t, b) in nodes.iter() {
+                        if *d != leaf {
+                            missing.insert_unchecked(*d, t, b.to_vec());
+                        }
+                    }
+                    store.nodes = missing;
+                    store.future_put_restore = Some((
+                        leaf,
+                        sc::tag::BYTES_CHUNK,
+                        objects[1].object_id().as_bytes().to_vec(),
+                    ));
+                }
+                "damaged-root" => {
+                    store
+                        .nodes
+                        .insert_unchecked(second.digest().unwrap(), sc::tag::OBJECT, vec![0])
+                }
+                "public-role" => {
+                    store.second_reference = Some(
+                        sc::write_template(&mut store.nodes, &V::BatchSelf)
+                            .unwrap()
+                            .content_ref(),
+                    )
+                }
+                _ => unreachable!(),
+            }
+            sc::audit_verify_public(&mut store.nodes, &first).unwrap();
+            let error = plan_native_union_for_testonly(&mut store, objects, &[], 1)
+                .err()
+                .unwrap();
+            assert!(error.contains(code), "{fault}: {error}");
+            assert_eq!(store.puts, 0, "{fault}: 联合失败不得触及candidate put");
+            assert_eq!(store.unions, 1);
+            assert_eq!(store.singles, 0);
+            if fault == "missing-child" {
+                assert!(
+                    store.future_put_restore.is_some(),
+                    "后来wire补子不得变成前置核验依据"
+                );
+            }
+        }
+        let mut ordinary = CandidateProbe {
+            nodes: nodes.clone(),
+            ..Default::default()
+        };
+        let expected = plan(&mut ordinary, objects, &[], 1).unwrap();
+        assert_eq!(ordinary.singles, objects.len());
+        assert_eq!(ordinary.unions, 0, "None预算本身不授予Native联合路径");
+        let mut native = CandidateProbe {
+            nodes: nodes.clone(),
+            ..Default::default()
+        };
+        let actual = plan_native_union_for_testonly(&mut native, objects, &[], 1).unwrap();
+        assert_eq!(
+            candidate_plan_signature(&actual),
+            candidate_plan_signature(&expected)
+        );
+        assert!(native.reads < ordinary.reads, "真实source读取须减少");
+        println!("candidate two-root real source reads ordinary={} union={}; candidate puts ordinary={} union={}",ordinary.reads,native.reads,ordinary.puts,native.puts);
+        let mut mixed = CandidateProbe {
+            nodes,
+            budget: Some(OwnedBudget::new(1_000_000)),
+            ..Default::default()
+        };
+        assert!(plan_native_union_for_testonly(&mut mixed, objects, &[], 1)
+            .err()
+            .unwrap()
+            .contains("拒绝allocation预算"));
+        assert_eq!(
+            (mixed.reads, mixed.puts, mixed.singles, mixed.unions),
+            (0, 0, 0, 0)
+        );
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_candidate_union_real_generations_match_plan_and_reduce_sql_reads() {
+        real_generations(false, true);
+    }
     #[test]
     fn native_history_sweep_lifecycle_events_match_old_scans_and_bound_visits() {
         fn entry(i: usize, first: i64, death: Option<i64>) -> Entry {
@@ -2024,14 +2304,14 @@ mod tests {
     }
     #[test]
     fn three_real_generations_match_shared_diff_and_preserve_historical_cut_and_prior() {
-        real_generations(false);
+        real_generations(false, false);
     }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn native_cut_projection_real_generations_reuse_exact_wire_after_overlay_clear() {
-        real_generations(true);
+        real_generations(true, false);
     }
-    fn real_generations(native_projection: bool) {
+    fn real_generations(native_projection: bool, native_union: bool) {
         #[cfg(not(feature = "s_capture_native_testonly"))]
         let _ = native_projection;
         let files = TestFiles::new();
@@ -2160,7 +2440,62 @@ mod tests {
                 crate::delta_storage::Mode::ChangesOnly,
             )
             .unwrap();
+            #[cfg(feature = "s_capture_native_testonly")]
+            if native_union && g == 1 {
+                let root = generated.objects[1].generated().digest;
+                let before_nodes: i64 = tx
+                    .query_row("SELECT count(*) FROM s_content_nodes", [], |r| r.get(0))
+                    .unwrap();
+                tx.execute_batch("SAVEPOINT native_union_bad_root;")
+                    .unwrap();
+                tx.execute(
+                    "UPDATE s_content_nodes SET body=x'00' WHERE digest=?1",
+                    params![&root[..]],
+                )
+                .unwrap();
+                tx.execute_batch("CREATE TEMP TRIGGER candidate_union_insert_fault BEFORE INSERT ON s_content_nodes BEGIN SELECT RAISE(ABORT,'unexpected_candidate_put_before_union_reject'); END;").unwrap();
+                let error = plan_native_union_for_testonly(&mut s, &generated.objects, &old, g)
+                    .err()
+                    .unwrap();
+                assert!(
+                    error.contains(sc::code::NODE_DIGEST),
+                    "先拒坏完整Public root，未触candidate INSERT：{error}"
+                );
+                assert_eq!(
+                    tx.query_row("SELECT count(*) FROM s_content_nodes", [], |r| r
+                        .get::<_, i64>(0))
+                        .unwrap(),
+                    before_nodes
+                );
+                tx.execute_batch(
+                    "ROLLBACK TO native_union_bad_root; RELEASE native_union_bad_root;",
+                )
+                .unwrap();
+            }
+            let reads_before = content_store::sql_reads_on_thread();
             let p = plan(&mut s, &generated.objects, &old, g).unwrap();
+            let ordinary_reads = content_store::sql_reads_on_thread() - reads_before;
+            #[cfg(feature = "s_capture_native_testonly")]
+            let p = if native_union {
+                let reads_before = content_store::sql_reads_on_thread();
+                let union =
+                    plan_native_union_for_testonly(&mut s, &generated.objects, &old, g).unwrap();
+                let union_reads = content_store::sql_reads_on_thread() - reads_before;
+                assert_eq!(
+                    candidate_plan_signature(&union),
+                    candidate_plan_signature(&p)
+                );
+                assert!(
+                    union_reads < ordinary_reads,
+                    "实际SQL读数须减少：gen{g} ordinary={ordinary_reads} union={union_reads}"
+                );
+                println!("Native candidate union gen{g}: actual_SQL_reads ordinary={ordinary_reads} union={union_reads}; plan roots/metadata identical");
+                union
+            } else {
+                p
+            };
+            #[cfg(not(feature = "s_capture_native_testonly"))]
+            let _ = (native_union, ordinary_reads);
             assert_eq!(p.withdrawals, oracle.1);
             assert_eq!(p.replaces, oracle.2);
             assert_eq!(
