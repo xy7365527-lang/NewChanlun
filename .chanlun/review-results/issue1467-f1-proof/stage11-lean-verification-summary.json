@@ -1,0 +1,136 @@
+{
+  "run_id": "ed3a72fe701c42088f6cecce4966106f",
+  "machine_verification_passed": true,
+  "exact_root_passed": true,
+  "semantic": {
+    "status": "not_reviewed",
+    "reused": false,
+    "semantic_sha256": "a865bc1f405b46d25542b5c1bdc53989786d6b173c10417a7b4ab65733da2519"
+  },
+  "root_closure": {
+    "status": "closed",
+    "exact_root_passed": true,
+    "declaration_closed": true,
+    "scope": "expected Lean type in the recorded environment; semantic review is separate"
+  },
+  "target": {
+    "declaration": "CenterAttempt.exact_root",
+    "actual_type": "And CenterAttempt.VIEW_CAUSAL_TARGET (And CenterAttempt.TYPE3_BRIDGE_TARGET CenterAttempt.WITNESS_TARGET)",
+    "expected_type": "CenterAttempt.VIEW_CAUSAL_TARGET ∧ CenterAttempt.TYPE3_BRIDGE_TARGET ∧ CenterAttempt.WITNESS_TARGET",
+    "comparison": {
+      "binder_kinds_match": true,
+      "definitionally_equal": true,
+      "expected_type_expression": [
+        "app",
+        [
+          "app",
+          [
+            "const",
+            [
+              "And",
+              []
+            ]
+          ],
+          [
+            "const",
+            [
+              "CenterAttempt.VIEW_CAUSAL_TARGET",
+              []
+            ]
+          ]
+        ],
+        [
+          "app",
+          [
+            "app",
+            [
+              "const",
+              [
+                "And",
+                []
+              ]
+            ],
+            [
+              "const",
+              [
+                "CenterAttempt.TYPE3_BRIDGE_TARGET",
+                []
+              ]
+            ]
+          ],
+          [
+            "const",
+            [
+              "CenterAttempt.WITNESS_TARGET",
+              []
+            ]
+          ]
+        ]
+      ],
+      "expected_universes": [],
+      "status": "matched",
+      "universe_parameters_match": true
+    },
+    "axioms": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ],
+    "unexpected_axioms": [],
+    "unsafe_dependencies": [],
+    "unknown_dependencies": [],
+    "identity_mismatches": [],
+    "type_sha256": "1bb0ddb5a5ada7b7ca3a546ddc995933f4c8e2b821d7a6ddf0ad6c125c3aae7c",
+    "semantic_sha256": "a865bc1f405b46d25542b5c1bdc53989786d6b173c10417a7b4ab65733da2519",
+    "environment_sha256": "20a36d8d94d03aa329738d1fe71fd3ecb4845b2e309efaae97e6c09ffb545e52",
+    "loaded_module_count": 2277
+  },
+  "environment": {
+    "lean_version": "Lean (version 4.31.0, arm64-apple-darwin24.6.0, commit 68218e876d2a38b1985b8590fff244a83c321783, Release)",
+    "lean_status": "passed",
+    "lake_version": "Lake version 5.0.0-src+68218e8 (Lean version 4.31.0)",
+    "lake_status": "passed",
+    "lean_toolchain": null,
+    "configuration_hashes": {},
+    "binary_hashes": {
+      "bin/lean": "1b370cfcbf44e80d1b004ab1b1ab9a4c73951f9f7c242140bcff9bc577576554",
+      "bin/lake": "58261a1a2fa1a362376c71e02ca854a093e71cc5e6ea64b287a931cb2565273d",
+      "lib/lean/libleanshared.dylib": "a695a9aa68481c42b99619e0103537e6b433c6fa7021927b184e19a686d03989"
+    },
+    "prefix": "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0",
+    "mode": "direct",
+    "inherited_lean_path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean",
+    "inherited_lean_src_path": "",
+    "sha256": "ab12fe9dc8a44913f3e981589728394c459467fdce1b4bd9fabf9642f84c3330"
+  },
+  "manifest": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-attempt-v1/run-manifest.json",
+    "sha256": "48b994eb395d2a76eb2e2ed34dc1d7bef1ca2794b13f33e1f9b8df036f90653d"
+  },
+  "invocation": {
+    "command": [
+      "python3",
+      "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.agents/research-tools/xsoc1-9e0da0c3/plugins/lean-verify/scripts/verify_lean_project.py",
+      "--project",
+      "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof",
+      "--target-file",
+      "CenterAttemptProof.lean",
+      "--declaration",
+      "CenterAttempt.exact_root",
+      "--expected-type",
+      "CenterAttempt.VIEW_CAUSAL_TARGET ∧ CenterAttempt.TYPE3_BRIDGE_TARGET ∧ CenterAttempt.WITNESS_TARGET",
+      "--lean",
+      "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+      "--lake",
+      "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lake",
+      "--direct",
+      "--build-timeout",
+      "60",
+      "--strict-exit",
+      "--output",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-attempt-v1"
+    ],
+    "cwd": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun",
+    "LEAN_PATH": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean"
+  }
+}
