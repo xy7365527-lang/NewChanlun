@@ -37,13 +37,97 @@ pub fn is_canonical_integer(s: &str) -> bool {
 
 /// 把规范十进制字符串解析为精确 i64（非规范或超范围报错，不静默截断）。
 pub fn parse_canonical_i64(s: &str, what: &str) -> Result<i64, String> {
-    if !is_canonical_integer(s) {
-        return Err(format!(
-            "{what} `{s}` 不是规范十进制整数（要求唯一表示：无 +、无空白、无前导零）"
-        ));
+    parse_canonical_i64_typed(s, what).map_err(|e| e.to_string())
+}
+#[derive(Debug)]
+pub enum EnvelopeFailure {
+    Object,
+    Fields,
+    CausalArray,
+    PayloadObject,
+    HashConflict,
+    HashUnavailable,
+}
+impl fmt::Display for EnvelopeFailure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Object => "SchemaUnsupported：消息必须对象",
+            Self::Fields => "SchemaUnsupported：公共头字段不完整/多余",
+            Self::CausalArray => "SchemaUnsupported：causal_refs必须数组",
+            Self::PayloadObject => "SchemaUnsupported：payload必须对象",
+            Self::HashConflict => "IdentityConflict：payload_hash与规范业务内容不同",
+            Self::HashUnavailable => "prototype_audit_allocation_incomplete：owned规范编码未启用",
+        })
     }
-    s.parse::<i64>()
-        .map_err(|e| format!("{what} `{s}` 超出 i64 精确整数域：{e}"))
+}
+#[derive(Debug)]
+pub enum ProtocolError<'a> {
+    Fixed(EnvelopeFailure),
+    Required(&'a str),
+    Schema(&'a str),
+    Integer {
+        input: &'a str,
+        field: &'a str,
+        overflow: Option<std::num::ParseIntError>,
+    },
+    Nonnegative(&'a str),
+    Positive(&'a str),
+    Allocation(crate::s_content::CodecError),
+    Encoding(serde_json::Error),
+}
+impl fmt::Display for ProtocolError<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Fixed(s) => fmt::Display::fmt(s, f),
+            Self::Required(k) => write!(f, "SchemaUnsupported：缺非空字符串 {k}"),
+            Self::Schema(s) => write!(f, "SchemaUnsupported：仅{s}"),
+            Self::Integer {
+                input,
+                field,
+                overflow: None,
+            } => write!(
+                f,
+                "{field} `{input}` 不是规范十进制整数（要求唯一表示：无 +、无空白、无前导零）"
+            ),
+            Self::Integer {
+                input,
+                field,
+                overflow: Some(e),
+            } => write!(f, "{field} `{input}` 超出 i64 精确整数域：{e}"),
+            Self::Nonnegative(k) => write!(f, "InvalidDomain：{k} 必须非负"),
+            Self::Positive(k) => write!(f, "InvalidDomain：{k} 必须大于0"),
+            Self::Allocation(e) => fmt::Display::fmt(e, f),
+            Self::Encoding(e) => write!(f, "SchemaUnsupported：{e}"),
+        }
+    }
+}
+pub fn parse_canonical_i64_typed<'a>(s: &'a str, what: &'a str) -> Result<i64, ProtocolError<'a>> {
+    if !is_canonical_integer(s) {
+        return Err(ProtocolError::Integer {
+            input: s,
+            field: what,
+            overflow: None,
+        });
+    }
+    s.parse::<i64>().map_err(|e| ProtocolError::Integer {
+        input: s,
+        field: what,
+        overflow: Some(e),
+    })
+}
+pub fn nonnegative_typed<'a>(s: &'a str, field: &'a str) -> Result<i64, ProtocolError<'a>> {
+    let n = parse_canonical_i64_typed(s, field)?;
+    if n < 0 {
+        return Err(ProtocolError::Nonnegative(field));
+    }
+    Ok(n)
+}
+pub fn positive_typed<'a>(s: &'a str, field: &'a str) -> Result<i64, ProtocolError<'a>> {
+    let n = nonnegative_typed(s, field)?;
+    if n == 0 {
+        return Err(ProtocolError::Positive(field));
+    }
+    Ok(n)
 }
 
 pub fn canonical_json(v: &Value) -> String {
@@ -75,24 +159,13 @@ pub fn canonical_json(v: &Value) -> String {
 }
 
 pub fn required<'a>(v: &'a Value, k: &str) -> Result<&'a str, String> {
-    v.get(k)
-        .and_then(Value::as_str)
-        .filter(|s| !s.is_empty())
-        .ok_or_else(|| format!("SchemaUnsupported：缺非空字符串 {k}"))
+    required_view(v.into(), k)
 }
 pub fn nonnegative(s: &str, field: &str) -> Result<i64, String> {
-    let n = parse_canonical_i64(s, field)?;
-    if n < 0 {
-        return Err(format!("InvalidDomain：{field} 必须非负"));
-    }
-    Ok(n)
+    nonnegative_typed(s, field).map_err(|e| e.to_string())
 }
 pub fn positive(s: &str, field: &str) -> Result<i64, String> {
-    let n = nonnegative(s, field)?;
-    if n == 0 {
-        return Err(format!("InvalidDomain：{field} 必须大于0"));
-    }
-    Ok(n)
+    positive_typed(s, field).map_err(|e| e.to_string())
 }
 
 /// serde_json::Value 的普通解析会覆盖重复键；所有新协议/clock输入先经过此严格解码器。
@@ -171,11 +244,17 @@ pub fn validate_envelope_view<'a>(
     validate_envelope_view_with_owner(value, schema_revision, None)
 }
 pub fn required_view<'a>(value: JsonView<'a>, key: &str) -> Result<&'a str, String> {
+    required_view_typed(value, key).map_err(|e| e.to_string())
+}
+pub fn required_view_typed<'v, 'k>(
+    value: JsonView<'v>,
+    key: &'k str,
+) -> Result<&'v str, ProtocolError<'k>> {
     value
         .get(key)
         .and_then(JsonView::as_str)
         .filter(|s| !s.is_empty())
-        .ok_or_else(|| format!("SchemaUnsupported：缺非空字符串 {key}"))
+        .ok_or(ProtocolError::Required(key))
 }
 fn child<'a>(value: JsonView<'a>, key: &str) -> JsonView<'a> {
     value.get(key).unwrap_or(JsonView::Null)
@@ -186,6 +265,15 @@ pub fn validate_envelope_view_with_owner<'a>(
     schema_revision: &str,
     owner: Option<&OwnedBudget>,
 ) -> Result<JsonView<'a>, String> {
+    validate_envelope_typed(value, schema_revision, owner)
+        .map(|_| value)
+        .map_err(|e| e.to_string())
+}
+pub fn validate_envelope_typed<'a>(
+    value: JsonView<'a>,
+    schema_revision: &'a str,
+    owner: Option<&OwnedBudget>,
+) -> Result<JsonView<'a>, ProtocolError<'a>> {
     let allowed = [
         "schema_revision",
         "session_id",
@@ -199,12 +287,14 @@ pub fn validate_envelope_view_with_owner<'a>(
         "causal_refs",
         "payload",
     ];
-    let map = value.as_object().ok_or("SchemaUnsupported：消息必须对象")?;
+    let map = value
+        .as_object()
+        .ok_or(ProtocolError::Fixed(EnvelopeFailure::Object))?;
     if map.len() != allowed.len() || map.keys().any(|k| !allowed.contains(&k)) {
-        return Err("SchemaUnsupported：公共头字段不完整/多余".into());
+        return Err(ProtocolError::Fixed(EnvelopeFailure::Fields));
     }
-    if required_view(value, "schema_revision")? != schema_revision {
-        return Err(format!("SchemaUnsupported：仅{schema_revision}"));
+    if required_view_typed(value, "schema_revision")? != schema_revision {
+        return Err(ProtocolError::Schema(schema_revision));
     }
     for k in [
         "session_id",
@@ -213,16 +303,19 @@ pub fn validate_envelope_view_with_owner<'a>(
         "message_id",
         "producer_id",
     ] {
-        required_view(value, k)?;
+        required_view_typed(value, k)?;
     }
-    positive(
-        required_view(value, "session_generation")?,
+    positive_typed(
+        required_view_typed(value, "session_generation")?,
         "session_generation",
     )?;
-    positive(required_view(value, "producer_epoch")?, "producer_epoch")?;
+    positive_typed(
+        required_view_typed(value, "producer_epoch")?,
+        "producer_epoch",
+    )?;
     let refs = child(value, "causal_refs")
         .as_array()
-        .ok_or("SchemaUnsupported：causal_refs必须数组")?;
+        .ok_or(ProtocolError::Fixed(EnvelopeFailure::CausalArray))?;
     for r in refs.iter() {
         for k in [
             "source_namespace",
@@ -230,19 +323,19 @@ pub fn validate_envelope_view_with_owner<'a>(
             "message_id",
             "payload_hash",
         ] {
-            required_view(r, k)?;
+            required_view_typed(r, k)?;
         }
     }
     let payload = child(value, "payload");
     if !payload.is_object() {
-        return Err("SchemaUnsupported：payload必须对象".into());
+        return Err(ProtocolError::Fixed(EnvelopeFailure::PayloadObject));
     }
     // 与原入口相同：先拒payload_hash缺失，再执行规范内容哈希，最后核op。
-    let declared = required_view(value, "payload_hash")?;
-    if declared != canonical_hash_view_with_owner(payload, owner)?.as_str() {
-        return Err("IdentityConflict：payload_hash与规范业务内容不同".into());
+    let declared = required_view_typed(value, "payload_hash")?;
+    if declared != canonical_hash_view_typed(payload, owner)?.as_str() {
+        return Err(ProtocolError::Fixed(EnvelopeFailure::HashConflict));
     }
-    required_view(payload, "op")?;
+    required_view_typed(payload, "op")?;
     Ok(value)
 }
 /// 固定SHA256文本，无String或新账本；normal/Owned都由JsonView的canonical序列化规则供字节。
@@ -269,19 +362,25 @@ pub fn canonical_hash_view_with_owner(
     value: JsonView<'_>,
     owner: Option<&OwnedBudget>,
 ) -> Result<FixedHash, String> {
+    canonical_hash_view_typed(value, owner).map_err(|e| e.to_string())
+}
+pub fn canonical_hash_view_typed(
+    value: JsonView<'_>,
+    owner: Option<&OwnedBudget>,
+) -> Result<FixedHash, ProtocolError<'static>> {
     let mut hash = Sha256::new();
     if let Some(owner) = owner {
         #[cfg(feature = "s_allocation_json_testonly")]
         {
             let bytes =
                 crate::s_content::capture_allocation::audit_json::canonical_bytes(value, owner)
-                    .map_err(|e| e.to_string())?;
+                    .map_err(ProtocolError::Allocation)?;
             hash.update(&*bytes);
         }
         #[cfg(not(feature = "s_allocation_json_testonly"))]
         {
             let _ = owner;
-            return Err("prototype_audit_allocation_incomplete：owned规范编码未启用".into());
+            return Err(ProtocolError::Fixed(EnvelopeFailure::HashUnavailable));
         }
     } else {
         struct HashOut<'a>(&'a mut Sha256);
@@ -294,8 +393,7 @@ pub fn canonical_hash_view_with_owner(
                 Ok(())
             }
         }
-        serde_json::to_writer(HashOut(&mut hash), &value)
-            .map_err(|e| format!("SchemaUnsupported：{e}"))?;
+        serde_json::to_writer(HashOut(&mut hash), &value).map_err(ProtocolError::Encoding)?;
     }
     Ok(FixedHash::from_digest(&hash.finalize()))
 }

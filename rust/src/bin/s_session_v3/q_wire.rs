@@ -11,9 +11,18 @@ pub(super) fn parse(bytes: &[u8], resources: &QResources) -> Result<Value, Strin
     }
     validate_envelope(strict_json(bytes)?, "s-session/3")
 }
-/// Frame及envelope的String原因仍属旧通道，尚未声明分配qualification。
+#[derive(Debug)]
+pub(crate) enum FrameFailure {
+    Limit,
+}
+impl std::fmt::Display for FrameFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("QReplyInvalid：Incomplete：完整请求超过max_frame_bytes")
+    }
+}
 pub(crate) enum ParseOwnerError {
-    Legacy(String),
+    Frame(FrameFailure),
+    Syntax(serde_json::Error),
     #[cfg(feature = "s_allocation_json_testonly")]
     OwnedSyntax(sc::capture_allocation::audit_json::strict::Diagnostic),
     Allocation(sc::CodecError),
@@ -21,22 +30,21 @@ pub(crate) enum ParseOwnerError {
 impl std::fmt::Display for ParseOwnerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Legacy(cause) => f.write_str(cause),
+            Self::Frame(cause) => std::fmt::Display::fmt(cause, f),
+            Self::Syntax(cause) => write!(f, "SchemaUnsupported：{cause}"),
             #[cfg(feature = "s_allocation_json_testonly")]
             Self::OwnedSyntax(cause) => write!(f, "SchemaUnsupported：{cause}"),
             Self::Allocation(cause) => write!(f, "QReplyInvalid：{cause}"),
         }
     }
 }
-pub(crate) fn parse_owner(
+pub(crate) fn decode_owner(
     bytes: &[u8],
     resources: &QResources,
     allocation: Option<&OwnedBudget>,
 ) -> Result<bj::JsonOwner, ParseOwnerError> {
     if bytes.len() as u128 > resources.limit(Limit::FrameBytes) as u128 {
-        return Err(ParseOwnerError::Legacy(err(
-            "Incomplete：完整请求超过max_frame_bytes",
-        )));
+        return Err(ParseOwnerError::Frame(FrameFailure::Limit));
     }
     #[cfg(not(feature = "s_allocation_json_testonly"))]
     if allocation.is_some() {
@@ -45,21 +53,161 @@ pub(crate) fn parse_owner(
             "owned Q请求未启用",
         )));
     }
-    let owner = bj::strict_json_owner(bytes, allocation).map_err(|cause| match cause {
-        bj::StrictOwnerError::Syntax(cause) => {
-            ParseOwnerError::Legacy(format!("SchemaUnsupported：{cause}"))
-        }
+    bj::strict_json_owner(bytes, allocation).map_err(|cause| match cause {
+        bj::StrictOwnerError::Syntax(cause) => ParseOwnerError::Syntax(cause),
         #[cfg(feature = "s_allocation_json_testonly")]
         bj::StrictOwnerError::OwnedSyntax(cause) => ParseOwnerError::OwnedSyntax(cause),
         bj::StrictOwnerError::Allocation(cause) => ParseOwnerError::Allocation(cause),
-    })?;
-    newchan_rust::session_protocol::validate_envelope_view_with_owner(
+    })
+}
+/// 兼容String入口；HTTP直接分别调用decode与typed公共核以持住失败的来源owner。
+pub(crate) fn parse_owner(
+    bytes: &[u8],
+    resources: &QResources,
+    allocation: Option<&OwnedBudget>,
+) -> Result<bj::JsonOwner, String> {
+    let owner = decode_owner(bytes, resources, allocation).map_err(|e| e.to_string())?;
+    newchan_rust::session_protocol::validate_envelope_typed(
         owner.view(),
         "s-session/3",
         allocation,
     )
-    .map_err(ParseOwnerError::Legacy)?;
+    .map_err(|e| e.to_string())?;
     Ok(owner)
+}
+#[derive(Debug)]
+pub(crate) enum RouteFixed {
+    SnapshotOp,
+    SnapshotVersion,
+    SnapshotDigest,
+    SnapshotChecksum,
+    SnapshotMode,
+    SnapshotExact,
+    SnapshotLimit,
+    ContentOp,
+    ContentVersion,
+    ContentDigest,
+    ContentChecksum,
+    ContentMode,
+    ContentAnchor,
+    ContentOverflow,
+    ContentExact,
+    WatchOp,
+    WatchIdentity,
+    WatchExact,
+    WatchLimit,
+    Route,
+}
+impl std::fmt::Display for RouteFixed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::SnapshotOp => "QSnapshotInvalid：op必须是snapshot",
+            Self::SnapshotVersion => "QSnapshotInvalid：snapshot_token版本不符",
+            Self::SnapshotDigest => "QSnapshotInvalid：签发捕获摘要不是64位小写hex",
+            Self::SnapshotChecksum => "QSnapshotInvalid：snapshot_token checksum不符",
+            Self::SnapshotMode => "QSnapshotInvalid：history_mode不符",
+            Self::SnapshotExact => "QSnapshotInvalid：exact字段不完整或多余",
+            Self::SnapshotLimit => "QSnapshotInvalid：Incomplete：请求超过冻结frame/page_size上限",
+            Self::ContentOp => "QContentInvalid：op必须是content",
+            Self::ContentVersion => "QContentInvalid：content_token版本不符",
+            Self::ContentDigest => "QContentInvalid：签发摘要须为64位小写hex",
+            Self::ContentChecksum => "QContentInvalid：content_token checksum不符",
+            Self::ContentMode => "QContentInvalid：history_mode不符",
+            Self::ContentAnchor => "QContentInvalid：anchor kind不符；不可用裸Hash访问",
+            Self::ContentOverflow => "QContentInvalid：offset+limit溢出",
+            Self::ContentExact => "QContentInvalid：exact字段不完整或多余",
+            Self::WatchOp => "QWatchInvalid：op必须是watch",
+            Self::WatchIdentity => "QWatchInvalid：外层消息与cursor身份不同",
+            Self::WatchExact => "QWatchInvalid：exact字段不符",
+            Self::WatchLimit => "QWatchInvalid：Incomplete：Watch请求超过冻结frame/max_batches界",
+            Self::Route => "QRouteInvalid：不是已声明的v3查询路由",
+        })
+    }
+}
+#[derive(Debug)]
+pub(crate) enum AdmissionError<'a> {
+    Fixed(RouteFixed),
+    Protocol(newchan_rust::session_protocol::ProtocolError<'a>),
+    Allocation(sc::CodecError),
+    ContentAllocation(sc::CodecError),
+    SnapshotFields(sc::CodecError),
+    ContentFields(sc::CodecError),
+    Ref(sc::RefDiagnostic<'a>),
+    Path(sc::fragment::PathDiagnostic<'a>),
+}
+impl<'a> From<newchan_rust::session_protocol::ProtocolError<'a>> for AdmissionError<'a> {
+    fn from(e: newchan_rust::session_protocol::ProtocolError<'a>) -> Self {
+        Self::Protocol(e)
+    }
+}
+impl std::fmt::Display for AdmissionError<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Fixed(e) => std::fmt::Display::fmt(e, f),
+            Self::Protocol(e) => std::fmt::Display::fmt(e, f),
+            Self::Allocation(e) => std::fmt::Display::fmt(e, f),
+            Self::ContentAllocation(e) | Self::ContentFields(e) => {
+                write!(f, "QContentInvalid：{e}")
+            }
+            Self::SnapshotFields(e) => write!(f, "QSnapshotInvalid：{e}"),
+            Self::Ref(e) => write!(f, "QContentInvalid：{e}"),
+            Self::Path(e) => write!(f, "QContentInvalid：{e}"),
+        }
+    }
+}
+impl AdmissionError<'_> {
+    pub fn typed_budget(&self) -> bool {
+        matches!(
+            self,
+            Self::Allocation(_)
+                | Self::ContentAllocation(_)
+                | Self::Protocol(newchan_rust::session_protocol::ProtocolError::Allocation(_))
+                | Self::Protocol(newchan_rust::session_protocol::ProtocolError::Fixed(
+                    newchan_rust::session_protocol::EnvelopeFailure::HashUnavailable
+                ))
+        )
+    }
+}
+/// 沿完整Display逐字查旧五类字符串，动态用户输入仍保留原HTTP选择语义。
+pub(crate) fn legacy_budget(detail: &dyn std::fmt::Display) -> bool {
+    struct Search<'a> {
+        needle: &'a [u8],
+        window: [u8; 32],
+        used: usize,
+        found: bool,
+    }
+    impl std::fmt::Write for Search<'_> {
+        fn write_str(&mut self, text: &str) -> std::fmt::Result {
+            for byte in text.bytes() {
+                if self.used == self.needle.len() {
+                    self.window.copy_within(1..self.used, 0);
+                    self.used -= 1;
+                }
+                self.window[self.used] = byte;
+                self.used += 1;
+                self.found |= &self.window[..self.used] == self.needle;
+            }
+            Ok(())
+        }
+    }
+    [
+        "Incomplete",
+        "CaptureDeadline",
+        "VerifyDeadline",
+        "CaptureBytes",
+        "atomic_delta_limit",
+    ]
+    .iter()
+    .any(|needle| {
+        let mut out = Search {
+            needle: needle.as_bytes(),
+            window: [0; 32],
+            used: 0,
+            found: false,
+        };
+        let _ = std::fmt::write(&mut out, format_args!("{detail}"));
+        out.found
+    })
 }
 /// payload必须由已核切面生成；源namespace/消息ID/因果回引沿共同Q配方。
 pub(super) fn reply(

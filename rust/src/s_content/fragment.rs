@@ -36,11 +36,14 @@ impl Unit {
         }
     }
     pub fn parse(s: &str) -> Result<Self, CodecError> {
+        Self::parse_typed(s).map_err(|e| e.into_codec())
+    }
+    pub fn parse_typed(s: &str) -> Result<Self, PathDiagnostic<'static>> {
         match s {
             "items" => Ok(Self::Items),
             "bytes" => Ok(Self::Bytes),
             "value" => Ok(Self::Value),
-            _ => Err(err("未知unit")),
+            _ => Err(PathDiagnostic::Fixed(PathFailure::Unit)),
         }
     }
 }
@@ -400,34 +403,99 @@ impl path::PathView for WirePath<'_> {
             .map(|v| parse_step(v).expect("checked immutable path step"))
     }
 }
+#[derive(Debug)]
+pub enum PathFailure {
+    Unit,
+    Array,
+    Fields,
+    FieldText,
+    IndexText,
+    Unknown,
+}
+impl std::fmt::Display for PathFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Unit => "未知unit",
+            Self::Array => "path须为数组",
+            Self::Fields => "path步骤须exact单字段",
+            Self::FieldText => "field须为UTF-8字符串",
+            Self::IndexText => "index须为规范非负整数文本",
+            Self::Unknown => "未知path步骤或json_text非true",
+        })
+    }
+}
+#[derive(Debug)]
+pub enum PathDiagnostic<'a> {
+    Fixed(PathFailure),
+    Decimal(super::DecimalError<'a>),
+}
+impl std::fmt::Display for PathDiagnostic<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Fixed(s) => write!(f, "{INVALID}: {s}"),
+            Self::Decimal(e) => std::fmt::Display::fmt(e, f),
+        }
+    }
+}
+impl PathDiagnostic<'_> {
+    fn into_codec(self) -> CodecError {
+        match self {
+            Self::Fixed(s) => CodecError::new(INVALID, s.to_string()),
+            Self::Decimal(e) => {
+                let rendered = e.to_string();
+                let code = e.code();
+                CodecError::new(
+                    code,
+                    rendered
+                        .strip_prefix(code)
+                        .unwrap()
+                        .strip_prefix(": ")
+                        .unwrap(),
+                )
+            }
+        }
+    }
+}
 pub fn parse_path_view(value: JsonView<'_>) -> Result<WirePath<'_>, CodecError> {
-    let rows = value.as_array().ok_or_else(|| err("path须为数组"))?;
+    parse_path_view_typed(value).map_err(|e| e.into_codec())
+}
+pub fn parse_path_view_typed(value: JsonView<'_>) -> Result<WirePath<'_>, PathDiagnostic<'_>> {
+    let rows = value
+        .as_array()
+        .ok_or(PathDiagnostic::Fixed(PathFailure::Array))?;
     for row in rows.iter() {
-        parse_step(row)?;
+        parse_step_typed(row)?;
     }
     Ok(WirePath { value })
 }
 fn parse_step(row: JsonView<'_>) -> Result<path::PathStepView<'_>, CodecError> {
+    parse_step_typed(row).map_err(|e| e.into_codec())
+}
+fn parse_step_typed(row: JsonView<'_>) -> Result<path::PathStepView<'_>, PathDiagnostic<'_>> {
     let object = row
         .as_object()
         .filter(|o| o.len() == 1)
-        .ok_or_else(|| err("path步骤须exact单字段"))?;
+        .ok_or(PathDiagnostic::Fixed(PathFailure::Fields))?;
     if let Some(v) = object.get("field") {
         return v
             .as_str()
             .map(path::PathStepView::Field)
-            .ok_or_else(|| err("field须为UTF-8字符串"));
+            .ok_or(PathDiagnostic::Fixed(PathFailure::FieldText));
     }
     if let Some(v) = object.get("index") {
-        return Ok(path::PathStepView::Index(parse_canonical_u64(
-            v.as_str().ok_or_else(|| err("index须为规范非负整数文本"))?,
-            "index",
-        )?));
+        return Ok(path::PathStepView::Index(
+            super::parse_canonical_u64_typed(
+                v.as_str()
+                    .ok_or(PathDiagnostic::Fixed(PathFailure::IndexText))?,
+                "index",
+            )
+            .map_err(PathDiagnostic::Decimal)?,
+        ));
     }
     if object.get("json_text").and_then(JsonView::as_bool) == Some(true) {
         return Ok(path::PathStepView::JsonText);
     }
-    Err(err("未知path步骤或json_text非true"))
+    Err(PathDiagnostic::Fixed(PathFailure::Unknown))
 }
 
 /// 每片重新收齐其触碰到的证明，不能因调用方曾接纳过节点就省略祖先。

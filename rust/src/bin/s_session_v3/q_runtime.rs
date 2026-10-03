@@ -248,26 +248,34 @@ fn parse_request_with_allocation(
     path: &str,
     body: &[u8],
     resources: &QResources,
-    allocation: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+    allocation: Option<&OwnedBudget>,
 ) -> Result<Request, String> {
-    if let Some(b) = allocation {
-        return Ok(match path {
-            "/api/v3/snapshot" => {
-                Request::Snapshot(q_snapshot::Request::parse_owned(body, resources, b)?)
-            }
-            "/api/v3/content" => {
-                Request::Content(q_content::Request::parse_owned(body, resources, b)?)
-            }
-            "/api/v3/watch" => Request::Watch(q_watch::Request::parse_owned(body, resources, b)?),
-            _ => return Err("QRouteInvalid：不是已声明的v3查询路由".into()),
-        });
+    if !["/api/v3/snapshot", "/api/v3/content", "/api/v3/watch"].contains(&path) {
+        return Err(q_wire::RouteFixed::Route.to_string());
     }
-    // 每个解析器先核完整frame和exact envelope/payload。无资源配置来自请求。
+    let owner = q_wire::parse_owner(body, resources, allocation)?;
+    let envelope = super::business_json::SharedEnvelope::try_new(owner, allocation)
+        .map_err(|(e, _)| e.to_string())?;
+    parse_admitted(path, &envelope, body.len(), resources, allocation).map_err(|e| e.to_string())
+}
+fn parse_admitted<'a>(
+    path: &str,
+    envelope: &'a super::business_json::SharedEnvelope,
+    bytes: usize,
+    resources: &QResources,
+    allocation: Option<&OwnedBudget>,
+) -> Result<Request, q_wire::AdmissionError<'a>> {
     Ok(match path {
-        "/api/v3/snapshot" => Request::Snapshot(q_snapshot::Request::parse(body, resources)?),
-        "/api/v3/content" => Request::Content(q_content::Request::parse(body, resources)?),
-        "/api/v3/watch" => Request::Watch(q_watch::Request::parse(body, resources)?),
-        _ => return Err("QRouteInvalid：不是已声明的v3查询路由".into()),
+        "/api/v3/snapshot" => Request::Snapshot(q_snapshot::Request::parse_admitted(
+            envelope, bytes, resources, allocation,
+        )?),
+        "/api/v3/content" => Request::Content(q_content::Request::parse_admitted(
+            envelope, bytes, resources, allocation,
+        )?),
+        "/api/v3/watch" => Request::Watch(q_watch::Request::parse_admitted(
+            envelope, bytes, resources, allocation,
+        )?),
+        _ => return Err(q_wire::AdmissionError::Fixed(q_wire::RouteFixed::Route)),
     })
 }
 #[cfg(test)]
@@ -494,36 +502,70 @@ fn serve_http<S: q_http_input::TimedRead + q_watch::TimedWrite>(
     };
     // Head 持有路径owner至本调用结束，不再复制为std String。
     let path = head.path.as_str();
-    let envelope =
-        match q_wire::parse_owner(&body, resources, allocation.as_ref().map(|p| &p.budget)) {
-            Ok(envelope) => envelope,
-            Err(cause) => {
-                return send_parse_failure(
-                    stream,
-                    resources,
-                    leases,
-                    epoch,
-                    cause,
-                    allocation.as_ref().map(|p| &p.budget),
-                )
-            }
-        };
-    let request = match parse_request_with_allocation(
+    let owner = match q_wire::decode_owner(&body, resources, allocation.as_ref().map(|p| &p.budget))
+    {
+        Ok(owner) => owner,
+        Err(cause) => {
+            return send_parse_failure(
+                stream,
+                resources,
+                leases,
+                epoch,
+                cause,
+                allocation.as_ref().map(|p| &p.budget),
+            )
+        }
+    };
+    if let Err(cause) = newchan_rust::session_protocol::validate_envelope_typed(
+        owner.view(),
+        "s-session/3",
+        allocation.as_ref().map(|p| &p.budget),
+    ) {
+        let cause = q_wire::AdmissionError::Protocol(cause);
+        return send_admission_failure(
+            stream,
+            resources,
+            leases,
+            epoch,
+            None,
+            &cause,
+            allocation.as_ref().map(|p| &p.budget),
+        );
+    }
+    let envelope = match super::business_json::SharedEnvelope::try_new(
+        owner,
+        allocation.as_ref().map(|p| &p.budget),
+    ) {
+        Ok(envelope) => envelope,
+        Err((cause, owner)) => {
+            let cause = q_wire::AdmissionError::Allocation(cause);
+            return send_admission_failure(
+                stream,
+                resources,
+                leases,
+                epoch,
+                Some(owner.view()),
+                &cause,
+                allocation.as_ref().map(|p| &p.budget),
+            );
+        }
+    };
+    let request = match parse_admitted(
         path,
-        &body,
+        &envelope,
+        body.len(),
         resources,
         allocation.as_ref().map(|p| &p.budget),
     ) {
         Ok(request) => request,
-        Err(detail) => {
-            return send_failure(
+        Err(cause) => {
+            return send_admission_failure(
                 stream,
                 resources,
                 leases,
                 epoch,
                 Some(envelope.view()),
-                None,
-                failure(detail, false),
+                &cause,
                 allocation.as_ref().map(|p| &p.budget),
             )
         }
@@ -643,7 +685,34 @@ fn send_failure<S: q_watch::TimedWrite>(
     )
 }
 
-/// Some错误借用typed原因活到flush，None与旧frame/envelope失败保留原String通道。
+/// 借用typed原因直到完整HTTP回包flush；来源owner留在调用栈或共享envelope中。
+fn send_admission_failure<S: q_watch::TimedWrite>(
+    stream: &mut S,
+    resources: &QResources,
+    leases: &ClientLeases,
+    epoch: &str,
+    request: Option<JsonView<'_>>,
+    cause: &q_wire::AdmissionError<'_>,
+    allocation: Option<&OwnedBudget>,
+) -> Result<(), String> {
+    let budget = cause.typed_budget() || q_wire::legacy_budget(cause);
+    send_error_payload_display(
+        stream,
+        resources,
+        leases,
+        epoch,
+        request,
+        None,
+        if budget {
+            "QueryBudgetExceeded"
+        } else {
+            "InvalidQuery"
+        },
+        Some(cause),
+        if budget { 503 } else { 400 },
+        allocation,
+    )
+}
 fn send_parse_failure<S: q_watch::TimedWrite>(
     stream: &mut S,
     resources: &QResources,
@@ -652,39 +721,8 @@ fn send_parse_failure<S: q_watch::TimedWrite>(
     cause: q_wire::ParseOwnerError,
     allocation: Option<&OwnedBudget>,
 ) -> Result<(), String> {
-    let budget = match &cause {
-        q_wire::ParseOwnerError::Legacy(_) => {
-            if let q_wire::ParseOwnerError::Legacy(detail) = cause {
-                return send_failure(
-                    stream,
-                    resources,
-                    leases,
-                    epoch,
-                    None,
-                    None,
-                    failure(detail, false),
-                    allocation,
-                );
-            }
-            unreachable!()
-        }
-        #[cfg(feature = "s_allocation_json_testonly")]
-        q_wire::ParseOwnerError::OwnedSyntax(detail) => [
-            "Incomplete",
-            "CaptureDeadline",
-            "VerifyDeadline",
-            "CaptureBytes",
-            "atomic_delta_limit",
-        ]
-        .iter()
-        .any(|code| detail.contains(code)),
-        q_wire::ParseOwnerError::Allocation(_) => true,
-    };
-    let (status, error) = if budget {
-        (503, "QueryBudgetExceeded")
-    } else {
-        (400, "InvalidQuery")
-    };
+    let budget =
+        matches!(&cause, q_wire::ParseOwnerError::Allocation(_)) || q_wire::legacy_budget(&cause);
     send_error_payload_display(
         stream,
         resources,
@@ -692,9 +730,13 @@ fn send_parse_failure<S: q_watch::TimedWrite>(
         epoch,
         None,
         None,
-        error,
+        if budget {
+            "QueryBudgetExceeded"
+        } else {
+            "InvalidQuery"
+        },
         Some(&cause),
-        status,
+        if budget { 503 } else { 400 },
         allocation,
     )
 }
@@ -2236,5 +2278,371 @@ mod actual_owned_http_probe {
         assert_eq!(final_meter.live_requested_layout_bytes, 0);
         assert_eq!(final_meter.allocated_layouts, final_meter.released_layouts);
         assert!(!final_health.invariant_broken);
+    }
+}
+
+#[cfg(all(test, feature = "s_allocation_json_testonly"))]
+mod admission_family_tests {
+    use super::super::business_json as bj;
+    use super::*;
+    use newchan_rust::s_content::capture_allocation::CaptureSlab;
+    use newchan_rust::session_protocol::{canonical_json, strict_json, validate_envelope_typed};
+    use serde_json::{json, Value};
+    use std::io::{self, Write};
+    use std::time::Duration;
+
+    fn fixed() -> Value {
+        json!({"session_id":"session😀", "session_generation":"1"})
+    }
+    fn payloads() -> [(&'static str, Value); 3] {
+        [
+            (
+                "/api/v3/snapshot",
+                json!({"op":"snapshot","session_id":"session😀","session_generation":"1","scope":{},"history_mode":"AsKnown","as_of_generation":null,"page_size":"1","order_version":"1"}),
+            ),
+            (
+                "/api/v3/content",
+                json!({"op":"content","anchor":{"kind":"projection","fixed_cut":{"cut_generation":"1","history_mode":"AsKnown"},"cut_projection_digest":"unchecked","projection_ref":{"format":"unchecked","root":"unchecked","kind":"object","extent":"0"}},"path":[],"unit":"items","offset":"0","limit":"1"}),
+            ),
+            (
+                "/api/v3/watch",
+                json!({"op":"watch","cursor":{"session_id":"session😀","session_generation":"1","catalog_revision":"1","scope":{},"after_generation":"0","base_cut":"base","index_frontier":"","last_seq":"-1","order_version":"1"},"max_batches":"1","client_id":"client😀"}),
+            ),
+        ]
+    }
+    fn owner(bytes: &[u8], r: &QResources, b: Option<&OwnedBudget>) -> bj::SharedEnvelope {
+        let owner = q_wire::decode_owner(bytes, r, b).unwrap_or_else(|e| panic!("{e}"));
+        validate_envelope_typed(owner.view(), "s-session/3", b).unwrap();
+        bj::SharedEnvelope::try_new(owner, b).unwrap_or_else(|(e, _)| panic!("{e}"))
+    }
+    struct Out {
+        bytes: Vec<u8>,
+        flushed: bool,
+        fail_flush: bool,
+    }
+    impl Write for Out {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            self.bytes.extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            self.flushed = true;
+            if self.fail_flush {
+                Err(io::ErrorKind::BrokenPipe.into())
+            } else {
+                Ok(())
+            }
+        }
+    }
+    impl q_watch::TimedWrite for Out {
+        fn set_timeout(&mut self, _: Duration) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    #[test]
+    fn admission_family_matrix_keeps_error_priority_unicode_dynamic_json_status_and_drop() {
+        let r = tests::resources();
+        let leases = ClientLeases::new(&r);
+        let bases = payloads();
+        // bad format/root are intentionally accepted transport declarations at this stage.
+        for (path, payload) in &bases {
+            let bytes = tests::envelope(&fixed(), payload.clone());
+            let b = OwnedBudget::new(100_000);
+            let source = owner(&bytes, &r, Some(&b));
+            let request = parse_admitted(path, &source, bytes.len(), &r, Some(&b))
+                .unwrap_or_else(|e| panic!("{e}"));
+            let live = b.snapshot().live_requested_layout_bytes;
+            drop(request);
+            assert!(b.snapshot().live_requested_layout_bytes > 0);
+            assert!(b.snapshot().live_requested_layout_bytes <= live);
+            drop(source);
+            assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
+        }
+        let mut cases = Vec::new();
+        let mut snap = bases[0].1.clone();
+        snap["op"] = json!("wrong");
+        snap["extra"] = json!(true);
+        cases.push((
+            bases[0].0,
+            snap,
+            "QSnapshotInvalid：op必须是snapshot".to_owned(),
+        ));
+        let long = "中文😀é".repeat(40);
+        let mut snap = bases[0].1.clone();
+        snap["as_of_generation"] = json!(long);
+        snap["history_mode"] = json!("wrong");
+        cases.push((bases[0].0,snap,format!("as_of_generation `{long}` 不是规范十进制整数（要求唯一表示：无 +、无空白、无前导零）")));
+        let mut watch = bases[2].1.clone();
+        watch["op"] = json!("wrong");
+        watch["extra"] = json!(true);
+        cases.push((bases[2].0, watch, "QWatchInvalid：exact字段不符".to_owned()));
+        let number = "CaptureDeadline😀prototype_audit_allocation_limit";
+        let mut watch = bases[2].1.clone();
+        watch["max_batches"] = json!(number);
+        watch["client_id"] = json!("");
+        cases.push((
+            bases[2].0,
+            watch,
+            format!(
+                "max_batches `{number}` 不是规范十进制整数（要求唯一表示：无 +、无空白、无前导零）"
+            ),
+        ));
+        for key in ["长键😀", "Incomplete", "prototype_audit_allocation_limit"] {
+            let mut content = bases[1].1.clone();
+            content["anchor"]["projection_ref"][key] = json!(1);
+            content["unit"] = json!("wrong");
+            cases.push((
+                bases[1].0,
+                content,
+                format!("QContentInvalid：ref_field: ContentRef 出现 exact 四字段之外的键 `{key}`"),
+            ));
+        }
+        for kind in [
+            "Unknown😀",
+            "CaptureBytes",
+            "prototype_audit_allocation_incomplete",
+        ] {
+            let mut content = bases[1].1.clone();
+            content["anchor"]["projection_ref"]["kind"] = json!(kind);
+            content["anchor"]["projection_ref"]["extent"] = json!({"also":"wrong"});
+            cases.push((
+                bases[1].0,
+                content,
+                format!("QContentInvalid：kind: 未知 kind `{kind}`"),
+            ));
+        }
+        let mut token = json!({"token_schema":"s-snapshot-token/2","session_id":"session😀","session_generation":"1","cut_generation":"bad","scope":{},"history_mode":"bad","structure_cut":"","catalog_revision":"","index_frontier":"","profile_hash":"","rule_revision":"","order_version":"","page_size":"bad","offset":"bad","cut_projection_digest":"","issued_capture_digest":"0".repeat(64),"token_checksum":"wrong"});
+        cases.push((
+            bases[0].0,
+            json!({"op":"snapshot","snapshot_token":token.clone()}),
+            "QSnapshotInvalid：snapshot_token checksum不符".to_owned(),
+        ));
+        token["issued_capture_digest"] = json!("bad");
+        cases.push((
+            bases[0].0,
+            json!({"op":"snapshot","snapshot_token":token}),
+            "QSnapshotInvalid：签发捕获摘要不是64位小写hex".to_owned(),
+        ));
+        let token = json!({"token_schema":"s-content-token/1","anchor":{},"path":null,"target_ref":null,"unit":"bad","offset":"bad","limit":"bad","issued_capture_digest":"0".repeat(64),"token_checksum":"wrong"});
+        cases.push((
+            bases[1].0,
+            json!({"op":"content","content_token":token}),
+            "QContentInvalid：content_token checksum不符".to_owned(),
+        ));
+        let extent = json!({"z":["中文😀\"",{"Complete":"atomic_delta_limit"}],"a":false});
+        let mut content = bases[1].1.clone();
+        content["anchor"]["projection_ref"]["extent"] = extent.clone();
+        content["path"] = json!([{"bad":true}]);
+        cases.push((bases[1].0,content,format!("QContentInvalid：extent: extent 必须是规范十进制字符串或 null（U64 长度按 §5.2 用十进制字符串传输），实为 {}",canonical_json(&extent))));
+        let mut content = bases[1].1.clone();
+        content["path"] = json!([{"index":"18446744073709551616"}]);
+        content["offset"] = json!("bad");
+        cases.push((
+            bases[1].0,
+            content,
+            "QContentInvalid：length_overflow: index `18446744073709551616` 超出 u64 表达"
+                .to_owned(),
+        ));
+        for (path, payload, expected) in cases {
+            let bytes = tests::envelope(&fixed(), payload);
+            let budget = OwnedBudget::new(100_000);
+            for allocation in [None, Some(&budget)] {
+                let source = owner(&bytes, &r, allocation);
+                let reason = match parse_admitted(path, &source, bytes.len(), &r, allocation) {
+                    Ok(_) => panic!("negative admitted"),
+                    Err(e) => e,
+                };
+                assert_eq!(reason.to_string(), expected);
+                let mut out = Out {
+                    bytes: Vec::new(),
+                    flushed: false,
+                    fail_flush: false,
+                };
+                send_admission_failure(
+                    &mut out,
+                    &r,
+                    &leases,
+                    "1",
+                    Some(source.view()),
+                    &reason,
+                    allocation,
+                )
+                .unwrap();
+                assert!(out.flushed);
+                let (status, reply) = tests::http_parts(&out.bytes);
+                assert_eq!(
+                    status,
+                    if q_wire::legacy_budget(&reason) {
+                        503
+                    } else {
+                        400
+                    }
+                );
+                assert_eq!(reply["payload"]["detail"], expected);
+                assert_eq!(
+                    reply["payload"]["identity_binding"],
+                    "request_echo_unverified"
+                );
+                assert_eq!(reply["causal_refs"][0]["message_id"], "request");
+                assert_eq!(reply.as_object().unwrap().len(), 11);
+                assert_eq!(
+                    newchan_rust::session_protocol::sha256_hex(
+                        canonical_json(&reply["payload"]).as_bytes()
+                    ),
+                    reply["payload_hash"].as_str().unwrap()
+                );
+                out.fail_flush = true;
+                assert!(send_admission_failure(
+                    &mut out,
+                    &r,
+                    &leases,
+                    "1",
+                    Some(source.view()),
+                    &reason,
+                    allocation
+                )
+                .is_err());
+                drop(reason);
+                drop(source);
+                assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+            }
+        }
+    }
+    #[test]
+    fn admission_family_hash_required_actual_allocator_contention_and_shared_owner_rejection() {
+        let r = tests::resources();
+        let (_, payload) = &payloads()[0];
+        let bytes = tests::envelope(&fixed(), payload.clone());
+        let budget = OwnedBudget::new(100_000);
+        let source =
+            q_wire::decode_owner(&bytes, &r, Some(&budget)).unwrap_or_else(|e| panic!("{e}"));
+        let remaining =
+            budget.snapshot().limit_bytes - budget.snapshot().live_requested_layout_bytes;
+        let occupied = CaptureSlab::new(0, remaining, &budget).unwrap();
+        let error =
+            validate_envelope_typed(source.view(), "s-session/3", Some(&budget)).unwrap_err();
+        assert!(matches!(
+            error,
+            newchan_rust::session_protocol::ProtocolError::Allocation(_)
+        ));
+        let (error, source) = match bj::SharedEnvelope::try_new(source, Some(&budget)) {
+            Ok(_) => panic!("shared allocation bypassed budget"),
+            Err(pair) => pair,
+        };
+        assert_eq!(
+            error.code(),
+            newchan_rust::s_content::capture_allocation::LIMIT
+        );
+        assert_eq!(
+            bj::field(source.view(), "message_id").as_str(),
+            Some("request")
+        );
+        drop(source);
+        drop(occupied);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        let mut value = strict_json(&bytes).unwrap();
+        value["payload_hash"] = Value::Null;
+        value["payload"].as_object_mut().unwrap().remove("op");
+        let raw = canonical_json(&value);
+        let source = q_wire::decode_owner(raw.as_bytes(), &r, Some(&budget))
+            .unwrap_or_else(|e| panic!("{e}"));
+        let remaining =
+            budget.snapshot().limit_bytes - budget.snapshot().live_requested_layout_bytes;
+        let occupied = CaptureSlab::new(0, remaining, &budget).unwrap();
+        let attempts = budget.snapshot().allocation_attempts;
+        let reason =
+            validate_envelope_typed(source.view(), "s-session/3", Some(&budget)).unwrap_err();
+        assert_eq!(
+            reason.to_string(),
+            "SchemaUnsupported：缺非空字符串 payload_hash"
+        );
+        assert_eq!(budget.snapshot().allocation_attempts, attempts);
+        drop(reason);
+        drop(source);
+        drop(occupied);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        // Client copying still precedes the Watch resource-limit rejection.
+        let (_, mut payload) = payloads()[2].clone();
+        payload["max_batches"] = json!("9223372036854775807");
+        let bytes = tests::envelope(&fixed(), payload);
+        let source = owner(&bytes, &r, Some(&budget));
+        let remaining =
+            budget.snapshot().limit_bytes - budget.snapshot().live_requested_layout_bytes;
+        let occupied = CaptureSlab::new(0, remaining, &budget).unwrap();
+        let reason = match parse_admitted("/api/v3/watch", &source, bytes.len(), &r, Some(&budget))
+        {
+            Ok(_) => panic!("client allocation bypassed budget"),
+            Err(e) => e,
+        };
+        assert!(matches!(reason, q_wire::AdmissionError::Allocation(_)));
+        drop(reason);
+        drop(source);
+        drop(occupied);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[test]
+    fn admission_family_common_envelope_first_error_matrix_has_no_causal_echo() {
+        let r = tests::resources();
+        let leases = ClientLeases::new(&r);
+        let bytes = tests::envelope(&fixed(), payloads()[0].1.clone());
+        let base = strict_json(&bytes).unwrap();
+        let mut cases = Vec::new();
+        let mut v = base.clone();
+        v["extra"] = json!(true);
+        v["schema_revision"] = json!("wrong");
+        cases.push((v, "SchemaUnsupported：公共头字段不完整/多余"));
+        let mut v = base.clone();
+        v["schema_revision"] = json!("wrong");
+        v["session_id"] = json!("");
+        cases.push((v, "SchemaUnsupported：仅s-session/3"));
+        let mut v = base.clone();
+        v["session_id"] = json!("");
+        v["session_generation"] = json!("bad");
+        cases.push((v, "SchemaUnsupported：缺非空字符串 session_id"));
+        let mut v = base.clone();
+        v["session_generation"] = json!("0");
+        v["producer_epoch"] = json!("bad");
+        v["causal_refs"] = Value::Null;
+        cases.push((v, "InvalidDomain：session_generation 必须大于0"));
+        let mut v = base.clone();
+        v["causal_refs"] =
+            json!([{"source_namespace":"","source_epoch":"","message_id":"","payload_hash":""}]);
+        v["payload"] = Value::Null;
+        cases.push((v, "SchemaUnsupported：缺非空字符串 source_namespace"));
+        let mut v = base.clone();
+        v["payload"] = Value::Null;
+        v["payload_hash"] = Value::Null;
+        cases.push((v, "SchemaUnsupported：payload必须对象"));
+        let mut v = base.clone();
+        v["payload"].as_object_mut().unwrap().remove("op");
+        v["payload_hash"] = json!("wrong");
+        cases.push((v, "IdentityConflict：payload_hash与规范业务内容不同"));
+        for (value, expected) in cases {
+            let raw = canonical_json(&value);
+            let b = OwnedBudget::new(100_000);
+            for allocation in [None, Some(&b)] {
+                let source = q_wire::decode_owner(raw.as_bytes(), &r, allocation)
+                    .unwrap_or_else(|e| panic!("{e}"));
+                let reason =
+                    validate_envelope_typed(source.view(), "s-session/3", allocation).unwrap_err();
+                assert_eq!(reason.to_string(), expected);
+                let reason = q_wire::AdmissionError::Protocol(reason);
+                let mut out = Out {
+                    bytes: Vec::new(),
+                    flushed: false,
+                    fail_flush: false,
+                };
+                send_admission_failure(&mut out, &r, &leases, "1", None, &reason, allocation)
+                    .unwrap();
+                let (status, reply) = tests::http_parts(&out.bytes);
+                assert_eq!(status, 400);
+                assert_eq!(reply["detail"], expected);
+                assert!(reply.get("causal_refs").is_none());
+                assert!(out.flushed);
+                drop(reason);
+                drop(source);
+                assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
+            }
+        }
     }
 }

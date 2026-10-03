@@ -42,7 +42,7 @@ use closed::CodecContext;
 #[doc(hidden)]
 pub use closed::{ClosedAccess, ClosedCapturedOwner, ClosedReadObserver};
 #[doc(hidden)]
-pub use ref_owner::{OwnedRefFields, RefOwner, RefView, TransportRef};
+pub use ref_owner::{OwnedRefFields, RefDiagnostic, RefOwner, RefView, TransportRef};
 /// 整次操作的累计资源与期限（#1394 采纳 C §5.6.1）。
 pub mod job;
 
@@ -734,31 +734,93 @@ fn transport_digest(format: &str, root: &str) -> Result<NodeDigest, CodecError> 
 }
 
 /// 公开控制数值的规范十进制：`0` 或 `[1-9][0-9]*`，无 `+`、无前导零、≤ 2^63-1。
+#[derive(Debug)]
+pub enum DecimalError<'a> {
+    Characters {
+        input: &'a str,
+        field: &'a str,
+    },
+    LeadingZero {
+        input: &'a str,
+        field: &'a str,
+    },
+    Overflow {
+        input: &'a str,
+        field: &'a str,
+        cause: std::num::ParseIntError,
+    },
+    Limit {
+        input: &'a str,
+        field: &'a str,
+    },
+}
+impl DecimalError<'_> {
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::Characters { .. } | Self::LeadingZero { .. } => code::EXTENT,
+            _ => code::LENGTH_OVERFLOW,
+        }
+    }
+}
+impl fmt::Display for DecimalError<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: ", self.code())?;
+        match self {
+            Self::Characters { input, field } => write!(
+                f,
+                "{field} `{input}` 不是规范十进制：只允许 0-9，无符号、无空白"
+            ),
+            Self::LeadingZero { input, field } => {
+                write!(f, "{field} `{input}` 有前导零，非规范十进制")
+            }
+            Self::Overflow { input, field, .. } => write!(f, "{field} `{input}` 超出 u64 表达"),
+            Self::Limit { input, field } => write!(f, "{field} `{input}` 超过上限 2^63-1"),
+        }
+    }
+}
 fn parse_canonical_u64(text: &str, what: &str) -> Result<u64, CodecError> {
+    parse_canonical_u64_typed(text, what).map_err(|e| {
+        let code = e.code();
+        let rendered = e.to_string();
+        CodecError::new(
+            code,
+            rendered
+                .strip_prefix(code)
+                .unwrap()
+                .strip_prefix(": ")
+                .unwrap(),
+        )
+    })
+}
+pub fn parse_canonical_u64_typed<'a>(
+    text: &'a str,
+    what: &'a str,
+) -> Result<u64, DecimalError<'a>> {
     let bytes = text.as_bytes();
     if bytes.is_empty() || !bytes.iter().all(|b| b.is_ascii_digit()) {
-        return Err(CodecError::new(
-            code::EXTENT,
-            format!("{what} `{text}` 不是规范十进制：只允许 0-9，无符号、无空白"),
-        ));
+        return Err(DecimalError::Characters {
+            input: text,
+            field: what,
+        });
     }
     if bytes[0] == b'0' && bytes.len() > 1 {
-        return Err(CodecError::new(
-            code::EXTENT,
-            format!("{what} `{text}` 有前导零，非规范十进制"),
-        ));
+        return Err(DecimalError::LeadingZero {
+            input: text,
+            field: what,
+        });
     }
-    let n = text.parse::<u64>().map_err(|_| {
-        CodecError::new(
-            code::LENGTH_OVERFLOW,
-            format!("{what} `{text}` 超出 u64 表达"),
-        )
-    })?;
+    let n = text
+        .parse::<u64>()
+        .map_err(|cause| DecimalError::Overflow {
+            input: text,
+            field: what,
+            cause,
+        })?;
     if n > MAX_FRAME_LEN {
-        return Err(CodecError::new(
-            code::LENGTH_OVERFLOW,
-            format!("{what} `{text}` 超过上限 2^63-1"),
-        ));
+        return Err(DecimalError::Limit {
+            input: text,
+            field: what,
+        });
     }
     Ok(n)
 }

@@ -806,15 +806,25 @@ impl TextValue {
         }
     }
     pub fn from_str(s: &str, b: Option<&OwnedBudget>) -> Result<Self, String> {
+        Self::from_str_typed(s, b).map_err(|e| {
+            #[cfg(not(feature = "s_allocation_json_testonly"))]
+            if b.is_some() {
+                return "prototype_audit_allocation_incomplete：Owned文本入口未启用".into();
+            }
+            e.to_string()
+        })
+    }
+    pub fn from_str_typed(s: &str, b: Option<&OwnedBudget>) -> Result<Self, sc::CodecError> {
         #[cfg(feature = "s_allocation_json_testonly")]
         if let Some(b) = b {
-            return Ok(Self::Owned(
-                aj::TextOwner::copy_from(s, b).map_err(|e| e.to_string())?,
-            ));
+            return aj::TextOwner::copy_from(s, b).map(Self::Owned);
         }
         #[cfg(not(feature = "s_allocation_json_testonly"))]
         if b.is_some() {
-            return Err("prototype_audit_allocation_incomplete：Owned文本入口未启用".into());
+            return Err(sc::CodecError::new(
+                sc::capture_allocation::INCOMPLETE,
+                "Owned文本入口未启用",
+            ));
         }
         Ok(Self::Plain(s.to_owned()))
     }
@@ -910,6 +920,33 @@ impl From<&str> for TextValue {
     }
 }
 
+/// HTTP和域请求共享同一个strict输入；clone只增加真实共享owner的引用计数。
+#[derive(Clone)]
+pub(crate) struct SharedEnvelope(sc::capture_allocation::dispatch::DispatchArc<JsonOwner>);
+impl SharedEnvelope {
+    pub fn try_new(
+        owner: JsonOwner,
+        allocation: Option<&OwnedBudget>,
+    ) -> Result<Self, (sc::CodecError, JsonOwner)> {
+        sc::capture_allocation::dispatch::DispatchArc::try_new(owner, allocation).map(Self)
+    }
+    pub fn view(&self) -> JsonView<'_> {
+        self.0.view()
+    }
+    pub fn budget(&self) -> Option<&OwnedBudget> {
+        match &*self.0 {
+            JsonOwner::Plain(_) => None,
+            #[cfg(feature = "s_allocation_json_testonly")]
+            JsonOwner::Owned(v) => Some(v.budget()),
+        }
+    }
+}
+impl std::ops::Deref for SharedEnvelope {
+    type Target = JsonOwner;
+    fn deref(&self) -> &JsonOwner {
+        &self.0
+    }
+}
 pub(crate) enum JsonOwner {
     Plain(Value),
     #[cfg(feature = "s_allocation_json_testonly")]

@@ -1,4 +1,5 @@
 //! #1394 C §5.5/5.6.1：Watch/Gap、完整Delta门及发送后租约推进；普通/Owned共借用核。
+use super::q_wire::{AdmissionError, RouteFixed};
 use super::{
     audit_store::{CodecRead, RefValue},
     business_json::{self as bj, JsonOwner, TextValue},
@@ -22,14 +23,16 @@ use newchan_rust::s_content::{
     CodecVec, NodeSource,
 };
 use newchan_rust::session_protocol::{
-    nonnegative, positive, required_view, strict_json, validate_envelope_view_with_owner,
+    canonical_hash_view_typed, nonnegative_typed, positive_typed, required_view_typed,
 };
+use newchan_rust::session_protocol::{nonnegative, required_view, strict_json};
 #[cfg(test)]
 use serde_json::{json, Value};
 use std::{
     io::{self, Write},
     time::{Duration, Instant},
 };
+
 const CURSOR_FIELDS: [&str; 9] = [
     "session_id",
     "session_generation",
@@ -42,7 +45,7 @@ const CURSOR_FIELDS: [&str; 9] = [
     "order_version",
 ];
 pub(super) struct Request {
-    envelope: JsonOwner,
+    envelope: bj::SharedEnvelope,
     client: TextValue,
     after: i64,
     maximum: u64,
@@ -50,75 +53,67 @@ pub(super) struct Request {
 }
 impl Request {
     pub(super) fn parse(bytes: &[u8], resources: &QResources) -> Result<Self, String> {
-        Self::parse_owner(
-            JsonOwner::Plain(q_wire::parse(bytes, resources)?),
-            bytes.len(),
-            resources,
-            None,
-        )
+        Self::parse_with_allocation(bytes, resources, None)
     }
     pub(super) fn parse_owned(
         bytes: &[u8],
         resources: &QResources,
         budget: &OwnedBudget,
     ) -> Result<Self, String> {
-        if bytes.len() as u128 > u128::from(resources.limit(Limit::FrameBytes)) {
-            return Err("QReplyInvalid：Incomplete：完整请求超过max_frame_bytes".into());
-        }
-        #[cfg(feature = "s_allocation_json_testonly")]
-        {
-            let envelope = aj::OwnedJson::parse(bytes, budget).map_err(err)?;
-            validate_envelope_view_with_owner(envelope.view(), "s-session/3", Some(budget))?;
-            return Self::parse_owner(
-                JsonOwner::Owned(envelope),
-                bytes.len(),
-                resources,
-                Some(budget),
-            );
-        }
-        #[cfg(not(feature = "s_allocation_json_testonly"))]
-        {
-            let _ = budget;
-            Err("prototype_audit_allocation_incomplete：owned Watch请求未启用".into())
-        }
+        Self::parse_with_allocation(bytes, resources, Some(budget))
     }
-    fn parse_owner(
-        envelope: JsonOwner,
-        bytes: usize,
+    fn parse_with_allocation(
+        bytes: &[u8],
         resources: &QResources,
         allocation: Option<&OwnedBudget>,
     ) -> Result<Self, String> {
+        let envelope = super::q_wire::parse_owner(bytes, resources, allocation)?;
+        let envelope =
+            bj::SharedEnvelope::try_new(envelope, allocation).map_err(|(e, _)| e.to_string())?;
+        Self::parse_admitted(&envelope, bytes.len(), resources, allocation)
+            .map_err(|e| e.to_string())
+    }
+    pub(crate) fn parse_admitted<'a>(
+        envelope: &'a bj::SharedEnvelope,
+        bytes: usize,
+        resources: &QResources,
+        _allocation: Option<&OwnedBudget>,
+    ) -> Result<Self, AdmissionError<'a>> {
+        let allocation = envelope.budget();
         let payload = bj::field(envelope.view(), "payload");
-        exact(payload, &["op", "cursor", "max_batches", "client_id"])?;
+        exact_typed(payload, &["op", "cursor", "max_batches", "client_id"])?;
         if bj::field(payload, "op").as_str() != Some("watch") {
-            return Err(err("op必须是watch"));
+            return Err(AdmissionError::Fixed(RouteFixed::WatchOp));
         }
         let cursor = bj::field(payload, "cursor");
-        exact(cursor, &CURSOR_FIELDS)?;
-        required_view(cursor, "session_id")?;
-        positive(
-            required_view(cursor, "session_generation")?,
+        exact_typed(cursor, &CURSOR_FIELDS)?;
+        required_view_typed(cursor, "session_id")?;
+        positive_typed(
+            required_view_typed(cursor, "session_generation")?,
             "session_generation",
         )?;
         for key in ["session_id", "session_generation"] {
             if bj::field(envelope.view(), key) != bj::field(cursor, key) {
-                return Err(err("外层消息与cursor身份不同"));
+                return Err(AdmissionError::Fixed(RouteFixed::WatchIdentity));
             }
         }
-        let after = nonnegative(
-            required_view(cursor, "after_generation")?,
+        let after = nonnegative_typed(
+            required_view_typed(cursor, "after_generation")?,
             "after_generation",
         )?;
-        let maximum = positive(required_view(payload, "max_batches")?, "max_batches")? as u64;
-        let client = TextValue::from_str(required_view(payload, "client_id")?, allocation)?;
+        let maximum =
+            positive_typed(required_view_typed(payload, "max_batches")?, "max_batches")? as u64;
+        let client =
+            TextValue::from_str_typed(required_view_typed(payload, "client_id")?, allocation)
+                .map_err(AdmissionError::Allocation)?;
         let request = Self {
-            envelope,
+            envelope: envelope.clone(),
             client,
             after,
             maximum,
             bytes,
         };
-        request.validate_resources(resources)?;
+        request.validate_resources_typed(resources)?;
         Ok(request)
     }
     pub(super) fn envelope_view(&self) -> JsonView<'_> {
@@ -128,17 +123,24 @@ impl Request {
         bj::field(bj::field(self.envelope.view(), "payload"), "cursor")
     }
     pub(super) fn allocation_budget(&self) -> Option<&OwnedBudget> {
-        match &self.envelope {
+        match &*self.envelope {
             JsonOwner::Plain(_) => None,
             #[cfg(feature = "s_allocation_json_testonly")]
             JsonOwner::Owned(v) => Some(v.budget()),
         }
     }
     pub(super) fn validate_resources(&self, resources: &QResources) -> Result<(), String> {
+        self.validate_resources_typed(resources)
+            .map_err(|e| e.to_string())
+    }
+    fn validate_resources_typed(
+        &self,
+        resources: &QResources,
+    ) -> Result<(), AdmissionError<'static>> {
         if self.bytes as u128 > u128::from(resources.limit(Limit::FrameBytes))
             || self.maximum > resources.limit(Limit::WatchBatches)
         {
-            return Err(err("Incomplete：Watch请求超过冻结frame/max_batches界"));
+            return Err(AdmissionError::Fixed(RouteFixed::WatchLimit));
         }
         Ok(())
     }
@@ -817,13 +819,16 @@ fn set_timeout<W: TimedWrite>(writer: &mut W, deadline: Instant) -> Result<(), S
     writer.set_timeout(left).map_err(err)
 }
 fn exact(value: JsonView<'_>, fields: &[&str]) -> Result<(), String> {
+    exact_typed(value, fields).map_err(|e| e.to_string())
+}
+fn exact_typed(value: JsonView<'_>, fields: &[&str]) -> Result<(), AdmissionError<'static>> {
     if value
         .as_object()
         .is_some_and(|o| o.len() == fields.len() && o.keys().all(|k| fields.contains(&k)))
     {
         Ok(())
     } else {
-        Err(err("exact字段不符"))
+        Err(AdmissionError::Fixed(RouteFixed::WatchExact))
     }
 }
 fn err(e: impl std::fmt::Display) -> String {

@@ -1,7 +1,7 @@
 //! #1394 C 内部引用owner：fixed字段无String，不携带闭包/来源证明。
 //! 普通ContentRef保持公开exact四字段；RefView只统一借用与根声明检查。
-use super::capture_allocation::OwnedBudget;
 use super::capture_allocation::audit_json::JsonView;
+use super::capture_allocation::OwnedBudget;
 use super::{CodecError, CodecVec, ContentRef, Kind, NodeDigest, CONTENT_FORMAT, ROOT_PREFIX};
 
 /// #1394 C 借用 transport 声明：字段形态已核，format/root 仍在 digest() 才核。
@@ -16,66 +16,39 @@ pub struct TransportRef<'a> {
 }
 impl<'a> TransportRef<'a> {
     pub fn from_json_view(node: JsonView<'a>) -> Result<Self, CodecError> {
-        let map = node.as_object().ok_or_else(|| {
-            CodecError::new(super::code::REF_FIELD, "ContentRef 必须是 JSON 对象".to_string())
-        })?;
+        Self::from_json_view_typed(node).map_err(|e| e.into_codec())
+    }
+    pub fn from_json_view_typed(node: JsonView<'a>) -> Result<Self, RefDiagnostic<'a>> {
+        let map = node.as_object().ok_or(RefDiagnostic::Object)?;
         for key in map.keys() {
             if !matches!(key, "format" | "root" | "kind" | "extent") {
-                return Err(CodecError::new(
-                    super::code::REF_FIELD,
-                    format!("ContentRef 出现 exact 四字段之外的键 `{key}`"),
-                ));
+                return Err(RefDiagnostic::Extra(key));
             }
         }
-        let field = |name: &str| -> Result<JsonView<'a>, CodecError> {
-            map.get(name).ok_or_else(|| {
-                CodecError::new(super::code::REF_FIELD, format!("ContentRef 缺字段 `{name}`"))
-            })
-        };
-        let format = field("format")?.as_str().ok_or_else(|| {
-            CodecError::new(super::code::REF_FIELD, "format 必须是字符串".to_string())
-        })?;
-        let root = field("root")?.as_str().ok_or_else(|| {
-            CodecError::new(super::code::REF_FIELD, "root 必须是字符串".to_string())
-        })?;
-        let kind_name = field("kind")?.as_str().ok_or_else(|| {
-            CodecError::new(super::code::REF_FIELD, "kind 必须是字符串".to_string())
-        })?;
-        let kind = Kind::from_name(kind_name).ok_or_else(|| {
-            CodecError::new(super::code::KIND, format!("未知 kind `{kind_name}`"))
-        })?;
+        let field = |name: &'static str| map.get(name).ok_or(RefDiagnostic::Missing(name));
+        let format = field("format")?
+            .as_str()
+            .ok_or(RefDiagnostic::Text("format"))?;
+        let root = field("root")?.as_str().ok_or(RefDiagnostic::Text("root"))?;
+        let kind_name = field("kind")?.as_str().ok_or(RefDiagnostic::Text("kind"))?;
+        let kind = Kind::from_name(kind_name).ok_or(RefDiagnostic::Kind(kind_name))?;
         let extent_node = field("extent")?;
         let extent = if extent_node.is_null() {
             None
         } else if let Some(text) = extent_node.as_str() {
-            Some(super::parse_canonical_u64(text, "extent")?)
+            Some(super::parse_canonical_u64_typed(text, "extent").map_err(RefDiagnostic::Decimal)?)
         } else {
-            // Error diagnostics have their own scope. Serialize the borrowed view directly;
-            // this does not construct an ordinary Value or copy a successful claim.
-            let other = serde_json::to_string(&extent_node)
-                .expect("JSON view contains only finite serde_json numbers and validated strings");
-            return Err(CodecError::new(
-                super::code::EXTENT,
-                format!(
-                    "extent 必须是规范十进制字符串或 null（U64 长度按 §5.2 用十进制字符串传输），实为 {other}"
-                ),
-            ));
+            return Err(RefDiagnostic::Extent(extent_node));
         };
         if kind.extent_is_byte_or_count() != extent.is_some() {
-            return Err(CodecError::new(
-                super::code::EXTENT,
-                format!(
-                    "kind={} 的 extent 必须是{}",
-                    kind.name(),
-                    if kind.extent_is_byte_or_count() {
-                        "规范十进制字符串"
-                    } else {
-                        "null"
-                    }
-                ),
-            ));
+            return Err(RefDiagnostic::KindExtent(kind));
         }
-        Ok(Self { format, root, kind, extent })
+        Ok(Self {
+            format,
+            root,
+            kind,
+            extent,
+        })
     }
     pub fn format(self) -> &'a str {
         self.format
@@ -94,6 +67,96 @@ impl<'a> TransportRef<'a> {
     }
     pub fn try_owned_ref(self) -> Result<RefOwner, CodecError> {
         Ok(RefOwner::new(self.kind, self.digest()?, self.extent))
+    }
+}
+
+#[derive(Debug)]
+pub enum RefDiagnostic<'a> {
+    Object,
+    Extra(&'a str),
+    Missing(&'static str),
+    Text(&'static str),
+    Kind(&'a str),
+    Extent(JsonView<'a>),
+    KindExtent(Kind),
+    Decimal(super::DecimalError<'a>),
+}
+impl RefDiagnostic<'_> {
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::Kind(_) => super::code::KIND,
+            Self::Extent(_) | Self::KindExtent(_) => super::code::EXTENT,
+            Self::Decimal(e) => e.code(),
+            _ => super::code::REF_FIELD,
+        }
+    }
+    fn fmt_detail(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Object => f.write_str("ContentRef 必须是 JSON 对象"),
+            Self::Extra(k) => write!(f, "ContentRef 出现 exact 四字段之外的键 `{k}`"),
+            Self::Missing(k) => write!(f, "ContentRef 缺字段 `{k}`"),
+            Self::Text(k) => write!(f, "{k} 必须是字符串"),
+            Self::Kind(k) => write!(f, "未知 kind `{k}`"),
+            Self::Extent(v) => {
+                f.write_str("extent 必须是规范十进制字符串或 null（U64 长度按 §5.2 用十进制字符串传输），实为 ")?;
+                struct Out<'a, 'b>(&'a mut std::fmt::Formatter<'b>);
+                impl std::io::Write for Out<'_, '_> {
+                    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                        let text = std::str::from_utf8(bytes)
+                            .map_err(|_| std::io::ErrorKind::InvalidData)?;
+                        self.0
+                            .write_str(text)
+                            .map_err(|_| std::io::ErrorKind::Other)?;
+                        Ok(bytes.len())
+                    }
+                    fn flush(&mut self) -> std::io::Result<()> {
+                        Ok(())
+                    }
+                }
+                serde_json::to_writer(Out(f), v).map_err(|_| std::fmt::Error)
+            }
+            Self::KindExtent(k) => write!(
+                f,
+                "kind={} 的 extent 必须是{}",
+                k.name(),
+                if k.extent_is_byte_or_count() {
+                    "规范十进制字符串"
+                } else {
+                    "null"
+                }
+            ),
+            Self::Decimal(_) => unreachable!("Decimal has its own complete Display"),
+        }
+    }
+    fn into_codec(self) -> CodecError {
+        if let Self::Decimal(e) = self {
+            let rendered = e.to_string();
+            let code = e.code();
+            return CodecError::new(
+                code,
+                rendered
+                    .strip_prefix(code)
+                    .unwrap()
+                    .strip_prefix(": ")
+                    .unwrap(),
+            );
+        }
+        struct Detail<'a, 'b>(&'a RefDiagnostic<'b>);
+        impl std::fmt::Display for Detail<'_, '_> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                self.0.fmt_detail(f)
+            }
+        }
+        CodecError::new(self.code(), Detail(&self).to_string())
+    }
+}
+impl std::fmt::Display for RefDiagnostic<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Self::Decimal(e) = self {
+            return std::fmt::Display::fmt(e, f);
+        }
+        write!(f, "{}: ", self.code())?;
+        self.fmt_detail(f)
     }
 }
 
@@ -259,8 +322,8 @@ impl<'names> OwnedRefFields<'names> {
 #[cfg(all(test, feature = "s_allocation_json_testonly"))]
 mod tests {
     use super::*;
-    use crate::s_content::capture_allocation::audit_json::OwnedJson;
     use crate::s_content::capture_allocation::audit_json::tests::observed;
+    use crate::s_content::capture_allocation::audit_json::OwnedJson;
     fn transport_view_parity(value: &serde_json::Value) {
         let budget = OwnedBudget::new(100000);
         let bytes = serde_json::to_vec(value).unwrap();
@@ -292,7 +355,8 @@ mod tests {
             let reference = ContentRef::new(
                 kind,
                 &[0xad; 32],
-                kind.extent_is_byte_or_count().then_some(super::super::MAX_FRAME_LEN),
+                kind.extent_is_byte_or_count()
+                    .then_some(super::super::MAX_FRAME_LEN),
             );
             transport_view_parity(&reference.to_transport_json());
         }
@@ -320,7 +384,9 @@ mod tests {
         extra["extra"] = serde_json::json!(0);
         transport_view_parity(&extra);
         assert_eq!(
-            ContentRef::from_transport_json(&extra).unwrap_err().detail(),
+            ContentRef::from_transport_json(&extra)
+                .unwrap_err()
+                .detail(),
             "ContentRef 出现 exact 四字段之外的键 `extra`"
         );
         let mut invalid_value = valid;
@@ -345,15 +411,23 @@ mod tests {
             let borrowed = TransportRef::from_json_view((&value).into()).unwrap();
             assert_eq!(normal.digest().unwrap_err().code(), expected);
             assert_eq!(borrowed.digest(), normal.digest());
-            assert_eq!(borrowed.try_owned_ref().unwrap_err(), normal.digest().unwrap_err());
+            assert_eq!(
+                borrowed.try_owned_ref().unwrap_err(),
+                normal.digest().unwrap_err()
+            );
             let mut wrong_extent = value;
             wrong_extent["extent"] = serde_json::json!(null);
             assert_eq!(
-                TransportRef::from_json_view((&wrong_extent).into()).unwrap_err().code(),
+                TransportRef::from_json_view((&wrong_extent).into())
+                    .unwrap_err()
+                    .code(),
                 super::super::code::EXTENT
             );
         }
-        for root in [format!("sc1-{}", "A".repeat(64)), format!("sc1-{}", "é".repeat(32))] {
+        for root in [
+            format!("sc1-{}", "A".repeat(64)),
+            format!("sc1-{}", "é".repeat(32)),
+        ] {
             let value = serde_json::json!({
                 "format":CONTENT_FORMAT,"root":root,"kind":"bool","extent":null
             });
@@ -388,10 +462,22 @@ mod tests {
         assert_eq!(claim.root(), owner.root());
         assert!(owner.root().is_ascii());
         assert_eq!(owner.root().len(), ROOT_PREFIX.len() + 64);
-        assert_eq!(budget.snapshot().allocation_attempts, before.allocation_attempts);
-        assert_eq!(budget.snapshot().live_requested_layout_bytes, before.live_requested_layout_bytes);
-        assert_eq!(low.snapshot().allocation_attempts, low_before.allocation_attempts);
-        assert_eq!(low.snapshot().live_requested_layout_bytes, low_before.live_requested_layout_bytes);
+        assert_eq!(
+            budget.snapshot().allocation_attempts,
+            before.allocation_attempts
+        );
+        assert_eq!(
+            budget.snapshot().live_requested_layout_bytes,
+            before.live_requested_layout_bytes
+        );
+        assert_eq!(
+            low.snapshot().allocation_attempts,
+            low_before.allocation_attempts
+        );
+        assert_eq!(
+            low.snapshot().live_requested_layout_bytes,
+            low_before.live_requested_layout_bytes
+        );
         drop(occupied);
         assert_eq!(low.snapshot().live_requested_layout_bytes, 0);
         // A borrowed claim/inline owner has no budget argument: the already retained

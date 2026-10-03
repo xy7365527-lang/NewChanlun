@@ -1,4 +1,5 @@
 //! #1394 C §5.5：固定切面分页与snapshot-token/2；普通/Owned共享完整借用判据。
+use super::q_wire::{AdmissionError, RouteFixed};
 use super::{
     business_json::{self as bj, JsonOwner, TextValue},
     projection::{HistoryMode, Projection},
@@ -14,9 +15,9 @@ use newchan_rust::s_content::{
     CodecVec,
 };
 use newchan_rust::session_protocol::{
-    canonical_hash_view_with_owner, nonnegative, positive, required_view,
-    validate_envelope_view_with_owner,
+    canonical_hash_view_typed, nonnegative_typed, positive_typed, required_view_typed,
 };
+use newchan_rust::session_protocol::{canonical_hash_view_with_owner, positive, required_view};
 #[cfg(test)]
 use newchan_rust::{
     s_content::job::Job,
@@ -24,6 +25,7 @@ use newchan_rust::{
 };
 #[cfg(test)]
 use serde_json::{json, Value};
+
 const TOKEN_FIELDS: [&str; 17] = [
     "token_schema",
     "session_id",
@@ -54,7 +56,7 @@ const FIRST_FIELDS: [&str; 8] = [
     "order_version",
 ];
 pub(super) struct Request {
-    envelope: JsonOwner,
+    envelope: bj::SharedEnvelope,
     bytes: usize,
     generation: Option<i64>,
     mode: HistoryMode,
@@ -64,63 +66,52 @@ pub(super) struct Request {
 }
 impl Request {
     pub(super) fn parse(bytes: &[u8], resources: &QResources) -> Result<Self, String> {
-        Self::parse_owner(
-            JsonOwner::Plain(super::q_wire::parse(bytes, resources)?),
-            bytes.len(),
-            resources,
-            None,
-        )
+        Self::parse_with_allocation(bytes, resources, None)
     }
     pub(super) fn parse_owned(
         bytes: &[u8],
         resources: &QResources,
         budget: &OwnedBudget,
     ) -> Result<Self, String> {
-        if bytes.len() as u128 > u128::from(resources.limit(Limit::FrameBytes)) {
-            return Err("QReplyInvalid：Incomplete：完整请求超过max_frame_bytes".into());
-        }
-        #[cfg(feature = "s_allocation_json_testonly")]
-        {
-            let envelope = aj::OwnedJson::parse(bytes, budget).map_err(err)?;
-            validate_envelope_view_with_owner(envelope.view(), "s-session/3", Some(budget))?;
-            return Self::parse_owner(
-                JsonOwner::Owned(envelope),
-                bytes.len(),
-                resources,
-                Some(budget),
-            );
-        }
-        #[cfg(not(feature = "s_allocation_json_testonly"))]
-        {
-            let _ = budget;
-            Err("prototype_audit_allocation_incomplete：owned Snapshot请求未启用".into())
-        }
+        Self::parse_with_allocation(bytes, resources, Some(budget))
     }
-    fn parse_owner(
-        envelope: JsonOwner,
-        bytes: usize,
+    fn parse_with_allocation(
+        bytes: &[u8],
         resources: &QResources,
         allocation: Option<&OwnedBudget>,
     ) -> Result<Self, String> {
+        let envelope = super::q_wire::parse_owner(bytes, resources, allocation)?;
+        let envelope =
+            bj::SharedEnvelope::try_new(envelope, allocation).map_err(|(e, _)| e.to_string())?;
+        Self::parse_admitted(&envelope, bytes.len(), resources, allocation)
+            .map_err(|e| e.to_string())
+    }
+    pub(crate) fn parse_admitted<'a>(
+        envelope: &'a bj::SharedEnvelope,
+        bytes: usize,
+        resources: &QResources,
+        _allocation: Option<&OwnedBudget>,
+    ) -> Result<Self, AdmissionError<'a>> {
+        let allocation = envelope.budget();
         let payload = bj::field(envelope.view(), "payload");
         if bj::field(payload, "op").as_str() != Some("snapshot") {
-            return Err(err("op必须是snapshot"));
+            return Err(AdmissionError::Fixed(RouteFixed::SnapshotOp));
         }
         let (generation, mode, page_size, offset, issued) =
             if payload.get("snapshot_token").is_some() {
-                exact(payload, &["op", "snapshot_token"])?;
+                exact_typed(payload, &["op", "snapshot_token"])?;
                 let token = bj::field(payload, "snapshot_token");
-                exact(token, &TOKEN_FIELDS)?;
+                exact_typed(token, &TOKEN_FIELDS)?;
                 if bj::field(token, "token_schema").as_str() != Some("s-snapshot-token/2") {
-                    return Err(err("snapshot_token版本不符"));
+                    return Err(AdmissionError::Fixed(RouteFixed::SnapshotVersion));
                 }
-                let issued = required_view(token, "issued_capture_digest")?;
+                let issued = required_view_typed(token, "issued_capture_digest")?;
                 if issued.len() != 64
                     || !issued
                         .bytes()
                         .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
                 {
-                    return Err(err("签发捕获摘要不是64位小写hex"));
+                    return Err(AdmissionError::Fixed(RouteFixed::SnapshotDigest));
                 }
                 let mut unsigned_fields = [("", JsonView::Null); 16];
                 for (i, key) in TOKEN_FIELDS
@@ -130,41 +121,45 @@ impl Request {
                 {
                     unsigned_fields[i] = (*key, bj::field(token, key));
                 }
-                let unsigned = JsonView::object_fields(&unsigned_fields).map_err(err)?;
-                let checksum = canonical_hash_view_with_owner(unsigned, allocation)?;
+                let unsigned = JsonView::object_fields(&unsigned_fields)
+                    .map_err(AdmissionError::SnapshotFields)?;
+                let checksum = canonical_hash_view_typed(unsigned, allocation)?;
                 if bj::field(token, "token_checksum").as_str() != Some(checksum.as_str()) {
-                    return Err(err("snapshot_token checksum不符"));
+                    return Err(AdmissionError::Fixed(RouteFixed::SnapshotChecksum));
                 }
                 (
-                    Some(nonnegative(
-                        required_view(token, "cut_generation")?,
+                    Some(nonnegative_typed(
+                        required_view_typed(token, "cut_generation")?,
                         "cut_generation",
                     )?),
-                    mode(required_view(token, "history_mode")?)?,
-                    positive(required_view(token, "page_size")?, "page_size")? as u64,
-                    nonnegative(required_view(token, "offset")?, "offset")? as u64,
-                    Some(TextValue::from_str(issued, allocation)?),
+                    mode_typed(required_view_typed(token, "history_mode")?)?,
+                    positive_typed(required_view_typed(token, "page_size")?, "page_size")? as u64,
+                    nonnegative_typed(required_view_typed(token, "offset")?, "offset")? as u64,
+                    Some(
+                        TextValue::from_str_typed(issued, allocation)
+                            .map_err(AdmissionError::Allocation)?,
+                    ),
                 )
             } else {
-                exact(payload, &FIRST_FIELDS)?;
+                exact_typed(payload, &FIRST_FIELDS)?;
                 let generation = if bj::field(payload, "as_of_generation").is_null() {
                     None
                 } else {
-                    Some(nonnegative(
-                        required_view(payload, "as_of_generation")?,
+                    Some(nonnegative_typed(
+                        required_view_typed(payload, "as_of_generation")?,
                         "as_of_generation",
                     )?)
                 };
                 (
                     generation,
-                    mode(required_view(payload, "history_mode")?)?,
-                    positive(required_view(payload, "page_size")?, "page_size")? as u64,
+                    mode_typed(required_view_typed(payload, "history_mode")?)?,
+                    positive_typed(required_view_typed(payload, "page_size")?, "page_size")? as u64,
                     0,
                     None,
                 )
             };
         let request = Self {
-            envelope,
+            envelope: envelope.clone(),
             bytes,
             generation,
             mode,
@@ -172,24 +167,31 @@ impl Request {
             offset,
             issued,
         };
-        request.validate_resources(resources)?;
+        request.validate_resources_typed(resources)?;
         Ok(request)
     }
     pub(super) fn envelope_view(&self) -> JsonView<'_> {
         self.envelope.view()
     }
     pub(super) fn allocation_budget(&self) -> Option<&OwnedBudget> {
-        match &self.envelope {
+        match &*self.envelope {
             JsonOwner::Plain(_) => None,
             #[cfg(feature = "s_allocation_json_testonly")]
             JsonOwner::Owned(v) => Some(v.budget()),
         }
     }
     pub(super) fn validate_resources(&self, resources: &QResources) -> Result<(), String> {
+        self.validate_resources_typed(resources)
+            .map_err(|e| e.to_string())
+    }
+    fn validate_resources_typed(
+        &self,
+        resources: &QResources,
+    ) -> Result<(), AdmissionError<'static>> {
         if self.bytes as u128 > u128::from(resources.limit(Limit::FrameBytes))
             || self.page_size > resources.limit(Limit::PageSize)
         {
-            return Err(err("Incomplete：请求超过冻结frame/page_size上限"));
+            return Err(AdmissionError::Fixed(RouteFixed::SnapshotLimit));
         }
         Ok(())
     }
@@ -201,20 +203,27 @@ impl Request {
     }
 }
 fn mode(value: &str) -> Result<HistoryMode, String> {
+    mode_typed(value).map_err(|e| e.to_string())
+}
+fn mode_typed(value: &str) -> Result<HistoryMode, AdmissionError<'static>> {
     match value {
         "AsKnown" => Ok(HistoryMode::AsKnown),
         "RecomputedWithRevision" => Ok(HistoryMode::RecomputedWithRevision),
-        _ => Err(err("history_mode不符")),
+        _ => Err(AdmissionError::Fixed(RouteFixed::SnapshotMode)),
     }
 }
+
 fn exact(value: JsonView<'_>, fields: &[&str]) -> Result<(), String> {
+    exact_typed(value, fields).map_err(|e| e.to_string())
+}
+fn exact_typed(value: JsonView<'_>, fields: &[&str]) -> Result<(), AdmissionError<'static>> {
     if value
         .as_object()
         .is_some_and(|o| o.len() == fields.len() && o.keys().all(|k| fields.contains(&k)))
     {
         Ok(())
     } else {
-        Err(err("exact字段不完整或多余"))
+        Err(AdmissionError::Fixed(RouteFixed::SnapshotExact))
     }
 }
 fn err(e: impl std::fmt::Display) -> String {

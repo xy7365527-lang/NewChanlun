@@ -11,20 +11,19 @@ use newchan_rust::s_content::access::Access;
 use newchan_rust::s_content::job::Job;
 use newchan_rust::{
     s_content::{
-        capture_allocation::{
-            audit_json::{self as aj, JsonView},
-            OwnedBudget,
-        },
+        capture_allocation::{audit_json::JsonView, OwnedBudget},
         fragment::{self, Fragment, OwnedFragment, Unit},
         path::PathStep,
         ClosedCapturedOwner, CodecVec, ContentRef, RefView, TransportRef,
     },
-    session_protocol::{
-        canonical_hash_view_with_owner, canonical_json, nonnegative, positive, required_view,
-        sha256_hex, validate_envelope_view_with_owner,
-    },
+    session_protocol::{canonical_hash_view_with_owner, canonical_json, required_view, sha256_hex},
 };
 use serde_json::{json, Value};
+
+use super::q_wire::{AdmissionError, RouteFixed};
+use newchan_rust::session_protocol::{
+    canonical_hash_view_typed, nonnegative_typed, positive_typed, required_view_typed,
+};
 
 const TOKEN_FIELDS: [&str; 9] = [
     "token_schema",
@@ -42,7 +41,7 @@ pub(super) enum Anchor {
     Delta,
 }
 pub(super) struct Request {
-    envelope: bj::JsonOwner,
+    envelope: bj::SharedEnvelope,
     bytes: usize,
     anchor_kind: Anchor,
     unit: Unit,
@@ -52,52 +51,55 @@ pub(super) struct Request {
 }
 impl Request {
     pub(super) fn parse(bytes: &[u8], resources: &QResources) -> Result<Self, String> {
-        Self::parse_owner(
-            bj::JsonOwner::Plain(q_wire::parse(bytes, resources)?),
-            bytes.len(),
-        )
+        Self::parse_with_allocation(bytes, resources, None)
     }
     pub(super) fn parse_owned(
         bytes: &[u8],
         resources: &QResources,
         budget: &OwnedBudget,
     ) -> Result<Self, String> {
-        if bytes.len() as u128 > u128::from(resources.limit(Limit::FrameBytes)) {
-            return Err("QReplyInvalid：Incomplete：完整请求超过max_frame_bytes".into());
-        }
-        #[cfg(feature = "s_allocation_json_testonly")]
-        {
-            let envelope = aj::OwnedJson::parse(bytes, budget).map_err(err)?;
-            validate_envelope_view_with_owner(envelope.view(), "s-session/3", Some(budget))?;
-            return Self::parse_owner(bj::JsonOwner::Owned(envelope), bytes.len());
-        }
-        #[cfg(not(feature = "s_allocation_json_testonly"))]
-        {
-            let _ = budget;
-            Err("prototype_audit_allocation_incomplete：owned Q请求未启用".into())
-        }
+        Self::parse_with_allocation(bytes, resources, Some(budget))
     }
-    fn parse_owner(envelope: bj::JsonOwner, bytes: usize) -> Result<Self, String> {
-        let allocation = envelope.view().allocation_budget().map_err(err)?;
+    fn parse_with_allocation(
+        bytes: &[u8],
+        resources: &QResources,
+        allocation: Option<&OwnedBudget>,
+    ) -> Result<Self, String> {
+        let envelope = super::q_wire::parse_owner(bytes, resources, allocation)?;
+        let envelope =
+            bj::SharedEnvelope::try_new(envelope, allocation).map_err(|(e, _)| e.to_string())?;
+        Self::parse_admitted(&envelope, bytes.len(), resources, allocation)
+            .map_err(|e| e.to_string())
+    }
+    pub(crate) fn parse_admitted<'a>(
+        envelope: &'a bj::SharedEnvelope,
+        bytes: usize,
+        _resources: &QResources,
+        _allocation: Option<&OwnedBudget>,
+    ) -> Result<Self, AdmissionError<'a>> {
+        let allocation = envelope
+            .view()
+            .allocation_budget()
+            .map_err(AdmissionError::ContentAllocation)?;
         let payload = child(envelope.view(), "payload");
         if child(payload, "op").as_str() != Some("content") {
-            return Err(err("op必须是content"));
+            return Err(AdmissionError::Fixed(RouteFixed::ContentOp));
         }
         let continuation = payload.get("content_token").is_some();
         let body = if continuation {
-            exact_view(payload, &["op", "content_token"])?;
+            exact_view_typed(payload, &["op", "content_token"])?;
             let token = child(payload, "content_token");
-            exact_view(token, &TOKEN_FIELDS)?;
+            exact_view_typed(token, &TOKEN_FIELDS)?;
             if child(token, "token_schema").as_str() != Some("s-content-token/1") {
-                return Err(err("content_token版本不符"));
+                return Err(AdmissionError::Fixed(RouteFixed::ContentVersion));
             }
-            let issued = required_view(token, "issued_capture_digest")?;
+            let issued = required_view_typed(token, "issued_capture_digest")?;
             if issued.len() != 64
                 || !issued
                     .bytes()
                     .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
             {
-                return Err(err("签发摘要须为64位小写hex"));
+                return Err(AdmissionError::Fixed(RouteFixed::ContentDigest));
             }
             let unsigned_fields = [
                 ("token_schema", child(token, "token_schema")),
@@ -112,24 +114,26 @@ impl Request {
                     child(token, "issued_capture_digest"),
                 ),
             ];
-            let unsigned = JsonView::object_fields(&unsigned_fields).map_err(err)?;
-            let checksum = canonical_hash_view_with_owner(unsigned, allocation)?;
+            let unsigned =
+                JsonView::object_fields(&unsigned_fields).map_err(AdmissionError::ContentFields)?;
+            let checksum = canonical_hash_view_typed(unsigned, allocation)?;
             if child(token, "token_checksum").as_str() != Some(checksum.as_str()) {
-                return Err(err("content_token checksum不符"));
+                return Err(AdmissionError::Fixed(RouteFixed::ContentChecksum));
             }
-            TransportRef::from_json_view(child(token, "target_ref")).map_err(err)?;
+            TransportRef::from_json_view_typed(child(token, "target_ref"))
+                .map_err(AdmissionError::Ref)?;
             token
         } else {
-            exact_view(
+            exact_view_typed(
                 payload,
                 &["op", "anchor", "path", "unit", "offset", "limit"],
             )?;
             payload
         };
         let anchor = child(body, "anchor");
-        let anchor_kind = match required_view(anchor, "kind")? {
+        let anchor_kind = match required_view_typed(anchor, "kind")? {
             "projection" => {
-                exact_view(
+                exact_view_typed(
                     anchor,
                     &[
                         "kind",
@@ -138,19 +142,22 @@ impl Request {
                         "projection_ref",
                     ],
                 )?;
-                TransportRef::from_json_view(child(anchor, "projection_ref")).map_err(err)?;
+                TransportRef::from_json_view_typed(child(anchor, "projection_ref"))
+                    .map_err(AdmissionError::Ref)?;
                 let fixed = child(anchor, "fixed_cut");
-                let generation =
-                    nonnegative(required_view(fixed, "cut_generation")?, "cut_generation")?;
-                let mode = match required_view(fixed, "history_mode")? {
+                let generation = nonnegative_typed(
+                    required_view_typed(fixed, "cut_generation")?,
+                    "cut_generation",
+                )?;
+                let mode = match required_view_typed(fixed, "history_mode")? {
                     "AsKnown" => HistoryMode::AsKnown,
                     "RecomputedWithRevision" => HistoryMode::RecomputedWithRevision,
-                    _ => return Err(err("history_mode不符")),
+                    _ => return Err(AdmissionError::Fixed(RouteFixed::ContentMode)),
                 };
                 Anchor::Projection { generation, mode }
             }
             "delta" => {
-                exact_view(
+                exact_view_typed(
                     anchor,
                     &[
                         "kind",
@@ -163,21 +170,23 @@ impl Request {
                         "delta_ref",
                     ],
                 )?;
-                TransportRef::from_json_view(child(anchor, "delta_ref")).map_err(err)?;
-                positive(required_view(anchor, "generation")?, "generation")?;
+                TransportRef::from_json_view_typed(child(anchor, "delta_ref"))
+                    .map_err(AdmissionError::Ref)?;
+                positive_typed(required_view_typed(anchor, "generation")?, "generation")?;
                 Anchor::Delta
             }
-            _ => return Err(err("anchor kind不符；不可用裸Hash访问")),
+            _ => return Err(AdmissionError::Fixed(RouteFixed::ContentAnchor)),
         };
-        fragment::parse_path_view(child(body, "path")).map_err(err)?;
-        let unit = Unit::parse(required_view(body, "unit")?).map_err(err)?;
-        let offset = nonnegative(required_view(body, "offset")?, "offset")? as u64;
-        let limit = positive(required_view(body, "limit")?, "limit")? as u64;
+        fragment::parse_path_view_typed(child(body, "path")).map_err(AdmissionError::Path)?;
+        let unit =
+            Unit::parse_typed(required_view_typed(body, "unit")?).map_err(AdmissionError::Path)?;
+        let offset = nonnegative_typed(required_view_typed(body, "offset")?, "offset")? as u64;
+        let limit = positive_typed(required_view_typed(body, "limit")?, "limit")? as u64;
         offset
             .checked_add(limit)
-            .ok_or_else(|| err("offset+limit溢出"))?;
+            .ok_or_else(|| AdmissionError::Fixed(RouteFixed::ContentOverflow))?;
         Ok(Self {
-            envelope,
+            envelope: envelope.clone(),
             bytes,
             anchor_kind,
             unit,
@@ -210,7 +219,7 @@ impl Request {
         child(self.body_view(), "anchor")
     }
     pub(super) fn anchor(&self) -> &Value {
-        let bj::JsonOwner::Plain(envelope) = &self.envelope else {
+        let bj::JsonOwner::Plain(envelope) = &*self.envelope else {
             panic!("owned request须借anchor_view，不能擦std")
         };
         let payload = &envelope["payload"];
@@ -430,13 +439,16 @@ fn child<'a>(value: JsonView<'a>, key: &str) -> JsonView<'a> {
     value.get(key).unwrap_or(JsonView::Null)
 }
 fn exact_view(value: JsonView<'_>, fields: &[&str]) -> Result<(), String> {
+    exact_view_typed(value, fields).map_err(|e| e.to_string())
+}
+fn exact_view_typed(value: JsonView<'_>, fields: &[&str]) -> Result<(), AdmissionError<'static>> {
     if value
         .as_object()
         .is_some_and(|o| o.len() == fields.len() && o.keys().all(|k| fields.contains(&k)))
     {
         Ok(())
     } else {
-        Err(err("exact字段不完整或多余"))
+        Err(AdmissionError::Fixed(RouteFixed::ContentExact))
     }
 }
 fn err(e: impl std::fmt::Display) -> String {
