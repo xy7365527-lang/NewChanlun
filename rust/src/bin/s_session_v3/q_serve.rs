@@ -94,7 +94,7 @@ pub(super) fn run(args: &[String]) -> Result<(), String> {
     let listener = Listener::bind(&options.host, options.port, &resources)?;
     let address = listener.local_addr()?;
     let runtime = Runtime::new(db.clone(), Arc::clone(&resources), &options.epoch)?
-        .with_control_instance_id(std::env::var("S_CONTROL_INSTANCE_ID").unwrap_or_default());
+        .with_control_instance_id(std::env::var("S_CONTROL_INSTANCE_ID").unwrap_or_default())?;
     eprintln!(
         "[q3] {}",
         serde_json::json!({"listen":address.to_string(),"db":db,"producer_epoch":options.epoch,"resource_config_sha256":resources.digest(),"resource_config":serde_json::from_str::<serde_json::Value>(resources.canonical()).map_err(|e|e.to_string())?})

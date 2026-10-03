@@ -326,7 +326,7 @@ fn audit_core(
     #[cfg(test)]
     trace_event("catalog_metadata", None);
     // 4. 从未运行的目录行：空初态（generation=0）要求全部行都仍是未运行。
-    verify_unrun_catalog(tx, cuts.is_empty())?;
+    verify_unrun_catalog(tx, cuts.is_empty(), control_owner)?;
     // 5. 来源审计与目录证据只接线 OHLC 档；非 OHLC 明确拒绝，不跳过也不宣布永久缩小范围。
     let profile_id = meta_get_opt(tx, "profile_id")?.ok_or_else(|| err("缺冻结字段 profile_id"))?;
     if profile_id != tb02a::PROFILE {
@@ -521,23 +521,43 @@ pub(super) fn traced<T>(count_nodes: bool, action: impl FnOnce() -> T) -> (T, Ve
 }
 
 /// 静态列/冻结原件由共享控制审计核验；本层补核从未运行的动态列。
-fn verify_unrun_catalog(tx: &Transaction<'_>, initial: bool) -> Result<(), String> {
-    let mut stmt = tx
-        .prepare("SELECT catalog_id,impl_status,proof_status,run_status,evidence_json FROM catalog")
-        .map_err(err)?;
-    let rows = stmt
-        .query_map([], |r| {
-            Ok((
-                r.get::<_, String>(0)?,
-                r.get::<_, String>(1)?,
-                r.get::<_, String>(2)?,
-                r.get::<_, String>(3)?,
-                r.get::<_, String>(4)?,
-            ))
-        })
-        .map_err(err)?;
-    for row in rows {
-        let (id, implemented, proof, run, evidence) = row.map_err(err)?;
+fn verify_unrun_catalog(
+    tx: &Transaction<'_>,
+    initial: bool,
+    allocation: Option<&sc::capture_allocation::OwnedBudget>,
+) -> Result<(), String> {
+    use super::business_json::TextValue;
+    let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
+        tx,
+        c"SELECT catalog_id,impl_status,proof_status,run_status,evidence_json FROM catalog",
+    )
+    .map_err(err)?;
+    while let Some(mut row) = stmt.next().map_err(err)? {
+        // 与旧 r.get::<_,String> 同列、同序、同类型核验；复制落到调用方真实预算。
+        // checked FFI的通用type错误省略列名，此固定SQL仍保留原r.get诊断字节。
+        let text = |row: &mut newchan_rust::sqlite_checked::CheckedRow<'_>, column: usize| {
+            const NAMES: [&str; 5] = [
+                "catalog_id",
+                "impl_status",
+                "proof_status",
+                "run_status",
+                "evidence_json",
+            ];
+            let actual = row.column_type(column).map_err(err)?;
+            if actual != rusqlite::types::Type::Text {
+                return Err(err(rusqlite::Error::InvalidColumnType(
+                    column,
+                    NAMES[column].into(),
+                    actual,
+                )));
+            }
+            TextValue::from_sql(row, column, allocation).map_err(err)
+        };
+        let id = text(&mut row, 0)?;
+        let implemented = text(&mut row, 1)?;
+        let proof = text(&mut row, 2)?;
+        let run = text(&mut row, 3)?;
+        let evidence = text(&mut row, 4)?;
         if (initial || !catalog_evidence::AXIS_IDS.contains(&id.as_str()))
             && (implemented != "not_implemented"
                 || proof != "not_proved"
@@ -547,7 +567,7 @@ fn verify_unrun_catalog(tx: &Transaction<'_>, initial: bool) -> Result<(), Strin
             return Err(err(format!("未运行目录{id}带无来源运行状态")));
         }
     }
-    Ok(())
+    stmt.finalize().map_err(err)
 }
 
 fn err(e: impl std::fmt::Display) -> String {
@@ -1332,4 +1352,105 @@ pub(super) fn audit_owned_capture_for_testonly(
     budget: &sc::capture_allocation::OwnedBudget,
 ) -> Result<AuditedState, String> {
     audit_with_capture_impl(tx, None, None, None, true, Some(budget)).map(|(state, _)| state)
+}
+
+#[cfg(all(test, feature = "s_allocation_json_testonly"))]
+mod unrun_catalog_owner_tests {
+    use super::*;
+    use newchan_rust::s_content::capture_allocation::OwnedBudget;
+    use rusqlite::Connection;
+
+    fn oracle(tx: &Transaction<'_>, initial: bool) -> Result<(), String> {
+        let mut stmt = tx
+            .prepare(
+                "SELECT catalog_id,impl_status,proof_status,run_status,evidence_json FROM catalog",
+            )
+            .map_err(err)?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, String>(3)?,
+                    r.get::<_, String>(4)?,
+                ))
+            })
+            .map_err(err)?;
+        for row in rows {
+            let (id, implemented, proof, run, evidence) = row.map_err(err)?;
+            if (initial || !catalog_evidence::AXIS_IDS.contains(&id.as_str()))
+                && (implemented != "not_implemented"
+                    || proof != "not_proved"
+                    || run != "not_run"
+                    || evidence != "{}")
+            {
+                return Err(err(format!("未运行目录{id}带无来源运行状态")));
+            }
+        }
+        Ok(())
+    }
+    #[test]
+    fn owned_unrun_catalog_preserves_types_first_error_layout_refusal_and_zero_release() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE catalog(catalog_id,impl_status,proof_status,run_status,evidence_json); INSERT INTO catalog VALUES('非轴😀','not_implemented','not_proved','not_run','{}');").unwrap();
+        let budget = OwnedBudget::new(50 * 1024 * 1024);
+        {
+            let tx = conn.transaction().unwrap();
+            for initial in [false, true] {
+                assert_eq!(
+                    oracle(&tx, initial),
+                    verify_unrun_catalog(&tx, initial, None)
+                );
+                assert_eq!(
+                    oracle(&tx, initial),
+                    verify_unrun_catalog(&tx, initial, Some(&budget))
+                );
+            }
+        }
+        assert!(budget.snapshot().allocated_layouts > 0);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        for column in [
+            "catalog_id",
+            "impl_status",
+            "proof_status",
+            "run_status",
+            "evidence_json",
+        ] {
+            for value in ["NULL", "7", "x'ff'", "CAST(x'ff' AS TEXT)"] {
+                let tx = conn.transaction().unwrap();
+                tx.execute_batch(&format!("UPDATE catalog SET {column}={value}"))
+                    .unwrap();
+                let expected = oracle(&tx, true).unwrap_err();
+                assert_eq!(verify_unrun_catalog(&tx, true, None).unwrap_err(), expected);
+                assert_eq!(
+                    verify_unrun_catalog(&tx, true, Some(&budget)).unwrap_err(),
+                    expected
+                );
+                tx.rollback().unwrap();
+                assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+            }
+        }
+        {
+            let tx = conn.transaction().unwrap();
+            tx.execute_batch("UPDATE catalog SET impl_status='implemented', proof_status='bad'; INSERT INTO catalog VALUES('后错',7,NULL,NULL,NULL);").unwrap();
+            assert_eq!(
+                verify_unrun_catalog(&tx, true, Some(&budget)),
+                oracle(&tx, true)
+            );
+            tx.rollback().unwrap();
+        }
+        let probe_budget = OwnedBudget::new(50 * 1024 * 1024);
+        let probe = super::super::business_json::TextValue::from_str("非轴😀", Some(&probe_budget))
+            .unwrap();
+        let request = probe_budget.allocation_request_probe().last_request_bytes;
+        drop(probe);
+        let short = OwnedBudget::new(request - 1);
+        let tx = conn.transaction().unwrap();
+        let rejected = verify_unrun_catalog(&tx, true, Some(&short)).unwrap_err();
+        assert!(rejected.contains(sc::capture_allocation::LIMIT));
+        assert_eq!(short.allocation_request_probe().refused_bytes, request);
+        assert_eq!(short.snapshot().live_requested_layout_bytes, 0);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
 }

@@ -514,6 +514,10 @@ impl CaptureSlab {
 
 pub(crate) mod work;
 
+/// #1394 caller-owned dispatch allocations; no global allocator installation.
+#[doc(hidden)]
+pub mod dispatch;
+
 #[derive(Clone, Copy, Debug, serde::Serialize)]
 pub struct RequestProbe {
     pub last_request_bytes: usize,

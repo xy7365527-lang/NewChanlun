@@ -1,6 +1,7 @@
 //! #1394 C §5.5/5.6.1：仅由Q21配置构造的查询运行时。
 //! 三条v3路由共用现有审计/分页/内容/Watch判据；不创建八字段消费者Job。
 //! 已接受的TCP连接先占槽，再读有界HTTP请求；本模块不自行bind/监听或加载部署默认值。
+use super::business_json::TextValue;
 use super::{
     capture::{AuditReader, ConfiguredCapture},
     q_content,
@@ -10,10 +11,12 @@ use super::{
     q_resources::{Limit, QResources},
     q_snapshot, q_watch, q_wire,
 };
+use newchan_rust::s_content::capture_allocation::{audit_json::JsonView, OwnedBudget};
 use newchan_rust::{
     s_content::{access::Access, job::Job},
     session_protocol::positive,
 };
+#[cfg(test)]
 use serde_json::{json, Value};
 use std::{
     io,
@@ -31,9 +34,12 @@ struct ServerAccess<'a> {
 }
 impl<'a> ServerAccess<'a> {
     fn new(resources: &'a QResources) -> Self {
+        Self::with_allocation(resources, None)
+    }
+    fn with_allocation(resources: &'a QResources, allocation: Option<&'a OwnedBudget>) -> Self {
         Self {
             _resources: resources,
-            allocation: None,
+            allocation,
         }
     }
 }
@@ -55,8 +61,9 @@ enum Request {
 }
 pub(super) struct Runtime {
     executor: Executor,
-    epoch: String,
-    control_instance_id: String,
+    epoch: TextValue,
+    control_instance_id: TextValue,
+    allocation: Option<super::q_allocation::Profile>,
 }
 impl Runtime {
     pub(super) fn new(
@@ -73,15 +80,28 @@ impl Runtime {
         allocation: Option<super::q_allocation::Profile>,
     ) -> Result<Self, String> {
         positive(epoch, "Q producer_epoch")?;
+        if let Some(profile) = &allocation {
+            profile.validate()?;
+        }
+        let budget = allocation.as_ref().map(|profile| &profile.budget);
+        let epoch = TextValue::from_str(epoch, budget)?;
+        let control_instance_id = TextValue::from_str("", budget)?;
         Ok(Self {
-            executor: Executor::new_with_allocation(path, resources, allocation)?,
-            epoch: epoch.into(),
-            control_instance_id: String::new(),
+            executor: Executor::new_with_allocation(path, resources, allocation.clone())?,
+            epoch,
+            control_instance_id,
+            allocation,
         })
     }
-    pub(super) fn with_control_instance_id(mut self, id: String) -> Self {
-        self.control_instance_id = id;
-        self
+    pub(super) fn with_control_instance_id(mut self, id: String) -> Result<Self, String> {
+        self.control_instance_id = match self.allocation.as_ref() {
+            Some(profile) => TextValue::from_str(&id, Some(&profile.budget))?,
+            None => TextValue::Plain(id),
+        };
+        Ok(self)
+    }
+    pub(crate) fn allocation_budget(&self) -> Option<&OwnedBudget> {
+        self.allocation.as_ref().map(|p| &p.budget)
     }
     #[cfg(test)]
     pub(super) fn resource_digest(&self) -> &str {
@@ -90,8 +110,30 @@ impl Runtime {
     /// 连接尚未读取时即交给固定worker；接纳失败仍由本调用发送有界503并关闭连接。
     /// 本口消费连接所有权；返回Err只供记录，调用者不得再发送第二份HTTP响应。
     pub(super) fn accept_http(&self, connection: TcpStream) -> Result<Pending<()>, String> {
-        let epoch = self.epoch.clone();
-        let control_instance_id = self.control_instance_id.clone();
+        let metadata = self.epoch.try_clone().and_then(|epoch| {
+            self.control_instance_id
+                .try_clone()
+                .map(|control| (epoch, control))
+        });
+        let (epoch, control_instance_id) = match metadata {
+            Ok(metadata) => metadata,
+            Err(detail) => {
+                let mut connection = connection;
+                send_error_payload(
+                    &mut connection,
+                    self.executor.resources(),
+                    self.executor.leases(),
+                    &self.epoch,
+                    None,
+                    None,
+                    "QueryBudgetExceeded",
+                    Some(&detail),
+                    503,
+                    self.allocation_budget(),
+                )?;
+                return Err(detail);
+            }
+        };
         match self.executor.try_submit_owned(
             connection,
             move |mut connection, reader, resources, leases, _queued_at| {
@@ -106,26 +148,32 @@ impl Runtime {
             },
         ) {
             Ok(pending) => Ok(pending),
-            Err((reason, mut connection)) => {
-                let resources = self.executor.resources();
-                let body = error_body(
-                    resources,
-                    &self.epoch,
-                    None,
-                    None,
-                    json!({"ok":false,"status":"Incomplete","error":"QueryBudgetExceeded"}),
-                )?;
-                let reply = q_watch::Reply::plain(body, resources)?;
-                send_http(
-                    &mut connection,
-                    reply,
-                    503,
-                    resources,
-                    self.executor.leases(),
-                )?;
-                Err(reason)
+            Err((reason, connection)) => {
+                self.reject_http(connection, reason)?;
+                unreachable!("reject_http发送后返回原拒绝原因")
             }
         }
+    }
+    /// Listener/调度实际allocator拒绝保留内因；Q21满队列仍用原裸503字节。
+    pub(super) fn reject_http(
+        &self,
+        mut connection: TcpStream,
+        reason: String,
+    ) -> Result<(), String> {
+        let detail = allocation_rejection_detail(&reason);
+        send_error_payload(
+            &mut connection,
+            self.executor.resources(),
+            self.executor.leases(),
+            &self.epoch,
+            None,
+            None,
+            "QueryBudgetExceeded",
+            detail,
+            503,
+            self.allocation_budget(),
+        )?;
+        Err(reason)
     }
     #[cfg(test)]
     pub(super) fn dispatch(
@@ -133,8 +181,13 @@ impl Runtime {
         path: &str,
         body: &[u8],
     ) -> Result<Pending<q_watch::Reply>, String> {
-        let request = parse_request(path, body, self.executor.resources())?;
-        let epoch = self.epoch.clone();
+        let request = parse_request_with_allocation(
+            path,
+            body,
+            self.executor.resources(),
+            self.allocation_budget(),
+        )?;
+        let epoch = self.epoch.try_clone()?;
         self.executor
             .try_submit(move |reader, resources, leases, _queued_at| {
                 execute(reader, resources, leases, &epoch, request)
@@ -149,12 +202,25 @@ impl Runtime {
         body: &[u8],
         mut writer: W,
     ) -> Result<Pending<()>, String> {
-        let request = parse_request(path, body, self.executor.resources())?;
-        let epoch = self.epoch.clone();
+        let request = parse_request_with_allocation(
+            path,
+            body,
+            self.executor.resources(),
+            self.allocation_budget(),
+        )?;
+        let epoch = self.epoch.try_clone()?;
         self.executor
             .try_submit(move |reader, resources, leases, _queued_at| {
                 let reply = execute(reader, resources, leases, &epoch, request)?;
-                reply.send_body(&mut writer, leases, &mut ServerAccess::new(resources))
+                let allocation = reader.allocation_profile().cloned();
+                reply.send_body(
+                    &mut writer,
+                    leases,
+                    &mut ServerAccess::with_allocation(
+                        resources,
+                        allocation.as_ref().map(|p| &p.budget),
+                    ),
+                )
             })
     }
 
@@ -170,13 +236,14 @@ impl Runtime {
         if reply.body().len() as u128 > u128::from(r.limit(Limit::ReplyBytes)) {
             return Err("Incomplete：完整Q回复超过max_reply_bytes".into());
         }
-        reply.send_body(writer, self.executor.leases(), &mut ServerAccess::new(r))
+        reply.send_body(
+            writer,
+            self.executor.leases(),
+            &mut ServerAccess::with_allocation(r, self.allocation_budget()),
+        )
     }
 }
 
-fn parse_request(path: &str, body: &[u8], resources: &QResources) -> Result<Request, String> {
-    parse_request_with_allocation(path, body, resources, None)
-}
 fn parse_request_with_allocation(
     path: &str,
     body: &[u8],
@@ -211,9 +278,10 @@ fn execute(
     epoch: &str,
     request: Request,
 ) -> Result<q_watch::Reply, String> {
+    let allocation = reader.allocation_profile().cloned();
     reader.with_capture(
         resources,
-        &mut ServerAccess::new(resources),
+        &mut ServerAccess::with_allocation(resources, allocation.as_ref().map(|p| &p.budget)),
         |capture, access| execute_captured(capture, resources, leases, epoch, request, access),
     )
 }
@@ -246,13 +314,39 @@ fn serve_http<S: q_http_input::TimedRead + q_watch::TimedWrite>(
     control_instance_id: &str,
 ) -> Result<(), String> {
     let allocation = reader.allocation_profile().cloned();
-    let mut input = match q_http_input::Input::new(stream, resources) {
+    let mut input = match q_http_input::Input::with_allocation(
+        stream,
+        resources,
+        allocation.as_ref().map(|p| &p.budget),
+    ) {
         Ok(input) => input,
-        Err(failure) => return send_failure(stream, resources, leases, epoch, None, None, failure),
+        Err(failure) => {
+            return send_failure(
+                stream,
+                resources,
+                leases,
+                epoch,
+                None,
+                None,
+                failure,
+                allocation.as_ref().map(|p| &p.budget),
+            )
+        }
     };
     let head = match input.head() {
         Ok(head) => head,
-        Err(failure) => return send_failure(stream, resources, leases, epoch, None, None, failure),
+        Err(failure) => {
+            return send_failure(
+                stream,
+                resources,
+                leases,
+                epoch,
+                None,
+                None,
+                failure,
+                allocation.as_ref().map(|p| &p.budget),
+            )
+        }
     };
     let (get_path, query) = head
         .path
@@ -272,6 +366,7 @@ fn serve_http<S: q_http_input::TimedRead + q_watch::TimedWrite>(
                     error: "InvalidQuery",
                     detail: "就绪控制读口不接受查询参数".into(),
                 },
+                allocation.as_ref().map(|p| &p.budget),
             );
         }
         if get_path != "/api/ready" {
@@ -287,6 +382,7 @@ fn serve_http<S: q_http_input::TimedRead + q_watch::TimedWrite>(
                     error: "not found",
                     detail: "未知查询路径".into(),
                 },
+                allocation.as_ref().map(|p| &p.budget),
             );
         }
         let result = reader.with_capture(
@@ -327,7 +423,14 @@ fn serve_http<S: q_http_input::TimedRead + q_watch::TimedWrite>(
             },
         );
         return match result {
-            Ok(reply) => send_http(stream, reply, 200, resources, leases),
+            Ok(reply) => send_http(
+                stream,
+                reply,
+                200,
+                resources,
+                leases,
+                allocation.as_ref().map(|p| &p.budget),
+            ),
             Err(detail) => send_failure(
                 stream,
                 resources,
@@ -336,6 +439,7 @@ fn serve_http<S: q_http_input::TimedRead + q_watch::TimedWrite>(
                 None,
                 None,
                 failure(detail, true),
+                allocation.as_ref().map(|p| &p.budget),
             ),
         };
     }
@@ -352,6 +456,7 @@ fn serve_http<S: q_http_input::TimedRead + q_watch::TimedWrite>(
                 error: "UnsupportedMethod",
                 detail: "v3查询要求POST".into(),
             },
+            allocation.as_ref().map(|p| &p.budget),
         );
     }
     // POST沿用旧HTTP路由的完整路径匹配；查询串不能被静默剥掉后再放行。
@@ -369,13 +474,26 @@ fn serve_http<S: q_http_input::TimedRead + q_watch::TimedWrite>(
                 error: "not found",
                 detail: "未知查询路径".into(),
             },
+            allocation.as_ref().map(|p| &p.budget),
         );
     }
     let body = match input.body(&head) {
         Ok(body) => body,
-        Err(failure) => return send_failure(stream, resources, leases, epoch, None, None, failure),
+        Err(failure) => {
+            return send_failure(
+                stream,
+                resources,
+                leases,
+                epoch,
+                None,
+                None,
+                failure,
+                allocation.as_ref().map(|p| &p.budget),
+            )
+        }
     };
-    let path = path.to_string();
+    // Head 持有路径owner至本调用结束，不再复制为std String。
+    let path = head.path.as_str();
     let envelope =
         match q_wire::parse_owner(&body, resources, allocation.as_ref().map(|p| &p.budget)) {
             Ok(envelope) => envelope,
@@ -388,11 +506,12 @@ fn serve_http<S: q_http_input::TimedRead + q_watch::TimedWrite>(
                     None,
                     None,
                     failure(detail, false),
+                    allocation.as_ref().map(|p| &p.budget),
                 )
             }
         };
     let request = match parse_request_with_allocation(
-        &path,
+        path,
         &body,
         resources,
         allocation.as_ref().map(|p| &p.budget),
@@ -404,9 +523,10 @@ fn serve_http<S: q_http_input::TimedRead + q_watch::TimedWrite>(
                 resources,
                 leases,
                 epoch,
-                Some(&serde_json::to_value(envelope.view()).map_err(|e| e.to_string())?),
+                Some(envelope.view()),
                 None,
                 failure(detail, false),
+                allocation.as_ref().map(|p| &p.budget),
             )
         }
     };
@@ -423,20 +543,55 @@ fn serve_http<S: q_http_input::TimedRead + q_watch::TimedWrite>(
         },
     );
     match result {
-        Ok(reply) => send_http(stream, reply, 200, resources, leases),
+        Ok(reply) => send_http(
+            stream,
+            reply,
+            200,
+            resources,
+            leases,
+            allocation.as_ref().map(|p| &p.budget),
+        ),
         Err(detail) => send_failure(
             stream,
             resources,
             leases,
             epoch,
-            Some(&serde_json::to_value(envelope.view()).map_err(|e| e.to_string())?),
-            identity
-                .as_ref()
-                .map(|(s, g)| (s.to_string(), g.to_string()))
-                .as_ref(),
+            Some(envelope.view()),
+            identity.as_ref().map(|(s, g)| (s.as_str(), g.as_str())),
             failure(detail, identity.is_none()),
+            allocation.as_ref().map(|p| &p.budget),
         ),
     }
+}
+
+/// 仅内部allocator返回的原始code是新实验额度拒绝；不可把它称作Q21满队列。
+fn allocation_rejection_detail(reason: &str) -> Option<&str> {
+    [
+        newchan_rust::s_content::capture_allocation::LIMIT,
+        newchan_rust::s_content::capture_allocation::INCOMPLETE,
+    ]
+    .iter()
+    .any(|code| reason.starts_with(code))
+    .then_some(reason)
+}
+
+/// 只剥实际内部错误包装链；SchemaUnsupported中的键名或诊断内容不是预算来源。
+fn prototype_allocation_cause(mut detail: &str) -> bool {
+    const WRAPPERS: [&str; 6] = [
+        "QReplyInvalid：",
+        "Q3CaptureInvalid：",
+        "S3StateInvalid：",
+        "QSnapshotInvalid：",
+        "QContentInvalid：",
+        "QWatchInvalid：",
+    ];
+    while let Some(inner) = WRAPPERS
+        .iter()
+        .find_map(|prefix| detail.strip_prefix(prefix))
+    {
+        detail = inner;
+    }
+    allocation_rejection_detail(detail).is_some()
 }
 
 /// 这里只选择HTTP错误表示；成功/拒绝的业务判据仍全部由原Q层执行。
@@ -449,7 +604,9 @@ fn failure(detail: String, capture_failed: bool) -> q_http_input::Failure {
         "atomic_delta_limit",
     ]
     .iter()
-    .any(|code| detail.contains(code));
+    .any(|code| detail.contains(code))
+        // 新prototype原因只认内部CodecError包装链；Strict键名/语法诊断不可冒充额度拒绝。
+        || prototype_allocation_cause(&detail);
     let (status, error) = if budget {
         (503, "QueryBudgetExceeded")
     } else if capture_failed {
@@ -460,7 +617,7 @@ fn failure(detail: String, capture_failed: bool) -> q_http_input::Failure {
     q_http_input::Failure {
         status,
         error,
-        detail,
+        detail: detail.into(),
     }
 }
 
@@ -469,67 +626,232 @@ fn send_failure<S: q_watch::TimedWrite>(
     resources: &QResources,
     leases: &ClientLeases,
     epoch: &str,
-    request: Option<&Value>,
-    identity: Option<&(String, String)>,
+    request: Option<JsonView<'_>>,
+    identity: Option<(&str, &str)>,
     failure: q_http_input::Failure,
+    allocation: Option<&OwnedBudget>,
 ) -> Result<(), String> {
-    let mut payload = json!({"ok":false,"error":failure.error,"detail":failure.detail});
-    if failure.error == "QueryBudgetExceeded" {
-        payload["status"] = json!("Incomplete");
-    }
-    let body = error_body(resources, epoch, request, identity, payload)?;
-    send_http(
+    send_error_payload(
         stream,
-        q_watch::Reply::plain(body, resources)?,
-        failure.status,
         resources,
         leases,
+        epoch,
+        request,
+        identity,
+        failure.error,
+        Some(failure.detail.as_str()),
+        failure.status,
+        allocation,
     )
 }
 
-fn error_body(
+fn send_error_payload<S: q_watch::TimedWrite>(
+    stream: &mut S,
     resources: &QResources,
+    _leases: &ClientLeases,
     epoch: &str,
-    request: Option<&Value>,
-    identity: Option<&(String, String)>,
-    mut payload: Value,
-) -> Result<Vec<u8>, String> {
-    let mut access = ServerAccess::new(resources);
+    request: Option<JsonView<'_>>,
+    identity: Option<(&str, &str)>,
+    error: &str,
+    detail: Option<&str>,
+    status: u16,
+    allocation: Option<&OwnedBudget>,
+) -> Result<(), String> {
+    let mut fields = [("", JsonView::Null); 5];
+    fields[0] = ("ok", JsonView::Bool(false));
+    fields[1] = ("error", JsonView::String(error));
+    let mut used = 2;
+    if let Some(detail) = detail {
+        fields[used] = ("detail", JsonView::String(detail));
+        used += 1;
+    }
+    if error == "QueryBudgetExceeded" {
+        fields[used] = ("status", JsonView::String("Incomplete"));
+        used += 1;
+    }
+    if request.is_some() {
+        fields[used] = (
+            "identity_binding",
+            JsonView::String(if identity.is_some() {
+                "verified_current_capture"
+            } else {
+                "request_echo_unverified"
+            }),
+        );
+        used += 1;
+    }
+    let payload = JsonView::object_fields(&fields[..used]).map_err(|e| e.to_string())?;
+    let mut access = ServerAccess::with_allocation(resources, allocation);
     if let Some(request) = request {
-        payload["identity_binding"] = json!(if identity.is_some() {
-            "verified_current_capture"
-        } else {
-            "request_echo_unverified"
-        });
-        let (session, incarnation) = identity
-            .map(|(session, incarnation)| (session.as_str(), incarnation.as_str()))
-            .unwrap_or((
-                request["session_id"].as_str().ok_or("已核请求缺session")?,
-                request["session_generation"]
+        let (session, incarnation) = match identity {
+            Some(identity) => identity,
+            None => (
+                super::business_json::field(request, "session_id")
+                    .as_str()
+                    .ok_or("已核请求缺session")?,
+                super::business_json::field(request, "session_generation")
                     .as_str()
                     .ok_or("已核请求缺化身")?,
-            ));
-        q_wire::reply(
-            request,
-            payload,
-            session,
-            incarnation,
-            epoch,
+            ),
+        };
+        let envelope = q_wire::ErrorEnvelope::new(request, payload, session, incarnation, epoch)?;
+        send_serialized(
+            stream,
+            &envelope,
+            status,
             resources,
             &mut access,
+            "QReplyInvalid：Incomplete：完整Q消息体超过max_reply_bytes",
         )
     } else {
-        q_wire::encode(&payload, resources.limit(Limit::ReplyBytes), &mut access)?
-            .ok_or_else(|| "Incomplete：错误消息体超过max_reply_bytes，关闭连接".into())
+        send_serialized(
+            stream,
+            &payload,
+            status,
+            resources,
+            &mut access,
+            "Incomplete：错误消息体超过max_reply_bytes，关闭连接",
+        )
     }
 }
 
-fn send_http<W: q_watch::TimedWrite>(
+/// 先计完整规范字节再发头；值、已核公头和诊断文本借用活到flush。
+/// 两遍都走serde_json同核，栈writer不另造body owner或默认资源数。
+fn send_serialized<W: q_watch::TimedWrite>(
     writer: &mut W,
-    reply: q_watch::Reply,
+    value: &impl serde::Serialize,
     status: u16,
     resources: &QResources,
-    leases: &ClientLeases,
+    access: &mut dyn Access,
+    too_large: &str,
+) -> Result<(), String> {
+    struct Count {
+        len: u128,
+    }
+    impl io::Write for Count {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            // 计完整长度不以io错误短路，避免max_reply拒绝在serde错误箱中另配heap。
+            self.len += bytes.len() as u128;
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut count = Count { len: 0 };
+    serde_json::to_writer(&mut count, value).map_err(|e| format!("QReplyInvalid：{e}"))?;
+    if count.len > resources.limit(Limit::ReplyBytes) as u128 || count.len > usize::MAX as u128 {
+        return Err(too_large.into());
+    }
+    send_header(writer, status, count.len as usize, resources)?;
+    enum BodyFailure {
+        Deadline,
+        Zero,
+        Codec(newchan_rust::s_content::CodecError),
+        Io(io::Error),
+    }
+    impl std::fmt::Display for BodyFailure {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::Deadline => f.write_str("Incomplete：回复写入绝对期限已过"),
+                Self::Zero => f.write_str("WriteZero：回复未完整写出"),
+                Self::Codec(error) => std::fmt::Display::fmt(error, f),
+                Self::Io(error) => std::fmt::Display::fmt(error, f),
+            }
+        }
+    }
+    struct Body<'a, W> {
+        writer: &'a mut W,
+        access: &'a mut dyn Access,
+        deadline: Instant,
+        first: Option<BodyFailure>,
+    }
+    impl<W: q_watch::TimedWrite> Body<'_, W> {
+        fn fail<T>(&mut self, cause: BodyFailure) -> io::Result<T> {
+            if self.first.is_none() {
+                self.first = Some(cause);
+            }
+            // 原错误保留在stack enum，serde收到非分配的kind占位后立即停止。
+            Err(io::ErrorKind::Other.into())
+        }
+        fn prepare(&mut self) -> io::Result<()> {
+            if let Err(error) = self.access.pre_io_check() {
+                return self.fail(BodyFailure::Codec(error));
+            }
+            let remaining = match self
+                .deadline
+                .checked_duration_since(Instant::now())
+                .filter(|d| !d.is_zero())
+            {
+                Some(remaining) => remaining,
+                None => return self.fail(BodyFailure::Deadline),
+            };
+            match self.writer.set_timeout(remaining) {
+                Ok(()) => Ok(()),
+                Err(error) => self.fail(BodyFailure::Io(error)),
+            }
+        }
+    }
+    impl<W: q_watch::TimedWrite> io::Write for Body<'_, W> {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            self.prepare()?;
+            let n = match self.writer.write(bytes) {
+                Ok(0) if !bytes.is_empty() => return self.fail(BodyFailure::Zero),
+                Ok(n) => n,
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => return Err(error),
+                Err(error) => return self.fail(BodyFailure::Io(error)),
+            };
+            if let Err(error) = self.access.charge_wire_bytes(n as u64) {
+                return self.fail(BodyFailure::Codec(error));
+            }
+            Ok(n)
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            self.prepare()?;
+            match self.writer.flush() {
+                Ok(()) => Ok(()),
+                Err(error) => self.fail(BodyFailure::Io(error)),
+            }
+        }
+    }
+    let local = Instant::now()
+        .checked_add(Duration::from_millis(resources.limit(Limit::SocketWriteMs)))
+        .ok_or("QWatchInvalid：写期限溢出")?;
+    let deadline = access
+        .read_deadline()
+        .map_err(|e| format!("QWatchInvalid：{e}"))?
+        .map_or(local, |d| local.min(d));
+    let mut body = Body {
+        writer,
+        access,
+        deadline,
+        first: None,
+    };
+    let encoded = serde_json::to_writer(&mut body, value);
+    if let Some(cause) = body.first.take() {
+        return Err(format!("QWatchInvalid：{cause}"));
+    }
+    encoded.map_err(|e| format!("QWatchInvalid：{e}"))?;
+    let flushed = io::Write::flush(&mut body);
+    if let Some(cause) = body.first.take() {
+        return Err(format!("QWatchInvalid：{cause}"));
+    }
+    flushed.map_err(|e| format!("QWatchInvalid：{e}"))?;
+    body.access
+        .pre_io_check()
+        .map_err(|e| format!("QWatchInvalid：{e}"))?;
+    if Instant::now() >= deadline {
+        return Err("QWatchInvalid：Incomplete：回复写入绝对期限已过".into());
+    }
+    // 错误回复无Delivery；partial header/body/flush绝不调用leases.delivered。
+    Ok(())
+}
+
+fn send_header<W: q_watch::TimedWrite>(
+    writer: &mut W,
+    status: u16,
+    body_len: usize,
+    resources: &QResources,
 ) -> Result<(), String> {
     let reason = match status {
         200 => "OK",
@@ -541,18 +863,42 @@ fn send_http<W: q_watch::TimedWrite>(
         503 => "Service Unavailable",
         _ => return Err("Q HTTP状态码未声明".into()),
     };
-    let header = format!("HTTP/1.0 {status} {reason}\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n", reply.body().len());
+    // 固定字面量 + status 3位 +最长reason 31字节 + usize十进制最大位数。
+    // 用BITS作位数保守上界，每一位十进制至少需要一位二进制，含最末CRLF。
+    const FIXED: &str = "HTTP/1.0  \r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: \r\nCache-Control: no-store\r\nConnection: close\r\n\r\n";
+    const HEADER_MAX: usize =
+        FIXED.len() + 3 + "Request Header Fields Too Large".len() + usize::BITS as usize;
+    struct Header {
+        bytes: [u8; HEADER_MAX],
+        len: usize,
+    }
+    impl std::fmt::Write for Header {
+        fn write_str(&mut self, value: &str) -> std::fmt::Result {
+            let end = self.len.checked_add(value.len()).ok_or(std::fmt::Error)?;
+            let target = self.bytes.get_mut(self.len..end).ok_or(std::fmt::Error)?;
+            target.copy_from_slice(value.as_bytes());
+            self.len = end;
+            Ok(())
+        }
+    }
+    let mut header = Header {
+        bytes: [0; HEADER_MAX],
+        len: 0,
+    };
+    use std::fmt::Write;
+    write!(&mut header, "HTTP/1.0 {status} {reason}\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: {body_len}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n")
+        .map_err(|_| "Q HTTP头栈编码上界错误")?;
     let deadline = Instant::now()
         .checked_add(Duration::from_millis(resources.limit(Limit::SocketWriteMs)))
         .ok_or("Q HTTP写期限溢出")?;
     let mut offset = 0;
-    while offset < header.len() {
+    while offset < header.len {
         let remaining = deadline
             .checked_duration_since(Instant::now())
             .filter(|d| !d.is_zero())
             .ok_or("Incomplete：HTTP头写期限已过")?;
         writer.set_timeout(remaining).map_err(|e| e.to_string())?;
-        match writer.write(&header.as_bytes()[offset..]) {
+        match writer.write(&header.bytes[offset..header.len]) {
             Ok(0) => return Err("HTTP头WriteZero".into()),
             Ok(n) => offset += n,
             Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
@@ -562,9 +908,24 @@ fn send_http<W: q_watch::TimedWrite>(
     if Instant::now() >= deadline {
         return Err("Incomplete：HTTP响应头写入超过本阶段期限".into());
     }
-    // 原Python end_headers与body各调用一次sendall；保留各自同值超时，
-    // 不把两次写操作改成更短的共享全响应期限。
-    reply.send_body(writer, leases, &mut ServerAccess::new(resources))
+    Ok(())
+}
+
+fn send_http<W: q_watch::TimedWrite>(
+    writer: &mut W,
+    reply: q_watch::Reply,
+    status: u16,
+    resources: &QResources,
+    leases: &ClientLeases,
+    allocation: Option<&OwnedBudget>,
+) -> Result<(), String> {
+    // reply owner在栈上始终活到send_body完整flush；两阶段各取原同值期限。
+    send_header(writer, status, reply.body().len(), resources)?;
+    reply.send_body(
+        writer,
+        leases,
+        &mut ServerAccess::with_allocation(resources, allocation),
+    )
 }
 
 #[cfg(test)]
@@ -1018,7 +1379,8 @@ sys.stdout.buffer.write(canonical(r))"#;
         let r = resources();
         let rt = Runtime::new(f.db_path(), Arc::clone(&r), "7")
             .unwrap()
-            .with_control_instance_id("control-test".into());
+            .with_control_instance_id("control-test".into())
+            .unwrap();
         let ready = b"GET /api/ready HTTP/1.1\r\nHost: localhost\r\n\r\n";
         let (result, wire) = exchange(&rt, ready);
         result.unwrap();
@@ -1187,7 +1549,15 @@ sys.stdout.buffer.write(canonical(r))"#;
                 Ok(())
             }
         }
-        assert!(send_http(&mut PartialHeader(0), reply, 200, &r, rt.executor.leases()).is_err());
+        assert!(send_http(
+            &mut PartialHeader(0),
+            reply,
+            200,
+            &r,
+            rt.executor.leases(),
+            None
+        )
+        .is_err());
         assert_eq!(
             rt.executor.leases().delivered_generation("runtime-client"),
             Some(0)
@@ -1219,12 +1589,369 @@ sys.stdout.buffer.write(canonical(r))"#;
             bytes: Vec::new(),
             calls: 0,
         };
-        send_http(&mut out, reply, 200, &r, rt.executor.leases()).unwrap();
+        send_http(&mut out, reply, 200, &r, rt.executor.leases(), None).unwrap();
         assert_eq!(http_parts(&out.bytes).0, 200);
         assert_eq!(
             rt.executor.leases().delivered_generation("runtime-client"),
             Some(1)
         );
+    }
+
+    #[test]
+    fn borrowed_error_envelope_matches_original_bytes_with_escaped_giant_identity() {
+        let r = resources();
+        let session = "中文😀\"\\\n".repeat(8192);
+        let request = json!({"schema_revision":"s-session/3", "session_id":session,
+            "session_generation":"化身\\\"😀", "source_namespace":"请求😀",
+            "source_epoch":"1", "message_id":"公头\\\"\n", "producer_id":"caller",
+            "producer_epoch":"1", "payload_hash":"abc", "causal_refs":[], "payload":{}});
+        for identity in [None, Some(("已核😀\\\"", "当前化身"))] {
+            let binding = if identity.is_some() {
+                "verified_current_capture"
+            } else {
+                "request_echo_unverified"
+            };
+            let payload = json!({"ok":false,"error":"InvalidQuery","detail":"首错中文\\\"\n😀","identity_binding":binding});
+            let (session, incarnation) = identity.unwrap_or((
+                request["session_id"].as_str().unwrap(),
+                request["session_generation"].as_str().unwrap(),
+            ));
+            let expected = q_wire::reply(
+                &request,
+                payload.clone(),
+                session,
+                incarnation,
+                "7",
+                &r,
+                &mut ServerAccess::new(&r),
+            )
+            .unwrap();
+            let envelope = q_wire::ErrorEnvelope::new(
+                (&request).into(),
+                (&payload).into(),
+                session,
+                incarnation,
+                "7",
+            )
+            .unwrap();
+            assert_eq!(serde_json::to_vec(&envelope).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn stack_http_header_preserves_all_declared_statuses_and_usize_max_length() {
+        struct Out(Vec<u8>);
+        impl Write for Out {
+            fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+                self.0.extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+        impl q_watch::TimedWrite for Out {
+            fn set_timeout(&mut self, _: Duration) -> io::Result<()> {
+                Ok(())
+            }
+        }
+        let r = resources();
+        for (status, reason) in [
+            (200, "OK"),
+            (400, "Bad Request"),
+            (404, "Not Found"),
+            (414, "Request-URI Too Long"),
+            (431, "Request Header Fields Too Large"),
+            (501, "Not Implemented"),
+            (503, "Service Unavailable"),
+        ] {
+            for len in [0, usize::MAX] {
+                let mut out = Out(Vec::new());
+                send_header(&mut out, status, len, &r).unwrap();
+                let expected = format!("HTTP/1.0 {status} {reason}\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: {len}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n");
+                assert_eq!(out.0, expected.as_bytes());
+            }
+        }
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn zero_quota_error_stream_matches_none_and_checks_complete_length_before_header() {
+        struct Out {
+            bytes: Vec<u8>,
+            flushed: bool,
+            fail_flush: bool,
+        }
+        impl Write for Out {
+            fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+                self.bytes.extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                self.flushed = true;
+                if self.fail_flush {
+                    Err(io::ErrorKind::BrokenPipe.into())
+                } else {
+                    Ok(())
+                }
+            }
+        }
+        impl q_watch::TimedWrite for Out {
+            fn set_timeout(&mut self, _: Duration) -> io::Result<()> {
+                Ok(())
+            }
+        }
+        let r = resources();
+        let leases = ClientLeases::new(&r);
+        let budget = OwnedBudget::new(0);
+        let request = json!({"session_id":"中文😀\\\"", "session_generation":"化身", "source_namespace":"caller",
+            "source_epoch":"1", "message_id":"id", "payload_hash":"hash"});
+        let mut none = Out {
+            bytes: Vec::new(),
+            flushed: false,
+            fail_flush: false,
+        };
+        send_error_payload(
+            &mut none,
+            &r,
+            &leases,
+            "1",
+            Some((&request).into()),
+            None,
+            "QueryBudgetExceeded",
+            Some("first failure\\\"😀"),
+            503,
+            None,
+        )
+        .unwrap();
+        let mut owned = Out {
+            bytes: Vec::new(),
+            flushed: false,
+            fail_flush: false,
+        };
+        let before = budget.snapshot();
+        send_error_payload(
+            &mut owned,
+            &r,
+            &leases,
+            "1",
+            Some((&request).into()),
+            None,
+            "QueryBudgetExceeded",
+            Some("first failure\\\"😀"),
+            503,
+            Some(&budget),
+        )
+        .unwrap();
+        assert_eq!(none.bytes, owned.bytes);
+        assert!(owned.flushed);
+        let after = budget.snapshot();
+        assert_eq!(after.allocation_attempts, before.allocation_attempts);
+        assert_eq!(after.allocated_layouts, before.allocated_layouts);
+        assert_eq!(after.rejected_layouts, before.rejected_layouts);
+        assert_eq!(
+            after.live_requested_layout_bytes,
+            before.live_requested_layout_bytes
+        );
+        let body_len = owned.bytes.len()
+            - owned
+                .bytes
+                .windows(4)
+                .position(|v| v == b"\r\n\r\n")
+                .unwrap()
+            - 4;
+        for limit in [body_len - 1, body_len] {
+            let mut values = q_resources::tests::input();
+            values["limits"]["max_reply_bytes"] = json!(limit.to_string());
+            let limited = QResources::parse(canonical_json(&values).as_bytes()).unwrap();
+            let mut out = Out {
+                bytes: Vec::new(),
+                flushed: false,
+                fail_flush: false,
+            };
+            let result = send_error_payload(
+                &mut out,
+                &limited,
+                &leases,
+                "1",
+                Some((&request).into()),
+                None,
+                "QueryBudgetExceeded",
+                Some("first failure\\\"😀"),
+                503,
+                Some(&budget),
+            );
+            assert_eq!(result.is_ok(), limit == body_len);
+            if limit < body_len {
+                assert!(out.bytes.is_empty());
+                assert!(!out.flushed);
+            }
+        }
+        let mut out = Out {
+            bytes: Vec::new(),
+            flushed: false,
+            fail_flush: true,
+        };
+        assert!(send_error_payload(
+            &mut out,
+            &r,
+            &leases,
+            "1",
+            Some((&request).into()),
+            None,
+            "QueryBudgetExceeded",
+            Some("first failure\\\"😀"),
+            503,
+            Some(&budget)
+        )
+        .is_err());
+        assert!(out.flushed);
+        assert_eq!(leases.delivered_generation("runtime-client"), None);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn actual_dispatch_layout_refusal_keeps_cause_and_q21_full_queue_keeps_bare_bytes() {
+        use super::super::q_allocation::Profile;
+        use newchan_rust::s_content::capture_allocation::{CaptureSlab, LIMIT};
+        let fixture = Fixture::new();
+        let r = resources();
+        let normal = Runtime::new(fixture.db_path(), Arc::clone(&r), "1").unwrap();
+        let (mut client, server) = tcp_pair();
+        let reason = "Incomplete：Q executor active+queued 达到冻结上限".to_owned();
+        assert_eq!(
+            normal.reject_http(server, reason.clone()).unwrap_err(),
+            reason
+        );
+        let mut wire = Vec::new();
+        client.read_to_end(&mut wire).unwrap();
+        let (status, payload) = http_parts(&wire);
+        assert_eq!(status, 503);
+        assert_eq!(
+            payload,
+            json!({"ok":false,"status":"Incomplete","error":"QueryBudgetExceeded"})
+        );
+        let end = wire.windows(4).position(|v| v == b"\r\n\r\n").unwrap() + 4;
+        assert_eq!(&wire[end..], canonical_json(&payload).as_bytes());
+
+        let budget = OwnedBudget::new(50 * 1024 * 1024);
+        let owned = Runtime::new_with_allocation(
+            fixture.db_path(),
+            Arc::clone(&r),
+            "1",
+            Some(Profile {
+                budget: budget.clone(),
+                overlay_slots: 32768,
+                overlay_bytes: 1_000_000,
+            }),
+        )
+        .unwrap();
+        // 留够真实metadata clone，拒绝点因此落在空queue的实际Layout。
+        let epoch_clone = owned.epoch.try_clone().unwrap();
+        let epoch_layout = budget.allocation_request_probe().last_request_bytes;
+        drop(epoch_clone);
+        let live = budget.snapshot().live_requested_layout_bytes;
+        let fill = CaptureSlab::new(
+            0,
+            budget.snapshot().limit_bytes - live - epoch_layout,
+            &budget,
+        )
+        .unwrap();
+        let (mut client, server) = tcp_pair();
+        client.shutdown(std::net::Shutdown::Write).unwrap();
+        let reason = match owned.accept_http(server) {
+            Ok(_) => panic!("queue Layout应被拒绝"),
+            Err(reason) => reason,
+        };
+        assert!(reason.starts_with(LIMIT), "{reason}");
+        let mut wire = Vec::new();
+        client.read_to_end(&mut wire).unwrap();
+        let (status, payload) = http_parts(&wire);
+        assert_eq!(status, 503);
+        assert_eq!(
+            payload,
+            json!({"ok":false,"status":"Incomplete","error":"QueryBudgetExceeded","detail":reason})
+        );
+        let end = wire.windows(4).position(|v| v == b"\r\n\r\n").unwrap() + 4;
+        assert_eq!(&wire[end..], canonical_json(&payload).as_bytes());
+        assert!(budget.allocation_request_probe().refused_bytes > 0);
+        assert_eq!(
+            owned
+                .executor
+                .leases()
+                .delivered_generation("runtime-client"),
+            None
+        );
+        drop(fill);
+        drop(owned);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+
+    #[test]
+    fn prototype_failure_classification_keeps_strict_keys_400_and_trusted_causes_503() {
+        use newchan_rust::s_content::{
+            capture_allocation::{INCOMPLETE, LIMIT},
+            CodecError,
+        };
+        for marker in [LIMIT, INCOMPLETE] {
+            let bytes = format!("{{\"{marker}\":0,\"{marker}\":1}}");
+            let detail = strict_json(bytes.as_bytes()).unwrap_err();
+            let rejected = failure(detail.clone(), false);
+            assert_eq!((rejected.status, rejected.error), (400, "InvalidQuery"));
+            assert_eq!(rejected.detail.as_str().as_bytes(), detail.as_bytes());
+            let syntax_wrapper = format!("QReplyInvalid：{detail}");
+            let rejected = failure(syntax_wrapper.clone(), false);
+            assert_eq!((rejected.status, rejected.error), (400, "InvalidQuery"));
+            assert_eq!(rejected.detail.as_str(), syntax_wrapper);
+
+            let cause = CodecError::new(marker, "真实预算原因").to_string();
+            for prefix in [
+                "",
+                "QReplyInvalid：",
+                "Q3CaptureInvalid：",
+                "S3StateInvalid：",
+                "QSnapshotInvalid：",
+                "QContentInvalid：",
+                "QWatchInvalid：",
+                "Q3CaptureInvalid：S3StateInvalid：QReplyInvalid：",
+                "QWatchInvalid：QContentInvalid：QSnapshotInvalid：",
+            ] {
+                let detail = format!("{prefix}{cause}");
+                for capture_failed in [false, true] {
+                    let rejected = failure(detail.clone(), capture_failed);
+                    assert_eq!(
+                        (rejected.status, rejected.error),
+                        (503, "QueryBudgetExceeded")
+                    );
+                    assert_eq!(rejected.detail.as_str().as_bytes(), detail.as_bytes());
+                }
+            }
+        }
+        // 原五条contains规则和Q21首错不由本补丁重新定义。
+        for marker in [
+            "Incomplete",
+            "CaptureDeadline",
+            "VerifyDeadline",
+            "CaptureBytes",
+            "atomic_delta_limit",
+        ] {
+            let detail = format!("既有上下文 {marker} 原原因");
+            let rejected = failure(detail.clone(), false);
+            assert_eq!(
+                (rejected.status, rejected.error),
+                (503, "QueryBudgetExceeded")
+            );
+            assert_eq!(rejected.detail.as_str(), detail);
+        }
+        let detail = "Incomplete：Q executor active+queued 达到冻结上限".to_owned();
+        let rejected = failure(detail.clone(), false);
+        assert_eq!(
+            (rejected.status, rejected.error),
+            (503, "QueryBudgetExceeded")
+        );
+        assert_eq!(rejected.detail.as_str(), detail);
+        // Q21裸HTTP reply仍由原reject_http测试逐字核验。
     }
 
     #[test]
@@ -1318,6 +2045,46 @@ mod actual_owned_http_probe {
                 &owire[owire.windows(4).position(|v| v == b"\r\n\r\n").unwrap() + 4..]
             );
         }
+        // 复用同50MiB/TCP档；错误与ready同样比较完整HTTP字节。
+        let invalid = tests::envelope(fixed, serde_json::json!({"op":"watch"}));
+        let malformed = tests::http_request("/api/v3/snapshot", b"{\"x\":1,\"x\":2}");
+        let mut unknown =
+            newchan_rust::session_protocol::strict_json(&routes[0].1).unwrap()["payload"].clone();
+        unknown["as_of_generation"] = serde_json::json!("999");
+        let unknown = tests::envelope(fixed, unknown);
+        for input in [
+            tests::http_request("/api/v3/snapshot", &invalid),
+            malformed,
+            tests::http_request("/api/v3/snapshot", &unknown),
+            b"GET /api/ready?x=1 HTTP/1.1\r\n\r\n".to_vec(),
+            b"GET /api/ready HTTP/1.1\r\n\r\n".to_vec(),
+        ] {
+            let (n, nwire) = tests::exchange(&normal, &input);
+            let (o, owire) = tests::exchange(&owned, &input);
+            n.unwrap();
+            o.unwrap();
+            assert_eq!(nwire, owire);
+        }
+        // 原Strict独立oracle锁住None旧taxonomy/行列；实际TCP两模式逐字对拍。
+        for bytes in super::super::business_json::strict_owner_protocol_matrix() {
+            let input = tests::http_request("/api/v3/snapshot", &bytes);
+            let (n, nwire) = tests::exchange(&normal, &input);
+            let (o, owire) = tests::exchange(&owned, &input);
+            n.unwrap();
+            o.unwrap();
+            assert_eq!(nwire, owire, "strict grammar HTTP {:?}", bytes);
+            if let Err(original) = newchan_rust::session_protocol::strict_json(&bytes) {
+                let (status, payload) = tests::http_parts(&nwire);
+                assert_eq!(status, 400);
+                assert_eq!(payload["error"], "InvalidQuery");
+                if bytes.is_empty() {
+                    // Head先拒绝零长度；不能由后续JSON EOF接管首错。
+                    assert_eq!(payload["detail"], "Content-Length超出i64正整数域");
+                } else {
+                    assert_eq!(payload["detail"], original);
+                }
+            }
+        }
         assert_eq!(
             owned
                 .executor
@@ -1364,7 +2131,7 @@ mod actual_owned_http_probe {
         let final_health = budget.ledger_health();
         println!(
             "REAL_Q_HTTP_OWNER_RECEIPT {}",
-            serde_json::json!({"scope":"actual worker/TCP three Q routes in explicit named fixture; no production/whole audit/RSS/IO claim","before_fault":live,"final":final_meter,"health":final_health,"whole_audit_allocation_admitted":false,"production_capture_enabled":false,"formal9011_complete":false})
+            serde_json::json!({"scope":"actual worker/TCP three Q routes in explicit named fixture; no production/whole audit/RSS/IO claim","before_fault":live,"final":final_meter,"health":final_health,"whole_audit_allocation_admitted":false,"production_capture_enabled":false,"formal9011_complete":false,"serde_escaped_string_scratch_owned_budget_qualified":false,"serde_diagnostic_error_box_owned_budget_qualified":false})
         );
         assert_eq!(final_meter.live_requested_layout_bytes, 0);
         assert_eq!(final_meter.allocated_layouts, final_meter.released_layouts);

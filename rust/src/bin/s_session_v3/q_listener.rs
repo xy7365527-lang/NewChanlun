@@ -9,6 +9,7 @@ use super::{
     q_resources::{Limit, QResources},
     q_runtime::Runtime,
 };
+use newchan_rust::s_content::CodecVec;
 use std::{
     net::{SocketAddr, TcpListener, ToSocketAddrs},
     os::fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd},
@@ -107,7 +108,7 @@ impl Listener {
         F: FnMut(&'static str),
     {
         let listener_fd = self.listener.as_raw_fd();
-        let mut pending = Vec::<Pending<()>>::new();
+        let mut pending = CodecVec::<Pending<()>>::new_with_allocation(runtime.allocation_budget());
         loop {
             reap_ready(&mut pending);
             if stop.load(Ordering::Acquire) {
@@ -163,8 +164,19 @@ impl Listener {
                             eprintln!("Q listener关闭未配置连接: {error}");
                             continue;
                         }
+                        // 在转交socket之前预留实际pending owner槽；拒绝仍持原socket。
+                        if let Err(error) = pending.try_reserve(1) {
+                            if let Err(reason) = runtime.reject_http(stream, error.to_string()) {
+                                eprintln!("Q listener拒绝连接: {reason}");
+                            }
+                            continue;
+                        }
                         match runtime.accept_http(stream) {
-                            Ok(task) => pending.push(task),
+                            Ok(task) => {
+                                if pending.try_push(task).is_err() {
+                                    unreachable!("pre-reserved listener pending slot");
+                                }
+                            }
                             Err(error) => eprintln!("Q listener拒绝连接: {error}"),
                         }
                     }
@@ -185,7 +197,7 @@ impl Listener {
     }
 }
 
-fn reap_ready(pending: &mut Vec<Pending<()>>) {
+fn reap_ready(pending: &mut CodecVec<Pending<()>>) {
     let mut index = 0;
     while index < pending.len() {
         if let Some(result) = pending[index].try_result() {
@@ -201,11 +213,11 @@ fn reap_ready(pending: &mut Vec<Pending<()>>) {
 
 fn finish(
     runtime: Runtime,
-    mut pending: Vec<Pending<()>>,
+    pending: CodecVec<Pending<()>>,
     error: Option<String>,
 ) -> Result<(), String> {
     drop(runtime);
-    for mut task in pending.drain(..) {
+    for mut task in pending {
         if let Some(result) = task.try_result() {
             if let Err(error) = result {
                 eprintln!("Q listener worker终态错误: {error}");

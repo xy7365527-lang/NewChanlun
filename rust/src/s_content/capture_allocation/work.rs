@@ -117,6 +117,24 @@ impl<T> CodecVec<T> {
             VecStorage::Owned(v) => Some(&v.allocator().budget),
         }
     }
+    pub fn new_with_allocation(budget: Option<&OwnedBudget>) -> Self {
+        Self::new(budget)
+    }
+    pub fn try_reserve(&mut self, additional: usize) -> Result<(), CodecError> {
+        self.reserve(additional)
+    }
+    pub fn remove(&mut self, index: usize) -> T {
+        match &mut self.storage {
+            VecStorage::Plain(v) => v.remove(index),
+            VecStorage::Owned(v) => v.remove(index),
+        }
+    }
+    pub fn swap_remove(&mut self, index: usize) -> T {
+        match &mut self.storage {
+            VecStorage::Plain(v) => v.swap_remove(index),
+            VecStorage::Owned(v) => v.swap_remove(index),
+        }
+    }
     pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), CodecError> {
         self.reserve_exact(additional)
     }

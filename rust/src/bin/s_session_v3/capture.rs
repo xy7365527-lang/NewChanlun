@@ -1517,8 +1517,25 @@ fn verify_image_metered(
 
 /// 每个worker独占的长期连接与至多一份完整缓存；data_version不跨连接比较。
 /// 缓存无公开裸摘要入口；只有本次同连接版本/文件身份夹持成功才可借出。
+enum ReaderPath {
+    Plain(std::path::PathBuf),
+    Shared(
+        newchan_rust::s_content::capture_allocation::dispatch::DispatchArc<
+            newchan_rust::s_content::capture_allocation::dispatch::DispatchPath,
+        >,
+    ),
+}
+impl std::ops::Deref for ReaderPath {
+    type Target = std::path::Path;
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Plain(path) => path,
+            Self::Shared(path) => (**path).as_ref(),
+        }
+    }
+}
 pub(super) struct AuditReader {
-    path: std::path::PathBuf,
+    path: ReaderPath,
     resources_digest: CaptureDigest,
     allocation: Option<super::q_allocation::Profile>,
     source: Option<Connection>,
@@ -1538,6 +1555,23 @@ impl AuditReader {
     }
     pub(super) fn new_with_allocation(
         path: std::path::PathBuf,
+        resources: &q_resources::QResources,
+        allocation: Option<super::q_allocation::Profile>,
+    ) -> Self {
+        Self::new_with_reader_path(ReaderPath::Plain(path), resources, allocation)
+    }
+    /// #1394：worker与reset共用已成功分配的路径owner；无新路径副本或准入判断。
+    pub(super) fn new_with_dispatch_path(
+        path: newchan_rust::s_content::capture_allocation::dispatch::DispatchArc<
+            newchan_rust::s_content::capture_allocation::dispatch::DispatchPath,
+        >,
+        resources: &q_resources::QResources,
+        allocation: Option<super::q_allocation::Profile>,
+    ) -> Self {
+        Self::new_with_reader_path(ReaderPath::Shared(path), resources, allocation)
+    }
+    fn new_with_reader_path(
+        path: ReaderPath,
         resources: &q_resources::QResources,
         allocation: Option<super::q_allocation::Profile>,
     ) -> Self {
