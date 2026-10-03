@@ -4543,3 +4543,78 @@ impl FixedRoot {
         std::str::from_utf8(&self.0).expect("private canonical root ASCII")
     }
 }
+
+#[cfg(test)]
+mod sha256_backend_tests {
+    use sha2::{Digest, Sha256};
+
+    #[test]
+    fn padding_boundaries_and_streaming_keep_standard_sha256_bytes() {
+        // 固定独立 hashlib 向量；后端选择不能改变算法、padding 或分段 update 语义。
+        let vectors: &[(usize, &str)] = &[
+            (
+                0,
+                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            ),
+            (
+                55,
+                "463eb28e72f82e0a96c0a4cc53690c571281131f672aa229e0d45ae59b598b59",
+            ),
+            (
+                56,
+                "da2ae4d6b36748f2a318f23e7ab1dfdf45acdc9d049bd80e59de82a60895f562",
+            ),
+            (
+                63,
+                "29af2686fd53374a36b0846694cc342177e428d1647515f078784d69cdb9e488",
+            ),
+            (
+                64,
+                "fdeab9acf3710362bd2658cdc9a29e8f9c757fcf9811603a8c447cd1d9151108",
+            ),
+            (
+                65,
+                "4bfd2c8b6f1eec7a2afeb48b934ee4b2694182027e6d0fc075074f2fabb31781",
+            ),
+            (
+                127,
+                "92ca0fa6651ee2f97b884b7246a562fa71250fedefe5ebf270d31c546bfea976",
+            ),
+            (
+                128,
+                "471fb943aa23c511f6f72f8d1652d9c880cfa392ad80503120547703e56a2be5",
+            ),
+            (
+                129,
+                "5099c6a56203f9687f7d33f4bfdf576d31dc91f6b695ecea38b2770c87631135",
+            ),
+            (
+                4096,
+                "d67c656e01756650d77717b0839985a056ec28ffe174601d690fc407a2ceffca",
+            ),
+        ];
+        assert_eq!(
+            format!("{:x}", Sha256::digest(b"abc")),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        for &(len, expected) in vectors {
+            let input: Vec<u8> = (0..len).map(|i| (i % 251) as u8).collect();
+            assert_eq!(
+                format!("{:x}", Sha256::digest(&input)),
+                expected,
+                "len={len}"
+            );
+            for chunk in [1, 7, 63, 64, 65] {
+                let mut hash = Sha256::new();
+                for part in input.chunks(chunk) {
+                    hash.update(part);
+                }
+                assert_eq!(
+                    format!("{:x}", hash.finalize()),
+                    expected,
+                    "len={len} chunk={chunk}"
+                );
+            }
+        }
+    }
+}

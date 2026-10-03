@@ -216,6 +216,26 @@ impl OwnedJson {
         self.attach(self.root, Span::default(), value)
     }
     fn sort_fields(&mut self, id: usize) {
+        let Node::Object { first, .. } = self.nodes[id] else {
+            return;
+        };
+        // #1394: prove the existing edge order before skipping the original sort.
+        // No scratch allocation or edge mutation is needed for the linear check.
+        let mut cursor = first;
+        while let Some(left) = cursor {
+            let Some(right) = self.edges[left].next else {
+                return;
+            };
+            #[cfg(all(test, feature = "s_allocation_json_testonly"))]
+            tests::key_comparison();
+            if self.text(self.edges[left].key) >= self.text(self.edges[right].key) {
+                self.sort_fields_slow(id);
+                return;
+            }
+            cursor = Some(right);
+        }
+    }
+    fn sort_fields_slow(&mut self, id: usize) {
         // Stable insertion into linked edges: no std sort scratch, no heap growth.
         let (mut unsorted, len) = match self.nodes[id] {
             Node::Object { first, len, .. } => (first, len),
@@ -227,6 +247,8 @@ impl OwnedJson {
             let mut prev: Option<usize> = None;
             let mut cursor = sorted;
             while let Some(c) = cursor {
+                #[cfg(all(test, feature = "s_allocation_json_testonly"))]
+                tests::key_comparison();
                 if self.text(self.edges[e].key) < self.text(self.edges[c].key) {
                     break;
                 }
@@ -630,6 +652,8 @@ impl<'a> ObjectView<'a> {
         };
         let mut cursor = first;
         while let Some(e) = cursor {
+            #[cfg(all(test, feature = "s_allocation_json_testonly"))]
+            tests::key_comparison();
             if tree.text(tree.edges[e].key) == key {
                 return Some(e);
             }
@@ -753,6 +777,18 @@ struct ParseFrame {
     object: bool,
     state: u8,
 }
+#[cfg(feature = "s_allocation_json_testonly")]
+impl ParseFrame {
+    // #1394: reuse the state byte, preserving the metered ParseFrame Layout.
+    // Once a decoded key breaks strict order, lookup stays on the original path.
+    const UNORDERED_KEYS: u8 = 0x80;
+    fn phase(self) -> u8 {
+        self.state & !Self::UNORDERED_KEYS
+    }
+    fn set_phase(&mut self, phase: u8) {
+        self.state = (self.state & Self::UNORDERED_KEYS) | phase;
+    }
+}
 #[derive(Clone, Copy)]
 #[cfg(feature = "s_allocation_json_testonly")]
 enum DuplicateKeys {
@@ -791,7 +827,11 @@ impl<'a> Parser<'a> {
             Err(invalid("invalid JSON syntax"))
         }
     }
-    fn parse(mut self) -> Result<OwnedJson, CodecError> {
+    fn parse(self) -> Result<OwnedJson, CodecError> {
+        self.parse_inner::<true>()
+    }
+    // The false instantiation is a test reference retaining the original lookups/sort.
+    fn parse_inner<const ORDERED_KEYS: bool>(mut self) -> Result<OwnedJson, CodecError> {
         self.ws();
         let (root, container) = self.atom()?;
         self.tree.root = root;
@@ -805,23 +845,27 @@ impl<'a> Parser<'a> {
         while let Some(frame) = self.stack.last().copied() {
             self.ws();
             let close = if frame.object { b'}' } else { b']' };
-            if frame.state == 2 {
+            if frame.phase() == 2 {
                 match self.input.get(self.pos) {
                     Some(c) if *c == close => {
                         self.pos += 1;
-                        self.tree.sort_fields(frame.node);
+                        if ORDERED_KEYS {
+                            self.tree.sort_fields(frame.node);
+                        } else {
+                            self.tree.sort_fields_slow(frame.node);
+                        }
                         self.stack.pop();
                         continue;
                     }
                     Some(b',') => {
                         self.pos += 1;
-                        self.stack.last_mut().unwrap().state = 3;
+                        self.stack.last_mut().unwrap().set_phase(3);
                         continue;
                     }
                     _ => return Err(invalid("expected comma or container end")),
                 }
             }
-            if frame.state == 0 && self.input.get(self.pos) == Some(&close) {
+            if frame.phase() == 0 && self.input.get(self.pos) == Some(&close) {
                 self.pos += 1;
                 self.stack.pop();
                 continue;
@@ -829,11 +873,30 @@ impl<'a> Parser<'a> {
             let (key, existing) = if frame.object {
                 self.take(b'"')?;
                 let k = self.string()?;
-                let existing = (ObjectView(JsonView::Owned(OwnedView {
-                    tree: &self.tree,
-                    id: frame.node,
-                })))
-                .owned_edge(self.tree.text(k));
+                // Decode/allocate the key first, exactly as on the original path.
+                // A strictly increasing prefix cannot contain this greater key.
+                let ordered = ORDERED_KEYS
+                    && frame.state & ParseFrame::UNORDERED_KEYS == 0
+                    && match self.tree.nodes[frame.node] {
+                        Node::Object { last, .. } => last.is_none_or(|last| {
+                            #[cfg(all(test, feature = "s_allocation_json_testonly"))]
+                            tests::key_comparison();
+                            self.tree.text(self.tree.edges[last].key) < self.tree.text(k)
+                        }),
+                        _ => unreachable!(),
+                    };
+                let existing = if ordered {
+                    None
+                } else {
+                    if ORDERED_KEYS {
+                        self.stack.last_mut().unwrap().state |= ParseFrame::UNORDERED_KEYS;
+                    }
+                    (ObjectView(JsonView::Owned(OwnedView {
+                        tree: &self.tree,
+                        id: frame.node,
+                    })))
+                    .owned_edge(self.tree.text(k))
+                };
                 if existing.is_some() && matches!(self.duplicate_keys, DuplicateKeys::Reject) {
                     return Err(CodecError::static_detail(SCHEMA, "duplicate key"));
                 }
@@ -852,7 +915,7 @@ impl<'a> Parser<'a> {
             } else {
                 self.tree.attach(frame.node, key, child)?;
             }
-            self.stack.last_mut().unwrap().state = 2;
+            self.stack.last_mut().unwrap().set_phase(2);
             if let Some(object) = container {
                 if self.stack.len() >= 127 {
                     return Err(invalid("recursion limit exceeded"));
@@ -1221,6 +1284,229 @@ impl std::fmt::Debug for OwnedJson {
 pub(crate) mod tests {
     use super::*;
     use crate::session_protocol::{canonical_json, strict_json};
+    thread_local! {
+        static KEY_COMPARISONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+    pub(super) fn key_comparison() {
+        KEY_COMPARISONS.with(|n| n.set(n.get() + 1));
+    }
+    fn counted_comparisons<T>(f: impl FnOnce() -> T) -> (T, usize) {
+        KEY_COMPARISONS.with(|n| n.set(0));
+        let result = f();
+        (result, KEY_COMPARISONS.with(|n| n.get()))
+    }
+    fn assert_parse_snapshots(fast: &OwnedBudget, reference: &OwnedBudget) {
+        // Compare every ledger field, including allocation attempts and peak Layout.
+        assert_eq!(
+            serde_json::to_value(fast.snapshot()).unwrap(),
+            serde_json::to_value(reference.snapshot()).unwrap()
+        );
+        assert!(!fast.ledger_health().invariant_broken);
+        assert!(!reference.ledger_health().invariant_broken);
+    }
+    fn original_parser_parity(input: &[u8], policy: DuplicateKeys, limit: usize) {
+        let fast_budget = OwnedBudget::new(limit);
+        let reference_budget = OwnedBudget::new(limit);
+        let (fast, fast_calls) = observed(|| Parser::new(input, &fast_budget, policy).parse());
+        let (reference, reference_calls) =
+            observed(|| Parser::new(input, &reference_budget, policy).parse_inner::<false>());
+        assert_eq!(fast_calls, fast_budget.snapshot().allocation_attempts);
+        assert_eq!(
+            reference_calls,
+            reference_budget.snapshot().allocation_attempts
+        );
+        assert_parse_snapshots(&fast_budget, &reference_budget);
+        match (fast, reference) {
+            (Ok(fast), Ok(reference)) => {
+                assert_eq!(fast.view(), reference.view(), "input {input:?}");
+                // Include superseded LastWins nodes/keys, plus exact linked-edge order.
+                assert_eq!(fast.root, reference.root);
+                assert_eq!(fast.text[..], reference.text[..]);
+                assert_eq!(
+                    format!("{:?}", &*fast.nodes),
+                    format!("{:?}", &*reference.nodes)
+                );
+                assert_eq!(
+                    format!("{:?}", &*fast.edges),
+                    format!("{:?}", &*reference.edges)
+                );
+                assert_eq!(fast.array_index.len(), reference.array_index.len());
+                for (key, edge) in &fast.array_index {
+                    assert_eq!(Some(edge), reference.array_index.get(key));
+                }
+                let fast_bytes = canonical_bytes(fast.view(), &fast_budget).unwrap();
+                let reference_bytes = canonical_bytes(reference.view(), &reference_budget).unwrap();
+                assert_eq!(&*fast_bytes, &*reference_bytes);
+                assert_parse_snapshots(&fast_budget, &reference_budget);
+                drop((fast_bytes, reference_bytes, fast, reference));
+            }
+            (Err(fast), Err(reference)) => {
+                assert_eq!(fast.code(), reference.code(), "input {input:?}");
+                assert_eq!(fast.detail, reference.detail, "input {input:?}");
+                assert_eq!(
+                    serde_json::to_value(fast_budget.allocation_request_probe()).unwrap(),
+                    serde_json::to_value(reference_budget.allocation_request_probe()).unwrap()
+                );
+            }
+            _ => panic!("optimized/original parse admission differs: {input:?}"),
+        }
+        assert_eq!(fast_budget.snapshot().live_requested_layout_bytes, 0);
+        assert_eq!(reference_budget.snapshot().live_requested_layout_bytes, 0);
+        assert_parse_snapshots(&fast_budget, &reference_budget);
+    }
+    #[test]
+    fn owned_ordered_keys_match_original_arenas_errors_and_accounting() {
+        for input in [
+            &br#"{}"#[..],
+            &br#"{"":0}"#[..],
+            &br#"{"a":0,"b":true,"c":null}"#[..],
+            &br#"{"a":{"a":0,"b":[]},"b":[{}, {"a":0,"b":{"x":1}}],"c":1}"#[..],
+            &br#"{"a":0,"b":1,"c":2,"aa":3,"d":4}"#[..],
+            &br#"{"b":0,"a":1,"b":2}"#[..],
+            &br#"{"a":0,"b":1,"c":2,"c":3}"#[..],
+            &br#"{"b":0,"a":1,"c":2,"c":3}"#[..],
+            &br#"{"a":0,"\u0061":1}"#[..],
+            "{\"𝄞\":0,\"\\uD834\\uDD1E\":1}".as_bytes(),
+            &br#"{"a":0,"a" true}"#[..],
+            &br#"{"a":0,"a":[1,]}"#[..],
+            &br#"{"a":[1,],"a":0}"#[..],
+            &br#"{"b":0,"a":1,"b" true}"#[..],
+            &br#"{"a":{},"b":{"c":0,"a":1,"c":2},"c":[{"a":0,"a":1}]}"#[..],
+        ] {
+            for policy in [DuplicateKeys::Reject, DuplicateKeys::LastWins] {
+                original_parser_parity(input, policy, 1_000_000);
+            }
+        }
+        let budget = OwnedBudget::new(100_000);
+        for input in [
+            &br#"{"a":0,"a" true}"#[..],
+            &br#"{"a":0,"a":[1,]}"#[..],
+            &br#"{"b":0,"a":1,"b" true}"#[..],
+        ] {
+            assert_eq!(
+                OwnedJson::parse(input, &budget).unwrap_err().detail,
+                "duplicate key"
+            );
+        }
+        assert_eq!(
+            OwnedJson::parse(br#"{"a":[1,],"a":0}"#, &budget)
+                .unwrap_err()
+                .detail,
+            "expected value"
+        );
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[test]
+    fn owned_ordered_keys_preserve_frame_layout_and_linear_comparisons() {
+        #[allow(dead_code)]
+        struct OriginalParseFrame {
+            node: usize,
+            object: bool,
+            state: u8,
+        }
+        assert_eq!(
+            std::alloc::Layout::new::<ParseFrame>(),
+            std::alloc::Layout::new::<OriginalParseFrame>()
+        );
+        const FIELDS: usize = 256;
+        let input = format!(
+            "{{{}}}",
+            (0..FIELDS)
+                .map(|n| format!("\"k{n:04}\":0"))
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+        let fast_budget = OwnedBudget::new(1_000_000);
+        let reference_budget = OwnedBudget::new(1_000_000);
+        let (fast, fast_comparisons) = counted_comparisons(|| {
+            Parser::new(input.as_bytes(), &fast_budget, DuplicateKeys::Reject)
+                .parse()
+                .unwrap()
+        });
+        let (reference, reference_comparisons) = counted_comparisons(|| {
+            Parser::new(input.as_bytes(), &reference_budget, DuplicateKeys::Reject)
+                .parse_inner::<false>()
+                .unwrap()
+        });
+        assert_eq!(fast_comparisons, 2 * (FIELDS - 1));
+        assert_eq!(reference_comparisons, FIELDS * (FIELDS - 1));
+        assert_parse_snapshots(&fast_budget, &reference_budget);
+        assert_eq!(fast.view(), reference.view());
+        drop((fast, reference));
+        assert_parse_snapshots(&fast_budget, &reference_budget);
+        assert_eq!(fast_budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[test]
+    fn owned_ordered_keys_exact_budget_and_partial_release_match_original() {
+        for (input, policy) in [
+            (
+                &br#"{"a":"retained","b":{"a":0,"b":1},"c":[true,false,null]}"#[..],
+                DuplicateKeys::Reject,
+            ),
+            (
+                &br#"{"a":{"old":[1,2]},"b":0,"a":[{"new":true}],"c":1}"#[..],
+                DuplicateKeys::LastWins,
+            ),
+        ] {
+            let measured = OwnedBudget::new(1_000_000);
+            let tree = Parser::new(input, &measured, policy)
+                .parse_inner::<false>()
+                .unwrap();
+            let peak = measured.snapshot().peak_requested_layout_bytes;
+            drop(tree);
+            let exact = OwnedBudget::new(peak);
+            let tree = Parser::new(input, &exact, policy).parse().unwrap();
+            assert_eq!(exact.snapshot().peak_requested_layout_bytes, peak);
+            drop(tree);
+            let one_short = OwnedBudget::new(peak - 1);
+            assert_eq!(
+                Parser::new(input, &one_short, policy)
+                    .parse()
+                    .unwrap_err()
+                    .code(),
+                super::super::LIMIT
+            );
+            assert_eq!(one_short.snapshot().live_requested_layout_bytes, 0);
+            // Every failure/success cap preserves original admission, refusal and release.
+            for limit in 0..=peak {
+                let fast_budget = OwnedBudget::new(limit);
+                let reference_budget = OwnedBudget::new(limit);
+                let fast = Parser::new(input, &fast_budget, policy).parse();
+                let reference =
+                    Parser::new(input, &reference_budget, policy).parse_inner::<false>();
+                assert_parse_snapshots(&fast_budget, &reference_budget);
+                match (&fast, &reference) {
+                    (Ok(fast), Ok(reference)) => assert_eq!(fast.view(), reference.view()),
+                    (Err(fast), Err(reference)) => {
+                        assert_eq!(fast.code(), reference.code());
+                        assert_eq!(fast.detail, reference.detail);
+                        assert_eq!(
+                            serde_json::to_value(fast_budget.allocation_request_probe()).unwrap(),
+                            serde_json::to_value(reference_budget.allocation_request_probe())
+                                .unwrap()
+                        );
+                    }
+                    _ => panic!("admission differs at cap {limit}"),
+                }
+                drop((fast, reference));
+                assert_parse_snapshots(&fast_budget, &reference_budget);
+                assert_eq!(fast_budget.snapshot().live_requested_layout_bytes, 0);
+            }
+        }
+        let budget = OwnedBudget::new(100_000);
+        let tree = OwnedJson::parse_legacy_shape(
+            br#"{"a":{"old":[1,2]},"b":0,"a":[{"new":true}]}"#,
+            &budget,
+        )
+        .unwrap();
+        assert_eq!(tree.view().as_object().unwrap().len(), 2);
+        // Superseded object, array, values and every decoded key stay in their arenas.
+        assert_eq!(tree.nodes.len(), 9);
+        assert_eq!(tree.edges.len(), 7);
+        assert_eq!(&*tree.text, b"aoldbanew");
+        drop(tree);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
     // Observation only: every requested allocation is forwarded unchanged to System.
     // Per-thread activation avoids counting the test harness and concurrent test threads.
     thread_local! { static GLOBAL_CALLS: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) }; }
