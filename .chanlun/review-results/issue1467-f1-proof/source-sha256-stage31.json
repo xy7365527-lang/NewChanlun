@@ -1,0 +1,14 @@
+{
+  ".chanlun/review-results/issue1467-f1-proof/Stage31WorkCard.md": "d834da6c0f7ec767c67b179aee18fcbd4c64c7001d52168d4406519b921dea29",
+  ".chanlun/review-results/issue1467-f1-proof/TurnAuditSpec.lean": "b08321092ece2198330efbca51668510be6e7e9c46b719e205df409ae4130601",
+  ".chanlun/review-results/issue1467-f1-proof/TurnAuditProof.lean": "6b4dfefb13005e989b01b1b78fc52fc5a8b7ed5f3d3b20ae91cb30aacda4a02d",
+  ".chanlun/review-results/issue1467-f1-proof/Stage31TurnCoverage.md": "70311529108fa4948747ec1e1e89805a907495aad59511bb5bf635c78fa6b389",
+  ".chanlun/review-results/issue1467-f1-proof/Stage31PendingReview.md": "80b1d50905d018bd8d6c71d2a6bc37b0042e77ef587c7c8dcdf922acfc566124",
+  ".chanlun/review-results/issue1467-f1-proof/stage31-declaration-lock.json": "5aa5f211aaae5c0ca1b1290d6a875bd466d93e52ef1f3433e7a4bfb0c590ab35",
+  "formal/Origin/Turn.lean": "89e863ef82a4ed074768bbb2d5315c7e049b919b5a87daf3d047bb38a5480d77",
+  "formal/Origin/Divergence.lean": "1940997ceca2f26bdfd82fb8e20bf1ab9b41d6a4a9ec926bbc64c502888bffcc",
+  "rust/src/theta_v0/classifier/turn_class.rs": "e4aff64b5f20dd4fc0b82080e81f07be12084d23bf819e4959385074e95837cc",
+  "docs/chanlun/text/blog/043-第43课.md": "f28824c26843e5799ad8f07db6bb9b02956d0fc7ac97d9d3d2fc70a7c3004909",
+  "docs/chanlun/text/blog/044-第44课.md": "827191f7e01799d606520b8774bcc5948b35324dbde6d9a3f05fb5a83be8f70b",
+  ".chanlun/definitions/beichi.md": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6"
+}

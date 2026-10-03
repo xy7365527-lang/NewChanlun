@@ -1,0 +1,8 @@
+{
+  "profile": "TURN-COVERAGE-IDENTITY-v1",
+  "spec": ".chanlun/review-results/issue1467-f1-proof/TurnAuditSpec.lean",
+  "spec_sha256": "b08321092ece2198330efbca51668510be6e7e9c46b719e205df409ae4130601",
+  "declaration": "TurnAudit.exact_root",
+  "expected_type": "TurnAudit.COVERAGE_TARGET ∧ TurnAudit.SELF_TARGET ∧ TurnAudit.IDENTITY_TARGET",
+  "frozen_before_proof": true
+}

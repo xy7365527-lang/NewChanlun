@@ -1,0 +1,188 @@
+{
+  "date": "2026-10-04",
+  "issue": 1467,
+  "profile": "TURN-COVERAGE-IDENTITY-v1",
+  "declaration": "TurnAudit.exact_root",
+  "expected_type": "TurnAudit.COVERAGE_TARGET ∧ TurnAudit.SELF_TARGET ∧ TurnAudit.IDENTITY_TARGET",
+  "actual_type": "And TurnAudit.COVERAGE_TARGET (And TurnAudit.SELF_TARGET TurnAudit.IDENTITY_TARGET)",
+  "run_id": "86c087d70ed5468f9876de1345f6002c",
+  "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/run-manifest.json",
+  "manifest_sha256": "92ac7b10fb6733f1c0dc106d045badcdde0218d54f05348de212f17175f1e155",
+  "exact_root_passed": true,
+  "root_closure": {
+    "status": "closed",
+    "exact_root_passed": true,
+    "declaration_closed": true,
+    "scope": "expected Lean type in the recorded environment; semantic review is separate"
+  },
+  "semantic": {
+    "status": "not_reviewed",
+    "reused": false,
+    "semantic_sha256": "2979bde6e552783d5124e74ad2c0e76b744cdd3c5e26199ff3ca64196f53888e"
+  },
+  "axioms": [
+    "propext",
+    "Quot.sound"
+  ],
+  "unexpected_axioms": [],
+  "unknown_dependencies": [],
+  "unsafe_dependencies": [],
+  "statement_lock": {
+    "path": "stage31-declaration-lock.json",
+    "spec_sha256": "b08321092ece2198330efbca51668510be6e7e9c46b719e205df409ae4130601",
+    "unchanged": true
+  },
+  "source_copies_equal": true,
+  "first_attempt": true,
+  "LEAN_PATH": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean",
+  "commands": [
+    {
+      "kind": "source_dependencies",
+      "file": "TurnAuditProof.lean",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--run",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/DiscoverImports.lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-project-v1/TurnAuditProof.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 4.951812,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/logs/d3190979498c48d6bc2506e802857242.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/logs/d3190979498c48d6bc2506e802857242.stderr.log"
+    },
+    {
+      "kind": "source_dependencies",
+      "file": "TurnAuditSpec.lean",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--run",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/DiscoverImports.lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-project-v1/TurnAuditSpec.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.671733,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/logs/85256159e85349f6807c44a9ec2c9fb7.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/logs/85256159e85349f6807c44a9ec2c9fb7.stderr.log"
+    },
+    {
+      "kind": "import_resolution",
+      "file": "TurnAuditSpec.lean",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--deps",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-project-v1/TurnAuditSpec.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.04912,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/logs/c7966c1c2d4640539d0612b160bb6fef.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/logs/c7966c1c2d4640539d0612b160bb6fef.stderr.log"
+    },
+    {
+      "kind": "target",
+      "file": "TurnAuditSpec.lean",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-project-v1",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/lib/TurnAuditSpec.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-project-v1/TurnAuditSpec.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.2562,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/logs/83922122176e473187ef9f360af62d96.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/logs/83922122176e473187ef9f360af62d96.stderr.log"
+    },
+    {
+      "kind": "import_resolution",
+      "file": "TurnAuditProof.lean",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--deps",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-project-v1/TurnAuditProof.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.049276,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/logs/b4be63261e274da18a937f88f9ff5c76.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/logs/b4be63261e274da18a937f88f9ff5c76.stderr.log"
+    },
+    {
+      "kind": "target",
+      "file": "TurnAuditProof.lean",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-project-v1",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/lib/TurnAuditProof.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-project-v1/TurnAuditProof.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.257741,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/logs/b6dbf9e98a3b4cc3b28ee969305658f6.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/logs/b6dbf9e98a3b4cc3b28ee969305658f6.stderr.log"
+    },
+    {
+      "kind": "inspector_compile",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/lib/LeanVerifyProbe.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/LeanVerifyProbe.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.890882,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/logs/d2722a021e314b81b1763e14d4fdc83a.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/logs/d2722a021e314b81b1763e14d4fdc83a.stderr.log"
+    },
+    {
+      "kind": "declaration_inspection",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/InspectRoot.lean"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.784928,
+      "stdout_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/logs/b47d7a6f660f47d9b30d152bdfe76d71.stdout.log",
+      "stderr_log": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-audit-v1/lean-verification-runs/86c087d70ed5468f9876de1345f6002c/logs/b47d7a6f660f47d9b30d152bdfe76d71.stderr.log"
+    }
+  ],
+  "freshness": {
+    "status": "current",
+    "snapshot_current": true,
+    "exact_root_passed": true,
+    "semantic_sha256": "2979bde6e552783d5124e74ad2c0e76b744cdd3c5e26199ff3ca64196f53888e",
+    "manifest_sha256": "92ac7b10fb6733f1c0dc106d045badcdde0218d54f05348de212f17175f1e155",
+    "reasons": [],
+    "scope": "saved evidence and current Lean module resolution checked; no new kernel proof replay"
+  },
+  "storage": {
+    "directories": {
+      "turn-audit-project-v1": 3416,
+      "turn-audit-v1": 9247660
+    },
+    "total_bytes": 9251076,
+    "limit_bytes": 67108864
+  },
+  "source_fingerprints": "source-sha256-stage31.json",
+  "formal_source_changed": false,
+  "production_source_changed": false,
+  "source_scope_analysis": "original text and actual interfaces; not certified by the Lean root",
+  "limits": [
+    "abstract force slots, not calculated market force",
+    "no actual q-turn witness in the qNoDiv/rDiv example",
+    "Forward is a necessary source relation, not a complete handover rule",
+    "no full Rust consumer reachability audit",
+    "no independent semantic review, full F2 or market value result"
+  ]
+}
