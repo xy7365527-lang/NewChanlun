@@ -1,0 +1,4 @@
+history=A bid=10000 ask=10200 qa=10000 qb=[1429, 1494, 1561, 1765, 1429] observations=[10025, 10026, 10027, 10030, 10025] cutoff=4 delta=1 dc_completed=1 exported=UnitRange { start_index: 0, end_index: 3, direction: Up, lo: 10025, hi: 10030 } construction_level=0 members=0 role=confirmed_base_unit
+history=B bid=10000 ask=10200 qa=10000 qb=[1429, 1696, 1494, 1765, 1429] observations=[10025, 10029, 10026, 10030, 10025] cutoff=4 delta=1 dc_completed=3 exported=UnitRange { start_index: 0, end_index: 3, direction: Up, lo: 10025, hi: 10030 } construction_level=1 members=3 role=developing_local_center_assembly
+same_exported_geometry=true distinct_construction_levels=true same_policy_same_cutoff=true
+scope=geometry_summary_insufficient_for_construction_level_not_refutation_of_full_typed_input_signature_or_semantic_F2

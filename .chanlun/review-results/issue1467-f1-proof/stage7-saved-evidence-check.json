@@ -1,0 +1,10 @@
+{
+  "status": "current",
+  "snapshot_current": true,
+  "exact_root_passed": true,
+  "declaration": "ObservationResearch.exact_root",
+  "semantic_sha256": "1b7e4c2f87cedc0c28bfd541663b651f8941cdf5eec31a3de7711d9697210667",
+  "manifest_sha256": "c25b1776a57a5de48e293acd2bf2518a77f6aabdbb60d7b14f2124a29fb0dc3e",
+  "reasons": [],
+  "scope": "saved evidence and current Lean module resolution checked; no new kernel proof replay"
+}

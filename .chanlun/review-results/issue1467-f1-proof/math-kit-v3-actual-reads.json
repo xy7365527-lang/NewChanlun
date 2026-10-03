@@ -1,0 +1,41 @@
+{
+  "continuation_version": "math-kit-goal-reframe-v3",
+  "skills": [
+    {
+      "entry": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.agents/skills/math-research-activator/SKILL.md",
+      "resolved": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.agents/research-tools/math-skill-ccad250e/SKILL.md",
+      "sha256": "490a501cc5c62b5f1c66e4389bdae542f479671741e64f0478165a966e1a2a8c",
+      "read_mode": "explicit_path",
+      "automatic_discovery_status": "not_claimed"
+    },
+    {
+      "entry": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.agents/skills/math-research-workflow/SKILL.md",
+      "resolved": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.agents/research-tools/xsoc1-9e0da0c3/plugins/math-research-workflow/skills/math-research-workflow/SKILL.md",
+      "sha256": "df37a4bd8939717159d63a85f9be2f2f9fb303e0034c93604d347bfc5977ba96",
+      "read_mode": "explicit_path",
+      "automatic_discovery_status": "not_claimed"
+    },
+    {
+      "entry": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.agents/skills/rigorous-open-math-research/SKILL.md",
+      "resolved": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.agents/research-tools/xsoc1-9e0da0c3/plugins/rigorous-open-math-research/skills/rigorous-open-math-research/SKILL.md",
+      "sha256": "2cf200984572271b8689ab93e2069cc2e31b85e2824e06a9467352350b4591ed",
+      "read_mode": "explicit_path",
+      "automatic_discovery_status": "not_claimed"
+    },
+    {
+      "entry": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.agents/skills/manage-math-research-program/SKILL.md",
+      "resolved": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.agents/research-tools/xsoc1-9e0da0c3/plugins/manage-math-research-program/skills/manage-math-research-program/SKILL.md",
+      "sha256": "456e5c5e51083082587452eb1bfbd3aa1b74c87930c560f0041a8f75a9bfbf65",
+      "read_mode": "explicit_path",
+      "automatic_discovery_status": "not_claimed"
+    },
+    {
+      "entry": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.agents/skills/lean-verify/SKILL.md",
+      "resolved": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.agents/research-tools/xsoc1-9e0da0c3/plugins/lean-verify/skills/lean-verify/SKILL.md",
+      "sha256": "8c448198a3fe52c8e5368501394bb5459fd794a13f0666186711543f603d27f8",
+      "read_mode": "explicit_path",
+      "automatic_discovery_status": "not_claimed"
+    }
+  ],
+  "notes": "实际工具读取已发生；本记录不宣称自动发现或独立审查。"
+}

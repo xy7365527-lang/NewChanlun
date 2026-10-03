@@ -1,0 +1,54 @@
+{
+  "declaration": "ObservationResearch.exact_root",
+  "actual_type": "And ObservationResearch.FACTORIZATION_TARGET ObservationResearch.COLLISION_TARGET",
+  "axioms": [
+    "Classical.choice"
+  ],
+  "universes": [],
+  "binder_kinds": [],
+  "definition_hashes": {
+    "And": "dc9ca9d9b4398bd916718d1c7513936499cd757cf27c8c44448554952c6b5caa",
+    "Eq": "c39df5deda05f0ec7fc1a71eb8d5959d445f0eb6f4cba41ff2a078fb41898338",
+    "Exists": "49b3ab2f0d2d1e5793f7c9379969c1618fd9e3a0d3934e2d2dfd50e08b4628ed",
+    "False": "3c09fe145700dac2cf7806bc6b2f7cc70d22ccfd17894d1d0c5e8e8cddef0057",
+    "Iff": "dc9ca9d9b4398bd916718d1c7513936499cd757cf27c8c44448554952c6b5caa",
+    "Ne": "4fc8be390353716752bcbe145ccf5e2acd3bd7bc67559dd87feed256cb4ff14b",
+    "Not": "d71a8411b636aadf9db07503631d14273447a1a17d20dba6aae92ae1612ac301",
+    "Subtype": "13666412ddc8ccb9efaebb80be762a6c1aac3572e3eae33bdc3f41d751dd3f81",
+    "And.intro": "95ce30b0bf03f12a09c3dc356a592f383eec404086d8605c51ddc6c5c24f2bc3",
+    "Eq.refl": "f9ee6a9305a0b76272ebdc3545b4782c649716469020dd4374d80c90cd230033",
+    "Exists.intro": "d553d2c4a94f77d2828e4ef5ca758c9190673efba9e2e87fa03e527585312a55",
+    "Iff.intro": "127af1dd18de9b63f849fe3eb26ab31ff224522d3e9509d3cab5925721a377d3",
+    "ObservationResearch.COLLISION_TARGET": "f9ebbdf7c61717bbd5a9c8c9a117722c1cfdc488b11c10a54d6f7c23076dd5fa",
+    "ObservationResearch.FACTORIZATION_TARGET": "3b07fb2ca4e2adc15f8cc2c0fa5063429fbc3dba457d95f7afc39c5e7f0edced",
+    "ObservationResearch.FactorsOnImage": "e57a6e56e8a032e3c64e756e7ea4745c932f9067a6612d19b24ed64a4505d843",
+    "ObservationResearch.FiberConstant": "ae4ee3bb9b7a09e27d234523f37f6acbadf663803650b7c8686034922a59fa5c",
+    "ObservationResearch.Observed": "22d49cc56407fc09eb82df3043a8e34d0cb00255cb740b39494a709dff3c082e",
+    "Subtype.mk": "0fbd731314c74ebe35ff69e5ffc9e2f88fa28b06a4146d59fb5e8a9b14b2bfde",
+    "ObservationResearch.FactorsOnImage._proof_1": "22de41185150dd51744467168d87012ec30b568d2b8d8eecdef1f4f4824aef6a"
+  },
+  "semantic_sha256": "1b7e4c2f87cedc0c28bfd541663b651f8941cdf5eec31a3de7711d9697210667",
+  "environment": {
+    "lean_version": "Lean (version 4.31.0, arm64-apple-darwin24.6.0, commit 68218e876d2a38b1985b8590fff244a83c321783, Release)",
+    "lean_status": "passed",
+    "lake_version": "Lake version 5.0.0-src+68218e8 (Lean version 4.31.0)",
+    "lake_status": "passed",
+    "lean_toolchain": "leanprover/lean4:v4.31.0",
+    "configuration_hashes": {
+      "lean-toolchain": "efac0b94923b2d8b6840cd35be9177ad0fc5ab2332f4f4311c98712cee92fdee",
+      "lake-manifest.json": "0da08b9f4e70cf46e268e2ddcc369470e58f7a84498b559d9692ec73ed89703f",
+      "lakefile.toml": "b10936404a04be490197df1fd3e222e866d3ffac351a3ac5601968904baf129f"
+    },
+    "binary_hashes": {
+      "bin/lean": "1b370cfcbf44e80d1b004ab1b1ab9a4c73951f9f7c242140bcff9bc577576554",
+      "bin/lake": "58261a1a2fa1a362376c71e02ca854a093e71cc5e6ea64b287a931cb2565273d",
+      "lib/lean/libleanshared.dylib": "a695a9aa68481c42b99619e0103537e6b433c6fa7021927b184e19a686d03989"
+    },
+    "prefix": "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0",
+    "mode": "direct",
+    "inherited_lean_path": "",
+    "inherited_lean_src_path": "",
+    "sha256": "b26664481814d116a6dd0af2de1af2cba446884eddfe4c88b8d4bcfdecbc91cf"
+  },
+  "raw_manifest_sha256": "c25b1776a57a5de48e293acd2bf2518a77f6aabdbb60d7b14f2124a29fb0dc3e"
+}

@@ -1,0 +1,29 @@
+{
+  "status": "pending_reviewer_unavailable",
+  "native_spawn_identity": null,
+  "completion_identity": null,
+  "reason": "当前没有父会话模型切换工具；用户指定的派发前切换限制仍生效",
+  "readback_files": {
+    "readback/ObservationSpec.lean": "1fba44676b0ed86d5a5b9fcff8a5bed7dff577d7c7ee841942d543cb3191777f",
+    "readback/ObservationProof.lean": "5e8ff3c3492e2c20a0a2c2841e6d4c1acf4a9633d3a273ecfaf894f07cc0c758",
+    "readback/actual-statement-environment.json": "077715c04d693d181abeb9a72058a0cd3cc32f36cf77006218ddc0f972b10481",
+    "readback/lean-toolchain": "efac0b94923b2d8b6840cd35be9177ad0fc5ab2332f4f4311c98712cee92fdee",
+    "readback/lakefile.toml": "b10936404a04be490197df1fd3e222e866d3ffac351a3ac5601968904baf129f",
+    "readback/REQUEST.md": "91e771f7a6000340a909b6fa9200d02e404918296f030a3c0612e41c8ba33197"
+  },
+  "comparison_inputs": {
+    "GoalReframe-v3.md": "165a514fdfa762cb30d1d50df464b4d09fe7b05c86eaa65ab3299c6bf128dd52",
+    "Stage7ObservationSufficiency.md": "d4387430c04aeaad550b0474ddf6641f76fb9aabcc5853423d637cf3244d2ee9",
+    "typed_projection_collision.rs": "e9e7df4347c63ac9db23c352eccd9c69c03f668cea604574d2fa4fbbb0b7fa35",
+    "typed-projection-collision-stdout.txt": "f9df54892f7ce059e29994c953e0117112b76f526391e92d3174b26c82af0944",
+    "stage7-lean-verification-summary.json": "4ee4b55e6441f1307b8b0e055f0e945fd8b4505c1fb1bebf416768a7a4aafae1"
+  },
+  "comparison_obligations": [
+    "独立读回与冻结意图是否相符",
+    "实际可达见证与抽象纤维反例之间是否有未经验证的桥",
+    "是否把构成层号混同完成状态或市场价值",
+    "是否存在隐含假设、空域或时间泄漏"
+  ],
+  "reviewer_output_directory": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/reviews/obs-suff-v1",
+  "suggested_verdict": null
+}
