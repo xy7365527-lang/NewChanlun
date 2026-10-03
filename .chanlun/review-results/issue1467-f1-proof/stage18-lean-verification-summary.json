@@ -1,0 +1,143 @@
+{
+  "run_id": "bee3909396b7486b9744d28953dcee6f",
+  "manifest_original_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/nine-regroup-v1-warm/run-manifest.json",
+  "manifest_sha256": "c05baed805a99a09158651e6a588d0a75da196f4fde03b3ce658f48177085b15",
+  "preserved_archive": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/nine-regroup-v1-verified.tar.gz",
+  "archive_sha256": "7fc209812b6ecbf9dc5bdc4f403f4ff4b84e36c54b872973135c40ee9fe7df6f",
+  "machine_verification_passed": true,
+  "exact_root_passed": true,
+  "root_closure": {
+    "status": "closed",
+    "exact_root_passed": true,
+    "declaration_closed": true,
+    "scope": "expected Lean type in the recorded environment; semantic review is separate"
+  },
+  "semantic": {
+    "status": "not_reviewed",
+    "reused": false,
+    "semantic_sha256": "4bd680adc3b69269abb2cc729287e7901364a107f6612813f13511a4154f6235"
+  },
+  "actual_type": "And NineRegroup.GAP_TARGET\n  (And NineRegroup.SLICE_TARGET\n    (And NineRegroup.NONEMPTY_TARGET (And LiftBoundary.WITNESS_TARGET NineRegroup.NO_REGROUP_TARGET)))",
+  "expected_type": "NineRegroup.GAP_TARGET \u2227 NineRegroup.SLICE_TARGET \u2227 NineRegroup.NONEMPTY_TARGET \u2227 LiftBoundary.WITNESS_TARGET \u2227 NineRegroup.NO_REGROUP_TARGET",
+  "axioms": [
+    "propext",
+    "Quot.sound"
+  ],
+  "unexpected_axioms": [],
+  "unsafe_dependencies": [],
+  "unknown_dependencies": [],
+  "freshness_before_archiving": {
+    "status": "current",
+    "snapshot_current": true,
+    "exact_root_passed": true,
+    "declaration": "NineRegroup.exact_root",
+    "semantic_sha256": "4bd680adc3b69269abb2cc729287e7901364a107f6612813f13511a4154f6235",
+    "manifest_sha256": "c05baed805a99a09158651e6a588d0a75da196f4fde03b3ce658f48177085b15",
+    "reasons": [],
+    "scope": "saved evidence and current Lean module resolution checked; no new kernel proof replay"
+  },
+  "expanded_evidence_bytes": 23822613,
+  "initial_budget_bytes": 5242880,
+  "resource_limit_exceeded": true,
+  "resource_note": "first full dependency build and warm exact extraction both exceeded the self-set estimate; no change to the original limit; both attempts archived with every regular-file SHA verified",
+  "build_commands": [
+    {
+      "file": "NineRegroupProof.lean",
+      "kind": "source_dependencies",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--run",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/nine-regroup-v1-warm/lean-verification-runs/bee3909396b7486b9744d28953dcee6f/DiscoverImports.lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/nine-regroup-project-v1/NineRegroupProof.lean"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 6.888127
+    },
+    {
+      "file": "NineRegroupSpec.lean",
+      "kind": "source_dependencies",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--run",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/nine-regroup-v1-warm/lean-verification-runs/bee3909396b7486b9744d28953dcee6f/DiscoverImports.lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/nine-regroup-project-v1/NineRegroupSpec.lean"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.701789
+    },
+    {
+      "file": "NineRegroupSpec.lean",
+      "kind": "import_resolution",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--deps",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/nine-regroup-project-v1/NineRegroupSpec.lean"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.050981
+    },
+    {
+      "file": "NineRegroupSpec.lean",
+      "kind": "target",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/nine-regroup-project-v1",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/nine-regroup-v1-warm/lean-verification-runs/bee3909396b7486b9744d28953dcee6f/lib/NineRegroupSpec.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/nine-regroup-project-v1/NineRegroupSpec.lean"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.441611
+    },
+    {
+      "file": "NineRegroupProof.lean",
+      "kind": "import_resolution",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--deps",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/nine-regroup-project-v1/NineRegroupProof.lean"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.049946
+    },
+    {
+      "file": "NineRegroupProof.lean",
+      "kind": "target",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/nine-regroup-project-v1",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/nine-regroup-v1-warm/lean-verification-runs/bee3909396b7486b9744d28953dcee6f/lib/NineRegroupProof.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/nine-regroup-project-v1/NineRegroupProof.lean"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.405741
+    },
+    {
+      "file": null,
+      "kind": "inspector_compile",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/nine-regroup-v1-warm/lean-verification-runs/bee3909396b7486b9744d28953dcee6f",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/nine-regroup-v1-warm/lean-verification-runs/bee3909396b7486b9744d28953dcee6f/lib/LeanVerifyProbe.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/nine-regroup-v1-warm/lean-verification-runs/bee3909396b7486b9744d28953dcee6f/LeanVerifyProbe.lean"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.891793
+    },
+    {
+      "file": null,
+      "kind": "declaration_inspection",
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/nine-regroup-v1-warm/lean-verification-runs/bee3909396b7486b9744d28953dcee6f/InspectRoot.lean"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.891979
+    }
+  ]
+}
