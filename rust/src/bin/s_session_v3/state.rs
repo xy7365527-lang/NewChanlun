@@ -91,7 +91,10 @@ pub(super) fn audit_bounded(
 pub(super) fn audit_native_current(tx: &Transaction<'_>) -> Result<AuditedState, String> {
     #[cfg(feature = "s_capture_native_testonly")]
     {
-        let capture = content_store::capture_for_prototype(tx).map_err(err)?;
+        let capture = content_store::capture_for_prototype(tx)
+            .map_err(err)?
+            .enable_native_frame_reuse_for_testonly()
+            .map_err(err)?;
         let (audited, _) = audit_core(tx, None, None, None, false, None, Some(&capture))?;
         drop(capture);
         Ok(audited)
@@ -278,7 +281,18 @@ fn audit_core(
                 )
                 .map_err(err)?,
             ),
-            None => content_store::capture_for_prototype(tx).map_err(err)?,
+            None => {
+                let capture = content_store::capture_for_prototype(tx).map_err(err)?;
+                #[cfg(feature = "s_capture_native_testonly")]
+                let capture = if max_render_bytes.is_none() {
+                    capture
+                        .enable_native_frame_reuse_for_testonly()
+                        .map_err(err)?
+                } else {
+                    capture
+                };
+                capture
+            }
         })
     } else {
         None
@@ -1259,6 +1273,8 @@ mod audit_capture_gate_tests {
         trace: std::cell::RefCell<Sha256>,
         checks: std::cell::Cell<usize>,
         records: std::cell::Cell<usize>,
+        prepares: std::cell::Cell<usize>,
+        accepts: std::cell::Cell<usize>,
         stop: Option<usize>,
     }
     impl Meter {
@@ -1267,6 +1283,8 @@ mod audit_capture_gate_tests {
                 trace: Default::default(),
                 checks: Default::default(),
                 records: Default::default(),
+                prepares: Default::default(),
+                accepts: Default::default(),
                 stop,
             }
         }
@@ -1289,10 +1307,12 @@ mod audit_capture_gate_tests {
         }
         fn prepare_node(&self) -> Result<(), sc::CodecError> {
             self.event(b"prepare");
+            self.prepares.set(self.prepares.get() + 1);
             Ok(())
         }
         fn accept_prepared_frame(&self, f: &sc::job::CheckedFrame) -> Result<(), sc::CodecError> {
             self.event(b"accept");
+            self.accepts.set(self.accepts.get() + 1);
             self.event(f.digest());
             Ok(())
         }
@@ -1324,6 +1344,77 @@ mod audit_capture_gate_tests {
             s.auxiliary
         )
     }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_frame_reuse_opt_in_respects_render_and_budget_gates() {
+        let mut fixture = prepared::tests::Fixture::new();
+        let (event, token) = fixture.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
+        fixture.publish(&event, &token).unwrap();
+        let tx = fixture.conn.transaction().unwrap();
+        let (native, native_receipt) =
+            audit_with_capture_impl(&tx, None, None, None, true, None).unwrap();
+        let (render_bounded, bounded_receipt) =
+            audit_with_capture_impl(&tx, None, Some(u64::MAX), None, true, None).unwrap();
+        assert_eq!(fingerprint(&native), fingerprint(&render_bounded));
+        assert_eq!(
+            native_receipt.as_ref().unwrap()["native_frame_reuse"]["enabled"],
+            true
+        );
+        assert_eq!(
+            bounded_receipt.as_ref().unwrap()["native_frame_reuse"]["enabled"],
+            false
+        );
+        assert_eq!(
+            bounded_receipt.as_ref().unwrap()["native_frame_reuse"]["same_material_hits"],
+            0
+        );
+
+        // 即使已opt-in且帧已热，BudgetSome仍逐次走原read→prepare→F→accept门序。
+        let capture = content_store::capture_for_prototype(&tx)
+            .unwrap()
+            .enable_native_frame_reuse_for_testonly()
+            .unwrap();
+        let digest = native.cuts[0].snapshot.view().digest().unwrap();
+        let original = sc::NodeSource::checked_read(&mut capture.reader(), &digest)
+            .unwrap()
+            .unwrap()
+            .into_parts();
+        let before = capture.retention();
+        let frames = sc::frame_calls_on_thread();
+        let meter = Meter::new(None);
+        let mut gated = history::HashReader::captured_for_audit(&capture, None)
+            .unwrap()
+            .with_audit_gate(Some(&meter), None);
+        for _ in 0..2 {
+            assert_eq!(
+                sc::NodeSource::checked_read(&mut gated, &digest)
+                    .unwrap()
+                    .unwrap()
+                    .into_parts(),
+                original
+            );
+        }
+        assert_eq!(sc::frame_calls_on_thread() - frames, 2);
+        assert_eq!(meter.prepares.get(), 2);
+        assert_eq!(meter.accepts.get(), 2);
+        assert_eq!(meter.checks.get(), 4);
+        let expected = Meter::new(None);
+        for _ in 0..2 {
+            expected.event(b"pre");
+            expected.event(b"prepare");
+            expected.event(b"accept");
+            expected.event(&digest);
+            expected.event(b"pre");
+        }
+        assert_eq!(meter.fingerprint(), expected.fingerprint());
+        let after = capture.retention();
+        assert_eq!(
+            after["capture_reads"].as_u64().unwrap(),
+            before["capture_reads"].as_u64().unwrap() + 2
+        );
+        assert_eq!(after["native_frame_reuse"], before["native_frame_reuse"]);
+    }
+
     #[test]
     fn audit_capture_budget_deadline_original_trace_and_outputs() {
         let mut f = prepared::tests::Fixture::new();
