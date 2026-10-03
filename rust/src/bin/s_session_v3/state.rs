@@ -388,7 +388,7 @@ fn audit_core(
                 && deadline.is_none()
                 && max_render_bytes.is_none()
         })
-        .map(source_audit::NativeSourceAudit::new)
+        .map(|c| source_audit::NativeSourceAudit::new(c, raw.view()))
         .transpose()?;
     #[cfg(not(feature = "s_capture_native_testonly"))]
     let mut native_sources: Option<source_audit::NativeSourceAudit<'_>> = None;
@@ -404,7 +404,7 @@ fn audit_core(
         let counts = match native_sources.as_mut() {
             Some(native) => native.audit(
                 &cut.roots.generated_state,
-                prefix,
+                prefix.len(),
                 &cut.metadata.profile_id,
                 &cut.metadata.rule_revision,
             )?,
@@ -470,6 +470,8 @@ fn audit_core(
         }
         value
     });
+    // 当前 Capture memo 的 Raw 借用到此结束，输出可转移已审原始账。
+    drop(native_sources);
     Ok((
         AuditedState {
             budget: raw.budget().cloned(),
@@ -1057,6 +1059,7 @@ mod scoped_prototype_probe {
     #[ignore]
     fn owned_current_material() {
         source_audit::reset_native_witness_identity_stats();
+        source_audit::reset_native_source_prefix_stats();
         #[cfg(feature = "s_allocation_json_testonly")]
         sc::capture_allocation::overlay::reset_first_overlay_refusal_for_testonly();
         let db = std::env::var("AUDIT_PROTOTYPE_DB").unwrap();
@@ -1098,7 +1101,7 @@ mod scoped_prototype_probe {
         #[cfg(not(feature = "s_allocation_json_testonly"))]
         let first_overlay_refusal: Option<()> = None;
         if let Err(error) = &result {
-            let failure = json!({"native_witness_identity":source_audit::native_witness_identity_stats(),"whole_audit_allocation_admitted":false,"testonly_failure_receipt":true,"error":error,"first_overlay_refusal":first_overlay_refusal,"after_drop_meter":owned_budget.as_ref().map(|b|b.snapshot()),"last_layout":owned_budget.as_ref().map(|b|b.allocation_request_probe()),"f_calls":sc::frame_calls_on_thread()-f,"sql_node_reads":content_store::sql_reads_on_thread()-sql,"events":events,"work":work,"elapsed_ns":elapsed.to_string()});
+            let failure = json!({"native_witness_identity":source_audit::native_witness_identity_stats(),"native_source_prefix_hits_misses":source_audit::native_source_prefix_stats(),"whole_audit_allocation_admitted":false,"testonly_failure_receipt":true,"error":error,"first_overlay_refusal":first_overlay_refusal,"after_drop_meter":owned_budget.as_ref().map(|b|b.snapshot()),"last_layout":owned_budget.as_ref().map(|b|b.allocation_request_probe()),"f_calls":sc::frame_calls_on_thread()-f,"sql_node_reads":content_store::sql_reads_on_thread()-sql,"events":events,"work":work,"elapsed_ns":elapsed.to_string()});
             std::fs::write(
                 std::env::var("AUDIT_PROTOTYPE_REPORT").unwrap(),
                 canonical_json(&failure),
@@ -1117,7 +1120,7 @@ mod scoped_prototype_probe {
             })
             .collect::<Vec<_>>();
         let complete = json!({"raw":s.raw,"cuts":cuts,"objects":format!("{:?}",s.objects),"auxiliary":format!("{:?}",s.auxiliary),"clock":v2::stored_clock(&tx).unwrap().value});
-        let report = json!({"native_witness_identity":source_audit::native_witness_identity_stats(),"overlay_peak_used_slots":peaks.get().0,"overlay_peak_used_body_bytes":peaks.get().1,"whole_audit_allocation_admitted":false,"first_overlay_refusal":first_overlay_refusal,"capture_meter_after_drop":owned_budget.as_ref().map(|b|b.snapshot()),"elapsed_ns":elapsed.to_string(),"capture_ns":capture.as_ref().and_then(|v|v.get("capture_ns")).cloned(),"capture":capture,"sql_node_reads":content_store::sql_reads_on_thread()-sql,"f_calls":sc::frame_calls_on_thread()-f,"work":work,"events":events,"complete":complete,"complete_sha256":sha256_hex(canonical_json(&complete).as_bytes())});
+        let report = json!({"native_witness_identity":source_audit::native_witness_identity_stats(),"native_source_prefix_hits_misses":source_audit::native_source_prefix_stats(),"overlay_peak_used_slots":peaks.get().0,"overlay_peak_used_body_bytes":peaks.get().1,"whole_audit_allocation_admitted":false,"first_overlay_refusal":first_overlay_refusal,"capture_meter_after_drop":owned_budget.as_ref().map(|b|b.snapshot()),"elapsed_ns":elapsed.to_string(),"capture_ns":capture.as_ref().and_then(|v|v.get("capture_ns")).cloned(),"capture":capture,"sql_node_reads":content_store::sql_reads_on_thread()-sql,"f_calls":sc::frame_calls_on_thread()-f,"work":work,"events":events,"complete":complete,"complete_sha256":sha256_hex(canonical_json(&complete).as_bytes())});
         std::fs::write(
             std::env::var("AUDIT_PROTOTYPE_REPORT").unwrap(),
             canonical_json(&report),

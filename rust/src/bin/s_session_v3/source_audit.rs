@@ -18,6 +18,17 @@ use newchan_rust::s_content::{
     Built, ContentRef, Kind, NodeDigest, NodeSink, NodeSource, NodeStore, Value as V,
 };
 use serde_json::{json, Value};
+#[path = "source_prefix.rs"]
+mod source_prefix;
+use source_prefix::{NativeSourceMemo, ParseDomain, SourceCoords};
+#[cfg(test)]
+pub(super) fn reset_native_source_prefix_stats() {
+    source_prefix::reset_stats();
+}
+#[cfg(test)]
+pub(super) fn native_source_prefix_stats() -> Option<[u64; 4]> {
+    source_prefix::stats()
+}
 fn err(e: impl std::fmt::Display) -> String {
     format!("SourceAuditInvalid：{e}")
 }
@@ -480,12 +491,12 @@ struct Object {
     kind: bj::TextValue,
     fields: SourceFields<'static>,
     refs: RefValue,
-    sources: sc::CodecVec<i64>,
+    sources: SourceCoords,
 }
 struct Group {
     payload: RefValue,
-    members: sc::CodecVec<i64>,
-    sources: sc::CodecVec<i64>,
+    members: SourceCoords,
+    sources: SourceCoords,
     anchor: i64,
 }
 struct Shape {
@@ -538,6 +549,41 @@ fn references(
         out.try_push(coord).map_err(err)?;
     }
     Ok(out)
+}
+fn source_coords(
+    s: &mut (impl CodecRead + ?Sized),
+    r: &RefValue,
+    memo: Option<&mut NativeSourceMemo<'_>>,
+    domain: ParseDomain,
+) -> Result<SourceCoords, String> {
+    match memo {
+        Some(memo) => memo.coords(s, r, domain),
+        None => coords(s, r).map(SourceCoords::Original),
+    }
+}
+fn source_references(
+    s: &mut (impl CodecRead + ?Sized),
+    r: &RefValue,
+    raw: &BusinessMap<i64, Source>,
+    numeric: bool,
+    checked: &mut BusinessMap<(NodeDigest, bool), i64>,
+    memo: Option<&mut NativeSourceMemo<'_>>,
+    prefix: usize,
+    domain: ParseDomain,
+) -> Result<SourceCoords, String> {
+    match memo {
+        Some(memo) => memo.references(s, r, raw, numeric, checked, prefix, domain),
+        None => references(s, r, raw, numeric, checked).map(SourceCoords::Original),
+    }
+}
+fn copy_source_coords(
+    s: &(impl CodecRead + ?Sized),
+    values: &SourceCoords,
+) -> Result<SourceCoords, String> {
+    match values {
+        SourceCoords::Shared(v) => Ok(SourceCoords::Shared(v.clone())),
+        SourceCoords::Original(v) => copy_coords(s, v).map(SourceCoords::Original),
+    }
 }
 /// 仅复制i64；从实际读取源取allocator，不开放普通深Clone或空树后补账。
 fn copy_coords(s: &(impl CodecRead + ?Sized), values: &[i64]) -> Result<sc::CodecVec<i64>, String> {
@@ -759,11 +805,21 @@ impl<'capture> NativeWitnessIdentityMemo<'capture> {
 pub(super) struct NativeSourceAudit<'capture> {
     reader: super::history::HashReader<'capture>,
     memo: NativeWitnessIdentityMemo<'capture>,
+    source_memo: NativeSourceMemo<'capture>,
+    raw: RawEventsView<'capture>,
 }
 impl<'capture> NativeSourceAudit<'capture> {
     #[cfg(feature = "s_capture_native_testonly")]
-    pub(super) fn new(capture: &'capture sc::AuditCapture) -> Result<Self, String> {
+    pub(super) fn new(
+        capture: &'capture sc::AuditCapture,
+        raw: RawEventsView<'capture>,
+    ) -> Result<Self, String> {
+        if raw.budget().is_some() {
+            return Err(err("Native来源memo不接收Owned原始账"));
+        }
         Ok(Self {
+            source_memo: NativeSourceMemo::new(capture, raw),
+            raw,
             reader: super::history::HashReader::captured(capture, None),
             memo: NativeWitnessIdentityMemo::new(capture)?,
         })
@@ -771,19 +827,20 @@ impl<'capture> NativeSourceAudit<'capture> {
     pub(super) fn audit<'a>(
         &mut self,
         state: impl Into<sc::RefView<'a>>,
-        raw_prefix: impl Into<RawEventsView<'a>>,
+        prefix_len: usize,
         profile: &str,
         rule: &str,
     ) -> Result<Counts, String> {
         audit_generated_in_store(
             &mut super::audit_store::StoreView::for_audit(&mut self.reader),
             state.into(),
-            raw_prefix.into(),
+            self.raw.prefix(prefix_len)?,
             profile,
             rule,
             None,
             None,
             Some(&mut self.memo),
+            Some(&mut self.source_memo),
         )
     }
 }
@@ -825,6 +882,7 @@ pub(super) fn audit_generated_metered<'a>(
         deadline,
         budget,
         None,
+        None,
     )
 }
 pub(super) fn audit_generated_for_audit<'a>(
@@ -845,6 +903,7 @@ pub(super) fn audit_generated_for_audit<'a>(
         deadline,
         budget,
         None,
+        None,
     )
 }
 fn audit_generated_in_store(
@@ -856,6 +915,7 @@ fn audit_generated_in_store(
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
     mut native_identity: Option<&mut NativeWitnessIdentityMemo<'_>>,
+    mut native_sources: Option<&mut NativeSourceMemo<'_>>,
 ) -> Result<Counts, String> {
     super::history::check_deadline(deadline)?;
     #[cfg(test)]
@@ -928,7 +988,12 @@ fn audit_generated_in_store(
                 &[PathStep::JsonText],
             )
             .map_err(err)?;
-        let sources = coords(s, &source_ref)?;
+        let sources = source_coords(
+            s,
+            &source_ref,
+            native_sources.as_deref_mut(),
+            ParseDomain::JsonInner,
+        )?;
         if kind == CC006_SHAPE_KIND {
             exact(&record, Kind::Object, 15)?;
         } else {
@@ -953,7 +1018,17 @@ fn audit_generated_in_store(
             if payload.kind() != Kind::Object {
                 return Err(err("typed载荷不是对象"));
             }
-            if references(s, &refs, &raw, false, &mut checked_refs)? != sources {
+            if source_references(
+                s,
+                &refs,
+                &raw,
+                false,
+                &mut checked_refs,
+                native_sources.as_deref_mut(),
+                raw_prefix.len(),
+                ParseDomain::JsonInner,
+            )? != sources
+            {
                 return Err(err("typed引用与source_coords不同"));
             }
             let key = fields.text(s, "fact_key").map_err(err)?;
@@ -1006,7 +1081,12 @@ fn audit_generated_in_store(
                 let index = decimal(&text(s, &payload, "group_index")?)?;
                 let anchor = decimal(&text(s, &payload, "group_anchor")?)?;
                 let members_root = field(s, &payload, "members")?;
-                let members = coords(s, &members_root)?;
+                let members = source_coords(
+                    s,
+                    &members_root,
+                    native_sources.as_deref_mut(),
+                    ParseDomain::JsonInner,
+                )?;
                 if index < 0
                     || members.is_empty()
                     || !members.contains(&anchor)
@@ -1020,11 +1100,16 @@ fn audit_generated_in_store(
                     let evidence = field(s, &payload, key)?;
                     if evidence.kind() != Kind::Null {
                         let list = field(s, &evidence, "source_coords")?;
-                        let evidence_coords = coords(s, &list)?;
+                        let evidence_coords = source_coords(
+                            s,
+                            &list,
+                            native_sources.as_deref_mut(),
+                            ParseDomain::JsonInner,
+                        )?;
                         union = union_coords(s, &union, &evidence_coords)?;
                     }
                 }
-                if union != sources {
+                if &*union != &*sources {
                     return Err(err("组来源不等于成员及方向/封口依据的并集"));
                 }
                 if groups
@@ -1033,7 +1118,7 @@ fn audit_generated_in_store(
                         Group {
                             payload: payload.clone(),
                             members,
-                            sources: copy_coords(s, &sources)?,
+                            sources: copy_source_coords(s, &sources)?,
                             anchor,
                         },
                     )
@@ -1111,7 +1196,16 @@ fn audit_generated_in_store(
             } else {
                 field(s, &part, "raw_refs")?
             };
-            let members = references(s, &raw_refs, &raw, true, &mut checked_refs)?;
+            let members = source_references(
+                s,
+                &raw_refs,
+                &raw,
+                true,
+                &mut checked_refs,
+                native_sources.as_deref_mut(),
+                raw_prefix.len(),
+                ParseDomain::JsonInner,
+            )?;
             if members != group.members {
                 return Err(err("形态raw_refs不是同cut组成员"));
             }
@@ -1120,9 +1214,18 @@ fn audit_generated_in_store(
             } else {
                 field(s, &part, "dependency_refs")?
             };
-            let dependency = references(s, &deps, &raw, true, &mut checked_refs)?;
+            let dependency = source_references(
+                s,
+                &deps,
+                &raw,
+                true,
+                &mut checked_refs,
+                native_sources.as_deref_mut(),
+                raw_prefix.len(),
+                ParseDomain::JsonInner,
+            )?;
             let expected = difference_coords(s, &group.sources, &members)?;
-            if dependency != expected {
+            if &*dependency != &*expected {
                 return Err(err("形态dependency_refs不是组事实来源差集"));
             }
             source_union = union_coords(s, &source_union, &members)?;
@@ -1146,7 +1249,7 @@ fn audit_generated_in_store(
                 lows[slot] = text(s, &group.payload, "low")?;
             }
         }
-        if source_union != object.sources {
+        if &*source_union != &*object.sources {
             return Err(err("形态source_coords不是完整来源并集"));
         }
         let branch = object.fields.text(s, "branch").map_err(err)?;
@@ -1512,9 +1615,9 @@ mod tests {
             ),
         );
         let capture = sc::AuditCapture::new(nodes);
-        let mut context = NativeSourceAudit::new(&capture).unwrap();
+        let mut context = NativeSourceAudit::new(&capture, (&raw).into()).unwrap();
         let run = |context: &mut NativeSourceAudit<'_>, state: &ContentRef, raw: &[Value]| {
-            context.audit(state, raw, tb02a::PROFILE, &rule)
+            context.audit(state, raw.len(), tb02a::PROFILE, &rule)
         };
         let mut original_reader = super::super::history::HashReader::captured(&capture, None);
         let original = audit_generated_for_audit(
@@ -1530,9 +1633,34 @@ mod tests {
         let first = run(&mut context, &state, &raw).unwrap();
         assert_eq!(format!("{original:?}"), format!("{first:?}"));
         let renders = context.memo.stats.render_calls;
+        let source_stats = context.source_memo.stats;
         run(&mut context, &state, &raw).unwrap();
         assert_eq!(context.memo.stats.render_calls, renders);
         assert!(context.memo.stats.hits > 0);
+        assert!(context.source_memo.stats[0] > source_stats[0]);
+        assert!(context.source_memo.stats[2] > source_stats[2]);
+        assert_eq!(context.source_memo.stats[1], source_stats[1]);
+        assert_eq!(context.source_memo.stats[3], source_stats[3]);
+        assert!(context
+            .audit(&state, raw.len() + 1, tb02a::PROFILE, &rule)
+            .is_err());
+        // Future malformed/colliding raw cannot invalidate an earlier legal cut at init.
+        for coord in ["-1", "01", raw[0]["source_coord"].as_str().unwrap()] {
+            let mut future_raw = raw.clone();
+            let mut future = raw[0].clone();
+            future["identity_key"] = json!("future-different-identity");
+            future["source_coord"] = json!(coord);
+            future_raw.push(future);
+            let mut future_context =
+                NativeSourceAudit::new(&capture, (&future_raw).into()).unwrap();
+            let previous = future_context
+                .audit(&state, raw.len(), tb02a::PROFILE, &rule)
+                .unwrap();
+            assert_eq!(format!("{previous:?}"), format!("{original:?}"));
+            assert!(future_context
+                .audit(&state, future_raw.len(), tb02a::PROFILE, &rule)
+                .is_err());
+        }
         for (state, message) in [
             (&wrong_id, "见证ID不符"),
             (&wrong_bars, "raw_bars成员数不同"),
@@ -1545,17 +1673,19 @@ mod tests {
         }
         let mut revised = raw.clone();
         revised[0]["high"] = json!("999999");
-        assert!(run(&mut context, &state, &revised)
+        let mut revised_context = NativeSourceAudit::new(&capture, (&revised).into()).unwrap();
+        assert!(run(&mut revised_context, &state, &revised)
             .unwrap_err()
             .contains("raw_bars不是同cut真实原始成员"));
         let mut revised = raw.clone();
         let revision = revised[0]["revision"].as_i64().unwrap();
         revised[0]["revision"] = json!(revision.checked_add(1).unwrap());
-        assert!(run(&mut context, &state, &revised)
+        let mut revised_context = NativeSourceAudit::new(&capture, (&revised).into()).unwrap();
+        assert!(run(&mut revised_context, &state, &revised)
             .unwrap_err()
             .contains("源引用不是本cut的真实完整八字段原件"));
         let empty = sc::AuditCapture::new(MemoryNodes::default());
-        let mut wrong_source = NativeSourceAudit::new(&empty).unwrap();
+        let mut wrong_source = NativeSourceAudit::new(&empty, (&raw).into()).unwrap();
         assert!(run(&mut wrong_source, &state, &raw).is_err());
         assert!(wrong_source.memo.entries.is_empty());
     }
@@ -1569,14 +1699,14 @@ mod tests {
         let (tag, body) = nodes.get(&bars.digest).unwrap();
         incomplete.insert_unchecked(bars.digest, tag, body.to_vec());
         let incomplete = sc::AuditCapture::new(incomplete);
-        let mut context = NativeSourceAudit::new(&incomplete).unwrap();
+        let mut context = NativeSourceAudit::new(&incomplete, RawEventsView::plain(&[])).unwrap();
         assert!(context
             .memo
             .check_identity(&mut context.reader, "unused", "obj3-first", 0, 1, &bars)
             .is_err());
         assert!(context.memo.entries.is_empty());
         let capture = sc::AuditCapture::new(nodes);
-        let mut context = NativeSourceAudit::new(&capture).unwrap();
+        let mut context = NativeSourceAudit::new(&capture, RawEventsView::plain(&[])).unwrap();
         let overlay = sc::write_value(
             &mut context.reader,
             &V::Array(vec![V::String("overlay".into())]),
@@ -1614,7 +1744,7 @@ mod tests {
                 .finish()
                 .unwrap(),
         );
-        assert!(NativeSourceAudit::new(&owned).is_err());
+        assert!(NativeSourceAudit::new(&owned, RawEventsView::plain(&[])).is_err());
     }
     fn replace_field<'a>(
         s: &mut dyn NodeStore,

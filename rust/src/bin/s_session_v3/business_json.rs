@@ -228,6 +228,17 @@ impl<'a> Effective<'a> {
         JsonView::ArraySlice(&self.values)
     }
 }
+/// #1394：最大修订优先，同修订保首次；来源证书与实际 effective 共用此判据。
+pub(crate) fn effective_precedence(
+    left_revision: i64,
+    left_ordinal: usize,
+    right_revision: i64,
+    right_ordinal: usize,
+) -> std::cmp::Ordering {
+    right_revision
+        .cmp(&left_revision)
+        .then_with(|| left_ordinal.cmp(&right_ordinal))
+}
 pub(crate) fn effective<'a>(
     all: RawEventsView<'a>,
     deadline: Option<Instant>,
@@ -248,8 +259,7 @@ pub(crate) fn effective<'a>(
     }
     candidates.sort_unstable_by(|a, b| {
         a.0.cmp(b.0)
-            .then_with(|| b.1.cmp(&a.1))
-            .then_with(|| a.2.cmp(&b.2))
+            .then_with(|| effective_precedence(a.1, a.2, b.1, b.2))
     });
     let mut ordered = new_work::<(i64, JsonView<'a>)>(all.budget());
     let mut last = None;
