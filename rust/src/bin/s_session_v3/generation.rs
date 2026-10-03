@@ -359,12 +359,43 @@ impl GenerationRuntime {
         self.relations_seq.discard();
         self.observations_seq.discard();
     }
+    #[cfg(all(test, feature = "s_allocation_json_testonly"))]
+    pub(super) fn sequence_keys_bound_to_for_test(
+        &self,
+        budget: &sc::capture_allocation::OwnedBudget,
+    ) -> bool {
+        [
+            &self.raw_events_seq,
+            &self.effective_events_seq,
+            &self.objects_seq,
+            &self.witnesses_seq,
+            &self.relations_seq,
+            &self.observations_seq,
+        ]
+        .iter()
+        .all(|memo| {
+            memo.bound
+                && memo
+                    .allocation_budget()
+                    .is_some_and(|b| b.same_ledger(budget))
+        })
+    }
 
     /// 一代同核生成（只写节点，不发布）。
     pub(super) fn generate<'b>(
         &mut self,
         store: &mut dyn NodeStore,
         input: &GenerationInput<'b>,
+    ) -> Result<Generated<'b>, String> {
+        self.generate_with_allocation(store, input, None)
+    }
+
+    /// #1394：只给六份持久sequence keys传调用方原账，不声明其他生成分配闭合。
+    pub(super) fn generate_with_allocation<'b>(
+        &mut self,
+        store: &mut dyn NodeStore,
+        input: &GenerationInput<'b>,
+        budget: Option<&sc::capture_allocation::OwnedBudget>,
     ) -> Result<Generated<'b>, String> {
         if input.profile_id != self.profile_id || input.rule_revision != self.rule_revision {
             return Err(format!(
@@ -722,10 +753,12 @@ impl GenerationRuntime {
         let mut objects: Vec<ProducedObject> = shape_objects;
         objects.extend(typed);
         let deduped = dedupe_observations(store, &observations)?;
-        let raw_events_array = self.raw_events_seq.sync(store, &all_nodes, "raw_events")?;
+        let raw_events_array = self
+            .raw_events_seq
+            .sync(store, &all_nodes, "raw_events", budget)?;
         let effective_array =
             self.effective_events_seq
-                .sync(store, &effective_nodes, "effective_events")?;
+                .sync(store, &effective_nodes, "effective_events", budget)?;
         let object_nodes: Vec<NodeDigest> = objects
             .iter()
             .map(|object| object.generated.digest)
@@ -740,16 +773,18 @@ impl GenerationRuntime {
             .iter()
             .map(|observation| observation.digest)
             .collect();
-        let objects_array = self.objects_seq.sync(store, &object_nodes, "objects")?;
-        let witnesses_array = self
-            .witnesses_seq
-            .sync(store, &witness_nodes, "witnesses")?;
-        let relations_array = self
-            .relations_seq
-            .sync(store, &relation_nodes, "relations")?;
+        let objects_array = self
+            .objects_seq
+            .sync(store, &object_nodes, "objects", budget)?;
+        let witnesses_array =
+            self.witnesses_seq
+                .sync(store, &witness_nodes, "witnesses", budget)?;
+        let relations_array =
+            self.relations_seq
+                .sync(store, &relation_nodes, "relations", budget)?;
         let observations_array =
             self.observations_seq
-                .sync(store, &observation_nodes, "observations")?;
+                .sync(store, &observation_nodes, "observations", budget)?;
 
         let meta = StateMeta {
             generation: gen,
@@ -843,11 +878,83 @@ fn emit_state(
     Ok(built.content_ref())
 }
 
+/// #1394：Plain维持bulk extend与clear容量复用，Owned仅由实际CodecVec allocator持账。
+enum SequenceKeys {
+    Plain(Vec<NodeDigest>),
+    #[cfg(feature = "s_allocation_json_testonly")]
+    Owned(sc::CodecVec<NodeDigest>),
+}
+impl Default for SequenceKeys {
+    fn default() -> Self {
+        Self::Plain(Vec::new())
+    }
+}
+impl SequenceKeys {
+    fn as_slice(&self) -> &[NodeDigest] {
+        match self {
+            Self::Plain(keys) => keys,
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Self::Owned(keys) => keys,
+        }
+    }
+    fn allocation_budget(&self) -> Option<&sc::capture_allocation::OwnedBudget> {
+        match self {
+            Self::Plain(_) => None,
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Self::Owned(keys) => keys.allocation_budget(),
+        }
+    }
+    fn owned(budget: &sc::capture_allocation::OwnedBudget) -> Result<Self, String> {
+        #[cfg(feature = "s_allocation_json_testonly")]
+        {
+            return Ok(Self::Owned(sc::CodecVec::new_with_allocation(Some(budget))));
+        }
+        #[cfg(not(feature = "s_allocation_json_testonly"))]
+        {
+            let _ = budget;
+            Err(
+                "prototype_audit_allocation_incomplete：sequence keys缺Owned构建，拒绝Plain兜底"
+                    .into(),
+            )
+        }
+    }
+    fn reserve_owned(&mut self, length: usize) -> Result<(), String> {
+        match self {
+            Self::Plain(_) => {
+                let _ = length;
+                Ok(())
+            }
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Self::Owned(keys) => keys
+                .try_reserve_exact(length.saturating_sub(keys.len()))
+                .map_err(codec_error),
+        }
+    }
+    fn replace_reserved(&mut self, elements: &[NodeDigest]) -> Result<(), String> {
+        match self {
+            Self::Plain(keys) => {
+                keys.clear();
+                keys.extend_from_slice(elements);
+            }
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Self::Owned(keys) => {
+                keys.clear();
+                // reserve_owned已在改变原keys/seq前保证容量，try_push不会另作增长。
+                for digest in elements {
+                    keys.try_push(*digest).map_err(codec_error)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 /// 跨代共享序列记忆：未变前缀不重写，真变化处 `sequence_split` + 尾部续接。
 #[derive(Default)]
 pub(super) struct SequenceMemo {
-    keys: Vec<NodeDigest>,
+    keys: SequenceKeys,
     seq: Option<SequenceRef>,
+    bound: bool,
 }
 
 impl SequenceMemo {
@@ -857,17 +964,24 @@ impl SequenceMemo {
         name: &'static str,
         f: &mut dyn FnMut(&'static str, NodeDigest),
     ) {
-        for root in &self.keys {
+        for root in self.keys.as_slice() {
             f(name, *root);
         }
         if let Some(seq) = self.seq {
             f(name, seq.root());
         }
     }
-
+    pub(super) fn allocation_budget(&self) -> Option<&sc::capture_allocation::OwnedBudget> {
+        self.keys.allocation_budget()
+    }
     fn discard(&mut self) {
-        self.keys.clear();
+        match &mut self.keys {
+            SequenceKeys::Plain(keys) => keys.clear(),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            SequenceKeys::Owned(_) => self.keys = SequenceKeys::default(),
+        }
         self.seq = None;
+        self.bound = false;
     }
 
     pub(super) fn sync(
@@ -875,9 +989,31 @@ impl SequenceMemo {
         store: &mut dyn NodeStore,
         elements: &[NodeDigest],
         what: &'static str,
+        budget: Option<&sc::capture_allocation::OwnedBudget>,
     ) -> Result<Built, String> {
-        let common = self
-            .keys
+        if self.bound
+            && !match (self.allocation_budget(), budget) {
+                (None, None) => true,
+                (Some(a), Some(b)) => a.same_ledger(b),
+                _ => false,
+            }
+        {
+            return Err(
+                "prototype_audit_allocation_incomplete：缓存账本改变，须discard".into(),
+            );
+        }
+        // 初次Owned绑定暂留局部，失败不冻结模式；现有Owned真实扩容先同时留账旧新块。
+        let mut next_keys = if !self.bound {
+            budget.map(SequenceKeys::owned).transpose()?
+        } else {
+            None
+        };
+        next_keys
+            .as_mut()
+            .unwrap_or(&mut self.keys)
+            .reserve_owned(elements.len())?;
+        let keys = self.keys.as_slice();
+        let common = keys
             .iter()
             .zip(elements.iter())
             .take_while(|(left, right)| left == right)
@@ -885,9 +1021,9 @@ impl SequenceMemo {
         let consistent = self
             .seq
             .as_ref()
-            .is_some_and(|seq| seq.count() == self.keys.len() as u64);
+            .is_some_and(|seq| seq.count() == keys.len() as u64);
         let seq = match (self.seq, consistent) {
-            (Some(seq), true) if common == self.keys.len() => {
+            (Some(seq), true) if common == keys.len() => {
                 let mut seq = seq;
                 for element in &elements[common..] {
                     seq = sc::sequence_append(&mut *store, &seq, element)
@@ -910,10 +1046,17 @@ impl SequenceMemo {
                 SequenceRef::from_parts_unchecked(root, elements.len() as u64)
             }
         };
-        self.keys.clear();
-        self.keys.extend_from_slice(elements);
+        let built = array_from_sequence(&mut *store, &seq).map_err(producer_error)?;
+        next_keys
+            .as_mut()
+            .unwrap_or(&mut self.keys)
+            .replace_reserved(elements)?;
+        if let Some(keys) = next_keys {
+            self.keys = keys;
+        }
         self.seq = Some(seq);
-        array_from_sequence(&mut *store, &seq).map_err(producer_error)
+        self.bound = true;
+        Ok(built)
     }
 }
 
@@ -1387,6 +1530,162 @@ mod tests {
     };
     use newchan_rust::s_content::{render_canonical, MemoryNodes};
     use serde_json::json;
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn sequence_keys_empty_sync_freezes_actual_mode_and_same_ledger_until_discard() {
+        let budget = sc::capture_allocation::OwnedBudget::new(96);
+        let other = sc::capture_allocation::OwnedBudget::new(96);
+        let mut store = MemoryNodes::new();
+        let mut memo = SequenceMemo::default();
+        let first = memo.sync(&mut store, &[], "空keys", Some(&budget)).unwrap();
+        assert!(memo.bound);
+        assert!(memo.allocation_budget().unwrap().same_ledger(&budget));
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        assert_eq!(
+            memo.sync(&mut store, &[], "空keys", Some(&budget.clone()))
+                .unwrap(),
+            first
+        );
+        for candidate in [Some(&other), None] {
+            assert!(memo
+                .sync(&mut store, &[], "空keys", candidate)
+                .unwrap_err()
+                .contains("须discard"));
+        }
+        memo.discard();
+        memo.sync(&mut store, &[], "空keys", None).unwrap();
+        assert!(memo.bound && memo.allocation_budget().is_none());
+        assert!(memo
+            .sync(&mut store, &[], "空keys", Some(&budget))
+            .unwrap_err()
+            .contains("须discard"));
+        memo.discard();
+        memo.sync(&mut store, &[], "空keys", Some(&other)).unwrap();
+        assert!(memo.allocation_budget().unwrap().same_ledger(&other));
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn sequence_keys_owned_growth_counts_old_and_new_blocks_preserves_failure_and_drops_on_discard()
+    {
+        let budget = sc::capture_allocation::OwnedBudget::new(95);
+        let other = sc::capture_allocation::OwnedBudget::new(96);
+        let mut store = MemoryNodes::new();
+        let first = sc::write_value(&mut store, &CValue::Bool(true))
+            .unwrap()
+            .digest;
+        let second = sc::write_value(&mut store, &CValue::Bool(false))
+            .unwrap()
+            .digest;
+        let mut memo = SequenceMemo::default();
+        memo.sync(&mut store, &[first], "增长keys", Some(&budget))
+            .unwrap();
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 32);
+        let seq = memo.seq;
+        let error = memo
+            .sync(&mut store, &[first, second], "增长keys", Some(&budget))
+            .unwrap_err();
+        assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
+        let probe = budget.allocation_request_probe();
+        assert_eq!(probe.refused_bytes, 64);
+        assert_eq!(probe.live_before_refusal, 32);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 32);
+        assert_eq!(memo.keys.as_slice(), &[first]);
+        assert_eq!(memo.seq, seq);
+        assert!(memo.allocation_budget().unwrap().same_ledger(&budget));
+        assert!(memo
+            .sync(&mut store, &[first], "增长keys", Some(&other))
+            .is_err());
+        memo.discard();
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        assert!(memo.seq.is_none() && !memo.bound);
+        memo.sync(&mut store, &[first], "增长keys", Some(&other))
+            .unwrap();
+        memo.sync(&mut store, &[first, second], "增长keys", Some(&other))
+            .unwrap();
+        assert_eq!(other.snapshot().live_requested_layout_bytes, 64);
+        assert_eq!(other.snapshot().peak_requested_layout_bytes, 96);
+        memo.sync(&mut store, &[], "增长keys", Some(&other))
+            .unwrap();
+        assert_eq!(
+            other.snapshot().live_requested_layout_bytes,
+            64,
+            "clear不假称释放"
+        );
+        memo.discard();
+        assert_eq!(other.snapshot().live_requested_layout_bytes, 0);
+        println!(
+            "sequence keys actual Layout old=32 new=64 peak=96; limit95 refused; discard live=0"
+        );
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn sequence_keys_first_reserve_or_node_failure_does_not_freeze_ledger_and_plain_discard_reuses_capacity(
+    ) {
+        struct Fails;
+        impl sc::NodeSource for Fails {
+            fn read(&mut self, _: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+                Ok(sc::NodeRead::Missing)
+            }
+        }
+        impl sc::NodeSink for Fails {
+            fn put(&mut self, _: NodeDigest, _: u8, _: &[u8]) -> Result<(), sc::CodecError> {
+                Err(sc::CodecError::new(
+                    "test_sequence_node_write",
+                    "首次节点写失败",
+                ))
+            }
+        }
+        let mut store = MemoryNodes::new();
+        let digest = sc::write_value(&mut store, &CValue::Bool(true))
+            .unwrap()
+            .digest;
+        let short = sc::capture_allocation::OwnedBudget::new(31);
+        let budget = sc::capture_allocation::OwnedBudget::new(32);
+        let other = sc::capture_allocation::OwnedBudget::new(32);
+        let mut memo = SequenceMemo::default();
+        assert!(memo
+            .sync(&mut store, &[digest], "首次keys", Some(&short))
+            .unwrap_err()
+            .contains(sc::capture_allocation::LIMIT));
+        assert!(!memo.bound && memo.seq.is_none() && memo.keys.as_slice().is_empty());
+        assert_eq!(short.snapshot().live_requested_layout_bytes, 0);
+        assert!(memo
+            .sync(&mut Fails, &[digest], "首次keys", Some(&budget))
+            .unwrap_err()
+            .contains("test_sequence_node_write"));
+        assert!(!memo.bound && memo.seq.is_none() && memo.allocation_budget().is_none());
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        memo.sync(&mut store, &[digest], "首次keys", Some(&other))
+            .unwrap();
+        assert!(memo.allocation_budget().unwrap().same_ledger(&other));
+        memo.discard();
+        memo.sync(&mut store, &[digest], "普通keys", None).unwrap();
+        let capacity = match &memo.keys {
+            SequenceKeys::Plain(keys) => keys.capacity(),
+            _ => unreachable!(),
+        };
+        memo.discard();
+        assert!(
+            matches!(&memo.keys, SequenceKeys::Plain(keys) if keys.capacity() == capacity && keys.is_empty())
+        );
+        memo.sync(&mut store, &[digest], "普通keys", None).unwrap();
+        assert!(matches!(&memo.keys, SequenceKeys::Plain(keys) if keys.capacity() == capacity));
+    }
+
+    #[cfg(not(feature = "s_allocation_json_testonly"))]
+    #[test]
+    fn sequence_keys_some_without_owned_build_refuses_plain_fallback() {
+        let mut memo = SequenceMemo::default();
+        let budget = sc::capture_allocation::OwnedBudget::new(32);
+        let error = memo
+            .sync(&mut MemoryNodes::new(), &[], "缺构建keys", Some(&budget))
+            .unwrap_err();
+        assert!(error.contains("拒绝Plain兜底"));
+        assert!(!memo.bound && memo.seq.is_none());
+    }
 
     /// 一代 oracle：封存批次原件（完整生成态）+ 同一读集的真实两账。
     struct OracleGeneration {

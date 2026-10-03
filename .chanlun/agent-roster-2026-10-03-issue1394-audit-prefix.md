@@ -22,4 +22,7 @@
 - handle初段OS采样已完成：两臂各约5秒，测试线程3757/3761样本，harness等待排除；SHA树样本336/334，其中HashReader直接核帧215/213。完整两臂对拍及原件保全通过，4个进程均回收；采样耗时不计性能验收。证据 `.scratch/issue1394-handle-profile-20261004/ROOT-RESULT.json`。
 - 同原件overlay省除有限验收通过：仅实际Native owner、无门full-audit、Dynamic尚无该entry时，capture同tag/body逐字相同的put不再遮蔽source memo；put trace、首次F/冲突/角色拒绝及全部排除路径保留。7项靶向与独评PASS，一次Native构建，640项源码和app/lib/binary绑定一致。
 - 省除后新冷105→106完整对照PASS：eager/staged handle30.970/29.173秒，两个终态均106代idle；修复前后同臂DB/WAL/SHM的实际byte SHA全部相同、回执相同、14214项运行态owner/root多重集相同（诊断枚举顺序不声称相同）。少节点/正文仍7167/477288，原件保全与回收通过。staged仅内部handle低于30秒，正式网络、完整9011、整体资源与生产资格仍未成立。证据 `.scratch/issue1394-overlay-source-reuse-20261004/ROOT-RESULT.json`。
+- 全handle采样：第一轮因主进程结束时过早终止符号处理而未出报告，失败包保留；r2先回收主进程，再在sampler原45秒截止前等待自然落盘，已独审并实际取得两臂有效报告。初始轮询/启动缺口未测、harness等待排除、耗时受污染。object_index::plan占handle样本约18–21%，其中candidate逐个完整Public闭包核验形成重复；批量联合核验仍待源变化/多错首报边界裁定，尚未实施。全部业务对拍、原件保全及4进程回收通过；证据 `.scratch/issue1394-handle-full-profile-r2-20261004/ROOT-RESULT.json`。
+- 14份SequenceMemo持久keys完成局部Owned接线（6生成+8aux），统一取本次原账，首次成功含空同步才冻结模式/账，首次失败不暗绑定；真实扩容同时占旧新块、拒绝保keys/seq、discard实际释放后可重绑，Plain容量复用保持。独评PASS；dual 11项独立验收（r1无关7项复用、修复统一错误文本后4项复验）及Native-only缺JSON支持拒绝1项实际通过，共12项。额度与测试未放宽，失败原件保留，两构建feature的640源码/app/lib/binary均绑定。
+- keys证据 `.scratch/issue1394-sequence-keys-owned-20261004/ROOT-RESULT.json`；仅关闭这14个持久数组。内部sequence HashMap、节点/数组Vec、写栈、其他生成容器/ArrayCache、诊断字符串和整体Job/heap/max_store仍未闭合；这不是Native正式9011的新前置，也不是完整资源资格。
 - 禁止：旧未授权原件、main 合入/推送、GOAL 事件修改、新公共资源数值、前端 #1460、K4。

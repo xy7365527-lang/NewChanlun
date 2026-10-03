@@ -898,10 +898,10 @@ fn public_sets(
         o.try_push(digest(&row.wire)?).map_err(err)?;
     }
     Ok(PublicSets {
-        witnesses: memo[0].sync(s.generic_store(), &w, "见证快照")?,
-        relations: memo[1].sync(s.generic_store(), &r, "关系快照")?,
-        observations: memo[2].sync(s.generic_store(), &o, "观察快照")?,
-        raw_history: memo[3].sync(s.generic_store(), raw, "原始历史")?,
+        witnesses: memo[0].sync(s.generic_store(), &w, "见证快照", budget.as_ref())?,
+        relations: memo[1].sync(s.generic_store(), &r, "关系快照", budget.as_ref())?,
+        observations: memo[2].sync(s.generic_store(), &o, "观察快照", budget.as_ref())?,
+        raw_history: memo[3].sync(s.generic_store(), raw, "原始历史", budget.as_ref())?,
     })
 }
 fn window(
@@ -1811,6 +1811,17 @@ mod tests {
                 assert_eq!(actual_sets.witnesses, normal_sets.witnesses);
                 assert_eq!(actual_sets.relations, normal_sets.relations);
                 assert_eq!(actual_sets.observations, normal_sets.observations);
+                let delta_sets =
+                    public_sets(store, &constructed, &[], &mut runtime.sequences[4..]).unwrap();
+                assert_eq!(delta_sets.witnesses, normal_sets.witnesses);
+                assert_eq!(delta_sets.relations, normal_sets.relations);
+                assert_eq!(delta_sets.observations, normal_sets.observations);
+                assert!(
+                    runtime.sequences.iter().all(|memo| memo
+                        .allocation_budget()
+                        .is_some_and(|b| b.same_ledger(&budget))),
+                    "真实snapshot/delta八份持久keys均须留在原账，包括空raw"
+                );
                 let foreign = OwnedBudget::new(budget.snapshot().limit_bytes);
                 let equal_numbers = OwnedBudget::new(budget.snapshot().limit_bytes);
                 assert_eq!(
@@ -1873,6 +1884,65 @@ mod tests {
         );
         assert!(budget.snapshot().live_requested_layout_bytes > 0);
         drop(actual);
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_aux_public_sets_sequence_keys_growth_one_byte_short_preserves_roots_and_discard_releases(
+    ) {
+        let budget = OwnedBudget::new(1_000_000);
+        let mut nodes = sc::MemoryNodes::new();
+        let first = sc::write_value(&mut nodes, &sc::Value::Bool(true))
+            .unwrap()
+            .digest;
+        let second = sc::write_value(&mut nodes, &sc::Value::Bool(false))
+            .unwrap()
+            .digest;
+        let mut slab = sc::capture_allocation::CaptureSlab::new(2, 0, &budget).unwrap();
+        for (digest, tag, body) in nodes.iter() {
+            slab.push(*digest, tag, body).unwrap();
+        }
+        let capture = sc::AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
+        super::super::audit_store::with_owned_store_probe(&capture, &budget, 64, 4096, |store| {
+            let index = Index::default();
+            let mut runtime = Runtime::default();
+            let before = public_sets(store, &index, &[first], &mut runtime.sequences[..4]).unwrap();
+            assert!(runtime.sequences[..4].iter().all(|memo| memo
+                .allocation_budget()
+                .is_some_and(|b| b.same_ledger(&budget))));
+            let live = budget.snapshot().live_requested_layout_bytes;
+            let fill = sc::capture_allocation::CaptureSlab::new(
+                0,
+                budget.snapshot().limit_bytes - live - 64 + 1,
+                &budget,
+            )
+            .unwrap();
+            let error = public_sets(store, &index, &[first, second], &mut runtime.sequences[..4])
+                .err()
+                .unwrap();
+            assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
+            let probe = budget.allocation_request_probe();
+            assert_eq!(probe.refused_bytes, 64);
+            assert_eq!(
+                probe.live_before_refusal + 64,
+                budget.snapshot().limit_bytes + 1
+            );
+            drop(fill);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, live);
+            let after = public_sets(store, &index, &[first], &mut runtime.sequences[..4]).unwrap();
+            assert_eq!(after.witnesses, before.witnesses);
+            assert_eq!(after.relations, before.relations);
+            assert_eq!(after.observations, before.observations);
+            assert_eq!(after.raw_history, before.raw_history);
+            let before_discard = budget.snapshot().live_requested_layout_bytes;
+            runtime.discard();
+            assert_eq!(
+                before_discard - budget.snapshot().live_requested_layout_bytes,
+                32
+            );
+            println!("real Owned public_sets keys request=64 refused one-byte-short; old roots preserved; discard releases32");
+        });
         drop(capture);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }

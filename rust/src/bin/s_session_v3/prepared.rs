@@ -367,7 +367,7 @@ impl Runtime {
             .generator
             .as_mut()
             .ok_or_else(|| err("生成器未绑定"))?
-            .generate(&mut store, &input)?;
+            .generate_with_allocation(&mut store, &input, audited.budget.as_ref())?;
         let objects =
             object_index::plan(&mut store, &generated.objects, &audited.objects, generation)?;
         generated.finish_axes(
@@ -1176,6 +1176,14 @@ pub(crate) mod tests {
                 ordinary.publish(&plain1, &pt1).unwrap().message_receipt
             );
             assert!(budget.snapshot().live_requested_layout_bytes > 0);
+            assert!(
+                f.runtime
+                    .generator
+                    .as_ref()
+                    .unwrap()
+                    .sequence_keys_bound_to_for_test(&budget),
+                "真实首代六份持久keys须全部绑定AuditedState原账，包括空keys"
+            );
             let delivery_refs = |conn: &Connection| {
                 conn.prepare("SELECT generation FROM s_delivery_refs ORDER BY generation")
                     .unwrap()
