@@ -1,0 +1,442 @@
+{
+  "stage": 17,
+  "date": "2026-10-03",
+  "issue": 1467,
+  "related_issue": 1468,
+  "profile": "rw-dc-received-prefix/1",
+  "clock": "R_W-DC-postcapture-v1",
+  "author_machine_checks_passed": true,
+  "semantic": "not_reviewed",
+  "sources": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage17WorkCard.md",
+      "bytes": 2411,
+      "sha256": "48890ab5047379fe68a18dc880c553d465469272a6b46c700386e0b3031d4a83"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/published_l1_dc.rs",
+      "bytes": 20170,
+      "sha256": "3b4eb5507a25a7f294a9f890552ae70fdcacbcc7e615e0d22688764b8beab647"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage17-adapter/Cargo.toml",
+      "bytes": 278,
+      "sha256": "b3adde815bb12767fb8cffea9cc701897297c18b6555adb30e59aa6cb783f360"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage17-adapter/Cargo.lock",
+      "bytes": 4901,
+      "sha256": "38d1d5aa25ded3bbdd040786d80ad338b3a5a3f475313e44ea3d67954b9d1e4a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage17-core-origin.json",
+      "bytes": 208,
+      "sha256": "23fd7955054b0d566b7ec780a44eb5e757bcaa76c7f1b0163102ff0cb5fbfdf7"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/directional_change.rs",
+      "bytes": 8378,
+      "sha256": "fbefcdbc6939200cfaac802ad9638f30c0e5b64f68f27d99ad2fe08bf4795811"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage17_verify.mjs",
+      "bytes": 12732,
+      "sha256": "c835521e7136f3396694d8c3ec2f1212169ba281bcbfb03979f26bd1bef26864"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage17_provenance_verify.mjs",
+      "bytes": 5422,
+      "sha256": "d6c48d9f98e93d5565c8bd4f366cc48b5a6d9fa534c4bb640cba945ba0d5ad85"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage17PublishedDC.md",
+      "bytes": 9542,
+      "sha256": "69b2e9e1af098ef210b84247496644db985720767dbcd7450930b73a40141e1f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage17PendingReview.md",
+      "bytes": 2323,
+      "sha256": "fc23076092131992adafcbf6b46c3d0205e3de55dafaab3273881ce4c341269f"
+    }
+  ],
+  "input": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/causal-view-v1/rows.jsonl",
+    "bytes": 13416347,
+    "sha256": "a52374d3d1fc922eca44a692cc4243db2a083ee93346bc5b2181292ae66a47a5"
+  },
+  "gap_input": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/causal-view-v1/gap-recovery-1/continuous/rows.jsonl",
+    "bytes": 12231456,
+    "sha256": "6d3da86798b89e6a6730bcee83bd7bbd462dfc15a285beda0c73e8c7c6be2e46"
+  },
+  "binary": {
+    "path": "/tmp/nc1467-cargo-target/debug/order-event-published-dc",
+    "bytes": 1854264,
+    "sha256": "9ba822fd7cea4c27193082a62e07983e9656e54db9a1962dc2171b8efb85700f"
+  },
+  "artifacts": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/rows.jsonl",
+      "bytes": 28163272,
+      "sha256": "270589a4b3a93619fd3b609ce984b0d34ff1d74dc4a025ac3441298c3b62c978"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/report.json",
+      "bytes": 2209,
+      "sha256": "194ab359417626e7440c6346c767f2b44f2b9f83656177b762b8ad47eb6d2e5a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/verification-1/summary.json",
+      "bytes": 44461,
+      "sha256": "756f06a831e3715db4952ede4b977415384fe594a27a962fb081e94444b43ce2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/provenance-1.json",
+      "bytes": 917,
+      "sha256": "a1285f483f1bfa29758bfb3bd9c29c6cd623db14d1dbfec6f3e31c0b0218affd"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/verification-1/resume-339/receipt.json",
+      "bytes": 3627,
+      "sha256": "6b5275215e28734604b4c392015723beb37b80ec36316a203956c437d9bdec63"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/verification-1/resume-340/receipt.json",
+      "bytes": 3627,
+      "sha256": "f55afeb8c8e95a8e4ffbfa41138ca70140e0ab33706db7d5207470e511ebbe4e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/verification-1/resume-10000/receipt.json",
+      "bytes": 3637,
+      "sha256": "34405744397cdcd90af505e2ef2674e1155a21638af74b6279952b4a7fb9a720"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/verification-1/resume-1000/receipt.json",
+      "bytes": 3632,
+      "sha256": "8d7466ac78ff967bfa5902013d13489aa55e6ed28db9fe7e7a661498d518b1bf"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/verification-1/prefix-339/receipt.json",
+      "bytes": 1874,
+      "sha256": "1edcc4f17ec6cf799e505df36786082a8628fd92fec69056cf66c419e812c976"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/verification-1/prefix-340/receipt.json",
+      "bytes": 3334,
+      "sha256": "a07c280705fe8f0577188f73c6f58535420da3d52c9cb38b3ed2306c161ca074"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/verification-1/prefix-1000/receipt.json",
+      "bytes": 3478,
+      "sha256": "5d6ce5df6dc01f31d77fbe0c3d0da1d54ab94c524789dc36426ba4ea36805792"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/verification-1/prefix-10000/receipt.json",
+      "bytes": 3669,
+      "sha256": "98462b389af97c0c1a6da6f2e6218644903c7940a6ac646fae582d5a50c2ccdb"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/verification-1/long-gap/receipt.json",
+      "bytes": 3642,
+      "sha256": "aec8153e7fd8d189744b3d7920c5911b50893f6fd242a2fa65f2ec70115cce00"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/verification-1/gap-resume/receipt.json",
+      "bytes": 3671,
+      "sha256": "52e08a1b1c0e8b8a7ba54524b7d0a8ffc9e52a61929d3aae62590a50f51146ab"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/verification-1/delta-mismatch/receipt.json",
+      "bytes": 726,
+      "sha256": "3894666155b05d0c3d0c71ced6ceb438db617859b4b3d6d379490b20b3050cac"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/verification-1/overflow/receipt.json",
+      "bytes": 742,
+      "sha256": "99051c1b26b462d886e2c92ee5c7f9a018f0fbe0eaf63c50ca3f486cfb84185b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/checkpoints/line-339.json",
+      "bytes": 735,
+      "sha256": "80db7950507f34830a5fb30c38ec136a91998adf94604aa7985e48b7399f81e9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/checkpoints/line-340.json",
+      "bytes": 1092,
+      "sha256": "87e4b0b654d7b7efb8b8ebcc9220524741a0c46ce64d82387aa302700edac054"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/checkpoints/line-1000.json",
+      "bytes": 17757,
+      "sha256": "135529e6b57d0e4315cb52114cb63856130a494dc201e40cb4b4ba8763889a66"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/published-dc-v1/checkpoints/line-10000.json",
+      "bytes": 286277,
+      "sha256": "7872def40c5feb0b2dc460c6e3a76c3bcc31b20e5a63d4fdd0f961c450eec7b7"
+    }
+  ],
+  "external_evidence_bytes": 182870012,
+  "external_evidence_budget_bytes": 209715200,
+  "baseline": {
+    "active_at_end": {
+      "epoch": 0,
+      "midpoint": {
+        "active_since": {
+          "capture_time_lower_bound": "2021-01-01T00:00:59.9866936Z",
+          "observation": 1674,
+          "source_line": 20848
+        },
+        "extreme": {
+          "capture_time_lower_bound": "2021-01-01T00:00:59.9866936Z",
+          "frontier": "19247072097",
+          "observation": 1674,
+          "source_line": 20848,
+          "value_ticks": "2902924500000"
+        },
+        "phase": "down",
+        "provisional": true,
+        "start": {
+          "capture_time_lower_bound": "2021-01-01T00:00:59.9754296Z",
+          "frontier": "19247072090",
+          "observation": 1673,
+          "source_line": 20841,
+          "value_ticks": "2903085500000"
+        }
+      },
+      "weighted": {
+        "active_since": {
+          "capture_time_lower_bound": "2021-01-01T00:00:59.9892827Z",
+          "observation": 1676,
+          "source_line": 20855
+        },
+        "extreme": {
+          "capture_time_lower_bound": "2021-01-01T00:00:59.9892827Z",
+          "frontier": "19247072104",
+          "observation": 1676,
+          "source_line": 20855,
+          "value_ticks": "2902971057970"
+        },
+        "phase": "up",
+        "provisional": true,
+        "start": {
+          "capture_time_lower_bound": "2021-01-01T00:00:59.9892251Z",
+          "frontier": "19247072099",
+          "observation": 1675,
+          "source_line": 20850,
+          "value_ticks": "2902917205581"
+        }
+      }
+    },
+    "delta_ticks": "1000000",
+    "ended_epochs": 0,
+    "engine_sha256": "44a97b7812cdf83968ccbe01703a5c58591b030aec19c87ab0d3cd9fc0cbb6a9",
+    "eof_does_not_confirm_tail": true,
+    "epochs_started": 1,
+    "executable_sha256": "9ba822fd7cea4c27193082a62e07983e9656e54db9a1962dc2171b8efb85700f",
+    "midpoint_completed": 512,
+    "midpoint_confirmation_kinds": {
+      "price_change:done": 189,
+      "price_change:match": 11,
+      "price_change:open": 312
+    },
+    "observations": 1677,
+    "output_chain_sha256": "03ee494f3bc66f602018a591bed8412f108bdb7a2f81acae0824d53f8fae615a",
+    "output_file_sha256": "270589a4b3a93619fd3b609ce984b0d34ff1d74dc4a025ac3441298c3b62c978",
+    "profile": "rw-dc-received-prefix/1",
+    "reference_prefix_checks": 1677,
+    "restored_from_line": 0,
+    "rows_emitted": 20868,
+    "rows_seen": 20868,
+    "scale": 100000000,
+    "scope": "one observed-state clock; midpoint is not trade baseline A; no F2 qualification or value claim",
+    "source_sha256": "a52374d3d1fc922eca44a692cc4243db2a083ee93346bc5b2181292ae66a47a5",
+    "state_sha256": "c6c21521f3b5686eee81e8131828bda3818364f5e079da43f947f80587af4008",
+    "weighted_completed": 911,
+    "weighted_confirmation_kinds": {
+      "price_change:done": 216,
+      "price_change:match": 27,
+      "price_change:open": 550,
+      "quantity_only:done": 34,
+      "quantity_only:match": 30,
+      "quantity_only:open": 54
+    }
+  },
+  "verification": {
+    "baseline_stats": {
+      "observations": 1677,
+      "weighted": 911,
+      "midpoint": 512,
+      "epochs": 1,
+      "nonTradeQuantityConfirmations": 88
+    },
+    "recovery": [
+      {
+        "source_line": 339,
+        "input_replay_recovery_equal": true
+      },
+      {
+        "source_line": 340,
+        "input_replay_recovery_equal": true
+      },
+      {
+        "source_line": 1000,
+        "input_replay_recovery_equal": true
+      },
+      {
+        "source_line": 10000,
+        "input_replay_recovery_equal": true
+      }
+    ],
+    "prefixes": [
+      {
+        "source_line": 339,
+        "physical_prefix_equal": true
+      },
+      {
+        "source_line": 340,
+        "physical_prefix_equal": true
+      },
+      {
+        "source_line": 1000,
+        "physical_prefix_equal": true
+      },
+      {
+        "source_line": 10000,
+        "physical_prefix_equal": true
+      }
+    ],
+    "gap_stats": {
+      "observations": 868,
+      "weighted": 441,
+      "midpoint": 263,
+      "epochs": 2,
+      "nonTradeQuantityConfirmations": 33
+    },
+    "gap_epoch_boundary": {
+      "old_epoch_ends_at": 1001,
+      "new_epoch_starts_at": 10005,
+      "tail_not_sealed": true,
+      "cross_gap_units": 0,
+      "recovery_equal": true
+    },
+    "parameter_mismatch_rejected": true,
+    "arithmetic_overflow_rejected": true,
+    "receipts": [
+      {
+        "name": "resume-339",
+        "exit_code": 0,
+        "signal": null,
+        "timed_out": false
+      },
+      {
+        "name": "resume-340",
+        "exit_code": 0,
+        "signal": null,
+        "timed_out": false
+      },
+      {
+        "name": "resume-10000",
+        "exit_code": 0,
+        "signal": null,
+        "timed_out": false
+      },
+      {
+        "name": "resume-1000",
+        "exit_code": 0,
+        "signal": null,
+        "timed_out": false
+      },
+      {
+        "name": "prefix-339",
+        "exit_code": 0,
+        "signal": null,
+        "timed_out": false
+      },
+      {
+        "name": "prefix-340",
+        "exit_code": 0,
+        "signal": null,
+        "timed_out": false
+      },
+      {
+        "name": "prefix-1000",
+        "exit_code": 0,
+        "signal": null,
+        "timed_out": false
+      },
+      {
+        "name": "prefix-10000",
+        "exit_code": 0,
+        "signal": null,
+        "timed_out": false
+      },
+      {
+        "name": "long-gap",
+        "exit_code": 0,
+        "signal": null,
+        "timed_out": false
+      },
+      {
+        "name": "gap-resume",
+        "exit_code": 0,
+        "signal": null,
+        "timed_out": false
+      },
+      {
+        "name": "delta-mismatch",
+        "exit_code": 1,
+        "signal": null,
+        "timed_out": false
+      },
+      {
+        "name": "overflow",
+        "exit_code": 1,
+        "signal": null,
+        "timed_out": false
+      }
+    ]
+  },
+  "provenance": {
+    "all_passed": true,
+    "normal": {
+      "active_checks": 41058,
+      "completed_checks": 1423,
+      "ended_checks": 0
+    },
+    "gap": {
+      "active_checks": 23050,
+      "completed_checks": 704,
+      "ended_checks": 1
+    },
+    "negative_controls": [
+      {
+        "name": "confirmed-observation-index",
+        "rejected": true
+      },
+      {
+        "name": "active-role-first-known",
+        "rejected": true
+      },
+      {
+        "name": "active-endpoint-source",
+        "rejected": true
+      },
+      {
+        "name": "seal-domain-exit-tail",
+        "rejected": true
+      }
+    ],
+    "normal_sha256": "270589a4b3a93619fd3b609ce984b0d34ff1d74dc4a025ac3441298c3b62c978",
+    "gap_sha256": "606164103c291b32d3ace35000b159f14c723c0e0f972ca49803e34d8bf5e5e1",
+    "runner_sha256": "d6c48d9f98e93d5565c8bd4f366cc48b5a6d9fa534c4bb640cba945ba0d5ad85",
+    "scope": "finite stored-output provenance checks; author checker, not independent semantic review"
+  },
+  "limits": [
+    "one historical minute and named disturbances",
+    "input replay recovery, not serialized DC internal state",
+    "no general Rust refinement or independent semantic review",
+    "no F2 qualification, trade baseline A, predictive result or PnL",
+    "supplier capture time, not measured processing or execution latency"
+  ]
+}
