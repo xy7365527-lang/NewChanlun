@@ -33,12 +33,16 @@
 //! 多出 1 个中间节点；2^51 共享构型见上「成本」段。其它形状未测，测试给的仪表上界是
 //! 8·bits²（不是最坏界证明）。清理归调用方的内容存储策略（§5.6.1 的 `max_store_bytes`）。
 
+#[cfg(feature = "s_allocation_json_testonly")]
+use super::capture_allocation::work::WorkMap;
+use super::capture_allocation::OwnedBudget;
 use super::{
     be_u64, checked_frame_len, digest_at, frame, length_overflow_error, parse_root, read_checked,
     root_string, sequence_shape_error, split_index, tag, CodecError, NodeDigest, NodeSink,
     NodeSource, MAX_FRAME_LEN,
 };
 use std::collections::HashMap;
+use std::hash::Hash;
 
 /// 规范序列引用：公开身份只有「规范 M 根摘要 + 逻辑叶数」。
 ///
@@ -240,6 +244,18 @@ pub fn sequence_concat(
     left: &SequenceRef,
     right: &SequenceRef,
 ) -> Result<SequenceRef, CodecError> {
+    sequence_concat_with_allocation(store, left, right, None)
+}
+
+/// 显式计量调用内两张 memo 的实际哈希表 Layout；沿用调用方原账本。
+/// 节点 body、写栈和 store 自身分配不由本入口计量。
+pub fn sequence_concat_with_allocation(
+    store: &mut dyn NodeStore,
+    left: &SequenceRef,
+    right: &SequenceRef,
+    budget: Option<&OwnedBudget>,
+) -> Result<SequenceRef, CodecError> {
+    let mut memo = Memo::new(budget)?;
     checked_input(store, left)?;
     checked_input(store, right)?;
     if left.count.checked_add(right.count).is_none() || left.count + right.count > MAX_FRAME_LEN {
@@ -248,7 +264,7 @@ pub fn sequence_concat(
             left.count, right.count
         )));
     }
-    concat_core(store, left, right, &mut Memo::default())
+    concat_core(store, left, right, &mut memo)
 }
 
 /// 规范 split：按逻辑叶位置切一段，返回 `(M(h[0:i]), M(h[i:n]))`。
@@ -258,6 +274,17 @@ pub fn sequence_split(
     seq: &SequenceRef,
     index: u64,
 ) -> Result<(SequenceRef, SequenceRef), CodecError> {
+    sequence_split_with_allocation(store, seq, index, None)
+}
+
+/// 显式计量调用内 memo，互递归共用同一工作集；返回或错误时释放。
+pub fn sequence_split_with_allocation(
+    store: &mut dyn NodeStore,
+    seq: &SequenceRef,
+    index: u64,
+    budget: Option<&OwnedBudget>,
+) -> Result<(SequenceRef, SequenceRef), CodecError> {
+    let mut memo = Memo::new(budget)?;
     if index > seq.count {
         return Err(sequence_shape_error(format!(
             "拆分位置 {index} 超过序列长度 {}",
@@ -265,7 +292,7 @@ pub fn sequence_split(
         )));
     }
     checked_input(store, seq)?;
-    split_core(store, seq, index, &mut Memo::default())
+    split_core(store, seq, index, &mut memo)
 }
 
 /// 规范 append：在尾部追加一个叶摘要（`M(h ++ [leaf])`）。
@@ -276,11 +303,22 @@ pub fn sequence_append(
     seq: &SequenceRef,
     leaf: &NodeDigest,
 ) -> Result<SequenceRef, CodecError> {
+    sequence_append_with_allocation(store, seq, leaf, None)
+}
+
+/// 显式计量 append 使用的调用内 memo；失败可能已有中间节点写入，事务由调用方回滚。
+pub fn sequence_append_with_allocation(
+    store: &mut dyn NodeStore,
+    seq: &SequenceRef,
+    leaf: &NodeDigest,
+    budget: Option<&OwnedBudget>,
+) -> Result<SequenceRef, CodecError> {
+    let mut memo = Memo::new(budget)?;
     checked_input(store, seq)?;
     let leaf_digest = frame(tag::SEQ_LEAF, leaf);
     store.put(leaf_digest, tag::SEQ_LEAF, leaf)?;
     let tail = SequenceRef::from_parts_unchecked(leaf_digest, 1);
-    concat_core(store, seq, &tail, &mut Memo::default())
+    concat_core(store, seq, &tail, &mut memo)
 }
 
 /// 单次调用内的子问题备忘：同一 `(摘要, 叶数[, 位置])` 只解一次。
@@ -292,10 +330,62 @@ pub fn sequence_append(
 /// 诚实边界：① key 含两个操作数的摘要与叶数（split 还含位置），长度/位置缺一不可；
 /// ② 只有**成功**结果才写入（错误经 `?` 直接上抛，不会被记成成功）；③ 它只是去重，
 /// 不构成任何复杂度定理——见模块文档的「成本」段。
-#[derive(Default)]
+type ConcatKey = (NodeDigest, u64, NodeDigest, u64);
+type SplitKey = (NodeDigest, u64, u64);
+type SplitValue = (SequenceRef, SequenceRef);
+
+// None 保留原 std HashMap；Some 必须有实际 allocator，不能降级成普通表。
+enum MemoMap<K, V> {
+    Plain(HashMap<K, V>),
+    #[cfg(feature = "s_allocation_json_testonly")]
+    Owned(WorkMap<K, V>),
+}
+impl<K: Eq + Hash, V> MemoMap<K, V> {
+    fn new(budget: Option<&OwnedBudget>) -> Result<Self, CodecError> {
+        match budget {
+            None => Ok(Self::Plain(HashMap::new())),
+            Some(budget) => {
+                #[cfg(feature = "s_allocation_json_testonly")]
+                {
+                    Ok(Self::Owned(WorkMap::new(Some(budget))))
+                }
+                #[cfg(not(feature = "s_allocation_json_testonly"))]
+                {
+                    let _ = budget;
+                    Err(CodecError::static_detail(
+                        super::capture_allocation::INCOMPLETE,
+                        "sequence memo 缺 Owned 构建，拒绝 Plain 兜底",
+                    ))
+                }
+            }
+        }
+    }
+    fn get(&self, key: &K) -> Option<&V> {
+        match self {
+            Self::Plain(map) => map.get(key),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Self::Owned(map) => map.get(key),
+        }
+    }
+    fn insert(&mut self, key: K, value: V) -> Result<Option<V>, CodecError> {
+        match self {
+            Self::Plain(map) => Ok(map.insert(key, value)),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Self::Owned(map) => map.insert(key, value),
+        }
+    }
+}
 struct Memo {
-    concat: HashMap<(NodeDigest, u64, NodeDigest, u64), SequenceRef>,
-    split: HashMap<(NodeDigest, u64, u64), (SequenceRef, SequenceRef)>,
+    concat: MemoMap<ConcatKey, SequenceRef>,
+    split: MemoMap<SplitKey, SplitValue>,
+}
+impl Memo {
+    fn new(budget: Option<&OwnedBudget>) -> Result<Self, CodecError> {
+        Ok(Self {
+            concat: MemoMap::new(budget)?,
+            split: MemoMap::new(budget)?,
+        })
+    }
 }
 
 /// 规范核心：只用叶数与 `split_index(n)` 驱动，不展开逻辑叶。
@@ -347,7 +437,7 @@ fn concat_core(
         let digest = branch_node(store, &left_half.root, &tail.root, total)?;
         SequenceRef::from_parts_unchecked(digest, total)
     };
-    memo.concat.insert(key, out);
+    memo.concat.insert(key, out)?;
     Ok(out)
 }
 
@@ -392,6 +482,155 @@ fn split_core(
         let head = concat_core(store, &left_ref, &mid, memo)?;
         (head, tail)
     };
-    memo.split.insert(key, out);
+    memo.split.insert(key, out)?;
     Ok(out)
+}
+
+#[cfg(all(test, feature = "s_allocation_json_testonly"))]
+mod allocation_tests {
+    use super::super::{capture_allocation::LIMIT, CodecVec, MemoryNodes};
+    use super::*;
+
+    // 用两张真实表的完整 key/value 类型，而非缩小后的代表类型。
+    fn check_map_growth<K: Eq + Hash + Copy, V: Copy + Eq + std::fmt::Debug>(
+        entry: impl Fn(u64) -> (K, V),
+    ) {
+        let budget = OwnedBudget::new(1 << 20);
+        let mut baseline = CodecVec::<u8>::new_with_allocation(Some(&budget));
+        baseline.try_reserve_exact(17).unwrap();
+        let base = budget.snapshot().live_requested_layout_bytes;
+        let mut map = WorkMap::<K, V>::new(Some(&budget));
+        let (first_key, first_value) = entry(0);
+        map.insert(first_key, first_value).unwrap();
+        let capacity = map.capacity();
+        for i in 1..capacity as u64 {
+            let (key, value) = entry(i);
+            map.insert(key, value).unwrap();
+        }
+        assert_eq!(map.len(), capacity);
+        let old_bytes = map.retained_layout_bytes();
+        assert_eq!(
+            budget.snapshot().live_requested_layout_bytes,
+            base + old_bytes
+        );
+        let (next_key, next_value) = entry(capacity as u64);
+        map.insert(next_key, next_value).unwrap();
+        let new_bytes = map.retained_layout_bytes();
+        assert!(map.capacity() > capacity && new_bytes > old_bytes);
+        assert_eq!(
+            budget.snapshot().peak_requested_layout_bytes,
+            base + old_bytes + new_bytes
+        );
+        assert_eq!(
+            budget.snapshot().live_requested_layout_bytes,
+            base + new_bytes
+        );
+        drop(map);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+
+        let mut map = WorkMap::<K, V>::new(Some(&budget));
+        for i in 0..capacity as u64 {
+            let (key, value) = entry(i);
+            map.insert(key, value).unwrap();
+        }
+        // 在同一个显式预算内占据真实剩余额度，留 new_bytes-1，必须拒绝整块grow。
+        let mut blocker = CodecVec::<u8>::new_with_allocation(Some(&budget));
+        let remaining =
+            budget.snapshot().limit_bytes - budget.snapshot().live_requested_layout_bytes;
+        blocker
+            .try_reserve_exact(remaining - (new_bytes - 1))
+            .unwrap();
+        let blocked_base = budget.snapshot().live_requested_layout_bytes - old_bytes;
+        let before = budget.snapshot();
+        let error = map.insert(next_key, next_value).unwrap_err();
+        assert_eq!(error.code(), LIMIT);
+        let probe = budget.allocation_request_probe();
+        assert_eq!(probe.refused_bytes, new_bytes);
+        assert_eq!(
+            probe.live_before_refusal,
+            before.live_requested_layout_bytes
+        );
+        assert_eq!(probe.refused_kind, std::any::type_name::<(K, V)>());
+        assert_eq!(map.capacity(), capacity);
+        assert_eq!(map.retained_layout_bytes(), old_bytes);
+        for i in 0..capacity as u64 {
+            let (key, value) = entry(i);
+            assert_eq!(map.get(&key), Some(&value));
+        }
+        assert!(map.get(&next_key).is_none());
+        // 把最后余量也实际占满，重复key仍可替换且不会尝试分配。
+        let mut rest = CodecVec::<u8>::new_with_allocation(Some(&budget));
+        rest.try_reserve_exact(new_bytes - 1).unwrap();
+        let attempts = budget.snapshot().allocation_attempts;
+        assert_eq!(
+            map.insert(first_key, next_value).unwrap(),
+            Some(first_value)
+        );
+        assert_eq!(map.get(&first_key), Some(&next_value));
+        assert_eq!(budget.snapshot().allocation_attempts, attempts);
+        drop(rest);
+        drop(map);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, blocked_base);
+        drop(blocker);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        drop(baseline);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        assert!(!budget.ledger_health().invariant_broken);
+        println!(
+            "{} map old={old_bytes} new={new_bytes} coexist={}",
+            std::any::type_name::<(K, V)>(),
+            old_bytes + new_bytes
+        );
+    }
+
+    #[test]
+    fn sequence_local_memo_real_concat_and_split_tables_grow_refuse_and_release() {
+        check_map_growth::<ConcatKey, SequenceRef>(|i| {
+            let mut digest = [0; 32];
+            digest[..8].copy_from_slice(&i.to_be_bytes());
+            (
+                (digest, i, [2; 32], i + 1),
+                SequenceRef::from_parts_unchecked(digest, i),
+            )
+        });
+        check_map_growth::<SplitKey, SplitValue>(|i| {
+            let mut digest = [0; 32];
+            digest[..8].copy_from_slice(&i.to_be_bytes());
+            let value = SequenceRef::from_parts_unchecked(digest, i);
+            ((digest, i + 1, i), (value, value))
+        });
+    }
+
+    #[test]
+    fn sequence_noncanonical_split_populates_and_grows_both_local_tables_on_same_ledger() {
+        let budget = OwnedBudget::new(1 << 20);
+        let mut store = MemoryNodes::new();
+        let mut root = frame(tag::SEQ_LEAF, &[7; 32]);
+        store.put(root, tag::SEQ_LEAF, &[7; 32]).unwrap();
+        for depth in 1..=10 {
+            root = branch_node(&mut store, &root, &root, 1 << depth).unwrap();
+        }
+        let seq = SequenceRef::from_parts_unchecked(root, 1 << 10);
+        let mut memo = Memo::new(Some(&budget)).unwrap();
+        let out = split_core(&mut store, &seq, seq.count - 1, &mut memo).unwrap();
+        assert_eq!(out.0.count + out.1.count, seq.count);
+        let MemoMap::Owned(concat) = &memo.concat else {
+            panic!("concat必须Owned")
+        };
+        let MemoMap::Owned(split) = &memo.split else {
+            panic!("split必须Owned")
+        };
+        assert!(concat.len() > 3 && split.len() > 3);
+        assert!(concat.capacity() > 3 && split.capacity() > 3);
+        assert_eq!(
+            budget.snapshot().live_requested_layout_bytes,
+            concat.retained_layout_bytes() + split.retained_layout_bytes()
+        );
+        assert!(
+            budget.snapshot().peak_requested_layout_bytes
+                > budget.snapshot().live_requested_layout_bytes
+        );
+        drop(memo);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
 }

@@ -998,9 +998,7 @@ impl SequenceMemo {
                 _ => false,
             }
         {
-            return Err(
-                "prototype_audit_allocation_incomplete：缓存账本改变，须discard".into(),
-            );
+            return Err("prototype_audit_allocation_incomplete：缓存账本改变，须discard".into());
         }
         // 初次Owned绑定暂留局部，失败不冻结模式；现有Owned真实扩容先同时留账旧新块。
         let mut next_keys = if !self.bound {
@@ -1026,16 +1024,17 @@ impl SequenceMemo {
             (Some(seq), true) if common == keys.len() => {
                 let mut seq = seq;
                 for element in &elements[common..] {
-                    seq = sc::sequence_append(&mut *store, &seq, element)
+                    seq = sc::sequence_append_with_allocation(&mut *store, &seq, element, budget)
                         .map_err(|error| format!("GenError：{what} 序列续接失败：{error}"))?;
                 }
                 seq
             }
             (Some(seq), true) if common > 0 => {
-                let (mut left, _right) = sc::sequence_split(&mut *store, &seq, common as u64)
-                    .map_err(|error| format!("GenError：{what} 序列截断失败：{error}"))?;
+                let (mut left, _right) =
+                    sc::sequence_split_with_allocation(&mut *store, &seq, common as u64, budget)
+                        .map_err(|error| format!("GenError：{what} 序列截断失败：{error}"))?;
                 for element in &elements[common..] {
-                    left = sc::sequence_append(&mut *store, &left, element)
+                    left = sc::sequence_append_with_allocation(&mut *store, &left, element, budget)
                         .map_err(|error| format!("GenError：{what} 序列续接失败：{error}"))?;
                 }
                 left
@@ -1569,55 +1568,96 @@ mod tests {
     #[test]
     fn sequence_keys_owned_growth_counts_old_and_new_blocks_preserves_failure_and_drops_on_discard()
     {
+        // 95/96 只锁 keys allocator 组件；sync 的调用内 memo 另有真实分配。
         let budget = sc::capture_allocation::OwnedBudget::new(95);
         let other = sc::capture_allocation::OwnedBudget::new(96);
-        let mut store = MemoryNodes::new();
-        let first = sc::write_value(&mut store, &CValue::Bool(true))
-            .unwrap()
-            .digest;
-        let second = sc::write_value(&mut store, &CValue::Bool(false))
-            .unwrap()
-            .digest;
-        let mut memo = SequenceMemo::default();
-        memo.sync(&mut store, &[first], "增长keys", Some(&budget))
-            .unwrap();
+        let first = [1; 32];
+        let second = [2; 32];
+        let mut keys = SequenceKeys::owned(&budget).unwrap();
+        keys.reserve_owned(1).unwrap();
+        keys.replace_reserved(&[first]).unwrap();
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 32);
-        let seq = memo.seq;
-        let error = memo
-            .sync(&mut store, &[first, second], "增长keys", Some(&budget))
-            .unwrap_err();
+        let error = keys.reserve_owned(2).unwrap_err();
         assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
         let probe = budget.allocation_request_probe();
         assert_eq!(probe.refused_bytes, 64);
         assert_eq!(probe.live_before_refusal, 32);
+        assert_eq!(keys.as_slice(), &[first]);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 32);
-        assert_eq!(memo.keys.as_slice(), &[first]);
-        assert_eq!(memo.seq, seq);
-        assert!(memo.allocation_budget().unwrap().same_ledger(&budget));
-        assert!(memo
-            .sync(&mut store, &[first], "增长keys", Some(&other))
-            .is_err());
-        memo.discard();
+        assert!(keys.allocation_budget().unwrap().same_ledger(&budget));
+        drop(keys);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
-        assert!(memo.seq.is_none() && !memo.bound);
-        memo.sync(&mut store, &[first], "增长keys", Some(&other))
-            .unwrap();
-        memo.sync(&mut store, &[first, second], "增长keys", Some(&other))
-            .unwrap();
+        let mut keys = SequenceKeys::owned(&other).unwrap();
+        keys.reserve_owned(1).unwrap();
+        keys.replace_reserved(&[first]).unwrap();
+        keys.reserve_owned(2).unwrap();
+        keys.replace_reserved(&[first, second]).unwrap();
         assert_eq!(other.snapshot().live_requested_layout_bytes, 64);
         assert_eq!(other.snapshot().peak_requested_layout_bytes, 96);
-        memo.sync(&mut store, &[], "增长keys", Some(&other))
-            .unwrap();
+        keys.replace_reserved(&[]).unwrap();
         assert_eq!(
             other.snapshot().live_requested_layout_bytes,
             64,
-            "clear不假称释放"
+            "clear保留容量"
         );
+        let mut memo = SequenceMemo {
+            keys,
+            seq: None,
+            bound: true,
+        };
         memo.discard();
         assert_eq!(other.snapshot().live_requested_layout_bytes, 0);
-        println!(
-            "sequence keys actual Layout old=32 new=64 peak=96; limit95 refused; discard live=0"
-        );
+        println!("sequence keys component actual Layout old=32 new=64 peak=96; limit95 refused; discard live=0");
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn sequence_sync_local_memo_uses_keys_ledger_and_propagates_refusal_until_discard() {
+        let budget = sc::capture_allocation::OwnedBudget::new(96);
+        let first = [1; 32];
+        let second = [2; 32];
+        let mut store = MemoryNodes::new();
+        let root = sc::write_sequence(&mut store, &[first]).unwrap();
+        let mut keys = SequenceKeys::owned(&budget).unwrap();
+        // 预留两项，隔离调用内 memo 拒绝，避免先卡在 keys 增长。
+        keys.reserve_owned(2).unwrap();
+        keys.replace_reserved(&[first]).unwrap();
+        let original = SequenceRef::from_parts_unchecked(root, 1);
+        let mut memo = SequenceMemo {
+            keys,
+            seq: Some(original),
+            bound: true,
+        };
+        let error = memo
+            .sync(&mut store, &[first, second], "真实memo", Some(&budget))
+            .unwrap_err();
+        assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
+        let probe = budget.allocation_request_probe();
+        assert!(probe.refused_kind.contains("SequenceRef"));
+        assert_eq!(probe.live_before_refusal, 64);
+        assert!(probe.refused_bytes > 32);
+        assert_eq!(memo.seq, Some(original));
+        assert_eq!(memo.keys.as_slice(), &[first]);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 64);
+        // 首次失败可能已经写过node，沿既有事务/Runtime discard边界处理。
+        memo.discard();
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        assert!(!memo.bound);
+        let generous = sc::capture_allocation::OwnedBudget::new(1 << 20);
+        memo.sync(&mut store, &[first], "真实memo", Some(&generous))
+            .unwrap();
+        let result = memo
+            .sync(&mut store, &[first, second], "真实memo", Some(&generous))
+            .unwrap();
+        let mut plain = SequenceMemo::default();
+        let oracle = plain
+            .sync(&mut store, &[first, second], "普通memo", None)
+            .unwrap();
+        assert_eq!(result, oracle);
+        assert_eq!(generous.snapshot().live_requested_layout_bytes, 64);
+        assert!(generous.snapshot().peak_requested_layout_bytes > 96);
+        memo.discard();
+        assert_eq!(generous.snapshot().live_requested_layout_bytes, 0);
     }
 
     #[cfg(feature = "s_allocation_json_testonly")]

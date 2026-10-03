@@ -930,3 +930,273 @@ fn sequence_ops_read_and_write_scale_with_height() {
         );
     }
 }
+
+// #1394 调用内 memo 实际分配：与原算子逐次读写对拍，释放边界是单次调用。
+#[cfg(feature = "s_allocation_json_testonly")]
+mod local_memo_allocation {
+    use super::*;
+    use newchan_rust::s_content::capture_allocation::{OwnedBudget, LIMIT};
+    use newchan_rust::s_content::sequence::{
+        sequence_append_with_allocation, sequence_concat_with_allocation,
+        sequence_split_with_allocation,
+    };
+    use newchan_rust::s_content::CodecVec;
+
+    #[derive(Debug, PartialEq, Eq)]
+    enum Event {
+        Read(NodeDigest),
+        Write(NodeDigest, u8, Vec<u8>),
+    }
+    struct TraceStore {
+        inner: BudgetStore,
+        events: Vec<Event>,
+        live_before_event: Vec<Option<usize>>,
+        budget: Option<OwnedBudget>,
+        live_at_error: Option<usize>,
+    }
+    impl TraceStore {
+        fn new(nodes: HashMap<NodeDigest, (u8, Vec<u8>)>, budget: Option<&OwnedBudget>) -> Self {
+            Self {
+                inner: BudgetStore::new(nodes, 4096, 4096),
+                events: Vec::new(),
+                live_before_event: Vec::new(),
+                budget: budget.cloned(),
+                live_at_error: None,
+            }
+        }
+        fn record(&mut self, event: Event) {
+            self.live_before_event.push(
+                self.budget
+                    .as_ref()
+                    .map(|b| b.snapshot().live_requested_layout_bytes),
+            );
+            self.events.push(event);
+        }
+        fn error(&mut self) {
+            self.live_at_error = self
+                .budget
+                .as_ref()
+                .map(|b| b.snapshot().live_requested_layout_bytes);
+        }
+    }
+    impl NodeSource for TraceStore {
+        fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+            self.record(Event::Read(*digest));
+            let result = self.inner.read(digest);
+            if result.is_err() {
+                self.error();
+            }
+            result
+        }
+    }
+    impl NodeSink for TraceStore {
+        fn put(&mut self, digest: NodeDigest, t: u8, body: &[u8]) -> Result<(), CodecError> {
+            self.record(Event::Write(digest, t, body.to_vec()));
+            let result = self.inner.put(digest, t, body);
+            if result.is_err() {
+                self.error();
+            }
+            result
+        }
+    }
+    fn baseline(budget: &OwnedBudget) -> CodecVec<u8> {
+        let mut owner = CodecVec::new_with_allocation(Some(budget));
+        owner.try_reserve_exact(17).unwrap();
+        owner
+    }
+    fn nodes_from_memory(store: &MemoryNodes) -> HashMap<NodeDigest, (u8, Vec<u8>)> {
+        store
+            .iter()
+            .map(|(root, t, body)| (*root, (t, body.to_vec())))
+            .collect()
+    }
+
+    #[test]
+    fn owned_sequence_independent_vectors_cut_join_and_append_match_plain_bytes_and_trace() {
+        let doc = vector_doc();
+        let vectors = vector_nodes(&doc);
+        for name in ["array_1", "array_2", "array_3", "array_5"] {
+            let case = doc["positive"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|p| p["name"] == name)
+                .unwrap();
+            let (_, body) = vectors.get(case["root"].as_str().unwrap()).unwrap();
+            let root_text = hex_root(&body[8..40]);
+            let leaves = vector_seq_leaves(&vectors, &root_text);
+            let budget = OwnedBudget::new(1 << 20);
+            let _owner = baseline(&budget);
+            let base = budget.snapshot().live_requested_layout_bytes;
+            let mut plain = TraceStore::new(HashMap::new(), None);
+            let mut owned = TraceStore::new(HashMap::new(), Some(&budget));
+            let mut p = SequenceRef::empty();
+            let mut o = p;
+            for leaf in &leaves {
+                p = sequence_append(&mut plain, &p, leaf).unwrap();
+                o = sequence_append_with_allocation(&mut owned, &o, leaf, Some(&budget)).unwrap();
+                assert_eq!(p, o);
+                assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+            }
+            assert_eq!(o.root_text(), root_text);
+            assert_eq!(plain.events, owned.events);
+            assert_eq!(plain.inner.nodes, owned.inner.nodes);
+            let mut closure_store = MemoryNodes::new();
+            for (digest, (t, body)) in &owned.inner.nodes {
+                closure_store.insert_unchecked(*digest, *t, body.clone());
+            }
+            assert_eq!(
+                closure(&mut closure_store, &[o.root()]),
+                vector_seq_closure(&vectors, &root_text)
+            );
+            for cut in 0..=o.count() {
+                let ps = sequence_split(&mut plain, &p, cut).unwrap();
+                let os =
+                    sequence_split_with_allocation(&mut owned, &o, cut, Some(&budget)).unwrap();
+                assert_eq!(ps, os);
+                p = sequence_concat(&mut plain, &ps.0, &ps.1).unwrap();
+                o = sequence_concat_with_allocation(&mut owned, &os.0, &os.1, Some(&budget))
+                    .unwrap();
+                assert_eq!(p, o);
+                assert_eq!(o.root_text(), root_text);
+                assert_eq!(plain.events, owned.events);
+                assert_eq!(plain.inner.nodes, owned.inner.nodes);
+                assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+            }
+        }
+    }
+
+    #[test]
+    fn owned_sequence_compressed_noncanonical_cut_grow_and_source_errors_release_local_memo() {
+        let (nodes, root) = perfect_chain(leaf_digest(0), 16);
+        let seq = SequenceRef::from_parts_unchecked(root, 1 << 16);
+        // 交替二进制切点让split回程中的concat再次下钻，表已分配后仍有真实read。
+        // n-1切点的read全部发生在首次memo插入前，不能用来验错误时释放活表。
+        let cut = seq.count() / 3;
+        let budget = OwnedBudget::new(1 << 20);
+        let _owner = baseline(&budget);
+        let base = budget.snapshot().live_requested_layout_bytes;
+        let mut plain = TraceStore::new(nodes.clone(), None);
+        let mut owned = TraceStore::new(nodes.clone(), Some(&budget));
+        let expected = sequence_split(&mut plain, &seq, cut).unwrap();
+        let result = sequence_split_with_allocation(&mut owned, &seq, cut, Some(&budget)).unwrap();
+        assert_eq!(result, expected);
+        assert_eq!(plain.events, owned.events);
+        assert_eq!(plain.inner.nodes, owned.inner.nodes);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        let peak = budget.snapshot().peak_requested_layout_bytes;
+        assert!(peak > base);
+        for fail_read in [true, false] {
+            // 只根据这次真实成功运算中当时活跃的账本读数选择故障点。
+            let target = owned
+                .events
+                .iter()
+                .zip(&owned.live_before_event)
+                .rposition(|(event, live)| {
+                    matches!(event, Event::Read(_)) == fail_read
+                        && live.is_some_and(|bytes| bytes > base)
+                })
+                .expect("该构型必须有memo已分配后的实际读和写");
+            let ordinal = owned.events[..=target]
+                .iter()
+                .filter(|event| matches!(event, Event::Read(_)) == fail_read)
+                .count() as u64;
+            let live_at_target = owned.live_before_event[target].unwrap();
+            let mut p = TraceStore::new(nodes.clone(), None);
+            let mut o = TraceStore::new(nodes.clone(), Some(&budget));
+            if fail_read {
+                p.inner.read_cap = ordinal - 1;
+                o.inner.read_cap = ordinal - 1;
+            } else {
+                p.inner.write_cap = ordinal - 1;
+                o.inner.write_cap = ordinal - 1;
+            }
+            let pe = sequence_split(&mut p, &seq, cut).unwrap_err();
+            let oe = sequence_split_with_allocation(&mut o, &seq, cut, Some(&budget)).unwrap_err();
+            assert_eq!(pe.to_string(), oe.to_string());
+            assert_eq!(pe.code(), BUDGET_CODE);
+            assert_eq!(p.events, o.events);
+            assert_eq!(o.events, owned.events[..=target]);
+            assert_eq!(p.inner.nodes, o.inner.nodes);
+            assert_eq!(o.live_at_error, Some(live_at_target));
+            assert!(
+                o.live_at_error.unwrap() > base,
+                "错误时已有真实memo表，返回后才释放"
+            );
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        }
+        // 同一个公开测试额度，实际占据剩余空间，仅留下已测峰值少1字节。
+        let mut blocker = CodecVec::<u8>::new_with_allocation(Some(&budget));
+        blocker
+            .try_reserve_exact(budget.snapshot().limit_bytes - peak + 1)
+            .unwrap();
+        let blocked_base = budget.snapshot().live_requested_layout_bytes;
+        let mut rejected = TraceStore::new(nodes, Some(&budget));
+        let error =
+            sequence_split_with_allocation(&mut rejected, &seq, cut, Some(&budget)).unwrap_err();
+        assert_eq!(error.code(), LIMIT);
+        let probe = budget.allocation_request_probe();
+        assert!(probe.refused_kind.contains("SequenceRef"));
+        assert!(
+            probe.live_before_refusal > blocked_base,
+            "grow拒绝时旧表仍活"
+        );
+        assert!(probe.refused_bytes > 0);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, blocked_base);
+        assert!(!rejected.events.is_empty());
+        // 节点写入不在memo返回前回滚；事务rollback/discard由prepared/Runtime现有测试验收。
+        drop(blocker);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        assert!(!budget.ledger_health().invariant_broken);
+    }
+
+    #[test]
+    fn owned_sequence_bad_nodes_preserve_first_error_and_read_order() {
+        let mut memory = MemoryNodes::new();
+        let root = s_content::write_sequence(&mut memory, &leaves(5)).unwrap();
+        let nodes = nodes_from_memory(&memory);
+        let budget = OwnedBudget::new(1 << 20);
+        for (root_input, count, corrupt) in [
+            (root, 4, false),
+            ([7; 32], 1, false),
+            (root, 5, true),
+            (frame(tag::SEQ_LEAF, &leaf_digest(0)), 0, false),
+        ] {
+            let mut input = nodes.clone();
+            if corrupt {
+                input.get_mut(&root).unwrap().1[7] ^= 1;
+            }
+            let mut plain = TraceStore::new(input.clone(), None);
+            let mut owned = TraceStore::new(input, Some(&budget));
+            let seq = SequenceRef::from_parts_unchecked(root_input, count);
+            let p = sequence_concat(&mut plain, &seq, &SequenceRef::empty()).unwrap_err();
+            let o = sequence_concat_with_allocation(
+                &mut owned,
+                &seq,
+                &SequenceRef::empty(),
+                Some(&budget),
+            )
+            .unwrap_err();
+            assert_eq!(p.to_string(), o.to_string());
+            assert_eq!(plain.events, owned.events);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        }
+    }
+}
+
+#[cfg(not(feature = "s_allocation_json_testonly"))]
+#[test]
+fn sequence_allocation_entry_refuses_unsupported_owned_build_without_plain_fallback() {
+    let budget = s_content::capture_allocation::OwnedBudget::new(1 << 20);
+    let mut store = MemoryNodes::new();
+    let error = s_content::sequence_append_with_allocation(
+        &mut store,
+        &SequenceRef::empty(),
+        &leaf_digest(0),
+        Some(&budget),
+    )
+    .unwrap_err();
+    assert_eq!(error.code(), s_content::capture_allocation::INCOMPLETE);
+    assert_eq!(budget.snapshot().allocation_attempts, 0);
+    assert_eq!(store.len(), 0);
+}

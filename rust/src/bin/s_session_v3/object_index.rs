@@ -366,6 +366,71 @@ fn candidate_verified(
         life: LifeOwner::from_normal(life),
     })
 }
+
+/// #1394：仅Native联合Public核验成功后，一次绑定当前generated字段。
+/// 首读kind/字段结构的错误可提前拒绝；默认/Owned仍用candidate_verified。
+#[cfg(feature = "s_capture_native_testonly")]
+fn candidate_fields(
+    s: &mut (impl CodecStore + ?Sized),
+    o: &ProducedObject,
+    g: i64,
+) -> Result<Entry, String> {
+    let generated = o.generated().clone();
+    let root = generated.content_ref();
+    let selected_kind = text(s, &root, "kind")?;
+    let fields = Fields::read(
+        s,
+        &root,
+        if selected_kind == SHAPE {
+            &object_records::SHAPE_SEALED_FIELDS
+        } else {
+            &object_records::TYPED_SEALED_FIELDS
+        },
+    )?;
+    if fields.integer(s, "first_known_generation")? != g
+        || fields.integer(s, "published_generation")? != g
+        || fields.text(s, "first_known_cut")? != format!("cut-{g}")
+    {
+        return Err(err("候选对象不属于本次生成代"));
+    }
+    let kind = fields.text(s, "kind")?;
+    let revision = fields.integer(s, "object_revision")?;
+    if fields.text(s, "object_id")? != o.object_id() || kind != selected_kind || kind != o.kind() {
+        return Err(err("生成对象元数据不同"));
+    }
+    let slot = fields.slot(s, &kind)?;
+    let internal = match o.borrowed() {
+        BorrowedObject::Typed(v) => v.record.clone(),
+        BorrowedObject::Shape(v) => v.record.clone(),
+        BorrowedObject::Fractal(v) => v.record.clone(),
+    };
+    let life = PublicationLife {
+        first_known_generation: g,
+        first_known_cut: format!("cut-{g}"),
+        published_generation: g,
+        withdrawn_generation: None,
+        withdrawal_reason: None,
+        superseded_by: None,
+        batch: BatchRef::CurrentBatch,
+    };
+    // internal与generated是不同原件，仍由原wire_template读取并核内部JSON/value边。
+    let birth_wire = o
+        .wire_template(s.generic_store(), &life, g)
+        .map_err(err)?
+        .content_ref();
+    let immutable = fields.immutable(s, slot.is_shape())?;
+    Ok(Entry {
+        id: o.object_id().into(),
+        revision,
+        kind: kind.into(),
+        slot,
+        generated,
+        internal,
+        immutable,
+        birth_wire: birth_wire.into(),
+        life: LifeOwner::from_normal(life),
+    })
+}
 /// 返回本代模板：新生维持08，已有记录只借出生字段并改写小生命周期元数据。
 fn wire_at(s: &mut (impl CodecStore + ?Sized), e: &Entry, g: i64) -> Result<RefValue, String> {
     #[cfg(test)]
@@ -598,7 +663,7 @@ pub(super) fn plan_native_union_for_testonly(
     .map_err(err)?;
     let new = objects
         .iter()
-        .map(|o| candidate_verified(s, o, g))
+        .map(|o| candidate_fields(s, o, g))
         .collect::<Result<Vec<_>, _>>()?;
     plan_from_candidates(s, new, old, g)
 }
@@ -1558,6 +1623,34 @@ mod tests {
             "active":RefValue::from(p.active.content_ref()),"withdrawn":RefValue::from(p.withdrawn.content_ref()),"upserts":RefValue::from(p.upserts.content_ref())})
     }
     #[cfg(feature = "s_capture_native_testonly")]
+    fn candidate_union_old_fields_for_test(
+        s: &mut (impl CodecStore + ?Sized),
+        objects: &[ProducedObject],
+        old: &[Entry],
+        g: i64,
+    ) -> Plan {
+        s.verify_audit_many_fresh(
+            objects.iter().map(|o| o.generated().content_ref()),
+            sc::Mode::Public,
+        )
+        .unwrap();
+        let entries = objects
+            .iter()
+            .map(|o| candidate_verified(s, o, g))
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        plan_from_candidates(s, entries, old, g).unwrap()
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn candidate_sql_material_for_test(tx: &Transaction<'_>) -> Vec<(Vec<u8>, i64, Vec<u8>)> {
+        tx.prepare("SELECT digest,tag,body FROM s_content_nodes ORDER BY digest")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
     fn native_candidate_fixture() -> (sc::MemoryNodes, Vec<ProducedObject>) {
         let files = TestFiles::new();
         init_test_db(&files);
@@ -1675,6 +1768,309 @@ mod tests {
         fn generic_store(&mut self) -> &mut dyn NodeStore {
             self
         }
+    }
+
+    // 组件级lookup注入：真实合法F的另一份generated视图；不声称完整S坏输入端到端。
+    #[cfg(feature = "s_capture_native_testonly")]
+    struct CandidateFieldsProbe {
+        inner: CandidateProbe,
+        generated_root: NodeDigest,
+        replacement: Option<ContentRef>,
+        field_reads: usize,
+        read_digests: Vec<NodeDigest>,
+        put_digests: Vec<NodeDigest>,
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    impl CandidateFieldsProbe {
+        fn current(&self, r: &ContentRef) -> ContentRef {
+            if r.digest().unwrap() == self.generated_root {
+                self.replacement.as_ref().unwrap_or(r).clone()
+            } else {
+                r.clone()
+            }
+        }
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    impl NodeSource for CandidateFieldsProbe {
+        fn read(&mut self, d: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+            self.read_digests.push(*d);
+            self.inner.read(d)
+        }
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    impl NodeSink for CandidateFieldsProbe {
+        fn put(&mut self, d: NodeDigest, t: u8, b: &[u8]) -> Result<(), sc::CodecError> {
+            self.put_digests.push(d);
+            self.inner.put(d, t, b)
+        }
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    impl CodecRead for CandidateFieldsProbe {
+        fn generic_source(&mut self) -> &mut dyn NodeSource {
+            self
+        }
+        fn lookup_path(
+            &mut self,
+            r: &ContentRef,
+            p: &[PathStep],
+        ) -> Result<ContentRef, sc::CodecError> {
+            let current = self.current(r);
+            sc::path::lookup_path(self, &current, p)
+        }
+        fn lookup_object_fields(
+            &mut self,
+            r: &ContentRef,
+            names: &[&str],
+        ) -> Result<sc::CodecFields, sc::CodecError> {
+            self.field_reads += 1;
+            let current = self.current(r);
+            sc::path::lookup_object_fields(self, &current, names).map(sc::CodecFields::from_plain)
+        }
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    impl CodecStore for CandidateFieldsProbe {
+        fn generic_store(&mut self) -> &mut dyn NodeStore {
+            self
+        }
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn candidate_fields_probe_for_test(
+        nodes: sc::MemoryNodes,
+        root: NodeDigest,
+        replacement: Option<ContentRef>,
+    ) -> CandidateFieldsProbe {
+        CandidateFieldsProbe {
+            inner: CandidateProbe {
+                nodes,
+                ..Default::default()
+            },
+            generated_root: root,
+            replacement,
+            field_reads: 0,
+            read_digests: Vec::new(),
+            put_digests: Vec::new(),
+        }
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_candidate_fields_component_exact_metadata_slot_and_late_null_gates() {
+        let (nodes, objects) = native_candidate_fixture();
+        let typed = objects
+            .iter()
+            .find(|o| matches!(o.borrowed(), BorrowedObject::Typed(_)))
+            .unwrap();
+        let shape = objects
+            .iter()
+            .find(|o| matches!(o.borrowed(), BorrowedObject::Shape(_)))
+            .unwrap();
+        for o in [typed, shape] {
+            let mut baseline = CandidateProbe {
+                nodes: nodes.clone(),
+                ..Default::default()
+            };
+            baseline
+                .verify_audit_fresh(&o.generated().content_ref(), sc::Mode::Public)
+                .unwrap();
+            let old = candidate_verified(&mut baseline, o, 1).unwrap();
+            let mut current =
+                candidate_fields_probe_for_test(nodes.clone(), o.generated().digest, None);
+            current
+                .verify_audit_fresh(&o.generated().content_ref(), sc::Mode::Public)
+                .unwrap();
+            let new = candidate_fields(&mut current, o, 1).unwrap();
+            assert_eq!(format!("{new:?}"), format!("{old:?}"));
+            assert_eq!(current.field_reads, 1, "exact generated一次绑定");
+            assert!(
+                current.read_digests.contains(&new.internal.digest),
+                "wire必须实际读不同internal根"
+            );
+            assert_ne!(new.generated.digest, new.internal.digest);
+            let wire = current
+                .put_digests
+                .iter()
+                .position(|d| *d == new.birth_wire.digest().unwrap())
+                .unwrap();
+            let immutable = current
+                .put_digests
+                .iter()
+                .position(|d| *d == new.immutable.digest)
+                .unwrap();
+            assert!(wire < immutable, "正常wire→immutable顺序不变");
+        }
+        for fault in [
+            "missing",
+            "extra",
+            "kind",
+            "kind-type",
+            "id",
+            "generation-type",
+            "revision-type",
+            "slot-type",
+            "immutable-null",
+        ] {
+            let mut changed = nodes.clone();
+            let mut original = value(&mut changed, &typed.generated().content_ref());
+            match fault {
+                "missing" => {
+                    original.as_object_mut().unwrap().remove("object_id");
+                }
+                "extra" => original["extra_field"] = json!(true),
+                "kind" => original["kind"] = json!("foreign-kind"),
+                "kind-type" => original["kind"] = json!(7),
+                "id" => original["object_id"] = json!("foreign-id"),
+                "generation-type" => original["first_known_generation"] = json!("not-integer"),
+                "revision-type" => original["object_revision"] = json!("not-integer"),
+                "slot-type" => original["fact_key"] = json!(17),
+                "immutable-null" => original["payload_json"] = Value::Null,
+                _ => unreachable!(),
+            }
+            // 所有边按原件ContentRef保存；只替换目标小字段，不把JsonText边改写为普通String。
+            let fields = sc::path::lookup_object_fields(
+                &mut changed,
+                &typed.generated().content_ref(),
+                &object_records::TYPED_SEALED_FIELDS,
+            )
+            .unwrap();
+            let mut edited = Vec::new();
+            for (name, child) in fields {
+                if fault == "missing" && name == "object_id" {
+                    continue;
+                }
+                let replace = match fault {
+                    "kind" | "kind-type" => name == "kind",
+                    "id" => name == "object_id",
+                    "generation-type" => name == "first_known_generation",
+                    "revision-type" => name == "object_revision",
+                    "slot-type" => name == "fact_key",
+                    "immutable-null" => name == "payload_json",
+                    _ => false,
+                };
+                let root = if replace {
+                    sc::write_json_view(&mut changed, aj::JsonView::Plain(&original[&name]))
+                        .unwrap()
+                        .digest
+                } else {
+                    child.digest().unwrap()
+                };
+                edited.push((name, V::Edge(root)));
+            }
+            if fault == "extra" {
+                edited.push(("extra_field".into(), V::Bool(true)));
+            }
+            let replacement = sc::write_value(&mut changed, &V::Object(edited))
+                .unwrap()
+                .content_ref();
+            sc::audit_verify_public(&mut changed, &replacement).unwrap();
+            let mut store = candidate_fields_probe_for_test(
+                changed,
+                typed.generated().digest,
+                Some(replacement),
+            );
+            let error = candidate_fields(&mut store, typed, 1).err().unwrap();
+            if fault == "immutable-null" {
+                assert!(error.contains("不可变字段不得为空"), "{error}");
+                assert!(store.inner.puts > 0, "Null仍在wire写入之后拒绝");
+            } else {
+                assert_eq!(
+                    store.inner.puts, 0,
+                    "{fault}: metadata/slot错误须在wire前拒绝：{error}"
+                );
+            }
+        }
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_candidate_fields_internal_record_json_edge_gate_and_real_wire_sql_failure() {
+        let (mut nodes, objects) = native_candidate_fixture();
+        let typed = objects
+            .iter()
+            .find_map(|o| match o.borrowed() {
+                BorrowedObject::Typed(v) => Some(v.clone()),
+                _ => None,
+            })
+            .unwrap();
+        let alternate = sc::write_value(
+            &mut nodes,
+            &V::JsonText(Box::new(sc::JsonValue::Object(vec![(
+                "changed".into(),
+                sc::JsonValue::Bool(true),
+            )]))),
+        )
+        .unwrap();
+        let mut fields = sc::path::lookup_object_fields(
+            &mut nodes,
+            &typed.record.content_ref(),
+            &object_records::TYPED_RECORD_FIELDS,
+        )
+        .unwrap();
+        fields.insert("payload_json".into(), alternate.content_ref());
+        let changed_record = sc::write_value(
+            &mut nodes,
+            &V::Object(
+                fields
+                    .into_iter()
+                    .map(|(name, r)| (name, V::Edge(r.digest().unwrap())))
+                    .collect(),
+            ),
+        )
+        .unwrap();
+        sc::audit_verify_public(&mut nodes, &changed_record.content_ref()).unwrap();
+        let mut changed = typed.clone();
+        changed.record = changed_record;
+        let mut probe = CandidateProbe {
+            nodes: nodes.clone(),
+            ..Default::default()
+        };
+        let life = PublicationLife {
+            first_known_generation: 1,
+            first_known_cut: "cut-1".into(),
+            published_generation: 1,
+            withdrawn_generation: None,
+            withdrawal_reason: None,
+            superseded_by: None,
+            batch: BatchRef::CurrentBatch,
+        };
+        let error =
+            object_records::wire_template(&mut probe, BorrowedObject::Typed(&changed), &life, 1)
+                .err()
+                .unwrap()
+                .to_string();
+        assert!(
+            error.contains("payload_json") && error.contains("边与构造结果"),
+            "{error}"
+        );
+        assert_eq!(
+            probe.puts, 0,
+            "原internal record核对不能由generated视图替代"
+        );
+
+        let mut conn = database();
+        let tx = conn.transaction().unwrap();
+        let mut store = content_store::TxStore::new(&tx).unwrap();
+        // Public generated不依赖08；省去可能的未引用模板原件，实际wire首写08触发SQL失败。
+        for (d, t, b) in nodes.iter() {
+            if t != sc::tag::BATCH_SELF {
+                store.put(*d, t, b).unwrap();
+            }
+        }
+        let before = candidate_sql_material_for_test(&tx);
+        tx.execute_batch("CREATE TEMP TRIGGER candidate_fields_wire_sql_fault BEFORE INSERT ON s_content_nodes WHEN NEW.tag=8 BEGIN SELECT RAISE(ABORT,'candidate_fields_wire_SQL_fault'); END;").unwrap();
+        let error = plan_native_union_for_testonly(&mut store, &objects, &[], 1)
+            .err()
+            .unwrap();
+        assert!(error.contains("candidate_fields_wire_SQL_fault"), "{error}");
+        assert_eq!(
+            candidate_sql_material_for_test(&tx),
+            before,
+            "真实wire SQL失败不吞错或预写immutable"
+        );
+        tx.rollback().unwrap();
+        assert_eq!(
+            conn.query_row("SELECT count(*) FROM s_content_nodes", [], |r| r
+                .get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
     }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
@@ -2478,6 +2874,11 @@ mod tests {
             #[cfg(feature = "s_capture_native_testonly")]
             let p = if native_union {
                 let reads_before = content_store::sql_reads_on_thread();
+                let old_union =
+                    candidate_union_old_fields_for_test(&mut s, &generated.objects, &old, g);
+                let old_union_reads = content_store::sql_reads_on_thread() - reads_before;
+                let old_union_material = candidate_sql_material_for_test(&tx);
+                let reads_before = content_store::sql_reads_on_thread();
                 let union =
                     plan_native_union_for_testonly(&mut s, &generated.objects, &old, g).unwrap();
                 let union_reads = content_store::sql_reads_on_thread() - reads_before;
@@ -2485,6 +2886,17 @@ mod tests {
                     candidate_plan_signature(&union),
                     candidate_plan_signature(&p)
                 );
+                assert_eq!(
+                    candidate_plan_signature(&union),
+                    candidate_plan_signature(&old_union)
+                );
+                assert_eq!(
+                    candidate_sql_material_for_test(&tx),
+                    old_union_material,
+                    "旧union/新fields必须生成逐字相同SQL节点原件集合"
+                );
+                assert!(union_reads < old_union_reads, "generated一次字段绑定须减少实际SQL读取：gen{g} old_union={old_union_reads} fields={union_reads}");
+                println!("Native candidate fields gen{g}: actual_SQL_reads old_union={old_union_reads} fields={union_reads}; all_plan_roots_metadata_and_node_bytes_equal=1");
                 assert!(
                     union_reads < ordinary_reads,
                     "实际SQL读数须减少：gen{g} ordinary={ordinary_reads} union={union_reads}"
