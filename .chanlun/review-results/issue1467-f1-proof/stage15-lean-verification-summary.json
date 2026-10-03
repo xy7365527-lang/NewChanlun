@@ -1,0 +1,159 @@
+{
+  "run_id": "6fb6a2f71c86428997a7be2a9148863e",
+  "machine_verification_passed": true,
+  "exact_root_passed": true,
+  "semantic": {
+    "status": "not_reviewed",
+    "reused": false,
+    "semantic_sha256": "e7f0207a3dfacb3df88c29ca2374ff842e76d8e8973e0cf26417167474431039"
+  },
+  "root_closure": {
+    "status": "closed",
+    "exact_root_passed": true,
+    "declaration_closed": true,
+    "scope": "expected Lean type in the recorded environment; semantic review is separate"
+  },
+  "target": {
+    "declaration": "DirectQuote.exact_root",
+    "actual_type": "And DirectQuote.RUN_TARGET (And DirectQuote.CAUSAL_TARGET (And DirectQuote.GEOMETRY_TARGET DirectQuote.WITNESS_TARGET))",
+    "expected_type": "DirectQuote.RUN_TARGET ∧ DirectQuote.CAUSAL_TARGET ∧ DirectQuote.GEOMETRY_TARGET ∧ DirectQuote.WITNESS_TARGET",
+    "comparison": {
+      "binder_kinds_match": true,
+      "definitionally_equal": true,
+      "expected_type_expression": [
+        "app",
+        [
+          "app",
+          [
+            "const",
+            [
+              "And",
+              []
+            ]
+          ],
+          [
+            "const",
+            [
+              "DirectQuote.RUN_TARGET",
+              []
+            ]
+          ]
+        ],
+        [
+          "app",
+          [
+            "app",
+            [
+              "const",
+              [
+                "And",
+                []
+              ]
+            ],
+            [
+              "const",
+              [
+                "DirectQuote.CAUSAL_TARGET",
+                []
+              ]
+            ]
+          ],
+          [
+            "app",
+            [
+              "app",
+              [
+                "const",
+                [
+                  "And",
+                  []
+                ]
+              ],
+              [
+                "const",
+                [
+                  "DirectQuote.GEOMETRY_TARGET",
+                  []
+                ]
+              ]
+            ],
+            [
+              "const",
+              [
+                "DirectQuote.WITNESS_TARGET",
+                []
+              ]
+            ]
+          ]
+        ]
+      ],
+      "expected_universes": [],
+      "status": "matched",
+      "universe_parameters_match": true
+    },
+    "axioms": [
+      "propext",
+      "Quot.sound"
+    ],
+    "unexpected_axioms": [],
+    "unsafe_dependencies": [],
+    "unknown_dependencies": [],
+    "identity_mismatches": [],
+    "type_sha256": "34e04de3166deedfc5bd414f26e951f01ecc6832188625289c805bc9b18428bb",
+    "semantic_sha256": "e7f0207a3dfacb3df88c29ca2374ff842e76d8e8973e0cf26417167474431039",
+    "environment_sha256": "b609899599c60dd9e2df3cd646aec78f5c1abd326b82a3e00d81cc6d3e19df98",
+    "loaded_module_count": 2268
+  },
+  "environment": {
+    "lean_version": "Lean (version 4.31.0, arm64-apple-darwin24.6.0, commit 68218e876d2a38b1985b8590fff244a83c321783, Release)",
+    "lean_status": "passed",
+    "lake_version": "Lake version 5.0.0-src+68218e8 (Lean version 4.31.0)",
+    "lake_status": "passed",
+    "lean_toolchain": null,
+    "configuration_hashes": {},
+    "binary_hashes": {
+      "bin/lean": "1b370cfcbf44e80d1b004ab1b1ab9a4c73951f9f7c242140bcff9bc577576554",
+      "bin/lake": "58261a1a2fa1a362376c71e02ca854a093e71cc5e6ea64b287a931cb2565273d",
+      "lib/lean/libleanshared.dylib": "a695a9aa68481c42b99619e0103537e6b433c6fa7021927b184e19a686d03989"
+    },
+    "prefix": "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0",
+    "mode": "direct",
+    "inherited_lean_path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean",
+    "inherited_lean_src_path": "",
+    "sha256": "ab12fe9dc8a44913f3e981589728394c459467fdce1b4bd9fabf9642f84c3330"
+  },
+  "manifest": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-quote-verified-v1/run-manifest.json",
+    "sha256": "e80d05c02b9146821aba37f0870fa2c44898c8d325dffa394bb515a6453ca88b"
+  },
+  "invocation": {
+    "command": [
+      "python3",
+      "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.agents/research-tools/xsoc1-9e0da0c3/plugins/lean-verify/scripts/verify_lean_project.py",
+      "--project",
+      "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof",
+      "--target-file",
+      "DirectQuoteProof.lean",
+      "--declaration",
+      "DirectQuote.exact_root",
+      "--expected-type",
+      "DirectQuote.RUN_TARGET ∧ DirectQuote.CAUSAL_TARGET ∧ DirectQuote.GEOMETRY_TARGET ∧ DirectQuote.WITNESS_TARGET",
+      "--lean",
+      "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+      "--lake",
+      "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lake",
+      "--direct",
+      "--build-timeout",
+      "60",
+      "--strict-exit",
+      "--output",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-quote-verified-v1"
+    ],
+    "cwd": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun",
+    "LEAN_PATH": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean"
+  },
+  "development_failure": {
+    "run_id": "1ca42237726e4eefb059e4ff07b58f6b",
+    "reason": "Decidable history instance rewritten with structural match recursion; finite membership proof simplified. Frozen definitions and targets unchanged."
+  }
+}

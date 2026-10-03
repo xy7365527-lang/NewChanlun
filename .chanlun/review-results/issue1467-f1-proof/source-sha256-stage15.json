@@ -1,0 +1,11 @@
+{
+  ".chanlun/review-results/issue1467-f1-proof/DirectQuoteSpec.lean": "df45e6e08d020edc6bc737c0885829b37454c289f1a72c71f4186d82627591ad",
+  ".chanlun/review-results/issue1467-f1-proof/DirectQuoteProof.lean": "a0189d52d43b3b98e6a3416a9effe904ed5a5207d90d2d6d94fd4dca6876759c",
+  "formal/Origin/CenterComplete.lean": "478e34e703801742e6808c834488b7fe009d94bb0d896eb65e7d6a20105d64c2",
+  "formal/Origin/CenterConstruction.lean": "478a00a239e77b6ac66554c8428efaff7f1af69f9edbf73f2f4250aaa895bc3c",
+  "formal/Origin/CenterFull.lean": "00b40dd9f75756edb1a3155c04f301de9c8986bb148f753b56e7707686d73959",
+  "formal/Origin/ChanlunElements.lean": "19c33e884e6949cdd56a51ff7c44dc086354994b7f54431f57bec4a0849fa201",
+  ".chanlun/review-results/issue1467-f1-proof/Stage15WorkCard.md": "da043d711797b79952e43d10066bba419975a568ecb1d39ad7eb5055828c0910",
+  ".chanlun/review-results/issue1467-f1-proof/direct-quote-spec-v1.sha256": "42cab726190cdea47fce4923475973aca61052058e6fed43002bbb883887f34f",
+  ".chanlun/review-results/issue1467-f1-proof/stage15-lean-verification-summary.json": "1d16ffd0a2da55604e65be04d746792be4469eda3c2876f2fa259f9a2f2e044d"
+}
