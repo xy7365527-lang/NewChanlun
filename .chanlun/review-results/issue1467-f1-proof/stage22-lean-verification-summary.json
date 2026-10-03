@@ -1,0 +1,149 @@
+{
+  "stage": 22,
+  "date": "2026-10-03",
+  "ticket": 1467,
+  "run_id": "dd15be2da8f4453f9f16f2af857e5759",
+  "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-exit-v1a-checked/run-manifest.json",
+  "manifest_sha256": "8a50503ff5a421138bd4308a4a2e8a326733655dd3b64262134cb01c9023d8ea",
+  "machine_verification_passed": true,
+  "exact_root_passed": true,
+  "root_closure": {
+    "status": "closed",
+    "exact_root_passed": true,
+    "declaration_closed": true,
+    "scope": "expected Lean type in the recorded environment; semantic review is separate"
+  },
+  "semantic": {
+    "status": "not_reviewed",
+    "reused": false,
+    "semantic_sha256": "8944f83bbf50a8d8c79d0d6fc949f6c32772ad6a33c3cd65c5cb1a2440740123"
+  },
+  "actual_type": "And CenterExit.RELEASE_TARGET (And CenterExit.FORK_TARGET CenterExit.NO_EARLY_CHOICE_TARGET)",
+  "expected_type": "CenterExit.RELEASE_TARGET ∧ CenterExit.FORK_TARGET ∧ CenterExit.NO_EARLY_CHOICE_TARGET",
+  "axioms": [
+    "propext",
+    "Quot.sound"
+  ],
+  "unexpected_axioms": [],
+  "unsafe_dependencies": [],
+  "unknown_dependencies": [],
+  "freshness": {
+    "status": "current",
+    "snapshot_current": true,
+    "exact_root_passed": true,
+    "declaration": "CenterExit.exact_root",
+    "semantic_sha256": "8944f83bbf50a8d8c79d0d6fc949f6c32772ad6a33c3cd65c5cb1a2440740123",
+    "manifest_sha256": "8a50503ff5a421138bd4308a4a2e8a326733655dd3b64262134cb01c9023d8ea",
+    "reasons": [],
+    "scope": "saved evidence and current Lean module resolution checked; no new kernel proof replay"
+  },
+  "source_revision": {
+    "current": "v1a",
+    "change": "unsupported namespace alias replaced by fully qualified names before proof authoring",
+    "old_snapshot_matches_v1_lock": true
+  },
+  "resource": {
+    "total_external_bytes": 25449654,
+    "limit_bytes": 100663296,
+    "within_limit": true
+  },
+  "attempts": 2,
+  "build_commands": [
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--run",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-exit-v1a-checked/lean-verification-runs/dd15be2da8f4453f9f16f2af857e5759/DiscoverImports.lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-exit-project-v1a/CenterExitProof.lean"
+      ],
+      "file": "CenterExitProof.lean",
+      "kind": "source_dependencies",
+      "exit_code": 0,
+      "elapsed_seconds": 6.377318
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--run",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-exit-v1a-checked/lean-verification-runs/dd15be2da8f4453f9f16f2af857e5759/DiscoverImports.lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-exit-project-v1a/CenterExitSpec.lean"
+      ],
+      "file": "CenterExitSpec.lean",
+      "kind": "source_dependencies",
+      "exit_code": 0,
+      "elapsed_seconds": 0.720144
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--deps",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-exit-project-v1a/CenterExitSpec.lean"
+      ],
+      "file": "CenterExitSpec.lean",
+      "kind": "import_resolution",
+      "exit_code": 0,
+      "elapsed_seconds": 0.04934
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-exit-project-v1a",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-exit-v1a-checked/lean-verification-runs/dd15be2da8f4453f9f16f2af857e5759/lib/CenterExitSpec.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-exit-project-v1a/CenterExitSpec.lean"
+      ],
+      "file": "CenterExitSpec.lean",
+      "kind": "target",
+      "exit_code": 0,
+      "elapsed_seconds": 0.439166
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "--deps",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-exit-project-v1a/CenterExitProof.lean"
+      ],
+      "file": "CenterExitProof.lean",
+      "kind": "import_resolution",
+      "exit_code": 0,
+      "elapsed_seconds": 0.049296
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-exit-project-v1a",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-exit-v1a-checked/lean-verification-runs/dd15be2da8f4453f9f16f2af857e5759/lib/CenterExitProof.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-exit-project-v1a/CenterExitProof.lean"
+      ],
+      "file": "CenterExitProof.lean",
+      "kind": "target",
+      "exit_code": 0,
+      "elapsed_seconds": 0.661325
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "-R",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-exit-v1a-checked/lean-verification-runs/dd15be2da8f4453f9f16f2af857e5759",
+        "-o",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-exit-v1a-checked/lean-verification-runs/dd15be2da8f4453f9f16f2af857e5759/lib/LeanVerifyProbe.olean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-exit-v1a-checked/lean-verification-runs/dd15be2da8f4453f9f16f2af857e5759/LeanVerifyProbe.lean"
+      ],
+      "kind": "inspector_compile",
+      "exit_code": 0,
+      "elapsed_seconds": 0.896309
+    },
+    {
+      "command": [
+        "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+        "/Users/silencehan/Documents/Codex/research-evidence/issue1467/center-exit-v1a-checked/lean-verification-runs/dd15be2da8f4453f9f16f2af857e5759/InspectRoot.lean"
+      ],
+      "kind": "declaration_inspection",
+      "exit_code": 0,
+      "elapsed_seconds": 0.933316
+    }
+  ]
+}
