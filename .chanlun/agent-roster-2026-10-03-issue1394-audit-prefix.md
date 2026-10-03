@@ -13,4 +13,6 @@
 - Native 测试专用暂存原型：prepare/resolve/publish 显式共享本事务 owner；原审计和原 SQL 错误拒绝保留，最终仅 flush 持久根与存活缓存根闭包所需的新节点，旧节点不删。默认关闭，生产/Ordinary/Owned 路径不启用。
 - 暂存原型验收：2 项靶向通过、独评 PASS；四代完整非节点 typed 行、根及其原 bytes 一致，最终节点 7847→6960。after_prepare 及已 INSERT 两条后第三次失败均完整回滚、正常 discard 并可重试。物理 INSERT 错误时点不声明与 eager 等价；heap/Job/max_store 资格未成立。证据为 `.scratch/issue1394-staged-new-nodes-20261004/ROOT-ACCEPTANCE.json`。
 - 下一验证：可用两个新自有105副本，经原 Driver/profile/clock 输入冻结第106条作冷重启对照；不从零重建105，不据直接 handle 诊断宣称30秒网络或完整9011通过。
+- 105→106 首次诊断已封存为失败：eager/staged 分别约180.011/180.007秒停于 `OPEN_RUNNING`，同一 Popen 终止并回收，未进入 handle 或激活暂存；两副本仍为105代 idle，原件 stat/SHA 不变。证据 `.scratch/issue1394-staged-next106-20261004/ROOT-RESULT.json`；静态和保全合规，Commit 对拍为 NOT_RUN，不能 PASS。
+- 已定位独立启动瓶颈：`open_with_request_and_mode` 无条件走普通 `state::audit`，Native 模式此前只影响三个写前入口。下一步单独适配显式 Native TestOnly 的启动同核完整捕获，不跳审计或改默认/Owned，旧失败域不重试、不放大观察上限。
 - 禁止：旧未授权原件、main 合入/推送、GOAL 事件修改、新公共资源数值、前端 #1460、K4。

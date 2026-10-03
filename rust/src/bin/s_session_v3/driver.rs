@@ -566,6 +566,130 @@ mod tests {
     }
 
     #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    #[ignore]
+    fn staged_next106_cold_driver_observation() {
+        let db = PathBuf::from(std::env::var("NEXT106_DB").unwrap());
+        let profile = PathBuf::from(std::env::var("NEXT106_PROFILE").unwrap());
+        let request_path = PathBuf::from(std::env::var("NEXT106_REQUEST").unwrap());
+        let out = PathBuf::from(std::env::var("NEXT106_OUTPUT").unwrap());
+        let arm = std::env::var("NEXT106_ARM").unwrap();
+        assert!(["eager", "staged"].contains(&arm.as_str()));
+        let request_bytes = std::fs::read(request_path).unwrap();
+        let envelope = strict_json(&request_bytes).unwrap();
+        assert_eq!(envelope["message_id"], "message-106");
+        let resources: Value =
+            strict_json(&std::fs::read(std::env::var("NEXT106_RESOURCES").unwrap()).unwrap())
+                .unwrap();
+        let cap = newchan_rust::session_protocol::positive(
+            resources["audit_cache_source_bytes"].as_str().unwrap(),
+            "audit_cache_source_bytes",
+        )
+        .unwrap() as usize;
+        let before = Connection::open_with_flags(&db, OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+        before.pragma_update(None, "query_only", true).unwrap();
+        assert_eq!(meta_i64(&before, "generation").unwrap(), 105);
+        assert_eq!(
+            meta_get_opt(&before, "advance_state").unwrap().as_deref(),
+            Some("idle")
+        );
+        assert_eq!(
+            before
+                .query_row(
+                    "SELECT count(*) FROM s_input_messages WHERE status='AcceptedPending'",
+                    [],
+                    |r| r.get::<_, i64>(0)
+                )
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            before
+                .query_row(
+                    "SELECT next_attempt_ordinal FROM s_protocol_meta WHERE singleton=1",
+                    [],
+                    |r| r.get::<_, i64>(0)
+                )
+                .unwrap(),
+            106
+        );
+        assert_eq!(
+            before
+                .query_row("SELECT count(*) FROM s_input_messages", [], |r| r
+                    .get::<_, i64>(0))
+                .unwrap(),
+            105
+        );
+        assert_eq!(
+            before
+                .query_row(
+                    "SELECT count(*) FROM s_input_messages WHERE status='Committed'",
+                    [],
+                    |r| r.get::<_, i64>(0)
+                )
+                .unwrap(),
+            105
+        );
+        assert_eq!(
+            before
+                .query_row(
+                    "SELECT count(*) FROM s_input_messages WHERE message_id='message-106'",
+                    [],
+                    |r| r.get::<_, i64>(0)
+                )
+                .unwrap(),
+            0
+        );
+        let clock = v2::stored_clock(&before).unwrap();
+        clock.phase("input-106", "accept", -1).unwrap();
+        clock.phase("input-106", "begin", 0).unwrap();
+        clock.phase("input-106", "commit", 0).unwrap();
+        let epoch = meta_get_opt(&before, "writer_epoch").unwrap().unwrap();
+        drop(before);
+        std::fs::write(&out,serde_json::to_vec_pretty(&json!({"arm":arm,"status":"OPEN_RUNNING","cold_restart_runtime":true,"mandatory_open_audit":"state::audit ordinary, unchanged"})).unwrap()).unwrap();
+        let started = std::time::Instant::now();
+        let opened = Driver::open_with_request_and_mode(
+            &db,
+            &profile,
+            &epoch,
+            clock,
+            Some(&envelope),
+            s_allocation::Mode::CapturedNative,
+        );
+        let open_ns = started.elapsed().as_nanos();
+        let mut driver = match opened {
+            Ok(d) => d,
+            Err(error) => {
+                std::fs::write(&out,serde_json::to_vec_pretty(&json!({"arm":arm,"open_ns":open_ns.to_string(),"open_error":error,"cold_runtime":true})).unwrap()).unwrap();
+                panic!("Driver open失败");
+            }
+        };
+        driver.audit_cache_source_bytes = Some(cap);
+        if arm == "staged" {
+            driver.runtime.enable_staging_for_native_test().unwrap();
+        }
+        std::fs::write(&out,serde_json::to_vec_pretty(&json!({"arm":arm,"status":"HANDLE_RUNNING","open_ns":open_ns.to_string(),"cold_restart_runtime":true,"S7_source_cap":cap})).unwrap()).unwrap();
+        let started = std::time::Instant::now();
+        let reply = driver.handle(envelope);
+        let handle_ns = started.elapsed().as_nanos();
+        if let Ok(value) = &reply {
+            assert_eq!(value["kind"], "Committed");
+            assert_eq!(meta_i64(&driver.conn, "generation").unwrap(), 106);
+        }
+
+        let live = driver.runtime.visit_runtime_roots().unwrap();
+        let roots = live
+            .into_iter()
+            .map(
+                |(owner, d)| json!({"owner":owner,"root":newchan_rust::s_content::root_string(&d)}),
+            )
+            .collect::<Vec<_>>();
+        let result = json!({"arm":arm,"cold_restart_runtime":true,"105_warm_cache_preloaded":false,"full_open_audit":true,"full_handle_advance_prepare_audits":true,"open_ns":open_ns.to_string(),"handle_ns":handle_ns.to_string(),"handle_exceeds_original_30s":handle_ns>30_000_000_000u128,"network30s_qualified":false,"internal_direct_Driver_handle_only":true,"S7_source_cap":cap,"reply":reply.as_ref().ok(),"error":reply.as_ref().err(),"generation_after":meta_i64(&driver.conn,"generation").unwrap(),"runtime_roots":roots,"staging":driver.runtime.staging_report_for_native_test(),"receipt_read_mode":"Mode::CapturedNative; eager default no stage vs explicit Native setter; no fallback"});
+        std::fs::write(out, serde_json::to_vec_pretty(&result).unwrap()).unwrap();
+        assert!(reply.is_ok(), "{}", reply.unwrap_err());
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
     fn native_driver(f: &Fixture) -> Driver {
         Driver::open_with_request_and_mode(
             &f.db,

@@ -94,7 +94,9 @@ impl Runtime {
     }
 
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
-    fn visit_runtime_roots(&self) -> Result<Vec<(&'static str, sc::NodeDigest)>, String> {
+    pub(super) fn visit_runtime_roots(
+        &self,
+    ) -> Result<Vec<(&'static str, sc::NodeDigest)>, String> {
         let mut roots = Vec::new();
         let mut f = |name, root| roots.push((name, root));
         if let Some(generator) = &self.generator {
@@ -102,6 +104,19 @@ impl Runtime {
         }
         self.auxiliary.visit_runtime_roots(&mut f)?;
         Ok(roots)
+    }
+
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn enable_staging_for_native_test(&mut self) -> Result<(), String> {
+        if !matches!(self.mode, s_allocation::Mode::CapturedNative) {
+            return Err("TestOnly staging只允许Native".into());
+        }
+        self.stage_new_nodes = true;
+        Ok(())
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn staging_report_for_native_test(&self) -> Option<&Value> {
+        self.last_stage_report.as_ref()
     }
 
     fn discard(&mut self) {
