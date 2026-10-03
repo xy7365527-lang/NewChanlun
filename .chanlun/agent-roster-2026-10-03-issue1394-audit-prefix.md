@@ -15,4 +15,6 @@
 - 下一验证：可用两个新自有105副本，经原 Driver/profile/clock 输入冻结第106条作冷重启对照；不从零重建105，不据直接 handle 诊断宣称30秒网络或完整9011通过。
 - 105→106 首次诊断已封存为失败：eager/staged 分别约180.011/180.007秒停于 `OPEN_RUNNING`，同一 Popen 终止并回收，未进入 handle 或激活暂存；两副本仍为105代 idle，原件 stat/SHA 不变。证据 `.scratch/issue1394-staged-next106-20261004/ROOT-RESULT.json`；静态和保全合规，Commit 对拍为 NOT_RUN，不能 PASS。
 - 已定位独立启动瓶颈：`open_with_request_and_mode` 无条件走普通 `state::audit`，Native 模式此前只影响三个写前入口。下一步单独适配显式 Native TestOnly 的启动同核完整捕获，不跳审计或改默认/Owned，旧失败域不重试、不放大观察上限。
+- Native 启动适配有限验收通过：3项靶向与独评 PASS；仅 CapturedNative 改同核完整现场捕获，普通/Owned及恢复顺序不变。新105→106两臂启动约13.5秒完成；eager handle 32.353秒提交106，staged在180.033秒停于HANDLE_RUNNING并终止回收。完整对拍 NOT_RUN，30秒网络及整体资源资格未成立，结果包 `.scratch/issue1394-native-startup-20261004/ROOT-RESULT.json` 保留 FAILURE_PRESERVED。
+- 下一限定修复：去掉暂存诊断的每put全map容量扫描、每put malloc采样与每INSERT全表COUNT；保留准确容量/实际插入计数、完整审计、全部持久及runtime联合根、全闭包SQL读取、旧节点和Job口径。有限验证与独评后，仅在新自有105副本重做一次同上限对照，不恢复旧失败域或直接启动9011。
 - 禁止：旧未授权原件、main 合入/推送、GOAL 事件修改、新公共资源数值、前端 #1460、K4。

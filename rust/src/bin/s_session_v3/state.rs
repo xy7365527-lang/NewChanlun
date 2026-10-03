@@ -105,7 +105,8 @@ pub(super) fn audit_bounded(
 }
 /// #1394：S 独立 Native TestOnly 臂。只从本次事务现场捕获，不接收外部 capture，
 /// 不创建 OwnedBudget；捕获随本次调用释放，返回的普通 AuditedState 保持调用方原生命周期。
-/// 仅三处写前入口选择此臂，startup/identity/preflight/recover 保持普通审计。
+/// 三处写前及显式CapturedNative startup选择此臂；Ordinary/Owned startup、identity/preflight/recover保持普通。
+/// 全节点捕获先于control/raw，坏库同时多错时首报顺序可能不同；读取错误不回退。
 pub(super) fn audit_native_current(tx: &Transaction<'_>) -> Result<AuditedState, String> {
     #[cfg(feature = "s_capture_native_testonly")]
     {

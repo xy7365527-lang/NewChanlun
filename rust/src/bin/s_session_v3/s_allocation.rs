@@ -1,6 +1,6 @@
 //! #1394 TB-03-B：S 写前审计的互斥私有 TestOnly 模式。
 //! Owned 沿同一局部分配账；CapturedNative 使用普通容器，不提供整堆分配统计。
-//! 启动、身份/摘要、preflight、recover 仍走普通审计；不声明整堆、生产容量或完整准入。
+//! Ordinary/Owned启动、身份/摘要、preflight、recover 仍走普通审计；显式Native启动另走同核完整捕获；不声明整堆、生产容量或完整准入。
 //! S7/Q21、公开回复与现有 complete-audit-coverage 拒绝门均保持原口径。
 
 use super::{q_allocation, state};
@@ -48,6 +48,17 @@ impl Mode {
 
 /// 每次读取当前事务；选定的臂失败直接传播。捕获在该阶段返回前释放，
 /// AuditedState 仍按原生命周期存活，Owned 跨阶段/请求同账，Native 不宣称整堆统计。
+/// Startup没有写前Phase计数或keeper；Owned启动保持原普通审计，不误切分配臂。
+pub(super) fn audit_startup(
+    tx: &Transaction<'_>,
+    mode: &Mode,
+) -> Result<state::AuditedState, String> {
+    match mode {
+        Mode::CapturedNative => state::audit_native_current(tx),
+        Mode::Ordinary | Mode::Owned(_) => state::audit(tx),
+    }
+}
+
 pub(super) fn audit(
     tx: &Transaction<'_>,
     mode: &Mode,

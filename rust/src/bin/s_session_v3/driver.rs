@@ -208,7 +208,8 @@ impl Driver {
         Self::open_with_request_and_mode(db, profile, epoch, clock, request, allocation.into())
     }
 
-    /// startup/open 身份审计保留普通路径；在任何 pending 恢复之前绑定 Driver/Runtime 同模式。
+    /// startup仅显式CapturedNative做同核全捕获；其它模式保持普通。在pending恢复前审计并冻结模式。
+    /// 多错坏库的首报顺序可能随先捕获改变；拒绝义务不变，不保留startup结果。
     pub(super) fn open_with_request_and_mode(
         db: &Path,
         profile: &Path,
@@ -225,7 +226,7 @@ impl Driver {
         let lock = session_transport::process_lock(db, "S")?;
         let mut conn = open_db(db)?;
         let tx = conn.transaction().map_err(err)?;
-        state::audit(&tx)?;
+        s_allocation::audit_startup(&tx, &mode)?;
         verify_writer_epoch(&tx, epoch)?;
         let control = control::S3Control::attach(&tx, &clock)?;
         let (profile_value, profile_id, profile_hash) = load_profile(profile)?;
@@ -567,6 +568,127 @@ mod tests {
 
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
+    fn native_startup_full_audit_and_pending_resume_before_write_guards() {
+        let fixture = Fixture::new();
+        let mut normal = fixture.open("1").unwrap();
+        normal.handle(Fixture::ingest(1)).unwrap();
+        normal.stop_after = Some("accept");
+        assert!(normal
+            .handle(Fixture::ingest(2))
+            .unwrap_err()
+            .contains("stop_after_accept"));
+        drop(normal);
+        let mut db = Connection::open(&fixture.db).unwrap();
+        let tx = db.transaction().unwrap();
+        let ordinary = s_allocation::audit_startup(&tx, &s_allocation::Mode::Ordinary).unwrap();
+        let native = s_allocation::audit_startup(&tx, &s_allocation::Mode::CapturedNative).unwrap();
+        let fingerprint = |s: &state::AuditedState| {
+            format!(
+                "{:?}|{:?}|{:?}|{:?}",
+                s.raw,
+                s.cuts
+                    .iter()
+                    .map(|c| format!(
+                        "{:?}|{:?}|{:?}|{:?}|{:?}",
+                        c.metadata, c.roots, c.batch_id, c.snapshot, c.delta
+                    ))
+                    .collect::<Vec<_>>(),
+                s.objects,
+                s.auxiliary
+            )
+        };
+        assert_eq!(fingerprint(&ordinary), fingerprint(&native));
+        drop(ordinary);
+        drop(native);
+        drop(tx);
+        drop(db);
+        let mut resumed = native_driver(&fixture);
+        assert_eq!(count(&resumed.conn, "s_content_publications"), 2);
+        assert_eq!(count(&resumed.conn, "s_clock_events"), 6);
+        assert_eq!(
+            resumed.handle(Fixture::ingest(2)).unwrap()["kind"],
+            "Committed"
+        );
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_startup_rejects_each_current_damage_before_pending_resume() {
+        let faults=["UPDATE meta SET value='foreign' WHERE key='profile_hash'","UPDATE s_clock_events SET semantic_ns='999' WHERE phase='commit'","UPDATE raw_events SET raw_text='corrupt' WHERE seq=0","UPDATE s_content_objects SET immutable_root=generated_root WHERE rowid=(SELECT min(rowid) FROM s_content_objects)","UPDATE s_content_nodes SET body=x'00' WHERE digest=(SELECT snapshot_root FROM s_content_publications LIMIT 1)","UPDATE meta SET value='unknown' WHERE key='protocol_revision'","CREATE TABLE unknown_startup_domain(x)"];
+        for sql in faults {
+            let fixture = Fixture::new();
+            let mut old = fixture.open("1").unwrap();
+            old.handle(Fixture::ingest(1)).unwrap();
+            old.stop_after = Some("accept");
+            assert!(old.handle(Fixture::ingest(2)).is_err());
+            drop(old);
+            let c = Connection::open(&fixture.db).unwrap();
+            c.execute_batch(sql).unwrap();
+            let before = (
+                count(&c, "s_input_messages"),
+                c.query_row(
+                    "SELECT count(*) FROM s_input_messages WHERE status='AcceptedPending'",
+                    [],
+                    |r| r.get::<_, i64>(0),
+                )
+                .unwrap(),
+                count(&c, "s_clock_events"),
+                count(&c, "s_content_publications"),
+                meta_get_opt(&c, "advance_state").unwrap(),
+                meta_get_opt(&c, "generation").unwrap(),
+            );
+            drop(c);
+            let result = Driver::open_with_request_and_mode(
+                &fixture.db,
+                &fixture.profile,
+                "1",
+                fixture.clock.clone(),
+                None,
+                s_allocation::Mode::CapturedNative,
+            );
+            assert!(result.is_err(), "{sql}");
+            let c = Connection::open(&fixture.db).unwrap();
+            let after = (
+                count(&c, "s_input_messages"),
+                c.query_row(
+                    "SELECT count(*) FROM s_input_messages WHERE status='AcceptedPending'",
+                    [],
+                    |r| r.get::<_, i64>(0),
+                )
+                .unwrap(),
+                count(&c, "s_clock_events"),
+                count(&c, "s_content_publications"),
+                meta_get_opt(&c, "advance_state").unwrap(),
+                meta_get_opt(&c, "generation").unwrap(),
+            );
+            assert_eq!(before, after, "{sql}");
+        }
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_startup_SQL_errors_propagate_without_ordinary_fallback() {
+        let fixture = Fixture::new();
+        let mut c = Connection::open(&fixture.db).unwrap();
+        let tx = c.transaction().unwrap();
+        let once = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        tx.progress_handler(
+            1,
+            Some(move || once.swap(false, std::sync::atomic::Ordering::SeqCst)),
+        )
+        .unwrap();
+        assert!(s_allocation::audit_startup(&tx, &s_allocation::Mode::CapturedNative).is_err());
+        tx.progress_handler(0, None::<fn() -> bool>).unwrap();
+        drop(tx);
+        c.execute_batch("ALTER TABLE s_content_nodes RENAME TO hidden_startup_nodes")
+            .unwrap();
+        let tx = c.transaction().unwrap();
+        let error = s_allocation::audit_startup(&tx, &s_allocation::Mode::CapturedNative)
+            .err()
+            .unwrap();
+        assert!(error.contains("no such table"), "{error}");
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
     #[ignore]
     fn staged_next106_cold_driver_observation() {
         let db = PathBuf::from(std::env::var("NEXT106_DB").unwrap());
@@ -646,7 +768,7 @@ mod tests {
         clock.phase("input-106", "commit", 0).unwrap();
         let epoch = meta_get_opt(&before, "writer_epoch").unwrap().unwrap();
         drop(before);
-        std::fs::write(&out,serde_json::to_vec_pretty(&json!({"arm":arm,"status":"OPEN_RUNNING","cold_restart_runtime":true,"mandatory_open_audit":"state::audit ordinary, unchanged"})).unwrap()).unwrap();
+        std::fs::write(&out,serde_json::to_vec_pretty(&json!({"arm":arm,"status":"OPEN_RUNNING","cold_restart_runtime":true,"mandatory_open_audit":"explicit CapturedNative startup: fresh full capture + same audit_core; other modes unchanged"})).unwrap()).unwrap();
         let started = std::time::Instant::now();
         let opened = Driver::open_with_request_and_mode(
             &db,
