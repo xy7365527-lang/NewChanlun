@@ -347,7 +347,7 @@ pub(super) fn object_fields_output<'names, O: FieldOutput<'names>>(
     // #1394 C §5：仅完整审计 None 的 Subset，在本次 DFS 中保留前/当前两短键。
     // 字节来自本位置实际读取且完整核验；不按摘要复用，也不携带值/闭包证明。
     let short_keys = !exact && source.audit_full_array_scan();
-    let mut previous_bytes: Option<VerifierBody> = None;
+    let mut previous_bytes: Option<VerifierBody<'_>> = None;
     while let Some((digest, count)) = stack.pop() {
         match read_seq_node(source, &digest, count)? {
             SeqNode::Empty => {}
@@ -416,10 +416,10 @@ pub(super) fn object_fields_output<'names, O: FieldOutput<'names>>(
 
 /// 长键不具资格，仍交给既有流式比较；短键必须核唯一空/单叶分解、
 /// 实际块角色、精确声明长度和全部 UTF-8。每个逻辑位置重新读当次 F。
-fn read_short_key(
-    source: &mut CodecContext<'_, '_>,
+fn read_short_key<'capture>(
+    source: &mut CodecContext<'_, 'capture>,
     key: &NodeDigest,
-) -> Result<Option<VerifierBody>, CodecError> {
+) -> Result<Option<VerifierBody<'capture>>, CodecError> {
     let (root, declared) = read_string_header(source, key)?;
     if declared > CHUNK_BYTES as u64 {
         return Ok(None);
@@ -697,36 +697,36 @@ struct BranchFrame {
 }
 
 /// 定位结果：目标节点的真实 (tag, body, 摘要) 与祖先重建帧。
-struct Descent {
+struct Descent<'capture> {
     digest: NodeDigest,
     tag: u8,
-    body: VerifierBody,
+    body: VerifierBody<'capture>,
     ancestors: WorkVec<Ancestor>,
 }
 
 /// 沿 path 下行。`forbid_json_text` 为真时（替换）当场拒绝 json_text 步骤。
-fn navigate(
-    source: &mut CodecContext<'_, '_>,
+fn navigate<'capture>(
+    source: &mut CodecContext<'_, 'capture>,
     reference: &ContentRef,
     path: &[PathStep],
     forbid_json_text: bool,
-) -> Result<Descent, CodecError> {
+) -> Result<Descent<'capture>, CodecError> {
     navigate_view(source, reference.into(), path, forbid_json_text)
 }
-fn navigate_view(
-    source: &mut CodecContext<'_, '_>,
+fn navigate_view<'capture>(
+    source: &mut CodecContext<'_, 'capture>,
     reference: RefView<'_>,
     path: &[PathStep],
     forbid_json_text: bool,
-) -> Result<Descent, CodecError> {
+) -> Result<Descent<'capture>, CodecError> {
     navigate_path_view(source, reference, &path, forbid_json_text)
 }
-fn navigate_path_view(
-    source: &mut CodecContext<'_, '_>,
+fn navigate_path_view<'capture>(
+    source: &mut CodecContext<'_, 'capture>,
     reference: RefView<'_>,
     path: &dyn PathView,
     forbid_json_text: bool,
-) -> Result<Descent, CodecError> {
+) -> Result<Descent<'capture>, CodecError> {
     let root = reference.digest()?;
     let (mut cur_tag, mut cur_body) = source.read(&root)?;
     let root_kind = Kind::from_tag(cur_tag).ok_or_else(|| unsupported_value_tag_error(cur_tag))?;
@@ -833,11 +833,11 @@ fn navigate_path_view(
 ///
 /// `json_inner` 为真表示该位置在某个 json_text 文本视图内部：此处任意深度都不允
 /// 0x07（嵌套文本视图）与 0x08（批次占位）——与 `verify` 的 `Flavor::JsonInner` 同口径。
-fn read_value_node(
-    source: &mut CodecContext<'_, '_>,
+fn read_value_node<'capture>(
+    source: &mut CodecContext<'_, 'capture>,
     digest: &NodeDigest,
     json_inner: bool,
-) -> Result<(u8, VerifierBody), CodecError> {
+) -> Result<(u8, VerifierBody<'capture>), CodecError> {
     let (t, body) = source.read(digest)?;
     if Kind::from_tag(t).is_none() {
         return Err(unsupported_value_tag_error(t));

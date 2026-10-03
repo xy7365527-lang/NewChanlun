@@ -350,34 +350,36 @@ impl<'capture> ClosedCapturedOwner<'capture> {
     pub fn set_overlay_peak_callback(&mut self, trace: Option<fn((usize, usize))>) {
         self.overlay_peak_trace = trace;
     }
-    fn read_body(&mut self, d: &NodeDigest) -> Result<(u8, VerifierBody), CodecError> {
+    fn read_body(&mut self, d: &NodeDigest) -> Result<(u8, VerifierBody<'capture>), CodecError> {
         let hit = self.overlay.original(d);
         if let Some(trace) = self.read_trace {
             trace(hit.is_some());
         }
-        let (t, b) = if let Some(row) = hit {
-            row
-        } else {
-            #[cfg(test)]
-            trace_capture_body_read(d);
-            self.capture.reads.set(self.capture.reads.get() + 1);
-            self.capture.original(d).ok_or_else(|| {
-                CodecError::new(code::NODE_MISSING, format!("节点缺失：{}", root_string(d)))
-            })?
-        };
-        let body = super::capture_allocation::body::MeteredBody::copy_from(b, &self.budget)?;
-        Ok((t, VerifierBody::Metered(body)))
+        if let Some((t, bytes)) = hit {
+            // overlay 可在下一次写入/clear 时改变，读取必须拥有独立副本。
+            let body =
+                super::capture_allocation::body::MeteredBody::copy_from(bytes, &self.budget)?;
+            return Ok((t, VerifierBody::Metered(body)));
+        }
+        #[cfg(test)]
+        trace_capture_body_read(d);
+        self.capture.reads.set(self.capture.reads.get() + 1);
+        // 借用只来自本 owner 的不可变 capture，生命周期不依赖 overlay 或 &mut self。
+        let (t, bytes) = self.capture.original(d).ok_or_else(|| {
+            CodecError::new(code::NODE_MISSING, format!("节点缺失：{}", root_string(d)))
+        })?;
+        Ok((t, VerifierBody::Borrowed(bytes)))
     }
     pub(super) fn read_fragment(
         &mut self,
         d: &NodeDigest,
         access: &mut dyn access::Access,
-    ) -> Result<(u8, VerifierBody), CodecError> {
+    ) -> Result<(u8, VerifierBody<'capture>), CodecError> {
         let (tag, body) = self.read_body(d)?;
         access.accept_node(d, tag, &body)?;
         Ok((tag, body))
     }
-    fn read(&mut self, d: &NodeDigest) -> Result<(u8, VerifierBody), CodecError> {
+    fn read(&mut self, d: &NodeDigest) -> Result<(u8, VerifierBody<'capture>), CodecError> {
         if let Some(observer) = &self.observer {
             observer.before_read()?;
         }
@@ -572,13 +574,13 @@ pub(super) enum CodecContext<'read, 'capture> {
     Source(&'read mut dyn NodeSource),
     Store(&'read mut dyn NodeStore),
     Sink(&'read mut dyn NodeSink, Option<OwnedBudget>),
-    Capture(&'read AuditCapture),
+    Capture(&'capture AuditCapture),
     Closed(&'read mut ClosedCapturedOwner<'capture>),
     QAccess {
         owner: &'read mut ClosedCapturedOwner<'capture>,
         access: &'read mut dyn access::Access,
     },
-    Fragment(&'read mut dyn fragment::FragmentRead),
+    Fragment(&'read mut dyn fragment::FragmentRead<'capture>),
 }
 impl<'read, 'capture> CodecContext<'read, 'capture> {
     pub(super) fn budget(&self) -> Option<OwnedBudget> {
@@ -608,7 +610,10 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
             Self::Fragment(r) => CodecContext::Fragment(&mut **r),
         }
     }
-    pub(super) fn read(&mut self, d: &NodeDigest) -> Result<(u8, VerifierBody), CodecError> {
+    pub(super) fn read(
+        &mut self,
+        d: &NodeDigest,
+    ) -> Result<(u8, VerifierBody<'capture>), CodecError> {
         match self {
             Self::Source(s) => read_checked(&mut **s, d).map(|(t, b)| (t, VerifierBody::Plain(b))),
             Self::Store(s) => read_checked(&mut **s, d).map(|(t, b)| (t, VerifierBody::Plain(b))),
@@ -715,44 +720,122 @@ mod tests {
         )
     }
     #[test]
-    fn closed_codec_real_two_bodies_share_same_overlay_ledger_until_drop() {
+    fn closed_codec_capture_borrows_without_copy_and_overlay_remains_independent() {
         let mut nodes = MemoryNodes::new();
-        let body = vec![b'a'; 4096];
-        let d = frame(tag::BYTES_CHUNK, &body);
-        nodes.insert_unchecked(d, tag::BYTES_CHUNK, body);
+        let bytes = vec![b'a'; 4096];
+        let d = frame(tag::BYTES_CHUNK, &bytes);
+        nodes.insert_unchecked(d, tag::BYTES_CHUNK, bytes);
         let overlay = OverlaySlab::requested_bytes(1, 4).unwrap();
-        let (cap, budget, base) = capture(nodes, overlay + 4096);
+        let (cap, budget, base) = capture(nodes, overlay + 4);
         let mut owner = cap
             .closed_codec_for_allocation_prototype(1, 4, None)
             .unwrap();
         let baseline = base + overlay;
         let before = budget.snapshot();
+        let f = frame_calls_on_thread();
         let first = owner.read(&d).unwrap();
-        assert_eq!(
-            budget.snapshot().live_requested_layout_bytes,
-            baseline + 4096
-        );
-        let second = owner.read(&d);
-        assert!(second.is_err());
-        assert_eq!(second.err().unwrap().code(), capture_allocation::LIMIT);
-        assert_eq!(
-            budget.snapshot().allocated_layouts,
-            before.allocated_layouts + 1
-        );
+        let second = owner.read(&d).unwrap();
+        assert!(matches!(first.1, VerifierBody::Borrowed(_)));
+        assert!(matches!(second.1, VerifierBody::Borrowed(_)));
+        assert!(std::ptr::eq(
+            first.1.as_ptr(),
+            cap.original(&d).unwrap().1.as_ptr()
+        ));
+        assert_eq!(frame_calls_on_thread() - f, 2, "两个实际读取各重算本次F");
+        let after = budget.snapshot();
+        assert_eq!(after.allocation_attempts, before.allocation_attempts);
+        assert_eq!(after.allocated_layouts, before.allocated_layouts);
+        assert_eq!(after.copied_rows, before.copied_rows);
+        assert_eq!(after.copied_body_bytes, before.copied_body_bytes);
+        assert_eq!(after.live_requested_layout_bytes, baseline);
+        let overlay_bytes = b"old!";
+        let overlay_d = frame(tag::BYTES_CHUNK, overlay_bytes);
+        owner
+            .raw_put(overlay_d, tag::BYTES_CHUNK, overlay_bytes)
+            .unwrap();
+        let before = budget.snapshot();
+        let copied = owner.read(&overlay_d).unwrap();
+        assert!(matches!(copied.1, VerifierBody::Metered(_)));
         assert_eq!(
             budget.snapshot().allocation_attempts,
             before.allocation_attempts + 1
         );
-        drop(first);
-        assert_eq!(budget.snapshot().live_requested_layout_bytes, baseline);
-        println!(
-            "CLOSED_TWO_BODY_RECEIPT {}",
-            serde_json::to_string(&budget.snapshot()).unwrap()
+        assert_eq!(budget.snapshot().copied_rows, before.copied_rows + 1);
+        assert_eq!(
+            budget.snapshot().copied_body_bytes,
+            before.copied_body_bytes + 4
         );
+        owner.clear_overlay();
+        owner
+            .raw_put(frame(tag::BYTES_CHUNK, b"new!"), tag::BYTES_CHUNK, b"new!")
+            .unwrap();
+        assert_eq!(
+            &copied.1[..],
+            overlay_bytes,
+            "overlay覆写不能改变已有读取副本"
+        );
+        assert_eq!(&first.1[..], &second.1[..], "capture借用不随overlay变化");
+        drop(copied);
+        drop(first);
+        drop(second);
         drop(owner);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
         drop(cap);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[test]
+    fn borrowed_capture_rejects_bad_tag_root_and_index_material_on_current_read() {
+        for case in 0..3 {
+            let mut nodes = MemoryNodes::new();
+            let built = write_value(&mut nodes, &Value::Array(vec![Value::Bool(true)])).unwrap();
+            let mut reference = built.content_ref();
+            let expected_code = match case {
+                0 => {
+                    let body = nodes.get(&built.digest).unwrap().1.to_vec();
+                    nodes.insert_unchecked(built.digest, tag::OBJECT, body);
+                    code::NODE_DIGEST
+                }
+                1 => {
+                    reference.kind = Kind::Object;
+                    code::KIND
+                }
+                _ => {
+                    let sequence = frame(tag::SEQ_LEAF, b"bad-index");
+                    nodes.insert_unchecked(sequence, tag::SEQ_LEAF, b"bad-index".to_vec());
+                    let mut body = 1u64.to_be_bytes().to_vec();
+                    body.extend_from_slice(&sequence);
+                    let root = frame(tag::ARRAY, &body);
+                    nodes.insert_unchecked(root, tag::ARRAY, body);
+                    reference = ContentRef::new(Kind::Array, &root, Some(1));
+                    code::SEQUENCE_SHAPE
+                }
+            };
+            let mut ordinary = nodes.clone();
+            let steps = [path::PathStep::Index(0)];
+            let f = frame_calls_on_thread();
+            let expected = path::lookup_path(&mut ordinary, &reference, &steps).unwrap_err();
+            let calls = frame_calls_on_thread() - f;
+            assert_eq!(expected.code(), expected_code);
+            let (cap, budget, base) = capture(nodes, 8192);
+            let mut owner = cap
+                .closed_codec_for_allocation_prototype(0, 0, None)
+                .unwrap();
+            let before = budget.snapshot();
+            let f = frame_calls_on_thread();
+            assert_eq!(owner.lookup_path(&reference, &steps).unwrap_err(), expected);
+            assert_eq!(
+                frame_calls_on_thread() - f,
+                calls,
+                "case {case}: 当前F和首错次序"
+            );
+            let after = budget.snapshot();
+            assert_eq!(after.copied_rows, before.copied_rows);
+            assert_eq!(after.copied_body_bytes, before.copied_body_bytes);
+            assert_eq!(after.live_requested_layout_bytes, base);
+            drop(owner);
+            drop(cap);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        }
     }
     #[test]
     fn closed_codec_render_path_replace_and_encoder_same_material_f_order() {
@@ -831,7 +914,24 @@ mod tests {
         assert_eq!(bounded, plain);
         assert_eq!(frame_calls_on_thread() - f, n);
         owner.verify_fresh(&bounded, Mode::Public).unwrap();
+        assert_eq!(
+            budget.snapshot().live_requested_layout_bytes,
+            baseline,
+            "fresh verifier释放实际工作集，overlay固定布局仍在"
+        );
         owner.verify_cached(&root, Mode::Template).unwrap();
+        assert!(cap.public.borrow().seen.is_empty());
+        assert!(!cap.template.borrow().seen.is_empty());
+        let retained_capture = cap.retained_layout_bytes().unwrap() as usize;
+        assert_eq!(
+            retained_capture - base,
+            5772,
+            "成功Template memo的集合和折叠map由capture实际持有"
+        );
+        assert_eq!(
+            budget.snapshot().live_requested_layout_bytes,
+            retained_capture + overlay
+        );
         assert_eq!(
             owner.verify_fresh(&root, Mode::Public).unwrap_err().code(),
             code::TEMPLATE_PLACEHOLDER
@@ -843,12 +943,26 @@ mod tests {
             owner.content_ref_of(&built.root()).unwrap(),
             built.content_ref()
         );
-        assert_eq!(budget.snapshot().live_requested_layout_bytes, baseline);
+        assert_eq!(
+            cap.retained_layout_bytes().unwrap() as usize,
+            retained_capture,
+            "Public失败不污染既有独立Template memo"
+        );
+        assert_eq!(
+            budget.snapshot().live_requested_layout_bytes,
+            retained_capture + overlay,
+            "当前余额只能由实际capture memo和overlay布局组成"
+        );
         println!(
             "CLOSED_SURFACE_RECEIPT {}",
             serde_json::to_string(&budget.snapshot()).unwrap()
         );
         drop(owner);
+        assert_eq!(
+            budget.snapshot().live_requested_layout_bytes,
+            retained_capture,
+            "owner只释放overlay，Template memo归capture持有"
+        );
         drop(cap);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
@@ -988,11 +1102,11 @@ mod codec_workset_growth_probe {
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
     #[test]
-    fn codec_leaf_iterator_stack_counts_old_new_body_live_before_growth() {
+    fn codec_leaf_iterator_stack_refuses_growth_without_copying_capture_body() {
         let mut nodes = MemoryNodes::new();
         let value = write_value(&mut nodes, &Value::string("x".repeat(8192))).unwrap();
         let seq = digest_at(nodes.get(&value.digest).unwrap().1, 8);
-        let (cap, budget, base) = make_capture(nodes, 167);
+        let (cap, budget, base) = make_capture(nodes, 159);
         let mut owner = cap
             .closed_codec_for_allocation_prototype(0, 0, None)
             .unwrap();
@@ -1003,7 +1117,7 @@ mod codec_workset_growth_probe {
         assert_eq!(got.err().unwrap().code(), capture_allocation::LIMIT);
         let probe = budget.allocation_request_probe();
         assert_eq!(probe.refused_bytes, 128);
-        assert_eq!(probe.live_before_refusal, base + 104);
+        assert_eq!(probe.live_before_refusal, base + 32);
         drop(iter);
         drop(source);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
@@ -1061,15 +1175,17 @@ mod codec_workset_growth_probe {
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
     #[test]
-    fn codec_renderer_task_growth_old_tasks_leaf_stack_and_body_are_live() {
+    fn codec_renderer_task_growth_holds_old_tasks_leaf_stack_and_borrows_body() {
         let mut nodes = MemoryNodes::new();
         let value = write_value(&mut nodes, &Value::Array(vec![Value::Null])).unwrap();
         let task = std::mem::size_of::<RTask>();
-        let (cap, budget, base) = make_capture(nodes, 5 * task + 71);
+        let (cap, budget, base) = make_capture(nodes, 5 * task + 31);
         let mut owner = cap
             .closed_codec_for_allocation_prototype(0, 0, None)
             .unwrap();
         let mut output = Vec::new();
+        let before = budget.snapshot();
+        let f = frame_calls_on_thread();
         let result = Renderer {
             source: CodecContext::Closed(&mut owner),
             out: &mut output,
@@ -1080,8 +1196,21 @@ mod codec_workset_growth_probe {
         assert_eq!(result.unwrap_err().code(), capture_allocation::LIMIT);
         let probe = budget.allocation_request_probe();
         assert_eq!(probe.refused_bytes, 4 * task);
-        assert_eq!(probe.live_before_refusal, base + task + 72);
-        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        assert_eq!(probe.refused_align, std::mem::align_of::<RTask>());
+        assert_eq!(probe.refused_kind, std::any::type_name::<RTask>());
+        assert_eq!(
+            probe.live_before_refusal,
+            base + task + 32,
+            "旧RTask布局与叶栈在扩容前仍存活，capture body借用不新增布局"
+        );
+        let after = budget.snapshot();
+        assert_eq!(after.allocation_attempts, before.allocation_attempts + 2);
+        assert_eq!(after.allocated_layouts, before.allocated_layouts + 2);
+        assert_eq!(after.rejected_layouts, before.rejected_layouts + 1);
+        assert_eq!(after.copied_rows, before.copied_rows);
+        assert_eq!(after.copied_body_bytes, before.copied_body_bytes);
+        assert_eq!(frame_calls_on_thread() - f, 1);
+        assert_eq!(after.live_requested_layout_bytes, base);
         assert!(output.is_empty());
         println!(
             "RENDER_TASK_GROW_RECEIPT {}",

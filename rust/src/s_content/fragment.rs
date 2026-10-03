@@ -883,9 +883,9 @@ fn verify_impl(
 }
 
 /// 私有context适配器；外部NodeSource不能实现此trait或伪造Captured预算。
-pub(super) trait FragmentRead {
+pub(super) trait FragmentRead<'capture> {
     fn budget(&self) -> Option<OwnedBudget>;
-    fn read(&mut self, digest: &NodeDigest) -> Result<(u8, VerifierBody), CodecError>;
+    fn read(&mut self, digest: &NodeDigest) -> Result<(u8, VerifierBody<'capture>), CodecError>;
     fn before_path_index(
         &mut self,
         prefix: &dyn path::PathView,
@@ -901,7 +901,7 @@ struct Recorder<'read, 'capture> {
     max_reply_bytes: u64,
     record_filter: Option<fn(&[PathStep]) -> bool>,
 }
-impl Recorder<'_, '_> {
+impl<'capture> Recorder<'_, 'capture> {
     fn read_key(&mut self, reference: RefView<'_>) -> Result<FragmentText, CodecError> {
         let remaining = self.max_reply_bytes - self.reply_bytes;
         if reference
@@ -1002,7 +1002,10 @@ impl Recorder<'_, '_> {
         Ok(())
     }
     /// 动态source仍按旧raw读取→gate/F→证明→post顺序；Closed从具体真实原件计费body读取。
-    fn read_record(&mut self, digest: &NodeDigest) -> Result<(u8, VerifierBody), CodecError> {
+    fn read_record(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<(u8, VerifierBody<'capture>), CodecError> {
         self.access.pre_io_check()?;
         let (tag, body) = match &mut self.source {
             CodecContext::Source(source) => match source.read(digest)? {
@@ -1031,11 +1034,11 @@ impl Recorder<'_, '_> {
         Ok((tag, body))
     }
 }
-impl FragmentRead for Recorder<'_, '_> {
+impl<'capture> FragmentRead<'capture> for Recorder<'_, 'capture> {
     fn budget(&self) -> Option<OwnedBudget> {
         self.source.budget()
     }
-    fn read(&mut self, digest: &NodeDigest) -> Result<(u8, VerifierBody), CodecError> {
+    fn read(&mut self, digest: &NodeDigest) -> Result<(u8, VerifierBody<'capture>), CodecError> {
         self.read_record(digest)
     }
     fn before_path_index(
@@ -1056,12 +1059,12 @@ impl FragmentRead for Recorder<'_, '_> {
     }
 }
 // 仅普通旧调用/直接门序probe的适配；Closed没有NodeSource实现或owned→std逃逸。
-impl NodeSource for Recorder<'_, '_> {
+impl<'capture> NodeSource for Recorder<'_, 'capture> {
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
         let (tag, body) = self.read_record(digest)?;
         match body {
             VerifierBody::Plain(body) => Ok(NodeRead::Found { tag, body }),
-            VerifierBody::Metered(_) => Err(CodecError::static_detail(
+            VerifierBody::Borrowed(_) | VerifierBody::Metered(_) => Err(CodecError::static_detail(
                 capture_allocation::INCOMPLETE,
                 "owned Recorder不允许擦为NodeSource",
             )),

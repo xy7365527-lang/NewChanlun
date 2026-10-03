@@ -1695,28 +1695,30 @@ struct FieldAgg {
     last: Option<NodeDigest>,
 }
 
-// #1394 captured verifier 的全部节点body使用；普通源仍保留原 Vec 行为。
-// 不提供 into_vec 或 Clone，OwnedLayout 持有到最终消费或错误退出。
-enum VerifierBody {
+// #1394 本次不可变 capture 原件直接借用；overlay 的副本持有独立布局。
+// 普通源保持 Vec 所有权，不提供 into_vec 或 Clone。
+enum VerifierBody<'capture> {
+    Borrowed(&'capture [u8]),
     Plain(Vec<u8>),
     Metered(capture_allocation::body::MeteredBody),
 }
-impl VerifierBody {
+impl VerifierBody<'_> {
     fn empty() -> Self {
         Self::Plain(Vec::new())
     }
     fn clear(&mut self) {
         match self {
             Self::Plain(v) => v.clear(),
-            Self::Metered(_) => *self = Self::empty(),
+            Self::Borrowed(_) | Self::Metered(_) => *self = Self::empty(),
         }
     }
 }
-impl std::ops::Deref for VerifierBody {
+impl std::ops::Deref for VerifierBody<'_> {
     type Target = [u8];
     fn deref(&self) -> &[u8] {
         match self {
             Self::Plain(v) => v,
+            Self::Borrowed(v) => v,
             Self::Metered(v) => v,
         }
     }
@@ -1734,16 +1736,16 @@ fn trace_capture_body_read(d: &NodeDigest) {
         }
     });
 }
-fn read_body_checked(
+fn read_body_checked<'capture>(
     source: &mut dyn NodeSource,
-    capture: Option<&AuditCapture>,
+    capture: Option<&'capture AuditCapture>,
     d: &NodeDigest,
-) -> Result<(u8, VerifierBody), CodecError> {
+) -> Result<(u8, VerifierBody<'capture>), CodecError> {
     // 具体 CaptureReader 私有构造器是唯一入口；动态 NodeSource 无法提供或覆盖 capture。
     let Some(capture) = capture else {
         return read_checked(source, d).map(|(t, b)| (t, VerifierBody::Plain(b)));
     };
-    let CaptureNodes::AllocationPrototype(slab) = &capture.nodes else {
+    let CaptureNodes::AllocationPrototype(_) = &capture.nodes else {
         unreachable!()
     };
     #[cfg(test)]
@@ -1752,7 +1754,7 @@ fn read_body_checked(
     let (t, bytes) = capture.original(d).ok_or_else(|| {
         CodecError::new(code::NODE_MISSING, format!("节点缺失：{}", root_string(d)))
     })?;
-    let body = slab.copy_body(bytes)?;
+    let body = VerifierBody::Borrowed(bytes);
     // 实际原件完整 F 校验，不复用外部成功、不吞读取错误。
     let actual = frame(t, &body);
     if actual != *d {
@@ -1765,7 +1767,7 @@ fn read_body_checked(
             ),
         ));
     }
-    Ok((t, VerifierBody::Metered(body)))
+    Ok((t, body))
 }
 
 // ── 惰性叶迭代（渲染与键比较用；不预收集整棵序列） ──────────────────────────
@@ -1793,17 +1795,17 @@ impl LeafIter {
     ) -> Result<Option<(u8, NodeDigest, Vec<u8>)>, CodecError> {
         self.next_with(|d| read_checked(source, d))
     }
-    fn next_body(
+    fn next_body<'capture>(
         &mut self,
         source: &mut dyn NodeSource,
-        capture: Option<&AuditCapture>,
-    ) -> Result<Option<(u8, NodeDigest, VerifierBody)>, CodecError> {
+        capture: Option<&'capture AuditCapture>,
+    ) -> Result<Option<(u8, NodeDigest, VerifierBody<'capture>)>, CodecError> {
         self.next_with(|d| read_body_checked(source, capture, d))
     }
-    fn next_context(
+    fn next_context<'capture>(
         &mut self,
-        source: &mut CodecContext<'_, '_>,
-    ) -> Result<Option<(u8, NodeDigest, VerifierBody)>, CodecError> {
+        source: &mut CodecContext<'_, 'capture>,
+    ) -> Result<Option<(u8, NodeDigest, VerifierBody<'capture>)>, CodecError> {
         self.next_with(|d| source.read(d))
     }
     fn next_with<B: std::ops::Deref<Target = [u8]>>(
@@ -2026,7 +2028,11 @@ struct Verifier<'a, 'capture> {
 
 impl<'a, 'capture> Verifier<'a, 'capture> {
     // #1394 Root 内部实施裁定：具体capture与私有context闭合，不接受dyn成功token。
-    fn with_memo_capture(source: &'a mut CaptureReader<'_>, mode: Mode, memo: AuditMemo) -> Self {
+    fn with_memo_capture(
+        source: &'a mut CaptureReader<'capture>,
+        mode: Mode,
+        memo: AuditMemo,
+    ) -> Self {
         Self::with_context(CodecContext::Capture(source.0), mode, memo)
     }
     fn with_memo(source: &'a mut dyn NodeSource, mode: Mode, memo: AuditMemo) -> Self {
@@ -2071,7 +2077,10 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         Self::with_context(CodecContext::Source(source), mode, AuditMemo::default())
     }
     /// 读节点 + 核摘要 + 记唯一节点。
-    fn read_node(&mut self, digest: &NodeDigest) -> Result<(u8, VerifierBody), CodecError> {
+    fn read_node(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<(u8, VerifierBody<'capture>), CodecError> {
         let got = self.source.read(digest)?;
         self.read_digests.insert(*digest)?;
         Ok(got)
@@ -3889,44 +3898,37 @@ mod tests {
 mod metered_key_body_tests {
     use super::*;
     #[test]
-    fn metered_key_second_chunk_before_allocate() {
+    fn borrowed_key_two_chunks_fit_without_body_layouts_or_copies() {
         let mut nodes = MemoryNodes::new();
         let a = write_value(&mut nodes, &Value::string("a".repeat(4096))).unwrap();
         let b = write_value(&mut nodes, &Value::string("b".repeat(4096))).unwrap();
-        let count = nodes.nodes.len();
-        let bytes = nodes.nodes.values().map(|(_, b)| b.len()).sum();
-        let base = capture_allocation::CaptureSlab::requested_bytes(count, bytes).unwrap();
-        let budget = capture_allocation::OwnedBudget::new(base + 4096 + 32 + 204);
-        let mut slab = capture_allocation::CaptureSlab::new(count, bytes, &budget).unwrap();
-        for (d, (t, body)) in nodes.nodes {
-            slab.push(d, t, &body).unwrap();
-        }
-        let capture = AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
+        let (capture, budget, base) = slab_capture(nodes, 204);
         let before = budget.snapshot();
+        let f = frame_calls_on_thread();
         let mut source = CaptureReader(&capture);
         let mut verifier =
             Verifier::with_memo_capture(&mut source, Mode::Public, AuditMemo::default());
-        let result = verifier.compare_key_streams(&a.digest, &b.digest);
-        assert!(
-            result.is_err(),
-            "真实第二块必须在第一块仍存活时被拒绝，实得 {result:?}"
+        assert_eq!(
+            verifier.compare_key_streams(&a.digest, &b.digest).unwrap(),
+            std::cmp::Ordering::Less
         );
-        assert_eq!(result.unwrap_err().code(), capture_allocation::LIMIT);
         let after = budget.snapshot();
-        assert_eq!(after.live_requested_layout_bytes, base + 140);
-        assert!(after.peak_requested_layout_bytes >= base + 4096);
-        assert_eq!(after.rejected_layouts, before.rejected_layouts + 1);
-        // 两STRING头40B、两序列32B与首块4096B实际分配；第二块在alloc前拒绝。
-        assert_eq!(after.allocated_layouts, before.allocated_layouts + 8);
-        assert_eq!(after.allocation_attempts, before.allocation_attempts + 8);
-        assert_eq!(after.released_layouts, before.released_layouts + 7);
-        assert_eq!(after.peak_requested_layout_bytes, base + 4096 + 32 + 204);
-        println!(
-            "METERED_KEY_RECEIPT {}",
-            serde_json::to_string(&after).unwrap()
+        assert_eq!(frame_calls_on_thread() - f, 6);
+        assert_eq!(
+            after.live_requested_layout_bytes,
+            base + 140,
+            "只有实际read集合持账"
         );
+        assert_eq!(
+            after.peak_requested_layout_bytes,
+            base + 204,
+            "集合与两个叶迭代栈持账"
+        );
+        assert_eq!(after.allocation_attempts, before.allocation_attempts + 3);
+        assert_eq!(after.copied_rows, before.copied_rows);
+        assert_eq!(after.copied_body_bytes, before.copied_body_bytes);
+        assert_eq!(after.rejected_layouts, before.rejected_layouts);
         drop(verifier);
-        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
         drop(source);
         drop(capture);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
@@ -3978,9 +3980,11 @@ mod metered_key_body_tests {
         );
         assert_eq!(frame_calls_on_thread() - before_f, legacy_f);
         let after = budget.snapshot();
-        assert_eq!(after.peak_requested_layout_bytes, base + 8192 + 32 + 204);
-        assert_eq!(after.allocated_layouts, before.allocated_layouts + 9);
-        assert_eq!(after.released_layouts, before.released_layouts + 9);
+        assert_eq!(after.peak_requested_layout_bytes, base + 204);
+        assert_eq!(after.allocated_layouts, before.allocated_layouts + 3);
+        assert_eq!(after.released_layouts, before.released_layouts + 3);
+        assert_eq!(after.copied_rows, before.copied_rows);
+        assert_eq!(after.copied_body_bytes, before.copied_body_bytes);
         assert_eq!(after.live_requested_layout_bytes, base);
         assert_eq!(after.rejected_layouts, 0);
         println!(
@@ -4001,14 +4005,16 @@ mod metered_key_body_tests {
         .unwrap();
         let reference = ContentRef::new(object.kind, &object.digest, object.extent);
         let (capture, budget, base) = slab_capture(nodes, 32768);
+        let copied_before = budget.snapshot().copied_rows;
         capture.verify(&reference, Mode::Public).unwrap();
+        assert_eq!(budget.snapshot().copied_rows, copied_before);
         assert!(
             budget.snapshot().live_requested_layout_bytes > base,
             "成功capture Public memo的真实布局必须持续活到capture Drop"
         );
         assert!(
-            budget.snapshot().peak_requested_layout_bytes >= base + 8192 + 32 + 80,
-            "body并存和新增memo/栈都须计量"
+            budget.snapshot().peak_requested_layout_bytes > base,
+            "完整核验的实际memo与栈仍计量"
         );
         drop(capture);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
@@ -4180,57 +4186,43 @@ mod metered_verifier_body_tests {
         )
     }
     #[test]
-    fn metered_verifier_string_header_before_allocate() {
+    fn borrowed_verifier_header_checks_f_before_actual_workset_refusal() {
         let (capture, budget, base, reference, _) = captured_string("a", 39);
         let before = budget.snapshot();
         let f = frame_calls_on_thread();
-        let result = capture.verify(&reference, Mode::Public);
-        assert!(
-            result.is_err(),
-            "真实STRING 40B header必须在alloc前拒绝，实得 {result:?}"
-        );
-        assert_eq!(result.unwrap_err().code(), capture_allocation::LIMIT);
+        let error = capture.verify(&reference, Mode::Public).unwrap_err();
+        assert_eq!(error.code(), capture_allocation::LIMIT);
         let after = budget.snapshot();
         assert_eq!(after.allocated_layouts, before.allocated_layouts);
         assert_eq!(after.allocation_attempts, before.allocation_attempts);
-        assert_eq!(frame_calls_on_thread(), f);
-        assert_eq!(after.live_requested_layout_bytes, base);
-        println!(
-            "VERIFIER_HEADER_RECEIPT {}",
-            serde_json::to_string(&after).unwrap()
+        assert_eq!(after.copied_rows, before.copied_rows);
+        assert_eq!(after.copied_body_bytes, before.copied_body_bytes);
+        assert_eq!(
+            frame_calls_on_thread() - f,
+            1,
+            "借用header仍核本次F，再遇真实容器额度门"
         );
+        assert_eq!(after.live_requested_layout_bytes, base);
         drop(capture);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
     #[test]
-    fn metered_verifier_byte_agg_leaf_before_allocate() {
-        let (capture, budget, base, _, seq) = captured_string(&"a".repeat(4096), 4096 + 31);
+    fn borrowed_verifier_byte_agg_checks_leaf_without_body_copy() {
+        let (capture, budget, base, _, seq) = captured_string(&"a".repeat(4096), 8192);
         let before = budget.snapshot();
         let f = frame_calls_on_thread();
         let mut reader = CaptureReader(&capture);
         let mut verifier =
             Verifier::with_memo_capture(&mut reader, Mode::Public, AuditMemo::default());
-        let result = verifier.byte_agg(&seq);
-        assert!(
-            result.is_err(),
-            "真实byte_agg首个4096B叶必须与32B序列owner共享额度并拒绝"
-        );
-        assert_eq!(result.unwrap_err().code(), capture_allocation::LIMIT);
+        let agg = verifier.byte_agg(&seq).unwrap();
+        assert_eq!(agg.total_bytes, 4096);
+        assert_eq!(frame_calls_on_thread() - f, 2);
         let after = budget.snapshot();
-        assert_eq!(after.allocated_layouts, before.allocated_layouts + 3);
-        assert_eq!(after.allocation_attempts, before.allocation_attempts + 3);
-        assert_eq!(frame_calls_on_thread() - f, 1);
-        assert_eq!(after.live_requested_layout_bytes, base + 140);
-        assert_eq!(after.peak_requested_layout_bytes, base + 220);
-        let refusal = budget.allocation_request_probe();
-        assert_eq!(refusal.refused_bytes, 4096);
-        println!(
-            "BYTE_AGG_WORKSET_RECEIPT {}",
-            serde_json::to_string(&budget.snapshot()).unwrap()
-        );
-        println!(
-            "VERIFIER_BYTE_AGG_RECEIPT {}",
-            serde_json::to_string(&after).unwrap()
+        assert_eq!(after.copied_rows, before.copied_rows);
+        assert_eq!(after.copied_body_bytes, before.copied_body_bytes);
+        assert!(
+            after.live_requested_layout_bytes > base,
+            "实际工作集合与memo持续计量"
         );
         drop(verifier);
         drop(reader);
@@ -4303,7 +4295,13 @@ mod metered_verifier_body_tests {
                 let legacy = AuditCapture::new(nodes.clone());
                 let (owned, budget, base) = from_nodes(nodes, 32768);
                 let plain = traced_verify(&legacy, &built.content_ref(), mode);
+                let before = budget.snapshot();
                 let bounded = traced_verify(&owned, &built.content_ref(), mode);
+                assert_eq!(budget.snapshot().copied_rows, before.copied_rows);
+                assert_eq!(
+                    budget.snapshot().copied_body_bytes,
+                    before.copied_body_bytes
+                );
                 assert_eq!(bounded, plain, "case {case}, {mode:?}");
                 if bounded.0.is_ok() {
                     assert!(
@@ -4314,16 +4312,6 @@ mod metered_verifier_body_tests {
                     assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
                 }
                 assert_eq!(owned.reads.get(), legacy.reads.get());
-                if case == 3 {
-                    // 两旧4096B buf与下一4096B真实并存，另有32B序列及两40B根头。
-                    assert!(
-                        budget.snapshot().peak_requested_layout_bytes >= base + 3 * 4096 + 32 + 80
-                    );
-                    assert!(
-                        budget.snapshot().allocated_layouts > 39,
-                        "已有body并存外所有容器也真实计费"
-                    );
-                }
                 println!(
                     "VERIFIER_ALL_SHAPES_RECEIPT {}",
                     serde_json::json!({"case":case,"mode":format!("{mode:?}"),"base":base,"result":format!("{:?}",bounded.0),"reads":bounded.1.len(),"f_calls":bounded.2,"meter":budget.snapshot()})
@@ -4425,39 +4413,24 @@ mod metered_verifier_body_tests {
     }
 
     #[test]
-    fn metered_verifier_nested_root_headers_and_sequence_owners_are_live_together() {
+    fn borrowed_verifier_nested_headers_and_leaf_do_not_allocate_body_layouts() {
         for extra in [4207, 8192] {
             let (capture, budget, base, reference, _) = captured_string(&"a".repeat(4096), extra);
             let before = budget.snapshot();
             let f = frame_calls_on_thread();
-            let result = capture.verify(&reference, Mode::Public);
+            capture.verify(&reference, Mode::Public).unwrap();
             let after = budget.snapshot();
-            if extra == 4207 {
-                assert_eq!(result.unwrap_err().code(), capture_allocation::LIMIT);
-                assert_eq!(after.allocated_layouts, before.allocated_layouts + 8);
-                assert_eq!(after.allocation_attempts, before.allocation_attempts + 8);
-                assert_eq!(after.peak_requested_layout_bytes, base + 728);
-                assert_eq!(budget.allocation_request_probe().refused_bytes, 4096);
-                assert_eq!(frame_calls_on_thread() - f, 3);
-                assert!(capture.public.borrow().seen.is_empty());
-            } else {
-                result.unwrap();
-                assert_eq!(after.allocated_layouts, before.allocated_layouts + 11);
-                assert_eq!(after.peak_requested_layout_bytes, base + 5252);
-                assert_eq!(frame_calls_on_thread() - f, 4);
-            }
-            if extra == 4207 {
-                assert_eq!(after.live_requested_layout_bytes, base);
-            } else {
-                assert_eq!(
-                    after.live_requested_layout_bytes,
-                    base + 868,
-                    "成功memo仍持账"
-                );
-            }
-            println!(
-                "VERIFIER_NESTED_OWNER_RECEIPT {}",
-                serde_json::json!({"base":base,"extra":extra,"meter":after})
+            assert_eq!(frame_calls_on_thread() - f, 4);
+            assert_eq!(after.copied_rows, before.copied_rows);
+            assert_eq!(after.copied_body_bytes, before.copied_body_bytes);
+            assert_eq!(
+                after.live_requested_layout_bytes,
+                base + 868,
+                "成功memo仍持账"
+            );
+            assert!(
+                after.peak_requested_layout_bytes < base + 4096,
+                "4096B叶不再新增body布局"
             );
             drop(capture);
             assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
