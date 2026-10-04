@@ -10,6 +10,12 @@ use newchan_rust::s_content::{self as sc, ContentRef, NodeStore, Value as V};
 use newchan_rust::session_protocol::required;
 use rusqlite::Transaction;
 
+/// 私有构造字段：只有本模块成功获得 NativeReadLease 的分支可发此代生成资格。
+/// 不授予节点存在、checked frame、旧账或发布闭包证明。
+pub(super) struct NativeGeneration {
+    _lease_route: (),
+}
+
 /// #1394：事务局部业务 codec view。预算来自本次 AuditedState，同账覆盖辅助
 /// 业务工作集与跨请求业务缓存；不持 capture，不授予捕获能力或整堆分配资格。
 /// 原 TxStore 的 SQL 读写、检查帧和 generic codec 路径全部直接委托，None 保持原行为。
@@ -386,6 +392,7 @@ impl Runtime {
                 };
                 self.generate_node_products(
                     &mut store,
+                    Some(&NativeGeneration { _lease_route: () }),
                     &input,
                     &audited,
                     &metadata,
@@ -439,6 +446,7 @@ impl Runtime {
             manifest,
         } = self.generate_node_products(
             &mut store,
+            None,
             &input,
             &audited,
             &metadata,
@@ -459,6 +467,7 @@ impl Runtime {
     fn generate_node_products<'raw, S: NodeStore>(
         &mut self,
         store: &mut BusinessTxStore<S>,
+        native: Option<&NativeGeneration>,
         input: &GenerationInput<'raw>,
         audited: &state::AuditedState,
         metadata: &ManifestMetadata,
@@ -468,11 +477,11 @@ impl Runtime {
         frontier: i64,
     ) -> Result<NodeProducts<'raw>, String> {
         sc::write_value(store, scope_value).map_err(err)?;
-        let mut generated = self
-            .generator
-            .as_mut()
-            .ok_or_else(|| err("生成器未绑定"))?
-            .generate_with_allocation(store, input, audited.budget.as_ref())?;
+        let generator = self.generator.as_mut().ok_or_else(|| err("生成器未绑定"))?;
+        let mut generated = match native {
+            Some(native) => generator.generate_native_lease(store, input, native)?,
+            None => generator.generate_with_allocation(store, input, audited.budget.as_ref())?,
+        };
         #[cfg(feature = "s_capture_native_testonly")]
         let objects = if matches!(self.mode, s_allocation::Mode::CapturedNative) {
             object_index::plan_native_union_for_testonly(

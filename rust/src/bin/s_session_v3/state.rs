@@ -125,7 +125,7 @@ pub(super) fn audit_native_current(tx: &Transaction<'_>) -> Result<AuditedState,
     }
 }
 
-/// 每阶段仍现场取得完整节点、控制与raw；只在同一handler内绑定成功后复用纯历史。
+/// 每阶段仍现场读取完整节点、控制与raw；同一handler的完整原件绑定成功才复用capture与纯历史。
 pub(super) fn audit_native_in_request(
     tx: &Transaction<'_>,
     context: &mut super::request_audit::RequestAuditContext,
@@ -134,33 +134,58 @@ pub(super) fn audit_native_in_request(
     {
         // take保证任何读取/校验错误都不留下可继续使用的旧slot。
         let prior = context.take();
-        let capture = content_store::capture_for_prototype(tx)
-            .map_err(err)?
-            .enable_native_frame_reuse_for_testonly()
-            .map_err(err)?;
+        let capture_fresh = || {
+            let (capture, count) = content_store::capture_for_request_prototype(tx).map_err(err)?;
+            let capture = capture
+                .enable_native_frame_reuse_for_testonly()
+                .map_err(err)?;
+            Ok::<_, String>((capture, count))
+        };
+        let (capture, node_count, prior, same_nodes) = match prior {
+            Some(prior) => {
+                let same_nodes = content_store::current_originals_equal_for_request(
+                    tx,
+                    &prior.capture,
+                    prior.node_count,
+                )
+                .map_err(err)?;
+                let (capture, count) = if same_nodes {
+                    (prior.capture, prior.node_count)
+                } else {
+                    // 合法材料变化才在同一事务第二次全扫描建新capture；任何Err都已直接返回。
+                    capture_fresh()?
+                };
+                (
+                    capture,
+                    count,
+                    Some((prior.binding, prior.result)),
+                    same_nodes,
+                )
+            }
+            None => {
+                let (capture, count) = capture_fresh()?;
+                (capture, count, None, false)
+            }
+        };
         let control = control_audit::prepare_s3_control_history_with_owner(tx, None)?;
         let raw = super::business_json::RawEvents::Plain(read_raw_events_until(tx, None)?);
-        if let Some(prior) = prior {
+        if let Some((prior_binding, prior_result)) = prior {
             #[cfg(test)]
             context.before_binding(tx);
             let binding =
-                super::request_audit::HistoricalDependencyBinding::read(tx, &prior.result)?;
-            if binding == prior.binding
-                && capture
-                    .exact_original_tuples_equal(&prior.capture)
-                    .map_err(err)?
-            {
+                super::request_audit::HistoricalDependencyBinding::read(tx, &prior_result)?;
+            if binding == prior_binding && same_nodes {
                 history::revalidate_current_for_reuse(
                     tx,
                     raw.view(),
                     control,
                     &capture,
-                    &prior.result.cuts,
+                    &prior_result.cuts,
                 )?;
                 #[cfg(test)]
                 trace_event("request_history_hit", None);
-                let result = prior.result.clone();
-                context.retain(binding, capture, result.clone(), true);
+                let result = prior_result;
+                context.retain(binding, capture, node_count, result.clone(), true);
                 return Ok(AuditedState {
                     budget: None,
                     raw,
@@ -185,7 +210,7 @@ pub(super) fn audit_native_in_request(
         };
         let result = std::rc::Rc::new(result);
         let binding = super::request_audit::HistoricalDependencyBinding::read(tx, &result)?;
-        context.retain(binding, capture, result.clone(), false);
+        context.retain(binding, capture, node_count, result.clone(), false);
         Ok(AuditedState {
             budget: audited.budget,
             raw: audited.raw,

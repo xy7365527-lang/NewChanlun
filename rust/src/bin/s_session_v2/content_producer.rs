@@ -259,6 +259,36 @@ pub(super) struct PreparedRawHistory<'a> {
     raw: &'a [Bar],
 }
 
+/// 同一次 parser / prepare 的生成 memo；不是节点存在、审计或发布证明。
+/// 仅保存本次成功生成的两数组根，生命周期不进入 producer 跨代缓存。
+pub(super) struct ParserFractalSources<'a> {
+    state: &'a IncrFactsState,
+    owner: Rc<()>,
+    epoch: u64,
+    snapshot: Rc<()>,
+    call: Rc<()>,
+    arrays: Option<(Built, Built)>,
+    #[cfg(test)]
+    whole_source_builds: usize,
+}
+
+/// 只能由上述 session 的真实 build_shape 产生；不提供可变对象或人工 sources 入口。
+pub(super) struct ParserFractalShape {
+    object: Cc006Object,
+    start: usize,
+    call: Rc<()>,
+}
+
+impl ParserFractalShape {
+    pub(super) fn object(&self) -> &Cc006Object {
+        &self.object
+    }
+
+    pub(super) fn into_object(self) -> Cc006Object {
+        self.object
+    }
+}
+
 /// coords 子树的构造 memo（性能结构，不充任准入/证据权威）。
 #[derive(Default)]
 struct ArrayCache {
@@ -1395,6 +1425,10 @@ impl Cc004Producer {
         generation: i64,
         cut: &str,
     ) -> Result<Option<Cc007Object>, ProducerError> {
+        self.build_fractal_impl(store, prepared, shape, views, generation, cut, None)
+    }
+
+    fn check_prepared(&self, prepared: &PreparedRawHistory<'_>) -> Result<(), ProducerError> {
         if !Rc::ptr_eq(&prepared.owner, &self.raw_token) {
             return Err(ProducerError::Type {
                 what: "raw 账本准备态",
@@ -1416,6 +1450,126 @@ impl Cc004Producer {
                 detail: "raw 账本已重新准备：旧视图必须重取".to_string(),
             });
         }
+        Ok(())
+    }
+
+    /// 同次 parser 的完整 raw 前缀与 prepared 账逐元素相同才建立资格。
+    /// 不用最大坐标/数量猜等价；state 借用阻止该次 parser 快照在 session 内推进。
+    pub(super) fn parser_fractal_sources<'a>(
+        &self,
+        prepared: &PreparedRawHistory<'_>,
+        state: &'a IncrFactsState,
+    ) -> Result<ParserFractalSources<'a>, ProducerError> {
+        self.check_prepared(prepared)?;
+        // 仍让共享证据口执行原来的 Degraded 判据。
+        state
+            .shared_group(0)
+            .map_err(|error| ProducerError::Degraded(error.reason))?;
+        if !state.raw_iter().eq(prepared.raw.iter()) {
+            return Err(ProducerError::Type {
+                what: "parser raw 账本",
+                detail: "同次 parser 与 prepared raw 必须逐元素相同".to_string(),
+            });
+        }
+        Ok(ParserFractalSources {
+            state,
+            owner: Rc::clone(&prepared.owner),
+            epoch: prepared.epoch,
+            snapshot: Rc::clone(&prepared.snapshot),
+            call: Rc::new(()),
+            arrays: None,
+            #[cfg(test)]
+            whole_source_builds: 0,
+        })
+    }
+
+    fn check_parser_sources(
+        &self,
+        prepared: &PreparedRawHistory<'_>,
+        sources: &ParserFractalSources<'_>,
+    ) -> Result<(), ProducerError> {
+        self.check_prepared(prepared)?;
+        if !Rc::ptr_eq(&sources.owner, &prepared.owner)
+            || sources.epoch != prepared.epoch
+            || !Rc::ptr_eq(&sources.snapshot, &prepared.snapshot)
+        {
+            return Err(ProducerError::Type {
+                what: "parser raw 账本",
+                detail: "session 不属于当前 prepared 快照".to_string(),
+            });
+        }
+        Ok(())
+    }
+
+    pub(super) fn build_parser_shape(
+        &mut self,
+        store: &mut dyn NodeStore,
+        prepared: &PreparedRawHistory<'_>,
+        sources: &ParserFractalSources<'_>,
+        start: usize,
+        generation: i64,
+        cut: &str,
+    ) -> Result<Option<ParserFractalShape>, ProducerError> {
+        self.check_parser_sources(prepared, sources)?;
+        Ok(self
+            .build_shape(store, sources.state, start, generation, cut)?
+            .map(|object| ParserFractalShape {
+                object,
+                start,
+                call: Rc::clone(&sources.call),
+            }))
+    }
+
+    pub(super) fn build_parser_fractal(
+        &mut self,
+        store: &mut dyn NodeStore,
+        prepared: &PreparedRawHistory<'_>,
+        sources: &mut ParserFractalSources<'_>,
+        shape: &ParserFractalShape,
+        generation: i64,
+        cut: &str,
+    ) -> Result<Option<Cc007Object>, ProducerError> {
+        self.check_parser_sources(prepared, sources)?;
+        if !Rc::ptr_eq(&sources.call, &shape.call) {
+            return Err(ProducerError::Type {
+                what: "parser 分型窗口",
+                detail: "形态不是同次 session 的真实 parser 窗口".to_string(),
+            });
+        }
+        let state = sources.state;
+        let views = [shape.start, shape.start + 1, shape.start + 2].map(|index| {
+            state
+                .shared_group(index)
+                .map_err(|error| ProducerError::Degraded(error.reason))?
+                .ok_or(ProducerError::Type {
+                    what: "parser 分型窗口",
+                    detail: "已构造形态缺少同次共享组".to_string(),
+                })
+        });
+        let [left, mid, right] = views;
+        self.build_fractal_impl(
+            store,
+            prepared,
+            &shape.object,
+            [&left?, &mid?, &right?],
+            generation,
+            cut,
+            Some(sources),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn build_fractal_impl(
+        &mut self,
+        store: &mut dyn NodeStore,
+        prepared: &PreparedRawHistory<'_>,
+        shape: &Cc006Object,
+        views: [&GroupEvidenceView<'_>; 3],
+        generation: i64,
+        cut: &str,
+        mut shared: Option<&mut ParserFractalSources<'_>>,
+    ) -> Result<Option<Cc007Object>, ProducerError> {
+        self.check_prepared(prepared)?;
         let raw_bars = prepared.raw;
         if !matches!(shape.branch, "TOP" | "BOTTOM") {
             return Ok(None);
@@ -1615,8 +1769,30 @@ impl Cc004Producer {
         ]);
         let window_text: Vec<String> = shape.window.iter().map(ToString::to_string).collect();
         let fact_key = canonical_json(&json!([CC007_FRACTAL_KIND, window_text.clone()]));
-        let input_refs = self.source_refs_array(&mut *store, &all_sources)?;
-        let source_coords = self.coords_array(&mut *store, &all_sources)?;
+        // 同 kernel 的方向/封口证据递推完整 raw 前缀；右组 sources 加去重 tail
+        // 恰为完整生效 raw（含稀疏坐标）。只有不可伪造的同次 parser 窗承载此命题。
+        // 首窗仍在原位置走原 array 构造（含原 put）；成功后如 ArrayCache 一样仅 memo
+        // 生成结果。它不授予 checked frame，不能省写前/后续审计或发布闭包核。
+        let (input_refs, source_coords) = if let Some(session) = shared.as_deref_mut() {
+            match &session.arrays {
+                Some(arrays) => arrays.clone(),
+                None => {
+                    let input_refs = self.source_refs_array(&mut *store, &all_sources)?;
+                    let source_coords = self.coords_array(&mut *store, &all_sources)?;
+                    session.arrays = Some((input_refs.clone(), source_coords.clone()));
+                    #[cfg(test)]
+                    {
+                        session.whole_source_builds += 1;
+                    }
+                    (input_refs, source_coords)
+                }
+            }
+        } else {
+            (
+                self.source_refs_array(&mut *store, &all_sources)?,
+                self.coords_array(&mut *store, &all_sources)?,
+            )
+        };
         let object = self.typed_object(
             store,
             CC007_FRACTAL_KIND,
@@ -1659,7 +1835,11 @@ impl Cc004Producer {
             ),
         ] {
             let key = CValue::Array(vec![slot_key(), CValue::String(label.to_string())]);
-            let coords = self.coords_array(&mut *store, &sources)?;
+            let coords = if shared.is_some() && label == "subsequent_development" {
+                object.source_coords.clone()
+            } else {
+                self.coords_array(&mut *store, &sources)?
+            };
             let request = self.request_value(key, Some(&object.object_id), &reasons, &coords)?;
             requests.push(sc::write_value(&mut *store, &request)?);
         }
@@ -2817,6 +2997,8 @@ mod tests {
         nodes: MemoryNodes,
         reads: usize,
         puts: usize,
+        array_puts: usize,
+        branch_puts: usize,
     }
 
     impl NodeSource for CountingStore {
@@ -2829,6 +3011,8 @@ mod tests {
     impl NodeSink for CountingStore {
         fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError> {
             self.puts += 1;
+            self.array_puts += usize::from(tag == sc::tag::ARRAY);
+            self.branch_puts += usize::from(tag == sc::tag::SEQ_BRANCH);
             NodeSink::put(&mut self.nodes, digest, tag, body)
         }
     }
@@ -4265,6 +4449,332 @@ mod tests {
         }
         assert!(saw_future, "必须覆盖有后续历史的窗口");
         assert!(saw_insufficient, "必须覆盖无后续 bar 的窗口");
+    }
+
+    /// 只作测试 oracle 的双入口运行器；资格仍由生产 parser session 构造。
+    fn collect_parser_fractals(
+        fixture: &mut Fixture,
+        reuse: bool,
+        generation: i64,
+    ) -> (Vec<Cc007Object>, usize) {
+        let raw: Vec<Bar> = fixture.state.raw_iter().copied().collect();
+        let prepared = fixture.producer.prepare_raw_history(&raw).unwrap();
+        let mut session = reuse.then(|| {
+            fixture
+                .producer
+                .parser_fractal_sources(&prepared, &fixture.state)
+                .unwrap()
+        });
+        let count = fixture.state.materialize_facts().groups.len();
+        let mut objects = Vec::new();
+        for start in 0..count.saturating_sub(2) {
+            let fractal = if let Some(session) = &mut session {
+                let Some(shape) = fixture
+                    .producer
+                    .build_parser_shape(
+                        &mut fixture.store,
+                        &prepared,
+                        session,
+                        start,
+                        generation,
+                        CUT,
+                    )
+                    .unwrap()
+                else {
+                    continue;
+                };
+                fixture
+                    .producer
+                    .build_parser_fractal(
+                        &mut fixture.store,
+                        &prepared,
+                        session,
+                        &shape,
+                        generation,
+                        CUT,
+                    )
+                    .unwrap()
+            } else {
+                let Some(shape) = fixture
+                    .producer
+                    .build_shape(&mut fixture.store, &fixture.state, start, generation, CUT)
+                    .unwrap()
+                else {
+                    continue;
+                };
+                let views = [start, start + 1, start + 2]
+                    .map(|index| fixture.state.shared_group(index).unwrap().unwrap());
+                fixture
+                    .producer
+                    .build_fractal(
+                        &mut fixture.store,
+                        &prepared,
+                        &shape,
+                        [&views[0], &views[1], &views[2]],
+                        generation,
+                        CUT,
+                    )
+                    .unwrap()
+            };
+            if let Some(object) = fractal {
+                objects.push(object);
+            }
+        }
+        let builds = session
+            .as_ref()
+            .map_or(objects.len(), |session| session.whole_source_builds);
+        (objects, builds)
+    }
+
+    fn assert_parser_fractals_equal(
+        old: &mut Fixture,
+        shared: &mut Fixture,
+        expected: &[Cc007Object],
+        actual: &[Cc007Object],
+    ) {
+        assert_eq!(expected.len(), actual.len());
+        for (expected, actual) in expected.iter().zip(actual) {
+            assert_eq!(expected.object_id, actual.object_id);
+            assert_eq!(expected.identity, actual.identity);
+            assert_eq!(expected.fact_key, actual.fact_key);
+            assert_eq!(expected.request_reasons, actual.request_reasons);
+            assert_eq!(expected.knowledge_reasons, actual.knowledge_reasons);
+            for (expected, actual) in [
+                (&expected.record, &actual.record),
+                (&expected.payload, &actual.payload),
+                (&expected.input_refs, &actual.input_refs),
+                (&expected.source_coords, &actual.source_coords),
+                (&expected.payload_json, &actual.payload_json),
+                (&expected.input_refs_json, &actual.input_refs_json),
+                (&expected.source_coords_json, &actual.source_coords_json),
+            ]
+            .into_iter()
+            .chain(expected.requests.iter().zip(&actual.requests))
+            {
+                assert_eq!(expected.digest, actual.digest);
+                assert_eq!(expected.kind, actual.kind);
+                assert_eq!(expected.extent, actual.extent);
+                assert_eq!(
+                    render(&mut old.store, expected),
+                    render(&mut shared.store, actual)
+                );
+            }
+        }
+    }
+
+    /// Rust 真构造计数：多个实际 TOP/BOTTOM 窗、稀疏坐标、包含合并/封口，逐根逐字节对拍。
+    #[test]
+    fn parser_fractal_sources_reuse_full_raw_once_with_exact_parity() {
+        let merged = [
+            (0, 8, 3),
+            (10, 10, 5),
+            (11, 9, 6),
+            (20, 20, 15),
+            (21, 19, 16),
+            (30, 14, 7),
+            (40, 25, 18),
+            (50, 19, 10),
+            (60, 30, 22),
+            (70, 24, 14),
+        ];
+        let scaled: Vec<Vec<(usize, i64, i64)>> = [32usize, 64]
+            .into_iter()
+            .map(|n| {
+                (0..n)
+                    .map(|i| {
+                        (
+                            10 + i * 17,
+                            if i % 2 == 0 { 12 } else { 24 },
+                            if i % 2 == 0 { 3 } else { 15 },
+                        )
+                    })
+                    .collect()
+            })
+            .collect();
+        for rows in [CASE_SHAPE, &merged[..], &scaled[0][..], &scaled[1][..]] {
+            let mut old = fixture_with_profile(rows, tb02a::PROFILE);
+            let mut shared = fixture_with_profile(rows, tb02a::PROFILE);
+            let (expected, old_builds) = collect_parser_fractals(&mut old, false, GENERATION);
+            let (actual, shared_builds) = collect_parser_fractals(&mut shared, true, GENERATION);
+            assert!(expected.len() >= 3);
+            assert_eq!(old_builds, expected.len());
+            assert_eq!(shared_builds, 1);
+            // 在 render/verify 前冻结读写计数，计的是实际 codec/NodeSink 构造工作。
+            let old_counts = (
+                old.store.reads,
+                old.store.puts,
+                old.store.array_puts,
+                old.store.branch_puts,
+            );
+            let shared_counts = (
+                shared.store.reads,
+                shared.store.puts,
+                shared.store.array_puts,
+                shared.store.branch_puts,
+            );
+            eprintln!("CC007 raw={} windows={} whole_builds={old_builds}/{shared_builds} old(reads,puts,arrays,branches)={old_counts:?} shared={shared_counts:?}", rows.len(), expected.len());
+            assert!(shared_counts.0 < old_counts.0);
+            assert!(shared_counts.1 < old_counts.1);
+            assert!(shared_counts.2 < old_counts.2);
+            assert!(shared_counts.3 < old_counts.3);
+            assert_parser_fractals_equal(&mut old, &mut shared, &expected, &actual);
+            let coords = render(&mut shared.store, &actual[0].source_coords);
+            assert_eq!(
+                serde_json::from_str::<Value>(&coords).unwrap(),
+                json!(rows.iter().map(|row| row.0.to_string()).collect::<Vec<_>>())
+            );
+        }
+    }
+
+    /// 同价高 revision 不改变比较价格，但新 session 必须生成新 source_refs；追加继续对拍。
+    #[test]
+    fn parser_fractal_sources_revision_and_append_match_general_path() {
+        let mut old = fixture_with_profile(CASE_SHAPE, tb02a::PROFILE);
+        let mut shared = fixture_with_profile(CASE_SHAPE, tb02a::PROFILE);
+        for generation in 3..6 {
+            if generation == 4 {
+                let row = Row::new(40, 99, "r99").with_prices(18, 25, 18, 25);
+                for fixture in [&mut old, &mut shared] {
+                    fixture
+                        .producer
+                        .bind_source(&mut fixture.store, row.coord, row.spec())
+                        .unwrap();
+                }
+            } else if generation == 5 {
+                let row = Row::new(9001, 1, "r1").with_prices(25, 35, 25, 35);
+                for fixture in [&mut old, &mut shared] {
+                    fixture
+                        .producer
+                        .bind_source(&mut fixture.store, row.coord, row.spec())
+                        .unwrap();
+                    fixture.state.append(bar(9001, 35, 25));
+                }
+            }
+            let (expected, _) = collect_parser_fractals(&mut old, false, generation);
+            let (actual, builds) = collect_parser_fractals(&mut shared, true, generation);
+            assert_eq!(builds, 1, "不跨请求保留共享根");
+            assert_parser_fractals_equal(&mut old, &mut shared, &expected, &actual);
+        }
+    }
+
+    #[test]
+    fn parser_fractal_sources_reject_foreign_stale_and_manual_shapes() {
+        let mut fixture = fixture_with_profile(CASE_SHAPE, tb02a::PROFILE);
+        let raw: Vec<Bar> = fixture.state.raw_iter().copied().collect();
+        let first = fixture.producer.prepare_raw_history(&raw).unwrap();
+        let mut session = fixture
+            .producer
+            .parser_fractal_sources(&first, &fixture.state)
+            .unwrap();
+        assert!(session.arrays.is_none(), "prepare 不提前生成数组");
+        let shape = fixture
+            .producer
+            .build_parser_shape(&mut fixture.store, &first, &session, 0, GENERATION, CUT)
+            .unwrap()
+            .unwrap();
+        let other_session = fixture
+            .producer
+            .parser_fractal_sources(&first, &fixture.state)
+            .unwrap();
+        let other_shape = fixture
+            .producer
+            .build_parser_shape(
+                &mut fixture.store,
+                &first,
+                &other_session,
+                0,
+                GENERATION,
+                CUT,
+            )
+            .unwrap()
+            .unwrap();
+        assert!(fixture
+            .producer
+            .build_parser_fractal(
+                &mut fixture.store,
+                &first,
+                &mut session,
+                &other_shape,
+                GENERATION,
+                CUT,
+            )
+            .is_err());
+        let mut manual = shape.object().clone();
+        manual.sources = coords_ref_from_slice(&[10]);
+        let views = [0, 1, 2].map(|index| fixture.state.shared_group(index).unwrap().unwrap());
+        let manual_result = fixture
+            .producer
+            .build_fractal(
+                &mut fixture.store,
+                &first,
+                &manual,
+                [&views[0], &views[1], &views[2]],
+                GENERATION,
+                CUT,
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            render(&mut fixture.store, &manual_result.source_coords),
+            "[\"10\",\"40\",\"50\",\"60\",\"70\"]"
+        );
+        assert!(session.arrays.is_none(), "人工对象只能走通用口");
+        let current = fixture.producer.prepare_raw_history(&raw).unwrap();
+        assert!(fixture
+            .producer
+            .build_parser_fractal(
+                &mut fixture.store,
+                &first,
+                &mut session,
+                &shape,
+                GENERATION,
+                CUT,
+            )
+            .is_err());
+        assert!(fixture
+            .producer
+            .build_parser_fractal(
+                &mut fixture.store,
+                &current,
+                &mut session,
+                &shape,
+                GENERATION,
+                CUT,
+            )
+            .is_err());
+        let foreign = fixture_with_profile(CASE_SHAPE, tb02a::PROFILE);
+        assert!(
+            fixture
+                .producer
+                .parser_fractal_sources(&current, &foreign.state)
+                .is_ok(),
+            "逐元素相同 raw 的另一次 parser 也须自行创建新 session"
+        );
+        let different = fixture_with_profile(CASE_MERGE, tb02a::PROFILE);
+        assert!(fixture
+            .producer
+            .parser_fractal_sources(&current, &different.state)
+            .is_err());
+        let foreign_producer = Cc004Producer::new(tb02a::PROFILE, RULE);
+        assert!(foreign_producer
+            .parser_fractal_sources(&current, &fixture.state)
+            .is_err());
+        let mut fresh_session = fixture
+            .producer
+            .parser_fractal_sources(&current, &fixture.state)
+            .unwrap();
+        fixture.producer.discard_runtime_state();
+        assert!(fixture
+            .producer
+            .build_parser_fractal(
+                &mut fixture.store,
+                &current,
+                &mut fresh_session,
+                &shape,
+                GENERATION,
+                CUT,
+            )
+            .is_err());
     }
 
     /// CC-007 比较单元 memo：同参考集重复构造全命中（零重算），源修订按坐标失效并重算；

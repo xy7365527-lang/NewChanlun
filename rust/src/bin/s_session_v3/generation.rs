@@ -59,8 +59,8 @@ use super::object_records;
 use crate::content_bi::{BiBuildInputView, BiLedgerView, ContentBi, PriorState};
 use crate::content_producer::{
     array_from_sequence, group_reasons, group_window_sources, raw_prefix_coords, Cc004Producer,
-    Cc006Object, Cc007Object, ProducerError, RawRefSpec, TypedObject, CC004_STEP_KIND,
-    CC005_GROUP_KIND, CC006_SHAPE_KIND, CC007_FRACTAL_KIND, CC054_KNOWLEDGE_KIND,
+    Cc006Object, Cc007Object, ParserFractalShape, ProducerError, RawRefSpec, TypedObject,
+    CC004_STEP_KIND, CC005_GROUP_KIND, CC006_SHAPE_KIND, CC007_FRACTAL_KIND, CC054_KNOWLEDGE_KIND,
 };
 use crate::s_fact_cache;
 use newchan_rust::s_content::path::PathStep;
@@ -115,6 +115,28 @@ pub(super) struct ProducedObject {
     object_id: String,
     generated: Built,
     body: ObjectBody,
+}
+
+/// Native 的资格包装不改变既有 Cc006Object 的布局或公开内容。
+enum ShapeBuild {
+    Ordinary(Cc006Object),
+    Native(ParserFractalShape),
+}
+
+impl ShapeBuild {
+    fn object(&self) -> &Cc006Object {
+        match self {
+            Self::Ordinary(object) => object,
+            Self::Native(shape) => shape.object(),
+        }
+    }
+
+    fn into_object(self) -> Cc006Object {
+        match self {
+            Self::Ordinary(object) => object,
+            Self::Native(shape) => shape.into_object(),
+        }
+    }
 }
 
 enum ObjectBody {
@@ -397,6 +419,26 @@ impl GenerationRuntime {
         input: &GenerationInput<'b>,
         budget: Option<&sc::capture_allocation::OwnedBudget>,
     ) -> Result<Generated<'b>, String> {
+        self.generate_impl(store, input, budget, None)
+    }
+
+    /// 仅受控 NativeReadLease 分支可提供 token；外部调用方不能用 bool 开启资格。
+    pub(super) fn generate_native_lease<'b>(
+        &mut self,
+        store: &mut dyn NodeStore,
+        input: &GenerationInput<'b>,
+        native: &super::prepared::NativeGeneration,
+    ) -> Result<Generated<'b>, String> {
+        self.generate_impl(store, input, None, Some(native))
+    }
+
+    fn generate_impl<'b>(
+        &mut self,
+        store: &mut dyn NodeStore,
+        input: &GenerationInput<'b>,
+        budget: Option<&sc::capture_allocation::OwnedBudget>,
+        native: Option<&super::prepared::NativeGeneration>,
+    ) -> Result<Generated<'b>, String> {
         if input.profile_id != self.profile_id || input.rule_revision != self.rule_revision {
             return Err(format!(
                 "IdentityConflict：生成运行态的档案/规则修订（{}/{}）与本次输入（{}/{}）不一致",
@@ -452,6 +494,17 @@ impl GenerationRuntime {
             .prepare_raw_history(&raw_bars)
             .map_err(producer_error)?;
 
+        // 只活在本次 generate 调用里，任何 Err/rollback 都不进入跨请求运行缓存。
+        let mut fractal_sources = if native.is_some() {
+            Some(
+                self.producer
+                    .parser_fractal_sources(&prepared, state)
+                    .map_err(producer_error)?,
+            )
+        } else {
+            None
+        };
+
         // ── 形态窗：竞争极值判决取 producer 的同一条判据（build_shape 的 Ok(None)）──
         let wins = classify_local_shape_sliding(merged);
         let mut shape_objects: Vec<ProducedObject> = Vec::new();
@@ -465,12 +518,20 @@ impl GenerationRuntime {
         let mut fractal_reasons: Vec<&'static str> = Vec::new();
         for (start, shape) in &wins {
             let start = *start;
-            match (
-                shape,
-                self.producer.build_shape(store, state, start, gen, cut),
-            ) {
+            let built_shape = match &fractal_sources {
+                Some(sources) => self
+                    .producer
+                    .build_parser_shape(store, &prepared, sources, start, gen, cut)
+                    .map(|shape| shape.map(ShapeBuild::Native)),
+                None => self
+                    .producer
+                    .build_shape(store, state, start, gen, cut)
+                    .map(|shape| shape.map(ShapeBuild::Ordinary)),
+            };
+            match (shape, built_shape) {
                 (_, Ok(None)) => competing.push(start),
-                (_, Ok(Some(object))) => {
+                (_, Ok(Some(built_shape))) => {
+                    let object = built_shape.object();
                     let views = group_views(state, start)?;
                     let (wits, rels) = shape_witnesses(
                         store,
@@ -484,17 +545,20 @@ impl GenerationRuntime {
                     witnesses.extend(wits);
                     relations.extend(rels);
                     let request = object.request.clone();
-                    let fractal = self
-                        .producer
-                        .build_fractal(
+                    let fractal = match (&built_shape, &mut fractal_sources) {
+                        (ShapeBuild::Native(shape), Some(sources)) => self
+                            .producer
+                            .build_parser_fractal(store, &prepared, sources, shape, gen, cut),
+                        _ => self.producer.build_fractal(
                             store,
                             &prepared,
-                            &object,
+                            object,
                             [&views[0], &views[1], &views[2]],
                             gen,
                             cut,
-                        )
-                        .map_err(producer_error)?;
+                        ),
+                    }
+                    .map_err(producer_error)?;
                     let mut fractal_requests: Vec<Built> = Vec::new();
                     if let Some(fractal_object) = fractal {
                         fractal_reasons.extend(fractal_object.knowledge_reasons.iter().copied());
@@ -523,7 +587,7 @@ impl GenerationRuntime {
                         fact_key: None,
                         object_id: object.object_id.clone(),
                         generated,
-                        body: ObjectBody::Shape(object),
+                        body: ObjectBody::Shape(built_shape.into_object()),
                     });
                 }
                 (

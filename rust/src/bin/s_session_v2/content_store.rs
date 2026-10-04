@@ -1336,7 +1336,21 @@ mod tests {
 pub(crate) fn capture_for_prototype(
     tx: &Transaction<'_>,
 ) -> Result<s_content::AuditCapture, CodecError> {
+    capture_for_request_prototype(tx).map(|(capture, _)| capture)
+}
+
+/// 计数取自刚构建的完整原件集合，只供私有Native请求slot核对覆盖；不增加capture字段。
+#[cfg(any(test, feature = "s_capture_native_testonly"))]
+pub(crate) fn capture_for_request_prototype(
+    tx: &Transaction<'_>,
+) -> Result<(s_content::AuditCapture, usize), CodecError> {
     ensure_format(tx)?;
+    #[cfg(test)]
+    PROTOTYPE_CAPTURE_WORK.with(|work| {
+        let mut work = work.borrow_mut();
+        work.capture_builds += 1;
+        work.node_scans += 1;
+    });
     let mut nodes = s_content::MemoryNodes::new();
     let mut stmt = tx
         .prepare("SELECT digest,tag,body FROM s_content_nodes")
@@ -1347,9 +1361,85 @@ pub(crate) fn capture_for_prototype(
         let d: NodeDigest = d.try_into().map_err(|_| storage_error("捕获摘要长度"))?;
         let t: i64 = r.get(1).map_err(storage_error)?;
         let t: u8 = t.try_into().map_err(|_| storage_error("捕获标签域"))?;
-        nodes.insert_unchecked(d, t, r.get(2).map_err(storage_error)?);
+        let body: Vec<u8> = r.get(2).map_err(storage_error)?;
+        #[cfg(test)]
+        record_prototype_row(body.len());
+        nodes.insert_unchecked(d, t, body);
     }
-    Ok(s_content::AuditCapture::new(nodes))
+    let count = nodes.len();
+    Ok((s_content::AuditCapture::new(nodes), count))
+}
+
+/// 原SQL全扫描、原解码次序、原始digest/tag/body逐字节绑定；不创建第二份body owner。
+/// 普通材料变化仍读到末尾，不能吞掉后行的SQL/type错误；只有完整扫描成功才能失去复用资格。
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn current_originals_equal_for_request(
+    tx: &Transaction<'_>,
+    capture: &s_content::AuditCapture,
+    expected_nodes: usize,
+) -> Result<bool, CodecError> {
+    ensure_format(tx)?;
+    #[cfg(test)]
+    PROTOTYPE_CAPTURE_WORK.with(|work| {
+        let mut work = work.borrow_mut();
+        work.node_scans += 1;
+        work.rebind_scans += 1;
+    });
+    let mut stmt = tx
+        .prepare("SELECT digest,tag,body FROM s_content_nodes")
+        .map_err(storage_error)?;
+    let mut rows = stmt.query([]).map_err(storage_error)?;
+    let mut seen = std::collections::HashSet::new();
+    let mut equal = true;
+    while let Some(r) = rows.next().map_err(storage_error)? {
+        let d: Vec<u8> = r.get(0).map_err(storage_error)?;
+        let d: NodeDigest = d.try_into().map_err(|_| storage_error("捕获摘要长度"))?;
+        let t: i64 = r.get(1).map_err(storage_error)?;
+        let t: u8 = t.try_into().map_err(|_| storage_error("捕获标签域"))?;
+        let body = match r.get_ref(2).map_err(storage_error)? {
+            rusqlite::types::ValueRef::Blob(body) => body,
+            _ => {
+                // 非BLOB仍走原Vec解码取得完全相同的InvalidColumnType，不改变NULL/TEXT等错误。
+                let _: Vec<u8> = r.get(2).map_err(storage_error)?;
+                unreachable!("Vec<u8>只接受BLOB")
+            }
+        };
+        #[cfg(test)]
+        record_prototype_row(body.len());
+        // 必须去重；仅count+lookup会接受重复旧digest替代遗漏旧digest的坏schema。
+        let first = seen.insert(d);
+        let same = capture
+            .original(&d)
+            .is_some_and(|(tag, original)| tag == t && original == body);
+        equal &= first && same;
+    }
+    Ok(equal && seen.len() == expected_nodes)
+}
+
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct PrototypeCaptureWork {
+    pub capture_builds: u64,
+    pub node_scans: u64,
+    pub rebind_scans: u64,
+    pub decoded_rows: u64,
+    pub body_bytes: u64,
+}
+#[cfg(test)]
+thread_local! {
+    static PROTOTYPE_CAPTURE_WORK: std::cell::RefCell<PrototypeCaptureWork> = Default::default();
+}
+#[cfg(test)]
+fn record_prototype_row(body_bytes: usize) {
+    PROTOTYPE_CAPTURE_WORK.with(|work| {
+        let mut work = work.borrow_mut();
+        work.decoded_rows += 1;
+        work.body_bytes += body_bytes as u64;
+    });
+}
+#[cfg(test)]
+pub(crate) fn prototype_capture_work_on_thread() -> PrototypeCaptureWork {
+    PROTOTYPE_CAPTURE_WORK.with(|work| *work.borrow())
 }
 
 /// #1394：封闭测试取消策略。只能数检查点，不能执行任意回调或持有事务。

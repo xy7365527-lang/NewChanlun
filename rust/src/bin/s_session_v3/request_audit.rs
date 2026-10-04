@@ -27,6 +27,7 @@ impl Drop for RequestAuditContext {
 pub(super) struct VerifiedHistoricalSlot {
     pub(super) binding: HistoricalDependencyBinding,
     pub(super) capture: AuditCapture,
+    pub(super) node_count: usize,
     pub(super) result: Rc<ImmutableHistoricalAudit>,
 }
 impl RequestAuditContext {
@@ -37,6 +38,7 @@ impl RequestAuditContext {
         &mut self,
         binding: HistoricalDependencyBinding,
         capture: AuditCapture,
+        node_count: usize,
         result: Rc<ImmutableHistoricalAudit>,
         hit: bool,
     ) {
@@ -53,6 +55,7 @@ impl RequestAuditContext {
         self.slot = Some(VerifiedHistoricalSlot {
             binding,
             capture,
+            node_count,
             result,
         });
     }
@@ -238,6 +241,100 @@ mod tests {
         assert_eq!((new_request.cold, new_request.hits), (1, 0));
     }
     #[test]
+    fn request_history_one_capture_three_complete_current_node_scans() {
+        use super::super::content_store;
+        let mut f = Fixture::new();
+        publish_one(&mut f);
+        let (nodes, bytes): (i64, i64) = f
+            .conn
+            .query_row(
+                "SELECT count(*),coalesce(sum(length(body)),0) FROM s_content_nodes",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        let nodes: u64 = nodes.try_into().expect("node count must be nonnegative");
+        let bytes: u64 = bytes.try_into().expect("body bytes must be nonnegative");
+        assert!(nodes > 0 && bytes > 0);
+        let before = content_store::prototype_capture_work_on_thread();
+        let mut context = RequestAuditContext::default();
+        audit(&mut f, &mut context).unwrap();
+        let digest: Vec<u8> = f
+            .conn
+            .query_row(
+                "SELECT digest FROM s_content_nodes WHERE length(body)>0 LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let digest: newchan_rust::s_content::NodeDigest = digest.try_into().unwrap();
+        let original_body = context
+            .slot
+            .as_ref()
+            .unwrap()
+            .capture
+            .original(&digest)
+            .unwrap()
+            .1
+            .as_ptr();
+        for _ in 0..2 {
+            audit(&mut f, &mut context).unwrap();
+            assert_eq!(
+                context
+                    .slot
+                    .as_ref()
+                    .unwrap()
+                    .capture
+                    .original(&digest)
+                    .unwrap()
+                    .1
+                    .as_ptr(),
+                original_body,
+                "hit必须移动同一capture正文owner"
+            );
+        }
+        assert_eq!((context.cold, context.hits), (1, 2));
+        let after = content_store::prototype_capture_work_on_thread();
+        assert_eq!(after.capture_builds - before.capture_builds, 1);
+        assert_eq!(after.node_scans - before.node_scans, 3);
+        assert_eq!(after.rebind_scans - before.rebind_scans, 2);
+        assert_eq!(after.decoded_rows - before.decoded_rows, 3 * nodes);
+        assert_eq!(after.body_bytes - before.body_bytes, 3 * bytes);
+    }
+    #[test]
+    fn request_history_legal_node_set_change_builds_fresh_then_rebinds() {
+        use super::super::content_store;
+        use newchan_rust::s_content as sc;
+        let mut f = Fixture::new();
+        publish_one(&mut f);
+        let mut context = RequestAuditContext::default();
+        audit(&mut f, &mut context).unwrap();
+        let original_nodes = context.slot.as_ref().unwrap().node_count;
+        let before = content_store::prototype_capture_work_on_thread();
+        {
+            let tx = f.conn.transaction().unwrap();
+            sc::write_value(
+                &mut content_store::TxStore::new(&tx).unwrap(),
+                &sc::Value::String("request-local-extra-original".into()),
+            )
+            .unwrap();
+            tx.commit().unwrap();
+        }
+        audit(&mut f, &mut context).unwrap();
+        let current_nodes = context.slot.as_ref().unwrap().node_count;
+        assert!(current_nodes > original_nodes);
+        audit(&mut f, &mut context).unwrap();
+        assert_eq!((context.cold, context.hits), (2, 1));
+        let after = content_store::prototype_capture_work_on_thread();
+        assert_eq!(after.capture_builds - before.capture_builds, 1);
+        assert_eq!(after.node_scans - before.node_scans, 3);
+        assert_eq!(after.rebind_scans - before.rebind_scans, 2);
+        assert_eq!(
+            after.decoded_rows - before.decoded_rows,
+            3 * current_nodes as u64
+        );
+    }
+    #[test]
     fn request_history_unknown_meta_changes_miss_even_if_original_gate_accepts() {
         let mut f = Fixture::new();
         publish_one(&mut f);
@@ -348,10 +445,77 @@ mod tests {
         assert_eq!((context.cold, context.hits), (2, 0));
     }
     #[test]
+    fn request_history_node_sql_interrupt_once_rejects_without_capture_retry() {
+        use super::super::content_store;
+        let mut f = Fixture::new();
+        publish_one(&mut f);
+        let mut context = RequestAuditContext::default();
+        audit(&mut f, &mut context).unwrap();
+        let before = content_store::prototype_capture_work_on_thread();
+        let once = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        f.conn
+            .progress_handler(
+                1,
+                Some(move || {
+                    let current = content_store::prototype_capture_work_on_thread();
+                    current.rebind_scans > before.rebind_scans
+                        && current.decoded_rows > before.decoded_rows
+                        && once.swap(false, std::sync::atomic::Ordering::SeqCst)
+                }),
+            )
+            .unwrap();
+        assert!(audit(&mut f, &mut context).is_err());
+        f.conn.progress_handler(0, None::<fn() -> bool>).unwrap();
+        assert!(!context.has_slot());
+        assert_eq!((context.cold, context.hits), (1, 0));
+        let after = content_store::prototype_capture_work_on_thread();
+        assert_eq!(after.capture_builds, before.capture_builds);
+        assert_eq!(after.rebind_scans - before.rebind_scans, 1);
+        assert!(after.decoded_rows > before.decoded_rows);
+        audit(&mut f, &mut context).unwrap();
+        assert_eq!((context.cold, context.hits), (2, 0));
+    }
+    #[test]
+    fn request_history_node_error_precedes_current_control_error_and_clears_slot() {
+        for fault in [
+            "UPDATE s_content_nodes SET tag=256",
+            "UPDATE s_content_nodes SET body=NULL",
+            "UPDATE s_content_nodes SET body='text'",
+            "UPDATE s_content_nodes SET digest=x'01'",
+        ] {
+            let mut f = Fixture::new();
+            publish_one(&mut f);
+            let mut context = RequestAuditContext::default();
+            audit(&mut f, &mut context).unwrap();
+            f.conn
+                .pragma_update(None, "ignore_check_constraints", true)
+                .unwrap();
+            // 重建仅本测试自有表以容纳NULL；不把schema唯一性当完整集绑定的证明。
+            f.conn.execute_batch("ALTER TABLE s_content_nodes RENAME TO old_nodes; CREATE TABLE s_content_nodes(digest,tag,body); INSERT INTO s_content_nodes SELECT digest,tag,body FROM old_nodes; DROP TABLE old_nodes;").unwrap();
+            f.conn.execute_batch(fault).unwrap();
+            f.conn
+                .execute("UPDATE meta SET value='99' WHERE key='writer_epoch'", [])
+                .unwrap();
+            let tx = f.conn.transaction().unwrap();
+            let cold_error = match state::audit_native_current(&tx) {
+                Ok(_) => panic!("坏节点必须失败：{fault}"),
+                Err(error) => error,
+            };
+            let hot_error = match state::audit_native_in_request(&tx, &mut context) {
+                Ok(_) => panic!("坏节点不得复用：{fault}"),
+                Err(error) => error,
+            };
+            assert_eq!(hot_error, cold_error, "{fault}");
+            assert!(!context.has_slot());
+            assert_eq!(context.hits, 0);
+        }
+    }
+    #[test]
     fn request_history_ordinary_and_zero_generation_do_not_gain_shared_source() {
         let mut f = Fixture::new();
         let mut context = RequestAuditContext::default();
         let tx = f.conn.transaction().unwrap();
+        let work = super::super::content_store::prototype_capture_work_on_thread();
         let audited = s_allocation::audit_in_request(
             &tx,
             &s_allocation::Mode::Ordinary,
@@ -361,6 +525,10 @@ mod tests {
         .unwrap();
         assert!(audited.cuts.is_empty());
         assert!(!context.has_slot());
+        assert_eq!(
+            super::super::content_store::prototype_capture_work_on_thread(),
+            work
+        );
         drop(audited);
         drop(tx);
         audit(&mut f, &mut context).unwrap();
@@ -387,6 +555,7 @@ mod tests {
             overlay_bytes: 1_000_000,
         };
         let tx = f.conn.transaction().unwrap();
+        let work = super::super::content_store::prototype_capture_work_on_thread();
         let audited = s_allocation::audit_in_request(
             &tx,
             &s_allocation::Mode::Owned(profile.clone()),
@@ -396,6 +565,10 @@ mod tests {
         .unwrap();
         assert!(audited.budget.is_some());
         assert!(!context.has_slot());
+        assert_eq!(
+            super::super::content_store::prototype_capture_work_on_thread(),
+            work
+        );
         drop(audited);
         assert_eq!(profile.budget.snapshot().live_requested_layout_bytes, 0);
     }
@@ -568,6 +741,100 @@ mod tests {
         assert!(!original
             .exact_original_tuples_equal(&AuditCapture::new(nodes))
             .unwrap());
+    }
+    fn node_material_fixture() -> (rusqlite::Connection, AuditCapture) {
+        use super::super::content_store;
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE s_protocol_meta(singleton,protocol_revision); INSERT INTO s_protocol_meta VALUES(1,'s-session/3'); CREATE TABLE s_content_meta(singleton,content_format); CREATE TABLE s_content_nodes(digest,tag,body);").unwrap();
+        conn.execute(
+            "INSERT INTO s_content_meta VALUES(1,?1)",
+            [newchan_rust::s_content::CONTENT_FORMAT],
+        )
+        .unwrap();
+        for digest in [[1u8; 32], [2u8; 32]] {
+            conn.execute(
+                "INSERT INTO s_content_nodes VALUES(?1,7,x'010203')",
+                [&digest[..]],
+            )
+            .unwrap();
+        }
+        let tx = conn.transaction().unwrap();
+        let (capture, count) = content_store::capture_for_request_prototype(&tx).unwrap();
+        assert_eq!(count, 2);
+        let capture = capture.enable_native_frame_reuse_for_testonly().unwrap();
+        drop(tx);
+        (conn, capture)
+    }
+    #[test]
+    fn request_history_node_rebind_complete_set_rejects_duplicate_digest_and_omission() {
+        use super::super::content_store;
+        for (sql, expected) in [
+            ("", true),
+            ("UPDATE s_content_nodes SET body=x'010204' WHERE rowid=1", false),
+            ("UPDATE s_content_nodes SET tag=8 WHERE rowid=1", false),
+            ("UPDATE s_content_nodes SET digest=zeroblob(32) WHERE rowid=1", false),
+            ("DELETE FROM s_content_nodes WHERE rowid=2", false),
+            ("INSERT INTO s_content_nodes VALUES(zeroblob(32),7,x'010203')", false),
+            // 相同行数、每行都命中prior，仍缺旧digest；不得假命中。
+            ("DELETE FROM s_content_nodes WHERE rowid=2; INSERT INTO s_content_nodes SELECT digest,tag,body FROM s_content_nodes WHERE rowid=1", false),
+            ("INSERT INTO s_content_nodes SELECT digest,tag,body FROM s_content_nodes WHERE rowid=1", false),
+            ("UPDATE s_content_nodes SET rowid=rowid+10", true),
+        ] {
+            let (mut conn, capture) = node_material_fixture();
+            conn.execute_batch(sql).unwrap();
+            let tx = conn.transaction().unwrap();
+            assert_eq!(content_store::current_originals_equal_for_request(&tx, &capture, 2).unwrap(), expected, "{sql}");
+        }
+    }
+    #[test]
+    fn request_history_node_mismatch_does_not_hide_later_decode_or_sql_error() {
+        use super::super::content_store;
+        for fault in [
+            "UPDATE s_content_nodes SET digest='text' WHERE rowid=2",
+            "UPDATE s_content_nodes SET digest=x'01' WHERE rowid=2",
+            "UPDATE s_content_nodes SET tag=NULL WHERE rowid=2",
+            "UPDATE s_content_nodes SET tag=1.0 WHERE rowid=2",
+            "UPDATE s_content_nodes SET tag='7' WHERE rowid=2",
+            "UPDATE s_content_nodes SET tag=256 WHERE rowid=2",
+            "UPDATE s_content_nodes SET body=NULL WHERE rowid=2",
+            "UPDATE s_content_nodes SET body='text' WHERE rowid=2",
+            "UPDATE s_content_nodes SET body=1 WHERE rowid=2",
+        ] {
+            let (mut conn, capture) = node_material_fixture();
+            conn.execute_batch("UPDATE s_content_nodes SET body=x'ff' WHERE rowid=1")
+                .unwrap();
+            conn.execute_batch(fault).unwrap();
+            let tx = conn.transaction().unwrap();
+            let before = content_store::prototype_capture_work_on_thread();
+            let hot = content_store::current_originals_equal_for_request(&tx, &capture, 2)
+                .err()
+                .unwrap();
+            let after = content_store::prototype_capture_work_on_thread();
+            assert_eq!(after.capture_builds, before.capture_builds);
+            assert_eq!(after.decoded_rows - before.decoded_rows, 1);
+            let cold = content_store::capture_for_prototype(&tx).err().unwrap();
+            assert_eq!(hot.to_string(), cold.to_string(), "{fault}");
+        }
+        let (mut conn, capture) = node_material_fixture();
+        conn.execute_batch("UPDATE s_content_nodes SET body=x'ff' WHERE rowid=1")
+            .unwrap();
+        let before = content_store::prototype_capture_work_on_thread();
+        let once = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        conn.progress_handler(
+            1,
+            Some(move || {
+                let current = content_store::prototype_capture_work_on_thread();
+                current.rebind_scans > before.rebind_scans
+                    && current.decoded_rows > before.decoded_rows
+                    && once.swap(false, std::sync::atomic::Ordering::SeqCst)
+            }),
+        )
+        .unwrap();
+        let tx = conn.transaction().unwrap();
+        assert!(content_store::current_originals_equal_for_request(&tx, &capture, 2).is_err());
+        let after = content_store::prototype_capture_work_on_thread();
+        assert_eq!(after.capture_builds, before.capture_builds);
+        assert_eq!(after.decoded_rows - before.decoded_rows, 1);
     }
     #[test]
     fn request_history_exact_cells_preserve_type_null_and_raw_bytes() {
