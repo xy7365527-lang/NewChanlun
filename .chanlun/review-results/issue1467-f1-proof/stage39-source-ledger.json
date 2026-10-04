@@ -1,0 +1,176 @@
+{
+  "stage": 39,
+  "date": "2026-10-04",
+  "issue": 1467,
+  "kind": "来源与历史覆盖审计；无新Lean命题或市场实验",
+  "independent_review": "not_reviewed",
+  "local_sources": [
+    {
+      "path": "docs/chanlun/text/blog/032-第32课.md",
+      "sha256": "ac22871db235b921bfd288b8664bac1fa6180f243c84a85f87e5c8ba08115470",
+      "read_ranges": [
+        [
+          40,
+          40
+        ],
+        [
+          163,
+          167
+        ]
+      ]
+    },
+    {
+      "path": "docs/chanlun/text/blog/033-第33课.md",
+      "sha256": "51be1fe8461dc36ceadb879f7a47ccad780f8898c7311429dbf06eb7cc240ab7",
+      "read_ranges": [
+        [
+          14,
+          26
+        ],
+        [
+          52,
+          52
+        ]
+      ]
+    },
+    {
+      "path": "docs/chanlun/text/blog/035-第35课.md",
+      "sha256": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023",
+      "read_ranges": [
+        [
+          14,
+          24
+        ],
+        [
+          38,
+          38
+        ]
+      ]
+    },
+    {
+      "path": "docs/chanlun/text/blog/057-第57课.md",
+      "sha256": "ddf81002acbebfa198320e44d63093e915cce8e73dcc102bdba93b3ca164973f",
+      "read_ranges": [
+        [
+          24,
+          42
+        ],
+        [
+          48,
+          48
+        ]
+      ]
+    },
+    {
+      "path": "docs/chanlun/text/blog/084-第84课.md",
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26",
+      "read_ranges": [
+        [
+          50,
+          60
+        ],
+        [
+          68,
+          68
+        ]
+      ]
+    },
+    {
+      "path": ".chanlun/definitions/zhongshu.md",
+      "sha256": "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882",
+      "read_ranges": [
+        [
+          132,
+          190
+        ],
+        [
+          246,
+          296
+        ]
+      ]
+    },
+    {
+      "path": "docs/adr/0011-operation-decomposition-layer.md",
+      "sha256": "30098873c67878af850e8ff9502fdf69e332343e3576e551bab6768d6eb59860",
+      "read_ranges": null
+    },
+    {
+      "path": "docs/chanlun/mineru/缠中说禅-股市技术理论/full.md",
+      "sha256": "00aeeb2cf7daaa24aae3b93f5bab941c998bf0f4b428176ff93fb7e6439fbb31",
+      "read_ranges": [
+        [
+          2058,
+          2085
+        ]
+      ]
+    }
+  ],
+  "image": {
+    "path": "docs/chanlun/mineru/缠中说禅-股市技术理论/images/e8d7bc9e258e0dca0bf6e5e193210e119d0d4a44bc0bfae2d44d39282f4d09a9.jpg",
+    "sha256": "27bef84423a9e1a70241211a11f2eb10cc21c8b05d60282633bc53a2bb968907",
+    "role": "既有编纂版图，只辅助点编号与位置；精确数字按博文文字",
+    "original_png_verified": false
+  },
+  "web": {
+    "article": "https://www.fengmr.com/cld57ka.html",
+    "article_text_read": true,
+    "original_png": "https://www.fengmr.com/wp-content/uploads/2022/05/img_6270d0a5a1f9b.png",
+    "png_tool_result": "not accessible via web tool",
+    "new_browser_session_created": false,
+    "remote_media_downloaded": false,
+    "browse_catalog_query": "fengmr.com",
+    "browse_catalog_result": "No skills found",
+    "browse_cloud_read_only": true,
+    "live_view": null
+  },
+  "tracker": {
+    "issue827_comments": {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/scope-audit-v1/issue827-comments.json",
+      "sha256": "1afc23f28e2330726db91eff60b04450fe103af2e5b478129b72aca43ba2f42f",
+      "count": 3,
+      "ids": [
+        5148766397,
+        5153518704,
+        5153724096
+      ]
+    },
+    "issue1429": {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/scope-audit-v1/issue1429.json",
+      "sha256": "84349a88946589d99b3afcf093957516c90e0f687b5275a61ffe84d0d84fff28",
+      "state": "OPEN",
+      "updatedAt": "2026-09-09T06:04:22Z"
+    }
+  },
+  "search_scope": {
+    "github": [
+      "state:all 九段 升级",
+      "state:all 上级 涌现"
+    ],
+    "local_directories": [
+      "analysis/",
+      "docs/",
+      ".chanlun/"
+    ],
+    "local_patterns": [
+      "升级链断",
+      "子中枢被丢",
+      "升级重切的跨层",
+      "追加要裁项 6"
+    ],
+    "files": "Markdown only",
+    "claim_limit": "不作全仓无其他处理的穷举结论"
+  },
+  "numeric_check": {
+    "source_first_core": [
+      4087,
+      4122
+    ],
+    "source_parent_core": [
+      4015,
+      4122
+    ],
+    "interior_separator": 4050,
+    "argument": "4015<4050<4087<4122；父区间不是第一子核心子集，不能用三个子核心求交产生该父区间"
+  },
+  "artifact_bytes": 23383
+}
