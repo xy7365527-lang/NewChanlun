@@ -315,17 +315,19 @@ impl NodeSource for NativeReadLease<'_, '_> {
 #[cfg(feature = "s_capture_native_testonly")]
 impl NodeSink for NativeReadLease<'_, '_> {
     fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError> {
-        // Clear even before an idempotent put or digest rejection. Triggers may touch old nodes.
-        self.clear();
         self.check_live()?;
         // Private short reborrow avoids a self-referential &mut Transaction + TxStore pair.
         // Constructor already checked the format once, exactly as original TxStore::new does.
+        let material = &mut self.material;
         let result = TxStore {
             tx: &*self.tx,
             #[cfg(all(test, feature = "s_capture_native_testonly"))]
             stage: None,
         }
-        .put(digest, tag, body);
+        .put_before_write(digest, tag, body, || {
+            // 实际写入的触发器可能改动旧节点；冷查确认无写入时保留成功读素材。
+            *material = SameMaterial::default();
+        });
         if result.is_err() {
             self.clear();
             self.poisoned = true;
@@ -395,8 +397,14 @@ impl NodeSource for TxStore<'_, '_> {
     }
 }
 
-impl NodeSink for TxStore<'_, '_> {
-    fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError> {
+impl TxStore<'_, '_> {
+    fn put_before_write(
+        &mut self,
+        digest: NodeDigest,
+        tag: u8,
+        body: &[u8],
+        before_write: impl FnOnce(),
+    ) -> Result<(), CodecError> {
         check_digest(&digest, tag, body)?;
         match read_node(self.tx, &digest)? {
             NodeRead::Found {
@@ -411,6 +419,7 @@ impl NodeSink for TxStore<'_, '_> {
                 }
             }
             NodeRead::Missing => {
+                before_write();
                 #[cfg(all(test, feature = "s_capture_native_testonly"))]
                 if let Some(stage) = self.stage {
                     return stage.put_new(digest, tag, body);
@@ -425,6 +434,12 @@ impl NodeSink for TxStore<'_, '_> {
             }
         }
         Ok(())
+    }
+}
+
+impl NodeSink for TxStore<'_, '_> {
+    fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError> {
+        self.put_before_write(digest, tag, body, || {})
     }
 }
 
@@ -850,6 +865,8 @@ mod tests {
         )
         .unwrap()
         .content_ref();
+        let b = s_content::frame(s_content::tag::BOOL_FALSE, &[]);
+        plain.put(b, s_content::tag::BOOL_FALSE, &[]).unwrap();
         drop(plain);
         let digest = root.digest().unwrap();
         let before = sql_reads_on_thread();
@@ -869,6 +886,21 @@ mod tests {
         }
         assert_eq!(sql_reads_on_thread() - before, 1);
         assert_eq!(s_content::frame_calls_on_thread() - f, 1);
+        // A 已成功读；B 的无写入 put 必须冷查 SQL/F，且保留 A 的成功读素材。
+        for cached_b in [false, true] {
+            if cached_b {
+                lease.checked_read(&b).unwrap().unwrap();
+            }
+            let before = sql_reads_on_thread();
+            let f = s_content::frame_calls_on_thread();
+            lease.put(b, s_content::tag::BOOL_FALSE, &[]).unwrap();
+            assert_eq!(sql_reads_on_thread() - before, 1, "put 总是实际 SELECT");
+            assert_eq!(s_content::frame_calls_on_thread() - f, 2, "新旧原件各核 F");
+            assert!(lease.material.frames.contains_key(&digest));
+            lease.checked_read(&digest).unwrap().unwrap();
+            assert_eq!(sql_reads_on_thread() - before, 1, "A 仍命中租约素材");
+            assert_eq!(s_content::frame_calls_on_thread() - f, 2);
+        }
         s_content::verify(&mut lease, &root).unwrap();
         for bad in [
             s_content::ContentRef {
@@ -937,8 +969,43 @@ mod tests {
         drop(lease);
         let mut lease = NativeReadLease::new(&mut tx).unwrap();
         lease.checked_read(&b).unwrap();
+        let before = sql_reads_on_thread();
+        let f = s_content::frame_calls_on_thread();
         assert!(lease.put(b, s_content::tag::BOOL_TRUE, &[]).is_err());
+        assert_eq!(sql_reads_on_thread(), before, "摘要不符先于 SQL 拒绝");
+        assert_eq!(s_content::frame_calls_on_thread() - f, 1);
         assert!(lease.poisoned && lease.material.frames.is_empty());
+        drop(lease);
+        let mut lease = NativeReadLease::new(&mut tx).unwrap();
+        lease.checked_read(&b).unwrap();
+        let before = sql_reads_on_thread();
+        let f = s_content::frame_calls_on_thread();
+        // A 被真实 INSERT 触发器改坏；提交合法原件也须冷读旧行并拒绝，不能修复。
+        assert_eq!(
+            lease
+                .put(a, s_content::tag::BOOL_TRUE, &[])
+                .unwrap_err()
+                .code(),
+            code::NODE_DIGEST
+        );
+        assert_eq!(sql_reads_on_thread() - before, 1);
+        assert_eq!(s_content::frame_calls_on_thread() - f, 2);
+        assert!(lease.poisoned && lease.material.frames.is_empty());
+        let before = sql_reads_on_thread();
+        assert!(lease.checked_read(&b).is_err());
+        assert!(lease.put(b, s_content::tag::BOOL_FALSE, &[]).is_err());
+        assert_eq!(sql_reads_on_thread(), before);
+        drop(lease);
+        assert_eq!(
+            tx.query_row(
+                "SELECT body FROM s_content_nodes WHERE digest=?1",
+                params![&a[..]],
+                |r| r.get::<_, Vec<u8>>(0),
+            )
+            .unwrap(),
+            vec![1],
+            "拒绝同摘要坏原件后旧节点原样保留"
+        );
     }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
@@ -967,39 +1034,57 @@ mod tests {
             .unwrap()
             .put(a, s_content::tag::BOOL_TRUE, &[])
             .unwrap();
-        let mut lease = NativeReadLease::new(&mut tx).unwrap();
-        lease.checked_read(&a).unwrap();
-        // Test-only private access installs a failing hook; the production lease exposes none.
-        lease.tx.progress_handler(1, Some(|| true)).unwrap();
-        assert_eq!(
-            lease.checked_read(&[0; 32]).unwrap_err().code(),
-            code::SOURCE
-        );
-        assert!(lease.poisoned && lease.material.frames.is_empty());
-        lease.tx.progress_handler(0, None::<fn() -> bool>).unwrap();
-        let before = sql_reads_on_thread();
-        assert!(lease.checked_read(&a).is_err());
-        assert_eq!(sql_reads_on_thread(), before);
-        drop(lease);
-        let mut lease = NativeReadLease::new(&mut tx).unwrap();
-        lease.checked_read(&a).unwrap();
+        for put in [false, true] {
+            let mut lease = NativeReadLease::new(&mut tx).unwrap();
+            lease.checked_read(&a).unwrap();
+            // Test-only private access installs a failing hook; the production lease exposes none.
+            lease.tx.progress_handler(1, Some(|| true)).unwrap();
+            let before = sql_reads_on_thread();
+            let f = s_content::frame_calls_on_thread();
+            let error = if put {
+                lease.put(a, s_content::tag::BOOL_TRUE, &[]).unwrap_err()
+            } else {
+                lease.checked_read(&[0; 32]).unwrap_err()
+            };
+            assert_eq!(error.code(), code::SOURCE);
+            assert_eq!(sql_reads_on_thread() - before, 1);
+            assert_eq!(s_content::frame_calls_on_thread() - f, u64::from(put));
+            assert!(lease.poisoned && lease.material.frames.is_empty());
+            lease.tx.progress_handler(0, None::<fn() -> bool>).unwrap();
+            let before = sql_reads_on_thread();
+            assert!(lease.checked_read(&a).is_err());
+            assert!(lease.put(a, s_content::tag::BOOL_TRUE, &[]).is_err());
+            assert_eq!(sql_reads_on_thread(), before);
+        }
         fn deny(_: rusqlite::hooks::AuthContext<'_>) -> rusqlite::hooks::Authorization {
             rusqlite::hooks::Authorization::Deny
         }
-        lease.tx.authorizer(Some(deny)).unwrap();
-        assert_eq!(
-            lease.checked_read(&[0; 32]).unwrap_err().code(),
-            code::SOURCE
-        );
-        assert!(lease.poisoned && lease.material.frames.is_empty());
-        lease
-            .tx
-            .authorizer(
-                None::<fn(rusqlite::hooks::AuthContext<'_>) -> rusqlite::hooks::Authorization>,
-            )
-            .unwrap();
-        assert!(lease.checked_read(&a).is_err());
-        drop(lease);
+        for put in [false, true] {
+            let mut lease = NativeReadLease::new(&mut tx).unwrap();
+            lease.checked_read(&a).unwrap();
+            lease.tx.authorizer(Some(deny)).unwrap();
+            let before = sql_reads_on_thread();
+            let f = s_content::frame_calls_on_thread();
+            let error = if put {
+                lease.put(a, s_content::tag::BOOL_TRUE, &[]).unwrap_err()
+            } else {
+                lease.checked_read(&[0; 32]).unwrap_err()
+            };
+            assert_eq!(error.code(), code::SOURCE);
+            assert_eq!(sql_reads_on_thread() - before, 1);
+            assert_eq!(s_content::frame_calls_on_thread() - f, u64::from(put));
+            assert!(lease.poisoned && lease.material.frames.is_empty());
+            lease
+                .tx
+                .authorizer(
+                    None::<fn(rusqlite::hooks::AuthContext<'_>) -> rusqlite::hooks::Authorization>,
+                )
+                .unwrap();
+            let before = sql_reads_on_thread();
+            assert!(lease.checked_read(&a).is_err());
+            assert!(lease.put(a, s_content::tag::BOOL_TRUE, &[]).is_err());
+            assert_eq!(sql_reads_on_thread(), before);
+        }
         tx.execute_batch("ROLLBACK").unwrap();
         assert!(NativeReadLease::new(&mut tx)
             .err()
