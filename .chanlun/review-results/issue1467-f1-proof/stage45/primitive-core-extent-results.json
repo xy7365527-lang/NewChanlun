@@ -1,0 +1,6214 @@
+{
+  "scope": "Candidate-conditional interval/source checks; no original-semantic certification",
+  "tree": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun",
+  "head": "41a5a649ce7c471d58fbf5c4486ba5cda7a74e9d",
+  "named": {
+    "four": {
+      "values": [
+        10,
+        20,
+        30,
+        25
+      ],
+      "history": {
+        "initialOrders": {
+          "S0": {
+            "side": "buy",
+            "price": 100,
+            "quantity": 10
+          },
+          "A0": {
+            "side": "sell",
+            "price": 102,
+            "quantity": 10
+          }
+        },
+        "events": [
+          {
+            "sequence": 1,
+            "op": "add",
+            "id": "U1",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 2,
+            "op": "add",
+            "id": "U2",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 3,
+            "op": "add",
+            "id": "U3",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 4,
+            "op": "add",
+            "id": "S1",
+            "side": "buy",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "sequence": 5,
+            "op": "add",
+            "id": "U4",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 6,
+            "op": "add",
+            "id": "U5",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 7,
+            "op": "add",
+            "id": "S2",
+            "side": "buy",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "sequence": 8,
+            "op": "add",
+            "id": "U6",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 9,
+            "op": "add",
+            "id": "U7",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 10,
+            "op": "cancel",
+            "id": "S0",
+            "side": "buy",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "sequence": 11,
+            "op": "add",
+            "id": "U8",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 12,
+            "op": "add",
+            "id": "U9",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          }
+        ],
+        "states": [
+          {
+            "after": 0,
+            "q": 10,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              }
+            }
+          },
+          {
+            "after": 1,
+            "q": 10,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 2,
+            "q": 10,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 3,
+            "q": 10,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 4,
+            "q": 20,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              }
+            }
+          },
+          {
+            "after": 5,
+            "q": 20,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 6,
+            "q": 20,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 7,
+            "q": 30,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              }
+            }
+          },
+          {
+            "after": 8,
+            "q": 30,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 9,
+            "q": 30,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 10,
+            "q": 25,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 11,
+            "q": 25,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 12,
+            "q": 25,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          }
+        ]
+      },
+      "P": [
+        {
+          "id": 0,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        },
+        {
+          "id": 1,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            20,
+            20
+          ]
+        },
+        {
+          "id": 2,
+          "core": [
+            30,
+            30
+          ],
+          "outer": [
+            30,
+            30
+          ]
+        },
+        {
+          "id": 3,
+          "core": [
+            25,
+            25
+          ],
+          "outer": [
+            25,
+            25
+          ]
+        }
+      ],
+      "E": [
+        {
+          "id": 0,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        },
+        {
+          "id": 1,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            10,
+            20
+          ]
+        },
+        {
+          "id": 2,
+          "core": [
+            30,
+            30
+          ],
+          "outer": [
+            20,
+            30
+          ]
+        },
+        {
+          "id": 3,
+          "core": [
+            25,
+            25
+          ],
+          "outer": [
+            25,
+            30
+          ]
+        }
+      ],
+      "P_pairs": [
+        "up",
+        "up",
+        "down"
+      ],
+      "E_pairs": [
+        "expansion-predicate",
+        "expansion-predicate",
+        "expansion-predicate"
+      ],
+      "v2": {
+        "out": [
+          {
+            "ownedCoreIndices": [
+              0,
+              1,
+              2
+            ],
+            "ownedValues": [
+              10,
+              20,
+              30
+            ],
+            "events": [
+              1,
+              9
+            ],
+            "confirm": 12,
+            "range": [
+              10,
+              30
+            ],
+            "path": [
+              10,
+              10,
+              20,
+              30
+            ],
+            "candidateType": "U",
+            "P_internalRelations": [
+              "up",
+              "up"
+            ],
+            "E_internalRelations": [
+              "expansion-predicate",
+              "expansion-predicate"
+            ]
+          }
+        ],
+        "blockedAt": null
+      },
+      "OC": {
+        "out": [
+          {
+            "ownedCoreIndices": [
+              0,
+              1,
+              2
+            ],
+            "ownedValues": [
+              10,
+              20,
+              30
+            ],
+            "events": [
+              1,
+              9
+            ],
+            "confirm": 12,
+            "range": [
+              10,
+              30
+            ],
+            "path": [
+              10,
+              10,
+              20,
+              30
+            ],
+            "candidateType": "U",
+            "P_internalRelations": [
+              "up",
+              "up"
+            ],
+            "E_internalRelations": [
+              "expansion-predicate",
+              "expansion-predicate"
+            ]
+          }
+        ],
+        "blockedAt": null
+      },
+      "RT": {
+        "out": [
+          {
+            "ownedCoreIndices": [
+              0,
+              1
+            ],
+            "ownedValues": [
+              10,
+              20
+            ],
+            "events": [
+              1,
+              6
+            ],
+            "confirm": 12,
+            "range": [
+              10,
+              20
+            ],
+            "path": [
+              10,
+              10,
+              20
+            ],
+            "candidateType": "U",
+            "P_internalRelations": [
+              "up"
+            ],
+            "E_internalRelations": [
+              "expansion-predicate"
+            ]
+          }
+        ],
+        "blockedAt": null
+      }
+    },
+    "alternating12": {
+      "values": [
+        10,
+        20,
+        10,
+        20
+      ],
+      "history": {
+        "initialOrders": {
+          "S0": {
+            "side": "buy",
+            "price": 100,
+            "quantity": 10
+          },
+          "A0": {
+            "side": "sell",
+            "price": 102,
+            "quantity": 10
+          }
+        },
+        "events": [
+          {
+            "sequence": 1,
+            "op": "add",
+            "id": "U1",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 2,
+            "op": "add",
+            "id": "U2",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 3,
+            "op": "add",
+            "id": "U3",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 4,
+            "op": "add",
+            "id": "S1",
+            "side": "buy",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "sequence": 5,
+            "op": "add",
+            "id": "U4",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 6,
+            "op": "add",
+            "id": "U5",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 7,
+            "op": "cancel",
+            "id": "S0",
+            "side": "buy",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "sequence": 8,
+            "op": "add",
+            "id": "U6",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 9,
+            "op": "add",
+            "id": "U7",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 10,
+            "op": "add",
+            "id": "S2",
+            "side": "buy",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "sequence": 11,
+            "op": "add",
+            "id": "U8",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 12,
+            "op": "add",
+            "id": "U9",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          }
+        ],
+        "states": [
+          {
+            "after": 0,
+            "q": 10,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              }
+            }
+          },
+          {
+            "after": 1,
+            "q": 10,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 2,
+            "q": 10,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 3,
+            "q": 10,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 4,
+            "q": 20,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              }
+            }
+          },
+          {
+            "after": 5,
+            "q": 20,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 6,
+            "q": 20,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 7,
+            "q": 10,
+            "orders": {
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 8,
+            "q": 10,
+            "orders": {
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 9,
+            "q": 10,
+            "orders": {
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 10,
+            "q": 20,
+            "orders": {
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              }
+            }
+          },
+          {
+            "after": 11,
+            "q": 20,
+            "orders": {
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 12,
+            "q": 20,
+            "orders": {
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          }
+        ]
+      },
+      "P": [
+        {
+          "id": 0,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        },
+        {
+          "id": 1,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            20,
+            20
+          ]
+        },
+        {
+          "id": 2,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        },
+        {
+          "id": 3,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            20,
+            20
+          ]
+        }
+      ],
+      "E": [
+        {
+          "id": 0,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        },
+        {
+          "id": 1,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            10,
+            20
+          ]
+        },
+        {
+          "id": 2,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            20
+          ]
+        },
+        {
+          "id": 3,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            10,
+            20
+          ]
+        }
+      ],
+      "P_pairs": [
+        "up",
+        "down",
+        "up"
+      ],
+      "E_pairs": [
+        "expansion-predicate",
+        "expansion-predicate",
+        "expansion-predicate"
+      ],
+      "v2": {
+        "out": [
+          {
+            "ownedCoreIndices": [
+              0,
+              1
+            ],
+            "ownedValues": [
+              10,
+              20
+            ],
+            "events": [
+              1,
+              6
+            ],
+            "confirm": 9,
+            "range": [
+              10,
+              20
+            ],
+            "path": [
+              10,
+              10,
+              20
+            ],
+            "candidateType": "U",
+            "P_internalRelations": [
+              "up"
+            ],
+            "E_internalRelations": [
+              "expansion-predicate"
+            ]
+          },
+          {
+            "ownedCoreIndices": [
+              2
+            ],
+            "ownedValues": [
+              10
+            ],
+            "events": [
+              7,
+              9
+            ],
+            "confirm": 12,
+            "range": [
+              10,
+              20
+            ],
+            "path": [
+              20,
+              10
+            ],
+            "candidateType": "P",
+            "P_internalRelations": [],
+            "E_internalRelations": []
+          }
+        ],
+        "blockedAt": null
+      },
+      "OC": {
+        "out": [
+          {
+            "ownedCoreIndices": [
+              0,
+              1
+            ],
+            "ownedValues": [
+              10,
+              20
+            ],
+            "events": [
+              1,
+              6
+            ],
+            "confirm": 9,
+            "range": [
+              10,
+              20
+            ],
+            "path": [
+              10,
+              10,
+              20
+            ],
+            "candidateType": "U",
+            "P_internalRelations": [
+              "up"
+            ],
+            "E_internalRelations": [
+              "expansion-predicate"
+            ]
+          }
+        ],
+        "blockedAt": null
+      },
+      "RT": {
+        "out": [],
+        "blockedAt": 9
+      }
+    },
+    "alternating15": {
+      "values": [
+        10,
+        20,
+        10,
+        20,
+        10
+      ],
+      "history": {
+        "initialOrders": {
+          "S0": {
+            "side": "buy",
+            "price": 100,
+            "quantity": 10
+          },
+          "A0": {
+            "side": "sell",
+            "price": 102,
+            "quantity": 10
+          }
+        },
+        "events": [
+          {
+            "sequence": 1,
+            "op": "add",
+            "id": "U1",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 2,
+            "op": "add",
+            "id": "U2",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 3,
+            "op": "add",
+            "id": "U3",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 4,
+            "op": "add",
+            "id": "S1",
+            "side": "buy",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "sequence": 5,
+            "op": "add",
+            "id": "U4",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 6,
+            "op": "add",
+            "id": "U5",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 7,
+            "op": "cancel",
+            "id": "S0",
+            "side": "buy",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "sequence": 8,
+            "op": "add",
+            "id": "U6",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 9,
+            "op": "add",
+            "id": "U7",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 10,
+            "op": "add",
+            "id": "S2",
+            "side": "buy",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "sequence": 11,
+            "op": "add",
+            "id": "U8",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 12,
+            "op": "add",
+            "id": "U9",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 13,
+            "op": "cancel",
+            "id": "S1",
+            "side": "buy",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "sequence": 14,
+            "op": "add",
+            "id": "U10",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 15,
+            "op": "add",
+            "id": "U11",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          }
+        ],
+        "states": [
+          {
+            "after": 0,
+            "q": 10,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              }
+            }
+          },
+          {
+            "after": 1,
+            "q": 10,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 2,
+            "q": 10,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 3,
+            "q": 10,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 4,
+            "q": 20,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              }
+            }
+          },
+          {
+            "after": 5,
+            "q": 20,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 6,
+            "q": 20,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 7,
+            "q": 10,
+            "orders": {
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 8,
+            "q": 10,
+            "orders": {
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 9,
+            "q": 10,
+            "orders": {
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 10,
+            "q": 20,
+            "orders": {
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              }
+            }
+          },
+          {
+            "after": 11,
+            "q": 20,
+            "orders": {
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 12,
+            "q": 20,
+            "orders": {
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 13,
+            "q": 10,
+            "orders": {
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 14,
+            "q": 10,
+            "orders": {
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U10": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 15,
+            "q": 10,
+            "orders": {
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U10": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U11": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          }
+        ]
+      },
+      "P": [
+        {
+          "id": 0,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        },
+        {
+          "id": 1,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            20,
+            20
+          ]
+        },
+        {
+          "id": 2,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        },
+        {
+          "id": 3,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            20,
+            20
+          ]
+        },
+        {
+          "id": 4,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        }
+      ],
+      "E": [
+        {
+          "id": 0,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        },
+        {
+          "id": 1,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            10,
+            20
+          ]
+        },
+        {
+          "id": 2,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            20
+          ]
+        },
+        {
+          "id": 3,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            10,
+            20
+          ]
+        },
+        {
+          "id": 4,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            20
+          ]
+        }
+      ],
+      "P_pairs": [
+        "up",
+        "down",
+        "up",
+        "down"
+      ],
+      "E_pairs": [
+        "expansion-predicate",
+        "expansion-predicate",
+        "expansion-predicate",
+        "expansion-predicate"
+      ],
+      "v2": {
+        "out": [
+          {
+            "ownedCoreIndices": [
+              0,
+              1
+            ],
+            "ownedValues": [
+              10,
+              20
+            ],
+            "events": [
+              1,
+              6
+            ],
+            "confirm": 9,
+            "range": [
+              10,
+              20
+            ],
+            "path": [
+              10,
+              10,
+              20
+            ],
+            "candidateType": "U",
+            "P_internalRelations": [
+              "up"
+            ],
+            "E_internalRelations": [
+              "expansion-predicate"
+            ]
+          },
+          {
+            "ownedCoreIndices": [
+              2
+            ],
+            "ownedValues": [
+              10
+            ],
+            "events": [
+              7,
+              9
+            ],
+            "confirm": 12,
+            "range": [
+              10,
+              20
+            ],
+            "path": [
+              20,
+              10
+            ],
+            "candidateType": "P",
+            "P_internalRelations": [],
+            "E_internalRelations": []
+          },
+          {
+            "ownedCoreIndices": [
+              3
+            ],
+            "ownedValues": [
+              20
+            ],
+            "events": [
+              10,
+              12
+            ],
+            "confirm": 15,
+            "range": [
+              10,
+              20
+            ],
+            "path": [
+              10,
+              20
+            ],
+            "candidateType": "P",
+            "P_internalRelations": [],
+            "E_internalRelations": []
+          }
+        ],
+        "blockedAt": null
+      },
+      "OC": {
+        "out": [
+          {
+            "ownedCoreIndices": [
+              0,
+              1
+            ],
+            "ownedValues": [
+              10,
+              20
+            ],
+            "events": [
+              1,
+              6
+            ],
+            "confirm": 9,
+            "range": [
+              10,
+              20
+            ],
+            "path": [
+              10,
+              10,
+              20
+            ],
+            "candidateType": "U",
+            "P_internalRelations": [
+              "up"
+            ],
+            "E_internalRelations": [
+              "expansion-predicate"
+            ]
+          },
+          {
+            "ownedCoreIndices": [
+              2,
+              3
+            ],
+            "ownedValues": [
+              10,
+              20
+            ],
+            "events": [
+              7,
+              12
+            ],
+            "confirm": 15,
+            "range": [
+              10,
+              20
+            ],
+            "path": [
+              20,
+              10,
+              20
+            ],
+            "candidateType": "U",
+            "P_internalRelations": [
+              "up"
+            ],
+            "E_internalRelations": [
+              "expansion-predicate"
+            ]
+          }
+        ],
+        "blockedAt": null
+      },
+      "RT": {
+        "out": [],
+        "blockedAt": 9
+      }
+    },
+    "RT30": {
+      "values": [
+        10,
+        20,
+        30,
+        25,
+        15,
+        5,
+        10,
+        20,
+        30,
+        25
+      ],
+      "history": {
+        "initialOrders": {
+          "S0": {
+            "side": "buy",
+            "price": 100,
+            "quantity": 10
+          },
+          "A0": {
+            "side": "sell",
+            "price": 102,
+            "quantity": 10
+          }
+        },
+        "events": [
+          {
+            "sequence": 1,
+            "op": "add",
+            "id": "U1",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 2,
+            "op": "add",
+            "id": "U2",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 3,
+            "op": "add",
+            "id": "U3",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 4,
+            "op": "add",
+            "id": "S1",
+            "side": "buy",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "sequence": 5,
+            "op": "add",
+            "id": "U4",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 6,
+            "op": "add",
+            "id": "U5",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 7,
+            "op": "add",
+            "id": "S2",
+            "side": "buy",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "sequence": 8,
+            "op": "add",
+            "id": "U6",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 9,
+            "op": "add",
+            "id": "U7",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 10,
+            "op": "cancel",
+            "id": "S0",
+            "side": "buy",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "sequence": 11,
+            "op": "add",
+            "id": "U8",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 12,
+            "op": "add",
+            "id": "U9",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 13,
+            "op": "cancel",
+            "id": "S1",
+            "side": "buy",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "sequence": 14,
+            "op": "add",
+            "id": "U10",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 15,
+            "op": "add",
+            "id": "U11",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 16,
+            "op": "cancel",
+            "id": "S2",
+            "side": "buy",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "sequence": 17,
+            "op": "add",
+            "id": "U12",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 18,
+            "op": "add",
+            "id": "U13",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 19,
+            "op": "add",
+            "id": "S3",
+            "side": "buy",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "sequence": 20,
+            "op": "add",
+            "id": "U14",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 21,
+            "op": "add",
+            "id": "U15",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 22,
+            "op": "add",
+            "id": "S4",
+            "side": "buy",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "sequence": 23,
+            "op": "add",
+            "id": "U16",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 24,
+            "op": "add",
+            "id": "U17",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 25,
+            "op": "add",
+            "id": "S5",
+            "side": "buy",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "sequence": 26,
+            "op": "add",
+            "id": "U18",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 27,
+            "op": "add",
+            "id": "U19",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 28,
+            "op": "cancel",
+            "id": "S0",
+            "side": "buy",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "sequence": 29,
+            "op": "add",
+            "id": "U20",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "sequence": 30,
+            "op": "add",
+            "id": "U21",
+            "side": "buy",
+            "price": 99,
+            "quantity": 1
+          }
+        ],
+        "states": [
+          {
+            "after": 0,
+            "q": 10,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              }
+            }
+          },
+          {
+            "after": 1,
+            "q": 10,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 2,
+            "q": 10,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 3,
+            "q": 10,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 4,
+            "q": 20,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              }
+            }
+          },
+          {
+            "after": 5,
+            "q": 20,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 6,
+            "q": 20,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 7,
+            "q": 30,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              }
+            }
+          },
+          {
+            "after": 8,
+            "q": 30,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 9,
+            "q": 30,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 10,
+            "q": 25,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 11,
+            "q": 25,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 12,
+            "q": 25,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S1": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 13,
+            "q": 15,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 14,
+            "q": 15,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U10": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 15,
+            "q": 15,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S2": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U10": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U11": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 16,
+            "q": 5,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U10": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U11": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 17,
+            "q": 5,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U10": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U11": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U12": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 18,
+            "q": 5,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U10": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U11": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U12": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U13": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 19,
+            "q": 10,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U10": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U11": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U12": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U13": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S3": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              }
+            }
+          },
+          {
+            "after": 20,
+            "q": 10,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U10": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U11": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U12": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U13": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S3": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "U14": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 21,
+            "q": 10,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U10": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U11": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U12": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U13": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S3": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "U14": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U15": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 22,
+            "q": 20,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U10": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U11": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U12": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U13": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S3": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "U14": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U15": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S4": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              }
+            }
+          },
+          {
+            "after": 23,
+            "q": 20,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U10": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U11": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U12": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U13": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S3": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "U14": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U15": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S4": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U16": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 24,
+            "q": 20,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U10": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U11": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U12": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U13": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S3": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "U14": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U15": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S4": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U16": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U17": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 25,
+            "q": 30,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U10": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U11": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U12": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U13": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S3": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "U14": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U15": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S4": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U16": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U17": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S5": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              }
+            }
+          },
+          {
+            "after": 26,
+            "q": 30,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U10": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U11": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U12": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U13": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S3": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "U14": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U15": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S4": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U16": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U17": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S5": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U18": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 27,
+            "q": 30,
+            "orders": {
+              "S0": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U10": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U11": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U12": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U13": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S3": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "U14": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U15": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S4": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U16": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U17": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S5": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U18": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U19": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 28,
+            "q": 25,
+            "orders": {
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U10": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U11": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U12": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U13": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S3": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "U14": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U15": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S4": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U16": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U17": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S5": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U18": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U19": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 29,
+            "q": 25,
+            "orders": {
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U10": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U11": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U12": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U13": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S3": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "U14": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U15": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S4": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U16": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U17": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S5": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U18": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U19": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U20": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          },
+          {
+            "after": 30,
+            "q": 25,
+            "orders": {
+              "A0": {
+                "side": "sell",
+                "price": 102,
+                "quantity": 10
+              },
+              "U1": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U2": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U3": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U4": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U5": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U6": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U7": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U8": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U9": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U10": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U11": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U12": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U13": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S3": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 5
+              },
+              "U14": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U15": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S4": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U16": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U17": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "S5": {
+                "side": "buy",
+                "price": 100,
+                "quantity": 10
+              },
+              "U18": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U19": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U20": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              },
+              "U21": {
+                "side": "buy",
+                "price": 99,
+                "quantity": 1
+              }
+            }
+          }
+        ]
+      },
+      "P": [
+        {
+          "id": 0,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        },
+        {
+          "id": 1,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            20,
+            20
+          ]
+        },
+        {
+          "id": 2,
+          "core": [
+            30,
+            30
+          ],
+          "outer": [
+            30,
+            30
+          ]
+        },
+        {
+          "id": 3,
+          "core": [
+            25,
+            25
+          ],
+          "outer": [
+            25,
+            25
+          ]
+        },
+        {
+          "id": 4,
+          "core": [
+            15,
+            15
+          ],
+          "outer": [
+            15,
+            15
+          ]
+        },
+        {
+          "id": 5,
+          "core": [
+            5,
+            5
+          ],
+          "outer": [
+            5,
+            5
+          ]
+        },
+        {
+          "id": 6,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        },
+        {
+          "id": 7,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            20,
+            20
+          ]
+        },
+        {
+          "id": 8,
+          "core": [
+            30,
+            30
+          ],
+          "outer": [
+            30,
+            30
+          ]
+        },
+        {
+          "id": 9,
+          "core": [
+            25,
+            25
+          ],
+          "outer": [
+            25,
+            25
+          ]
+        }
+      ],
+      "E": [
+        {
+          "id": 0,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        },
+        {
+          "id": 1,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            10,
+            20
+          ]
+        },
+        {
+          "id": 2,
+          "core": [
+            30,
+            30
+          ],
+          "outer": [
+            20,
+            30
+          ]
+        },
+        {
+          "id": 3,
+          "core": [
+            25,
+            25
+          ],
+          "outer": [
+            25,
+            30
+          ]
+        },
+        {
+          "id": 4,
+          "core": [
+            15,
+            15
+          ],
+          "outer": [
+            15,
+            25
+          ]
+        },
+        {
+          "id": 5,
+          "core": [
+            5,
+            5
+          ],
+          "outer": [
+            5,
+            15
+          ]
+        },
+        {
+          "id": 6,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            5,
+            10
+          ]
+        },
+        {
+          "id": 7,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            10,
+            20
+          ]
+        },
+        {
+          "id": 8,
+          "core": [
+            30,
+            30
+          ],
+          "outer": [
+            20,
+            30
+          ]
+        },
+        {
+          "id": 9,
+          "core": [
+            25,
+            25
+          ],
+          "outer": [
+            25,
+            30
+          ]
+        }
+      ],
+      "P_pairs": [
+        "up",
+        "up",
+        "down",
+        "down",
+        "down",
+        "up",
+        "up",
+        "up",
+        "down"
+      ],
+      "E_pairs": [
+        "expansion-predicate",
+        "expansion-predicate",
+        "expansion-predicate",
+        "expansion-predicate",
+        "expansion-predicate",
+        "expansion-predicate",
+        "expansion-predicate",
+        "expansion-predicate",
+        "expansion-predicate"
+      ],
+      "v2": {
+        "out": [
+          {
+            "ownedCoreIndices": [
+              0,
+              1,
+              2
+            ],
+            "ownedValues": [
+              10,
+              20,
+              30
+            ],
+            "events": [
+              1,
+              9
+            ],
+            "confirm": 12,
+            "range": [
+              10,
+              30
+            ],
+            "path": [
+              10,
+              10,
+              20,
+              30
+            ],
+            "candidateType": "U",
+            "P_internalRelations": [
+              "up",
+              "up"
+            ],
+            "E_internalRelations": [
+              "expansion-predicate",
+              "expansion-predicate"
+            ]
+          },
+          {
+            "ownedCoreIndices": [
+              3,
+              4,
+              5
+            ],
+            "ownedValues": [
+              25,
+              15,
+              5
+            ],
+            "events": [
+              10,
+              18
+            ],
+            "confirm": 21,
+            "range": [
+              5,
+              30
+            ],
+            "path": [
+              30,
+              25,
+              15,
+              5
+            ],
+            "candidateType": "D",
+            "P_internalRelations": [
+              "down",
+              "down"
+            ],
+            "E_internalRelations": [
+              "expansion-predicate",
+              "expansion-predicate"
+            ]
+          },
+          {
+            "ownedCoreIndices": [
+              6,
+              7,
+              8
+            ],
+            "ownedValues": [
+              10,
+              20,
+              30
+            ],
+            "events": [
+              19,
+              27
+            ],
+            "confirm": 30,
+            "range": [
+              5,
+              30
+            ],
+            "path": [
+              5,
+              10,
+              20,
+              30
+            ],
+            "candidateType": "U",
+            "P_internalRelations": [
+              "up",
+              "up"
+            ],
+            "E_internalRelations": [
+              "expansion-predicate",
+              "expansion-predicate"
+            ]
+          }
+        ],
+        "blockedAt": null
+      },
+      "OC": {
+        "out": [
+          {
+            "ownedCoreIndices": [
+              0,
+              1,
+              2
+            ],
+            "ownedValues": [
+              10,
+              20,
+              30
+            ],
+            "events": [
+              1,
+              9
+            ],
+            "confirm": 12,
+            "range": [
+              10,
+              30
+            ],
+            "path": [
+              10,
+              10,
+              20,
+              30
+            ],
+            "candidateType": "U",
+            "P_internalRelations": [
+              "up",
+              "up"
+            ],
+            "E_internalRelations": [
+              "expansion-predicate",
+              "expansion-predicate"
+            ]
+          },
+          {
+            "ownedCoreIndices": [
+              3,
+              4,
+              5
+            ],
+            "ownedValues": [
+              25,
+              15,
+              5
+            ],
+            "events": [
+              10,
+              18
+            ],
+            "confirm": 21,
+            "range": [
+              5,
+              30
+            ],
+            "path": [
+              30,
+              25,
+              15,
+              5
+            ],
+            "candidateType": "D",
+            "P_internalRelations": [
+              "down",
+              "down"
+            ],
+            "E_internalRelations": [
+              "expansion-predicate",
+              "expansion-predicate"
+            ]
+          },
+          {
+            "ownedCoreIndices": [
+              6,
+              7,
+              8
+            ],
+            "ownedValues": [
+              10,
+              20,
+              30
+            ],
+            "events": [
+              19,
+              27
+            ],
+            "confirm": 30,
+            "range": [
+              5,
+              30
+            ],
+            "path": [
+              5,
+              10,
+              20,
+              30
+            ],
+            "candidateType": "U",
+            "P_internalRelations": [
+              "up",
+              "up"
+            ],
+            "E_internalRelations": [
+              "expansion-predicate",
+              "expansion-predicate"
+            ]
+          }
+        ],
+        "blockedAt": null
+      },
+      "RT": {
+        "out": [
+          {
+            "ownedCoreIndices": [
+              0,
+              1
+            ],
+            "ownedValues": [
+              10,
+              20
+            ],
+            "events": [
+              1,
+              6
+            ],
+            "confirm": 12,
+            "range": [
+              10,
+              20
+            ],
+            "path": [
+              10,
+              10,
+              20
+            ],
+            "candidateType": "U",
+            "P_internalRelations": [
+              "up"
+            ],
+            "E_internalRelations": [
+              "expansion-predicate"
+            ]
+          },
+          {
+            "ownedCoreIndices": [
+              2,
+              3,
+              4
+            ],
+            "ownedValues": [
+              30,
+              25,
+              15
+            ],
+            "events": [
+              7,
+              15
+            ],
+            "confirm": 21,
+            "range": [
+              15,
+              30
+            ],
+            "path": [
+              20,
+              30,
+              25,
+              15
+            ],
+            "candidateType": "D",
+            "P_internalRelations": [
+              "down",
+              "down"
+            ],
+            "E_internalRelations": [
+              "expansion-predicate",
+              "expansion-predicate"
+            ]
+          },
+          {
+            "ownedCoreIndices": [
+              5,
+              6,
+              7
+            ],
+            "ownedValues": [
+              5,
+              10,
+              20
+            ],
+            "events": [
+              16,
+              24
+            ],
+            "confirm": 30,
+            "range": [
+              5,
+              20
+            ],
+            "path": [
+              15,
+              5,
+              10,
+              20
+            ],
+            "candidateType": "U",
+            "P_internalRelations": [
+              "up",
+              "up"
+            ],
+            "E_internalRelations": [
+              "expansion-predicate",
+              "expansion-predicate"
+            ]
+          }
+        ],
+        "blockedAt": null
+      }
+    }
+  },
+  "finiteChecks": {
+    "alphabet": [
+      10,
+      20,
+      30
+    ],
+    "lengths": [
+      2,
+      8
+    ],
+    "wordCount": 762,
+    "pairCount": 4614,
+    "pUp": 2307,
+    "pDown": 2307,
+    "eExpansion": 4614,
+    "constantExtensions": 37632
+  },
+  "RT30_parent": {
+    "Q": [
+      15,
+      20
+    ],
+    "W": [
+      "506/5",
+      "304/3"
+    ]
+  },
+  "sourceHashes": {
+    "docs/chanlun/text/blog/017-第17课.md": "bce847aaacac3b3a79e56b3c49aca6f0c454a0917977bdbb1e0f1f553ddff026",
+    "docs/chanlun/text/blog/018-第18课.md": "4a661fc843d0d9fcfdf32861b7dc903ee09d824d0075dd0ea7b2c19542bb2f92",
+    "docs/chanlun/text/blog/020-第20课.md": "25f8f0bbe9ffbab48a27b552a081ff3925b6c01bfe1cae30c2616fe9b99b49ef",
+    "docs/chanlun/text/blog/035-第35课.md": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023",
+    "docs/chanlun/text/blog/037-第37课.md": "f360d985b3f3b1fa567ca13e15f2ffaf9eae39dbb418519f75d1f6175ac70753",
+    "docs/chanlun/text/blog/083-第83课.md": "52652ad410d1c393b46359e406df2133e6630ba5ae940b328c0c7845018bf634",
+    "docs/chanlun/text/blog/084-第84课.md": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26",
+    ".chanlun/definitions/zhongshu.md": "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882",
+    ".chanlun/definitions/qushi.md": "ce48f8cda6a3f02afd9fddbc0f93cb43431524b66472e579a927af5ce4bc3c46",
+    ".chanlun/definitions/level_recursion.md": "06ac7aee96b089536766ac172b52ff0f8d702f2e4ec01ca2b47b1f3a590e1637",
+    ".chanlun/review-results/issue1467-f1-proof/stage42/classification-bridge.md": "a021c88c8b60b788ae1d87097109d6658db679b7f2fa1b962861d6bc567dc6d0",
+    ".chanlun/review-results/issue1467-f1-proof/stage42/axis-bridge.md": "c462db8524660c07b2c6dd72b941e4db99b51ab6d005cbc2e38e5aee8320b809",
+    ".chanlun/review-results/issue1467-f1-proof/stage44/turn-boundary-candidate.md": "fe8ac47c1f34991ed1767a6cf2c323786653bbe0213e21e4d0394e9c3252ff02",
+    ".chanlun/review-results/issue1467-f1-proof/stage44/f1-completion-scope.md": "cdf58e8f2f4cded394a973b8b4de9bce6ed2af5e740f0da502027cb70246e0f2",
+    ".chanlun/review-results/issue1467-f1-proof/stage44/ScopeCorrections-v2.md": "6d6efc677c2b0aad9a759f2ea5c35c2a5a626897568fc0c6a276668ff6868aa6",
+    ".chanlun/review-results/issue1467-f1-proof/GoalReframe-v4.md": "36159c5f6bd4062a6654bd3f22b3eaf00e678e5d5dacda844cbf659e230ce39d",
+    ".chanlun/review-results/issue1467-f1-proof/PlateauBaseCandidate-v2.md": "ff4e1d062e78891ff2c563ae06ba3ac842ac10885a5d275795fcd852624daa43",
+    ".chanlun/review-results/issue1467-f1-proof/stage43/owned-core-candidate.md": "5b0d92d2a32d885ff89647be31c089226ea228fa1cad1385db1825cf20270990"
+  },
+  "allAssertionsPassed": true
+}

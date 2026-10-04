@@ -1,0 +1,376 @@
+{
+  "scope": "Finite relation models only. No claim of original-meaning qualification or complete Omega.",
+  "outerContract": "P: every eligible same-level core has DD=GG=c; other outer rules are different contracts.",
+  "node": "v22.23.1",
+  "models": [
+    {
+      "name": "join",
+      "partition": [
+        [
+          0,
+          1,
+          2
+        ],
+        [
+          3
+        ]
+      ],
+      "complete": [
+        {
+          "own": [
+            0,
+            1,
+            2
+          ],
+          "end": 9,
+          "confirm": 12
+        }
+      ],
+      "Gamma": true,
+      "EXTrel": true,
+      "EXTown": true,
+      "J": true,
+      "bridgeFailures": []
+    },
+    {
+      "name": "split",
+      "partition": [
+        [
+          0,
+          1
+        ],
+        [
+          2,
+          3
+        ]
+      ],
+      "complete": [
+        {
+          "own": [
+            0,
+            1
+          ],
+          "end": 6,
+          "confirm": 12
+        }
+      ],
+      "Gamma": true,
+      "EXTrel": true,
+      "EXTown": true,
+      "J": false,
+      "bridgeFailures": [
+        {
+          "i": 0,
+          "j": 1,
+          "k": 2,
+          "d": 1,
+          "ownerIJ": 0,
+          "ownerK": 1
+        }
+      ]
+    }
+  ],
+  "four": {
+    "values": [
+      10,
+      20,
+      30,
+      25
+    ],
+    "C": [
+      {
+        "own": [
+          0,
+          1
+        ],
+        "d": 1,
+        "start": 1,
+        "end": 6,
+        "confirm": 12,
+        "range": [
+          10,
+          20
+        ],
+        "nextCore": 2
+      }
+    ],
+    "tail": [
+      2,
+      3
+    ],
+    "witnesses": [
+      {
+        "ownedLastPair": [
+          0,
+          1
+        ],
+        "excludedNext": 2,
+        "d": 1,
+        "edgeValues": [
+          10,
+          20,
+          30
+        ],
+        "outerBounds": [
+          {
+            "DD": 10,
+            "GG": 10
+          },
+          {
+            "DD": 20,
+            "GG": 20
+          },
+          {
+            "DD": 30,
+            "GG": 30
+          }
+        ],
+        "end": 6,
+        "nextSourceStart": 7,
+        "confirm": 12,
+        "EXTrel": true,
+        "J": false
+      }
+    ],
+    "allPartitions": 8,
+    "gammaPartitions": 6,
+    "exactCompletedRefinements": 2,
+    "exactCompletedRefinementsWithJ": 0
+  },
+  "thirty": {
+    "values": [
+      10,
+      20,
+      30,
+      25,
+      15,
+      5,
+      10,
+      20,
+      30,
+      25
+    ],
+    "C": [
+      {
+        "own": [
+          0,
+          1
+        ],
+        "d": 1,
+        "start": 1,
+        "end": 6,
+        "confirm": 12,
+        "range": [
+          10,
+          20
+        ],
+        "nextCore": 2
+      },
+      {
+        "own": [
+          2,
+          3,
+          4
+        ],
+        "d": -1,
+        "start": 7,
+        "end": 15,
+        "confirm": 21,
+        "range": [
+          15,
+          30
+        ],
+        "nextCore": 5
+      },
+      {
+        "own": [
+          5,
+          6,
+          7
+        ],
+        "d": 1,
+        "start": 16,
+        "end": 24,
+        "confirm": 30,
+        "range": [
+          5,
+          20
+        ],
+        "nextCore": 8
+      }
+    ],
+    "tail": [
+      8,
+      9
+    ],
+    "witnesses": [
+      {
+        "ownedLastPair": [
+          0,
+          1
+        ],
+        "excludedNext": 2,
+        "d": 1,
+        "edgeValues": [
+          10,
+          20,
+          30
+        ],
+        "outerBounds": [
+          {
+            "DD": 10,
+            "GG": 10
+          },
+          {
+            "DD": 20,
+            "GG": 20
+          },
+          {
+            "DD": 30,
+            "GG": 30
+          }
+        ],
+        "end": 6,
+        "nextSourceStart": 7,
+        "confirm": 12,
+        "EXTrel": true,
+        "J": false
+      },
+      {
+        "ownedLastPair": [
+          3,
+          4
+        ],
+        "excludedNext": 5,
+        "d": -1,
+        "edgeValues": [
+          25,
+          15,
+          5
+        ],
+        "outerBounds": [
+          {
+            "DD": 25,
+            "GG": 25
+          },
+          {
+            "DD": 15,
+            "GG": 15
+          },
+          {
+            "DD": 5,
+            "GG": 5
+          }
+        ],
+        "end": 15,
+        "nextSourceStart": 16,
+        "confirm": 21,
+        "EXTrel": true,
+        "J": false
+      },
+      {
+        "ownedLastPair": [
+          6,
+          7
+        ],
+        "excludedNext": 8,
+        "d": 1,
+        "edgeValues": [
+          10,
+          20,
+          30
+        ],
+        "outerBounds": [
+          {
+            "DD": 10,
+            "GG": 10
+          },
+          {
+            "DD": 20,
+            "GG": 20
+          },
+          {
+            "DD": 30,
+            "GG": 30
+          }
+        ],
+        "end": 24,
+        "nextSourceStart": 25,
+        "confirm": 30,
+        "EXTrel": true,
+        "J": false
+      }
+    ],
+    "allPartitions": 512,
+    "gammaPartitions": 216,
+    "exactCompletedRefinements": 2,
+    "exactCompletedRefinementsWithJ": 0
+  },
+  "intersection": [
+    15,
+    20
+  ],
+  "enumeration": {
+    "alphabet": [
+      10,
+      20,
+      30
+    ],
+    "lengths": [
+      1,
+      9
+    ],
+    "adjacentDistinct": true,
+    "words": 1533,
+    "emitted": 324,
+    "allRTEmissionsRefuteJ": true
+  },
+  "sources": [
+    {
+      "path": "docs/chanlun/text/blog/018-第18课.md",
+      "sha256": "4a661fc843d0d9fcfdf32861b7dc903ee09d824d0075dd0ea7b2c19542bb2f92"
+    },
+    {
+      "path": "docs/chanlun/text/blog/020-第20课.md",
+      "sha256": "25f8f0bbe9ffbab48a27b552a081ff3925b6c01bfe1cae30c2616fe9b99b49ef"
+    },
+    {
+      "path": "docs/chanlun/text/blog/035-第35课.md",
+      "sha256": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023"
+    },
+    {
+      "path": "docs/chanlun/text/blog/037-第37课.md",
+      "sha256": "f360d985b3f3b1fa567ca13e15f2ffaf9eae39dbb418519f75d1f6175ac70753"
+    },
+    {
+      "path": "docs/chanlun/text/blog/084-第84课.md",
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26"
+    },
+    {
+      "path": ".chanlun/definitions/qushi.md",
+      "sha256": "ce48f8cda6a3f02afd9fddbc0f93cb43431524b66472e579a927af5ce4bc3c46"
+    },
+    {
+      "path": ".chanlun/definitions/level_recursion.md",
+      "sha256": "06ac7aee96b089536766ac172b52ff0f8d702f2e4ec01ca2b47b1f3a590e1637"
+    },
+    {
+      "path": "docs/adr/0011-operation-decomposition-layer.md",
+      "sha256": "30098873c67878af850e8ff9502fdf69e332343e3576e551bab6768d6eb59860"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage44BaseCompletionAndB.md",
+      "sha256": "df996cb667b7de83232bc93dd0471236b21f174be80d3d6493a5c0025f85c831"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage44/ScopeCorrections-v2.md",
+      "sha256": "6d6efc677c2b0aad9a759f2ea5c35c2a5a626897568fc0c6a276668ff6868aa6"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage44/turn-boundary-candidate.md",
+      "sha256": "fe8ac47c1f34991ed1767a6cf2c323786653bbe0213e21e4d0394e9c3252ff02"
+    }
+  ],
+  "checkerSha256": "0f5de4fc2face7e157f7f4ffc85afadb5fcc0ce8da5a91e75df7f3727d232988",
+  "allAssertionsPassed": true
+}
