@@ -1,0 +1,15 @@
+[package]
+name = "order-segment-lift-witness"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+newchan_rust = { path = "../../../../rust", default-features = false }
+serde_json = "1"
+
+[[bin]]
+name = "order-segment-lift-witness"
+path = "../segment_lift_reach_probe.rs"

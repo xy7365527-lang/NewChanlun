@@ -1,0 +1,7 @@
+{
+  "expected_type": "SegmentLiftReach.SOURCE_TARGET ∧ SegmentLiftReach.STROKE_TARGET ∧ SegmentLiftReach.SEGMENT_TARGET ∧ SegmentLiftReach.FRAME_TARGET ∧ SegmentLiftReach.REJECTION_TARGET",
+  "sources": {
+    "SegmentLiftReachFixture.lean": "d138eb52d2febfff2d521ea4f6b841bdcf2c2af4ded889b033cdbae7bdfea1d8",
+    "SegmentLiftReachSpec.lean": "440cb05569718240911df9cfcc5eb9241c46f4c0a916dfcc7edd26db088432a8"
+  }
+}

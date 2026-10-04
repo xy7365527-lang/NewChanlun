@@ -1,0 +1,14 @@
+{
+  "Stage38WorkCard.md": "0cf6141a5a808fd40374c0f37da9ea693baeb5baf48541a35b7e9d56ee88fe2a",
+  "SegmentLiftReachFixture.lean": "d138eb52d2febfff2d521ea4f6b841bdcf2c2af4ded889b033cdbae7bdfea1d8",
+  "SegmentLiftReachSpec.lean": "440cb05569718240911df9cfcc5eb9241c46f4c0a916dfcc7edd26db088432a8",
+  "SegmentLiftReachProof.lean": "09df9d2ed650a2a061ed1e03ab488059a2f9ca0b8d0a3deedabccf0bc01fa417",
+  "segment_lift_reach_probe.rs": "44b9813a6f13d0bb4dac0968ff0507e1f7b28c1c7967fcfce347b22a6c21892c",
+  "stage38_fixture.mjs": "cac49fe5f9ccd2e929fa1baff9c6ce015be2d2566de5262d1a103ff8df0fb839",
+  "stage38-reference/Cargo.toml": "e278fa4f800dfa6e2a3f01eb65a30405ac2986f0bfe40e8b4a2d855acc18374e",
+  "stage38-reference/Cargo.lock": "976cb8927b84de2481202cf7c01263f4722b909be4b5e2c76adb8157e625fa52",
+  "Stage38SegmentLiftReachability.md": "e067cfda1c251d4d0394cc5b9060820f5074d6dc5aa846a941eb1f9cdb3050c2",
+  "Stage38PendingReview.md": "fbabbef6b48850cb0997cf523c46a1085781a152b4dc62b4dc79f4b1ee21aa9d",
+  "stage38-declaration-lock.json": "9a595d4509f5eae42d93bd20ae074710291a32b99d9b390ab65d40246f4f85a6",
+  "stage38-evidence.json": "9a9ed6411967d37455678e9f3a27ef4ba3fb283db5ec8bcc49e3b430e8c0c4a8"
+}

@@ -1,0 +1,174 @@
+{
+  "stage": 38,
+  "date": "2026-10-04",
+  "issue": 1467,
+  "profile": "SEGMENT-LIFT-REACH-v1",
+  "declaration": "SegmentLiftReach.exact_root",
+  "expected_type": "SegmentLiftReach.SOURCE_TARGET ∧ SegmentLiftReach.STROKE_TARGET ∧ SegmentLiftReach.SEGMENT_TARGET ∧ SegmentLiftReach.FRAME_TARGET ∧ SegmentLiftReach.REJECTION_TARGET",
+  "actual_type": "And SegmentLiftReach.SOURCE_TARGET\n  (And SegmentLiftReach.STROKE_TARGET\n    (And SegmentLiftReach.SEGMENT_TARGET (And SegmentLiftReach.FRAME_TARGET SegmentLiftReach.REJECTION_TARGET)))",
+  "run_id": "86e202dc85c44c2e9b83a12f88e9575f",
+  "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/segment-lift-v1-checked/run-manifest.json",
+  "manifest_sha256": "23b9ffd8f0ae35d5c83548c769ba97ce386fa2880d48bfdcd916326b4b259076",
+  "exact_root_passed": true,
+  "root_closure": {
+    "status": "closed",
+    "exact_root_passed": true,
+    "declaration_closed": true,
+    "scope": "expected Lean type in the recorded environment; semantic review is separate"
+  },
+  "semantic": {
+    "status": "not_reviewed",
+    "reused": false,
+    "semantic_sha256": "3c978f7d1d5255c5d81589e2894201ea3611256588139e3cd12708ae9dc9edcb"
+  },
+  "axioms": [
+    "propext",
+    "Quot.sound"
+  ],
+  "unexpected_axioms": [],
+  "unknown_dependencies": [],
+  "unsafe_dependencies": [],
+  "lock_unchanged": true,
+  "checked_source_copies_equal": true,
+  "freshness_exit_code": 0,
+  "LEAN_PATH": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean:/Users/silencehan/Documents/Codex/research-evidence/issue1467/lift-boundary-verified-v1/lean-verification-runs/70afcb63cad748cebe219c90e28e4091/lib",
+  "commands_receipt": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/segment-lift-v1/exact-command.json",
+  "fixture": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/segment-lift-v1/fixture.json",
+    "sha256": "cabb743370905e67798fd940805b6d5b7885aae4a8caf26b6a49f9c748f6eb49",
+    "states": 283,
+    "events": 282,
+    "reference_strokes": 70,
+    "stable_prefixes": [
+      {
+        "cut": 46,
+        "count": 10
+      },
+      {
+        "cut": 74,
+        "count": 17
+      },
+      {
+        "cut": 102,
+        "count": 24
+      },
+      {
+        "cut": 130,
+        "count": 31
+      },
+      {
+        "cut": 158,
+        "count": 38
+      },
+      {
+        "cut": 186,
+        "count": 45
+      },
+      {
+        "cut": 214,
+        "count": 52
+      },
+      {
+        "cut": 242,
+        "count": 59
+      },
+      {
+        "cut": 270,
+        "count": 66
+      }
+    ],
+    "bid_quantity_range": [
+      2500,
+      40000
+    ]
+  },
+  "binary": {
+    "path": "/tmp/nc1467-cargo-target/debug/order-segment-lift-witness",
+    "sha256": "7b9f79ee46d8d39faeb18fdcd58340882715d102ae8ab0c3b59f22573d493713"
+  },
+  "scope": "固定合成历史的原线段结束/来源条件及同版吸收重切拒绝；不证明全分解或否定全部F1/F2",
+  "artifact_bytes": 38639190,
+  "artifact_budget_bytes": 67108864,
+  "sources": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage38WorkCard.md",
+      "sha256": "0cf6141a5a808fd40374c0f37da9ea693baeb5baf48541a35b7e9d56ee88fe2a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/SegmentLiftReachFixture.lean",
+      "sha256": "d138eb52d2febfff2d521ea4f6b841bdcf2c2af4ded889b033cdbae7bdfea1d8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/SegmentLiftReachSpec.lean",
+      "sha256": "440cb05569718240911df9cfcc5eb9241c46f4c0a916dfcc7edd26db088432a8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/SegmentLiftReachProof.lean",
+      "sha256": "09df9d2ed650a2a061ed1e03ab488059a2f9ca0b8d0a3deedabccf0bc01fa417"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/segment_lift_reach_probe.rs",
+      "sha256": "44b9813a6f13d0bb4dac0968ff0507e1f7b28c1c7967fcfce347b22a6c21892c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage38_fixture.mjs",
+      "sha256": "cac49fe5f9ccd2e929fa1baff9c6ce015be2d2566de5262d1a103ff8df0fb839"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage38-reference/Cargo.toml",
+      "sha256": "e278fa4f800dfa6e2a3f01eb65a30405ac2986f0bfe40e8b4a2d855acc18374e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage38-reference/Cargo.lock",
+      "sha256": "976cb8927b84de2481202cf7c01263f4722b909be4b5e2c76adb8157e625fa52"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage38SegmentLiftReachability.md",
+      "sha256": "e067cfda1c251d4d0394cc5b9060820f5074d6dc5aa846a941eb1f9cdb3050c2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage38PendingReview.md",
+      "sha256": "fbabbef6b48850cb0997cf523c46a1085781a152b4dc62b4dc79f4b1ee21aa9d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/strict_point_reference.rs",
+      "sha256": "3d511d2b9541f2dbfb88962232fab3c8f7a46404b3c5ecc668b5e9bf168ad472"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/CenterFrameSpec.lean",
+      "sha256": "f572d1838ed5727c35343ae6344b935749577ba2cb64771de0e46734a82ba14f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/RetileSpec.lean",
+      "sha256": "5fbc32efbe7fac1278bbfd2aa87a7695205beb7e0193ef33c1984bd7d6937f55"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/RetileProof.lean",
+      "sha256": "f8617e62f02c217b0ff4a2e30d6d57f6be23b0daeb747febf4080a5f6c8747d9"
+    }
+  ],
+  "source_texts": [
+    {
+      "path": ".chanlun/definitions/zhongshu.md",
+      "sha256": "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882"
+    },
+    {
+      "path": "docs/chanlun/text/blog/067-第67课.md",
+      "sha256": "257521bf636734a6d71d724674aac093976e5f505c8ff156619fe7d3b1af459a"
+    },
+    {
+      "path": "docs/chanlun/text/blog/078-第78课.md",
+      "sha256": "7575dfe108360af50ea9bc1309635044e775f92d3d22f12169f048bd02bb75c5"
+    },
+    {
+      "path": "docs/chanlun/text/blog/081-第81课.md",
+      "sha256": "18caff8a718f9cbccee454872e85350fcd99b051ebedda4b19578c341136d7b8"
+    }
+  ],
+  "independent_review": "not_reviewed; pending user response on dispatch condition",
+  "reference_adjacency_check": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/segment-lift-v1/adjacency-check.json",
+    "sha256": "efdd2cc8aeede062018f817cf02a1d0afe3839f776687a8858181a0d91b6cfcb",
+    "source": "实际新构建运行，原输出逐字不变；数学fixture/声明不变"
+  }
+}
