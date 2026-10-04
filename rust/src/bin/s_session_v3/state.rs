@@ -168,6 +168,14 @@ pub(super) fn audit_native_in_request(
             let capture = capture
                 .enable_native_frame_reuse_for_testonly()
                 .map_err(err)?;
+            if source_same {
+                if let Some(pool) = source_prior.as_ref() {
+                    // source_same只减少无谓尝试；封闭API仍自行逐tuple比较完整原件。
+                    capture
+                        .seed_codec_roots_from_native_capture_for_testonly(&pool.originals)
+                        .map_err(err)?;
+                }
+            }
             Ok::<_, String>((capture, count, source_same))
         };
         let (capture, node_count, prior, same_nodes, source_same) = match prior {
@@ -182,7 +190,12 @@ pub(super) fn audit_native_in_request(
                     (prior.capture, prior.node_count, false)
                 } else {
                     // 合法材料变化才在同一事务第二次全扫描建新capture；任何Err都已直接返回。
-                    capture_fresh()?
+                    let (capture, count, source_same) = capture_fresh()?;
+                    // 同handler合法追加也只复用纯codec根；完整history结果仍走fresh审计。
+                    capture
+                        .seed_codec_roots_from_native_capture_for_testonly(&prior.capture)
+                        .map_err(err)?;
+                    (capture, count, source_same)
                 };
                 (
                     capture,
@@ -305,6 +318,13 @@ pub(super) fn audit_native_with_source_keeper_for_testonly(
         let capture = capture
             .enable_native_frame_reuse_for_testonly()
             .map_err(err)?;
+        if same_nodes {
+            if let Some(pool) = prior.as_ref() {
+                capture
+                    .seed_codec_roots_from_native_capture_for_testonly(&pool.originals)
+                    .map_err(err)?;
+            }
+        }
         let mut trial =
             super::cross_request_source_cache::Trial::new(tx, prior.as_ref(), same_nodes)?;
         let (audited, _) = audit_core_fresh_inner(

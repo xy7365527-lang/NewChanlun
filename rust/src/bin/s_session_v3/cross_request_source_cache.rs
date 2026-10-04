@@ -1,4 +1,4 @@
-//! #1394 显式Native模式的来源Counts复用；保留量受调用者唯一S7预算约束。
+//! #1394 显式Native模式的来源Counts和纯codec成功根复用；保留量受唯一S7预算约束。
 //! 完整当前audit只跳过绑定成功旧cut的source业务核；节点依赖采用成功audit原件超集。
 use super::{
     history::PublishedCut,
@@ -79,6 +79,7 @@ pub(super) struct SourceCost {
     node_digest_tag_certificate_bytes: usize,
     exact_rows_bytes: usize,
     cut_key_counts_certificate_bytes: usize,
+    codec_root_certificate_bytes: usize,
     pub(super) total: usize,
 }
 #[derive(Default, Clone, Debug, Serialize)]
@@ -89,6 +90,7 @@ pub(super) struct RetainedCapacity {
     exact_rows_capacity_payload_bytes: usize,
     proof_vec_capacity_payload_bytes: usize,
     key_string_capacity_bytes: usize,
+    codec_root_set_capacity_payload_bytes: usize,
     pub(super) total_payload_bytes: usize,
 }
 fn add(a: usize, b: usize) -> Result<usize, String> {
@@ -135,9 +137,9 @@ impl Pool {
         binding: Binding,
         proofs: Vec<Proof>,
     ) -> Result<Self, String> {
-        // Drop全部Public/Template/Frame memo，但保持原件Vec正文owner与Native索引。
+        // Drop全部Public/Template/Frame memo，保留原件owner及两份纯codec成功根集合。
         let originals = originals
-            .into_originals_only_for_testonly()
+            .into_originals_and_codec_roots_for_testonly()
             .map_err(|e| e.to_string())?;
         let retained = originals.retention();
         let number = |v: &serde_json::Value| -> Result<usize, String> {
@@ -163,6 +165,24 @@ impl Pool {
             proof_vec_capacity_payload_bytes: mul(proofs.capacity(), std::mem::size_of::<Proof>())?,
             ..Default::default()
         };
+        let roots = &retained["native_codec_root_certificates"];
+        let root_count = add(
+            number(&roots["public_roots"])?,
+            number(&roots["template_roots"])?,
+        )?;
+        // #1394本原型新增源成本配方，非SPEC原有配方：format长度前缀+字节，
+        // 判据版本u32；两个集合各含Mode/Flavor字节和u64长度前缀；每个根32字节。
+        source_cost.codec_root_certificate_bytes = add(
+            add(add(8, sc::CONTENT_FORMAT.len())?, 4)?,
+            add(mul(2, 1 + 1 + 8)?, mul(root_count, 32)?)?,
+        )?;
+        capacity.codec_root_set_capacity_payload_bytes = mul(
+            add(
+                number(&roots["public_capacity"])?,
+                number(&roots["template_capacity"])?,
+            )?,
+            std::mem::size_of::<sc::NodeDigest>(),
+        )?;
         for row in &binding.rows {
             let mut cost = add(8, row.sql.len())?;
             cost = add(cost, cells_cost(&row.scope)?)?;
@@ -214,6 +234,7 @@ impl Pool {
             source_cost.node_digest_tag_certificate_bytes,
             source_cost.exact_rows_bytes,
             source_cost.cut_key_counts_certificate_bytes,
+            source_cost.codec_root_certificate_bytes,
         ]
         .into_iter()
         .try_fold(8, add)?;
@@ -224,6 +245,7 @@ impl Pool {
             capacity.exact_rows_capacity_payload_bytes,
             capacity.proof_vec_capacity_payload_bytes,
             capacity.key_string_capacity_bytes,
+            capacity.codec_root_set_capacity_payload_bytes,
         ]
         .into_iter()
         .try_fold(std::mem::size_of::<Self>(), add)?;
@@ -448,6 +470,38 @@ mod tests {
         let mut keeper = Keeper::new(usize::MAX);
         audit(&mut f, &mut keeper).unwrap();
         (f, keeper)
+    }
+
+    #[test]
+    fn codec_root_success_handler_legal_growth_matches_complete_cold() {
+        let mut f = Fixture::new();
+        publish(&mut f, 1, ("a", 0, 6, 12, 3, 7), 1);
+        let mut warm_context = super::super::request_audit::RequestAuditContext::default();
+        {
+            let tx = f.conn.transaction().unwrap();
+            state::audit_native_in_request(&tx, &mut warm_context).unwrap();
+        }
+        publish(&mut f, 2, ("b", 10, 8, 16, 6, 12), 1);
+        let mut cold_context = super::super::request_audit::RequestAuditContext::default();
+        {
+            let tx = f.conn.transaction().unwrap();
+            let warm = state::audit_native_in_request(&tx, &mut warm_context).unwrap();
+            let cold = state::audit_native_in_request(&tx, &mut cold_context).unwrap();
+            assert_eq!(complete(&warm), complete(&cold));
+        }
+        assert_eq!((warm_context.cold, warm_context.hits), (2, 0));
+        let warm = warm_context.take().unwrap().capture.retention();
+        let cold = cold_context.take().unwrap().capture.retention();
+        assert!(warm["capture_reads"].as_u64().unwrap() < cold["capture_reads"].as_u64().unwrap());
+        assert_eq!(
+            warm["native_codec_root_certificates"]["public_roots"],
+            cold["native_codec_root_certificates"]["public_roots"]
+        );
+        assert_eq!(
+            warm["native_codec_root_certificates"]["template_roots"],
+            cold["native_codec_root_certificates"]["template_roots"]
+        );
+        eprintln!("codec_root_success handler_growth warm={warm} cold={cold}");
     }
 
     #[test]

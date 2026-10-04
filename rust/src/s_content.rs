@@ -2107,11 +2107,35 @@ impl NativeFrameMemo {
         Ok(Some(frame))
     }
 }
+// #1394 私有成功根证书。修改codec判据时须同步递增版本；不序列化、不接受外来构造。
+// format与版本来自当前codec；集合分别固定Mode，所有根只对应Flavor::Value。
+#[cfg(feature = "s_capture_native_testonly")]
+struct NativeCodecRootCertificates {
+    format: &'static str,
+    predicate_revision: u32,
+    flavor: Flavor,
+    public: std::collections::HashSet<NodeDigest>,
+    template: std::collections::HashSet<NodeDigest>,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl Default for NativeCodecRootCertificates {
+    fn default() -> Self {
+        Self {
+            format: CONTENT_FORMAT,
+            predicate_revision: 1,
+            flavor: Flavor::Value,
+            public: Default::default(),
+            template: Default::default(),
+        }
+    }
+}
 pub struct AuditCapture {
     nodes: CaptureNodes,
     public: std::cell::RefCell<AuditMemo>,
     template: std::cell::RefCell<AuditMemo>,
     reads: std::cell::Cell<u64>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    codec_roots: std::cell::RefCell<NativeCodecRootCertificates>,
 }
 impl AuditCapture {
     /// #1394 隔离来源缓存：消费审计捕获，只保留原始tuple owner，清除全部验证和帧证明。
@@ -2119,6 +2143,25 @@ impl AuditCapture {
     #[cfg(feature = "s_capture_native_testonly")]
     #[doc(hidden)]
     pub fn into_originals_only_for_testonly(mut self) -> Result<Self, CodecError> {
+        *self.codec_roots.get_mut() = NativeCodecRootCertificates::default();
+        self.clear_request_codec_and_frames_for_testonly()?;
+        Ok(self)
+    }
+
+    /// #1394 同一成功handler封存原件与纯codec根证书；全部语义memo和Frame均清空。
+    /// 原件证明须由下一次当前Native capture重新逐tuple绑定，证书不授予业务资格。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn into_originals_and_codec_roots_for_testonly(mut self) -> Result<Self, CodecError> {
+        if !matches!(&self.nodes, CaptureNodes::Native(_)) {
+            return Err(CodecError::new(code::SOURCE, "codec根证书只封存Native捕获"));
+        }
+        self.clear_request_codec_and_frames_for_testonly()?;
+        Ok(self)
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn clear_request_codec_and_frames_for_testonly(&mut self) -> Result<(), CodecError> {
         if matches!(self.nodes, CaptureNodes::AllocationPrototype(_)) {
             return Err(CodecError::new(
                 code::SOURCE,
@@ -2138,7 +2181,54 @@ impl AuditCapture {
             *native.memo.get_mut() = NativeFrameMemo::new(native.nodes.len(), bytes);
         }
         self.reads.set(0);
-        Ok(self)
+        Ok(())
+    }
+
+    /// #1394 APPROVED-SOURCE.md:65、286：本次完整原件相同包含旧capture全部tuple才复用。
+    /// 调用方不能传same资格；Legacy/Owned、上下文不兼容或材料不包含时保持当前冷路径。
+    /// 仅在新的独立memo.seen播种已成功的Value根，所有其余工作集与用量收据均冷。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn seed_codec_roots_from_native_capture_for_testonly(
+        &self,
+        prior: &Self,
+    ) -> Result<usize, CodecError> {
+        let (CaptureNodes::Native(current), CaptureNodes::Native(previous)) =
+            (&self.nodes, &prior.nodes)
+        else {
+            return Ok(0);
+        };
+        let old = prior.codec_roots.borrow();
+        let fresh = NativeCodecRootCertificates::default();
+        if old.format != fresh.format
+            || old.predicate_revision != fresh.predicate_revision
+            || old.flavor != Flavor::Value
+            || previous.nodes.len() > current.nodes.len()
+            || !previous.nodes.iter().all(|(digest, node)| {
+                current.nodes.get(digest).is_some_and(|now| {
+                    now.tag == node.tag && now.body.as_slice() == node.body.as_slice()
+                })
+            })
+        {
+            return Ok(0);
+        }
+        let mut public = AuditMemo::default();
+        let mut template = AuditMemo::default();
+        for digest in &old.public {
+            public.seen.insert((*digest, Flavor::Value))?;
+        }
+        for digest in &old.template {
+            template.seen.insert((*digest, Flavor::Value))?;
+        }
+        let roots = old
+            .public
+            .len()
+            .checked_add(old.template.len())
+            .ok_or_else(|| CodecError::new(code::SOURCE, "codec根证书计数溢出"))?;
+        *self.public.borrow_mut() = public;
+        *self.template.borrow_mut() = template;
+        // 不复制旧root证书：只有本capture verify_refview再次完整成功才记录可封存根。
+        Ok(roots)
     }
 
     /// #1394 私有Native请求复用的原件绑定：比较完整digest/tag/body集合；不读取证明或摘要替代正文。
@@ -2192,6 +2282,8 @@ impl AuditCapture {
             public: Default::default(),
             template: Default::default(),
             reads: Default::default(),
+            #[cfg(feature = "s_capture_native_testonly")]
+            codec_roots: Default::default(),
         }
     }
     #[doc(hidden)]
@@ -2202,6 +2294,8 @@ impl AuditCapture {
             public: std::cell::RefCell::new(AuditMemo::new(Some(&budget))),
             template: std::cell::RefCell::new(AuditMemo::new(Some(&budget))),
             reads: Default::default(),
+            #[cfg(feature = "s_capture_native_testonly")]
+            codec_roots: Default::default(),
         }
     }
     /// #1394：显式 Native TestOnly opt-in；资格只来自本捕获的节点数和原 body 总长度。
@@ -2290,12 +2384,27 @@ impl AuditCapture {
         let memo = std::mem::replace(&mut *slot.borrow_mut(), AuditMemo::new(budget.as_ref()));
         let mut source = CaptureReader(self);
         let mut verifier = Verifier::with_memo_capture(&mut source, mode, memo);
-        let result = verifier.verify_refview(reference).map(|_| ());
+        let result = verifier.verify_refview(reference);
         // 出错不保留 run() 提前插入的 seen/pushed，不能让下一根继承半成功。
-        if result.is_ok() {
+        if let Ok((digest, _, _)) = &result {
             *slot.borrow_mut() = verifier.into_memo();
+            #[cfg(feature = "s_capture_native_testonly")]
+            if matches!(&self.nodes, CaptureNodes::Native(_)) {
+                let mut roots = self.codec_roots.borrow_mut();
+                let set = if mode == Mode::Public {
+                    &mut roots.public
+                } else {
+                    &mut roots.template
+                };
+                // 证书保留失败不改变本次已经成功的业务校验；只是下次少一个复用根。
+                if set.contains(digest) || set.try_reserve(1).is_ok() {
+                    set.insert(*digest);
+                }
+            }
+            #[cfg(not(feature = "s_capture_native_testonly"))]
+            let _ = digest;
         }
-        result
+        result.map(|_| ())
     }
     pub fn retention(&self) -> serde_json::Value {
         let memo = |m: &AuditMemo| {
@@ -2365,15 +2474,245 @@ impl AuditCapture {
             }
             _ => native_frame_reuse,
         };
+        #[cfg(feature = "s_capture_native_testonly")]
+        let codec_root_certificates = {
+            let r = self.codec_roots.borrow();
+            serde_json::json!({"format":r.format,"predicate_revision":r.predicate_revision,
+                "flavor":"Value","public_mode":"Public","template_mode":"Template",
+                "public_roots":r.public.len(),"template_roots":r.template.len(),
+                "public_capacity":r.public.capacity(),"template_capacity":r.template.capacity()})
+        };
+        #[cfg(not(feature = "s_capture_native_testonly"))]
+        let codec_root_certificates = serde_json::Value::Null;
         serde_json::json!({"captured_nodes":nodes,"body_len_bytes":body_len,
             "body_vec_capacity_bytes":body_capacity,"capture_allocation_prototype":allocation,
             "capture_string_capacity_bytes":0,"capture_reads":self.reads.get(),
             "native_frame_reuse":native_frame_reuse,
+            "native_codec_root_certificates":codec_root_certificates,
             "public":memo(&self.public.borrow()),"template":memo(&self.template.borrow()),
             "scope":"retained Vec/String and map/set capacity payload; Native source index capacity payload, proof box payload and body Vec actual capacity; excludes BTree allocation, HashMap control bytes, allocator overhead, transient reads, total heap/RSS/IO peak; no resource eligibility"})
     }
 }
 struct CaptureReader<'a>(&'a AuditCapture);
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+mod codec_root_success_tests {
+    use super::*;
+
+    fn native(nodes: &MemoryNodes) -> AuditCapture {
+        AuditCapture::new(nodes.clone())
+            .enable_native_frame_reuse_for_testonly()
+            .unwrap()
+    }
+    fn fixture() -> (MemoryNodes, ContentRef, ContentRef) {
+        let mut nodes = MemoryNodes::new();
+        let public = write_value(
+            &mut nodes,
+            &Value::Object(vec![
+                ("a".into(), Value::String("正常正文".repeat(1600))),
+                (
+                    "b".into(),
+                    Value::Array(vec![Value::Bool(true), Value::Null]),
+                ),
+            ]),
+        )
+        .unwrap()
+        .content_ref();
+        let template = write_template(
+            &mut nodes,
+            &Value::Object(vec![
+                ("a".into(), Value::String("正常模板".repeat(1200))),
+                ("batch".into(), Value::BatchSelf),
+            ]),
+        )
+        .unwrap()
+        .content_ref();
+        (nodes, public, template)
+    }
+    fn assert_only_seen(capture: &AuditCapture, public: usize, template: usize) {
+        for (slot, roots) in [(&capture.public, public), (&capture.template, template)] {
+            let memo = slot.borrow();
+            assert_eq!(memo.seen.len(), roots);
+            assert!(memo.pushed.is_empty() && memo.todo.is_empty() && memo.read_digests.is_empty());
+            assert_eq!(memo.bytes_memo.len(), 0);
+            assert_eq!(memo.elem_memo.len(), 0);
+            assert_eq!(memo.field_memo.len(), 0);
+            assert_eq!(memo.key_cmp.len(), 0);
+        }
+        assert_eq!(capture.retention()["capture_reads"], 0);
+        assert_eq!(
+            capture.retention()["native_frame_reuse"]["retained_entries"],
+            0
+        );
+    }
+    fn verify_pair(
+        warm: &AuditCapture,
+        cold: &AuditCapture,
+        public: &ContentRef,
+        template: &ContentRef,
+    ) -> (u64, u64) {
+        let start = frame_calls_on_thread();
+        let actual = [
+            warm.verify(public, Mode::Public),
+            warm.verify(template, Mode::Template),
+        ];
+        let warm_f = frame_calls_on_thread() - start;
+        let start = frame_calls_on_thread();
+        let expected = [
+            cold.verify(public, Mode::Public),
+            cold.verify(template, Mode::Template),
+        ];
+        let cold_f = frame_calls_on_thread() - start;
+        assert!(actual.iter().all(Result::is_ok));
+        assert_eq!(actual, expected);
+        (warm_f, cold_f)
+    }
+
+    #[test]
+    fn codec_root_success_reacquired_materials_seed_only_closed_roots() {
+        let (nodes, public, template) = fixture();
+        let old = native(&nodes);
+        old.verify(&public, Mode::Public).unwrap();
+        old.verify(&public, Mode::Public).unwrap();
+        old.verify(&template, Mode::Template).unwrap();
+        let pointer = old.original(&public.digest().unwrap()).unwrap().1.as_ptr();
+        let old = old.into_originals_and_codec_roots_for_testonly().unwrap();
+        assert_eq!(
+            pointer,
+            old.original(&public.digest().unwrap()).unwrap().1.as_ptr()
+        );
+        assert_only_seen(&old, 0, 0);
+        let certificates = &old.retention()["native_codec_root_certificates"];
+        assert_eq!(certificates["public_roots"], 1);
+        assert_eq!(certificates["template_roots"], 1);
+        let warm = native(&nodes);
+        assert_eq!(
+            warm.seed_codec_roots_from_native_capture_for_testonly(&old)
+                .unwrap(),
+            2
+        );
+        assert_only_seen(&warm, 1, 1);
+        assert_eq!(warm.codec_roots.borrow().public.len(), 0);
+        assert_eq!(warm.codec_roots.borrow().template.len(), 0);
+        let cold = native(&nodes);
+        let (warm_f, cold_f) = verify_pair(&warm, &cold, &public, &template);
+        assert_eq!(warm.retention()["capture_reads"], 2);
+        assert_eq!(warm_f, 2, "当前根必须仍读取并严格核Frame/header");
+        assert!(cold.reads.get() > warm.reads.get());
+        assert!(cold_f > warm_f);
+        assert_eq!(warm.public.borrow().read_digests.len(), 1);
+        assert_eq!(warm.template.borrow().read_digests.len(), 1);
+        eprintln!("codec_root_success same roots=2 warm_reads={} cold_reads={} warm_f={warm_f} cold_f={cold_f}", warm.reads.get(), cold.reads.get());
+    }
+
+    #[test]
+    fn codec_root_success_legal_append_and_new_roots_match_cold() {
+        let (mut nodes, public, template) = fixture();
+        let old = native(&nodes);
+        old.verify(&public, Mode::Public).unwrap();
+        old.verify(&template, Mode::Template).unwrap();
+        let old = old.into_originals_and_codec_roots_for_testonly().unwrap();
+        write_value(&mut nodes, &Value::String("合法独立新增节点".into())).unwrap();
+        let public_new = write_value(
+            &mut nodes,
+            &Value::Array(vec![
+                Value::edge_of_ref(&public).unwrap(),
+                Value::String("新增公开值".into()),
+            ]),
+        )
+        .unwrap()
+        .content_ref();
+        let template_new = write_value(
+            &mut nodes,
+            &Value::Array(vec![
+                Value::edge_of_ref(&template).unwrap(),
+                Value::String("新增模板值".into()),
+            ]),
+        )
+        .unwrap()
+        .content_ref();
+        let warm = native(&nodes);
+        assert_eq!(
+            warm.seed_codec_roots_from_native_capture_for_testonly(&old)
+                .unwrap(),
+            2
+        );
+        assert_only_seen(&warm, 1, 1);
+        assert!(!warm
+            .public
+            .borrow()
+            .seen
+            .contains(&(public_new.digest().unwrap(), Flavor::Value)));
+        assert!(!warm
+            .template
+            .borrow()
+            .seen
+            .contains(&(template_new.digest().unwrap(), Flavor::Value)));
+        let cold = native(&nodes);
+        let (warm_f, cold_f) = verify_pair(&warm, &cold, &public_new, &template_new);
+        assert!(warm.reads.get() < cold.reads.get());
+        assert!(warm_f < cold_f);
+        let mut warm_text = Vec::new();
+        let mut cold_text = Vec::new();
+        render_canonical(&mut warm.reader(), &public_new, &mut warm_text).unwrap();
+        render_canonical(&mut cold.reader(), &public_new, &mut cold_text).unwrap();
+        assert_eq!(warm_text, cold_text);
+        let certificates = warm.codec_roots.borrow();
+        assert_eq!(certificates.public.len(), 1);
+        assert_eq!(certificates.template.len(), 1);
+        assert!(certificates.public.contains(&public_new.digest().unwrap()));
+        assert!(certificates
+            .template
+            .contains(&template_new.digest().unwrap()));
+        eprintln!(
+            "codec_root_success append old_roots=2 new_roots=2 warm_f={warm_f} cold_f={cold_f}"
+        );
+    }
+
+    #[test]
+    fn codec_root_success_public_template_and_json_inner_stay_separate() {
+        let mut nodes = MemoryNodes::new();
+        let text = "同一合法字符串".repeat(1600);
+        let public = write_value(&mut nodes, &Value::String(text.clone()))
+            .unwrap()
+            .content_ref();
+        let json = write_value(
+            &mut nodes,
+            &Value::JsonText(Box::new(JsonValue::String(text))),
+        )
+        .unwrap()
+        .content_ref();
+        let old = native(&nodes);
+        old.verify(&public, Mode::Public).unwrap();
+        let old = old.into_originals_and_codec_roots_for_testonly().unwrap();
+        let warm = native(&nodes);
+        assert_eq!(
+            warm.seed_codec_roots_from_native_capture_for_testonly(&old)
+                .unwrap(),
+            1
+        );
+        assert_only_seen(&warm, 1, 0);
+        let cold = native(&nodes);
+        assert_eq!(
+            warm.verify(&json, Mode::Public),
+            cold.verify(&json, Mode::Public)
+        );
+        assert_eq!(
+            warm.reads.get(),
+            cold.reads.get(),
+            "Value证书不得复用JsonInner判定"
+        );
+        assert_eq!(
+            warm.verify(&public, Mode::Template),
+            cold.verify(&public, Mode::Template)
+        );
+        assert_eq!(
+            warm.reads.get(),
+            cold.reads.get(),
+            "Public证书不得跨入Template"
+        );
+    }
+}
 
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 mod source_cache_original_owner_tests {

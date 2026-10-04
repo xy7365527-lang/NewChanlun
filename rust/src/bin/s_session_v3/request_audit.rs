@@ -1,6 +1,7 @@
 //! #1394 Native同一同步handler或服务bootstrap局部scope内纯历史结果；每事务重新绑定完整原件。
 //! 完整历史只在handler内复用；Native可经精确原件绑定复用Driver持有的来源Counts。
-//! 请求成功后仅移交原件与来源证书，完整历史结果和全部memo都释放，不授予提交许可。
+//! 请求成功后仅移交原件、来源证书和纯codec成功根证书，完整历史与全部memo释放。
+//! 跨请求完整history/独立索引/catalog继续fresh核验；根证书不授予业务或提交许可。
 use super::{audit_header::AuditSourceCommit, state::ImmutableHistoricalAudit};
 use newchan_rust::s_content::AuditCapture;
 use rusqlite::{params, types::ValueRef, Params, Transaction};
