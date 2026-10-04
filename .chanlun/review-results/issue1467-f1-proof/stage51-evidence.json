@@ -1,0 +1,392 @@
+{
+  "stage": 51,
+  "date": "2026-10-05",
+  "issue": 1467,
+  "related_issues": [
+    1465,
+    1469
+  ],
+  "base_commit": "cfe88d5782aabad24c2c14d07498cbe7c4fb1b0b",
+  "status": "independently_reviewed_with_stated_scope",
+  "trust_level": "COORDINATOR_ATTESTED_TOOL_TRANSCRIPT",
+  "goal_objective_and_usage_preserved": true,
+  "source_correction": {
+    "entry": "029-object-scope-v1",
+    "reference_object": "existing C at k+1; L/R at k; their own cores at k",
+    "withdrawn_uses": [
+      "stage47/base-complete-construction.md:180",
+      "stage47/independent-raw-turn-review.md:85"
+    ],
+    "historical_bytes_preserved": true,
+    "source_review": "APPROVED_WITH_SCOPE_NOTE",
+    "nonblocking_note": "H/RDW selection is not established as a necessary condition of original F2",
+    "dependent_scope": "Stage42-50 scoped source-use audit; not full recertification",
+    "independent_counterarguments_not_retracted": [
+      "zero-core count",
+      "RC49 U/U",
+      "EHL fixed-catalog count",
+      "JH fixed-end-gate forcing"
+    ]
+  },
+  "SB": {
+    "evidence": "ordinary proof independently reviewed",
+    "premises": [
+      "three consecutive pieces with actual shared endpoints",
+      "nondegenerate full ranges equal to endpoint envelopes",
+      "strict full-range triple overlap"
+    ],
+    "conclusions": [
+      "alternating traversal directions",
+      "triple intersection equals first/third intersection"
+    ],
+    "original_P_Z3_applicability_proved": false,
+    "Stage50_primary_partitions_satisfy_Std": false,
+    "finite_check": {
+      "all_endpoint_quadruples": 625,
+      "all_three_nondegenerate": 320,
+      "strict_triple_overlap": 140
+    }
+  },
+  "RDW": {
+    "status": "APPROVED_IN_NUMERICAL_SCOPE",
+    "relation": "all ordered actual-state point pairs crossing the full-range numerical intersection H",
+    "parent_core_presupposed": false,
+    "original_Z3_bridge_proved": false,
+    "first_primary_partition": {
+      "name": "same_up_counterexample",
+      "cuts": [
+        0,
+        5,
+        8,
+        12
+      ],
+      "H": [
+        1110,
+        1140
+      ],
+      "directionSets": [
+        [
+          "U"
+        ],
+        [
+          "D"
+        ],
+        [
+          "U"
+        ]
+      ],
+      "words": [
+        "UDU"
+      ],
+      "witnessTupleCount": 10,
+      "catalogueCheckedAt": 15,
+      "rangeAvailableAt": 12,
+      "catalogueSupportAvailableAt": 15,
+      "semanticEligibleAt": null
+    },
+    "second_primary_partition": {
+      "name": "same_up_counterexample",
+      "cuts": [
+        0,
+        5,
+        9,
+        12
+      ],
+      "H": [
+        1135,
+        1140
+      ],
+      "directionSets": [
+        [
+          "U"
+        ],
+        [
+          "U",
+          "D"
+        ],
+        [
+          "D"
+        ]
+      ],
+      "words": [],
+      "witnessTupleCount": 0,
+      "catalogueCheckedAt": 15,
+      "rangeAvailableAt": 12,
+      "catalogueSupportAvailableAt": 15,
+      "semanticEligibleAt": null
+    },
+    "numeric_claims": [
+      "each finite range containing positive-width H has a nonempty direction set",
+      "alternating words are exactly feasible UDU and DUD",
+      "a unique word can have multiple point-pair certificates",
+      "strictly increasing maps preserve all indexed witnesses; strictly decreasing maps swap U/D"
+    ],
+    "counterexample_scope": "continuous full ranges and strict triple overlap do not imply RDW alternating selection; pieces not certified completed Chan moves",
+    "replayed_existing_synthetic_events": 80,
+    "new_synthetic_events": {
+      "negative": 7,
+      "netMismatch": 7,
+      "dual": 6
+    },
+    "necessary_partitions": 24,
+    "strict_partitions": 12,
+    "direction_assignment_checks": 96,
+    "unique_word_partitions": 6,
+    "empty_partitions": 6,
+    "online_partition_publication_at": null,
+    "semantic_eligible_at": null
+  },
+  "agents": [
+    {
+      "task_name": "/root/p_direction_scope",
+      "role": "source/math author",
+      "fork_turns": "none",
+      "completed": true,
+      "interrupt_agent_called": true
+    },
+    {
+      "task_name": "/root/relative_direction_candidate",
+      "role": "candidate author",
+      "fork_turns": "none",
+      "completed": true,
+      "interrupt_agent_called": true
+    },
+    {
+      "task_name": "/root/review_stage51_source",
+      "role": "fresh source/math independent review",
+      "fork_turns": "none",
+      "completed": true,
+      "interrupt_agent_called": true
+    },
+    {
+      "task_name": "/root/review_stage51_rdw",
+      "role": "fresh independent RDW review",
+      "fork_turns": "none",
+      "completed": true,
+      "interrupt_agent_called": true
+    }
+  ],
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage51PDirectionAndSourceCorrection.md",
+      "bytes": 5338,
+      "sha256": "5b7f18b96aabee54700a2c94b70f485982e3af90561b4685ba007c1d57e66399"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/ScopeClarifications-v1.md",
+      "bytes": 2592,
+      "sha256": "9ebd823ea919ec3296fe54e8db3b6a8746fa1c059041e7ea42f6e50db1397d30"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-evidence/check-certificates.mjs",
+      "bytes": 3669,
+      "sha256": "42cda7cb0ac49f4831fa92c87d097887aa423a37f66e6d71f3065bbaf7f58592"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-evidence/frozen-manifest.json",
+      "bytes": 3421,
+      "sha256": "c33d90e29dba0398281d6021da51d777bb4e58ecc4fb56a01ff01dd733f48da7"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-evidence/input-lock.json",
+      "bytes": 1762,
+      "sha256": "80304398b0cb50a57c15a4d7bb65902e9f4397815382e8801d154ac174b885ff"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-evidence/rdw-probe.mjs",
+      "bytes": 14761,
+      "sha256": "b36018651641cf80eacfcc7eb294924bf4bdd464ff159339fc5d5414c7437c4d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-evidence/rdw-v1-definition.md",
+      "bytes": 4182,
+      "sha256": "e70dd235e212f2b8061395b8787df5e030e94688f00b96af53a27b9038a190fc"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-evidence/receipt-certificate-check.txt",
+      "bytes": 235,
+      "sha256": "ad516201ad67535451a61b3dd2df61f66838add00ee59a26e69a348642a610c5"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-evidence/receipt-final-run.txt",
+      "bytes": 6773,
+      "sha256": "7e8b88c311f72bfd6a3ff515f0db95930ee7f89764838345da579509a09d7dcd"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-evidence/receipt-first-run.txt",
+      "bytes": 6773,
+      "sha256": "7e8b88c311f72bfd6a3ff515f0db95930ee7f89764838345da579509a09d7dcd"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-evidence/results-v1/band-dependence.json",
+      "bytes": 672,
+      "sha256": "55cb52b4731638d8b17e5dee7caedf162ce25bccc62644322918568e82489d2c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-evidence/results-v1/certificate-check.json",
+      "bytes": 235,
+      "sha256": "ad516201ad67535451a61b3dd2df61f66838add00ee59a26e69a348642a610c5"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-evidence/results-v1/direction-set-truth-table.json",
+      "bytes": 4672,
+      "sha256": "e8820ef443e9def9ccaf68160bae3c85061cf6dfe74efa1e29c25a7aa1effd80"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-evidence/results-v1/negative-order-flow.json",
+      "bytes": 11004,
+      "sha256": "9ee8f692b4d3488d5f6b214acf1a9b6c6c58e8672ac11c5818e61b604344a84a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-evidence/results-v1/net-direction-mismatch.json",
+      "bytes": 11264,
+      "sha256": "d7bf6ef341677604245585f3b5418a82ee09a97f3c67bc3db56047fc490afdfb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-evidence/results-v1/same_down_mirror.json",
+      "bytes": 96924,
+      "sha256": "59528d7098a03bbba94220d4968326716d06c1f40549486e8055f816be4a290b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-evidence/results-v1/same_up_counterexample.json",
+      "bytes": 96927,
+      "sha256": "f47de6519a2042371a05bb5dcab3443bad7cc8428b728f40b7b508950f423191"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-evidence/results-v1/summary.json",
+      "bytes": 6773,
+      "sha256": "7e8b88c311f72bfd6a3ff515f0db95930ee7f89764838345da579509a09d7dcd"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-evidence/results-v1/two-selections.json",
+      "bytes": 12041,
+      "sha256": "73ac17219f0be511262dabe5f4139fb859d85bec47787d5e9b10a549be714757"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-source-evidence/029-dependency-inventory.json",
+      "bytes": 41886,
+      "sha256": "8dca633a9cbfa1b1628f2c2254463fb63e4264ac9f5b7e3b2a63cd75c42f6822"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-source-evidence/capture-sources.mjs",
+      "bytes": 4533,
+      "sha256": "3c07a348c8193d300273df6d36a52ef564d00778ef1a2021595a2615ee4508a2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-source-evidence/direction-probe.mjs",
+      "bytes": 7052,
+      "sha256": "db79bb74cb1d97f226d619a25ce43b237c9838fd478c1b07cc88704d22f470e1"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-source-evidence/direction-results.json",
+      "bytes": 46668,
+      "sha256": "27346da7e2bdc66c55c172eb673ba72a35147860eec03d8a4f54288ac5be5ec7"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-source-evidence/frozen-manifest.json",
+      "bytes": 2472,
+      "sha256": "15f0daf678a3483331742d8694b947cb0b878be513626315ed00414cf7cc22b2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-source-evidence/issue-804.json",
+      "bytes": 19233,
+      "sha256": "208064483f9cd4b77dcb575f05802414307554a5a4a6f45e1671054a441f788a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-source-evidence/issue-812.json",
+      "bytes": 65430,
+      "sha256": "6cdb823630b8ec436ecb666504521ac39c1956c5a1440fd85aa5653659a414da"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-source-evidence/issue-815.json",
+      "bytes": 57214,
+      "sha256": "25a6d364bc4d4739430b24cd7d54c56fedffbc1279541894ff12b8be2c667cf0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-source-evidence/issue-900.json",
+      "bytes": 6302,
+      "sha256": "f765b19ba7ced35700473d0e6de7d803e7a20e45ad6c0ea0922b72cc63b01e2c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-source-evidence/issue-selected-blocks.json",
+      "bytes": 76188,
+      "sha256": "8238bdc5d954ae2614309036f9aa6803dccbe602cf564303ec54da91bd95e07e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/direction-source-evidence/source-excerpts.json",
+      "bytes": 128046,
+      "sha256": "d954c714e4a57f390272ae20b92a778cc0ba48f7a8c2dd77cbac7d8c29ad6cd6"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/independent-rdw-review.md",
+      "bytes": 15400,
+      "sha256": "70a27f9630a4c7aa223cd9338c83e8c60d9c617b186be5a3f072987c6402651f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/independent-source-scope-review.md",
+      "bytes": 15622,
+      "sha256": "1839550e5925c5a4f56b1d0cd7f413dcd1b76b6bec95103b93b8b76796a34d6b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/p-direction-scope.md",
+      "bytes": 22930,
+      "sha256": "d7da7668a3134139496328015edc5b377bce3a0b8f06a981ddef1b668b71a30b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/relative-direction-candidate.md",
+      "bytes": 18840,
+      "sha256": "722e1bc374abdebc0442b2ec87f229a6183a7fd96b067daed754470d3e4961c4"
+    }
+  ],
+  "external_review_receipts": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage51/source-review/review-artifacts.json",
+      "bytes": 6650,
+      "sha256": "8daf202214cbe877103009452bc169d6b728b7fcc6863034f2692b6cb0095328"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage51/rdw-review/review-delivery.json",
+      "bytes": 736,
+      "sha256": "f47551e2a3490b6ab9d8593406e220c8139403af98853f22d3e84414fffd67c0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage51/rdw-review/final-run/receipt.json",
+      "bytes": 972,
+      "sha256": "89cff286b8d139ec004bc22d6741376384203ead686b4ac68cbea231d0f65dd2"
+    }
+  ],
+  "coordinator_checks": [
+    "11 source-author hashes matched",
+    "17 RDW-author hashes matched after resolving package-relative paths",
+    "both final review report hashes match dispatch completion",
+    "source N-1 and timing/terminology restrictions adopted",
+    "Progress own-only patch prepared; foreign additions retained"
+  ],
+  "new_Lean_claim": false,
+  "formal_source_modified": false,
+  "production_modified": false,
+  "fixture_drift_required": false,
+  "original_a1_or_F2_qualified": false,
+  "new_original_completed_move_issued": false,
+  "market_value_tested": false,
+  "production_adopted": false,
+  "goal_complete": false,
+  "goal_status": "active",
+  "independent_checks": {
+    "source_author_files": 11,
+    "source_local_files": 17,
+    "source_live_github_comments": 5,
+    "rdw_author_files": 17,
+    "rdw_input_lock_items": 10,
+    "rdw_identical_outputs": 9,
+    "existing_synthetic_events": 80,
+    "new_synthetic_events": 20,
+    "total_states_including_initial": 105,
+    "old_fixed_region_cut_pairs": 290,
+    "strict_windows_including_new_controls": 15,
+    "witness_pair_occurrences": 124,
+    "direction_assignments_including_new_controls": 120,
+    "certificate_tuples": 55,
+    "overlapping_checks_not_additional_samples": true
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "schema": "rdw-v1-input-lock",
+  "createdAt": "2026-10-04T18:28:47.828Z",
+  "baselineHeadFromParent": "cfe88d5782aabad24c2c14d07498cbe7c4fb1b0b",
+  "files": [
+    {
+      "path": "GoalReframe-v4.md",
+      "sha256": "36159c5f6bd4062a6654bd3f22b3eaf00e678e5d5dacda844cbf659e230ce39d"
+    },
+    {
+      "path": "stage49/f2-input-contract.md",
+      "sha256": "43cbc60ebdf67bc75b2a6c2a5fcab55f5e93e2ea0eb6d0c0a19adb126033f531"
+    },
+    {
+      "path": "stage49/ScopeClarifications-v1.md",
+      "sha256": "77b518dac43eff7cf730b4b5a3829e6ef09304f7f536af87af8bdbe35ce10376"
+    },
+    {
+      "path": "stage50/candidate-evidence/handoff-classes-v1.md",
+      "sha256": "c900a13bf78357a52956b0c2dfc40ae3bd55f8ba90f40d3779b648b131a4b188"
+    },
+    {
+      "path": "stage50/ScopeClarifications-v1.md",
+      "sha256": "32d7e88eb8148900ce53b001b04655d73a0bad6accb4f7f16123a7aca809866a"
+    },
+    {
+      "path": "stage49/candidate-evidence/results-v1/same_up_counterexample.json",
+      "sha256": "70fb54425e9ea60c7aa0f3bdb51813177ca1e003c6ec9cb65b604bdbf0c06f96"
+    },
+    {
+      "path": "stage49/candidate-evidence/results-v1/same_down_mirror.json",
+      "sha256": "af882f3c4afa4a68ed289405e7044d063b2d12c6f6b6f1eed207a51ae4c98793"
+    },
+    {
+      "path": "stage50/candidate-evidence/results-v1/same_up_counterexample.json",
+      "sha256": "67bbc28f6d75160789021043664328ebe5866fec87cdee70113c8747d9b677c9"
+    },
+    {
+      "path": "stage50/candidate-evidence/results-v1/same_down_mirror.json",
+      "sha256": "577f34e95fae0e45ff036b57a69b00bdef728c2ba26b12a0227c240669334004"
+    },
+    {
+      "path": "stage51/direction-evidence/rdw-v1-definition.md",
+      "sha256": "e70dd235e212f2b8061395b8787df5e030e94688f00b96af53a27b9038a190fc"
+    }
+  ]
+}

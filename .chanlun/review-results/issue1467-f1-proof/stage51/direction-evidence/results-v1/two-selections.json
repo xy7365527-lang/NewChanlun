@@ -1,0 +1,656 @@
+{
+  "source": {
+    "epoch": "synthetic-rdw-v1-two-selections",
+    "synthetic": true,
+    "marketData": false,
+    "coordinates": [
+      0,
+      10,
+      0,
+      10,
+      0,
+      10,
+      0
+    ],
+    "shift": 1000,
+    "initial": {
+      "bid": {
+        "id": "reservoir",
+        "price": 100,
+        "quantity": 1000
+      },
+      "ask": {
+        "id": "ask",
+        "price": 102,
+        "quantity": 10
+      }
+    },
+    "events": [
+      {
+        "seq": 1,
+        "kind": "add",
+        "id": "rise-1",
+        "side": "bid",
+        "price": 100,
+        "quantity": 10
+      },
+      {
+        "seq": 2,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 10
+      },
+      {
+        "seq": 3,
+        "kind": "add",
+        "id": "rise-3",
+        "side": "bid",
+        "price": 100,
+        "quantity": 10
+      },
+      {
+        "seq": 4,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 10
+      },
+      {
+        "seq": 5,
+        "kind": "add",
+        "id": "rise-5",
+        "side": "bid",
+        "price": 100,
+        "quantity": 10
+      },
+      {
+        "seq": 6,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 10
+      }
+    ],
+    "states": [
+      {
+        "event": 0,
+        "q": 1000,
+        "w": "10300/101"
+      },
+      {
+        "event": 1,
+        "q": 1010,
+        "w": "5201/51"
+      },
+      {
+        "event": 2,
+        "q": 1000,
+        "w": "10300/101"
+      },
+      {
+        "event": 3,
+        "q": 1010,
+        "w": "5201/51"
+      },
+      {
+        "event": 4,
+        "q": 1000,
+        "w": "10300/101"
+      },
+      {
+        "event": 5,
+        "q": 1010,
+        "w": "5201/51"
+      },
+      {
+        "event": 6,
+        "q": 1000,
+        "w": "10300/101"
+      }
+    ]
+  },
+  "replayEvidence": [
+    {
+      "event": 0,
+      "reservoirQuantity": 1000,
+      "bestBidQuantity": 1000,
+      "bestAskQuantity": 10,
+      "liveIDs": [
+        "reservoir",
+        "ask"
+      ]
+    },
+    {
+      "event": 1,
+      "reservoirQuantity": 1000,
+      "bestBidQuantity": 1010,
+      "bestAskQuantity": 10,
+      "liveIDs": [
+        "reservoir",
+        "ask",
+        "rise-1"
+      ]
+    },
+    {
+      "event": 2,
+      "reservoirQuantity": 990,
+      "bestBidQuantity": 1000,
+      "bestAskQuantity": 10,
+      "liveIDs": [
+        "reservoir",
+        "ask",
+        "rise-1"
+      ]
+    },
+    {
+      "event": 3,
+      "reservoirQuantity": 990,
+      "bestBidQuantity": 1010,
+      "bestAskQuantity": 10,
+      "liveIDs": [
+        "reservoir",
+        "ask",
+        "rise-1",
+        "rise-3"
+      ]
+    },
+    {
+      "event": 4,
+      "reservoirQuantity": 980,
+      "bestBidQuantity": 1000,
+      "bestAskQuantity": 10,
+      "liveIDs": [
+        "reservoir",
+        "ask",
+        "rise-1",
+        "rise-3"
+      ]
+    },
+    {
+      "event": 5,
+      "reservoirQuantity": 980,
+      "bestBidQuantity": 1010,
+      "bestAskQuantity": 10,
+      "liveIDs": [
+        "reservoir",
+        "ask",
+        "rise-1",
+        "rise-3",
+        "rise-5"
+      ]
+    },
+    {
+      "event": 6,
+      "reservoirQuantity": 970,
+      "bestBidQuantity": 1000,
+      "bestAskQuantity": 10,
+      "liveIDs": [
+        "reservoir",
+        "ask",
+        "rise-1",
+        "rise-3",
+        "rise-5"
+      ]
+    }
+  ],
+  "orderComparisons": 49,
+  "result": {
+    "cuts": [
+      0,
+      2,
+      4,
+      6
+    ],
+    "qRanges": [
+      [
+        1000,
+        1010
+      ],
+      [
+        1000,
+        1010
+      ],
+      [
+        1000,
+        1010
+      ]
+    ],
+    "wRanges": [
+      [
+        "10300/101",
+        "5201/51"
+      ],
+      [
+        "10300/101",
+        "5201/51"
+      ],
+      [
+        "10300/101",
+        "5201/51"
+      ]
+    ],
+    "numericalH": [
+      1000,
+      1010
+    ],
+    "wNumericalH": [
+      "10300/101",
+      "5201/51"
+    ],
+    "strict": true,
+    "children": [
+      {
+        "start": 0,
+        "end": 2,
+        "ownedEvents": [
+          1,
+          2
+        ],
+        "priceSupport": [
+          0,
+          1,
+          2
+        ],
+        "sourceStates": [
+          {
+            "event": 0,
+            "q": 1000,
+            "w": "10300/101"
+          },
+          {
+            "event": 1,
+            "q": 1010,
+            "w": "5201/51"
+          },
+          {
+            "event": 2,
+            "q": 1000,
+            "w": "10300/101"
+          }
+        ],
+        "qRange": [
+          1000,
+          1010
+        ],
+        "wRange": [
+          "10300/101",
+          "5201/51"
+        ],
+        "extrema": {
+          "minIndices": [
+            0,
+            2
+          ],
+          "maxIndices": [
+            1
+          ]
+        },
+        "endpointDirection": null,
+        "strictEndpointIncrease": false,
+        "witnesses": {
+          "U": [
+            {
+              "indices": [
+                0,
+                1
+              ],
+              "q": [
+                1000,
+                1010
+              ],
+              "w": [
+                "10300/101",
+                "5201/51"
+              ],
+              "pointsAvailableAt": 1
+            }
+          ],
+          "D": [
+            {
+              "indices": [
+                1,
+                2
+              ],
+              "q": [
+                1010,
+                1000
+              ],
+              "w": [
+                "5201/51",
+                "10300/101"
+              ],
+              "pointsAvailableAt": 2
+            }
+          ]
+        },
+        "directions": [
+          "U",
+          "D"
+        ],
+        "conceptDirection": null,
+        "originalCompletionEvidence": null,
+        "originalZ3Evidence": null
+      },
+      {
+        "start": 2,
+        "end": 4,
+        "ownedEvents": [
+          3,
+          4
+        ],
+        "priceSupport": [
+          2,
+          3,
+          4
+        ],
+        "sourceStates": [
+          {
+            "event": 2,
+            "q": 1000,
+            "w": "10300/101"
+          },
+          {
+            "event": 3,
+            "q": 1010,
+            "w": "5201/51"
+          },
+          {
+            "event": 4,
+            "q": 1000,
+            "w": "10300/101"
+          }
+        ],
+        "qRange": [
+          1000,
+          1010
+        ],
+        "wRange": [
+          "10300/101",
+          "5201/51"
+        ],
+        "extrema": {
+          "minIndices": [
+            2,
+            4
+          ],
+          "maxIndices": [
+            3
+          ]
+        },
+        "endpointDirection": null,
+        "strictEndpointIncrease": false,
+        "witnesses": {
+          "U": [
+            {
+              "indices": [
+                2,
+                3
+              ],
+              "q": [
+                1000,
+                1010
+              ],
+              "w": [
+                "10300/101",
+                "5201/51"
+              ],
+              "pointsAvailableAt": 3
+            }
+          ],
+          "D": [
+            {
+              "indices": [
+                3,
+                4
+              ],
+              "q": [
+                1010,
+                1000
+              ],
+              "w": [
+                "5201/51",
+                "10300/101"
+              ],
+              "pointsAvailableAt": 4
+            }
+          ]
+        },
+        "directions": [
+          "U",
+          "D"
+        ],
+        "conceptDirection": null,
+        "originalCompletionEvidence": null,
+        "originalZ3Evidence": null
+      },
+      {
+        "start": 4,
+        "end": 6,
+        "ownedEvents": [
+          5,
+          6
+        ],
+        "priceSupport": [
+          4,
+          5,
+          6
+        ],
+        "sourceStates": [
+          {
+            "event": 4,
+            "q": 1000,
+            "w": "10300/101"
+          },
+          {
+            "event": 5,
+            "q": 1010,
+            "w": "5201/51"
+          },
+          {
+            "event": 6,
+            "q": 1000,
+            "w": "10300/101"
+          }
+        ],
+        "qRange": [
+          1000,
+          1010
+        ],
+        "wRange": [
+          "10300/101",
+          "5201/51"
+        ],
+        "extrema": {
+          "minIndices": [
+            4,
+            6
+          ],
+          "maxIndices": [
+            5
+          ]
+        },
+        "endpointDirection": null,
+        "strictEndpointIncrease": false,
+        "witnesses": {
+          "U": [
+            {
+              "indices": [
+                4,
+                5
+              ],
+              "q": [
+                1000,
+                1010
+              ],
+              "w": [
+                "10300/101",
+                "5201/51"
+              ],
+              "pointsAvailableAt": 5
+            }
+          ],
+          "D": [
+            {
+              "indices": [
+                5,
+                6
+              ],
+              "q": [
+                1010,
+                1000
+              ],
+              "w": [
+                "5201/51",
+                "10300/101"
+              ],
+              "pointsAvailableAt": 6
+            }
+          ]
+        },
+        "directions": [
+          "U",
+          "D"
+        ],
+        "conceptDirection": null,
+        "originalCompletionEvidence": null,
+        "originalZ3Evidence": null
+      }
+    ],
+    "allEightAssignments": [
+      {
+        "word": "UUU",
+        "perChildHasWitness": [
+          true,
+          true,
+          true
+        ],
+        "feasible": true,
+        "alternating": false,
+        "accepted": false
+      },
+      {
+        "word": "UUD",
+        "perChildHasWitness": [
+          true,
+          true,
+          true
+        ],
+        "feasible": true,
+        "alternating": false,
+        "accepted": false
+      },
+      {
+        "word": "UDU",
+        "perChildHasWitness": [
+          true,
+          true,
+          true
+        ],
+        "feasible": true,
+        "alternating": true,
+        "accepted": true
+      },
+      {
+        "word": "UDD",
+        "perChildHasWitness": [
+          true,
+          true,
+          true
+        ],
+        "feasible": true,
+        "alternating": false,
+        "accepted": false
+      },
+      {
+        "word": "DUU",
+        "perChildHasWitness": [
+          true,
+          true,
+          true
+        ],
+        "feasible": true,
+        "alternating": false,
+        "accepted": false
+      },
+      {
+        "word": "DUD",
+        "perChildHasWitness": [
+          true,
+          true,
+          true
+        ],
+        "feasible": true,
+        "alternating": true,
+        "accepted": true
+      },
+      {
+        "word": "DDU",
+        "perChildHasWitness": [
+          true,
+          true,
+          true
+        ],
+        "feasible": true,
+        "alternating": false,
+        "accepted": false
+      },
+      {
+        "word": "DDD",
+        "perChildHasWitness": [
+          true,
+          true,
+          true
+        ],
+        "feasible": true,
+        "alternating": false,
+        "accepted": false
+      }
+    ],
+    "selections": [
+      {
+        "word": "UDU",
+        "witnessTupleCount": 1,
+        "allWitnessIndexTuples": [
+          [
+            [
+              0,
+              1
+            ],
+            [
+              3,
+              4
+            ],
+            [
+              4,
+              5
+            ]
+          ]
+        ]
+      },
+      {
+        "word": "DUD",
+        "witnessTupleCount": 1,
+        "allWitnessIndexTuples": [
+          [
+            [
+              1,
+              2
+            ],
+            [
+              2,
+              3
+            ],
+            [
+              5,
+              6
+            ]
+          ]
+        ]
+      }
+    ],
+    "selectionCount": 2,
+    "witnessTupleCount": 2,
+    "sourceRangesAvailableAt": 6,
+    "semanticEligibleAt": null,
+    "originalParentCore": null,
+    "qualification": "numerical RDW-v1 only; no completed same-level moves or original Z3 bridge certified"
+  }
+}

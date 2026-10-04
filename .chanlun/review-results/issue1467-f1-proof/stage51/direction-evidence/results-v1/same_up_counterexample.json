@@ -1,0 +1,4637 @@
+{
+  "candidate": "RDW-v1",
+  "sourceFile": "stage49/candidate-evidence/results-v1/same_up_counterexample.json",
+  "sourceSHA256": "70fb54425e9ea60c7aa0f3bdb51813177ca1e003c6ec9cb65b604bdbf0c06f96",
+  "records": [
+    {
+      "cuts": [
+        0,
+        4,
+        8,
+        12
+      ],
+      "qRanges": [
+        [
+          1000,
+          1040
+        ],
+        [
+          1010,
+          1140
+        ],
+        [
+          1110,
+          1140
+        ]
+      ],
+      "numericalH": [
+        1110,
+        1040
+      ],
+      "strict": false,
+      "allEightAssignments": [],
+      "selections": [],
+      "catalogueCheckedAt": 15,
+      "outsideThisPartition": {
+        "knownLeftEvents": [],
+        "knownRightEvents": [
+          13,
+          14,
+          15
+        ],
+        "futureEventsNotConsumed": [
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40
+        ]
+      },
+      "originalCompletionSupportAvailableAt": null
+    },
+    {
+      "cuts": [
+        0,
+        4,
+        9,
+        12
+      ],
+      "qRanges": [
+        [
+          1000,
+          1040
+        ],
+        [
+          1010,
+          1140
+        ],
+        [
+          1135,
+          1140
+        ]
+      ],
+      "numericalH": [
+        1135,
+        1040
+      ],
+      "strict": false,
+      "allEightAssignments": [],
+      "selections": [],
+      "catalogueCheckedAt": 15,
+      "outsideThisPartition": {
+        "knownLeftEvents": [],
+        "knownRightEvents": [
+          13,
+          14,
+          15
+        ],
+        "futureEventsNotConsumed": [
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40
+        ]
+      },
+      "originalCompletionSupportAvailableAt": null
+    },
+    {
+      "cuts": [
+        0,
+        5,
+        8,
+        12
+      ],
+      "qRanges": [
+        [
+          1000,
+          1140
+        ],
+        [
+          1100,
+          1140
+        ],
+        [
+          1110,
+          1140
+        ]
+      ],
+      "wRanges": [
+        [
+          "10300/101",
+          "11728/115"
+        ],
+        [
+          "11320/111",
+          "11728/115"
+        ],
+        [
+          "5711/56",
+          "11728/115"
+        ]
+      ],
+      "numericalH": [
+        1110,
+        1140
+      ],
+      "wNumericalH": [
+        "5711/56",
+        "11728/115"
+      ],
+      "strict": true,
+      "children": [
+        {
+          "start": 0,
+          "end": 5,
+          "ownedEvents": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "priceSupport": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "sourceStates": [
+            {
+              "event": 0,
+              "q": 1040,
+              "w": "10708/105"
+            },
+            {
+              "event": 1,
+              "q": 1040,
+              "w": "10708/105"
+            },
+            {
+              "event": 2,
+              "q": 1000,
+              "w": "10300/101"
+            },
+            {
+              "event": 3,
+              "q": 1030,
+              "w": "5303/52"
+            },
+            {
+              "event": 4,
+              "q": 1010,
+              "w": "5201/51"
+            },
+            {
+              "event": 5,
+              "q": 1140,
+              "w": "11728/115"
+            }
+          ],
+          "qRange": [
+            1000,
+            1140
+          ],
+          "wRange": [
+            "10300/101",
+            "11728/115"
+          ],
+          "extrema": {
+            "minIndices": [
+              2
+            ],
+            "maxIndices": [
+              5
+            ]
+          },
+          "endpointDirection": "U",
+          "strictEndpointIncrease": true,
+          "witnesses": {
+            "U": [
+              {
+                "indices": [
+                  0,
+                  5
+                ],
+                "q": [
+                  1040,
+                  1140
+                ],
+                "w": [
+                  "10708/105",
+                  "11728/115"
+                ],
+                "pointsAvailableAt": 5
+              },
+              {
+                "indices": [
+                  1,
+                  5
+                ],
+                "q": [
+                  1040,
+                  1140
+                ],
+                "w": [
+                  "10708/105",
+                  "11728/115"
+                ],
+                "pointsAvailableAt": 5
+              },
+              {
+                "indices": [
+                  2,
+                  5
+                ],
+                "q": [
+                  1000,
+                  1140
+                ],
+                "w": [
+                  "10300/101",
+                  "11728/115"
+                ],
+                "pointsAvailableAt": 5
+              },
+              {
+                "indices": [
+                  3,
+                  5
+                ],
+                "q": [
+                  1030,
+                  1140
+                ],
+                "w": [
+                  "5303/52",
+                  "11728/115"
+                ],
+                "pointsAvailableAt": 5
+              },
+              {
+                "indices": [
+                  4,
+                  5
+                ],
+                "q": [
+                  1010,
+                  1140
+                ],
+                "w": [
+                  "5201/51",
+                  "11728/115"
+                ],
+                "pointsAvailableAt": 5
+              }
+            ],
+            "D": []
+          },
+          "directions": [
+            "U"
+          ],
+          "conceptDirection": null,
+          "originalCompletionEvidence": null,
+          "originalZ3Evidence": null,
+          "kindIfCompleted": "P",
+          "ownedCatalogueCoreIDs": [
+            "K0"
+          ],
+          "coreFormationDiagnostics": [
+            {
+              "id": "K0",
+              "sourceStart": 0,
+              "sourceEnd": 4,
+              "rawNonzeroIncrementSigns": [
+                "D",
+                "U",
+                "D"
+              ],
+              "firstFormationSign": "D",
+              "sealedAt": 7,
+              "supportLegIndices": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ],
+              "supportKnownAt": [
+                3,
+                4,
+                5,
+                6,
+                7
+              ],
+              "originalCenterQualification": null
+            }
+          ]
+        },
+        {
+          "start": 5,
+          "end": 8,
+          "ownedEvents": [
+            6,
+            7,
+            8
+          ],
+          "priceSupport": [
+            5,
+            6,
+            7,
+            8
+          ],
+          "sourceStates": [
+            {
+              "event": 5,
+              "q": 1140,
+              "w": "11728/115"
+            },
+            {
+              "event": 6,
+              "q": 1100,
+              "w": "11320/111"
+            },
+            {
+              "event": 7,
+              "q": 1130,
+              "w": "5813/57"
+            },
+            {
+              "event": 8,
+              "q": 1110,
+              "w": "5711/56"
+            }
+          ],
+          "qRange": [
+            1100,
+            1140
+          ],
+          "wRange": [
+            "11320/111",
+            "11728/115"
+          ],
+          "extrema": {
+            "minIndices": [
+              6
+            ],
+            "maxIndices": [
+              5
+            ]
+          },
+          "endpointDirection": "D",
+          "strictEndpointIncrease": false,
+          "witnesses": {
+            "U": [],
+            "D": [
+              {
+                "indices": [
+                  5,
+                  6
+                ],
+                "q": [
+                  1140,
+                  1100
+                ],
+                "w": [
+                  "11728/115",
+                  "11320/111"
+                ],
+                "pointsAvailableAt": 6
+              },
+              {
+                "indices": [
+                  5,
+                  8
+                ],
+                "q": [
+                  1140,
+                  1110
+                ],
+                "w": [
+                  "11728/115",
+                  "5711/56"
+                ],
+                "pointsAvailableAt": 8
+              }
+            ]
+          },
+          "directions": [
+            "D"
+          ],
+          "conceptDirection": null,
+          "originalCompletionEvidence": null,
+          "originalZ3Evidence": null,
+          "kindIfCompleted": "P",
+          "ownedCatalogueCoreIDs": [
+            "K1"
+          ],
+          "coreFormationDiagnostics": [
+            {
+              "id": "K1",
+              "sourceStart": 5,
+              "sourceEnd": 8,
+              "rawNonzeroIncrementSigns": [
+                "D",
+                "U",
+                "D"
+              ],
+              "firstFormationSign": "D",
+              "sealedAt": 11,
+              "supportLegIndices": [
+                4,
+                5,
+                6,
+                7,
+                8
+              ],
+              "supportKnownAt": [
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "originalCenterQualification": null
+            }
+          ]
+        },
+        {
+          "start": 8,
+          "end": 12,
+          "ownedEvents": [
+            9,
+            10,
+            11,
+            12
+          ],
+          "priceSupport": [
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "sourceStates": [
+            {
+              "event": 8,
+              "q": 1110,
+              "w": "5711/56"
+            },
+            {
+              "event": 9,
+              "q": 1140,
+              "w": "11728/115"
+            },
+            {
+              "event": 10,
+              "q": 1135,
+              "w": "23354/229"
+            },
+            {
+              "event": 11,
+              "q": 1138,
+              "w": "29269/287"
+            },
+            {
+              "event": 12,
+              "q": 1136,
+              "w": "58436/573"
+            }
+          ],
+          "qRange": [
+            1110,
+            1140
+          ],
+          "wRange": [
+            "5711/56",
+            "11728/115"
+          ],
+          "extrema": {
+            "minIndices": [
+              8
+            ],
+            "maxIndices": [
+              9
+            ]
+          },
+          "endpointDirection": "U",
+          "strictEndpointIncrease": true,
+          "witnesses": {
+            "U": [
+              {
+                "indices": [
+                  8,
+                  9
+                ],
+                "q": [
+                  1110,
+                  1140
+                ],
+                "w": [
+                  "5711/56",
+                  "11728/115"
+                ],
+                "pointsAvailableAt": 9
+              }
+            ],
+            "D": []
+          },
+          "directions": [
+            "U"
+          ],
+          "conceptDirection": null,
+          "originalCompletionEvidence": null,
+          "originalZ3Evidence": null,
+          "kindIfCompleted": "P",
+          "ownedCatalogueCoreIDs": [
+            "K2"
+          ],
+          "coreFormationDiagnostics": [
+            {
+              "id": "K2",
+              "sourceStart": 9,
+              "sourceEnd": 12,
+              "rawNonzeroIncrementSigns": [
+                "D",
+                "U",
+                "D"
+              ],
+              "firstFormationSign": "D",
+              "sealedAt": 15,
+              "supportLegIndices": [
+                8,
+                9,
+                10,
+                11,
+                12
+              ],
+              "supportKnownAt": [
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "originalCenterQualification": null
+            }
+          ]
+        }
+      ],
+      "allEightAssignments": [
+        {
+          "word": "UUU",
+          "perChildHasWitness": [
+            true,
+            false,
+            true
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "UUD",
+          "perChildHasWitness": [
+            true,
+            false,
+            false
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "UDU",
+          "perChildHasWitness": [
+            true,
+            true,
+            true
+          ],
+          "feasible": true,
+          "alternating": true,
+          "accepted": true
+        },
+        {
+          "word": "UDD",
+          "perChildHasWitness": [
+            true,
+            true,
+            false
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "DUU",
+          "perChildHasWitness": [
+            false,
+            false,
+            true
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "DUD",
+          "perChildHasWitness": [
+            false,
+            false,
+            false
+          ],
+          "feasible": false,
+          "alternating": true,
+          "accepted": false
+        },
+        {
+          "word": "DDU",
+          "perChildHasWitness": [
+            false,
+            true,
+            true
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "DDD",
+          "perChildHasWitness": [
+            false,
+            true,
+            false
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        }
+      ],
+      "selections": [
+        {
+          "word": "UDU",
+          "witnessTupleCount": 10,
+          "allWitnessIndexTuples": [
+            [
+              [
+                0,
+                5
+              ],
+              [
+                5,
+                6
+              ],
+              [
+                8,
+                9
+              ]
+            ],
+            [
+              [
+                0,
+                5
+              ],
+              [
+                5,
+                8
+              ],
+              [
+                8,
+                9
+              ]
+            ],
+            [
+              [
+                1,
+                5
+              ],
+              [
+                5,
+                6
+              ],
+              [
+                8,
+                9
+              ]
+            ],
+            [
+              [
+                1,
+                5
+              ],
+              [
+                5,
+                8
+              ],
+              [
+                8,
+                9
+              ]
+            ],
+            [
+              [
+                2,
+                5
+              ],
+              [
+                5,
+                6
+              ],
+              [
+                8,
+                9
+              ]
+            ],
+            [
+              [
+                2,
+                5
+              ],
+              [
+                5,
+                8
+              ],
+              [
+                8,
+                9
+              ]
+            ],
+            [
+              [
+                3,
+                5
+              ],
+              [
+                5,
+                6
+              ],
+              [
+                8,
+                9
+              ]
+            ],
+            [
+              [
+                3,
+                5
+              ],
+              [
+                5,
+                8
+              ],
+              [
+                8,
+                9
+              ]
+            ],
+            [
+              [
+                4,
+                5
+              ],
+              [
+                5,
+                6
+              ],
+              [
+                8,
+                9
+              ]
+            ],
+            [
+              [
+                4,
+                5
+              ],
+              [
+                5,
+                8
+              ],
+              [
+                8,
+                9
+              ]
+            ]
+          ]
+        }
+      ],
+      "selectionCount": 1,
+      "witnessTupleCount": 10,
+      "sourceRangesAvailableAt": 12,
+      "semanticEligibleAt": null,
+      "originalParentCore": null,
+      "qualification": "numerical RDW-v1 only; no completed same-level moves or original Z3 bridge certified",
+      "catalogueCheckedAt": 15,
+      "outsideThisPartition": {
+        "knownLeftEvents": [],
+        "knownRightEvents": [
+          13,
+          14,
+          15
+        ],
+        "futureEventsNotConsumed": [
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40
+        ]
+      },
+      "originalCompletionSupportAvailableAt": null,
+      "catalogueSupportAvailableAt": 15,
+      "earliestNumericalAndFrozenCatalogueReadbackAt": 15,
+      "onlinePartitionPublicationAt": null
+    },
+    {
+      "cuts": [
+        0,
+        5,
+        9,
+        12
+      ],
+      "qRanges": [
+        [
+          1000,
+          1140
+        ],
+        [
+          1100,
+          1140
+        ],
+        [
+          1135,
+          1140
+        ]
+      ],
+      "wRanges": [
+        [
+          "10300/101",
+          "11728/115"
+        ],
+        [
+          "11320/111",
+          "11728/115"
+        ],
+        [
+          "23354/229",
+          "11728/115"
+        ]
+      ],
+      "numericalH": [
+        1135,
+        1140
+      ],
+      "wNumericalH": [
+        "23354/229",
+        "11728/115"
+      ],
+      "strict": true,
+      "children": [
+        {
+          "start": 0,
+          "end": 5,
+          "ownedEvents": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "priceSupport": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "sourceStates": [
+            {
+              "event": 0,
+              "q": 1040,
+              "w": "10708/105"
+            },
+            {
+              "event": 1,
+              "q": 1040,
+              "w": "10708/105"
+            },
+            {
+              "event": 2,
+              "q": 1000,
+              "w": "10300/101"
+            },
+            {
+              "event": 3,
+              "q": 1030,
+              "w": "5303/52"
+            },
+            {
+              "event": 4,
+              "q": 1010,
+              "w": "5201/51"
+            },
+            {
+              "event": 5,
+              "q": 1140,
+              "w": "11728/115"
+            }
+          ],
+          "qRange": [
+            1000,
+            1140
+          ],
+          "wRange": [
+            "10300/101",
+            "11728/115"
+          ],
+          "extrema": {
+            "minIndices": [
+              2
+            ],
+            "maxIndices": [
+              5
+            ]
+          },
+          "endpointDirection": "U",
+          "strictEndpointIncrease": true,
+          "witnesses": {
+            "U": [
+              {
+                "indices": [
+                  0,
+                  5
+                ],
+                "q": [
+                  1040,
+                  1140
+                ],
+                "w": [
+                  "10708/105",
+                  "11728/115"
+                ],
+                "pointsAvailableAt": 5
+              },
+              {
+                "indices": [
+                  1,
+                  5
+                ],
+                "q": [
+                  1040,
+                  1140
+                ],
+                "w": [
+                  "10708/105",
+                  "11728/115"
+                ],
+                "pointsAvailableAt": 5
+              },
+              {
+                "indices": [
+                  2,
+                  5
+                ],
+                "q": [
+                  1000,
+                  1140
+                ],
+                "w": [
+                  "10300/101",
+                  "11728/115"
+                ],
+                "pointsAvailableAt": 5
+              },
+              {
+                "indices": [
+                  3,
+                  5
+                ],
+                "q": [
+                  1030,
+                  1140
+                ],
+                "w": [
+                  "5303/52",
+                  "11728/115"
+                ],
+                "pointsAvailableAt": 5
+              },
+              {
+                "indices": [
+                  4,
+                  5
+                ],
+                "q": [
+                  1010,
+                  1140
+                ],
+                "w": [
+                  "5201/51",
+                  "11728/115"
+                ],
+                "pointsAvailableAt": 5
+              }
+            ],
+            "D": []
+          },
+          "directions": [
+            "U"
+          ],
+          "conceptDirection": null,
+          "originalCompletionEvidence": null,
+          "originalZ3Evidence": null,
+          "kindIfCompleted": "P",
+          "ownedCatalogueCoreIDs": [
+            "K0"
+          ],
+          "coreFormationDiagnostics": [
+            {
+              "id": "K0",
+              "sourceStart": 0,
+              "sourceEnd": 4,
+              "rawNonzeroIncrementSigns": [
+                "D",
+                "U",
+                "D"
+              ],
+              "firstFormationSign": "D",
+              "sealedAt": 7,
+              "supportLegIndices": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ],
+              "supportKnownAt": [
+                3,
+                4,
+                5,
+                6,
+                7
+              ],
+              "originalCenterQualification": null
+            }
+          ]
+        },
+        {
+          "start": 5,
+          "end": 9,
+          "ownedEvents": [
+            6,
+            7,
+            8,
+            9
+          ],
+          "priceSupport": [
+            5,
+            6,
+            7,
+            8,
+            9
+          ],
+          "sourceStates": [
+            {
+              "event": 5,
+              "q": 1140,
+              "w": "11728/115"
+            },
+            {
+              "event": 6,
+              "q": 1100,
+              "w": "11320/111"
+            },
+            {
+              "event": 7,
+              "q": 1130,
+              "w": "5813/57"
+            },
+            {
+              "event": 8,
+              "q": 1110,
+              "w": "5711/56"
+            },
+            {
+              "event": 9,
+              "q": 1140,
+              "w": "11728/115"
+            }
+          ],
+          "qRange": [
+            1100,
+            1140
+          ],
+          "wRange": [
+            "11320/111",
+            "11728/115"
+          ],
+          "extrema": {
+            "minIndices": [
+              6
+            ],
+            "maxIndices": [
+              5,
+              9
+            ]
+          },
+          "endpointDirection": null,
+          "strictEndpointIncrease": false,
+          "witnesses": {
+            "U": [
+              {
+                "indices": [
+                  6,
+                  9
+                ],
+                "q": [
+                  1100,
+                  1140
+                ],
+                "w": [
+                  "11320/111",
+                  "11728/115"
+                ],
+                "pointsAvailableAt": 9
+              },
+              {
+                "indices": [
+                  7,
+                  9
+                ],
+                "q": [
+                  1130,
+                  1140
+                ],
+                "w": [
+                  "5813/57",
+                  "11728/115"
+                ],
+                "pointsAvailableAt": 9
+              },
+              {
+                "indices": [
+                  8,
+                  9
+                ],
+                "q": [
+                  1110,
+                  1140
+                ],
+                "w": [
+                  "5711/56",
+                  "11728/115"
+                ],
+                "pointsAvailableAt": 9
+              }
+            ],
+            "D": [
+              {
+                "indices": [
+                  5,
+                  6
+                ],
+                "q": [
+                  1140,
+                  1100
+                ],
+                "w": [
+                  "11728/115",
+                  "11320/111"
+                ],
+                "pointsAvailableAt": 6
+              },
+              {
+                "indices": [
+                  5,
+                  7
+                ],
+                "q": [
+                  1140,
+                  1130
+                ],
+                "w": [
+                  "11728/115",
+                  "5813/57"
+                ],
+                "pointsAvailableAt": 7
+              },
+              {
+                "indices": [
+                  5,
+                  8
+                ],
+                "q": [
+                  1140,
+                  1110
+                ],
+                "w": [
+                  "11728/115",
+                  "5711/56"
+                ],
+                "pointsAvailableAt": 8
+              }
+            ]
+          },
+          "directions": [
+            "U",
+            "D"
+          ],
+          "conceptDirection": null,
+          "originalCompletionEvidence": null,
+          "originalZ3Evidence": null,
+          "kindIfCompleted": "P",
+          "ownedCatalogueCoreIDs": [
+            "K1"
+          ],
+          "coreFormationDiagnostics": [
+            {
+              "id": "K1",
+              "sourceStart": 5,
+              "sourceEnd": 8,
+              "rawNonzeroIncrementSigns": [
+                "D",
+                "U",
+                "D"
+              ],
+              "firstFormationSign": "D",
+              "sealedAt": 11,
+              "supportLegIndices": [
+                4,
+                5,
+                6,
+                7,
+                8
+              ],
+              "supportKnownAt": [
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "originalCenterQualification": null
+            }
+          ]
+        },
+        {
+          "start": 9,
+          "end": 12,
+          "ownedEvents": [
+            10,
+            11,
+            12
+          ],
+          "priceSupport": [
+            9,
+            10,
+            11,
+            12
+          ],
+          "sourceStates": [
+            {
+              "event": 9,
+              "q": 1140,
+              "w": "11728/115"
+            },
+            {
+              "event": 10,
+              "q": 1135,
+              "w": "23354/229"
+            },
+            {
+              "event": 11,
+              "q": 1138,
+              "w": "29269/287"
+            },
+            {
+              "event": 12,
+              "q": 1136,
+              "w": "58436/573"
+            }
+          ],
+          "qRange": [
+            1135,
+            1140
+          ],
+          "wRange": [
+            "23354/229",
+            "11728/115"
+          ],
+          "extrema": {
+            "minIndices": [
+              10
+            ],
+            "maxIndices": [
+              9
+            ]
+          },
+          "endpointDirection": "D",
+          "strictEndpointIncrease": false,
+          "witnesses": {
+            "U": [],
+            "D": [
+              {
+                "indices": [
+                  9,
+                  10
+                ],
+                "q": [
+                  1140,
+                  1135
+                ],
+                "w": [
+                  "11728/115",
+                  "23354/229"
+                ],
+                "pointsAvailableAt": 10
+              }
+            ]
+          },
+          "directions": [
+            "D"
+          ],
+          "conceptDirection": null,
+          "originalCompletionEvidence": null,
+          "originalZ3Evidence": null,
+          "kindIfCompleted": "P",
+          "ownedCatalogueCoreIDs": [
+            "K2"
+          ],
+          "coreFormationDiagnostics": [
+            {
+              "id": "K2",
+              "sourceStart": 9,
+              "sourceEnd": 12,
+              "rawNonzeroIncrementSigns": [
+                "D",
+                "U",
+                "D"
+              ],
+              "firstFormationSign": "D",
+              "sealedAt": 15,
+              "supportLegIndices": [
+                8,
+                9,
+                10,
+                11,
+                12
+              ],
+              "supportKnownAt": [
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "originalCenterQualification": null
+            }
+          ]
+        }
+      ],
+      "allEightAssignments": [
+        {
+          "word": "UUU",
+          "perChildHasWitness": [
+            true,
+            true,
+            false
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "UUD",
+          "perChildHasWitness": [
+            true,
+            true,
+            true
+          ],
+          "feasible": true,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "UDU",
+          "perChildHasWitness": [
+            true,
+            true,
+            false
+          ],
+          "feasible": false,
+          "alternating": true,
+          "accepted": false
+        },
+        {
+          "word": "UDD",
+          "perChildHasWitness": [
+            true,
+            true,
+            true
+          ],
+          "feasible": true,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "DUU",
+          "perChildHasWitness": [
+            false,
+            true,
+            false
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "DUD",
+          "perChildHasWitness": [
+            false,
+            true,
+            true
+          ],
+          "feasible": false,
+          "alternating": true,
+          "accepted": false
+        },
+        {
+          "word": "DDU",
+          "perChildHasWitness": [
+            false,
+            true,
+            false
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "DDD",
+          "perChildHasWitness": [
+            false,
+            true,
+            true
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        }
+      ],
+      "selections": [],
+      "selectionCount": 0,
+      "witnessTupleCount": 0,
+      "sourceRangesAvailableAt": 12,
+      "semanticEligibleAt": null,
+      "originalParentCore": null,
+      "qualification": "numerical RDW-v1 only; no completed same-level moves or original Z3 bridge certified",
+      "catalogueCheckedAt": 15,
+      "outsideThisPartition": {
+        "knownLeftEvents": [],
+        "knownRightEvents": [
+          13,
+          14,
+          15
+        ],
+        "futureEventsNotConsumed": [
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40
+        ]
+      },
+      "originalCompletionSupportAvailableAt": null,
+      "catalogueSupportAvailableAt": 15,
+      "earliestNumericalAndFrozenCatalogueReadbackAt": 15,
+      "onlinePartitionPublicationAt": null
+    },
+    {
+      "cuts": [
+        9,
+        12,
+        16,
+        20
+      ],
+      "qRanges": [
+        [
+          1135,
+          1140
+        ],
+        [
+          1136,
+          1240
+        ],
+        [
+          1210,
+          1240
+        ]
+      ],
+      "numericalH": [
+        1210,
+        1140
+      ],
+      "strict": false,
+      "allEightAssignments": [],
+      "selections": [],
+      "catalogueCheckedAt": 23,
+      "outsideThisPartition": {
+        "knownLeftEvents": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+        ],
+        "knownRightEvents": [
+          21,
+          22,
+          23
+        ],
+        "futureEventsNotConsumed": [
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40
+        ]
+      },
+      "originalCompletionSupportAvailableAt": null
+    },
+    {
+      "cuts": [
+        9,
+        12,
+        17,
+        20
+      ],
+      "qRanges": [
+        [
+          1135,
+          1140
+        ],
+        [
+          1136,
+          1240
+        ],
+        [
+          1235,
+          1240
+        ]
+      ],
+      "numericalH": [
+        1235,
+        1140
+      ],
+      "strict": false,
+      "allEightAssignments": [],
+      "selections": [],
+      "catalogueCheckedAt": 23,
+      "outsideThisPartition": {
+        "knownLeftEvents": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+        ],
+        "knownRightEvents": [
+          21,
+          22,
+          23
+        ],
+        "futureEventsNotConsumed": [
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40
+        ]
+      },
+      "originalCompletionSupportAvailableAt": null
+    },
+    {
+      "cuts": [
+        9,
+        13,
+        16,
+        20
+      ],
+      "qRanges": [
+        [
+          1135,
+          1240
+        ],
+        [
+          1200,
+          1240
+        ],
+        [
+          1210,
+          1240
+        ]
+      ],
+      "wRanges": [
+        [
+          "23354/229",
+          "12748/125"
+        ],
+        [
+          "12340/121",
+          "12748/125"
+        ],
+        [
+          "6221/61",
+          "12748/125"
+        ]
+      ],
+      "numericalH": [
+        1210,
+        1240
+      ],
+      "wNumericalH": [
+        "6221/61",
+        "12748/125"
+      ],
+      "strict": true,
+      "children": [
+        {
+          "start": 9,
+          "end": 13,
+          "ownedEvents": [
+            10,
+            11,
+            12,
+            13
+          ],
+          "priceSupport": [
+            9,
+            10,
+            11,
+            12,
+            13
+          ],
+          "sourceStates": [
+            {
+              "event": 9,
+              "q": 1140,
+              "w": "11728/115"
+            },
+            {
+              "event": 10,
+              "q": 1135,
+              "w": "23354/229"
+            },
+            {
+              "event": 11,
+              "q": 1138,
+              "w": "29269/287"
+            },
+            {
+              "event": 12,
+              "q": 1136,
+              "w": "58436/573"
+            },
+            {
+              "event": 13,
+              "q": 1240,
+              "w": "12748/125"
+            }
+          ],
+          "qRange": [
+            1135,
+            1240
+          ],
+          "wRange": [
+            "23354/229",
+            "12748/125"
+          ],
+          "extrema": {
+            "minIndices": [
+              10
+            ],
+            "maxIndices": [
+              13
+            ]
+          },
+          "endpointDirection": "U",
+          "strictEndpointIncrease": true,
+          "witnesses": {
+            "U": [
+              {
+                "indices": [
+                  9,
+                  13
+                ],
+                "q": [
+                  1140,
+                  1240
+                ],
+                "w": [
+                  "11728/115",
+                  "12748/125"
+                ],
+                "pointsAvailableAt": 13
+              },
+              {
+                "indices": [
+                  10,
+                  13
+                ],
+                "q": [
+                  1135,
+                  1240
+                ],
+                "w": [
+                  "23354/229",
+                  "12748/125"
+                ],
+                "pointsAvailableAt": 13
+              },
+              {
+                "indices": [
+                  11,
+                  13
+                ],
+                "q": [
+                  1138,
+                  1240
+                ],
+                "w": [
+                  "29269/287",
+                  "12748/125"
+                ],
+                "pointsAvailableAt": 13
+              },
+              {
+                "indices": [
+                  12,
+                  13
+                ],
+                "q": [
+                  1136,
+                  1240
+                ],
+                "w": [
+                  "58436/573",
+                  "12748/125"
+                ],
+                "pointsAvailableAt": 13
+              }
+            ],
+            "D": []
+          },
+          "directions": [
+            "U"
+          ],
+          "conceptDirection": null,
+          "originalCompletionEvidence": null,
+          "originalZ3Evidence": null,
+          "kindIfCompleted": "P",
+          "ownedCatalogueCoreIDs": [
+            "K2"
+          ],
+          "coreFormationDiagnostics": [
+            {
+              "id": "K2",
+              "sourceStart": 9,
+              "sourceEnd": 12,
+              "rawNonzeroIncrementSigns": [
+                "D",
+                "U",
+                "D"
+              ],
+              "firstFormationSign": "D",
+              "sealedAt": 15,
+              "supportLegIndices": [
+                8,
+                9,
+                10,
+                11,
+                12
+              ],
+              "supportKnownAt": [
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "originalCenterQualification": null
+            }
+          ]
+        },
+        {
+          "start": 13,
+          "end": 16,
+          "ownedEvents": [
+            14,
+            15,
+            16
+          ],
+          "priceSupport": [
+            13,
+            14,
+            15,
+            16
+          ],
+          "sourceStates": [
+            {
+              "event": 13,
+              "q": 1240,
+              "w": "12748/125"
+            },
+            {
+              "event": 14,
+              "q": 1200,
+              "w": "12340/121"
+            },
+            {
+              "event": 15,
+              "q": 1230,
+              "w": "6323/62"
+            },
+            {
+              "event": 16,
+              "q": 1210,
+              "w": "6221/61"
+            }
+          ],
+          "qRange": [
+            1200,
+            1240
+          ],
+          "wRange": [
+            "12340/121",
+            "12748/125"
+          ],
+          "extrema": {
+            "minIndices": [
+              14
+            ],
+            "maxIndices": [
+              13
+            ]
+          },
+          "endpointDirection": "D",
+          "strictEndpointIncrease": false,
+          "witnesses": {
+            "U": [],
+            "D": [
+              {
+                "indices": [
+                  13,
+                  14
+                ],
+                "q": [
+                  1240,
+                  1200
+                ],
+                "w": [
+                  "12748/125",
+                  "12340/121"
+                ],
+                "pointsAvailableAt": 14
+              },
+              {
+                "indices": [
+                  13,
+                  16
+                ],
+                "q": [
+                  1240,
+                  1210
+                ],
+                "w": [
+                  "12748/125",
+                  "6221/61"
+                ],
+                "pointsAvailableAt": 16
+              }
+            ]
+          },
+          "directions": [
+            "D"
+          ],
+          "conceptDirection": null,
+          "originalCompletionEvidence": null,
+          "originalZ3Evidence": null,
+          "kindIfCompleted": "P",
+          "ownedCatalogueCoreIDs": [
+            "K3"
+          ],
+          "coreFormationDiagnostics": [
+            {
+              "id": "K3",
+              "sourceStart": 13,
+              "sourceEnd": 16,
+              "rawNonzeroIncrementSigns": [
+                "D",
+                "U",
+                "D"
+              ],
+              "firstFormationSign": "D",
+              "sealedAt": 19,
+              "supportLegIndices": [
+                12,
+                13,
+                14,
+                15,
+                16
+              ],
+              "supportKnownAt": [
+                15,
+                16,
+                17,
+                18,
+                19
+              ],
+              "originalCenterQualification": null
+            }
+          ]
+        },
+        {
+          "start": 16,
+          "end": 20,
+          "ownedEvents": [
+            17,
+            18,
+            19,
+            20
+          ],
+          "priceSupport": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "sourceStates": [
+            {
+              "event": 16,
+              "q": 1210,
+              "w": "6221/61"
+            },
+            {
+              "event": 17,
+              "q": 1240,
+              "w": "12748/125"
+            },
+            {
+              "event": 18,
+              "q": 1235,
+              "w": "25394/249"
+            },
+            {
+              "event": 19,
+              "q": 1238,
+              "w": "31819/312"
+            },
+            {
+              "event": 20,
+              "q": 1236,
+              "w": "63536/623"
+            }
+          ],
+          "qRange": [
+            1210,
+            1240
+          ],
+          "wRange": [
+            "6221/61",
+            "12748/125"
+          ],
+          "extrema": {
+            "minIndices": [
+              16
+            ],
+            "maxIndices": [
+              17
+            ]
+          },
+          "endpointDirection": "U",
+          "strictEndpointIncrease": true,
+          "witnesses": {
+            "U": [
+              {
+                "indices": [
+                  16,
+                  17
+                ],
+                "q": [
+                  1210,
+                  1240
+                ],
+                "w": [
+                  "6221/61",
+                  "12748/125"
+                ],
+                "pointsAvailableAt": 17
+              }
+            ],
+            "D": []
+          },
+          "directions": [
+            "U"
+          ],
+          "conceptDirection": null,
+          "originalCompletionEvidence": null,
+          "originalZ3Evidence": null,
+          "kindIfCompleted": "P",
+          "ownedCatalogueCoreIDs": [
+            "K4"
+          ],
+          "coreFormationDiagnostics": [
+            {
+              "id": "K4",
+              "sourceStart": 17,
+              "sourceEnd": 20,
+              "rawNonzeroIncrementSigns": [
+                "D",
+                "U",
+                "D"
+              ],
+              "firstFormationSign": "D",
+              "sealedAt": 23,
+              "supportLegIndices": [
+                16,
+                17,
+                18,
+                19,
+                20
+              ],
+              "supportKnownAt": [
+                19,
+                20,
+                21,
+                22,
+                23
+              ],
+              "originalCenterQualification": null
+            }
+          ]
+        }
+      ],
+      "allEightAssignments": [
+        {
+          "word": "UUU",
+          "perChildHasWitness": [
+            true,
+            false,
+            true
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "UUD",
+          "perChildHasWitness": [
+            true,
+            false,
+            false
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "UDU",
+          "perChildHasWitness": [
+            true,
+            true,
+            true
+          ],
+          "feasible": true,
+          "alternating": true,
+          "accepted": true
+        },
+        {
+          "word": "UDD",
+          "perChildHasWitness": [
+            true,
+            true,
+            false
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "DUU",
+          "perChildHasWitness": [
+            false,
+            false,
+            true
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "DUD",
+          "perChildHasWitness": [
+            false,
+            false,
+            false
+          ],
+          "feasible": false,
+          "alternating": true,
+          "accepted": false
+        },
+        {
+          "word": "DDU",
+          "perChildHasWitness": [
+            false,
+            true,
+            true
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "DDD",
+          "perChildHasWitness": [
+            false,
+            true,
+            false
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        }
+      ],
+      "selections": [
+        {
+          "word": "UDU",
+          "witnessTupleCount": 8,
+          "allWitnessIndexTuples": [
+            [
+              [
+                9,
+                13
+              ],
+              [
+                13,
+                14
+              ],
+              [
+                16,
+                17
+              ]
+            ],
+            [
+              [
+                9,
+                13
+              ],
+              [
+                13,
+                16
+              ],
+              [
+                16,
+                17
+              ]
+            ],
+            [
+              [
+                10,
+                13
+              ],
+              [
+                13,
+                14
+              ],
+              [
+                16,
+                17
+              ]
+            ],
+            [
+              [
+                10,
+                13
+              ],
+              [
+                13,
+                16
+              ],
+              [
+                16,
+                17
+              ]
+            ],
+            [
+              [
+                11,
+                13
+              ],
+              [
+                13,
+                14
+              ],
+              [
+                16,
+                17
+              ]
+            ],
+            [
+              [
+                11,
+                13
+              ],
+              [
+                13,
+                16
+              ],
+              [
+                16,
+                17
+              ]
+            ],
+            [
+              [
+                12,
+                13
+              ],
+              [
+                13,
+                14
+              ],
+              [
+                16,
+                17
+              ]
+            ],
+            [
+              [
+                12,
+                13
+              ],
+              [
+                13,
+                16
+              ],
+              [
+                16,
+                17
+              ]
+            ]
+          ]
+        }
+      ],
+      "selectionCount": 1,
+      "witnessTupleCount": 8,
+      "sourceRangesAvailableAt": 20,
+      "semanticEligibleAt": null,
+      "originalParentCore": null,
+      "qualification": "numerical RDW-v1 only; no completed same-level moves or original Z3 bridge certified",
+      "catalogueCheckedAt": 23,
+      "outsideThisPartition": {
+        "knownLeftEvents": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+        ],
+        "knownRightEvents": [
+          21,
+          22,
+          23
+        ],
+        "futureEventsNotConsumed": [
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40
+        ]
+      },
+      "originalCompletionSupportAvailableAt": null,
+      "catalogueSupportAvailableAt": 23,
+      "earliestNumericalAndFrozenCatalogueReadbackAt": 23,
+      "onlinePartitionPublicationAt": null
+    },
+    {
+      "cuts": [
+        9,
+        13,
+        17,
+        20
+      ],
+      "qRanges": [
+        [
+          1135,
+          1240
+        ],
+        [
+          1200,
+          1240
+        ],
+        [
+          1235,
+          1240
+        ]
+      ],
+      "wRanges": [
+        [
+          "23354/229",
+          "12748/125"
+        ],
+        [
+          "12340/121",
+          "12748/125"
+        ],
+        [
+          "25394/249",
+          "12748/125"
+        ]
+      ],
+      "numericalH": [
+        1235,
+        1240
+      ],
+      "wNumericalH": [
+        "25394/249",
+        "12748/125"
+      ],
+      "strict": true,
+      "children": [
+        {
+          "start": 9,
+          "end": 13,
+          "ownedEvents": [
+            10,
+            11,
+            12,
+            13
+          ],
+          "priceSupport": [
+            9,
+            10,
+            11,
+            12,
+            13
+          ],
+          "sourceStates": [
+            {
+              "event": 9,
+              "q": 1140,
+              "w": "11728/115"
+            },
+            {
+              "event": 10,
+              "q": 1135,
+              "w": "23354/229"
+            },
+            {
+              "event": 11,
+              "q": 1138,
+              "w": "29269/287"
+            },
+            {
+              "event": 12,
+              "q": 1136,
+              "w": "58436/573"
+            },
+            {
+              "event": 13,
+              "q": 1240,
+              "w": "12748/125"
+            }
+          ],
+          "qRange": [
+            1135,
+            1240
+          ],
+          "wRange": [
+            "23354/229",
+            "12748/125"
+          ],
+          "extrema": {
+            "minIndices": [
+              10
+            ],
+            "maxIndices": [
+              13
+            ]
+          },
+          "endpointDirection": "U",
+          "strictEndpointIncrease": true,
+          "witnesses": {
+            "U": [
+              {
+                "indices": [
+                  9,
+                  13
+                ],
+                "q": [
+                  1140,
+                  1240
+                ],
+                "w": [
+                  "11728/115",
+                  "12748/125"
+                ],
+                "pointsAvailableAt": 13
+              },
+              {
+                "indices": [
+                  10,
+                  13
+                ],
+                "q": [
+                  1135,
+                  1240
+                ],
+                "w": [
+                  "23354/229",
+                  "12748/125"
+                ],
+                "pointsAvailableAt": 13
+              },
+              {
+                "indices": [
+                  11,
+                  13
+                ],
+                "q": [
+                  1138,
+                  1240
+                ],
+                "w": [
+                  "29269/287",
+                  "12748/125"
+                ],
+                "pointsAvailableAt": 13
+              },
+              {
+                "indices": [
+                  12,
+                  13
+                ],
+                "q": [
+                  1136,
+                  1240
+                ],
+                "w": [
+                  "58436/573",
+                  "12748/125"
+                ],
+                "pointsAvailableAt": 13
+              }
+            ],
+            "D": []
+          },
+          "directions": [
+            "U"
+          ],
+          "conceptDirection": null,
+          "originalCompletionEvidence": null,
+          "originalZ3Evidence": null,
+          "kindIfCompleted": "P",
+          "ownedCatalogueCoreIDs": [
+            "K2"
+          ],
+          "coreFormationDiagnostics": [
+            {
+              "id": "K2",
+              "sourceStart": 9,
+              "sourceEnd": 12,
+              "rawNonzeroIncrementSigns": [
+                "D",
+                "U",
+                "D"
+              ],
+              "firstFormationSign": "D",
+              "sealedAt": 15,
+              "supportLegIndices": [
+                8,
+                9,
+                10,
+                11,
+                12
+              ],
+              "supportKnownAt": [
+                11,
+                12,
+                13,
+                14,
+                15
+              ],
+              "originalCenterQualification": null
+            }
+          ]
+        },
+        {
+          "start": 13,
+          "end": 17,
+          "ownedEvents": [
+            14,
+            15,
+            16,
+            17
+          ],
+          "priceSupport": [
+            13,
+            14,
+            15,
+            16,
+            17
+          ],
+          "sourceStates": [
+            {
+              "event": 13,
+              "q": 1240,
+              "w": "12748/125"
+            },
+            {
+              "event": 14,
+              "q": 1200,
+              "w": "12340/121"
+            },
+            {
+              "event": 15,
+              "q": 1230,
+              "w": "6323/62"
+            },
+            {
+              "event": 16,
+              "q": 1210,
+              "w": "6221/61"
+            },
+            {
+              "event": 17,
+              "q": 1240,
+              "w": "12748/125"
+            }
+          ],
+          "qRange": [
+            1200,
+            1240
+          ],
+          "wRange": [
+            "12340/121",
+            "12748/125"
+          ],
+          "extrema": {
+            "minIndices": [
+              14
+            ],
+            "maxIndices": [
+              13,
+              17
+            ]
+          },
+          "endpointDirection": null,
+          "strictEndpointIncrease": false,
+          "witnesses": {
+            "U": [
+              {
+                "indices": [
+                  14,
+                  17
+                ],
+                "q": [
+                  1200,
+                  1240
+                ],
+                "w": [
+                  "12340/121",
+                  "12748/125"
+                ],
+                "pointsAvailableAt": 17
+              },
+              {
+                "indices": [
+                  15,
+                  17
+                ],
+                "q": [
+                  1230,
+                  1240
+                ],
+                "w": [
+                  "6323/62",
+                  "12748/125"
+                ],
+                "pointsAvailableAt": 17
+              },
+              {
+                "indices": [
+                  16,
+                  17
+                ],
+                "q": [
+                  1210,
+                  1240
+                ],
+                "w": [
+                  "6221/61",
+                  "12748/125"
+                ],
+                "pointsAvailableAt": 17
+              }
+            ],
+            "D": [
+              {
+                "indices": [
+                  13,
+                  14
+                ],
+                "q": [
+                  1240,
+                  1200
+                ],
+                "w": [
+                  "12748/125",
+                  "12340/121"
+                ],
+                "pointsAvailableAt": 14
+              },
+              {
+                "indices": [
+                  13,
+                  15
+                ],
+                "q": [
+                  1240,
+                  1230
+                ],
+                "w": [
+                  "12748/125",
+                  "6323/62"
+                ],
+                "pointsAvailableAt": 15
+              },
+              {
+                "indices": [
+                  13,
+                  16
+                ],
+                "q": [
+                  1240,
+                  1210
+                ],
+                "w": [
+                  "12748/125",
+                  "6221/61"
+                ],
+                "pointsAvailableAt": 16
+              }
+            ]
+          },
+          "directions": [
+            "U",
+            "D"
+          ],
+          "conceptDirection": null,
+          "originalCompletionEvidence": null,
+          "originalZ3Evidence": null,
+          "kindIfCompleted": "P",
+          "ownedCatalogueCoreIDs": [
+            "K3"
+          ],
+          "coreFormationDiagnostics": [
+            {
+              "id": "K3",
+              "sourceStart": 13,
+              "sourceEnd": 16,
+              "rawNonzeroIncrementSigns": [
+                "D",
+                "U",
+                "D"
+              ],
+              "firstFormationSign": "D",
+              "sealedAt": 19,
+              "supportLegIndices": [
+                12,
+                13,
+                14,
+                15,
+                16
+              ],
+              "supportKnownAt": [
+                15,
+                16,
+                17,
+                18,
+                19
+              ],
+              "originalCenterQualification": null
+            }
+          ]
+        },
+        {
+          "start": 17,
+          "end": 20,
+          "ownedEvents": [
+            18,
+            19,
+            20
+          ],
+          "priceSupport": [
+            17,
+            18,
+            19,
+            20
+          ],
+          "sourceStates": [
+            {
+              "event": 17,
+              "q": 1240,
+              "w": "12748/125"
+            },
+            {
+              "event": 18,
+              "q": 1235,
+              "w": "25394/249"
+            },
+            {
+              "event": 19,
+              "q": 1238,
+              "w": "31819/312"
+            },
+            {
+              "event": 20,
+              "q": 1236,
+              "w": "63536/623"
+            }
+          ],
+          "qRange": [
+            1235,
+            1240
+          ],
+          "wRange": [
+            "25394/249",
+            "12748/125"
+          ],
+          "extrema": {
+            "minIndices": [
+              18
+            ],
+            "maxIndices": [
+              17
+            ]
+          },
+          "endpointDirection": "D",
+          "strictEndpointIncrease": false,
+          "witnesses": {
+            "U": [],
+            "D": [
+              {
+                "indices": [
+                  17,
+                  18
+                ],
+                "q": [
+                  1240,
+                  1235
+                ],
+                "w": [
+                  "12748/125",
+                  "25394/249"
+                ],
+                "pointsAvailableAt": 18
+              }
+            ]
+          },
+          "directions": [
+            "D"
+          ],
+          "conceptDirection": null,
+          "originalCompletionEvidence": null,
+          "originalZ3Evidence": null,
+          "kindIfCompleted": "P",
+          "ownedCatalogueCoreIDs": [
+            "K4"
+          ],
+          "coreFormationDiagnostics": [
+            {
+              "id": "K4",
+              "sourceStart": 17,
+              "sourceEnd": 20,
+              "rawNonzeroIncrementSigns": [
+                "D",
+                "U",
+                "D"
+              ],
+              "firstFormationSign": "D",
+              "sealedAt": 23,
+              "supportLegIndices": [
+                16,
+                17,
+                18,
+                19,
+                20
+              ],
+              "supportKnownAt": [
+                19,
+                20,
+                21,
+                22,
+                23
+              ],
+              "originalCenterQualification": null
+            }
+          ]
+        }
+      ],
+      "allEightAssignments": [
+        {
+          "word": "UUU",
+          "perChildHasWitness": [
+            true,
+            true,
+            false
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "UUD",
+          "perChildHasWitness": [
+            true,
+            true,
+            true
+          ],
+          "feasible": true,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "UDU",
+          "perChildHasWitness": [
+            true,
+            true,
+            false
+          ],
+          "feasible": false,
+          "alternating": true,
+          "accepted": false
+        },
+        {
+          "word": "UDD",
+          "perChildHasWitness": [
+            true,
+            true,
+            true
+          ],
+          "feasible": true,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "DUU",
+          "perChildHasWitness": [
+            false,
+            true,
+            false
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "DUD",
+          "perChildHasWitness": [
+            false,
+            true,
+            true
+          ],
+          "feasible": false,
+          "alternating": true,
+          "accepted": false
+        },
+        {
+          "word": "DDU",
+          "perChildHasWitness": [
+            false,
+            true,
+            false
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "DDD",
+          "perChildHasWitness": [
+            false,
+            true,
+            true
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        }
+      ],
+      "selections": [],
+      "selectionCount": 0,
+      "witnessTupleCount": 0,
+      "sourceRangesAvailableAt": 20,
+      "semanticEligibleAt": null,
+      "originalParentCore": null,
+      "qualification": "numerical RDW-v1 only; no completed same-level moves or original Z3 bridge certified",
+      "catalogueCheckedAt": 23,
+      "outsideThisPartition": {
+        "knownLeftEvents": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+        ],
+        "knownRightEvents": [
+          21,
+          22,
+          23
+        ],
+        "futureEventsNotConsumed": [
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40
+        ]
+      },
+      "originalCompletionSupportAvailableAt": null,
+      "catalogueSupportAvailableAt": 23,
+      "earliestNumericalAndFrozenCatalogueReadbackAt": 23,
+      "onlinePartitionPublicationAt": null
+    },
+    {
+      "cuts": [
+        17,
+        20,
+        24,
+        28
+      ],
+      "qRanges": [
+        [
+          1235,
+          1240
+        ],
+        [
+          1236,
+          1340
+        ],
+        [
+          1310,
+          1340
+        ]
+      ],
+      "numericalH": [
+        1310,
+        1240
+      ],
+      "strict": false,
+      "allEightAssignments": [],
+      "selections": [],
+      "catalogueCheckedAt": 31,
+      "outsideThisPartition": {
+        "knownLeftEvents": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17
+        ],
+        "knownRightEvents": [
+          29,
+          30,
+          31
+        ],
+        "futureEventsNotConsumed": [
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40
+        ]
+      },
+      "originalCompletionSupportAvailableAt": null
+    },
+    {
+      "cuts": [
+        17,
+        20,
+        25,
+        28
+      ],
+      "qRanges": [
+        [
+          1235,
+          1240
+        ],
+        [
+          1236,
+          1340
+        ],
+        [
+          1335,
+          1340
+        ]
+      ],
+      "numericalH": [
+        1335,
+        1240
+      ],
+      "strict": false,
+      "allEightAssignments": [],
+      "selections": [],
+      "catalogueCheckedAt": 31,
+      "outsideThisPartition": {
+        "knownLeftEvents": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17
+        ],
+        "knownRightEvents": [
+          29,
+          30,
+          31
+        ],
+        "futureEventsNotConsumed": [
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40
+        ]
+      },
+      "originalCompletionSupportAvailableAt": null
+    },
+    {
+      "cuts": [
+        17,
+        21,
+        24,
+        28
+      ],
+      "qRanges": [
+        [
+          1235,
+          1340
+        ],
+        [
+          1300,
+          1340
+        ],
+        [
+          1310,
+          1340
+        ]
+      ],
+      "wRanges": [
+        [
+          "25394/249",
+          "13768/135"
+        ],
+        [
+          "13360/131",
+          "13768/135"
+        ],
+        [
+          "6731/66",
+          "13768/135"
+        ]
+      ],
+      "numericalH": [
+        1310,
+        1340
+      ],
+      "wNumericalH": [
+        "6731/66",
+        "13768/135"
+      ],
+      "strict": true,
+      "children": [
+        {
+          "start": 17,
+          "end": 21,
+          "ownedEvents": [
+            18,
+            19,
+            20,
+            21
+          ],
+          "priceSupport": [
+            17,
+            18,
+            19,
+            20,
+            21
+          ],
+          "sourceStates": [
+            {
+              "event": 17,
+              "q": 1240,
+              "w": "12748/125"
+            },
+            {
+              "event": 18,
+              "q": 1235,
+              "w": "25394/249"
+            },
+            {
+              "event": 19,
+              "q": 1238,
+              "w": "31819/312"
+            },
+            {
+              "event": 20,
+              "q": 1236,
+              "w": "63536/623"
+            },
+            {
+              "event": 21,
+              "q": 1340,
+              "w": "13768/135"
+            }
+          ],
+          "qRange": [
+            1235,
+            1340
+          ],
+          "wRange": [
+            "25394/249",
+            "13768/135"
+          ],
+          "extrema": {
+            "minIndices": [
+              18
+            ],
+            "maxIndices": [
+              21
+            ]
+          },
+          "endpointDirection": "U",
+          "strictEndpointIncrease": true,
+          "witnesses": {
+            "U": [
+              {
+                "indices": [
+                  17,
+                  21
+                ],
+                "q": [
+                  1240,
+                  1340
+                ],
+                "w": [
+                  "12748/125",
+                  "13768/135"
+                ],
+                "pointsAvailableAt": 21
+              },
+              {
+                "indices": [
+                  18,
+                  21
+                ],
+                "q": [
+                  1235,
+                  1340
+                ],
+                "w": [
+                  "25394/249",
+                  "13768/135"
+                ],
+                "pointsAvailableAt": 21
+              },
+              {
+                "indices": [
+                  19,
+                  21
+                ],
+                "q": [
+                  1238,
+                  1340
+                ],
+                "w": [
+                  "31819/312",
+                  "13768/135"
+                ],
+                "pointsAvailableAt": 21
+              },
+              {
+                "indices": [
+                  20,
+                  21
+                ],
+                "q": [
+                  1236,
+                  1340
+                ],
+                "w": [
+                  "63536/623",
+                  "13768/135"
+                ],
+                "pointsAvailableAt": 21
+              }
+            ],
+            "D": []
+          },
+          "directions": [
+            "U"
+          ],
+          "conceptDirection": null,
+          "originalCompletionEvidence": null,
+          "originalZ3Evidence": null,
+          "kindIfCompleted": "P",
+          "ownedCatalogueCoreIDs": [
+            "K4"
+          ],
+          "coreFormationDiagnostics": [
+            {
+              "id": "K4",
+              "sourceStart": 17,
+              "sourceEnd": 20,
+              "rawNonzeroIncrementSigns": [
+                "D",
+                "U",
+                "D"
+              ],
+              "firstFormationSign": "D",
+              "sealedAt": 23,
+              "supportLegIndices": [
+                16,
+                17,
+                18,
+                19,
+                20
+              ],
+              "supportKnownAt": [
+                19,
+                20,
+                21,
+                22,
+                23
+              ],
+              "originalCenterQualification": null
+            }
+          ]
+        },
+        {
+          "start": 21,
+          "end": 24,
+          "ownedEvents": [
+            22,
+            23,
+            24
+          ],
+          "priceSupport": [
+            21,
+            22,
+            23,
+            24
+          ],
+          "sourceStates": [
+            {
+              "event": 21,
+              "q": 1340,
+              "w": "13768/135"
+            },
+            {
+              "event": 22,
+              "q": 1300,
+              "w": "13360/131"
+            },
+            {
+              "event": 23,
+              "q": 1330,
+              "w": "6833/67"
+            },
+            {
+              "event": 24,
+              "q": 1310,
+              "w": "6731/66"
+            }
+          ],
+          "qRange": [
+            1300,
+            1340
+          ],
+          "wRange": [
+            "13360/131",
+            "13768/135"
+          ],
+          "extrema": {
+            "minIndices": [
+              22
+            ],
+            "maxIndices": [
+              21
+            ]
+          },
+          "endpointDirection": "D",
+          "strictEndpointIncrease": false,
+          "witnesses": {
+            "U": [],
+            "D": [
+              {
+                "indices": [
+                  21,
+                  22
+                ],
+                "q": [
+                  1340,
+                  1300
+                ],
+                "w": [
+                  "13768/135",
+                  "13360/131"
+                ],
+                "pointsAvailableAt": 22
+              },
+              {
+                "indices": [
+                  21,
+                  24
+                ],
+                "q": [
+                  1340,
+                  1310
+                ],
+                "w": [
+                  "13768/135",
+                  "6731/66"
+                ],
+                "pointsAvailableAt": 24
+              }
+            ]
+          },
+          "directions": [
+            "D"
+          ],
+          "conceptDirection": null,
+          "originalCompletionEvidence": null,
+          "originalZ3Evidence": null,
+          "kindIfCompleted": "P",
+          "ownedCatalogueCoreIDs": [
+            "K5"
+          ],
+          "coreFormationDiagnostics": [
+            {
+              "id": "K5",
+              "sourceStart": 21,
+              "sourceEnd": 24,
+              "rawNonzeroIncrementSigns": [
+                "D",
+                "U",
+                "D"
+              ],
+              "firstFormationSign": "D",
+              "sealedAt": 27,
+              "supportLegIndices": [
+                20,
+                21,
+                22,
+                23,
+                24
+              ],
+              "supportKnownAt": [
+                23,
+                24,
+                25,
+                26,
+                27
+              ],
+              "originalCenterQualification": null
+            }
+          ]
+        },
+        {
+          "start": 24,
+          "end": 28,
+          "ownedEvents": [
+            25,
+            26,
+            27,
+            28
+          ],
+          "priceSupport": [
+            24,
+            25,
+            26,
+            27,
+            28
+          ],
+          "sourceStates": [
+            {
+              "event": 24,
+              "q": 1310,
+              "w": "6731/66"
+            },
+            {
+              "event": 25,
+              "q": 1340,
+              "w": "13768/135"
+            },
+            {
+              "event": 26,
+              "q": 1335,
+              "w": "27434/269"
+            },
+            {
+              "event": 27,
+              "q": 1338,
+              "w": "34369/337"
+            },
+            {
+              "event": 28,
+              "q": 1336,
+              "w": "68636/673"
+            }
+          ],
+          "qRange": [
+            1310,
+            1340
+          ],
+          "wRange": [
+            "6731/66",
+            "13768/135"
+          ],
+          "extrema": {
+            "minIndices": [
+              24
+            ],
+            "maxIndices": [
+              25
+            ]
+          },
+          "endpointDirection": "U",
+          "strictEndpointIncrease": true,
+          "witnesses": {
+            "U": [
+              {
+                "indices": [
+                  24,
+                  25
+                ],
+                "q": [
+                  1310,
+                  1340
+                ],
+                "w": [
+                  "6731/66",
+                  "13768/135"
+                ],
+                "pointsAvailableAt": 25
+              }
+            ],
+            "D": []
+          },
+          "directions": [
+            "U"
+          ],
+          "conceptDirection": null,
+          "originalCompletionEvidence": null,
+          "originalZ3Evidence": null,
+          "kindIfCompleted": "P",
+          "ownedCatalogueCoreIDs": [
+            "K6"
+          ],
+          "coreFormationDiagnostics": [
+            {
+              "id": "K6",
+              "sourceStart": 25,
+              "sourceEnd": 28,
+              "rawNonzeroIncrementSigns": [
+                "D",
+                "U",
+                "D"
+              ],
+              "firstFormationSign": "D",
+              "sealedAt": 31,
+              "supportLegIndices": [
+                24,
+                25,
+                26,
+                27,
+                28
+              ],
+              "supportKnownAt": [
+                27,
+                28,
+                29,
+                30,
+                31
+              ],
+              "originalCenterQualification": null
+            }
+          ]
+        }
+      ],
+      "allEightAssignments": [
+        {
+          "word": "UUU",
+          "perChildHasWitness": [
+            true,
+            false,
+            true
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "UUD",
+          "perChildHasWitness": [
+            true,
+            false,
+            false
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "UDU",
+          "perChildHasWitness": [
+            true,
+            true,
+            true
+          ],
+          "feasible": true,
+          "alternating": true,
+          "accepted": true
+        },
+        {
+          "word": "UDD",
+          "perChildHasWitness": [
+            true,
+            true,
+            false
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "DUU",
+          "perChildHasWitness": [
+            false,
+            false,
+            true
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "DUD",
+          "perChildHasWitness": [
+            false,
+            false,
+            false
+          ],
+          "feasible": false,
+          "alternating": true,
+          "accepted": false
+        },
+        {
+          "word": "DDU",
+          "perChildHasWitness": [
+            false,
+            true,
+            true
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "DDD",
+          "perChildHasWitness": [
+            false,
+            true,
+            false
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        }
+      ],
+      "selections": [
+        {
+          "word": "UDU",
+          "witnessTupleCount": 8,
+          "allWitnessIndexTuples": [
+            [
+              [
+                17,
+                21
+              ],
+              [
+                21,
+                22
+              ],
+              [
+                24,
+                25
+              ]
+            ],
+            [
+              [
+                17,
+                21
+              ],
+              [
+                21,
+                24
+              ],
+              [
+                24,
+                25
+              ]
+            ],
+            [
+              [
+                18,
+                21
+              ],
+              [
+                21,
+                22
+              ],
+              [
+                24,
+                25
+              ]
+            ],
+            [
+              [
+                18,
+                21
+              ],
+              [
+                21,
+                24
+              ],
+              [
+                24,
+                25
+              ]
+            ],
+            [
+              [
+                19,
+                21
+              ],
+              [
+                21,
+                22
+              ],
+              [
+                24,
+                25
+              ]
+            ],
+            [
+              [
+                19,
+                21
+              ],
+              [
+                21,
+                24
+              ],
+              [
+                24,
+                25
+              ]
+            ],
+            [
+              [
+                20,
+                21
+              ],
+              [
+                21,
+                22
+              ],
+              [
+                24,
+                25
+              ]
+            ],
+            [
+              [
+                20,
+                21
+              ],
+              [
+                21,
+                24
+              ],
+              [
+                24,
+                25
+              ]
+            ]
+          ]
+        }
+      ],
+      "selectionCount": 1,
+      "witnessTupleCount": 8,
+      "sourceRangesAvailableAt": 28,
+      "semanticEligibleAt": null,
+      "originalParentCore": null,
+      "qualification": "numerical RDW-v1 only; no completed same-level moves or original Z3 bridge certified",
+      "catalogueCheckedAt": 31,
+      "outsideThisPartition": {
+        "knownLeftEvents": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17
+        ],
+        "knownRightEvents": [
+          29,
+          30,
+          31
+        ],
+        "futureEventsNotConsumed": [
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40
+        ]
+      },
+      "originalCompletionSupportAvailableAt": null,
+      "catalogueSupportAvailableAt": 31,
+      "earliestNumericalAndFrozenCatalogueReadbackAt": 31,
+      "onlinePartitionPublicationAt": null
+    },
+    {
+      "cuts": [
+        17,
+        21,
+        25,
+        28
+      ],
+      "qRanges": [
+        [
+          1235,
+          1340
+        ],
+        [
+          1300,
+          1340
+        ],
+        [
+          1335,
+          1340
+        ]
+      ],
+      "wRanges": [
+        [
+          "25394/249",
+          "13768/135"
+        ],
+        [
+          "13360/131",
+          "13768/135"
+        ],
+        [
+          "27434/269",
+          "13768/135"
+        ]
+      ],
+      "numericalH": [
+        1335,
+        1340
+      ],
+      "wNumericalH": [
+        "27434/269",
+        "13768/135"
+      ],
+      "strict": true,
+      "children": [
+        {
+          "start": 17,
+          "end": 21,
+          "ownedEvents": [
+            18,
+            19,
+            20,
+            21
+          ],
+          "priceSupport": [
+            17,
+            18,
+            19,
+            20,
+            21
+          ],
+          "sourceStates": [
+            {
+              "event": 17,
+              "q": 1240,
+              "w": "12748/125"
+            },
+            {
+              "event": 18,
+              "q": 1235,
+              "w": "25394/249"
+            },
+            {
+              "event": 19,
+              "q": 1238,
+              "w": "31819/312"
+            },
+            {
+              "event": 20,
+              "q": 1236,
+              "w": "63536/623"
+            },
+            {
+              "event": 21,
+              "q": 1340,
+              "w": "13768/135"
+            }
+          ],
+          "qRange": [
+            1235,
+            1340
+          ],
+          "wRange": [
+            "25394/249",
+            "13768/135"
+          ],
+          "extrema": {
+            "minIndices": [
+              18
+            ],
+            "maxIndices": [
+              21
+            ]
+          },
+          "endpointDirection": "U",
+          "strictEndpointIncrease": true,
+          "witnesses": {
+            "U": [
+              {
+                "indices": [
+                  17,
+                  21
+                ],
+                "q": [
+                  1240,
+                  1340
+                ],
+                "w": [
+                  "12748/125",
+                  "13768/135"
+                ],
+                "pointsAvailableAt": 21
+              },
+              {
+                "indices": [
+                  18,
+                  21
+                ],
+                "q": [
+                  1235,
+                  1340
+                ],
+                "w": [
+                  "25394/249",
+                  "13768/135"
+                ],
+                "pointsAvailableAt": 21
+              },
+              {
+                "indices": [
+                  19,
+                  21
+                ],
+                "q": [
+                  1238,
+                  1340
+                ],
+                "w": [
+                  "31819/312",
+                  "13768/135"
+                ],
+                "pointsAvailableAt": 21
+              },
+              {
+                "indices": [
+                  20,
+                  21
+                ],
+                "q": [
+                  1236,
+                  1340
+                ],
+                "w": [
+                  "63536/623",
+                  "13768/135"
+                ],
+                "pointsAvailableAt": 21
+              }
+            ],
+            "D": []
+          },
+          "directions": [
+            "U"
+          ],
+          "conceptDirection": null,
+          "originalCompletionEvidence": null,
+          "originalZ3Evidence": null,
+          "kindIfCompleted": "P",
+          "ownedCatalogueCoreIDs": [
+            "K4"
+          ],
+          "coreFormationDiagnostics": [
+            {
+              "id": "K4",
+              "sourceStart": 17,
+              "sourceEnd": 20,
+              "rawNonzeroIncrementSigns": [
+                "D",
+                "U",
+                "D"
+              ],
+              "firstFormationSign": "D",
+              "sealedAt": 23,
+              "supportLegIndices": [
+                16,
+                17,
+                18,
+                19,
+                20
+              ],
+              "supportKnownAt": [
+                19,
+                20,
+                21,
+                22,
+                23
+              ],
+              "originalCenterQualification": null
+            }
+          ]
+        },
+        {
+          "start": 21,
+          "end": 25,
+          "ownedEvents": [
+            22,
+            23,
+            24,
+            25
+          ],
+          "priceSupport": [
+            21,
+            22,
+            23,
+            24,
+            25
+          ],
+          "sourceStates": [
+            {
+              "event": 21,
+              "q": 1340,
+              "w": "13768/135"
+            },
+            {
+              "event": 22,
+              "q": 1300,
+              "w": "13360/131"
+            },
+            {
+              "event": 23,
+              "q": 1330,
+              "w": "6833/67"
+            },
+            {
+              "event": 24,
+              "q": 1310,
+              "w": "6731/66"
+            },
+            {
+              "event": 25,
+              "q": 1340,
+              "w": "13768/135"
+            }
+          ],
+          "qRange": [
+            1300,
+            1340
+          ],
+          "wRange": [
+            "13360/131",
+            "13768/135"
+          ],
+          "extrema": {
+            "minIndices": [
+              22
+            ],
+            "maxIndices": [
+              21,
+              25
+            ]
+          },
+          "endpointDirection": null,
+          "strictEndpointIncrease": false,
+          "witnesses": {
+            "U": [
+              {
+                "indices": [
+                  22,
+                  25
+                ],
+                "q": [
+                  1300,
+                  1340
+                ],
+                "w": [
+                  "13360/131",
+                  "13768/135"
+                ],
+                "pointsAvailableAt": 25
+              },
+              {
+                "indices": [
+                  23,
+                  25
+                ],
+                "q": [
+                  1330,
+                  1340
+                ],
+                "w": [
+                  "6833/67",
+                  "13768/135"
+                ],
+                "pointsAvailableAt": 25
+              },
+              {
+                "indices": [
+                  24,
+                  25
+                ],
+                "q": [
+                  1310,
+                  1340
+                ],
+                "w": [
+                  "6731/66",
+                  "13768/135"
+                ],
+                "pointsAvailableAt": 25
+              }
+            ],
+            "D": [
+              {
+                "indices": [
+                  21,
+                  22
+                ],
+                "q": [
+                  1340,
+                  1300
+                ],
+                "w": [
+                  "13768/135",
+                  "13360/131"
+                ],
+                "pointsAvailableAt": 22
+              },
+              {
+                "indices": [
+                  21,
+                  23
+                ],
+                "q": [
+                  1340,
+                  1330
+                ],
+                "w": [
+                  "13768/135",
+                  "6833/67"
+                ],
+                "pointsAvailableAt": 23
+              },
+              {
+                "indices": [
+                  21,
+                  24
+                ],
+                "q": [
+                  1340,
+                  1310
+                ],
+                "w": [
+                  "13768/135",
+                  "6731/66"
+                ],
+                "pointsAvailableAt": 24
+              }
+            ]
+          },
+          "directions": [
+            "U",
+            "D"
+          ],
+          "conceptDirection": null,
+          "originalCompletionEvidence": null,
+          "originalZ3Evidence": null,
+          "kindIfCompleted": "P",
+          "ownedCatalogueCoreIDs": [
+            "K5"
+          ],
+          "coreFormationDiagnostics": [
+            {
+              "id": "K5",
+              "sourceStart": 21,
+              "sourceEnd": 24,
+              "rawNonzeroIncrementSigns": [
+                "D",
+                "U",
+                "D"
+              ],
+              "firstFormationSign": "D",
+              "sealedAt": 27,
+              "supportLegIndices": [
+                20,
+                21,
+                22,
+                23,
+                24
+              ],
+              "supportKnownAt": [
+                23,
+                24,
+                25,
+                26,
+                27
+              ],
+              "originalCenterQualification": null
+            }
+          ]
+        },
+        {
+          "start": 25,
+          "end": 28,
+          "ownedEvents": [
+            26,
+            27,
+            28
+          ],
+          "priceSupport": [
+            25,
+            26,
+            27,
+            28
+          ],
+          "sourceStates": [
+            {
+              "event": 25,
+              "q": 1340,
+              "w": "13768/135"
+            },
+            {
+              "event": 26,
+              "q": 1335,
+              "w": "27434/269"
+            },
+            {
+              "event": 27,
+              "q": 1338,
+              "w": "34369/337"
+            },
+            {
+              "event": 28,
+              "q": 1336,
+              "w": "68636/673"
+            }
+          ],
+          "qRange": [
+            1335,
+            1340
+          ],
+          "wRange": [
+            "27434/269",
+            "13768/135"
+          ],
+          "extrema": {
+            "minIndices": [
+              26
+            ],
+            "maxIndices": [
+              25
+            ]
+          },
+          "endpointDirection": "D",
+          "strictEndpointIncrease": false,
+          "witnesses": {
+            "U": [],
+            "D": [
+              {
+                "indices": [
+                  25,
+                  26
+                ],
+                "q": [
+                  1340,
+                  1335
+                ],
+                "w": [
+                  "13768/135",
+                  "27434/269"
+                ],
+                "pointsAvailableAt": 26
+              }
+            ]
+          },
+          "directions": [
+            "D"
+          ],
+          "conceptDirection": null,
+          "originalCompletionEvidence": null,
+          "originalZ3Evidence": null,
+          "kindIfCompleted": "P",
+          "ownedCatalogueCoreIDs": [
+            "K6"
+          ],
+          "coreFormationDiagnostics": [
+            {
+              "id": "K6",
+              "sourceStart": 25,
+              "sourceEnd": 28,
+              "rawNonzeroIncrementSigns": [
+                "D",
+                "U",
+                "D"
+              ],
+              "firstFormationSign": "D",
+              "sealedAt": 31,
+              "supportLegIndices": [
+                24,
+                25,
+                26,
+                27,
+                28
+              ],
+              "supportKnownAt": [
+                27,
+                28,
+                29,
+                30,
+                31
+              ],
+              "originalCenterQualification": null
+            }
+          ]
+        }
+      ],
+      "allEightAssignments": [
+        {
+          "word": "UUU",
+          "perChildHasWitness": [
+            true,
+            true,
+            false
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "UUD",
+          "perChildHasWitness": [
+            true,
+            true,
+            true
+          ],
+          "feasible": true,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "UDU",
+          "perChildHasWitness": [
+            true,
+            true,
+            false
+          ],
+          "feasible": false,
+          "alternating": true,
+          "accepted": false
+        },
+        {
+          "word": "UDD",
+          "perChildHasWitness": [
+            true,
+            true,
+            true
+          ],
+          "feasible": true,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "DUU",
+          "perChildHasWitness": [
+            false,
+            true,
+            false
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "DUD",
+          "perChildHasWitness": [
+            false,
+            true,
+            true
+          ],
+          "feasible": false,
+          "alternating": true,
+          "accepted": false
+        },
+        {
+          "word": "DDU",
+          "perChildHasWitness": [
+            false,
+            true,
+            false
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        },
+        {
+          "word": "DDD",
+          "perChildHasWitness": [
+            false,
+            true,
+            true
+          ],
+          "feasible": false,
+          "alternating": false,
+          "accepted": false
+        }
+      ],
+      "selections": [],
+      "selectionCount": 0,
+      "witnessTupleCount": 0,
+      "sourceRangesAvailableAt": 28,
+      "semanticEligibleAt": null,
+      "originalParentCore": null,
+      "qualification": "numerical RDW-v1 only; no completed same-level moves or original Z3 bridge certified",
+      "catalogueCheckedAt": 31,
+      "outsideThisPartition": {
+        "knownLeftEvents": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17
+        ],
+        "knownRightEvents": [
+          29,
+          30,
+          31
+        ],
+        "futureEventsNotConsumed": [
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40
+        ]
+      },
+      "originalCompletionSupportAvailableAt": null,
+      "catalogueSupportAvailableAt": 31,
+      "earliestNumericalAndFrozenCatalogueReadbackAt": 31,
+      "onlinePartitionPublicationAt": null
+    }
+  ]
+}

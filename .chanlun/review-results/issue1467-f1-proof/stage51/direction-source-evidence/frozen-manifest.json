@@ -1,0 +1,71 @@
+{
+  "schema": "stage51-direction-source-frozen-v1",
+  "head": "cfe88d5782aabad24c2c14d07498cbe7c4fb1b0b",
+  "frozenAt": "2026-10-04T18:27:50.454Z",
+  "scope": "Only p-direction-scope.md and direction-source-evidence; author evidence, independent review pending",
+  "verification": {
+    "directionProbeExit": 0,
+    "sourceCaptureExit": 0,
+    "replayedEvents": 80,
+    "replayedStates": 82,
+    "strictStandardFiniteCases": 140,
+    "ordinaryProof": "p-direction-scope.md section 6"
+  },
+  "files": [
+    {
+      "path": "direction-source-evidence/029-dependency-inventory.json",
+      "bytes": 41886,
+      "sha256": "8dca633a9cbfa1b1628f2c2254463fb63e4264ac9f5b7e3b2a63cd75c42f6822"
+    },
+    {
+      "path": "direction-source-evidence/capture-sources.mjs",
+      "bytes": 4533,
+      "sha256": "3c07a348c8193d300273df6d36a52ef564d00778ef1a2021595a2615ee4508a2"
+    },
+    {
+      "path": "direction-source-evidence/direction-probe.mjs",
+      "bytes": 7052,
+      "sha256": "db79bb74cb1d97f226d619a25ce43b237c9838fd478c1b07cc88704d22f470e1"
+    },
+    {
+      "path": "direction-source-evidence/direction-results.json",
+      "bytes": 46668,
+      "sha256": "27346da7e2bdc66c55c172eb673ba72a35147860eec03d8a4f54288ac5be5ec7"
+    },
+    {
+      "path": "direction-source-evidence/issue-804.json",
+      "bytes": 19233,
+      "sha256": "208064483f9cd4b77dcb575f05802414307554a5a4a6f45e1671054a441f788a"
+    },
+    {
+      "path": "direction-source-evidence/issue-812.json",
+      "bytes": 65430,
+      "sha256": "6cdb823630b8ec436ecb666504521ac39c1956c5a1440fd85aa5653659a414da"
+    },
+    {
+      "path": "direction-source-evidence/issue-815.json",
+      "bytes": 57214,
+      "sha256": "25a6d364bc4d4739430b24cd7d54c56fedffbc1279541894ff12b8be2c667cf0"
+    },
+    {
+      "path": "direction-source-evidence/issue-900.json",
+      "bytes": 6302,
+      "sha256": "f765b19ba7ced35700473d0e6de7d803e7a20e45ad6c0ea0922b72cc63b01e2c"
+    },
+    {
+      "path": "direction-source-evidence/issue-selected-blocks.json",
+      "bytes": 76188,
+      "sha256": "8238bdc5d954ae2614309036f9aa6803dccbe602cf564303ec54da91bd95e07e"
+    },
+    {
+      "path": "direction-source-evidence/source-excerpts.json",
+      "bytes": 128046,
+      "sha256": "d954c714e4a57f390272ae20b92a778cc0ba48f7a8c2dd77cbac7d8c29ad6cd6"
+    },
+    {
+      "path": "p-direction-scope.md",
+      "bytes": 22930,
+      "sha256": "d7da7668a3134139496328015edc5b377bce3a0b8f06a981ddef1b668b71a30b"
+    }
+  ]
+}

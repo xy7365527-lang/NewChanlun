@@ -1,0 +1,1938 @@
+{
+  "schema": "stage51-direction-diagnostics-v1",
+  "scope": "finite diagnostics and conditional algebra only; no source semantic completion assertion",
+  "reports": [
+    {
+      "name": "same_up_counterexample",
+      "sourceFile": ".chanlun/review-results/issue1467-f1-proof/stage50/candidate-evidence/results-v1/same_up_counterexample.json",
+      "sourceSHA256": "67bbc28f6d75160789021043664328ebe5866fec87cdee70113c8747d9b677c9",
+      "replayedEvents": 40,
+      "replayedStates": 41,
+      "partitions": [
+        {
+          "cuts": [
+            0,
+            5,
+            8,
+            12
+          ],
+          "children": [
+            {
+              "start": 0,
+              "end": 5,
+              "states": [
+                {
+                  "event": 0,
+                  "q": 1040,
+                  "w": "10708/105"
+                },
+                {
+                  "event": 1,
+                  "q": 1040,
+                  "w": "10708/105"
+                },
+                {
+                  "event": 2,
+                  "q": 1000,
+                  "w": "10300/101"
+                },
+                {
+                  "event": 3,
+                  "q": 1030,
+                  "w": "5303/52"
+                },
+                {
+                  "event": 4,
+                  "q": 1010,
+                  "w": "5201/51"
+                },
+                {
+                  "event": 5,
+                  "q": 1140,
+                  "w": "11728/115"
+                }
+              ],
+              "range": [
+                1000,
+                1140
+              ],
+              "actualStart": 1040,
+              "actualEnd": 1140,
+              "net": "U",
+              "strictSteps": [
+                {
+                  "event": 2,
+                  "d": "D"
+                },
+                {
+                  "event": 3,
+                  "d": "U"
+                },
+                {
+                  "event": 4,
+                  "d": "D"
+                },
+                {
+                  "event": 5,
+                  "d": "U"
+                }
+              ],
+              "firstStrict": "D",
+              "lastStrict": "U",
+              "lowEvents": [
+                2
+              ],
+              "highEvents": [
+                5
+              ],
+              "firstExtremaOrder": "U",
+              "lastExtremaOrder": "U",
+              "allExtremaOrder": "U",
+              "oppositeExtremaEndpoints": null,
+              "ownedCoreID": "K0",
+              "coreSource": [
+                0,
+                4
+              ],
+              "coreFormation": "D",
+              "coreFormationSteps": [
+                {
+                  "event": 2,
+                  "d": "D"
+                },
+                {
+                  "event": 3,
+                  "d": "U"
+                },
+                {
+                  "event": 4,
+                  "d": "D"
+                }
+              ],
+              "conceptDirection": null,
+              "originalCompletionEvidence": null,
+              "dirForZ3Evidence": null
+            },
+            {
+              "start": 5,
+              "end": 8,
+              "states": [
+                {
+                  "event": 5,
+                  "q": 1140,
+                  "w": "11728/115"
+                },
+                {
+                  "event": 6,
+                  "q": 1100,
+                  "w": "11320/111"
+                },
+                {
+                  "event": 7,
+                  "q": 1130,
+                  "w": "5813/57"
+                },
+                {
+                  "event": 8,
+                  "q": 1110,
+                  "w": "5711/56"
+                }
+              ],
+              "range": [
+                1100,
+                1140
+              ],
+              "actualStart": 1140,
+              "actualEnd": 1110,
+              "net": "D",
+              "strictSteps": [
+                {
+                  "event": 6,
+                  "d": "D"
+                },
+                {
+                  "event": 7,
+                  "d": "U"
+                },
+                {
+                  "event": 8,
+                  "d": "D"
+                }
+              ],
+              "firstStrict": "D",
+              "lastStrict": "D",
+              "lowEvents": [
+                6
+              ],
+              "highEvents": [
+                5
+              ],
+              "firstExtremaOrder": "D",
+              "lastExtremaOrder": "D",
+              "allExtremaOrder": "D",
+              "oppositeExtremaEndpoints": null,
+              "ownedCoreID": "K1",
+              "coreSource": [
+                5,
+                8
+              ],
+              "coreFormation": "D",
+              "coreFormationSteps": [
+                {
+                  "event": 6,
+                  "d": "D"
+                },
+                {
+                  "event": 7,
+                  "d": "U"
+                },
+                {
+                  "event": 8,
+                  "d": "D"
+                }
+              ],
+              "conceptDirection": null,
+              "originalCompletionEvidence": null,
+              "dirForZ3Evidence": null
+            },
+            {
+              "start": 8,
+              "end": 12,
+              "states": [
+                {
+                  "event": 8,
+                  "q": 1110,
+                  "w": "5711/56"
+                },
+                {
+                  "event": 9,
+                  "q": 1140,
+                  "w": "11728/115"
+                },
+                {
+                  "event": 10,
+                  "q": 1135,
+                  "w": "23354/229"
+                },
+                {
+                  "event": 11,
+                  "q": 1138,
+                  "w": "29269/287"
+                },
+                {
+                  "event": 12,
+                  "q": 1136,
+                  "w": "58436/573"
+                }
+              ],
+              "range": [
+                1110,
+                1140
+              ],
+              "actualStart": 1110,
+              "actualEnd": 1136,
+              "net": "U",
+              "strictSteps": [
+                {
+                  "event": 9,
+                  "d": "U"
+                },
+                {
+                  "event": 10,
+                  "d": "D"
+                },
+                {
+                  "event": 11,
+                  "d": "U"
+                },
+                {
+                  "event": 12,
+                  "d": "D"
+                }
+              ],
+              "firstStrict": "U",
+              "lastStrict": "D",
+              "lowEvents": [
+                8
+              ],
+              "highEvents": [
+                9
+              ],
+              "firstExtremaOrder": "U",
+              "lastExtremaOrder": "U",
+              "allExtremaOrder": "U",
+              "oppositeExtremaEndpoints": null,
+              "ownedCoreID": "K2",
+              "coreSource": [
+                9,
+                12
+              ],
+              "coreFormation": "D",
+              "coreFormationSteps": [
+                {
+                  "event": 10,
+                  "d": "D"
+                },
+                {
+                  "event": 11,
+                  "d": "U"
+                },
+                {
+                  "event": 12,
+                  "d": "D"
+                }
+              ],
+              "conceptDirection": null,
+              "originalCompletionEvidence": null,
+              "dirForZ3Evidence": null
+            }
+          ],
+          "intersection": [
+            1110,
+            1140
+          ],
+          "directions": {
+            "net": {
+              "values": [
+                "U",
+                "D",
+                "U"
+              ],
+              "alternates": true
+            },
+            "firstStrict": {
+              "values": [
+                "D",
+                "D",
+                "U"
+              ],
+              "alternates": false
+            },
+            "lastStrict": {
+              "values": [
+                "U",
+                "D",
+                "D"
+              ],
+              "alternates": false
+            },
+            "coreFormation": {
+              "values": [
+                "D",
+                "D",
+                "D"
+              ],
+              "alternates": false
+            },
+            "firstExtremaOrder": {
+              "values": [
+                "U",
+                "D",
+                "U"
+              ],
+              "alternates": true
+            },
+            "lastExtremaOrder": {
+              "values": [
+                "U",
+                "D",
+                "U"
+              ],
+              "alternates": true
+            },
+            "allExtremaOrder": {
+              "values": [
+                "U",
+                "D",
+                "U"
+              ],
+              "alternates": true
+            },
+            "oppositeExtremaEndpoints": {
+              "values": [
+                null,
+                null,
+                null
+              ],
+              "alternates": false
+            }
+          },
+          "crossings": [
+            {
+              "source": [
+                0,
+                5
+              ],
+              "values": [
+                "U"
+              ],
+              "witnesses": {
+                "U": [
+                  [
+                    0,
+                    5
+                  ],
+                  [
+                    1,
+                    5
+                  ],
+                  [
+                    2,
+                    5
+                  ],
+                  [
+                    3,
+                    5
+                  ],
+                  [
+                    4,
+                    5
+                  ]
+                ],
+                "D": []
+              }
+            },
+            {
+              "source": [
+                5,
+                8
+              ],
+              "values": [
+                "D"
+              ],
+              "witnesses": {
+                "U": [],
+                "D": [
+                  [
+                    5,
+                    6
+                  ],
+                  [
+                    5,
+                    8
+                  ]
+                ]
+              }
+            },
+            {
+              "source": [
+                8,
+                12
+              ],
+              "values": [
+                "U"
+              ],
+              "witnesses": {
+                "U": [
+                  [
+                    8,
+                    9
+                  ]
+                ],
+                "D": []
+              }
+            }
+          ],
+          "alternatingCrossingChoices": [
+            [
+              "U",
+              "D",
+              "U"
+            ]
+          ],
+          "status": "necessary pieces only; no original completed P or F2 qualification issued"
+        },
+        {
+          "cuts": [
+            0,
+            5,
+            9,
+            12
+          ],
+          "children": [
+            {
+              "start": 0,
+              "end": 5,
+              "states": [
+                {
+                  "event": 0,
+                  "q": 1040,
+                  "w": "10708/105"
+                },
+                {
+                  "event": 1,
+                  "q": 1040,
+                  "w": "10708/105"
+                },
+                {
+                  "event": 2,
+                  "q": 1000,
+                  "w": "10300/101"
+                },
+                {
+                  "event": 3,
+                  "q": 1030,
+                  "w": "5303/52"
+                },
+                {
+                  "event": 4,
+                  "q": 1010,
+                  "w": "5201/51"
+                },
+                {
+                  "event": 5,
+                  "q": 1140,
+                  "w": "11728/115"
+                }
+              ],
+              "range": [
+                1000,
+                1140
+              ],
+              "actualStart": 1040,
+              "actualEnd": 1140,
+              "net": "U",
+              "strictSteps": [
+                {
+                  "event": 2,
+                  "d": "D"
+                },
+                {
+                  "event": 3,
+                  "d": "U"
+                },
+                {
+                  "event": 4,
+                  "d": "D"
+                },
+                {
+                  "event": 5,
+                  "d": "U"
+                }
+              ],
+              "firstStrict": "D",
+              "lastStrict": "U",
+              "lowEvents": [
+                2
+              ],
+              "highEvents": [
+                5
+              ],
+              "firstExtremaOrder": "U",
+              "lastExtremaOrder": "U",
+              "allExtremaOrder": "U",
+              "oppositeExtremaEndpoints": null,
+              "ownedCoreID": "K0",
+              "coreSource": [
+                0,
+                4
+              ],
+              "coreFormation": "D",
+              "coreFormationSteps": [
+                {
+                  "event": 2,
+                  "d": "D"
+                },
+                {
+                  "event": 3,
+                  "d": "U"
+                },
+                {
+                  "event": 4,
+                  "d": "D"
+                }
+              ],
+              "conceptDirection": null,
+              "originalCompletionEvidence": null,
+              "dirForZ3Evidence": null
+            },
+            {
+              "start": 5,
+              "end": 9,
+              "states": [
+                {
+                  "event": 5,
+                  "q": 1140,
+                  "w": "11728/115"
+                },
+                {
+                  "event": 6,
+                  "q": 1100,
+                  "w": "11320/111"
+                },
+                {
+                  "event": 7,
+                  "q": 1130,
+                  "w": "5813/57"
+                },
+                {
+                  "event": 8,
+                  "q": 1110,
+                  "w": "5711/56"
+                },
+                {
+                  "event": 9,
+                  "q": 1140,
+                  "w": "11728/115"
+                }
+              ],
+              "range": [
+                1100,
+                1140
+              ],
+              "actualStart": 1140,
+              "actualEnd": 1140,
+              "net": "0",
+              "strictSteps": [
+                {
+                  "event": 6,
+                  "d": "D"
+                },
+                {
+                  "event": 7,
+                  "d": "U"
+                },
+                {
+                  "event": 8,
+                  "d": "D"
+                },
+                {
+                  "event": 9,
+                  "d": "U"
+                }
+              ],
+              "firstStrict": "D",
+              "lastStrict": "U",
+              "lowEvents": [
+                6
+              ],
+              "highEvents": [
+                5,
+                9
+              ],
+              "firstExtremaOrder": "D",
+              "lastExtremaOrder": "U",
+              "allExtremaOrder": null,
+              "oppositeExtremaEndpoints": null,
+              "ownedCoreID": "K1",
+              "coreSource": [
+                5,
+                8
+              ],
+              "coreFormation": "D",
+              "coreFormationSteps": [
+                {
+                  "event": 6,
+                  "d": "D"
+                },
+                {
+                  "event": 7,
+                  "d": "U"
+                },
+                {
+                  "event": 8,
+                  "d": "D"
+                }
+              ],
+              "conceptDirection": null,
+              "originalCompletionEvidence": null,
+              "dirForZ3Evidence": null
+            },
+            {
+              "start": 9,
+              "end": 12,
+              "states": [
+                {
+                  "event": 9,
+                  "q": 1140,
+                  "w": "11728/115"
+                },
+                {
+                  "event": 10,
+                  "q": 1135,
+                  "w": "23354/229"
+                },
+                {
+                  "event": 11,
+                  "q": 1138,
+                  "w": "29269/287"
+                },
+                {
+                  "event": 12,
+                  "q": 1136,
+                  "w": "58436/573"
+                }
+              ],
+              "range": [
+                1135,
+                1140
+              ],
+              "actualStart": 1140,
+              "actualEnd": 1136,
+              "net": "D",
+              "strictSteps": [
+                {
+                  "event": 10,
+                  "d": "D"
+                },
+                {
+                  "event": 11,
+                  "d": "U"
+                },
+                {
+                  "event": 12,
+                  "d": "D"
+                }
+              ],
+              "firstStrict": "D",
+              "lastStrict": "D",
+              "lowEvents": [
+                10
+              ],
+              "highEvents": [
+                9
+              ],
+              "firstExtremaOrder": "D",
+              "lastExtremaOrder": "D",
+              "allExtremaOrder": "D",
+              "oppositeExtremaEndpoints": null,
+              "ownedCoreID": "K2",
+              "coreSource": [
+                9,
+                12
+              ],
+              "coreFormation": "D",
+              "coreFormationSteps": [
+                {
+                  "event": 10,
+                  "d": "D"
+                },
+                {
+                  "event": 11,
+                  "d": "U"
+                },
+                {
+                  "event": 12,
+                  "d": "D"
+                }
+              ],
+              "conceptDirection": null,
+              "originalCompletionEvidence": null,
+              "dirForZ3Evidence": null
+            }
+          ],
+          "intersection": [
+            1135,
+            1140
+          ],
+          "directions": {
+            "net": {
+              "values": [
+                "U",
+                "0",
+                "D"
+              ],
+              "alternates": false
+            },
+            "firstStrict": {
+              "values": [
+                "D",
+                "D",
+                "D"
+              ],
+              "alternates": false
+            },
+            "lastStrict": {
+              "values": [
+                "U",
+                "U",
+                "D"
+              ],
+              "alternates": false
+            },
+            "coreFormation": {
+              "values": [
+                "D",
+                "D",
+                "D"
+              ],
+              "alternates": false
+            },
+            "firstExtremaOrder": {
+              "values": [
+                "U",
+                "D",
+                "D"
+              ],
+              "alternates": false
+            },
+            "lastExtremaOrder": {
+              "values": [
+                "U",
+                "U",
+                "D"
+              ],
+              "alternates": false
+            },
+            "allExtremaOrder": {
+              "values": [
+                "U",
+                null,
+                "D"
+              ],
+              "alternates": false
+            },
+            "oppositeExtremaEndpoints": {
+              "values": [
+                null,
+                null,
+                null
+              ],
+              "alternates": false
+            }
+          },
+          "crossings": [
+            {
+              "source": [
+                0,
+                5
+              ],
+              "values": [
+                "U"
+              ],
+              "witnesses": {
+                "U": [
+                  [
+                    0,
+                    5
+                  ],
+                  [
+                    1,
+                    5
+                  ],
+                  [
+                    2,
+                    5
+                  ],
+                  [
+                    3,
+                    5
+                  ],
+                  [
+                    4,
+                    5
+                  ]
+                ],
+                "D": []
+              }
+            },
+            {
+              "source": [
+                5,
+                9
+              ],
+              "values": [
+                "U",
+                "D"
+              ],
+              "witnesses": {
+                "U": [
+                  [
+                    6,
+                    9
+                  ],
+                  [
+                    7,
+                    9
+                  ],
+                  [
+                    8,
+                    9
+                  ]
+                ],
+                "D": [
+                  [
+                    5,
+                    6
+                  ],
+                  [
+                    5,
+                    7
+                  ],
+                  [
+                    5,
+                    8
+                  ]
+                ]
+              }
+            },
+            {
+              "source": [
+                9,
+                12
+              ],
+              "values": [
+                "D"
+              ],
+              "witnesses": {
+                "U": [],
+                "D": [
+                  [
+                    9,
+                    10
+                  ]
+                ]
+              }
+            }
+          ],
+          "alternatingCrossingChoices": [],
+          "status": "necessary pieces only; no original completed P or F2 qualification issued"
+        }
+      ]
+    },
+    {
+      "name": "same_down_mirror",
+      "sourceFile": ".chanlun/review-results/issue1467-f1-proof/stage50/candidate-evidence/results-v1/same_down_mirror.json",
+      "sourceSHA256": "577f34e95fae0e45ff036b57a69b00bdef728c2ba26b12a0227c240669334004",
+      "replayedEvents": 40,
+      "replayedStates": 41,
+      "partitions": [
+        {
+          "cuts": [
+            0,
+            5,
+            8,
+            12
+          ],
+          "children": [
+            {
+              "start": 0,
+              "end": 5,
+              "states": [
+                {
+                  "event": 0,
+                  "q": 1660,
+                  "w": "17032/167"
+                },
+                {
+                  "event": 1,
+                  "q": 1660,
+                  "w": "17032/167"
+                },
+                {
+                  "event": 2,
+                  "q": 1700,
+                  "w": "17440/171"
+                },
+                {
+                  "event": 3,
+                  "q": 1670,
+                  "w": "8567/84"
+                },
+                {
+                  "event": 4,
+                  "q": 1690,
+                  "w": "8669/85"
+                },
+                {
+                  "event": 5,
+                  "q": 1560,
+                  "w": "16012/157"
+                }
+              ],
+              "range": [
+                1560,
+                1700
+              ],
+              "actualStart": 1660,
+              "actualEnd": 1560,
+              "net": "D",
+              "strictSteps": [
+                {
+                  "event": 2,
+                  "d": "U"
+                },
+                {
+                  "event": 3,
+                  "d": "D"
+                },
+                {
+                  "event": 4,
+                  "d": "U"
+                },
+                {
+                  "event": 5,
+                  "d": "D"
+                }
+              ],
+              "firstStrict": "U",
+              "lastStrict": "D",
+              "lowEvents": [
+                5
+              ],
+              "highEvents": [
+                2
+              ],
+              "firstExtremaOrder": "D",
+              "lastExtremaOrder": "D",
+              "allExtremaOrder": "D",
+              "oppositeExtremaEndpoints": null,
+              "ownedCoreID": "K0",
+              "coreSource": [
+                0,
+                4
+              ],
+              "coreFormation": "U",
+              "coreFormationSteps": [
+                {
+                  "event": 2,
+                  "d": "U"
+                },
+                {
+                  "event": 3,
+                  "d": "D"
+                },
+                {
+                  "event": 4,
+                  "d": "U"
+                }
+              ],
+              "conceptDirection": null,
+              "originalCompletionEvidence": null,
+              "dirForZ3Evidence": null
+            },
+            {
+              "start": 5,
+              "end": 8,
+              "states": [
+                {
+                  "event": 5,
+                  "q": 1560,
+                  "w": "16012/157"
+                },
+                {
+                  "event": 6,
+                  "q": 1600,
+                  "w": "16420/161"
+                },
+                {
+                  "event": 7,
+                  "q": 1570,
+                  "w": "8057/79"
+                },
+                {
+                  "event": 8,
+                  "q": 1590,
+                  "w": "8159/80"
+                }
+              ],
+              "range": [
+                1560,
+                1600
+              ],
+              "actualStart": 1560,
+              "actualEnd": 1590,
+              "net": "U",
+              "strictSteps": [
+                {
+                  "event": 6,
+                  "d": "U"
+                },
+                {
+                  "event": 7,
+                  "d": "D"
+                },
+                {
+                  "event": 8,
+                  "d": "U"
+                }
+              ],
+              "firstStrict": "U",
+              "lastStrict": "U",
+              "lowEvents": [
+                5
+              ],
+              "highEvents": [
+                6
+              ],
+              "firstExtremaOrder": "U",
+              "lastExtremaOrder": "U",
+              "allExtremaOrder": "U",
+              "oppositeExtremaEndpoints": null,
+              "ownedCoreID": "K1",
+              "coreSource": [
+                5,
+                8
+              ],
+              "coreFormation": "U",
+              "coreFormationSteps": [
+                {
+                  "event": 6,
+                  "d": "U"
+                },
+                {
+                  "event": 7,
+                  "d": "D"
+                },
+                {
+                  "event": 8,
+                  "d": "U"
+                }
+              ],
+              "conceptDirection": null,
+              "originalCompletionEvidence": null,
+              "dirForZ3Evidence": null
+            },
+            {
+              "start": 8,
+              "end": 12,
+              "states": [
+                {
+                  "event": 8,
+                  "q": 1590,
+                  "w": "8159/80"
+                },
+                {
+                  "event": 9,
+                  "q": 1560,
+                  "w": "16012/157"
+                },
+                {
+                  "event": 10,
+                  "q": 1565,
+                  "w": "32126/315"
+                },
+                {
+                  "event": 11,
+                  "q": 1562,
+                  "w": "40081/393"
+                },
+                {
+                  "event": 12,
+                  "q": 1564,
+                  "w": "80264/787"
+                }
+              ],
+              "range": [
+                1560,
+                1590
+              ],
+              "actualStart": 1590,
+              "actualEnd": 1564,
+              "net": "D",
+              "strictSteps": [
+                {
+                  "event": 9,
+                  "d": "D"
+                },
+                {
+                  "event": 10,
+                  "d": "U"
+                },
+                {
+                  "event": 11,
+                  "d": "D"
+                },
+                {
+                  "event": 12,
+                  "d": "U"
+                }
+              ],
+              "firstStrict": "D",
+              "lastStrict": "U",
+              "lowEvents": [
+                9
+              ],
+              "highEvents": [
+                8
+              ],
+              "firstExtremaOrder": "D",
+              "lastExtremaOrder": "D",
+              "allExtremaOrder": "D",
+              "oppositeExtremaEndpoints": null,
+              "ownedCoreID": "K2",
+              "coreSource": [
+                9,
+                12
+              ],
+              "coreFormation": "U",
+              "coreFormationSteps": [
+                {
+                  "event": 10,
+                  "d": "U"
+                },
+                {
+                  "event": 11,
+                  "d": "D"
+                },
+                {
+                  "event": 12,
+                  "d": "U"
+                }
+              ],
+              "conceptDirection": null,
+              "originalCompletionEvidence": null,
+              "dirForZ3Evidence": null
+            }
+          ],
+          "intersection": [
+            1560,
+            1590
+          ],
+          "directions": {
+            "net": {
+              "values": [
+                "D",
+                "U",
+                "D"
+              ],
+              "alternates": true
+            },
+            "firstStrict": {
+              "values": [
+                "U",
+                "U",
+                "D"
+              ],
+              "alternates": false
+            },
+            "lastStrict": {
+              "values": [
+                "D",
+                "U",
+                "U"
+              ],
+              "alternates": false
+            },
+            "coreFormation": {
+              "values": [
+                "U",
+                "U",
+                "U"
+              ],
+              "alternates": false
+            },
+            "firstExtremaOrder": {
+              "values": [
+                "D",
+                "U",
+                "D"
+              ],
+              "alternates": true
+            },
+            "lastExtremaOrder": {
+              "values": [
+                "D",
+                "U",
+                "D"
+              ],
+              "alternates": true
+            },
+            "allExtremaOrder": {
+              "values": [
+                "D",
+                "U",
+                "D"
+              ],
+              "alternates": true
+            },
+            "oppositeExtremaEndpoints": {
+              "values": [
+                null,
+                null,
+                null
+              ],
+              "alternates": false
+            }
+          },
+          "crossings": [
+            {
+              "source": [
+                0,
+                5
+              ],
+              "values": [
+                "D"
+              ],
+              "witnesses": {
+                "U": [],
+                "D": [
+                  [
+                    0,
+                    5
+                  ],
+                  [
+                    1,
+                    5
+                  ],
+                  [
+                    2,
+                    5
+                  ],
+                  [
+                    3,
+                    5
+                  ],
+                  [
+                    4,
+                    5
+                  ]
+                ]
+              }
+            },
+            {
+              "source": [
+                5,
+                8
+              ],
+              "values": [
+                "U"
+              ],
+              "witnesses": {
+                "U": [
+                  [
+                    5,
+                    6
+                  ],
+                  [
+                    5,
+                    8
+                  ]
+                ],
+                "D": []
+              }
+            },
+            {
+              "source": [
+                8,
+                12
+              ],
+              "values": [
+                "D"
+              ],
+              "witnesses": {
+                "U": [],
+                "D": [
+                  [
+                    8,
+                    9
+                  ]
+                ]
+              }
+            }
+          ],
+          "alternatingCrossingChoices": [
+            [
+              "D",
+              "U",
+              "D"
+            ]
+          ],
+          "status": "necessary pieces only; no original completed P or F2 qualification issued"
+        },
+        {
+          "cuts": [
+            0,
+            5,
+            9,
+            12
+          ],
+          "children": [
+            {
+              "start": 0,
+              "end": 5,
+              "states": [
+                {
+                  "event": 0,
+                  "q": 1660,
+                  "w": "17032/167"
+                },
+                {
+                  "event": 1,
+                  "q": 1660,
+                  "w": "17032/167"
+                },
+                {
+                  "event": 2,
+                  "q": 1700,
+                  "w": "17440/171"
+                },
+                {
+                  "event": 3,
+                  "q": 1670,
+                  "w": "8567/84"
+                },
+                {
+                  "event": 4,
+                  "q": 1690,
+                  "w": "8669/85"
+                },
+                {
+                  "event": 5,
+                  "q": 1560,
+                  "w": "16012/157"
+                }
+              ],
+              "range": [
+                1560,
+                1700
+              ],
+              "actualStart": 1660,
+              "actualEnd": 1560,
+              "net": "D",
+              "strictSteps": [
+                {
+                  "event": 2,
+                  "d": "U"
+                },
+                {
+                  "event": 3,
+                  "d": "D"
+                },
+                {
+                  "event": 4,
+                  "d": "U"
+                },
+                {
+                  "event": 5,
+                  "d": "D"
+                }
+              ],
+              "firstStrict": "U",
+              "lastStrict": "D",
+              "lowEvents": [
+                5
+              ],
+              "highEvents": [
+                2
+              ],
+              "firstExtremaOrder": "D",
+              "lastExtremaOrder": "D",
+              "allExtremaOrder": "D",
+              "oppositeExtremaEndpoints": null,
+              "ownedCoreID": "K0",
+              "coreSource": [
+                0,
+                4
+              ],
+              "coreFormation": "U",
+              "coreFormationSteps": [
+                {
+                  "event": 2,
+                  "d": "U"
+                },
+                {
+                  "event": 3,
+                  "d": "D"
+                },
+                {
+                  "event": 4,
+                  "d": "U"
+                }
+              ],
+              "conceptDirection": null,
+              "originalCompletionEvidence": null,
+              "dirForZ3Evidence": null
+            },
+            {
+              "start": 5,
+              "end": 9,
+              "states": [
+                {
+                  "event": 5,
+                  "q": 1560,
+                  "w": "16012/157"
+                },
+                {
+                  "event": 6,
+                  "q": 1600,
+                  "w": "16420/161"
+                },
+                {
+                  "event": 7,
+                  "q": 1570,
+                  "w": "8057/79"
+                },
+                {
+                  "event": 8,
+                  "q": 1590,
+                  "w": "8159/80"
+                },
+                {
+                  "event": 9,
+                  "q": 1560,
+                  "w": "16012/157"
+                }
+              ],
+              "range": [
+                1560,
+                1600
+              ],
+              "actualStart": 1560,
+              "actualEnd": 1560,
+              "net": "0",
+              "strictSteps": [
+                {
+                  "event": 6,
+                  "d": "U"
+                },
+                {
+                  "event": 7,
+                  "d": "D"
+                },
+                {
+                  "event": 8,
+                  "d": "U"
+                },
+                {
+                  "event": 9,
+                  "d": "D"
+                }
+              ],
+              "firstStrict": "U",
+              "lastStrict": "D",
+              "lowEvents": [
+                5,
+                9
+              ],
+              "highEvents": [
+                6
+              ],
+              "firstExtremaOrder": "U",
+              "lastExtremaOrder": "D",
+              "allExtremaOrder": null,
+              "oppositeExtremaEndpoints": null,
+              "ownedCoreID": "K1",
+              "coreSource": [
+                5,
+                8
+              ],
+              "coreFormation": "U",
+              "coreFormationSteps": [
+                {
+                  "event": 6,
+                  "d": "U"
+                },
+                {
+                  "event": 7,
+                  "d": "D"
+                },
+                {
+                  "event": 8,
+                  "d": "U"
+                }
+              ],
+              "conceptDirection": null,
+              "originalCompletionEvidence": null,
+              "dirForZ3Evidence": null
+            },
+            {
+              "start": 9,
+              "end": 12,
+              "states": [
+                {
+                  "event": 9,
+                  "q": 1560,
+                  "w": "16012/157"
+                },
+                {
+                  "event": 10,
+                  "q": 1565,
+                  "w": "32126/315"
+                },
+                {
+                  "event": 11,
+                  "q": 1562,
+                  "w": "40081/393"
+                },
+                {
+                  "event": 12,
+                  "q": 1564,
+                  "w": "80264/787"
+                }
+              ],
+              "range": [
+                1560,
+                1565
+              ],
+              "actualStart": 1560,
+              "actualEnd": 1564,
+              "net": "U",
+              "strictSteps": [
+                {
+                  "event": 10,
+                  "d": "U"
+                },
+                {
+                  "event": 11,
+                  "d": "D"
+                },
+                {
+                  "event": 12,
+                  "d": "U"
+                }
+              ],
+              "firstStrict": "U",
+              "lastStrict": "U",
+              "lowEvents": [
+                9
+              ],
+              "highEvents": [
+                10
+              ],
+              "firstExtremaOrder": "U",
+              "lastExtremaOrder": "U",
+              "allExtremaOrder": "U",
+              "oppositeExtremaEndpoints": null,
+              "ownedCoreID": "K2",
+              "coreSource": [
+                9,
+                12
+              ],
+              "coreFormation": "U",
+              "coreFormationSteps": [
+                {
+                  "event": 10,
+                  "d": "U"
+                },
+                {
+                  "event": 11,
+                  "d": "D"
+                },
+                {
+                  "event": 12,
+                  "d": "U"
+                }
+              ],
+              "conceptDirection": null,
+              "originalCompletionEvidence": null,
+              "dirForZ3Evidence": null
+            }
+          ],
+          "intersection": [
+            1560,
+            1565
+          ],
+          "directions": {
+            "net": {
+              "values": [
+                "D",
+                "0",
+                "U"
+              ],
+              "alternates": false
+            },
+            "firstStrict": {
+              "values": [
+                "U",
+                "U",
+                "U"
+              ],
+              "alternates": false
+            },
+            "lastStrict": {
+              "values": [
+                "D",
+                "D",
+                "U"
+              ],
+              "alternates": false
+            },
+            "coreFormation": {
+              "values": [
+                "U",
+                "U",
+                "U"
+              ],
+              "alternates": false
+            },
+            "firstExtremaOrder": {
+              "values": [
+                "D",
+                "U",
+                "U"
+              ],
+              "alternates": false
+            },
+            "lastExtremaOrder": {
+              "values": [
+                "D",
+                "D",
+                "U"
+              ],
+              "alternates": false
+            },
+            "allExtremaOrder": {
+              "values": [
+                "D",
+                null,
+                "U"
+              ],
+              "alternates": false
+            },
+            "oppositeExtremaEndpoints": {
+              "values": [
+                null,
+                null,
+                null
+              ],
+              "alternates": false
+            }
+          },
+          "crossings": [
+            {
+              "source": [
+                0,
+                5
+              ],
+              "values": [
+                "D"
+              ],
+              "witnesses": {
+                "U": [],
+                "D": [
+                  [
+                    0,
+                    5
+                  ],
+                  [
+                    1,
+                    5
+                  ],
+                  [
+                    2,
+                    5
+                  ],
+                  [
+                    3,
+                    5
+                  ],
+                  [
+                    4,
+                    5
+                  ]
+                ]
+              }
+            },
+            {
+              "source": [
+                5,
+                9
+              ],
+              "values": [
+                "U",
+                "D"
+              ],
+              "witnesses": {
+                "U": [
+                  [
+                    5,
+                    6
+                  ],
+                  [
+                    5,
+                    7
+                  ],
+                  [
+                    5,
+                    8
+                  ]
+                ],
+                "D": [
+                  [
+                    6,
+                    9
+                  ],
+                  [
+                    7,
+                    9
+                  ],
+                  [
+                    8,
+                    9
+                  ]
+                ]
+              }
+            },
+            {
+              "source": [
+                9,
+                12
+              ],
+              "values": [
+                "U"
+              ],
+              "witnesses": {
+                "U": [
+                  [
+                    9,
+                    10
+                  ]
+                ],
+                "D": []
+              }
+            }
+          ],
+          "alternatingCrossingChoices": [],
+          "status": "necessary pieces only; no original completed P or F2 qualification issued"
+        }
+      ]
+    }
+  ],
+  "standardBridgeFiniteCheck": {
+    "endpointTuples": 625,
+    "strictStandardTriples": 140,
+    "passed": true,
+    "ordinaryProof": "p-direction-scope.md section 6"
+  },
+  "weakCounterexample": {
+    "children": [
+      {
+        "start": 0,
+        "end": 2,
+        "states": [
+          {
+            "event": 0,
+            "q": 0
+          },
+          {
+            "event": 1,
+            "q": 4
+          },
+          {
+            "event": 2,
+            "q": 1
+          }
+        ],
+        "range": [
+          0,
+          4
+        ],
+        "actualStart": 0,
+        "actualEnd": 1,
+        "net": "U",
+        "strictSteps": [
+          {
+            "event": 1,
+            "d": "U"
+          },
+          {
+            "event": 2,
+            "d": "D"
+          }
+        ],
+        "firstStrict": "U",
+        "lastStrict": "D",
+        "lowEvents": [
+          0
+        ],
+        "highEvents": [
+          1
+        ],
+        "firstExtremaOrder": "U",
+        "lastExtremaOrder": "U",
+        "allExtremaOrder": "U",
+        "oppositeExtremaEndpoints": null
+      },
+      {
+        "start": 0,
+        "end": 2,
+        "states": [
+          {
+            "event": 0,
+            "q": 1
+          },
+          {
+            "event": 1,
+            "q": 5
+          },
+          {
+            "event": 2,
+            "q": 2
+          }
+        ],
+        "range": [
+          1,
+          5
+        ],
+        "actualStart": 1,
+        "actualEnd": 2,
+        "net": "U",
+        "strictSteps": [
+          {
+            "event": 1,
+            "d": "U"
+          },
+          {
+            "event": 2,
+            "d": "D"
+          }
+        ],
+        "firstStrict": "U",
+        "lastStrict": "D",
+        "lowEvents": [
+          0
+        ],
+        "highEvents": [
+          1
+        ],
+        "firstExtremaOrder": "U",
+        "lastExtremaOrder": "U",
+        "allExtremaOrder": "U",
+        "oppositeExtremaEndpoints": null
+      },
+      {
+        "start": 0,
+        "end": 2,
+        "states": [
+          {
+            "event": 0,
+            "q": 2
+          },
+          {
+            "event": 1,
+            "q": 6
+          },
+          {
+            "event": 2,
+            "q": 3
+          }
+        ],
+        "range": [
+          2,
+          6
+        ],
+        "actualStart": 2,
+        "actualEnd": 3,
+        "net": "U",
+        "strictSteps": [
+          {
+            "event": 1,
+            "d": "U"
+          },
+          {
+            "event": 2,
+            "d": "D"
+          }
+        ],
+        "firstStrict": "U",
+        "lastStrict": "D",
+        "lowEvents": [
+          0
+        ],
+        "highEvents": [
+          1
+        ],
+        "firstExtremaOrder": "U",
+        "lastExtremaOrder": "U",
+        "allExtremaOrder": "U",
+        "oppositeExtremaEndpoints": null
+      }
+    ],
+    "commonRange": [
+      2,
+      4
+    ],
+    "scope": "countermodel to numerical implication only, not asserted original completed moves"
+  }
+}

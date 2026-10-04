@@ -1,0 +1,617 @@
+{
+  "source": {
+    "epoch": "synthetic-rdw-v1-net-mismatch",
+    "synthetic": true,
+    "marketData": false,
+    "coordinates": [
+      0,
+      10,
+      5,
+      10,
+      0,
+      6,
+      0,
+      10
+    ],
+    "shift": 1000,
+    "initial": {
+      "bid": {
+        "id": "reservoir",
+        "price": 100,
+        "quantity": 1000
+      },
+      "ask": {
+        "id": "ask",
+        "price": 102,
+        "quantity": 10
+      }
+    },
+    "events": [
+      {
+        "seq": 1,
+        "kind": "add",
+        "id": "rise-1",
+        "side": "bid",
+        "price": 100,
+        "quantity": 10
+      },
+      {
+        "seq": 2,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 5
+      },
+      {
+        "seq": 3,
+        "kind": "add",
+        "id": "rise-3",
+        "side": "bid",
+        "price": 100,
+        "quantity": 5
+      },
+      {
+        "seq": 4,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 10
+      },
+      {
+        "seq": 5,
+        "kind": "add",
+        "id": "rise-5",
+        "side": "bid",
+        "price": 100,
+        "quantity": 6
+      },
+      {
+        "seq": 6,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 6
+      },
+      {
+        "seq": 7,
+        "kind": "add",
+        "id": "rise-7",
+        "side": "bid",
+        "price": 100,
+        "quantity": 10
+      }
+    ],
+    "states": [
+      {
+        "event": 0,
+        "q": 1000,
+        "w": "10300/101"
+      },
+      {
+        "event": 1,
+        "q": 1010,
+        "w": "5201/51"
+      },
+      {
+        "event": 2,
+        "q": 1005,
+        "w": "20702/203"
+      },
+      {
+        "event": 3,
+        "q": 1010,
+        "w": "5201/51"
+      },
+      {
+        "event": 4,
+        "q": 1000,
+        "w": "10300/101"
+      },
+      {
+        "event": 5,
+        "q": 1006,
+        "w": "25903/254"
+      },
+      {
+        "event": 6,
+        "q": 1000,
+        "w": "10300/101"
+      },
+      {
+        "event": 7,
+        "q": 1010,
+        "w": "5201/51"
+      }
+    ]
+  },
+  "replayEvidence": [
+    {
+      "event": 0,
+      "reservoirQuantity": 1000,
+      "bestBidQuantity": 1000,
+      "bestAskQuantity": 10,
+      "liveIDs": [
+        "reservoir",
+        "ask"
+      ]
+    },
+    {
+      "event": 1,
+      "reservoirQuantity": 1000,
+      "bestBidQuantity": 1010,
+      "bestAskQuantity": 10,
+      "liveIDs": [
+        "reservoir",
+        "ask",
+        "rise-1"
+      ]
+    },
+    {
+      "event": 2,
+      "reservoirQuantity": 995,
+      "bestBidQuantity": 1005,
+      "bestAskQuantity": 10,
+      "liveIDs": [
+        "reservoir",
+        "ask",
+        "rise-1"
+      ]
+    },
+    {
+      "event": 3,
+      "reservoirQuantity": 995,
+      "bestBidQuantity": 1010,
+      "bestAskQuantity": 10,
+      "liveIDs": [
+        "reservoir",
+        "ask",
+        "rise-1",
+        "rise-3"
+      ]
+    },
+    {
+      "event": 4,
+      "reservoirQuantity": 985,
+      "bestBidQuantity": 1000,
+      "bestAskQuantity": 10,
+      "liveIDs": [
+        "reservoir",
+        "ask",
+        "rise-1",
+        "rise-3"
+      ]
+    },
+    {
+      "event": 5,
+      "reservoirQuantity": 985,
+      "bestBidQuantity": 1006,
+      "bestAskQuantity": 10,
+      "liveIDs": [
+        "reservoir",
+        "ask",
+        "rise-1",
+        "rise-3",
+        "rise-5"
+      ]
+    },
+    {
+      "event": 6,
+      "reservoirQuantity": 979,
+      "bestBidQuantity": 1000,
+      "bestAskQuantity": 10,
+      "liveIDs": [
+        "reservoir",
+        "ask",
+        "rise-1",
+        "rise-3",
+        "rise-5"
+      ]
+    },
+    {
+      "event": 7,
+      "reservoirQuantity": 979,
+      "bestBidQuantity": 1010,
+      "bestAskQuantity": 10,
+      "liveIDs": [
+        "reservoir",
+        "ask",
+        "rise-1",
+        "rise-3",
+        "rise-5",
+        "rise-7"
+      ]
+    }
+  ],
+  "orderComparisons": 64,
+  "result": {
+    "cuts": [
+      0,
+      2,
+      5,
+      7
+    ],
+    "qRanges": [
+      [
+        1000,
+        1010
+      ],
+      [
+        1000,
+        1010
+      ],
+      [
+        1000,
+        1010
+      ]
+    ],
+    "wRanges": [
+      [
+        "10300/101",
+        "5201/51"
+      ],
+      [
+        "10300/101",
+        "5201/51"
+      ],
+      [
+        "10300/101",
+        "5201/51"
+      ]
+    ],
+    "numericalH": [
+      1000,
+      1010
+    ],
+    "wNumericalH": [
+      "10300/101",
+      "5201/51"
+    ],
+    "strict": true,
+    "children": [
+      {
+        "start": 0,
+        "end": 2,
+        "ownedEvents": [
+          1,
+          2
+        ],
+        "priceSupport": [
+          0,
+          1,
+          2
+        ],
+        "sourceStates": [
+          {
+            "event": 0,
+            "q": 1000,
+            "w": "10300/101"
+          },
+          {
+            "event": 1,
+            "q": 1010,
+            "w": "5201/51"
+          },
+          {
+            "event": 2,
+            "q": 1005,
+            "w": "20702/203"
+          }
+        ],
+        "qRange": [
+          1000,
+          1010
+        ],
+        "wRange": [
+          "10300/101",
+          "5201/51"
+        ],
+        "extrema": {
+          "minIndices": [
+            0
+          ],
+          "maxIndices": [
+            1
+          ]
+        },
+        "endpointDirection": "U",
+        "strictEndpointIncrease": true,
+        "witnesses": {
+          "U": [
+            {
+              "indices": [
+                0,
+                1
+              ],
+              "q": [
+                1000,
+                1010
+              ],
+              "w": [
+                "10300/101",
+                "5201/51"
+              ],
+              "pointsAvailableAt": 1
+            }
+          ],
+          "D": []
+        },
+        "directions": [
+          "U"
+        ],
+        "conceptDirection": null,
+        "originalCompletionEvidence": null,
+        "originalZ3Evidence": null
+      },
+      {
+        "start": 2,
+        "end": 5,
+        "ownedEvents": [
+          3,
+          4,
+          5
+        ],
+        "priceSupport": [
+          2,
+          3,
+          4,
+          5
+        ],
+        "sourceStates": [
+          {
+            "event": 2,
+            "q": 1005,
+            "w": "20702/203"
+          },
+          {
+            "event": 3,
+            "q": 1010,
+            "w": "5201/51"
+          },
+          {
+            "event": 4,
+            "q": 1000,
+            "w": "10300/101"
+          },
+          {
+            "event": 5,
+            "q": 1006,
+            "w": "25903/254"
+          }
+        ],
+        "qRange": [
+          1000,
+          1010
+        ],
+        "wRange": [
+          "10300/101",
+          "5201/51"
+        ],
+        "extrema": {
+          "minIndices": [
+            4
+          ],
+          "maxIndices": [
+            3
+          ]
+        },
+        "endpointDirection": "U",
+        "strictEndpointIncrease": true,
+        "witnesses": {
+          "U": [],
+          "D": [
+            {
+              "indices": [
+                3,
+                4
+              ],
+              "q": [
+                1010,
+                1000
+              ],
+              "w": [
+                "5201/51",
+                "10300/101"
+              ],
+              "pointsAvailableAt": 4
+            }
+          ]
+        },
+        "directions": [
+          "D"
+        ],
+        "conceptDirection": null,
+        "originalCompletionEvidence": null,
+        "originalZ3Evidence": null
+      },
+      {
+        "start": 5,
+        "end": 7,
+        "ownedEvents": [
+          6,
+          7
+        ],
+        "priceSupport": [
+          5,
+          6,
+          7
+        ],
+        "sourceStates": [
+          {
+            "event": 5,
+            "q": 1006,
+            "w": "25903/254"
+          },
+          {
+            "event": 6,
+            "q": 1000,
+            "w": "10300/101"
+          },
+          {
+            "event": 7,
+            "q": 1010,
+            "w": "5201/51"
+          }
+        ],
+        "qRange": [
+          1000,
+          1010
+        ],
+        "wRange": [
+          "10300/101",
+          "5201/51"
+        ],
+        "extrema": {
+          "minIndices": [
+            6
+          ],
+          "maxIndices": [
+            7
+          ]
+        },
+        "endpointDirection": "U",
+        "strictEndpointIncrease": true,
+        "witnesses": {
+          "U": [
+            {
+              "indices": [
+                6,
+                7
+              ],
+              "q": [
+                1000,
+                1010
+              ],
+              "w": [
+                "10300/101",
+                "5201/51"
+              ],
+              "pointsAvailableAt": 7
+            }
+          ],
+          "D": []
+        },
+        "directions": [
+          "U"
+        ],
+        "conceptDirection": null,
+        "originalCompletionEvidence": null,
+        "originalZ3Evidence": null
+      }
+    ],
+    "allEightAssignments": [
+      {
+        "word": "UUU",
+        "perChildHasWitness": [
+          true,
+          false,
+          true
+        ],
+        "feasible": false,
+        "alternating": false,
+        "accepted": false
+      },
+      {
+        "word": "UUD",
+        "perChildHasWitness": [
+          true,
+          false,
+          false
+        ],
+        "feasible": false,
+        "alternating": false,
+        "accepted": false
+      },
+      {
+        "word": "UDU",
+        "perChildHasWitness": [
+          true,
+          true,
+          true
+        ],
+        "feasible": true,
+        "alternating": true,
+        "accepted": true
+      },
+      {
+        "word": "UDD",
+        "perChildHasWitness": [
+          true,
+          true,
+          false
+        ],
+        "feasible": false,
+        "alternating": false,
+        "accepted": false
+      },
+      {
+        "word": "DUU",
+        "perChildHasWitness": [
+          false,
+          false,
+          true
+        ],
+        "feasible": false,
+        "alternating": false,
+        "accepted": false
+      },
+      {
+        "word": "DUD",
+        "perChildHasWitness": [
+          false,
+          false,
+          false
+        ],
+        "feasible": false,
+        "alternating": true,
+        "accepted": false
+      },
+      {
+        "word": "DDU",
+        "perChildHasWitness": [
+          false,
+          true,
+          true
+        ],
+        "feasible": false,
+        "alternating": false,
+        "accepted": false
+      },
+      {
+        "word": "DDD",
+        "perChildHasWitness": [
+          false,
+          true,
+          false
+        ],
+        "feasible": false,
+        "alternating": false,
+        "accepted": false
+      }
+    ],
+    "selections": [
+      {
+        "word": "UDU",
+        "witnessTupleCount": 1,
+        "allWitnessIndexTuples": [
+          [
+            [
+              0,
+              1
+            ],
+            [
+              3,
+              4
+            ],
+            [
+              6,
+              7
+            ]
+          ]
+        ]
+      }
+    ],
+    "selectionCount": 1,
+    "witnessTupleCount": 1,
+    "sourceRangesAvailableAt": 7,
+    "semanticEligibleAt": null,
+    "originalParentCore": null,
+    "qualification": "numerical RDW-v1 only; no completed same-level moves or original Z3 bridge certified"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "windows": 15,
+  "witnessPairs": 124,
+  "assignments": 120,
+  "witnessTuples": 55,
+  "assertionsPassed": true,
+  "method": "first/last threshold indices plus full point-pair/certificate consistency",
+  "independentReview": false
+}
