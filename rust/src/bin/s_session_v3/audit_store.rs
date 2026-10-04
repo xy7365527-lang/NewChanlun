@@ -8,6 +8,17 @@ use newchan_rust::s_content::{
 use sc::path::PathStep;
 use std::io::Write;
 
+/// #1394：内部字段定位借用原键，Owned路径不先构造未持账的String。
+pub(crate) struct BorrowedFieldPath<'a>(pub(crate) &'a str);
+impl sc::path::PathView for BorrowedFieldPath<'_> {
+    fn len(&self) -> usize {
+        1
+    }
+    fn step(&self, index: usize) -> Option<sc::path::PathStepView<'_>> {
+        (index == 0).then_some(sc::path::PathStepView::Field(self.0))
+    }
+}
+
 /// 仅bin内的静态codec门；具体捕获owner不可擦除成外来来源。
 pub(crate) trait CodecRead: NodeSource {
     fn lookup_array_ref(
@@ -43,6 +54,9 @@ pub(crate) trait CodecRead: NodeSource {
     }
     fn lookup_ref(&mut self, r: sc::RefView<'_>, p: &[PathStep]) -> Result<RefValue, CodecError> {
         sc::path::lookup_path_refview(self.generic_source(), r, p).map(RefValue::Plain)
+    }
+    fn lookup_field_ref(&mut self, r: sc::RefView<'_>, key: &str) -> Result<RefValue, CodecError> {
+        self.lookup_ref(r, &[PathStep::Field(key.into())])
     }
     fn lookup_fields_ref<'a>(
         &mut self,
@@ -324,6 +338,12 @@ impl CodecRead for StoreView<'_, '_> {
         match &mut self.backend {
             Backend::Generic(s) => s.lookup_ref(r, p),
             Backend::Audit(s) => s.lookup_ref(r, p),
+        }
+    }
+    fn lookup_field_ref(&mut self, r: sc::RefView<'_>, key: &str) -> Result<RefValue, CodecError> {
+        match &mut self.backend {
+            Backend::Generic(s) => s.lookup_field_ref(r, key),
+            Backend::Audit(s) => s.lookup_field_ref(r, key),
         }
     }
     fn lookup_fields_ref<'a>(
@@ -730,4 +750,8 @@ pub(crate) fn with_owned_store_probe<T>(
     )
 }
 
-impl<'a> From<&'a RefValue> for sc::RefView<'a>{fn from(r:&'a RefValue)->Self{r.view()}}
+impl<'a> From<&'a RefValue> for sc::RefView<'a> {
+    fn from(r: &'a RefValue) -> Self {
+        r.view()
+    }
+}

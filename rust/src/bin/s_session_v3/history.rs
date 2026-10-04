@@ -5,7 +5,7 @@
 //! 返回本结构不等于完整业务历史验收。
 
 use super::audit_header::{AuditMetadata, AuditRoots, AuditSourceCommit};
-use super::audit_store::RefValue;
+use super::audit_store::{BorrowedFieldPath, RefValue};
 use super::business_json::TextValue;
 use super::business_json::{self as bj, RawEventsView};
 use super::business_json::{BusinessMap, JsonOwner};
@@ -1841,15 +1841,6 @@ impl<'a> HashReader<'a> {
         key: &str,
         job: &mut dyn sc::access::Access,
     ) -> Result<RefValue, sc::CodecError> {
-        struct One<'a>(&'a str);
-        impl sc::path::PathView for One<'_> {
-            fn len(&self) -> usize {
-                1
-            }
-            fn step(&self, index: usize) -> Option<sc::path::PathStepView<'_>> {
-                (index == 0).then_some(sc::path::PathStepView::Field(self.0))
-            }
-        }
         self.sync_owned();
         let owner = self.owned.as_mut().ok_or_else(|| {
             sc::CodecError::new(
@@ -1858,7 +1849,9 @@ impl<'a> HashReader<'a> {
             )
         })?;
         owner
-            .with_q_access(job, |scope| scope.lookup_path_view_owned(r, &One(key)))
+            .with_q_access(job, |scope| {
+                scope.lookup_path_view_owned(r, &BorrowedFieldPath(key))
+            })
             .map(RefValue::Owned)
     }
     pub(crate) fn q_render_ref(
@@ -2297,6 +2290,19 @@ impl CodecRead for HashReader<'_> {
             None => {
                 sc::path::lookup_path_refview(self, r, p).map(super::audit_store::RefValue::Plain)
             }
+        }
+    }
+    fn lookup_field_ref(
+        &mut self,
+        r: sc::RefView<'_>,
+        key: &str,
+    ) -> Result<RefValue, sc::CodecError> {
+        self.sync_owned();
+        match &mut self.owned {
+            Some(o) => o
+                .lookup_path_view_owned(r, &BorrowedFieldPath(key))
+                .map(RefValue::Owned),
+            None => self.lookup_ref(r, &[PathStep::Field(key.into())]),
         }
     }
     fn lookup_fields_ref<'a>(
@@ -3012,7 +3018,7 @@ mod tests {
     }
 
     #[test]
-    fn allocation_owned_history_root_field_text_red() {
+    fn allocation_owned_history_borrowed_root_and_path_workset_limits() {
         use sc::capture_allocation::{CaptureSlab, OwnedBudget};
         #[derive(Default)]
         struct Collect(BTreeMap<NodeDigest, (u8, Vec<u8>)>);
@@ -3038,7 +3044,7 @@ mod tests {
             slab.push(d, t, &b).unwrap();
         }
         let capture = sc::AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
-        let (before, got_root, got_field, got_text) = with_overlay_prototype(
+        let (before, after) = with_overlay_prototype(
             OverlayPrototype {
                 slots: 1,
                 bytes: 1,
@@ -3048,37 +3054,163 @@ mod tests {
             || {
                 let mut reader = HashReader::captured_for_audit(&capture, None).unwrap();
                 let before = budget.snapshot();
-                let got_root = root(&mut reader, built.digest.to_vec());
-                let got_field = field(&mut reader, &built.content_ref(), "name");
-                let got_text = text(&mut reader, &built.content_ref(), "name");
+                // 生产入口借用immutable正文，返回内联RefOwner，无需body/字符串副本。
+                let got_root = root_ref_bytes(&mut reader, &built.digest).unwrap();
+                assert!(matches!(&got_root, RefValue::Owned(_)));
+                assert_eq!(got_root.digest().unwrap(), built.digest);
+                let after_root = budget.snapshot();
+                assert_eq!(
+                    after_root.live_requested_layout_bytes,
+                    before.live_requested_layout_bytes
+                );
+                assert_eq!(after_root.allocated_layouts, before.allocated_layouts);
+                assert_eq!(after_root.allocation_attempts, before.allocation_attempts);
+                assert_eq!(after_root.copied_body_bytes, before.copied_body_bytes);
+                for read_text in [false, true] {
+                    let error = if read_text {
+                        text_meta(&mut reader, got_root.view(), "name")
+                            .err()
+                            .unwrap()
+                    } else {
+                        field_meta(&mut reader, got_root.view(), "name")
+                            .err()
+                            .unwrap()
+                    };
+                    assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
+                    let refusal = budget.allocation_request_probe();
+                    assert!(refusal.refused_kind.ends_with("::path::Ancestor"));
+                    assert!(refusal.refused_bytes > 0);
+                    assert_eq!(
+                        refusal.live_before_refusal,
+                        before.live_requested_layout_bytes
+                    );
+                    assert!(
+                        refusal.live_before_refusal + refusal.refused_bytes > before.limit_bytes
+                    );
+                }
+                // field/text先在路径WorkVec门拒绝，不把它冒称4096字节输出门。
+                let after = budget.snapshot();
+                assert_eq!(after.rejected_layouts, before.rejected_layouts + 2);
+                assert_eq!(
+                    after.live_requested_layout_bytes,
+                    before.live_requested_layout_bytes
+                );
+                assert_eq!(after.allocated_layouts, before.allocated_layouts);
+                assert_eq!(after.released_layouts, before.released_layouts);
+                assert_eq!(after.allocation_attempts, before.allocation_attempts);
                 // 动态读取拒绝只检查遗漏；绿判据必须来自实际opaque codec资源门。
                 assert_eq!(
                     reader.read(&built.digest).unwrap_err().code(),
                     sc::capture_allocation::INCOMPLETE
                 );
-                (before, got_root, got_field, got_text)
+                (before, after)
             },
         );
-        for e in [
-            got_root.as_ref().unwrap_err(),
-            got_field.as_ref().unwrap_err(),
-            got_text.as_ref().unwrap_err(),
-        ] {
-            assert!(
-                e.contains(sc::capture_allocation::LIMIT),
-                "必须实际body门拒绝：{e}"
-            );
-        }
         assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
-        assert_eq!(
-            budget.snapshot().allocated_layouts,
-            before.allocated_layouts
-        );
-        println!("root_ok={} field_ok={} text_ok={} live_before={} live_after={} allocations_before={} allocations_after={}", got_root.is_ok(), got_field.is_ok(), got_text.is_ok(), before.live_requested_layout_bytes, budget.snapshot().live_requested_layout_bytes, before.allocated_layouts, budget.snapshot().allocated_layouts);
-        assert!(
-            got_root.is_err() && got_field.is_err() && got_text.is_err(),
-            "capture+overlay exhausted quota must reject root/field/text before allocating a body"
-        );
+        assert_eq!(after.allocated_layouts, before.allocated_layouts);
+        drop(capture);
+        let final_state = budget.snapshot();
+        assert_eq!(final_state.live_requested_layout_bytes, 0);
+        assert_eq!(final_state.allocated_layouts, final_state.released_layouts);
+        assert!(!budget.ledger_health().invariant_broken);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn allocation_owned_history_scalar_text_output_limits_and_lifetime() {
+        use sc::capture_allocation::{CaptureSlab, OwnedBudget};
+        #[derive(Default)]
+        struct Collect(BTreeMap<NodeDigest, (u8, Vec<u8>)>);
+        impl NodeSink for Collect {
+            fn put(&mut self, d: NodeDigest, t: u8, b: &[u8]) -> Result<(), sc::CodecError> {
+                self.0.insert(d, (t, b.to_vec()));
+                Ok(())
+            }
+        }
+        let value = "x".repeat(4096);
+        let mut nodes = Collect::default();
+        let scalar = sc::write_value(&mut nodes, &V::String(value.clone())).unwrap();
+        let count = nodes.0.len();
+        let bytes = nodes.0.values().map(|(_, b)| b.len()).sum();
+        let base = CaptureSlab::requested_bytes(count, bytes).unwrap();
+        let overlay = sc::capture_allocation::overlay::OverlaySlab::requested_bytes(1, 1).unwrap();
+        for output_room in [4096, 65536] {
+            let budget = OwnedBudget::new(base + overlay + output_room);
+            let mut slab = CaptureSlab::new(count, bytes, &budget).unwrap();
+            for (d, (t, b)) in &nodes.0 {
+                slab.push(*d, *t, b).unwrap();
+            }
+            let capture =
+                sc::AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
+            let returned = with_overlay_prototype(
+                OverlayPrototype {
+                    slots: 1,
+                    bytes: 1,
+                    budget: budget.clone(),
+                    peaks: std::rc::Rc::new(std::cell::Cell::new((0, 0))),
+                },
+                || {
+                    let mut reader = HashReader::captured_for_audit(&capture, None).unwrap();
+                    let r = root_ref_bytes(&mut reader, &scalar.digest).unwrap();
+                    assert!(matches!(&r, RefValue::Owned(_)));
+                    let before = budget.snapshot();
+                    // 已知scalar根直接读取，绕过field路径工作集。
+                    let result = bj::read_text(&mut reader, r.view());
+                    if output_room == 4096 {
+                        let error = result.err().unwrap();
+                        assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
+                        let refusal = budget.allocation_request_probe();
+                        assert_eq!(refusal.refused_kind, std::any::type_name::<u8>());
+                        assert!(refusal.refused_bytes >= value.len());
+                        assert!(
+                            refusal.live_before_refusal + refusal.refused_bytes
+                                > before.limit_bytes
+                        );
+                        let after = budget.snapshot();
+                        assert_eq!(after.rejected_layouts, before.rejected_layouts + 1);
+                        assert!(after.allocation_attempts > before.allocation_attempts);
+                        assert_eq!(
+                            after.live_requested_layout_bytes,
+                            before.live_requested_layout_bytes
+                        );
+                        assert_eq!(
+                            after.allocated_layouts - before.allocated_layouts,
+                            after.released_layouts - before.released_layouts
+                        );
+                        None
+                    } else {
+                        let text = result.ok().unwrap();
+                        assert!(matches!(&text, TextValue::Owned(_)));
+                        assert_eq!(text.as_str(), value);
+                        assert_eq!(
+                            budget.snapshot().live_requested_layout_bytes,
+                            before.live_requested_layout_bytes + text.capacity()
+                        );
+                        Some(text)
+                    }
+                },
+            );
+            let capture_bytes = usize::try_from(capture.retained_layout_bytes().unwrap()).unwrap();
+            let text_bytes = returned.as_ref().map_or(0, TextValue::capacity);
+            assert_eq!(
+                budget.snapshot().live_requested_layout_bytes,
+                capture_bytes + text_bytes
+            );
+            drop(capture);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, text_bytes);
+            if let Some(text) = &returned {
+                assert_eq!(
+                    text.as_str(),
+                    value,
+                    "文本在reader/capture释放后仍持有原账本字节"
+                );
+            }
+            drop(returned);
+            let final_state = budget.snapshot();
+            assert_eq!(final_state.live_requested_layout_bytes, 0);
+            assert_eq!(final_state.allocated_layouts, final_state.released_layouts);
+            assert!(!budget.ledger_health().invariant_broken);
+        }
     }
 
     #[test]
@@ -3119,6 +3251,14 @@ mod tests {
             slab.push(d, t, &b).unwrap();
         }
         let capture = sc::AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
+        let capture_checkpoint = budget.snapshot();
+        let initial_capture_bytes =
+            usize::try_from(capture.retained_layout_bytes().unwrap()).unwrap();
+        assert_eq!(initial_capture_bytes, base);
+        assert_eq!(
+            capture_checkpoint.live_requested_layout_bytes,
+            initial_capture_bytes
+        );
         let peaks = std::rc::Rc::new(std::cell::Cell::new((0, 0)));
         with_overlay_prototype(
             OverlayPrototype {
@@ -3155,6 +3295,12 @@ mod tests {
                     .verify_many_cached([r.clone()], sc::Mode::Public)
                     .unwrap();
                 let mut view = super::super::audit_store::StoreView::for_audit(&mut reader);
+                let borrowed_name = view.lookup_field_ref((&r).into(), "name").unwrap();
+                assert!(matches!(&borrowed_name, RefValue::Owned(_)));
+                assert_eq!(
+                    borrowed_name.digest().unwrap(),
+                    selected["name"].digest().unwrap()
+                );
                 let changed = view
                     .replace_batch_placeholder(
                         &template,
@@ -3208,9 +3354,33 @@ mod tests {
             peaks.get().0 > 0 && peaks.get().1 > 0,
             "纯统计callback读取真实owner overlay峰值"
         );
-        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        let after_reader = budget.snapshot();
+        let retained_capture_bytes =
+            usize::try_from(capture.retained_layout_bytes().unwrap()).unwrap();
+        assert!(
+            retained_capture_bytes > initial_capture_bytes,
+            "Public/Template memo仍由capture持账"
+        );
+        assert_eq!(
+            after_reader.live_requested_layout_bytes,
+            retained_capture_bytes
+        );
+        assert_eq!(
+            after_reader.live_requested_layout_bytes
+                - capture_checkpoint.live_requested_layout_bytes,
+            retained_capture_bytes - initial_capture_bytes
+        );
+        println!(
+            "capture_base={} capture_retained_after_reader={} capture_memo_retained={}",
+            initial_capture_bytes,
+            retained_capture_bytes,
+            retained_capture_bytes - initial_capture_bytes
+        );
         drop(capture);
-        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        let final_state = budget.snapshot();
+        assert_eq!(final_state.live_requested_layout_bytes, 0);
+        assert_eq!(final_state.allocated_layouts, final_state.released_layouts);
+        assert!(!budget.ledger_health().invariant_broken);
     }
 
     #[test]
@@ -5451,7 +5621,7 @@ fn field_meta(
     r: sc::RefView<'_>,
     k: &str,
 ) -> Result<RefValue, String> {
-    s.lookup_ref(r, &[PathStep::Field(k.into())]).map_err(err)
+    s.lookup_field_ref(r, k).map_err(err)
 }
 fn text_meta(
     s: &mut (impl CodecRead + ?Sized),
