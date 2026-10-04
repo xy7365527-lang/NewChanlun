@@ -1,0 +1,253 @@
+{
+  "stage": 43,
+  "date": "2026-10-04",
+  "issue": 1467,
+  "related_issues": [
+    1468,
+    1469
+  ],
+  "base_commit": "8a6894b488943de95dc2c25c1b3e9832893f4293",
+  "trust_level": "COORDINATOR_ATTESTED_TOOL_TRANSCRIPT",
+  "model_requested": "gpt-6-astra",
+  "independence": "reviews started with fork_turns=none; authors were not used as their own reviewers; source and result hashes checked by coordinator",
+  "agents": [
+    {
+      "name": "/root/single_core_completion",
+      "role": "author",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/w_axis_obligations",
+      "role": "author",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/owned_core_f1_candidate",
+      "role": "author",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/dynamic_w_domain",
+      "role": "author",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/review_completion_axis",
+      "role": "independent_review",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/review_owned_core",
+      "role": "independent_review",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/review_dynamic_w_domain",
+      "role": "independent_review",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/review_stage43_summary",
+      "role": "independent_review",
+      "completed": true,
+      "interrupt_called": true
+    }
+  ],
+  "findings": {
+    "W_actual_execution_identity_required": false,
+    "W_structural_contracts_still_required": true,
+    "order_isomorphism": "fixed common map; candidate object domain bijection plus predicate correspondence, nonempty finite extrema, separate NoCore",
+    "single_core_completion": "unproved; PrefixSplice Boundary is not instantiated, no nonvacuous witness, local right-end certificate is weaker than exact-left-boundary completion",
+    "single_core_residual_lemma": "conditional finite counting theorem with completed compatible cover assumed",
+    "left_boundary_witness": {
+      "events": 18,
+      "minimum_scope": "v2 completed first block plus completed singleton P plus independently locally certified multi-core T"
+    },
+    "owned_core_relation": "ordinary proof and independent finite checks support existence uniqueness, coverage and D-extension stability",
+    "owned_core_direct_original_succession": "rejected on 15-event Down-Down only under asserted identity with original adjacent completed types",
+    "owned_core_fixed_F2": "not qualified; all-Up strict interval example violates fixed Z-3 direction condition",
+    "trend_only_family_obstruction": "finite conditional no-go for at least two completed consecutive exclusive monotone core blocks on alternating two values; no universal liveness claim",
+    "endpoint_hull_adaptation": "lossy for owned-core paths; actual full-path range required"
+  },
+  "owned_core_validation": {
+    "author_input_checks": 403,
+    "author_prefix_checks": 7708,
+    "author_distinct_native_synthetic_histories": 3,
+    "author_breakdown": {
+      "native_Q_W_checks": 6,
+      "coordinate_enumeration": 381,
+      "length_variants": 16
+    },
+    "independent_input_checks": 1530,
+    "independent_prefix_checks": 41286,
+    "independent_native_synthetic_histories": 3,
+    "independent_methods": [
+      "streaming births",
+      "enumerate all relation partitions",
+      "order replay and Fraction"
+    ],
+    "code_extraction_note": "reviewer file equals exact embedded code content plus one trailing LF; stdout is byte-identical"
+  },
+  "dynamic_W": {
+    "relation": "PlateauBaseCandidate-v2, not OC-v1",
+    "new_profile": true,
+    "scope": "same first causal exploratory segment, no reset or window search",
+    "initial_capture_line": 340,
+    "initial_snapshot_orders": 49166,
+    "initialization_applications_excluded": 43,
+    "post_initialization_applications": 82,
+    "post_initialization_mutations": 55,
+    "post_initialization_noops": 27,
+    "total_applications": 125,
+    "quote_pairs_checked": 82,
+    "prefix_checks": 56,
+    "first_exit_event": 55,
+    "first_exit_capture_line": 422,
+    "exit_reason": "closed_short_platform_2",
+    "frozen_through": 54,
+    "mature_cores": 6,
+    "completed_objects": 2,
+    "confirmation_events": [
+      20,
+      45
+    ],
+    "completed_event_ranges": [
+      [
+        1,
+        17
+      ],
+      [
+        18,
+        42
+      ]
+    ],
+    "unconsumed_event_range": [
+      43,
+      55
+    ],
+    "unanalysed_events": [
+      55
+    ],
+    "parent_input_status": "fewer than three completed objects; not an empty-intersection result",
+    "independent_rerun_output_files_byte_equal": 5,
+    "excluded_json_fields": [],
+    "general_protocol_recovery_proved": false
+  },
+  "nonblocking_clarifications": [
+    "state path [a,c] vs event ownership (a,c]",
+    "candidate object domain vs legal solution-set bijection",
+    "403 coordinate test inputs, not 403 distinct native histories"
+  ],
+  "coordinator_checks": {
+    "completion_axis_source_hashes": 30,
+    "owned_review_manifest_files": 20,
+    "dynamic_outputs_byte_equal": 5,
+    "summary_review_hash_matched": true
+  },
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage43CompletionAndDynamicW.md",
+      "sha256": "c75db87ef0888cec00dd93edc233b72fa7106fed77e563a1e9c26d25c4f3df37"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/DynamicWDomain-v1.md",
+      "sha256": "1fa56bf6efe886a3d1f1dfaa624fca50aa5910cd0657402aa379f8e793970701"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/dynamic_w_domain_probe.mjs",
+      "sha256": "0030296057afb4b051d53aef4996e26720329cad1d7f4efab442dc6d25472afc"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage43/independent-completion-axis-review.md",
+      "sha256": "af4f95d824076261f32eb7295c099b2d911fdbd73d735784b6b4066dd253e47c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage43/independent-dynamic-w-review.md",
+      "sha256": "da81872697061b017da47acd9ce1eadf3b554c00b29cc2f52bc693fee24ac51c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage43/independent-owned-core-review.md",
+      "sha256": "05cba30a888f6a01aa302fba91912e6c9f3e552d550221807d677100243ea9f8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage43/independent-stage43-summary-review.md",
+      "sha256": "713724392e93ffee740d5bfc95781e284a4667d35a5e668a7e23bd72834438e3"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage43/owned-core-candidate.md",
+      "sha256": "5b0d92d2a32d885ff89647be31c089226ea228fa1cad1385db1825cf20270990"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage43/panzheng-completion.md",
+      "sha256": "ca91a02139000990692a25705b447e85bf0b9a31f50904c1739abef05e5a8b16"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage43/w-axis-obligations.md",
+      "sha256": "24922064741d453e13b516c427940ebf611166220d46e8218bafce9ad8931e3c"
+    }
+  ],
+  "external_evidence": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/dynamic-w-domain-v1-verified/summary.json",
+      "sha256": "f3e01dbd71ed8d944fc111bd1a83eca7253e752be373417fa29b34d001b3b242"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/dynamic-w-domain-v1-verified/observations.json",
+      "sha256": "98065709bba09fcbca4445951af1158f39cdc9ecddbb8c5de8fc2f62ec8d4f32"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/dynamic-w-domain-v1-verified/continuity.json",
+      "sha256": "a7694f04a62a1353062d4e6102abe6253f7d7536c68926ff89efbf17aa9c3a6e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/dynamic-w-domain-v1-verified/prefixes.json",
+      "sha256": "c66c87bd77fa529c367ac1ffcacca7c679649ac0476acb0c5bf48e28ed45a20d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/dynamic-w-domain-v1-verified/output-hashes.sha256",
+      "sha256": "cebeb19838e010040ffdcad2daf4ff87fde5d262f237e75cd25a0a36bde8cde3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/completion-interface-v1/independent_dynamic_w_check.py",
+      "sha256": "0b13d6cfb03409b367246e719c56675d34a4c88f60c7a1a43905cbb1aef094b5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/completion-interface-v1/independent-dynamic-w-check.json",
+      "sha256": "7034fee4f6d93f8b51ab7cb8f9a187e812775c3ca946a965472cd4a532de50cb"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/completion-interface-v1/owned-core-independent/author-embedded.mjs",
+      "sha256": "428a34f58e4e4b678509f69afba6d7bc06f9ede94f798ed75e4b0bbe5dd41955"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/completion-interface-v1/owned-core-independent/author-stdout.jsonl",
+      "sha256": "340560eba2a4fb3f72a1f298bf5249322b2aa2f150984b0b1172f6703b2ec58b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/completion-interface-v1/owned-core-independent/independent-stdout.jsonl",
+      "sha256": "cce504a18f65ed23d3b324db4a5c7610ac1bb479ed9e7b0d261603e3ac859384"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/completion-interface-v1/owned-core-independent/independent_check.py",
+      "sha256": "a54e1885885520e37e33eec4149a38c5048deca04152629f32ad66c774a0ae2f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/completion-interface-v1/owned-core-independent/manifest.json",
+      "sha256": "7df3cba0e81686b89bfe7d0e4033de3e22fa5bd41da5819c3bfa0d47348c8373"
+    }
+  ],
+  "new_Lean_claim": false,
+  "formal_source_modified": false,
+  "original_F2_qualified": false,
+  "market_value_tested": false,
+  "production_adopted": false,
+  "goal_complete": false,
+  "goal_status": "active"
+}
