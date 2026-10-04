@@ -100,3 +100,14 @@ S16两次shadow仅作成本诊断，24应用表及48403行逐字段同旧原件�
 同一 Native binary 在独立 CopyQualified149 副本上实际收到 150／151 两请求。正常 S7=1 baseline 的整请求耗时为 27.448542667／25.890727542 秒；512 MiB 具名域为 25.398280166／23.490618250 秒，分别减少约 7.5%／9.3%。回执与持久 oracle 均同 baseline，原件封存不变；两域实际 Popen 全部回收、controller 关闭、socket 移除，终态均为 generation151、idle、151 Committed／published、453 clocks、next ordinal152。
 
 原型同一静态副本的有限 audit 收益为约 23–26%，不作为整请求收益。上述两请求窗口不能与原 Unknown 或其它独立窗口拼成完整 9011，也不证明任意历史规模、整体资源资格或六个 Destination；#1394 与 goal 仍未完成，#1460 保持独立，未 main 合入或 push。摘要与原件索引见 [SOURCE-CACHE-20261005.json](inputs/SOURCE-CACHE-20261005.json)，1422 份选择性原件见 [SOURCE-CACHE-20261005-RAW.zip](inputs/SOURCE-CACHE-20261005-RAW.zip)，942709 B，SHA `b2993816962d2c65f236c1f8ad4836b50e1a19f7f04a52a09c2d7a22719ff9fc`。DB／DMG／可执行文件继续保留在专属载体。
+## 2026-10-05 历史投影事件扫描与正常耗时定位
+
+隔离分支提交 `a4699cf603b193dab406fcd4d8904790f4e00a61` 将 Native 历史双投影的重复全表筛选、排序改为出生／撤回事件游标。完整六数组、两类主序及逐对象核验保留。独评 revision 2 通过；新增正常完整根／可达材料对拍 1 项、现有正常 Driver 检查 2 项通过，Native 非 test release 构建及 feature-off 检查通过。本轮没有故障注入或损坏数据测试。
+
+同 CopyQualified149 来源、同正常输入和已批准 512 MiB 来源预算，实际收到 150／151 两条完整响应。新耗时为 24.649966042／23.370007625 秒，前一来源缓存版本为 25.398280166／23.490618250 秒，单次减少 2.95%／0.51%。完整响应、持久 oracle 和终态逐项相同，封存文件身份未变，服务 Popen 已回收、controller 关闭、socket 移除。改善幅度小，不能据此断言稳定提速或完整 9011 可通过。
+
+另一个新副本仅在正常请求 151 期间执行被动 CPU 采样；150／151 仍完整 Received，输出与无采样窗口一致。采样中 `read_material` 占主线程包含样本约 38.5%，Verifier 约 35.9%，二者可重叠；采样不是精确阶段耗时，也不是严格资源峰值。该域计时受到采样影响，不用于速度比较。
+
+此前来源缓存完整重放 A 域只完成 165 条 Received；第 166 条在 30.041357375 秒成为 DeliveryUnknown，持久状态虽为 Committed，仍不计作已收响应。B 域未创建，进程均回收；最终快照保存了材料，但完整 9011 终态验证因缺条未通过。上述独立窗口不拼接成完整重放。
+
+聚合结果及逐文件 SHA 清单见 [PROJECTION-SWEEP-20261005.json](inputs/PROJECTION-SWEEP-20261005.json) 和 [原始材料 ZIP](inputs/PROJECTION-SWEEP-20261005-RAW.zip)。归档只保留完整重放失败域的终态摘要、166 记录和快照 manifest，不含封存 DB 或快照行块。全资源资格、正式双跑及整图 goal 均未完成；后续原型另行实测。
