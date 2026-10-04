@@ -1047,6 +1047,169 @@ mod tests {
     use sc::{NumberToken, Value as V};
     use serde_json::Value as J;
 
+    /// #1394：独立只读诊断；完整 fresh 验证两根，普通 capture 不授予资源或生产资格。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    #[ignore = "仅主控新拥有的 owned.sqlite；两臂各执行一次"]
+    fn native_publication_fresh_sql_vs_current_capture_diagnostic() {
+        use std::path::PathBuf;
+        use std::time::Instant;
+
+        fn outcome(result: &Result<(), sc::CodecError>) -> J {
+            match result {
+                Ok(()) => json!({"ok": true, "mode": "Public", "roots_verified": 2}),
+                Err(error) => json!({
+                    "ok": false, "mode": "Public", "code": error.code(),
+                    "detail": error.detail()
+                }),
+            }
+        }
+        let path = PathBuf::from(
+            std::env::var_os("S1394_PUBLICATION_PROBE_DB")
+                .expect("须显式提供主控新拥有的 S1394_PUBLICATION_PROBE_DB"),
+        );
+        assert!(path.is_absolute(), "诊断 DB 必须使用绝对路径");
+        assert_eq!(
+            path.file_name().and_then(|s| s.to_str()),
+            Some("owned.sqlite")
+        );
+        // 路径任一层均不得借 symlink 绕回封存来源；这里只核文件元数据，不打开来源 DB。
+        for component in path.ancestors() {
+            assert!(
+                !std::fs::symlink_metadata(component)
+                    .expect("诊断路径必须存在")
+                    .file_type()
+                    .is_symlink(),
+                "诊断路径不得含 symlink"
+            );
+        }
+        let metadata = std::fs::symlink_metadata(&path).unwrap();
+        assert!(metadata.is_file(), "owned.sqlite 必须是普通文件");
+        let mut db = Connection::open_with_flags(&path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .expect("仅以 READ_ONLY 打开 owned.sqlite");
+        db.pragma_update(None, "query_only", "ON").unwrap();
+        let query_only: i64 = db
+            .query_row("PRAGMA query_only", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(query_only, 1);
+        let tx = db
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Deferred)
+            .unwrap();
+        let (generation, snapshot_digest, delta_digest) = {
+            let mut statement = tx.prepare(
+                "SELECT generation,snapshot_root,delta_root FROM main.s_content_publications ORDER BY generation DESC LIMIT 1",
+            ).unwrap();
+            assert!(statement.readonly());
+            assert_eq!(
+                statement.column_names(),
+                ["generation", "snapshot_root", "delta_root"]
+            );
+            let values: (i64, Vec<u8>, Vec<u8>) = statement
+                .query_row([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+                .expect("必须存在类型正确的末代发布记录");
+            statement.finalize().unwrap();
+            let snapshot: NodeDigest = values.1.try_into().expect("snapshot_root 必须为32字节BLOB");
+            let delta: NodeDigest = values.2.try_into().expect("delta_root 必须为32字节BLOB");
+            (values.0, snapshot, delta)
+        };
+        assert!(generation >= 1);
+        let header_start = Instant::now();
+        let header_sql = content_store::sql_reads_on_thread();
+        let header_frames = sc::frame_calls_on_thread();
+        let (snapshot, delta) = {
+            let mut store = content_store::TxStore::new(&tx).unwrap();
+            (
+                store
+                    .content_ref_of(&sc::root_string(&snapshot_digest))
+                    .unwrap(),
+                store
+                    .content_ref_of(&sc::root_string(&delta_digest))
+                    .unwrap(),
+            )
+        };
+        let headers = json!({
+            "elapsed_ns": header_start.elapsed().as_nanos(),
+            "sql_reads": content_store::sql_reads_on_thread() - header_sql,
+            "frame_calls": sc::frame_calls_on_thread() - header_frames
+        });
+
+        let sql_start = Instant::now();
+        let sql_before = content_store::sql_reads_on_thread();
+        let sql_frames = sc::frame_calls_on_thread();
+        let mut store = content_store::TxStore::new(&tx).unwrap();
+        let sql_verify_start = Instant::now();
+        let sql_result =
+            store.verify_many_fresh([snapshot.clone(), delta.clone()], sc::Mode::Public);
+        let sql_verify_ns = sql_verify_start.elapsed().as_nanos();
+        drop(store);
+        let sql_total_ns = sql_start.elapsed().as_nanos();
+        let sql_reads = content_store::sql_reads_on_thread() - sql_before;
+        let sql_frame_calls = sc::frame_calls_on_thread() - sql_frames;
+
+        let capture_start = Instant::now();
+        let capture_sql = content_store::sql_reads_on_thread();
+        let capture_frames = sc::frame_calls_on_thread();
+        let work_before = content_store::prototype_capture_work_on_thread();
+        let (capture, node_count) = content_store::capture_for_request_prototype(&tx).unwrap();
+        let scan_ns = capture_start.elapsed().as_nanos();
+        let mut reader = capture.reader();
+        let verify_sql = content_store::sql_reads_on_thread();
+        let verify_frames = sc::frame_calls_on_thread();
+        let capture_verify_start = Instant::now();
+        let capture_result =
+            sc::verify_many(&mut reader, [snapshot.clone(), delta.clone()]).map(|_| ());
+        let capture_verify_ns = capture_verify_start.elapsed().as_nanos();
+        let capture_verify_sql_reads = content_store::sql_reads_on_thread() - verify_sql;
+        let capture_verify_frame_calls = sc::frame_calls_on_thread() - verify_frames;
+        let drop_start = Instant::now();
+        drop(reader);
+        drop(capture);
+        let drop_ns = drop_start.elapsed().as_nanos();
+        let capture_total_ns = capture_start.elapsed().as_nanos();
+        let capture_sql_reads = content_store::sql_reads_on_thread() - capture_sql;
+        let capture_frame_calls = sc::frame_calls_on_thread() - capture_frames;
+        let work_after = content_store::prototype_capture_work_on_thread();
+        let work = json!({
+            "capture_builds": work_after.capture_builds - work_before.capture_builds,
+            "node_scans": work_after.node_scans - work_before.node_scans,
+            "rebind_scans": work_after.rebind_scans - work_before.rebind_scans,
+            "decoded_rows": work_after.decoded_rows - work_before.decoded_rows,
+            "body_bytes": work_after.body_bytes - work_before.body_bytes
+        });
+        println!(
+            "{}",
+            json!({
+                "diagnostic": "native_publication_fresh_sql_vs_current_capture", "issue": 1394,
+                "db": path, "db_bytes": metadata.len(), "generation": generation,
+                "snapshot": snapshot.to_transport_json(), "delta": delta.to_transport_json(),
+                "transaction": "READ_ONLY/query_only/Deferred", "arm_runs": 1,
+                "sql_reads_counter_scope": "content_store digest point SELECTs only; capture node_scans separately measured; format SELECTs excluded",
+                "headers": headers,
+                "sql_fresh": {"result": outcome(&sql_result), "verify_ns": sql_verify_ns,
+                    "total_including_store_drop_ns": sql_total_ns, "sql_reads": sql_reads,
+                    "frame_calls": sql_frame_calls},
+                "current_capture_fresh": {"result": outcome(&capture_result),
+                    "scan_ns": scan_ns, "verify_ns": capture_verify_ns, "drop_ns": drop_ns,
+                    "total_including_scan_and_drop_ns": capture_total_ns, "node_count": node_count,
+                    "sql_reads": capture_sql_reads, "frame_calls": capture_frame_calls,
+                    "verify_sql_reads": capture_verify_sql_reads,
+                    "verify_frame_calls": capture_verify_frame_calls, "work": work}
+            })
+        );
+        assert_eq!(work_after.capture_builds - work_before.capture_builds, 1);
+        assert_eq!(work_after.node_scans - work_before.node_scans, 1);
+        assert_eq!(work_after.rebind_scans - work_before.rebind_scans, 0);
+        assert_eq!(
+            work_after.decoded_rows - work_before.decoded_rows,
+            node_count as u64
+        );
+        assert_eq!(capture_verify_sql_reads, 0);
+        assert_eq!(sql_result, capture_result);
+        sql_result.expect("SQL 臂必须完整验证两根 Public 闭包");
+        capture_result.expect("当前 capture 臂必须独立完整验证两根 Public 闭包");
+        tx.rollback().unwrap();
+    }
+
     fn cv(v: &J) -> V {
         match v {
             J::Null => V::Null,
