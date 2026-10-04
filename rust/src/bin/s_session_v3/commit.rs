@@ -62,6 +62,8 @@ pub(super) fn publish_prepared(
         None,
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
         &[],
+        #[cfg(feature = "s_capture_native_testonly")]
+        None,
     )
 }
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -74,7 +76,29 @@ pub(super) fn publish_prepared_staged(
     stage: &staged_nodes::StageOwner,
     runtime: &[sc::NodeDigest],
 ) -> Result<CommitReceipt, String> {
-    publish_prepared_inner(tx, token, m, roots, manifest, Some(stage), runtime)
+    publish_prepared_inner(tx, token, m, roots, manifest, Some(stage), runtime, None)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) fn publish_prepared_with_workspace(
+    tx: Transaction<'_>,
+    token: &str,
+    m: &ManifestMetadata,
+    roots: &ManifestRoots,
+    manifest: &UnpublishedManifest,
+    workspace: Option<content_manifest::PreparedManifestWorkspace>,
+) -> Result<CommitReceipt, String> {
+    publish_prepared_inner(
+        tx,
+        token,
+        m,
+        roots,
+        manifest,
+        #[cfg(test)]
+        None,
+        #[cfg(test)]
+        &[],
+        workspace,
+    )
 }
 fn publish_prepared_inner(
     tx: Transaction<'_>,
@@ -86,6 +110,9 @@ fn publish_prepared_inner(
         &staged_nodes::StageOwner,
     >,
     #[cfg(all(test, feature = "s_capture_native_testonly"))] runtime: &[sc::NodeDigest],
+    #[cfg(feature = "s_capture_native_testonly")] workspace: Option<
+        content_manifest::PreparedManifestWorkspace,
+    >,
 ) -> Result<CommitReceipt, String> {
     let m = metadata;
     let (count, head): (i64, i64) = tx
@@ -108,9 +135,25 @@ fn publish_prepared_inner(
             manifest,
             stage,
         )?,
-        None => content_publication::resolve_current_births(&tx, begin_token, m, roots, manifest)?,
+        None => content_publication::resolve_current_births_with_workspace(
+            &tx,
+            begin_token,
+            m,
+            roots,
+            manifest,
+            workspace,
+        )?,
     };
-    #[cfg(not(all(test, feature = "s_capture_native_testonly")))]
+    #[cfg(all(not(test), feature = "s_capture_native_testonly"))]
+    let resolved = content_publication::resolve_current_births_with_workspace(
+        &tx,
+        begin_token,
+        m,
+        roots,
+        manifest,
+        workspace,
+    )?;
+    #[cfg(not(feature = "s_capture_native_testonly"))]
     let resolved =
         content_publication::resolve_current_births(&tx, begin_token, m, roots, manifest)?;
     let clock = v2::stored_clock(&tx)?;

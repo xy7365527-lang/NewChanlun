@@ -7,11 +7,30 @@ use newchan_rust::s_content::AuditCapture;
 use rusqlite::{params, types::ValueRef, Params, Transaction};
 use std::rc::Rc;
 
+/// #1394 frozen entry allocation within the existing S7 source budget. Releasing the
+/// old pool later does not enlarge this request's workspace allowance.
+#[cfg(feature = "s_capture_native_testonly")]
+#[derive(Clone, Copy, Debug, serde::Serialize)]
+pub(crate) struct ManifestWorkspaceBudget {
+    total: usize,
+    legacy: usize,
+    old_pool: usize,
+    allowance: usize,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl ManifestWorkspaceBudget {
+    pub(crate) fn allowance(self) -> usize {
+        self.allowance
+    }
+}
+
 #[derive(Default)]
 pub(super) struct RequestAuditContext {
     slot: Option<VerifiedHistoricalSlot>,
     #[cfg(feature = "s_capture_native_testonly")]
     source_keeper: Option<super::cross_request_source_cache::Keeper>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    workspace_budget: Option<ManifestWorkspaceBudget>,
     #[cfg(test)]
     binding_hook: Option<fn(&Transaction<'_>)>,
     #[cfg(test)]
@@ -44,6 +63,43 @@ impl RequestAuditContext {
         context
     }
     #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn attach_source_keeper(
+        &mut self,
+        keeper: super::cross_request_source_cache::Keeper,
+    ) {
+        self.source_keeper = Some(keeper);
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn freeze_manifest_workspace_budget(
+        &mut self,
+        total: usize,
+        legacy: usize,
+        old_pool: usize,
+    ) -> Result<(), String> {
+        if self.workspace_budget.is_some() {
+            return Err("S3WriterResourcesInvalid：workspace预算已冻结，不得重新分配".into());
+        }
+        super::state::check_audit_source_retention(total)?;
+        let used = legacy
+            .checked_add(old_pool)
+            .ok_or("S3WriterResourcesInvalid：共享来源费用加法溢出")?;
+        super::state::check_audit_source_retention_bytes(total, used)?;
+        let allowance = total
+            .checked_sub(used)
+            .ok_or("S3WriterResourcesInvalid：共享来源费用超过S7")?;
+        self.workspace_budget = Some(ManifestWorkspaceBudget {
+            total,
+            legacy,
+            old_pool,
+            allowance,
+        });
+        Ok(())
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn manifest_workspace_budget(&self) -> Option<ManifestWorkspaceBudget> {
+        self.workspace_budget
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn source_cache_enabled(&self) -> bool {
         self.source_keeper.is_some()
     }
@@ -68,6 +124,13 @@ impl RequestAuditContext {
         mut self,
     ) -> Option<super::cross_request_source_cache::Keeper> {
         let mut keeper = self.source_keeper.take()?;
+        if let Some(budget) = self.workspace_budget {
+            // May run after COMMIT. Any unavailable remainder only drops optional cache;
+            // it cannot replace the already successful protocol reply with an error.
+            let cap = budget.total.checked_sub(crate::cache::retained_bytes())?;
+            let entry_cap = budget.total.checked_sub(budget.legacy)?;
+            keeper.set_retention_cap(cap.min(entry_cap));
+        }
         keeper.clear();
         if let Some(slot) = self.slot.take() {
             // 释放完整cuts/index和Rc，只有同一次审计封存的候选证书可跟随capture移交。

@@ -642,8 +642,8 @@ pub(super) fn retention_enabled() -> bool {
     MEMO.with(|m| m.borrow().limit != 0)
 }
 
-/// 跨请求**保留量**的当前值（测试用；供「预算在每一处都实际满足」的行为证据）。
-#[cfg(test)]
+/// 跨请求保留量的实际账；Native TestOnly只读共享来源预算，不修改legacy配置。
+#[cfg(any(test, feature = "s_capture_native_testonly"))]
 pub(super) fn retained_bytes() -> usize {
     MEMO.with(|m| m.borrow().retained_bytes())
 }

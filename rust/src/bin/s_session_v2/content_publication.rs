@@ -11,8 +11,8 @@
 use super::{canonical_json, content_manifest, content_store, meta_get_opt, sha256_hex, v2};
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 use crate::staged_nodes;
-use crate::v3::audit_store::{CodecRead, CodecStore};
 use crate::v3::audit_store::HashReader;
+use crate::v3::audit_store::{CodecRead, CodecStore};
 use crate::v3::audit_store::{RefFields, RefValue};
 use content_manifest::Decimal;
 use content_manifest::{
@@ -54,6 +54,8 @@ pub(super) fn resolve_current_births(
         manifest,
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
         None,
+        #[cfg(feature = "s_capture_native_testonly")]
+        None,
     )
 }
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -65,7 +67,27 @@ pub(super) fn resolve_current_births_staged(
     manifest: &UnpublishedManifest,
     stage: &staged_nodes::StageOwner,
 ) -> Result<ResolvedTemplates, String> {
-    resolve_current_births_inner(tx, token, m, roots, manifest, Some(stage))
+    resolve_current_births_inner(tx, token, m, roots, manifest, Some(stage), None)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) fn resolve_current_births_with_workspace(
+    tx: &Transaction<'_>,
+    token: &str,
+    m: &ManifestMetadata,
+    roots: &ManifestRoots,
+    manifest: &UnpublishedManifest,
+    workspace: Option<content_manifest::PreparedManifestWorkspace>,
+) -> Result<ResolvedTemplates, String> {
+    resolve_current_births_inner(
+        tx,
+        token,
+        m,
+        roots,
+        manifest,
+        #[cfg(test)]
+        None,
+        workspace,
+    )
 }
 fn resolve_current_births_inner(
     tx: &Transaction<'_>,
@@ -76,18 +98,32 @@ fn resolve_current_births_inner(
     #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
         &staged_nodes::StageOwner,
     >,
+    #[cfg(feature = "s_capture_native_testonly")] workspace: Option<
+        content_manifest::PreparedManifestWorkspace,
+    >,
 ) -> Result<ResolvedTemplates, String> {
     verify_current_begin(tx, begin_token, metadata)?;
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     let mut store = content_store::TxStore::new_with_stage(tx, stage).map_err(err)?;
     #[cfg(not(all(test, feature = "s_capture_native_testonly")))]
     let mut store = content_store::TxStore::new(tx).map_err(err)?;
-    let computed =
-        content_manifest::assemble_unpublished(&mut store, metadata, roots).map_err(err)?;
-    if computed.batch_id != manifest.batch_id
-        || computed.value.content_ref() != manifest.value.content_ref()
-    {
-        return Err("IdentityConflict：manifest 与当前三个根/上下文不符".into());
+    #[cfg(feature = "s_capture_native_testonly")]
+    let rebound = match workspace {
+        Some(workspace) => workspace
+            .rebind_and_replay(&mut store, metadata, roots, manifest)
+            .map_err(err)?,
+        None => false,
+    };
+    #[cfg(not(feature = "s_capture_native_testonly"))]
+    let rebound = false;
+    if !rebound {
+        let computed =
+            content_manifest::assemble_unpublished(&mut store, metadata, roots).map_err(err)?;
+        if computed.batch_id != manifest.batch_id
+            || computed.value.content_ref() != manifest.value.content_ref()
+        {
+            return Err("IdentityConflict：manifest 与当前三个根/上下文不符".into());
+        }
     }
     let previous_frontier =
         parse_canonical_i64(&meta(tx, "last_advance_frontier")?, "last_advance_frontier")?;

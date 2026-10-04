@@ -347,16 +347,37 @@ impl Driver {
         #[cfg(feature = "s_capture_native_testonly")]
         let mut request_audit = {
             let previous = self.source_keeper.take();
-            let cap = self.audit_cache_source_bytes.filter(|cap| {
-                matches!(self.mode, s_allocation::Mode::CapturedNative)
-                    && super::cross_request_source_cache::Keeper::retention_possible(*cap)
-            });
-            match cap {
-                Some(cap) => request_audit::RequestAuditContext::with_source_keeper(
-                    previous.unwrap_or_else(|| super::cross_request_source_cache::Keeper::new(cap)),
-                ),
-                None => request_audit::RequestAuditContext::default(),
+            let old_pool = previous
+                .as_ref()
+                .map_or(0, |keeper| keeper.retained_source_bytes());
+            let mut context = request_audit::RequestAuditContext::default();
+            if matches!(self.mode, s_allocation::Mode::CapturedNative) {
+                if let Some(total) = self.audit_cache_source_bytes {
+                    let legacy = crate::cache::retained_bytes();
+                    context.freeze_manifest_workspace_budget(total, legacy, old_pool)?;
+                    let keeper_cap = total
+                        .checked_sub(legacy)
+                        .ok_or("S3WriterResourcesInvalid：legacy来源费用超过S7")?;
+                    if super::cross_request_source_cache::Keeper::retention_possible(keeper_cap) {
+                        let mut keeper = previous.unwrap_or_else(|| {
+                            super::cross_request_source_cache::Keeper::new(keeper_cap)
+                        });
+                        keeper.set_retention_cap(keeper_cap);
+                        context.attach_source_keeper(keeper);
+                    }
+                    if std::env::var_os("S_MANIFEST_WORKSPACE_DIAGNOSTICS").as_deref()
+                        == Some(std::ffi::OsStr::new("1"))
+                    {
+                        use std::io::Write as _;
+                        let line = json!({"diagnostic":"NativeTestOnlyManifestWorkspace",
+                            "stage":"request-budget-entry", "message_id":envelope.get("message_id"),
+                            "budget":context.manifest_workspace_budget(),
+                            "keeper_cap":keeper_cap});
+                        let _ = writeln!(std::io::stderr().lock(), "{line}");
+                    }
+                }
             }
+            context
         };
         let result = self.handle_in_request(envelope, &mut request_audit);
         #[cfg(feature = "s_capture_native_testonly")]
@@ -1329,6 +1350,88 @@ mod tests {
         assert_eq!(restarted.handle(Fixture::ingest(3)).unwrap(), expected[2]);
         let keeper = restarted.source_keeper.as_ref().unwrap();
         assert_eq!((keeper.cold, keeper.hits), (3, 0));
+    }
+
+    /// Three real append requests, each with a nonempty previous pool after the first.
+    /// All actual rows and reachable originals must match cold Native and ordinary.
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn source_keeper_driver_workspace_shares_s7_with_nonempty_old_pool_and_exact_rows() {
+        use super::super::prepared::tests::{
+            runtime_root_compare_reachable_bytes, runtime_root_tables,
+        };
+        let total = 536_870_912;
+        let warm_fixture = Fixture::new();
+        let cold_fixture = Fixture::new();
+        let ordinary_fixture = Fixture::new();
+        let mut warm = Driver::open_for_serve_with_mode(
+            &warm_fixture.db,
+            &warm_fixture.profile,
+            "1",
+            warm_fixture.clock.clone(),
+            total,
+            s_allocation::Mode::CapturedNative,
+        )
+        .unwrap();
+        let mut cold = Driver::open_for_serve_with_mode(
+            &cold_fixture.db,
+            &cold_fixture.profile,
+            "1",
+            cold_fixture.clock.clone(),
+            total,
+            s_allocation::Mode::CapturedNative,
+        )
+        .unwrap();
+        cold.runtime.disable_manifest_workspace_for_test();
+        let mut ordinary = ordinary_fixture.open("1").unwrap();
+        let before = content_manifest::manifest_workspace_stats();
+        let mut nonempty_shared = 0;
+        for n in 1..=3 {
+            let legacy = crate::cache::retained_bytes();
+            let old_pool = warm
+                .source_keeper
+                .as_ref()
+                .map_or(0, |k| k.retained_source_bytes());
+            if old_pool > 0 {
+                nonempty_shared += 1
+            }
+            let actual = warm.handle(Fixture::ingest(n)).unwrap();
+            let stats = content_manifest::manifest_workspace_stats();
+            let cost = stats.last_workspace_source_cost as usize;
+            assert!(cost > 0);
+            assert!(
+                legacy
+                    .checked_add(old_pool)
+                    .and_then(|v| v.checked_add(cost))
+                    .unwrap()
+                    <= total
+            );
+            assert_eq!(actual, cold.handle(Fixture::ingest(n)).unwrap());
+            assert_eq!(actual, ordinary.handle(Fixture::ingest(n)).unwrap());
+            let rows = runtime_root_tables(&warm.conn, true);
+            assert_eq!(rows, runtime_root_tables(&cold.conn, true));
+            assert_eq!(rows, runtime_root_tables(&ordinary.conn, true));
+            runtime_root_compare_reachable_bytes(&warm.conn, &cold.conn);
+            runtime_root_compare_reachable_bytes(&warm.conn, &ordinary.conn);
+            let keeper = warm.source_keeper.as_ref().unwrap();
+            assert!(keeper.retained_source_bytes() > 0);
+            assert_eq!(
+                keeper.report()["cap"].as_u64().unwrap() as usize,
+                total.checked_sub(legacy).unwrap()
+            );
+            assert!(
+                crate::cache::retained_bytes()
+                    .checked_add(keeper.retained_source_bytes())
+                    .unwrap()
+                    <= total
+            );
+            eprintln!("shared workspace gen{n}: legacy={legacy} old_pool={old_pool} workspace={cost} S7={total}");
+        }
+        let after = content_manifest::manifest_workspace_stats();
+        assert_eq!(nonempty_shared, 2);
+        assert_eq!(after.issued - before.issued, 3);
+        assert_eq!(after.rebound - before.rebound, 3);
+        assert_eq!(after.overflow - before.overflow, 0);
     }
 
     #[cfg(feature = "s_capture_native_testonly")]

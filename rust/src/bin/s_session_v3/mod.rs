@@ -76,6 +76,8 @@ mod q_watch;
 mod q_wire;
 mod reader;
 mod request_audit;
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) use request_audit::ManifestWorkspaceBudget;
 mod s_allocation;
 mod source_audit;
 mod state;

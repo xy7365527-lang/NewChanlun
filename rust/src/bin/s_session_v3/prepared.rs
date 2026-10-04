@@ -66,6 +66,8 @@ pub(super) struct Runtime {
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     native_read_lease: bool,
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    manifest_workspace: bool,
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
     last_stage_report: Option<Value>,
 }
 
@@ -91,6 +93,8 @@ impl Runtime {
             #[cfg(all(test, feature = "s_capture_native_testonly"))]
             native_read_lease: true,
             #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            manifest_workspace: true,
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
             last_stage_report: None,
         }
     }
@@ -103,6 +107,10 @@ impl Runtime {
         self.after_prepare = hook;
     }
 
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn disable_manifest_workspace_for_test(&mut self) {
+        self.manifest_workspace = false;
+    }
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn visit_runtime_roots(
         &self,
@@ -200,6 +208,16 @@ impl Runtime {
                     &roots,
                 );
             }
+            #[cfg(feature = "s_capture_native_testonly")]
+            return commit::publish_prepared_with_workspace(
+                tx,
+                token,
+                &prepared.metadata,
+                &prepared.roots,
+                &prepared.manifest,
+                prepared.workspace,
+            );
+            #[cfg(not(feature = "s_capture_native_testonly"))]
             commit::publish_prepared(
                 tx,
                 token,
@@ -228,6 +246,10 @@ impl Runtime {
             &staged_nodes::StageOwner,
         >,
     ) -> Result<Prepared, String> {
+        #[cfg(feature = "s_capture_native_testonly")]
+        let workspace_budget = context
+            .as_deref()
+            .and_then(request_audit::RequestAuditContext::manifest_workspace_budget);
         // 完整旧状态审计（读写共用同一份 state::audit）先于节点、索引、目录等第一次写入完成。
         let audited = match context {
             Some(context) => s_allocation::audit_in_request(
@@ -393,6 +415,7 @@ impl Runtime {
                 self.generate_node_products(
                     &mut store,
                     Some(&NativeGeneration { _lease_route: () }),
+                    workspace_budget,
                     &input,
                     &audited,
                     &metadata,
@@ -401,7 +424,7 @@ impl Runtime {
                     generation,
                     frontier,
                 )?
-            }; // The lease and all material proofs drop before any raw-SQL stage/hook/publish.
+            }; // The lease ends before raw SQL; the frozen workspace is inert until row rebinding.
             let NodeProducts {
                 generated: _generated,
                 objects,
@@ -412,6 +435,7 @@ impl Runtime {
                 evidence: _evidence,
                 roots,
                 manifest,
+                workspace,
             } = products;
             let mut store = BusinessTxStore {
                 inner: content_store::TxStore::new(tx).map_err(err)?,
@@ -424,6 +448,7 @@ impl Runtime {
                 metadata,
                 roots,
                 manifest,
+                workspace,
             });
         }
         let _ = use_lease;
@@ -444,9 +469,13 @@ impl Runtime {
             evidence: _evidence,
             roots,
             manifest,
+            #[cfg(feature = "s_capture_native_testonly")]
+            workspace,
         } = self.generate_node_products(
             &mut store,
             None,
+            #[cfg(feature = "s_capture_native_testonly")]
+            workspace_budget,
             &input,
             &audited,
             &metadata,
@@ -462,12 +491,17 @@ impl Runtime {
             metadata,
             roots,
             manifest,
+            #[cfg(feature = "s_capture_native_testonly")]
+            workspace,
         })
     }
     fn generate_node_products<'raw, S: NodeStore>(
         &mut self,
         store: &mut BusinessTxStore<S>,
         native: Option<&NativeGeneration>,
+        #[cfg(feature = "s_capture_native_testonly")] workspace_budget: Option<
+            request_audit::ManifestWorkspaceBudget,
+        >,
         input: &GenerationInput<'raw>,
         audited: &state::AuditedState,
         metadata: &ManifestMetadata,
@@ -533,6 +567,31 @@ impl Runtime {
             publication_template: snapshot,
             delta_template: delta,
         };
+        #[cfg(feature = "s_capture_native_testonly")]
+        let (manifest, workspace) = if native.is_some() && workspace_budget.is_some() && {
+            #[cfg(test)]
+            {
+                self.manifest_workspace
+            }
+            #[cfg(not(test))]
+            {
+                true
+            }
+        } {
+            content_manifest::assemble_unpublished_with_workspace(
+                store,
+                metadata,
+                &roots,
+                workspace_budget.expect("qualified entry budget"),
+            )
+            .map_err(err)?
+        } else {
+            (
+                content_manifest::assemble_unpublished(store, metadata, &roots).map_err(err)?,
+                None,
+            )
+        };
+        #[cfg(not(feature = "s_capture_native_testonly"))]
         let manifest =
             content_manifest::assemble_unpublished(store, metadata, &roots).map_err(err)?;
         Ok(NodeProducts {
@@ -545,6 +604,8 @@ impl Runtime {
             evidence,
             roots,
             manifest,
+            #[cfg(feature = "s_capture_native_testonly")]
+            workspace,
         })
     }
 }
@@ -561,12 +622,16 @@ struct NodeProducts<'raw> {
     evidence: sc::ContentRef,
     roots: ManifestRoots,
     manifest: UnpublishedManifest,
+    #[cfg(feature = "s_capture_native_testonly")]
+    workspace: Option<content_manifest::PreparedManifestWorkspace>,
 }
 
 struct Prepared {
     metadata: ManifestMetadata,
     roots: ManifestRoots,
     manifest: UnpublishedManifest,
+    #[cfg(feature = "s_capture_native_testonly")]
+    workspace: Option<content_manifest::PreparedManifestWorkspace>,
 }
 fn err(e: impl std::fmt::Display) -> String {
     format!("S3PrepareInvalid：{e}")
@@ -950,7 +1015,7 @@ pub(crate) mod tests {
 
     #[cfg(feature = "s_capture_native_testonly")]
     #[derive(Debug, PartialEq, Eq)]
-    enum RuntimeRootCell {
+    pub(crate) enum RuntimeRootCell {
         Null,
         Integer(i64),
         RealBits(u64),
@@ -958,7 +1023,7 @@ pub(crate) mod tests {
         Blob(Vec<u8>),
     }
     #[cfg(feature = "s_capture_native_testonly")]
-    fn runtime_root_tables(
+    pub(crate) fn runtime_root_tables(
         conn: &Connection,
         include_nodes: bool,
     ) -> Vec<(String, Vec<Vec<RuntimeRootCell>>)> {
@@ -1005,7 +1070,7 @@ pub(crate) mod tests {
             .collect()
     }
     #[cfg(feature = "s_capture_native_testonly")]
-    fn runtime_root_compare_reachable_bytes(left: &Connection, right: &Connection) {
+    pub(crate) fn runtime_root_compare_reachable_bytes(left: &Connection, right: &Connection) {
         use std::collections::{BTreeMap, BTreeSet};
         let nodes = |c: &Connection| {
             c.prepare("SELECT digest,tag,body FROM s_content_nodes ORDER BY digest")
@@ -1282,6 +1347,114 @@ pub(crate) mod tests {
         eprintln!("Native real commits record handoff: full_record_seeds={record_seeds} source_subset_hits={source_hits}");
         assert!(count(&native.conn, "s_content_objects") > 0);
         assert_eq!(meta_i64(&native.conn, "generation").unwrap(), 4);
+    }
+
+    /// Normal append/revision only. Does not call the older observation/fault entries.
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_manifest_workspace_four_normal_commits_match_cold_and_ordinary_full_rows() {
+        let mut warm = Fixture::new();
+        warm.runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        let mut cold = Fixture::new();
+        cold.runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        cold.runtime.manifest_workspace = false;
+        let mut ordinary = Fixture::new();
+        // Explicit existing S7, never an unlimited or test-default workspace allowance.
+        let total = 536_870_912;
+        let mut keeper = Some(super::super::cross_request_source_cache::Keeper::new(total));
+        let mut shared_old_pool_seen = false;
+        let before = content_manifest::manifest_workspace_stats();
+        for (n, row, revision) in [
+            (1, ("a", 0, 6, 12, 3, 7), 1),
+            (2, ("b", 10, 8, 16, 6, 12), 1),
+            (3, ("c", 20, 8, 13, 4, 7), 1),
+            (4, ("b", 10, 8, 17, 6, 12), 2),
+        ] {
+            let (we, wt) = warm.accept_begin(n, row, revision);
+            let (ce, ct) = cold.accept_begin(n, row, revision);
+            let (oe, ot) = ordinary.accept_begin(n, row, revision);
+            let old_pool = keeper.as_ref().unwrap().retained_source_bytes();
+            shared_old_pool_seen |= old_pool > 0;
+            let legacy = crate::cache::retained_bytes();
+            let mut context =
+                request_audit::RequestAuditContext::with_source_keeper(keeper.take().unwrap());
+            context
+                .freeze_manifest_workspace_budget(total, legacy, old_pool)
+                .unwrap();
+            let allowance = context.manifest_workspace_budget().unwrap().allowance();
+            assert_eq!(
+                legacy
+                    .checked_add(old_pool)
+                    .and_then(|v| v.checked_add(allowance)),
+                Some(total)
+            );
+            let start = std::time::Instant::now();
+            let tx = warm.conn.transaction().unwrap();
+            let wr = warm
+                .runtime
+                .commit_in_request(tx, &wt, &we, &mut context)
+                .unwrap();
+            let workspace_cost =
+                content_manifest::manifest_workspace_stats().last_workspace_source_cost as usize;
+            assert!(
+                legacy
+                    .checked_add(old_pool)
+                    .and_then(|v| v.checked_add(workspace_cost))
+                    .unwrap()
+                    <= total
+            );
+            keeper = context.finish_source_keeper();
+            assert!(keeper.as_ref().unwrap().retained_source_bytes() > 0);
+            assert!(
+                crate::cache::retained_bytes()
+                    .checked_add(keeper.as_ref().unwrap().retained_source_bytes())
+                    .unwrap()
+                    <= total
+            );
+            let elapsed = start.elapsed();
+            let cr = cold.publish(&ce, &ct).unwrap();
+            let or = ordinary.publish(&oe, &ot).unwrap();
+            for other in [&cr, &or] {
+                assert_eq!(wr.batch_id, other.batch_id);
+                assert_eq!(wr.snapshot, other.snapshot);
+                assert_eq!(wr.delta, other.delta);
+                assert_eq!(wr.message_receipt, other.message_receipt);
+            }
+            let persistent = runtime_root_tables(&warm.conn, true);
+            assert_eq!(persistent, runtime_root_tables(&cold.conn, true));
+            assert_eq!(persistent, runtime_root_tables(&ordinary.conn, true));
+            runtime_root_compare_reachable_bytes(&warm.conn, &cold.conn);
+            runtime_root_compare_reachable_bytes(&warm.conn, &ordinary.conn);
+            for fixture in [&mut warm, &mut cold, &mut ordinary] {
+                let tx = fixture.conn.transaction().unwrap();
+                let audited = state::audit(&tx).unwrap();
+                assert_eq!(audited.cuts.len(), n as usize);
+                assert_eq!(audited.raw.len(), n as usize);
+                assert!(!audited.objects.is_empty());
+            }
+            eprintln!("manifest workspace normal gen{n}: warm_elapsed={elapsed:?}");
+        }
+        assert!(
+            shared_old_pool_seen,
+            "normal workspace must share S7 with an actual nonempty old pool"
+        );
+        let after = content_manifest::manifest_workspace_stats();
+        assert_eq!(after.issued - before.issued, 4);
+        assert_eq!(after.rebound - before.rebound, 4);
+        assert_eq!(after.overflow - before.overflow, 0);
+        assert!(after.rebind_rows > before.rebind_rows);
+        assert!(after.replay_puts > before.replay_puts);
+        assert!(
+            warm.conn
+                .query_row(
+                    "SELECT COUNT(*) FROM s_content_objects WHERE withdrawn_generation=4",
+                    [],
+                    |r| r.get::<_, i64>(0),
+                )
+                .unwrap()
+                > 0
+        );
+        eprintln!("manifest workspace stats: before={before:?} after={after:?}");
     }
 
     #[cfg(feature = "s_capture_native_testonly")]

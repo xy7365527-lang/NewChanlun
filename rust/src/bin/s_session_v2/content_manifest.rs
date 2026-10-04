@@ -73,7 +73,7 @@ pub(crate) const DELTA_FIELDS: &[&str] = &[
     "raw_history_added",
 ];
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct SourceCommit {
     pub source_namespace: String,
     pub source_epoch: String,
@@ -85,7 +85,7 @@ pub(super) struct SourceCommit {
     pub attempt_index: i64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct ManifestMetadata {
     pub session_id: String,
     pub session_generation: String,
@@ -104,7 +104,7 @@ pub(super) struct ManifestMetadata {
     pub scope: ContentRef,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct ManifestRoots {
     pub generated_state: ContentRef,
     pub publication_template: ContentRef,
@@ -398,6 +398,425 @@ impl RootsOwner {
 pub(super) struct UnpublishedManifest {
     pub value: Built,
     pub batch_id: String,
+}
+
+// #1394 Native-only, transaction-local manifest workspace. The constructor below is the
+// only issuer: successful unchanged manifest rules plus the complete actual read/write set.
+// Changing those rules requires incrementing this revision. Modes and Flavor::Value remain
+// fixed by assemble_manifest_body; no caller-provided "same" or root-only success token.
+#[cfg(feature = "s_capture_native_testonly")]
+const MANIFEST_WORKSPACE_REVISION: u32 = 1;
+#[cfg(feature = "s_capture_native_testonly")]
+#[derive(Clone, Copy, Debug, Default, serde::Serialize)]
+pub(crate) struct ManifestWorkspaceStats {
+    pub issued: u64,
+    pub overflow: u64,
+    pub rebound: u64,
+    pub rebind_rows: u64,
+    pub replay_puts: u64,
+    pub recorded_entries: u64,
+    pub recorded_body_len: u64,
+    pub recorded_body_capacity: u64,
+    pub recorded_put_capacity: u64,
+    pub max_recording_body_capacity: u64,
+    pub max_recording_entries: u64,
+    pub max_recording_body_len: u64,
+    pub max_recording_put_capacity: u64,
+    pub last_workspace_source_cost: u64,
+    pub max_recording_source_cost: u64,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+thread_local! {
+    static MANIFEST_WORKSPACE_STATS: std::cell::Cell<ManifestWorkspaceStats> =
+        std::cell::Cell::new(ManifestWorkspaceStats::default());
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn manifest_workspace_stats() -> ManifestWorkspaceStats {
+    MANIFEST_WORKSPACE_STATS.with(std::cell::Cell::get)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+fn record_workspace_stats(f: impl FnOnce(&mut ManifestWorkspaceStats)) {
+    MANIFEST_WORKSPACE_STATS.with(|stats| {
+        let mut value = stats.get();
+        f(&mut value);
+        stats.set(value);
+    });
+}
+/// Opt-in TestOnly stderr diagnostics. This does not grant workspace qualification or
+/// alter protocol replies; failed diagnostic writes must not change the business result.
+#[cfg(feature = "s_capture_native_testonly")]
+fn diagnose_manifest_workspace(
+    stage: &str,
+    generation: i64,
+    budget: crate::v3::ManifestWorkspaceBudget,
+    workspace_source_cost: usize,
+    recording_peak_source_cost: usize,
+) {
+    if std::env::var_os("S_MANIFEST_WORKSPACE_DIAGNOSTICS").as_deref()
+        != Some(std::ffi::OsStr::new("1"))
+    {
+        return;
+    }
+    use std::io::Write as _;
+    let line = serde_json::json!({
+        "diagnostic": "NativeTestOnlyManifestWorkspace",
+        "stage": stage,
+        "generation": generation,
+        "stats_scope": "thread_cumulative_sums_and_maxima",
+        "stats": manifest_workspace_stats(),
+        "budget": budget,
+        "workspace_source_cost": workspace_source_cost,
+        "recording_peak_source_cost": recording_peak_source_cost,
+    });
+    let _ = writeln!(std::io::stderr().lock(), "{line}");
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) struct PreparedManifestWorkspace {
+    revision: u32,
+    format: &'static str,
+    metadata: ManifestMetadata,
+    roots: ManifestRoots,
+    manifest_value: Built,
+    batch_id: String,
+    budget: crate::v3::ManifestWorkspaceBudget,
+    source_cost: usize,
+    originals: std::collections::BTreeMap<NodeDigest, (u8, Vec<u8>)>,
+    puts: Vec<NodeDigest>,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl PreparedManifestWorkspace {
+    /// Consume the frozen workspace before any independent SQL/index processing. Every row
+    /// is read again, including after an earlier mismatch, so SQL/type errors remain errors.
+    /// A mismatch forfeits only this optimization and the original strict assembler runs.
+    pub(crate) fn rebind_and_replay(
+        self,
+        store: &mut dyn NodeStore,
+        metadata: &ManifestMetadata,
+        roots: &ManifestRoots,
+        manifest: &UnpublishedManifest,
+    ) -> Result<bool, CodecError> {
+        let mut equal = self.revision == MANIFEST_WORKSPACE_REVISION
+            && self.format == s_content::CONTENT_FORMAT
+            && self.metadata == *metadata
+            && self.roots == *roots
+            && self.manifest_value == manifest.value
+            && self.batch_id == manifest.batch_id;
+        for (digest, (tag, body)) in &self.originals {
+            record_workspace_stats(|stats| stats.rebind_rows += 1);
+            match s_content::NodeSource::read(store, digest)? {
+                s_content::NodeRead::Found {
+                    tag: now_tag,
+                    body: now_body,
+                } => {
+                    equal &= now_tag == *tag && now_body.as_slice() == body.as_slice();
+                }
+                s_content::NodeRead::Missing => equal = false,
+            }
+        }
+        if !equal {
+            diagnose_manifest_workspace(
+                "publish-rebind-mismatch",
+                metadata.generation,
+                self.budget,
+                self.source_cost,
+                self.source_cost,
+            );
+            return Ok(false);
+        }
+        record_workspace_stats(|stats| stats.rebound += 1);
+        // The former second assemble made real puts even for existing nodes. Preserve every
+        // put, its order, and its actual SQL/error boundary instead of treating identity as put.
+        for digest in self.puts {
+            let (tag, body) = self
+                .originals
+                .get(&digest)
+                .expect("recorded successful put");
+            s_content::NodeSink::put(store, digest, *tag, body)?;
+            record_workspace_stats(|stats| stats.replay_puts += 1);
+        }
+        diagnose_manifest_workspace(
+            "publish-rebound-replayed",
+            metadata.generation,
+            self.budget,
+            self.source_cost,
+            self.source_cost,
+        );
+        Ok(true)
+    }
+}
+// Source-cost encoding, not heap accounting: text = u64 length + UTF-8 bytes;
+// ContentRef = both texts + kind/extent-present bytes + optional u64 extent. Numeric
+// metadata fields are i64, budget fields u64; Built is digest/kind/presence/extent.
+#[cfg(feature = "s_capture_native_testonly")]
+fn workspace_certificate_source_cost(
+    m: &ManifestMetadata,
+    roots: &ManifestRoots,
+    value: Option<&Built>,
+    batch: Option<&str>,
+) -> Option<usize> {
+    fn text(sum: &mut usize, value: &str) -> Option<()> {
+        *sum = sum.checked_add(8)?.checked_add(value.len())?;
+        Some(())
+    }
+    fn reference(sum: &mut usize, r: &ContentRef) -> Option<()> {
+        text(sum, &r.format)?;
+        text(sum, &r.root)?;
+        *sum = sum.checked_add(2 + if r.extent.is_some() { 8 } else { 0 })?;
+        Some(())
+    }
+    // revision u32 + four fixed Mode/Flavor pairs + frozen budget's four u64 values
+    // + generation/input_frontier/source attempt i64 values + two u64 collection lengths.
+    let mut cost = 4usize + 8 + 32 + 24 + 16;
+    text(&mut cost, s_content::CONTENT_FORMAT)?;
+    for value in [
+        &m.session_id,
+        &m.session_generation,
+        &m.writer_epoch,
+        &m.base_cut,
+        &m.structure_cut,
+        &m.clock_plan_hash,
+        &m.semantic_commit_ns,
+        &m.profile_id,
+        &m.profile_hash,
+        &m.rule_revision,
+        &m.catalog_revision,
+        &m.source_commit.source_namespace,
+        &m.source_commit.source_epoch,
+        &m.source_commit.message_id,
+        &m.source_commit.payload_hash,
+        &m.source_commit.producer_id,
+        &m.source_commit.producer_epoch,
+        &m.source_commit.clock_event_id,
+    ] {
+        text(&mut cost, value)?
+    }
+    for r in [
+        &m.scope,
+        &roots.generated_state,
+        &roots.publication_template,
+        &roots.delta_template,
+    ] {
+        reference(&mut cost, r)?;
+    }
+    // Before construction reserve the maximum Built representation. Final accounting
+    // uses actual kind/extent and actual batch length before issuing any workspace.
+    cost = cost.checked_add(value.map_or(42, |v| 34 + if v.extent.is_some() { 8 } else { 0 }))?;
+    let reserved_batch = batch_text(&[0; 32]);
+    if let Some(batch) = batch {
+        text(&mut cost, batch)?
+    } else {
+        text(&mut cost, reserved_batch.as_str())?
+    }
+    Some(cost)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+struct ManifestRecordingStore<'a> {
+    inner: &'a mut dyn NodeStore,
+    allowance: usize,
+    certificate_cost: usize,
+    source_cost: usize,
+    originals: Option<std::collections::BTreeMap<NodeDigest, (u8, Vec<u8>)>>,
+    retained_capacity: usize,
+    accepted_entries: usize,
+    accepted_body_len: usize,
+    puts: Vec<NodeDigest>,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl ManifestRecordingStore<'_> {
+    fn record(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) {
+        let Some(originals) = &mut self.originals else {
+            return;
+        };
+        if let Some((old_tag, old_body)) = originals.get(&digest) {
+            if *old_tag == tag && old_body.as_slice() == body {
+                return;
+            }
+            self.originals = None;
+            self.puts.clear();
+            return;
+        }
+        // Same canonical node source recipe as Keeper: body + digest/tag/proof 97B.
+        let next = self
+            .source_cost
+            .checked_add(body.len())
+            .and_then(|v| v.checked_add(97));
+        let Some(next) = next.filter(|v| *v <= self.allowance) else {
+            self.originals = None;
+            self.puts.clear();
+            return;
+        };
+        let body = body.to_vec();
+        let totals = self
+            .retained_capacity
+            .checked_add(body.capacity())
+            .zip(self.accepted_entries.checked_add(1))
+            .zip(self.accepted_body_len.checked_add(body.len()));
+        let Some(((capacity, entries), len)) = totals else {
+            self.originals = None;
+            self.puts.clear();
+            return;
+        };
+        self.source_cost = next;
+        self.retained_capacity = capacity;
+        self.accepted_entries = entries;
+        self.accepted_body_len = len;
+        originals.insert(digest, (tag, body));
+    }
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl s_content::NodeSource for ManifestRecordingStore<'_> {
+    fn read(&mut self, digest: &NodeDigest) -> Result<s_content::NodeRead, CodecError> {
+        let result = self.inner.read(digest)?;
+        match &result {
+            s_content::NodeRead::Found { tag, body } => self.record(*digest, *tag, body),
+            s_content::NodeRead::Missing => {
+                self.originals = None;
+                self.puts.clear();
+            }
+        }
+        Ok(result)
+    }
+    fn checked_read(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
+        let result = self.inner.checked_read(digest)?;
+        if let Some(frame) = &result {
+            self.record(*digest, frame.tag(), frame.body())
+        }
+        Ok(result)
+    }
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl s_content::NodeSink for ManifestRecordingStore<'_> {
+    fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError> {
+        self.inner.put(digest, tag, body)?;
+        self.record(digest, tag, body);
+        if self.originals.is_some() {
+            if let Some(next) = self
+                .source_cost
+                .checked_add(32)
+                .filter(|v| *v <= self.allowance)
+            {
+                self.puts.push(digest);
+                self.source_cost = next;
+            } else {
+                self.originals = None;
+                self.puts.clear();
+            }
+        }
+        Ok(())
+    }
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn assemble_unpublished_with_workspace(
+    store: &mut dyn NodeStore,
+    metadata: &ManifestMetadata,
+    roots: &ManifestRoots,
+    budget: crate::v3::ManifestWorkspaceBudget,
+) -> Result<(UnpublishedManifest, Option<PreparedManifestWorkspace>), CodecError> {
+    let reserved_certificate = workspace_certificate_source_cost(metadata, roots, None, None)
+        .filter(|cost| *cost <= budget.allowance());
+    let mut recording = ManifestRecordingStore {
+        inner: store,
+        allowance: budget.allowance(),
+        certificate_cost: reserved_certificate.unwrap_or(0),
+        source_cost: reserved_certificate.unwrap_or(0),
+        originals: reserved_certificate.map(|_| Default::default()),
+        retained_capacity: 0,
+        accepted_entries: 0,
+        accepted_body_len: 0,
+        puts: Vec::new(),
+    };
+    let manifest = assemble_unpublished(&mut recording, metadata, roots)?;
+    let recording_peak_source_cost = recording.source_cost;
+    if recording.originals.is_some() {
+        let actual = workspace_certificate_source_cost(
+            metadata,
+            roots,
+            Some(&manifest.value),
+            Some(&manifest.batch_id),
+        );
+        let cost = actual
+            .and_then(|fixed| {
+                recording
+                    .source_cost
+                    .checked_sub(recording.certificate_cost)
+                    .and_then(|variable| variable.checked_add(fixed))
+            })
+            .filter(|cost| *cost <= budget.allowance());
+        if let Some(cost) = cost {
+            recording.source_cost = cost
+        } else {
+            recording.originals = None;
+            recording.puts.clear();
+        }
+    }
+    let workspace_source_cost = if recording.originals.is_some() {
+        recording.source_cost
+    } else {
+        0
+    };
+    record_workspace_stats(|stats| {
+        stats.last_workspace_source_cost = workspace_source_cost as u64;
+        stats.max_recording_source_cost = stats
+            .max_recording_source_cost
+            .max(recording_peak_source_cost as u64);
+        stats.max_recording_body_capacity = stats
+            .max_recording_body_capacity
+            .max(recording.retained_capacity as u64);
+        stats.max_recording_entries = stats
+            .max_recording_entries
+            .max(recording.accepted_entries as u64);
+        stats.max_recording_body_len = stats
+            .max_recording_body_len
+            .max(recording.accepted_body_len as u64);
+        // clear() retains Vec capacity after overflow, so count it even without originals.
+        let put_capacity = (recording.puts.capacity() * std::mem::size_of::<NodeDigest>()) as u64;
+        stats.recorded_put_capacity += put_capacity;
+        stats.max_recording_put_capacity = stats.max_recording_put_capacity.max(put_capacity);
+        if let Some(originals) = &recording.originals {
+            stats.recorded_entries += originals.len() as u64;
+            stats.recorded_body_len += originals
+                .values()
+                .map(|(_, body)| body.len() as u64)
+                .sum::<u64>();
+            stats.recorded_body_capacity += recording.retained_capacity as u64;
+        }
+    });
+    let workspace = recording
+        .originals
+        .map(|originals| PreparedManifestWorkspace {
+            revision: MANIFEST_WORKSPACE_REVISION,
+            format: s_content::CONTENT_FORMAT,
+            metadata: metadata.clone(),
+            roots: roots.clone(),
+            manifest_value: manifest.value.clone(),
+            batch_id: manifest.batch_id.clone(),
+            budget,
+            source_cost: workspace_source_cost,
+            originals,
+            puts: recording.puts,
+        });
+    record_workspace_stats(|stats| {
+        if workspace.is_some() {
+            stats.issued += 1
+        } else {
+            stats.overflow += 1
+        }
+    });
+    diagnose_manifest_workspace(
+        if workspace.is_some() {
+            "prepare-issued"
+        } else {
+            "prepare-overflow"
+        },
+        metadata.generation,
+        budget,
+        workspace_source_cost,
+        recording_peak_source_cost,
+    );
+    Ok((manifest, workspace))
 }
 
 pub(super) fn assemble_unpublished(

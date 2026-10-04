@@ -287,6 +287,14 @@ impl Keeper {
             peak_two_pool_capacity_payload: 0,
         }
     }
+    /// The caller has checked the shared S7 remainder. Cache retention never grants
+    /// business permission; narrowing a completed keeper can only discard its pool.
+    pub(super) fn set_retention_cap(&mut self, cap: usize) {
+        self.cap = cap;
+        if self.retained_source_bytes() > cap {
+            self.clear()
+        }
+    }
     pub(super) fn clear(&mut self) {
         self.pool = None;
     }
