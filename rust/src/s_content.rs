@@ -930,6 +930,28 @@ pub fn write_value(sink: &mut dyn NodeSink, value: &Value) -> Result<Built, Code
     write_in_mode(&mut CodecContext::Sink(sink, None), value, Mode::Public)
 }
 
+/// #1394 Native 对照臂的单次值树材料驻留；每次返回（含错误）即销毁。
+///
+/// 只按标签和完整 body 复用本次成功写入的材料，不证明当前存储、闭包或来源资格。
+/// 调用方仅用于已取得同次 parser 资格的固定 24 关系树；发布仍须完整冷核验。
+/// 普通/Owned 入口不经此处，也不由此声称任意大 Value 的 heap 资源合格。
+#[cfg(feature = "s_capture_native_testonly")]
+#[doc(hidden)]
+pub fn write_value_native_local_for_testonly(
+    sink: &mut dyn NodeSink,
+    value: &Value,
+) -> Result<Built, CodecError> {
+    let mut memo = closed::NativeLocalMaterialMemo::default();
+    write_in_mode(
+        &mut CodecContext::NativeLocal {
+            sink,
+            memo: &mut memo,
+        },
+        value,
+        Mode::Public,
+    )
+}
+
 /// 写入值树（显式模板上下文）：允许 `Value::BatchSelf`。
 pub fn write_template(sink: &mut dyn NodeSink, value: &Value) -> Result<Built, CodecError> {
     write_in_mode(&mut CodecContext::Sink(sink, None), value, Mode::Template)

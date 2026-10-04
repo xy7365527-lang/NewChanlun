@@ -569,11 +569,24 @@ impl<'body> FrameMaterial<'body> {
     }
 }
 
+/// #1394 仅活在一次 Native 值树编码中；不实现读取/写入 trait，也不持核验凭据。
+/// 标签分桶后以完整 body 为键，查询借用 body，只有真实 put 成功后才复制登记。
+#[cfg(feature = "s_capture_native_testonly")]
+#[derive(Default)]
+pub(super) struct NativeLocalMaterialMemo {
+    materials: BTreeMap<u8, BTreeMap<Vec<u8>, NodeDigest>>,
+}
+
 /// 私有静态分派；任意公开NodeSource不能自行提供Closed分支。
 pub(super) enum CodecContext<'read, 'capture> {
     Source(&'read mut dyn NodeSource),
     Store(&'read mut dyn NodeStore),
     Sink(&'read mut dyn NodeSink, Option<OwnedBudget>),
+    #[cfg(feature = "s_capture_native_testonly")]
+    NativeLocal {
+        sink: &'read mut dyn NodeSink,
+        memo: &'read mut NativeLocalMaterialMemo,
+    },
     Capture(&'capture AuditCapture),
     Closed(&'read mut ClosedCapturedOwner<'capture>),
     QAccess {
@@ -601,6 +614,11 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
             Self::Source(s) => CodecContext::Source(&mut **s),
             Self::Store(s) => CodecContext::Store(&mut **s),
             Self::Sink(s, b) => CodecContext::Sink(&mut **s, b.clone()),
+            #[cfg(feature = "s_capture_native_testonly")]
+            Self::NativeLocal { sink, memo } => CodecContext::NativeLocal {
+                sink: &mut **sink,
+                memo: &mut **memo,
+            },
             Self::Capture(c) => CodecContext::Capture(c),
             Self::Closed(c) => CodecContext::Closed(&mut **c),
             Self::QAccess { owner, access } => CodecContext::QAccess {
@@ -634,14 +652,31 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
             }
             Self::Fragment(r) => r.read(d),
             Self::Sink(_, _) => Err(CodecError::new(code::SOURCE, "只写context不可读节点")),
+            #[cfg(feature = "s_capture_native_testonly")]
+            Self::NativeLocal { .. } => Err(CodecError::new(code::SOURCE, "只写context不可读节点")),
         }
     }
     pub(super) fn emit(&mut self, tag: u8, body: &[u8]) -> Result<NodeDigest, CodecError> {
+        #[cfg(feature = "s_capture_native_testonly")]
+        if let Self::NativeLocal { sink, memo } = self {
+            if let Some(digest) = memo.materials.get(&tag).and_then(|bucket| bucket.get(body)) {
+                return Ok(*digest);
+            }
+            let material = FrameMaterial::checked(tag, body);
+            sink.put(material.digest, material.tag, material.body)?;
+            memo.materials
+                .entry(tag)
+                .or_default()
+                .insert(body.to_vec(), material.digest);
+            return Ok(material.digest);
+        }
         let m = FrameMaterial::checked(tag, body);
         let digest = m.digest;
         match self {
             Self::Store(s) => s.put(m.digest, m.tag, m.body)?,
             Self::Sink(s, _) => s.put(m.digest, m.tag, m.body)?,
+            #[cfg(feature = "s_capture_native_testonly")]
+            Self::NativeLocal { .. } => unreachable!("Native 单次材料已在上方处理"),
             Self::Closed(c) => c.put_material(m)?,
             Self::QAccess { owner, access } => {
                 access.accept_node(&m.digest, m.tag, m.body)?;
@@ -698,6 +733,148 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
             Self::QAccess { owner, .. } => owner.max_render_bytes,
             _ => None,
         }
+    }
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+mod native_local_tests {
+    use super::*;
+
+    #[derive(Default)]
+    struct ProbeSink {
+        nodes: MemoryNodes,
+        calls: usize,
+        fail_at: Option<usize>,
+    }
+    impl NodeSink for ProbeSink {
+        fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError> {
+            self.calls += 1;
+            if self.fail_at == Some(self.calls) {
+                return Err(CodecError::new(code::SINK, "真实 put 故障"));
+            }
+            self.nodes.put(digest, tag, body)
+        }
+    }
+
+    #[test]
+    fn native_local_material_requires_exact_tag_and_body_and_refuses_reads() {
+        let mut sink = ProbeSink::default();
+        let mut memo = NativeLocalMaterialMemo::default();
+        {
+            let mut context = CodecContext::NativeLocal {
+                sink: &mut sink,
+                memo: &mut memo,
+            };
+            assert!(context.budget().is_none());
+            let first = context.emit(tag::BYTES_CHUNK, b"one").unwrap();
+            let frames_before_hit = frame_calls_on_thread();
+            assert_eq!(
+                context.reborrow().emit(tag::BYTES_CHUNK, b"one").unwrap(),
+                first
+            );
+            assert_eq!(frame_calls_on_thread(), frames_before_hit);
+            assert_ne!(context.emit(tag::STRING, b"one").unwrap(), first);
+            assert_ne!(context.emit(tag::BYTES_CHUNK, b"two").unwrap(), first);
+            assert_eq!(
+                context.read(&first).err().expect("只写入口拒读").code(),
+                code::SOURCE
+            );
+        }
+        assert_eq!(sink.calls, 3);
+        assert_eq!(memo.materials.values().map(BTreeMap::len).sum::<usize>(), 3);
+    }
+
+    #[test]
+    fn native_local_failed_real_put_is_not_registered() {
+        let mut sink = ProbeSink {
+            fail_at: Some(1),
+            ..ProbeSink::default()
+        };
+        let mut memo = NativeLocalMaterialMemo::default();
+        let error = CodecContext::NativeLocal {
+            sink: &mut sink,
+            memo: &mut memo,
+        }
+        .emit(tag::NULL, &[])
+        .unwrap_err();
+        assert_eq!(error.code(), code::SINK);
+        assert_eq!(sink.calls, 1);
+        assert!(memo.materials.is_empty());
+    }
+
+    #[test]
+    fn native_local_write_restarts_after_success_and_error() {
+        let value = Value::Array(vec![Value::string("same"), Value::string("same")]);
+        let mut sink = ProbeSink {
+            fail_at: Some(1),
+            ..ProbeSink::default()
+        };
+        assert_eq!(
+            write_value_native_local_for_testonly(&mut sink, &value)
+                .unwrap_err()
+                .code(),
+            code::SINK
+        );
+        assert_eq!(sink.calls, 1);
+        sink.fail_at = None;
+        let first = write_value_native_local_for_testonly(&mut sink, &value).unwrap();
+        let per_call = sink.calls - 1;
+        assert_eq!(per_call, sink.nodes.len());
+        let before = sink.calls;
+        assert_eq!(
+            write_value_native_local_for_testonly(&mut sink, &value).unwrap(),
+            first
+        );
+        assert_eq!(sink.calls - before, per_call);
+        sink.fail_at = Some(sink.calls + 2);
+        assert_eq!(
+            write_value_native_local_for_testonly(&mut sink, &value)
+                .unwrap_err()
+                .code(),
+            code::SINK
+        );
+        sink.fail_at = None;
+        let before = sink.calls;
+        assert_eq!(
+            write_value_native_local_for_testonly(&mut sink, &value).unwrap(),
+            first
+        );
+        assert_eq!(sink.calls - before, per_call);
+    }
+
+    #[test]
+    fn native_local_public_rules_and_missing_edge_still_require_verify() {
+        let mut sink = ProbeSink::default();
+        for (value, expected) in [
+            (
+                Value::Object(vec![("k".into(), Value::Null), ("k".into(), Value::Null)]),
+                code::DUPLICATE_KEY,
+            ),
+            (Value::BatchSelf, code::TEMPLATE_PLACEHOLDER),
+            (
+                Value::Array(vec![Value::BatchSelf]),
+                code::TEMPLATE_PLACEHOLDER,
+            ),
+            (Value::Edge([0xab; 32]), code::KIND),
+        ] {
+            assert_eq!(
+                write_value_native_local_for_testonly(&mut sink, &value)
+                    .unwrap_err()
+                    .code(),
+                expected
+            );
+        }
+        let built = write_value_native_local_for_testonly(
+            &mut sink,
+            &Value::Array(vec![Value::Edge([0xab; 32])]),
+        )
+        .unwrap();
+        assert_eq!(
+            verify(&mut sink.nodes, &built.content_ref())
+                .unwrap_err()
+                .code(),
+            code::NODE_MISSING
+        );
     }
 }
 

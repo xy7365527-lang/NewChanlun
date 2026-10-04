@@ -1301,6 +1301,94 @@ pub(crate) mod tests {
         }
     }
 
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_local_material_memo_cannot_publish_trigger_damaged_deep_key() {
+        for delete in [true, false] {
+            let mut f = Fixture::new();
+            f.runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+            for (n, row) in [
+                (1, ("a", 0, 6, 12, 3, 7)),
+                (2, ("b", 10, 8, 16, 6, 12)),
+                (3, ("c", 20, 8, 13, 4, 7)),
+            ] {
+                let (envelope, token) = f.accept_begin(n, row, 1);
+                f.publish(&envelope, &token).unwrap();
+            }
+            // 首个有后续bar的真实分型单元才会写此键；父reference_prices与unit本身不用它。
+            let body = b"reference_value";
+            let target = sc::frame(sc::tag::BYTES_CHUNK, body);
+            let present: i64 = f
+                .conn
+                .query_row(
+                    "SELECT count(*) FROM s_content_nodes WHERE digest=?1",
+                    [&target[..]],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(present, 0, "夹具必须实际进入首次24项关系编码");
+            let (envelope, token) = f.accept_begin(4, ("d", 30, 12, 18, 8, 15), 1);
+            f.conn
+                .execute_batch("CREATE TEMP TABLE native_local_fault_seen(n INTEGER NOT NULL)")
+                .unwrap();
+            // 节点表WITHOUT ROWID不提供update hook；触发器里的普通表INSERT证明实际触发，
+            // Arc计数不受随后SQL回滚影响，表本身则必须一起回滚。
+            let fired = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let observed = fired.clone();
+            f.conn.update_hook(Some(
+                move |_: rusqlite::hooks::Action, _: &str, table: &str, _: i64| {
+                    if table == "native_local_fault_seen" {
+                        observed.fetch_add(1, Ordering::SeqCst);
+                    }
+                },
+            ));
+            let hex = sc::root_string(&target);
+            let hex = hex.strip_prefix("sc1-").unwrap();
+            let damage = if delete {
+                format!("DELETE FROM s_content_nodes WHERE digest=x'{hex}'")
+            } else {
+                format!("UPDATE s_content_nodes SET body=x'00' WHERE digest=x'{hex}'")
+            };
+            f.conn
+                .execute_batch(&format!(
+                    "CREATE TEMP TRIGGER damage_native_local_key AFTER INSERT ON main.s_content_nodes \
+                     WHEN NEW.tag=20 AND EXISTS(SELECT 1 FROM s_content_nodes WHERE digest=x'{hex}') \
+                     BEGIN INSERT INTO native_local_fault_seen VALUES(1); {damage}; END;"
+                ))
+                .unwrap();
+            let before = runtime_root_tables(&f.conn, true);
+            let error = f.publish(&envelope, &token).unwrap_err();
+            assert!(
+                fired.load(Ordering::SeqCst) > 0,
+                "必须击中真实INSERT触发器，实际错误：{error}"
+            );
+            let expected = if delete {
+                sc::code::NODE_MISSING
+            } else {
+                sc::code::NODE_DIGEST
+            };
+            assert!(error.contains(expected), "{expected}: {error}");
+            assert_eq!(runtime_root_tables(&f.conn, true), before);
+            assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 3);
+            assert_eq!(count(&f.conn, "s_content_publications"), 3);
+            assert_eq!(count(&f.conn, "native_local_fault_seen"), 0);
+            assert!(f.runtime.visit_runtime_roots().unwrap().is_empty());
+            f.conn
+                .execute_batch("DROP TRIGGER damage_native_local_key")
+                .unwrap();
+            assert_eq!(f.publish(&envelope, &token).unwrap().generation, 4);
+            let actual: Vec<u8> = f
+                .conn
+                .query_row(
+                    "SELECT body FROM s_content_nodes WHERE digest=?1",
+                    [&target[..]],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(actual, body);
+        }
+    }
+
     #[test]
     fn late_failure_rolls_back_real_nodes_indices_and_catalog_then_same_runtime_retries() {
         let mut f = Fixture::new();

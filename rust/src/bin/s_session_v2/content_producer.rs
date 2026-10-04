@@ -1646,13 +1646,34 @@ impl Cc004Producer {
         let appended_from = covered;
         for (offset, bar) in raw_bars[tail_start + appended_from..].iter().enumerate() {
             let relations = fractal_relations(bar, &reference_meta);
-            let relations = sc::write_value(&mut *store, &CValue::Array(relations))?;
+            let relations = {
+                #[cfg(test)]
+                let _phase = tests::emission_phase("fractal_relations_write_value");
+                let value = CValue::Array(relations);
+                #[cfg(feature = "s_capture_native_testonly")]
+                let built = if shared.is_some() {
+                    sc::write_value_native_local_for_testonly(&mut *store, &value)?
+                } else {
+                    sc::write_value(&mut *store, &value)?
+                };
+                #[cfg(not(feature = "s_capture_native_testonly"))]
+                let built = sc::write_value(&mut *store, &value)?;
+                built
+            };
             let unit = CValue::Object(vec![
                 ("bar".to_string(), bar_value(bar)),
                 ("relations".to_string(), CValue::Edge(relations.digest)),
             ]);
-            let leaf = sc::write_value(&mut *store, &unit)?.digest;
-            sequence = sc::sequence_append(&mut *store, &sequence, &leaf)?;
+            let leaf = {
+                #[cfg(test)]
+                let _phase = tests::emission_phase("fractal_unit_write_value");
+                sc::write_value(&mut *store, &unit)?.digest
+            };
+            sequence = {
+                #[cfg(test)]
+                let _phase = tests::emission_phase("fractal_sequence_append");
+                sc::sequence_append(&mut *store, &sequence, &leaf)?
+            };
             let coord_index = tail_start + appended_from + offset;
             if !(union_skip_first && coord_index == tail_start) {
                 union_tail = union_tail.append_greater(bar.source_index);
@@ -1663,7 +1684,11 @@ impl Cc004Producer {
         let units_count = u64::try_from(covered)
             .map_err(|_| ProducerError::Overflow(format!("后续单元数 {covered} 超出 u64")))?;
         let units_array = Built {
-            digest: put_array_node(&mut *store, units_count, &sequence.root())?,
+            digest: {
+                #[cfg(test)]
+                let _phase = tests::emission_phase("fractal_units_array");
+                put_array_node(&mut *store, units_count, &sequence.root())?
+            },
             kind: Kind::Array,
             extent: Some(units_count),
         };
@@ -2999,6 +3024,7 @@ mod tests {
         puts: usize,
         array_puts: usize,
         branch_puts: usize,
+        emissions: Option<EmissionInventory>,
     }
 
     impl NodeSource for CountingStore {
@@ -3013,7 +3039,209 @@ mod tests {
             self.puts += 1;
             self.array_puts += usize::from(tag == sc::tag::ARRAY);
             self.branch_puts += usize::from(tag == sc::tag::SEQ_BRANCH);
+            if let Some(emissions) = &mut self.emissions {
+                let already_stored =
+                    self.nodes
+                        .get(&digest)
+                        .is_some_and(|(stored_tag, stored_body)| {
+                            stored_tag == tag && stored_body == body
+                        });
+                emissions.observe(digest, tag, body, already_stored);
+            }
             NodeSink::put(&mut self.nodes, digest, tag, body)
+        }
+    }
+
+    thread_local! {
+        static EMISSION_PHASE_ENABLED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+        static EMISSION_PHASE: std::cell::Cell<Option<&'static str>> = const { std::cell::Cell::new(None) };
+    }
+
+    pub(super) struct EmissionPhaseGuard {
+        enabled_before: bool,
+        phase_before: Option<&'static str>,
+    }
+
+    impl Drop for EmissionPhaseGuard {
+        fn drop(&mut self) {
+            EMISSION_PHASE_ENABLED.with(|enabled| enabled.set(self.enabled_before));
+            EMISSION_PHASE.with(|phase| phase.set(self.phase_before));
+        }
+    }
+
+    fn enable_emission_phases() -> EmissionPhaseGuard {
+        EmissionPhaseGuard {
+            enabled_before: EMISSION_PHASE_ENABLED.with(|enabled| enabled.replace(true)),
+            phase_before: EMISSION_PHASE.with(|phase| phase.replace(None)),
+        }
+    }
+
+    /// 线程局部、默认关闭；仅诊断测试启用，guard 离开真实调用作用域即恢复。
+    pub(super) fn emission_phase(phase: &'static str) -> EmissionPhaseGuard {
+        let enabled_before = EMISSION_PHASE_ENABLED.with(|enabled| enabled.get());
+        let phase_before = EMISSION_PHASE.with(|current| {
+            if enabled_before {
+                current.replace(Some(phase))
+            } else {
+                current.get()
+            }
+        });
+        EmissionPhaseGuard {
+            enabled_before,
+            phase_before,
+        }
+    }
+
+    #[derive(Default)]
+    struct EmissionEntry {
+        body: Vec<u8>,
+        calls: usize,
+        phases: BTreeMap<&'static str, usize>,
+        existed_before_sample: bool,
+    }
+
+    /// #1394 只观测的测试账本：摘要/标签只是桶索引，body 必须逐字相同才累计。
+    /// 默认关闭；绝不查询此账本来省略或替换 NodeSink::put。
+    #[derive(Default)]
+    struct EmissionInventory {
+        phase: &'static str,
+        materials: HashMap<(NodeDigest, u8), Vec<EmissionEntry>>,
+        phase_calls: BTreeMap<&'static str, usize>,
+    }
+
+    impl EmissionInventory {
+        fn unit_calls(&self) -> usize {
+            self.phase_calls
+                .iter()
+                .filter(|(phase, _)| {
+                    matches!(
+                        **phase,
+                        "fractal_relations_write_value"
+                            | "fractal_unit_write_value"
+                            | "fractal_sequence_append"
+                            | "fractal_units_array"
+                    )
+                })
+                .map(|(_, calls)| calls)
+                .sum()
+        }
+
+        fn observe(&mut self, digest: NodeDigest, tag: u8, body: &[u8], already_stored: bool) {
+            let phase = EMISSION_PHASE
+                .with(|phase| phase.get())
+                .unwrap_or(self.phase);
+            *self.phase_calls.entry(phase).or_default() += 1;
+            let bucket = self.materials.entry((digest, tag)).or_default();
+            let index = match bucket.iter().position(|entry| entry.body == body) {
+                Some(index) => index,
+                None => {
+                    bucket.push(EmissionEntry {
+                        body: body.to_vec(),
+                        existed_before_sample: already_stored,
+                        ..EmissionEntry::default()
+                    });
+                    bucket.len() - 1
+                }
+            };
+            let entry = &mut bucket[index];
+            entry.calls += 1;
+            *entry.phases.entry(phase).or_default() += 1;
+        }
+
+        fn summary(&self) -> Value {
+            let mut tags: BTreeMap<u8, (usize, usize, usize, usize)> = BTreeMap::new();
+            let mut phases: BTreeMap<&str, (usize, usize, usize, usize)> = BTreeMap::new();
+            let mut top = Vec::new();
+            for ((digest, tag), bucket) in &self.materials {
+                for entry in bucket {
+                    let bytes = entry.body.len();
+                    let total = tags.entry(*tag).or_default();
+                    total.0 += entry.calls;
+                    total.1 += 1;
+                    total.2 += entry.calls * bytes;
+                    total.3 += bytes;
+                    for (phase, calls) in &entry.phases {
+                        let total = phases.entry(phase).or_default();
+                        total.0 += calls;
+                        total.1 += 1;
+                        total.2 += calls * bytes;
+                        total.3 += bytes;
+                    }
+                    top.push((*digest, *tag, entry));
+                }
+            }
+            // 同频按 tag/body/digest 排序，固定输出不受 HashMap 随机种子影响。
+            top.sort_by(|a, b| {
+                b.2.calls
+                    .cmp(&a.2.calls)
+                    .then_with(|| a.1.cmp(&b.1))
+                    .then_with(|| a.2.body.cmp(&b.2.body))
+                    .then_with(|| a.0.cmp(&b.0))
+            });
+            let row = |(calls, unique, bytes, unique_bytes): (usize, usize, usize, usize)| {
+                json!({"calls": calls, "distinct_materials": unique, "body_bytes": bytes,
+                    "distinct_body_bytes": unique_bytes, "repeat_calls": calls - unique,
+                    "repeat_body_bytes": bytes - unique_bytes})
+            };
+            let totals = tags.values().fold((0, 0, 0, 0), |a, b| {
+                (a.0 + b.0, a.1 + b.1, a.2 + b.2, a.3 + b.3)
+            });
+            let material = |(digest, tag, entry): &(NodeDigest, u8, &EmissionEntry)| {
+                // STRING/NUMBER body 含字节树摘要；可识别文本落在 BYTES_CHUNK。
+                let text = if *tag == sc::tag::BYTES_CHUNK && entry.body.len() <= 96 {
+                    std::str::from_utf8(&entry.body).ok()
+                } else {
+                    None
+                };
+                json!({"digest": lower_hex(digest), "tag": tag, "body_len": entry.body.len(),
+                    "calls": entry.calls, "body_bytes": entry.calls * entry.body.len(),
+                    "repeat_calls": entry.calls - 1, "text": text, "phases": entry.phases,
+                    "existed_before_sample": entry.existed_before_sample})
+            };
+            let mut summary = row(totals);
+            summary["preexisting_material_calls"] = json!(top
+                .iter()
+                .filter(|(_, _, entry)| entry.existed_before_sample)
+                .map(|(_, _, entry)| entry.calls)
+                .sum::<usize>());
+            summary["calls_with_material_already_stored"] = json!(top
+                .iter()
+                .map(|(_, _, entry)| entry.calls - usize::from(!entry.existed_before_sample))
+                .sum::<usize>());
+            summary["byte_metric"] = json!("NodeSink body bytes; frame/DB overhead excluded");
+            summary["repeat_scope"] =
+                json!("within this sample; preexisting material reported separately");
+            summary["repeat_call_fraction"] = json!(if totals.0 == 0 {
+                0.0
+            } else {
+                (totals.0 - totals.1) as f64 / totals.0 as f64
+            });
+            summary["by_tag"] = json!(tags
+                .into_iter()
+                .map(|(tag, values)| {
+                    let mut result = row(values);
+                    result["tag"] = json!(tag);
+                    result
+                })
+                .collect::<Vec<_>>());
+            summary["by_phase"] = json!(phases
+                .into_iter()
+                .map(|(phase, values)| {
+                    let mut result = row(values);
+                    result["phase"] = json!(phase);
+                    result
+                })
+                .collect::<Vec<_>>());
+            summary["top20"] = json!(top.iter().take(20).map(material).collect::<Vec<_>>());
+            summary["small_text_top20"] = json!(top
+                .iter()
+                .filter(|(_, tag, entry)| *tag == sc::tag::BYTES_CHUNK
+                    && entry.body.len() <= 96
+                    && std::str::from_utf8(&entry.body).is_ok())
+                .take(20)
+                .map(material)
+                .collect::<Vec<_>>());
+            summary
         }
     }
 
@@ -4451,6 +4679,216 @@ mod tests {
         assert!(saw_insufficient, "必须覆盖无后续 bar 的窗口");
     }
 
+    /// #1394 固定 cold32/cold64/warm65 样本的真实 put 诊断，默认不参与常规测试。
+    #[test]
+    #[ignore = "#1394 有界 material 计量；由主控显式运行，不是计时基准"]
+    fn parser_fractal_put_material_inventory_cold32_cold64_warm65() {
+        fn row(i: usize) -> (usize, i64, i64) {
+            (
+                10 + i * 17,
+                if i % 2 == 0 { 12 } else { 24 },
+                if i % 2 == 0 { 3 } else { 15 },
+            )
+        }
+
+        fn measured_fixture(rows: &[(usize, i64, i64)]) -> Fixture {
+            let mut fixture = unbound_fixture(rows);
+            fixture.producer = Cc004Producer::new(tb02a::PROFILE, RULE);
+            fixture.store.emissions = Some(EmissionInventory {
+                phase: "bind_sources",
+                ..EmissionInventory::default()
+            });
+            for row in &fixture.rows {
+                assert!(fixture
+                    .producer
+                    .bind_source(&mut fixture.store, row.coord, row.spec())
+                    .unwrap());
+            }
+            fixture
+        }
+
+        fn append(fixture: &mut Fixture, next: (usize, i64, i64)) {
+            fixture.store.reads = 0;
+            fixture.store.puts = 0;
+            fixture.store.array_puts = 0;
+            fixture.store.branch_puts = 0;
+            fixture.store.emissions = Some(EmissionInventory {
+                phase: "bind_sources",
+                ..EmissionInventory::default()
+            });
+            let (coord, high, low) = next;
+            let source = Row::new(coord as i64, 1, "r1").with_prices(low, high, low, high);
+            assert!(fixture
+                .producer
+                .bind_source(&mut fixture.store, source.coord, source.spec())
+                .unwrap());
+            fixture.raw.insert(source.coord, source.raw_json());
+            fixture.rows.push(source);
+            fixture.state.append(bar(coord, high, low));
+        }
+
+        fn run(
+            fixture: &mut Fixture,
+            reuse: bool,
+            generation: i64,
+            sample: &str,
+        ) -> (Vec<Cc007Object>, Value) {
+            let _phases = enable_emission_phases();
+            let history_before = (
+                fixture.producer.history_computed,
+                fixture.producer.history_reused,
+            );
+            let raw: Vec<Bar> = fixture.state.raw_iter().copied().collect();
+            fixture.store.emissions.as_mut().unwrap().phase = "prepare_and_parser_session";
+            let prepared = fixture.producer.prepare_raw_history(&raw).unwrap();
+            let mut session = reuse.then(|| {
+                fixture
+                    .producer
+                    .parser_fractal_sources(&prepared, &fixture.state)
+                    .unwrap()
+            });
+            let count = fixture.state.materialize_facts().groups.len();
+            let mut objects = Vec::new();
+            let mut branches: BTreeMap<&str, (usize, usize, usize, usize)> = BTreeMap::new();
+            enum SampleShape {
+                Native(ParserFractalShape),
+                General(Cc006Object),
+            }
+            for start in 0..count.saturating_sub(2) {
+                fixture.store.emissions.as_mut().unwrap().phase = "shape";
+                let shape_start = fixture.store.puts;
+                let shape = if let Some(session) = &mut session {
+                    fixture
+                        .producer
+                        .build_parser_shape(
+                            &mut fixture.store,
+                            &prepared,
+                            session,
+                            start,
+                            generation,
+                            CUT,
+                        )
+                        .unwrap()
+                        .map(SampleShape::Native)
+                } else {
+                    fixture
+                        .producer
+                        .build_shape(&mut fixture.store, &fixture.state, start, generation, CUT)
+                        .unwrap()
+                        .map(SampleShape::General)
+                };
+                let shape_calls = fixture.store.puts - shape_start;
+                let Some(shape) = shape else {
+                    continue;
+                };
+                let branch = match &shape {
+                    SampleShape::Native(shape) => shape.object().branch,
+                    SampleShape::General(shape) => shape.branch,
+                };
+                assert!(matches!(branch, "TOP" | "BOTTOM"));
+                let views = [start, start + 1, start + 2]
+                    .map(|index| fixture.state.shared_group(index).unwrap().unwrap());
+                let unit_start = fixture.store.emissions.as_ref().unwrap().unit_calls();
+                fixture.store.emissions.as_mut().unwrap().phase = "fractal_other";
+                let fractal_start = fixture.store.puts;
+                let object = match &shape {
+                    SampleShape::Native(shape) => fixture
+                        .producer
+                        .build_parser_fractal(
+                            &mut fixture.store,
+                            &prepared,
+                            session
+                                .as_mut()
+                                .expect("Native shape 必须保留 parser session"),
+                            shape,
+                            generation,
+                            CUT,
+                        )
+                        .unwrap(),
+                    SampleShape::General(shape) => fixture
+                        .producer
+                        .build_fractal(
+                            &mut fixture.store,
+                            &prepared,
+                            shape,
+                            [&views[0], &views[1], &views[2]],
+                            generation,
+                            CUT,
+                        )
+                        .unwrap(),
+                }
+                .expect("TOP/BOTTOM 窗口必产 CC007");
+                let unit_calls =
+                    fixture.store.emissions.as_ref().unwrap().unit_calls() - unit_start;
+                let branch = branches.entry(branch).or_default();
+                branch.0 += 1;
+                branch.1 += shape_calls;
+                branch.2 += fixture.store.puts - fractal_start;
+                branch.3 += unit_calls;
+                objects.push(object);
+            }
+            assert_eq!(objects.len(), raw.len() - 2);
+            let whole_builds = session
+                .as_ref()
+                .map_or(objects.len(), |s| s.whole_source_builds);
+            assert_eq!(whole_builds, if reuse { 1 } else { objects.len() });
+            let mut output = fixture.store.emissions.as_ref().unwrap().summary();
+            assert_eq!(output["calls"].as_u64(), Some(fixture.store.puts as u64));
+            output["sample"] = json!(sample);
+            output["arm"] = json!(if reuse { "native_shared" } else { "general" });
+            output["raw"] = json!(raw.len());
+            output["windows"] = json!(objects.len());
+            output["whole_source_builds"] = json!(whole_builds);
+            output["reads"] = json!(fixture.store.reads);
+            output["history_computed_delta"] =
+                json!(fixture.producer.history_computed - history_before.0);
+            output["history_reused_delta"] =
+                json!(fixture.producer.history_reused - history_before.1);
+            if sample == "warm65" {
+                assert_eq!(
+                    fixture.producer.history_computed - history_before.0,
+                    raw.len() - 3,
+                    "64→65 暖追加仅给既有窗口追加一根后续 bar"
+                );
+                assert!(
+                    fixture.producer.history_reused > history_before.1,
+                    "暖追加必须保留并消费合法 history"
+                );
+            }
+            output["branches"] = json!(branches
+                .into_iter()
+                .map(|(branch, counts)| {
+                    json!({"branch": branch, "windows": counts.0, "shape_calls": counts.1,
+                    "fractal_calls": counts.2, "fractal_units_prefix_calls": counts.3})
+                })
+                .collect::<Vec<_>>());
+            (objects, output)
+        }
+
+        for n in [32usize, 64] {
+            let rows: Vec<_> = (0..n).map(row).collect();
+            let mut general = measured_fixture(&rows);
+            let mut native = measured_fixture(&rows);
+            let sample = format!("cold{n}");
+            let (expected, general_summary) = run(&mut general, false, GENERATION, &sample);
+            let (actual, native_summary) = run(&mut native, true, GENERATION, &sample);
+            // 规范渲染/完整材料 parity 的读数发生在冻结 summary 之后。
+            assert_parser_fractals_equal(&mut general, &mut native, &expected, &actual);
+            println!("CC007_EMISSION_INVENTORY {}", general_summary);
+            println!("CC007_EMISSION_INVENTORY {}", native_summary);
+            if n == 64 {
+                append(&mut general, row(64));
+                append(&mut native, row(64));
+                let (expected, general_summary) =
+                    run(&mut general, false, GENERATION + 1, "warm65");
+                let (actual, native_summary) = run(&mut native, true, GENERATION + 1, "warm65");
+                assert_parser_fractals_equal(&mut general, &mut native, &expected, &actual);
+                println!("CC007_EMISSION_INVENTORY {}", general_summary);
+                println!("CC007_EMISSION_INVENTORY {}", native_summary);
+            }
+        }
+    }
+
     /// 只作测试 oracle 的双入口运行器；资格仍由生产 parser session 构造。
     fn collect_parser_fractals(
         fixture: &mut Fixture,
@@ -4560,6 +4998,45 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// #1394 固定真实 24 关系树：保留四轴、六参考与全部实际价格，仅减少重复材料写入。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_local_fractal_relations_preserve_full_material_and_render_with_fewer_puts() {
+        let mut tail = bar(123, 35, -5);
+        tail.open = 7;
+        tail.close = 16;
+        let references = vec![
+            ("left.high".to_string(), 20),
+            ("left.low".to_string(), 5),
+            ("mid.high".to_string(), 24),
+            ("mid.low".to_string(), -10),
+            ("right.high".to_string(), 30),
+            ("right.low".to_string(), 0),
+        ];
+        let value = CValue::Array(fractal_relations(&tail, &references));
+        let mut old = CountingStore::default();
+        let mut local = CountingStore::default();
+        let expected = sc::write_value(&mut old, &value).unwrap();
+        let actual = sc::write_value_native_local_for_testonly(&mut local, &value).unwrap();
+        assert_eq!(actual, expected);
+        assert_eq!(old.puts, 1128);
+        assert_eq!(local.puts, local.nodes.len());
+        assert!(local.puts <= 268, "实际唯一材料数 {}", local.puts);
+        assert!(local.puts * 4 < old.puts);
+        assert_eq!(
+            old.nodes.iter().collect::<Vec<_>>(),
+            local.nodes.iter().collect::<Vec<_>>()
+        );
+        assert_eq!(render(&mut old, &expected), render(&mut local, &actual));
+        verify(&mut local, &actual.content_ref()).unwrap();
+        let per_call = local.puts;
+        assert_eq!(
+            sc::write_value_native_local_for_testonly(&mut local, &value).unwrap(),
+            actual
+        );
+        assert_eq!(local.puts, 2 * per_call, "第二次调用重新写入全部唯一材料");
     }
 
     /// Rust 真构造计数：多个实际 TOP/BOTTOM 窗、稀疏坐标、包含合并/封口，逐根逐字节对拍。
