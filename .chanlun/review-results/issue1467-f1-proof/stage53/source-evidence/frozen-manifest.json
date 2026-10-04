@@ -1,0 +1,181 @@
+{
+  "schema": "stage53-seed-departure-source-author-v1",
+  "baseline": "6b69fd5c805ee65d84d60a8f703b40833fb85fca",
+  "frozenAtUTC": "2026-10-04T20:09:16.909197+00:00",
+  "role": "作者证据；独立审查待主控另派",
+  "scope": "只冻结源义专项所有权文件；不覆盖其他Stage53工位文件",
+  "authorFiles": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage53/seed-departure-source-scope.md",
+      "sha256": "39db9fe7bf28164a3a14659ba3d13c533bb155844dbdda2ff7f11bc1c680f0f7",
+      "bytes": 18262
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage53/source-evidence/README.md",
+      "sha256": "2f64d74c9f065b77366762073d13aa49923933bd7c0106227f42716841876d9d",
+      "bytes": 1892
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage53/source-evidence/check-source-scope.mjs",
+      "sha256": "640b9f9281cc068f74ea7e356102c50d2b602caa93a9a0c6cdfa505c6f65d7e8",
+      "bytes": 6443
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage53/source-evidence/issue-1260-snapshot.json",
+      "sha256": "05c3e9e07384c12f718a62e6c699627ec4e3cc6681d8aeaa5b7927a2944875e5",
+      "bytes": 4500
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage53/source-evidence/issue-241-snapshot.json",
+      "sha256": "a430b0f3aa1c4300106ee04476b0171adf9e709ff098e39ca2c8c2296e2c735d",
+      "bytes": 1845
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage53/source-evidence/issue-812-snapshot.json",
+      "sha256": "82c4acd49416d00ebd00349f3a3fd11c614b2ac329303a592499f407b8f008f7",
+      "bytes": 59740
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage53/source-evidence/issue-820-snapshot.json",
+      "sha256": "2ad2f67f954b5f7f978775bacabdfdf79e0537a799169eed6da55c6bdba9a690",
+      "bytes": 7536
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage53/source-evidence/source-excerpts.json",
+      "sha256": "621abdd9228c6e727802e4ae82cb91968784e35d1bcece23c5a7fa5c5d295a71",
+      "bytes": 44556
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage53/source-evidence/source-scope-checks.json",
+      "sha256": "4e5b0ae1a9c98a57face96f3d8a62acb07fe08bb397cbe83fe320d716d345e47",
+      "bytes": 7850
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage53/source-evidence/verify-freeze.mjs",
+      "sha256": "c4f5839c324c6bfd890c84ae4a33b5f3ca4d6a50c4e866e804d5f01735e8d12b",
+      "bytes": 1408
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage53/source-evidence/web-crosscheck.json",
+      "sha256": "1d94da714c7d223277f880ae15c9ba50221475bddb21f0b96239f7fa18b54c7c",
+      "bytes": 523
+    }
+  ],
+  "externalInputs": [
+    {
+      "path": "docs/chanlun/text/blog/018-第18课.md",
+      "sha256": "4a661fc843d0d9fcfdf32861b7dc903ee09d824d0075dd0ea7b2c19542bb2f92",
+      "bytes": 11695
+    },
+    {
+      "path": "docs/chanlun/text/blog/020-第20课.md",
+      "sha256": "25f8f0bbe9ffbab48a27b552a081ff3925b6c01bfe1cae30c2616fe9b99b49ef",
+      "bytes": 26838
+    },
+    {
+      "path": "docs/chanlun/text/blog/061-第61课.md",
+      "sha256": "2451e6d514b37aa5da00ca608a88fb46c8e31fe8859226534be7deb6c1007573",
+      "bytes": 21387
+    },
+    {
+      "path": "docs/chanlun/text/blog/101-第101课.md",
+      "sha256": "f40e94dec16bb64bda0f8c2a54a875f3bc0e7a47d605b04b7894bec77cd9ae83",
+      "bytes": 11185
+    },
+    {
+      "path": "docs/chanlun/text/blog/037-第37课.md",
+      "sha256": "f360d985b3f3b1fa567ca13e15f2ffaf9eae39dbb418519f75d1f6175ac70753",
+      "bytes": 47970
+    },
+    {
+      "path": "docs/chanlun/text/blog/027-第27课.md",
+      "sha256": "3a50fd3f22c36b30200e8b76678d7f31149c0d790bb33d6392f2d2489501de90",
+      "bytes": 51966
+    },
+    {
+      "path": "docs/chanlun/text/blog/028-第28课.md",
+      "sha256": "3bb8134388f55caddba4f7b20b8077cfc7109ef2a4d22897ba4e623fa3142d58",
+      "bytes": 69199
+    },
+    {
+      "path": "docs/chanlun/text/blog/039-第39课.md",
+      "sha256": "f7ab535b5899c2b11d1aa1c181b906b2bf719ef5f0b9471ddf85b745053bceca",
+      "bytes": 34743
+    },
+    {
+      "path": "docs/chanlun/text/blog/084-第84课.md",
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26",
+      "bytes": 70833
+    },
+    {
+      "path": "docs/chanlun/text/blog/102-第102课.md",
+      "sha256": "0abe4f81e522cb4fcc5b96153f971c9a8c1ad379243b55059ed8878b21e343af",
+      "bytes": 42973
+    },
+    {
+      "path": "docs/chanlun/text/blog/034-第34课.md",
+      "sha256": "f9fd92c647e000bc9bf17d8be2be1960deaf5973c3b24cd71c8c48332884270d",
+      "bytes": 19920
+    },
+    {
+      "path": ".chanlun/definitions/zhongshu.md",
+      "sha256": "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882",
+      "bytes": 53981
+    },
+    {
+      "path": ".chanlun/definitions/maimai.md",
+      "sha256": "69602124af5676c8df68bffc9cdf6544c8cedd456d71be74118ff6540b89447a",
+      "bytes": 39973
+    },
+    {
+      "path": "docs/adr/0011-operation-decomposition-layer.md",
+      "sha256": "30098873c67878af850e8ff9502fdf69e332343e3576e551bab6768d6eb59860",
+      "bytes": 14485
+    },
+    {
+      "path": ".chanlun/review-results/issue241-decomposition-forms-20260818.md",
+      "sha256": "ddcc8d45455da57225cf561d51f13ac39677bfc5608cb6ee64403f83c2753df1",
+      "bytes": 23082
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage52BoundaryRolesAndRepartition.md",
+      "sha256": "c14a12a4e6483b804075c531afd8eded6c8ebc732aa9d90003c257721a8ae338",
+      "bytes": 7599
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/ScopeClarifications-v1.md",
+      "sha256": "a1cbb45fb2c58cecad0675ac1977aee3dccd198da4fdc4c1ca5d03df5a7c375c",
+      "bytes": 2852
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/independent-brs-review.md",
+      "sha256": "b0a45f4ea79e2b55125e134df99c0587b382faf8e42d136addd56faa052e32af",
+      "bytes": 18023
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/p-completion-candidate.md",
+      "sha256": "e6d818c7f09b0295ad5d7ff9ca5035b5ce11ff5f5b7af65cb62e6547d134726b",
+      "bytes": 18015
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/ScopeCorrection-v1.md",
+      "sha256": "c661fc00c03bda65756e618e8fa9ff67e69ba201b040c6bf5bdf6424d5391059",
+      "bytes": 5919
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/diagnostic-evidence/README.md",
+      "sha256": "c0383cd7e1c9e37114f13d59c1c166307fab20b4b9d4e861a84574f1063d8bd5",
+      "bytes": 936
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/diagnostic-evidence/diagnostic-input.json",
+      "sha256": "2823cd38296cf308e1d93cc8162f4cc3261dad8cf0bed16c3d50d20bc3335b11",
+      "bytes": 6354
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/results-v1/same_up_counterexample.json",
+      "sha256": "f0236402a2fb6fa57b67a27f76b9ad73cda85dd06b3cd7374336215ace86aeef",
+      "bytes": 581315
+    }
+  ]
+}

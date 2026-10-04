@@ -1,0 +1,26 @@
+{
+  "ok": true,
+  "comparisonIsAfterIndependentReplay": true,
+  "records": [
+    {
+      "name": "same_up_counterexample",
+      "coresCompared": 9,
+      "stage52PrefixesCompared": 41
+    },
+    {
+      "name": "same_down_mirror",
+      "coresCompared": 9,
+      "stage52PrefixesCompared": 41
+    },
+    {
+      "name": "p_completion_overlap",
+      "coresCompared": 4,
+      "stage52PrefixesCompared": 0
+    },
+    {
+      "name": "p_completion_disjoint",
+      "coresCompared": 4,
+      "stage52PrefixesCompared": 0
+    }
+  ]
+}

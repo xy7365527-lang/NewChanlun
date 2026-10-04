@@ -1,0 +1,67 @@
+{
+  "name": "reanchor_115_control",
+  "ledger": "new-control",
+  "derivedFrom": "stage52/diagnostic-evidence/diagnostic-input.json",
+  "initial": {
+    "bid": {
+      "id": "reservoir",
+      "price": 100,
+      "quantity": 115
+    },
+    "ask": {
+      "id": "ask",
+      "price": 102,
+      "quantity": 10
+    }
+  },
+  "events": [
+    {
+      "seq": 1,
+      "kind": "reduce",
+      "id": "reservoir",
+      "quantity": 15
+    },
+    {
+      "seq": 2,
+      "kind": "add",
+      "id": "add-1",
+      "side": "bid",
+      "price": 100,
+      "quantity": 10
+    },
+    {
+      "seq": 3,
+      "kind": "reduce",
+      "id": "reservoir",
+      "quantity": 6
+    },
+    {
+      "seq": 4,
+      "kind": "add",
+      "id": "add-3",
+      "side": "bid",
+      "price": 100,
+      "quantity": 8
+    },
+    {
+      "seq": 5,
+      "kind": "reduce",
+      "id": "reservoir",
+      "quantity": 1
+    },
+    {
+      "seq": 6,
+      "kind": "add",
+      "id": "add-5",
+      "side": "bid",
+      "price": 100,
+      "quantity": 2
+    },
+    {
+      "seq": 7,
+      "kind": "reduce",
+      "id": "reservoir",
+      "quantity": 1
+    }
+  ]
+}

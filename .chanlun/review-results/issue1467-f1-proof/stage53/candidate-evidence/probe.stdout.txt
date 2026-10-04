@@ -1,0 +1,10 @@
+enumerated length 1: 4
+enumerated length 2: 16
+enumerated length 3: 64
+enumerated length 4: 256
+enumerated length 5: 1024
+enumerated length 6: 4096
+enumerated length 7: 16384
+enumerated length 8: 65536
+enumerated length 9: 262144
+{"ok":true,"oldOps":2081,"controlOps":28,"words":349524}

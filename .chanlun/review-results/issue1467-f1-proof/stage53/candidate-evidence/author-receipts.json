@@ -1,0 +1,24 @@
+{
+  "baseline": "6b69fd5c805ee65d84d60a8f703b40833fb85fca",
+  "node": "v22.23.1",
+  "commands": [
+    {
+      "command": "node .chanlun/review-results/issue1467-f1-proof/stage53/candidate-evidence/probe.mjs > .chanlun/review-results/issue1467-f1-proof/stage53/candidate-evidence/probe.stdout.txt 2> .chanlun/review-results/issue1467-f1-proof/stage53/candidate-evidence/probe.stderr.txt",
+      "exitCode": 0,
+      "stdout": "stage53/candidate-evidence/probe.stdout.txt",
+      "stderr": "stage53/candidate-evidence/probe.stderr.txt"
+    },
+    {
+      "command": "node .chanlun/review-results/issue1467-f1-proof/stage53/candidate-evidence/skipped-window-witnesses.mjs",
+      "exitCode": 0,
+      "stdout": "4 explicit scalar skipped-window controls passed"
+    },
+    {
+      "command": "node .chanlun/review-results/issue1467-f1-proof/stage53/candidate-evidence/compare-historical.mjs",
+      "exitCode": 0,
+      "result": "stage53/candidate-evidence/results-v1/historical-comparison.json"
+    }
+  ],
+  "createdAt": "2026-10-04T20:14:03.353Z",
+  "authorSelfCheckOnly": true
+}

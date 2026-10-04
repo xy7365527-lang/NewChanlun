@@ -1,0 +1,5141 @@
+{
+  "schema": "stage53-seed-departure-v1",
+  "baseline": "6b69fd5c805ee65d84d60a8f703b40833fb85fca",
+  "inputs": [
+    {
+      "name": "same_up_counterexample",
+      "ledger": "frozen-five",
+      "eventReferences": 40,
+      "prefixes": 41,
+      "policies": {
+        "A53": {
+          "firstPublication": 7,
+          "firstThreePublication": 15,
+          "changes": [
+            {
+              "t": 0,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 1,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 2,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 3,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 4,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 5,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 6,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 7,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 8,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 9,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 10,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 11,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 12,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 13,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 14,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 15,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 16,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 17,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 18,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 19,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 20,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 21,
+              "outputCount": 4,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 22,
+              "outputCount": 4,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 23,
+              "outputCount": 5,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 24,
+              "outputCount": 5,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 25,
+              "outputCount": 5,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 26,
+              "outputCount": 5,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 27,
+              "outputCount": 6,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 28,
+              "outputCount": 6,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 29,
+              "outputCount": 6,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 30,
+              "outputCount": 6,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 31,
+              "outputCount": 7,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 32,
+              "outputCount": 7,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 33,
+              "outputCount": 7,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 34,
+              "outputCount": 7,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 35,
+              "outputCount": 8,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 36,
+              "outputCount": 8,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 37,
+              "outputCount": 8,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 38,
+              "outputCount": 8,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 39,
+              "outputCount": 9,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 40,
+              "outputCount": 9,
+              "terminal": "NoCore"
+            }
+          ],
+          "finalCuts": [
+            0,
+            5,
+            9,
+            13,
+            17,
+            21,
+            25,
+            29,
+            33,
+            37
+          ],
+          "finalTerminal": {
+            "tag": "NoCore",
+            "cursor": 36,
+            "rejectedSeeds": []
+          },
+          "members": [
+            {
+              "id": 0,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "members": [
+                0,
+                1,
+                2
+              ],
+              "memberEvents": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "memberOuter": [
+                1000,
+                1040
+              ],
+              "departure": 3,
+              "return": 4,
+              "departureIsMember": false,
+              "core": [
+                1010,
+                1030
+              ],
+              "publishedAt": 7
+            },
+            {
+              "id": 1,
+              "seed": [
+                4,
+                5,
+                6
+              ],
+              "members": [
+                4,
+                5,
+                6
+              ],
+              "memberEvents": [
+                6,
+                7,
+                8
+              ],
+              "memberOuter": [
+                1100,
+                1140
+              ],
+              "departure": 7,
+              "return": 8,
+              "departureIsMember": false,
+              "core": [
+                1110,
+                1130
+              ],
+              "publishedAt": 11
+            },
+            {
+              "id": 2,
+              "seed": [
+                8,
+                9,
+                10
+              ],
+              "members": [
+                8,
+                9,
+                10
+              ],
+              "memberEvents": [
+                10,
+                11,
+                12
+              ],
+              "memberOuter": [
+                1135,
+                1140
+              ],
+              "departure": 11,
+              "return": 12,
+              "departureIsMember": false,
+              "core": [
+                1136,
+                1138
+              ],
+              "publishedAt": 15
+            },
+            {
+              "id": 3,
+              "seed": [
+                12,
+                13,
+                14
+              ],
+              "members": [
+                12,
+                13,
+                14
+              ],
+              "memberEvents": [
+                14,
+                15,
+                16
+              ],
+              "memberOuter": [
+                1200,
+                1240
+              ],
+              "departure": 15,
+              "return": 16,
+              "departureIsMember": false,
+              "core": [
+                1210,
+                1230
+              ],
+              "publishedAt": 19
+            },
+            {
+              "id": 4,
+              "seed": [
+                16,
+                17,
+                18
+              ],
+              "members": [
+                16,
+                17,
+                18
+              ],
+              "memberEvents": [
+                18,
+                19,
+                20
+              ],
+              "memberOuter": [
+                1235,
+                1240
+              ],
+              "departure": 19,
+              "return": 20,
+              "departureIsMember": false,
+              "core": [
+                1236,
+                1238
+              ],
+              "publishedAt": 23
+            },
+            {
+              "id": 5,
+              "seed": [
+                20,
+                21,
+                22
+              ],
+              "members": [
+                20,
+                21,
+                22
+              ],
+              "memberEvents": [
+                22,
+                23,
+                24
+              ],
+              "memberOuter": [
+                1300,
+                1340
+              ],
+              "departure": 23,
+              "return": 24,
+              "departureIsMember": false,
+              "core": [
+                1310,
+                1330
+              ],
+              "publishedAt": 27
+            },
+            {
+              "id": 6,
+              "seed": [
+                24,
+                25,
+                26
+              ],
+              "members": [
+                24,
+                25,
+                26
+              ],
+              "memberEvents": [
+                26,
+                27,
+                28
+              ],
+              "memberOuter": [
+                1335,
+                1340
+              ],
+              "departure": 27,
+              "return": 28,
+              "departureIsMember": false,
+              "core": [
+                1336,
+                1338
+              ],
+              "publishedAt": 31
+            },
+            {
+              "id": 7,
+              "seed": [
+                28,
+                29,
+                30
+              ],
+              "members": [
+                28,
+                29,
+                30
+              ],
+              "memberEvents": [
+                30,
+                31,
+                32
+              ],
+              "memberOuter": [
+                1400,
+                1440
+              ],
+              "departure": 31,
+              "return": 32,
+              "departureIsMember": false,
+              "core": [
+                1410,
+                1430
+              ],
+              "publishedAt": 35
+            },
+            {
+              "id": 8,
+              "seed": [
+                32,
+                33,
+                34
+              ],
+              "members": [
+                32,
+                33,
+                34
+              ],
+              "memberEvents": [
+                34,
+                35,
+                36
+              ],
+              "memberOuter": [
+                1500,
+                1540
+              ],
+              "departure": 35,
+              "return": 36,
+              "departureIsMember": false,
+              "core": [
+                1510,
+                1530
+              ],
+              "publishedAt": 39
+            }
+          ]
+        },
+        "B53": {
+          "firstPublication": 7,
+          "firstThreePublication": 15,
+          "changes": [
+            {
+              "t": 0,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 1,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 2,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 3,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 4,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 5,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 6,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 7,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 8,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 9,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 10,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 11,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 12,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 13,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 14,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 15,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 16,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 17,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 18,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 19,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 20,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 21,
+              "outputCount": 4,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 22,
+              "outputCount": 4,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 23,
+              "outputCount": 5,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 24,
+              "outputCount": 5,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 25,
+              "outputCount": 5,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 26,
+              "outputCount": 5,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 27,
+              "outputCount": 6,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 28,
+              "outputCount": 6,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 29,
+              "outputCount": 6,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 30,
+              "outputCount": 6,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 31,
+              "outputCount": 7,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 32,
+              "outputCount": 7,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 33,
+              "outputCount": 7,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 34,
+              "outputCount": 7,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 35,
+              "outputCount": 8,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 36,
+              "outputCount": 8,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 37,
+              "outputCount": 8,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 38,
+              "outputCount": 8,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 39,
+              "outputCount": 9,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 40,
+              "outputCount": 9,
+              "terminal": "NoCore"
+            }
+          ],
+          "finalCuts": [
+            0,
+            5,
+            9,
+            13,
+            17,
+            21,
+            25,
+            29,
+            33,
+            37
+          ],
+          "finalTerminal": {
+            "tag": "NoCore",
+            "cursor": 36,
+            "rejectedSeeds": []
+          },
+          "members": [
+            {
+              "id": 0,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "members": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "memberEvents": [
+                1,
+                2,
+                3,
+                4,
+                5
+              ],
+              "memberOuter": [
+                1000,
+                1140
+              ],
+              "departure": 3,
+              "return": 4,
+              "departureIsMember": true,
+              "core": [
+                1010,
+                1030
+              ],
+              "publishedAt": 7
+            },
+            {
+              "id": 1,
+              "seed": [
+                4,
+                5,
+                6
+              ],
+              "members": [
+                4,
+                5,
+                6,
+                7
+              ],
+              "memberEvents": [
+                6,
+                7,
+                8,
+                9
+              ],
+              "memberOuter": [
+                1100,
+                1140
+              ],
+              "departure": 7,
+              "return": 8,
+              "departureIsMember": true,
+              "core": [
+                1110,
+                1130
+              ],
+              "publishedAt": 11
+            },
+            {
+              "id": 2,
+              "seed": [
+                8,
+                9,
+                10
+              ],
+              "members": [
+                8,
+                9,
+                10,
+                11
+              ],
+              "memberEvents": [
+                10,
+                11,
+                12,
+                13
+              ],
+              "memberOuter": [
+                1135,
+                1240
+              ],
+              "departure": 11,
+              "return": 12,
+              "departureIsMember": true,
+              "core": [
+                1136,
+                1138
+              ],
+              "publishedAt": 15
+            },
+            {
+              "id": 3,
+              "seed": [
+                12,
+                13,
+                14
+              ],
+              "members": [
+                12,
+                13,
+                14,
+                15
+              ],
+              "memberEvents": [
+                14,
+                15,
+                16,
+                17
+              ],
+              "memberOuter": [
+                1200,
+                1240
+              ],
+              "departure": 15,
+              "return": 16,
+              "departureIsMember": true,
+              "core": [
+                1210,
+                1230
+              ],
+              "publishedAt": 19
+            },
+            {
+              "id": 4,
+              "seed": [
+                16,
+                17,
+                18
+              ],
+              "members": [
+                16,
+                17,
+                18,
+                19
+              ],
+              "memberEvents": [
+                18,
+                19,
+                20,
+                21
+              ],
+              "memberOuter": [
+                1235,
+                1340
+              ],
+              "departure": 19,
+              "return": 20,
+              "departureIsMember": true,
+              "core": [
+                1236,
+                1238
+              ],
+              "publishedAt": 23
+            },
+            {
+              "id": 5,
+              "seed": [
+                20,
+                21,
+                22
+              ],
+              "members": [
+                20,
+                21,
+                22,
+                23
+              ],
+              "memberEvents": [
+                22,
+                23,
+                24,
+                25
+              ],
+              "memberOuter": [
+                1300,
+                1340
+              ],
+              "departure": 23,
+              "return": 24,
+              "departureIsMember": true,
+              "core": [
+                1310,
+                1330
+              ],
+              "publishedAt": 27
+            },
+            {
+              "id": 6,
+              "seed": [
+                24,
+                25,
+                26
+              ],
+              "members": [
+                24,
+                25,
+                26,
+                27
+              ],
+              "memberEvents": [
+                26,
+                27,
+                28,
+                29
+              ],
+              "memberOuter": [
+                1335,
+                1440
+              ],
+              "departure": 27,
+              "return": 28,
+              "departureIsMember": true,
+              "core": [
+                1336,
+                1338
+              ],
+              "publishedAt": 31
+            },
+            {
+              "id": 7,
+              "seed": [
+                28,
+                29,
+                30
+              ],
+              "members": [
+                28,
+                29,
+                30,
+                31
+              ],
+              "memberEvents": [
+                30,
+                31,
+                32,
+                33
+              ],
+              "memberOuter": [
+                1400,
+                1540
+              ],
+              "departure": 31,
+              "return": 32,
+              "departureIsMember": true,
+              "core": [
+                1410,
+                1430
+              ],
+              "publishedAt": 35
+            },
+            {
+              "id": 8,
+              "seed": [
+                32,
+                33,
+                34
+              ],
+              "members": [
+                32,
+                33,
+                34,
+                35
+              ],
+              "memberEvents": [
+                34,
+                35,
+                36,
+                37
+              ],
+              "memberOuter": [
+                1500,
+                1640
+              ],
+              "departure": 35,
+              "return": 36,
+              "departureIsMember": true,
+              "core": [
+                1510,
+                1530
+              ],
+              "publishedAt": 39
+            }
+          ]
+        },
+        "C53": {
+          "firstPublication": 7,
+          "firstThreePublication": 15,
+          "changes": [
+            {
+              "t": 0,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 1,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 2,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 3,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 4,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 5,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 6,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 7,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 8,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 9,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 10,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 11,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 12,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 13,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 14,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 15,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 16,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 17,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 18,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 19,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 20,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 21,
+              "outputCount": 4,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 22,
+              "outputCount": 4,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 23,
+              "outputCount": 5,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 24,
+              "outputCount": 5,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 25,
+              "outputCount": 5,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 26,
+              "outputCount": 5,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 27,
+              "outputCount": 6,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 28,
+              "outputCount": 6,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 29,
+              "outputCount": 6,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 30,
+              "outputCount": 6,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 31,
+              "outputCount": 7,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 32,
+              "outputCount": 7,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 33,
+              "outputCount": 7,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 34,
+              "outputCount": 7,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 35,
+              "outputCount": 8,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 36,
+              "outputCount": 8,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 37,
+              "outputCount": 8,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 38,
+              "outputCount": 8,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 39,
+              "outputCount": 9,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 40,
+              "outputCount": 9,
+              "terminal": "NoCore"
+            }
+          ],
+          "finalCuts": [
+            0,
+            5,
+            9,
+            13,
+            17,
+            21,
+            25,
+            29,
+            33,
+            37
+          ],
+          "finalTerminal": {
+            "tag": "NoCore",
+            "cursor": 36,
+            "rejectedSeeds": []
+          },
+          "members": [
+            {
+              "id": 0,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "members": [
+                0,
+                1,
+                2
+              ],
+              "memberEvents": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "memberOuter": [
+                1000,
+                1040
+              ],
+              "departure": 3,
+              "return": 4,
+              "departureIsMember": false,
+              "core": [
+                1010,
+                1030
+              ],
+              "publishedAt": 7
+            },
+            {
+              "id": 1,
+              "seed": [
+                4,
+                5,
+                6
+              ],
+              "members": [
+                4,
+                5,
+                6
+              ],
+              "memberEvents": [
+                6,
+                7,
+                8
+              ],
+              "memberOuter": [
+                1100,
+                1140
+              ],
+              "departure": 7,
+              "return": 8,
+              "departureIsMember": false,
+              "core": [
+                1110,
+                1130
+              ],
+              "publishedAt": 11
+            },
+            {
+              "id": 2,
+              "seed": [
+                8,
+                9,
+                10
+              ],
+              "members": [
+                8,
+                9,
+                10
+              ],
+              "memberEvents": [
+                10,
+                11,
+                12
+              ],
+              "memberOuter": [
+                1135,
+                1140
+              ],
+              "departure": 11,
+              "return": 12,
+              "departureIsMember": false,
+              "core": [
+                1136,
+                1138
+              ],
+              "publishedAt": 15
+            },
+            {
+              "id": 3,
+              "seed": [
+                12,
+                13,
+                14
+              ],
+              "members": [
+                12,
+                13,
+                14
+              ],
+              "memberEvents": [
+                14,
+                15,
+                16
+              ],
+              "memberOuter": [
+                1200,
+                1240
+              ],
+              "departure": 15,
+              "return": 16,
+              "departureIsMember": false,
+              "core": [
+                1210,
+                1230
+              ],
+              "publishedAt": 19
+            },
+            {
+              "id": 4,
+              "seed": [
+                16,
+                17,
+                18
+              ],
+              "members": [
+                16,
+                17,
+                18
+              ],
+              "memberEvents": [
+                18,
+                19,
+                20
+              ],
+              "memberOuter": [
+                1235,
+                1240
+              ],
+              "departure": 19,
+              "return": 20,
+              "departureIsMember": false,
+              "core": [
+                1236,
+                1238
+              ],
+              "publishedAt": 23
+            },
+            {
+              "id": 5,
+              "seed": [
+                20,
+                21,
+                22
+              ],
+              "members": [
+                20,
+                21,
+                22
+              ],
+              "memberEvents": [
+                22,
+                23,
+                24
+              ],
+              "memberOuter": [
+                1300,
+                1340
+              ],
+              "departure": 23,
+              "return": 24,
+              "departureIsMember": false,
+              "core": [
+                1310,
+                1330
+              ],
+              "publishedAt": 27
+            },
+            {
+              "id": 6,
+              "seed": [
+                24,
+                25,
+                26
+              ],
+              "members": [
+                24,
+                25,
+                26
+              ],
+              "memberEvents": [
+                26,
+                27,
+                28
+              ],
+              "memberOuter": [
+                1335,
+                1340
+              ],
+              "departure": 27,
+              "return": 28,
+              "departureIsMember": false,
+              "core": [
+                1336,
+                1338
+              ],
+              "publishedAt": 31
+            },
+            {
+              "id": 7,
+              "seed": [
+                28,
+                29,
+                30
+              ],
+              "members": [
+                28,
+                29,
+                30
+              ],
+              "memberEvents": [
+                30,
+                31,
+                32
+              ],
+              "memberOuter": [
+                1400,
+                1440
+              ],
+              "departure": 31,
+              "return": 32,
+              "departureIsMember": false,
+              "core": [
+                1410,
+                1430
+              ],
+              "publishedAt": 35
+            },
+            {
+              "id": 8,
+              "seed": [
+                32,
+                33,
+                34
+              ],
+              "members": [
+                32,
+                33,
+                34
+              ],
+              "memberEvents": [
+                34,
+                35,
+                36
+              ],
+              "memberOuter": [
+                1500,
+                1540
+              ],
+              "departure": 35,
+              "return": 36,
+              "departureIsMember": false,
+              "core": [
+                1510,
+                1530
+              ],
+              "publishedAt": 39
+            }
+          ]
+        }
+      },
+      "historicalCheck": {
+        "oldFileKeys": [
+          "schema",
+          "name",
+          "sourceFile",
+          "sourceSHA256",
+          "source",
+          "replayedStates",
+          "orderSnapshots",
+          "rawLegs",
+          "rawCoreSeams",
+          "fixedPartition",
+          "uniformPolicies",
+          "allPhasePartitions",
+          "onlinePrefixes",
+          "ownershipTransport",
+          "ordinalLocalObstruction",
+          "scope"
+        ],
+        "finalCutsMatchStage52FirstThree": true
+      }
+    },
+    {
+      "name": "same_down_mirror",
+      "ledger": "frozen-five",
+      "eventReferences": 40,
+      "prefixes": 41,
+      "policies": {
+        "A53": {
+          "firstPublication": 7,
+          "firstThreePublication": 15,
+          "changes": [
+            {
+              "t": 0,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 1,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 2,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 3,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 4,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 5,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 6,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 7,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 8,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 9,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 10,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 11,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 12,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 13,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 14,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 15,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 16,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 17,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 18,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 19,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 20,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 21,
+              "outputCount": 4,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 22,
+              "outputCount": 4,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 23,
+              "outputCount": 5,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 24,
+              "outputCount": 5,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 25,
+              "outputCount": 5,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 26,
+              "outputCount": 5,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 27,
+              "outputCount": 6,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 28,
+              "outputCount": 6,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 29,
+              "outputCount": 6,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 30,
+              "outputCount": 6,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 31,
+              "outputCount": 7,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 32,
+              "outputCount": 7,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 33,
+              "outputCount": 7,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 34,
+              "outputCount": 7,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 35,
+              "outputCount": 8,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 36,
+              "outputCount": 8,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 37,
+              "outputCount": 8,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 38,
+              "outputCount": 8,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 39,
+              "outputCount": 9,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 40,
+              "outputCount": 9,
+              "terminal": "NoCore"
+            }
+          ],
+          "finalCuts": [
+            0,
+            5,
+            9,
+            13,
+            17,
+            21,
+            25,
+            29,
+            33,
+            37
+          ],
+          "finalTerminal": {
+            "tag": "NoCore",
+            "cursor": 36,
+            "rejectedSeeds": []
+          },
+          "members": [
+            {
+              "id": 0,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "members": [
+                0,
+                1,
+                2
+              ],
+              "memberEvents": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "memberOuter": [
+                1660,
+                1700
+              ],
+              "departure": 3,
+              "return": 4,
+              "departureIsMember": false,
+              "core": [
+                1670,
+                1690
+              ],
+              "publishedAt": 7
+            },
+            {
+              "id": 1,
+              "seed": [
+                4,
+                5,
+                6
+              ],
+              "members": [
+                4,
+                5,
+                6
+              ],
+              "memberEvents": [
+                6,
+                7,
+                8
+              ],
+              "memberOuter": [
+                1560,
+                1600
+              ],
+              "departure": 7,
+              "return": 8,
+              "departureIsMember": false,
+              "core": [
+                1570,
+                1590
+              ],
+              "publishedAt": 11
+            },
+            {
+              "id": 2,
+              "seed": [
+                8,
+                9,
+                10
+              ],
+              "members": [
+                8,
+                9,
+                10
+              ],
+              "memberEvents": [
+                10,
+                11,
+                12
+              ],
+              "memberOuter": [
+                1560,
+                1565
+              ],
+              "departure": 11,
+              "return": 12,
+              "departureIsMember": false,
+              "core": [
+                1562,
+                1564
+              ],
+              "publishedAt": 15
+            },
+            {
+              "id": 3,
+              "seed": [
+                12,
+                13,
+                14
+              ],
+              "members": [
+                12,
+                13,
+                14
+              ],
+              "memberEvents": [
+                14,
+                15,
+                16
+              ],
+              "memberOuter": [
+                1460,
+                1500
+              ],
+              "departure": 15,
+              "return": 16,
+              "departureIsMember": false,
+              "core": [
+                1470,
+                1490
+              ],
+              "publishedAt": 19
+            },
+            {
+              "id": 4,
+              "seed": [
+                16,
+                17,
+                18
+              ],
+              "members": [
+                16,
+                17,
+                18
+              ],
+              "memberEvents": [
+                18,
+                19,
+                20
+              ],
+              "memberOuter": [
+                1460,
+                1465
+              ],
+              "departure": 19,
+              "return": 20,
+              "departureIsMember": false,
+              "core": [
+                1462,
+                1464
+              ],
+              "publishedAt": 23
+            },
+            {
+              "id": 5,
+              "seed": [
+                20,
+                21,
+                22
+              ],
+              "members": [
+                20,
+                21,
+                22
+              ],
+              "memberEvents": [
+                22,
+                23,
+                24
+              ],
+              "memberOuter": [
+                1360,
+                1400
+              ],
+              "departure": 23,
+              "return": 24,
+              "departureIsMember": false,
+              "core": [
+                1370,
+                1390
+              ],
+              "publishedAt": 27
+            },
+            {
+              "id": 6,
+              "seed": [
+                24,
+                25,
+                26
+              ],
+              "members": [
+                24,
+                25,
+                26
+              ],
+              "memberEvents": [
+                26,
+                27,
+                28
+              ],
+              "memberOuter": [
+                1360,
+                1365
+              ],
+              "departure": 27,
+              "return": 28,
+              "departureIsMember": false,
+              "core": [
+                1362,
+                1364
+              ],
+              "publishedAt": 31
+            },
+            {
+              "id": 7,
+              "seed": [
+                28,
+                29,
+                30
+              ],
+              "members": [
+                28,
+                29,
+                30
+              ],
+              "memberEvents": [
+                30,
+                31,
+                32
+              ],
+              "memberOuter": [
+                1260,
+                1300
+              ],
+              "departure": 31,
+              "return": 32,
+              "departureIsMember": false,
+              "core": [
+                1270,
+                1290
+              ],
+              "publishedAt": 35
+            },
+            {
+              "id": 8,
+              "seed": [
+                32,
+                33,
+                34
+              ],
+              "members": [
+                32,
+                33,
+                34
+              ],
+              "memberEvents": [
+                34,
+                35,
+                36
+              ],
+              "memberOuter": [
+                1160,
+                1200
+              ],
+              "departure": 35,
+              "return": 36,
+              "departureIsMember": false,
+              "core": [
+                1170,
+                1190
+              ],
+              "publishedAt": 39
+            }
+          ]
+        },
+        "B53": {
+          "firstPublication": 7,
+          "firstThreePublication": 15,
+          "changes": [
+            {
+              "t": 0,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 1,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 2,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 3,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 4,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 5,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 6,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 7,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 8,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 9,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 10,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 11,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 12,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 13,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 14,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 15,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 16,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 17,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 18,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 19,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 20,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 21,
+              "outputCount": 4,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 22,
+              "outputCount": 4,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 23,
+              "outputCount": 5,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 24,
+              "outputCount": 5,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 25,
+              "outputCount": 5,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 26,
+              "outputCount": 5,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 27,
+              "outputCount": 6,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 28,
+              "outputCount": 6,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 29,
+              "outputCount": 6,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 30,
+              "outputCount": 6,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 31,
+              "outputCount": 7,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 32,
+              "outputCount": 7,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 33,
+              "outputCount": 7,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 34,
+              "outputCount": 7,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 35,
+              "outputCount": 8,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 36,
+              "outputCount": 8,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 37,
+              "outputCount": 8,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 38,
+              "outputCount": 8,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 39,
+              "outputCount": 9,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 40,
+              "outputCount": 9,
+              "terminal": "NoCore"
+            }
+          ],
+          "finalCuts": [
+            0,
+            5,
+            9,
+            13,
+            17,
+            21,
+            25,
+            29,
+            33,
+            37
+          ],
+          "finalTerminal": {
+            "tag": "NoCore",
+            "cursor": 36,
+            "rejectedSeeds": []
+          },
+          "members": [
+            {
+              "id": 0,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "members": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "memberEvents": [
+                1,
+                2,
+                3,
+                4,
+                5
+              ],
+              "memberOuter": [
+                1560,
+                1700
+              ],
+              "departure": 3,
+              "return": 4,
+              "departureIsMember": true,
+              "core": [
+                1670,
+                1690
+              ],
+              "publishedAt": 7
+            },
+            {
+              "id": 1,
+              "seed": [
+                4,
+                5,
+                6
+              ],
+              "members": [
+                4,
+                5,
+                6,
+                7
+              ],
+              "memberEvents": [
+                6,
+                7,
+                8,
+                9
+              ],
+              "memberOuter": [
+                1560,
+                1600
+              ],
+              "departure": 7,
+              "return": 8,
+              "departureIsMember": true,
+              "core": [
+                1570,
+                1590
+              ],
+              "publishedAt": 11
+            },
+            {
+              "id": 2,
+              "seed": [
+                8,
+                9,
+                10
+              ],
+              "members": [
+                8,
+                9,
+                10,
+                11
+              ],
+              "memberEvents": [
+                10,
+                11,
+                12,
+                13
+              ],
+              "memberOuter": [
+                1460,
+                1565
+              ],
+              "departure": 11,
+              "return": 12,
+              "departureIsMember": true,
+              "core": [
+                1562,
+                1564
+              ],
+              "publishedAt": 15
+            },
+            {
+              "id": 3,
+              "seed": [
+                12,
+                13,
+                14
+              ],
+              "members": [
+                12,
+                13,
+                14,
+                15
+              ],
+              "memberEvents": [
+                14,
+                15,
+                16,
+                17
+              ],
+              "memberOuter": [
+                1460,
+                1500
+              ],
+              "departure": 15,
+              "return": 16,
+              "departureIsMember": true,
+              "core": [
+                1470,
+                1490
+              ],
+              "publishedAt": 19
+            },
+            {
+              "id": 4,
+              "seed": [
+                16,
+                17,
+                18
+              ],
+              "members": [
+                16,
+                17,
+                18,
+                19
+              ],
+              "memberEvents": [
+                18,
+                19,
+                20,
+                21
+              ],
+              "memberOuter": [
+                1360,
+                1465
+              ],
+              "departure": 19,
+              "return": 20,
+              "departureIsMember": true,
+              "core": [
+                1462,
+                1464
+              ],
+              "publishedAt": 23
+            },
+            {
+              "id": 5,
+              "seed": [
+                20,
+                21,
+                22
+              ],
+              "members": [
+                20,
+                21,
+                22,
+                23
+              ],
+              "memberEvents": [
+                22,
+                23,
+                24,
+                25
+              ],
+              "memberOuter": [
+                1360,
+                1400
+              ],
+              "departure": 23,
+              "return": 24,
+              "departureIsMember": true,
+              "core": [
+                1370,
+                1390
+              ],
+              "publishedAt": 27
+            },
+            {
+              "id": 6,
+              "seed": [
+                24,
+                25,
+                26
+              ],
+              "members": [
+                24,
+                25,
+                26,
+                27
+              ],
+              "memberEvents": [
+                26,
+                27,
+                28,
+                29
+              ],
+              "memberOuter": [
+                1260,
+                1365
+              ],
+              "departure": 27,
+              "return": 28,
+              "departureIsMember": true,
+              "core": [
+                1362,
+                1364
+              ],
+              "publishedAt": 31
+            },
+            {
+              "id": 7,
+              "seed": [
+                28,
+                29,
+                30
+              ],
+              "members": [
+                28,
+                29,
+                30,
+                31
+              ],
+              "memberEvents": [
+                30,
+                31,
+                32,
+                33
+              ],
+              "memberOuter": [
+                1160,
+                1300
+              ],
+              "departure": 31,
+              "return": 32,
+              "departureIsMember": true,
+              "core": [
+                1270,
+                1290
+              ],
+              "publishedAt": 35
+            },
+            {
+              "id": 8,
+              "seed": [
+                32,
+                33,
+                34
+              ],
+              "members": [
+                32,
+                33,
+                34,
+                35
+              ],
+              "memberEvents": [
+                34,
+                35,
+                36,
+                37
+              ],
+              "memberOuter": [
+                1060,
+                1200
+              ],
+              "departure": 35,
+              "return": 36,
+              "departureIsMember": true,
+              "core": [
+                1170,
+                1190
+              ],
+              "publishedAt": 39
+            }
+          ]
+        },
+        "C53": {
+          "firstPublication": 7,
+          "firstThreePublication": 15,
+          "changes": [
+            {
+              "t": 0,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 1,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 2,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 3,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 4,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 5,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 6,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 7,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 8,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 9,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 10,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 11,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 12,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 13,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 14,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 15,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 16,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 17,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 18,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 19,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 20,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 21,
+              "outputCount": 4,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 22,
+              "outputCount": 4,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 23,
+              "outputCount": 5,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 24,
+              "outputCount": 5,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 25,
+              "outputCount": 5,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 26,
+              "outputCount": 5,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 27,
+              "outputCount": 6,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 28,
+              "outputCount": 6,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 29,
+              "outputCount": 6,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 30,
+              "outputCount": 6,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 31,
+              "outputCount": 7,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 32,
+              "outputCount": 7,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 33,
+              "outputCount": 7,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 34,
+              "outputCount": 7,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 35,
+              "outputCount": 8,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 36,
+              "outputCount": 8,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 37,
+              "outputCount": 8,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 38,
+              "outputCount": 8,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 39,
+              "outputCount": 9,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 40,
+              "outputCount": 9,
+              "terminal": "NoCore"
+            }
+          ],
+          "finalCuts": [
+            0,
+            5,
+            9,
+            13,
+            17,
+            21,
+            25,
+            29,
+            33,
+            37
+          ],
+          "finalTerminal": {
+            "tag": "NoCore",
+            "cursor": 36,
+            "rejectedSeeds": []
+          },
+          "members": [
+            {
+              "id": 0,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "members": [
+                0,
+                1,
+                2
+              ],
+              "memberEvents": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "memberOuter": [
+                1660,
+                1700
+              ],
+              "departure": 3,
+              "return": 4,
+              "departureIsMember": false,
+              "core": [
+                1670,
+                1690
+              ],
+              "publishedAt": 7
+            },
+            {
+              "id": 1,
+              "seed": [
+                4,
+                5,
+                6
+              ],
+              "members": [
+                4,
+                5,
+                6
+              ],
+              "memberEvents": [
+                6,
+                7,
+                8
+              ],
+              "memberOuter": [
+                1560,
+                1600
+              ],
+              "departure": 7,
+              "return": 8,
+              "departureIsMember": false,
+              "core": [
+                1570,
+                1590
+              ],
+              "publishedAt": 11
+            },
+            {
+              "id": 2,
+              "seed": [
+                8,
+                9,
+                10
+              ],
+              "members": [
+                8,
+                9,
+                10
+              ],
+              "memberEvents": [
+                10,
+                11,
+                12
+              ],
+              "memberOuter": [
+                1560,
+                1565
+              ],
+              "departure": 11,
+              "return": 12,
+              "departureIsMember": false,
+              "core": [
+                1562,
+                1564
+              ],
+              "publishedAt": 15
+            },
+            {
+              "id": 3,
+              "seed": [
+                12,
+                13,
+                14
+              ],
+              "members": [
+                12,
+                13,
+                14
+              ],
+              "memberEvents": [
+                14,
+                15,
+                16
+              ],
+              "memberOuter": [
+                1460,
+                1500
+              ],
+              "departure": 15,
+              "return": 16,
+              "departureIsMember": false,
+              "core": [
+                1470,
+                1490
+              ],
+              "publishedAt": 19
+            },
+            {
+              "id": 4,
+              "seed": [
+                16,
+                17,
+                18
+              ],
+              "members": [
+                16,
+                17,
+                18
+              ],
+              "memberEvents": [
+                18,
+                19,
+                20
+              ],
+              "memberOuter": [
+                1460,
+                1465
+              ],
+              "departure": 19,
+              "return": 20,
+              "departureIsMember": false,
+              "core": [
+                1462,
+                1464
+              ],
+              "publishedAt": 23
+            },
+            {
+              "id": 5,
+              "seed": [
+                20,
+                21,
+                22
+              ],
+              "members": [
+                20,
+                21,
+                22
+              ],
+              "memberEvents": [
+                22,
+                23,
+                24
+              ],
+              "memberOuter": [
+                1360,
+                1400
+              ],
+              "departure": 23,
+              "return": 24,
+              "departureIsMember": false,
+              "core": [
+                1370,
+                1390
+              ],
+              "publishedAt": 27
+            },
+            {
+              "id": 6,
+              "seed": [
+                24,
+                25,
+                26
+              ],
+              "members": [
+                24,
+                25,
+                26
+              ],
+              "memberEvents": [
+                26,
+                27,
+                28
+              ],
+              "memberOuter": [
+                1360,
+                1365
+              ],
+              "departure": 27,
+              "return": 28,
+              "departureIsMember": false,
+              "core": [
+                1362,
+                1364
+              ],
+              "publishedAt": 31
+            },
+            {
+              "id": 7,
+              "seed": [
+                28,
+                29,
+                30
+              ],
+              "members": [
+                28,
+                29,
+                30
+              ],
+              "memberEvents": [
+                30,
+                31,
+                32
+              ],
+              "memberOuter": [
+                1260,
+                1300
+              ],
+              "departure": 31,
+              "return": 32,
+              "departureIsMember": false,
+              "core": [
+                1270,
+                1290
+              ],
+              "publishedAt": 35
+            },
+            {
+              "id": 8,
+              "seed": [
+                32,
+                33,
+                34
+              ],
+              "members": [
+                32,
+                33,
+                34
+              ],
+              "memberEvents": [
+                34,
+                35,
+                36
+              ],
+              "memberOuter": [
+                1160,
+                1200
+              ],
+              "departure": 35,
+              "return": 36,
+              "departureIsMember": false,
+              "core": [
+                1170,
+                1190
+              ],
+              "publishedAt": 39
+            }
+          ]
+        }
+      },
+      "historicalCheck": {
+        "oldFileKeys": [
+          "schema",
+          "name",
+          "sourceFile",
+          "sourceSHA256",
+          "source",
+          "replayedStates",
+          "orderSnapshots",
+          "rawLegs",
+          "rawCoreSeams",
+          "fixedPartition",
+          "uniformPolicies",
+          "allPhasePartitions",
+          "onlinePrefixes",
+          "ownershipTransport",
+          "ordinalLocalObstruction",
+          "scope"
+        ],
+        "finalCutsMatchStage52FirstThree": true
+      }
+    },
+    {
+      "name": "p_completion_overlap",
+      "ledger": "frozen-five",
+      "eventReferences": 20,
+      "prefixes": 21,
+      "policies": {
+        "A53": {
+          "firstPublication": 7,
+          "firstThreePublication": 15,
+          "changes": [
+            {
+              "t": 0,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 1,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 2,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 3,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 4,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 5,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 6,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 7,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 8,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 9,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 10,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 11,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 12,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 13,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 14,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 15,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 16,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 17,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 18,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 19,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 20,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            }
+          ],
+          "finalCuts": [
+            0,
+            5,
+            9,
+            13,
+            17
+          ],
+          "finalTerminal": {
+            "tag": "NoCore",
+            "cursor": 16,
+            "rejectedSeeds": []
+          },
+          "members": [
+            {
+              "id": 0,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "members": [
+                0,
+                1,
+                2
+              ],
+              "memberEvents": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "memberOuter": [
+                1080,
+                1140
+              ],
+              "departure": 3,
+              "return": 4,
+              "departureIsMember": false,
+              "core": [
+                1100,
+                1120
+              ],
+              "publishedAt": 7
+            },
+            {
+              "id": 1,
+              "seed": [
+                4,
+                5,
+                6
+              ],
+              "members": [
+                4,
+                5,
+                6
+              ],
+              "memberEvents": [
+                6,
+                7,
+                8
+              ],
+              "memberOuter": [
+                1130,
+                1220
+              ],
+              "departure": 7,
+              "return": 8,
+              "departureIsMember": false,
+              "core": [
+                1160,
+                1200
+              ],
+              "publishedAt": 11
+            },
+            {
+              "id": 2,
+              "seed": [
+                8,
+                9,
+                10
+              ],
+              "members": [
+                8,
+                9,
+                10
+              ],
+              "memberEvents": [
+                10,
+                11,
+                12
+              ],
+              "memberOuter": [
+                1230,
+                1240
+              ],
+              "departure": 11,
+              "return": 12,
+              "departureIsMember": false,
+              "core": [
+                1232,
+                1238
+              ],
+              "publishedAt": 15
+            },
+            {
+              "id": 3,
+              "seed": [
+                12,
+                13,
+                14
+              ],
+              "members": [
+                12,
+                13,
+                14
+              ],
+              "memberEvents": [
+                14,
+                15,
+                16
+              ],
+              "memberOuter": [
+                1300,
+                1340
+              ],
+              "departure": 15,
+              "return": 16,
+              "departureIsMember": false,
+              "core": [
+                1310,
+                1330
+              ],
+              "publishedAt": 19
+            }
+          ]
+        },
+        "B53": {
+          "firstPublication": 7,
+          "firstThreePublication": 15,
+          "changes": [
+            {
+              "t": 0,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 1,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 2,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 3,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 4,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 5,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 6,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 7,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 8,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 9,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 10,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 11,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 12,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 13,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 14,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 15,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 16,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 17,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 18,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 19,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 20,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            }
+          ],
+          "finalCuts": [
+            0,
+            5,
+            9,
+            13,
+            17
+          ],
+          "finalTerminal": {
+            "tag": "NoCore",
+            "cursor": 16,
+            "rejectedSeeds": []
+          },
+          "members": [
+            {
+              "id": 0,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "members": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "memberEvents": [
+                1,
+                2,
+                3,
+                4,
+                5
+              ],
+              "memberOuter": [
+                1080,
+                1200
+              ],
+              "departure": 3,
+              "return": 4,
+              "departureIsMember": true,
+              "core": [
+                1100,
+                1120
+              ],
+              "publishedAt": 7
+            },
+            {
+              "id": 1,
+              "seed": [
+                4,
+                5,
+                6
+              ],
+              "members": [
+                4,
+                5,
+                6,
+                7
+              ],
+              "memberEvents": [
+                6,
+                7,
+                8,
+                9
+              ],
+              "memberOuter": [
+                1130,
+                1240
+              ],
+              "departure": 7,
+              "return": 8,
+              "departureIsMember": true,
+              "core": [
+                1160,
+                1200
+              ],
+              "publishedAt": 11
+            },
+            {
+              "id": 2,
+              "seed": [
+                8,
+                9,
+                10
+              ],
+              "members": [
+                8,
+                9,
+                10,
+                11
+              ],
+              "memberEvents": [
+                10,
+                11,
+                12,
+                13
+              ],
+              "memberOuter": [
+                1230,
+                1340
+              ],
+              "departure": 11,
+              "return": 12,
+              "departureIsMember": true,
+              "core": [
+                1232,
+                1238
+              ],
+              "publishedAt": 15
+            },
+            {
+              "id": 3,
+              "seed": [
+                12,
+                13,
+                14
+              ],
+              "members": [
+                12,
+                13,
+                14,
+                15
+              ],
+              "memberEvents": [
+                14,
+                15,
+                16,
+                17
+              ],
+              "memberOuter": [
+                1300,
+                1440
+              ],
+              "departure": 15,
+              "return": 16,
+              "departureIsMember": true,
+              "core": [
+                1310,
+                1330
+              ],
+              "publishedAt": 19
+            }
+          ]
+        },
+        "C53": {
+          "firstPublication": 7,
+          "firstThreePublication": 15,
+          "changes": [
+            {
+              "t": 0,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 1,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 2,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 3,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 4,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 5,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 6,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 7,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 8,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 9,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 10,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 11,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 12,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 13,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 14,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 15,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 16,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 17,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 18,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 19,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 20,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            }
+          ],
+          "finalCuts": [
+            0,
+            5,
+            9,
+            13,
+            17
+          ],
+          "finalTerminal": {
+            "tag": "NoCore",
+            "cursor": 16,
+            "rejectedSeeds": []
+          },
+          "members": [
+            {
+              "id": 0,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "members": [
+                0,
+                1,
+                2
+              ],
+              "memberEvents": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "memberOuter": [
+                1080,
+                1140
+              ],
+              "departure": 3,
+              "return": 4,
+              "departureIsMember": false,
+              "core": [
+                1100,
+                1120
+              ],
+              "publishedAt": 7
+            },
+            {
+              "id": 1,
+              "seed": [
+                4,
+                5,
+                6
+              ],
+              "members": [
+                4,
+                5,
+                6
+              ],
+              "memberEvents": [
+                6,
+                7,
+                8
+              ],
+              "memberOuter": [
+                1130,
+                1220
+              ],
+              "departure": 7,
+              "return": 8,
+              "departureIsMember": false,
+              "core": [
+                1160,
+                1200
+              ],
+              "publishedAt": 11
+            },
+            {
+              "id": 2,
+              "seed": [
+                8,
+                9,
+                10
+              ],
+              "members": [
+                8,
+                9,
+                10
+              ],
+              "memberEvents": [
+                10,
+                11,
+                12
+              ],
+              "memberOuter": [
+                1230,
+                1240
+              ],
+              "departure": 11,
+              "return": 12,
+              "departureIsMember": false,
+              "core": [
+                1232,
+                1238
+              ],
+              "publishedAt": 15
+            },
+            {
+              "id": 3,
+              "seed": [
+                12,
+                13,
+                14
+              ],
+              "members": [
+                12,
+                13,
+                14
+              ],
+              "memberEvents": [
+                14,
+                15,
+                16
+              ],
+              "memberOuter": [
+                1300,
+                1340
+              ],
+              "departure": 15,
+              "return": 16,
+              "departureIsMember": false,
+              "core": [
+                1310,
+                1330
+              ],
+              "publishedAt": 19
+            }
+          ]
+        }
+      },
+      "historicalCheck": null
+    },
+    {
+      "name": "p_completion_disjoint",
+      "ledger": "frozen-five",
+      "eventReferences": 20,
+      "prefixes": 21,
+      "policies": {
+        "A53": {
+          "firstPublication": 7,
+          "firstThreePublication": 15,
+          "changes": [
+            {
+              "t": 0,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 1,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 2,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 3,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 4,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 5,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 6,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 7,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 8,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 9,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 10,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 11,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 12,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 13,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 14,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 15,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 16,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 17,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 18,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 19,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 20,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            }
+          ],
+          "finalCuts": [
+            0,
+            5,
+            9,
+            13,
+            17
+          ],
+          "finalTerminal": {
+            "tag": "NoCore",
+            "cursor": 16,
+            "rejectedSeeds": []
+          },
+          "members": [
+            {
+              "id": 0,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "members": [
+                0,
+                1,
+                2
+              ],
+              "memberEvents": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "memberOuter": [
+                1080,
+                1140
+              ],
+              "departure": 3,
+              "return": 4,
+              "departureIsMember": false,
+              "core": [
+                1100,
+                1120
+              ],
+              "publishedAt": 7
+            },
+            {
+              "id": 1,
+              "seed": [
+                4,
+                5,
+                6
+              ],
+              "members": [
+                4,
+                5,
+                6
+              ],
+              "memberEvents": [
+                6,
+                7,
+                8
+              ],
+              "memberOuter": [
+                1160,
+                1220
+              ],
+              "departure": 7,
+              "return": 8,
+              "departureIsMember": false,
+              "core": [
+                1180,
+                1200
+              ],
+              "publishedAt": 11
+            },
+            {
+              "id": 2,
+              "seed": [
+                8,
+                9,
+                10
+              ],
+              "members": [
+                8,
+                9,
+                10
+              ],
+              "memberEvents": [
+                10,
+                11,
+                12
+              ],
+              "memberOuter": [
+                1230,
+                1240
+              ],
+              "departure": 11,
+              "return": 12,
+              "departureIsMember": false,
+              "core": [
+                1232,
+                1238
+              ],
+              "publishedAt": 15
+            },
+            {
+              "id": 3,
+              "seed": [
+                12,
+                13,
+                14
+              ],
+              "members": [
+                12,
+                13,
+                14
+              ],
+              "memberEvents": [
+                14,
+                15,
+                16
+              ],
+              "memberOuter": [
+                1300,
+                1340
+              ],
+              "departure": 15,
+              "return": 16,
+              "departureIsMember": false,
+              "core": [
+                1310,
+                1330
+              ],
+              "publishedAt": 19
+            }
+          ]
+        },
+        "B53": {
+          "firstPublication": 7,
+          "firstThreePublication": 15,
+          "changes": [
+            {
+              "t": 0,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 1,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 2,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 3,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 4,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 5,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 6,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 7,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 8,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 9,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 10,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 11,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 12,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 13,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 14,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 15,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 16,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 17,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 18,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 19,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 20,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            }
+          ],
+          "finalCuts": [
+            0,
+            5,
+            9,
+            13,
+            17
+          ],
+          "finalTerminal": {
+            "tag": "NoCore",
+            "cursor": 16,
+            "rejectedSeeds": []
+          },
+          "members": [
+            {
+              "id": 0,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "members": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "memberEvents": [
+                1,
+                2,
+                3,
+                4,
+                5
+              ],
+              "memberOuter": [
+                1080,
+                1200
+              ],
+              "departure": 3,
+              "return": 4,
+              "departureIsMember": true,
+              "core": [
+                1100,
+                1120
+              ],
+              "publishedAt": 7
+            },
+            {
+              "id": 1,
+              "seed": [
+                4,
+                5,
+                6
+              ],
+              "members": [
+                4,
+                5,
+                6,
+                7
+              ],
+              "memberEvents": [
+                6,
+                7,
+                8,
+                9
+              ],
+              "memberOuter": [
+                1160,
+                1240
+              ],
+              "departure": 7,
+              "return": 8,
+              "departureIsMember": true,
+              "core": [
+                1180,
+                1200
+              ],
+              "publishedAt": 11
+            },
+            {
+              "id": 2,
+              "seed": [
+                8,
+                9,
+                10
+              ],
+              "members": [
+                8,
+                9,
+                10,
+                11
+              ],
+              "memberEvents": [
+                10,
+                11,
+                12,
+                13
+              ],
+              "memberOuter": [
+                1230,
+                1340
+              ],
+              "departure": 11,
+              "return": 12,
+              "departureIsMember": true,
+              "core": [
+                1232,
+                1238
+              ],
+              "publishedAt": 15
+            },
+            {
+              "id": 3,
+              "seed": [
+                12,
+                13,
+                14
+              ],
+              "members": [
+                12,
+                13,
+                14,
+                15
+              ],
+              "memberEvents": [
+                14,
+                15,
+                16,
+                17
+              ],
+              "memberOuter": [
+                1300,
+                1440
+              ],
+              "departure": 15,
+              "return": 16,
+              "departureIsMember": true,
+              "core": [
+                1310,
+                1330
+              ],
+              "publishedAt": 19
+            }
+          ]
+        },
+        "C53": {
+          "firstPublication": 7,
+          "firstThreePublication": 15,
+          "changes": [
+            {
+              "t": 0,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 1,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 2,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 3,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 4,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 5,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 6,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 7,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 8,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 9,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 10,
+              "outputCount": 1,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 11,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 12,
+              "outputCount": 2,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 13,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 14,
+              "outputCount": 2,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 15,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 16,
+              "outputCount": 3,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 17,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 18,
+              "outputCount": 3,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 19,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 20,
+              "outputCount": 4,
+              "terminal": "NoCore"
+            }
+          ],
+          "finalCuts": [
+            0,
+            5,
+            9,
+            13,
+            17
+          ],
+          "finalTerminal": {
+            "tag": "NoCore",
+            "cursor": 16,
+            "rejectedSeeds": []
+          },
+          "members": [
+            {
+              "id": 0,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "members": [
+                0,
+                1,
+                2
+              ],
+              "memberEvents": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "memberOuter": [
+                1080,
+                1140
+              ],
+              "departure": 3,
+              "return": 4,
+              "departureIsMember": false,
+              "core": [
+                1100,
+                1120
+              ],
+              "publishedAt": 7
+            },
+            {
+              "id": 1,
+              "seed": [
+                4,
+                5,
+                6
+              ],
+              "members": [
+                4,
+                5,
+                6
+              ],
+              "memberEvents": [
+                6,
+                7,
+                8
+              ],
+              "memberOuter": [
+                1160,
+                1220
+              ],
+              "departure": 7,
+              "return": 8,
+              "departureIsMember": false,
+              "core": [
+                1180,
+                1200
+              ],
+              "publishedAt": 11
+            },
+            {
+              "id": 2,
+              "seed": [
+                8,
+                9,
+                10
+              ],
+              "members": [
+                8,
+                9,
+                10
+              ],
+              "memberEvents": [
+                10,
+                11,
+                12
+              ],
+              "memberOuter": [
+                1230,
+                1240
+              ],
+              "departure": 11,
+              "return": 12,
+              "departureIsMember": false,
+              "core": [
+                1232,
+                1238
+              ],
+              "publishedAt": 15
+            },
+            {
+              "id": 3,
+              "seed": [
+                12,
+                13,
+                14
+              ],
+              "members": [
+                12,
+                13,
+                14
+              ],
+              "memberEvents": [
+                14,
+                15,
+                16
+              ],
+              "memberOuter": [
+                1300,
+                1340
+              ],
+              "departure": 15,
+              "return": 16,
+              "departureIsMember": false,
+              "core": [
+                1310,
+                1330
+              ],
+              "publishedAt": 19
+            }
+          ]
+        }
+      },
+      "historicalCheck": null
+    },
+    {
+      "name": "six_event_diagnostic",
+      "ledger": "frozen-five",
+      "eventReferences": 6,
+      "prefixes": 7,
+      "policies": {
+        "A53": {
+          "firstPublication": null,
+          "firstThreePublication": null,
+          "changes": [
+            {
+              "t": 0,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 1,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 2,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 3,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 4,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 5,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 6,
+              "outputCount": 0,
+              "terminal": "BadRole"
+            }
+          ],
+          "finalCuts": [
+            0
+          ],
+          "finalTerminal": {
+            "tag": "BadRole",
+            "cursor": 0,
+            "seed": [
+              0,
+              1,
+              2
+            ],
+            "core": [
+              104,
+              110
+            ],
+            "members": [
+              0,
+              1,
+              2
+            ],
+            "nextL": 3,
+            "rejectedSeeds": [],
+            "checks": [
+              {
+                "L": 3,
+                "R": 4,
+                "outcome": "BadRole",
+                "side": 1
+              }
+            ]
+          },
+          "members": []
+        },
+        "B53": {
+          "firstPublication": 5,
+          "firstThreePublication": null,
+          "changes": [
+            {
+              "t": 0,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 1,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 2,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 3,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 4,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 5,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 6,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            }
+          ],
+          "finalCuts": [
+            0,
+            3
+          ],
+          "finalTerminal": {
+            "tag": "NoCore",
+            "cursor": 3,
+            "rejectedSeeds": []
+          },
+          "members": [
+            {
+              "id": 0,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "members": [
+                0,
+                1,
+                2
+              ],
+              "memberEvents": [
+                1,
+                2,
+                3
+              ],
+              "memberOuter": [
+                100,
+                112
+              ],
+              "departure": 2,
+              "return": 3,
+              "departureIsMember": true,
+              "core": [
+                104,
+                110
+              ],
+              "publishedAt": 5
+            }
+          ]
+        },
+        "C53": {
+          "firstPublication": null,
+          "firstThreePublication": null,
+          "changes": [
+            {
+              "t": 0,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 1,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 2,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 3,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 4,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 5,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 6,
+              "outputCount": 0,
+              "terminal": "BadRole"
+            }
+          ],
+          "finalCuts": [
+            0
+          ],
+          "finalTerminal": {
+            "tag": "BadRole",
+            "cursor": 0,
+            "seed": [
+              0,
+              1,
+              2
+            ],
+            "core": [
+              104,
+              110
+            ],
+            "members": [
+              0,
+              1,
+              2
+            ],
+            "nextL": 3,
+            "rejectedSeeds": [],
+            "checks": [
+              {
+                "L": 3,
+                "R": 4,
+                "outcome": "BadRole",
+                "side": 1
+              }
+            ]
+          },
+          "members": []
+        }
+      },
+      "historicalCheck": null
+    },
+    {
+      "name": "reanchor_115_control",
+      "ledger": "new-control",
+      "eventReferences": 7,
+      "prefixes": 8,
+      "policies": {
+        "A53": {
+          "firstPublication": 6,
+          "firstThreePublication": null,
+          "changes": [
+            {
+              "t": 0,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 1,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 2,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 3,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 4,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 5,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 6,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 7,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            }
+          ],
+          "finalCuts": [
+            0,
+            4
+          ],
+          "finalTerminal": {
+            "tag": "NoCore",
+            "cursor": 4,
+            "rejectedSeeds": []
+          },
+          "members": [
+            {
+              "id": 0,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "members": [
+                0,
+                1,
+                2
+              ],
+              "memberEvents": [
+                1,
+                2,
+                3
+              ],
+              "memberOuter": [
+                100,
+                115
+              ],
+              "departure": 3,
+              "return": 4,
+              "departureIsMember": false,
+              "core": [
+                104,
+                110
+              ],
+              "publishedAt": 6
+            }
+          ]
+        },
+        "B53": {
+          "firstPublication": 6,
+          "firstThreePublication": null,
+          "changes": [
+            {
+              "t": 0,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 1,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 2,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 3,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 4,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 5,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 6,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 7,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            }
+          ],
+          "finalCuts": [
+            0,
+            4
+          ],
+          "finalTerminal": {
+            "tag": "NoCore",
+            "cursor": 4,
+            "rejectedSeeds": []
+          },
+          "members": [
+            {
+              "id": 0,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "members": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "memberEvents": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "memberOuter": [
+                100,
+                115
+              ],
+              "departure": 3,
+              "return": 4,
+              "departureIsMember": true,
+              "core": [
+                104,
+                110
+              ],
+              "publishedAt": 6
+            }
+          ]
+        },
+        "C53": {
+          "firstPublication": 6,
+          "firstThreePublication": null,
+          "changes": [
+            {
+              "t": 0,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 1,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 2,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 3,
+              "outputCount": 0,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 4,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 5,
+              "outputCount": 0,
+              "terminal": "AwaitPair"
+            },
+            {
+              "t": 6,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            },
+            {
+              "t": 7,
+              "outputCount": 1,
+              "terminal": "NoCore"
+            }
+          ],
+          "finalCuts": [
+            0,
+            4
+          ],
+          "finalTerminal": {
+            "tag": "NoCore",
+            "cursor": 4,
+            "rejectedSeeds": []
+          },
+          "members": [
+            {
+              "id": 0,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "members": [
+                0,
+                1,
+                2
+              ],
+              "memberEvents": [
+                1,
+                2,
+                3
+              ],
+              "memberOuter": [
+                100,
+                115
+              ],
+              "departure": 3,
+              "return": 4,
+              "departureIsMember": false,
+              "core": [
+                104,
+                110
+              ],
+              "publishedAt": 6
+            }
+          ]
+        }
+      },
+      "historicalCheck": null
+    }
+  ],
+  "counts": {
+    "frozenFive": {
+      "eventReferences": 126,
+      "prefixes": 131,
+      "replayEventOperationsPerBatchAlgorithm": 2081
+    },
+    "newReanchorControl": {
+      "eventReferences": 7,
+      "prefixes": 8,
+      "replayEventOperationsPerBatchAlgorithm": 28
+    },
+    "scalarWords": 349524
+  },
+  "forkAt": 8,
+  "allChecksPassed": true,
+  "sourceSemanticsProved": false
+}

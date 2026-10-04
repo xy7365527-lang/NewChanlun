@@ -1,0 +1,245 @@
+{
+  "schema": "stage53-seed-departure-author-v1",
+  "baseline": "6b69fd5c805ee65d84d60a8f703b40833fb85fca",
+  "createdAt": "2026-10-04T20:14:03.366Z",
+  "entry": "stage53/seed-departure-candidate.md",
+  "contract": "stage53/candidate-evidence/contract-v1.md",
+  "proof": "stage53/candidate-evidence/ordinary-proofs-v1.md",
+  "authorFiles": [
+    {
+      "path": "stage53/candidate-evidence/author-receipts.json",
+      "sha256": "d1e31d562b16a1008df1051aef828dbd77c99126d212bec006fc9d8626600827",
+      "bytes": 1080
+    },
+    {
+      "path": "stage53/candidate-evidence/compare-historical.mjs",
+      "sha256": "aec84724c1625a110655ce6f85daefe2f1b61e35157d614acb5178b2a08b762a",
+      "bytes": 2156
+    },
+    {
+      "path": "stage53/candidate-evidence/contract-v1.md",
+      "sha256": "3b522df7a0b4a9c97df1fc7c391772ab6c7146e93817a728696cf8c7b454feae",
+      "bytes": 6367
+    },
+    {
+      "path": "stage53/candidate-evidence/input-lock.json",
+      "sha256": "db178d7d6571f156629de7b46a1649b2a86ebf5dab8fdc48ee085f5899b64c92",
+      "bytes": 2623
+    },
+    {
+      "path": "stage53/candidate-evidence/native-replay.mjs",
+      "sha256": "ccd564b7af2278a7556045db54377e73d480ca436d99482de88e6c4e8c309d85",
+      "bytes": 2887
+    },
+    {
+      "path": "stage53/candidate-evidence/ordinary-proofs-v1.md",
+      "sha256": "d1bfc6311ae14efb3d7df74698a516cdd897594724f2104aeee0257d31fa423e",
+      "bytes": 9736
+    },
+    {
+      "path": "stage53/candidate-evidence/probe.mjs",
+      "sha256": "778a2b2ce13885a14a4951e42b57f443ce8c2a00064d73a512135ba2c3df3fef",
+      "bytes": 7904
+    },
+    {
+      "path": "stage53/candidate-evidence/probe.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "stage53/candidate-evidence/probe.stdout.txt",
+      "sha256": "ed052de6a3f190aea1322a3cbbf57078c70e16b7e7769490f3d06ebbeddf8c7c",
+      "bytes": 287
+    },
+    {
+      "path": "stage53/candidate-evidence/reanchor-control-addendum-v1.md",
+      "sha256": "f30167168b01cc6f0785837dcfd3c5fb546f9e630beceb801b46e64b28e7f725",
+      "bytes": 1222
+    },
+    {
+      "path": "stage53/candidate-evidence/reanchor-control-input.json",
+      "sha256": "10110598523f6c82df4c3405ba7daef53ff6d3a210b797a4af25ebe72716398d",
+      "bytes": 1128
+    },
+    {
+      "path": "stage53/candidate-evidence/relation-reference.mjs",
+      "sha256": "cb45d8349cabf469acdb199cb801a947ff24a1214976ebbfa9c23d60ba6fbd54",
+      "bytes": 5246
+    },
+    {
+      "path": "stage53/candidate-evidence/results-v1/after-touch-comparison.json",
+      "sha256": "b28c720f4a886dd22a5592e0875305865a1c4ff7f8ee3d4a5a465d9faf4b8cd1",
+      "bytes": 8737
+    },
+    {
+      "path": "stage53/candidate-evidence/results-v1/enumeration.json",
+      "sha256": "dcfdefc0085bf3784fc44585bf9c3cc88e1e9089764b83ce68a9daef8c3a686d",
+      "bytes": 36941
+    },
+    {
+      "path": "stage53/candidate-evidence/results-v1/historical-comparison.json",
+      "sha256": "374a152171d157a6c6831cb20ee56747f09d20fe3da7f044bfa02aa4df2e747b",
+      "bytes": 531
+    },
+    {
+      "path": "stage53/candidate-evidence/results-v1/p_completion_disjoint.json",
+      "sha256": "d146375dc4c92b0fc0c8e7197b3b0667cb9883cfff71ec6bfc28a14fb6ee5446",
+      "bytes": 353112
+    },
+    {
+      "path": "stage53/candidate-evidence/results-v1/p_completion_overlap.json",
+      "sha256": "0e67da48ce56b6cbf09ffc2bede34949ea988dcb810f3fcc9940b4f4473168fb",
+      "bytes": 353096
+    },
+    {
+      "path": "stage53/candidate-evidence/results-v1/reanchor_115_control.json",
+      "sha256": "73627127f5b3fa5fac454324d7d20a8d2e60be4e1ae500cf14cd4a1b2805e20c",
+      "bytes": 45560
+    },
+    {
+      "path": "stage53/candidate-evidence/results-v1/same_down_mirror.json",
+      "sha256": "bef410857e8025e624aa51511910782592015a324025bd2b0a86720e74af2ab9",
+      "bytes": 1512583
+    },
+    {
+      "path": "stage53/candidate-evidence/results-v1/same_up_counterexample.json",
+      "sha256": "19bd308dbb53400c458748a10f4378b8afc735416f5958c4b402c2cd86e0bfcb",
+      "bytes": 1509389
+    },
+    {
+      "path": "stage53/candidate-evidence/results-v1/six_event_diagnostic.json",
+      "sha256": "2f3ba998bfe3f9caf9dd1c8cb1e8c557b31e9d6308d5ea6973be112018a22e04",
+      "bytes": 32853
+    },
+    {
+      "path": "stage53/candidate-evidence/results-v1/skipped-window-witnesses.json",
+      "sha256": "640378f980a05ddaa7c0bd0f5505c5eab0510c15e53c649b8425e94817ffa2ce",
+      "bytes": 20413
+    },
+    {
+      "path": "stage53/candidate-evidence/results-v1/summary.json",
+      "sha256": "414e48a0e25d9cd16e85222e822ee4c5e39ba31b69c62be97f8a1acb8567742c",
+      "bytes": 117009
+    },
+    {
+      "path": "stage53/candidate-evidence/skipped-window-witnesses.mjs",
+      "sha256": "1106876f7fda9fd92fccdf51f9bf9f68a58c319905d1f6dffe233f21f8f02c71",
+      "bytes": 1210
+    },
+    {
+      "path": "stage53/candidate-evidence/streaming-prefix.mjs",
+      "sha256": "ada227789f9975c01aa44b3e7565b5a4de0d44564d1715215618db85b7945834",
+      "bytes": 3741
+    },
+    {
+      "path": "stage53/candidate-evidence/verify-freeze.mjs",
+      "sha256": "f10728571d637d202de9e3012241ceb07bc5f3ee4d995951c0726de6ffd3a19a",
+      "bytes": 773
+    },
+    {
+      "path": "stage53/seed-departure-candidate.md",
+      "sha256": "2cf101a6287c7bea38e12a01c12de7815373abd621324875cd502da7a5253e2c",
+      "bytes": 13660
+    }
+  ],
+  "externalInputs": [
+    {
+      "path": "stage49/candidate-evidence/results-v1/same_up_counterexample.json",
+      "sha256": "70fb54425e9ea60c7aa0f3bdb51813177ca1e003c6ec9cb65b604bdbf0c06f96",
+      "bytes": 34694
+    },
+    {
+      "path": "stage49/candidate-evidence/results-v1/same_down_mirror.json",
+      "sha256": "af882f3c4afa4a68ed289405e7044d063b2d12c6f6b6f1eed207a51ae4c98793",
+      "bytes": 34742
+    },
+    {
+      "path": "stage49/candidate-evidence/results-v1/p_completion_overlap.json",
+      "sha256": "73096cff40a246b6ef1983f4234dee0b659073e4b48f473730e0d088922fb769",
+      "bytes": 14839
+    },
+    {
+      "path": "stage49/candidate-evidence/results-v1/p_completion_disjoint.json",
+      "sha256": "1f39a0d57a8e1f0e0f1e16313a44f1731ab94fb64f1d25241a4f315723176031",
+      "bytes": 13096
+    },
+    {
+      "path": "stage52/diagnostic-evidence/diagnostic-input.json",
+      "sha256": "2823cd38296cf308e1d93cc8162f4cc3261dad8cf0bed16c3d50d20bc3335b11",
+      "bytes": 6354
+    },
+    {
+      "path": "stage52/candidate-evidence/results-v1/same_up_counterexample.json",
+      "sha256": "f0236402a2fb6fa57b67a27f76b9ad73cda85dd06b3cd7374336215ace86aeef",
+      "bytes": 581315
+    },
+    {
+      "path": "stage52/candidate-evidence/results-v1/same_down_mirror.json",
+      "sha256": "700d3b90ad5902ab274398f418874b7852f6a7126efeeb0e0150b4e48f9b562f",
+      "bytes": 583515
+    },
+    {
+      "path": "stage52/ScopeClarifications-v1.md",
+      "sha256": "a1cbb45fb2c58cecad0675ac1977aee3dccd198da4fdc4c1ca5d03df5a7c375c",
+      "bytes": 2852
+    },
+    {
+      "path": "stage52/candidate-evidence/ScopeCorrection-v1.md",
+      "sha256": "c661fc00c03bda65756e618e8fa9ff67e69ba201b040c6bf5bdf6424d5391059",
+      "bytes": 5919
+    },
+    {
+      "path": "stage52/independent-brs-review.md",
+      "sha256": "b0a45f4ea79e2b55125e134df99c0587b382faf8e42d136addd56faa052e32af",
+      "bytes": 18023
+    },
+    {
+      "path": "Stage52BoundaryRolesAndRepartition.md",
+      "sha256": "c14a12a4e6483b804075c531afd8eded6c8ebc732aa9d90003c257721a8ae338",
+      "bytes": 7599
+    },
+    {
+      "path": "Stage10SeedAssembly.md",
+      "sha256": "de8837be94b825a5e20c67b7827bc95f1a77a459629439d6e487c53cf8e1641d",
+      "bytes": 7748
+    }
+  ],
+  "scope": {
+    "nativeEventReferences": 133,
+    "nativePrefixCount": 139,
+    "algorithmPolicyPrefixComparisons": 417,
+    "frozenFive": {
+      "eventReferences": 126,
+      "prefixes": 131,
+      "replayOperations": 2081
+    },
+    "newControl": {
+      "eventReferences": 7,
+      "prefixes": 8,
+      "replayOperations": 28
+    },
+    "finiteScalarWords": 349524,
+    "extraExplicitScalarControls": 4,
+    "independentReview": false,
+    "originalBreak": false,
+    "originalPCompletion": false,
+    "wholeF1": false
+  },
+  "reviewObligations": [
+    "Read contract before proof; distinguish A53 strict stop, B53 seed-tail adjacency and C53 post-seed adjacency.",
+    "Recompute five original native streams and new seven-event control from raw IDs; compare all 139 prefixes and ownership maps.",
+    "Audit the B contact invariant and BadRole unreachability on exact scalar histories.",
+    "Audit outer-intersection theorem including first NoCore window empty and point-contact cases, pending less than four legs and mirror.",
+    "Keep the memberOuter/M-2 obstruction conditional on using those exact member ranges as same-level outers.",
+    "Check formation versus known-at chronology and member versus evidence references in the six-event and reanchor cases.",
+    "Do not promote deterministic relation uniqueness or bounded integer testing to original unique decomposition or F1 completion.",
+    "Review new numerical B/C separately from the source-semantic station; no original identity is granted."
+  ],
+  "reproduce": [
+    "node stage53/candidate-evidence/probe.mjs /tmp/stage53-seed-replay",
+    "node stage53/candidate-evidence/skipped-window-witnesses.mjs /tmp/stage53-skipped-window.json",
+    "node stage53/candidate-evidence/compare-historical.mjs",
+    "node stage53/candidate-evidence/verify-freeze.mjs"
+  ],
+  "workingDirectory": "P = .chanlun/review-results/issue1467-f1-proof"
+}

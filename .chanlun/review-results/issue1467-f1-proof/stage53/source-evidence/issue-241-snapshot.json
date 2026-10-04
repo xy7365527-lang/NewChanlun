@@ -1,0 +1,9 @@
+{
+  "body": "未决教义问题登记（自 map #221 划出，非本图射程——见 #221 Out of scope）\n\n## Question\n\n「滑动扫描 vs 唯一分解」：中枢/走势分解的三种形态当前不一致，谁对未决——\n\n1. **Lean 固定三格划分**（formal/Origin/RecursiveLevelSystem 的 lift）：自洽但理想化，切法与教义时间序不必然一致\n2. **rust 滑动扫描**（recursive_tower.rs:180-207：成立 i+=3 / 不成立 i+=1）：工程贪心，结构性制造缺口——Q5 已实测 5,790 个孤儿段（`q5-orphan-attribution-research-20260713.md`）\n3. **教义唯一分解**（博文：前三段成中枢种子，延伸或三类点后另起；无滑动试错）：目前无线完整落地\n\n来源：#240 漂移账（RLS lift 不同型定案）→ #236 裁定 RLS 降级「语义近邻」（对应声明收窄）——「哪个对」超出处置图 Destination，按 wayfinder 划界登记于此。\n\n关联线：Q5 孤儿段归属（#61/task-61 材料，C 案 Unassigned 账本待裁）；#174 出场通道结构收敛（教义-生产接线，归另一 session）。\n\n## 待裁问题（归走势分解教义线）\n\n1. 教义唯一分解的完整形式化/实装落在哪里？\n2. rust 滑动扫描的孤儿段欠账按 Q5 C 案（Unassigned 账本）还是另裁？\n3. Lean lift 与生产 lift 的统一点是否存在（Lean 固定窗是生产窗的子情形？），还是长期两制？\n\nBlocked by: 无（登记票，待走势分解教义线认领）\n",
+  "comments": [],
+  "number": 241,
+  "state": "CLOSED",
+  "title": "[research] 滑动扫描 vs 唯一分解：中枢分解三形态不一致的未决教义问题（自 #221 划出）",
+  "url": "https://github.com/xy7365527-lang/NewChanlun/issues/241",
+  "snapshotScope": "仅票面；报告以本地历史稿另行冻结。"
+}

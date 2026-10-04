@@ -1,0 +1,39 @@
+{
+  "body": "**Part of #1226（判据完全分类化图）。编排者追问**：第三类买卖点的离开段究竟怎么算？它跟谁做比较？它跟背驰有关吗？只 research 原文 + 代码，不裁。\n\n## 要查\n\n1. **原文面**（docs/chanlun/text/blog/，逐字 + 界别 + 行首注/行内注目视避开）：\n   - 三买卖定理与离开段定义：020:60/62（次级别离开 + 回试不破 ZG/ZD；「必须是第一次」）、021:34（三买后二型）；\n   - 盘背转化三买卖：024:36（C 破中枢回试不回 = 三买）、025:30（盘背三种情况「特别是形成第三类买点」）、029:34（盘背转化三卖 vs 背驰的区分：反弹级别低于/等于大于最后中枢）、027:740 答疑（99% 转化率）；\n   - 三买卖与背驰的其余交集：037:18（c 至少包含对 B 的一个三类点——趋势背驰的合取项）、044:24/26（小转大必要条件 = 最后次级别中枢出三买卖）、086:70 次级别买卖点比喻。\n2. **「离开段怎么算」**：原文有没有规定离开段的起止（从哪到哪、级别）；「跟谁比较」——离开段与回试段的关系是位置测试（不破 ZG/ZD）还是力度比较；三买卖自身要不要背驰。\n3. **代码面**（git show main）：judge_third_cert / trend_third_class_in_c / t3_in_c_scan_grade（signal.rs）、xzd_c3_new_center_breakout（xzd.rs）、detect_type3（recursive_t/operator.rs）——各自怎么定位「离开段」与「回试段」、比较对象是什么、有没有背驰项。\n4. **结论建议**（不裁）：三买离开段的比较对象与背驰关系逐条列——供 #1231/#1232/#1230 裁定消费。\n\n## 产出\n报告 .chanlun/review-results/issue1260-third-class-leave-segment-20260826.md：原文逐字表 + 代码对位 + 结论建议。引文纪律全查。",
+  "comments": [
+    {
+      "id": "IC_kwDORJC4uM8AAAABQ1c_sw",
+      "author": {
+        "login": "xy7365527-lang"
+      },
+      "authorAssociation": "OWNER",
+      "body": "**追加要求（编排者 2026-08-26）**：全部结论必须**分清两种走势类型的背驰规则**——趋势背驰（024:22-24 定义、029:16/52 三型；c 至少含对 B 的一个三类点 037:18）与盘整背驰（024:32-36 盘整中类似背驰方法、025:30 三种情况、029:34 与盘背转化三卖区分）。三买离开段在两种语境下分别怎么算、跟谁比、有没有背驰项——逐条分开答，不得混答。",
+      "createdAt": "2026-08-26T11:41:47Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1260#issuecomment-5424758707",
+      "viewerDidAuthor": true
+    },
+    {
+      "id": "IC_kwDORJC4uM8AAAABQ12M1A",
+      "author": {
+        "login": "xy7365527-lang"
+      },
+      "authorAssociation": "OWNER",
+      "body": "**Resolution（2026-08-26）**：三买离开段 research 完成，报告 .chanlun/review-results/issue1260-third-class-leave-segment-20260826.md（173 行，原文逐字表 + 代码四实现对位 + 两语境对照）。\n\n三问答案（两语境分开）：\n1. **怎么算**：次级别走势类型离开中枢 + 次级别回试不重回（020:60/018:64）；bar 级起止原文查不到，以次级别走势类型完成为界（018:66）；「必须是第一次」（020:62）只约束回试。\n2. **跟谁比**：离开段与回试段各自与 ZG/ZD 比**位置**，原文查不到离开段 vs 回试段的力度比较；力度比较只在背驰层 = C vs A（024:24/36、080:364）。\n3. **与背驰关系**：三买在任何语境都不要求背驰；趋势侧「趋势背驰 ⟹ c 必含三买」（037:18 必要合取）；盘整侧「盘背 + 回试不回 ⟹ 三买」（024:36 前置路径，可转化三卖须配大级别 027:740）；三买前后两类背驰段严格分开（049:62）。",
+      "createdAt": "2026-08-26T12:19:48Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1260#issuecomment-5425171668",
+      "viewerDidAuthor": true
+    }
+  ],
+  "number": 1260,
+  "state": "CLOSED",
+  "title": "[research] 第三类买卖点的离开段：怎么算、跟谁比较、与背驰的关系（#1226 拆出，编排者追问）",
+  "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1260"
+}

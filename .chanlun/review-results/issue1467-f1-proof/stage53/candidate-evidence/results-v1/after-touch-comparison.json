@@ -1,0 +1,474 @@
+{
+  "ledger": "selected-already-enumerated-word",
+  "q": [
+    0,
+    1,
+    0,
+    1,
+    0,
+    3,
+    2,
+    3,
+    0
+  ],
+  "additionalNativeEvents": 0,
+  "additionalEnumerationWords": 0,
+  "results": {
+    "A53": {
+      "policy": "A53",
+      "legs": [
+        {
+          "id": 0,
+          "start": 0,
+          "end": 1,
+          "direction": 1,
+          "low": 0,
+          "high": 1,
+          "knownAt": 2
+        },
+        {
+          "id": 1,
+          "start": 1,
+          "end": 2,
+          "direction": -1,
+          "low": 0,
+          "high": 1,
+          "knownAt": 3
+        },
+        {
+          "id": 2,
+          "start": 2,
+          "end": 3,
+          "direction": 1,
+          "low": 0,
+          "high": 1,
+          "knownAt": 4
+        },
+        {
+          "id": 3,
+          "start": 3,
+          "end": 4,
+          "direction": -1,
+          "low": 0,
+          "high": 1,
+          "knownAt": 5
+        },
+        {
+          "id": 4,
+          "start": 4,
+          "end": 5,
+          "direction": 1,
+          "low": 0,
+          "high": 3,
+          "knownAt": 6
+        },
+        {
+          "id": 5,
+          "start": 5,
+          "end": 6,
+          "direction": -1,
+          "low": 2,
+          "high": 3,
+          "knownAt": 7
+        },
+        {
+          "id": 6,
+          "start": 6,
+          "end": 7,
+          "direction": 1,
+          "low": 2,
+          "high": 3,
+          "knownAt": 8
+        }
+      ],
+      "outputs": [],
+      "attempts": [],
+      "terminal": {
+        "tag": "BadRole",
+        "cursor": 0,
+        "seed": [
+          0,
+          1,
+          2
+        ],
+        "core": [
+          0,
+          1
+        ],
+        "members": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "nextL": 5,
+        "rejectedSeeds": [],
+        "checks": [
+          {
+            "L": 3,
+            "R": 4,
+            "outcome": "Touch",
+            "addedMembers": [
+              3,
+              4
+            ]
+          },
+          {
+            "L": 5,
+            "R": 6,
+            "outcome": "BadRole",
+            "side": 1
+          }
+        ]
+      },
+      "tail": {
+        "start": 0,
+        "end": 8,
+        "ownedEvents": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ]
+      }
+    },
+    "B53": {
+      "policy": "B53",
+      "legs": [
+        {
+          "id": 0,
+          "start": 0,
+          "end": 1,
+          "direction": 1,
+          "low": 0,
+          "high": 1,
+          "knownAt": 2
+        },
+        {
+          "id": 1,
+          "start": 1,
+          "end": 2,
+          "direction": -1,
+          "low": 0,
+          "high": 1,
+          "knownAt": 3
+        },
+        {
+          "id": 2,
+          "start": 2,
+          "end": 3,
+          "direction": 1,
+          "low": 0,
+          "high": 1,
+          "knownAt": 4
+        },
+        {
+          "id": 3,
+          "start": 3,
+          "end": 4,
+          "direction": -1,
+          "low": 0,
+          "high": 1,
+          "knownAt": 5
+        },
+        {
+          "id": 4,
+          "start": 4,
+          "end": 5,
+          "direction": 1,
+          "low": 0,
+          "high": 3,
+          "knownAt": 6
+        },
+        {
+          "id": 5,
+          "start": 5,
+          "end": 6,
+          "direction": -1,
+          "low": 2,
+          "high": 3,
+          "knownAt": 7
+        },
+        {
+          "id": 6,
+          "start": 6,
+          "end": 7,
+          "direction": 1,
+          "low": 2,
+          "high": 3,
+          "knownAt": 8
+        }
+      ],
+      "outputs": [
+        {
+          "id": 0,
+          "start": 0,
+          "end": 5,
+          "seed": [
+            0,
+            1,
+            2
+          ],
+          "core": [
+            0,
+            1
+          ],
+          "members": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "memberStart": 0,
+          "memberEnd": 5,
+          "memberEvents": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "memberOuter": [
+            0,
+            3
+          ],
+          "departure": 4,
+          "return": 5,
+          "side": 1,
+          "departureIsMember": true,
+          "seedEndpointAt": 3,
+          "seedKnownAt": 4,
+          "relationshipPublishedAt": 7,
+          "ownedEvents": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "fullRange": [
+            0,
+            3
+          ],
+          "checks": [
+            {
+              "L": 2,
+              "R": 3,
+              "outcome": "Touch",
+              "addedMembers": [
+                3
+              ]
+            },
+            {
+              "L": 3,
+              "R": 4,
+              "outcome": "Touch",
+              "addedMembers": [
+                4
+              ]
+            },
+            {
+              "L": 4,
+              "R": 5,
+              "outcome": "Exit",
+              "side": 1
+            }
+          ],
+          "semanticEligibleAt": null,
+          "originalBreakIdentity": null,
+          "originalPIdentity": null
+        }
+      ],
+      "attempts": [
+        {
+          "cursor": 0,
+          "seedStart": 0,
+          "rejectedSeeds": []
+        }
+      ],
+      "terminal": {
+        "tag": "NoCore",
+        "cursor": 5,
+        "rejectedSeeds": []
+      },
+      "tail": {
+        "start": 5,
+        "end": 8,
+        "ownedEvents": [
+          6,
+          7,
+          8
+        ]
+      }
+    },
+    "C53": {
+      "policy": "C53",
+      "legs": [
+        {
+          "id": 0,
+          "start": 0,
+          "end": 1,
+          "direction": 1,
+          "low": 0,
+          "high": 1,
+          "knownAt": 2
+        },
+        {
+          "id": 1,
+          "start": 1,
+          "end": 2,
+          "direction": -1,
+          "low": 0,
+          "high": 1,
+          "knownAt": 3
+        },
+        {
+          "id": 2,
+          "start": 2,
+          "end": 3,
+          "direction": 1,
+          "low": 0,
+          "high": 1,
+          "knownAt": 4
+        },
+        {
+          "id": 3,
+          "start": 3,
+          "end": 4,
+          "direction": -1,
+          "low": 0,
+          "high": 1,
+          "knownAt": 5
+        },
+        {
+          "id": 4,
+          "start": 4,
+          "end": 5,
+          "direction": 1,
+          "low": 0,
+          "high": 3,
+          "knownAt": 6
+        },
+        {
+          "id": 5,
+          "start": 5,
+          "end": 6,
+          "direction": -1,
+          "low": 2,
+          "high": 3,
+          "knownAt": 7
+        },
+        {
+          "id": 6,
+          "start": 6,
+          "end": 7,
+          "direction": 1,
+          "low": 2,
+          "high": 3,
+          "knownAt": 8
+        }
+      ],
+      "outputs": [
+        {
+          "id": 0,
+          "start": 0,
+          "end": 5,
+          "seed": [
+            0,
+            1,
+            2
+          ],
+          "core": [
+            0,
+            1
+          ],
+          "members": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "memberStart": 0,
+          "memberEnd": 5,
+          "memberEvents": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "memberOuter": [
+            0,
+            3
+          ],
+          "departure": 4,
+          "return": 5,
+          "side": 1,
+          "departureIsMember": true,
+          "seedEndpointAt": 3,
+          "seedKnownAt": 4,
+          "relationshipPublishedAt": 7,
+          "ownedEvents": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "fullRange": [
+            0,
+            3
+          ],
+          "checks": [
+            {
+              "L": 3,
+              "R": 4,
+              "outcome": "Touch",
+              "addedMembers": [
+                3,
+                4
+              ]
+            },
+            {
+              "L": 4,
+              "R": 5,
+              "outcome": "Exit",
+              "side": 1
+            }
+          ],
+          "semanticEligibleAt": null,
+          "originalBreakIdentity": null,
+          "originalPIdentity": null
+        }
+      ],
+      "attempts": [
+        {
+          "cursor": 0,
+          "seedStart": 0,
+          "rejectedSeeds": []
+        }
+      ],
+      "terminal": {
+        "tag": "NoCore",
+        "cursor": 5,
+        "rejectedSeeds": []
+      },
+      "tail": {
+        "start": 5,
+        "end": 8,
+        "ownedEvents": [
+          6,
+          7,
+          8
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,405 @@
+{
+  "status": "author-check-pass",
+  "scope": "两条既有合成流的13事件引用、15含初态状态；不是新样本或独评；不复跑Stage52解析器。",
+  "inputs": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage52/diagnostic-evidence/diagnostic-input.json",
+      "sha256": "2823cd38296cf308e1d93cc8162f4cc3261dad8cf0bed16c3d50d20bc3335b11",
+      "eventReferences": 6
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/results-v1/same_up_counterexample.json",
+      "sha256": "f0236402a2fb6fa57b67a27f76b9ad73cda85dd06b3cd7374336215ace86aeef",
+      "eventReferences": 7
+    }
+  ],
+  "diagnostic": {
+    "q": [
+      100,
+      110,
+      104,
+      112,
+      111,
+      113,
+      112
+    ],
+    "completedRawLegs": [
+      {
+        "ordinal": 1,
+        "start": 0,
+        "end": 1,
+        "knownAt": 2,
+        "direction": 1,
+        "range": [
+          100,
+          110
+        ],
+        "ownedEvents": [
+          1
+        ]
+      },
+      {
+        "ordinal": 2,
+        "start": 1,
+        "end": 2,
+        "knownAt": 3,
+        "direction": -1,
+        "range": [
+          104,
+          110
+        ],
+        "ownedEvents": [
+          2
+        ]
+      },
+      {
+        "ordinal": 3,
+        "start": 2,
+        "end": 3,
+        "knownAt": 4,
+        "direction": 1,
+        "range": [
+          104,
+          112
+        ],
+        "ownedEvents": [
+          3
+        ]
+      },
+      {
+        "ordinal": 4,
+        "start": 3,
+        "end": 4,
+        "knownAt": 5,
+        "direction": -1,
+        "range": [
+          111,
+          112
+        ],
+        "ownedEvents": [
+          4
+        ]
+      },
+      {
+        "ordinal": 5,
+        "start": 4,
+        "end": 5,
+        "knownAt": 6,
+        "direction": 1,
+        "range": [
+          111,
+          113
+        ],
+        "ownedEvents": [
+          5
+        ]
+      }
+    ],
+    "seedTailPair": {
+      "core": [
+        104,
+        110
+      ],
+      "seedOrdinals": [
+        1,
+        2,
+        3
+      ],
+      "departureOrdinal": 3,
+      "returnOrdinal": 4,
+      "sourceOrder": {
+        "seedEndsAt": 3,
+        "departureStartsAt": 2,
+        "departureEndsAt": 3,
+        "returnStartsAt": 3,
+        "returnEndsAt": 4,
+        "postSeedDistinctAdjacentObjects": false
+      },
+      "distinctObjectCount": 4,
+      "distinctOrdinals": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "numerical": {
+        "upwardCrossingObservedAt": 3,
+        "departureUp": true,
+        "returnDown": true,
+        "returnStrictlyAbove": true
+      },
+      "timing": {
+        "conditionalFormationEndpoint": 3,
+        "rawThreeMembersKnownAt": 4,
+        "rawPairKnownAt": 5
+      },
+      "semantic": {
+        "originalCenterIdentity": null,
+        "originalLowerMoveIdentity": null,
+        "originalFormationAt": null,
+        "originalKnownAt": null,
+        "semanticEligibleAt": null
+      }
+    },
+    "postSeedPair": {
+      "core": [
+        104,
+        110
+      ],
+      "seedOrdinals": [
+        1,
+        2,
+        3
+      ],
+      "departureOrdinal": 4,
+      "returnOrdinal": 5,
+      "sourceOrder": {
+        "seedEndsAt": 3,
+        "departureStartsAt": 3,
+        "departureEndsAt": 4,
+        "returnStartsAt": 4,
+        "returnEndsAt": 5,
+        "postSeedDistinctAdjacentObjects": true
+      },
+      "distinctObjectCount": 5,
+      "distinctOrdinals": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "numerical": {
+        "upwardCrossingObservedAt": null,
+        "departureUp": false,
+        "returnDown": false,
+        "returnStrictlyAbove": true
+      },
+      "timing": {
+        "conditionalFormationEndpoint": 3,
+        "rawThreeMembersKnownAt": 4,
+        "rawPairKnownAt": 6
+      },
+      "semantic": {
+        "originalCenterIdentity": null,
+        "originalLowerMoveIdentity": null,
+        "originalFormationAt": null,
+        "originalKnownAt": null,
+        "semanticEligibleAt": null
+      }
+    },
+    "rightShiftedWindows": [
+      {
+        "seedOrdinals": [
+          2,
+          3,
+          4
+        ],
+        "intersectionBounds": [
+          111,
+          110
+        ],
+        "nonempty": false
+      },
+      {
+        "seedOrdinals": [
+          3,
+          4,
+          5
+        ],
+        "intersectionBounds": [
+          111,
+          112
+        ],
+        "nonempty": true,
+        "completedPostSeedLRAvailable": false
+      }
+    ],
+    "precedingCompleteObject": null
+  },
+  "stage52MainPrefix": {
+    "q": [
+      1040,
+      1040,
+      1000,
+      1030,
+      1010,
+      1140,
+      1100,
+      1130
+    ],
+    "completedRawLegs": [
+      {
+        "ordinal": 1,
+        "start": 0,
+        "end": 2,
+        "knownAt": 3,
+        "direction": -1,
+        "range": [
+          1000,
+          1040
+        ],
+        "ownedEvents": [
+          1,
+          2
+        ]
+      },
+      {
+        "ordinal": 2,
+        "start": 2,
+        "end": 3,
+        "knownAt": 4,
+        "direction": 1,
+        "range": [
+          1000,
+          1030
+        ],
+        "ownedEvents": [
+          3
+        ]
+      },
+      {
+        "ordinal": 3,
+        "start": 3,
+        "end": 4,
+        "knownAt": 5,
+        "direction": -1,
+        "range": [
+          1010,
+          1030
+        ],
+        "ownedEvents": [
+          4
+        ]
+      },
+      {
+        "ordinal": 4,
+        "start": 4,
+        "end": 5,
+        "knownAt": 6,
+        "direction": 1,
+        "range": [
+          1010,
+          1140
+        ],
+        "ownedEvents": [
+          5
+        ]
+      },
+      {
+        "ordinal": 5,
+        "start": 5,
+        "end": 6,
+        "knownAt": 7,
+        "direction": -1,
+        "range": [
+          1100,
+          1140
+        ],
+        "ownedEvents": [
+          6
+        ]
+      }
+    ],
+    "postSeedPair": {
+      "core": [
+        1010,
+        1030
+      ],
+      "seedOrdinals": [
+        1,
+        2,
+        3
+      ],
+      "departureOrdinal": 4,
+      "returnOrdinal": 5,
+      "sourceOrder": {
+        "seedEndsAt": 4,
+        "departureStartsAt": 4,
+        "departureEndsAt": 5,
+        "returnStartsAt": 5,
+        "returnEndsAt": 6,
+        "postSeedDistinctAdjacentObjects": true
+      },
+      "distinctObjectCount": 5,
+      "distinctOrdinals": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "numerical": {
+        "upwardCrossingObservedAt": 5,
+        "departureUp": true,
+        "returnDown": true,
+        "returnStrictlyAbove": true
+      },
+      "timing": {
+        "conditionalFormationEndpoint": 4,
+        "rawThreeMembersKnownAt": 5,
+        "rawPairKnownAt": 7
+      },
+      "semantic": {
+        "originalCenterIdentity": null,
+        "originalLowerMoveIdentity": null,
+        "originalFormationAt": null,
+        "originalKnownAt": null,
+        "semanticEligibleAt": null
+      }
+    }
+  },
+  "lesson61TextualIndexExpansion": {
+    "rejected": {
+      "seed": [
+        [
+          70,
+          71
+        ],
+        [
+          71,
+          72
+        ],
+        [
+          72,
+          73
+        ]
+      ],
+      "proposedL": [
+        72,
+        73
+      ],
+      "proposedR": [
+        73,
+        74
+      ],
+      "distinctObjects": 4
+    },
+    "acceptedByAuthor": {
+      "seed": [
+        [
+          69,
+          70
+        ],
+        [
+          70,
+          71
+        ],
+        [
+          71,
+          72
+        ]
+      ],
+      "L": [
+        72,
+        73
+      ],
+      "R": [
+        73,
+        74
+      ],
+      "distinctObjects": 5
+    },
+    "pricesReconstructedFromImage": false
+  }
+}
