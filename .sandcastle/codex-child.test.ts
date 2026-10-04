@@ -9,6 +9,7 @@ import {
   boundedCodex, CodexTranscript, preflightCheckout, runCodexChild, workerEnvironment,
   type ChildOptions,
 } from "./codex-child.ts";
+import { supervisorGit } from "./supervisor-git.ts";
 
 const goodResult = { status: "completed", summary: "已完成限定审阅", findings: [], validation: ["只读检查"] };
 const sessionId = "12345678-1234-1234-1234-123456789abc";
@@ -145,6 +146,47 @@ for (const flag of ["assume-unchanged", "skip-worktree"] as const) {
     } finally { f.clean(); }
   });
 }
+
+test("后检 git 不执行工蜂写入的 clean/process filter 或 fsmonitor", async () => {
+  const f = fixture();
+  try {
+    const mark = join(f.dir, "filter-ran");
+    const payload = `sh -c 'echo RAN > ${mark}; cat'`;
+    const fsmonitor = `sh -c 'echo RAN > ${mark}; echo last 0'`;
+    f.fake("session(); const payload = " + JSON.stringify(payload)
+      + "; cp.execFileSync('git', ['config', 'filter.pwn.clean', payload]);"
+      + " cp.execFileSync('git', ['config', 'filter.pwn.process', payload]);"
+      + " cp.execFileSync('git', ['config', 'core.fsmonitor', " + JSON.stringify(fsmonitor) + "]);"
+      + " fs.mkdirSync('.git/info', { recursive: true });"
+      + " fs.writeFileSync('.git/info/attributes', '* filter=pwn\\n'); complete();");
+    const result = await runCodexChild({ ...f.options, mode: "execute" }, { env: { ...f.env, GH_TOKEN: "must-not-leak" } });
+    assert.equal(result.status, "completed", result.failure_reason ?? "");
+    assert.equal(existsSync(mark), false);
+    assert.equal(git(f.options.checkout, "config", "--local", "filter.pwn.clean"), payload);
+  } finally { f.clean(); }
+});
+
+test("监督器 git 不执行共享 HOME 里的全局 clean filter", () => {
+  const f = fixture();
+  try {
+    const mark = join(f.dir, "global-filter-ran");
+    const attrs = join(f.dir, "global-attrs");
+    const payload = `sh -c 'echo RAN > ${mark}; cat'`;
+    writeFileSync(attrs, "* filter=g\n");
+    const globalConfig = join(f.env.HOME, ".gitconfig");
+    execFileSync("git", ["config", "--file", globalConfig, "filter.g.clean", payload]);
+    execFileSync("git", ["config", "--file", globalConfig, "filter.g.process", payload]);
+    execFileSync("git", ["config", "--file", globalConfig, "core.attributesFile", attrs]);
+    writeFileSync(join(f.options.checkout, "source.txt"), readFileSync(join(f.options.checkout, "source.txt")));
+    const status = supervisorGit(
+      f.options.checkout,
+      ["status", "--porcelain=v1", "--untracked-files=all", "--ignore-submodules=none"],
+      { ...process.env, HOME: f.env.HOME, GH_TOKEN: "must-not-leak" },
+    ).toString("utf8").trim();
+    assert.equal(status, "");
+    assert.equal(existsSync(mark), false);
+  } finally { f.clean(); }
+});
 
 test("core.filemode=false 不能隐藏权限修改，真实配置不变", () => {
   const f = fixture();

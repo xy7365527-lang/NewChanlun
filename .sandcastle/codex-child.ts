@@ -1,7 +1,8 @@
 // #1456：原生 Codex 子代理管理一个外部 Sandcastle/Codex 工蜂；一次运行，不取票、不合入。
 import type { AgentProvider, NoSandboxHandle } from "@ai-hero/sandcastle";
 import { createHash, randomUUID } from "node:crypto";
-import { execFileSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
+import { supervisorGit } from "./supervisor-git.ts";
 import {
   appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync,
   readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync,
@@ -106,13 +107,7 @@ function inside(path: string, root: string): boolean {
 }
 
 function git(root: string, args: string[]): string {
-  return execFileSync("git", [
-    "--no-replace-objects", "-c", "core.filemode=true", "-c", "diff.ignoreSubmodules=none",
-    "-C", root, ...args,
-  ], {
-    encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
-  }).trim();
+  return supervisorGit(root, args).toString("utf8").trim();
 }
 
 export function snapshotCheckout(checkout: string): CheckoutSnapshot {
