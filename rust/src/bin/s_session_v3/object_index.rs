@@ -1590,6 +1590,16 @@ pub(super) fn verify_generated_members_swept<'a>(
     g: i64,
     sweep: Option<&HistorySweep>,
 ) -> Result<(), String> {
+    verify_generated_members_swept_with_records(s, index, state, g, sweep, None)
+}
+pub(super) fn verify_generated_members_swept_with_records<'a>(
+    s: &mut (impl CodecStore + ?Sized),
+    index: &[Entry],
+    state: impl Into<sc::RefView<'a>>,
+    g: i64,
+    sweep: Option<&HistorySweep>,
+    mut records: Option<&mut super::history::NativeRecordFields<'_>>,
+) -> Result<(), String> {
     let state = state.into();
     let allocation = s.allocation_budget();
     let mut by_id = bj::new_map(allocation.as_ref());
@@ -1629,15 +1639,12 @@ pub(super) fn verify_generated_members_swept<'a>(
             None => by_id.get(id.as_str()).copied(),
         }
         .ok_or_else(|| err("生成对象不在独立身份史内"))?;
-        let fields = OwnerFields::read(
-            s,
-            object.view(),
-            if e.slot.is_shape() {
-                &object_records::SHAPE_SEALED_FIELDS
-            } else {
-                &object_records::TYPED_SEALED_FIELDS
-            },
-        )?;
+        let names: &[&str] = if e.slot.is_shape() {
+            &object_records::SHAPE_SEALED_FIELDS
+        } else {
+            &object_records::TYPED_SEALED_FIELDS
+        };
+        let fields = OwnerFields::read(s, object.view(), names)?;
         if object.kind() != Kind::Object
             || object.extent() != Some(if e.slot.is_shape() { 15 } else { 10 })
             || fields.integer(s, "first_known_generation")? != g
@@ -1651,6 +1658,10 @@ pub(super) fn verify_generated_members_swept<'a>(
         }
         if e.life.first_known_generation == g && object != built_ref(s, &e.generated) {
             return Err(err("出生原件不等于真实首次生成记录"));
+        }
+        // #1394：全部原record检查通过之后，只交接同capture的exact字段材料。
+        if let Some(records) = records.as_deref_mut() {
+            records.seed(object.view(), names, &fields.0).map_err(err)?;
         }
         new.try_push(object_diff::Key {
             object_id: id,

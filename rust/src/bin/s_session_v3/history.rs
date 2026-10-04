@@ -24,6 +24,12 @@ use sc::capture_allocation::{
     OwnedBudget,
 };
 
+#[path = "native_record_fields.rs"]
+mod native_record_fields;
+pub(super) use native_record_fields::NativeRecordFields;
+#[cfg(test)]
+pub(super) use native_record_fields::{native_record_field_stats, reset_native_record_field_stats};
+
 /// Opaque per-cut proof: constructed only in this module's complete-load read-only chain.
 /// No constructor accepts caller-provided arrays, SQL-index substitutes, or authority bools.
 pub(crate) struct NativeCutProjection<'scope, 'connection, 'capture> {
@@ -247,6 +253,7 @@ pub(super) fn read_indexed_history(
         budget,
         false,
         None,
+        None,
     )
 }
 
@@ -267,6 +274,7 @@ pub(super) fn read_indexed_history_for_audit(
         budget,
         budget.is_none(),
         None,
+        None,
     )
 }
 
@@ -279,7 +287,30 @@ pub(super) fn read_indexed_history_for_audit_captured<'a>(
     budget: Option<&dyn super::audit_budget::Budget>,
     capture: Option<&sc::AuditCapture>,
 ) -> Result<IndexedHistory, String> {
-    read_indexed_history_inner(
+    read_indexed_history_for_audit_captured_with_records(
+        tx,
+        raw,
+        control,
+        deadline,
+        max_render_bytes,
+        budget,
+        capture,
+        None,
+    )
+}
+
+pub(super) fn read_indexed_history_for_audit_captured_with_records<'a>(
+    tx: &Transaction<'_>,
+    raw: impl Into<RawEventsView<'a>>,
+    control: v2::ControlHistory,
+    deadline: Option<std::time::Instant>,
+    max_render_bytes: Option<u64>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+    capture: Option<&sc::AuditCapture>,
+    mut records: Option<&mut NativeRecordFields<'_>>,
+) -> Result<IndexedHistory, String> {
+    // 清除失败 history 的部分交接材料；不会交给后续 source 审计。
+    let result = read_indexed_history_inner(
         tx,
         raw.into(),
         control,
@@ -288,7 +319,14 @@ pub(super) fn read_indexed_history_for_audit_captured<'a>(
         budget,
         budget.is_none(),
         capture,
-    )
+        records.as_deref_mut(),
+    );
+    if result.is_err() {
+        if let Some(records) = records {
+            records.clear();
+        }
+    }
+    result
 }
 
 fn read_indexed_history_inner(
@@ -300,6 +338,7 @@ fn read_indexed_history_inner(
     budget: Option<&dyn super::audit_budget::Budget>,
     audit_same_material: bool,
     capture: Option<&sc::AuditCapture>,
+    mut records: Option<&mut NativeRecordFields<'_>>,
 ) -> Result<IndexedHistory, String> {
     check_deadline(deadline)?;
     verify_required_meta(tx)?;
@@ -316,6 +355,13 @@ fn read_indexed_history_inner(
         None => HashReader::metered(&mut reader, deadline, max_render_bytes, budget),
     };
     store.audit_full_arrays = audit_same_material && budget.is_none();
+    let mut records = records.take().filter(|memo| {
+        audit_same_material
+            && budget.is_none()
+            && deadline.is_none()
+            && max_render_bytes.is_none()
+            && capture.is_some_and(|capture| memo.belongs_to(capture))
+    });
     let allocation = history_allocation(&store)?;
     #[cfg(test)]
     super::state::trace_event("history_aux_index", None);
@@ -480,12 +526,13 @@ fn read_indexed_history_inner(
         if let Some(sweep) = &mut object_sweep {
             sweep.advance(generation)?;
         }
-        object_index::verify_generated_members_swept(
+        object_index::verify_generated_members_swept_with_records(
             &mut store,
             objects.entries(),
             roots.generated_state.view(),
             generation,
             object_sweep.as_ref(),
+            records.as_deref_mut(),
         )?;
         let (active, withdrawn, upserts) = if let Some(p) = &dual {
             (

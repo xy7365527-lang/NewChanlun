@@ -1217,6 +1217,8 @@ pub(crate) mod tests {
             0,
             "actual S config lease qualification"
         );
+        let mut record_seeds = 0u64;
+        let mut source_hits = 0u64;
         for (n, row, revision) in [
             (1, ("a", 0, 6, 12, 3, 7), 1),
             (2, ("b", 10, 8, 16, 6, 12), 1),
@@ -1228,7 +1230,15 @@ pub(crate) mod tests {
             let (same_native, nt) = no_lease.accept_begin(n, row, revision);
             let native_sql = content_store::sql_reads_on_thread();
             let native_f = sc::frame_calls_on_thread();
+            super::super::history::reset_native_record_field_stats();
             let actual = native.publish(&e, &t).unwrap();
+            let records = super::super::history::native_record_field_stats();
+            record_seeds += records.full_record_seeds;
+            source_hits += records.source_subset_hits;
+            eprintln!(
+                "Native real commit gen{n}: exact_record_seeds={} source_subset_hits={}",
+                records.full_record_seeds, records.source_subset_hits
+            );
             let native_sql = content_store::sql_reads_on_thread() - native_sql;
             let native_f = sc::frame_calls_on_thread() - native_f;
             let no_sql = content_store::sql_reads_on_thread();
@@ -1260,6 +1270,16 @@ pub(crate) mod tests {
                 "gen{n}真实全部持久行与节点须逐字相同"
             );
         }
+        assert!(
+            record_seeds > 0 && source_hits > 0,
+            "真实冷审计必须命中history→source交接"
+        );
+        assert_eq!(
+            source_hits,
+            2 * record_seeds,
+            "四代每个完整record恰好承接kind与core两个source字段定位"
+        );
+        eprintln!("Native real commits record handoff: full_record_seeds={record_seeds} source_subset_hits={source_hits}");
         assert!(count(&native.conn, "s_content_objects") > 0);
         assert_eq!(meta_i64(&native.conn, "generation").unwrap(), 4);
     }

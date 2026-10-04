@@ -489,11 +489,24 @@ fn audit_core_fresh(
     #[cfg(test)]
     trace_event("history", None);
     // 3. 逐代发布闭包：消费每代控制头并核内容闭包、原始/生效账与独立变化集合（唯一判据在 history）。
+    #[cfg(feature = "s_capture_native_testonly")]
+    // 同 capture、同一次 cold audit 的私有字段交接，不进入公共资源或 Owned 布局。
+    let mut native_records = capture
+        .filter(|c| {
+            !c.is_allocation_prototype()
+                && owned_budget.is_none()
+                && budget.is_none()
+                && deadline.is_none()
+                && max_render_bytes.is_none()
+        })
+        .and_then(history::NativeRecordFields::new);
+    #[cfg(not(feature = "s_capture_native_testonly"))]
+    let mut native_records: Option<history::NativeRecordFields<'_>> = None;
     let history::IndexedHistory {
         cuts,
         objects,
         auxiliary,
-    } = history::read_indexed_history_for_audit_captured(
+    } = history::read_indexed_history_for_audit_captured_with_records(
         tx,
         raw.view(),
         control,
@@ -501,6 +514,7 @@ fn audit_core_fresh(
         max_render_bytes,
         budget,
         capture,
+        native_records.as_mut(),
     )?;
     #[cfg(test)]
     trace_event("catalog_metadata", None);
@@ -535,7 +549,9 @@ fn audit_core_fresh(
                 && deadline.is_none()
                 && max_render_bytes.is_none()
         })
-        .map(|c| source_audit::NativeSourceAudit::new(c, raw.view()))
+        .map(|c| {
+            source_audit::NativeSourceAudit::new_with_records(c, raw.view(), native_records.take())
+        })
         .transpose()?;
     #[cfg(not(feature = "s_capture_native_testonly"))]
     let mut native_sources: Option<source_audit::NativeSourceAudit<'_>> = None;

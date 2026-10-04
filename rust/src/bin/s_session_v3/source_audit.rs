@@ -63,6 +63,7 @@ struct NativeScalarFields {
 }
 struct NativeFieldMemo<'capture> {
     capture: &'capture sc::AuditCapture,
+    records: Option<super::history::NativeRecordFields<'capture>>,
     fields: std::collections::HashMap<
         (NativeFieldRefKey, Vec<String>),
         std::collections::BTreeMap<String, ContentRef>,
@@ -75,6 +76,7 @@ impl<'capture> NativeFieldMemo<'capture> {
     fn new(capture: &'capture sc::AuditCapture) -> Self {
         Self {
             capture,
+            records: None,
             fields: Default::default(),
             scalars: Default::default(),
             field_decodes: 0,
@@ -93,6 +95,9 @@ impl<'capture> NativeFieldMemo<'capture> {
         Ok(false)
     }
     fn clear(&mut self) {
+        if let Some(records) = &mut self.records {
+            records.clear();
+        }
         self.fields.clear();
         self.scalars.values.clear();
     }
@@ -426,6 +431,13 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
                     .map(|m| m.qualified(r))
                     .transpose()?
                     .unwrap_or(false);
+            if eligible {
+                if let Some(records) = self.fields.as_ref().and_then(|memo| memo.records.as_ref()) {
+                    if let Some(fields) = records.subset(r, n)? {
+                        return Ok(super::audit_store::RefFields::Plain(fields));
+                    }
+                }
+            }
             let key = if eligible {
                 Some((
                     NativeFieldRefKey::new(r)?,
@@ -1140,13 +1152,29 @@ impl<'capture> NativeSourceAudit<'capture> {
         capture: &'capture sc::AuditCapture,
         raw: RawEventsView<'capture>,
     ) -> Result<Self, String> {
+        Self::new_with_records(capture, raw, None)
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn new_with_records(
+        capture: &'capture sc::AuditCapture,
+        raw: RawEventsView<'capture>,
+        records: Option<super::history::NativeRecordFields<'capture>>,
+    ) -> Result<Self, String> {
         if raw.budget().is_some() {
             return Err(err("Native来源memo不接收Owned原始账"));
         }
+        if records
+            .as_ref()
+            .is_some_and(|records| !records.belongs_to(capture))
+        {
+            return Err(err("Native字段交接不属于本次capture"));
+        }
+        let mut fields = NativeFieldMemo::new(capture);
+        fields.records = records;
         Ok(Self {
             source_memo: NativeSourceMemo::new(capture, raw),
             ledger: NativeRawLedger::new(raw),
-            fields: NativeFieldMemo::new(capture),
+            fields,
             raw,
             reader: super::history::HashReader::captured(capture, None),
             memo: NativeWitnessIdentityMemo::new(capture)?,
@@ -2135,6 +2163,59 @@ mod tests {
             std::mem::align_of::<SourceFields<'static>>(),
             std::mem::align_of::<super::super::audit_store::RefFields<'static>>()
         );
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_history_record_handoff_eliminates_both_source_field_lookups() {
+        let (nodes, state, raw, rule) = fixture();
+        let capture = sc::AuditCapture::new(nodes);
+        let mut reader = super::super::history::HashReader::captured(&capture, None);
+        let object_array = reader.lookup_ref((&state).into(), &[f("objects")]).unwrap();
+        let objects = reader.lookup_array_ref(object_array.view()).unwrap();
+        let mut records = super::super::history::NativeRecordFields::new(&capture).unwrap();
+        super::super::history::reset_native_record_field_stats();
+        for object in &objects {
+            let names = if object.extent() == Some(15) {
+                &super::super::object_records::SHAPE_SEALED_FIELDS[..]
+            } else {
+                &super::super::object_records::TYPED_SEALED_FIELDS[..]
+            };
+            let fields = reader.lookup_fields_ref(object.view(), names).unwrap();
+            records.seed(object.view(), names, &fields).unwrap();
+        }
+        assert!(!objects.is_empty());
+        let count = objects.len() as u64;
+        let ordinary =
+            audit_generated_for_audit(&mut reader, &state, &raw, tb02a::PROFILE, &rule, None, None)
+                .unwrap();
+        let mut native =
+            NativeSourceAudit::new_with_records(&capture, (&raw).into(), Some(records)).unwrap();
+        let actual = native
+            .audit(&state, raw.len(), tb02a::PROFILE, &rule)
+            .unwrap();
+        assert_eq!(format!("{ordinary:?}"), format!("{actual:?}"));
+        let stats = super::super::history::native_record_field_stats();
+        assert_eq!(stats.full_record_seeds, count);
+        assert_eq!(
+            stats.source_subset_hits,
+            2 * count,
+            "每个真实对象kind及core各一次字段定位均消除"
+        );
+        // prefix 错误仍现场拒绝，失败清除已交接材料。
+        assert!(native
+            .audit(&state, raw.len() + 1, tb02a::PROFILE, &rule)
+            .is_err());
+        let before = super::super::history::native_record_field_stats().source_subset_hits;
+        native
+            .audit(&state, raw.len(), tb02a::PROFILE, &rule)
+            .unwrap();
+        assert_eq!(
+            super::super::history::native_record_field_stats().source_subset_hits,
+            before
+        );
+        let other = sc::AuditCapture::new(MemoryNodes::default());
+        let wrong = super::super::history::NativeRecordFields::new(&other).unwrap();
+        assert!(NativeSourceAudit::new_with_records(&capture, (&raw).into(), Some(wrong)).is_err());
     }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
