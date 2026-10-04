@@ -305,12 +305,7 @@ pub fn frame(t: u8, body: &[u8]) -> NodeDigest {
 
 /// 32 字节摘要的 transport 文本：`sc1-` + 64 位小写十六进制。
 pub fn root_string(digest: &NodeDigest) -> String {
-    let mut s = String::with_capacity(ROOT_PREFIX.len() + 64);
-    s.push_str(ROOT_PREFIX);
-    for b in digest {
-        s.push_str(&format!("{b:02x}"));
-    }
-    s
+    FixedRoot::new(digest).as_str().to_owned()
 }
 
 /// 解析 transport 根文本；前缀、长度、大小写与十六进制字符全部严格。

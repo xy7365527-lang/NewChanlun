@@ -24,6 +24,23 @@ const EXPECTED_REACHABLE: usize = 96;
 const EXPECTED_RENDERABLE: usize = 22;
 
 #[test]
+fn root_text_all_byte_values_preserve_canonical_encoding() {
+    for offset in 0..=u8::MAX {
+        let digest: s_content::NodeDigest =
+            std::array::from_fn(|i| offset.wrapping_add(i as u8));
+        let expected = format!(
+            "sc1-{}",
+            digest.iter().map(|b| format!("{b:02x}")).collect::<String>()
+        );
+        let actual = s_content::root_string(&digest);
+        assert_eq!(actual.as_bytes(), expected.as_bytes());
+        assert_eq!(actual.len(), 68);
+        assert_eq!(s_content::parse_root(&actual).unwrap(), digest);
+        assert_eq!(s_content::FixedRoot::new(&digest).as_str(), actual);
+    }
+}
+
+#[test]
 fn checked_frame_rejects_bad_bytes_and_read_gate_binds_requested_digest() {
     let requested = s_content::frame(s_content::tag::NULL, &[]);
     let other = s_content::frame(s_content::tag::BOOL_TRUE, &[]);
