@@ -1,0 +1,7 @@
+{
+  "frozenAt": "2026-10-04T21:11:24.993Z",
+  "path": "explicit-scalar-input.json",
+  "bytes": 1510,
+  "sha256": "14b02d7e20e911cb130ace23e861a5f2f9436f6af6cdfb68852618271b4dae92",
+  "purpose": "Hand specified proof controls; frozen before D54 execution, not an expanded enumeration domain."
+}

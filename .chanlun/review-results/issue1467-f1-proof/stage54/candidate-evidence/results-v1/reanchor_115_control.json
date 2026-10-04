@@ -1,0 +1,2724 @@
+{
+  "name": "reanchor_115_control",
+  "ledger": "stage53-frozen-six",
+  "source": {
+    "initial": {
+      "bid": {
+        "id": "reservoir",
+        "price": 100,
+        "quantity": 115
+      },
+      "ask": {
+        "id": "ask",
+        "price": 102,
+        "quantity": 10
+      }
+    },
+    "events": [
+      {
+        "seq": 1,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 15
+      },
+      {
+        "seq": 2,
+        "kind": "add",
+        "id": "add-1",
+        "side": "bid",
+        "price": 100,
+        "quantity": 10
+      },
+      {
+        "seq": 3,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 6
+      },
+      {
+        "seq": 4,
+        "kind": "add",
+        "id": "add-3",
+        "side": "bid",
+        "price": 100,
+        "quantity": 8
+      },
+      {
+        "seq": 5,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 1
+      },
+      {
+        "seq": 6,
+        "kind": "add",
+        "id": "add-5",
+        "side": "bid",
+        "price": 100,
+        "quantity": 2
+      },
+      {
+        "seq": 7,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 1
+      }
+    ]
+  },
+  "states": [
+    {
+      "event": 0,
+      "q": 115,
+      "w": "2546/25"
+    },
+    {
+      "event": 1,
+      "q": 100,
+      "w": "1120/11"
+    },
+    {
+      "event": 2,
+      "q": 110,
+      "w": "611/6"
+    },
+    {
+      "event": 3,
+      "q": 104,
+      "w": "5804/57"
+    },
+    {
+      "event": 4,
+      "q": 112,
+      "w": "6212/61"
+    },
+    {
+      "event": 5,
+      "q": 111,
+      "w": "12322/121"
+    },
+    {
+      "event": 6,
+      "q": 113,
+      "w": "12526/123"
+    },
+    {
+      "event": 7,
+      "q": 112,
+      "w": "6212/61"
+    }
+  ],
+  "snapshots": [
+    {
+      "event": 0,
+      "orders": [
+        {
+          "id": "reservoir",
+          "side": "bid",
+          "price": 100,
+          "quantity": 115
+        },
+        {
+          "id": "ask",
+          "side": "ask",
+          "price": 102,
+          "quantity": 10
+        }
+      ],
+      "bestBid": 100,
+      "bestAsk": 102,
+      "bestBidQuantity": 115,
+      "bestAskQuantity": 10
+    },
+    {
+      "event": 1,
+      "orders": [
+        {
+          "id": "reservoir",
+          "side": "bid",
+          "price": 100,
+          "quantity": 100
+        },
+        {
+          "id": "ask",
+          "side": "ask",
+          "price": 102,
+          "quantity": 10
+        }
+      ],
+      "bestBid": 100,
+      "bestAsk": 102,
+      "bestBidQuantity": 100,
+      "bestAskQuantity": 10
+    },
+    {
+      "event": 2,
+      "orders": [
+        {
+          "id": "reservoir",
+          "side": "bid",
+          "price": 100,
+          "quantity": 100
+        },
+        {
+          "id": "ask",
+          "side": "ask",
+          "price": 102,
+          "quantity": 10
+        },
+        {
+          "id": "add-1",
+          "side": "bid",
+          "price": 100,
+          "quantity": 10
+        }
+      ],
+      "bestBid": 100,
+      "bestAsk": 102,
+      "bestBidQuantity": 110,
+      "bestAskQuantity": 10
+    },
+    {
+      "event": 3,
+      "orders": [
+        {
+          "id": "reservoir",
+          "side": "bid",
+          "price": 100,
+          "quantity": 94
+        },
+        {
+          "id": "ask",
+          "side": "ask",
+          "price": 102,
+          "quantity": 10
+        },
+        {
+          "id": "add-1",
+          "side": "bid",
+          "price": 100,
+          "quantity": 10
+        }
+      ],
+      "bestBid": 100,
+      "bestAsk": 102,
+      "bestBidQuantity": 104,
+      "bestAskQuantity": 10
+    },
+    {
+      "event": 4,
+      "orders": [
+        {
+          "id": "reservoir",
+          "side": "bid",
+          "price": 100,
+          "quantity": 94
+        },
+        {
+          "id": "ask",
+          "side": "ask",
+          "price": 102,
+          "quantity": 10
+        },
+        {
+          "id": "add-1",
+          "side": "bid",
+          "price": 100,
+          "quantity": 10
+        },
+        {
+          "id": "add-3",
+          "side": "bid",
+          "price": 100,
+          "quantity": 8
+        }
+      ],
+      "bestBid": 100,
+      "bestAsk": 102,
+      "bestBidQuantity": 112,
+      "bestAskQuantity": 10
+    },
+    {
+      "event": 5,
+      "orders": [
+        {
+          "id": "reservoir",
+          "side": "bid",
+          "price": 100,
+          "quantity": 93
+        },
+        {
+          "id": "ask",
+          "side": "ask",
+          "price": 102,
+          "quantity": 10
+        },
+        {
+          "id": "add-1",
+          "side": "bid",
+          "price": 100,
+          "quantity": 10
+        },
+        {
+          "id": "add-3",
+          "side": "bid",
+          "price": 100,
+          "quantity": 8
+        }
+      ],
+      "bestBid": 100,
+      "bestAsk": 102,
+      "bestBidQuantity": 111,
+      "bestAskQuantity": 10
+    },
+    {
+      "event": 6,
+      "orders": [
+        {
+          "id": "reservoir",
+          "side": "bid",
+          "price": 100,
+          "quantity": 93
+        },
+        {
+          "id": "ask",
+          "side": "ask",
+          "price": 102,
+          "quantity": 10
+        },
+        {
+          "id": "add-1",
+          "side": "bid",
+          "price": 100,
+          "quantity": 10
+        },
+        {
+          "id": "add-3",
+          "side": "bid",
+          "price": 100,
+          "quantity": 8
+        },
+        {
+          "id": "add-5",
+          "side": "bid",
+          "price": 100,
+          "quantity": 2
+        }
+      ],
+      "bestBid": 100,
+      "bestAsk": 102,
+      "bestBidQuantity": 113,
+      "bestAskQuantity": 10
+    },
+    {
+      "event": 7,
+      "orders": [
+        {
+          "id": "reservoir",
+          "side": "bid",
+          "price": 100,
+          "quantity": 92
+        },
+        {
+          "id": "ask",
+          "side": "ask",
+          "price": 102,
+          "quantity": 10
+        },
+        {
+          "id": "add-1",
+          "side": "bid",
+          "price": 100,
+          "quantity": 10
+        },
+        {
+          "id": "add-3",
+          "side": "bid",
+          "price": 100,
+          "quantity": 8
+        },
+        {
+          "id": "add-5",
+          "side": "bid",
+          "price": 100,
+          "quantity": 2
+        }
+      ],
+      "bestBid": 100,
+      "bestAsk": 102,
+      "bestBidQuantity": 112,
+      "bestAskQuantity": 10
+    }
+  ],
+  "prefixes": [
+    {
+      "prefixAt": 0,
+      "states": [
+        {
+          "event": 0,
+          "q": 115,
+          "w": "2546/25"
+        }
+      ],
+      "D54": {
+        "policy": "D54",
+        "legs": [],
+        "outputs": [],
+        "attempts": [],
+        "terminal": {
+          "tag": "NoCore",
+          "cursor": 0,
+          "rejectedSeeds": []
+        },
+        "tail": {
+          "start": 0,
+          "end": 0,
+          "ownedEvents": []
+        }
+      },
+      "controls": {
+        "A53": {
+          "policy": "A53",
+          "legs": [],
+          "outputs": [],
+          "attempts": [],
+          "terminal": {
+            "tag": "NoCore",
+            "cursor": 0,
+            "rejectedSeeds": []
+          },
+          "tail": {
+            "start": 0,
+            "end": 0,
+            "ownedEvents": []
+          }
+        },
+        "B53": {
+          "policy": "B53",
+          "legs": [],
+          "outputs": [],
+          "attempts": [],
+          "terminal": {
+            "tag": "NoCore",
+            "cursor": 0,
+            "rejectedSeeds": []
+          },
+          "tail": {
+            "start": 0,
+            "end": 0,
+            "ownedEvents": []
+          }
+        },
+        "C53": {
+          "policy": "C53",
+          "legs": [],
+          "outputs": [],
+          "attempts": [],
+          "terminal": {
+            "tag": "NoCore",
+            "cursor": 0,
+            "rejectedSeeds": []
+          },
+          "tail": {
+            "start": 0,
+            "end": 0,
+            "ownedEvents": []
+          }
+        }
+      }
+    },
+    {
+      "prefixAt": 1,
+      "states": [
+        {
+          "event": 0,
+          "q": 115,
+          "w": "2546/25"
+        },
+        {
+          "event": 1,
+          "q": 100,
+          "w": "1120/11"
+        }
+      ],
+      "D54": {
+        "policy": "D54",
+        "legs": [],
+        "outputs": [],
+        "attempts": [],
+        "terminal": {
+          "tag": "NoCore",
+          "cursor": 0,
+          "rejectedSeeds": []
+        },
+        "tail": {
+          "start": 0,
+          "end": 1,
+          "ownedEvents": [
+            1
+          ]
+        }
+      },
+      "controls": {
+        "A53": {
+          "policy": "A53",
+          "legs": [],
+          "outputs": [],
+          "attempts": [],
+          "terminal": {
+            "tag": "NoCore",
+            "cursor": 0,
+            "rejectedSeeds": []
+          },
+          "tail": {
+            "start": 0,
+            "end": 1,
+            "ownedEvents": [
+              1
+            ]
+          }
+        },
+        "B53": {
+          "policy": "B53",
+          "legs": [],
+          "outputs": [],
+          "attempts": [],
+          "terminal": {
+            "tag": "NoCore",
+            "cursor": 0,
+            "rejectedSeeds": []
+          },
+          "tail": {
+            "start": 0,
+            "end": 1,
+            "ownedEvents": [
+              1
+            ]
+          }
+        },
+        "C53": {
+          "policy": "C53",
+          "legs": [],
+          "outputs": [],
+          "attempts": [],
+          "terminal": {
+            "tag": "NoCore",
+            "cursor": 0,
+            "rejectedSeeds": []
+          },
+          "tail": {
+            "start": 0,
+            "end": 1,
+            "ownedEvents": [
+              1
+            ]
+          }
+        }
+      }
+    },
+    {
+      "prefixAt": 2,
+      "states": [
+        {
+          "event": 0,
+          "q": 115,
+          "w": "2546/25"
+        },
+        {
+          "event": 1,
+          "q": 100,
+          "w": "1120/11"
+        },
+        {
+          "event": 2,
+          "q": 110,
+          "w": "611/6"
+        }
+      ],
+      "D54": {
+        "policy": "D54",
+        "legs": [
+          {
+            "id": 0,
+            "start": 0,
+            "end": 1,
+            "direction": -1,
+            "low": 100,
+            "high": 115,
+            "knownAt": 2
+          }
+        ],
+        "outputs": [],
+        "attempts": [],
+        "terminal": {
+          "tag": "NoCore",
+          "cursor": 0,
+          "rejectedSeeds": []
+        },
+        "tail": {
+          "start": 0,
+          "end": 2,
+          "ownedEvents": [
+            1,
+            2
+          ]
+        }
+      },
+      "controls": {
+        "A53": {
+          "policy": "A53",
+          "legs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 1,
+              "direction": -1,
+              "low": 100,
+              "high": 115,
+              "knownAt": 2
+            }
+          ],
+          "outputs": [],
+          "attempts": [],
+          "terminal": {
+            "tag": "NoCore",
+            "cursor": 0,
+            "rejectedSeeds": []
+          },
+          "tail": {
+            "start": 0,
+            "end": 2,
+            "ownedEvents": [
+              1,
+              2
+            ]
+          }
+        },
+        "B53": {
+          "policy": "B53",
+          "legs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 1,
+              "direction": -1,
+              "low": 100,
+              "high": 115,
+              "knownAt": 2
+            }
+          ],
+          "outputs": [],
+          "attempts": [],
+          "terminal": {
+            "tag": "NoCore",
+            "cursor": 0,
+            "rejectedSeeds": []
+          },
+          "tail": {
+            "start": 0,
+            "end": 2,
+            "ownedEvents": [
+              1,
+              2
+            ]
+          }
+        },
+        "C53": {
+          "policy": "C53",
+          "legs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 1,
+              "direction": -1,
+              "low": 100,
+              "high": 115,
+              "knownAt": 2
+            }
+          ],
+          "outputs": [],
+          "attempts": [],
+          "terminal": {
+            "tag": "NoCore",
+            "cursor": 0,
+            "rejectedSeeds": []
+          },
+          "tail": {
+            "start": 0,
+            "end": 2,
+            "ownedEvents": [
+              1,
+              2
+            ]
+          }
+        }
+      }
+    },
+    {
+      "prefixAt": 3,
+      "states": [
+        {
+          "event": 0,
+          "q": 115,
+          "w": "2546/25"
+        },
+        {
+          "event": 1,
+          "q": 100,
+          "w": "1120/11"
+        },
+        {
+          "event": 2,
+          "q": 110,
+          "w": "611/6"
+        },
+        {
+          "event": 3,
+          "q": 104,
+          "w": "5804/57"
+        }
+      ],
+      "D54": {
+        "policy": "D54",
+        "legs": [
+          {
+            "id": 0,
+            "start": 0,
+            "end": 1,
+            "direction": -1,
+            "low": 100,
+            "high": 115,
+            "knownAt": 2
+          },
+          {
+            "id": 1,
+            "start": 1,
+            "end": 2,
+            "direction": 1,
+            "low": 100,
+            "high": 110,
+            "knownAt": 3
+          }
+        ],
+        "outputs": [],
+        "attempts": [],
+        "terminal": {
+          "tag": "NoCore",
+          "cursor": 0,
+          "rejectedSeeds": []
+        },
+        "tail": {
+          "start": 0,
+          "end": 3,
+          "ownedEvents": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "controls": {
+        "A53": {
+          "policy": "A53",
+          "legs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 1,
+              "direction": -1,
+              "low": 100,
+              "high": 115,
+              "knownAt": 2
+            },
+            {
+              "id": 1,
+              "start": 1,
+              "end": 2,
+              "direction": 1,
+              "low": 100,
+              "high": 110,
+              "knownAt": 3
+            }
+          ],
+          "outputs": [],
+          "attempts": [],
+          "terminal": {
+            "tag": "NoCore",
+            "cursor": 0,
+            "rejectedSeeds": []
+          },
+          "tail": {
+            "start": 0,
+            "end": 3,
+            "ownedEvents": [
+              1,
+              2,
+              3
+            ]
+          }
+        },
+        "B53": {
+          "policy": "B53",
+          "legs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 1,
+              "direction": -1,
+              "low": 100,
+              "high": 115,
+              "knownAt": 2
+            },
+            {
+              "id": 1,
+              "start": 1,
+              "end": 2,
+              "direction": 1,
+              "low": 100,
+              "high": 110,
+              "knownAt": 3
+            }
+          ],
+          "outputs": [],
+          "attempts": [],
+          "terminal": {
+            "tag": "NoCore",
+            "cursor": 0,
+            "rejectedSeeds": []
+          },
+          "tail": {
+            "start": 0,
+            "end": 3,
+            "ownedEvents": [
+              1,
+              2,
+              3
+            ]
+          }
+        },
+        "C53": {
+          "policy": "C53",
+          "legs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 1,
+              "direction": -1,
+              "low": 100,
+              "high": 115,
+              "knownAt": 2
+            },
+            {
+              "id": 1,
+              "start": 1,
+              "end": 2,
+              "direction": 1,
+              "low": 100,
+              "high": 110,
+              "knownAt": 3
+            }
+          ],
+          "outputs": [],
+          "attempts": [],
+          "terminal": {
+            "tag": "NoCore",
+            "cursor": 0,
+            "rejectedSeeds": []
+          },
+          "tail": {
+            "start": 0,
+            "end": 3,
+            "ownedEvents": [
+              1,
+              2,
+              3
+            ]
+          }
+        }
+      }
+    },
+    {
+      "prefixAt": 4,
+      "states": [
+        {
+          "event": 0,
+          "q": 115,
+          "w": "2546/25"
+        },
+        {
+          "event": 1,
+          "q": 100,
+          "w": "1120/11"
+        },
+        {
+          "event": 2,
+          "q": 110,
+          "w": "611/6"
+        },
+        {
+          "event": 3,
+          "q": 104,
+          "w": "5804/57"
+        },
+        {
+          "event": 4,
+          "q": 112,
+          "w": "6212/61"
+        }
+      ],
+      "D54": {
+        "policy": "D54",
+        "legs": [
+          {
+            "id": 0,
+            "start": 0,
+            "end": 1,
+            "direction": -1,
+            "low": 100,
+            "high": 115,
+            "knownAt": 2
+          },
+          {
+            "id": 1,
+            "start": 1,
+            "end": 2,
+            "direction": 1,
+            "low": 100,
+            "high": 110,
+            "knownAt": 3
+          },
+          {
+            "id": 2,
+            "start": 2,
+            "end": 3,
+            "direction": -1,
+            "low": 104,
+            "high": 110,
+            "knownAt": 4
+          }
+        ],
+        "outputs": [],
+        "attempts": [],
+        "terminal": {
+          "tag": "AwaitPair",
+          "cursor": 0,
+          "seed": [
+            0,
+            1,
+            2
+          ],
+          "core": [
+            104,
+            110
+          ],
+          "developmentLegs": [
+            0,
+            1,
+            2
+          ],
+          "nextL": 3,
+          "rejectedSeeds": [],
+          "checks": [],
+          "contactEvidence": []
+        },
+        "tail": {
+          "start": 0,
+          "end": 4,
+          "ownedEvents": [
+            1,
+            2,
+            3,
+            4
+          ]
+        }
+      },
+      "controls": {
+        "A53": {
+          "policy": "A53",
+          "legs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 1,
+              "direction": -1,
+              "low": 100,
+              "high": 115,
+              "knownAt": 2
+            },
+            {
+              "id": 1,
+              "start": 1,
+              "end": 2,
+              "direction": 1,
+              "low": 100,
+              "high": 110,
+              "knownAt": 3
+            },
+            {
+              "id": 2,
+              "start": 2,
+              "end": 3,
+              "direction": -1,
+              "low": 104,
+              "high": 110,
+              "knownAt": 4
+            }
+          ],
+          "outputs": [],
+          "attempts": [],
+          "terminal": {
+            "tag": "AwaitPair",
+            "cursor": 0,
+            "seed": [
+              0,
+              1,
+              2
+            ],
+            "core": [
+              104,
+              110
+            ],
+            "members": [
+              0,
+              1,
+              2
+            ],
+            "nextL": 3,
+            "rejectedSeeds": [],
+            "checks": []
+          },
+          "tail": {
+            "start": 0,
+            "end": 4,
+            "ownedEvents": [
+              1,
+              2,
+              3,
+              4
+            ]
+          }
+        },
+        "B53": {
+          "policy": "B53",
+          "legs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 1,
+              "direction": -1,
+              "low": 100,
+              "high": 115,
+              "knownAt": 2
+            },
+            {
+              "id": 1,
+              "start": 1,
+              "end": 2,
+              "direction": 1,
+              "low": 100,
+              "high": 110,
+              "knownAt": 3
+            },
+            {
+              "id": 2,
+              "start": 2,
+              "end": 3,
+              "direction": -1,
+              "low": 104,
+              "high": 110,
+              "knownAt": 4
+            }
+          ],
+          "outputs": [],
+          "attempts": [],
+          "terminal": {
+            "tag": "AwaitPair",
+            "cursor": 0,
+            "seed": [
+              0,
+              1,
+              2
+            ],
+            "core": [
+              104,
+              110
+            ],
+            "members": [
+              0,
+              1,
+              2
+            ],
+            "nextL": 2,
+            "rejectedSeeds": [],
+            "checks": []
+          },
+          "tail": {
+            "start": 0,
+            "end": 4,
+            "ownedEvents": [
+              1,
+              2,
+              3,
+              4
+            ]
+          }
+        },
+        "C53": {
+          "policy": "C53",
+          "legs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 1,
+              "direction": -1,
+              "low": 100,
+              "high": 115,
+              "knownAt": 2
+            },
+            {
+              "id": 1,
+              "start": 1,
+              "end": 2,
+              "direction": 1,
+              "low": 100,
+              "high": 110,
+              "knownAt": 3
+            },
+            {
+              "id": 2,
+              "start": 2,
+              "end": 3,
+              "direction": -1,
+              "low": 104,
+              "high": 110,
+              "knownAt": 4
+            }
+          ],
+          "outputs": [],
+          "attempts": [],
+          "terminal": {
+            "tag": "AwaitPair",
+            "cursor": 0,
+            "seed": [
+              0,
+              1,
+              2
+            ],
+            "core": [
+              104,
+              110
+            ],
+            "members": [
+              0,
+              1,
+              2
+            ],
+            "nextL": 3,
+            "rejectedSeeds": [],
+            "checks": []
+          },
+          "tail": {
+            "start": 0,
+            "end": 4,
+            "ownedEvents": [
+              1,
+              2,
+              3,
+              4
+            ]
+          }
+        }
+      }
+    },
+    {
+      "prefixAt": 5,
+      "states": [
+        {
+          "event": 0,
+          "q": 115,
+          "w": "2546/25"
+        },
+        {
+          "event": 1,
+          "q": 100,
+          "w": "1120/11"
+        },
+        {
+          "event": 2,
+          "q": 110,
+          "w": "611/6"
+        },
+        {
+          "event": 3,
+          "q": 104,
+          "w": "5804/57"
+        },
+        {
+          "event": 4,
+          "q": 112,
+          "w": "6212/61"
+        },
+        {
+          "event": 5,
+          "q": 111,
+          "w": "12322/121"
+        }
+      ],
+      "D54": {
+        "policy": "D54",
+        "legs": [
+          {
+            "id": 0,
+            "start": 0,
+            "end": 1,
+            "direction": -1,
+            "low": 100,
+            "high": 115,
+            "knownAt": 2
+          },
+          {
+            "id": 1,
+            "start": 1,
+            "end": 2,
+            "direction": 1,
+            "low": 100,
+            "high": 110,
+            "knownAt": 3
+          },
+          {
+            "id": 2,
+            "start": 2,
+            "end": 3,
+            "direction": -1,
+            "low": 104,
+            "high": 110,
+            "knownAt": 4
+          },
+          {
+            "id": 3,
+            "start": 3,
+            "end": 4,
+            "direction": 1,
+            "low": 104,
+            "high": 112,
+            "knownAt": 5
+          }
+        ],
+        "outputs": [],
+        "attempts": [],
+        "terminal": {
+          "tag": "AwaitPair",
+          "cursor": 0,
+          "seed": [
+            0,
+            1,
+            2
+          ],
+          "core": [
+            104,
+            110
+          ],
+          "developmentLegs": [
+            0,
+            1,
+            2
+          ],
+          "nextL": 3,
+          "rejectedSeeds": [],
+          "checks": [],
+          "contactEvidence": []
+        },
+        "tail": {
+          "start": 0,
+          "end": 5,
+          "ownedEvents": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        }
+      },
+      "controls": {
+        "A53": {
+          "policy": "A53",
+          "legs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 1,
+              "direction": -1,
+              "low": 100,
+              "high": 115,
+              "knownAt": 2
+            },
+            {
+              "id": 1,
+              "start": 1,
+              "end": 2,
+              "direction": 1,
+              "low": 100,
+              "high": 110,
+              "knownAt": 3
+            },
+            {
+              "id": 2,
+              "start": 2,
+              "end": 3,
+              "direction": -1,
+              "low": 104,
+              "high": 110,
+              "knownAt": 4
+            },
+            {
+              "id": 3,
+              "start": 3,
+              "end": 4,
+              "direction": 1,
+              "low": 104,
+              "high": 112,
+              "knownAt": 5
+            }
+          ],
+          "outputs": [],
+          "attempts": [],
+          "terminal": {
+            "tag": "AwaitPair",
+            "cursor": 0,
+            "seed": [
+              0,
+              1,
+              2
+            ],
+            "core": [
+              104,
+              110
+            ],
+            "members": [
+              0,
+              1,
+              2
+            ],
+            "nextL": 3,
+            "rejectedSeeds": [],
+            "checks": []
+          },
+          "tail": {
+            "start": 0,
+            "end": 5,
+            "ownedEvents": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ]
+          }
+        },
+        "B53": {
+          "policy": "B53",
+          "legs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 1,
+              "direction": -1,
+              "low": 100,
+              "high": 115,
+              "knownAt": 2
+            },
+            {
+              "id": 1,
+              "start": 1,
+              "end": 2,
+              "direction": 1,
+              "low": 100,
+              "high": 110,
+              "knownAt": 3
+            },
+            {
+              "id": 2,
+              "start": 2,
+              "end": 3,
+              "direction": -1,
+              "low": 104,
+              "high": 110,
+              "knownAt": 4
+            },
+            {
+              "id": 3,
+              "start": 3,
+              "end": 4,
+              "direction": 1,
+              "low": 104,
+              "high": 112,
+              "knownAt": 5
+            }
+          ],
+          "outputs": [],
+          "attempts": [],
+          "terminal": {
+            "tag": "AwaitPair",
+            "cursor": 0,
+            "seed": [
+              0,
+              1,
+              2
+            ],
+            "core": [
+              104,
+              110
+            ],
+            "members": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "nextL": 3,
+            "rejectedSeeds": [],
+            "checks": [
+              {
+                "L": 2,
+                "R": 3,
+                "outcome": "Touch",
+                "addedMembers": [
+                  3
+                ]
+              }
+            ]
+          },
+          "tail": {
+            "start": 0,
+            "end": 5,
+            "ownedEvents": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ]
+          }
+        },
+        "C53": {
+          "policy": "C53",
+          "legs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 1,
+              "direction": -1,
+              "low": 100,
+              "high": 115,
+              "knownAt": 2
+            },
+            {
+              "id": 1,
+              "start": 1,
+              "end": 2,
+              "direction": 1,
+              "low": 100,
+              "high": 110,
+              "knownAt": 3
+            },
+            {
+              "id": 2,
+              "start": 2,
+              "end": 3,
+              "direction": -1,
+              "low": 104,
+              "high": 110,
+              "knownAt": 4
+            },
+            {
+              "id": 3,
+              "start": 3,
+              "end": 4,
+              "direction": 1,
+              "low": 104,
+              "high": 112,
+              "knownAt": 5
+            }
+          ],
+          "outputs": [],
+          "attempts": [],
+          "terminal": {
+            "tag": "AwaitPair",
+            "cursor": 0,
+            "seed": [
+              0,
+              1,
+              2
+            ],
+            "core": [
+              104,
+              110
+            ],
+            "members": [
+              0,
+              1,
+              2
+            ],
+            "nextL": 3,
+            "rejectedSeeds": [],
+            "checks": []
+          },
+          "tail": {
+            "start": 0,
+            "end": 5,
+            "ownedEvents": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ]
+          }
+        }
+      }
+    },
+    {
+      "prefixAt": 6,
+      "states": [
+        {
+          "event": 0,
+          "q": 115,
+          "w": "2546/25"
+        },
+        {
+          "event": 1,
+          "q": 100,
+          "w": "1120/11"
+        },
+        {
+          "event": 2,
+          "q": 110,
+          "w": "611/6"
+        },
+        {
+          "event": 3,
+          "q": 104,
+          "w": "5804/57"
+        },
+        {
+          "event": 4,
+          "q": 112,
+          "w": "6212/61"
+        },
+        {
+          "event": 5,
+          "q": 111,
+          "w": "12322/121"
+        },
+        {
+          "event": 6,
+          "q": 113,
+          "w": "12526/123"
+        }
+      ],
+      "D54": {
+        "policy": "D54",
+        "legs": [
+          {
+            "id": 0,
+            "start": 0,
+            "end": 1,
+            "direction": -1,
+            "low": 100,
+            "high": 115,
+            "knownAt": 2
+          },
+          {
+            "id": 1,
+            "start": 1,
+            "end": 2,
+            "direction": 1,
+            "low": 100,
+            "high": 110,
+            "knownAt": 3
+          },
+          {
+            "id": 2,
+            "start": 2,
+            "end": 3,
+            "direction": -1,
+            "low": 104,
+            "high": 110,
+            "knownAt": 4
+          },
+          {
+            "id": 3,
+            "start": 3,
+            "end": 4,
+            "direction": 1,
+            "low": 104,
+            "high": 112,
+            "knownAt": 5
+          },
+          {
+            "id": 4,
+            "start": 4,
+            "end": 5,
+            "direction": -1,
+            "low": 111,
+            "high": 112,
+            "knownAt": 6
+          }
+        ],
+        "outputs": [
+          {
+            "id": 0,
+            "start": 0,
+            "end": 4,
+            "seed": [
+              0,
+              1,
+              2
+            ],
+            "core": [
+              104,
+              110
+            ],
+            "coreMembers": [
+              0,
+              1,
+              2
+            ],
+            "developmentLegs": [
+              0,
+              1,
+              2
+            ],
+            "memberStart": 0,
+            "memberEnd": 3,
+            "memberEvents": [
+              1,
+              2,
+              3
+            ],
+            "memberOuter": [
+              100,
+              115
+            ],
+            "developmentStart": 0,
+            "developmentEnd": 3,
+            "developmentEvents": [
+              1,
+              2,
+              3
+            ],
+            "developmentOuter": [
+              100,
+              115
+            ],
+            "releasedFromDevelopment": [],
+            "releasedEvents": [],
+            "departureCandidate": 3,
+            "returnCandidate": 4,
+            "departureEvents": [
+              4
+            ],
+            "departureWasInDevelopment": false,
+            "departureIsCoreMember": false,
+            "side": 1,
+            "seedEndpointAt": 3,
+            "seedKnownAt": 4,
+            "relationshipPublishedAt": 6,
+            "ownedEvents": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "wholeOuter": [
+              100,
+              115
+            ],
+            "checks": [
+              {
+                "L": 3,
+                "R": 4,
+                "outcome": "Exit",
+                "side": 1
+              }
+            ],
+            "contactEvidence": [],
+            "originalP": null,
+            "originalBreak": null,
+            "originalLevel": null,
+            "wholeF1": null,
+            "fixedF2": null,
+            "connectorIdentity": null,
+            "semanticEligibleAt": null
+          }
+        ],
+        "attempts": [
+          {
+            "cursor": 0,
+            "seedStart": 0,
+            "rejectedSeeds": []
+          }
+        ],
+        "terminal": {
+          "tag": "NoCore",
+          "cursor": 4,
+          "rejectedSeeds": []
+        },
+        "tail": {
+          "start": 4,
+          "end": 6,
+          "ownedEvents": [
+            5,
+            6
+          ]
+        }
+      },
+      "controls": {
+        "A53": {
+          "policy": "A53",
+          "legs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 1,
+              "direction": -1,
+              "low": 100,
+              "high": 115,
+              "knownAt": 2
+            },
+            {
+              "id": 1,
+              "start": 1,
+              "end": 2,
+              "direction": 1,
+              "low": 100,
+              "high": 110,
+              "knownAt": 3
+            },
+            {
+              "id": 2,
+              "start": 2,
+              "end": 3,
+              "direction": -1,
+              "low": 104,
+              "high": 110,
+              "knownAt": 4
+            },
+            {
+              "id": 3,
+              "start": 3,
+              "end": 4,
+              "direction": 1,
+              "low": 104,
+              "high": 112,
+              "knownAt": 5
+            },
+            {
+              "id": 4,
+              "start": 4,
+              "end": 5,
+              "direction": -1,
+              "low": 111,
+              "high": 112,
+              "knownAt": 6
+            }
+          ],
+          "outputs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 4,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "core": [
+                104,
+                110
+              ],
+              "members": [
+                0,
+                1,
+                2
+              ],
+              "memberStart": 0,
+              "memberEnd": 3,
+              "memberEvents": [
+                1,
+                2,
+                3
+              ],
+              "memberOuter": [
+                100,
+                115
+              ],
+              "departure": 3,
+              "return": 4,
+              "side": 1,
+              "departureIsMember": false,
+              "seedEndpointAt": 3,
+              "seedKnownAt": 4,
+              "relationshipPublishedAt": 6,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "fullRange": [
+                100,
+                115
+              ],
+              "checks": [
+                {
+                  "L": 3,
+                  "R": 4,
+                  "outcome": "Exit",
+                  "side": 1
+                }
+              ],
+              "semanticEligibleAt": null,
+              "originalBreakIdentity": null,
+              "originalPIdentity": null
+            }
+          ],
+          "attempts": [
+            {
+              "cursor": 0,
+              "seedStart": 0,
+              "rejectedSeeds": []
+            }
+          ],
+          "terminal": {
+            "tag": "NoCore",
+            "cursor": 4,
+            "rejectedSeeds": []
+          },
+          "tail": {
+            "start": 4,
+            "end": 6,
+            "ownedEvents": [
+              5,
+              6
+            ]
+          }
+        },
+        "B53": {
+          "policy": "B53",
+          "legs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 1,
+              "direction": -1,
+              "low": 100,
+              "high": 115,
+              "knownAt": 2
+            },
+            {
+              "id": 1,
+              "start": 1,
+              "end": 2,
+              "direction": 1,
+              "low": 100,
+              "high": 110,
+              "knownAt": 3
+            },
+            {
+              "id": 2,
+              "start": 2,
+              "end": 3,
+              "direction": -1,
+              "low": 104,
+              "high": 110,
+              "knownAt": 4
+            },
+            {
+              "id": 3,
+              "start": 3,
+              "end": 4,
+              "direction": 1,
+              "low": 104,
+              "high": 112,
+              "knownAt": 5
+            },
+            {
+              "id": 4,
+              "start": 4,
+              "end": 5,
+              "direction": -1,
+              "low": 111,
+              "high": 112,
+              "knownAt": 6
+            }
+          ],
+          "outputs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 4,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "core": [
+                104,
+                110
+              ],
+              "members": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "memberStart": 0,
+              "memberEnd": 4,
+              "memberEvents": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "memberOuter": [
+                100,
+                115
+              ],
+              "departure": 3,
+              "return": 4,
+              "side": 1,
+              "departureIsMember": true,
+              "seedEndpointAt": 3,
+              "seedKnownAt": 4,
+              "relationshipPublishedAt": 6,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "fullRange": [
+                100,
+                115
+              ],
+              "checks": [
+                {
+                  "L": 2,
+                  "R": 3,
+                  "outcome": "Touch",
+                  "addedMembers": [
+                    3
+                  ]
+                },
+                {
+                  "L": 3,
+                  "R": 4,
+                  "outcome": "Exit",
+                  "side": 1
+                }
+              ],
+              "semanticEligibleAt": null,
+              "originalBreakIdentity": null,
+              "originalPIdentity": null
+            }
+          ],
+          "attempts": [
+            {
+              "cursor": 0,
+              "seedStart": 0,
+              "rejectedSeeds": []
+            }
+          ],
+          "terminal": {
+            "tag": "NoCore",
+            "cursor": 4,
+            "rejectedSeeds": []
+          },
+          "tail": {
+            "start": 4,
+            "end": 6,
+            "ownedEvents": [
+              5,
+              6
+            ]
+          }
+        },
+        "C53": {
+          "policy": "C53",
+          "legs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 1,
+              "direction": -1,
+              "low": 100,
+              "high": 115,
+              "knownAt": 2
+            },
+            {
+              "id": 1,
+              "start": 1,
+              "end": 2,
+              "direction": 1,
+              "low": 100,
+              "high": 110,
+              "knownAt": 3
+            },
+            {
+              "id": 2,
+              "start": 2,
+              "end": 3,
+              "direction": -1,
+              "low": 104,
+              "high": 110,
+              "knownAt": 4
+            },
+            {
+              "id": 3,
+              "start": 3,
+              "end": 4,
+              "direction": 1,
+              "low": 104,
+              "high": 112,
+              "knownAt": 5
+            },
+            {
+              "id": 4,
+              "start": 4,
+              "end": 5,
+              "direction": -1,
+              "low": 111,
+              "high": 112,
+              "knownAt": 6
+            }
+          ],
+          "outputs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 4,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "core": [
+                104,
+                110
+              ],
+              "members": [
+                0,
+                1,
+                2
+              ],
+              "memberStart": 0,
+              "memberEnd": 3,
+              "memberEvents": [
+                1,
+                2,
+                3
+              ],
+              "memberOuter": [
+                100,
+                115
+              ],
+              "departure": 3,
+              "return": 4,
+              "side": 1,
+              "departureIsMember": false,
+              "seedEndpointAt": 3,
+              "seedKnownAt": 4,
+              "relationshipPublishedAt": 6,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "fullRange": [
+                100,
+                115
+              ],
+              "checks": [
+                {
+                  "L": 3,
+                  "R": 4,
+                  "outcome": "Exit",
+                  "side": 1
+                }
+              ],
+              "semanticEligibleAt": null,
+              "originalBreakIdentity": null,
+              "originalPIdentity": null
+            }
+          ],
+          "attempts": [
+            {
+              "cursor": 0,
+              "seedStart": 0,
+              "rejectedSeeds": []
+            }
+          ],
+          "terminal": {
+            "tag": "NoCore",
+            "cursor": 4,
+            "rejectedSeeds": []
+          },
+          "tail": {
+            "start": 4,
+            "end": 6,
+            "ownedEvents": [
+              5,
+              6
+            ]
+          }
+        }
+      }
+    },
+    {
+      "prefixAt": 7,
+      "states": [
+        {
+          "event": 0,
+          "q": 115,
+          "w": "2546/25"
+        },
+        {
+          "event": 1,
+          "q": 100,
+          "w": "1120/11"
+        },
+        {
+          "event": 2,
+          "q": 110,
+          "w": "611/6"
+        },
+        {
+          "event": 3,
+          "q": 104,
+          "w": "5804/57"
+        },
+        {
+          "event": 4,
+          "q": 112,
+          "w": "6212/61"
+        },
+        {
+          "event": 5,
+          "q": 111,
+          "w": "12322/121"
+        },
+        {
+          "event": 6,
+          "q": 113,
+          "w": "12526/123"
+        },
+        {
+          "event": 7,
+          "q": 112,
+          "w": "6212/61"
+        }
+      ],
+      "D54": {
+        "policy": "D54",
+        "legs": [
+          {
+            "id": 0,
+            "start": 0,
+            "end": 1,
+            "direction": -1,
+            "low": 100,
+            "high": 115,
+            "knownAt": 2
+          },
+          {
+            "id": 1,
+            "start": 1,
+            "end": 2,
+            "direction": 1,
+            "low": 100,
+            "high": 110,
+            "knownAt": 3
+          },
+          {
+            "id": 2,
+            "start": 2,
+            "end": 3,
+            "direction": -1,
+            "low": 104,
+            "high": 110,
+            "knownAt": 4
+          },
+          {
+            "id": 3,
+            "start": 3,
+            "end": 4,
+            "direction": 1,
+            "low": 104,
+            "high": 112,
+            "knownAt": 5
+          },
+          {
+            "id": 4,
+            "start": 4,
+            "end": 5,
+            "direction": -1,
+            "low": 111,
+            "high": 112,
+            "knownAt": 6
+          },
+          {
+            "id": 5,
+            "start": 5,
+            "end": 6,
+            "direction": 1,
+            "low": 111,
+            "high": 113,
+            "knownAt": 7
+          }
+        ],
+        "outputs": [
+          {
+            "id": 0,
+            "start": 0,
+            "end": 4,
+            "seed": [
+              0,
+              1,
+              2
+            ],
+            "core": [
+              104,
+              110
+            ],
+            "coreMembers": [
+              0,
+              1,
+              2
+            ],
+            "developmentLegs": [
+              0,
+              1,
+              2
+            ],
+            "memberStart": 0,
+            "memberEnd": 3,
+            "memberEvents": [
+              1,
+              2,
+              3
+            ],
+            "memberOuter": [
+              100,
+              115
+            ],
+            "developmentStart": 0,
+            "developmentEnd": 3,
+            "developmentEvents": [
+              1,
+              2,
+              3
+            ],
+            "developmentOuter": [
+              100,
+              115
+            ],
+            "releasedFromDevelopment": [],
+            "releasedEvents": [],
+            "departureCandidate": 3,
+            "returnCandidate": 4,
+            "departureEvents": [
+              4
+            ],
+            "departureWasInDevelopment": false,
+            "departureIsCoreMember": false,
+            "side": 1,
+            "seedEndpointAt": 3,
+            "seedKnownAt": 4,
+            "relationshipPublishedAt": 6,
+            "ownedEvents": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "wholeOuter": [
+              100,
+              115
+            ],
+            "checks": [
+              {
+                "L": 3,
+                "R": 4,
+                "outcome": "Exit",
+                "side": 1
+              }
+            ],
+            "contactEvidence": [],
+            "originalP": null,
+            "originalBreak": null,
+            "originalLevel": null,
+            "wholeF1": null,
+            "fixedF2": null,
+            "connectorIdentity": null,
+            "semanticEligibleAt": null
+          }
+        ],
+        "attempts": [
+          {
+            "cursor": 0,
+            "seedStart": 0,
+            "rejectedSeeds": []
+          }
+        ],
+        "terminal": {
+          "tag": "NoCore",
+          "cursor": 4,
+          "rejectedSeeds": []
+        },
+        "tail": {
+          "start": 4,
+          "end": 7,
+          "ownedEvents": [
+            5,
+            6,
+            7
+          ]
+        }
+      },
+      "controls": {
+        "A53": {
+          "policy": "A53",
+          "legs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 1,
+              "direction": -1,
+              "low": 100,
+              "high": 115,
+              "knownAt": 2
+            },
+            {
+              "id": 1,
+              "start": 1,
+              "end": 2,
+              "direction": 1,
+              "low": 100,
+              "high": 110,
+              "knownAt": 3
+            },
+            {
+              "id": 2,
+              "start": 2,
+              "end": 3,
+              "direction": -1,
+              "low": 104,
+              "high": 110,
+              "knownAt": 4
+            },
+            {
+              "id": 3,
+              "start": 3,
+              "end": 4,
+              "direction": 1,
+              "low": 104,
+              "high": 112,
+              "knownAt": 5
+            },
+            {
+              "id": 4,
+              "start": 4,
+              "end": 5,
+              "direction": -1,
+              "low": 111,
+              "high": 112,
+              "knownAt": 6
+            },
+            {
+              "id": 5,
+              "start": 5,
+              "end": 6,
+              "direction": 1,
+              "low": 111,
+              "high": 113,
+              "knownAt": 7
+            }
+          ],
+          "outputs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 4,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "core": [
+                104,
+                110
+              ],
+              "members": [
+                0,
+                1,
+                2
+              ],
+              "memberStart": 0,
+              "memberEnd": 3,
+              "memberEvents": [
+                1,
+                2,
+                3
+              ],
+              "memberOuter": [
+                100,
+                115
+              ],
+              "departure": 3,
+              "return": 4,
+              "side": 1,
+              "departureIsMember": false,
+              "seedEndpointAt": 3,
+              "seedKnownAt": 4,
+              "relationshipPublishedAt": 6,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "fullRange": [
+                100,
+                115
+              ],
+              "checks": [
+                {
+                  "L": 3,
+                  "R": 4,
+                  "outcome": "Exit",
+                  "side": 1
+                }
+              ],
+              "semanticEligibleAt": null,
+              "originalBreakIdentity": null,
+              "originalPIdentity": null
+            }
+          ],
+          "attempts": [
+            {
+              "cursor": 0,
+              "seedStart": 0,
+              "rejectedSeeds": []
+            }
+          ],
+          "terminal": {
+            "tag": "NoCore",
+            "cursor": 4,
+            "rejectedSeeds": []
+          },
+          "tail": {
+            "start": 4,
+            "end": 7,
+            "ownedEvents": [
+              5,
+              6,
+              7
+            ]
+          }
+        },
+        "B53": {
+          "policy": "B53",
+          "legs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 1,
+              "direction": -1,
+              "low": 100,
+              "high": 115,
+              "knownAt": 2
+            },
+            {
+              "id": 1,
+              "start": 1,
+              "end": 2,
+              "direction": 1,
+              "low": 100,
+              "high": 110,
+              "knownAt": 3
+            },
+            {
+              "id": 2,
+              "start": 2,
+              "end": 3,
+              "direction": -1,
+              "low": 104,
+              "high": 110,
+              "knownAt": 4
+            },
+            {
+              "id": 3,
+              "start": 3,
+              "end": 4,
+              "direction": 1,
+              "low": 104,
+              "high": 112,
+              "knownAt": 5
+            },
+            {
+              "id": 4,
+              "start": 4,
+              "end": 5,
+              "direction": -1,
+              "low": 111,
+              "high": 112,
+              "knownAt": 6
+            },
+            {
+              "id": 5,
+              "start": 5,
+              "end": 6,
+              "direction": 1,
+              "low": 111,
+              "high": 113,
+              "knownAt": 7
+            }
+          ],
+          "outputs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 4,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "core": [
+                104,
+                110
+              ],
+              "members": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "memberStart": 0,
+              "memberEnd": 4,
+              "memberEvents": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "memberOuter": [
+                100,
+                115
+              ],
+              "departure": 3,
+              "return": 4,
+              "side": 1,
+              "departureIsMember": true,
+              "seedEndpointAt": 3,
+              "seedKnownAt": 4,
+              "relationshipPublishedAt": 6,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "fullRange": [
+                100,
+                115
+              ],
+              "checks": [
+                {
+                  "L": 2,
+                  "R": 3,
+                  "outcome": "Touch",
+                  "addedMembers": [
+                    3
+                  ]
+                },
+                {
+                  "L": 3,
+                  "R": 4,
+                  "outcome": "Exit",
+                  "side": 1
+                }
+              ],
+              "semanticEligibleAt": null,
+              "originalBreakIdentity": null,
+              "originalPIdentity": null
+            }
+          ],
+          "attempts": [
+            {
+              "cursor": 0,
+              "seedStart": 0,
+              "rejectedSeeds": []
+            }
+          ],
+          "terminal": {
+            "tag": "NoCore",
+            "cursor": 4,
+            "rejectedSeeds": []
+          },
+          "tail": {
+            "start": 4,
+            "end": 7,
+            "ownedEvents": [
+              5,
+              6,
+              7
+            ]
+          }
+        },
+        "C53": {
+          "policy": "C53",
+          "legs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 1,
+              "direction": -1,
+              "low": 100,
+              "high": 115,
+              "knownAt": 2
+            },
+            {
+              "id": 1,
+              "start": 1,
+              "end": 2,
+              "direction": 1,
+              "low": 100,
+              "high": 110,
+              "knownAt": 3
+            },
+            {
+              "id": 2,
+              "start": 2,
+              "end": 3,
+              "direction": -1,
+              "low": 104,
+              "high": 110,
+              "knownAt": 4
+            },
+            {
+              "id": 3,
+              "start": 3,
+              "end": 4,
+              "direction": 1,
+              "low": 104,
+              "high": 112,
+              "knownAt": 5
+            },
+            {
+              "id": 4,
+              "start": 4,
+              "end": 5,
+              "direction": -1,
+              "low": 111,
+              "high": 112,
+              "knownAt": 6
+            },
+            {
+              "id": 5,
+              "start": 5,
+              "end": 6,
+              "direction": 1,
+              "low": 111,
+              "high": 113,
+              "knownAt": 7
+            }
+          ],
+          "outputs": [
+            {
+              "id": 0,
+              "start": 0,
+              "end": 4,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "core": [
+                104,
+                110
+              ],
+              "members": [
+                0,
+                1,
+                2
+              ],
+              "memberStart": 0,
+              "memberEnd": 3,
+              "memberEvents": [
+                1,
+                2,
+                3
+              ],
+              "memberOuter": [
+                100,
+                115
+              ],
+              "departure": 3,
+              "return": 4,
+              "side": 1,
+              "departureIsMember": false,
+              "seedEndpointAt": 3,
+              "seedKnownAt": 4,
+              "relationshipPublishedAt": 6,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "fullRange": [
+                100,
+                115
+              ],
+              "checks": [
+                {
+                  "L": 3,
+                  "R": 4,
+                  "outcome": "Exit",
+                  "side": 1
+                }
+              ],
+              "semanticEligibleAt": null,
+              "originalBreakIdentity": null,
+              "originalPIdentity": null
+            }
+          ],
+          "attempts": [
+            {
+              "cursor": 0,
+              "seedStart": 0,
+              "rejectedSeeds": []
+            }
+          ],
+          "terminal": {
+            "tag": "NoCore",
+            "cursor": 4,
+            "rejectedSeeds": []
+          },
+          "tail": {
+            "start": 4,
+            "end": 7,
+            "ownedEvents": [
+              5,
+              6,
+              7
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,725 @@
+{
+  "scope": "source-membership-and-range-check-only",
+  "nativeLedger": {
+    "existingControlCount": 1,
+    "eventReferences": 7,
+    "statesIncludingInitial": 8,
+    "newNativeEvents": 0,
+    "marketSamples": 0,
+    "fullIDReplayOperations": 7
+  },
+  "scalarLedger": {
+    "controls": 2,
+    "reusedStage53Words": 1,
+    "newHandWrittenWords": 1,
+    "totalCoordinateValues": 18,
+    "nativeEvents": 0,
+    "enumeratedWords": 0
+  },
+  "scalarAfterTouch": {
+    "q": [
+      0,
+      1,
+      0,
+      1,
+      0,
+      3,
+      2,
+      3,
+      0
+    ],
+    "legs": [
+      {
+        "id": 0,
+        "name": "X1",
+        "start": 0,
+        "end": 1,
+        "direction": 1,
+        "low": 0,
+        "high": 1,
+        "knownAt": 2
+      },
+      {
+        "id": 1,
+        "name": "X2",
+        "start": 1,
+        "end": 2,
+        "direction": -1,
+        "low": 0,
+        "high": 1,
+        "knownAt": 3
+      },
+      {
+        "id": 2,
+        "name": "X3",
+        "start": 2,
+        "end": 3,
+        "direction": 1,
+        "low": 0,
+        "high": 1,
+        "knownAt": 4
+      },
+      {
+        "id": 3,
+        "name": "X4",
+        "start": 3,
+        "end": 4,
+        "direction": -1,
+        "low": 0,
+        "high": 1,
+        "knownAt": 5
+      },
+      {
+        "id": 4,
+        "name": "X5",
+        "start": 4,
+        "end": 5,
+        "direction": 1,
+        "low": 0,
+        "high": 3,
+        "knownAt": 6
+      },
+      {
+        "id": 5,
+        "name": "X6",
+        "start": 5,
+        "end": 6,
+        "direction": -1,
+        "low": 2,
+        "high": 3,
+        "knownAt": 7
+      },
+      {
+        "id": 6,
+        "name": "X7",
+        "start": 6,
+        "end": 7,
+        "direction": 1,
+        "low": 2,
+        "high": 3,
+        "knownAt": 8
+      }
+    ],
+    "seed": [
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "core": [
+      0,
+      1
+    ],
+    "membershipHypothesis": [
+      "X1",
+      "X2",
+      "X3",
+      "X4"
+    ],
+    "formationDirection": 1,
+    "sameDirectionWithinHypothesis": [
+      "X1",
+      "X3"
+    ],
+    "memberHull": [
+      0,
+      1
+    ],
+    "zHull": [
+      0,
+      1
+    ],
+    "coverage": [
+      {
+        "member": "X1",
+        "covered": true
+      },
+      {
+        "member": "X2",
+        "covered": true
+      },
+      {
+        "member": "X3",
+        "covered": true
+      },
+      {
+        "member": "X4",
+        "covered": true
+      }
+    ],
+    "departure": "X5",
+    "return": "X6",
+    "departureSource": [
+      4,
+      5
+    ],
+    "departureKnownAt": 6,
+    "returnKnownAt": 7,
+    "seedOccurredAt": 3,
+    "seedRawKnownAt": 4,
+    "successfulRelationRawKnownAt": 7,
+    "completeOutputSource": [
+      0,
+      5
+    ],
+    "completeOutputRange": [
+      0,
+      3
+    ],
+    "candidateCenterEvents": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "connectionCandidateEvents": [
+      5
+    ],
+    "tailEvents": [
+      6,
+      7,
+      8
+    ],
+    "originalCoreIdentity": null,
+    "originalMemberCertificates": null,
+    "originalConnectionIdentity": null,
+    "originalOuterIdentity": null,
+    "oldC53": {
+      "members": [
+        "X1",
+        "X2",
+        "X3",
+        "X4",
+        "X5"
+      ],
+      "memberHull": [
+        0,
+        3
+      ],
+      "absorbedAt": 6,
+      "absorptionPair": [
+        "X4",
+        "X5"
+      ],
+      "priorLRange": [
+        0,
+        1
+      ],
+      "priorLStrictlyLeftCore": false
+    }
+  },
+  "reanchorNativeControl": {
+    "q": [
+      115,
+      100,
+      110,
+      104,
+      112,
+      111,
+      113,
+      112
+    ],
+    "legs": [
+      {
+        "id": 0,
+        "name": "X1",
+        "start": 0,
+        "end": 1,
+        "direction": -1,
+        "low": 100,
+        "high": 115,
+        "knownAt": 2
+      },
+      {
+        "id": 1,
+        "name": "X2",
+        "start": 1,
+        "end": 2,
+        "direction": 1,
+        "low": 100,
+        "high": 110,
+        "knownAt": 3
+      },
+      {
+        "id": 2,
+        "name": "X3",
+        "start": 2,
+        "end": 3,
+        "direction": -1,
+        "low": 104,
+        "high": 110,
+        "knownAt": 4
+      },
+      {
+        "id": 3,
+        "name": "X4",
+        "start": 3,
+        "end": 4,
+        "direction": 1,
+        "low": 104,
+        "high": 112,
+        "knownAt": 5
+      },
+      {
+        "id": 4,
+        "name": "X5",
+        "start": 4,
+        "end": 5,
+        "direction": -1,
+        "low": 111,
+        "high": 112,
+        "knownAt": 6
+      },
+      {
+        "id": 5,
+        "name": "X6",
+        "start": 5,
+        "end": 6,
+        "direction": 1,
+        "low": 111,
+        "high": 113,
+        "knownAt": 7
+      }
+    ],
+    "seed": [
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "core": [
+      104,
+      110
+    ],
+    "membershipHypothesis": [
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "formationDirection": -1,
+    "sameDirectionWithinHypothesis": [
+      "X1",
+      "X3"
+    ],
+    "memberHull": [
+      100,
+      115
+    ],
+    "zHull": [
+      100,
+      115
+    ],
+    "coverage": [
+      {
+        "member": "X1",
+        "covered": true
+      },
+      {
+        "member": "X2",
+        "covered": true
+      },
+      {
+        "member": "X3",
+        "covered": true
+      }
+    ],
+    "departure": "X4",
+    "return": "X5",
+    "departureSource": [
+      3,
+      4
+    ],
+    "departureKnownAt": 5,
+    "returnKnownAt": 6,
+    "seedOccurredAt": 3,
+    "seedRawKnownAt": 4,
+    "successfulRelationRawKnownAt": 6,
+    "completeOutputSource": [
+      0,
+      4
+    ],
+    "completeOutputRange": [
+      100,
+      115
+    ],
+    "candidateCenterEvents": [
+      1,
+      2,
+      3
+    ],
+    "connectionCandidateEvents": [
+      4
+    ],
+    "tailEvents": [
+      5,
+      6,
+      7
+    ],
+    "originalCoreIdentity": null,
+    "originalMemberCertificates": null,
+    "originalConnectionIdentity": null,
+    "originalOuterIdentity": null,
+    "states": [
+      {
+        "event": 0,
+        "q": 115,
+        "w": "2546/25"
+      },
+      {
+        "event": 1,
+        "q": 100,
+        "w": "1120/11"
+      },
+      {
+        "event": 2,
+        "q": 110,
+        "w": "611/6"
+      },
+      {
+        "event": 3,
+        "q": 104,
+        "w": "5804/57"
+      },
+      {
+        "event": 4,
+        "q": 112,
+        "w": "6212/61"
+      },
+      {
+        "event": 5,
+        "q": 111,
+        "w": "12322/121"
+      },
+      {
+        "event": 6,
+        "q": 113,
+        "w": "12526/123"
+      },
+      {
+        "event": 7,
+        "q": 112,
+        "w": "6212/61"
+      }
+    ],
+    "B53": {
+      "id": 0,
+      "start": 0,
+      "end": 4,
+      "seed": [
+        0,
+        1,
+        2
+      ],
+      "core": [
+        104,
+        110
+      ],
+      "members": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "memberStart": 0,
+      "memberEnd": 4,
+      "memberEvents": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "memberOuter": [
+        100,
+        115
+      ],
+      "departure": 3,
+      "return": 4,
+      "side": 1,
+      "departureIsMember": true,
+      "seedEndpointAt": 3,
+      "seedKnownAt": 4,
+      "relationshipPublishedAt": 6,
+      "ownedEvents": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "fullRange": [
+        100,
+        115
+      ],
+      "checks": [
+        {
+          "L": 2,
+          "R": 3,
+          "outcome": "Touch",
+          "addedMembers": [
+            3
+          ]
+        },
+        {
+          "L": 3,
+          "R": 4,
+          "outcome": "Exit",
+          "side": 1
+        }
+      ],
+      "semanticEligibleAt": null,
+      "originalBreakIdentity": null,
+      "originalPIdentity": null
+    },
+    "rawPrefixes": [
+      {
+        "prefix": 0,
+        "C53MemberIDs": [],
+        "C53Published": false,
+        "B53MemberIDs": []
+      },
+      {
+        "prefix": 1,
+        "C53MemberIDs": [],
+        "C53Published": false,
+        "B53MemberIDs": []
+      },
+      {
+        "prefix": 2,
+        "C53MemberIDs": [],
+        "C53Published": false,
+        "B53MemberIDs": []
+      },
+      {
+        "prefix": 3,
+        "C53MemberIDs": [],
+        "C53Published": false,
+        "B53MemberIDs": []
+      },
+      {
+        "prefix": 4,
+        "C53MemberIDs": [
+          0,
+          1,
+          2
+        ],
+        "C53Published": false,
+        "B53MemberIDs": [
+          0,
+          1,
+          2
+        ]
+      },
+      {
+        "prefix": 5,
+        "C53MemberIDs": [
+          0,
+          1,
+          2
+        ],
+        "C53Published": false,
+        "B53MemberIDs": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "prefix": 6,
+        "C53MemberIDs": [
+          0,
+          1,
+          2
+        ],
+        "C53Published": true,
+        "B53MemberIDs": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "prefix": 7,
+        "C53MemberIDs": [
+          0,
+          1,
+          2
+        ],
+        "C53Published": true,
+        "B53MemberIDs": [
+          0,
+          1,
+          2,
+          3
+        ]
+      }
+    ]
+  },
+  "memberHullVsZnHullCounterexample": {
+    "q": [
+      0,
+      2,
+      1,
+      3,
+      -1,
+      4,
+      3,
+      5,
+      0
+    ],
+    "legs": [
+      {
+        "id": 0,
+        "name": "X1",
+        "start": 0,
+        "end": 1,
+        "direction": 1,
+        "low": 0,
+        "high": 2,
+        "knownAt": 2
+      },
+      {
+        "id": 1,
+        "name": "X2",
+        "start": 1,
+        "end": 2,
+        "direction": -1,
+        "low": 1,
+        "high": 2,
+        "knownAt": 3
+      },
+      {
+        "id": 2,
+        "name": "X3",
+        "start": 2,
+        "end": 3,
+        "direction": 1,
+        "low": 1,
+        "high": 3,
+        "knownAt": 4
+      },
+      {
+        "id": 3,
+        "name": "X4",
+        "start": 3,
+        "end": 4,
+        "direction": -1,
+        "low": -1,
+        "high": 3,
+        "knownAt": 5
+      },
+      {
+        "id": 4,
+        "name": "X5",
+        "start": 4,
+        "end": 5,
+        "direction": 1,
+        "low": -1,
+        "high": 4,
+        "knownAt": 6
+      },
+      {
+        "id": 5,
+        "name": "X6",
+        "start": 5,
+        "end": 6,
+        "direction": -1,
+        "low": 3,
+        "high": 4,
+        "knownAt": 7
+      },
+      {
+        "id": 6,
+        "name": "X7",
+        "start": 6,
+        "end": 7,
+        "direction": 1,
+        "low": 3,
+        "high": 5,
+        "knownAt": 8
+      }
+    ],
+    "seed": [
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "core": [
+      1,
+      2
+    ],
+    "membershipHypothesis": [
+      "X1",
+      "X2",
+      "X3",
+      "X4"
+    ],
+    "formationDirection": 1,
+    "sameDirectionWithinHypothesis": [
+      "X1",
+      "X3"
+    ],
+    "memberHull": [
+      -1,
+      3
+    ],
+    "zHull": [
+      0,
+      3
+    ],
+    "coverage": [
+      {
+        "member": "X1",
+        "covered": true
+      },
+      {
+        "member": "X2",
+        "covered": true
+      },
+      {
+        "member": "X3",
+        "covered": true
+      },
+      {
+        "member": "X4",
+        "covered": false
+      }
+    ],
+    "departure": "X5",
+    "return": "X6",
+    "departureSource": [
+      4,
+      5
+    ],
+    "departureKnownAt": 6,
+    "returnKnownAt": 7,
+    "seedOccurredAt": 3,
+    "seedRawKnownAt": 4,
+    "successfulRelationRawKnownAt": 7,
+    "completeOutputSource": [
+      0,
+      5
+    ],
+    "completeOutputRange": [
+      -1,
+      4
+    ],
+    "candidateCenterEvents": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "connectionCandidateEvents": [
+      5
+    ],
+    "tailEvents": [
+      6,
+      7,
+      8
+    ],
+    "originalCoreIdentity": null,
+    "originalMemberCertificates": null,
+    "originalConnectionIdentity": null,
+    "originalOuterIdentity": null
+  },
+  "semantics": "All original semantic identity/certification fields remain null. Arithmetic checks do not qualify a source role."
+}

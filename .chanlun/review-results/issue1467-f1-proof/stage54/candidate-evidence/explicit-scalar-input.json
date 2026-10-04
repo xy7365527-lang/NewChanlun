@@ -1,0 +1,117 @@
+{
+  "ledger": "seven-explicit-scalar-controls",
+  "nativeEventCount": 0,
+  "enumerationWordCount": 0,
+  "cases": [
+    {
+      "name": "after_touch_strict_separation_up",
+      "q": [
+        0,
+        10,
+        0,
+        10,
+        0,
+        30,
+        20,
+        28,
+        22,
+        40,
+        35,
+        45
+      ]
+    },
+    {
+      "name": "after_touch_strict_separation_down",
+      "q": [
+        0,
+        -10,
+        0,
+        -10,
+        0,
+        -30,
+        -20,
+        -28,
+        -22,
+        -40,
+        -35,
+        -45
+      ]
+    },
+    {
+      "name": "first_no_core_point",
+      "q": [
+        3,
+        2,
+        4,
+        3,
+        6,
+        5,
+        6
+      ]
+    },
+    {
+      "name": "first_no_core_empty",
+      "q": [
+        3,
+        2,
+        5,
+        4,
+        7,
+        6,
+        7
+      ]
+    },
+    {
+      "name": "equal_platform_release",
+      "q": [
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        3,
+        3,
+        2,
+        2,
+        3,
+        3,
+        0
+      ]
+    },
+    {
+      "name": "closed_boundary_contact",
+      "q": [
+        0,
+        1,
+        0,
+        1,
+        -1,
+        0,
+        -2,
+        -1,
+        -3
+      ]
+    },
+    {
+      "name": "bad_role_all_future_tail",
+      "q": [
+        0,
+        1,
+        0,
+        3,
+        2,
+        3,
+        0,
+        100,
+        0,
+        200,
+        0
+      ]
+    }
+  ]
+}

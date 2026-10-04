@@ -1,0 +1,10 @@
+D54 enumerated length 1: 4
+D54 enumerated length 2: 16
+D54 enumerated length 3: 64
+D54 enumerated length 4: 256
+D54 enumerated length 5: 1024
+D54 enumerated length 6: 4096
+D54 enumerated length 7: 16384
+D54 enumerated length 8: 65536
+D54 enumerated length 9: 262144
+{"ok":true,"nativeComparisons":148,"frozenComparisons":417,"wordCount":349524,"releasedOutputs":274,"strictShrinkOutputs":138,"sameOuterDifferentMembersOutputs":136,"adjacentPairs":0}

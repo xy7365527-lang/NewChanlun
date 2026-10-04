@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "nativePrefixOutputSourceChecks": 392,
+  "nativeReleasedOutputOccurrenceChecks": 2,
+  "branchSharedThroughEvent": 7,
+  "branchDivergenceAtEvent": 8,
+  "conditionalScalarControls": 1,
+  "conditionalScalarPrefixes": 9,
+  "conditionalScalarNativeEvents": 0,
+  "conditionalScalarAddedEnumerationWords": 0
+}

@@ -1,0 +1,87 @@
+{
+  "name": "after_touch_release_positive10",
+  "ledger": "stage54-new-eight-event-control",
+  "translatedScalarWord": [
+    0,
+    1,
+    0,
+    1,
+    0,
+    3,
+    2,
+    3,
+    0
+  ],
+  "translation": 10,
+  "provenance": "New synthetic order-event witness; not a native source attribution for the scalar word.",
+  "initial": {
+    "bid": {
+      "id": "d54-reservoir",
+      "price": 100,
+      "quantity": 10
+    },
+    "ask": {
+      "id": "d54-ask",
+      "price": 102,
+      "quantity": 10
+    }
+  },
+  "events": [
+    {
+      "seq": 1,
+      "kind": "add",
+      "id": "d54-add-1",
+      "side": "bid",
+      "price": 100,
+      "quantity": 1
+    },
+    {
+      "seq": 2,
+      "kind": "reduce",
+      "id": "d54-reservoir",
+      "quantity": 1
+    },
+    {
+      "seq": 3,
+      "kind": "add",
+      "id": "d54-add-3",
+      "side": "bid",
+      "price": 100,
+      "quantity": 1
+    },
+    {
+      "seq": 4,
+      "kind": "reduce",
+      "id": "d54-reservoir",
+      "quantity": 1
+    },
+    {
+      "seq": 5,
+      "kind": "add",
+      "id": "d54-add-5",
+      "side": "bid",
+      "price": 100,
+      "quantity": 3
+    },
+    {
+      "seq": 6,
+      "kind": "reduce",
+      "id": "d54-reservoir",
+      "quantity": 1
+    },
+    {
+      "seq": 7,
+      "kind": "add",
+      "id": "d54-add-7",
+      "side": "bid",
+      "price": 100,
+      "quantity": 1
+    },
+    {
+      "seq": 8,
+      "kind": "reduce",
+      "id": "d54-reservoir",
+      "quantity": 3
+    }
+  ]
+}

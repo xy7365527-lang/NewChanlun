@@ -1,0 +1,10 @@
+{
+  "baseline": "23f33fb8ae0df856bf2281d196e3d3190579f295",
+  "frozen_at": "2026-10-04T21:04:57.543218+00:00",
+  "purpose": "Freeze source-only 035/084 readback before contract comparison; author evidence, independent review pending",
+  "files": {
+    "docs/chanlun/text/blog/035-第35课.md": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023",
+    "docs/chanlun/text/blog/084-第84课.md": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26",
+    ".chanlun/review-results/issue1467-f1-proof/stage54/initial-audit-evidence/source-readback-v1.md": "7cde34017a1fbd4bf3f08b5cbd15caa9118db7d37d31a3961ac2b50ec610c092"
+  }
+}

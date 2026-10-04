@@ -1,0 +1,27 @@
+{
+  "frozen_at": "2026-10-04T21:13:18.428834+00:00",
+  "baseline": "23f33fb8ae0df856bf2281d196e3d3190579f295",
+  "status": "author_complete_independent_review_pending",
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/initial-contract-audit.md",
+      "sha256": "7c5f9993530c16a8de959e0115db2eb7869d87b8acba9b030ebf97f7e7bb55c4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/initial-audit-evidence/source-readback-v1.md",
+      "sha256": "7cde34017a1fbd4bf3f08b5cbd15caa9118db7d37d31a3961ac2b50ec610c092"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/initial-audit-evidence/source-readback-freeze-v1.json",
+      "sha256": "4b3786494eb760c40c9e19f6cb859fc5e5b8e62905c0217c42413552bd4e01a0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/initial-audit-evidence/source-and-contract-lock.json",
+      "sha256": "6e7f9a6ad314c5ba4726351737ebd5703270659b3b41a0591dedaffb2647d215"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/initial-audit-evidence/verify-freeze.mjs",
+      "sha256": "c1b5cb29bba095c67a30a2d9341cef29f001644687883cdfa790ac486dfdb9d3"
+    }
+  ]
+}

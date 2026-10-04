@@ -1,0 +1,561 @@
+{
+  "stage": 54,
+  "date": "2026-10-05",
+  "issue": 1467,
+  "related_issues": [
+    1465,
+    1469
+  ],
+  "base_commit": "23f33fb8ae0df856bf2281d196e3d3190579f295",
+  "status": "four_reviews_integrated_with_direction_qualification",
+  "trust_level": "COORDINATOR_ATTESTED_TOOL_TRANSCRIPT_AND_HASHED_PACKETS",
+  "goal": {
+    "status": "active",
+    "objective_replaced": false,
+    "budget_or_usage_reset": false,
+    "scope": "P1-P4 and both F1 routes unchanged"
+  },
+  "initial_contract": {
+    "review": "PASS_SCOPED_SOURCE_AND_CONTRACT_AUDIT",
+    "raw_components_require_recursive_completion": false,
+    "initial_center_requires_own_same_level_center": false,
+    "actual_completed_a1_requires_own_core_completion_type_boundary_succession_full_extent_and_F2": true,
+    "GoodOmega_scope": "same named legal Omega/delta, object identity and provenance",
+    "old_clause_already_said_same_vertical_construction": true,
+    "old_universal_cross_decomposition_error_established": false,
+    "old_candidates_restored": false,
+    "new_complete_P_or_GoodOmega_instance": false
+  },
+  "direction_mapping": {
+    "original_packet_unqualified_pass": false,
+    "repair_review": "PASS_SCOPED_DIRECTION_MAPPING_QUALIFICATION",
+    "required_manifest": "stage54/source-evidence/frozen-review-manifest-v2.json",
+    "raw_direction_equals_original_formation_direction": null,
+    "raw_filtered_set_equals_all_original_Z": null,
+    "three_original_C54_O_cases": "UNRESOLVED",
+    "set_lemma_domain": "finite nonempty M, nonempty Z subset M, nonempty closed bounded intervals",
+    "equality_iff": "every member interval is covered by H(Z)",
+    "specified_raw_mapping_counterexample": {
+      "word": [
+        0,
+        2,
+        1,
+        3,
+        -1,
+        4,
+        3,
+        5,
+        0
+      ],
+      "member_hull": [
+        -1,
+        3
+      ],
+      "raw_filtered_hull": [
+        0,
+        3
+      ],
+      "whole_hull": [
+        -1,
+        4
+      ],
+      "original_Z_or_source_counterexample": false
+    },
+    "previous_semantic_member_certificate_cannot_be_silently_revoked": true,
+    "software_unpublished_is_not_revocation_authority": true,
+    "Z5_requires_independently_proved_connector_identity": true
+  },
+  "D54": {
+    "review": "PASS_NUMERICAL_RELATION_ONLY",
+    "rules": "C53 adjacent pairs after seed, stop at first bad pair, cut L.end, restart from R; remove previously absorbed nonseed L only from final members",
+    "final_members": "seedStart through L.index-1 inclusive",
+    "whole_X_owns_L": true,
+    "development_and_contact_evidence_retained": true,
+    "C53_same_cuts_times_stops": true,
+    "C53_same_members_required": false,
+    "ordinary_proof_domain": "nonempty finite exact real state sequences and rule-derived legs",
+    "first_pair_BadRole_still_possible": true,
+    "after_touch_BadRole_unreachable": true,
+    "outer_formula_condition": "L previously absorbed into development members",
+    "outer_formula": "C.memberOuter = hull(D.memberOuter union {L.endValue})",
+    "strict_shrink_iff": "under absorbed-L condition, L.endValue lies outside D.memberOuter",
+    "adjacent_whole_closed_ranges_always_intersect": true,
+    "general_program_refinement_proved": false
+  },
+  "new_order_control": {
+    "kind": "synthetic model order messages; not market data",
+    "event_references": 8,
+    "q": [
+      10,
+      11,
+      10,
+      11,
+      10,
+      13,
+      12,
+      13,
+      10
+    ],
+    "published_at": 7,
+    "X": [
+      0,
+      5
+    ],
+    "member_events": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "departure_events": [
+      5
+    ],
+    "tail_at_e8": [
+      6,
+      7,
+      8
+    ],
+    "member_outer": [
+      10,
+      11
+    ],
+    "development_and_whole_outer": [
+      10,
+      13
+    ]
+  },
+  "double_output_scalar_witness": {
+    "word": [
+      0,
+      10,
+      0,
+      10,
+      0,
+      30,
+      20,
+      28,
+      22,
+      40,
+      35,
+      45
+    ],
+    "publication_states": [
+      7,
+      11
+    ],
+    "D_member_outers": [
+      [
+        0,
+        10
+      ],
+      [
+        20,
+        30
+      ]
+    ],
+    "C_member_outers": [
+      [
+        0,
+        30
+      ],
+      [
+        20,
+        30
+      ]
+    ],
+    "whole_outers": [
+      [
+        0,
+        30
+      ],
+      [
+        20,
+        40
+      ]
+    ],
+    "strict_member_separation_reachable": true,
+    "all_adjacent_pairs_separate": false,
+    "original_M2_or_trend_certified": false
+  },
+  "checks": {
+    "initial_author_files": 5,
+    "initial_source_contract_files": 41,
+    "initial_pre_read_files": 3,
+    "initial_excerpt_lines": 228,
+    "initial_locked_unique_files": 47,
+    "source_original_author_files": 8,
+    "source_repair_author_files": 9,
+    "source_external_inputs": 19,
+    "source_excerpt_index_lines": 74,
+    "source_blog_index_lines": 46,
+    "source_doctrine_index_lines": 28,
+    "candidate_author_files": 29,
+    "candidate_external_inputs": 22,
+    "identical_replayed_outputs": 12,
+    "event_references": 141,
+    "order_prefixes_including_initial": 148,
+    "repeated_event_operations": 2145,
+    "preserved_ABC53_results": 417,
+    "manual_scalar_control_prefixes": 75,
+    "source_conditioned_prefixes": 9,
+    "third_implementation_full_field_named_prefixes": 232,
+    "enumerated_words": 349524,
+    "releases": 274,
+    "strict_shrinks": 138,
+    "same_outer_different_members": 136,
+    "enumeration_double_output_pairs": 0,
+    "new_market_samples": 0
+  },
+  "initial_input_freeze": {
+    "live_verification_failed_and_preserved": true,
+    "reason": "mutable ResearchProgress changed after freeze",
+    "verification_passed_only_in_locked_packet": true,
+    "snapshot_bytes": 68340,
+    "snapshot_sha256": "7bf6386ef17ff4c273e1af3cad33ce2b4ab71d3de2e9ae6bce08e534660b9405",
+    "old_lock_or_validator_changed": false,
+    "live_progress_overwritten_with_snapshot": false,
+    "zero_prior_blind_author_read": false,
+    "hash_or_local_time_certifies_external_order": false,
+    "other_uncommitted_six_lines_preserved_outside_commit": true
+  },
+  "boundaries": {
+    "original_P_Break_connector_Zn_DD_GG_F1_F2_certified": false,
+    "P1_P4_complete": false,
+    "source_027_854_856_direct_authorship": "SUSPENDED",
+    "source_037": "same named consumption expression, not universal cross-view exclusion",
+    "source_061": "fixed seed-third as fourth/fifth objection only; not all extended members",
+    "formal_changed": false,
+    "fixture_or_full_repo_tests_rerun": false,
+    "production_or_main_adoption": false
+  },
+  "next_substantive_question": "one complete original P and its same-level successor with a noncircular certificate before favorable parent geometry",
+  "external_receipts_and_snapshot": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage54/initial-review/delivery-receipt.json",
+      "bytes": 3829,
+      "sha256": "f1f93142dd8729469943e8bd911f1407a58803c71d7379f40b98f28a5a071064"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage54/initial-review/locked-snapshot-receipt.json",
+      "bytes": 18148,
+      "sha256": "c0daabc5e09d14f0007c65e8ce94af3e7f3eac274dbd36b4ba9c509baabad2e9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage54/initial-review/live-author-recheck-receipt.json",
+      "bytes": 441,
+      "sha256": "ccfcd4a765c0c51df1b0cc2ffd8fe968a4759e220ec7a8005f5562e651c2a495"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage54/initial-input-snapshots/recovery-receipt.json",
+      "bytes": 437,
+      "sha256": "36891f88587ba108ba91757ded9f1d6a0b124d83cdb7645c1523783e05e1a0f5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage54/initial-input-snapshots/ResearchProgress.pre-stage54.md",
+      "bytes": 68340,
+      "sha256": "7bf6386ef17ff4c273e1af3cad33ce2b4ab71d3de2e9ae6bce08e534660b9405"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage54/source-review/review-receipt.json",
+      "bytes": 2542,
+      "sha256": "b75340a793fd426feb264aa58450ce4147fcb54557eee0ab9879ded07c68b233"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage54/direction-review/review-receipt.json",
+      "bytes": 1109,
+      "sha256": "f9e0b1c4baf93461841c9a5cefe9c975e8f00c37d750dac79a0618df263d434f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage54/candidate-review/review-receipt.json",
+      "bytes": 3712,
+      "sha256": "231c65efe52d9683cc02ec6108e7879e13875fefa2fa7388cd10874bfed11b9e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage54/progress-own.patch",
+      "bytes": 2105,
+      "sha256": "ef0ff5b5bac26170424c7301857e93eedfe88bcef3474cdf7135a96ea64409f5"
+    }
+  ],
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage54InitialContractAndMemberRelease.md",
+      "bytes": 7710,
+      "sha256": "5acb45493a85f991bf61a155a8844a5a6f7814550158fafbd1cf311320e20441"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/Intent-v1.md",
+      "bytes": 2536,
+      "sha256": "038ba494b174328c1592b17bbc41e0ac2203d4a7ce8e86021a034c26edcf697d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/ReproductionScope-v1.md",
+      "bytes": 2377,
+      "sha256": "52539d7c806ceb945a69c17cf5f21915a881054a22893d4ad5c03bc3e1477cdd"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/ScopeClarifications-v1.md",
+      "bytes": 3491,
+      "sha256": "01d8c996fb3592d614c926ca1e5325fc14746d038e8c089fe95bb65ddfc2890c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/after-touch-input.json",
+      "bytes": 1480,
+      "sha256": "3e2a2653360112d919c095cf12159caecdb721e519756e3f8bd642f7f8e00e94"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/contract-v1.md",
+      "bytes": 6457,
+      "sha256": "da4ffff22603b73bb213e6c3b761857252d84079e5fef45bb69424360228393e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/explicit-scalar-input.json",
+      "bytes": 1510,
+      "sha256": "14b02d7e20e911cb130ace23e861a5f2f9436f6af6cdfb68852618271b4dae92"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/explicit-scalar-lock.json",
+      "bytes": 294,
+      "sha256": "46585904180696a42ac916f0b36d7e98170196e4f6bed15ed48e593cd365626b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/frozen-author-manifest-v1.json",
+      "bytes": 10014,
+      "sha256": "2b57ffc9c5b17cefbfbe9c1d57e2ef7065ec0769ec6fe857c7ac49626169f9a4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/input-lock.json",
+      "bytes": 5598,
+      "sha256": "28212b91c5c6fefe4af78f89f5849bc3fea8fd5335927bdae07fe21246c480d1"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/online-parser.mjs",
+      "bytes": 4191,
+      "sha256": "a44502b4297acc8ba5b3c9e5f2e7fe7872bb1bfae9a6e0df5351059032483dcb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/ordinary-proofs-v1.md",
+      "bytes": 10309,
+      "sha256": "8b43164a839a018f379e52f0878a5d01d2f5a9af15b4ff9c3e905ab825c6e8a2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/postcheck.mjs",
+      "bytes": 3576,
+      "sha256": "c2877191ba103eb7a67f19fc57065f5a256c1f7648510cb132ccff8c17dcf306"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/postcheck.stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/postcheck.stdout.txt",
+      "bytes": 79,
+      "sha256": "630aff7aee9c0301768166b7543345af40a448037629e582017ca8898ac7be78"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/probe.mjs",
+      "bytes": 9030,
+      "sha256": "f25bdead3295af88e84d9b8ec96900acde37035a203b2ed7b4855eb7e16dc263"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/probe.stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/probe.stdout.txt",
+      "bytes": 450,
+      "sha256": "84bdf9aaa28431b86118af675a79f125ae3c457baa943ffb33dcba9adf8c07f9"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/relation-reference.mjs",
+      "bytes": 6102,
+      "sha256": "cda0e5d181abf199659e52d54af3c9deb839eeee99c453f43d2a674552618382"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/results-v1/after_touch_release_positive10.json",
+      "bytes": 71232,
+      "sha256": "185037770c73bdcdd4156fd6f0a11384bb09ccd99d6c7eac933328fd28d4cded"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/results-v1/enumeration.json",
+      "bytes": 26275,
+      "sha256": "4ec903a3f0711550a01e41b8124e9438f9c47d19be2e7b9fca4afc248b3563f5"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/results-v1/explicit-scalar-results.json",
+      "bytes": 647581,
+      "sha256": "95d553c8834c57e555b6e01a806f2c4d7753e916c93e80449cffe16cd01f6cb6"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/results-v1/p_completion_disjoint.json",
+      "bytes": 466970,
+      "sha256": "4e78aea76bed868cbed919c1bf97ecaa0898a42670ab9bcf193666d34c630a16"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/results-v1/p_completion_overlap.json",
+      "bytes": 466954,
+      "sha256": "0a35d8fa4e1520ea07a0a937c4cc570e1b86545f61a99ed0c84edd3548840e94"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/results-v1/postcheck.json",
+      "bytes": 321,
+      "sha256": "2caacab0c4d8d7351cda3233cef100142531f8abf355a40c684ee08f1bf179c3"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/results-v1/reanchor_115_control.json",
+      "bytes": 57589,
+      "sha256": "e28cc11f71ebd617e1cee2fa3e44e6069b9f8d39fc450425ad877c749f0565bf"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/results-v1/same_down_mirror.json",
+      "bytes": 2032346,
+      "sha256": "7f455bfb3430bd7d336c3645a88dc460ef51682f8ffb7b1fe00213195a8a13ad"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/results-v1/same_up_counterexample.json",
+      "bytes": 2028847,
+      "sha256": "d8326e02c20ca02b76d6085e17a82eeec0a73c1d0837d9d69450e22a6afaa5af"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/results-v1/six_event_diagnostic.json",
+      "bytes": 39567,
+      "sha256": "f9d67b3c44498d062cccfe5ba99b365d6fdedeebb95095e63ce35ff98193b96c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/results-v1/source-field-comparison.json",
+      "bytes": 17026,
+      "sha256": "12962d260c6d6eb0b1de232c9373b0b77ed93c65cce3c3050c83c443a9ecbd4e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/results-v1/summary.json",
+      "bytes": 40361,
+      "sha256": "a70ea7b001c8e1dd011bd840060083543b77379cf3dd5a505ca220a502e58731"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/source-conditioned-control.json",
+      "bytes": 358,
+      "sha256": "699084086045edd52ba199cba44000981710e8564285721b83b32e16781a6a31"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/verify-freeze.mjs",
+      "bytes": 1063,
+      "sha256": "2bdef4b6f27234b96c9cbcc80d1a567e70214b2c8b15a9512e7f6430fbce0def"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/exit-member-source-scope.md",
+      "bytes": 20821,
+      "sha256": "d30a151f0b674df793392617396e96ab457c4434f5de72cf4028a7f8b8cc100f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/exit-release-candidate.md",
+      "bytes": 12218,
+      "sha256": "3a361e5ae60184aa69cfa69de74f6cdc8259cbd523bb958a7a9d2ffcb0421a39"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/independent-direction-mapping-repair-review.md",
+      "bytes": 9300,
+      "sha256": "05c1bc67355fa77505f0421203a55f04641bb41c53c9c312aa51e1cc32b39daf"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/independent-exit-member-source-review.md",
+      "bytes": 14710,
+      "sha256": "da78cfd50a401105519d2f70b07f4c216302b7c5e42555fa0a14654cc69f3cad"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/independent-exit-release-review.md",
+      "bytes": 13514,
+      "sha256": "54fe13878e9ad4d9c79e8075af32b0a32a4f8a42a5f778744a410f84c0dda17b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/independent-initial-contract-review.md",
+      "bytes": 14326,
+      "sha256": "ae6a357ee7ed51c6bbc426a8bd6db97edd2662447d270533f895786d9053e0ed"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/initial-audit-evidence/frozen-author-manifest-v1.json",
+      "bytes": 1226,
+      "sha256": "550e414362be765b3b22a11d143a69088ba2b44a7fcf1a2e7329e4bd6fe1c3f0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/initial-audit-evidence/source-and-contract-lock.json",
+      "bytes": 71172,
+      "sha256": "6e7f9a6ad314c5ba4726351737ebd5703270659b3b41a0591dedaffb2647d215"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/initial-audit-evidence/source-readback-freeze-v1.json",
+      "bytes": 652,
+      "sha256": "4b3786494eb760c40c9e19f6cb859fc5e5b8e62905c0217c42413552bd4e01a0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/initial-audit-evidence/source-readback-v1.md",
+      "bytes": 3566,
+      "sha256": "7cde34017a1fbd4bf3f08b5cbd15caa9118db7d37d31a3961ac2b50ec610c092"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/initial-audit-evidence/verify-freeze.mjs",
+      "bytes": 1875,
+      "sha256": "c1b5cb29bba095c67a30a2d9341cef29f001644687883cdfa790ac486dfdb9d3"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/initial-contract-audit.md",
+      "bytes": 21024,
+      "sha256": "7c5f9993530c16a8de959e0115db2eb7869d87b8acba9b030ebf97f7e7bb55c4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/source-evidence/DirectionMappingQualification-v1.md",
+      "bytes": 10896,
+      "sha256": "d35523b76d2e2c770eb0db230d171b674d8135efb70e20fdb59d60fe432be070"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/source-evidence/README.md",
+      "bytes": 1514,
+      "sha256": "99570594613f1ca93c049efcb4e3f79ddf0c2431f3e7ca8451856f176612d900"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/source-evidence/check-member-source.mjs",
+      "bytes": 7413,
+      "sha256": "1bf7e51dda391777f5a654111732126aa721247def3bd188304d3751a75001f4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/source-evidence/freeze-source-evidence.mjs",
+      "bytes": 5896,
+      "sha256": "58c8e74b49c0d2f6acf9ef67f89b7412cd72cbb572d725b654b6b83089cae427"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/source-evidence/frozen-author-manifest-v1.json",
+      "bytes": 6040,
+      "sha256": "e708b7541f1c3d65948fc74d0436a613b34613446ced5bf83c1c434c1c1945db"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/source-evidence/frozen-review-manifest-v2.json",
+      "bytes": 7708,
+      "sha256": "cb4ca91256bced2116600a934c0383b443d0b4b19a9cae383ee836685e224e0e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/source-evidence/member-source-checks.json",
+      "bytes": 11983,
+      "sha256": "d63b6e5c43c2f3d0c576ad6ca67a3bfdb1d867854172e44d431e7f6977a9c755"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/source-evidence/source-audit.json",
+      "bytes": 27619,
+      "sha256": "2cc7ac93f1eff5b56d75ab22e249eae4e3436ab08bde747bbe398ac9de0ba6ed"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/source-evidence/verify-freeze.mjs",
+      "bytes": 1248,
+      "sha256": "cd56c7ea2ded926383b018cb778ee7c00c558368b8df2439fa0efc2ad9c5c97c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/source-evidence/web-crosscheck.json",
+      "bytes": 1566,
+      "sha256": "61d7b4cdc3593f37cfe48c2ff9e823b8c8bd5478a062d6491e1f8f1faf14d743"
+    }
+  ],
+  "integration_review": {
+    "scope": "summary, Scope, reproduction note, this JSON, own-only progress patch against four actual reviews",
+    "report_path": ".chanlun/review-results/issue1467-f1-proof/stage54/independent-integration-review.md",
+    "status_at_freeze": "PENDING"
+  }
+}

@@ -1,0 +1,845 @@
+{
+  "name": "conditional_up_zn_hull_differs",
+  "ledger": "source-supplied-conditional-scalar-control",
+  "q": [
+    0,
+    2,
+    1,
+    3,
+    -1,
+    4,
+    3,
+    5,
+    0
+  ],
+  "assumedFormationDirection": 1,
+  "assumedZLegsZeroBased": [
+    0,
+    2
+  ],
+  "mappingStatus": "conditional only; no original Zn or order-to-source bridge proved",
+  "nativeEventReferences": 0,
+  "enumerationWordCount": 0,
+  "inputSha256": "699084086045edd52ba199cba44000981710e8564285721b83b32e16781a6a31",
+  "inputBytes": 358,
+  "prefixes": [
+    {
+      "t": 0,
+      "D54": {
+        "policy": "D54",
+        "legs": [],
+        "outputs": [],
+        "attempts": [],
+        "terminal": {
+          "tag": "NoCore",
+          "cursor": 0,
+          "rejectedSeeds": []
+        },
+        "tail": {
+          "start": 0,
+          "end": 0,
+          "ownedEvents": []
+        }
+      }
+    },
+    {
+      "t": 1,
+      "D54": {
+        "policy": "D54",
+        "legs": [],
+        "outputs": [],
+        "attempts": [],
+        "terminal": {
+          "tag": "NoCore",
+          "cursor": 0,
+          "rejectedSeeds": []
+        },
+        "tail": {
+          "start": 0,
+          "end": 1,
+          "ownedEvents": [
+            1
+          ]
+        }
+      }
+    },
+    {
+      "t": 2,
+      "D54": {
+        "policy": "D54",
+        "legs": [
+          {
+            "id": 0,
+            "start": 0,
+            "end": 1,
+            "direction": 1,
+            "low": 0,
+            "high": 2,
+            "knownAt": 2
+          }
+        ],
+        "outputs": [],
+        "attempts": [],
+        "terminal": {
+          "tag": "NoCore",
+          "cursor": 0,
+          "rejectedSeeds": []
+        },
+        "tail": {
+          "start": 0,
+          "end": 2,
+          "ownedEvents": [
+            1,
+            2
+          ]
+        }
+      }
+    },
+    {
+      "t": 3,
+      "D54": {
+        "policy": "D54",
+        "legs": [
+          {
+            "id": 0,
+            "start": 0,
+            "end": 1,
+            "direction": 1,
+            "low": 0,
+            "high": 2,
+            "knownAt": 2
+          },
+          {
+            "id": 1,
+            "start": 1,
+            "end": 2,
+            "direction": -1,
+            "low": 1,
+            "high": 2,
+            "knownAt": 3
+          }
+        ],
+        "outputs": [],
+        "attempts": [],
+        "terminal": {
+          "tag": "NoCore",
+          "cursor": 0,
+          "rejectedSeeds": []
+        },
+        "tail": {
+          "start": 0,
+          "end": 3,
+          "ownedEvents": [
+            1,
+            2,
+            3
+          ]
+        }
+      }
+    },
+    {
+      "t": 4,
+      "D54": {
+        "policy": "D54",
+        "legs": [
+          {
+            "id": 0,
+            "start": 0,
+            "end": 1,
+            "direction": 1,
+            "low": 0,
+            "high": 2,
+            "knownAt": 2
+          },
+          {
+            "id": 1,
+            "start": 1,
+            "end": 2,
+            "direction": -1,
+            "low": 1,
+            "high": 2,
+            "knownAt": 3
+          },
+          {
+            "id": 2,
+            "start": 2,
+            "end": 3,
+            "direction": 1,
+            "low": 1,
+            "high": 3,
+            "knownAt": 4
+          }
+        ],
+        "outputs": [],
+        "attempts": [],
+        "terminal": {
+          "tag": "AwaitPair",
+          "cursor": 0,
+          "seed": [
+            0,
+            1,
+            2
+          ],
+          "core": [
+            1,
+            2
+          ],
+          "developmentLegs": [
+            0,
+            1,
+            2
+          ],
+          "nextL": 3,
+          "rejectedSeeds": [],
+          "checks": [],
+          "contactEvidence": []
+        },
+        "tail": {
+          "start": 0,
+          "end": 4,
+          "ownedEvents": [
+            1,
+            2,
+            3,
+            4
+          ]
+        }
+      }
+    },
+    {
+      "t": 5,
+      "D54": {
+        "policy": "D54",
+        "legs": [
+          {
+            "id": 0,
+            "start": 0,
+            "end": 1,
+            "direction": 1,
+            "low": 0,
+            "high": 2,
+            "knownAt": 2
+          },
+          {
+            "id": 1,
+            "start": 1,
+            "end": 2,
+            "direction": -1,
+            "low": 1,
+            "high": 2,
+            "knownAt": 3
+          },
+          {
+            "id": 2,
+            "start": 2,
+            "end": 3,
+            "direction": 1,
+            "low": 1,
+            "high": 3,
+            "knownAt": 4
+          },
+          {
+            "id": 3,
+            "start": 3,
+            "end": 4,
+            "direction": -1,
+            "low": -1,
+            "high": 3,
+            "knownAt": 5
+          }
+        ],
+        "outputs": [],
+        "attempts": [],
+        "terminal": {
+          "tag": "AwaitPair",
+          "cursor": 0,
+          "seed": [
+            0,
+            1,
+            2
+          ],
+          "core": [
+            1,
+            2
+          ],
+          "developmentLegs": [
+            0,
+            1,
+            2
+          ],
+          "nextL": 3,
+          "rejectedSeeds": [],
+          "checks": [],
+          "contactEvidence": []
+        },
+        "tail": {
+          "start": 0,
+          "end": 5,
+          "ownedEvents": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        }
+      }
+    },
+    {
+      "t": 6,
+      "D54": {
+        "policy": "D54",
+        "legs": [
+          {
+            "id": 0,
+            "start": 0,
+            "end": 1,
+            "direction": 1,
+            "low": 0,
+            "high": 2,
+            "knownAt": 2
+          },
+          {
+            "id": 1,
+            "start": 1,
+            "end": 2,
+            "direction": -1,
+            "low": 1,
+            "high": 2,
+            "knownAt": 3
+          },
+          {
+            "id": 2,
+            "start": 2,
+            "end": 3,
+            "direction": 1,
+            "low": 1,
+            "high": 3,
+            "knownAt": 4
+          },
+          {
+            "id": 3,
+            "start": 3,
+            "end": 4,
+            "direction": -1,
+            "low": -1,
+            "high": 3,
+            "knownAt": 5
+          },
+          {
+            "id": 4,
+            "start": 4,
+            "end": 5,
+            "direction": 1,
+            "low": -1,
+            "high": 4,
+            "knownAt": 6
+          }
+        ],
+        "outputs": [],
+        "attempts": [],
+        "terminal": {
+          "tag": "AwaitPair",
+          "cursor": 0,
+          "seed": [
+            0,
+            1,
+            2
+          ],
+          "core": [
+            1,
+            2
+          ],
+          "developmentLegs": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "nextL": 4,
+          "rejectedSeeds": [],
+          "checks": [
+            {
+              "L": 3,
+              "R": 4,
+              "outcome": "Touch",
+              "addedDevelopmentLegs": [
+                3,
+                4
+              ]
+            }
+          ],
+          "contactEvidence": [
+            {
+              "L": 3,
+              "R": 4,
+              "Lsource": [
+                4
+              ],
+              "Rsource": [
+                5
+              ],
+              "Rrange": [
+                -1,
+                4
+              ],
+              "knownAt": 6
+            }
+          ]
+        },
+        "tail": {
+          "start": 0,
+          "end": 6,
+          "ownedEvents": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ]
+        }
+      }
+    },
+    {
+      "t": 7,
+      "D54": {
+        "policy": "D54",
+        "legs": [
+          {
+            "id": 0,
+            "start": 0,
+            "end": 1,
+            "direction": 1,
+            "low": 0,
+            "high": 2,
+            "knownAt": 2
+          },
+          {
+            "id": 1,
+            "start": 1,
+            "end": 2,
+            "direction": -1,
+            "low": 1,
+            "high": 2,
+            "knownAt": 3
+          },
+          {
+            "id": 2,
+            "start": 2,
+            "end": 3,
+            "direction": 1,
+            "low": 1,
+            "high": 3,
+            "knownAt": 4
+          },
+          {
+            "id": 3,
+            "start": 3,
+            "end": 4,
+            "direction": -1,
+            "low": -1,
+            "high": 3,
+            "knownAt": 5
+          },
+          {
+            "id": 4,
+            "start": 4,
+            "end": 5,
+            "direction": 1,
+            "low": -1,
+            "high": 4,
+            "knownAt": 6
+          },
+          {
+            "id": 5,
+            "start": 5,
+            "end": 6,
+            "direction": -1,
+            "low": 3,
+            "high": 4,
+            "knownAt": 7
+          }
+        ],
+        "outputs": [
+          {
+            "id": 0,
+            "start": 0,
+            "end": 5,
+            "seed": [
+              0,
+              1,
+              2
+            ],
+            "core": [
+              1,
+              2
+            ],
+            "coreMembers": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "developmentLegs": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "memberStart": 0,
+            "memberEnd": 4,
+            "memberEvents": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "memberOuter": [
+              -1,
+              3
+            ],
+            "developmentStart": 0,
+            "developmentEnd": 5,
+            "developmentEvents": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "developmentOuter": [
+              -1,
+              4
+            ],
+            "releasedFromDevelopment": [
+              4
+            ],
+            "releasedEvents": [
+              5
+            ],
+            "departureCandidate": 4,
+            "returnCandidate": 5,
+            "departureEvents": [
+              5
+            ],
+            "departureWasInDevelopment": true,
+            "departureIsCoreMember": false,
+            "side": 1,
+            "seedEndpointAt": 3,
+            "seedKnownAt": 4,
+            "relationshipPublishedAt": 7,
+            "ownedEvents": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "wholeOuter": [
+              -1,
+              4
+            ],
+            "checks": [
+              {
+                "L": 3,
+                "R": 4,
+                "outcome": "Touch",
+                "addedDevelopmentLegs": [
+                  3,
+                  4
+                ]
+              },
+              {
+                "L": 4,
+                "R": 5,
+                "outcome": "Exit",
+                "side": 1
+              }
+            ],
+            "contactEvidence": [
+              {
+                "L": 3,
+                "R": 4,
+                "Lsource": [
+                  4
+                ],
+                "Rsource": [
+                  5
+                ],
+                "Rrange": [
+                  -1,
+                  4
+                ],
+                "knownAt": 6
+              }
+            ],
+            "originalP": null,
+            "originalBreak": null,
+            "originalLevel": null,
+            "wholeF1": null,
+            "fixedF2": null,
+            "connectorIdentity": null,
+            "semanticEligibleAt": null
+          }
+        ],
+        "attempts": [
+          {
+            "cursor": 0,
+            "seedStart": 0,
+            "rejectedSeeds": []
+          }
+        ],
+        "terminal": {
+          "tag": "NoCore",
+          "cursor": 5,
+          "rejectedSeeds": []
+        },
+        "tail": {
+          "start": 5,
+          "end": 7,
+          "ownedEvents": [
+            6,
+            7
+          ]
+        }
+      }
+    },
+    {
+      "t": 8,
+      "D54": {
+        "policy": "D54",
+        "legs": [
+          {
+            "id": 0,
+            "start": 0,
+            "end": 1,
+            "direction": 1,
+            "low": 0,
+            "high": 2,
+            "knownAt": 2
+          },
+          {
+            "id": 1,
+            "start": 1,
+            "end": 2,
+            "direction": -1,
+            "low": 1,
+            "high": 2,
+            "knownAt": 3
+          },
+          {
+            "id": 2,
+            "start": 2,
+            "end": 3,
+            "direction": 1,
+            "low": 1,
+            "high": 3,
+            "knownAt": 4
+          },
+          {
+            "id": 3,
+            "start": 3,
+            "end": 4,
+            "direction": -1,
+            "low": -1,
+            "high": 3,
+            "knownAt": 5
+          },
+          {
+            "id": 4,
+            "start": 4,
+            "end": 5,
+            "direction": 1,
+            "low": -1,
+            "high": 4,
+            "knownAt": 6
+          },
+          {
+            "id": 5,
+            "start": 5,
+            "end": 6,
+            "direction": -1,
+            "low": 3,
+            "high": 4,
+            "knownAt": 7
+          },
+          {
+            "id": 6,
+            "start": 6,
+            "end": 7,
+            "direction": 1,
+            "low": 3,
+            "high": 5,
+            "knownAt": 8
+          }
+        ],
+        "outputs": [
+          {
+            "id": 0,
+            "start": 0,
+            "end": 5,
+            "seed": [
+              0,
+              1,
+              2
+            ],
+            "core": [
+              1,
+              2
+            ],
+            "coreMembers": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "developmentLegs": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "memberStart": 0,
+            "memberEnd": 4,
+            "memberEvents": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "memberOuter": [
+              -1,
+              3
+            ],
+            "developmentStart": 0,
+            "developmentEnd": 5,
+            "developmentEvents": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "developmentOuter": [
+              -1,
+              4
+            ],
+            "releasedFromDevelopment": [
+              4
+            ],
+            "releasedEvents": [
+              5
+            ],
+            "departureCandidate": 4,
+            "returnCandidate": 5,
+            "departureEvents": [
+              5
+            ],
+            "departureWasInDevelopment": true,
+            "departureIsCoreMember": false,
+            "side": 1,
+            "seedEndpointAt": 3,
+            "seedKnownAt": 4,
+            "relationshipPublishedAt": 7,
+            "ownedEvents": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "wholeOuter": [
+              -1,
+              4
+            ],
+            "checks": [
+              {
+                "L": 3,
+                "R": 4,
+                "outcome": "Touch",
+                "addedDevelopmentLegs": [
+                  3,
+                  4
+                ]
+              },
+              {
+                "L": 4,
+                "R": 5,
+                "outcome": "Exit",
+                "side": 1
+              }
+            ],
+            "contactEvidence": [
+              {
+                "L": 3,
+                "R": 4,
+                "Lsource": [
+                  4
+                ],
+                "Rsource": [
+                  5
+                ],
+                "Rrange": [
+                  -1,
+                  4
+                ],
+                "knownAt": 6
+              }
+            ],
+            "originalP": null,
+            "originalBreak": null,
+            "originalLevel": null,
+            "wholeF1": null,
+            "fixedF2": null,
+            "connectorIdentity": null,
+            "semanticEligibleAt": null
+          }
+        ],
+        "attempts": [
+          {
+            "cursor": 0,
+            "seedStart": 0,
+            "rejectedSeeds": []
+          }
+        ],
+        "terminal": {
+          "tag": "NoCore",
+          "cursor": 5,
+          "rejectedSeeds": []
+        },
+        "tail": {
+          "start": 5,
+          "end": 8,
+          "ownedEvents": [
+            6,
+            7,
+            8
+          ]
+        }
+      }
+    }
+  ],
+  "comparison": {
+    "core": [
+      1,
+      2
+    ],
+    "finalCoreMemberHull": [
+      -1,
+      3
+    ],
+    "conditionalZnHull": [
+      0,
+      3
+    ],
+    "wholeXHull": [
+      -1,
+      4
+    ],
+    "originalZnIdentity": null
+  }
+}

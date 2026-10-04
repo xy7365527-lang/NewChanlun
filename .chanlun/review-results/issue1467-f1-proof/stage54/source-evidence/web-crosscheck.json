@@ -1,0 +1,41 @@
+{
+  "checkedDate": "2026-10-05",
+  "mechanism": "web.run search followed by open of primary author pages",
+  "entries": [
+    {
+      "url": "https://blog.sina.com.cn/s/blog_486e105c010007zw.html",
+      "title": "教你炒股票20：缠中说禅走势中枢级别扩张及第三类买卖点",
+      "displayedDate": "2007-01-05 15:23:22",
+      "author": "缠中说禅",
+      "profile": "http://blog.sina.com.cn/u/1215172700",
+      "checkedLocalLines": [
+        16,
+        22,
+        24,
+        30,
+        48,
+        52,
+        54,
+        56,
+        58,
+        60,
+        62
+      ],
+      "result": "原作者页正文包含指定Zn选择与四指标、初始核心、相邻中心关系、三类点和首次限制。本地编注不在对应原文中。",
+      "limitations": "未取得历史评论；网页图片未读取。本记录是回查摘要，不是逐字网页存档或评论身份认证。"
+    },
+    {
+      "url": "https://blog.sina.com.cn/s/blog_486e105c01000b9n.html",
+      "title": "教你炒股票61：区间套定位标准图解（分析示范六）",
+      "displayedDate": "2007-06-21 08:13:21",
+      "author": "缠中说禅",
+      "profile": "http://blog.sina.com.cn/u/1215172700",
+      "checkedLocalLines": [
+        26,
+        44
+      ],
+      "result": "原作者页正文包含发展中的比较证据及前三、第四、第五的角色次序和69-72/70-73归属判例。",
+      "limitations": "只核正文，不读取图像像素、不从图片重建价格、没有恢复027历史评论作者资格。"
+    }
+  ]
+}
