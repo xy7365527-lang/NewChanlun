@@ -489,6 +489,8 @@ struct NativeProjection<'capture> {
     capture: &'capture sc::AuditCapture,
     // 序号由私有、不可变 entries 给定；同一对象只有 active / withdrawn 两个最终 wire。
     wires: Vec<[Option<RefValue>; 2]>,
+    // 只读事件表与 before-g 成员审计共享；through-g 游标与集合归本 owner。
+    sweep: Option<ProjectionSweep>,
 }
 impl NativeProjection<'_> {
     fn wire(
@@ -519,10 +521,14 @@ impl NativeProjection<'_> {
     }
 }
 impl HistoryObjects<'_> {
-    pub(super) fn native_sweep(&self) -> Option<HistorySweep> {
-        self.native
-            .as_ref()
-            .map(|_| HistorySweep::new(self.entries()))
+    pub(super) fn native_sweep(&mut self) -> Option<HistorySweep> {
+        let index = &self.entries;
+        self.native.as_mut().map(|native| {
+            let projection = native
+                .sweep
+                .get_or_insert_with(|| ProjectionSweep::new(index));
+            HistorySweep::from_events(std::sync::Arc::clone(&projection.events))
+        })
     }
     pub(super) fn entries(&self) -> &[Entry] {
         &self.entries
@@ -552,6 +558,115 @@ impl HistoryObjects<'_> {
 impl HistoryObjects<'_> {
     /// Only this complete-load Native owner can produce both projections. No arbitrary arrays.
     pub(super) fn native_dual_at_cut(
+        &mut self,
+        s: &mut super::history::HashReader<'_>,
+        g: i64,
+        batch: &str,
+    ) -> Result<[(Built, Built); 3], String> {
+        let native = self
+            .native
+            .as_mut()
+            .ok_or_else(|| err("缺Native完整索引资格"))?;
+        if !s
+            .native_projection_capture()
+            .is_some_and(|c| std::ptr::eq(c, native.capture))
+        {
+            return Err(err("双投影capture不符"));
+        }
+        let sweep = native
+            .sweep
+            .get_or_insert_with(|| ProjectionSweep::new(&self.entries));
+        sweep.seek(g);
+        let active = sweep
+            .active
+            .iter()
+            .map(|(_, i)| (*i, &self.entries[*i]))
+            .collect::<Vec<_>>();
+        let dead = sweep
+            .withdrawn
+            .iter()
+            .map(|(_, i)| (*i, &self.entries[*i]))
+            .collect::<Vec<_>>();
+        let births = sweep
+            .events
+            .births
+            .get(&g)
+            .into_iter()
+            .flatten()
+            .map(|i| (*i, &self.entries[*i]))
+            .collect::<Vec<_>>();
+        #[cfg(test)]
+        {
+            sweep.visits.output_entries += active.len() + dead.len() + births.len();
+        }
+        // 仅当前cut的新生对象在active/dead与upserts重复；旧对象复用既有两phase wire。
+        // 派生Template不进入持久Public槽，pair表只保存本代出生项。
+        let mut pairs = std::collections::BTreeMap::<usize, (RefValue, RefValue)>::new();
+        let mut collect = |items: Vec<(usize, &Entry)>| -> Result<(Built, Built), String> {
+            let mut template = Vec::new();
+            let mut public = Vec::new();
+            for (ordinal, e) in items {
+                if e.life.published_generation > g {
+                    return Err(err("对象出生后发布代号被改写"));
+                }
+                let saved = match e.life.view().batch {
+                    BatchView::Existing(v) => v,
+                    BatchView::CurrentBatch => return Err(err("历史索引未绑定实际出生batch")),
+                };
+                if (e.life.first_known_generation == g) != (saved == batch) {
+                    return Err(err("出生/旧代batch与当前cut不符"));
+                }
+                let pair = if e.life.first_known_generation == g {
+                    if let Some(pair) = pairs.get(&ordinal) {
+                        pair.clone()
+                    } else {
+                        let life = effective_life(e, g)?;
+                        object_records::validate_life_view(life, g, e.id.as_str()).map_err(err)?;
+                        let phase = usize::from(life.withdrawn_generation.is_some());
+                        #[cfg(test)]
+                        WIRE_PROJECTIONS.with(|v| v.set(v.get() + 1));
+                        let b = object_records::reproject_stored_wire_view(
+                            s,
+                            e.birth_wire.view(),
+                            life,
+                            g,
+                        )
+                        .map_err(err)?;
+                        let template = RefValue::Plain(b.content_ref());
+                        let public = s
+                            .replace_ref(template.view(), &[f("batch_id")], saved)
+                            .map_err(err)?;
+                        native
+                            .capture
+                            .verify_refview(public.view(), sc::Mode::Public)
+                            .map_err(err)?;
+                        native.wires[ordinal][phase] = Some(public.clone());
+                        let pair = (template, public);
+                        pairs.insert(ordinal, pair.clone());
+                        pair
+                    }
+                } else {
+                    // 保留旧双投影的逐对象生命周期检查；memo仍按本cut再核。
+                    let life = effective_life(e, g)?;
+                    object_records::validate_life_view(life, g, e.id.as_str()).map_err(err)?;
+                    let public = native.wire(s, e, ordinal, g)?;
+                    (public.clone(), public)
+                };
+                let (a, b) = pair;
+                template.push(a.clone());
+                public.push(b.clone());
+            }
+            Ok((array(s, &template)?, array(s, &public)?))
+        };
+        Ok([collect(active)?, collect(dead)?, collect(births)?])
+    }
+}
+
+#[cfg(test)]
+impl HistoryObjects<'_> {
+    // #1394冻结旧扫描算法，只作合法生命周期对照，不接生产失败分支。
+    /// Only this complete-load Native owner can produce both projections. No arbitrary arrays.
+    fn native_dual_at_cut_scan_for_test(
         &mut self,
         s: &mut super::history::HashReader<'_>,
         g: i64,
@@ -1177,6 +1292,7 @@ pub(super) fn load_for_history<'capture>(
         .map(|capture| NativeProjection {
             capture,
             wires: vec![[None, None]; entries.len()],
+            sweep: None,
         });
     Ok(HistoryObjects { entries, native })
 }
@@ -1465,12 +1581,71 @@ pub(super) fn changes_at_budgeted(
     }
     Ok((withdrawals, replaces))
 }
-/// 当前已核 Capture 内的纯派生生命周期事件；不跨 Capture 保存。
-pub(super) struct HistorySweep {
+/// 当前已核Capture的只读事件表；两游标共享，普通/Owned入口不创建它。
+struct HistoryEvents {
     by_id: std::collections::HashMap<String, usize>,
     births: std::collections::BTreeMap<i64, Vec<usize>>,
     deaths: std::collections::BTreeMap<i64, Vec<usize>>,
     ranks: Vec<usize>,
+    withdrawn_ranks: Vec<usize>,
+    #[cfg(test)]
+    initial_entries: usize,
+    #[cfg(test)]
+    sort_passes: usize,
+}
+impl HistoryEvents {
+    fn new(index: &[Entry]) -> Self {
+        let mut out = Self {
+            by_id: Default::default(),
+            births: Default::default(),
+            deaths: Default::default(),
+            ranks: vec![0; index.len()],
+            withdrawn_ranks: vec![0; index.len()],
+            #[cfg(test)]
+            initial_entries: 0,
+            #[cfg(test)]
+            sort_passes: 0,
+        };
+        let mut order: Vec<_> = (0..index.len()).collect();
+        #[cfg(test)]
+        {
+            out.sort_passes += 1;
+        }
+        order.sort_unstable_by(|a, b| ordering(&index[*a], &index[*b], false).then(a.cmp(b)));
+        for (rank, i) in order.iter().enumerate() {
+            out.ranks[*i] = rank;
+        }
+        for (i, e) in index.iter().enumerate() {
+            #[cfg(test)]
+            {
+                out.initial_entries += 1;
+            }
+            out.by_id.insert(e.id.as_str().to_owned(), i);
+            out.births
+                .entry(e.life.first_known_generation)
+                .or_default()
+                .push(i);
+        }
+        // 本代changes沿旧活动序，不能换成累计withdrawn的主序。
+        for i in &order {
+            if let Some(g) = index[*i].life.withdrawn_generation {
+                out.deaths.entry(g).or_default().push(*i);
+            }
+        }
+        #[cfg(test)]
+        {
+            out.sort_passes += 1;
+        }
+        order.sort_unstable_by(|a, b| ordering(&index[*a], &index[*b], true).then(a.cmp(b)));
+        for (rank, i) in order.into_iter().enumerate() {
+            out.withdrawn_ranks[i] = rank;
+        }
+        out
+    }
+}
+/// before-g游标保留原成员/变化审计入口和边界；不消费through-g状态。
+pub(super) struct HistorySweep {
+    events: std::sync::Arc<HistoryEvents>,
     active: BTreeSet<(usize, usize)>,
     previous: i64,
     #[cfg(test)]
@@ -1485,40 +1660,21 @@ struct SweepVisits {
     active: std::cell::Cell<usize>,
 }
 impl HistorySweep {
+    #[cfg(test)]
     fn new(index: &[Entry]) -> Self {
-        let mut order: Vec<_> = (0..index.len()).collect();
-        order.sort_unstable_by(|a, b| ordering(&index[*a], &index[*b], false).then(a.cmp(b)));
-        let mut ranks = vec![0; index.len()];
-        for (rank, i) in order.iter().enumerate() {
-            ranks[*i] = rank;
-        }
-        let mut out = Self {
-            by_id: Default::default(),
-            births: Default::default(),
-            deaths: Default::default(),
-            ranks,
+        Self::from_events(std::sync::Arc::new(HistoryEvents::new(index)))
+    }
+    fn from_events(events: std::sync::Arc<HistoryEvents>) -> Self {
+        Self {
+            #[cfg(test)]
+            visits: SweepVisits {
+                initial_entries: events.initial_entries,
+                ..Default::default()
+            },
+            events,
             active: Default::default(),
             previous: 0,
-            #[cfg(test)]
-            visits: SweepVisits::default(),
-        };
-        for (i, e) in index.iter().enumerate() {
-            #[cfg(test)]
-            {
-                out.visits.initial_entries += 1;
-            }
-            out.by_id.insert(e.id.as_str().to_owned(), i);
-            out.births
-                .entry(e.life.first_known_generation)
-                .or_default()
-                .push(i);
         }
-        for i in order {
-            if let Some(g) = index[i].life.withdrawn_generation {
-                out.deaths.entry(g).or_default().push(i);
-            }
-        }
-        out
     }
     fn active_ordinals(&self) -> impl Iterator<Item = usize> + '_ {
         self.active.iter().map(|(_, i)| {
@@ -1531,18 +1687,18 @@ impl HistorySweep {
         if g <= self.previous {
             return Err(err("生命周期 sweep 代号不递增"));
         }
-        for (_, ids) in self.births.range(self.previous..g) {
+        for (_, ids) in self.events.births.range(self.previous..g) {
             for i in ids {
-                self.active.insert((self.ranks[*i], *i));
+                self.active.insert((self.events.ranks[*i], *i));
                 #[cfg(test)]
                 {
                     self.visits.births += 1;
                 }
             }
         }
-        for (_, ids) in self.deaths.range(self.previous..g) {
+        for (_, ids) in self.events.deaths.range(self.previous..g) {
             for i in ids {
-                self.active.remove(&(self.ranks[*i], *i));
+                self.active.remove(&(self.events.ranks[*i], *i));
                 #[cfg(test)]
                 {
                     self.visits.deaths += 1;
@@ -1559,7 +1715,7 @@ impl HistorySweep {
     ) -> Result<(bj::JsonOwner, bj::JsonOwner), String> {
         let mut withdrawals = change_array(None)?;
         let mut replaces = change_array(None)?;
-        for i in self.deaths.get(&g).into_iter().flatten() {
+        for i in self.events.deaths.get(&g).into_iter().flatten() {
             let e = &index[*i];
             let reason = e
                 .life
@@ -1572,6 +1728,87 @@ impl HistorySweep {
             }
         }
         Ok((withdrawals, replaces))
+    }
+}
+/// through-g双投影游标；任意合法cut可重复、跳跃、回退，不改准入判据。
+struct ProjectionSweep {
+    events: std::sync::Arc<HistoryEvents>,
+    active: BTreeSet<(usize, usize)>,
+    withdrawn: BTreeSet<(usize, usize)>,
+    previous_cut: Option<i64>,
+    #[cfg(test)]
+    visits: ProjectionVisits,
+}
+#[cfg(test)]
+#[derive(Default)]
+struct ProjectionVisits {
+    births: usize,
+    deaths: usize,
+    output_entries: usize,
+}
+impl ProjectionSweep {
+    fn new(index: &[Entry]) -> Self {
+        Self {
+            events: std::sync::Arc::new(HistoryEvents::new(index)),
+            active: Default::default(),
+            withdrawn: Default::default(),
+            previous_cut: None,
+            #[cfg(test)]
+            visits: ProjectionVisits::default(),
+        }
+    }
+    fn seek(&mut self, g: i64) {
+        use std::ops::Bound::{Excluded, Included, Unbounded};
+        if self.previous_cut == Some(g) {
+            return;
+        }
+        if self.previous_cut.is_none_or(|previous| previous < g) {
+            let lower = self.previous_cut.map_or(Unbounded, Excluded);
+            for (_, ids) in self.events.births.range((lower, Included(g))) {
+                for i in ids {
+                    self.active.insert((self.events.ranks[*i], *i));
+                    #[cfg(test)]
+                    {
+                        self.visits.births += 1;
+                    }
+                }
+            }
+            for (_, ids) in self.events.deaths.range((lower, Included(g))) {
+                for i in ids {
+                    self.active.remove(&(self.events.ranks[*i], *i));
+                    self.withdrawn.insert((self.events.withdrawn_ranks[*i], *i));
+                    #[cfg(test)]
+                    {
+                        self.visits.deaths += 1;
+                    }
+                }
+            }
+        } else {
+            let previous = self.previous_cut.unwrap();
+            // 先撤销death再撤销birth；跨越整个已出生后撤回的生命周期时不残留active。
+            // 生产生命判据始终要求withdrawn_generation > first_known_generation。
+            for (_, ids) in self.events.deaths.range((Excluded(g), Included(previous))) {
+                for i in ids {
+                    self.withdrawn
+                        .remove(&(self.events.withdrawn_ranks[*i], *i));
+                    self.active.insert((self.events.ranks[*i], *i));
+                    #[cfg(test)]
+                    {
+                        self.visits.deaths += 1;
+                    }
+                }
+            }
+            for (_, ids) in self.events.births.range((Excluded(g), Included(previous))) {
+                for i in ids {
+                    self.active.remove(&(self.events.ranks[*i], *i));
+                    #[cfg(test)]
+                    {
+                        self.visits.births += 1;
+                    }
+                }
+            }
+        }
+        self.previous_cut = Some(g);
     }
 }
 /// 按该代真实候选序复用同一diff判据，再对拍独立生命周期；不假定候选槽位唯一。
@@ -1632,6 +1869,7 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
         }
         let e = match sweep {
             Some(sweep) => sweep
+                .events
                 .by_id
                 .get(id.as_str())
                 .map(|i| &index[*i])
@@ -1706,13 +1944,14 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
             sweep.active_ordinals(),
             |id| {
                 sweep
+                    .events
                     .by_id
                     .get(id)
                     .copied()
                     .filter(|i| index[*i].life.first_known_generation < g)
             },
             |id| {
-                sweep.by_id.get(id).copied().filter(|i| {
+                sweep.events.by_id.get(id).copied().filter(|i| {
                     index[*i].life.first_known_generation < g
                         && index[*i].life.withdrawn_generation.is_none_or(|d| d >= g)
                 })
@@ -1729,6 +1968,7 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
         .eq(match sweep {
             Some(sweep) => Box::new(
                 sweep
+                    .events
                     .births
                     .get(&g)
                     .into_iter()
@@ -2693,7 +2933,7 @@ mod tests {
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn native_candidate_union_real_generations_match_plan_and_reduce_sql_reads() {
-        real_generations(false, true);
+        real_generations(false, true, true);
     }
     #[test]
     fn native_history_sweep_lifecycle_events_match_old_scans_and_bound_visits() {
@@ -2736,11 +2976,13 @@ mod tests {
         let mut death_event_visits = 0;
         for g in 1..=8 {
             birth_event_visits += sweep
+                .events
                 .births
                 .range(sweep.previous..g)
                 .map(|(_, v)| v.len())
                 .sum::<usize>();
             death_event_visits += sweep
+                .events
                 .deaths
                 .range(sweep.previous..g)
                 .map(|(_, v)| v.len())
@@ -2930,6 +3172,30 @@ mod tests {
         serde_json::from_slice(&b).unwrap()
     }
     #[cfg(feature = "s_capture_native_testonly")]
+    fn projection_reachable_material(
+        source: &mut dyn NodeSource,
+        root: &Built,
+        mode: sc::Mode,
+    ) -> std::collections::BTreeMap<NodeDigest, sc::NodeRead> {
+        struct ReadMaterials<'a> {
+            source: &'a mut dyn NodeSource,
+            nodes: std::collections::BTreeMap<NodeDigest, sc::NodeRead>,
+        }
+        impl NodeSource for ReadMaterials<'_> {
+            fn read(&mut self, digest: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+                let node = self.source.read(digest)?;
+                self.nodes.insert(*digest, node.clone());
+                Ok(node)
+            }
+        }
+        let mut read = ReadMaterials {
+            source,
+            nodes: Default::default(),
+        };
+        sc::verify_refview(&mut read, (&root.content_ref()).into(), mode).unwrap();
+        read.nodes
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
     fn projection_fixture() -> (sc::MemoryNodes, Vec<Entry>) {
         // 仅投影/排序夹具；真实 producer 与成功 load 的绑定由 real_generations 另核。
         let mut nodes = sc::MemoryNodes::new();
@@ -3009,6 +3275,7 @@ mod tests {
         NativeProjection {
             capture,
             wires: vec![[None, None]; count],
+            sweep: None,
         }
     }
     #[cfg(feature = "s_capture_native_testonly")]
@@ -3213,14 +3480,105 @@ mod tests {
     }
     #[test]
     fn three_real_generations_match_shared_diff_and_preserve_historical_cut_and_prior() {
-        real_generations(false, false);
+        real_generations(false, false, true);
     }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn native_cut_projection_real_generations_reuse_exact_wire_after_overlay_clear() {
-        real_generations(true, false);
+        real_generations(true, false, true);
     }
-    fn real_generations(native_projection: bool, native_union: bool) {
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_history_projection_sweep_positive_real_generations_complete_roots_and_material() {
+        // 唯一false入口：真实输入正常追加/修订；不进入旧混合候选或负例分支。
+        real_generations(true, false, false);
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn projection_sweep_positive_event_counts(index: &[Entry]) {
+        // 调用方传入经过完整load的真实索引，绝不使用旧抽象death==birth夹具。
+        for e in index {
+            assert!(e
+                .life
+                .withdrawn_generation
+                .is_none_or(|death| e.life.first_known_generation < death));
+        }
+        let mut projection = ProjectionSweep::new(index);
+        let check = |projection: &ProjectionSweep, g: i64| {
+            let mut active = index
+                .iter()
+                .enumerate()
+                .filter(|(_, e)| {
+                    e.life.first_known_generation <= g
+                        && e.life.withdrawn_generation.is_none_or(|d| d > g)
+                })
+                .map(|(i, _)| i)
+                .collect::<Vec<_>>();
+            let mut withdrawn = index
+                .iter()
+                .enumerate()
+                .filter(|(_, e)| e.life.withdrawn_generation.is_some_and(|d| d <= g))
+                .map(|(i, _)| i)
+                .collect::<Vec<_>>();
+            active.sort_unstable_by(|a, b| ordering(&index[*a], &index[*b], false).then(a.cmp(b)));
+            withdrawn
+                .sort_unstable_by(|a, b| ordering(&index[*a], &index[*b], true).then(a.cmp(b)));
+            assert_eq!(
+                projection
+                    .active
+                    .iter()
+                    .map(|(_, i)| *i)
+                    .collect::<Vec<_>>(),
+                active
+            );
+            assert_eq!(
+                projection
+                    .withdrawn
+                    .iter()
+                    .map(|(_, i)| *i)
+                    .collect::<Vec<_>>(),
+                withdrawn
+            );
+        };
+        for g in 1..=512 {
+            projection.seek(g);
+            check(&projection, g);
+        }
+        assert_eq!(projection.events.initial_entries, index.len());
+        assert_eq!(projection.events.sort_passes, 2);
+        assert_eq!(
+            projection.visits.births,
+            index.len(),
+            "512 cuts出生事件各过一次"
+        );
+        assert_eq!(
+            projection.visits.deaths,
+            index
+                .iter()
+                .filter(|e| e.life.withdrawn_generation.is_some())
+                .count(),
+            "512 cuts撤回事件各过一次"
+        );
+        let visited = (projection.visits.births, projection.visits.deaths);
+        projection.seek(512);
+        assert_eq!(
+            (projection.visits.births, projection.visits.deaths),
+            visited,
+            "重复cut不推进事件"
+        );
+        for g in [1, 3, 3, 2, 8, i64::MAX, 1] {
+            projection.seek(g);
+            check(&projection, g);
+            assert_eq!(
+                projection.events.sort_passes, 2,
+                "跳跃或回退只过所跨事件，不重排序"
+            );
+        }
+    }
+    fn real_generations(
+        native_projection: bool,
+        native_union: bool,
+        include_legacy_negative_cases: bool,
+    ) {
         #[cfg(not(feature = "s_capture_native_testonly"))]
         let _ = native_projection;
         let files = TestFiles::new();
@@ -3276,7 +3634,8 @@ mod tests {
             };
             let mut generated = runtime.generate(&mut s, &input).unwrap();
             let mut duplicate_position = None;
-            if g == 3 {
+            if include_legacy_negative_cases && g == 3 {
+                // 仅旧测试：混合真实producer候选不属于本次正常来源路径。
                 // 同一生成代的两个真实producer候选，具有同槽不同身份：前位仍是旧活动身份。
                 // 本例专测adapter的旧末位语义，不把混合候选当作真实来源业务验收。
                 let earlier_effective = read_effective_events(&previous_raw).unwrap();
@@ -3350,7 +3709,7 @@ mod tests {
             )
             .unwrap();
             #[cfg(feature = "s_capture_native_testonly")]
-            if native_union && g == 1 {
+            if include_legacy_negative_cases && native_union && g == 1 {
                 let root = generated.objects[1].generated().digest;
                 let before_nodes: i64 = tx
                     .query_row("SELECT count(*) FROM s_content_nodes", [], |r| r.get(0))
@@ -3496,7 +3855,7 @@ mod tests {
             let expected_changes = changes_at(&stored, g).unwrap();
             assert_eq!(expected_changes.0, p.withdrawals);
             assert_eq!(expected_changes.1, p.replaces);
-            if g == 2 {
+            if include_legacy_negative_cases && g == 2 {
                 let common = old
                     .iter()
                     .position(|e| {
@@ -3525,6 +3884,7 @@ mod tests {
                 let mut captured = super::super::history::HashReader::captured(&capture, None);
                 captured.enable_full_arrays_for_test();
                 let mut current = load_for_history(&tx, &mut captured, g).unwrap();
+                projection_sweep_positive_event_counts(current.entries());
                 let dual = current
                     .native_dual_at_cut(&mut captured, g, &batch)
                     .unwrap();
@@ -3549,20 +3909,85 @@ mod tests {
                     ]
                 );
 
+                // 同一完整load/capture，合法修订和撤回后覆盖单调、重复、跳跃及回退cut。
+                let mut scan = load_for_history(&tx, &mut captured, g).unwrap();
+                let before = current.native_sweep().unwrap();
+                assert!(
+                    std::sync::Arc::ptr_eq(
+                        &before.events,
+                        &current
+                            .native
+                            .as_ref()
+                            .unwrap()
+                            .sweep
+                            .as_ref()
+                            .unwrap()
+                            .events,
+                    ),
+                    "before-g和through-g必须共享一份事件表"
+                );
+                let mut output_entries = 0;
+                for cut in [1, 2, 3, 3, 6, 1, 3, 2, i64::MAX, 1] {
+                    let cut_batch = format!("batch3-{}", cut.to_string().repeat(64));
+                    let old = scan
+                        .native_dual_at_cut_scan_for_test(&mut captured, cut, &cut_batch)
+                        .unwrap();
+                    let new = current
+                        .native_dual_at_cut(&mut captured, cut, &cut_batch)
+                        .unwrap();
+                    for (want, got) in old.iter().zip(&new) {
+                        assert_eq!(want, got, "cut-{cut}完整Template/Public根和头相同");
+                        for (a, b, mode) in [
+                            (&want.0, &got.0, sc::Mode::Template),
+                            (&want.1, &got.1, sc::Mode::Public),
+                        ] {
+                            let expected = projection_reachable_material(&mut captured, a, mode);
+                            let actual = projection_reachable_material(&mut captured, b, mode);
+                            assert_eq!(expected, actual, "cut-{cut}全部可达节点tag/body相同");
+                        }
+                        assert_eq!(
+                            value(&mut captured, &want.1.content_ref()),
+                            value(&mut captured, &got.1.content_ref())
+                        );
+                        output_entries += got.1.extent.unwrap() as usize;
+                    }
+                    let sweep = current.native.as_ref().unwrap().sweep.as_ref().unwrap();
+                    assert_eq!(sweep.events.sort_passes, 2, "每cut不得重排序");
+                    assert_eq!(
+                        sweep.events.initial_entries,
+                        stored.len(),
+                        "索引只初始化一次"
+                    );
+                    captured.clear_overlay();
+                }
+                let sweep = current.native.as_ref().unwrap().sweep.as_ref().unwrap();
+                // 先前g=3和g=1两次投影也计入输出量；不裁剪完整数组。
+                let earlier_outputs = dual
+                    .iter()
+                    .chain(dual_old.iter())
+                    .map(|p| p.1.extent.unwrap() as usize)
+                    .sum::<usize>();
+                assert_eq!(
+                    sweep.visits.output_entries,
+                    output_entries + earlier_outputs
+                );
+
                 assert!(current.native.is_some());
-                let other_capture = content_store::capture_for_prototype(&tx).unwrap();
-                let mut other_store =
-                    super::super::history::HashReader::captured(&other_capture, None);
-                other_store.enable_full_arrays_for_test();
-                assert!(current
-                    .at_cut(&mut other_store, 1, None)
-                    .unwrap_err()
-                    .contains("不属于本次捕获"));
-                let records = RecordMeter::default();
-                assert!(current
-                    .at_cut(&mut captured, 1, Some(&records))
-                    .unwrap_err()
-                    .contains("不属于本次捕获"));
+                if include_legacy_negative_cases {
+                    let other_capture = content_store::capture_for_prototype(&tx).unwrap();
+                    let mut other_store =
+                        super::super::history::HashReader::captured(&other_capture, None);
+                    other_store.enable_full_arrays_for_test();
+                    assert!(current
+                        .at_cut(&mut other_store, 1, None)
+                        .unwrap_err()
+                        .contains("不属于本次捕获"));
+                    let records = RecordMeter::default();
+                    assert!(current
+                        .at_cut(&mut captured, 1, Some(&records))
+                        .unwrap_err()
+                        .contains("不属于本次捕获"));
+                }
                 let mut ordinary_store =
                     super::super::history::HashReader::captured(&capture, None);
                 let ordinary = load_for_history(&tx, &mut ordinary_store, g).unwrap();
@@ -3602,12 +4027,14 @@ mod tests {
                 .unwrap(),
             0
         );
-        let tx = conn.transaction().unwrap();
-        tx.execute("UPDATE s_content_objects SET immutable_root=generated_root WHERE rowid=(SELECT MIN(rowid) FROM s_content_objects)",[]).unwrap();
-        let mut s = content_store::TxStore::new(&tx).unwrap();
-        assert!(load(&tx, &mut s, 3)
-            .unwrap_err()
-            .contains("不可变内容根不符"));
+        if include_legacy_negative_cases {
+            let tx = conn.transaction().unwrap();
+            tx.execute("UPDATE s_content_objects SET immutable_root=generated_root WHERE rowid=(SELECT MIN(rowid) FROM s_content_objects)",[]).unwrap();
+            let mut s = content_store::TxStore::new(&tx).unwrap();
+            assert!(load(&tx, &mut s, 3)
+                .unwrap_err()
+                .contains("不可变内容根不符"));
+        }
     }
     #[test]
     fn empty_plan_rolls_back_nodes_and_rejects_missing_independent_table() {
