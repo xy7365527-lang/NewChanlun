@@ -1,0 +1,221 @@
+{
+  "stage": 47,
+  "date": "2026-10-04",
+  "issue": 1467,
+  "related_issues": [
+    1465,
+    1469
+  ],
+  "base_commit": "f7b7f2973f121617f67b647ae1b5586e0a970a83",
+  "previous_goal_turn": "substantive-progress-stage46",
+  "trust_level": "COORDINATOR_ATTESTED_TOOL_TRANSCRIPT",
+  "model_requested": "gpt-6-astra",
+  "agents": [
+    {
+      "task_name": "/root/direct_output_bridge",
+      "role": "author",
+      "fork_turns": "none",
+      "completed": true,
+      "interrupt_agent_called": true
+    },
+    {
+      "task_name": "/root/base_complete_construction",
+      "role": "author",
+      "fork_turns": "none",
+      "completed": true,
+      "interrupt_agent_called": true
+    },
+    {
+      "task_name": "/root/direct_output_readback",
+      "role": "blind actual-definition readback; same agent continuation for added statement; no author Intent/Proof supplied",
+      "fork_turns": "none",
+      "completed": true,
+      "interrupt_agent_called": true
+    },
+    {
+      "task_name": "/root/direct_output_comparison",
+      "role": "fresh independent semantic comparison and machine verification",
+      "fork_turns": "none",
+      "completed": true,
+      "interrupt_agent_called": true
+    },
+    {
+      "task_name": "/root/raw_turn_candidate_review",
+      "role": "fresh independent source/candidate/implementation review",
+      "fork_turns": "none",
+      "completed": true,
+      "interrupt_agent_called": true
+    }
+  ],
+  "lean_summary": "stage47/lean-verification-summary.json",
+  "raw_turn_checks": {
+    "frozenFilesMatched": 8,
+    "sourceFilesMatched": 25,
+    "rerunFilesByteIdentical": 5,
+    "independentNamedCases": 7,
+    "totalEvents": 98,
+    "totalStates": 105,
+    "wordCount": 9840,
+    "prefixChecks": 103332,
+    "distinctPrefixes": 9847,
+    "zeroCoreWords": 7878,
+    "minimalZero": 6,
+    "minimalZeroAfterCandidateTrend": 8,
+    "status": "all-computational-comparisons-pass; semantic scope in review report"
+  },
+  "raw_turn_adoption": {
+    "refuted": "EV-A1: every confirmed raw turning fragment is an uploadable completed a1",
+    "minimality": "6/8 only for zero-core failures in H_EV; preceding U/D in the 8-event case is a candidate",
+    "NoCore_retention_allowed": true,
+    "domain_extension": "common positive-quantity and fixed-quote v2 subdomain, not all D_Q",
+    "conditional_extension_requires": [
+      "same full core catalog",
+      "same-level core identity",
+      "point outer P",
+      "independent J",
+      "EXT-own"
+    ],
+    "forward_merge": "necessary-condition witness only; no completion certificate",
+    "market_capture": false,
+    "all_coordinate_words_as_native_histories": false
+  },
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/DirectOutputSpec.lean",
+      "sha256": "23d38c0d49b57d7438efd90757dc7a80e138d54400de123955280857164c8e6b",
+      "bytes": 2972
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/DirectOutputProof.lean",
+      "sha256": "a891306d2e94fe60e06acdde4bb1806f37e6f71460147f4fa095d8f77b187f2a",
+      "bytes": 13169
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/DirectOutputSourcePathSpec.lean",
+      "sha256": "9cccbdf9b546c51aa3eaf323f282ea81a58032d3bb15c889c18efdc17bf9d648",
+      "bytes": 886
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/DirectOutputSourcePathProof.lean",
+      "sha256": "531a46969a849d5e6641a7685c398404366a308b7135e9eed79b0f3c1e8cba23",
+      "bytes": 6154
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage47OutputSourceAndRawTurns.md",
+      "sha256": "2865fca90aba4780a7c4dc393788c373111009727fb0de2acb0882aa248a2a16",
+      "bytes": 7760
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/IndependentChecks.lean",
+      "sha256": "956e981badb64247368de005f347d5310bb3b58731815164e70457ff58316999",
+      "bytes": 4896
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/Intent-v1.md",
+      "sha256": "44ac43b6f75426d026780e1d76d06adc7fbb8312556daeadd79f66a84365a926",
+      "bytes": 3385
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/base-complete-construction.md",
+      "sha256": "40b61ac5c1de37704da6904370d0d5afaaeecd1104968afb70b5149e06fe0e15",
+      "bytes": 22497
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/base-construction-evidence/extremum-candidate.mjs",
+      "sha256": "c29765b570702ba9adcf7e5795c06794d4fd81b47fbd92d389754a7d5bc38b27",
+      "bytes": 11280
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/base-construction-evidence/frozen-manifest.json",
+      "sha256": "49cde00e568956e065df4c9b751429ccbf27004e5c2035843a5af42fe2d5afd2",
+      "bytes": 1970
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/base-construction-evidence/results/candidateParentSeed.json",
+      "sha256": "77de048ac5c2fa5202021aa9ddb6517b9a6027d1453ddb5f789e29687a2e17cf",
+      "bytes": 484
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/base-construction-evidence/results/conditionalExtensionCounterexample.json",
+      "sha256": "2166c70c009f05d9a8b43d62513902cbdeed1f3a3d29b87b045c5082f287b1c0",
+      "bytes": 1084
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/base-construction-evidence/results/enumeration.json",
+      "sha256": "a0610d3fc7a133adfb05d44d40d68ea98e4c99aedeb65d38b088fdbc10f3215b",
+      "bytes": 1722
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/base-construction-evidence/results/examples.json",
+      "sha256": "263af0af75f7e87f86a47e927b78f52a45aa42d2ac4232c44f1c218f99bbbc58",
+      "bytes": 118342
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/base-construction-evidence/results/merges.json",
+      "sha256": "df8aea3bc32ac24bf902ee5ac3c91cd14fdaaa775a0c186c37a3931372b05655",
+      "bytes": 692
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/base-construction-evidence/source-manifest.json",
+      "sha256": "c963d0f7097f602a17ba23a3b180aaa9bfba614259210740fa21568c633095fd",
+      "bytes": 4372
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/direct-actual-path-readback.md",
+      "sha256": "7f91a02dd13f73d10a93c961104be3f308d0cddf02d3725f4eba4cb5f83dd666",
+      "bytes": 11094
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/direct-actual-path-source-sha256.txt",
+      "sha256": "ecdf23eb46caac55d7b5553400b03911122408d0c719ade4d9fbdad45238e93d",
+      "bytes": 2603
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/direct-output-author.md",
+      "sha256": "541a1125c00d076eb4ef6f640d27f2846d041546d4bb5f9be7c88c0fcd86c662",
+      "bytes": 6669
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/direct-output-readback.md",
+      "sha256": "54cfca5f7151889c1ae4dca219685173af18eac51ced9d710b946830c88c1cc7",
+      "bytes": 17042
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/direct-output-source-sha256.txt",
+      "sha256": "049b47d05c9bc19de8920a7ffe6750224b40dad9394465ce1e531b4e7dec5a33",
+      "bytes": 2737
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/independent-direct-output-comparison.md",
+      "sha256": "fd57d57d36beecb1d08dcd7854bdc95ba5551349f70bfa5c5d6a2ebd8b376884",
+      "bytes": 15869
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/independent-raw-turn-review.md",
+      "sha256": "096112bc139a9455d2659a9f7a632a58fd0e1e01d118fa9de3f959d4eed3163f",
+      "bytes": 16598
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/lean-verification-summary.json",
+      "sha256": "59cfe3cfe7f4818908ff4d9f4b2c18f082edc9194aafd75db5d75d224935a1dc",
+      "bytes": 6552
+    }
+  ],
+  "external_evidence": [
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/stage47-direct-output",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/stage47-direct-output-independent",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/stage47-raw-turn-independent"
+  ],
+  "coordinator_checks": [
+    "frozen source hashes matched",
+    "auxiliary checked source copied byte-identically",
+    "unrelated 6-line ResearchProgress and 2-line Stage40 changes preserved; own-only staging patch prepared"
+  ],
+  "formal_source_modified": false,
+  "fixture_drift_required": false,
+  "original_a1_or_F2_qualified": false,
+  "market_value_tested": false,
+  "production_adopted": false,
+  "goal_complete": false,
+  "goal_status": "active"
+}

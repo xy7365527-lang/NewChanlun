@@ -1,0 +1,58 @@
+{
+  "backward": {
+    "oldEnd": 6,
+    "newEnd": 7,
+    "oldConfirmation": 7,
+    "newDecisionAt": 8,
+    "withdrawsPreviouslyConfirmedBoundary": true
+  },
+  "forwardTwo": {
+    "events": [
+      7,
+      10
+    ],
+    "path": [
+      20,
+      10,
+      20,
+      20,
+      20
+    ],
+    "cores": [
+      20
+    ],
+    "start": 20,
+    "end": 20,
+    "range": [
+      10,
+      20
+    ]
+  },
+  "forwardThree": {
+    "events": [
+      7,
+      13
+    ],
+    "path": [
+      20,
+      10,
+      20,
+      20,
+      20,
+      10,
+      10,
+      10
+    ],
+    "cores": [
+      20,
+      10
+    ],
+    "start": 20,
+    "end": 10,
+    "range": [
+      10,
+      20
+    ],
+    "confirm": 14
+  }
+}

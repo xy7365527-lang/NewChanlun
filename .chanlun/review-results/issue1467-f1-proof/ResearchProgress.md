@@ -6,6 +6,8 @@
 
 ## 当前理解
 
+- [Stage47](Stage47OutputSourceAndRawTurns.md)：原construct全来源/唯一覆盖/相邻边界与实际bs/qs全切点L1包络两根经独立重编译和数学比较通过，None不丢；不授予原义a₁/F₂。EV-P逐真实转折上送被本域6/8事件零核型最短反例否定，13事件仍有带P/J/EXT-own的延伸冲突。合并仅必要条件，下一项先求独立a₁合同的可行分解；P1–P4与goal保持。
+
 - [Stage46](Stage46TurnBoundaryAndDirectHull.md)：043特定小转大场景给出旧实例承接新C的直接源证，但不推全J；标准化存在与原点位证书均不能直接认证RT早切界，有限移界还改变父三交。R_D新增DirectHull一般Lean根，独立冷读及数学对应接受原Flow全切点L1精确包络与自有深价反例；不覆盖全簿、feed完整性、原义完成或F₂。活动guard的独立作用及模型边界见[采用口径](stage46/ScopeClarifications-v1.md)。
 
 - [Stage45](Stage45ExtensionAndExtent.md)：延伸拆成全目录关系EXT-rel和精确完成表示EXT-own；在点外缘/同级身份P及桥J下，RT每次拟上送发射均被一般条件证明拒绝，J是否原义必然仍待证。P/E核心同为点却可有不同外缘；同目录E使所有相邻对失去M-2趋势资格，不能靠换outer保旧标签。Γ₄仅是有限关系抽象，核心身份、完整a₁/F₂及增量价值仍未取得。
@@ -14,7 +16,7 @@
 
 - [Stage43](Stage43CompletionAndDynamicW.md)：W 只须承担具名观察与结构合同，不附加实际成交身份门；单核心完成仍缺可验证的前缀拼接，局部右端证书不能替指定左界。OC-v1 的独占分块成立，但直接原义接续出现 Down→Down，固定 Z-3 接口未过。动态 W 首段已独立重建出两份候选对象，e20/e45 确认、e55 首败；仍无三对象父核输入。P1–P4 保持，goal active。
 
-以下旧阶段条目保留当时状态；后续独评与范围订正以 Stage41–46 及各自证据为准，不将旧的待审标记当成当前总状态。
+以下旧阶段条目保留当时状态；后续独评与范围订正以 Stage41–47 及各自证据为准，不将旧的待审标记当成当前总状态。
 
 - [Stage40](Stage40CompletionGate.md)：完整走势尝试在 c 的内部三类点/成员资格和动力学完成对应处未过准入；原 leaveA 的发生区间不包含其后 retA 的终点，不能靠迟发把后者算入前者。冻结了 F₁/F₂ 接口的独立读回及比较材料。CLI schema 有当前 turn 的换模接口，但官方 proxy 所需 control socket 缺失，未连接当前任务、未换模或派发。原先“没有换模接口”的说法应收窄为当前会话的可用连接未建立。完整构造、独评和主确认实验仍未完成。
 
@@ -183,3 +185,13 @@ P的核心成员为事件后点，E为事件前后端点包络；二者core可�
 新DirectHull.exact_root的SPLIT/HULL/LIMIT已由作者与独立冷读分别fresh编译7研究模块，7Origin模块是哈希绑定的预编译导入。semantic hash为83c95e8fba961d9a19fa0e88c83a208fcf366dce3e56119afd92c29585aa0d77；三项标准公理，无sorryAx/unsafe。另一新上下文接受其限定数学对应：同号且全程有效报价Flow的所有切点L1整数spread支撑精确包络等于原leg；两事件例中首块仅拥有bid add90，在第二事件ask add110后符号确认，但leg只有[100,102]。未修改旧semantic=not_reviewed回执。
 
 Flow不含feed序号/完整性，Support不恢复唯一轨迹/来源身份，ExactHull不保证填满，模型见证不是实际行情。新根未接通任意construct输出的全源证明，更不提供a₁/EXT-own/F₂；后续可沿Through/Reads、Completed/locate实现具名逐字段来源桥，但不能用接线替代原义最低核心/走势关系。A/B已审接口保留，B_seed/C、确认样本与预算仍未冻结。新Lean仅在研究包，formal/生产未改，goal active，P1–P4不缩小。
+
+## Stage47：原输出实际来源与逐转折上送的局部否决
+
+[汇总](Stage47OutputSourceAndRawTurns.md)、[直接桥独评](stage47/independent-direct-output-comparison.md)、[候选独评](stage47/independent-raw-turn-review.md)与[证据](stage47-evidence.json)保存两根一般条件证明和新候选的决定性反例。DirectOutput.exact_root绑定原construct的全部输出、源事件、Good/Completed、逐索引唯一归属及未过滤邻接；补充actual_exact_root明确绑定给定bs/qs的每个切点和实际L1支撑ExactHull。原四项目标与两份Spec锁未改；作者和独立工位分别fresh编译，独立run为8bacfe6d172a4f28898787cdb5e53468、61e9e4335666423aadcb04c9a3eae37a，仅标准三公理。13/15研究模块加Probe重编译，7Origin源码/olean分别绑hash但未重建formal。辅助Nodup及非空/None见证也过Lean，源逐字节留仓。旧semantic=not_reviewed不倒写。
+
+该桥不验证constructor输入本身、feed完整性、物理时钟、全深度或原义完成；None在Reads下是真无有效双边报价，不是捕获未知。来源/实际L1桥已闭合，不再以同类接线引理代替a₁研究。
+
+极值核归左+单核P已是v2，未重复包装。新EV-P-v1在共用正量/固定盘口的v2子域允许后续短平台，首反向事件封定原始转折。6事件10³,20,10,20出现一事件NoCore；先有双核趋势候选时最少8事件。最小性仅指本域/规则的零核心型失败，不是全部语义机制；NoCore保留合法，被否的是每条原始转折均可上送a₁。13事件10³,20³,15,30³,25³在P/同级身份/J/EXT-own下仍会提前封旧U。向后合并须改已确认成员，向前三腿有局部必要条件可行区间但没有完成证书；30事件三交[10,30]也只属候选几何。
+
+独评重跑五份JSON逐字节相同，另用逐事件扫描重算7份合成订单流98事件/105状态；9840完整坐标词、103332次外层前缀检查含重复、9847不同前缀，7878词有NoCore。坐标词不冒充原生消息历史，有限枚举不代替普通计数证明；未新增断流/恢复验证。下一数学工作先在独立a₁必要合同下寻找可行成员分解，保留P完成与延伸的真实证书义务，再推导可因果确认的规则。两路线、A/B备料与P1–P4保留，主确认未开始，formal/生产未改，goal active。

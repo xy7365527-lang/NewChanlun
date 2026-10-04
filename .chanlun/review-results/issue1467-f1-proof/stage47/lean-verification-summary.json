@@ -1,0 +1,137 @@
+{
+  "roots": {
+    "author_v1": {
+      "manifest": {
+        "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/stage47-direct-output/author-v1/run-manifest.json",
+        "sha256": "1df391eae1fff6129987d6020de8795d4a0e776a8bbdde18303e5174b620365a",
+        "bytes": 9616009
+      },
+      "run_id": "4c549c507c87401a820ba9d396176201",
+      "exact_root_passed": true,
+      "root_closure": {
+        "status": "closed",
+        "exact_root_passed": true,
+        "declaration_closed": true,
+        "scope": "expected Lean type in the recorded environment; semantic review is separate"
+      },
+      "actual_type": "And DirectOutput.SOURCE_TARGET\n  (And DirectOutput.COVER_TARGET (And DirectOutput.HULL_TARGET DirectOutput.ADJACENT_TARGET))",
+      "expected_type": "DirectOutput.SOURCE_TARGET ∧ DirectOutput.COVER_TARGET ∧ DirectOutput.HULL_TARGET ∧ DirectOutput.ADJACENT_TARGET",
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "semantic_sha256": "a64c15a8f4d26d0c08fdb1595ec656b835fe4d2e3aa239312bcc1920a8eef5a1",
+      "environment_sha256": "1548ac432ad623bd51670184a4b239b15404b490e4b608cee01d67ac40636756",
+      "semantic": {
+        "status": "not_reviewed",
+        "reused": false,
+        "semantic_sha256": "a64c15a8f4d26d0c08fdb1595ec656b835fe4d2e3aa239312bcc1920a8eef5a1"
+      }
+    },
+    "author_actual": {
+      "manifest": {
+        "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/stage47-direct-output/author-actual/run-manifest.json",
+        "sha256": "ebb596b10b822f6c52729bc5c69332ecaa8d7270da9d8f2345e7456a2752c491",
+        "bytes": 9011726
+      },
+      "run_id": "4c6213d2f1484e03888ccfb92bff7469",
+      "exact_root_passed": true,
+      "root_closure": {
+        "status": "closed",
+        "exact_root_passed": true,
+        "declaration_closed": true,
+        "scope": "expected Lean type in the recorded environment; semantic review is separate"
+      },
+      "actual_type": "DirectOutput.ACTUAL_PATH_TARGET",
+      "expected_type": "DirectOutput.ACTUAL_PATH_TARGET",
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "semantic_sha256": "67c2f30066c85bdcc74c04fc0fae51376874b0bb29dfeb9353e8fe1641f7939b",
+      "environment_sha256": "ebc6c03463e9826044b4d9f1f77c20689614163f9a21660478964566129e30b7",
+      "semantic": {
+        "status": "not_reviewed",
+        "reused": false,
+        "semantic_sha256": "67c2f30066c85bdcc74c04fc0fae51376874b0bb29dfeb9353e8fe1641f7939b"
+      }
+    },
+    "independent_v1": {
+      "manifest": {
+        "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/stage47-direct-output-independent/independent-v1/run-manifest.json",
+        "sha256": "ad321c24beb16ca6fe2ec07a3ba20a136e92246937fbf8b384999eb3cfb4426b",
+        "bytes": 9620904
+      },
+      "run_id": "8bacfe6d172a4f28898787cdb5e53468",
+      "exact_root_passed": true,
+      "root_closure": {
+        "status": "closed",
+        "exact_root_passed": true,
+        "declaration_closed": true,
+        "scope": "expected Lean type in the recorded environment; semantic review is separate"
+      },
+      "actual_type": "And DirectOutput.SOURCE_TARGET\n  (And DirectOutput.COVER_TARGET (And DirectOutput.HULL_TARGET DirectOutput.ADJACENT_TARGET))",
+      "expected_type": "DirectOutput.SOURCE_TARGET ∧ DirectOutput.COVER_TARGET ∧ DirectOutput.HULL_TARGET ∧ DirectOutput.ADJACENT_TARGET",
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "semantic_sha256": "a64c15a8f4d26d0c08fdb1595ec656b835fe4d2e3aa239312bcc1920a8eef5a1",
+      "environment_sha256": "c3c0dcd844b466ad29d9cb85151869b52e8948f1302b7a750ddec341400d2b17",
+      "semantic": {
+        "status": "not_reviewed",
+        "reused": false,
+        "semantic_sha256": "a64c15a8f4d26d0c08fdb1595ec656b835fe4d2e3aa239312bcc1920a8eef5a1"
+      }
+    },
+    "independent_actual": {
+      "manifest": {
+        "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/stage47-direct-output-independent/independent-actual/run-manifest.json",
+        "sha256": "3c3ea92cefd3df331ac8fb216f6f55022dc19bc05fe78d3d96d4049bf58488de",
+        "bytes": 9017355
+      },
+      "run_id": "61e9e4335666423aadcb04c9a3eae37a",
+      "exact_root_passed": true,
+      "root_closure": {
+        "status": "closed",
+        "exact_root_passed": true,
+        "declaration_closed": true,
+        "scope": "expected Lean type in the recorded environment; semantic review is separate"
+      },
+      "actual_type": "DirectOutput.ACTUAL_PATH_TARGET",
+      "expected_type": "DirectOutput.ACTUAL_PATH_TARGET",
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "semantic_sha256": "67c2f30066c85bdcc74c04fc0fae51376874b0bb29dfeb9353e8fe1641f7939b",
+      "environment_sha256": "95caf99a8e563504cc0ae5999db44b8ac628f37aecfa9d605084d251db3b3723",
+      "semantic": {
+        "status": "not_reviewed",
+        "reused": false,
+        "semantic_sha256": "67c2f30066c85bdcc74c04fc0fae51376874b0bb29dfeb9353e8fe1641f7939b"
+      }
+    }
+  },
+  "independent_semantic_comparison": {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage47/independent-direct-output-comparison.md",
+    "sha256": "fd57d57d36beecb1d08dcd7854bdc95ba5551349f70bfa5c5d6a2ebd8b376884",
+    "bytes": 15869
+  },
+  "accepted_scope": "Two roots jointly bind the original construct outputs to owned source events and the supplied bs/qs L1 support. Not original a1/F2 qualification.",
+  "formal_build_scope": "13/15 research modules plus a generated Probe freshly compiled; 7 Origin modules imported from separately source/olean-hash-bound precompiled artifacts. No formal source rebuild.",
+  "auxiliary_checked_source": {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage47/IndependentChecks.lean",
+    "sha256": "956e981badb64247368de005f347d5310bb3b58731815164e70457ff58316999",
+    "bytes": 4896
+  },
+  "auxiliary_original": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/stage47-direct-output-independent/checks/IndependentChecks.lean",
+    "sha256": "956e981badb64247368de005f347d5310bb3b58731815164e70457ff58316999",
+    "bytes": 4896
+  }
+}

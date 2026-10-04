@@ -1,0 +1,105 @@
+{
+  "wordCount": 9840,
+  "prefixCount": 103332,
+  "zeroCoreCount": 7878,
+  "histogram": {
+    "3": 3,
+    "4": 9,
+    "5": 27,
+    "6": 81,
+    "7": 243,
+    "8": 729,
+    "9": 2187,
+    "10": 6561
+  },
+  "firstZero": {
+    "length": 6,
+    "xs": [
+      10,
+      10,
+      10,
+      20,
+      10,
+      20
+    ],
+    "object": {
+      "id": "M2",
+      "startBoundary": 4,
+      "end": 5,
+      "confirm": 6,
+      "memberEvents": [
+        5
+      ],
+      "ownCoreIDs": [],
+      "type": "NoCore",
+      "semanticDirection": null,
+      "pathDirection": -1,
+      "startValue": 20,
+      "endValue": 10,
+      "range": [
+        10,
+        20
+      ],
+      "support": {
+        "leftRun": {
+          "start": 4,
+          "end": 4,
+          "value": 20
+        },
+        "pivotRun": {
+          "start": 5,
+          "end": 5,
+          "value": 10
+        },
+        "oppositeFirstEvent": 6,
+        "oppositeValue": 20
+      }
+    }
+  },
+  "firstAfterTrend": {
+    "length": 8,
+    "xs": [
+      10,
+      10,
+      10,
+      20,
+      20,
+      20,
+      10,
+      20
+    ],
+    "object": {
+      "id": "M2",
+      "startBoundary": 6,
+      "end": 7,
+      "confirm": 8,
+      "memberEvents": [
+        7
+      ],
+      "ownCoreIDs": [],
+      "type": "NoCore",
+      "semanticDirection": null,
+      "pathDirection": -1,
+      "startValue": 20,
+      "endValue": 10,
+      "range": [
+        10,
+        20
+      ],
+      "support": {
+        "leftRun": {
+          "start": 4,
+          "end": 6,
+          "value": 20
+        },
+        "pivotRun": {
+          "start": 7,
+          "end": 7,
+          "value": 10
+        },
+        "oppositeFirstEvent": 8,
+        "oppositeValue": 20
+      }
+    }
+  }
+}

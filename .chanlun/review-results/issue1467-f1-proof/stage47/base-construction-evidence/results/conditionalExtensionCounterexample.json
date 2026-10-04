@@ -1,0 +1,73 @@
+{
+  "oldObject": {
+    "id": "M1",
+    "startBoundary": 0,
+    "end": 6,
+    "confirm": 7,
+    "memberEvents": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "ownCoreIDs": [
+      "K@1",
+      "K@4"
+    ],
+    "type": "U",
+    "semanticDirection": 1,
+    "pathDirection": 1,
+    "startValue": 10,
+    "endValue": 20,
+    "range": [
+      10,
+      20
+    ],
+    "support": {
+      "leftRun": {
+        "start": 1,
+        "end": 3,
+        "value": 10
+      },
+      "pivotRun": {
+        "start": 4,
+        "end": 6,
+        "value": 20
+      },
+      "oppositeFirstEvent": 7,
+      "oppositeValue": 15
+    }
+  },
+  "orderedCoreValues": [
+    10,
+    20,
+    30,
+    25
+  ],
+  "nextCore": {
+    "id": "K@8",
+    "plateau": 3,
+    "start": 8,
+    "end": 10,
+    "value": 30,
+    "birth": 10,
+    "seed": [
+      8,
+      9,
+      10
+    ],
+    "memberEvents": [
+      8,
+      9,
+      10
+    ],
+    "closed": true,
+    "extent": [
+      30,
+      30
+    ]
+  },
+  "conditions": "same P point extent/core identity; independent semantic J; EXT-own exact identity"
+}
