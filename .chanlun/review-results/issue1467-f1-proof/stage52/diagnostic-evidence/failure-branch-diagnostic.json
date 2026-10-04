@@ -1,0 +1,492 @@
+{
+  "purpose": "Exhibits why the original all-history implementation claim cannot stand; does not refute the corrected conditional relation.",
+  "independentFixture": {
+    "initial": {
+      "bid": {
+        "id": "reservoir",
+        "price": 100,
+        "quantity": 100
+      },
+      "ask": {
+        "id": "ask",
+        "price": 102,
+        "quantity": 10
+      }
+    },
+    "events": [
+      {
+        "seq": 1,
+        "kind": "add",
+        "id": "add-1",
+        "side": "bid",
+        "price": 100,
+        "quantity": 10
+      },
+      {
+        "seq": 2,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 6
+      },
+      {
+        "seq": 3,
+        "kind": "add",
+        "id": "add-3",
+        "side": "bid",
+        "price": 100,
+        "quantity": 8
+      },
+      {
+        "seq": 4,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 1
+      },
+      {
+        "seq": 5,
+        "kind": "add",
+        "id": "add-5",
+        "side": "bid",
+        "price": 100,
+        "quantity": 2
+      },
+      {
+        "seq": 6,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 1
+      }
+    ],
+    "q": [
+      100,
+      110,
+      104,
+      112,
+      111,
+      113,
+      112
+    ],
+    "states": [
+      {
+        "event": 0,
+        "q": 100,
+        "w": "1120/11"
+      },
+      {
+        "event": 1,
+        "q": 110,
+        "w": "611/6"
+      },
+      {
+        "event": 2,
+        "q": 104,
+        "w": "5804/57"
+      },
+      {
+        "event": 3,
+        "q": 112,
+        "w": "6212/61"
+      },
+      {
+        "event": 4,
+        "q": 111,
+        "w": "12322/121"
+      },
+      {
+        "event": 5,
+        "q": 113,
+        "w": "12526/123"
+      },
+      {
+        "event": 6,
+        "q": 112,
+        "w": "6212/61"
+      }
+    ],
+    "snapshots": [
+      {
+        "event": 0,
+        "bestBid": 100,
+        "bestAsk": 102,
+        "bestBidQuantity": 100,
+        "bestAskQuantity": 10,
+        "w": "1120/11",
+        "orders": [
+          {
+            "id": "reservoir",
+            "price": 100,
+            "quantity": 100,
+            "side": "bid"
+          },
+          {
+            "id": "ask",
+            "price": 102,
+            "quantity": 10,
+            "side": "ask"
+          }
+        ]
+      },
+      {
+        "event": 1,
+        "bestBid": 100,
+        "bestAsk": 102,
+        "bestBidQuantity": 110,
+        "bestAskQuantity": 10,
+        "w": "611/6",
+        "orders": [
+          {
+            "id": "reservoir",
+            "price": 100,
+            "quantity": 100,
+            "side": "bid"
+          },
+          {
+            "id": "ask",
+            "price": 102,
+            "quantity": 10,
+            "side": "ask"
+          },
+          {
+            "seq": 1,
+            "kind": "add",
+            "id": "add-1",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "event": 2,
+        "bestBid": 100,
+        "bestAsk": 102,
+        "bestBidQuantity": 104,
+        "bestAskQuantity": 10,
+        "w": "5804/57",
+        "orders": [
+          {
+            "id": "reservoir",
+            "price": 100,
+            "quantity": 94,
+            "side": "bid"
+          },
+          {
+            "id": "ask",
+            "price": 102,
+            "quantity": 10,
+            "side": "ask"
+          },
+          {
+            "seq": 1,
+            "kind": "add",
+            "id": "add-1",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "event": 3,
+        "bestBid": 100,
+        "bestAsk": 102,
+        "bestBidQuantity": 112,
+        "bestAskQuantity": 10,
+        "w": "6212/61",
+        "orders": [
+          {
+            "id": "reservoir",
+            "price": 100,
+            "quantity": 94,
+            "side": "bid"
+          },
+          {
+            "id": "ask",
+            "price": 102,
+            "quantity": 10,
+            "side": "ask"
+          },
+          {
+            "seq": 1,
+            "kind": "add",
+            "id": "add-1",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 3,
+            "kind": "add",
+            "id": "add-3",
+            "side": "bid",
+            "price": 100,
+            "quantity": 8
+          }
+        ]
+      },
+      {
+        "event": 4,
+        "bestBid": 100,
+        "bestAsk": 102,
+        "bestBidQuantity": 111,
+        "bestAskQuantity": 10,
+        "w": "12322/121",
+        "orders": [
+          {
+            "id": "reservoir",
+            "price": 100,
+            "quantity": 93,
+            "side": "bid"
+          },
+          {
+            "id": "ask",
+            "price": 102,
+            "quantity": 10,
+            "side": "ask"
+          },
+          {
+            "seq": 1,
+            "kind": "add",
+            "id": "add-1",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 3,
+            "kind": "add",
+            "id": "add-3",
+            "side": "bid",
+            "price": 100,
+            "quantity": 8
+          }
+        ]
+      },
+      {
+        "event": 5,
+        "bestBid": 100,
+        "bestAsk": 102,
+        "bestBidQuantity": 113,
+        "bestAskQuantity": 10,
+        "w": "12526/123",
+        "orders": [
+          {
+            "id": "reservoir",
+            "price": 100,
+            "quantity": 93,
+            "side": "bid"
+          },
+          {
+            "id": "ask",
+            "price": 102,
+            "quantity": 10,
+            "side": "ask"
+          },
+          {
+            "seq": 1,
+            "kind": "add",
+            "id": "add-1",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 3,
+            "kind": "add",
+            "id": "add-3",
+            "side": "bid",
+            "price": 100,
+            "quantity": 8
+          },
+          {
+            "seq": 5,
+            "kind": "add",
+            "id": "add-5",
+            "side": "bid",
+            "price": 100,
+            "quantity": 2
+          }
+        ]
+      },
+      {
+        "event": 6,
+        "bestBid": 100,
+        "bestAsk": 102,
+        "bestBidQuantity": 112,
+        "bestAskQuantity": 10,
+        "w": "6212/61",
+        "orders": [
+          {
+            "id": "reservoir",
+            "price": 100,
+            "quantity": 92,
+            "side": "bid"
+          },
+          {
+            "id": "ask",
+            "price": 102,
+            "quantity": 10,
+            "side": "ask"
+          },
+          {
+            "seq": 1,
+            "kind": "add",
+            "id": "add-1",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 3,
+            "kind": "add",
+            "id": "add-3",
+            "side": "bid",
+            "price": 100,
+            "quantity": 8
+          },
+          {
+            "seq": 5,
+            "kind": "add",
+            "id": "add-5",
+            "side": "bid",
+            "price": 100,
+            "quantity": 2
+          }
+        ]
+      }
+    ],
+    "extraEvents": 6,
+    "extraStates": 7,
+    "seedLegs": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        3
+      ]
+    ],
+    "core": [
+      104,
+      110
+    ],
+    "L": {
+      "start": 3,
+      "end": 4,
+      "range": [
+        111,
+        112
+      ],
+      "direction": "Down"
+    },
+    "R": {
+      "start": 4,
+      "end": 5,
+      "range": [
+        111,
+        113
+      ],
+      "direction": "Up",
+      "knownAt": 6
+    }
+  },
+  "firstOutsidePair": {
+    "outside": "Up",
+    "departureOK": false,
+    "stopRequired": true
+  },
+  "overlappingSeedDeparture": {
+    "departure": {
+      "start": 2,
+      "end": 3,
+      "qStart": 104,
+      "qEnd": 112,
+      "direction": "Up",
+      "alsoSeedMember": true
+    },
+    "return": {
+      "start": 3,
+      "end": 4,
+      "qStart": 112,
+      "qEnd": 111,
+      "range": [
+        111,
+        112
+      ],
+      "direction": "Down",
+      "knownAt": 5
+    },
+    "numericalDepartureAndNonreturn": true,
+    "qualification": "Numerical observation only. Allowing the last seed leg to also serve as departure would change the current member/evidence rule and requires a separate source and contract audit."
+  },
+  "correctStopRelation": {
+    "proposals": [],
+    "tailOwnedEvents": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ]
+  },
+  "authorMain": {
+    "sourceSHA256": "9e9e5f8efa3dc8fef67c619b638d0ce50b6cbc1ce6c7c1f4b2bcb932a98c8485",
+    "functionBodySHA256": "97b462654789aa286ca8c12845860b555e0606eb20d2978d697ad7b82776add1",
+    "threw": true,
+    "name": "AssertionError",
+    "message": "The expression evaluated to a falsy value:\n\n  assert.ok(startsOnCoreSide)\n"
+  },
+  "authorSecond": {
+    "sourceSHA256": "1f869eba9015790e4ef5fb4f8a751db60c4e6ac096700fc9cd13cfddf8a52747",
+    "functionBodySHA256": "ff11369447af27a9e5606b0e40e91025f60b6950460e00f464b703eafe38bc71",
+    "proposals": [
+      {
+        "core": "K0",
+        "start": 0,
+        "end": 4,
+        "sourceEvents": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "qRange": [
+          100,
+          112
+        ],
+        "evidenceKnownAt": 6,
+        "relationshipPublishedAt": 6,
+        "semanticEligibleAt": null
+      }
+    ]
+  },
+  "subprocessRuns": [
+    {
+      "name": "main",
+      "wrapper": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage52/brs-review/extracted-main-checker.mjs",
+      "node": "/Users/silencehan/.hermes/node/bin/node",
+      "exitCode": 1,
+      "signal": null,
+      "stdout": "diagnostic-main.stdout",
+      "stderr": "diagnostic-main.stderr"
+    },
+    {
+      "name": "prefix",
+      "wrapper": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage52/brs-review/extracted-prefix-checker.mjs",
+      "node": "/Users/silencehan/.hermes/node/bin/node",
+      "exitCode": 0,
+      "signal": null,
+      "stdout": "diagnostic-prefix.stdout",
+      "stderr": "diagnostic-prefix.stderr"
+    }
+  ],
+  "invocationBoundary": "Frozen CLIs were separately run unchanged on their locked fixtures and passed. This diagnostic extracts unchanged function bodies rawLegs/rawCoreSeams and signedRuns/parse, supplies only helper definitions and q/state arrays, then calls those functions in vm and standalone child-process wrappers. It does not claim either locked CLI accepts arbitrary new fixtures.",
+  "interpretation": "No later pair may rescue this core under the corrected stopping premise. Author main throws; author second omits departure role validation and emits. The corrected packet explicitly restricts both programs to frozen fixtures.",
+  "countsScope": "This one adversarial trace is not included in 120 frozen references, 124 frozen prefixes, or 2060 replay operations."
+}

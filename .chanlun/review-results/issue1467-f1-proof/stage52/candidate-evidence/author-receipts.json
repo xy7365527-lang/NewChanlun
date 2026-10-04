@@ -1,0 +1,22 @@
+{
+  "authorDevelopmentOnly": true,
+  "independentReview": false,
+  "executions": [
+    {
+      "command": "node .chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/brs-probe.mjs",
+      "exitCode": 0,
+      "mainEvents": 80,
+      "states": 82,
+      "phasePartitions": 54,
+      "prefixes": 82
+    },
+    {
+      "command": "node .chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/check-prefix-and-039.mjs",
+      "exitCode": 0,
+      "frozenEventReferences": 120,
+      "prefixesIncludingInitial": 124,
+      "prefixReplayEventOperations": 2060
+    }
+  ],
+  "countsScope": "80 main-flow plus 40 reused branching-flow event references; correlated synthetic inputs, no market samples"
+}

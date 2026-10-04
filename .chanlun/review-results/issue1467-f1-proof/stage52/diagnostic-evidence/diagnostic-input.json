@@ -1,0 +1,347 @@
+{
+  "initial": {
+    "bid": {
+      "id": "reservoir",
+      "price": 100,
+      "quantity": 100
+    },
+    "ask": {
+      "id": "ask",
+      "price": 102,
+      "quantity": 10
+    }
+  },
+  "events": [
+    {
+      "seq": 1,
+      "kind": "add",
+      "id": "add-1",
+      "side": "bid",
+      "price": 100,
+      "quantity": 10
+    },
+    {
+      "seq": 2,
+      "kind": "reduce",
+      "id": "reservoir",
+      "quantity": 6
+    },
+    {
+      "seq": 3,
+      "kind": "add",
+      "id": "add-3",
+      "side": "bid",
+      "price": 100,
+      "quantity": 8
+    },
+    {
+      "seq": 4,
+      "kind": "reduce",
+      "id": "reservoir",
+      "quantity": 1
+    },
+    {
+      "seq": 5,
+      "kind": "add",
+      "id": "add-5",
+      "side": "bid",
+      "price": 100,
+      "quantity": 2
+    },
+    {
+      "seq": 6,
+      "kind": "reduce",
+      "id": "reservoir",
+      "quantity": 1
+    }
+  ],
+  "states": [
+    {
+      "event": 0,
+      "q": 100,
+      "w": "1120/11"
+    },
+    {
+      "event": 1,
+      "q": 110,
+      "w": "611/6"
+    },
+    {
+      "event": 2,
+      "q": 104,
+      "w": "5804/57"
+    },
+    {
+      "event": 3,
+      "q": 112,
+      "w": "6212/61"
+    },
+    {
+      "event": 4,
+      "q": 111,
+      "w": "12322/121"
+    },
+    {
+      "event": 5,
+      "q": 113,
+      "w": "12526/123"
+    },
+    {
+      "event": 6,
+      "q": 112,
+      "w": "6212/61"
+    }
+  ],
+  "snapshots": [
+    {
+      "event": 0,
+      "bestBid": 100,
+      "bestAsk": 102,
+      "bestBidQuantity": 100,
+      "bestAskQuantity": 10,
+      "w": "1120/11",
+      "orders": [
+        {
+          "id": "reservoir",
+          "price": 100,
+          "quantity": 100,
+          "side": "bid"
+        },
+        {
+          "id": "ask",
+          "price": 102,
+          "quantity": 10,
+          "side": "ask"
+        }
+      ]
+    },
+    {
+      "event": 1,
+      "bestBid": 100,
+      "bestAsk": 102,
+      "bestBidQuantity": 110,
+      "bestAskQuantity": 10,
+      "w": "611/6",
+      "orders": [
+        {
+          "id": "reservoir",
+          "price": 100,
+          "quantity": 100,
+          "side": "bid"
+        },
+        {
+          "id": "ask",
+          "price": 102,
+          "quantity": 10,
+          "side": "ask"
+        },
+        {
+          "seq": 1,
+          "kind": "add",
+          "id": "add-1",
+          "side": "bid",
+          "price": 100,
+          "quantity": 10
+        }
+      ]
+    },
+    {
+      "event": 2,
+      "bestBid": 100,
+      "bestAsk": 102,
+      "bestBidQuantity": 104,
+      "bestAskQuantity": 10,
+      "w": "5804/57",
+      "orders": [
+        {
+          "id": "reservoir",
+          "price": 100,
+          "quantity": 94,
+          "side": "bid"
+        },
+        {
+          "id": "ask",
+          "price": 102,
+          "quantity": 10,
+          "side": "ask"
+        },
+        {
+          "seq": 1,
+          "kind": "add",
+          "id": "add-1",
+          "side": "bid",
+          "price": 100,
+          "quantity": 10
+        }
+      ]
+    },
+    {
+      "event": 3,
+      "bestBid": 100,
+      "bestAsk": 102,
+      "bestBidQuantity": 112,
+      "bestAskQuantity": 10,
+      "w": "6212/61",
+      "orders": [
+        {
+          "id": "reservoir",
+          "price": 100,
+          "quantity": 94,
+          "side": "bid"
+        },
+        {
+          "id": "ask",
+          "price": 102,
+          "quantity": 10,
+          "side": "ask"
+        },
+        {
+          "seq": 1,
+          "kind": "add",
+          "id": "add-1",
+          "side": "bid",
+          "price": 100,
+          "quantity": 10
+        },
+        {
+          "seq": 3,
+          "kind": "add",
+          "id": "add-3",
+          "side": "bid",
+          "price": 100,
+          "quantity": 8
+        }
+      ]
+    },
+    {
+      "event": 4,
+      "bestBid": 100,
+      "bestAsk": 102,
+      "bestBidQuantity": 111,
+      "bestAskQuantity": 10,
+      "w": "12322/121",
+      "orders": [
+        {
+          "id": "reservoir",
+          "price": 100,
+          "quantity": 93,
+          "side": "bid"
+        },
+        {
+          "id": "ask",
+          "price": 102,
+          "quantity": 10,
+          "side": "ask"
+        },
+        {
+          "seq": 1,
+          "kind": "add",
+          "id": "add-1",
+          "side": "bid",
+          "price": 100,
+          "quantity": 10
+        },
+        {
+          "seq": 3,
+          "kind": "add",
+          "id": "add-3",
+          "side": "bid",
+          "price": 100,
+          "quantity": 8
+        }
+      ]
+    },
+    {
+      "event": 5,
+      "bestBid": 100,
+      "bestAsk": 102,
+      "bestBidQuantity": 113,
+      "bestAskQuantity": 10,
+      "w": "12526/123",
+      "orders": [
+        {
+          "id": "reservoir",
+          "price": 100,
+          "quantity": 93,
+          "side": "bid"
+        },
+        {
+          "id": "ask",
+          "price": 102,
+          "quantity": 10,
+          "side": "ask"
+        },
+        {
+          "seq": 1,
+          "kind": "add",
+          "id": "add-1",
+          "side": "bid",
+          "price": 100,
+          "quantity": 10
+        },
+        {
+          "seq": 3,
+          "kind": "add",
+          "id": "add-3",
+          "side": "bid",
+          "price": 100,
+          "quantity": 8
+        },
+        {
+          "seq": 5,
+          "kind": "add",
+          "id": "add-5",
+          "side": "bid",
+          "price": 100,
+          "quantity": 2
+        }
+      ]
+    },
+    {
+      "event": 6,
+      "bestBid": 100,
+      "bestAsk": 102,
+      "bestBidQuantity": 112,
+      "bestAskQuantity": 10,
+      "w": "6212/61",
+      "orders": [
+        {
+          "id": "reservoir",
+          "price": 100,
+          "quantity": 92,
+          "side": "bid"
+        },
+        {
+          "id": "ask",
+          "price": 102,
+          "quantity": 10,
+          "side": "ask"
+        },
+        {
+          "seq": 1,
+          "kind": "add",
+          "id": "add-1",
+          "side": "bid",
+          "price": 100,
+          "quantity": 10
+        },
+        {
+          "seq": 3,
+          "kind": "add",
+          "id": "add-3",
+          "side": "bid",
+          "price": 100,
+          "quantity": 8
+        },
+        {
+          "seq": 5,
+          "kind": "add",
+          "id": "add-5",
+          "side": "bid",
+          "price": 100,
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,149 @@
+{
+  "schema": "stage52-brs-author-freeze-v1",
+  "baseline": "82cba736e6c30981f6fe3d10d0775173d9ae9870",
+  "status": "author-development-packet; awaiting fresh-context independent review",
+  "entry": "stage52/p-completion-candidate.md",
+  "authorFiles": [
+    {
+      "path": "stage52/p-completion-candidate.md",
+      "sha256": "e6d818c7f09b0295ad5d7ff9ca5035b5ce11ff5f5b7af65cb62e6547d134726b",
+      "bytes": 18015
+    },
+    {
+      "path": "stage52/candidate-evidence/additional-input-lock.json",
+      "sha256": "bc814dc76468e790a9f893ea9ef278a829afd1fb6dc0ad145a5321e2b24dc4a0",
+      "bytes": 949
+    },
+    {
+      "path": "stage52/candidate-evidence/author-receipts.json",
+      "sha256": "97b3df275879393494c120ee0eb1d343e80808c359167ca52c07ff2cd013b667",
+      "bytes": 724
+    },
+    {
+      "path": "stage52/candidate-evidence/brs-probe.mjs",
+      "sha256": "9e9e5f8efa3dc8fef67c619b638d0ce50b6cbc1ce6c7c1f4b2bcb932a98c8485",
+      "bytes": 16812
+    },
+    {
+      "path": "stage52/candidate-evidence/check-prefix-and-039.mjs",
+      "sha256": "1f869eba9015790e4ef5fb4f8a751db60c4e6ac096700fc9cd13cfddf8a52747",
+      "bytes": 9406
+    },
+    {
+      "path": "stage52/candidate-evidence/definition-v1.md",
+      "sha256": "908e34191fd95968ec9c18bcc47de7d2785383983710ec84aaaa3167138f7e19",
+      "bytes": 6897
+    },
+    {
+      "path": "stage52/candidate-evidence/input-lock.json",
+      "sha256": "14cf9ec12c260d72583e8ef7436eb026122005c2a991cfd1e4657c711d08a07d",
+      "bytes": 917
+    },
+    {
+      "path": "stage52/candidate-evidence/results-v1/prefix-check.json",
+      "sha256": "93d5c0330cbabcaf1d9d45bd82b5a626ce0d643b38ffd2554ae760b1c457b04c",
+      "bytes": 11832
+    },
+    {
+      "path": "stage52/candidate-evidence/results-v1/same_down_mirror.json",
+      "sha256": "700d3b90ad5902ab274398f418874b7852f6a7126efeeb0e0150b4e48f9b562f",
+      "bytes": 583515
+    },
+    {
+      "path": "stage52/candidate-evidence/results-v1/same_up_counterexample.json",
+      "sha256": "f0236402a2fb6fa57b67a27f76b9ad73cda85dd06b3cd7374336215ace86aeef",
+      "bytes": 581315
+    },
+    {
+      "path": "stage52/candidate-evidence/results-v1/source039-role-check.json",
+      "sha256": "9a22b2fc0f5c6e391058a5349f24350ebd7d03972b6d76ab4de9017406e541b6",
+      "bytes": 25298
+    },
+    {
+      "path": "stage52/candidate-evidence/results-v1/summary.json",
+      "sha256": "ac9df9790301ae21c0a8c91111cd17247a1a100ef5cf6743d892ae833206bb04",
+      "bytes": 10667
+    },
+    {
+      "path": "stage52/candidate-evidence/source-excerpts.json",
+      "sha256": "a63f0ba74c2f61f4a7564e8f4bde36a76f84bb4a41a6893954873fe2205f438f",
+      "bytes": 44062
+    },
+    {
+      "path": "stage52/candidate-evidence/validation-and-source-addendum-v1.md",
+      "sha256": "e06c585a5aa20c43f8c8adcdaa68ff31fbffcce52a05d2e79805e31e0b0cfb1a",
+      "bytes": 2745
+    },
+    {
+      "path": "stage52/candidate-evidence/verify-freeze.mjs",
+      "sha256": "63ca08537616372cab9b12353ff2cb57ad988f933db6812f6f0a6610b91a20b7",
+      "bytes": 1004
+    }
+  ],
+  "externalInputs": [
+    {
+      "path": "stage49/candidate-evidence/results-v1/same_up_counterexample.json",
+      "sha256": "70fb54425e9ea60c7aa0f3bdb51813177ca1e003c6ec9cb65b604bdbf0c06f96"
+    },
+    {
+      "path": "stage49/candidate-evidence/results-v1/same_down_mirror.json",
+      "sha256": "af882f3c4afa4a68ed289405e7044d063b2d12c6f6b6f1eed207a51ae4c98793"
+    },
+    {
+      "path": "stage49/candidate-evidence/results-v1/p_completion_overlap.json",
+      "sha256": "73096cff40a246b6ef1983f4234dee0b659073e4b48f473730e0d088922fb769"
+    },
+    {
+      "path": "stage49/candidate-evidence/results-v1/p_completion_disjoint.json",
+      "sha256": "1f39a0d57a8e1f0e0f1e16313a44f1731ab94fb64f1d25241a4f315723176031"
+    },
+    {
+      "path": "stage50/candidate-evidence/results-v1/same_up_counterexample.json",
+      "sha256": "67bbc28f6d75160789021043664328ebe5866fec87cdee70113c8747d9b677c9"
+    },
+    {
+      "path": "stage50/candidate-evidence/results-v1/same_down_mirror.json",
+      "sha256": "577f34e95fae0e45ff036b57a69b00bdef728c2ba26b12a0227c240669334004"
+    }
+  ],
+  "canonicalSources": [
+    {
+      "path": "docs/chanlun/text/blog/018-第18课.md",
+      "sha256": "4a661fc843d0d9fcfdf32861b7dc903ee09d824d0075dd0ea7b2c19542bb2f92"
+    },
+    {
+      "path": "docs/chanlun/text/blog/035-第35课.md",
+      "sha256": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023"
+    },
+    {
+      "path": "docs/chanlun/text/blog/038-第38课.md",
+      "sha256": "983ce94575d61ed645fcc753eb59f9a28e8e749826a30d7bf87f19721baedc7b"
+    },
+    {
+      "path": "docs/chanlun/text/blog/039-第39课.md",
+      "sha256": "f7ab535b5899c2b11d1aa1c181b906b2bf719ef5f0b9471ddf85b745053bceca"
+    },
+    {
+      "path": "docs/chanlun/text/blog/084-第84课.md",
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26"
+    },
+    {
+      "path": "docs/adr/0011-operation-decomposition-layer.md",
+      "sha256": "30098873c67878af850e8ff9502fdf69e332343e3576e551bab6768d6eb59860"
+    }
+  ],
+  "reviewObligations": [
+    "replay native event IDs and exact observation, without importing completion labels",
+    "verify BRS local phase selection and all 54 offline phase contrasts",
+    "prove or refute the explicitly normalized local selector obstruction; preserve stutter and information-domain restriction",
+    "verify prefix-only publication at e15 and actual shared-prefix divergent suffix cases",
+    "keep original completion, same-level qualification, Z3 and parent-core proof open",
+    "review 039 only as role-conditional source evidence, not a universal ban or a source counterexample"
+  ],
+  "reproduce": [
+    "node stage52/candidate-evidence/brs-probe.mjs",
+    "node stage52/candidate-evidence/check-prefix-and-039.mjs",
+    "node stage52/candidate-evidence/verify-freeze.mjs"
+  ],
+  "reproduceWorkingDirectory": "P = .chanlun/review-results/issue1467-f1-proof"
+}

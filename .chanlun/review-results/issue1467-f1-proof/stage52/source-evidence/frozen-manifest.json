@@ -1,0 +1,56 @@
+{
+  "schema": "issue1467-stage52-source-author-package-v1",
+  "head": "82cba736e6c30981f6fe3d10d0775173d9ae9870",
+  "createdAt": "2026-10-04T19:14:58.041Z",
+  "reviewStatus": "author-only; independent review pending",
+  "files": [
+    {
+      "file": "p-completion-boundary-sources.md",
+      "sha256": "c00c3201fa90bebc366d9fbcd69aa9e8cdf1670326b31afb5a18e65f964ced2c",
+      "bytes": 22049
+    },
+    {
+      "file": "source-evidence/capture-sources.mjs",
+      "sha256": "debde1258a4cc50fb38189c3916ef14270f9a367aed34db5d313cb2455413b97",
+      "bytes": 4206
+    },
+    {
+      "file": "source-evidence/check-source-claims.mjs",
+      "sha256": "9f9a73e68731a75823892e9fd600c3e8451d5947fc4aa37c5fc8e9216a7c6e38",
+      "bytes": 3871
+    },
+    {
+      "file": "source-evidence/source-excerpts.json",
+      "sha256": "375cf8866b1c35364329ffcfb63f2eb49da7f22acbaca2a0becd180346e64329",
+      "bytes": 215311
+    },
+    {
+      "file": "source-evidence/source-lock.json",
+      "sha256": "240ed06904b91a216ac471ddf573324a08f31eb970601fcab2a7f6e5af6580d0",
+      "bytes": 11112
+    },
+    {
+      "file": "source-evidence/source-claim-results.json",
+      "sha256": "64a25f577f585a9bab9c03a518ca29cce29fa3a67821cbfad41015b76791405d",
+      "bytes": 2675
+    },
+    {
+      "file": "source-evidence/correction-c52-v1.md",
+      "sha256": "595fc5193fb2fa05e8f869b635424c5eff3942946a227c291614d87126dcd3e0",
+      "bytes": 4044
+    },
+    {
+      "file": "source-evidence/issue-812-comment-5147131478.json",
+      "sha256": "ea59aa6032f6776d5679688bcc8858933632c2e8bac1c329999e65bd14f2cf17",
+      "bytes": 3619
+    },
+    {
+      "file": "source-evidence/issue-827-comment-5153724096.json",
+      "sha256": "bcf2857e7ce030bb7d78b56475139c37a762497997e51d10e560c1218e31c2f0",
+      "bytes": 8927
+    }
+  ],
+  "sourceLock": "source-evidence/source-lock.json",
+  "validationCommand": "node .chanlun/review-results/issue1467-f1-proof/stage52/source-evidence/check-source-claims.mjs",
+  "validationScope": "34 source hashes; 37 stored first-object endpoints; 039 conditional numeric model; no order replay or semantic completion certification"
+}

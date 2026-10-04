@@ -1,0 +1,549 @@
+{
+  "candidate": "BRS-v1",
+  "inputLockSHA256": "14cf9ec12c260d72583e8ef7436eb026122005c2a991cfd1e4657c711d08a07d",
+  "totalEvents": 80,
+  "totalStates": 82,
+  "totalPartitions": 54,
+  "totalPrefixes": 82,
+  "cases": [
+    {
+      "name": "same_up_counterexample",
+      "events": 40,
+      "states": 41,
+      "phasePartitions": 27,
+      "wholeCoreOwnershipPartitions": 8,
+      "strictWholeCorePartitions": 4,
+      "strictRDWWholeCorePartitions": 3,
+      "fixed": {
+        "cuts": [
+          0,
+          5,
+          8,
+          12
+        ],
+        "phases": [
+          "peak",
+          "before",
+          "before"
+        ],
+        "coreOwnership": true,
+        "partialCores": [
+          [],
+          [],
+          []
+        ],
+        "qRanges": [
+          [
+            1000,
+            1140
+          ],
+          [
+            1100,
+            1140
+          ],
+          [
+            1110,
+            1140
+          ]
+        ],
+        "H": [
+          1110,
+          1140
+        ],
+        "strict": true,
+        "directionSets": [
+          [
+            "U"
+          ],
+          [
+            "D"
+          ],
+          [
+            "U"
+          ]
+        ],
+        "words": [
+          "UDU"
+        ],
+        "witnessTupleCounts": [
+          10
+        ],
+        "matchesBRS": false,
+        "sourceRangesReadableAt": 12,
+        "localEvidenceReadableAt": 15,
+        "relationshipOnlinePartitionPublicationAt": null,
+        "semanticEligibleAt": null
+      },
+      "uniform": [
+        {
+          "cuts": [
+            0,
+            4,
+            8,
+            12
+          ],
+          "phases": [
+            "before",
+            "before",
+            "before"
+          ],
+          "coreOwnership": true,
+          "partialCores": [
+            [],
+            [],
+            []
+          ],
+          "qRanges": [
+            [
+              1000,
+              1040
+            ],
+            [
+              1010,
+              1140
+            ],
+            [
+              1110,
+              1140
+            ]
+          ],
+          "H": [
+            1110,
+            1040
+          ],
+          "strict": false,
+          "directionSets": [
+            [],
+            [],
+            []
+          ],
+          "words": [],
+          "witnessTupleCounts": [],
+          "matchesBRS": false,
+          "sourceRangesReadableAt": 12,
+          "localEvidenceReadableAt": 15,
+          "relationshipOnlinePartitionPublicationAt": null,
+          "semanticEligibleAt": null
+        },
+        {
+          "cuts": [
+            0,
+            5,
+            9,
+            13
+          ],
+          "phases": [
+            "peak",
+            "peak",
+            "peak"
+          ],
+          "coreOwnership": true,
+          "partialCores": [
+            [],
+            [],
+            []
+          ],
+          "qRanges": [
+            [
+              1000,
+              1140
+            ],
+            [
+              1100,
+              1140
+            ],
+            [
+              1135,
+              1240
+            ]
+          ],
+          "H": [
+            1135,
+            1140
+          ],
+          "strict": true,
+          "directionSets": [
+            [
+              "U"
+            ],
+            [
+              "U",
+              "D"
+            ],
+            [
+              "U",
+              "D"
+            ]
+          ],
+          "words": [
+            "UDU"
+          ],
+          "witnessTupleCounts": [
+            15
+          ],
+          "matchesBRS": true,
+          "sourceRangesReadableAt": 13,
+          "localEvidenceReadableAt": 15,
+          "relationshipOnlinePartitionPublicationAt": 15,
+          "semanticEligibleAt": null
+        },
+        {
+          "cuts": [
+            0,
+            6,
+            10,
+            14
+          ],
+          "phases": [
+            "after",
+            "after",
+            "after"
+          ],
+          "coreOwnership": false,
+          "partialCores": [
+            [
+              "K1"
+            ],
+            [
+              "K1",
+              "K2"
+            ],
+            [
+              "K2",
+              "K3"
+            ]
+          ],
+          "qRanges": [
+            [
+              1000,
+              1140
+            ],
+            [
+              1100,
+              1140
+            ],
+            [
+              1135,
+              1240
+            ]
+          ],
+          "H": [
+            1135,
+            1140
+          ],
+          "strict": true,
+          "directionSets": [
+            [
+              "U",
+              "D"
+            ],
+            [
+              "U",
+              "D"
+            ],
+            [
+              "U"
+            ]
+          ],
+          "words": [
+            "UDU"
+          ],
+          "witnessTupleCounts": [
+            10
+          ],
+          "matchesBRS": false,
+          "sourceRangesReadableAt": 14,
+          "localEvidenceReadableAt": 15,
+          "relationshipOnlinePartitionPublicationAt": null,
+          "semanticEligibleAt": null
+        }
+      ],
+      "ordinalRanks": [
+        3,
+        0,
+        2,
+        1,
+        6,
+        4,
+        5
+      ],
+      "changedEventOwners": [
+        9,
+        13
+      ],
+      "prefixes": 41,
+      "relationshipFirstThreeAt": 15
+    },
+    {
+      "name": "same_down_mirror",
+      "events": 40,
+      "states": 41,
+      "phasePartitions": 27,
+      "wholeCoreOwnershipPartitions": 8,
+      "strictWholeCorePartitions": 4,
+      "strictRDWWholeCorePartitions": 3,
+      "fixed": {
+        "cuts": [
+          0,
+          5,
+          8,
+          12
+        ],
+        "phases": [
+          "peak",
+          "before",
+          "before"
+        ],
+        "coreOwnership": true,
+        "partialCores": [
+          [],
+          [],
+          []
+        ],
+        "qRanges": [
+          [
+            1560,
+            1700
+          ],
+          [
+            1560,
+            1600
+          ],
+          [
+            1560,
+            1590
+          ]
+        ],
+        "H": [
+          1560,
+          1590
+        ],
+        "strict": true,
+        "directionSets": [
+          [
+            "D"
+          ],
+          [
+            "U"
+          ],
+          [
+            "D"
+          ]
+        ],
+        "words": [
+          "DUD"
+        ],
+        "witnessTupleCounts": [
+          10
+        ],
+        "matchesBRS": false,
+        "sourceRangesReadableAt": 12,
+        "localEvidenceReadableAt": 15,
+        "relationshipOnlinePartitionPublicationAt": null,
+        "semanticEligibleAt": null
+      },
+      "uniform": [
+        {
+          "cuts": [
+            0,
+            4,
+            8,
+            12
+          ],
+          "phases": [
+            "before",
+            "before",
+            "before"
+          ],
+          "coreOwnership": true,
+          "partialCores": [
+            [],
+            [],
+            []
+          ],
+          "qRanges": [
+            [
+              1660,
+              1700
+            ],
+            [
+              1560,
+              1690
+            ],
+            [
+              1560,
+              1590
+            ]
+          ],
+          "H": [
+            1660,
+            1590
+          ],
+          "strict": false,
+          "directionSets": [
+            [],
+            [],
+            []
+          ],
+          "words": [],
+          "witnessTupleCounts": [],
+          "matchesBRS": false,
+          "sourceRangesReadableAt": 12,
+          "localEvidenceReadableAt": 15,
+          "relationshipOnlinePartitionPublicationAt": null,
+          "semanticEligibleAt": null
+        },
+        {
+          "cuts": [
+            0,
+            5,
+            9,
+            13
+          ],
+          "phases": [
+            "peak",
+            "peak",
+            "peak"
+          ],
+          "coreOwnership": true,
+          "partialCores": [
+            [],
+            [],
+            []
+          ],
+          "qRanges": [
+            [
+              1560,
+              1700
+            ],
+            [
+              1560,
+              1600
+            ],
+            [
+              1460,
+              1565
+            ]
+          ],
+          "H": [
+            1560,
+            1565
+          ],
+          "strict": true,
+          "directionSets": [
+            [
+              "D"
+            ],
+            [
+              "U",
+              "D"
+            ],
+            [
+              "U",
+              "D"
+            ]
+          ],
+          "words": [
+            "DUD"
+          ],
+          "witnessTupleCounts": [
+            15
+          ],
+          "matchesBRS": true,
+          "sourceRangesReadableAt": 13,
+          "localEvidenceReadableAt": 15,
+          "relationshipOnlinePartitionPublicationAt": 15,
+          "semanticEligibleAt": null
+        },
+        {
+          "cuts": [
+            0,
+            6,
+            10,
+            14
+          ],
+          "phases": [
+            "after",
+            "after",
+            "after"
+          ],
+          "coreOwnership": false,
+          "partialCores": [
+            [
+              "K1"
+            ],
+            [
+              "K1",
+              "K2"
+            ],
+            [
+              "K2",
+              "K3"
+            ]
+          ],
+          "qRanges": [
+            [
+              1560,
+              1700
+            ],
+            [
+              1560,
+              1600
+            ],
+            [
+              1460,
+              1565
+            ]
+          ],
+          "H": [
+            1560,
+            1565
+          ],
+          "strict": true,
+          "directionSets": [
+            [
+              "U",
+              "D"
+            ],
+            [
+              "U",
+              "D"
+            ],
+            [
+              "D"
+            ]
+          ],
+          "words": [
+            "DUD"
+          ],
+          "witnessTupleCounts": [
+            10
+          ],
+          "matchesBRS": false,
+          "sourceRangesReadableAt": 14,
+          "localEvidenceReadableAt": 15,
+          "relationshipOnlinePartitionPublicationAt": null,
+          "semanticEligibleAt": null
+        }
+      ],
+      "ordinalRanks": [
+        3,
+        6,
+        4,
+        5,
+        0,
+        2,
+        1
+      ],
+      "changedEventOwners": [
+        9,
+        13
+      ],
+      "prefixes": 41,
+      "relationshipFirstThreeAt": 15
+    }
+  ],
+  "assertionsPassed": true,
+  "independentReview": false,
+  "semanticResult": "fixed partition fails BRS; uniform peak repartition passes raw/core-ownership/RDW checks only; semantic completion remains open"
+}

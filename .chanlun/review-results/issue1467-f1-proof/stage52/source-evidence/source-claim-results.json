@@ -1,0 +1,180 @@
+{
+  "scope": "Source-bound ordinary-lemma checks; reads stored coordinates and catalog, does not replay events or certify core/move identity.",
+  "checkedSourceFiles": 34,
+  "sourceLockSHA256": "240ed06904b91a216ac471ddf573324a08f31eb970601fcab2a7f6e5af6580d0",
+  "current": [
+    {
+      "id": "P0",
+      "s": 0,
+      "t": 5,
+      "range": [
+        1000,
+        1140
+      ],
+      "start": 1040,
+      "end": 1140,
+      "std": false
+    },
+    {
+      "id": "P1",
+      "s": 5,
+      "t": 8,
+      "range": [
+        1100,
+        1140
+      ],
+      "start": 1140,
+      "end": 1110,
+      "std": false
+    },
+    {
+      "id": "P2",
+      "s": 8,
+      "t": 12,
+      "range": [
+        1110,
+        1140
+      ],
+      "start": 1110,
+      "end": 1136,
+      "std": false
+    }
+  ],
+  "firstObjectFiniteCheck": {
+    "ends": [
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40
+    ],
+    "count": 37,
+    "allFailStd": true
+  },
+  "arbitraryContinuationObstruction": {
+    "fixedStart": 0,
+    "ownedSupport": [
+      0,
+      4
+    ],
+    "end4Fails": true,
+    "permanentStrictInteriorWitness": [
+      2,
+      0,
+      5
+    ],
+    "values": [
+      1000,
+      1040,
+      1140
+    ],
+    "proof": "Any future hull containing indices 2,0,5 keeps q0 strictly internal."
+  },
+  "source039ConditionalGeometry": {
+    "model": {
+      "a": [
+        0,
+        10
+      ],
+      "A1": [
+        10,
+        5
+      ],
+      "A2": [
+        5,
+        15
+      ],
+      "A3": [
+        15,
+        7
+      ]
+    },
+    "ranges": [
+      [
+        5,
+        10
+      ],
+      [
+        5,
+        15
+      ],
+      [
+        7,
+        15
+      ]
+    ],
+    "intersection": [
+      7,
+      10
+    ],
+    "completeInputsAssumed": true,
+    "orderEventRealizationClaimed": false
+  },
+  "sameBreakPayload": {
+    "candidateIntervals": [
+      [
+        0,
+        4
+      ],
+      [
+        0,
+        5
+      ]
+    ],
+    "ranges": [
+      [
+        1000,
+        1040
+      ],
+      [
+        1000,
+        1140
+      ]
+    ],
+    "payload": {
+      "departure": 3,
+      "return": 4,
+      "returnRange": [
+        1100,
+        1140
+      ],
+      "side": "Up",
+      "knownAt": 7,
+      "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+    },
+    "semanticCompletionClaimed": false
+  },
+  "allAssertionsPassed": true
+}

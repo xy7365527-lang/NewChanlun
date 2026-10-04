@@ -1,0 +1,576 @@
+{
+  "inputLockSHA256": "bc814dc76468e790a9f893ea9ef278a829afd1fb6dc0ad145a5321e2b24dc4a0",
+  "sourceEvents": 120,
+  "prefixCount": 124,
+  "replayedPrefixEventOccurrences": 2060,
+  "prefixReports": [
+    {
+      "name": "same_up_counterexample",
+      "sourceEvents": 40,
+      "prefixes": 41,
+      "firstEmissionAt": 7,
+      "firstThreeAt": 15,
+      "finalProposals": [
+        {
+          "core": "K0",
+          "start": 0,
+          "end": 5,
+          "sourceEvents": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "qRange": [
+            1000,
+            1140
+          ],
+          "evidenceKnownAt": 7,
+          "relationshipPublishedAt": 7,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K1",
+          "start": 5,
+          "end": 9,
+          "sourceEvents": [
+            6,
+            7,
+            8,
+            9
+          ],
+          "qRange": [
+            1100,
+            1140
+          ],
+          "evidenceKnownAt": 11,
+          "relationshipPublishedAt": 11,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K2",
+          "start": 9,
+          "end": 13,
+          "sourceEvents": [
+            10,
+            11,
+            12,
+            13
+          ],
+          "qRange": [
+            1135,
+            1240
+          ],
+          "evidenceKnownAt": 15,
+          "relationshipPublishedAt": 15,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K3",
+          "start": 13,
+          "end": 17,
+          "sourceEvents": [
+            14,
+            15,
+            16,
+            17
+          ],
+          "qRange": [
+            1200,
+            1240
+          ],
+          "evidenceKnownAt": 19,
+          "relationshipPublishedAt": 19,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K4",
+          "start": 17,
+          "end": 21,
+          "sourceEvents": [
+            18,
+            19,
+            20,
+            21
+          ],
+          "qRange": [
+            1235,
+            1340
+          ],
+          "evidenceKnownAt": 23,
+          "relationshipPublishedAt": 23,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K5",
+          "start": 21,
+          "end": 25,
+          "sourceEvents": [
+            22,
+            23,
+            24,
+            25
+          ],
+          "qRange": [
+            1300,
+            1340
+          ],
+          "evidenceKnownAt": 27,
+          "relationshipPublishedAt": 27,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K6",
+          "start": 25,
+          "end": 29,
+          "sourceEvents": [
+            26,
+            27,
+            28,
+            29
+          ],
+          "qRange": [
+            1335,
+            1440
+          ],
+          "evidenceKnownAt": 31,
+          "relationshipPublishedAt": 31,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K7",
+          "start": 29,
+          "end": 33,
+          "sourceEvents": [
+            30,
+            31,
+            32,
+            33
+          ],
+          "qRange": [
+            1400,
+            1540
+          ],
+          "evidenceKnownAt": 35,
+          "relationshipPublishedAt": 35,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K8",
+          "start": 33,
+          "end": 37,
+          "sourceEvents": [
+            34,
+            35,
+            36,
+            37
+          ],
+          "qRange": [
+            1500,
+            1640
+          ],
+          "evidenceKnownAt": 39,
+          "relationshipPublishedAt": 39,
+          "semanticEligibleAt": null
+        }
+      ]
+    },
+    {
+      "name": "same_down_mirror",
+      "sourceEvents": 40,
+      "prefixes": 41,
+      "firstEmissionAt": 7,
+      "firstThreeAt": 15,
+      "finalProposals": [
+        {
+          "core": "K0",
+          "start": 0,
+          "end": 5,
+          "sourceEvents": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "qRange": [
+            1560,
+            1700
+          ],
+          "evidenceKnownAt": 7,
+          "relationshipPublishedAt": 7,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K1",
+          "start": 5,
+          "end": 9,
+          "sourceEvents": [
+            6,
+            7,
+            8,
+            9
+          ],
+          "qRange": [
+            1560,
+            1600
+          ],
+          "evidenceKnownAt": 11,
+          "relationshipPublishedAt": 11,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K2",
+          "start": 9,
+          "end": 13,
+          "sourceEvents": [
+            10,
+            11,
+            12,
+            13
+          ],
+          "qRange": [
+            1460,
+            1565
+          ],
+          "evidenceKnownAt": 15,
+          "relationshipPublishedAt": 15,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K3",
+          "start": 13,
+          "end": 17,
+          "sourceEvents": [
+            14,
+            15,
+            16,
+            17
+          ],
+          "qRange": [
+            1460,
+            1500
+          ],
+          "evidenceKnownAt": 19,
+          "relationshipPublishedAt": 19,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K4",
+          "start": 17,
+          "end": 21,
+          "sourceEvents": [
+            18,
+            19,
+            20,
+            21
+          ],
+          "qRange": [
+            1360,
+            1465
+          ],
+          "evidenceKnownAt": 23,
+          "relationshipPublishedAt": 23,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K5",
+          "start": 21,
+          "end": 25,
+          "sourceEvents": [
+            22,
+            23,
+            24,
+            25
+          ],
+          "qRange": [
+            1360,
+            1400
+          ],
+          "evidenceKnownAt": 27,
+          "relationshipPublishedAt": 27,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K6",
+          "start": 25,
+          "end": 29,
+          "sourceEvents": [
+            26,
+            27,
+            28,
+            29
+          ],
+          "qRange": [
+            1260,
+            1365
+          ],
+          "evidenceKnownAt": 31,
+          "relationshipPublishedAt": 31,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K7",
+          "start": 29,
+          "end": 33,
+          "sourceEvents": [
+            30,
+            31,
+            32,
+            33
+          ],
+          "qRange": [
+            1160,
+            1300
+          ],
+          "evidenceKnownAt": 35,
+          "relationshipPublishedAt": 35,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K8",
+          "start": 33,
+          "end": 37,
+          "sourceEvents": [
+            34,
+            35,
+            36,
+            37
+          ],
+          "qRange": [
+            1060,
+            1200
+          ],
+          "evidenceKnownAt": 39,
+          "relationshipPublishedAt": 39,
+          "semanticEligibleAt": null
+        }
+      ]
+    },
+    {
+      "name": "p_completion_overlap",
+      "sourceEvents": 20,
+      "prefixes": 21,
+      "firstEmissionAt": 7,
+      "firstThreeAt": 15,
+      "finalProposals": [
+        {
+          "core": "K0",
+          "start": 0,
+          "end": 5,
+          "sourceEvents": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "qRange": [
+            1080,
+            1200
+          ],
+          "evidenceKnownAt": 7,
+          "relationshipPublishedAt": 7,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K1",
+          "start": 5,
+          "end": 9,
+          "sourceEvents": [
+            6,
+            7,
+            8,
+            9
+          ],
+          "qRange": [
+            1130,
+            1240
+          ],
+          "evidenceKnownAt": 11,
+          "relationshipPublishedAt": 11,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K2",
+          "start": 9,
+          "end": 13,
+          "sourceEvents": [
+            10,
+            11,
+            12,
+            13
+          ],
+          "qRange": [
+            1230,
+            1340
+          ],
+          "evidenceKnownAt": 15,
+          "relationshipPublishedAt": 15,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K3",
+          "start": 13,
+          "end": 17,
+          "sourceEvents": [
+            14,
+            15,
+            16,
+            17
+          ],
+          "qRange": [
+            1300,
+            1440
+          ],
+          "evidenceKnownAt": 19,
+          "relationshipPublishedAt": 19,
+          "semanticEligibleAt": null
+        }
+      ]
+    },
+    {
+      "name": "p_completion_disjoint",
+      "sourceEvents": 20,
+      "prefixes": 21,
+      "firstEmissionAt": 7,
+      "firstThreeAt": 15,
+      "finalProposals": [
+        {
+          "core": "K0",
+          "start": 0,
+          "end": 5,
+          "sourceEvents": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "qRange": [
+            1080,
+            1200
+          ],
+          "evidenceKnownAt": 7,
+          "relationshipPublishedAt": 7,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K1",
+          "start": 5,
+          "end": 9,
+          "sourceEvents": [
+            6,
+            7,
+            8,
+            9
+          ],
+          "qRange": [
+            1160,
+            1240
+          ],
+          "evidenceKnownAt": 11,
+          "relationshipPublishedAt": 11,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K2",
+          "start": 9,
+          "end": 13,
+          "sourceEvents": [
+            10,
+            11,
+            12,
+            13
+          ],
+          "qRange": [
+            1230,
+            1340
+          ],
+          "evidenceKnownAt": 15,
+          "relationshipPublishedAt": 15,
+          "semanticEligibleAt": null
+        },
+        {
+          "core": "K3",
+          "start": 13,
+          "end": 17,
+          "sourceEvents": [
+            14,
+            15,
+            16,
+            17
+          ],
+          "qRange": [
+            1300,
+            1440
+          ],
+          "evidenceKnownAt": 19,
+          "relationshipPublishedAt": 19,
+          "semanticEligibleAt": null
+        }
+      ]
+    }
+  ],
+  "branches": {
+    "sharedEventsThrough": 7,
+    "firstDifferentEvent": 8,
+    "commonEvidence": [
+      {
+        "core": "K0",
+        "start": 0,
+        "end": 5,
+        "sourceEvents": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "qRange": [
+          1080,
+          1200
+        ],
+        "evidenceKnownAt": 7,
+        "relationshipPublishedAt": 7,
+        "semanticEligibleAt": null
+      }
+    ],
+    "sourceNames": [
+      "p_completion_overlap",
+      "p_completion_disjoint"
+    ],
+    "divergentEvents": [
+      {
+        "seq": 8,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 90
+      },
+      {
+        "seq": 8,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 40
+      }
+    ],
+    "successorFrozenOuters": [
+      [
+        1130,
+        1220
+      ],
+      [
+        1160,
+        1220
+      ]
+    ],
+    "sharedEvidenceStableThrough": [
+      20,
+      20
+    ],
+    "scope": "BRS raw relation only; same prefix certificate is compatible with two different successor outer branches"
+  },
+  "assertionsPassed": true,
+  "independentReview": false
+}

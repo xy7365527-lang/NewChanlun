@@ -1,0 +1,370 @@
+{
+  "stage": 52,
+  "date": "2026-10-05",
+  "issue": 1467,
+  "related_issues": [
+    1465,
+    1469
+  ],
+  "base_commit": "82cba736e6c30981f6fe3d10d0775173d9ae9870",
+  "previous_goal_turn": "progress",
+  "trust_level": "COORDINATOR_ATTESTED_TOOL_TRANSCRIPT",
+  "status": "independently_reviewed_with_scope_corrections",
+  "source_scope": {
+    "C52": "reject a universal source-based ban; do not revoke production S6/#827/ADR0011",
+    "C39": "conditional standard-endpoint subcase; qualified completed same-level inputs still needed",
+    "a_prime_completion_from_039_alone": false,
+    "permanent_Std_obstacle": "fixed B0/full K0/full path; no future right endpoint gives Std",
+    "same_payload_scope": "only completion predicates factoring through core/break payload and ignoring candidate boundary; not all endpoint selectors"
+  },
+  "BRS_scope": {
+    "partition": [
+      0,
+      5,
+      9,
+      13
+    ],
+    "ranges": [
+      [
+        1000,
+        1140
+      ],
+      [
+        1100,
+        1140
+      ],
+      [
+        1135,
+        1240
+      ]
+    ],
+    "intersection": [
+      1135,
+      1140
+    ],
+    "direction_word": "UDU",
+    "certificate_tuples": 15,
+    "mirror_direction_word": "DUD",
+    "mirror_certificate_tuples": 15,
+    "first_three_relationship_publication_at": 15,
+    "range_available_at": 13,
+    "semantic_eligible_at": null,
+    "old_D_star_publication_certified": false,
+    "original_all_history_claim_withdrawn": true,
+    "general_implementation_delivered": false,
+    "conditional_relation_requires_stop_at_first_bad_outside_pair": true,
+    "phase_enumeration_uses_final_history_only_offline": true,
+    "local_equivariance_obstacle_excludes_all_F1": false
+  },
+  "independent_checks": {
+    "source_author_files": 9,
+    "source_files": 34,
+    "source_issue_snapshots": 2,
+    "source_excerpt_lines": 890,
+    "brs_author_files": 18,
+    "brs_external_inputs": 6,
+    "brs_source_files": 6,
+    "brs_identical_outputs": 5,
+    "frozen_history_count": 4,
+    "frozen_event_references": 120,
+    "prefixes_including_initial": 124,
+    "replayed_prefix_event_operations": 2060,
+    "offline_phase_combinations": 54,
+    "main_whole_core_partitions_per_side": 8,
+    "main_strict_partitions_per_side": 4,
+    "main_strict_Rdw_partitions_per_side": 3,
+    "source039_windows_per_side": 6,
+    "source039_original_qualified_applications": 0
+  },
+  "new_diagnostic": {
+    "synthetic_events": 6,
+    "states_including_initial": 7,
+    "excluded_from_120_124_2060": true,
+    "q": [
+      100,
+      110,
+      104,
+      112,
+      111,
+      113,
+      112
+    ],
+    "core": [
+      104,
+      110
+    ],
+    "bad_L": [
+      112,
+      111
+    ],
+    "bad_R": [
+      111,
+      113
+    ],
+    "main_function_exit": 1,
+    "main_assertion": "startsOnCoreSide",
+    "second_function_exit": 0,
+    "second_function_proposal": [
+      0,
+      4
+    ],
+    "invocation": "unchanged source function bodies extracted into vm and subprocess wrappers; locked CLIs separately pass their fixtures",
+    "original_theory_counterexample": false,
+    "earlier_numeric_departure": [
+      104,
+      112
+    ],
+    "earlier_numeric_return": [
+      112,
+      111
+    ],
+    "earlier_return_known_at": 5,
+    "seed_member_as_departure_semantically_qualified": false,
+    "program_repaired": false
+  },
+  "agents": [
+    {
+      "task_name": "/root/p_completion_boundary_sources",
+      "role": "source author",
+      "fork_turns": "none",
+      "delivery": "frozen-package MESSAGE",
+      "interrupt_agent_called": true,
+      "interrupt_previous_status": "running"
+    },
+    {
+      "task_name": "/root/p_completion_candidate",
+      "role": "candidate author",
+      "fork_turns": "none",
+      "completed": true,
+      "interrupt_agent_called": true
+    },
+    {
+      "task_name": "/root/review_stage52_source",
+      "role": "fresh source independent review",
+      "fork_turns": "none",
+      "completed": true,
+      "interrupt_agent_called": true
+    },
+    {
+      "task_name": "/root/review_stage52_brs",
+      "role": "fresh candidate independent review",
+      "fork_turns": "none",
+      "completed": true,
+      "interrupt_agent_called": true
+    }
+  ],
+  "external_review_receipts": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage52/source-review/run-receipt.json",
+      "bytes": 858,
+      "sha256": "5fa6bed05b5734c43ba5a26a8c8541fc2c811267ebf9d75ce3ef30093eafa964"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage52/brs-review/review-evidence-manifest.json",
+      "bytes": 5266,
+      "sha256": "c486d4320bf4dde80f56efa5cf8b966302c3db6a2e6e7bac3052bb79550b33c0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage52/brs-review/execution-receipts.json",
+      "bytes": 1548,
+      "sha256": "45d9292a03fe219f4b132030eba7f2be8bcab4901a8c86bfaf05d5c999f978f5"
+    }
+  ],
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage52BoundaryRolesAndRepartition.md",
+      "bytes": 7599,
+      "sha256": "c14a12a4e6483b804075c531afd8eded6c8ebc732aa9d90003c257721a8ae338"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/Intent-v1.md",
+      "bytes": 2578,
+      "sha256": "fde65ba67984a5d9f774fb3ac471faafdfca1ae146f8707f8e9719da5bc9e274"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/ScopeClarifications-v1.md",
+      "bytes": 2852,
+      "sha256": "a1cbb45fb2c58cecad0675ac1977aee3dccd198da4fdc4c1ca5d03df5a7c375c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/ScopeCorrection-v1.md",
+      "bytes": 5919,
+      "sha256": "c661fc00c03bda65756e618e8fa9ff67e69ba201b040c6bf5bdf6424d5391059"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/additional-input-lock.json",
+      "bytes": 949,
+      "sha256": "bc814dc76468e790a9f893ea9ef278a829afd1fb6dc0ad145a5321e2b24dc4a0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/author-receipts.json",
+      "bytes": 724,
+      "sha256": "97b3df275879393494c120ee0eb1d343e80808c359167ca52c07ff2cd013b667"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/brs-probe.mjs",
+      "bytes": 16812,
+      "sha256": "9e9e5f8efa3dc8fef67c619b638d0ce50b6cbc1ce6c7c1f4b2bcb932a98c8485"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/check-prefix-and-039.mjs",
+      "bytes": 9406,
+      "sha256": "1f869eba9015790e4ef5fb4f8a751db60c4e6ac096700fc9cd13cfddf8a52747"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/definition-v1.md",
+      "bytes": 6897,
+      "sha256": "908e34191fd95968ec9c18bcc47de7d2785383983710ec84aaaa3167138f7e19"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/frozen-manifest.json",
+      "bytes": 5968,
+      "sha256": "002b33dda005a3ba714f20a895ff0d3ef0bab6d31cee0e55c90227683ac7d7f4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/frozen-review-manifest-v2.json",
+      "bytes": 6958,
+      "sha256": "62488be22dad2717b222bdc828aa0e0217ef5166b117b9579c5c147260bdda1a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/input-lock.json",
+      "bytes": 917,
+      "sha256": "14cf9ec12c260d72583e8ef7436eb026122005c2a991cfd1e4657c711d08a07d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/results-v1/prefix-check.json",
+      "bytes": 11832,
+      "sha256": "93d5c0330cbabcaf1d9d45bd82b5a626ce0d643b38ffd2554ae760b1c457b04c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/results-v1/same_down_mirror.json",
+      "bytes": 583515,
+      "sha256": "700d3b90ad5902ab274398f418874b7852f6a7126efeeb0e0150b4e48f9b562f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/results-v1/same_up_counterexample.json",
+      "bytes": 581315,
+      "sha256": "f0236402a2fb6fa57b67a27f76b9ad73cda85dd06b3cd7374336215ace86aeef"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/results-v1/source039-role-check.json",
+      "bytes": 25298,
+      "sha256": "9a22b2fc0f5c6e391058a5349f24350ebd7d03972b6d76ab4de9017406e541b6"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/results-v1/summary.json",
+      "bytes": 10667,
+      "sha256": "ac9df9790301ae21c0a8c91111cd17247a1a100ef5cf6743d892ae833206bb04"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/source-excerpts.json",
+      "bytes": 44062,
+      "sha256": "a63f0ba74c2f61f4a7564e8f4bde36a76f84bb4a41a6893954873fe2205f438f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/validation-and-source-addendum-v1.md",
+      "bytes": 2745,
+      "sha256": "e06c585a5aa20c43f8c8adcdaa68ff31fbffcce52a05d2e79805e31e0b0cfb1a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/verify-freeze.mjs",
+      "bytes": 1004,
+      "sha256": "63ca08537616372cab9b12353ff2cb57ad988f933db6812f6f0a6610b91a20b7"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/verify-review-freeze-v2.mjs",
+      "bytes": 993,
+      "sha256": "8da158dc77d0b33530c5b1e3ad85a4830afd299759ffec07ee351febd24284b0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/diagnostic-evidence/README.md",
+      "bytes": 936,
+      "sha256": "c0383cd7e1c9e37114f13d59c1c166307fab20b4b9d4e861a84574f1063d8bd5"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/diagnostic-evidence/diagnostic-input.json",
+      "bytes": 6354,
+      "sha256": "2823cd38296cf308e1d93cc8162f4cc3261dad8cf0bed16c3d50d20bc3335b11"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/diagnostic-evidence/failure-branch-diagnostic.json",
+      "bytes": 11091,
+      "sha256": "2616db773d36ba1165004d9071c84b67dce6ab0ac9c6eec21ea30711ff44d615"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/independent-brs-review.md",
+      "bytes": 18023,
+      "sha256": "b0a45f4ea79e2b55125e134df99c0587b382faf8e42d136addd56faa052e32af"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/independent-completion-source-review.md",
+      "bytes": 15231,
+      "sha256": "75885d18e67388c86c07f5be7f57d0360c96340b5b5f5bf9f9114486e6023183"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/p-completion-boundary-sources.md",
+      "bytes": 22049,
+      "sha256": "c00c3201fa90bebc366d9fbcd69aa9e8cdf1670326b31afb5a18e65f964ced2c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/p-completion-candidate.md",
+      "bytes": 18015,
+      "sha256": "e6d818c7f09b0295ad5d7ff9ca5035b5ce11ff5f5b7af65cb62e6547d134726b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/source-evidence/capture-sources.mjs",
+      "bytes": 4206,
+      "sha256": "debde1258a4cc50fb38189c3916ef14270f9a367aed34db5d313cb2455413b97"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/source-evidence/check-source-claims.mjs",
+      "bytes": 3871,
+      "sha256": "9f9a73e68731a75823892e9fd600c3e8451d5947fc4aa37c5fc8e9216a7c6e38"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/source-evidence/correction-c52-v1.md",
+      "bytes": 4044,
+      "sha256": "595fc5193fb2fa05e8f869b635424c5eff3942946a227c291614d87126dcd3e0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/source-evidence/frozen-manifest.json",
+      "bytes": 2138,
+      "sha256": "da96f151338e360a738e7107d206f559f69edc57f9c1009f362f77f354ff6a4c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/source-evidence/issue-812-comment-5147131478.json",
+      "bytes": 3619,
+      "sha256": "ea59aa6032f6776d5679688bcc8858933632c2e8bac1c329999e65bd14f2cf17"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/source-evidence/issue-827-comment-5153724096.json",
+      "bytes": 8927,
+      "sha256": "bcf2857e7ce030bb7d78b56475139c37a762497997e51d10e560c1218e31c2f0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/source-evidence/source-claim-results.json",
+      "bytes": 2675,
+      "sha256": "64a25f577f585a9bab9c03a518ca29cce29fa3a67821cbfad41015b76791405d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/source-evidence/source-excerpts.json",
+      "bytes": 215311,
+      "sha256": "375cf8866b1c35364329ffcfb63f2eb49da7f22acbaca2a0becd180346e64329"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/source-evidence/source-lock.json",
+      "bytes": 11112,
+      "sha256": "240ed06904b91a216ac471ddf573324a08f31eb970601fcab2a7f6e5af6580d0"
+    }
+  ],
+  "new_Lean_claim": false,
+  "formal_source_modified": false,
+  "production_modified": false,
+  "fixture_drift_required": false,
+  "original_a1_or_F2_qualified": false,
+  "market_value_tested": false,
+  "production_adopted": false,
+  "goal_objective_and_usage_preserved": true,
+  "goal_complete": false,
+  "goal_status": "active"
+}

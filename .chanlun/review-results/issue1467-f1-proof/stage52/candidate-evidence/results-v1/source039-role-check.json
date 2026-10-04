@@ -1,0 +1,1077 @@
+{
+  "source": "docs/chanlun/text/blog/039-第39课.md:26-30",
+  "cases": [
+    {
+      "name": "same_up_counterexample",
+      "proposals": 9,
+      "windows": [
+        {
+          "coreRoles": {
+            "a": "K0",
+            "A1": "K1",
+            "A2": "K2",
+            "A3": "K3"
+          },
+          "eventCuts": [
+            0,
+            5,
+            9,
+            13,
+            17
+          ],
+          "qRanges": [
+            [
+              1000,
+              1140
+            ],
+            [
+              1100,
+              1140
+            ],
+            [
+              1135,
+              1240
+            ],
+            [
+              1200,
+              1240
+            ]
+          ],
+          "originalRoleQualification": {
+            "aCompletion": null,
+            "AiCompletion": null,
+            "sameLevel": null,
+            "aDirection": null,
+            "AiDirections": null
+          },
+          "numericalConditions": {
+            "branch": "upward",
+            "firstDoesNotBreakLeadOppositeExtreme": true,
+            "secondBreaksLeadExtreme": true,
+            "thirdCrossesBackLeadExtreme": false,
+            "thirdStrictlyDoesNotReturn": true,
+            "thirdTouchesExactly": false
+          },
+          "sourceBranchIfAllRolesQualified": "conditional recombination a-prime; not the cited returning branch",
+          "AiNumericalIntersection": [
+            1200,
+            1140
+          ],
+          "AiStrictIntersection": false,
+          "conditionalRecombination": {
+            "sourceEvents": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17
+            ],
+            "qRange": [
+              1000,
+              1240
+            ],
+            "ownFrozenCoreIDs": [
+              "K0",
+              "K1",
+              "K2",
+              "K3"
+            ],
+            "semanticIssued": false
+          },
+          "knownAt": 19
+        },
+        {
+          "coreRoles": {
+            "a": "K1",
+            "A1": "K2",
+            "A2": "K3",
+            "A3": "K4"
+          },
+          "eventCuts": [
+            5,
+            9,
+            13,
+            17,
+            21
+          ],
+          "qRanges": [
+            [
+              1100,
+              1140
+            ],
+            [
+              1135,
+              1240
+            ],
+            [
+              1200,
+              1240
+            ],
+            [
+              1235,
+              1340
+            ]
+          ],
+          "originalRoleQualification": {
+            "aCompletion": null,
+            "AiCompletion": null,
+            "sameLevel": null,
+            "aDirection": null,
+            "AiDirections": null
+          },
+          "numericalConditions": {
+            "branch": "upward",
+            "firstDoesNotBreakLeadOppositeExtreme": true,
+            "secondBreaksLeadExtreme": true,
+            "thirdCrossesBackLeadExtreme": false,
+            "thirdStrictlyDoesNotReturn": true,
+            "thirdTouchesExactly": false
+          },
+          "sourceBranchIfAllRolesQualified": "conditional recombination a-prime; not the cited returning branch",
+          "AiNumericalIntersection": [
+            1235,
+            1240
+          ],
+          "AiStrictIntersection": true,
+          "conditionalRecombination": {
+            "sourceEvents": [
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21
+            ],
+            "qRange": [
+              1100,
+              1340
+            ],
+            "ownFrozenCoreIDs": [
+              "K1",
+              "K2",
+              "K3",
+              "K4"
+            ],
+            "semanticIssued": false
+          },
+          "knownAt": 23
+        },
+        {
+          "coreRoles": {
+            "a": "K2",
+            "A1": "K3",
+            "A2": "K4",
+            "A3": "K5"
+          },
+          "eventCuts": [
+            9,
+            13,
+            17,
+            21,
+            25
+          ],
+          "qRanges": [
+            [
+              1135,
+              1240
+            ],
+            [
+              1200,
+              1240
+            ],
+            [
+              1235,
+              1340
+            ],
+            [
+              1300,
+              1340
+            ]
+          ],
+          "originalRoleQualification": {
+            "aCompletion": null,
+            "AiCompletion": null,
+            "sameLevel": null,
+            "aDirection": null,
+            "AiDirections": null
+          },
+          "numericalConditions": {
+            "branch": "upward",
+            "firstDoesNotBreakLeadOppositeExtreme": true,
+            "secondBreaksLeadExtreme": true,
+            "thirdCrossesBackLeadExtreme": false,
+            "thirdStrictlyDoesNotReturn": true,
+            "thirdTouchesExactly": false
+          },
+          "sourceBranchIfAllRolesQualified": "conditional recombination a-prime; not the cited returning branch",
+          "AiNumericalIntersection": [
+            1300,
+            1240
+          ],
+          "AiStrictIntersection": false,
+          "conditionalRecombination": {
+            "sourceEvents": [
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25
+            ],
+            "qRange": [
+              1135,
+              1340
+            ],
+            "ownFrozenCoreIDs": [
+              "K2",
+              "K3",
+              "K4",
+              "K5"
+            ],
+            "semanticIssued": false
+          },
+          "knownAt": 27
+        },
+        {
+          "coreRoles": {
+            "a": "K3",
+            "A1": "K4",
+            "A2": "K5",
+            "A3": "K6"
+          },
+          "eventCuts": [
+            13,
+            17,
+            21,
+            25,
+            29
+          ],
+          "qRanges": [
+            [
+              1200,
+              1240
+            ],
+            [
+              1235,
+              1340
+            ],
+            [
+              1300,
+              1340
+            ],
+            [
+              1335,
+              1440
+            ]
+          ],
+          "originalRoleQualification": {
+            "aCompletion": null,
+            "AiCompletion": null,
+            "sameLevel": null,
+            "aDirection": null,
+            "AiDirections": null
+          },
+          "numericalConditions": {
+            "branch": "upward",
+            "firstDoesNotBreakLeadOppositeExtreme": true,
+            "secondBreaksLeadExtreme": true,
+            "thirdCrossesBackLeadExtreme": false,
+            "thirdStrictlyDoesNotReturn": true,
+            "thirdTouchesExactly": false
+          },
+          "sourceBranchIfAllRolesQualified": "conditional recombination a-prime; not the cited returning branch",
+          "AiNumericalIntersection": [
+            1335,
+            1340
+          ],
+          "AiStrictIntersection": true,
+          "conditionalRecombination": {
+            "sourceEvents": [
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29
+            ],
+            "qRange": [
+              1200,
+              1440
+            ],
+            "ownFrozenCoreIDs": [
+              "K3",
+              "K4",
+              "K5",
+              "K6"
+            ],
+            "semanticIssued": false
+          },
+          "knownAt": 31
+        },
+        {
+          "coreRoles": {
+            "a": "K4",
+            "A1": "K5",
+            "A2": "K6",
+            "A3": "K7"
+          },
+          "eventCuts": [
+            17,
+            21,
+            25,
+            29,
+            33
+          ],
+          "qRanges": [
+            [
+              1235,
+              1340
+            ],
+            [
+              1300,
+              1340
+            ],
+            [
+              1335,
+              1440
+            ],
+            [
+              1400,
+              1540
+            ]
+          ],
+          "originalRoleQualification": {
+            "aCompletion": null,
+            "AiCompletion": null,
+            "sameLevel": null,
+            "aDirection": null,
+            "AiDirections": null
+          },
+          "numericalConditions": {
+            "branch": "upward",
+            "firstDoesNotBreakLeadOppositeExtreme": true,
+            "secondBreaksLeadExtreme": true,
+            "thirdCrossesBackLeadExtreme": false,
+            "thirdStrictlyDoesNotReturn": true,
+            "thirdTouchesExactly": false
+          },
+          "sourceBranchIfAllRolesQualified": "conditional recombination a-prime; not the cited returning branch",
+          "AiNumericalIntersection": [
+            1400,
+            1340
+          ],
+          "AiStrictIntersection": false,
+          "conditionalRecombination": {
+            "sourceEvents": [
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31,
+              32,
+              33
+            ],
+            "qRange": [
+              1235,
+              1540
+            ],
+            "ownFrozenCoreIDs": [
+              "K4",
+              "K5",
+              "K6",
+              "K7"
+            ],
+            "semanticIssued": false
+          },
+          "knownAt": 35
+        },
+        {
+          "coreRoles": {
+            "a": "K5",
+            "A1": "K6",
+            "A2": "K7",
+            "A3": "K8"
+          },
+          "eventCuts": [
+            21,
+            25,
+            29,
+            33,
+            37
+          ],
+          "qRanges": [
+            [
+              1300,
+              1340
+            ],
+            [
+              1335,
+              1440
+            ],
+            [
+              1400,
+              1540
+            ],
+            [
+              1500,
+              1640
+            ]
+          ],
+          "originalRoleQualification": {
+            "aCompletion": null,
+            "AiCompletion": null,
+            "sameLevel": null,
+            "aDirection": null,
+            "AiDirections": null
+          },
+          "numericalConditions": {
+            "branch": "upward",
+            "firstDoesNotBreakLeadOppositeExtreme": true,
+            "secondBreaksLeadExtreme": true,
+            "thirdCrossesBackLeadExtreme": false,
+            "thirdStrictlyDoesNotReturn": true,
+            "thirdTouchesExactly": false
+          },
+          "sourceBranchIfAllRolesQualified": "conditional recombination a-prime; not the cited returning branch",
+          "AiNumericalIntersection": [
+            1500,
+            1440
+          ],
+          "AiStrictIntersection": false,
+          "conditionalRecombination": {
+            "sourceEvents": [
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31,
+              32,
+              33,
+              34,
+              35,
+              36,
+              37
+            ],
+            "qRange": [
+              1300,
+              1640
+            ],
+            "ownFrozenCoreIDs": [
+              "K5",
+              "K6",
+              "K7",
+              "K8"
+            ],
+            "semanticIssued": false
+          },
+          "knownAt": 39
+        }
+      ],
+      "firstThreeAsA1A2A3": {
+        "eventCuts": [
+          0,
+          5,
+          9,
+          13
+        ],
+        "leadingA": null,
+        "reason": "no native events before B0; cannot invent a completed same-level leading object"
+      },
+      "qualified039Applications": 0,
+      "scope": "necessary numerical role check only; no argument from RDW or parser labels to original completion"
+    },
+    {
+      "name": "same_down_mirror",
+      "proposals": 9,
+      "windows": [
+        {
+          "coreRoles": {
+            "a": "K0",
+            "A1": "K1",
+            "A2": "K2",
+            "A3": "K3"
+          },
+          "eventCuts": [
+            0,
+            5,
+            9,
+            13,
+            17
+          ],
+          "qRanges": [
+            [
+              1560,
+              1700
+            ],
+            [
+              1560,
+              1600
+            ],
+            [
+              1460,
+              1565
+            ],
+            [
+              1460,
+              1500
+            ]
+          ],
+          "originalRoleQualification": {
+            "aCompletion": null,
+            "AiCompletion": null,
+            "sameLevel": null,
+            "aDirection": null,
+            "AiDirections": null
+          },
+          "numericalConditions": {
+            "branch": "downward mirror",
+            "firstDoesNotBreakLeadOppositeExtreme": true,
+            "secondBreaksLeadExtreme": true,
+            "thirdCrossesBackLeadExtreme": false,
+            "thirdStrictlyDoesNotReturn": true,
+            "thirdTouchesExactly": false
+          },
+          "sourceBranchIfAllRolesQualified": "conditional recombination a-prime; not the cited returning branch",
+          "AiNumericalIntersection": [
+            1560,
+            1500
+          ],
+          "AiStrictIntersection": false,
+          "conditionalRecombination": {
+            "sourceEvents": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17
+            ],
+            "qRange": [
+              1460,
+              1700
+            ],
+            "ownFrozenCoreIDs": [
+              "K0",
+              "K1",
+              "K2",
+              "K3"
+            ],
+            "semanticIssued": false
+          },
+          "knownAt": 19
+        },
+        {
+          "coreRoles": {
+            "a": "K1",
+            "A1": "K2",
+            "A2": "K3",
+            "A3": "K4"
+          },
+          "eventCuts": [
+            5,
+            9,
+            13,
+            17,
+            21
+          ],
+          "qRanges": [
+            [
+              1560,
+              1600
+            ],
+            [
+              1460,
+              1565
+            ],
+            [
+              1460,
+              1500
+            ],
+            [
+              1360,
+              1465
+            ]
+          ],
+          "originalRoleQualification": {
+            "aCompletion": null,
+            "AiCompletion": null,
+            "sameLevel": null,
+            "aDirection": null,
+            "AiDirections": null
+          },
+          "numericalConditions": {
+            "branch": "downward mirror",
+            "firstDoesNotBreakLeadOppositeExtreme": true,
+            "secondBreaksLeadExtreme": true,
+            "thirdCrossesBackLeadExtreme": false,
+            "thirdStrictlyDoesNotReturn": true,
+            "thirdTouchesExactly": false
+          },
+          "sourceBranchIfAllRolesQualified": "conditional recombination a-prime; not the cited returning branch",
+          "AiNumericalIntersection": [
+            1460,
+            1465
+          ],
+          "AiStrictIntersection": true,
+          "conditionalRecombination": {
+            "sourceEvents": [
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21
+            ],
+            "qRange": [
+              1360,
+              1600
+            ],
+            "ownFrozenCoreIDs": [
+              "K1",
+              "K2",
+              "K3",
+              "K4"
+            ],
+            "semanticIssued": false
+          },
+          "knownAt": 23
+        },
+        {
+          "coreRoles": {
+            "a": "K2",
+            "A1": "K3",
+            "A2": "K4",
+            "A3": "K5"
+          },
+          "eventCuts": [
+            9,
+            13,
+            17,
+            21,
+            25
+          ],
+          "qRanges": [
+            [
+              1460,
+              1565
+            ],
+            [
+              1460,
+              1500
+            ],
+            [
+              1360,
+              1465
+            ],
+            [
+              1360,
+              1400
+            ]
+          ],
+          "originalRoleQualification": {
+            "aCompletion": null,
+            "AiCompletion": null,
+            "sameLevel": null,
+            "aDirection": null,
+            "AiDirections": null
+          },
+          "numericalConditions": {
+            "branch": "downward mirror",
+            "firstDoesNotBreakLeadOppositeExtreme": true,
+            "secondBreaksLeadExtreme": true,
+            "thirdCrossesBackLeadExtreme": false,
+            "thirdStrictlyDoesNotReturn": true,
+            "thirdTouchesExactly": false
+          },
+          "sourceBranchIfAllRolesQualified": "conditional recombination a-prime; not the cited returning branch",
+          "AiNumericalIntersection": [
+            1460,
+            1400
+          ],
+          "AiStrictIntersection": false,
+          "conditionalRecombination": {
+            "sourceEvents": [
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25
+            ],
+            "qRange": [
+              1360,
+              1565
+            ],
+            "ownFrozenCoreIDs": [
+              "K2",
+              "K3",
+              "K4",
+              "K5"
+            ],
+            "semanticIssued": false
+          },
+          "knownAt": 27
+        },
+        {
+          "coreRoles": {
+            "a": "K3",
+            "A1": "K4",
+            "A2": "K5",
+            "A3": "K6"
+          },
+          "eventCuts": [
+            13,
+            17,
+            21,
+            25,
+            29
+          ],
+          "qRanges": [
+            [
+              1460,
+              1500
+            ],
+            [
+              1360,
+              1465
+            ],
+            [
+              1360,
+              1400
+            ],
+            [
+              1260,
+              1365
+            ]
+          ],
+          "originalRoleQualification": {
+            "aCompletion": null,
+            "AiCompletion": null,
+            "sameLevel": null,
+            "aDirection": null,
+            "AiDirections": null
+          },
+          "numericalConditions": {
+            "branch": "downward mirror",
+            "firstDoesNotBreakLeadOppositeExtreme": true,
+            "secondBreaksLeadExtreme": true,
+            "thirdCrossesBackLeadExtreme": false,
+            "thirdStrictlyDoesNotReturn": true,
+            "thirdTouchesExactly": false
+          },
+          "sourceBranchIfAllRolesQualified": "conditional recombination a-prime; not the cited returning branch",
+          "AiNumericalIntersection": [
+            1360,
+            1365
+          ],
+          "AiStrictIntersection": true,
+          "conditionalRecombination": {
+            "sourceEvents": [
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29
+            ],
+            "qRange": [
+              1260,
+              1500
+            ],
+            "ownFrozenCoreIDs": [
+              "K3",
+              "K4",
+              "K5",
+              "K6"
+            ],
+            "semanticIssued": false
+          },
+          "knownAt": 31
+        },
+        {
+          "coreRoles": {
+            "a": "K4",
+            "A1": "K5",
+            "A2": "K6",
+            "A3": "K7"
+          },
+          "eventCuts": [
+            17,
+            21,
+            25,
+            29,
+            33
+          ],
+          "qRanges": [
+            [
+              1360,
+              1465
+            ],
+            [
+              1360,
+              1400
+            ],
+            [
+              1260,
+              1365
+            ],
+            [
+              1160,
+              1300
+            ]
+          ],
+          "originalRoleQualification": {
+            "aCompletion": null,
+            "AiCompletion": null,
+            "sameLevel": null,
+            "aDirection": null,
+            "AiDirections": null
+          },
+          "numericalConditions": {
+            "branch": "downward mirror",
+            "firstDoesNotBreakLeadOppositeExtreme": true,
+            "secondBreaksLeadExtreme": true,
+            "thirdCrossesBackLeadExtreme": false,
+            "thirdStrictlyDoesNotReturn": true,
+            "thirdTouchesExactly": false
+          },
+          "sourceBranchIfAllRolesQualified": "conditional recombination a-prime; not the cited returning branch",
+          "AiNumericalIntersection": [
+            1360,
+            1300
+          ],
+          "AiStrictIntersection": false,
+          "conditionalRecombination": {
+            "sourceEvents": [
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31,
+              32,
+              33
+            ],
+            "qRange": [
+              1160,
+              1465
+            ],
+            "ownFrozenCoreIDs": [
+              "K4",
+              "K5",
+              "K6",
+              "K7"
+            ],
+            "semanticIssued": false
+          },
+          "knownAt": 35
+        },
+        {
+          "coreRoles": {
+            "a": "K5",
+            "A1": "K6",
+            "A2": "K7",
+            "A3": "K8"
+          },
+          "eventCuts": [
+            21,
+            25,
+            29,
+            33,
+            37
+          ],
+          "qRanges": [
+            [
+              1360,
+              1400
+            ],
+            [
+              1260,
+              1365
+            ],
+            [
+              1160,
+              1300
+            ],
+            [
+              1060,
+              1200
+            ]
+          ],
+          "originalRoleQualification": {
+            "aCompletion": null,
+            "AiCompletion": null,
+            "sameLevel": null,
+            "aDirection": null,
+            "AiDirections": null
+          },
+          "numericalConditions": {
+            "branch": "downward mirror",
+            "firstDoesNotBreakLeadOppositeExtreme": true,
+            "secondBreaksLeadExtreme": true,
+            "thirdCrossesBackLeadExtreme": false,
+            "thirdStrictlyDoesNotReturn": true,
+            "thirdTouchesExactly": false
+          },
+          "sourceBranchIfAllRolesQualified": "conditional recombination a-prime; not the cited returning branch",
+          "AiNumericalIntersection": [
+            1260,
+            1200
+          ],
+          "AiStrictIntersection": false,
+          "conditionalRecombination": {
+            "sourceEvents": [
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31,
+              32,
+              33,
+              34,
+              35,
+              36,
+              37
+            ],
+            "qRange": [
+              1060,
+              1400
+            ],
+            "ownFrozenCoreIDs": [
+              "K5",
+              "K6",
+              "K7",
+              "K8"
+            ],
+            "semanticIssued": false
+          },
+          "knownAt": 39
+        }
+      ],
+      "firstThreeAsA1A2A3": {
+        "eventCuts": [
+          0,
+          5,
+          9,
+          13
+        ],
+        "leadingA": null,
+        "reason": "no native events before B0; cannot invent a completed same-level leading object"
+      },
+      "qualified039Applications": 0,
+      "scope": "necessary numerical role check only; no argument from RDW or parser labels to original completion"
+    }
+  ],
+  "assertionsPassed": true,
+  "independentReview": false
+}
