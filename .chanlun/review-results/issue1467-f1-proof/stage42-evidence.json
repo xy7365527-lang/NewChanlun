@@ -1,0 +1,194 @@
+{
+  "stage": 42,
+  "date": "2026-10-04",
+  "issue": 1467,
+  "related_issue": 1468,
+  "base_commit": "a62084f10ee9fb3dbb198a79e870c475ba5589df",
+  "trust_level": "COORDINATOR_ATTESTED_TOOL_TRANSCRIPT",
+  "model_requested": "gpt-6-astra",
+  "independence": "all review agents used fork_turns=none; author followup was not used as verification",
+  "agents": [
+    {
+      "name": "/root/f2_classification_bridge",
+      "role": "classification and shared-core author",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/f2_axis_bridge",
+      "role": "axis bridge author",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/plateau_data_domain",
+      "role": "data probe author",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/review_f2_interfaces",
+      "role": "independent mathematical and source review",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/review_data_domain",
+      "role": "independent data and code review",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/review_scope_corrections",
+      "role": "fresh scope correction review",
+      "completed": true,
+      "interrupt_called": true
+    }
+  ],
+  "findings": {
+    "point_vs_strict_core": "source-supported research interpretation, not canonical adoption",
+    "order_interval_bridge": "conditional on one strict increasing function, same source members and pure order predicates",
+    "trend_completion_bridge": "conditional on initial core identity and point outer bounds",
+    "single_core_completion": "unproved",
+    "shared_core_v3_counting": "rejected when same original core is counted in two adjacent moves; endpoints and evidence reuse not rejected",
+    "fixed_tick_lossless": "disproved for full unbounded D_W plus fixed grid and bounded price band; exact and other representations remain open"
+  },
+  "data": {
+    "scope": "first causal prefix, exploratory historical minute, no reset",
+    "initial_capture_line": 340,
+    "initialization_applications": 43,
+    "independent_native_applications": 125,
+    "mutation_quote_level_pairs": 82,
+    "fixedW_exit_mutation": 12,
+    "fixedW_exit_reason": "actual_K_changed",
+    "Q_adapter_boundary_mutation": 12,
+    "Q_adapter_boundary_is_DQ_counterexample": false,
+    "native_removal_Q_exit_mutation": 55,
+    "native_removal_Q_exit_reason": "closed_short_platform_2",
+    "valid_prefix_platform_lengths": [
+      17,
+      5,
+      30,
+      2
+    ],
+    "completed_moves_before_exit": 0,
+    "father_core_evaluation": "no three completed inputs; not an empty-intersection result",
+    "rerun_summary_byte_equal": true
+  },
+  "source_corrections": [
+    {
+      "file": "classification-bridge.md",
+      "original_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/f2-interface-v1/classification-bridge.md",
+      "original_sha256": "a021c88c8b60b788ae1d87097109d6658db679b7f2fa1b962861d6bc567dc6d0",
+      "current_sha256": "a021c88c8b60b788ae1d87097109d6658db679b7f2fa1b962861d6bc567dc6d0",
+      "scope_correction": false
+    },
+    {
+      "file": "axis-bridge.md",
+      "original_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/f2-interface-v1/axis-bridge.md",
+      "original_sha256": "77f08cfdec470fac5ab32bc851f1a3b25e00cf0b3b75c0641b60e8cb0bd4b268",
+      "current_sha256": "c462db8524660c07b2c6dd72b941e4db99b51ab6d005cbc2e38e5aee8320b809",
+      "scope_correction": true
+    },
+    {
+      "file": "shared-core-candidate.md",
+      "original_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/f2-interface-v1/shared-core-candidate.md",
+      "original_sha256": "2f76b87ec83f0aea541592f5c9b2d878e0679f7b0016070a85b140492ba63f77",
+      "current_sha256": "f44d1623803ceab8443f09cfc7b9fd4d4f6a477281221a007c9d4414fa0c34cc",
+      "scope_correction": true
+    },
+    {
+      "file": "data-domain.md",
+      "original_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/f2-interface-v1/data-domain.md",
+      "original_sha256": "5b9e94feaecb9872c09484499b427f01af849479c51ce73f82b87c178342ffc3",
+      "current_sha256": "5b9e94feaecb9872c09484499b427f01af849479c51ce73f82b87c178342ffc3",
+      "scope_correction": false
+    },
+    {
+      "file": "plateau_data_domain_probe.mjs",
+      "original_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/f2-interface-v1/plateau_data_domain_probe.mjs",
+      "original_sha256": "8deeb0bbfb6f4110c610542fdf4e9c4bcb632168de937cb8187186f76d6a0a95",
+      "current_sha256": "8deeb0bbfb6f4110c610542fdf4e9c4bcb632168de937cb8187186f76d6a0a95",
+      "scope_correction": false
+    },
+    {
+      "file": "independent-interface-review.md",
+      "original_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/f2-interface-v1/independent-interface-review.md",
+      "original_sha256": "3d7d3f37bcae84454c1d711588d42c60696c70b80b0c87100b6f926c2879769c",
+      "current_sha256": "3d7d3f37bcae84454c1d711588d42c60696c70b80b0c87100b6f926c2879769c",
+      "scope_correction": false
+    },
+    {
+      "file": "independent-data-review.md",
+      "original_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/f2-interface-v1/independent-data-review.md",
+      "original_sha256": "c9c15b6b7af829a742768fec0ede1a03af8bd0e7b02c6351bf4a818b9f66a4ca",
+      "current_sha256": "c9c15b6b7af829a742768fec0ede1a03af8bd0e7b02c6351bf4a818b9f66a4ca",
+      "scope_correction": false
+    }
+  ],
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage42InterfaceAndDomain.md",
+      "sha256": "ee4e21c4fd74bb5931d2dd1a1f6641505b09ad0dda04025c702d33e2f2f1601e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage42/axis-bridge.md",
+      "sha256": "c462db8524660c07b2c6dd72b941e4db99b51ab6d005cbc2e38e5aee8320b809"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage42/classification-bridge.md",
+      "sha256": "a021c88c8b60b788ae1d87097109d6658db679b7f2fa1b962861d6bc567dc6d0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage42/data-domain.md",
+      "sha256": "5b9e94feaecb9872c09484499b427f01af849479c51ce73f82b87c178342ffc3"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage42/independent-data-review.md",
+      "sha256": "c9c15b6b7af829a742768fec0ede1a03af8bd0e7b02c6351bf4a818b9f66a4ca"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage42/independent-interface-review.md",
+      "sha256": "3d7d3f37bcae84454c1d711588d42c60696c70b80b0c87100b6f926c2879769c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage42/plateau_data_domain_probe.mjs",
+      "sha256": "8deeb0bbfb6f4110c610542fdf4e9c4bcb632168de937cb8187186f76d6a0a95"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage42/scope-correction-review.md",
+      "sha256": "4a25fad0a10d2f908bf8e7bfb5829a5df80f1cd8a44b4d92b39d04cdc4861582"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage42/shared-core-candidate.md",
+      "sha256": "f44d1623803ceab8443f09cfc7b9fd4d4f6a477281221a007c9d4414fa0c34cc"
+    }
+  ],
+  "external_evidence": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/f2-interface-v1/plateau-data-domain-summary.json",
+      "sha256": "32e59e88edcbe18c8b90b5dcccf6de50a86177474f111cb1f8cadad61169ddc9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/f2-interface-v1/independent-recompute-20261004/check.py",
+      "sha256": "c01aa53238f4c56681068c60c9f73d7eb847a04e4fc722a7a243e6837aabd9a9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/f2-interface-v1/independent-recompute-20261004/result.json",
+      "sha256": "984b595b742bb17f51b402562a18d487386825f097c747cae2da4fd74bb4cb86"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/f2-interface-v1/independent-data-rerun-20261004/independent-check.mjs",
+      "sha256": "ee356ed55b4c900ea40efd2d76bd0e8a18412def4c20f84ab8e5dc9bd4d48780"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/f2-interface-v1/independent-data-rerun-20261004/independent-check-summary.json",
+      "sha256": "e9fe7b18855bb8b5aeb66c7c0ff670471f9373e0f905fcbfa14dee83c3d4e6c4"
+    }
+  ],
+  "new_Lean_claim": false,
+  "original_F2_qualified": false,
+  "market_value_tested": false,
+  "goal_complete": false,
+  "goal_status": "active"
+}
