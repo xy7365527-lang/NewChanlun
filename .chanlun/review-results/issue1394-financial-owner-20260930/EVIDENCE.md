@@ -122,3 +122,14 @@ S16两次shadow仅作成本诊断，24应用表及48403行逐字段同旧原件�
 S7 新增私有证书源成本为 `43 + 32 × (Public 根数 + Template 根数)`，与原件及 Counts 成本相加，仍按同一 536870912 字节上限整池准入。容器实际 capacity 单独披露；这不是 heap／RSS 上限或全资源资格证明。规范没有现成的根证书字节配方，此公式是当前私有实现的明确计费口径。
 
 源码聚合 SHA `508de546473df055f9805055331f6ddbfe8a971a4b9baaad7b0816d152948648`，非 test 服务 SHA `9b09fc209ef614aa5d856a6ec9b334f3ef5077bbbd391e80c0863381867026ee`。结果及原始材料见 [CODEC-ROOT-CACHE-20261005.json](inputs/CODEC-ROOT-CACHE-20261005.json) 与 [原始材料 ZIP](inputs/CODEC-ROOT-CACHE-20261005-RAW.zip)。本轮没有故障注入；正式完整双跑、全资源资格和整图 goal 仍未完成。
+## 2026-10-05 manifest 组装复用与共享来源预算
+
+隔离提交 `feb63fc972097cbfe89ef0db272208662c9c3a34` 在第一次完整 manifest 组装成功后记录其实际读写原件；发布前重新逐行读取并逐字节绑定 metadata、全部根声明和原件，只在相同后复用组装结果。每次原有 put 按原次序真实重放，实际 SQL 出生许可及最终两根 Public fresh 核验保留。普通、Owned、v2 保持原路径。
+
+初版沿用 65,536 条／4 MiB 的旧缓存限制，小型正常对拍通过，但真实 150／151 两次都在 65,536 条、3,407,328 B 正文时不再发行 workspace。该域虽完整 Received，不能算优化生效；原件和日志已保留。随后改为请求入口 checked 冻结 `S7 − legacy − old_pool`，旧池提前释放不返还本请求额度；workspace 按正文、原件证明、全部上下文及有序 put 序列计来源费用，keeper 同时遵守扣除 legacy 后的 S7 余量。没有另增一份 512 MiB。workspace 在新 keeper 保留前释放；实际容器容量与整体 heap/RSS 另记。
+
+修正后独评通过，4 项精确正常测试、Native 非 test release 构建和 feature-off 检查通过。测试包含实际非空旧池的预算分享，并逐项对拍完整回复、全部类型化持久行、全部节点及可达原件。新正常 CopyQualified149→150／151 域实际发行并重新绑定了两份 workspace：150 的旧池为 382,405,282 B，workspace 为 42,874,531 B，合计 425,279,813 B；151 分别为 382,215,714 B 和 43,267,617 B，合计 425,483,331 B。两代 legacy 均为 0，合计都小于已批准的 536,870,912 B。分别重读 280,452／283,028 条原件并重放 306 次实际 put；这些是实际非 test 进程的诊断记录。
+
+完整响应、持久 oracle 和终态与前版一致，封存文件 stat/SHA 及进程、controller、socket 清理均再核通过。整请求 23.112771583／22.044895291 秒，前版 23.759416459／22.815395542 秒，单次减少约 2.72%／3.38%。复用真实生效，但整请求改善仍小，不据此启动或宣称完整 9011 已可通过。
+
+源码聚合 SHA `047825708159e6c671390807f9c7a88ffda2f5037577560ea66c2ed10cd21f08`，服务 SHA `4881f0f8845405f2e205e5a0a043c73561e2791ee1f4365cee645659eb585c69`。结果、资格日志及未发行初版见 [MANIFEST-WORKSPACE-20261005.json](inputs/MANIFEST-WORKSPACE-20261005.json) 和 [原始材料 ZIP](inputs/MANIFEST-WORKSPACE-20261005-RAW.zip)。未执行故障注入，未改期限，未合入 main。全资源资格、完整双跑及 goal 仍未完成。
