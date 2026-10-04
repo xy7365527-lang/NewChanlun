@@ -2032,12 +2032,13 @@ pub(crate) fn current_originals_equal_for_request(
 
 /// #1394 隔离测试：本次完整捕获同时逐tuple绑定旧原件超集，允许正常新增节点。
 /// 不把旧memo移入新捕获；任何行的SQL/type错误均直接返回，包括已发现mismatch之后。
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(feature = "s_capture_native_testonly")]
 pub(crate) fn capture_with_original_subset_for_source_cache(
     tx: &Transaction<'_>,
     prior: Option<(&s_content::AuditCapture, usize)>,
 ) -> Result<(s_content::AuditCapture, usize, bool), CodecError> {
     ensure_format(tx)?;
+    #[cfg(test)]
     PROTOTYPE_CAPTURE_WORK.with(|work| {
         let mut work = work.borrow_mut();
         work.capture_builds += 1;
@@ -2060,6 +2061,7 @@ pub(crate) fn capture_with_original_subset_for_source_cache(
         let tag: i64 = row.get(1).map_err(storage_error)?;
         let tag: u8 = tag.try_into().map_err(|_| storage_error("捕获标签域"))?;
         let body: Vec<u8> = row.get(2).map_err(storage_error)?;
+        #[cfg(test)]
         record_prototype_row(body.len());
         let unique = seen.insert(digest);
         same &= unique;

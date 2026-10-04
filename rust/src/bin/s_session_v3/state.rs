@@ -67,16 +67,22 @@ impl std::ops::Deref for AuditedState {
 }
 
 /// #1394：第七资源门仍计跨请求审计源保留字节。
-/// HashReader/overlay、source_audit producer 均是 audit 调用局部；AuditedState 不存入
-/// Driver/prepared Runtime。当前这条路径的跨请求保留因此为 0，生成缓存和临时 heap 不在此量纲。
-/// 若以后增加审计源 keeper，必须在此按原源成本计量并驱逐，不能继续宣称结构零保留。
+/// 直接audit/请求局部上下文自身不跨请求保留。Driver的Native keeper另外按实际源成本核此门。
+/// 此常量仅供无keeper路径的已有测试，不是Driver的运行时读数。
+#[cfg(test)]
 pub(super) const AUDIT_SOURCE_RETAINED_BYTES: usize = 0;
 
 pub(super) fn check_audit_source_retention(cap: usize) -> Result<(), String> {
+    check_audit_source_retention_bytes(cap, 0)
+}
+pub(super) fn check_audit_source_retention_bytes(
+    cap: usize,
+    retained: usize,
+) -> Result<(), String> {
     if cap == 0 {
         return Err("S3WriterResourcesInvalid：audit_cache_source_bytes 必须为显式正预算".into());
     }
-    if AUDIT_SOURCE_RETAINED_BYTES > cap {
+    if retained > cap {
         return Err(
             "S3WriterResourcesInvalid：跨请求审计源保留超过 audit_cache_source_bytes".into(),
         );
@@ -143,14 +149,28 @@ pub(super) fn audit_native_in_request(
     {
         // take保证任何读取/校验错误都不留下可继续使用的旧slot。
         let prior = context.take();
+        let source_enabled = context.source_cache_enabled();
+        let source_prior = context.take_source_pool();
         let capture_fresh = || {
-            let (capture, count) = content_store::capture_for_request_prototype(tx).map_err(err)?;
+            let (capture, count, source_same) = if source_enabled {
+                content_store::capture_with_original_subset_for_source_cache(
+                    tx,
+                    source_prior
+                        .as_ref()
+                        .map(|pool| (&pool.originals, pool.nodes)),
+                )
+                .map_err(err)?
+            } else {
+                let (capture, count) =
+                    content_store::capture_for_request_prototype(tx).map_err(err)?;
+                (capture, count, false)
+            };
             let capture = capture
                 .enable_native_frame_reuse_for_testonly()
                 .map_err(err)?;
-            Ok::<_, String>((capture, count))
+            Ok::<_, String>((capture, count, source_same))
         };
-        let (capture, node_count, prior, same_nodes) = match prior {
+        let (capture, node_count, prior, same_nodes, source_same) = match prior {
             Some(prior) => {
                 let same_nodes = content_store::current_originals_equal_for_request(
                     tx,
@@ -158,8 +178,8 @@ pub(super) fn audit_native_in_request(
                     prior.node_count,
                 )
                 .map_err(err)?;
-                let (capture, count) = if same_nodes {
-                    (prior.capture, prior.node_count)
+                let (capture, count, source_same) = if same_nodes {
+                    (prior.capture, prior.node_count, false)
                 } else {
                     // 合法材料变化才在同一事务第二次全扫描建新capture；任何Err都已直接返回。
                     capture_fresh()?
@@ -167,18 +187,19 @@ pub(super) fn audit_native_in_request(
                 (
                     capture,
                     count,
-                    Some((prior.binding, prior.result)),
+                    Some((prior.binding, prior.result, prior.source_pending)),
                     same_nodes,
+                    source_same,
                 )
             }
             None => {
-                let (capture, count) = capture_fresh()?;
-                (capture, count, None, false)
+                let (capture, count, source_same) = capture_fresh()?;
+                (capture, count, None, false, source_same)
             }
         };
         let control = control_audit::prepare_s3_control_history_with_owner(tx, None)?;
         let raw = super::business_json::RawEvents::Plain(read_raw_events_until(tx, None)?);
-        if let Some((prior_binding, prior_result)) = prior {
+        if let Some((prior_binding, prior_result, source_pending)) = prior {
             #[cfg(test)]
             context.before_binding(tx);
             let binding =
@@ -194,7 +215,14 @@ pub(super) fn audit_native_in_request(
                 #[cfg(test)]
                 trace_event("request_history_hit", None);
                 let result = prior_result;
-                context.retain(binding, capture, node_count, result.clone(), true);
+                context.retain(
+                    binding,
+                    capture,
+                    node_count,
+                    result.clone(),
+                    true,
+                    source_pending,
+                );
                 return Ok(AuditedState {
                     budget: None,
                     raw,
@@ -204,7 +232,16 @@ pub(super) fn audit_native_in_request(
         }
         #[cfg(test)]
         trace_event("request_history_cold", None);
-        let (audited, _) = audit_core_fresh(
+        let mut source_trial = if source_enabled {
+            Some(super::cross_request_source_cache::Trial::new(
+                tx,
+                source_prior.as_ref(),
+                source_same,
+            )?)
+        } else {
+            None
+        };
+        let (audited, _) = audit_core_fresh_inner(
             tx,
             None,
             None,
@@ -214,13 +251,29 @@ pub(super) fn audit_native_in_request(
             Some(&capture),
             Some((control, raw)),
             RetentionReport::Skip,
+            source_trial.as_mut(),
         )?;
         let HistoricalOwner::Unique(result) = audited.historical else {
             unreachable!()
         };
         let result = std::rc::Rc::new(result);
         let binding = super::request_audit::HistoricalDependencyBinding::read(tx, &result)?;
-        context.retain(binding, capture, node_count, result.clone(), false);
+        let frontier = result
+            .cuts
+            .last()
+            .map_or(-1, |cut| cut.metadata.input_frontier);
+        let source_pending = source_trial
+            .map(|trial| trial.seal(tx, frontier))
+            .transpose()?;
+        drop(source_prior);
+        context.retain(
+            binding,
+            capture,
+            node_count,
+            result.clone(),
+            false,
+            source_pending,
+        );
         Ok(AuditedState {
             budget: audited.budget,
             raw: audited.raw,
@@ -492,7 +545,7 @@ fn audit_core_fresh(
         external_capture,
         fresh,
         retention_report,
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(feature = "s_capture_native_testonly")]
         None,
     )
 }
@@ -507,7 +560,7 @@ fn audit_core_fresh_inner(
     external_capture: Option<&sc::AuditCapture>,
     fresh: Option<(v2::ControlHistory, super::business_json::RawEvents)>,
     retention_report: RetentionReport,
-    #[cfg(all(test, feature = "s_capture_native_testonly"))] mut source_cache: Option<
+    #[cfg(feature = "s_capture_native_testonly")] mut source_cache: Option<
         &mut super::cross_request_source_cache::Trial<'_>,
     >,
 ) -> Result<(AuditedState, Option<Value>), String> {
@@ -664,11 +717,11 @@ fn audit_core_fresh_inner(
             .view()
             .prefix(cut.metadata.input_frontier as usize + 1)?;
         // 5'. 真实源与生成对象配方逐代对拍；本层不重跑分类。
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(feature = "s_capture_native_testonly")]
         let cached_counts = source_cache
             .as_deref_mut()
             .and_then(|cache| cache.lookup(cut));
-        #[cfg(not(all(test, feature = "s_capture_native_testonly")))]
+        #[cfg(not(feature = "s_capture_native_testonly"))]
         let cached_counts: Option<source_audit::Counts> = None;
         let counts = if let Some(counts) = cached_counts {
             counts
@@ -691,7 +744,7 @@ fn audit_core_fresh_inner(
                 )?,
             }
         };
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(feature = "s_capture_native_testonly")]
         if let Some(cache) = source_cache.as_deref_mut() {
             cache.record(cut, &counts);
         }

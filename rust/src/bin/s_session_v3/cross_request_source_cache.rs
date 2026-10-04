@@ -1,4 +1,4 @@
-//! #1394 cfg(test) Native来源Counts隔离原型；不接Driver、serve或公共S7。
+//! #1394 显式Native模式的来源Counts复用；保留量受调用者唯一S7预算约束。
 //! 完整当前audit只跳过绑定成功旧cut的source业务核；节点依赖采用成功audit原件超集。
 use super::{
     history::PublishedCut,
@@ -249,6 +249,10 @@ pub(super) struct Keeper {
     pub(super) peak_two_pool_capacity_payload: usize,
 }
 impl Keeper {
+    // 单是frontier就收8字节，完整SQL证书必有额外成本。原S7=1因此完全走旧路径。
+    pub(super) fn retention_possible(cap: usize) -> bool {
+        cap > 8
+    }
     pub(super) fn new(cap: usize) -> Self {
         Self {
             cap,
@@ -266,6 +270,9 @@ impl Keeper {
     }
     pub(super) fn take(&mut self) -> Option<Pool> {
         self.pool.take()
+    }
+    pub(super) fn retained_source_bytes(&self) -> usize {
+        self.pool.as_ref().map_or(0, |pool| pool.source_cost.total)
     }
     pub(super) fn finish(
         &mut self,
@@ -294,6 +301,27 @@ impl Keeper {
         drop(prior);
         Ok(())
     }
+    /// 请求已成功提交后的可丢弃缓存收尾，不得把缓存失败变成业务失败。
+    /// 这里只消费同次审计的原件和已封存证书；不读取SQL、不生成新的审计资格。
+    pub(super) fn retain_completed(
+        &mut self,
+        capture: sc::AuditCapture,
+        nodes: usize,
+        pending: PendingPool,
+    ) {
+        self.clear();
+        match Pool::build(capture, nodes, pending.binding, pending.proofs) {
+            Ok(next) => {
+                if self.finish(None, next, pending.hits, pending.cold).is_err() {
+                    self.clear();
+                    self.rejected = self.rejected.saturating_add(1);
+                }
+            }
+            Err(_) => {
+                self.rejected = self.rejected.saturating_add(1);
+            }
+        }
+    }
     pub(super) fn report(&self) -> serde_json::Value {
         serde_json::json!({"cap":self.cap,"hits":self.hits,"cold":self.cold,"rejected":self.rejected,"last_required":self.last_required,
             "retained_source_cost":self.pool.as_ref().map_or(0,|p|p.source_cost.total),
@@ -303,6 +331,13 @@ impl Keeper {
             "peak_two_pool_source_cost":self.peak_two_pool_source_cost,"peak_two_pool_capacity_payload":self.peak_two_pool_capacity_payload,
             "whole_resource_qualified":false,"uncovered":["HashMap control bytes","allocator overhead","transient verifier/overlay","process heap/RSS/IO peak"]})
     }
+}
+/// 与请求slot共存的候选证书；SQL原件只在完整审计的同一事务中封存。
+pub(super) struct PendingPool {
+    binding: Binding,
+    proofs: Vec<Proof>,
+    hits: usize,
+    cold: usize,
 }
 pub(super) struct Trial<'a> {
     prior: Option<&'a Pool>,
@@ -366,6 +401,14 @@ impl<'a> Trial<'a> {
             self.hits,
             self.cold,
         ))
+    }
+    pub(super) fn seal(self, tx: &Transaction<'_>, frontier: i64) -> Result<PendingPool, String> {
+        Ok(PendingPool {
+            binding: Binding::read(tx, frontier)?,
+            proofs: self.proofs,
+            hits: self.hits,
+            cold: self.cold,
+        })
     }
 }
 

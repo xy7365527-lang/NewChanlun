@@ -83,8 +83,11 @@ pub(super) struct Driver {
     epoch: String,
     profile_id: String,
     volume_unit: Option<String>,
-    /// 只保留显式预算数值，不保留 AuditedState、源节点或审计结果；每次 handle 仍 fresh audit。
+    /// 启动时冻结的唯一审计源保留预算；每次handle仍重新读取当前原件。
     audit_cache_source_bytes: Option<usize>,
+    /// 只在显式Native模式启用；无AuditedState、完整历史结果或验证memo。
+    #[cfg(feature = "s_capture_native_testonly")]
+    source_keeper: Option<super::cross_request_source_cache::Keeper>,
     _lock: File,
     #[cfg(test)]
     stop_after: Option<&'static str>,
@@ -328,6 +331,8 @@ impl Driver {
             profile_id,
             volume_unit,
             audit_cache_source_bytes: None,
+            #[cfg(feature = "s_capture_native_testonly")]
+            source_keeper: None,
             _lock: lock,
             #[cfg(test)]
             stop_after: None,
@@ -337,17 +342,46 @@ impl Driver {
     }
 
     pub(super) fn handle(&mut self, envelope: Value) -> Result<Value, String> {
+        #[cfg(not(feature = "s_capture_native_testonly"))]
         let mut request_audit = request_audit::RequestAuditContext::default();
+        #[cfg(feature = "s_capture_native_testonly")]
+        let mut request_audit = {
+            let previous = self.source_keeper.take();
+            let cap = self.audit_cache_source_bytes.filter(|cap| {
+                matches!(self.mode, s_allocation::Mode::CapturedNative)
+                    && super::cross_request_source_cache::Keeper::retention_possible(*cap)
+            });
+            match cap {
+                Some(cap) => request_audit::RequestAuditContext::with_source_keeper(
+                    previous.unwrap_or_else(|| super::cross_request_source_cache::Keeper::new(cap)),
+                ),
+                None => request_audit::RequestAuditContext::default(),
+            }
+        };
+        let result = self.handle_in_request(envelope, &mut request_audit);
+        #[cfg(feature = "s_capture_native_testonly")]
+        if result.is_ok() {
+            // 此时可能已COMMIT。可丢弃缓存的计费/分配失败不能覆写真实业务回复。
+            self.source_keeper = request_audit.finish_source_keeper();
+        }
+        result
+    }
+
+    fn handle_in_request(
+        &mut self,
+        envelope: Value,
+        request_audit: &mut request_audit::RequestAuditContext,
+    ) -> Result<Value, String> {
         let envelope = validate_request(envelope)?;
         if let Some(cap) = self.audit_cache_source_bytes {
-            state::check_audit_source_retention(cap)?;
+            state::check_audit_source_retention_bytes(cap, request_audit.retained_source_bytes())?;
         }
         let tx = self.conn.transaction().map_err(err)?;
         s_allocation::audit_in_request(
             &tx,
             &self.mode,
             s_allocation::Phase::Handle,
-            &mut request_audit,
+            request_audit,
         )?;
         verify_writer_epoch(&tx, &self.epoch)?;
         let control = control::S3Control::attach(&tx, &self.clock)?;
@@ -414,7 +448,7 @@ impl Driver {
                     drop(tx);
                     original
                 };
-                self.advance(&original, &mut request_audit)
+                self.advance(&original, request_audit)
             }
             _ => Err("SchemaUnsupported：未知S3 op；recover只属于监督器".into()),
         }
@@ -1200,6 +1234,141 @@ mod tests {
             s_allocation::Mode::CapturedNative,
         )
         .unwrap()
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn measured_source_cap(driver: &mut Driver) -> usize {
+        let mut probe = super::super::cross_request_source_cache::Keeper::new(usize::MAX);
+        let tx = driver.conn.transaction().unwrap();
+        state::audit_native_with_source_keeper_for_testonly(&tx, &mut probe).unwrap();
+        probe.last_required
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn source_keeper_driver_append_repost_restart_preserves_results_and_request_reuse() {
+        let reference = Fixture::new();
+        let mut ordinary = reference.open("1").unwrap();
+        let expected = (1..=3)
+            .map(|n| ordinary.handle(Fixture::ingest(n)).unwrap())
+            .collect::<Vec<_>>();
+        let cap = measured_source_cap(&mut ordinary);
+        let fixture = Fixture::new();
+        let mut driver = Driver::open_for_serve_with_mode(
+            &fixture.db,
+            &fixture.profile,
+            "1",
+            fixture.clock.clone(),
+            cap,
+            s_allocation::Mode::CapturedNative,
+        )
+        .unwrap();
+        assert!(driver.source_keeper.is_none(), "startup不得沿用旧请求缓存");
+        for n in 1..=3 {
+            let (actual, events, _) = state::traced(false, || driver.handle(Fixture::ingest(n)));
+            assert_eq!(actual.unwrap(), expected[n as usize - 1]);
+            assert_eq!(
+                events
+                    .iter()
+                    .filter(|e| e["phase"] == "request_history_cold")
+                    .count(),
+                1
+            );
+            assert_eq!(
+                events
+                    .iter()
+                    .filter(|e| e["phase"] == "request_history_hit")
+                    .count(),
+                2
+            );
+            assert_eq!(
+                events
+                    .iter()
+                    .filter(|e| e["phase"] == "request_history_context_released")
+                    .count(),
+                1
+            );
+            let keeper = driver.source_keeper.as_ref().unwrap();
+            assert!(keeper.retained_source_bytes() > 0 && keeper.retained_source_bytes() <= cap);
+            let report = keeper.report();
+            for mode in ["public", "template"] {
+                assert!(report["retained_capture"][mode]
+                    .as_object()
+                    .unwrap()
+                    .values()
+                    .all(|v| v.as_u64() == Some(0)));
+            }
+            assert_eq!(
+                report["retained_capture"]["native_frame_reuse"]["retained_entries"],
+                0
+            );
+        }
+        assert!(
+            driver.source_keeper.as_ref().unwrap().hits > 0,
+            "追加请求须复用已核旧cut"
+        );
+        assert_eq!(driver.handle(Fixture::ingest(3)).unwrap(), expected[2]);
+        let hits = driver.source_keeper.as_ref().unwrap().hits;
+        assert_eq!(driver.handle(Fixture::ingest(3)).unwrap(), expected[2]);
+        assert_eq!(driver.source_keeper.as_ref().unwrap().hits - hits, 3);
+        assert_eq!(
+            driver.state_summary("cached-native").unwrap(),
+            ordinary.state_summary("cached-native").unwrap()
+        );
+        drop(driver);
+        let mut restarted = Driver::open_for_serve_with_mode(
+            &fixture.db,
+            &fixture.profile,
+            "1",
+            fixture.clock.clone(),
+            cap,
+            s_allocation::Mode::CapturedNative,
+        )
+        .unwrap();
+        assert!(restarted.source_keeper.is_none());
+        assert_eq!(restarted.handle(Fixture::ingest(3)).unwrap(), expected[2]);
+        let keeper = restarted.source_keeper.as_ref().unwrap();
+        assert_eq!((keeper.cold, keeper.hits), (3, 0));
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn source_keeper_driver_measured_cap_only_changes_retention() {
+        let fixture = Fixture::new();
+        let mut seed = fixture.open("1").unwrap();
+        let reply = seed.handle(Fixture::ingest(1)).unwrap();
+        let cap = measured_source_cap(&mut seed);
+        drop(seed);
+        for budget in [cap, cap - 1, 1] {
+            let mut driver = Driver::open_for_serve_with_mode(
+                &fixture.db,
+                &fixture.profile,
+                "1",
+                fixture.clock.clone(),
+                budget,
+                s_allocation::Mode::CapturedNative,
+            )
+            .unwrap();
+            assert_eq!(
+                driver.handle(Fixture::ingest(1)).unwrap(),
+                reply,
+                "缓存不足不改变已提交回复"
+            );
+            let retained = driver
+                .source_keeper
+                .as_ref()
+                .map_or(0, |k| k.retained_source_bytes());
+            assert_eq!(retained, if budget == cap { cap } else { 0 });
+            if budget == 1 {
+                assert!(driver.source_keeper.is_none(), "原S7=1不创建keeper");
+            }
+            assert_eq!(driver.handle(Fixture::ingest(1)).unwrap(), reply);
+            assert_eq!(meta_i64(&driver.conn, "generation").unwrap(), 1);
+        }
+        let mut ordinary = fixture.open("1").unwrap();
+        ordinary.audit_cache_source_bytes = Some(cap);
+        assert_eq!(ordinary.handle(Fixture::ingest(1)).unwrap(), reply);
+        assert!(ordinary.source_keeper.is_none(), "普通路径没有keeper");
     }
 
     #[cfg(feature = "s_capture_native_testonly")]

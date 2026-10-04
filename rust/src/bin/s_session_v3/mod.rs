@@ -46,7 +46,7 @@ mod catalog_evidence;
 mod commit;
 mod control;
 mod control_audit;
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(feature = "s_capture_native_testonly")]
 mod cross_request_source_cache;
 mod driver;
 mod financial_reader;

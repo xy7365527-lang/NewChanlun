@@ -1,5 +1,6 @@
 //! #1394 Native同一同步handler或服务bootstrap局部scope内纯历史结果；每事务重新绑定完整原件。
-//! 不存Driver/Runtime/TLS，不接收跨请求材料，不授予提交许可。S7仍计跨请求保留。
+//! 完整历史只在handler内复用；Native可经精确原件绑定复用Driver持有的来源Counts。
+//! 请求成功后仅移交原件与来源证书，完整历史结果和全部memo都释放，不授予提交许可。
 use super::{audit_header::AuditSourceCommit, state::ImmutableHistoricalAudit};
 use newchan_rust::s_content::AuditCapture;
 use rusqlite::{params, types::ValueRef, Params, Transaction};
@@ -8,6 +9,8 @@ use std::rc::Rc;
 #[derive(Default)]
 pub(super) struct RequestAuditContext {
     slot: Option<VerifiedHistoricalSlot>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    source_keeper: Option<super::cross_request_source_cache::Keeper>,
     #[cfg(test)]
     binding_hook: Option<fn(&Transaction<'_>)>,
     #[cfg(test)]
@@ -29,8 +32,52 @@ pub(super) struct VerifiedHistoricalSlot {
     pub(super) capture: AuditCapture,
     pub(super) node_count: usize,
     pub(super) result: Rc<ImmutableHistoricalAudit>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) source_pending: Option<super::cross_request_source_cache::PendingPool>,
 }
 impl RequestAuditContext {
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn with_source_keeper(keeper: super::cross_request_source_cache::Keeper) -> Self {
+        let mut context = Self::default();
+        context.source_keeper = Some(keeper);
+        context
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn source_cache_enabled(&self) -> bool {
+        self.source_keeper.is_some()
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn take_source_pool(&mut self) -> Option<super::cross_request_source_cache::Pool> {
+        self.source_keeper.as_mut()?.take()
+    }
+    pub(super) fn retained_source_bytes(&self) -> usize {
+        #[cfg(feature = "s_capture_native_testonly")]
+        {
+            self.source_keeper
+                .as_ref()
+                .map_or(0, |keeper| keeper.retained_source_bytes())
+        }
+        #[cfg(not(feature = "s_capture_native_testonly"))]
+        {
+            0
+        }
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn finish_source_keeper(
+        mut self,
+    ) -> Option<super::cross_request_source_cache::Keeper> {
+        let mut keeper = self.source_keeper.take()?;
+        keeper.clear();
+        if let Some(slot) = self.slot.take() {
+            // 释放完整cuts/index和Rc，只有同一次审计封存的候选证书可跟随capture移交。
+            drop(slot.result);
+            drop(slot.binding);
+            if let Some(pending) = slot.source_pending {
+                keeper.retain_completed(slot.capture, slot.node_count, pending);
+            }
+        }
+        Some(keeper)
+    }
     pub(super) fn take(&mut self) -> Option<VerifiedHistoricalSlot> {
         self.slot.take()
     }
@@ -41,6 +88,9 @@ impl RequestAuditContext {
         node_count: usize,
         result: Rc<ImmutableHistoricalAudit>,
         hit: bool,
+        #[cfg(feature = "s_capture_native_testonly")] source_pending: Option<
+            super::cross_request_source_cache::PendingPool,
+        >,
     ) {
         #[cfg(test)]
         {
@@ -57,6 +107,8 @@ impl RequestAuditContext {
             capture,
             node_count,
             result,
+            #[cfg(feature = "s_capture_native_testonly")]
+            source_pending,
         });
     }
     #[cfg(test)]
