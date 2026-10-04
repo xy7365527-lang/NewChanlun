@@ -1,0 +1,149 @@
+{
+  "stage": 35,
+  "date": "2026-10-04",
+  "issue": 1467,
+  "related_issue": 1468,
+  "profile": "published-mid-first-change/2",
+  "node": "v22.23.1",
+  "scope": "外部标签可行性及候选实验合同；不含训练、F1/F2资格或增量效应",
+  "semantic": "not_reviewed",
+  "runs": {
+    "label-grid-v2": {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/label-grid-v2",
+      "report": {
+        "profile": "published-mid-first-change/2",
+        "grid_ns": "100000000",
+        "horizon_ns": "1000000000",
+        "input_sha256": "a52374d3d1fc922eca44a692cc4243db2a083ee93346bc5b2181292ae66a47a5",
+        "input_rows": 20868,
+        "output_sha256": "b945b5c6e0148b67ee6b1dda958b9200b91e16db4fff3c25f55622f6e83805fa",
+        "capture_buckets": 20868,
+        "equal_time_buckets": 0,
+        "continuity_barriers": 340,
+        "decisions": 572,
+        "dispositions": {
+          "ineligible_at_decision": 3,
+          "observed_change": 542,
+          "observed_no_change": 27
+        },
+        "labels": {
+          "down": 146,
+          "up": 396,
+          "none": 27
+        },
+        "distinct_change_witnesses": 309,
+        "max_decisions_sharing_change": 10,
+        "zero_duration_change_labels": 0,
+        "scope": "exploratory target feasibility only; no features, model fit, C qualification, value or PnL",
+        "independent_review": "not_reviewed"
+      },
+      "report_sha256": "b88e0f8a8a3a3ec8ac4ec70f0a65db4f4f7c2acb6b05f05ecdd399eb0b7393eb"
+    },
+    "label-grid-gap-v2": {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/label-grid-gap-v2",
+      "report": {
+        "profile": "published-mid-first-change/2",
+        "grid_ns": "100000000",
+        "horizon_ns": "1000000000",
+        "input_sha256": "6d3da86798b89e6a6730bcee83bd7bbd462dfc15a285beda0c73e8c7c6be2e46",
+        "input_rows": 20868,
+        "output_sha256": "87a740029e88d88bb7cb12230bcc1697e90465d40187f41d30153efbd3be9458",
+        "capture_buckets": 20867,
+        "equal_time_buckets": 1,
+        "continuity_barriers": 9344,
+        "decisions": 572,
+        "dispositions": {
+          "ineligible_at_decision": 320,
+          "observed_change": 228,
+          "observed_no_change": 24
+        },
+        "labels": {
+          "down": 72,
+          "up": 156,
+          "none": 24
+        },
+        "distinct_change_witnesses": 145,
+        "max_decisions_sharing_change": 10,
+        "zero_duration_change_labels": 0,
+        "scope": "exploratory target feasibility only; no features, model fit, C qualification, value or PnL",
+        "independent_review": "not_reviewed"
+      },
+      "report_sha256": "9ad8b430d7a7599f634b5a39d04aa450767634dc1c5c3186a56c007b8977ac1f"
+    }
+  },
+  "checks": {
+    "named_cases": 18,
+    "varied_traces": 64,
+    "baseline_and_gap_reference_equal": true,
+    "prefix_cuts": [
+      339,
+      340,
+      1000,
+      10000
+    ],
+    "baseline_verification_tool_chunk": "33302b",
+    "baseline_verification_evidence_kind": "本会话工具输出记录，未重跑已通过命令",
+    "gap_verification_receipt": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/label-grid-v2/tool-receipts.json"
+  },
+  "initial_version_retained": [
+    "label-grid-v1",
+    "label-grid-gap-v1"
+  ],
+  "correction": "不再提前封闭EOF同刻桶，特征只使用capture<t；原参数保持",
+  "sources": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage35WorkCard.md",
+      "sha256": "c45d2b4cfdcae95932a81a350564e4948e3698b673d9fcfcb0a2fb272fa2a039"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/order_label_probe.mjs",
+      "sha256": "d909d6aac8b222cde57c3c35730bbae822fe9cf2481a16a78157b3e02c5553da"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/order_label_probe_test.mjs",
+      "sha256": "e5aefd52a0a35e81e49a977ca31362039ed5e6ab6881947e9360d770d769420c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/ExperimentDesignCandidate-v1.md",
+      "sha256": "fa5cc0c57fadf723629969267ae58ab85ac5bd478ac7ab9ebe742f0565c57dac"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage35ExternalTarget.md",
+      "sha256": "23140dcd39546fbe6e6c268b92f86ae2b6fb87e4b1b08f87a109794418f7feeb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage16CausalViews.md",
+      "sha256": "5cc8292241275d4a580e3e05f1eeaa7cd39c513cc22c5e25a6388851a7ecc1e1"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage16-evidence.json",
+      "sha256": "96f072b75e53c8f53d30c6aea70e5ca5b836ea695c177584de68b1a4819a1594"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/GoalReframe-v4.md",
+      "sha256": "36159c5f6bd4062a6654bd3f22b3eaf00e678e5d5dacda844cbf659e230ce39d"
+    }
+  ],
+  "inputs": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/causal-view-v1/rows.jsonl",
+      "sha256": "a52374d3d1fc922eca44a692cc4243db2a083ee93346bc5b2181292ae66a47a5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/causal-view-v1/gap-recovery-1/continuous/rows.jsonl",
+      "sha256": "6d3da86798b89e6a6730bcee83bd7bbd462dfc15a285beda0c73e8c7c6be2e46"
+    }
+  ],
+  "artifact_bytes": 852705,
+  "artifact_budget_bytes": 16777216,
+  "external_sources": [
+    {
+      "url": "https://arxiv.org/html/1512.03492v1",
+      "read_scope": "摘要及第5.1、第5.2节；不是缠论合法性证据"
+    },
+    {
+      "url": "https://arxiv.org/abs/1011.6402v3",
+      "read_scope": "摘要；只用于直接订单信息对照的依据"
+    }
+  ]
+}
