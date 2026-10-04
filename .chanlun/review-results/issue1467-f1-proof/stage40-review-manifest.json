@@ -1,0 +1,187 @@
+{
+  "issue": 1467,
+  "date": "2026-10-04",
+  "base_commit": "d45f560a8462ff245f47cfb29c7abbe7b0bc2188",
+  "status": "not_dispatched",
+  "semantic": "not_reviewed",
+  "readback": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/ReferenceBaseFixture.lean",
+      "sha256": "bf89332a05592d0010a3107433887b2798a7ed297dd5755740862d912ef9082d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/ReferenceBaseSpec.lean",
+      "sha256": "b65a89ee4042504c87c1e92eb3af83607765636f894ba5cdfadbc1cee33c2918"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/ReferenceBaseProof.lean",
+      "sha256": "a11d0bd08f3e34e1b533c02eb4e657a6ff626cd4a72e121b841547175ee7a4d1"
+    },
+    {
+      "path": "formal/Origin/ChanlunElements.lean",
+      "sha256": "19c33e884e6949cdd56a51ff7c44dc086354994b7f54431f57bec4a0849fa201"
+    },
+    {
+      "path": "formal/Origin/SegmentAutoConstruct.lean",
+      "sha256": "3ffd1f05eb003e812c4c6a68327bec3897e5f432bdc39cf80f498e7245df026c"
+    },
+    {
+      "path": "formal/Origin/SegmentFeatureSeq.lean",
+      "sha256": "4f727a53f24ee548abd340ab6894be5f976d21ef4bd1d12bde18f5e3973429dc"
+    },
+    {
+      "path": "formal/Origin/SegmentFeatureComplete.lean",
+      "sha256": "c740b9a77bbda167f6ef3d08f2ad3d24dbe0ba0f617d5eedc0f88ab1bd07ef7e"
+    },
+    {
+      "path": "formal/Origin/CenterComplete.lean",
+      "sha256": "478e34e703801742e6808c834488b7fe009d94bb0d896eb65e7d6a20105d64c2"
+    }
+  ],
+  "comparison": [
+    {
+      "path": "docs/chanlun/text/blog/035-第35课.md",
+      "sha256": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023",
+      "ranges": [
+        [
+          14,
+          24
+        ],
+        [
+          38,
+          38
+        ]
+      ]
+    },
+    {
+      "path": "docs/chanlun/text/blog/037-第37课.md",
+      "sha256": "f360d985b3f3b1fa567ca13e15f2ffaf9eae39dbb418519f75d1f6175ac70753",
+      "ranges": [
+        [
+          14,
+          22
+        ],
+        [
+          30,
+          40
+        ]
+      ]
+    },
+    {
+      "path": "docs/chanlun/text/blog/057-第57课.md",
+      "sha256": "ddf81002acbebfa198320e44d63093e915cce8e73dcc102bdba93b3ca164973f",
+      "ranges": [
+        [
+          26,
+          42
+        ],
+        [
+          48,
+          48
+        ]
+      ]
+    },
+    {
+      "path": "docs/chanlun/text/blog/084-第84课.md",
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26",
+      "ranges": [
+        [
+          50,
+          56
+        ],
+        [
+          68,
+          68
+        ]
+      ]
+    },
+    {
+      "path": ".chanlun/definitions/beichi.md",
+      "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+      "ranges": [
+        [
+          313,
+          323
+        ],
+        [
+          338,
+          357
+        ],
+        [
+          535,
+          546
+        ]
+      ]
+    },
+    {
+      "path": ".chanlun/definitions/level_recursion.md",
+      "sha256": "06ac7aee96b089536766ac172b52ff0f8d702f2e4ec01ca2b47b1f3a590e1637",
+      "ranges": [
+        [
+          29,
+          63
+        ],
+        [
+          99,
+          110
+        ],
+        [
+          283,
+          297
+        ]
+      ]
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/CenterAttemptSpec.lean",
+      "sha256": "9f25b1483f52df552851c5e746287ac9abe54792ef2076729e3a39b93a81afe8",
+      "ranges": [
+        [
+          1,
+          52
+        ],
+        [
+          68,
+          103
+        ]
+      ]
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/GoalReframe-v4.md",
+      "sha256": "36159c5f6bd4062a6654bd3f22b3eaf00e678e5d5dacda844cbf659e230ce39d",
+      "ranges": [
+        [
+          1,
+          66
+        ]
+      ]
+    }
+  ],
+  "independence": {
+    "author_conversation": false,
+    "readback_gets_author_report": false,
+    "comparison_context_separate": true
+  },
+  "api_probe": {
+    "cli_version": "0.159.1",
+    "schema_files": [
+      {
+        "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/interface-review-v1/TurnSettingsUpdateParams.json",
+        "sha256": "3c0198540df66802752daa59680733221e0bc2deaf3cd0ab2c5b9daa6332ef7a"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/interface-review-v1/TurnSettingsUpdateResponse.json",
+        "sha256": "504e2ef2c3d06b13a107bf94a74791ff7f61c4a234f0beff78dca406ae2d1181"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/interface-review-v1/ThreadSettingsUpdateParams.json",
+        "sha256": "749419634bb7ed66216d72bf9d8734ecf0e6efaa8cd46fe51a117d1b42ed9657"
+      }
+    ],
+    "proxy": "connection_failed_missing_control_socket",
+    "socket": "/Users/silencehan/.codex/app-server-control/app-server-control.sock",
+    "mutation_sent": false,
+    "model_changed": false,
+    "child_spawned": false,
+    "daemon_started_or_restarted": false
+  }
+}
