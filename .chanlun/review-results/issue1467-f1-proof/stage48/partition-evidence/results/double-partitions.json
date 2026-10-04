@@ -1,0 +1,846 @@
+{
+  "repeated18": {
+    "profile": "TREND-ONLY",
+    "policy": "CLOSED-CUT",
+    "k": 15,
+    "blocks": 2,
+    "count": "2",
+    "witnesses": [
+      {
+        "cuts": [
+          0,
+          7,
+          15
+        ],
+        "tail": [
+          16,
+          18
+        ],
+        "edges": [
+          {
+            "s": 0,
+            "e": 7,
+            "type": "U",
+            "direction": 1,
+            "ownCoreIDs": [
+              "K@1",
+              "K@4"
+            ],
+            "range": [
+              10,
+              30
+            ],
+            "startValue": 10,
+            "endValue": 30,
+            "sourceEnd": 7,
+            "evaluatedAt": 18,
+            "catalogueFixedAt": 8,
+            "semanticCompletion": null,
+            "wRange": [
+              "101/1",
+              "203/2"
+            ],
+            "nextMatureWitness": {
+              "id": "K@10",
+              "value": 10,
+              "birth": 12,
+              "seed": [
+                10,
+                11,
+                12
+              ],
+              "nonAlong": true
+            }
+          },
+          {
+            "s": 7,
+            "e": 15,
+            "type": "D",
+            "direction": -1,
+            "ownCoreIDs": [
+              "K@10",
+              "K@13"
+            ],
+            "range": [
+              5,
+              30
+            ],
+            "startValue": 30,
+            "endValue": 5,
+            "sourceEnd": 15,
+            "evaluatedAt": 18,
+            "catalogueFixedAt": 16,
+            "semanticCompletion": null,
+            "wRange": [
+              "302/3",
+              "203/2"
+            ],
+            "nextMatureWitness": {
+              "id": "K@16",
+              "value": 15,
+              "birth": 18,
+              "seed": [
+                16,
+                17,
+                18
+              ],
+              "nonAlong": true
+            }
+          }
+        ]
+      },
+      {
+        "cuts": [
+          0,
+          9,
+          15
+        ],
+        "tail": [
+          16,
+          18
+        ],
+        "edges": [
+          {
+            "s": 0,
+            "e": 9,
+            "type": "U",
+            "direction": 1,
+            "ownCoreIDs": [
+              "K@1",
+              "K@4"
+            ],
+            "range": [
+              10,
+              30
+            ],
+            "startValue": 10,
+            "endValue": 30,
+            "sourceEnd": 9,
+            "evaluatedAt": 18,
+            "catalogueFixedAt": 10,
+            "semanticCompletion": null,
+            "wRange": [
+              "101/1",
+              "203/2"
+            ],
+            "nextMatureWitness": {
+              "id": "K@10",
+              "value": 10,
+              "birth": 12,
+              "seed": [
+                10,
+                11,
+                12
+              ],
+              "nonAlong": true
+            }
+          },
+          {
+            "s": 9,
+            "e": 15,
+            "type": "D",
+            "direction": -1,
+            "ownCoreIDs": [
+              "K@10",
+              "K@13"
+            ],
+            "range": [
+              5,
+              30
+            ],
+            "startValue": 30,
+            "endValue": 5,
+            "sourceEnd": 15,
+            "evaluatedAt": 18,
+            "catalogueFixedAt": 16,
+            "semanticCompletion": null,
+            "wRange": [
+              "302/3",
+              "203/2"
+            ],
+            "nextMatureWitness": {
+              "id": "K@16",
+              "value": 15,
+              "birth": 18,
+              "seed": [
+                16,
+                17,
+                18
+              ],
+              "nonAlong": true
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "repeated24": {
+    "profile": "TREND-ONLY",
+    "policy": "CLOSED-CUT",
+    "k": 21,
+    "blocks": 3,
+    "count": "2",
+    "witnesses": [
+      {
+        "cuts": [
+          0,
+          7,
+          15,
+          21
+        ],
+        "tail": [
+          22,
+          24
+        ],
+        "edges": [
+          {
+            "s": 0,
+            "e": 7,
+            "type": "U",
+            "direction": 1,
+            "ownCoreIDs": [
+              "K@1",
+              "K@4"
+            ],
+            "range": [
+              10,
+              30
+            ],
+            "startValue": 10,
+            "endValue": 30,
+            "sourceEnd": 7,
+            "evaluatedAt": 24,
+            "catalogueFixedAt": 8,
+            "semanticCompletion": null,
+            "wRange": [
+              "101/1",
+              "203/2"
+            ],
+            "nextMatureWitness": {
+              "id": "K@10",
+              "value": 10,
+              "birth": 12,
+              "seed": [
+                10,
+                11,
+                12
+              ],
+              "nonAlong": true
+            }
+          },
+          {
+            "s": 7,
+            "e": 15,
+            "type": "D",
+            "direction": -1,
+            "ownCoreIDs": [
+              "K@10",
+              "K@13"
+            ],
+            "range": [
+              5,
+              30
+            ],
+            "startValue": 30,
+            "endValue": 5,
+            "sourceEnd": 15,
+            "evaluatedAt": 24,
+            "catalogueFixedAt": 16,
+            "semanticCompletion": null,
+            "wRange": [
+              "302/3",
+              "203/2"
+            ],
+            "nextMatureWitness": {
+              "id": "K@16",
+              "value": 15,
+              "birth": 18,
+              "seed": [
+                16,
+                17,
+                18
+              ],
+              "nonAlong": true
+            }
+          },
+          {
+            "s": 15,
+            "e": 21,
+            "type": "U",
+            "direction": 1,
+            "ownCoreIDs": [
+              "K@16",
+              "K@19"
+            ],
+            "range": [
+              5,
+              25
+            ],
+            "startValue": 5,
+            "endValue": 25,
+            "sourceEnd": 21,
+            "evaluatedAt": 24,
+            "catalogueFixedAt": 22,
+            "semanticCompletion": null,
+            "wRange": [
+              "302/3",
+              "710/7"
+            ],
+            "nextMatureWitness": {
+              "id": "K@22",
+              "value": 10,
+              "birth": 24,
+              "seed": [
+                22,
+                23,
+                24
+              ],
+              "nonAlong": true
+            }
+          }
+        ]
+      },
+      {
+        "cuts": [
+          0,
+          9,
+          15,
+          21
+        ],
+        "tail": [
+          22,
+          24
+        ],
+        "edges": [
+          {
+            "s": 0,
+            "e": 9,
+            "type": "U",
+            "direction": 1,
+            "ownCoreIDs": [
+              "K@1",
+              "K@4"
+            ],
+            "range": [
+              10,
+              30
+            ],
+            "startValue": 10,
+            "endValue": 30,
+            "sourceEnd": 9,
+            "evaluatedAt": 24,
+            "catalogueFixedAt": 10,
+            "semanticCompletion": null,
+            "wRange": [
+              "101/1",
+              "203/2"
+            ],
+            "nextMatureWitness": {
+              "id": "K@10",
+              "value": 10,
+              "birth": 12,
+              "seed": [
+                10,
+                11,
+                12
+              ],
+              "nonAlong": true
+            }
+          },
+          {
+            "s": 9,
+            "e": 15,
+            "type": "D",
+            "direction": -1,
+            "ownCoreIDs": [
+              "K@10",
+              "K@13"
+            ],
+            "range": [
+              5,
+              30
+            ],
+            "startValue": 30,
+            "endValue": 5,
+            "sourceEnd": 15,
+            "evaluatedAt": 24,
+            "catalogueFixedAt": 16,
+            "semanticCompletion": null,
+            "wRange": [
+              "302/3",
+              "203/2"
+            ],
+            "nextMatureWitness": {
+              "id": "K@16",
+              "value": 15,
+              "birth": 18,
+              "seed": [
+                16,
+                17,
+                18
+              ],
+              "nonAlong": true
+            }
+          },
+          {
+            "s": 15,
+            "e": 21,
+            "type": "U",
+            "direction": 1,
+            "ownCoreIDs": [
+              "K@16",
+              "K@19"
+            ],
+            "range": [
+              5,
+              25
+            ],
+            "startValue": 5,
+            "endValue": 25,
+            "sourceEnd": 21,
+            "evaluatedAt": 24,
+            "catalogueFixedAt": 22,
+            "semanticCompletion": null,
+            "wRange": [
+              "302/3",
+              "710/7"
+            ],
+            "nextMatureWitness": {
+              "id": "K@22",
+              "value": 10,
+              "birth": 24,
+              "seed": [
+                22,
+                23,
+                24
+              ],
+              "nonAlong": true
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "repeated18Shift100": {
+    "profile": "TREND-ONLY",
+    "policy": "CLOSED-CUT",
+    "k": 15,
+    "blocks": 2,
+    "count": "2",
+    "witnesses": [
+      {
+        "cuts": [
+          0,
+          7,
+          15
+        ],
+        "tail": [
+          16,
+          18
+        ],
+        "edges": [
+          {
+            "s": 0,
+            "e": 7,
+            "type": "U",
+            "direction": 1,
+            "ownCoreIDs": [
+              "K@1",
+              "K@4"
+            ],
+            "range": [
+              110,
+              130
+            ],
+            "startValue": 110,
+            "endValue": 130,
+            "sourceEnd": 7,
+            "evaluatedAt": 18,
+            "catalogueFixedAt": 8,
+            "semanticCompletion": null,
+            "wRange": [
+              "611/6",
+              "713/7"
+            ],
+            "nextMatureWitness": {
+              "id": "K@10",
+              "value": 110,
+              "birth": 12,
+              "seed": [
+                10,
+                11,
+                12
+              ],
+              "nonAlong": true
+            }
+          },
+          {
+            "s": 7,
+            "e": 15,
+            "type": "D",
+            "direction": -1,
+            "ownCoreIDs": [
+              "K@10",
+              "K@13"
+            ],
+            "range": [
+              105,
+              130
+            ],
+            "startValue": 130,
+            "endValue": 105,
+            "sourceEnd": 15,
+            "evaluatedAt": 18,
+            "catalogueFixedAt": 16,
+            "semanticCompletion": null,
+            "wRange": [
+              "2342/23",
+              "713/7"
+            ],
+            "nextMatureWitness": {
+              "id": "K@16",
+              "value": 115,
+              "birth": 18,
+              "seed": [
+                16,
+                17,
+                18
+              ],
+              "nonAlong": true
+            }
+          }
+        ]
+      },
+      {
+        "cuts": [
+          0,
+          9,
+          15
+        ],
+        "tail": [
+          16,
+          18
+        ],
+        "edges": [
+          {
+            "s": 0,
+            "e": 9,
+            "type": "U",
+            "direction": 1,
+            "ownCoreIDs": [
+              "K@1",
+              "K@4"
+            ],
+            "range": [
+              110,
+              130
+            ],
+            "startValue": 110,
+            "endValue": 130,
+            "sourceEnd": 9,
+            "evaluatedAt": 18,
+            "catalogueFixedAt": 10,
+            "semanticCompletion": null,
+            "wRange": [
+              "611/6",
+              "713/7"
+            ],
+            "nextMatureWitness": {
+              "id": "K@10",
+              "value": 110,
+              "birth": 12,
+              "seed": [
+                10,
+                11,
+                12
+              ],
+              "nonAlong": true
+            }
+          },
+          {
+            "s": 9,
+            "e": 15,
+            "type": "D",
+            "direction": -1,
+            "ownCoreIDs": [
+              "K@10",
+              "K@13"
+            ],
+            "range": [
+              105,
+              130
+            ],
+            "startValue": 130,
+            "endValue": 105,
+            "sourceEnd": 15,
+            "evaluatedAt": 18,
+            "catalogueFixedAt": 16,
+            "semanticCompletion": null,
+            "wRange": [
+              "2342/23",
+              "713/7"
+            ],
+            "nextMatureWitness": {
+              "id": "K@16",
+              "value": 115,
+              "birth": 18,
+              "seed": [
+                16,
+                17,
+                18
+              ],
+              "nonAlong": true
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "repeated24Shift100": {
+    "profile": "TREND-ONLY",
+    "policy": "CLOSED-CUT",
+    "k": 21,
+    "blocks": 3,
+    "count": "2",
+    "witnesses": [
+      {
+        "cuts": [
+          0,
+          7,
+          15,
+          21
+        ],
+        "tail": [
+          22,
+          24
+        ],
+        "edges": [
+          {
+            "s": 0,
+            "e": 7,
+            "type": "U",
+            "direction": 1,
+            "ownCoreIDs": [
+              "K@1",
+              "K@4"
+            ],
+            "range": [
+              110,
+              130
+            ],
+            "startValue": 110,
+            "endValue": 130,
+            "sourceEnd": 7,
+            "evaluatedAt": 24,
+            "catalogueFixedAt": 8,
+            "semanticCompletion": null,
+            "wRange": [
+              "611/6",
+              "713/7"
+            ],
+            "nextMatureWitness": {
+              "id": "K@10",
+              "value": 110,
+              "birth": 12,
+              "seed": [
+                10,
+                11,
+                12
+              ],
+              "nonAlong": true
+            }
+          },
+          {
+            "s": 7,
+            "e": 15,
+            "type": "D",
+            "direction": -1,
+            "ownCoreIDs": [
+              "K@10",
+              "K@13"
+            ],
+            "range": [
+              105,
+              130
+            ],
+            "startValue": 130,
+            "endValue": 105,
+            "sourceEnd": 15,
+            "evaluatedAt": 24,
+            "catalogueFixedAt": 16,
+            "semanticCompletion": null,
+            "wRange": [
+              "2342/23",
+              "713/7"
+            ],
+            "nextMatureWitness": {
+              "id": "K@16",
+              "value": 115,
+              "birth": 18,
+              "seed": [
+                16,
+                17,
+                18
+              ],
+              "nonAlong": true
+            }
+          },
+          {
+            "s": 15,
+            "e": 21,
+            "type": "U",
+            "direction": 1,
+            "ownCoreIDs": [
+              "K@16",
+              "K@19"
+            ],
+            "range": [
+              105,
+              125
+            ],
+            "startValue": 105,
+            "endValue": 125,
+            "sourceEnd": 21,
+            "evaluatedAt": 24,
+            "catalogueFixedAt": 22,
+            "semanticCompletion": null,
+            "wRange": [
+              "2342/23",
+              "2750/27"
+            ],
+            "nextMatureWitness": {
+              "id": "K@22",
+              "value": 110,
+              "birth": 24,
+              "seed": [
+                22,
+                23,
+                24
+              ],
+              "nonAlong": true
+            }
+          }
+        ]
+      },
+      {
+        "cuts": [
+          0,
+          9,
+          15,
+          21
+        ],
+        "tail": [
+          22,
+          24
+        ],
+        "edges": [
+          {
+            "s": 0,
+            "e": 9,
+            "type": "U",
+            "direction": 1,
+            "ownCoreIDs": [
+              "K@1",
+              "K@4"
+            ],
+            "range": [
+              110,
+              130
+            ],
+            "startValue": 110,
+            "endValue": 130,
+            "sourceEnd": 9,
+            "evaluatedAt": 24,
+            "catalogueFixedAt": 10,
+            "semanticCompletion": null,
+            "wRange": [
+              "611/6",
+              "713/7"
+            ],
+            "nextMatureWitness": {
+              "id": "K@10",
+              "value": 110,
+              "birth": 12,
+              "seed": [
+                10,
+                11,
+                12
+              ],
+              "nonAlong": true
+            }
+          },
+          {
+            "s": 9,
+            "e": 15,
+            "type": "D",
+            "direction": -1,
+            "ownCoreIDs": [
+              "K@10",
+              "K@13"
+            ],
+            "range": [
+              105,
+              130
+            ],
+            "startValue": 130,
+            "endValue": 105,
+            "sourceEnd": 15,
+            "evaluatedAt": 24,
+            "catalogueFixedAt": 16,
+            "semanticCompletion": null,
+            "wRange": [
+              "2342/23",
+              "713/7"
+            ],
+            "nextMatureWitness": {
+              "id": "K@16",
+              "value": 115,
+              "birth": 18,
+              "seed": [
+                16,
+                17,
+                18
+              ],
+              "nonAlong": true
+            }
+          },
+          {
+            "s": 15,
+            "e": 21,
+            "type": "U",
+            "direction": 1,
+            "ownCoreIDs": [
+              "K@16",
+              "K@19"
+            ],
+            "range": [
+              105,
+              125
+            ],
+            "startValue": 105,
+            "endValue": 125,
+            "sourceEnd": 21,
+            "evaluatedAt": 24,
+            "catalogueFixedAt": 22,
+            "semanticCompletion": null,
+            "wRange": [
+              "2342/23",
+              "2750/27"
+            ],
+            "nextMatureWitness": {
+              "id": "K@22",
+              "value": 110,
+              "birth": 24,
+              "seed": [
+                22,
+                23,
+                24
+              ],
+              "nonAlong": true
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

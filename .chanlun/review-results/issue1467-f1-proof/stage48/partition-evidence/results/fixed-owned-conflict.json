@@ -1,0 +1,120 @@
+{
+  "name": "fixedOwned10",
+  "n": 10,
+  "states": [
+    10,
+    10,
+    10,
+    10,
+    30,
+    20,
+    20,
+    20,
+    15,
+    15,
+    15
+  ],
+  "ownCoreIDs": [
+    "K@1",
+    "K@5"
+  ],
+  "nextMatureCore": {
+    "id": "K@8",
+    "start": 8,
+    "end": 10,
+    "value": 15,
+    "birth": 10,
+    "seed": [
+      8,
+      9,
+      10
+    ],
+    "closed": false,
+    "sealedAt": null
+  },
+  "wholeK20Ends": [
+    7,
+    8,
+    9,
+    10
+  ],
+  "normalUpEnds": [
+    4
+  ],
+  "intersection": [],
+  "rows": [
+    {
+      "profile": "CORE",
+      "policy": "BASE",
+      "firstEdgesWithFixedCores": [
+        {
+          "s": 0,
+          "e": 7,
+          "type": "U",
+          "direction": 1,
+          "ownCoreIDs": [
+            "K@1",
+            "K@5"
+          ],
+          "range": [
+            10,
+            30
+          ],
+          "startValue": 10,
+          "endValue": 20,
+          "sourceEnd": 7,
+          "evaluatedAt": 10,
+          "catalogueFixedAt": 8,
+          "semanticCompletion": null
+        }
+      ]
+    },
+    {
+      "profile": "CORE",
+      "policy": "CLOSED-CUT",
+      "firstEdgesWithFixedCores": [
+        {
+          "s": 0,
+          "e": 7,
+          "type": "U",
+          "direction": 1,
+          "ownCoreIDs": [
+            "K@1",
+            "K@5"
+          ],
+          "range": [
+            10,
+            30
+          ],
+          "startValue": 10,
+          "endValue": 20,
+          "sourceEnd": 7,
+          "evaluatedAt": 10,
+          "catalogueFixedAt": 8,
+          "semanticCompletion": null
+        }
+      ]
+    },
+    {
+      "profile": "TREND-NORM",
+      "policy": "BASE",
+      "firstEdgesWithFixedCores": []
+    },
+    {
+      "profile": "TREND-NORM",
+      "policy": "CLOSED-CUT",
+      "firstEdgesWithFixedCores": []
+    },
+    {
+      "profile": "TREND-ONLY",
+      "policy": "BASE",
+      "firstEdgesWithFixedCores": []
+    },
+    {
+      "profile": "TREND-ONLY",
+      "policy": "CLOSED-CUT",
+      "firstEdgesWithFixedCores": []
+    }
+  ],
+  "scope": "two-subcondition minimal incompatibility for fixed history/start; not global impossibility of P partitions"
+}

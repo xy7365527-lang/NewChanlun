@@ -1,0 +1,200 @@
+[
+  {
+    "profile": "CORE",
+    "policy": "BASE",
+    "short": {
+      "reject": "no-owned-core"
+    },
+    "long": {
+      "edge": {
+        "s": 6,
+        "e": 13,
+        "type": "D",
+        "direction": -1,
+        "ownCoreIDs": [
+          "K@8",
+          "K@11"
+        ],
+        "range": [
+          10,
+          20
+        ],
+        "startValue": 20,
+        "endValue": 10,
+        "sourceEnd": 13,
+        "evaluatedAt": 16,
+        "catalogueFixedAt": 14,
+        "semanticCompletion": null
+      }
+    },
+    "fixedK": 13,
+    "blocks": 2,
+    "lockAt": 6,
+    "lockedCount": "1"
+  },
+  {
+    "profile": "CORE",
+    "policy": "CLOSED-CUT",
+    "short": {
+      "reject": "no-owned-core"
+    },
+    "long": {
+      "edge": {
+        "s": 6,
+        "e": 13,
+        "type": "D",
+        "direction": -1,
+        "ownCoreIDs": [
+          "K@8",
+          "K@11"
+        ],
+        "range": [
+          10,
+          20
+        ],
+        "startValue": 20,
+        "endValue": 10,
+        "sourceEnd": 13,
+        "evaluatedAt": 16,
+        "catalogueFixedAt": 14,
+        "semanticCompletion": null
+      }
+    },
+    "fixedK": 13,
+    "blocks": 2,
+    "lockAt": 6,
+    "lockedCount": "1"
+  },
+  {
+    "profile": "TREND-NORM",
+    "policy": "BASE",
+    "short": {
+      "reject": "no-owned-core"
+    },
+    "long": {
+      "edge": {
+        "s": 6,
+        "e": 13,
+        "type": "D",
+        "direction": -1,
+        "ownCoreIDs": [
+          "K@8",
+          "K@11"
+        ],
+        "range": [
+          10,
+          20
+        ],
+        "startValue": 20,
+        "endValue": 10,
+        "sourceEnd": 13,
+        "evaluatedAt": 16,
+        "catalogueFixedAt": 14,
+        "semanticCompletion": null
+      }
+    },
+    "fixedK": 13,
+    "blocks": 2,
+    "lockAt": 6,
+    "lockedCount": "1"
+  },
+  {
+    "profile": "TREND-NORM",
+    "policy": "CLOSED-CUT",
+    "short": {
+      "reject": "no-owned-core"
+    },
+    "long": {
+      "edge": {
+        "s": 6,
+        "e": 13,
+        "type": "D",
+        "direction": -1,
+        "ownCoreIDs": [
+          "K@8",
+          "K@11"
+        ],
+        "range": [
+          10,
+          20
+        ],
+        "startValue": 20,
+        "endValue": 10,
+        "sourceEnd": 13,
+        "evaluatedAt": 16,
+        "catalogueFixedAt": 14,
+        "semanticCompletion": null
+      }
+    },
+    "fixedK": 13,
+    "blocks": 2,
+    "lockAt": 6,
+    "lockedCount": "1"
+  },
+  {
+    "profile": "TREND-ONLY",
+    "policy": "BASE",
+    "short": {
+      "reject": "no-owned-core"
+    },
+    "long": {
+      "edge": {
+        "s": 6,
+        "e": 13,
+        "type": "D",
+        "direction": -1,
+        "ownCoreIDs": [
+          "K@8",
+          "K@11"
+        ],
+        "range": [
+          10,
+          20
+        ],
+        "startValue": 20,
+        "endValue": 10,
+        "sourceEnd": 13,
+        "evaluatedAt": 16,
+        "catalogueFixedAt": 14,
+        "semanticCompletion": null
+      }
+    },
+    "fixedK": 13,
+    "blocks": 2,
+    "lockAt": 6,
+    "lockedCount": "1"
+  },
+  {
+    "profile": "TREND-ONLY",
+    "policy": "CLOSED-CUT",
+    "short": {
+      "reject": "no-owned-core"
+    },
+    "long": {
+      "edge": {
+        "s": 6,
+        "e": 13,
+        "type": "D",
+        "direction": -1,
+        "ownCoreIDs": [
+          "K@8",
+          "K@11"
+        ],
+        "range": [
+          10,
+          20
+        ],
+        "startValue": 20,
+        "endValue": 10,
+        "sourceEnd": 13,
+        "evaluatedAt": 16,
+        "catalogueFixedAt": 14,
+        "semanticCompletion": null
+      }
+    },
+    "fixedK": 13,
+    "blocks": 2,
+    "lockAt": 6,
+    "lockedCount": "1"
+  }
+]

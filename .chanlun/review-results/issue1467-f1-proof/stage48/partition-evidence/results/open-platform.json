@@ -1,0 +1,323 @@
+{
+  "at4": {
+    "profile": "CORE",
+    "policy": "BASE",
+    "n": 4,
+    "examinedPairs": 10,
+    "edgeCount": 2,
+    "rejects": {
+      "mature-core-split": 7,
+      "no-owned-core": 1
+    },
+    "endpoints": [
+      {
+        "k": 0,
+        "total": "1",
+        "byBlocks": {
+          "0": "1"
+        },
+        "threeTrendStrict": "0",
+        "witnesses": {
+          "0": [
+            [
+              0
+            ]
+          ]
+        },
+        "threeWitnesses": []
+      },
+      {
+        "k": 1,
+        "total": "0",
+        "byBlocks": {},
+        "threeTrendStrict": "0",
+        "witnesses": {},
+        "threeWitnesses": []
+      },
+      {
+        "k": 2,
+        "total": "0",
+        "byBlocks": {},
+        "threeTrendStrict": "0",
+        "witnesses": {},
+        "threeWitnesses": []
+      },
+      {
+        "k": 3,
+        "total": "1",
+        "byBlocks": {
+          "1": "1"
+        },
+        "threeTrendStrict": "0",
+        "witnesses": {
+          "1": [
+            [
+              0,
+              3
+            ]
+          ]
+        },
+        "threeWitnesses": []
+      },
+      {
+        "k": 4,
+        "total": "1",
+        "byBlocks": {
+          "1": "1"
+        },
+        "threeTrendStrict": "0",
+        "witnesses": {
+          "1": [
+            [
+              0,
+              4
+            ]
+          ]
+        },
+        "threeWitnesses": []
+      }
+    ]
+  },
+  "at6": {
+    "profile": "CORE",
+    "policy": "BASE",
+    "n": 6,
+    "examinedPairs": 21,
+    "edgeCount": 1,
+    "rejects": {
+      "mature-core-split": 11,
+      "unsealed-core-consumed": 9
+    },
+    "endpoints": [
+      {
+        "k": 0,
+        "total": "1",
+        "byBlocks": {
+          "0": "1"
+        },
+        "threeTrendStrict": "0",
+        "witnesses": {
+          "0": [
+            [
+              0
+            ]
+          ]
+        },
+        "threeWitnesses": []
+      },
+      {
+        "k": 1,
+        "total": "0",
+        "byBlocks": {},
+        "threeTrendStrict": "0",
+        "witnesses": {},
+        "threeWitnesses": []
+      },
+      {
+        "k": 2,
+        "total": "0",
+        "byBlocks": {},
+        "threeTrendStrict": "0",
+        "witnesses": {},
+        "threeWitnesses": []
+      },
+      {
+        "k": 3,
+        "total": "1",
+        "byBlocks": {
+          "1": "1"
+        },
+        "threeTrendStrict": "0",
+        "witnesses": {
+          "1": [
+            [
+              0,
+              3
+            ]
+          ]
+        },
+        "threeWitnesses": []
+      },
+      {
+        "k": 4,
+        "total": "0",
+        "byBlocks": {},
+        "threeTrendStrict": "0",
+        "witnesses": {},
+        "threeWitnesses": []
+      },
+      {
+        "k": 5,
+        "total": "0",
+        "byBlocks": {},
+        "threeTrendStrict": "0",
+        "witnesses": {},
+        "threeWitnesses": []
+      },
+      {
+        "k": 6,
+        "total": "0",
+        "byBlocks": {},
+        "threeTrendStrict": "0",
+        "witnesses": {},
+        "threeWitnesses": []
+      }
+    ]
+  },
+  "closedCutAt4": {
+    "profile": "CORE",
+    "policy": "CLOSED-CUT",
+    "n": 4,
+    "examinedPairs": 10,
+    "edgeCount": 1,
+    "rejects": {
+      "mature-core-split": 5,
+      "open-source-consumed": 4
+    },
+    "endpoints": [
+      {
+        "k": 0,
+        "total": "1",
+        "byBlocks": {
+          "0": "1"
+        },
+        "threeTrendStrict": "0",
+        "witnesses": {
+          "0": [
+            [
+              0
+            ]
+          ]
+        },
+        "threeWitnesses": []
+      },
+      {
+        "k": 1,
+        "total": "0",
+        "byBlocks": {},
+        "threeTrendStrict": "0",
+        "witnesses": {},
+        "threeWitnesses": []
+      },
+      {
+        "k": 2,
+        "total": "0",
+        "byBlocks": {},
+        "threeTrendStrict": "0",
+        "witnesses": {},
+        "threeWitnesses": []
+      },
+      {
+        "k": 3,
+        "total": "1",
+        "byBlocks": {
+          "1": "1"
+        },
+        "threeTrendStrict": "0",
+        "witnesses": {
+          "1": [
+            [
+              0,
+              3
+            ]
+          ]
+        },
+        "threeWitnesses": []
+      },
+      {
+        "k": 4,
+        "total": "0",
+        "byBlocks": {},
+        "threeTrendStrict": "0",
+        "witnesses": {},
+        "threeWitnesses": []
+      }
+    ]
+  },
+  "closedCutAt6": {
+    "profile": "CORE",
+    "policy": "CLOSED-CUT",
+    "n": 6,
+    "examinedPairs": 21,
+    "edgeCount": 1,
+    "rejects": {
+      "mature-core-split": 5,
+      "open-source-consumed": 15
+    },
+    "endpoints": [
+      {
+        "k": 0,
+        "total": "1",
+        "byBlocks": {
+          "0": "1"
+        },
+        "threeTrendStrict": "0",
+        "witnesses": {
+          "0": [
+            [
+              0
+            ]
+          ]
+        },
+        "threeWitnesses": []
+      },
+      {
+        "k": 1,
+        "total": "0",
+        "byBlocks": {},
+        "threeTrendStrict": "0",
+        "witnesses": {},
+        "threeWitnesses": []
+      },
+      {
+        "k": 2,
+        "total": "0",
+        "byBlocks": {},
+        "threeTrendStrict": "0",
+        "witnesses": {},
+        "threeWitnesses": []
+      },
+      {
+        "k": 3,
+        "total": "1",
+        "byBlocks": {
+          "1": "1"
+        },
+        "threeTrendStrict": "0",
+        "witnesses": {
+          "1": [
+            [
+              0,
+              3
+            ]
+          ]
+        },
+        "threeWitnesses": []
+      },
+      {
+        "k": 4,
+        "total": "0",
+        "byBlocks": {},
+        "threeTrendStrict": "0",
+        "witnesses": {},
+        "threeWitnesses": []
+      },
+      {
+        "k": 5,
+        "total": "0",
+        "byBlocks": {},
+        "threeTrendStrict": "0",
+        "witnesses": {},
+        "threeWitnesses": []
+      },
+      {
+        "k": 6,
+        "total": "0",
+        "byBlocks": {},
+        "threeTrendStrict": "0",
+        "witnesses": {},
+        "threeWitnesses": []
+      }
+    ]
+  }
+}

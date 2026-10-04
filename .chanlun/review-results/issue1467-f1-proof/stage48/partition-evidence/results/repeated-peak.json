@@ -1,0 +1,99 @@
+{
+  "evaluatedAt": 12,
+  "profile": "TREND-NORM",
+  "policy": "BASE",
+  "fixedOwned": [
+    "K@1",
+    "K@4"
+  ],
+  "nextMatureCore": {
+    "id": "K@10",
+    "start": 10,
+    "end": 12,
+    "value": 10,
+    "birth": 12,
+    "seed": [
+      10,
+      11,
+      12
+    ],
+    "closed": false,
+    "sealedAt": null
+  },
+  "allFirstUEnds": [
+    6,
+    7,
+    9
+  ],
+  "edges": [
+    {
+      "s": 0,
+      "e": 6,
+      "type": "U",
+      "direction": 1,
+      "ownCoreIDs": [
+        "K@1",
+        "K@4"
+      ],
+      "range": [
+        10,
+        20
+      ],
+      "startValue": 10,
+      "endValue": 20,
+      "sourceEnd": 6,
+      "evaluatedAt": 12,
+      "catalogueFixedAt": 7,
+      "semanticCompletion": null
+    },
+    {
+      "s": 0,
+      "e": 7,
+      "type": "U",
+      "direction": 1,
+      "ownCoreIDs": [
+        "K@1",
+        "K@4"
+      ],
+      "range": [
+        10,
+        30
+      ],
+      "startValue": 10,
+      "endValue": 30,
+      "sourceEnd": 7,
+      "evaluatedAt": 12,
+      "catalogueFixedAt": 8,
+      "semanticCompletion": null
+    },
+    {
+      "s": 0,
+      "e": 9,
+      "type": "U",
+      "direction": 1,
+      "ownCoreIDs": [
+        "K@1",
+        "K@4"
+      ],
+      "range": [
+        10,
+        30
+      ],
+      "startValue": 10,
+      "endValue": 30,
+      "sourceEnd": 9,
+      "evaluatedAt": 12,
+      "catalogueFixedAt": 10,
+      "semanticCompletion": null
+    }
+  ],
+  "witnessHull": [
+    10,
+    30
+  ],
+  "withNamedWitnessHullExtremum": [
+    7,
+    9
+  ],
+  "semanticCompletion": null
+}

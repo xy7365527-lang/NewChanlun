@@ -1,0 +1,4658 @@
+{
+  "doublePeak15": {
+    "kind": "synthetic-legal-not-market-capture",
+    "policy": "reserve",
+    "originalCoordinates": [
+      10,
+      10,
+      10,
+      20,
+      20,
+      20,
+      30,
+      25,
+      30,
+      10,
+      10,
+      10,
+      20,
+      20,
+      20
+    ],
+    "offset": 100,
+    "totalDecrease": 25,
+    "actualQ": [
+      110,
+      110,
+      110,
+      120,
+      120,
+      120,
+      130,
+      125,
+      130,
+      110,
+      110,
+      110,
+      120,
+      120,
+      120
+    ],
+    "initial": [
+      {
+        "id": "S0",
+        "side": "bid",
+        "price": 100,
+        "quantity": 110
+      },
+      {
+        "id": "A0",
+        "side": "ask",
+        "price": 102,
+        "quantity": 10
+      }
+    ],
+    "events": [
+      {
+        "seq": 1,
+        "occurredNs": "1000000",
+        "receivedNs": "1000500",
+        "op": "add",
+        "id": "D1",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 2,
+        "occurredNs": "2000000",
+        "receivedNs": "2000500",
+        "op": "cancel",
+        "id": "D1",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 3,
+        "occurredNs": "3000000",
+        "receivedNs": "3000500",
+        "op": "add",
+        "id": "D3",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 4,
+        "occurredNs": "4000000",
+        "receivedNs": "4000500",
+        "op": "add",
+        "id": "Q4",
+        "side": "bid",
+        "price": 100,
+        "quantity": 10
+      },
+      {
+        "seq": 5,
+        "occurredNs": "5000000",
+        "receivedNs": "5000500",
+        "op": "cancel",
+        "id": "D3",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 6,
+        "occurredNs": "6000000",
+        "receivedNs": "6000500",
+        "op": "add",
+        "id": "D6",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 7,
+        "occurredNs": "7000000",
+        "receivedNs": "7000500",
+        "op": "add",
+        "id": "Q7",
+        "side": "bid",
+        "price": 100,
+        "quantity": 10
+      },
+      {
+        "seq": 8,
+        "occurredNs": "8000000",
+        "receivedNs": "8000500",
+        "op": "cancel",
+        "id": "S0",
+        "side": "bid",
+        "price": 100,
+        "quantity": 5
+      },
+      {
+        "seq": 9,
+        "occurredNs": "9000000",
+        "receivedNs": "9000500",
+        "op": "add",
+        "id": "Q9",
+        "side": "bid",
+        "price": 100,
+        "quantity": 5
+      },
+      {
+        "seq": 10,
+        "occurredNs": "10000000",
+        "receivedNs": "10000500",
+        "op": "cancel",
+        "id": "S0",
+        "side": "bid",
+        "price": 100,
+        "quantity": 20
+      },
+      {
+        "seq": 11,
+        "occurredNs": "11000000",
+        "receivedNs": "11000500",
+        "op": "cancel",
+        "id": "D6",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 12,
+        "occurredNs": "12000000",
+        "receivedNs": "12000500",
+        "op": "add",
+        "id": "D12",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 13,
+        "occurredNs": "13000000",
+        "receivedNs": "13000500",
+        "op": "add",
+        "id": "Q13",
+        "side": "bid",
+        "price": 100,
+        "quantity": 10
+      },
+      {
+        "seq": 14,
+        "occurredNs": "14000000",
+        "receivedNs": "14000500",
+        "op": "cancel",
+        "id": "D12",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 15,
+        "occurredNs": "15000000",
+        "receivedNs": "15000500",
+        "op": "add",
+        "id": "D15",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      }
+    ],
+    "states": [
+      {
+        "index": 0,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 1,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 3,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 4,
+        "q": 120,
+        "w": {
+          "numerator": "1324",
+          "denominator": "13"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 5,
+        "q": 120,
+        "w": {
+          "numerator": "1324",
+          "denominator": "13"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 6,
+        "q": 120,
+        "w": {
+          "numerator": "1324",
+          "denominator": "13"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 7,
+        "q": 130,
+        "w": {
+          "numerator": "713",
+          "denominator": "7"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 8,
+        "q": 125,
+        "w": {
+          "numerator": "2750",
+          "denominator": "27"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 105
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 9,
+        "q": 130,
+        "w": {
+          "numerator": "713",
+          "denominator": "7"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 105
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          }
+        ]
+      },
+      {
+        "index": 10,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 85
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          }
+        ]
+      },
+      {
+        "index": 11,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 85
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          }
+        ]
+      },
+      {
+        "index": 12,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 85
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "D12",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 13,
+        "q": 120,
+        "w": {
+          "numerator": "1324",
+          "denominator": "13"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 85
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "D12",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "id": "Q13",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 14,
+        "q": 120,
+        "w": {
+          "numerator": "1324",
+          "denominator": "13"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 85
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "Q13",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 15,
+        "q": 120,
+        "w": {
+          "numerator": "1324",
+          "denominator": "13"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 85
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "Q13",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D15",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      }
+    ],
+    "selections": {
+      "first": {
+        "objects": [
+          {
+            "start": 0,
+            "end": 7,
+            "confirm": 12,
+            "type": "U",
+            "memberEvents": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "ownCoreIDs": [
+              "K@1",
+              "K@4"
+            ],
+            "startValue": 110,
+            "endValue": 130,
+            "range": [
+              110,
+              130
+            ]
+          }
+        ],
+        "certificates": [
+          {
+            "status": "certified-candidate",
+            "start": 0,
+            "type": "U",
+            "direction": 1,
+            "confirm": 12,
+            "ownCores": [
+              {
+                "id": "K@1",
+                "start": 1,
+                "end": 3,
+                "value": 110,
+                "birth": 3,
+                "closed": true
+              },
+              {
+                "id": "K@4",
+                "start": 4,
+                "end": 6,
+                "value": 120,
+                "birth": 6,
+                "closed": true
+              }
+            ],
+            "trigger": {
+              "id": "K@10",
+              "start": 10,
+              "birth": 12,
+              "value": 110,
+              "seed": [
+                10,
+                11,
+                12
+              ]
+            },
+            "evidenceWindow": [
+              0,
+              12
+            ],
+            "extreme": 130,
+            "rawExtremePositions": [
+              7,
+              9
+            ],
+            "eligibleEnds": [
+              7,
+              9
+            ]
+          }
+        ],
+        "tail": {
+          "start": 7,
+          "memberEvents": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "semanticStatus": "unresolved-tail"
+        }
+      },
+      "last": {
+        "objects": [
+          {
+            "start": 0,
+            "end": 9,
+            "confirm": 12,
+            "type": "U",
+            "memberEvents": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9
+            ],
+            "ownCoreIDs": [
+              "K@1",
+              "K@4"
+            ],
+            "startValue": 110,
+            "endValue": 130,
+            "range": [
+              110,
+              130
+            ]
+          }
+        ],
+        "certificates": [
+          {
+            "status": "certified-candidate",
+            "start": 0,
+            "type": "U",
+            "direction": 1,
+            "confirm": 12,
+            "ownCores": [
+              {
+                "id": "K@1",
+                "start": 1,
+                "end": 3,
+                "value": 110,
+                "birth": 3,
+                "closed": true
+              },
+              {
+                "id": "K@4",
+                "start": 4,
+                "end": 6,
+                "value": 120,
+                "birth": 6,
+                "closed": true
+              }
+            ],
+            "trigger": {
+              "id": "K@10",
+              "start": 10,
+              "birth": 12,
+              "value": 110,
+              "seed": [
+                10,
+                11,
+                12
+              ]
+            },
+            "evidenceWindow": [
+              0,
+              12
+            ],
+            "extreme": 130,
+            "rawExtremePositions": [
+              7,
+              9
+            ],
+            "eligibleEnds": [
+              7,
+              9
+            ]
+          }
+        ],
+        "tail": {
+          "start": 9,
+          "memberEvents": [
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "semanticStatus": "unresolved-tail"
+        }
+      }
+    }
+  },
+  "doublePeak18": {
+    "kind": "synthetic-legal-not-market-capture",
+    "policy": "reserve",
+    "originalCoordinates": [
+      10,
+      10,
+      10,
+      20,
+      20,
+      20,
+      30,
+      25,
+      30,
+      10,
+      10,
+      10,
+      5,
+      5,
+      5,
+      15,
+      15,
+      15
+    ],
+    "offset": 100,
+    "totalDecrease": 30,
+    "actualQ": [
+      110,
+      110,
+      110,
+      120,
+      120,
+      120,
+      130,
+      125,
+      130,
+      110,
+      110,
+      110,
+      105,
+      105,
+      105,
+      115,
+      115,
+      115
+    ],
+    "initial": [
+      {
+        "id": "S0",
+        "side": "bid",
+        "price": 100,
+        "quantity": 110
+      },
+      {
+        "id": "A0",
+        "side": "ask",
+        "price": 102,
+        "quantity": 10
+      }
+    ],
+    "events": [
+      {
+        "seq": 1,
+        "occurredNs": "1000000",
+        "receivedNs": "1000500",
+        "op": "add",
+        "id": "D1",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 2,
+        "occurredNs": "2000000",
+        "receivedNs": "2000500",
+        "op": "cancel",
+        "id": "D1",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 3,
+        "occurredNs": "3000000",
+        "receivedNs": "3000500",
+        "op": "add",
+        "id": "D3",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 4,
+        "occurredNs": "4000000",
+        "receivedNs": "4000500",
+        "op": "add",
+        "id": "Q4",
+        "side": "bid",
+        "price": 100,
+        "quantity": 10
+      },
+      {
+        "seq": 5,
+        "occurredNs": "5000000",
+        "receivedNs": "5000500",
+        "op": "cancel",
+        "id": "D3",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 6,
+        "occurredNs": "6000000",
+        "receivedNs": "6000500",
+        "op": "add",
+        "id": "D6",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 7,
+        "occurredNs": "7000000",
+        "receivedNs": "7000500",
+        "op": "add",
+        "id": "Q7",
+        "side": "bid",
+        "price": 100,
+        "quantity": 10
+      },
+      {
+        "seq": 8,
+        "occurredNs": "8000000",
+        "receivedNs": "8000500",
+        "op": "cancel",
+        "id": "S0",
+        "side": "bid",
+        "price": 100,
+        "quantity": 5
+      },
+      {
+        "seq": 9,
+        "occurredNs": "9000000",
+        "receivedNs": "9000500",
+        "op": "add",
+        "id": "Q9",
+        "side": "bid",
+        "price": 100,
+        "quantity": 5
+      },
+      {
+        "seq": 10,
+        "occurredNs": "10000000",
+        "receivedNs": "10000500",
+        "op": "cancel",
+        "id": "S0",
+        "side": "bid",
+        "price": 100,
+        "quantity": 20
+      },
+      {
+        "seq": 11,
+        "occurredNs": "11000000",
+        "receivedNs": "11000500",
+        "op": "cancel",
+        "id": "D6",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 12,
+        "occurredNs": "12000000",
+        "receivedNs": "12000500",
+        "op": "add",
+        "id": "D12",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 13,
+        "occurredNs": "13000000",
+        "receivedNs": "13000500",
+        "op": "cancel",
+        "id": "S0",
+        "side": "bid",
+        "price": 100,
+        "quantity": 5
+      },
+      {
+        "seq": 14,
+        "occurredNs": "14000000",
+        "receivedNs": "14000500",
+        "op": "cancel",
+        "id": "D12",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 15,
+        "occurredNs": "15000000",
+        "receivedNs": "15000500",
+        "op": "add",
+        "id": "D15",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 16,
+        "occurredNs": "16000000",
+        "receivedNs": "16000500",
+        "op": "add",
+        "id": "Q16",
+        "side": "bid",
+        "price": 100,
+        "quantity": 10
+      },
+      {
+        "seq": 17,
+        "occurredNs": "17000000",
+        "receivedNs": "17000500",
+        "op": "cancel",
+        "id": "D15",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 18,
+        "occurredNs": "18000000",
+        "receivedNs": "18000500",
+        "op": "add",
+        "id": "D18",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      }
+    ],
+    "states": [
+      {
+        "index": 0,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 1,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 3,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 4,
+        "q": 120,
+        "w": {
+          "numerator": "1324",
+          "denominator": "13"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 5,
+        "q": 120,
+        "w": {
+          "numerator": "1324",
+          "denominator": "13"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 6,
+        "q": 120,
+        "w": {
+          "numerator": "1324",
+          "denominator": "13"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 7,
+        "q": 130,
+        "w": {
+          "numerator": "713",
+          "denominator": "7"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 8,
+        "q": 125,
+        "w": {
+          "numerator": "2750",
+          "denominator": "27"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 105
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 9,
+        "q": 130,
+        "w": {
+          "numerator": "713",
+          "denominator": "7"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 105
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          }
+        ]
+      },
+      {
+        "index": 10,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 85
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          }
+        ]
+      },
+      {
+        "index": 11,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 85
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          }
+        ]
+      },
+      {
+        "index": 12,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 85
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "D12",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 13,
+        "q": 105,
+        "w": {
+          "numerator": "2342",
+          "denominator": "23"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 80
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "D12",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 14,
+        "q": 105,
+        "w": {
+          "numerator": "2342",
+          "denominator": "23"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 80
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          }
+        ]
+      },
+      {
+        "index": 15,
+        "q": 105,
+        "w": {
+          "numerator": "2342",
+          "denominator": "23"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 80
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "D15",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 16,
+        "q": 115,
+        "w": {
+          "numerator": "2546",
+          "denominator": "25"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 80
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "D15",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "id": "Q16",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 17,
+        "q": 115,
+        "w": {
+          "numerator": "2546",
+          "denominator": "25"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 80
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "Q16",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 18,
+        "q": 115,
+        "w": {
+          "numerator": "2546",
+          "denominator": "25"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 80
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "Q16",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D18",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      }
+    ],
+    "selections": {
+      "first": {
+        "objects": [
+          {
+            "start": 0,
+            "end": 7,
+            "confirm": 12,
+            "type": "U",
+            "memberEvents": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "ownCoreIDs": [
+              "K@1",
+              "K@4"
+            ],
+            "startValue": 110,
+            "endValue": 130,
+            "range": [
+              110,
+              130
+            ]
+          },
+          {
+            "start": 7,
+            "end": 15,
+            "confirm": 18,
+            "type": "D",
+            "memberEvents": [
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "ownCoreIDs": [
+              "K@10",
+              "K@13"
+            ],
+            "startValue": 130,
+            "endValue": 105,
+            "range": [
+              105,
+              130
+            ]
+          }
+        ],
+        "certificates": [
+          {
+            "status": "certified-candidate",
+            "start": 0,
+            "type": "U",
+            "direction": 1,
+            "confirm": 12,
+            "ownCores": [
+              {
+                "id": "K@1",
+                "start": 1,
+                "end": 3,
+                "value": 110,
+                "birth": 3,
+                "closed": true
+              },
+              {
+                "id": "K@4",
+                "start": 4,
+                "end": 6,
+                "value": 120,
+                "birth": 6,
+                "closed": true
+              }
+            ],
+            "trigger": {
+              "id": "K@10",
+              "start": 10,
+              "birth": 12,
+              "value": 110,
+              "seed": [
+                10,
+                11,
+                12
+              ]
+            },
+            "evidenceWindow": [
+              0,
+              12
+            ],
+            "extreme": 130,
+            "rawExtremePositions": [
+              7,
+              9
+            ],
+            "eligibleEnds": [
+              7,
+              9
+            ]
+          },
+          {
+            "status": "certified-candidate",
+            "start": 7,
+            "type": "D",
+            "direction": -1,
+            "confirm": 18,
+            "ownCores": [
+              {
+                "id": "K@10",
+                "start": 10,
+                "end": 12,
+                "value": 110,
+                "birth": 12,
+                "closed": true
+              },
+              {
+                "id": "K@13",
+                "start": 13,
+                "end": 15,
+                "value": 105,
+                "birth": 15,
+                "closed": true
+              }
+            ],
+            "trigger": {
+              "id": "K@16",
+              "start": 16,
+              "birth": 18,
+              "value": 115,
+              "seed": [
+                16,
+                17,
+                18
+              ]
+            },
+            "evidenceWindow": [
+              7,
+              18
+            ],
+            "extreme": 105,
+            "rawExtremePositions": [
+              13,
+              14,
+              15
+            ],
+            "eligibleEnds": [
+              15
+            ]
+          }
+        ],
+        "tail": {
+          "start": 15,
+          "memberEvents": [
+            16,
+            17,
+            18
+          ],
+          "semanticStatus": "unresolved-tail"
+        }
+      },
+      "last": {
+        "objects": [
+          {
+            "start": 0,
+            "end": 9,
+            "confirm": 12,
+            "type": "U",
+            "memberEvents": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9
+            ],
+            "ownCoreIDs": [
+              "K@1",
+              "K@4"
+            ],
+            "startValue": 110,
+            "endValue": 130,
+            "range": [
+              110,
+              130
+            ]
+          },
+          {
+            "start": 9,
+            "end": 15,
+            "confirm": 18,
+            "type": "D",
+            "memberEvents": [
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "ownCoreIDs": [
+              "K@10",
+              "K@13"
+            ],
+            "startValue": 130,
+            "endValue": 105,
+            "range": [
+              105,
+              130
+            ]
+          }
+        ],
+        "certificates": [
+          {
+            "status": "certified-candidate",
+            "start": 0,
+            "type": "U",
+            "direction": 1,
+            "confirm": 12,
+            "ownCores": [
+              {
+                "id": "K@1",
+                "start": 1,
+                "end": 3,
+                "value": 110,
+                "birth": 3,
+                "closed": true
+              },
+              {
+                "id": "K@4",
+                "start": 4,
+                "end": 6,
+                "value": 120,
+                "birth": 6,
+                "closed": true
+              }
+            ],
+            "trigger": {
+              "id": "K@10",
+              "start": 10,
+              "birth": 12,
+              "value": 110,
+              "seed": [
+                10,
+                11,
+                12
+              ]
+            },
+            "evidenceWindow": [
+              0,
+              12
+            ],
+            "extreme": 130,
+            "rawExtremePositions": [
+              7,
+              9
+            ],
+            "eligibleEnds": [
+              7,
+              9
+            ]
+          },
+          {
+            "status": "certified-candidate",
+            "start": 9,
+            "type": "D",
+            "direction": -1,
+            "confirm": 18,
+            "ownCores": [
+              {
+                "id": "K@10",
+                "start": 10,
+                "end": 12,
+                "value": 110,
+                "birth": 12,
+                "closed": true
+              },
+              {
+                "id": "K@13",
+                "start": 13,
+                "end": 15,
+                "value": 105,
+                "birth": 15,
+                "closed": true
+              }
+            ],
+            "trigger": {
+              "id": "K@16",
+              "start": 16,
+              "birth": 18,
+              "value": 115,
+              "seed": [
+                16,
+                17,
+                18
+              ]
+            },
+            "evidenceWindow": [
+              9,
+              18
+            ],
+            "extreme": 105,
+            "rawExtremePositions": [
+              13,
+              14,
+              15
+            ],
+            "eligibleEnds": [
+              15
+            ]
+          }
+        ],
+        "tail": {
+          "start": 15,
+          "memberEvents": [
+            16,
+            17,
+            18
+          ],
+          "semanticStatus": "unresolved-tail"
+        }
+      }
+    }
+  },
+  "doublePeak24": {
+    "kind": "synthetic-legal-not-market-capture",
+    "policy": "reserve",
+    "originalCoordinates": [
+      10,
+      10,
+      10,
+      20,
+      20,
+      20,
+      30,
+      25,
+      30,
+      10,
+      10,
+      10,
+      5,
+      5,
+      5,
+      15,
+      15,
+      15,
+      25,
+      25,
+      25,
+      10,
+      10,
+      10
+    ],
+    "offset": 100,
+    "totalDecrease": 45,
+    "actualQ": [
+      110,
+      110,
+      110,
+      120,
+      120,
+      120,
+      130,
+      125,
+      130,
+      110,
+      110,
+      110,
+      105,
+      105,
+      105,
+      115,
+      115,
+      115,
+      125,
+      125,
+      125,
+      110,
+      110,
+      110
+    ],
+    "initial": [
+      {
+        "id": "S0",
+        "side": "bid",
+        "price": 100,
+        "quantity": 110
+      },
+      {
+        "id": "A0",
+        "side": "ask",
+        "price": 102,
+        "quantity": 10
+      }
+    ],
+    "events": [
+      {
+        "seq": 1,
+        "occurredNs": "1000000",
+        "receivedNs": "1000500",
+        "op": "add",
+        "id": "D1",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 2,
+        "occurredNs": "2000000",
+        "receivedNs": "2000500",
+        "op": "cancel",
+        "id": "D1",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 3,
+        "occurredNs": "3000000",
+        "receivedNs": "3000500",
+        "op": "add",
+        "id": "D3",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 4,
+        "occurredNs": "4000000",
+        "receivedNs": "4000500",
+        "op": "add",
+        "id": "Q4",
+        "side": "bid",
+        "price": 100,
+        "quantity": 10
+      },
+      {
+        "seq": 5,
+        "occurredNs": "5000000",
+        "receivedNs": "5000500",
+        "op": "cancel",
+        "id": "D3",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 6,
+        "occurredNs": "6000000",
+        "receivedNs": "6000500",
+        "op": "add",
+        "id": "D6",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 7,
+        "occurredNs": "7000000",
+        "receivedNs": "7000500",
+        "op": "add",
+        "id": "Q7",
+        "side": "bid",
+        "price": 100,
+        "quantity": 10
+      },
+      {
+        "seq": 8,
+        "occurredNs": "8000000",
+        "receivedNs": "8000500",
+        "op": "cancel",
+        "id": "S0",
+        "side": "bid",
+        "price": 100,
+        "quantity": 5
+      },
+      {
+        "seq": 9,
+        "occurredNs": "9000000",
+        "receivedNs": "9000500",
+        "op": "add",
+        "id": "Q9",
+        "side": "bid",
+        "price": 100,
+        "quantity": 5
+      },
+      {
+        "seq": 10,
+        "occurredNs": "10000000",
+        "receivedNs": "10000500",
+        "op": "cancel",
+        "id": "S0",
+        "side": "bid",
+        "price": 100,
+        "quantity": 20
+      },
+      {
+        "seq": 11,
+        "occurredNs": "11000000",
+        "receivedNs": "11000500",
+        "op": "cancel",
+        "id": "D6",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 12,
+        "occurredNs": "12000000",
+        "receivedNs": "12000500",
+        "op": "add",
+        "id": "D12",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 13,
+        "occurredNs": "13000000",
+        "receivedNs": "13000500",
+        "op": "cancel",
+        "id": "S0",
+        "side": "bid",
+        "price": 100,
+        "quantity": 5
+      },
+      {
+        "seq": 14,
+        "occurredNs": "14000000",
+        "receivedNs": "14000500",
+        "op": "cancel",
+        "id": "D12",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 15,
+        "occurredNs": "15000000",
+        "receivedNs": "15000500",
+        "op": "add",
+        "id": "D15",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 16,
+        "occurredNs": "16000000",
+        "receivedNs": "16000500",
+        "op": "add",
+        "id": "Q16",
+        "side": "bid",
+        "price": 100,
+        "quantity": 10
+      },
+      {
+        "seq": 17,
+        "occurredNs": "17000000",
+        "receivedNs": "17000500",
+        "op": "cancel",
+        "id": "D15",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 18,
+        "occurredNs": "18000000",
+        "receivedNs": "18000500",
+        "op": "add",
+        "id": "D18",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 19,
+        "occurredNs": "19000000",
+        "receivedNs": "19000500",
+        "op": "add",
+        "id": "Q19",
+        "side": "bid",
+        "price": 100,
+        "quantity": 10
+      },
+      {
+        "seq": 20,
+        "occurredNs": "20000000",
+        "receivedNs": "20000500",
+        "op": "cancel",
+        "id": "D18",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 21,
+        "occurredNs": "21000000",
+        "receivedNs": "21000500",
+        "op": "add",
+        "id": "D21",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 22,
+        "occurredNs": "22000000",
+        "receivedNs": "22000500",
+        "op": "cancel",
+        "id": "S0",
+        "side": "bid",
+        "price": 100,
+        "quantity": 15
+      },
+      {
+        "seq": 23,
+        "occurredNs": "23000000",
+        "receivedNs": "23000500",
+        "op": "cancel",
+        "id": "D21",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 24,
+        "occurredNs": "24000000",
+        "receivedNs": "24000500",
+        "op": "add",
+        "id": "D24",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      }
+    ],
+    "states": [
+      {
+        "index": 0,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 1,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 3,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 4,
+        "q": 120,
+        "w": {
+          "numerator": "1324",
+          "denominator": "13"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 5,
+        "q": 120,
+        "w": {
+          "numerator": "1324",
+          "denominator": "13"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 6,
+        "q": 120,
+        "w": {
+          "numerator": "1324",
+          "denominator": "13"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 7,
+        "q": 130,
+        "w": {
+          "numerator": "713",
+          "denominator": "7"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 8,
+        "q": 125,
+        "w": {
+          "numerator": "2750",
+          "denominator": "27"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 105
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 9,
+        "q": 130,
+        "w": {
+          "numerator": "713",
+          "denominator": "7"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 105
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          }
+        ]
+      },
+      {
+        "index": 10,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 85
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          }
+        ]
+      },
+      {
+        "index": 11,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 85
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          }
+        ]
+      },
+      {
+        "index": 12,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 85
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "D12",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 13,
+        "q": 105,
+        "w": {
+          "numerator": "2342",
+          "denominator": "23"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 80
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "D12",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 14,
+        "q": 105,
+        "w": {
+          "numerator": "2342",
+          "denominator": "23"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 80
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          }
+        ]
+      },
+      {
+        "index": 15,
+        "q": 105,
+        "w": {
+          "numerator": "2342",
+          "denominator": "23"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 80
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "D15",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 16,
+        "q": 115,
+        "w": {
+          "numerator": "2546",
+          "denominator": "25"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 80
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "D15",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "id": "Q16",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 17,
+        "q": 115,
+        "w": {
+          "numerator": "2546",
+          "denominator": "25"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 80
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "Q16",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 18,
+        "q": 115,
+        "w": {
+          "numerator": "2546",
+          "denominator": "25"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 80
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "Q16",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D18",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 19,
+        "q": 125,
+        "w": {
+          "numerator": "2750",
+          "denominator": "27"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 80
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "Q16",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D18",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "id": "Q19",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 20,
+        "q": 125,
+        "w": {
+          "numerator": "2750",
+          "denominator": "27"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 80
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "Q16",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q19",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 21,
+        "q": 125,
+        "w": {
+          "numerator": "2750",
+          "denominator": "27"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 80
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "Q16",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q19",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D21",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 22,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 65
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "Q16",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q19",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D21",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 23,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 65
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "Q16",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q19",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 24,
+        "q": 110,
+        "w": {
+          "numerator": "611",
+          "denominator": "6"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 65
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "id": "Q16",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "Q19",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "D24",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      }
+    ],
+    "selections": {
+      "first": {
+        "objects": [
+          {
+            "start": 0,
+            "end": 7,
+            "confirm": 12,
+            "type": "U",
+            "memberEvents": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "ownCoreIDs": [
+              "K@1",
+              "K@4"
+            ],
+            "startValue": 110,
+            "endValue": 130,
+            "range": [
+              110,
+              130
+            ]
+          },
+          {
+            "start": 7,
+            "end": 15,
+            "confirm": 18,
+            "type": "D",
+            "memberEvents": [
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "ownCoreIDs": [
+              "K@10",
+              "K@13"
+            ],
+            "startValue": 130,
+            "endValue": 105,
+            "range": [
+              105,
+              130
+            ]
+          },
+          {
+            "start": 15,
+            "end": 21,
+            "confirm": 24,
+            "type": "U",
+            "memberEvents": [
+              16,
+              17,
+              18,
+              19,
+              20,
+              21
+            ],
+            "ownCoreIDs": [
+              "K@16",
+              "K@19"
+            ],
+            "startValue": 105,
+            "endValue": 125,
+            "range": [
+              105,
+              125
+            ]
+          }
+        ],
+        "certificates": [
+          {
+            "status": "certified-candidate",
+            "start": 0,
+            "type": "U",
+            "direction": 1,
+            "confirm": 12,
+            "ownCores": [
+              {
+                "id": "K@1",
+                "start": 1,
+                "end": 3,
+                "value": 110,
+                "birth": 3,
+                "closed": true
+              },
+              {
+                "id": "K@4",
+                "start": 4,
+                "end": 6,
+                "value": 120,
+                "birth": 6,
+                "closed": true
+              }
+            ],
+            "trigger": {
+              "id": "K@10",
+              "start": 10,
+              "birth": 12,
+              "value": 110,
+              "seed": [
+                10,
+                11,
+                12
+              ]
+            },
+            "evidenceWindow": [
+              0,
+              12
+            ],
+            "extreme": 130,
+            "rawExtremePositions": [
+              7,
+              9
+            ],
+            "eligibleEnds": [
+              7,
+              9
+            ]
+          },
+          {
+            "status": "certified-candidate",
+            "start": 7,
+            "type": "D",
+            "direction": -1,
+            "confirm": 18,
+            "ownCores": [
+              {
+                "id": "K@10",
+                "start": 10,
+                "end": 12,
+                "value": 110,
+                "birth": 12,
+                "closed": true
+              },
+              {
+                "id": "K@13",
+                "start": 13,
+                "end": 15,
+                "value": 105,
+                "birth": 15,
+                "closed": true
+              }
+            ],
+            "trigger": {
+              "id": "K@16",
+              "start": 16,
+              "birth": 18,
+              "value": 115,
+              "seed": [
+                16,
+                17,
+                18
+              ]
+            },
+            "evidenceWindow": [
+              7,
+              18
+            ],
+            "extreme": 105,
+            "rawExtremePositions": [
+              13,
+              14,
+              15
+            ],
+            "eligibleEnds": [
+              15
+            ]
+          },
+          {
+            "status": "certified-candidate",
+            "start": 15,
+            "type": "U",
+            "direction": 1,
+            "confirm": 24,
+            "ownCores": [
+              {
+                "id": "K@16",
+                "start": 16,
+                "end": 18,
+                "value": 115,
+                "birth": 18,
+                "closed": true
+              },
+              {
+                "id": "K@19",
+                "start": 19,
+                "end": 21,
+                "value": 125,
+                "birth": 21,
+                "closed": true
+              }
+            ],
+            "trigger": {
+              "id": "K@22",
+              "start": 22,
+              "birth": 24,
+              "value": 110,
+              "seed": [
+                22,
+                23,
+                24
+              ]
+            },
+            "evidenceWindow": [
+              15,
+              24
+            ],
+            "extreme": 125,
+            "rawExtremePositions": [
+              19,
+              20,
+              21
+            ],
+            "eligibleEnds": [
+              21
+            ]
+          }
+        ],
+        "tail": {
+          "start": 21,
+          "memberEvents": [
+            22,
+            23,
+            24
+          ],
+          "semanticStatus": "unresolved-tail"
+        }
+      },
+      "last": {
+        "objects": [
+          {
+            "start": 0,
+            "end": 9,
+            "confirm": 12,
+            "type": "U",
+            "memberEvents": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9
+            ],
+            "ownCoreIDs": [
+              "K@1",
+              "K@4"
+            ],
+            "startValue": 110,
+            "endValue": 130,
+            "range": [
+              110,
+              130
+            ]
+          },
+          {
+            "start": 9,
+            "end": 15,
+            "confirm": 18,
+            "type": "D",
+            "memberEvents": [
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "ownCoreIDs": [
+              "K@10",
+              "K@13"
+            ],
+            "startValue": 130,
+            "endValue": 105,
+            "range": [
+              105,
+              130
+            ]
+          },
+          {
+            "start": 15,
+            "end": 21,
+            "confirm": 24,
+            "type": "U",
+            "memberEvents": [
+              16,
+              17,
+              18,
+              19,
+              20,
+              21
+            ],
+            "ownCoreIDs": [
+              "K@16",
+              "K@19"
+            ],
+            "startValue": 105,
+            "endValue": 125,
+            "range": [
+              105,
+              125
+            ]
+          }
+        ],
+        "certificates": [
+          {
+            "status": "certified-candidate",
+            "start": 0,
+            "type": "U",
+            "direction": 1,
+            "confirm": 12,
+            "ownCores": [
+              {
+                "id": "K@1",
+                "start": 1,
+                "end": 3,
+                "value": 110,
+                "birth": 3,
+                "closed": true
+              },
+              {
+                "id": "K@4",
+                "start": 4,
+                "end": 6,
+                "value": 120,
+                "birth": 6,
+                "closed": true
+              }
+            ],
+            "trigger": {
+              "id": "K@10",
+              "start": 10,
+              "birth": 12,
+              "value": 110,
+              "seed": [
+                10,
+                11,
+                12
+              ]
+            },
+            "evidenceWindow": [
+              0,
+              12
+            ],
+            "extreme": 130,
+            "rawExtremePositions": [
+              7,
+              9
+            ],
+            "eligibleEnds": [
+              7,
+              9
+            ]
+          },
+          {
+            "status": "certified-candidate",
+            "start": 9,
+            "type": "D",
+            "direction": -1,
+            "confirm": 18,
+            "ownCores": [
+              {
+                "id": "K@10",
+                "start": 10,
+                "end": 12,
+                "value": 110,
+                "birth": 12,
+                "closed": true
+              },
+              {
+                "id": "K@13",
+                "start": 13,
+                "end": 15,
+                "value": 105,
+                "birth": 15,
+                "closed": true
+              }
+            ],
+            "trigger": {
+              "id": "K@16",
+              "start": 16,
+              "birth": 18,
+              "value": 115,
+              "seed": [
+                16,
+                17,
+                18
+              ]
+            },
+            "evidenceWindow": [
+              9,
+              18
+            ],
+            "extreme": 105,
+            "rawExtremePositions": [
+              13,
+              14,
+              15
+            ],
+            "eligibleEnds": [
+              15
+            ]
+          },
+          {
+            "status": "certified-candidate",
+            "start": 15,
+            "type": "U",
+            "direction": 1,
+            "confirm": 24,
+            "ownCores": [
+              {
+                "id": "K@16",
+                "start": 16,
+                "end": 18,
+                "value": 115,
+                "birth": 18,
+                "closed": true
+              },
+              {
+                "id": "K@19",
+                "start": 19,
+                "end": 21,
+                "value": 125,
+                "birth": 21,
+                "closed": true
+              }
+            ],
+            "trigger": {
+              "id": "K@22",
+              "start": 22,
+              "birth": 24,
+              "value": 110,
+              "seed": [
+                22,
+                23,
+                24
+              ]
+            },
+            "evidenceWindow": [
+              15,
+              24
+            ],
+            "extreme": 125,
+            "rawExtremePositions": [
+              19,
+              20,
+              21
+            ],
+            "eligibleEnds": [
+              21
+            ]
+          }
+        ],
+        "tail": {
+          "start": 21,
+          "memberEvents": [
+            22,
+            23,
+            24
+          ],
+          "semanticStatus": "unresolved-tail"
+        }
+      }
+    }
+  },
+  "literalEarlierSpike10": {
+    "kind": "synthetic-legal-not-market-capture",
+    "policy": "available-order",
+    "originalCoordinates": [
+      10,
+      10,
+      10,
+      30,
+      20,
+      20,
+      20,
+      15,
+      15,
+      15
+    ],
+    "offset": 0,
+    "totalDecrease": 15,
+    "actualQ": [
+      10,
+      10,
+      10,
+      30,
+      20,
+      20,
+      20,
+      15,
+      15,
+      15
+    ],
+    "initial": [
+      {
+        "id": "S0",
+        "side": "bid",
+        "price": 100,
+        "quantity": 10
+      },
+      {
+        "id": "A0",
+        "side": "ask",
+        "price": 102,
+        "quantity": 10
+      }
+    ],
+    "events": [
+      {
+        "seq": 1,
+        "occurredNs": "1000000",
+        "receivedNs": "1000500",
+        "op": "add",
+        "id": "D1",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 2,
+        "occurredNs": "2000000",
+        "receivedNs": "2000500",
+        "op": "cancel",
+        "id": "D1",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 3,
+        "occurredNs": "3000000",
+        "receivedNs": "3000500",
+        "op": "add",
+        "id": "D3",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 4,
+        "occurredNs": "4000000",
+        "receivedNs": "4000500",
+        "op": "add",
+        "id": "Q4",
+        "side": "bid",
+        "price": 100,
+        "quantity": 20
+      },
+      {
+        "seq": 5,
+        "occurredNs": "5000000",
+        "receivedNs": "5000500",
+        "op": "cancel",
+        "id": "S0",
+        "side": "bid",
+        "price": 100,
+        "quantity": 10
+      },
+      {
+        "seq": 6,
+        "occurredNs": "6000000",
+        "receivedNs": "6000500",
+        "op": "cancel",
+        "id": "D3",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 7,
+        "occurredNs": "7000000",
+        "receivedNs": "7000500",
+        "op": "add",
+        "id": "D7",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 8,
+        "occurredNs": "8000000",
+        "receivedNs": "8000500",
+        "op": "cancel",
+        "id": "Q4",
+        "side": "bid",
+        "price": 100,
+        "quantity": 5
+      },
+      {
+        "seq": 9,
+        "occurredNs": "9000000",
+        "receivedNs": "9000500",
+        "op": "cancel",
+        "id": "D7",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 10,
+        "occurredNs": "10000000",
+        "receivedNs": "10000500",
+        "op": "add",
+        "id": "D10",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      }
+    ],
+    "states": [
+      {
+        "index": 0,
+        "q": 10,
+        "w": {
+          "numerator": "101",
+          "denominator": "1"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 1,
+        "q": 10,
+        "w": {
+          "numerator": "101",
+          "denominator": "1"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "q": 10,
+        "w": {
+          "numerator": "101",
+          "denominator": "1"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          }
+        ]
+      },
+      {
+        "index": 3,
+        "q": 10,
+        "w": {
+          "numerator": "101",
+          "denominator": "1"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 4,
+        "q": 30,
+        "w": {
+          "numerator": "203",
+          "denominator": "2"
+        },
+        "orders": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 20
+          }
+        ]
+      },
+      {
+        "index": 5,
+        "q": 20,
+        "w": {
+          "numerator": "304",
+          "denominator": "3"
+        },
+        "orders": [
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 20
+          }
+        ]
+      },
+      {
+        "index": 6,
+        "q": 20,
+        "w": {
+          "numerator": "304",
+          "denominator": "3"
+        },
+        "orders": [
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 20
+          }
+        ]
+      },
+      {
+        "index": 7,
+        "q": 20,
+        "w": {
+          "numerator": "304",
+          "denominator": "3"
+        },
+        "orders": [
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 20
+          },
+          {
+            "id": "D7",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 8,
+        "q": 15,
+        "w": {
+          "numerator": "506",
+          "denominator": "5"
+        },
+        "orders": [
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 15
+          },
+          {
+            "id": "D7",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "index": 9,
+        "q": 15,
+        "w": {
+          "numerator": "506",
+          "denominator": "5"
+        },
+        "orders": [
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 15
+          }
+        ]
+      },
+      {
+        "index": 10,
+        "q": 15,
+        "w": {
+          "numerator": "506",
+          "denominator": "5"
+        },
+        "orders": [
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          },
+          {
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 15
+          },
+          {
+            "id": "D10",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      }
+    ],
+    "selections": {
+      "first": {
+        "objects": [],
+        "certificates": [],
+        "tail": {
+          "start": 0,
+          "memberEvents": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "semanticStatus": "unresolved-tail"
+        }
+      },
+      "last": {
+        "objects": [],
+        "certificates": [],
+        "tail": {
+          "start": 0,
+          "memberEvents": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "semanticStatus": "unresolved-tail"
+        }
+      }
+    }
+  }
+}

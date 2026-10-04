@@ -1,0 +1,2201 @@
+{
+  "inputs": [
+    {
+      "name": "minimal6",
+      "kind": "stage47-native-replay",
+      "initial": 10,
+      "xs": [
+        10,
+        10,
+        10,
+        20,
+        10,
+        20
+      ],
+      "native": {
+        "initial": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          }
+        ],
+        "events": [
+          {
+            "seq": 1,
+            "occurredNs": "1000000",
+            "receivedNs": "1000500",
+            "op": "add",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 2,
+            "occurredNs": "2000000",
+            "receivedNs": "2000500",
+            "op": "cancel",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 3,
+            "occurredNs": "3000000",
+            "receivedNs": "3000500",
+            "op": "add",
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 4,
+            "occurredNs": "4000000",
+            "receivedNs": "4000500",
+            "op": "add",
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 5,
+            "occurredNs": "5000000",
+            "receivedNs": "5000500",
+            "op": "cancel",
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 6,
+            "occurredNs": "6000000",
+            "receivedNs": "6000500",
+            "op": "add",
+            "id": "Q6",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      }
+    },
+    {
+      "name": "priorTrend8",
+      "kind": "stage47-native-replay",
+      "initial": 10,
+      "xs": [
+        10,
+        10,
+        10,
+        20,
+        20,
+        20,
+        10,
+        20
+      ],
+      "native": {
+        "initial": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          }
+        ],
+        "events": [
+          {
+            "seq": 1,
+            "occurredNs": "1000000",
+            "receivedNs": "1000500",
+            "op": "add",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 2,
+            "occurredNs": "2000000",
+            "receivedNs": "2000500",
+            "op": "cancel",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 3,
+            "occurredNs": "3000000",
+            "receivedNs": "3000500",
+            "op": "add",
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 4,
+            "occurredNs": "4000000",
+            "receivedNs": "4000500",
+            "op": "add",
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 5,
+            "occurredNs": "5000000",
+            "receivedNs": "5000500",
+            "op": "cancel",
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 6,
+            "occurredNs": "6000000",
+            "receivedNs": "6000500",
+            "op": "add",
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 7,
+            "occurredNs": "7000000",
+            "receivedNs": "7000500",
+            "op": "cancel",
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 8,
+            "occurredNs": "8000000",
+            "receivedNs": "8000500",
+            "op": "add",
+            "id": "Q8",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          }
+        ]
+      }
+    },
+    {
+      "name": "delayed10",
+      "kind": "stage47-native-replay",
+      "initial": 10,
+      "xs": [
+        10,
+        10,
+        10,
+        20,
+        20,
+        20,
+        10,
+        20,
+        20,
+        20
+      ],
+      "native": {
+        "initial": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          }
+        ],
+        "events": [
+          {
+            "seq": 1,
+            "occurredNs": "1000000",
+            "receivedNs": "1000500",
+            "op": "add",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 2,
+            "occurredNs": "2000000",
+            "receivedNs": "2000500",
+            "op": "cancel",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 3,
+            "occurredNs": "3000000",
+            "receivedNs": "3000500",
+            "op": "add",
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 4,
+            "occurredNs": "4000000",
+            "receivedNs": "4000500",
+            "op": "add",
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 5,
+            "occurredNs": "5000000",
+            "receivedNs": "5000500",
+            "op": "cancel",
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 6,
+            "occurredNs": "6000000",
+            "receivedNs": "6000500",
+            "op": "add",
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 7,
+            "occurredNs": "7000000",
+            "receivedNs": "7000500",
+            "op": "cancel",
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 8,
+            "occurredNs": "8000000",
+            "receivedNs": "8000500",
+            "op": "add",
+            "id": "Q8",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 9,
+            "occurredNs": "9000000",
+            "receivedNs": "9000500",
+            "op": "cancel",
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 10,
+            "occurredNs": "10000000",
+            "receivedNs": "10000500",
+            "op": "add",
+            "id": "D10",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "alternating15",
+      "kind": "stage47-native-replay",
+      "initial": 10,
+      "xs": [
+        10,
+        10,
+        10,
+        20,
+        20,
+        20,
+        10,
+        10,
+        10,
+        20,
+        20,
+        20,
+        10,
+        10,
+        10
+      ],
+      "native": {
+        "initial": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          }
+        ],
+        "events": [
+          {
+            "seq": 1,
+            "occurredNs": "1000000",
+            "receivedNs": "1000500",
+            "op": "add",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 2,
+            "occurredNs": "2000000",
+            "receivedNs": "2000500",
+            "op": "cancel",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 3,
+            "occurredNs": "3000000",
+            "receivedNs": "3000500",
+            "op": "add",
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 4,
+            "occurredNs": "4000000",
+            "receivedNs": "4000500",
+            "op": "add",
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 5,
+            "occurredNs": "5000000",
+            "receivedNs": "5000500",
+            "op": "cancel",
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 6,
+            "occurredNs": "6000000",
+            "receivedNs": "6000500",
+            "op": "add",
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 7,
+            "occurredNs": "7000000",
+            "receivedNs": "7000500",
+            "op": "cancel",
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 8,
+            "occurredNs": "8000000",
+            "receivedNs": "8000500",
+            "op": "cancel",
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 9,
+            "occurredNs": "9000000",
+            "receivedNs": "9000500",
+            "op": "add",
+            "id": "D9",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 10,
+            "occurredNs": "10000000",
+            "receivedNs": "10000500",
+            "op": "add",
+            "id": "Q10",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 11,
+            "occurredNs": "11000000",
+            "receivedNs": "11000500",
+            "op": "cancel",
+            "id": "D9",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 12,
+            "occurredNs": "12000000",
+            "receivedNs": "12000500",
+            "op": "add",
+            "id": "D12",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 13,
+            "occurredNs": "13000000",
+            "receivedNs": "13000500",
+            "op": "cancel",
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 14,
+            "occurredNs": "14000000",
+            "receivedNs": "14000500",
+            "op": "cancel",
+            "id": "D12",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 15,
+            "occurredNs": "15000000",
+            "receivedNs": "15000500",
+            "op": "add",
+            "id": "D15",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "geometric30",
+      "kind": "stage47-native-replay",
+      "initial": 10,
+      "xs": [
+        10,
+        10,
+        10,
+        20,
+        20,
+        20,
+        30,
+        30,
+        30,
+        25,
+        25,
+        25,
+        15,
+        15,
+        15,
+        5,
+        5,
+        5,
+        10,
+        10,
+        10,
+        20,
+        20,
+        20,
+        30,
+        30,
+        30,
+        25,
+        25,
+        25
+      ],
+      "native": {
+        "initial": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          }
+        ],
+        "events": [
+          {
+            "seq": 1,
+            "occurredNs": "1000000",
+            "receivedNs": "1000500",
+            "op": "add",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 2,
+            "occurredNs": "2000000",
+            "receivedNs": "2000500",
+            "op": "cancel",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 3,
+            "occurredNs": "3000000",
+            "receivedNs": "3000500",
+            "op": "add",
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 4,
+            "occurredNs": "4000000",
+            "receivedNs": "4000500",
+            "op": "add",
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 5,
+            "occurredNs": "5000000",
+            "receivedNs": "5000500",
+            "op": "cancel",
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 6,
+            "occurredNs": "6000000",
+            "receivedNs": "6000500",
+            "op": "add",
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 7,
+            "occurredNs": "7000000",
+            "receivedNs": "7000500",
+            "op": "add",
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 8,
+            "occurredNs": "8000000",
+            "receivedNs": "8000500",
+            "op": "cancel",
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 9,
+            "occurredNs": "9000000",
+            "receivedNs": "9000500",
+            "op": "add",
+            "id": "D9",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 10,
+            "occurredNs": "10000000",
+            "receivedNs": "10000500",
+            "op": "cancel",
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "seq": 11,
+            "occurredNs": "11000000",
+            "receivedNs": "11000500",
+            "op": "cancel",
+            "id": "D9",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 12,
+            "occurredNs": "12000000",
+            "receivedNs": "12000500",
+            "op": "add",
+            "id": "D12",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 13,
+            "occurredNs": "13000000",
+            "receivedNs": "13000500",
+            "op": "cancel",
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 14,
+            "occurredNs": "14000000",
+            "receivedNs": "14000500",
+            "op": "cancel",
+            "id": "D12",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 15,
+            "occurredNs": "15000000",
+            "receivedNs": "15000500",
+            "op": "add",
+            "id": "D15",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 16,
+            "occurredNs": "16000000",
+            "receivedNs": "16000500",
+            "op": "cancel",
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 17,
+            "occurredNs": "17000000",
+            "receivedNs": "17000500",
+            "op": "cancel",
+            "id": "D15",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 18,
+            "occurredNs": "18000000",
+            "receivedNs": "18000500",
+            "op": "add",
+            "id": "D18",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 19,
+            "occurredNs": "19000000",
+            "receivedNs": "19000500",
+            "op": "add",
+            "id": "Q19",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "seq": 20,
+            "occurredNs": "20000000",
+            "receivedNs": "20000500",
+            "op": "cancel",
+            "id": "D18",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 21,
+            "occurredNs": "21000000",
+            "receivedNs": "21000500",
+            "op": "add",
+            "id": "D21",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 22,
+            "occurredNs": "22000000",
+            "receivedNs": "22000500",
+            "op": "add",
+            "id": "Q22",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 23,
+            "occurredNs": "23000000",
+            "receivedNs": "23000500",
+            "op": "cancel",
+            "id": "D21",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 24,
+            "occurredNs": "24000000",
+            "receivedNs": "24000500",
+            "op": "add",
+            "id": "D24",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 25,
+            "occurredNs": "25000000",
+            "receivedNs": "25000500",
+            "op": "add",
+            "id": "Q25",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 26,
+            "occurredNs": "26000000",
+            "receivedNs": "26000500",
+            "op": "cancel",
+            "id": "D24",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 27,
+            "occurredNs": "27000000",
+            "receivedNs": "27000500",
+            "op": "add",
+            "id": "D27",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 28,
+            "occurredNs": "28000000",
+            "receivedNs": "28000500",
+            "op": "cancel",
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "seq": 29,
+            "occurredNs": "29000000",
+            "receivedNs": "29000500",
+            "op": "cancel",
+            "id": "D27",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 30,
+            "occurredNs": "30000000",
+            "receivedNs": "30000500",
+            "op": "add",
+            "id": "D30",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "sameDirectionReturn13",
+      "kind": "stage47-native-replay",
+      "initial": 10,
+      "xs": [
+        10,
+        10,
+        10,
+        20,
+        20,
+        20,
+        15,
+        30,
+        30,
+        30,
+        25,
+        25,
+        25
+      ],
+      "native": {
+        "initial": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          }
+        ],
+        "events": [
+          {
+            "seq": 1,
+            "occurredNs": "1000000",
+            "receivedNs": "1000500",
+            "op": "add",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 2,
+            "occurredNs": "2000000",
+            "receivedNs": "2000500",
+            "op": "cancel",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 3,
+            "occurredNs": "3000000",
+            "receivedNs": "3000500",
+            "op": "add",
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 4,
+            "occurredNs": "4000000",
+            "receivedNs": "4000500",
+            "op": "add",
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 5,
+            "occurredNs": "5000000",
+            "receivedNs": "5000500",
+            "op": "cancel",
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 6,
+            "occurredNs": "6000000",
+            "receivedNs": "6000500",
+            "op": "add",
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 7,
+            "occurredNs": "7000000",
+            "receivedNs": "7000500",
+            "op": "cancel",
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "seq": 8,
+            "occurredNs": "8000000",
+            "receivedNs": "8000500",
+            "op": "add",
+            "id": "Q8",
+            "side": "bid",
+            "price": 100,
+            "quantity": 15
+          },
+          {
+            "seq": 9,
+            "occurredNs": "9000000",
+            "receivedNs": "9000500",
+            "op": "cancel",
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 10,
+            "occurredNs": "10000000",
+            "receivedNs": "10000500",
+            "op": "add",
+            "id": "D10",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 11,
+            "occurredNs": "11000000",
+            "receivedNs": "11000500",
+            "op": "cancel",
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "seq": 12,
+            "occurredNs": "12000000",
+            "receivedNs": "12000500",
+            "op": "cancel",
+            "id": "D10",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 13,
+            "occurredNs": "13000000",
+            "receivedNs": "13000500",
+            "op": "add",
+            "id": "D13",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "forwardMerge16",
+      "kind": "stage47-native-replay",
+      "initial": 10,
+      "xs": [
+        10,
+        10,
+        10,
+        20,
+        20,
+        20,
+        10,
+        20,
+        20,
+        20,
+        10,
+        10,
+        10,
+        20,
+        20,
+        20
+      ],
+      "native": {
+        "initial": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          }
+        ],
+        "events": [
+          {
+            "seq": 1,
+            "occurredNs": "1000000",
+            "receivedNs": "1000500",
+            "op": "add",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 2,
+            "occurredNs": "2000000",
+            "receivedNs": "2000500",
+            "op": "cancel",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 3,
+            "occurredNs": "3000000",
+            "receivedNs": "3000500",
+            "op": "add",
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 4,
+            "occurredNs": "4000000",
+            "receivedNs": "4000500",
+            "op": "add",
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 5,
+            "occurredNs": "5000000",
+            "receivedNs": "5000500",
+            "op": "cancel",
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 6,
+            "occurredNs": "6000000",
+            "receivedNs": "6000500",
+            "op": "add",
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 7,
+            "occurredNs": "7000000",
+            "receivedNs": "7000500",
+            "op": "cancel",
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 8,
+            "occurredNs": "8000000",
+            "receivedNs": "8000500",
+            "op": "add",
+            "id": "Q8",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 9,
+            "occurredNs": "9000000",
+            "receivedNs": "9000500",
+            "op": "cancel",
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 10,
+            "occurredNs": "10000000",
+            "receivedNs": "10000500",
+            "op": "add",
+            "id": "D10",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 11,
+            "occurredNs": "11000000",
+            "receivedNs": "11000500",
+            "op": "cancel",
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 12,
+            "occurredNs": "12000000",
+            "receivedNs": "12000500",
+            "op": "cancel",
+            "id": "D10",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 13,
+            "occurredNs": "13000000",
+            "receivedNs": "13000500",
+            "op": "add",
+            "id": "D13",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 14,
+            "occurredNs": "14000000",
+            "receivedNs": "14000500",
+            "op": "add",
+            "id": "Q14",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 15,
+            "occurredNs": "15000000",
+            "receivedNs": "15000500",
+            "op": "cancel",
+            "id": "D13",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 16,
+            "occurredNs": "16000000",
+            "receivedNs": "16000500",
+            "op": "add",
+            "id": "D16",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated15",
+      "kind": "coordinate-only-new-diagnostic",
+      "initial": 10,
+      "xs": [
+        10,
+        10,
+        10,
+        20,
+        20,
+        20,
+        30,
+        25,
+        30,
+        10,
+        10,
+        10,
+        20,
+        20,
+        20
+      ]
+    },
+    {
+      "name": "repeated15Shift100",
+      "kind": "new-native-shifted-witness",
+      "initial": 110,
+      "xs": [
+        110,
+        110,
+        110,
+        120,
+        120,
+        120,
+        130,
+        125,
+        130,
+        110,
+        110,
+        110,
+        120,
+        120,
+        120
+      ],
+      "native": {
+        "initial": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          }
+        ],
+        "events": [
+          {
+            "seq": 1,
+            "occurredNs": "1000000",
+            "receivedNs": "1000500",
+            "op": "add",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 2,
+            "occurredNs": "2000000",
+            "receivedNs": "2000500",
+            "op": "cancel",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 3,
+            "occurredNs": "3000000",
+            "receivedNs": "3000500",
+            "op": "add",
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 4,
+            "occurredNs": "4000000",
+            "receivedNs": "4000500",
+            "op": "add",
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 5,
+            "occurredNs": "5000000",
+            "receivedNs": "5000500",
+            "op": "cancel",
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 6,
+            "occurredNs": "6000000",
+            "receivedNs": "6000500",
+            "op": "add",
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 7,
+            "occurredNs": "7000000",
+            "receivedNs": "7000500",
+            "op": "add",
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 8,
+            "occurredNs": "8000000",
+            "receivedNs": "8000500",
+            "op": "cancel",
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "seq": 9,
+            "occurredNs": "9000000",
+            "receivedNs": "9000500",
+            "op": "add",
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "seq": 10,
+            "occurredNs": "10000000",
+            "receivedNs": "10000500",
+            "op": "cancel",
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 20
+          },
+          {
+            "seq": 11,
+            "occurredNs": "11000000",
+            "receivedNs": "11000500",
+            "op": "cancel",
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 12,
+            "occurredNs": "12000000",
+            "receivedNs": "12000500",
+            "op": "add",
+            "id": "D12",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 13,
+            "occurredNs": "13000000",
+            "receivedNs": "13000500",
+            "op": "add",
+            "id": "Q13",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 14,
+            "occurredNs": "14000000",
+            "receivedNs": "14000500",
+            "op": "cancel",
+            "id": "D12",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 15,
+            "occurredNs": "15000000",
+            "receivedNs": "15000500",
+            "op": "add",
+            "id": "D15",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated18",
+      "kind": "coordinate-only-new-diagnostic",
+      "initial": 10,
+      "xs": [
+        10,
+        10,
+        10,
+        20,
+        20,
+        20,
+        30,
+        25,
+        30,
+        10,
+        10,
+        10,
+        5,
+        5,
+        5,
+        15,
+        15,
+        15
+      ]
+    },
+    {
+      "name": "repeated18Shift100",
+      "kind": "new-native-shifted-witness",
+      "initial": 110,
+      "xs": [
+        110,
+        110,
+        110,
+        120,
+        120,
+        120,
+        130,
+        125,
+        130,
+        110,
+        110,
+        110,
+        105,
+        105,
+        105,
+        115,
+        115,
+        115
+      ],
+      "native": {
+        "initial": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          }
+        ],
+        "events": [
+          {
+            "seq": 1,
+            "occurredNs": "1000000",
+            "receivedNs": "1000500",
+            "op": "add",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 2,
+            "occurredNs": "2000000",
+            "receivedNs": "2000500",
+            "op": "cancel",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 3,
+            "occurredNs": "3000000",
+            "receivedNs": "3000500",
+            "op": "add",
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 4,
+            "occurredNs": "4000000",
+            "receivedNs": "4000500",
+            "op": "add",
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 5,
+            "occurredNs": "5000000",
+            "receivedNs": "5000500",
+            "op": "cancel",
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 6,
+            "occurredNs": "6000000",
+            "receivedNs": "6000500",
+            "op": "add",
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 7,
+            "occurredNs": "7000000",
+            "receivedNs": "7000500",
+            "op": "add",
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 8,
+            "occurredNs": "8000000",
+            "receivedNs": "8000500",
+            "op": "cancel",
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "seq": 9,
+            "occurredNs": "9000000",
+            "receivedNs": "9000500",
+            "op": "add",
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "seq": 10,
+            "occurredNs": "10000000",
+            "receivedNs": "10000500",
+            "op": "cancel",
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 20
+          },
+          {
+            "seq": 11,
+            "occurredNs": "11000000",
+            "receivedNs": "11000500",
+            "op": "cancel",
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 12,
+            "occurredNs": "12000000",
+            "receivedNs": "12000500",
+            "op": "add",
+            "id": "D12",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 13,
+            "occurredNs": "13000000",
+            "receivedNs": "13000500",
+            "op": "cancel",
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "seq": 14,
+            "occurredNs": "14000000",
+            "receivedNs": "14000500",
+            "op": "cancel",
+            "id": "D12",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 15,
+            "occurredNs": "15000000",
+            "receivedNs": "15000500",
+            "op": "add",
+            "id": "D15",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 16,
+            "occurredNs": "16000000",
+            "receivedNs": "16000500",
+            "op": "add",
+            "id": "Q16",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 17,
+            "occurredNs": "17000000",
+            "receivedNs": "17000500",
+            "op": "cancel",
+            "id": "D15",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 18,
+            "occurredNs": "18000000",
+            "receivedNs": "18000500",
+            "op": "add",
+            "id": "D18",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated24",
+      "kind": "coordinate-only-new-diagnostic",
+      "initial": 10,
+      "xs": [
+        10,
+        10,
+        10,
+        20,
+        20,
+        20,
+        30,
+        25,
+        30,
+        10,
+        10,
+        10,
+        5,
+        5,
+        5,
+        15,
+        15,
+        15,
+        25,
+        25,
+        25,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "name": "repeated24Shift100",
+      "kind": "new-native-shifted-witness",
+      "initial": 110,
+      "xs": [
+        110,
+        110,
+        110,
+        120,
+        120,
+        120,
+        130,
+        125,
+        130,
+        110,
+        110,
+        110,
+        105,
+        105,
+        105,
+        115,
+        115,
+        115,
+        125,
+        125,
+        125,
+        110,
+        110,
+        110
+      ],
+      "native": {
+        "initial": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 110
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          }
+        ],
+        "events": [
+          {
+            "seq": 1,
+            "occurredNs": "1000000",
+            "receivedNs": "1000500",
+            "op": "add",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 2,
+            "occurredNs": "2000000",
+            "receivedNs": "2000500",
+            "op": "cancel",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 3,
+            "occurredNs": "3000000",
+            "receivedNs": "3000500",
+            "op": "add",
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 4,
+            "occurredNs": "4000000",
+            "receivedNs": "4000500",
+            "op": "add",
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 5,
+            "occurredNs": "5000000",
+            "receivedNs": "5000500",
+            "op": "cancel",
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 6,
+            "occurredNs": "6000000",
+            "receivedNs": "6000500",
+            "op": "add",
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 7,
+            "occurredNs": "7000000",
+            "receivedNs": "7000500",
+            "op": "add",
+            "id": "Q7",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 8,
+            "occurredNs": "8000000",
+            "receivedNs": "8000500",
+            "op": "cancel",
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "seq": 9,
+            "occurredNs": "9000000",
+            "receivedNs": "9000500",
+            "op": "add",
+            "id": "Q9",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "seq": 10,
+            "occurredNs": "10000000",
+            "receivedNs": "10000500",
+            "op": "cancel",
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 20
+          },
+          {
+            "seq": 11,
+            "occurredNs": "11000000",
+            "receivedNs": "11000500",
+            "op": "cancel",
+            "id": "D6",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 12,
+            "occurredNs": "12000000",
+            "receivedNs": "12000500",
+            "op": "add",
+            "id": "D12",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 13,
+            "occurredNs": "13000000",
+            "receivedNs": "13000500",
+            "op": "cancel",
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "seq": 14,
+            "occurredNs": "14000000",
+            "receivedNs": "14000500",
+            "op": "cancel",
+            "id": "D12",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 15,
+            "occurredNs": "15000000",
+            "receivedNs": "15000500",
+            "op": "add",
+            "id": "D15",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 16,
+            "occurredNs": "16000000",
+            "receivedNs": "16000500",
+            "op": "add",
+            "id": "Q16",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 17,
+            "occurredNs": "17000000",
+            "receivedNs": "17000500",
+            "op": "cancel",
+            "id": "D15",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 18,
+            "occurredNs": "18000000",
+            "receivedNs": "18000500",
+            "op": "add",
+            "id": "D18",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 19,
+            "occurredNs": "19000000",
+            "receivedNs": "19000500",
+            "op": "add",
+            "id": "Q19",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 20,
+            "occurredNs": "20000000",
+            "receivedNs": "20000500",
+            "op": "cancel",
+            "id": "D18",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 21,
+            "occurredNs": "21000000",
+            "receivedNs": "21000500",
+            "op": "add",
+            "id": "D21",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 22,
+            "occurredNs": "22000000",
+            "receivedNs": "22000500",
+            "op": "cancel",
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 15
+          },
+          {
+            "seq": 23,
+            "occurredNs": "23000000",
+            "receivedNs": "23000500",
+            "op": "cancel",
+            "id": "D21",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 24,
+            "occurredNs": "24000000",
+            "receivedNs": "24000500",
+            "op": "add",
+            "id": "D24",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "fixedOwned10",
+      "kind": "new-native-fixed-owned-diagnostic",
+      "initial": 10,
+      "xs": [
+        10,
+        10,
+        10,
+        30,
+        20,
+        20,
+        20,
+        15,
+        15,
+        15
+      ],
+      "native": {
+        "initial": [
+          {
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "id": "A0",
+            "side": "ask",
+            "price": 102,
+            "quantity": 10
+          }
+        ],
+        "events": [
+          {
+            "seq": 1,
+            "occurredNs": "1000000",
+            "receivedNs": "1000500",
+            "op": "add",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 2,
+            "occurredNs": "2000000",
+            "receivedNs": "2000500",
+            "op": "cancel",
+            "id": "D1",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 3,
+            "occurredNs": "3000000",
+            "receivedNs": "3000500",
+            "op": "add",
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 4,
+            "occurredNs": "4000000",
+            "receivedNs": "4000500",
+            "op": "add",
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 20
+          },
+          {
+            "seq": 5,
+            "occurredNs": "5000000",
+            "receivedNs": "5000500",
+            "op": "cancel",
+            "id": "S0",
+            "side": "bid",
+            "price": 100,
+            "quantity": 10
+          },
+          {
+            "seq": 6,
+            "occurredNs": "6000000",
+            "receivedNs": "6000500",
+            "op": "cancel",
+            "id": "D3",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 7,
+            "occurredNs": "7000000",
+            "receivedNs": "7000500",
+            "op": "add",
+            "id": "D7",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 8,
+            "occurredNs": "8000000",
+            "receivedNs": "8000500",
+            "op": "cancel",
+            "id": "Q4",
+            "side": "bid",
+            "price": 100,
+            "quantity": 5
+          },
+          {
+            "seq": 9,
+            "occurredNs": "9000000",
+            "receivedNs": "9000500",
+            "op": "cancel",
+            "id": "D7",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          },
+          {
+            "seq": 10,
+            "occurredNs": "10000000",
+            "receivedNs": "10000500",
+            "op": "add",
+            "id": "D10",
+            "side": "bid",
+            "price": 99,
+            "quantity": 1
+          }
+        ]
+      }
+    }
+  ],
+  "reachability": {
+    "repeated15": {
+      "failure": {
+        "event": 10,
+        "from": 30,
+        "to": 10,
+        "requestedCancel": 20,
+        "largestAvailable": 10
+      }
+    },
+    "repeated18": {
+      "failure": {
+        "event": 10,
+        "from": 30,
+        "to": 10,
+        "requestedCancel": 20,
+        "largestAvailable": 10
+      }
+    },
+    "repeated24": {
+      "failure": {
+        "event": 10,
+        "from": 30,
+        "to": 10,
+        "requestedCancel": 20,
+        "largestAvailable": 10
+      }
+    }
+  }
+}

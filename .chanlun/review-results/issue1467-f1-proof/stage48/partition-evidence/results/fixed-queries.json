@@ -1,0 +1,2366 @@
+[
+  {
+    "name": "minimal6",
+    "k": 5,
+    "b": 1,
+    "rows": [
+      {
+        "profile": "CORE",
+        "policy": "BASE",
+        "count": "1",
+        "witnesses": [
+          [
+            0,
+            5
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "CORE",
+        "policy": "CLOSED-CUT",
+        "count": "1",
+        "witnesses": [
+          [
+            0,
+            5
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "BASE",
+        "count": "1",
+        "witnesses": [
+          [
+            0,
+            5
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "CLOSED-CUT",
+        "count": "1",
+        "witnesses": [
+          [
+            0,
+            5
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "BASE",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "CLOSED-CUT",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      }
+    ]
+  },
+  {
+    "name": "minimal6",
+    "k": 5,
+    "b": 2,
+    "rows": [
+      {
+        "profile": "CORE",
+        "policy": "BASE",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "CORE",
+        "policy": "CLOSED-CUT",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "BASE",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "CLOSED-CUT",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "BASE",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "CLOSED-CUT",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      }
+    ]
+  },
+  {
+    "name": "priorTrend8",
+    "k": 7,
+    "b": 1,
+    "rows": [
+      {
+        "profile": "CORE",
+        "policy": "BASE",
+        "count": "1",
+        "witnesses": [
+          [
+            0,
+            7
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "CORE",
+        "policy": "CLOSED-CUT",
+        "count": "1",
+        "witnesses": [
+          [
+            0,
+            7
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "BASE",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "CLOSED-CUT",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "BASE",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "CLOSED-CUT",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      }
+    ]
+  },
+  {
+    "name": "priorTrend8",
+    "k": 7,
+    "b": 2,
+    "rows": [
+      {
+        "profile": "CORE",
+        "policy": "BASE",
+        "count": "1",
+        "witnesses": [
+          [
+            0,
+            3,
+            7
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "CORE",
+        "policy": "CLOSED-CUT",
+        "count": "1",
+        "witnesses": [
+          [
+            0,
+            3,
+            7
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "BASE",
+        "count": "1",
+        "witnesses": [
+          [
+            0,
+            3,
+            7
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "CLOSED-CUT",
+        "count": "1",
+        "witnesses": [
+          [
+            0,
+            3,
+            7
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "BASE",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "CLOSED-CUT",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      }
+    ]
+  },
+  {
+    "name": "forwardMerge16",
+    "k": 13,
+    "b": 2,
+    "rows": [
+      {
+        "profile": "CORE",
+        "policy": "BASE",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            6,
+            13
+          ],
+          [
+            0,
+            7,
+            13
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "CORE",
+        "policy": "CLOSED-CUT",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            6,
+            13
+          ],
+          [
+            0,
+            7,
+            13
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "BASE",
+        "count": "1",
+        "witnesses": [
+          [
+            0,
+            6,
+            13
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "CLOSED-CUT",
+        "count": "1",
+        "witnesses": [
+          [
+            0,
+            6,
+            13
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "BASE",
+        "count": "1",
+        "witnesses": [
+          [
+            0,
+            6,
+            13
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "CLOSED-CUT",
+        "count": "1",
+        "witnesses": [
+          [
+            0,
+            6,
+            13
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      }
+    ]
+  },
+  {
+    "name": "geometric30",
+    "k": 27,
+    "b": 3,
+    "rows": [
+      {
+        "profile": "CORE",
+        "policy": "BASE",
+        "count": "4",
+        "witnesses": [
+          [
+            0,
+            6,
+            15,
+            27
+          ],
+          [
+            0,
+            9,
+            15,
+            27
+          ]
+        ],
+        "threeTrendStrict": "4",
+        "threeWitnesses": [
+          {
+            "cuts": [
+              0,
+              6,
+              15,
+              27
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              15,
+              20
+            ],
+            "ranges": [
+              [
+                10,
+                20
+              ],
+              [
+                15,
+                30
+              ],
+              [
+                5,
+                30
+              ]
+            ]
+          },
+          {
+            "cuts": [
+              0,
+              6,
+              18,
+              27
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              10,
+              20
+            ],
+            "ranges": [
+              [
+                10,
+                20
+              ],
+              [
+                5,
+                30
+              ],
+              [
+                5,
+                30
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "profile": "CORE",
+        "policy": "CLOSED-CUT",
+        "count": "4",
+        "witnesses": [
+          [
+            0,
+            6,
+            15,
+            27
+          ],
+          [
+            0,
+            9,
+            15,
+            27
+          ]
+        ],
+        "threeTrendStrict": "4",
+        "threeWitnesses": [
+          {
+            "cuts": [
+              0,
+              6,
+              15,
+              27
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              15,
+              20
+            ],
+            "ranges": [
+              [
+                10,
+                20
+              ],
+              [
+                15,
+                30
+              ],
+              [
+                5,
+                30
+              ]
+            ]
+          },
+          {
+            "cuts": [
+              0,
+              6,
+              18,
+              27
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              10,
+              20
+            ],
+            "ranges": [
+              [
+                10,
+                20
+              ],
+              [
+                5,
+                30
+              ],
+              [
+                5,
+                30
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "BASE",
+        "count": "1",
+        "witnesses": [
+          [
+            0,
+            9,
+            18,
+            27
+          ]
+        ],
+        "threeTrendStrict": "1",
+        "threeWitnesses": [
+          {
+            "cuts": [
+              0,
+              9,
+              18,
+              27
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              10,
+              30
+            ],
+            "ranges": [
+              [
+                10,
+                30
+              ],
+              [
+                5,
+                30
+              ],
+              [
+                5,
+                30
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "CLOSED-CUT",
+        "count": "1",
+        "witnesses": [
+          [
+            0,
+            9,
+            18,
+            27
+          ]
+        ],
+        "threeTrendStrict": "1",
+        "threeWitnesses": [
+          {
+            "cuts": [
+              0,
+              9,
+              18,
+              27
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              10,
+              30
+            ],
+            "ranges": [
+              [
+                10,
+                30
+              ],
+              [
+                5,
+                30
+              ],
+              [
+                5,
+                30
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "BASE",
+        "count": "1",
+        "witnesses": [
+          [
+            0,
+            9,
+            18,
+            27
+          ]
+        ],
+        "threeTrendStrict": "1",
+        "threeWitnesses": [
+          {
+            "cuts": [
+              0,
+              9,
+              18,
+              27
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              10,
+              30
+            ],
+            "ranges": [
+              [
+                10,
+                30
+              ],
+              [
+                5,
+                30
+              ],
+              [
+                5,
+                30
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "CLOSED-CUT",
+        "count": "1",
+        "witnesses": [
+          [
+            0,
+            9,
+            18,
+            27
+          ]
+        ],
+        "threeTrendStrict": "1",
+        "threeWitnesses": [
+          {
+            "cuts": [
+              0,
+              9,
+              18,
+              27
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              10,
+              30
+            ],
+            "ranges": [
+              [
+                10,
+                30
+              ],
+              [
+                5,
+                30
+              ],
+              [
+                5,
+                30
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "repeated15",
+    "k": 12,
+    "b": 2,
+    "rows": [
+      {
+        "profile": "CORE",
+        "policy": "BASE",
+        "count": "5",
+        "witnesses": [
+          [
+            0,
+            3,
+            12
+          ],
+          [
+            0,
+            6,
+            12
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "CORE",
+        "policy": "CLOSED-CUT",
+        "count": "5",
+        "witnesses": [
+          [
+            0,
+            3,
+            12
+          ],
+          [
+            0,
+            6,
+            12
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "BASE",
+        "count": "3",
+        "witnesses": [
+          [
+            0,
+            6,
+            12
+          ],
+          [
+            0,
+            7,
+            12
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "CLOSED-CUT",
+        "count": "3",
+        "witnesses": [
+          [
+            0,
+            6,
+            12
+          ],
+          [
+            0,
+            7,
+            12
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "BASE",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "CLOSED-CUT",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      }
+    ]
+  },
+  {
+    "name": "repeated18",
+    "k": 15,
+    "b": 2,
+    "rows": [
+      {
+        "profile": "CORE",
+        "policy": "BASE",
+        "count": "5",
+        "witnesses": [
+          [
+            0,
+            3,
+            15
+          ],
+          [
+            0,
+            6,
+            15
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "CORE",
+        "policy": "CLOSED-CUT",
+        "count": "5",
+        "witnesses": [
+          [
+            0,
+            3,
+            15
+          ],
+          [
+            0,
+            6,
+            15
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "BASE",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            7,
+            15
+          ],
+          [
+            0,
+            9,
+            15
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "CLOSED-CUT",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            7,
+            15
+          ],
+          [
+            0,
+            9,
+            15
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "BASE",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            7,
+            15
+          ],
+          [
+            0,
+            9,
+            15
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "CLOSED-CUT",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            7,
+            15
+          ],
+          [
+            0,
+            9,
+            15
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      }
+    ]
+  },
+  {
+    "name": "repeated24",
+    "k": 21,
+    "b": 3,
+    "rows": [
+      {
+        "profile": "CORE",
+        "policy": "BASE",
+        "count": "10",
+        "witnesses": [
+          [
+            0,
+            3,
+            12,
+            21
+          ],
+          [
+            0,
+            6,
+            12,
+            21
+          ]
+        ],
+        "threeTrendStrict": "4",
+        "threeWitnesses": [
+          {
+            "cuts": [
+              0,
+              6,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              10,
+              20
+            ],
+            "ranges": [
+              [
+                10,
+                20
+              ],
+              [
+                5,
+                30
+              ],
+              [
+                5,
+                25
+              ]
+            ]
+          },
+          {
+            "cuts": [
+              0,
+              7,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              10,
+              25
+            ],
+            "ranges": [
+              [
+                10,
+                30
+              ],
+              [
+                5,
+                30
+              ],
+              [
+                5,
+                25
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "profile": "CORE",
+        "policy": "CLOSED-CUT",
+        "count": "10",
+        "witnesses": [
+          [
+            0,
+            3,
+            12,
+            21
+          ],
+          [
+            0,
+            6,
+            12,
+            21
+          ]
+        ],
+        "threeTrendStrict": "4",
+        "threeWitnesses": [
+          {
+            "cuts": [
+              0,
+              6,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              10,
+              20
+            ],
+            "ranges": [
+              [
+                10,
+                20
+              ],
+              [
+                5,
+                30
+              ],
+              [
+                5,
+                25
+              ]
+            ]
+          },
+          {
+            "cuts": [
+              0,
+              7,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              10,
+              25
+            ],
+            "ranges": [
+              [
+                10,
+                30
+              ],
+              [
+                5,
+                30
+              ],
+              [
+                5,
+                25
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "BASE",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            7,
+            15,
+            21
+          ],
+          [
+            0,
+            9,
+            15,
+            21
+          ]
+        ],
+        "threeTrendStrict": "2",
+        "threeWitnesses": [
+          {
+            "cuts": [
+              0,
+              7,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              10,
+              25
+            ],
+            "ranges": [
+              [
+                10,
+                30
+              ],
+              [
+                5,
+                30
+              ],
+              [
+                5,
+                25
+              ]
+            ]
+          },
+          {
+            "cuts": [
+              0,
+              9,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              10,
+              25
+            ],
+            "ranges": [
+              [
+                10,
+                30
+              ],
+              [
+                5,
+                30
+              ],
+              [
+                5,
+                25
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "CLOSED-CUT",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            7,
+            15,
+            21
+          ],
+          [
+            0,
+            9,
+            15,
+            21
+          ]
+        ],
+        "threeTrendStrict": "2",
+        "threeWitnesses": [
+          {
+            "cuts": [
+              0,
+              7,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              10,
+              25
+            ],
+            "ranges": [
+              [
+                10,
+                30
+              ],
+              [
+                5,
+                30
+              ],
+              [
+                5,
+                25
+              ]
+            ]
+          },
+          {
+            "cuts": [
+              0,
+              9,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              10,
+              25
+            ],
+            "ranges": [
+              [
+                10,
+                30
+              ],
+              [
+                5,
+                30
+              ],
+              [
+                5,
+                25
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "BASE",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            7,
+            15,
+            21
+          ],
+          [
+            0,
+            9,
+            15,
+            21
+          ]
+        ],
+        "threeTrendStrict": "2",
+        "threeWitnesses": [
+          {
+            "cuts": [
+              0,
+              7,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              10,
+              25
+            ],
+            "ranges": [
+              [
+                10,
+                30
+              ],
+              [
+                5,
+                30
+              ],
+              [
+                5,
+                25
+              ]
+            ]
+          },
+          {
+            "cuts": [
+              0,
+              9,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              10,
+              25
+            ],
+            "ranges": [
+              [
+                10,
+                30
+              ],
+              [
+                5,
+                30
+              ],
+              [
+                5,
+                25
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "CLOSED-CUT",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            7,
+            15,
+            21
+          ],
+          [
+            0,
+            9,
+            15,
+            21
+          ]
+        ],
+        "threeTrendStrict": "2",
+        "threeWitnesses": [
+          {
+            "cuts": [
+              0,
+              7,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              10,
+              25
+            ],
+            "ranges": [
+              [
+                10,
+                30
+              ],
+              [
+                5,
+                30
+              ],
+              [
+                5,
+                25
+              ]
+            ]
+          },
+          {
+            "cuts": [
+              0,
+              9,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              10,
+              25
+            ],
+            "ranges": [
+              [
+                10,
+                30
+              ],
+              [
+                5,
+                30
+              ],
+              [
+                5,
+                25
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "repeated15Shift100",
+    "k": 12,
+    "b": 2,
+    "rows": [
+      {
+        "profile": "CORE",
+        "policy": "BASE",
+        "count": "5",
+        "witnesses": [
+          [
+            0,
+            3,
+            12
+          ],
+          [
+            0,
+            6,
+            12
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "CORE",
+        "policy": "CLOSED-CUT",
+        "count": "5",
+        "witnesses": [
+          [
+            0,
+            3,
+            12
+          ],
+          [
+            0,
+            6,
+            12
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "BASE",
+        "count": "3",
+        "witnesses": [
+          [
+            0,
+            6,
+            12
+          ],
+          [
+            0,
+            7,
+            12
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "CLOSED-CUT",
+        "count": "3",
+        "witnesses": [
+          [
+            0,
+            6,
+            12
+          ],
+          [
+            0,
+            7,
+            12
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "BASE",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "CLOSED-CUT",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      }
+    ]
+  },
+  {
+    "name": "repeated18Shift100",
+    "k": 15,
+    "b": 2,
+    "rows": [
+      {
+        "profile": "CORE",
+        "policy": "BASE",
+        "count": "5",
+        "witnesses": [
+          [
+            0,
+            3,
+            15
+          ],
+          [
+            0,
+            6,
+            15
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "CORE",
+        "policy": "CLOSED-CUT",
+        "count": "5",
+        "witnesses": [
+          [
+            0,
+            3,
+            15
+          ],
+          [
+            0,
+            6,
+            15
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "BASE",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            7,
+            15
+          ],
+          [
+            0,
+            9,
+            15
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "CLOSED-CUT",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            7,
+            15
+          ],
+          [
+            0,
+            9,
+            15
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "BASE",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            7,
+            15
+          ],
+          [
+            0,
+            9,
+            15
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "CLOSED-CUT",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            7,
+            15
+          ],
+          [
+            0,
+            9,
+            15
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      }
+    ]
+  },
+  {
+    "name": "repeated24Shift100",
+    "k": 21,
+    "b": 3,
+    "rows": [
+      {
+        "profile": "CORE",
+        "policy": "BASE",
+        "count": "10",
+        "witnesses": [
+          [
+            0,
+            3,
+            12,
+            21
+          ],
+          [
+            0,
+            6,
+            12,
+            21
+          ]
+        ],
+        "threeTrendStrict": "4",
+        "threeWitnesses": [
+          {
+            "cuts": [
+              0,
+              6,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              110,
+              120
+            ],
+            "ranges": [
+              [
+                110,
+                120
+              ],
+              [
+                105,
+                130
+              ],
+              [
+                105,
+                125
+              ]
+            ]
+          },
+          {
+            "cuts": [
+              0,
+              7,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              110,
+              125
+            ],
+            "ranges": [
+              [
+                110,
+                130
+              ],
+              [
+                105,
+                130
+              ],
+              [
+                105,
+                125
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "profile": "CORE",
+        "policy": "CLOSED-CUT",
+        "count": "10",
+        "witnesses": [
+          [
+            0,
+            3,
+            12,
+            21
+          ],
+          [
+            0,
+            6,
+            12,
+            21
+          ]
+        ],
+        "threeTrendStrict": "4",
+        "threeWitnesses": [
+          {
+            "cuts": [
+              0,
+              6,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              110,
+              120
+            ],
+            "ranges": [
+              [
+                110,
+                120
+              ],
+              [
+                105,
+                130
+              ],
+              [
+                105,
+                125
+              ]
+            ]
+          },
+          {
+            "cuts": [
+              0,
+              7,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              110,
+              125
+            ],
+            "ranges": [
+              [
+                110,
+                130
+              ],
+              [
+                105,
+                130
+              ],
+              [
+                105,
+                125
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "BASE",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            7,
+            15,
+            21
+          ],
+          [
+            0,
+            9,
+            15,
+            21
+          ]
+        ],
+        "threeTrendStrict": "2",
+        "threeWitnesses": [
+          {
+            "cuts": [
+              0,
+              7,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              110,
+              125
+            ],
+            "ranges": [
+              [
+                110,
+                130
+              ],
+              [
+                105,
+                130
+              ],
+              [
+                105,
+                125
+              ]
+            ]
+          },
+          {
+            "cuts": [
+              0,
+              9,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              110,
+              125
+            ],
+            "ranges": [
+              [
+                110,
+                130
+              ],
+              [
+                105,
+                130
+              ],
+              [
+                105,
+                125
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "CLOSED-CUT",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            7,
+            15,
+            21
+          ],
+          [
+            0,
+            9,
+            15,
+            21
+          ]
+        ],
+        "threeTrendStrict": "2",
+        "threeWitnesses": [
+          {
+            "cuts": [
+              0,
+              7,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              110,
+              125
+            ],
+            "ranges": [
+              [
+                110,
+                130
+              ],
+              [
+                105,
+                130
+              ],
+              [
+                105,
+                125
+              ]
+            ]
+          },
+          {
+            "cuts": [
+              0,
+              9,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              110,
+              125
+            ],
+            "ranges": [
+              [
+                110,
+                130
+              ],
+              [
+                105,
+                130
+              ],
+              [
+                105,
+                125
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "BASE",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            7,
+            15,
+            21
+          ],
+          [
+            0,
+            9,
+            15,
+            21
+          ]
+        ],
+        "threeTrendStrict": "2",
+        "threeWitnesses": [
+          {
+            "cuts": [
+              0,
+              7,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              110,
+              125
+            ],
+            "ranges": [
+              [
+                110,
+                130
+              ],
+              [
+                105,
+                130
+              ],
+              [
+                105,
+                125
+              ]
+            ]
+          },
+          {
+            "cuts": [
+              0,
+              9,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              110,
+              125
+            ],
+            "ranges": [
+              [
+                110,
+                130
+              ],
+              [
+                105,
+                130
+              ],
+              [
+                105,
+                125
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "CLOSED-CUT",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            7,
+            15,
+            21
+          ],
+          [
+            0,
+            9,
+            15,
+            21
+          ]
+        ],
+        "threeTrendStrict": "2",
+        "threeWitnesses": [
+          {
+            "cuts": [
+              0,
+              7,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              110,
+              125
+            ],
+            "ranges": [
+              [
+                110,
+                130
+              ],
+              [
+                105,
+                130
+              ],
+              [
+                105,
+                125
+              ]
+            ]
+          },
+          {
+            "cuts": [
+              0,
+              9,
+              15,
+              21
+            ],
+            "types": [
+              "U",
+              "D",
+              "U"
+            ],
+            "intersection": [
+              110,
+              125
+            ],
+            "ranges": [
+              [
+                110,
+                130
+              ],
+              [
+                105,
+                130
+              ],
+              [
+                105,
+                125
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "fixedOwned10",
+    "k": 7,
+    "b": 1,
+    "rows": [
+      {
+        "profile": "CORE",
+        "policy": "BASE",
+        "count": "1",
+        "witnesses": [
+          [
+            0,
+            7
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "CORE",
+        "policy": "CLOSED-CUT",
+        "count": "1",
+        "witnesses": [
+          [
+            0,
+            7
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "BASE",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "CLOSED-CUT",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "BASE",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "CLOSED-CUT",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      }
+    ]
+  },
+  {
+    "name": "fixedOwned10",
+    "k": 7,
+    "b": 2,
+    "rows": [
+      {
+        "profile": "CORE",
+        "policy": "BASE",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            3,
+            7
+          ],
+          [
+            0,
+            4,
+            7
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "CORE",
+        "policy": "CLOSED-CUT",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            3,
+            7
+          ],
+          [
+            0,
+            4,
+            7
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "BASE",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            3,
+            7
+          ],
+          [
+            0,
+            4,
+            7
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-NORM",
+        "policy": "CLOSED-CUT",
+        "count": "2",
+        "witnesses": [
+          [
+            0,
+            3,
+            7
+          ],
+          [
+            0,
+            4,
+            7
+          ]
+        ],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "BASE",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      },
+      {
+        "profile": "TREND-ONLY",
+        "policy": "CLOSED-CUT",
+        "count": "0",
+        "witnesses": [],
+        "threeTrendStrict": "0",
+        "threeWitnesses": []
+      }
+    ]
+  }
+]

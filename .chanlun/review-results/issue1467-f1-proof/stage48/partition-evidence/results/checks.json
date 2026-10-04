@@ -1,0 +1,27 @@
+{
+  "namedHistories": 14,
+  "stage47NativeHistories": 7,
+  "stage47NativeEvents": 98,
+  "newCoordinateDiagnostics": 3,
+  "newShiftedNativeHistories": 3,
+  "newShiftedNativeEvents": 57,
+  "newFixedOwnedNativeHistories": 1,
+  "newFixedOwnedNativeEvents": 10,
+  "namedPrefixRows": 236,
+  "graphCount": 1416,
+  "pairCount": 98202,
+  "closedCutPersistenceComparisons": 2926,
+  "baseLostEdgeCount": 440,
+  "coordinateWords": 1092,
+  "oracleGraphs": 6552,
+  "oracleCells": 478890,
+  "histogram": {
+    "3": 3,
+    "4": 9,
+    "5": 27,
+    "6": 81,
+    "7": 243,
+    "8": 729
+  },
+  "verdict": "finite-author-checks-not-independent-review"
+}

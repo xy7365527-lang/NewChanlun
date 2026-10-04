@@ -1,0 +1,10 @@
+{
+  "verification": "author execution; not independent review",
+  "nodeVersion": "v22.23.1",
+  "command": "node .chanlun/review-results/issue1467-f1-proof/stage48/partition-evidence/partition-dag.mjs",
+  "observedExitCode": 0,
+  "scriptSha256": "286f382af79aa42bb19cf743e4fe1e6c803c530cf9b6cffd4f77d5cb4b5b9974",
+  "checksSha256": "bcc6f1aec8ecb1b01025cea6842e35fa868710abddccefc6047a55330201ea32",
+  "contractSha256": "7556e5ba3832f0c3591062a9ce9f668aa6aefee46bfdab5bef275c96f1f6e930",
+  "sourceScopeSha256": "51b96136dbd13d1c3d16f02b7995b2138509c3bacdb4f3aa694cb936a4252baa"
+}

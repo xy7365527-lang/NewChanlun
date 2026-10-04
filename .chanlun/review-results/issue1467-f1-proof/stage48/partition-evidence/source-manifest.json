@@ -1,0 +1,70 @@
+{
+  "headAtStart": "3397901b1917b42071c9d8a876ff9e6de0b6460e",
+  "sources": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/Intent-v1.md",
+      "sha256": "cbce68cfa742e7afc1aecbb106a8d6059a5cea59a795f4e51a71cc474abdf597"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/partition-evidence/Contract-v1.md",
+      "sha256": "7556e5ba3832f0c3591062a9ce9f668aa6aefee46bfdab5bef275c96f1f6e930"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/partition-evidence/Contract-scope-v1.md",
+      "sha256": "51b96136dbd13d1c3d16f02b7995b2138509c3bacdb4f3aa694cb936a4252baa"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/base-complete-construction.md",
+      "sha256": "40b61ac5c1de37704da6904370d0d5afaaeecd1104968afb70b5149e06fe0e15"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/base-construction-evidence/results/examples.json",
+      "sha256": "263af0af75f7e87f86a47e927b78f52a45aa42d2ac4232c44f1c218f99bbbc58"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/GoalReframe-v4.md",
+      "sha256": "36159c5f6bd4062a6654bd3f22b3eaf00e678e5d5dacda844cbf659e230ce39d",
+      "sameAsStage47Source": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/PlateauBaseCandidate-v2.md",
+      "sha256": "ff4e1d062e78891ff2c563ae06ba3ac842ac10885a5d275795fcd852624daa43",
+      "sameAsStage47Source": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage44/ScopeCorrections-v2.md",
+      "sha256": "6d6efc677c2b0aad9a759f2ea5c35c2a5a626897568fc0c6a276668ff6868aa6",
+      "sameAsStage47Source": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage45/extension-ownership.md",
+      "sha256": "4064ba28c0f19dbacf9693897502fec803990a1b7e3b7bb81a3a0f219e6158e3",
+      "sameAsStage47Source": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage46/ScopeClarifications-v1.md",
+      "sha256": "8a44e4afb6930f68b5e687e03aa03ef88f9089316b460c176453acac8dfe18a0",
+      "sameAsStage47Source": true
+    },
+    {
+      "path": "docs/chanlun/text/blog/035-第35课.md",
+      "sha256": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023",
+      "sameAsStage47Source": true
+    },
+    {
+      "path": "docs/chanlun/text/blog/084-第84课.md",
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26",
+      "sameAsStage47Source": true
+    },
+    {
+      "path": "docs/chanlun/text/blog/037-第37课.md",
+      "sha256": "f360d985b3f3b1fa567ca13e15f2ffaf9eae39dbb418519f75d1f6175ac70753",
+      "sameAsStage47Source": true
+    },
+    {
+      "path": "docs/chanlun/text/blog/018-第18课.md",
+      "sha256": "4a661fc843d0d9fcfdf32861b7dc903ee09d824d0075dd0ea7b2c19542bb2f92",
+      "sameAsStage47Source": true
+    }
+  ]
+}

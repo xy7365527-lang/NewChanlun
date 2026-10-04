@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "status": "author-frozen-awaiting-independent-review",
+  "packetIdentity": "9a611ef3ead11175c13416b4383ec534e7d4d48de09ba3af7d098c8bfd808b94",
+  "packetFiles": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/mature-core-completion.md",
+      "sha256": "3db5fddec709fbc61e056fb2fedee922842781d9d92a44f459750cdebf6d085e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/completion-evidence/check.mjs",
+      "sha256": "9fe457e7157c238ea2e9feab8fff9a086de0fddd52aebf896c72be3a05cfc337"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/completion-evidence/verify-freeze.mjs",
+      "sha256": "b42f6119f490f352691e0e1ab5b1363edb1cc788a06ee05be15c7b0d0cebfcc1"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/completion-evidence/sources.json",
+      "sha256": "03eca433f899f36a86d4679173265d6a8c6bbbd611b4a56b4cc85d9c024f9fcd"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/completion-evidence/results/coordinateResults.json",
+      "sha256": "05bb307a6807a18d5f0a7710ddef895b9da2fd1ec7ed3895011415120b303250"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/completion-evidence/results/native.json",
+      "sha256": "b6253a3775b4701972177e53271fe7d5b98e57c2828a183955b134dfa7b5de03"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/completion-evidence/results/summary.json",
+      "sha256": "47a9061c0e2a26a9fd46e02397e1516e1f4918ca146f80e4d4277966dbfc5743"
+    }
+  ],
+  "sourceFiles": [
+    {
+      "path": "docs/chanlun/text/blog/035-第35课.md",
+      "sha256": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023"
+    },
+    {
+      "path": "docs/chanlun/text/blog/084-第84课.md",
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26"
+    },
+    {
+      "path": "docs/chanlun/text/blog/052-第52课.md",
+      "sha256": "a505332be8b87094ccab01165ccffa71ec7833dcd723e94467fa88744dc0bfcb"
+    },
+    {
+      "path": "docs/chanlun/text/blog/037-第37课.md",
+      "sha256": "f360d985b3f3b1fa567ca13e15f2ffaf9eae39dbb418519f75d1f6175ac70753"
+    },
+    {
+      "path": "docs/chanlun/text/blog/017-第17课.md",
+      "sha256": "bce847aaacac3b3a79e56b3c49aca6f0c454a0917977bdbb1e0f1f553ddff026"
+    },
+    {
+      "path": "docs/chanlun/text/blog/018-第18课.md",
+      "sha256": "4a661fc843d0d9fcfdf32861b7dc903ee09d824d0075dd0ea7b2c19542bb2f92"
+    },
+    {
+      "path": ".chanlun/definitions/qushi.md",
+      "sha256": "ce48f8cda6a3f02afd9fddbc0f93cb43431524b66472e579a927af5ce4bc3c46"
+    },
+    {
+      "path": ".chanlun/definitions/zhongshu.md",
+      "sha256": "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/GoalReframe-v4.md",
+      "sha256": "36159c5f6bd4062a6654bd3f22b3eaf00e678e5d5dacda844cbf659e230ce39d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/Intent-v1.md",
+      "sha256": "cbce68cfa742e7afc1aecbb106a8d6059a5cea59a795f4e51a71cc474abdf597"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage46TurnBoundaryAndDirectHull.md",
+      "sha256": "7559aa5a1faef0d19e0049f3e15da1415b09831dce87a676067016c2b3176152"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage46/ScopeClarifications-v1.md",
+      "sha256": "8a44e4afb6930f68b5e687e03aa03ef88f9089316b460c176453acac8dfe18a0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage46/completed-endpoint-scope.md",
+      "sha256": "77103f3125845c7fc4b890e04fd0de7a9e7b4e70150451706ab674cbd6cf6c2b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage47OutputSourceAndRawTurns.md",
+      "sha256": "2865fca90aba4780a7c4dc393788c373111009727fb0de2acb0882aa248a2a16"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/base-complete-construction.md",
+      "sha256": "40b61ac5c1de37704da6904370d0d5afaaeecd1104968afb70b5149e06fe0e15"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/base-construction-evidence/extremum-candidate.mjs",
+      "sha256": "c29765b570702ba9adcf7e5795c06794d4fd81b47fbd92d389754a7d5bc38b27"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/base-construction-evidence/results/examples.json",
+      "sha256": "263af0af75f7e87f86a47e927b78f52a45aa42d2ac4232c44f1c218f99bbbc58"
+    }
+  ]
+}

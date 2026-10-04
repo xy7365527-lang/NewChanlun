@@ -1,0 +1,154 @@
+{
+  "checkedAt": "2026-10-04",
+  "lineConvention": "one-based local canonical blog paths",
+  "webStatus": "three repository-listed mirrors opened; not original Sina hosting",
+  "sources": [
+    {
+      "path": "docs/chanlun/text/blog/035-第35课.md",
+      "lines": [
+        12,
+        16,
+        18,
+        20,
+        22,
+        24,
+        38
+      ],
+      "role": "author body; body boundary 38; used lines have no inline/editor note",
+      "claims": "named trade seed, same-level sequential trend ending evidence, regrouping",
+      "mirror": "https://www.fengmr.com/cld35ka.html",
+      "sha256": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023"
+    },
+    {
+      "path": "docs/chanlun/text/blog/084-第84课.md",
+      "lines": [
+        12,
+        52,
+        54,
+        56,
+        68
+      ],
+      "role": "author body; body boundary 68; used lines have no editor note",
+      "claims": "initial-function freedom and unique decomposition obligation; fixed F2",
+      "mirror": "https://www.fengmr.com/cld84ka.html",
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26"
+    },
+    {
+      "path": "docs/chanlun/text/blog/052-第52课.md",
+      "lines": [
+        26,
+        310,
+        312,
+        314,
+        316,
+        318,
+        320,
+        322,
+        324,
+        326,
+        328,
+        330,
+        332,
+        333
+      ],
+      "role": "author answer only line 328 after separator 326; questions 314-324; duplicate 332 unused",
+      "claims": "normalization existence through associativity, not existing-member preservation",
+      "mirror": "https://www.fengmr.com/cld52ka.html",
+      "sha256": "a505332be8b87094ccab01165ccffa71ec7833dcd723e94467fa88744dc0bfcb"
+    },
+    {
+      "path": "docs/chanlun/text/blog/037-第37课.md",
+      "lines": [
+        164,
+        166,
+        168,
+        170,
+        172,
+        174,
+        176
+      ],
+      "role": "Q&A author after ==/= delimiters, author header 164-166; duplicate 176 unused",
+      "claims": "three observations not automatic reversal; exclusive grouping",
+      "sha256": "f360d985b3f3b1fa567ca13e15f2ffaf9eae39dbb418519f75d1f6175ac70753"
+    },
+    {
+      "path": "docs/chanlun/text/blog/017-第17课.md",
+      "lines": [
+        12,
+        44,
+        46,
+        48,
+        50,
+        52,
+        98
+      ],
+      "role": "author body; body boundary 98",
+      "claims": "completion-qualified classification and nonzero core count",
+      "sha256": "bce847aaacac3b3a79e56b3c49aca6f0c454a0917977bdbb1e0f1f553ddff026"
+    },
+    {
+      "path": "docs/chanlun/text/blog/018-第18课.md",
+      "lines": [
+        12,
+        26,
+        28,
+        30,
+        32,
+        34,
+        36,
+        38,
+        40,
+        42,
+        44,
+        68
+      ],
+      "role": "author body; body boundary 68; used lines have no editor note",
+      "claims": "potential completion versus continuing extension",
+      "sha256": "4a661fc843d0d9fcfdf32861b7dc903ee09d824d0075dd0ea7b2c19542bb2f92"
+    },
+    {
+      "path": ".chanlun/definitions/qushi.md",
+      "lines": [
+        3,
+        4,
+        5,
+        40,
+        42,
+        45,
+        46,
+        48,
+        54,
+        57,
+        59,
+        60,
+        61,
+        62,
+        124,
+        128,
+        129,
+        135,
+        137,
+        144
+      ],
+      "role": "settled local doctrine; not relabeled as original blog",
+      "claims": "same-level core count and strict extent separation",
+      "sha256": "ce48f8cda6a3f02afd9fddbc0f93cb43431524b66472e579a927af5ce4bc3c46"
+    },
+    {
+      "path": ".chanlun/definitions/zhongshu.md",
+      "lines": [
+        71,
+        73,
+        75,
+        77,
+        81,
+        83,
+        95,
+        97
+      ],
+      "role": "settled local doctrine; original-point-seed qualification not inferred",
+      "claims": "nondegenerate parent intersection; alternating directions; ownership",
+      "sha256": "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882"
+    }
+  ]
+}

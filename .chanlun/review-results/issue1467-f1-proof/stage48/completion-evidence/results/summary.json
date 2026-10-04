@@ -1,0 +1,50 @@
+{
+  "namedCoordinateCases": 17,
+  "enumerated": 9840,
+  "withCertificate": 86,
+  "withNoNormalEndpoint": 6,
+  "prefixChecks": {
+    "words": 9857,
+    "prefixes": 207194,
+    "confirmedComparisons": 224
+  },
+  "legalSyntheticCases": 4,
+  "legalSyntheticEvents": 67,
+  "original24Ranges": [
+    [
+      10,
+      30
+    ],
+    [
+      5,
+      30
+    ],
+    [
+      5,
+      25
+    ]
+  ],
+  "original24Intersection": [
+    10,
+    25
+  ],
+  "translated24Ranges": [
+    [
+      110,
+      130
+    ],
+    [
+      105,
+      130
+    ],
+    [
+      105,
+      125
+    ]
+  ],
+  "translated24Intersection": [
+    110,
+    125
+  ],
+  "status": "author-development-check-not-independent-review"
+}

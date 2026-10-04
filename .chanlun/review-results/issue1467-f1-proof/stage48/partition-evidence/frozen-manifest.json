@@ -1,0 +1,90 @@
+{
+  "status": "author-frozen-awaiting-independent-review",
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/feasible-partitions.md",
+      "bytes": 22252,
+      "sha256": "52b1f43205e55b70d7caa9b7447f997ff521884471abd38a91d808511bdbe7e3"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/partition-evidence/Contract-scope-v1.md",
+      "bytes": 977,
+      "sha256": "51b96136dbd13d1c3d16f02b7995b2138509c3bacdb4f3aa694cb936a4252baa"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/partition-evidence/Contract-v1.md",
+      "bytes": 3908,
+      "sha256": "7556e5ba3832f0c3591062a9ce9f668aa6aefee46bfdab5bef275c96f1f6e930"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/partition-evidence/execution-receipt.json",
+      "bytes": 579,
+      "sha256": "285482434d9a373cfd3e3e69b336d4542bf5b68e3b5c3682c2ff5d59af376424"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/partition-evidence/partition-dag.mjs",
+      "bytes": 19497,
+      "sha256": "286f382af79aa42bb19cf743e4fe1e6c803c530cf9b6cffd4f77d5cb4b5b9974"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/partition-evidence/results/all-prefix-counts.json",
+      "bytes": 3166024,
+      "sha256": "8958e41bc3eb0043c1a66bf419244a9a352e2a36f9e6846b61f3eec1a9dd26b8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/partition-evidence/results/bigint-stress.json",
+      "bytes": 1844,
+      "sha256": "b225606684104e928e60f9ef14a1c35f693eafb369b7da759d00993fe866e933"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/partition-evidence/results/checks.json",
+      "bytes": 634,
+      "sha256": "bcc6f1aec8ecb1b01025cea6842e35fa868710abddccefc6047a55330201ea32"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/partition-evidence/results/double-partitions.json",
+      "bytes": 18425,
+      "sha256": "bdd3e112c56147ed6177e5b56966fdeef0257c583ecaa7bcd6938de5fc376efb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/partition-evidence/results/final-graphs.json",
+      "bytes": 966180,
+      "sha256": "3e3e859fa8a3a8d6da43e7d4d00d5c49eb51c04b721912ae3e60d9ee00a40e3d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/partition-evidence/results/fixed-owned-conflict.json",
+      "bytes": 2132,
+      "sha256": "bf479ecce114124be8ad09f11df2be4a64cdc0e34ede9aeac33a4472fa54ba20"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/partition-evidence/results/fixed-queries.json",
+      "bytes": 42672,
+      "sha256": "2ed4b4d580c32a136fc56c2c8539697c5bcc854696906525daaadca164078a8c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/partition-evidence/results/inputs.json",
+      "bytes": 50387,
+      "sha256": "56ad1081f0d67b9630043c466f141e9d025d34170fce73ea5ea51345e4ff0968"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/partition-evidence/results/long-edge-and-lock.json",
+      "bytes": 3657,
+      "sha256": "3e6d94f3a8bf4be7a1b8aadb922f240f2242f118a60f11d418780d350a30449f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/partition-evidence/results/open-platform.json",
+      "bytes": 6001,
+      "sha256": "ad9f62fe98d6125e45629eed07a3b491169eb859d259ea49d42385594f57cf46"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/partition-evidence/results/repeated-peak.json",
+      "bytes": 1543,
+      "sha256": "32f324e2bbffcc592113c189def42bd5589579636ec1131e1383647d1a2e45d2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/partition-evidence/source-manifest.json",
+      "bytes": 2913,
+      "sha256": "e24d08292c3d8f13ff240381a7f2ffd6a7ed954d5dc16bd6bf311604ac51af84"
+    }
+  ]
+}
