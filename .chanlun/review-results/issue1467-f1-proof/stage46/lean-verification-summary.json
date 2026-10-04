@@ -1,0 +1,99 @@
+{
+  "scope": "exact mathematical target in recorded environment; independent comparison is separate from original Chan qualification",
+  "author": {
+    "head": "84ddc99529d5f2c5e043d0bf3c4ae5539a82e4f8",
+    "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/direct-route-l1-hull/check3/run-manifest.json",
+    "manifest_sha256": "effd0f13f42f8a1f4f66e52886eae0a97499c1bd7e8bfee257deee4e9df237f6",
+    "run_id": "a7166b7d233147b88226a6c5effc948c",
+    "exact_root_passed": true,
+    "semantic": {
+      "status": "not_reviewed",
+      "reused": false,
+      "semantic_sha256": "83c95e8fba961d9a19fa0e88c83a208fcf366dce3e56119afd92c29585aa0d77"
+    },
+    "root_closure": {
+      "status": "closed",
+      "exact_root_passed": true,
+      "declaration_closed": true,
+      "scope": "expected Lean type in the recorded environment; semantic review is separate"
+    },
+    "source_lock_unchanged": true,
+    "target": {
+      "declaration": "DirectHull.exact_root",
+      "actual_type": "And DirectHull.SPLIT_TARGET (And DirectHull.HULL_TARGET DirectHull.LIMIT_TARGET)",
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "unexpected_axioms": [],
+      "unknown_dependencies": [],
+      "unsafe_dependencies": []
+    },
+    "freshness": {
+      "status": "current",
+      "snapshot_current": true,
+      "exact_root_passed": true,
+      "exit_code": 0,
+      "LEAN_PATH": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean",
+      "initial_check_without_recorded_LEAN_PATH": "rejected with runtime_search_path; corrected environment check passed, no proof/source change"
+    }
+  },
+  "independent_readback": {
+    "run_id": "ed74a9224d7b4dcca693709d8713830c",
+    "actual_type": "And DirectHull.SPLIT_TARGET (And DirectHull.HULL_TARGET DirectHull.LIMIT_TARGET)",
+    "axioms": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ],
+    "unsafe_dependencies": [],
+    "target_dependency_count": 1752,
+    "source_hashes": {
+      "DirectHullProof.lean": "62779c7ab71c0469f840ddeef4694896bedaf60a8bc8791f8ee46101e048d21f",
+      "DirectHullSpec.lean": "14f4d869525d1c9eaba3c353ff3aff8ffa7dec07b295068742b40bffe7ce088c",
+      "DirectQuoteProof.lean": "a0189d52d43b3b98e6a3416a9effe904ed5a5207d90d2d6d94fd4dca6876759c",
+      "DirectQuoteSpec.lean": "df45e6e08d020edc6bc737c0885829b37454c289f1a72c71f4186d82627591ad",
+      "MovingQuoteProof.lean": "5c4b37a7549e66e0fe5cb2843a3df3d46e8d73b971e0a55abcf2d42744526652",
+      "MovingQuoteSpec.lean": "90d6289fba1f1cfeeaa7ceac234bad76dcda515f2ef63330c5d8e7c6a6aaa762",
+      "MovingQuoteWireSpec.lean": "9c838d7ef90c84f497daee2420ba1bad4d002b31a11d6c6d383dfcd36a3d130a",
+      "lean-toolchain": "efac0b94923b2d8b6840cd35be9177ad0fc5ab2332f4f4311c98712cee92fdee"
+    },
+    "environment": {
+      "lean_version": "Lean (version 4.31.0, arm64-apple-darwin24.6.0, commit 68218e876d2a38b1985b8590fff244a83c321783, Release)",
+      "lean_status": "passed",
+      "lake_version": "Lake version 5.0.0-src+68218e8 (Lean version 4.31.0)",
+      "lake_status": "passed",
+      "lean_toolchain": "leanprover/lean4:v4.31.0",
+      "configuration_hashes": {
+        "lean-toolchain": "efac0b94923b2d8b6840cd35be9177ad0fc5ab2332f4f4311c98712cee92fdee"
+      },
+      "binary_hashes": {
+        "bin/lean": "1b370cfcbf44e80d1b004ab1b1ab9a4c73951f9f7c242140bcff9bc577576554",
+        "bin/lake": "58261a1a2fa1a362376c71e02ca854a093e71cc5e6ea64b287a931cb2565273d",
+        "lib/lean/libleanshared.dylib": "a695a9aa68481c42b99619e0103537e6b433c6fa7021927b184e19a686d03989"
+      },
+      "prefix": "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0",
+      "mode": "direct",
+      "inherited_lean_path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean",
+      "inherited_lean_src_path": "",
+      "sha256": "c5ec67a91c596a2f0be46a92622fdfae1469ab887c3fa64f8f44d78272861926"
+    }
+  },
+  "independent_manifest": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/readback-direct-hull/run-manifest.json",
+    "sha256": "d6a65f075f3455487f5b34d4b1226c0a173862fed044437afeb83330d416741e"
+  },
+  "semantic_sha256": "83c95e8fba961d9a19fa0e88c83a208fcf366dce3e56119afd92c29585aa0d77",
+  "fresh_local_modules": 7,
+  "precompiled_formal_modules": 7,
+  "formal_rebuilt": false,
+  "independent_comparison": {
+    "path": "independent-direct-hull-comparison.md",
+    "sha256": "d1784d95a82e2c64630d495f2a7132e4af202e9d46e32ed19713912829b56652",
+    "accepted_scope": "L1 exact hull plus own deep-event price counterexample",
+    "original_F1_F2_qualified": false
+  },
+  "repo_new_sources_are_byte_identical": true,
+  "old_machine_semantic_status_preserved": "not_reviewed"
+}

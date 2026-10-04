@@ -1,0 +1,535 @@
+{
+  "scope": "仅检验已保存四份合成RT例的标准化端点与指定三点转折证书位置；不是新F1原义判定器。",
+  "input": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage44/turn-boundary-results.json",
+  "inputHash": "2b7703042546b3d94c65b3b6983d106e6f80405a2d5c2b5f9ff975baf11e5e03",
+  "reports": [
+    {
+      "name": "12_early_cut",
+      "values": [
+        10,
+        20,
+        30,
+        25
+      ],
+      "objects": [
+        {
+          "ordinal": 1,
+          "direction": 1,
+          "boundaryStates": [
+            0,
+            6
+          ],
+          "endpointValues": [
+            10,
+            20
+          ],
+          "range": [
+            10,
+            20
+          ],
+          "ownEndExtreme": true,
+          "ownStartExtreme": true,
+          "confirm": 12,
+          "certificateExtremeCore": 2,
+          "certificateExtremeValue": 30,
+          "certificateExtremePlateauObserved": [
+            7,
+            9
+          ],
+          "certificateLocationEqualsObjectEnd": false,
+          "firstNonflatAfterEnd": [
+            7,
+            30
+          ],
+          "firstNonflatContinuesOldDirection": true
+        }
+      ],
+      "joins": [],
+      "shiftedBoundaryComparison": null
+    },
+    {
+      "name": "12_early_cut_mirror",
+      "values": [
+        30,
+        20,
+        10,
+        15
+      ],
+      "objects": [
+        {
+          "ordinal": 1,
+          "direction": -1,
+          "boundaryStates": [
+            0,
+            6
+          ],
+          "endpointValues": [
+            30,
+            20
+          ],
+          "range": [
+            20,
+            30
+          ],
+          "ownEndExtreme": true,
+          "ownStartExtreme": true,
+          "confirm": 12,
+          "certificateExtremeCore": 2,
+          "certificateExtremeValue": 10,
+          "certificateExtremePlateauObserved": [
+            7,
+            9
+          ],
+          "certificateLocationEqualsObjectEnd": false,
+          "firstNonflatAfterEnd": [
+            7,
+            10
+          ],
+          "firstNonflatContinuesOldDirection": true
+        }
+      ],
+      "joins": [],
+      "shiftedBoundaryComparison": null
+    },
+    {
+      "name": "30_parent_witness",
+      "values": [
+        10,
+        20,
+        30,
+        25,
+        15,
+        5,
+        10,
+        20,
+        30,
+        25
+      ],
+      "objects": [
+        {
+          "ordinal": 1,
+          "direction": 1,
+          "boundaryStates": [
+            0,
+            6
+          ],
+          "endpointValues": [
+            10,
+            20
+          ],
+          "range": [
+            10,
+            20
+          ],
+          "ownEndExtreme": true,
+          "ownStartExtreme": true,
+          "confirm": 12,
+          "certificateExtremeCore": 2,
+          "certificateExtremeValue": 30,
+          "certificateExtremePlateauObserved": [
+            7,
+            9
+          ],
+          "certificateLocationEqualsObjectEnd": false,
+          "firstNonflatAfterEnd": [
+            7,
+            30
+          ],
+          "firstNonflatContinuesOldDirection": true
+        },
+        {
+          "ordinal": 2,
+          "direction": -1,
+          "boundaryStates": [
+            6,
+            15
+          ],
+          "endpointValues": [
+            20,
+            15
+          ],
+          "range": [
+            15,
+            30
+          ],
+          "ownEndExtreme": true,
+          "ownStartExtreme": false,
+          "confirm": 21,
+          "certificateExtremeCore": 5,
+          "certificateExtremeValue": 5,
+          "certificateExtremePlateauObserved": [
+            16,
+            18
+          ],
+          "certificateLocationEqualsObjectEnd": false,
+          "firstNonflatAfterEnd": [
+            16,
+            5
+          ],
+          "firstNonflatContinuesOldDirection": true
+        },
+        {
+          "ordinal": 3,
+          "direction": 1,
+          "boundaryStates": [
+            15,
+            24
+          ],
+          "endpointValues": [
+            15,
+            20
+          ],
+          "range": [
+            5,
+            20
+          ],
+          "ownEndExtreme": true,
+          "ownStartExtreme": false,
+          "confirm": 30,
+          "certificateExtremeCore": 8,
+          "certificateExtremeValue": 30,
+          "certificateExtremePlateauObserved": [
+            25,
+            27
+          ],
+          "certificateLocationEqualsObjectEnd": false,
+          "firstNonflatAfterEnd": [
+            25,
+            30
+          ],
+          "firstNonflatContinuesOldDirection": true
+        }
+      ],
+      "joins": [
+        {
+          "left": 1,
+          "right": 2,
+          "common": 20,
+          "requiredLeft": 20,
+          "requiredRight": 30,
+          "satisfiesNormalizedJoint": false
+        },
+        {
+          "left": 2,
+          "right": 3,
+          "common": 15,
+          "requiredLeft": 15,
+          "requiredRight": 5,
+          "satisfiesNormalizedJoint": false
+        }
+      ],
+      "shiftedBoundaryComparison": {
+        "scope": "有限改切点几何对照；不是全域normalizer或原义合格新F1。",
+        "shiftedObjects": [
+          {
+            "ordinal": 1,
+            "boundaryStates": [
+              0,
+              9
+            ],
+            "events": [
+              1,
+              9
+            ],
+            "coreIds": [
+              0,
+              1,
+              2
+            ],
+            "endpointValues": [
+              10,
+              30
+            ],
+            "range": [
+              10,
+              30
+            ],
+            "originalKnownConfirmation": 12
+          },
+          {
+            "ordinal": 2,
+            "boundaryStates": [
+              9,
+              18
+            ],
+            "events": [
+              10,
+              18
+            ],
+            "coreIds": [
+              3,
+              4,
+              5
+            ],
+            "endpointValues": [
+              30,
+              5
+            ],
+            "range": [
+              5,
+              30
+            ],
+            "originalKnownConfirmation": 21
+          },
+          {
+            "ordinal": 3,
+            "boundaryStates": [
+              18,
+              27
+            ],
+            "events": [
+              19,
+              27
+            ],
+            "coreIds": [
+              6,
+              7,
+              8
+            ],
+            "endpointValues": [
+              5,
+              30
+            ],
+            "range": [
+              5,
+              30
+            ],
+            "originalKnownConfirmation": 30
+          }
+        ],
+        "originalIntersection": [
+          15,
+          20
+        ],
+        "shiftedIntersection": [
+          10,
+          30
+        ]
+      }
+    },
+    {
+      "name": "30_parent_witness_mirror",
+      "values": [
+        30,
+        20,
+        10,
+        15,
+        25,
+        35,
+        30,
+        20,
+        10,
+        15
+      ],
+      "objects": [
+        {
+          "ordinal": 1,
+          "direction": -1,
+          "boundaryStates": [
+            0,
+            6
+          ],
+          "endpointValues": [
+            30,
+            20
+          ],
+          "range": [
+            20,
+            30
+          ],
+          "ownEndExtreme": true,
+          "ownStartExtreme": true,
+          "confirm": 12,
+          "certificateExtremeCore": 2,
+          "certificateExtremeValue": 10,
+          "certificateExtremePlateauObserved": [
+            7,
+            9
+          ],
+          "certificateLocationEqualsObjectEnd": false,
+          "firstNonflatAfterEnd": [
+            7,
+            10
+          ],
+          "firstNonflatContinuesOldDirection": true
+        },
+        {
+          "ordinal": 2,
+          "direction": 1,
+          "boundaryStates": [
+            6,
+            15
+          ],
+          "endpointValues": [
+            20,
+            25
+          ],
+          "range": [
+            10,
+            25
+          ],
+          "ownEndExtreme": true,
+          "ownStartExtreme": false,
+          "confirm": 21,
+          "certificateExtremeCore": 5,
+          "certificateExtremeValue": 35,
+          "certificateExtremePlateauObserved": [
+            16,
+            18
+          ],
+          "certificateLocationEqualsObjectEnd": false,
+          "firstNonflatAfterEnd": [
+            16,
+            35
+          ],
+          "firstNonflatContinuesOldDirection": true
+        },
+        {
+          "ordinal": 3,
+          "direction": -1,
+          "boundaryStates": [
+            15,
+            24
+          ],
+          "endpointValues": [
+            25,
+            20
+          ],
+          "range": [
+            20,
+            35
+          ],
+          "ownEndExtreme": true,
+          "ownStartExtreme": false,
+          "confirm": 30,
+          "certificateExtremeCore": 8,
+          "certificateExtremeValue": 10,
+          "certificateExtremePlateauObserved": [
+            25,
+            27
+          ],
+          "certificateLocationEqualsObjectEnd": false,
+          "firstNonflatAfterEnd": [
+            25,
+            10
+          ],
+          "firstNonflatContinuesOldDirection": true
+        }
+      ],
+      "joins": [
+        {
+          "left": 1,
+          "right": 2,
+          "common": 20,
+          "requiredLeft": 20,
+          "requiredRight": 10,
+          "satisfiesNormalizedJoint": false
+        },
+        {
+          "left": 2,
+          "right": 3,
+          "common": 25,
+          "requiredLeft": 25,
+          "requiredRight": 35,
+          "satisfiesNormalizedJoint": false
+        }
+      ],
+      "shiftedBoundaryComparison": {
+        "scope": "有限改切点几何对照；不是全域normalizer或原义合格新F1。",
+        "shiftedObjects": [
+          {
+            "ordinal": 1,
+            "boundaryStates": [
+              0,
+              9
+            ],
+            "events": [
+              1,
+              9
+            ],
+            "coreIds": [
+              0,
+              1,
+              2
+            ],
+            "endpointValues": [
+              30,
+              10
+            ],
+            "range": [
+              10,
+              30
+            ],
+            "originalKnownConfirmation": 12
+          },
+          {
+            "ordinal": 2,
+            "boundaryStates": [
+              9,
+              18
+            ],
+            "events": [
+              10,
+              18
+            ],
+            "coreIds": [
+              3,
+              4,
+              5
+            ],
+            "endpointValues": [
+              10,
+              35
+            ],
+            "range": [
+              10,
+              35
+            ],
+            "originalKnownConfirmation": 21
+          },
+          {
+            "ordinal": 3,
+            "boundaryStates": [
+              18,
+              27
+            ],
+            "events": [
+              19,
+              27
+            ],
+            "coreIds": [
+              6,
+              7,
+              8
+            ],
+            "endpointValues": [
+              35,
+              10
+            ],
+            "range": [
+              10,
+              35
+            ],
+            "originalKnownConfirmation": 30
+          }
+        ],
+        "originalIntersection": [
+          20,
+          25
+        ],
+        "shiftedIntersection": [
+          10,
+          30
+        ]
+      }
+    }
+  ],
+  "checks": {
+    "exampleCount": 4,
+    "emittedObjectCount": 8,
+    "ownEndExtremePass": 8,
+    "exactCertificateLocationFail": 8,
+    "completedJoinCount": 4,
+    "normalizedCompletedJoinFail": 4
+  }
+}

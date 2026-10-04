@@ -1,0 +1,341 @@
+{
+  "stage": 46,
+  "date": "2026-10-04",
+  "issue": 1467,
+  "related_issues": [
+    1469
+  ],
+  "base_commit": "84ddc99529d5f2c5e043d0bf3c4ae5539a82e4f8",
+  "previous_goal_turn": "progress; continued same in-flight stage after goal continuation",
+  "trust_level": "COORDINATOR_ATTESTED_TOOL_TRANSCRIPT",
+  "model_requested": "gpt-6-astra",
+  "independence": "reviewers fork_turns=none; Lean cold reader did not read author narrative; comparison was a separate context; no author self-review counted",
+  "agents": [
+    {
+      "name": "/root/j_after_completed_turn",
+      "role": "author",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/completed_endpoint_scope",
+      "role": "author",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/direct_route_reentry",
+      "role": "author",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/review_turn_sources",
+      "role": "independent_source_and_numeric_review",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/readback_direct_hull",
+      "role": "cold_statement_readback_and_fresh_compile",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/compare_direct_hull",
+      "role": "independent_contract_comparison",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/review_stage46_scope",
+      "role": "independent_summary_and_clarification_review",
+      "completed": true,
+      "interrupt_called": true
+    }
+  ],
+  "source_findings": {
+    "T43": "specific original low-level-divergence scenario with no same-level divergence and separated higher C; old X not complete before C and C remains with X",
+    "general_J_proved_or_refuted": false,
+    "J_live": "requires independent true activity at beta_k; exact earlier end already contradicts activity without using its ownership conclusion",
+    "T43_implies_strict_activity_at_arbitrary_beta": false,
+    "E_NORM": "both complete, already-normalized Up/Down units at unchanged shared boundary must share respective extrema",
+    "E_CERT": "only exact borrowing of qualified source point-completion certificate preserves occurrence anchor; later confirmation does not move anchor",
+    "normalization_source": "existence in stated decomposition domain, not all raw cuts or unique lossless normalizer"
+  },
+  "endpoint_checks": {
+    "existing_synthetic_histories": 4,
+    "completed_objects": 8,
+    "own_end_extreme_passes": 8,
+    "support_occurrence_mismatches": 8,
+    "completed_junctions": 4,
+    "normalized_common_extreme_failures": 4,
+    "finite_recut_examples": 2,
+    "original_end_events": [
+      6,
+      15,
+      24
+    ],
+    "recut_end_events": [
+      9,
+      18,
+      27
+    ],
+    "observation_evidence_events": [
+      12,
+      21,
+      30
+    ],
+    "original_intersections": [
+      [
+        15,
+        20
+      ],
+      [
+        20,
+        25
+      ]
+    ],
+    "recut_intersections": [
+      [
+        10,
+        30
+      ],
+      [
+        10,
+        30
+      ]
+    ],
+    "author_result_rerun_byte_equal": true,
+    "general_normalizer_or_original_qualification": false
+  },
+  "lean": {
+    "declaration": "DirectHull.exact_root",
+    "expected_type": "DirectHull.SPLIT_TARGET ∧ DirectHull.HULL_TARGET ∧ DirectHull.LIMIT_TARGET",
+    "spec_sha256": "14f4d869525d1c9eaba3c353ff3aff8ffa7dec07b295068742b40bffe7ce088c",
+    "proof_sha256": "62779c7ab71c0469f840ddeef4694896bedaf60a8bc8791f8ee46101e048d21f",
+    "semantic_sha256": "83c95e8fba961d9a19fa0e88c83a208fcf366dce3e56119afd92c29585aa0d77",
+    "author_run_id": "a7166b7d233147b88226a6c5effc948c",
+    "cold_run_id": "ed74a9224d7b4dcca693709d8713830c",
+    "standard_axioms": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ],
+    "fresh_research_modules_per_successful_run": 7,
+    "precompiled_formal_modules": 7,
+    "formal_rebuilt": false,
+    "unexpected_axioms_or_unsafe": false,
+    "old_machine_semantic_status": "not_reviewed; preserved",
+    "independent_mathematical_comparison": "accepted only for locked L1 hull and own deep-price counterexample",
+    "spec_lock_unchanged_across_three_author_checks": true,
+    "author_checks1_2": "incomplete proof execution; not mathematical counterexamples; old logs kept",
+    "copied_research_sources_byte_identical": true
+  },
+  "direct_hull_scope": {
+    "domain": "finite same-polarity MovingQuote.Flow with valid two-sided QuoteOf at every cut; integer prices",
+    "SPLIT": "existence of compatible middle book/quote for every list cut, not uniqueness or arbitrary-history existence",
+    "HULL": "attained endpoints plus all Support bounded, includes empty Flow and active tails; no fill or original-completion assertion",
+    "Support": "existential compatible split witnesses, not invertible source history or unique trajectory",
+    "feed_completeness_proved": false,
+    "construct_output_source_bridge_proved": false,
+    "counterexample": {
+      "events": 2,
+      "own_block_event_indices": [
+        0,
+        1
+      ],
+      "confirmed_after_event_count": 2,
+      "owned_event": "bid add 90, amount 1",
+      "confirming_nonmember_event": "ask add 110, amount 1",
+      "all_L1_quotes": [
+        100,
+        102
+      ],
+      "leg_range": [
+        100,
+        102
+      ],
+      "owned_deep_price_outside": 90,
+      "scope": "abstract model witness, not market capture"
+    }
+  },
+  "coordinator_checks": {
+    "source_review_inputs": 32,
+    "author_and_cold_source_entries_each": 8,
+    "author_and_cold_compiled_artifacts_each": 8,
+    "formal_source_and_olean_pairs": 7,
+    "source_lock_entries": 6,
+    "new_Lean_copies": 2,
+    "old_semantic_receipts_unmodified": true
+  },
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage46TurnBoundaryAndDirectHull.md",
+      "sha256": "7559aa5a1faef0d19e0049f3e15da1415b09831dce87a676067016c2b3176152"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/DirectHullSpec.lean",
+      "sha256": "14f4d869525d1c9eaba3c353ff3aff8ffa7dec07b295068742b40bffe7ce088c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/DirectHullProof.lean",
+      "sha256": "62779c7ab71c0469f840ddeef4694896bedaf60a8bc8791f8ee46101e048d21f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage46/ScopeClarifications-v1.md",
+      "sha256": "8a44e4afb6930f68b5e687e03aa03ef88f9089316b460c176453acac8dfe18a0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage46/completed-endpoint-evidence/check.mjs",
+      "sha256": "f6e8908e3a4ab0b1c69dc15f0b837f5addb2c8c3fbe193e9fe6e6808efffa204"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage46/completed-endpoint-evidence/results.json",
+      "sha256": "a482e0d5ae2349d990b4527e587d67a912c449fe6cbeb1e58b98171fe0b7b95d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage46/completed-endpoint-evidence/sources.json",
+      "sha256": "46a26f43248e9f6c654c480c7f3e5ad99da598141da2272f1b59c508a9fee2d6"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage46/completed-endpoint-scope.md",
+      "sha256": "77103f3125845c7fc4b890e04fd0de7a9e7b4e70150451706ab674cbd6cf6c2b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage46/direct-hull-readback.md",
+      "sha256": "2e0dd43a12796e21745aff433a7b973b35611141fad2a7f60ae5b06008070e20"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage46/direct-route-reentry.md",
+      "sha256": "3b6085fa42ca274af0c64bd1ea6f82b71144ca94fe721c67c084672a98d65bde"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage46/independent-direct-hull-comparison.md",
+      "sha256": "d1784d95a82e2c64630d495f2a7132e4af202e9d46e32ed19713912829b56652"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage46/independent-stage46-scope-review.md",
+      "sha256": "5fd7e1ab68b04c66df67c125e7bd0d248c857a0afdf2b5b6ad6a53b441fcc850"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage46/independent-turn-sources-review.md",
+      "sha256": "dd6da023c1d718b66c27fb784970bf78dfbc893a93ef1fcd1e8dbe2b4500b447"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage46/j-after-completion.md",
+      "sha256": "7f6719d1ca1a27b96853ea525ee6d5eb398a2c5590a2aea963200764908ba71c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage46/lean-verification-summary.json",
+      "sha256": "9fda7fa97386e92219ef6b4c8559fa8dbb1112f40a74895cbe4a55f8c859602f"
+    }
+  ],
+  "external_evidence": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/independent-turn-sources-evidence-20261004/SHA256SUMS",
+      "sha256": "3f26bb25cf03f4ac47b3b5757163759165bcb05a8a53d9ae58b875ce47632147"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/independent-turn-sources-evidence-20261004/author-probe-rerun/check.mjs",
+      "sha256": "f6e8908e3a4ab0b1c69dc15f0b837f5addb2c8c3fbe193e9fe6e6808efffa204"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/independent-turn-sources-evidence-20261004/author-probe-rerun/results.json",
+      "sha256": "a482e0d5ae2349d990b4527e587d67a912c449fe6cbeb1e58b98171fe0b7b95d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/independent-turn-sources-evidence-20261004/author-source-manifest-check.json",
+      "sha256": "3c82bbf2dfdf6cdc794eb91afaece832b41d259cc68623a68040abef4f0ec18b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/independent-turn-sources-evidence-20261004/final-integrity.json",
+      "sha256": "1460760f95144314ebe57c336bdd542d0bc387862b206bf203bf4f1bb811eee7"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/independent-turn-sources-evidence-20261004/independent-check.mjs",
+      "sha256": "c6c03e30b4285a48c4c5f83103ccc7f5936ee4d831e6ebd607bd84da11a72243"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/independent-turn-sources-evidence-20261004/independent-results.json",
+      "sha256": "cb2eed732a6523614d16fe20a08d5bb5434dd3d32ba00b51ac4354f4bc41831e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/independent-turn-sources-evidence-20261004/input-manifest.json",
+      "sha256": "e2cd69df3a6d47dfaab05a9fd20193ef8f93a416beda8e646f9ecced0e771cc0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/independent-turn-sources-evidence-20261004/source-excerpts.json",
+      "sha256": "2339b606d494030c85f5392665a51d656b17edceb23063e34eb0b259e22ee98d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/independent-direct-hull-evidence/delivery-check.json",
+      "sha256": "bc2439abc4753d0205a06bc81eb39f965d5e3fc5953fe1bb77290193b0b199ae"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/independent-direct-hull-evidence/identity-check.json",
+      "sha256": "f389371021321aa52df716df8588da42cba5a6a0dbeb00f8b7b15052d2c382f3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/independent-direct-hull-evidence/model-checks.json",
+      "sha256": "ba6fc21f137aab18318d5c178d5c4afb76368438e81c5546ceed1c8d0c50637b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/direct-route-l1-hull/summary.json",
+      "sha256": "6086de51165fbb08e737adafde987641e02630dd98d34cc970fa4cbc0ad34811"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/direct-route-l1-hull/source-lock.json",
+      "sha256": "00db983e36f1ea867259f64ef415f2adaa652e9317ef9da0ea7f29a31230a0e5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/direct-route-l1-hull/verify.sh",
+      "sha256": "745f212a32fbb8013fa4fe01ca74db29aea5ed0699907d410d5a12cfd16f9ee4"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/direct-route-l1-hull/check1/run-manifest.json",
+      "sha256": "fa209ea8f2b4db0be72661108e041510acc1cfb6b4fe02a69b132dc3fbad6b44"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/direct-route-l1-hull/check2/run-manifest.json",
+      "sha256": "19ad9ea3a9faaf6996007446c30a7d84239bafa66bd63f766ca6d0311d910d20"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/direct-route-l1-hull/check3/run-manifest.json",
+      "sha256": "effd0f13f42f8a1f4f66e52886eae0a97499c1bd7e8bfee257deee4e9df237f6"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/readback-direct-hull/run-manifest.json",
+      "sha256": "d6a65f075f3455487f5b34d4b1226c0a173862fed044437afeb83330d416741e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/readback-direct-hull/readback-binding-summary.json",
+      "sha256": "3bac3ba669b6857bcef0a865d9dd53cabe4749330b1b050f4b472186e7f8f02b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/readback-direct-hull/ReadbackProbe.lean",
+      "sha256": "c2e19004b525524641e84d23bb95a0f1f726308516e2e2d1b58b1e81cd466918"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/readback-direct-hull/ReadbackProbe.stdout.log",
+      "sha256": "0e95790b4981ead27650520dbb810ba586f116060dac04dd8db3f743972dce4d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/readback-direct-hull/ReadbackProbe.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/turn-semantics-v1/readback-direct-hull/probe-execution.json",
+      "sha256": "6d8cbdf5f46768d05cdab0e0c0b4b94fd1d14f7cf0d7aa4a103bb83d2a557fc1"
+    }
+  ],
+  "new_Lean_claim": true,
+  "research_Lean_sources_added": 2,
+  "formal_source_modified": false,
+  "fixture_drift_required": false,
+  "original_a1_or_F2_qualified": false,
+  "market_value_tested": false,
+  "production_adopted": false,
+  "goal_complete": false,
+  "goal_status": "active"
+}
