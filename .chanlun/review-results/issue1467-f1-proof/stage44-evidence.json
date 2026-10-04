@@ -1,0 +1,388 @@
+{
+  "stage": 44,
+  "date": "2026-10-04",
+  "issue": 1467,
+  "related_issues": [
+    1468,
+    1469
+  ],
+  "base_commit": "1c080e31e91840333f8a1bbaf0a4573276b8e9c1",
+  "previous_goal_turn": "progress",
+  "trust_level": "COORDINATOR_ATTESTED_TOOL_TRANSCRIPT",
+  "model_requested": "gpt-6-astra",
+  "independence": "all reviewers spawned with fork_turns=none; two distinct fresh correction reviews; authors did not review their own results",
+  "agents": [
+    {
+      "name": "/root/f1_completion_scope",
+      "role": "author",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/turn_boundary_candidate",
+      "role": "author",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/book_grid_b",
+      "role": "author",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/review_f1_completion_scope",
+      "role": "independent_review",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/review_turn_boundary",
+      "role": "independent_review",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/review_book_grid_b",
+      "role": "independent_review",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/review_stage44_corrections",
+      "role": "independent_review",
+      "completed": true,
+      "interrupt_called": true
+    },
+    {
+      "name": "/root/review_stage44_v2",
+      "role": "independent_review",
+      "completed": true,
+      "interrupt_called": true
+    }
+  ],
+  "source_scope": {
+    "initial_completion_definition": "permitted research inference, not automatic a1 qualification",
+    "B0_B7": "obligation table, not frozen complete Omega or sufficient qualification",
+    "S6": [
+      "DEP_no_horizontal_feedback",
+      "EXT_extension_compatibility_still_required"
+    ],
+    "type_succession_vs_direction": "logical non-implication only; U-P-D not a proven legal original triple",
+    "RT_four_core": "old 035 stop certificate cannot transfer to owned 10/20 with end6 confirm12",
+    "MAX_Omega": "unproved universal skeleton with fixed candidate class, domain, core catalog and Above",
+    "BASE_CUT": "research permission, compatible with either result of MAX",
+    "BASE_CUT_plus": "unproved existence skeleton requiring GoodOmega, h0 in domain, same core catalog, actual Above true and exact early end",
+    "original_author_claim_restricted_by": "stage44/ScopeCorrections-v2.md"
+  },
+  "RT_validation": {
+    "candidate": "RT-v1",
+    "ordinary_relation_proof_review": "passed within declared domain",
+    "coordinate_calls": 1559,
+    "prefix_checks": 38930,
+    "enumeration_words": 1533,
+    "length_variants": 16,
+    "synthetic_native_histories": 10,
+    "synthetic_events_replayed": 192,
+    "states_including_initial": 202,
+    "author_result_byte_equal": true,
+    "rerun_io_difference": "only output destination line changed; original source and result preserved",
+    "completed_nonempty_condition": "r>=1 and ell1>=2",
+    "all_observed_turns_emitted_condition": "all ell_j>=2 for 1..r",
+    "six_required_old_examples": "C empty; first permanent thin-turn at e9",
+    "post_completion_thin_example": {
+      "values": [
+        10,
+        20,
+        30,
+        20,
+        30
+      ],
+      "turns": [
+        2,
+        3
+      ],
+      "lengths": [
+        2,
+        1
+      ],
+      "completed": 1,
+      "confirmation": 12,
+      "blocked_at": 15
+    },
+    "positive_example": {
+      "events": 30,
+      "directions": [
+        "Up",
+        "Down",
+        "Up"
+      ],
+      "end_events": [
+        6,
+        15,
+        24
+      ],
+      "confirm_events": [
+        12,
+        21,
+        30
+      ],
+      "Q_ranges": [
+        [
+          10,
+          20
+        ],
+        [
+          15,
+          30
+        ],
+        [
+          5,
+          20
+        ]
+      ],
+      "Q_intersection": [
+        15,
+        20
+      ],
+      "W_intersection": [
+        "506/5",
+        "304/3"
+      ],
+      "W_width": "2/15",
+      "mirror_Q_intersection": [
+        20,
+        25
+      ],
+      "mirror_W_intersection": [
+        "304/3",
+        "710/7"
+      ],
+      "mirror_W_width": "2/21",
+      "qualification": "candidate completion and strict parent geometry only"
+    },
+    "numeric_implementation_refinement_full_domain": false
+  },
+  "B_validation": {
+    "profile": "book-history-grid-b/1",
+    "decisions": 572,
+    "author_tests": 27,
+    "all_A_features_equal": true,
+    "raw_records": 20868,
+    "observed_trades": 205,
+    "applied": 20571,
+    "anchors": 1,
+    "noops": 7082,
+    "late_applications": 43,
+    "receipts_before_first_application": 339,
+    "unavailable_book_rows": 3,
+    "unavailable_book_rows_with_trade": 2,
+    "null_rolling_windows": 13,
+    "independent_feature_rows": 572,
+    "independent_history_cutoffs": 572,
+    "byte_equal_exports": 7,
+    "history_identity_comparison_sha256": "ac87cd731e567781480d28d54d86012cc4826d011b44e82ae5fea6a0d0326f0c",
+    "feature_representation": "finite published L1 compression plus A; raw/native histories exposed by strict cutoff interface",
+    "market_feed_completeness": false,
+    "strongest_B_or_four_arm_fairness_established": false,
+    "forced_model_data_isolation_implemented": false
+  },
+  "corrections": {
+    "source_B1": "research permission no longer compared as negation of universal MAX",
+    "v1_remaining_issue": "existence skeleton omitted actual Above true",
+    "v2_status": "fresh restricted repair review passed; no theorem truth or candidate qualification inferred",
+    "time_notation": "end=6, confirm=12",
+    "RT_nonempty": "only first ell threshold needed; later block preserves old C",
+    "author_seed_assertion": "independent seed/value/confirmation check credited to reviewer",
+    "RT_JSON_initialization": "aggregate B0 plus S0/A0 from author probe required",
+    "source_029_author_block": "340-362; 364 belongs to next block",
+    "summary_revision": "v1-to-v2 correction link only; old summary bytes preserved"
+  },
+  "coordinator_checks": {
+    "source_hashes": 22,
+    "B_manifest_files": 15,
+    "B_byte_equal_exports": 7,
+    "RT_review_evidence_files": 8,
+    "RT_originals_unchanged": 3,
+    "RT_result_byte_equal": true
+  },
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage44BaseCompletionAndB.md",
+      "sha256": "df996cb667b7de83232bc93dd0471236b21f174be80d3d6493a5c0025f85c831"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/BookGridB-v1.md",
+      "sha256": "10d6d356f9ff61376eb1d15a707038b64cf530c9b402f6a3ab9709339fb8c5d7"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/book_grid_features.mjs",
+      "sha256": "fbd18461dc3917184cb58e8229c727cfb69abcb5ae1a06eccea2395ffe032d39"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/book_grid_features_test.mjs",
+      "sha256": "d3318ec6ac22ef51cf4d37b61edd595ea0f3255d2b8c6ebff01ab54bf69e56c2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage44/ScopeCorrections-v1.md",
+      "sha256": "3b3c31ea645671b2887d917babb41eb11aa1ddce76899bf6e8d5e988cab90380"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage44/ScopeCorrections-v2.md",
+      "sha256": "6d6efc677c2b0aad9a759f2ea5c35c2a5a626897568fc0c6a276668ff6868aa6"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage44/f1-completion-scope.md",
+      "sha256": "cdf58e8f2f4cded394a973b8b4de9bce6ed2af5e740f0da502027cb70246e0f2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage44/independent-book-grid-b-review.md",
+      "sha256": "0be23e687c3e85984c22a45a75ba7562c10302da26ad080d313152b7218b9bdc"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage44/independent-f1-completion-scope-review.md",
+      "sha256": "cd07b12e14cbdcaf2215b49acfabba7eb605a06716407607d53421a93314e318"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage44/independent-stage44-corrections-review.md",
+      "sha256": "95e04da62ea454fee22a5d034296b1af0338258abb901b2eb272754eaf91b132"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage44/independent-stage44-v2-review.md",
+      "sha256": "2535e0a2e78816804d483daf9d2da92fcf58a40dfc9d63ae55d6c1307f2c7975"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage44/independent-turn-boundary-review.md",
+      "sha256": "27f85499b8872a73df46626d0cfcbe858e38940d96c1e1171f4a8ee40cd14e1d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage44/turn-boundary-candidate.md",
+      "sha256": "fe8ac47c1f34991ed1767a6cf2c323786653bbe0213e21e4d0394e9c3252ff02"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage44/turn-boundary-probe.mjs",
+      "sha256": "7ea576aed04f9fa2c734a71f26c3e09792539985da41f2b8509d019f7aea23f1"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage44/turn-boundary-results.json",
+      "sha256": "2b7703042546b3d94c65b3b6983d106e6f80405a2d5c2b5f9ff975baf11e5e03"
+    }
+  ],
+  "external_evidence": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/base-completion-v1/stage44-summary-before-v2.md",
+      "sha256": "25ef99e79943f364507a7ecb1af1ba18674c4257bae379a55aed7517bd74ad0c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/base-completion-v1/independent-turn-boundary-review-evidence-20261004/author-rerun-probe.mjs",
+      "sha256": "529f5fd0c346abf6795f9444ffbe9462f7256adef33161b3eb6a7802d15cb052"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/base-completion-v1/independent-turn-boundary-review-evidence-20261004/author-rerun-results.json",
+      "sha256": "2b7703042546b3d94c65b3b6983d106e6f80405a2d5c2b5f9ff975baf11e5e03"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/base-completion-v1/independent-turn-boundary-review-evidence-20261004/author-rerun-stdout.json",
+      "sha256": "f7a1c1d6f174fadbe0bf01d3463cd81654360d73cd53ec96d5fd3d38d55a0169"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/base-completion-v1/independent-turn-boundary-review-evidence-20261004/independent-check-results.json",
+      "sha256": "2d63e0928d2740a909daae0d90c71e1d1110a4c051bbdf802d0ea4074bd99557"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/base-completion-v1/independent-turn-boundary-review-evidence-20261004/independent-check-stdout.json",
+      "sha256": "2d63e0928d2740a909daae0d90c71e1d1110a4c051bbdf802d0ea4074bd99557"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/base-completion-v1/independent-turn-boundary-review-evidence-20261004/independent-check.mjs",
+      "sha256": "e4ea70e7767a1c3df324474d6769ebe8de86a4075e5dc6f1818f7378a44b8e58"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/base-completion-v1/independent-turn-boundary-review-evidence-20261004/independent-replayed-histories.json",
+      "sha256": "1c9024cbf81cf7dc46fe894cc7fee88f806a9223a84df8af62db627980c627e8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/base-completion-v1/independent-turn-boundary-review-evidence-20261004/manifest.json",
+      "sha256": "2c9d2d74cc2db64ff47464fa244f9f312b70ec20e9fce44f116f5fa17460a5fc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/base-completion-v1/independent-turn-boundary-review-evidence-20261004/rerun-metadata.json",
+      "sha256": "bd37f7dae2ee53abf87ae7e353841b5767bdf684c7845f70d983485787267ca6"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-grid-b-v1/audit.jsonl",
+      "sha256": "a711c4db6405fdecebd5871680a033593bb1358d4fd69ed14f28326c6261f5f9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-grid-b-v1/features.jsonl",
+      "sha256": "be957271f54b1b912e537bd6a2802ab0646d6e77b13d623ed070dd0ad3659adc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-grid-b-v1/history-manifest.json",
+      "sha256": "7b3cee347b8fab3be1c69ea44a262bd8a3fdbe1dd8dcb6ea9fa5c60d244fb4d4"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-grid-b-v1/native_history.jsonl.gz",
+      "sha256": "62d02bdfd2c53566e05730d29bc9eaaa9f204468f18615361e988decb73f6306"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-grid-b-v1/quote_history.jsonl.gz",
+      "sha256": "840a269d194ece7a7668a1fd24a39e41baa6ba3669736d897acd4b8b9a0d1c6e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-grid-b-v1/report.json",
+      "sha256": "8f6aa13b17ed2f1fdd1ff0817aea6712ffa612c00b89d65e57c93d26c5c0cda7"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-grid-b-v1/tests.json",
+      "sha256": "14e1b0f202b1e02021292e15e9217b1e16a83e2381eeee4d3dd8db797fb8bf67"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-grid-b-v1/trade_history.jsonl",
+      "sha256": "0d0c7383aec4b31d464e7a8fee3b0b964fdc1b29ea8d003f5121725943978b68"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-grid-b-v1-independent/api-cutoffs.json",
+      "sha256": "ac87cd731e567781480d28d54d86012cc4826d011b44e82ae5fea6a0d0326f0c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-grid-b-v1-independent/api-cutoffs.mjs",
+      "sha256": "5b868cb65a84ddd6a427c01de1b5769a4c14e6c6dd08f9093fb40b25e3ae5c6c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-grid-b-v1-independent/api-receipt.json",
+      "sha256": "e20130d58cd5575028c179885499b17e16d4ed820c37970c648aae92df4cb86b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-grid-b-v1-independent/author-tests-rerun.json",
+      "sha256": "14e1b0f202b1e02021292e15e9217b1e16a83e2381eeee4d3dd8db797fb8bf67"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-grid-b-v1-independent/export-receipt.json",
+      "sha256": "0621f64a427ecdb00429450dd95af3288d81e8b0fe5c04016c3577622da420c3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-grid-b-v1-independent/final-receipt.json",
+      "sha256": "1be5d22e511eb29938e5023aae9a83d0915fb98105c5581ada758a80cee87dc1"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-grid-b-v1-independent/independent-cutoffs.json",
+      "sha256": "ac87cd731e567781480d28d54d86012cc4826d011b44e82ae5fea6a0d0326f0c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-grid-b-v1-independent/independent-verification.json",
+      "sha256": "ae7f408ac993914d849e26adaa28c34de7fe9132f1a1371b501042570524d6e1"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-grid-b-v1-independent/verify.py",
+      "sha256": "da156368381881be5106d2a0a4e04785664457a5a621f4c3fea9c866b29e71a5"
+    }
+  ],
+  "new_Lean_claim": false,
+  "formal_source_modified": false,
+  "original_a1_or_F2_qualified": false,
+  "market_value_tested": false,
+  "production_adopted": false,
+  "goal_complete": false,
+  "goal_status": "active"
+}

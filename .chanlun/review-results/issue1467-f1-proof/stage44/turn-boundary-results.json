@@ -1,0 +1,2697 @@
+{
+  "candidate": "RT-v1",
+  "examples": [
+    {
+      "name": "15_alternating",
+      "values": [
+        10,
+        20,
+        10,
+        20,
+        10
+      ],
+      "history": {
+        "B0": {
+          "bid100": 10,
+          "ask102": 10
+        },
+        "events": [
+          {
+            "seq": 1,
+            "op": "add",
+            "id": "U1",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 2,
+            "op": "add",
+            "id": "U2",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 3,
+            "op": "add",
+            "id": "U3",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 4,
+            "op": "add",
+            "id": "S4",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 5,
+            "op": "add",
+            "id": "U5",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 6,
+            "op": "add",
+            "id": "U6",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 7,
+            "op": "cancel",
+            "id": "S0",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 8,
+            "op": "add",
+            "id": "U7",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 9,
+            "op": "add",
+            "id": "U8",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 10,
+            "op": "add",
+            "id": "S9",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 11,
+            "op": "add",
+            "id": "U10",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 12,
+            "op": "add",
+            "id": "U11",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 13,
+            "op": "cancel",
+            "id": "S4",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 14,
+            "op": "add",
+            "id": "U12",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 15,
+            "op": "add",
+            "id": "U13",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          }
+        ],
+        "xs": [
+          10,
+          10,
+          10,
+          10,
+          20,
+          20,
+          20,
+          10,
+          10,
+          10,
+          20,
+          20,
+          20,
+          10,
+          10,
+          10
+        ]
+      },
+      "result": {
+        "domain": "valid",
+        "C": [],
+        "R": [
+          1,
+          15
+        ],
+        "boundaryState": 0,
+        "tailCores": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "pendingPlatforms": [],
+        "blocked": {
+          "reason": "first_turn_leaves_one_owned_core",
+          "a": 0,
+          "b": 1,
+          "observedAt": 9
+        }
+      },
+      "parent": null
+    },
+    {
+      "name": "15_alternating_mirror",
+      "values": [
+        30,
+        20,
+        30,
+        20,
+        30
+      ],
+      "history": {
+        "B0": {
+          "bid100": 30,
+          "ask102": 10
+        },
+        "events": [
+          {
+            "seq": 1,
+            "op": "add",
+            "id": "U1",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 2,
+            "op": "add",
+            "id": "U2",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 3,
+            "op": "add",
+            "id": "U3",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 4,
+            "op": "cancel",
+            "id": "S0",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 5,
+            "op": "add",
+            "id": "U4",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 6,
+            "op": "add",
+            "id": "U5",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 7,
+            "op": "add",
+            "id": "S6",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 8,
+            "op": "add",
+            "id": "U7",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 9,
+            "op": "add",
+            "id": "U8",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 10,
+            "op": "cancel",
+            "id": "S0",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 11,
+            "op": "add",
+            "id": "U9",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 12,
+            "op": "add",
+            "id": "U10",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 13,
+            "op": "add",
+            "id": "S11",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 14,
+            "op": "add",
+            "id": "U12",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 15,
+            "op": "add",
+            "id": "U13",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          }
+        ],
+        "xs": [
+          30,
+          30,
+          30,
+          30,
+          20,
+          20,
+          20,
+          30,
+          30,
+          30,
+          20,
+          20,
+          20,
+          30,
+          30,
+          30
+        ]
+      },
+      "result": {
+        "domain": "valid",
+        "C": [],
+        "R": [
+          1,
+          15
+        ],
+        "boundaryState": 0,
+        "tailCores": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "pendingPlatforms": [],
+        "blocked": {
+          "reason": "first_turn_leaves_one_owned_core",
+          "a": 0,
+          "b": 1,
+          "observedAt": 9
+        }
+      },
+      "parent": null
+    },
+    {
+      "name": "18_left_absorption",
+      "values": [
+        10,
+        20,
+        10,
+        20,
+        30,
+        20
+      ],
+      "history": {
+        "B0": {
+          "bid100": 10,
+          "ask102": 10
+        },
+        "events": [
+          {
+            "seq": 1,
+            "op": "add",
+            "id": "U1",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 2,
+            "op": "add",
+            "id": "U2",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 3,
+            "op": "add",
+            "id": "U3",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 4,
+            "op": "add",
+            "id": "S4",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 5,
+            "op": "add",
+            "id": "U5",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 6,
+            "op": "add",
+            "id": "U6",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 7,
+            "op": "cancel",
+            "id": "S0",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 8,
+            "op": "add",
+            "id": "U7",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 9,
+            "op": "add",
+            "id": "U8",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 10,
+            "op": "add",
+            "id": "S9",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 11,
+            "op": "add",
+            "id": "U10",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 12,
+            "op": "add",
+            "id": "U11",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 13,
+            "op": "add",
+            "id": "S12",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 14,
+            "op": "add",
+            "id": "U13",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 15,
+            "op": "add",
+            "id": "U14",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 16,
+            "op": "cancel",
+            "id": "S4",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 17,
+            "op": "add",
+            "id": "U15",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 18,
+            "op": "add",
+            "id": "U16",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          }
+        ],
+        "xs": [
+          10,
+          10,
+          10,
+          10,
+          20,
+          20,
+          20,
+          10,
+          10,
+          10,
+          20,
+          20,
+          20,
+          30,
+          30,
+          30,
+          20,
+          20,
+          20
+        ]
+      },
+      "result": {
+        "domain": "valid",
+        "C": [],
+        "R": [
+          1,
+          18
+        ],
+        "boundaryState": 0,
+        "tailCores": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "pendingPlatforms": [],
+        "blocked": {
+          "reason": "first_turn_leaves_one_owned_core",
+          "a": 0,
+          "b": 1,
+          "observedAt": 9
+        }
+      },
+      "parent": null
+    },
+    {
+      "name": "18_left_absorption_mirror",
+      "values": [
+        30,
+        20,
+        30,
+        20,
+        10,
+        20
+      ],
+      "history": {
+        "B0": {
+          "bid100": 30,
+          "ask102": 10
+        },
+        "events": [
+          {
+            "seq": 1,
+            "op": "add",
+            "id": "U1",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 2,
+            "op": "add",
+            "id": "U2",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 3,
+            "op": "add",
+            "id": "U3",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 4,
+            "op": "cancel",
+            "id": "S0",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 5,
+            "op": "add",
+            "id": "U4",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 6,
+            "op": "add",
+            "id": "U5",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 7,
+            "op": "add",
+            "id": "S6",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 8,
+            "op": "add",
+            "id": "U7",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 9,
+            "op": "add",
+            "id": "U8",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 10,
+            "op": "cancel",
+            "id": "S0",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 11,
+            "op": "add",
+            "id": "U9",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 12,
+            "op": "add",
+            "id": "U10",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 13,
+            "op": "cancel",
+            "id": "S0",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 14,
+            "op": "add",
+            "id": "U11",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 15,
+            "op": "add",
+            "id": "U12",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 16,
+            "op": "add",
+            "id": "S13",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 17,
+            "op": "add",
+            "id": "U14",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 18,
+            "op": "add",
+            "id": "U15",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          }
+        ],
+        "xs": [
+          30,
+          30,
+          30,
+          30,
+          20,
+          20,
+          20,
+          30,
+          30,
+          30,
+          20,
+          20,
+          20,
+          10,
+          10,
+          10,
+          20,
+          20,
+          20
+        ]
+      },
+      "result": {
+        "domain": "valid",
+        "C": [],
+        "R": [
+          1,
+          18
+        ],
+        "boundaryState": 0,
+        "tailCores": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "pendingPlatforms": [],
+        "blocked": {
+          "reason": "first_turn_leaves_one_owned_core",
+          "a": 0,
+          "b": 1,
+          "observedAt": 9
+        }
+      },
+      "parent": null
+    },
+    {
+      "name": "21_old",
+      "values": [
+        10,
+        20,
+        12,
+        6,
+        10,
+        16,
+        11
+      ],
+      "history": {
+        "B0": {
+          "bid100": 10,
+          "ask102": 10
+        },
+        "events": [
+          {
+            "seq": 1,
+            "op": "add",
+            "id": "U1",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 2,
+            "op": "add",
+            "id": "U2",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 3,
+            "op": "add",
+            "id": "U3",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 4,
+            "op": "add",
+            "id": "S4",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 5,
+            "op": "add",
+            "id": "U5",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 6,
+            "op": "add",
+            "id": "U6",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 7,
+            "op": "cancel",
+            "id": "S0",
+            "price": 100,
+            "qty": 8,
+            "side": "bid"
+          },
+          {
+            "seq": 8,
+            "op": "add",
+            "id": "U7",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 9,
+            "op": "add",
+            "id": "U8",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 10,
+            "op": "cancel",
+            "id": "S4",
+            "price": 100,
+            "qty": 6,
+            "side": "bid"
+          },
+          {
+            "seq": 11,
+            "op": "add",
+            "id": "U9",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 12,
+            "op": "add",
+            "id": "U10",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 13,
+            "op": "add",
+            "id": "S11",
+            "price": 100,
+            "qty": 4,
+            "side": "bid"
+          },
+          {
+            "seq": 14,
+            "op": "add",
+            "id": "U12",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 15,
+            "op": "add",
+            "id": "U13",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 16,
+            "op": "add",
+            "id": "S14",
+            "price": 100,
+            "qty": 6,
+            "side": "bid"
+          },
+          {
+            "seq": 17,
+            "op": "add",
+            "id": "U15",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 18,
+            "op": "add",
+            "id": "U16",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 19,
+            "op": "cancel",
+            "id": "S14",
+            "price": 100,
+            "qty": 5,
+            "side": "bid"
+          },
+          {
+            "seq": 20,
+            "op": "add",
+            "id": "U17",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 21,
+            "op": "add",
+            "id": "U18",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          }
+        ],
+        "xs": [
+          10,
+          10,
+          10,
+          10,
+          20,
+          20,
+          20,
+          12,
+          12,
+          12,
+          6,
+          6,
+          6,
+          10,
+          10,
+          10,
+          16,
+          16,
+          16,
+          11,
+          11,
+          11
+        ]
+      },
+      "result": {
+        "domain": "valid",
+        "C": [],
+        "R": [
+          1,
+          21
+        ],
+        "boundaryState": 0,
+        "tailCores": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "pendingPlatforms": [],
+        "blocked": {
+          "reason": "first_turn_leaves_one_owned_core",
+          "a": 0,
+          "b": 1,
+          "observedAt": 9
+        }
+      },
+      "parent": null
+    },
+    {
+      "name": "21_old_mirror",
+      "values": [
+        30,
+        20,
+        28,
+        34,
+        30,
+        24,
+        29
+      ],
+      "history": {
+        "B0": {
+          "bid100": 30,
+          "ask102": 10
+        },
+        "events": [
+          {
+            "seq": 1,
+            "op": "add",
+            "id": "U1",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 2,
+            "op": "add",
+            "id": "U2",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 3,
+            "op": "add",
+            "id": "U3",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 4,
+            "op": "cancel",
+            "id": "S0",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 5,
+            "op": "add",
+            "id": "U4",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 6,
+            "op": "add",
+            "id": "U5",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 7,
+            "op": "add",
+            "id": "S6",
+            "price": 100,
+            "qty": 8,
+            "side": "bid"
+          },
+          {
+            "seq": 8,
+            "op": "add",
+            "id": "U7",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 9,
+            "op": "add",
+            "id": "U8",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 10,
+            "op": "add",
+            "id": "S9",
+            "price": 100,
+            "qty": 6,
+            "side": "bid"
+          },
+          {
+            "seq": 11,
+            "op": "add",
+            "id": "U10",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 12,
+            "op": "add",
+            "id": "U11",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 13,
+            "op": "cancel",
+            "id": "S0",
+            "price": 100,
+            "qty": 4,
+            "side": "bid"
+          },
+          {
+            "seq": 14,
+            "op": "add",
+            "id": "U12",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 15,
+            "op": "add",
+            "id": "U13",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 16,
+            "op": "cancel",
+            "id": "S0",
+            "price": 100,
+            "qty": 6,
+            "side": "bid"
+          },
+          {
+            "seq": 17,
+            "op": "add",
+            "id": "U14",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 18,
+            "op": "add",
+            "id": "U15",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 19,
+            "op": "add",
+            "id": "S16",
+            "price": 100,
+            "qty": 5,
+            "side": "bid"
+          },
+          {
+            "seq": 20,
+            "op": "add",
+            "id": "U17",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 21,
+            "op": "add",
+            "id": "U18",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          }
+        ],
+        "xs": [
+          30,
+          30,
+          30,
+          30,
+          20,
+          20,
+          20,
+          28,
+          28,
+          28,
+          34,
+          34,
+          34,
+          30,
+          30,
+          30,
+          24,
+          24,
+          24,
+          29,
+          29,
+          29
+        ]
+      },
+      "result": {
+        "domain": "valid",
+        "C": [],
+        "R": [
+          1,
+          21
+        ],
+        "boundaryState": 0,
+        "tailCores": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "pendingPlatforms": [],
+        "blocked": {
+          "reason": "first_turn_leaves_one_owned_core",
+          "a": 0,
+          "b": 1,
+          "observedAt": 9
+        }
+      },
+      "parent": null
+    },
+    {
+      "name": "12_early_cut",
+      "values": [
+        10,
+        20,
+        30,
+        25
+      ],
+      "history": {
+        "B0": {
+          "bid100": 10,
+          "ask102": 10
+        },
+        "events": [
+          {
+            "seq": 1,
+            "op": "add",
+            "id": "U1",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 2,
+            "op": "add",
+            "id": "U2",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 3,
+            "op": "add",
+            "id": "U3",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 4,
+            "op": "add",
+            "id": "S4",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 5,
+            "op": "add",
+            "id": "U5",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 6,
+            "op": "add",
+            "id": "U6",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 7,
+            "op": "add",
+            "id": "S7",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 8,
+            "op": "add",
+            "id": "U8",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 9,
+            "op": "add",
+            "id": "U9",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 10,
+            "op": "cancel",
+            "id": "S0",
+            "price": 100,
+            "qty": 5,
+            "side": "bid"
+          },
+          {
+            "seq": 11,
+            "op": "add",
+            "id": "U10",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 12,
+            "op": "add",
+            "id": "U11",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          }
+        ],
+        "xs": [
+          10,
+          10,
+          10,
+          10,
+          20,
+          20,
+          20,
+          30,
+          30,
+          30,
+          25,
+          25,
+          25
+        ]
+      },
+      "result": {
+        "domain": "valid",
+        "C": [
+          {
+            "ids": [
+              0,
+              1
+            ],
+            "direction": 1,
+            "events": [
+              1,
+              6
+            ],
+            "boundaryStates": [
+              0,
+              6
+            ],
+            "endpoints": [
+              10,
+              20
+            ],
+            "range": [
+              10,
+              20
+            ],
+            "turnSupport": [
+              {
+                "core": 1,
+                "value": 20,
+                "seed": [
+                  4,
+                  5,
+                  6
+                ]
+              },
+              {
+                "core": 2,
+                "value": 30,
+                "seed": [
+                  7,
+                  8,
+                  9
+                ]
+              },
+              {
+                "core": 3,
+                "value": 25,
+                "seed": [
+                  10,
+                  11,
+                  12
+                ]
+              }
+            ],
+            "confirm": 12
+          }
+        ],
+        "R": [
+          7,
+          12
+        ],
+        "boundaryState": 6,
+        "tailCores": [
+          2,
+          3
+        ],
+        "pendingPlatforms": [],
+        "blocked": null
+      },
+      "parent": null
+    },
+    {
+      "name": "12_early_cut_mirror",
+      "values": [
+        30,
+        20,
+        10,
+        15
+      ],
+      "history": {
+        "B0": {
+          "bid100": 30,
+          "ask102": 10
+        },
+        "events": [
+          {
+            "seq": 1,
+            "op": "add",
+            "id": "U1",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 2,
+            "op": "add",
+            "id": "U2",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 3,
+            "op": "add",
+            "id": "U3",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 4,
+            "op": "cancel",
+            "id": "S0",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 5,
+            "op": "add",
+            "id": "U4",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 6,
+            "op": "add",
+            "id": "U5",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 7,
+            "op": "cancel",
+            "id": "S0",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 8,
+            "op": "add",
+            "id": "U6",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 9,
+            "op": "add",
+            "id": "U7",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 10,
+            "op": "add",
+            "id": "S8",
+            "price": 100,
+            "qty": 5,
+            "side": "bid"
+          },
+          {
+            "seq": 11,
+            "op": "add",
+            "id": "U9",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 12,
+            "op": "add",
+            "id": "U10",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          }
+        ],
+        "xs": [
+          30,
+          30,
+          30,
+          30,
+          20,
+          20,
+          20,
+          10,
+          10,
+          10,
+          15,
+          15,
+          15
+        ]
+      },
+      "result": {
+        "domain": "valid",
+        "C": [
+          {
+            "ids": [
+              0,
+              1
+            ],
+            "direction": -1,
+            "events": [
+              1,
+              6
+            ],
+            "boundaryStates": [
+              0,
+              6
+            ],
+            "endpoints": [
+              30,
+              20
+            ],
+            "range": [
+              20,
+              30
+            ],
+            "turnSupport": [
+              {
+                "core": 1,
+                "value": 20,
+                "seed": [
+                  4,
+                  5,
+                  6
+                ]
+              },
+              {
+                "core": 2,
+                "value": 10,
+                "seed": [
+                  7,
+                  8,
+                  9
+                ]
+              },
+              {
+                "core": 3,
+                "value": 15,
+                "seed": [
+                  10,
+                  11,
+                  12
+                ]
+              }
+            ],
+            "confirm": 12
+          }
+        ],
+        "R": [
+          7,
+          12
+        ],
+        "boundaryState": 6,
+        "tailCores": [
+          2,
+          3
+        ],
+        "pendingPlatforms": [],
+        "blocked": null
+      },
+      "parent": null
+    },
+    {
+      "name": "30_parent_witness",
+      "values": [
+        10,
+        20,
+        30,
+        25,
+        15,
+        5,
+        10,
+        20,
+        30,
+        25
+      ],
+      "history": {
+        "B0": {
+          "bid100": 10,
+          "ask102": 10
+        },
+        "events": [
+          {
+            "seq": 1,
+            "op": "add",
+            "id": "U1",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 2,
+            "op": "add",
+            "id": "U2",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 3,
+            "op": "add",
+            "id": "U3",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 4,
+            "op": "add",
+            "id": "S4",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 5,
+            "op": "add",
+            "id": "U5",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 6,
+            "op": "add",
+            "id": "U6",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 7,
+            "op": "add",
+            "id": "S7",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 8,
+            "op": "add",
+            "id": "U8",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 9,
+            "op": "add",
+            "id": "U9",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 10,
+            "op": "cancel",
+            "id": "S0",
+            "price": 100,
+            "qty": 5,
+            "side": "bid"
+          },
+          {
+            "seq": 11,
+            "op": "add",
+            "id": "U10",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 12,
+            "op": "add",
+            "id": "U11",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 13,
+            "op": "cancel",
+            "id": "S4",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 14,
+            "op": "add",
+            "id": "U12",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 15,
+            "op": "add",
+            "id": "U13",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 16,
+            "op": "cancel",
+            "id": "S7",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 17,
+            "op": "add",
+            "id": "U14",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 18,
+            "op": "add",
+            "id": "U15",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 19,
+            "op": "add",
+            "id": "S16",
+            "price": 100,
+            "qty": 5,
+            "side": "bid"
+          },
+          {
+            "seq": 20,
+            "op": "add",
+            "id": "U17",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 21,
+            "op": "add",
+            "id": "U18",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 22,
+            "op": "add",
+            "id": "S19",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 23,
+            "op": "add",
+            "id": "U20",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 24,
+            "op": "add",
+            "id": "U21",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 25,
+            "op": "add",
+            "id": "S22",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 26,
+            "op": "add",
+            "id": "U23",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 27,
+            "op": "add",
+            "id": "U24",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 28,
+            "op": "cancel",
+            "id": "S0",
+            "price": 100,
+            "qty": 5,
+            "side": "bid"
+          },
+          {
+            "seq": 29,
+            "op": "add",
+            "id": "U25",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 30,
+            "op": "add",
+            "id": "U26",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          }
+        ],
+        "xs": [
+          10,
+          10,
+          10,
+          10,
+          20,
+          20,
+          20,
+          30,
+          30,
+          30,
+          25,
+          25,
+          25,
+          15,
+          15,
+          15,
+          5,
+          5,
+          5,
+          10,
+          10,
+          10,
+          20,
+          20,
+          20,
+          30,
+          30,
+          30,
+          25,
+          25,
+          25
+        ]
+      },
+      "result": {
+        "domain": "valid",
+        "C": [
+          {
+            "ids": [
+              0,
+              1
+            ],
+            "direction": 1,
+            "events": [
+              1,
+              6
+            ],
+            "boundaryStates": [
+              0,
+              6
+            ],
+            "endpoints": [
+              10,
+              20
+            ],
+            "range": [
+              10,
+              20
+            ],
+            "turnSupport": [
+              {
+                "core": 1,
+                "value": 20,
+                "seed": [
+                  4,
+                  5,
+                  6
+                ]
+              },
+              {
+                "core": 2,
+                "value": 30,
+                "seed": [
+                  7,
+                  8,
+                  9
+                ]
+              },
+              {
+                "core": 3,
+                "value": 25,
+                "seed": [
+                  10,
+                  11,
+                  12
+                ]
+              }
+            ],
+            "confirm": 12
+          },
+          {
+            "ids": [
+              2,
+              3,
+              4
+            ],
+            "direction": -1,
+            "events": [
+              7,
+              15
+            ],
+            "boundaryStates": [
+              6,
+              15
+            ],
+            "endpoints": [
+              20,
+              15
+            ],
+            "range": [
+              15,
+              30
+            ],
+            "turnSupport": [
+              {
+                "core": 4,
+                "value": 15,
+                "seed": [
+                  13,
+                  14,
+                  15
+                ]
+              },
+              {
+                "core": 5,
+                "value": 5,
+                "seed": [
+                  16,
+                  17,
+                  18
+                ]
+              },
+              {
+                "core": 6,
+                "value": 10,
+                "seed": [
+                  19,
+                  20,
+                  21
+                ]
+              }
+            ],
+            "confirm": 21
+          },
+          {
+            "ids": [
+              5,
+              6,
+              7
+            ],
+            "direction": 1,
+            "events": [
+              16,
+              24
+            ],
+            "boundaryStates": [
+              15,
+              24
+            ],
+            "endpoints": [
+              15,
+              20
+            ],
+            "range": [
+              5,
+              20
+            ],
+            "turnSupport": [
+              {
+                "core": 7,
+                "value": 20,
+                "seed": [
+                  22,
+                  23,
+                  24
+                ]
+              },
+              {
+                "core": 8,
+                "value": 30,
+                "seed": [
+                  25,
+                  26,
+                  27
+                ]
+              },
+              {
+                "core": 9,
+                "value": 25,
+                "seed": [
+                  28,
+                  29,
+                  30
+                ]
+              }
+            ],
+            "confirm": 30
+          }
+        ],
+        "R": [
+          25,
+          30
+        ],
+        "boundaryState": 24,
+        "tailCores": [
+          8,
+          9
+        ],
+        "pendingPlatforms": [],
+        "blocked": null
+      },
+      "parent": {
+        "childIds": [
+          0,
+          1,
+          2
+        ],
+        "directions": [
+          1,
+          -1,
+          1
+        ],
+        "rangeIntersection": [
+          15,
+          20
+        ],
+        "WrangeIntersection": [
+          "506/5",
+          "304/3"
+        ],
+        "confirmedAt": 30,
+        "status": "RT_only_alternation_and_strict_geometry_not_original_F2_qualification"
+      }
+    },
+    {
+      "name": "30_parent_witness_mirror",
+      "values": [
+        30,
+        20,
+        10,
+        15,
+        25,
+        35,
+        30,
+        20,
+        10,
+        15
+      ],
+      "history": {
+        "B0": {
+          "bid100": 30,
+          "ask102": 10
+        },
+        "events": [
+          {
+            "seq": 1,
+            "op": "add",
+            "id": "U1",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 2,
+            "op": "add",
+            "id": "U2",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 3,
+            "op": "add",
+            "id": "U3",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 4,
+            "op": "cancel",
+            "id": "S0",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 5,
+            "op": "add",
+            "id": "U4",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 6,
+            "op": "add",
+            "id": "U5",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 7,
+            "op": "cancel",
+            "id": "S0",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 8,
+            "op": "add",
+            "id": "U6",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 9,
+            "op": "add",
+            "id": "U7",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 10,
+            "op": "add",
+            "id": "S8",
+            "price": 100,
+            "qty": 5,
+            "side": "bid"
+          },
+          {
+            "seq": 11,
+            "op": "add",
+            "id": "U9",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 12,
+            "op": "add",
+            "id": "U10",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 13,
+            "op": "add",
+            "id": "S11",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 14,
+            "op": "add",
+            "id": "U12",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 15,
+            "op": "add",
+            "id": "U13",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 16,
+            "op": "add",
+            "id": "S14",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 17,
+            "op": "add",
+            "id": "U15",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 18,
+            "op": "add",
+            "id": "U16",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 19,
+            "op": "cancel",
+            "id": "S0",
+            "price": 100,
+            "qty": 5,
+            "side": "bid"
+          },
+          {
+            "seq": 20,
+            "op": "add",
+            "id": "U17",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 21,
+            "op": "add",
+            "id": "U18",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 22,
+            "op": "cancel",
+            "id": "S11",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 23,
+            "op": "add",
+            "id": "U19",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 24,
+            "op": "add",
+            "id": "U20",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 25,
+            "op": "cancel",
+            "id": "S14",
+            "price": 100,
+            "qty": 10,
+            "side": "bid"
+          },
+          {
+            "seq": 26,
+            "op": "add",
+            "id": "U21",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 27,
+            "op": "add",
+            "id": "U22",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 28,
+            "op": "add",
+            "id": "S23",
+            "price": 100,
+            "qty": 5,
+            "side": "bid"
+          },
+          {
+            "seq": 29,
+            "op": "add",
+            "id": "U24",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          },
+          {
+            "seq": 30,
+            "op": "add",
+            "id": "U25",
+            "price": 99,
+            "qty": 1,
+            "side": "bid"
+          }
+        ],
+        "xs": [
+          30,
+          30,
+          30,
+          30,
+          20,
+          20,
+          20,
+          10,
+          10,
+          10,
+          15,
+          15,
+          15,
+          25,
+          25,
+          25,
+          35,
+          35,
+          35,
+          30,
+          30,
+          30,
+          20,
+          20,
+          20,
+          10,
+          10,
+          10,
+          15,
+          15,
+          15
+        ]
+      },
+      "result": {
+        "domain": "valid",
+        "C": [
+          {
+            "ids": [
+              0,
+              1
+            ],
+            "direction": -1,
+            "events": [
+              1,
+              6
+            ],
+            "boundaryStates": [
+              0,
+              6
+            ],
+            "endpoints": [
+              30,
+              20
+            ],
+            "range": [
+              20,
+              30
+            ],
+            "turnSupport": [
+              {
+                "core": 1,
+                "value": 20,
+                "seed": [
+                  4,
+                  5,
+                  6
+                ]
+              },
+              {
+                "core": 2,
+                "value": 10,
+                "seed": [
+                  7,
+                  8,
+                  9
+                ]
+              },
+              {
+                "core": 3,
+                "value": 15,
+                "seed": [
+                  10,
+                  11,
+                  12
+                ]
+              }
+            ],
+            "confirm": 12
+          },
+          {
+            "ids": [
+              2,
+              3,
+              4
+            ],
+            "direction": 1,
+            "events": [
+              7,
+              15
+            ],
+            "boundaryStates": [
+              6,
+              15
+            ],
+            "endpoints": [
+              20,
+              25
+            ],
+            "range": [
+              10,
+              25
+            ],
+            "turnSupport": [
+              {
+                "core": 4,
+                "value": 25,
+                "seed": [
+                  13,
+                  14,
+                  15
+                ]
+              },
+              {
+                "core": 5,
+                "value": 35,
+                "seed": [
+                  16,
+                  17,
+                  18
+                ]
+              },
+              {
+                "core": 6,
+                "value": 30,
+                "seed": [
+                  19,
+                  20,
+                  21
+                ]
+              }
+            ],
+            "confirm": 21
+          },
+          {
+            "ids": [
+              5,
+              6,
+              7
+            ],
+            "direction": -1,
+            "events": [
+              16,
+              24
+            ],
+            "boundaryStates": [
+              15,
+              24
+            ],
+            "endpoints": [
+              25,
+              20
+            ],
+            "range": [
+              20,
+              35
+            ],
+            "turnSupport": [
+              {
+                "core": 7,
+                "value": 20,
+                "seed": [
+                  22,
+                  23,
+                  24
+                ]
+              },
+              {
+                "core": 8,
+                "value": 10,
+                "seed": [
+                  25,
+                  26,
+                  27
+                ]
+              },
+              {
+                "core": 9,
+                "value": 15,
+                "seed": [
+                  28,
+                  29,
+                  30
+                ]
+              }
+            ],
+            "confirm": 30
+          }
+        ],
+        "R": [
+          25,
+          30
+        ],
+        "boundaryState": 24,
+        "tailCores": [
+          8,
+          9
+        ],
+        "pendingPlatforms": [],
+        "blocked": null
+      },
+      "parent": {
+        "childIds": [
+          0,
+          1,
+          2
+        ],
+        "directions": [
+          -1,
+          1,
+          -1
+        ],
+        "rangeIntersection": [
+          20,
+          25
+        ],
+        "WrangeIntersection": [
+          "304/3",
+          "710/7"
+        ],
+        "confirmedAt": 30,
+        "status": "RT_only_alternation_and_strict_geometry_not_original_F2_qualification"
+      }
+    }
+  ],
+  "enumeratedCoordinateWords": 1533,
+  "coordinateChecks": 1559,
+  "prefixChecks": 38930,
+  "permanentBlockExample": {
+    "domain": "valid",
+    "C": [],
+    "R": [
+      1,
+      27
+    ],
+    "boundaryState": 0,
+    "tailCores": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "pendingPlatforms": [],
+    "blocked": {
+      "reason": "first_turn_leaves_one_owned_core",
+      "a": 0,
+      "b": 1,
+      "observedAt": 9
+    }
+  },
+  "domainFailureExample": {
+    "domain": "outside_D",
+    "firstFailure": 6,
+    "C": [],
+    "R": [
+      1,
+      8
+    ],
+    "boundaryState": 0,
+    "tailCores": [
+      0
+    ],
+    "pendingPlatforms": [
+      1
+    ],
+    "blocked": null,
+    "unanalyzed": [
+      6,
+      8
+    ]
+  },
+  "allAssertionsPassed": true
+}
