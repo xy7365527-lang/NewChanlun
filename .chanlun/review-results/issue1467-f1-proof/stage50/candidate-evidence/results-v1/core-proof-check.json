@@ -1,0 +1,192 @@
+{
+  "scope": "separate author core-composition check, not independent review",
+  "results": [
+    {
+      "name": "same_up_counterexample",
+      "t": 15,
+      "corePartitionsExamined": 2,
+      "onlyLocalGatePartition": [
+        {
+          "from": 0,
+          "to": 2,
+          "kind": "U",
+          "cores": [
+            "K0",
+            "K1"
+          ]
+        }
+      ],
+      "eventCutMultiplicity": 1,
+      "withSuccession": 1,
+      "localLiftDistinctCoreBudget": [
+        3,
+        2
+      ]
+    },
+    {
+      "name": "same_up_counterexample",
+      "t": 23,
+      "corePartitionsExamined": 8,
+      "onlyLocalGatePartition": [
+        {
+          "from": 0,
+          "to": 2,
+          "kind": "U",
+          "cores": [
+            "K0",
+            "K1"
+          ]
+        },
+        {
+          "from": 2,
+          "to": 4,
+          "kind": "U",
+          "cores": [
+            "K2",
+            "K3"
+          ]
+        }
+      ],
+      "eventCutMultiplicity": 2,
+      "withSuccession": 0,
+      "localLiftDistinctCoreBudget": [
+        3,
+        2
+      ]
+    },
+    {
+      "name": "same_up_counterexample",
+      "t": 31,
+      "corePartitionsExamined": 32,
+      "onlyLocalGatePartition": [
+        {
+          "from": 0,
+          "to": 2,
+          "kind": "U",
+          "cores": [
+            "K0",
+            "K1"
+          ]
+        },
+        {
+          "from": 2,
+          "to": 4,
+          "kind": "U",
+          "cores": [
+            "K2",
+            "K3"
+          ]
+        },
+        {
+          "from": 4,
+          "to": 6,
+          "kind": "U",
+          "cores": [
+            "K4",
+            "K5"
+          ]
+        }
+      ],
+      "eventCutMultiplicity": 4,
+      "withSuccession": 0,
+      "localLiftDistinctCoreBudget": [
+        3,
+        2
+      ]
+    },
+    {
+      "name": "same_down_mirror",
+      "t": 15,
+      "corePartitionsExamined": 2,
+      "onlyLocalGatePartition": [
+        {
+          "from": 0,
+          "to": 2,
+          "kind": "D",
+          "cores": [
+            "K0",
+            "K1"
+          ]
+        }
+      ],
+      "eventCutMultiplicity": 1,
+      "withSuccession": 1,
+      "localLiftDistinctCoreBudget": [
+        3,
+        2
+      ]
+    },
+    {
+      "name": "same_down_mirror",
+      "t": 23,
+      "corePartitionsExamined": 8,
+      "onlyLocalGatePartition": [
+        {
+          "from": 0,
+          "to": 2,
+          "kind": "D",
+          "cores": [
+            "K0",
+            "K1"
+          ]
+        },
+        {
+          "from": 2,
+          "to": 4,
+          "kind": "D",
+          "cores": [
+            "K2",
+            "K3"
+          ]
+        }
+      ],
+      "eventCutMultiplicity": 2,
+      "withSuccession": 0,
+      "localLiftDistinctCoreBudget": [
+        3,
+        2
+      ]
+    },
+    {
+      "name": "same_down_mirror",
+      "t": 31,
+      "corePartitionsExamined": 32,
+      "onlyLocalGatePartition": [
+        {
+          "from": 0,
+          "to": 2,
+          "kind": "D",
+          "cores": [
+            "K0",
+            "K1"
+          ]
+        },
+        {
+          "from": 2,
+          "to": 4,
+          "kind": "D",
+          "cores": [
+            "K2",
+            "K3"
+          ]
+        },
+        {
+          "from": 4,
+          "to": 6,
+          "kind": "D",
+          "cores": [
+            "K4",
+            "K5"
+          ]
+        }
+      ],
+      "eventCutMultiplicity": 4,
+      "withSuccession": 0,
+      "localLiftDistinctCoreBudget": [
+        3,
+        2
+      ]
+    }
+  ],
+  "allAssertionsPassed": true
+}

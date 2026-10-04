@@ -1,0 +1,705 @@
+{
+  "source": {
+    "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/same_up_counterexample.json",
+    "sha256": "70fb54425e9ea60c7aa0f3bdb51813177ca1e003c6ec9cb65b604bdbf0c06f96"
+  },
+  "cores": [
+    {
+      "id": "K0",
+      "level": 0,
+      "seed": [
+        0,
+        1,
+        2
+      ],
+      "core": [
+        1010,
+        1030
+      ],
+      "members": [
+        0,
+        1,
+        2
+      ],
+      "sourceStart": 0,
+      "sourceEnd": 4,
+      "outer": [
+        1000,
+        1040
+      ],
+      "bornAt": 5,
+      "startDirection": "Down",
+      "sealedAt": 7,
+      "exit": {
+        "departure": 3,
+        "return": 4,
+        "returnRange": [
+          1100,
+          1140
+        ],
+        "side": "Up",
+        "knownAt": 7,
+        "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+      }
+    },
+    {
+      "id": "K1",
+      "level": 0,
+      "seed": [
+        4,
+        5,
+        6
+      ],
+      "core": [
+        1110,
+        1130
+      ],
+      "members": [
+        4,
+        5,
+        6
+      ],
+      "sourceStart": 5,
+      "sourceEnd": 8,
+      "outer": [
+        1100,
+        1140
+      ],
+      "bornAt": 9,
+      "startDirection": "Down",
+      "sealedAt": 11,
+      "exit": {
+        "departure": 7,
+        "return": 8,
+        "returnRange": [
+          1135,
+          1140
+        ],
+        "side": "Up",
+        "knownAt": 11,
+        "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+      }
+    },
+    {
+      "id": "K2",
+      "level": 0,
+      "seed": [
+        8,
+        9,
+        10
+      ],
+      "core": [
+        1136,
+        1138
+      ],
+      "members": [
+        8,
+        9,
+        10
+      ],
+      "sourceStart": 9,
+      "sourceEnd": 12,
+      "outer": [
+        1135,
+        1140
+      ],
+      "bornAt": 13,
+      "startDirection": "Down",
+      "sealedAt": 15,
+      "exit": {
+        "departure": 11,
+        "return": 12,
+        "returnRange": [
+          1200,
+          1240
+        ],
+        "side": "Up",
+        "knownAt": 15,
+        "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+      }
+    },
+    {
+      "id": "K3",
+      "level": 0,
+      "seed": [
+        12,
+        13,
+        14
+      ],
+      "core": [
+        1210,
+        1230
+      ],
+      "members": [
+        12,
+        13,
+        14
+      ],
+      "sourceStart": 13,
+      "sourceEnd": 16,
+      "outer": [
+        1200,
+        1240
+      ],
+      "bornAt": 17,
+      "startDirection": "Down",
+      "sealedAt": 19,
+      "exit": {
+        "departure": 15,
+        "return": 16,
+        "returnRange": [
+          1235,
+          1240
+        ],
+        "side": "Up",
+        "knownAt": 19,
+        "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+      }
+    },
+    {
+      "id": "K4",
+      "level": 0,
+      "seed": [
+        16,
+        17,
+        18
+      ],
+      "core": [
+        1236,
+        1238
+      ],
+      "members": [
+        16,
+        17,
+        18
+      ],
+      "sourceStart": 17,
+      "sourceEnd": 20,
+      "outer": [
+        1235,
+        1240
+      ],
+      "bornAt": 21,
+      "startDirection": "Down",
+      "sealedAt": 23,
+      "exit": {
+        "departure": 19,
+        "return": 20,
+        "returnRange": [
+          1300,
+          1340
+        ],
+        "side": "Up",
+        "knownAt": 23,
+        "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+      }
+    }
+  ],
+  "checkpoints": [
+    {
+      "t": 15,
+      "formedCoreIDs": [
+        "K0",
+        "K1",
+        "K2"
+      ],
+      "sealedCoreIDs": [
+        "K0",
+        "K1",
+        "K2"
+      ],
+      "publishedOutputs": [
+        {
+          "id": "M0",
+          "epoch": "synthetic-rc49-v1",
+          "level": 0,
+          "type": "U",
+          "conceptDirection": "Up",
+          "breakDirection": "Up",
+          "start": 0,
+          "end": 8,
+          "sourceEvents": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "startValue": 1040,
+          "endValue": 1110,
+          "range": [
+            1000,
+            1140
+          ],
+          "wRange": [
+            "10300/101",
+            "11728/115"
+          ],
+          "ownedCoreIDs": [
+            "K0",
+            "K1"
+          ],
+          "cores": [
+            {
+              "id": "K0",
+              "level": 0,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "core": [
+                1010,
+                1030
+              ],
+              "members": [
+                0,
+                1,
+                2
+              ],
+              "sourceStart": 0,
+              "sourceEnd": 4,
+              "outer": [
+                1000,
+                1040
+              ],
+              "bornAt": 5,
+              "startDirection": "Down",
+              "sealedAt": 7,
+              "exit": {
+                "departure": 3,
+                "return": 4,
+                "returnRange": [
+                  1100,
+                  1140
+                ],
+                "side": "Up",
+                "knownAt": 7,
+                "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+              }
+            },
+            {
+              "id": "K1",
+              "level": 0,
+              "seed": [
+                4,
+                5,
+                6
+              ],
+              "core": [
+                1110,
+                1130
+              ],
+              "members": [
+                4,
+                5,
+                6
+              ],
+              "sourceStart": 5,
+              "sourceEnd": 8,
+              "outer": [
+                1100,
+                1140
+              ],
+              "bornAt": 9,
+              "startDirection": "Down",
+              "sealedAt": 11,
+              "exit": {
+                "departure": 7,
+                "return": 8,
+                "returnRange": [
+                  1135,
+                  1140
+                ],
+                "side": "Up",
+                "knownAt": 11,
+                "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+              }
+            }
+          ],
+          "bornAt": 9,
+          "confirmedAt": 15,
+          "publishedAt": 15,
+          "completion": {
+            "kind": "noncontinuing-sealed-successor",
+            "witnessCore": "K2",
+            "relation": "Overlap",
+            "knownAt": 15,
+            "scope": "candidate completion rule, to be checked against original semantics"
+          }
+        }
+      ]
+    },
+    {
+      "t": 23,
+      "formedCoreIDs": [
+        "K0",
+        "K1",
+        "K2",
+        "K3",
+        "K4"
+      ],
+      "sealedCoreIDs": [
+        "K0",
+        "K1",
+        "K2",
+        "K3",
+        "K4"
+      ],
+      "publishedOutputs": [
+        {
+          "id": "M0",
+          "epoch": "synthetic-rc49-v1",
+          "level": 0,
+          "type": "U",
+          "conceptDirection": "Up",
+          "breakDirection": "Up",
+          "start": 0,
+          "end": 8,
+          "sourceEvents": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "startValue": 1040,
+          "endValue": 1110,
+          "range": [
+            1000,
+            1140
+          ],
+          "wRange": [
+            "10300/101",
+            "11728/115"
+          ],
+          "ownedCoreIDs": [
+            "K0",
+            "K1"
+          ],
+          "cores": [
+            {
+              "id": "K0",
+              "level": 0,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "core": [
+                1010,
+                1030
+              ],
+              "members": [
+                0,
+                1,
+                2
+              ],
+              "sourceStart": 0,
+              "sourceEnd": 4,
+              "outer": [
+                1000,
+                1040
+              ],
+              "bornAt": 5,
+              "startDirection": "Down",
+              "sealedAt": 7,
+              "exit": {
+                "departure": 3,
+                "return": 4,
+                "returnRange": [
+                  1100,
+                  1140
+                ],
+                "side": "Up",
+                "knownAt": 7,
+                "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+              }
+            },
+            {
+              "id": "K1",
+              "level": 0,
+              "seed": [
+                4,
+                5,
+                6
+              ],
+              "core": [
+                1110,
+                1130
+              ],
+              "members": [
+                4,
+                5,
+                6
+              ],
+              "sourceStart": 5,
+              "sourceEnd": 8,
+              "outer": [
+                1100,
+                1140
+              ],
+              "bornAt": 9,
+              "startDirection": "Down",
+              "sealedAt": 11,
+              "exit": {
+                "departure": 7,
+                "return": 8,
+                "returnRange": [
+                  1135,
+                  1140
+                ],
+                "side": "Up",
+                "knownAt": 11,
+                "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+              }
+            }
+          ],
+          "bornAt": 9,
+          "confirmedAt": 15,
+          "publishedAt": 15,
+          "completion": {
+            "kind": "noncontinuing-sealed-successor",
+            "witnessCore": "K2",
+            "relation": "Overlap",
+            "knownAt": 15,
+            "scope": "candidate completion rule, to be checked against original semantics"
+          }
+        },
+        {
+          "id": "M1",
+          "epoch": "synthetic-rc49-v1",
+          "level": 0,
+          "type": "U",
+          "conceptDirection": "Up",
+          "breakDirection": "Up",
+          "start": 8,
+          "end": 16,
+          "sourceEvents": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "startValue": 1110,
+          "endValue": 1210,
+          "range": [
+            1110,
+            1240
+          ],
+          "wRange": [
+            "5711/56",
+            "12748/125"
+          ],
+          "ownedCoreIDs": [
+            "K2",
+            "K3"
+          ],
+          "cores": [
+            {
+              "id": "K2",
+              "level": 0,
+              "seed": [
+                8,
+                9,
+                10
+              ],
+              "core": [
+                1136,
+                1138
+              ],
+              "members": [
+                8,
+                9,
+                10
+              ],
+              "sourceStart": 9,
+              "sourceEnd": 12,
+              "outer": [
+                1135,
+                1140
+              ],
+              "bornAt": 13,
+              "startDirection": "Down",
+              "sealedAt": 15,
+              "exit": {
+                "departure": 11,
+                "return": 12,
+                "returnRange": [
+                  1200,
+                  1240
+                ],
+                "side": "Up",
+                "knownAt": 15,
+                "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+              }
+            },
+            {
+              "id": "K3",
+              "level": 0,
+              "seed": [
+                12,
+                13,
+                14
+              ],
+              "core": [
+                1210,
+                1230
+              ],
+              "members": [
+                12,
+                13,
+                14
+              ],
+              "sourceStart": 13,
+              "sourceEnd": 16,
+              "outer": [
+                1200,
+                1240
+              ],
+              "bornAt": 17,
+              "startDirection": "Down",
+              "sealedAt": 19,
+              "exit": {
+                "departure": 15,
+                "return": 16,
+                "returnRange": [
+                  1235,
+                  1240
+                ],
+                "side": "Up",
+                "knownAt": 19,
+                "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+              }
+            }
+          ],
+          "bornAt": 17,
+          "confirmedAt": 23,
+          "publishedAt": 23,
+          "completion": {
+            "kind": "noncontinuing-sealed-successor",
+            "witnessCore": "K4",
+            "relation": "Overlap",
+            "knownAt": 23,
+            "scope": "candidate completion rule, to be checked against original semantics"
+          }
+        }
+      ]
+    }
+  ],
+  "pieces": [
+    {
+      "label": "A",
+      "start": 5,
+      "end": 8,
+      "events": [
+        6,
+        7,
+        8
+      ],
+      "range": [
+        1100,
+        1140
+      ],
+      "endpoints": [
+        1140,
+        1110
+      ],
+      "numericalDirection": "Down",
+      "whollySupportedCoreIDs": [
+        "K1"
+      ]
+    },
+    {
+      "label": "B",
+      "start": 8,
+      "end": 9,
+      "events": [
+        9
+      ],
+      "range": [
+        1110,
+        1140
+      ],
+      "endpoints": [
+        1110,
+        1140
+      ],
+      "numericalDirection": "Up",
+      "whollySupportedCoreIDs": []
+    },
+    {
+      "label": "C",
+      "start": 9,
+      "end": 12,
+      "events": [
+        10,
+        11,
+        12
+      ],
+      "range": [
+        1135,
+        1140
+      ],
+      "endpoints": [
+        1140,
+        1136
+      ],
+      "numericalDirection": "Down",
+      "whollySupportedCoreIDs": [
+        "K2"
+      ]
+    }
+  ],
+  "localTripleIntersection": [
+    1135,
+    1140
+  ],
+  "expansionPairs": [
+    {
+      "left": "K1",
+      "right": "K2",
+      "coreSeparated": true,
+      "outerTouch": true,
+      "outerIntersection": [
+        1135,
+        1140
+      ]
+    },
+    {
+      "left": "K3",
+      "right": "K4",
+      "coreSeparated": true,
+      "outerTouch": true,
+      "outerIntersection": [
+        1235,
+        1240
+      ]
+    }
+  ],
+  "H2": {
+    "availableCores": 3,
+    "oldM0CoreCount": 2,
+    "remainingCoreIDs": [
+      "K2"
+    ],
+    "maxCompleteMovesWithPreservedM0": 2,
+    "conditions": [
+      "fixed complete catalog",
+      "every completed level0 move owns >=1 catalog core",
+      "no reuse within same decomposition",
+      "M0 owns K0/K1"
+    ]
+  },
+  "scope": "Exact arithmetic and saved fields only; does not certify semantic core identity, Move completion, DirForZ3, or independent review."
+}

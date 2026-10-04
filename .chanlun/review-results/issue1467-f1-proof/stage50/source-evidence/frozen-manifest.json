@@ -1,0 +1,206 @@
+{
+  "version": "stage50-expansion-handoff-v1",
+  "date": "2026-10-05",
+  "researchRoot": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun",
+  "expectedHead": "d9ad8c54e969e1258cde1134ba3ec6d6db800e44",
+  "scope": "Author source audit and ordinary conditional proofs. Independent review pending. Manifest excludes itself.",
+  "inputs": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/GoalReframe-v4.md",
+      "bytes": 10098,
+      "sha256": "36159c5f6bd4062a6654bd3f22b3eaf00e678e5d5dacda844cbf659e230ce39d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage32ExitLiftReadiness.md",
+      "bytes": 7265,
+      "sha256": "b0234eb5bdde7f50ed062498d0c9fdaf51e9d25112125229e7ae7724dbd6f5f3"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage34BaseObjectAudit.md",
+      "bytes": 11456,
+      "sha256": "63d02f1223434ebe3d2f01470562d7ae1fc7cdca4903a8bf4d30e366b988101e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage39ScopeAudit.md",
+      "bytes": 9098,
+      "sha256": "2313437cd9e5c9adbed8c6bdff1d685ec4e6334c885cfbb58d840e2095d05936"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage40CompletionGate.md",
+      "bytes": 7311,
+      "sha256": "ce88203d0aa44ed9d89073d4373c709881c0ca0e72a2d67ef123cbc1db43dcf0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage49FullRangeCoreIdentityAndRestart.md",
+      "bytes": 7680,
+      "sha256": "8424331afa13a37917969593e694d6f00e67f5415154e5dbcc1ab2a61125dee2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/ScopeClarifications-v1.md",
+      "bytes": 2696,
+      "sha256": "77b518dac43eff7cf730b4b5a3829e6ef09304f7f536af87af8bdbe35ce10376"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/final-scope-review.md",
+      "bytes": 2487,
+      "sha256": "f15a006259ded4ec540a868341a532a168eed057bdf2c095a474a66c48d2808a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/base-core-identity.md",
+      "bytes": 27437,
+      "sha256": "258fcb8b482df90f898b7dac9eb2ff88be612158c13bbcb6650237072333ed0a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/f2-input-contract.md",
+      "bytes": 23221,
+      "sha256": "43cbc60ebdf67bc75b2a6c2a5fcab55f5e93e2ea0eb6d0c0a19adb126033f531"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/independent-f2-contract-review.md",
+      "bytes": 14685,
+      "sha256": "786d00bafae9ff7e8eb2a7191b2fce3d22b8d697e9c4ac64f2d54543c6da1f6c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/independent-rc49-review.md",
+      "bytes": 17510,
+      "sha256": "e6e31dd86afa482deff5898e6d9e6a43ef1063d1eb189196cb7428e1b72b9933"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/full-base-candidate.md",
+      "bytes": 18298,
+      "sha256": "684407d7368a35a06f9150d6044a42c993b8c980688c3b1746156281ac7c9e11"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/rc49-v1-definition.md",
+      "bytes": 4141,
+      "sha256": "cb1edaba2255b367220b2e7f9787d36f6c13da3586a586459ba1f89399e4e510"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/rc49-v1.mjs",
+      "bytes": 11376,
+      "sha256": "90555d39c8b30362027e23d6027e941d9d83781641ba7da70c9ce40a86296043"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/same_up_counterexample.json",
+      "bytes": 34694,
+      "sha256": "70fb54425e9ea60c7aa0f3bdb51813177ca1e003c6ec9cb65b604bdbf0c06f96"
+    },
+    {
+      "path": ".agents/research-tools/xsoc1-9e0da0c3/plugins/rigorous-open-math-research/skills/rigorous-open-math-research/SKILL.md",
+      "bytes": 3921,
+      "sha256": "2cf200984572271b8689ab93e2069cc2e31b85e2824e06a9467352350b4591ed"
+    },
+    {
+      "path": ".agents/research-tools/xsoc1-9e0da0c3/plugins/math-research-workflow/skills/math-research-workflow/SKILL.md",
+      "bytes": 3427,
+      "sha256": "df37a4bd8939717159d63a85f9be2f2f9fb303e0034c93604d347bfc5977ba96"
+    },
+    {
+      "path": "docs/chanlun/text/blog/017-第17课.md",
+      "bytes": 55792,
+      "sha256": "bce847aaacac3b3a79e56b3c49aca6f0c454a0917977bdbb1e0f1f553ddff026"
+    },
+    {
+      "path": "docs/chanlun/text/blog/018-第18课.md",
+      "bytes": 11695,
+      "sha256": "4a661fc843d0d9fcfdf32861b7dc903ee09d824d0075dd0ea7b2c19542bb2f92"
+    },
+    {
+      "path": "docs/chanlun/text/blog/020-第20课.md",
+      "bytes": 26838,
+      "sha256": "25f8f0bbe9ffbab48a27b552a081ff3925b6c01bfe1cae30c2616fe9b99b49ef"
+    },
+    {
+      "path": "docs/chanlun/text/blog/031-第31课.md",
+      "bytes": 80982,
+      "sha256": "c784ee15c21cef965b6e073a89224e56b29bad03a9ecd1dc9e130c54083d47d5"
+    },
+    {
+      "path": "docs/chanlun/text/blog/035-第35课.md",
+      "bytes": 19125,
+      "sha256": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023"
+    },
+    {
+      "path": "docs/chanlun/text/blog/037-第37课.md",
+      "bytes": 47970,
+      "sha256": "f360d985b3f3b1fa567ca13e15f2ffaf9eae39dbb418519f75d1f6175ac70753"
+    },
+    {
+      "path": "docs/chanlun/text/blog/038-第38课.md",
+      "bytes": 24251,
+      "sha256": "983ce94575d61ed645fcc753eb59f9a28e8e749826a30d7bf87f19721baedc7b"
+    },
+    {
+      "path": "docs/chanlun/text/blog/049-第49课.md",
+      "bytes": 21786,
+      "sha256": "9aacf49b222c2bda2f607d7b918590ceebaac1194bab87c9af9e073a8fd25bcb"
+    },
+    {
+      "path": "docs/chanlun/text/blog/057-第57课.md",
+      "bytes": 21854,
+      "sha256": "ddf81002acbebfa198320e44d63093e915cce8e73dcc102bdba93b3ca164973f"
+    },
+    {
+      "path": "docs/chanlun/text/blog/083-第83课.md",
+      "bytes": 12402,
+      "sha256": "52652ad410d1c393b46359e406df2133e6630ba5ae940b328c0c7845018bf634"
+    },
+    {
+      "path": "docs/chanlun/text/blog/084-第84课.md",
+      "bytes": 70833,
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26"
+    },
+    {
+      "path": ".chanlun/definitions/zhongshu.md",
+      "bytes": 53981,
+      "sha256": "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882"
+    },
+    {
+      "path": ".chanlun/definitions/qushi.md",
+      "bytes": 33811,
+      "sha256": "ce48f8cda6a3f02afd9fddbc0f93cb43431524b66472e579a927af5ce4bc3c46"
+    },
+    {
+      "path": ".chanlun/definitions/level_recursion.md",
+      "bytes": 26523,
+      "sha256": "06ac7aee96b089536766ac172b52ff0f8d702f2e4ec01ca2b47b1f3a590e1637"
+    },
+    {
+      "path": ".chanlun/definitions/beichi.md",
+      "bytes": 108519,
+      "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage50/expansion-handoff-contract.md",
+      "bytes": 23663,
+      "sha256": "771b8485bf41c15f59220cc8084007031f3773708824030e475147cbeab67158"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage50/source-evidence/check-source-and-rc49.mjs",
+      "bytes": 6566,
+      "sha256": "e9b25dcaf731eb21967325ee92219b53f6d1cf236db1cfcc900951f3e5a79258"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage50/source-evidence/freeze.mjs",
+      "bytes": 2257,
+      "sha256": "7bbe9196df075dcf4649e72c7c21980256efa68768b7aae4ef04c411aa741747"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage50/source-evidence/source-readback.json",
+      "bytes": 134736,
+      "sha256": "7073eb9a88a52f8907a8134ceb37b476a33440b9f7afc1af3b5f60df420790c1"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage50/source-evidence/rc49-handoff-facts.json",
+      "bytes": 14937,
+      "sha256": "1c134fe5c8076abda2678ef6ba8b8b345bcee58f19e905f62e8a546218ed8657"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage50/source-evidence/check-results.json",
+      "bytes": 442,
+      "sha256": "b596edab1e95319e1d15fa45254a02628e3d448c4c6e740231cf25a805b7703c"
+    }
+  ]
+}

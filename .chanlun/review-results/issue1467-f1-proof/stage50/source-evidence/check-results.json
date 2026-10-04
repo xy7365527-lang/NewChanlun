@@ -1,0 +1,19 @@
+{
+  "passed": true,
+  "sourceFiles": 15,
+  "coresChecked": 5,
+  "checkpoints": [
+    15,
+    23
+  ],
+  "localPieces": 3,
+  "parentInterval": [
+    1135,
+    1140
+  ],
+  "middlePieceEventCount": 1,
+  "middlePieceCoreCount": 0,
+  "H2MaxCompleteMoves": 2,
+  "sourceCapture": "Line snapshots and SHA256 of actual bytes",
+  "independence": "author self-check; no RC49 constructor imported, no formal verification or independent semantic review"
+}

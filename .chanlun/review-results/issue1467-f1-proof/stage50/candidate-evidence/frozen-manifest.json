@@ -1,0 +1,191 @@
+{
+  "schema": "stage50-handoff-author-packet/v1",
+  "createdAt": "2026-10-04T17:30:50.263Z",
+  "baseHead": "d9ad8c54e969e1258cde1134ba3ec6d6db800e44",
+  "classes": [
+    "EHL50-v1",
+    "JH50-v1"
+  ],
+  "verdict": "refuted scoped bridges; no accepted full F1/F2; independent review pending",
+  "claims": [
+    "EHL exact local pair hull with frozen complete core catalogue cannot supply three complete children",
+    "JH fixed target prefix and retained RC49 necessary end gates force same-direction consecutive trends",
+    "left widening removes the local core count obstruction and gives strictly overlapping necessary fragments",
+    "partial consumption to e8 remains feasible at e23 and leaves all remaining source in the tail"
+  ],
+  "notClaimed": [
+    "all F1 impossible",
+    "old catalogue permanent completeness is original doctrine",
+    "P completion",
+    "P direction bridge",
+    "outer-pair intersection is a general parent core formula",
+    "true original expansion must wait for RC49 sealing",
+    "new original completed output",
+    "Lean proof",
+    "independent review"
+  ],
+  "reviewObligations": [
+    "source and time binding uses only sealed-at-or-before-prefix evidence",
+    "EHL pigeonhole assumptions are candidate restrictions, not general theory or Stage32 fixed-window template",
+    "JH event cut enumeration and independent core partition enumeration match the stated widened necessary relation",
+    "early noncontinuing sealed successor gate retained; no active tail fabricated as a completed failure",
+    "left-expanded three P-shaped fragments remain unqualified and do not preserve old M0 ownership",
+    "core/view recombination allowed outside the fixed-catalogue classes; cross-layer source nesting not forbidden"
+  ],
+  "reproduce": [
+    "node handoff-probe.mjs <new-empty-output-dir>",
+    "node check-core-proof.mjs <same-output-dir>"
+  ],
+  "checks": {
+    "handoffProbeExit": 0,
+    "coreProofCheckExit": 0,
+    "sourceEvents": 80,
+    "threeWayCutPairs": 380,
+    "eventEdges": 1960,
+    "corePartitions": 84
+  },
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage50/handoff-candidate.md",
+      "sha256": "852cadaff73a8c864c89ec7520567457d3713347c3f71f8ec5094754db526488",
+      "bytes": 15982
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage50/candidate-evidence/check-core-proof.mjs",
+      "sha256": "de8e25ef057c9f11a00f6b0d902e360eafae4b7de032f16d7d20efc2cecca140",
+      "bytes": 3588
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage50/candidate-evidence/handoff-classes-v1.md",
+      "sha256": "c900a13bf78357a52956b0c2dfc40ae3bd55f8ba90f40d3779b648b131a4b188",
+      "bytes": 4278
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage50/candidate-evidence/handoff-probe.mjs",
+      "sha256": "bfd261715754ff8330b8d02a91d379d9135c555c8bf92b706352fb80f1dc468d",
+      "bytes": 10521
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage50/candidate-evidence/results-v1/core-proof-check.json",
+      "sha256": "c1925244c4c95a07f09b18097dff631f5bfabde8f96da1febaa892d96554bd9a",
+      "bytes": 3576
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage50/candidate-evidence/results-v1/same_down_mirror.json",
+      "sha256": "577f34e95fae0e45ff036b57a69b00bdef728c2ba26b12a0227c240669334004",
+      "bytes": 687314
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage50/candidate-evidence/results-v1/same_up_counterexample.json",
+      "sha256": "67bbc28f6d75160789021043664328ebe5866fec87cdee70113c8747d9b677c9",
+      "bytes": 687002
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage50/candidate-evidence/results-v1/summary.json",
+      "sha256": "2d4b386e88c16ee6f5f9155c23273f9a6a7ca5f95033763b2da07a67d064a49e",
+      "bytes": 3605
+    }
+  ],
+  "sources": [
+    {
+      "path": ".agents/skills/rigorous-open-math-research/SKILL.md",
+      "sha256": "2cf200984572271b8689ab93e2069cc2e31b85e2824e06a9467352350b4591ed",
+      "bytes": 3921
+    },
+    {
+      "path": ".agents/skills/math-research-workflow/SKILL.md",
+      "sha256": "df37a4bd8939717159d63a85f9be2f2f9fb303e0034c93604d347bfc5977ba96",
+      "bytes": 3427
+    },
+    {
+      "path": "docs/chanlun/text/blog/017-第17课.md",
+      "sha256": "bce847aaacac3b3a79e56b3c49aca6f0c454a0917977bdbb1e0f1f553ddff026",
+      "bytes": 55792
+    },
+    {
+      "path": "docs/chanlun/text/blog/018-第18课.md",
+      "sha256": "4a661fc843d0d9fcfdf32861b7dc903ee09d824d0075dd0ea7b2c19542bb2f92",
+      "bytes": 11695
+    },
+    {
+      "path": "docs/chanlun/text/blog/020-第20课.md",
+      "sha256": "25f8f0bbe9ffbab48a27b552a081ff3925b6c01bfe1cae30c2616fe9b99b49ef",
+      "bytes": 26838
+    },
+    {
+      "path": "docs/chanlun/text/blog/035-第35课.md",
+      "sha256": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023",
+      "bytes": 19125
+    },
+    {
+      "path": "docs/chanlun/text/blog/049-第49课.md",
+      "sha256": "9aacf49b222c2bda2f607d7b918590ceebaac1194bab87c9af9e073a8fd25bcb",
+      "bytes": 21786
+    },
+    {
+      "path": "docs/chanlun/text/blog/057-第57课.md",
+      "sha256": "ddf81002acbebfa198320e44d63093e915cce8e73dcc102bdba93b3ca164973f",
+      "bytes": 21854
+    },
+    {
+      "path": ".chanlun/definitions/zhongshu.md",
+      "sha256": "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882",
+      "bytes": 53981
+    },
+    {
+      "path": ".chanlun/definitions/qushi.md",
+      "sha256": "ce48f8cda6a3f02afd9fddbc0f93cb43431524b66472e579a927af5ce4bc3c46",
+      "bytes": 33811
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/GoalReframe-v4.md",
+      "sha256": "36159c5f6bd4062a6654bd3f22b3eaf00e678e5d5dacda844cbf659e230ce39d",
+      "bytes": 10098
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage32ExitLiftReadiness.md",
+      "sha256": "b0234eb5bdde7f50ed062498d0c9fdaf51e9d25112125229e7ae7724dbd6f5f3",
+      "bytes": 7265
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage33DirectReachability.md",
+      "sha256": "ab139963e22d8a6f47a0954990e0707302ebc2048b2c4db9e66dbcecd3477c5c",
+      "bytes": 6653
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage38SegmentLiftReachability.md",
+      "sha256": "e067cfda1c251d4d0394cc5b9060820f5074d6dc5aa846a941eb1f9cdb3050c2",
+      "bytes": 7106
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage49FullRangeCoreIdentityAndRestart.md",
+      "sha256": "8424331afa13a37917969593e694d6f00e67f5415154e5dbcc1ab2a61125dee2",
+      "bytes": 7680
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/f2-input-contract.md",
+      "sha256": "43cbc60ebdf67bc75b2a6c2a5fcab55f5e93e2ea0eb6d0c0a19adb126033f531",
+      "bytes": 23221
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/rc49-v1-definition.md",
+      "sha256": "cb1edaba2255b367220b2e7f9787d36f6c13da3586a586459ba1f89399e4e510",
+      "bytes": 4141
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/same_up_counterexample.json",
+      "sha256": "70fb54425e9ea60c7aa0f3bdb51813177ca1e003c6ec9cb65b604bdbf0c06f96",
+      "bytes": 34694
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/same_down_mirror.json",
+      "sha256": "af882f3c4afa4a68ed289405e7044d063b2d12c6f6b6f1eed207a51ae4c98793",
+      "bytes": 34742
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage50/expansion-handoff-contract.md",
+      "sha256": "771b8485bf41c15f59220cc8084007031f3773708824030e475147cbeab67158",
+      "bytes": 23663
+    }
+  ]
+}

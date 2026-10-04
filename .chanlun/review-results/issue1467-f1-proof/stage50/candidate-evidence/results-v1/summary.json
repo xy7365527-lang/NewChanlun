@@ -1,0 +1,165 @@
+{
+  "candidateClasses": [
+    "EHL50-v1",
+    "JH50-v1"
+  ],
+  "sourceEventsReplayed": 80,
+  "cutPairsTested": 380,
+  "jointEventEdgesTested": 1960,
+  "cases": [
+    {
+      "name": "same_up_counterexample",
+      "events": 40,
+      "snapshots": [
+        {
+          "knownAt": 15,
+          "localPair": [
+            "K1",
+            "K2"
+          ],
+          "localSource": [
+            5,
+            12
+          ],
+          "localCutPairs": 15,
+          "localNecessaryTriples": 0,
+          "widenedSource": [
+            0,
+            12
+          ],
+          "widenedNecessaryTriples": 4,
+          "widenedStrictTriples": 2,
+          "jointConsumeThrough": 8,
+          "jointWithoutB4": 1,
+          "jointWithB4": 1
+        },
+        {
+          "knownAt": 23,
+          "localPair": [
+            "K3",
+            "K4"
+          ],
+          "localSource": [
+            13,
+            20
+          ],
+          "localCutPairs": 15,
+          "localNecessaryTriples": 0,
+          "widenedSource": [
+            9,
+            20
+          ],
+          "widenedNecessaryTriples": 4,
+          "widenedStrictTriples": 2,
+          "jointConsumeThrough": 16,
+          "jointWithoutB4": 2,
+          "jointWithB4": 0
+        },
+        {
+          "knownAt": 31,
+          "localPair": [
+            "K5",
+            "K6"
+          ],
+          "localSource": [
+            21,
+            28
+          ],
+          "localCutPairs": 15,
+          "localNecessaryTriples": 0,
+          "widenedSource": [
+            17,
+            28
+          ],
+          "widenedNecessaryTriples": 4,
+          "widenedStrictTriples": 2,
+          "jointConsumeThrough": 24,
+          "jointWithoutB4": 4,
+          "jointWithB4": 0
+        }
+      ],
+      "partialAt23": {
+        "consumeThrough": 8,
+        "solutions": 1
+      }
+    },
+    {
+      "name": "same_down_mirror",
+      "events": 40,
+      "snapshots": [
+        {
+          "knownAt": 15,
+          "localPair": [
+            "K1",
+            "K2"
+          ],
+          "localSource": [
+            5,
+            12
+          ],
+          "localCutPairs": 15,
+          "localNecessaryTriples": 0,
+          "widenedSource": [
+            0,
+            12
+          ],
+          "widenedNecessaryTriples": 4,
+          "widenedStrictTriples": 2,
+          "jointConsumeThrough": 8,
+          "jointWithoutB4": 1,
+          "jointWithB4": 1
+        },
+        {
+          "knownAt": 23,
+          "localPair": [
+            "K3",
+            "K4"
+          ],
+          "localSource": [
+            13,
+            20
+          ],
+          "localCutPairs": 15,
+          "localNecessaryTriples": 0,
+          "widenedSource": [
+            9,
+            20
+          ],
+          "widenedNecessaryTriples": 4,
+          "widenedStrictTriples": 2,
+          "jointConsumeThrough": 16,
+          "jointWithoutB4": 2,
+          "jointWithB4": 0
+        },
+        {
+          "knownAt": 31,
+          "localPair": [
+            "K5",
+            "K6"
+          ],
+          "localSource": [
+            21,
+            28
+          ],
+          "localCutPairs": 15,
+          "localNecessaryTriples": 0,
+          "widenedSource": [
+            17,
+            28
+          ],
+          "widenedNecessaryTriples": 4,
+          "widenedStrictTriples": 2,
+          "jointConsumeThrough": 24,
+          "jointWithoutB4": 4,
+          "jointWithB4": 0
+        }
+      ],
+      "partialAt23": {
+        "consumeThrough": 8,
+        "solutions": 1
+      }
+    }
+  ],
+  "assertionsPassed": true,
+  "independentReview": false
+}
