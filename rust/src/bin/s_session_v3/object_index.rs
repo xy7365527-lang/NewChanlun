@@ -20,7 +20,7 @@ use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::{params, Transaction};
 use sc::capture_allocation::{audit_json as aj, OwnedBudget};
 use serde_json::{json, Value};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 
 pub(super) const SCHEMA: &str = "CREATE TABLE IF NOT EXISTS s_content_objects (
  object_id TEXT PRIMARY KEY, object_revision INTEGER NOT NULL, kind TEXT NOT NULL,
@@ -863,7 +863,11 @@ fn plan_from_candidates(
 }
 
 /// 对持久三种记录逐字段对拍，不展开 payload/input_refs/source_coords 大载荷。
-fn bind_originals(s: &mut (impl CodecStore + ?Sized), e: &Entry) -> Result<(), String> {
+fn bind_originals(
+    s: &mut (impl CodecStore + ?Sized),
+    e: &Entry,
+    leaf_bindings: &mut Option<ShapeLeafBindings<'_>>,
+) -> Result<(), String> {
     let shape = e.slot.is_shape();
     let generated_ref = built_ref(s, &e.generated);
     let internal_ref = built_ref(s, &e.internal);
@@ -956,7 +960,7 @@ fn bind_originals(s: &mut (impl CodecStore + ?Sized), e: &Entry) -> Result<(), S
         i.equal("comparisons", &w, "comparisons")?;
         let generated_refs = i.get("input_refs")?;
         let wire_refs = w.get("input_refs")?;
-        bind_shape_refs_view(s, generated_refs.view(), wire_refs.view())?;
+        bind_shape_refs_view(s, generated_refs.view(), wire_refs.view(), leaf_bindings)?;
     } else {
         i.bind_json_text(s, "payload_json", "payload")?;
         for key in ["fact_key", "payload", "input_refs"] {
@@ -982,12 +986,103 @@ fn bind_shape_refs(
     generated: &ContentRef,
     wire: &ContentRef,
 ) -> Result<(), String> {
-    bind_shape_refs_view(s, generated.into(), wire.into())
+    bind_shape_refs_view(s, generated.into(), wire.into(), &mut None)
+}
+
+type ShapeLeafDeclaration = (String, String, Kind, Option<u64>);
+/// #1394：只活在一次完整 Native load 中，保存来源叶八字段关系的成功结果。
+/// capture 从本次实际 HashReader 的正资格入口取得，不接受调用方预填 memo。
+struct ShapeLeafBindings<'capture> {
+    capture: &'capture sc::AuditCapture,
+    successful: HashSet<[ShapeLeafDeclaration; 2]>,
+}
+impl ShapeLeafBindings<'_> {
+    fn bind(
+        &mut self,
+        s: &mut (impl CodecStore + ?Sized),
+        ar: sc::RefView<'_>,
+        br: sc::RefView<'_>,
+    ) -> Result<(), String> {
+        let result = (|| {
+            // 每次在查 memo 前判资格；overlay-only 仍跑原叶判据，不获缓存资格。
+            let ad = ar.digest().map_err(err)?;
+            let bd = br.digest().map_err(err)?;
+            if !self.capture.contains(&ad) || !self.capture.contains(&bd) {
+                return bind_shape_leaf(s, ar, br);
+            }
+            // 两端自有时必须核完整声明及 capture 自己的 Public 闭包。
+            // 自有根缺深叶/坏原件是实际错误，overlay 不得替当前 capture 补证。
+            self.capture
+                .verify_refview(ar, sc::Mode::Public)
+                .map_err(err)?;
+            self.capture
+                .verify_refview(br, sc::Mode::Public)
+                .map_err(err)?;
+            let declaration = |r: sc::RefView<'_>| {
+                (
+                    r.format().to_owned(),
+                    r.root().to_owned(),
+                    r.kind(),
+                    r.extent(),
+                )
+            };
+            let key = [declaration(ar), declaration(br)];
+            if !self.successful.contains(&key) {
+                bind_shape_leaf(s, ar, br)?;
+                self.successful.insert(key);
+            }
+            Ok(())
+        })();
+        if result.is_err() {
+            self.successful.clear();
+        }
+        result
+    }
+}
+fn bind_shape_leaf(
+    s: &mut (impl CodecStore + ?Sized),
+    ar: sc::RefView<'_>,
+    br: sc::RefView<'_>,
+) -> Result<(), String> {
+    #[cfg(test)]
+    tests::SHAPE_LEAF_CHECKS.with(|checks| checks.set(checks.get() + 1));
+    if ar.extent() != Some(8) || br.extent() != Some(8) {
+        return Err(err("来源字段集不符"));
+    }
+    let names = [
+        "identity_key",
+        "payload_hash",
+        "receipt_id",
+        "event_id",
+        "input_revision",
+        "source_coord",
+        "revision",
+        "seq",
+    ];
+    let a_fields = OwnerFields::read(s, ar, &names)?;
+    let b_fields = OwnerFields::read(s, br, &names)?;
+    for field_name in [
+        "identity_key",
+        "payload_hash",
+        "receipt_id",
+        "event_id",
+        "input_revision",
+        "source_coord",
+    ] {
+        a_fields.equal(field_name, &b_fields, field_name)?;
+    }
+    for field_name in ["revision", "seq"] {
+        if b_fields.text(s, field_name)? != a_fields.integer(s, field_name)?.to_string() {
+            return Err(err("来源数字公开投影不符"));
+        }
+    }
+    Ok(())
 }
 fn bind_shape_refs_view(
     s: &mut (impl CodecStore + ?Sized),
     generated: sc::RefView<'_>,
     wire: sc::RefView<'_>,
+    leaf_bindings: &mut Option<ShapeLeafBindings<'_>>,
 ) -> Result<(), String> {
     if generated.kind() != Kind::Array
         || generated.extent() != Some(3)
@@ -1034,36 +1129,10 @@ fn bind_shape_refs_view(
                             .map_err(err)?,
                     )
                 };
-                if ar.extent() != Some(8) || br.extent() != Some(8) {
-                    return Err(err("来源字段集不符"));
-                }
-                let names = [
-                    "identity_key",
-                    "payload_hash",
-                    "receipt_id",
-                    "event_id",
-                    "input_revision",
-                    "source_coord",
-                    "revision",
-                    "seq",
-                ];
-                let a_fields = OwnerFields::read(s, ar.view(), &names)?;
-                let b_fields = OwnerFields::read(s, br.view(), &names)?;
-                for field_name in [
-                    "identity_key",
-                    "payload_hash",
-                    "receipt_id",
-                    "event_id",
-                    "input_revision",
-                    "source_coord",
-                ] {
-                    a_fields.equal(field_name, &b_fields, field_name)?;
-                }
-                for field_name in ["revision", "seq"] {
-                    if b_fields.text(s, field_name)? != a_fields.integer(s, field_name)?.to_string()
-                    {
-                        return Err(err("来源数字公开投影不符"));
-                    }
+                if let Some(bindings) = leaf_bindings {
+                    bindings.bind(s, ar.view(), br.view())?;
+                } else {
+                    bind_shape_leaf(s, ar.view(), br.view())?;
                 }
             }
         }
@@ -1076,14 +1145,25 @@ pub(super) fn load(
     s: &mut dyn NodeStore,
     latest: i64,
 ) -> Result<sc::CodecVec<Entry>, String> {
-    load_in_store(tx, &mut super::audit_store::StoreView::generic(s), latest)
+    load_in_store(
+        tx,
+        &mut super::audit_store::StoreView::generic(s),
+        latest,
+        None,
+    )
 }
 pub(super) fn load_for_audit(
     tx: &Transaction<'_>,
     s: &mut super::history::HashReader<'_>,
     latest: i64,
 ) -> Result<sc::CodecVec<Entry>, String> {
-    load_in_store(tx, &mut super::audit_store::StoreView::for_audit(s), latest)
+    let capture = s.native_projection_capture();
+    load_in_store(
+        tx,
+        &mut super::audit_store::StoreView::for_audit(s),
+        latest,
+        capture,
+    )
 }
 pub(super) fn load_for_history<'capture>(
     tx: &Transaction<'_>,
@@ -1104,7 +1184,12 @@ fn load_in_store(
     tx: &Transaction<'_>,
     s: &mut super::audit_store::StoreView<'_, '_>,
     latest: i64,
+    capture: Option<&sc::AuditCapture>,
 ) -> Result<sc::CodecVec<Entry>, String> {
+    let mut leaf_bindings = capture.map(|capture| ShapeLeafBindings {
+        capture,
+        successful: HashSet::new(),
+    });
     let mut stmt=CheckedStatement::prepare(tx,c"SELECT object_id,object_revision,kind,fact_key,window_start,window_mid,window_end,generated_root,internal_root,immutable_root,birth_wire_root,batch_id,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM s_content_objects ORDER BY rowid").map_err(err)?;
     let allocation = s.allocation_budget();
     let mut out = bj::new_work(allocation.as_ref());
@@ -1186,7 +1271,7 @@ fn load_in_store(
             "object_index_bind_originals",
             Some(e.life.first_known_generation),
         );
-        bind_originals(s, e)?;
+        bind_originals(s, e, &mut leaf_bindings)?;
         #[cfg(test)]
         super::state::trace_event("object_index_wire_at", Some(e.life.first_known_generation));
         wire_at(s, e, latest)?;
@@ -1715,6 +1800,324 @@ mod tests {
     };
     use newchan_rust::s_content::NodeSink;
     use rusqlite::Connection;
+    thread_local! {
+        pub(super) static SHAPE_LEAF_CHECKS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn leaf_checks<T>(action: impl FnOnce() -> T) -> (T, usize) {
+        SHAPE_LEAF_CHECKS.with(|checks| checks.set(0));
+        let result = action();
+        (result, SHAPE_LEAF_CHECKS.with(std::cell::Cell::get))
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn shape_leaf_fixture(tx: &Transaction<'_>) -> (sc::MemoryNodes, sc::CodecVec<Entry>) {
+        let (mut nodes, objects) = native_candidate_fixture();
+        let p = plan(&mut nodes, &objects, &[], 1).unwrap();
+        stage(tx, &mut nodes, &p, &format!("batch3-{}", "1".repeat(64))).unwrap();
+        let entries = load(tx, &mut nodes, 1).unwrap();
+        (nodes, entries)
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn shape_leaf_pairs(
+        nodes: &mut sc::MemoryNodes,
+        entries: &[Entry],
+    ) -> Vec<(String, usize, &'static str, u64, ContentRef, ContentRef)> {
+        let mut pairs = Vec::new();
+        for e in entries.iter().filter(|e| e.slot.is_shape()) {
+            let a = field(nodes, &e.internal.content_ref(), "input_refs").unwrap();
+            let b = field_ref(nodes, e.birth_wire.view(), "input_refs").unwrap();
+            for n in 0..3 {
+                for key in ["raw_refs", "dependency_refs"] {
+                    let path = [PathStep::Index(n), f(key)];
+                    let aa = nodes.lookup_ref((&a).into(), &path).unwrap();
+                    let bb = nodes.lookup_ref(b.view(), &path).unwrap();
+                    for k in 0..aa.extent().unwrap() {
+                        let ar = nodes.lookup_ref(aa.view(), &[PathStep::Index(k)]).unwrap();
+                        let br = nodes.lookup_ref(bb.view(), &[PathStep::Index(k)]).unwrap();
+                        let plain = |r: &RefValue| ContentRef {
+                            format: r.view().format().to_owned(),
+                            root: r.view().root().to_owned(),
+                            kind: r.kind(),
+                            extent: r.extent(),
+                        };
+                        pairs.push((
+                            e.id.as_str().to_owned(),
+                            n as usize,
+                            key,
+                            k,
+                            plain(&ar),
+                            plain(&br),
+                        ));
+                    }
+                }
+            }
+        }
+        pairs
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_shape_leaf_real_load_reuses_across_distinct_births_and_excludes_gates() {
+        let mut c = database();
+        let tx = c.transaction().unwrap();
+        let (mut nodes, entries) = shape_leaf_fixture(&tx);
+        let pairs = shape_leaf_pairs(&mut nodes, &entries);
+        let unique = pairs
+            .iter()
+            .map(|(_, _, _, _, a, b)| (a.root.clone(), b.root.clone()))
+            .collect::<HashSet<_>>();
+        assert!(!unique.is_empty());
+        assert!(
+            pairs.iter().any(|(id, _, _, _, a, b)| pairs
+                .iter()
+                .any(|(other, _, _, _, aa, bb)| id != other && a == aa && b == bb)),
+            "必须来自不同真实出生 Entry 的共享非空来源叶"
+        );
+        let meter = RecordMeter::default();
+        let capture = sc::AuditCapture::new(nodes.clone());
+        let ordinary = || super::super::history::HashReader::captured(&capture, None);
+        let mut plain = ordinary();
+        let (expected, ordinary_checks) =
+            leaf_checks(|| load_for_audit(&tx, &mut plain, 1).unwrap());
+        assert_eq!(ordinary_checks, pairs.len());
+        let mut native = ordinary();
+        native.enable_full_arrays_for_test();
+        let (actual, native_checks) =
+            leaf_checks(|| load_for_history(&tx, &mut native, 1).unwrap());
+        assert_eq!(format!("{:?}", actual.entries()), format!("{expected:?}"));
+        assert_eq!(native_checks, unique.len());
+        assert!(native_checks < ordinary_checks);
+        native.clear_overlay();
+        let (_, rebuilt_checks) = leaf_checks(|| load_for_audit(&tx, &mut native, 1).unwrap());
+        assert_eq!(
+            rebuilt_checks,
+            unique.len(),
+            "每次 load 重新建缓存，clear 后不继承旧结果"
+        );
+        let other_capture = sc::AuditCapture::new(nodes.clone());
+        let mut other = super::super::history::HashReader::captured(&other_capture, None);
+        other.enable_full_arrays_for_test();
+        let (_, other_checks) = leaf_checks(|| load_for_audit(&tx, &mut other, 1).unwrap());
+        assert_eq!(other_checks, unique.len(), "异 capture 独立重新核验");
+        let mut bounded = ordinary().with_audit_gate(Some(&meter), None);
+        bounded.enable_full_arrays_for_test();
+        let (_, checks) = leaf_checks(|| load_for_audit(&tx, &mut bounded, 1).unwrap());
+        assert_eq!(checks, pairs.len());
+        let mut deadline = ordinary().with_native_publication_deadline_for_test(
+            std::time::Instant::now() + std::time::Duration::from_secs(60),
+        );
+        deadline.enable_full_arrays_for_test();
+        let (_, checks) = leaf_checks(|| load_for_audit(&tx, &mut deadline, 1).unwrap());
+        assert_eq!(checks, pairs.len());
+        let budget = OwnedBudget::new(100_000_000);
+        let mut slab = sc::capture_allocation::CaptureSlab::new(
+            nodes.iter().count(),
+            nodes.iter().map(|(_, _, b)| b.len()).sum(),
+            &budget,
+        )
+        .unwrap();
+        for (d, t, b) in nodes.iter() {
+            slab.push(*d, t, b).unwrap();
+        }
+        let owned = sc::AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
+        let mut owned_reader = super::super::history::HashReader::captured(&owned, None);
+        owned_reader.enable_full_arrays_for_test();
+        let (_, checks) = leaf_checks(|| load_for_audit(&tx, &mut owned_reader, 1).unwrap());
+        assert_eq!(checks, pairs.len());
+        println!("Native shape leaf real load: checks ordinary={ordinary_checks} native={native_checks}; distinct birth entries share source leaves");
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_shape_leaf_real_load_rejects_changed_projection_and_shared_entry_damage() {
+        let mut c = database();
+        let tx = c.transaction().unwrap();
+        let (mut nodes, entries) = shape_leaf_fixture(&tx);
+        let pairs = shape_leaf_pairs(&mut nodes, &entries);
+        let (id, n, key, k, _, _) = pairs
+            .iter()
+            .rev()
+            .find(|(id, _, _, _, a, b)| {
+                pairs
+                    .iter()
+                    .any(|(other, _, _, _, aa, bb)| id != other && a == aa && b == bb)
+            })
+            .unwrap();
+        let e = entries.iter().find(|e| e.id.as_str() == id).unwrap();
+        for field_name in [
+            "identity_key",
+            "payload_hash",
+            "receipt_id",
+            "event_id",
+            "input_revision",
+            "source_coord",
+            "revision",
+            "seq",
+        ] {
+            let mut damaged = nodes.clone();
+            let mut wire = value_ref(&mut damaged, e.birth_wire.view());
+            wire["input_refs"][*n][*key][*k as usize][field_name] =
+                json!("invalid-public-projection");
+            let bad_wire = sc::write_json_view(&mut damaged, aj::JsonView::Plain(&wire)).unwrap();
+            tx.execute_batch("SAVEPOINT shape_leaf_fault").unwrap();
+            tx.execute(
+                "UPDATE s_content_objects SET birth_wire_root=?1 WHERE object_id=?2",
+                params![bad_wire.digest.as_slice(), id],
+            )
+            .unwrap();
+            let capture = sc::AuditCapture::new(damaged);
+            let mut native = super::super::history::HashReader::captured(&capture, None);
+            native.enable_full_arrays_for_test();
+            let error = load_for_audit(&tx, &mut native, 1).unwrap_err();
+            assert!(
+                error.contains(if matches!(field_name, "revision" | "seq") {
+                    "来源数字公开投影不符"
+                } else {
+                    "内容边不同"
+                }),
+                "{field_name}: {error}"
+            );
+            tx.execute_batch("ROLLBACK TO shape_leaf_fault; RELEASE shape_leaf_fault")
+                .unwrap();
+            native.clear_overlay();
+            let good_capture = sc::AuditCapture::new(nodes.clone());
+            let mut good = super::super::history::HashReader::captured(&good_capture, None);
+            good.enable_full_arrays_for_test();
+            let (_, checks) = leaf_checks(|| load_for_audit(&tx, &mut good, 1).unwrap());
+            assert!(checks > 0, "错误退出后，新load重新核判据");
+        }
+        for sql in [
+            "UPDATE s_content_objects SET object_revision=object_revision+1 WHERE object_id=?1",
+            "UPDATE s_content_objects SET window_end=window_end+1 WHERE object_id=?1",
+            "UPDATE s_content_objects SET first_known_cut='bad-cut' WHERE object_id=?1",
+            "UPDATE s_content_objects SET published_generation=2 WHERE object_id=?1",
+            "UPDATE s_content_objects SET immutable_root=generated_root WHERE object_id=?1",
+        ] {
+            tx.execute_batch("SAVEPOINT shape_entry_fault").unwrap();
+            tx.execute(sql, params![id]).unwrap();
+            let capture = sc::AuditCapture::new(nodes.clone());
+            let mut native = super::super::history::HashReader::captured(&capture, None);
+            native.enable_full_arrays_for_test();
+            assert!(
+                load_for_audit(&tx, &mut native, 1).is_err(),
+                "共享叶不得放行坏Entry: {sql}"
+            );
+            tx.execute_batch("ROLLBACK TO shape_entry_fault; RELEASE shape_entry_fault")
+                .unwrap();
+        }
+        let mut damaged = nodes.clone();
+        let (_, tag, _) = nodes
+            .iter()
+            .find(|(d, _, _)| **d == e.generated.digest)
+            .unwrap();
+        damaged.insert_unchecked(e.generated.digest, tag, vec![0]);
+        let capture = sc::AuditCapture::new(damaged);
+        let mut native = super::super::history::HashReader::captured(&capture, None);
+        native.enable_full_arrays_for_test();
+        assert!(load_for_history(&tx, &mut native, 1)
+            .err()
+            .unwrap()
+            .contains(sc::code::NODE_DIGEST));
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_shape_leaf_complete_declarations_error_clear_and_capture_owned_closure() {
+        let mut c = database();
+        let tx = c.transaction().unwrap();
+        let (mut nodes, entries) = shape_leaf_fixture(&tx);
+        let pairs = shape_leaf_pairs(&mut nodes, &entries);
+        let (_, _, _, _, ar, br) = &pairs[0];
+        let capture = sc::AuditCapture::new(nodes.clone());
+        let mut reader = super::super::history::HashReader::captured(&capture, None);
+        reader.enable_full_arrays_for_test();
+        let mut bindings = ShapeLeafBindings {
+            capture: &capture,
+            successful: HashSet::new(),
+        };
+        bindings.bind(&mut reader, ar.into(), br.into()).unwrap();
+        assert_eq!(bindings.successful.len(), 1);
+        for field in ["format", "root", "kind", "extent"] {
+            let mut bad = ar.clone();
+            match field {
+                "format" => bad.format = "bad-format".into(),
+                "root" => bad.root = "bad-root".into(),
+                "kind" => bad.kind = Kind::Array,
+                "extent" => bad.extent = Some(7),
+                _ => unreachable!(),
+            }
+            assert!(bindings
+                .bind(&mut reader, (&bad).into(), br.into())
+                .is_err());
+            assert!(bindings.successful.is_empty(), "{field}错误清空已成功关系");
+            let (_, checks) =
+                leaf_checks(|| bindings.bind(&mut reader, ar.into(), br.into()).unwrap());
+            assert_eq!(checks, 1, "错误不入缓存，合法关系须重建");
+        }
+        // overlay-only端点仍按原判据合法绑定，每次clear→重建后也不能进入memo。
+        let leaf = ar.digest().unwrap();
+        let (_, tag, body) = nodes.iter().find(|(d, _, _)| **d == leaf).unwrap();
+        let mut overlay_only = sc::MemoryNodes::new();
+        for (d, t, b) in nodes.iter().filter(|(d, _, _)| **d != leaf) {
+            overlay_only.insert_unchecked(*d, t, b.to_vec());
+        }
+        let overlay_capture = sc::AuditCapture::new(overlay_only);
+        let mut native = super::super::history::HashReader::captured(&overlay_capture, None);
+        native.enable_full_arrays_for_test();
+        let mut overlay_bindings = ShapeLeafBindings {
+            capture: &overlay_capture,
+            successful: HashSet::new(),
+        };
+        for _ in 0..2 {
+            native.put(leaf, tag, body).unwrap();
+            for _ in 0..2 {
+                let (_, checks) = leaf_checks(|| {
+                    overlay_bindings
+                        .bind(&mut native, ar.into(), br.into())
+                        .unwrap()
+                });
+                assert_eq!(checks, 1);
+                assert!(overlay_bindings.successful.is_empty());
+            }
+            // 完整load的既有capture闭包门仍拒绝缺失原库节点，不由overlay补证。
+            let error = load_for_audit(&tx, &mut native, 1).unwrap_err();
+            assert!(error.contains(sc::code::NODE_MISSING), "{error}");
+            native.clear_overlay();
+            assert!(load_for_audit(&tx, &mut native, 1).is_err());
+        }
+        // 自有root缺深叶或原件损坏，overlay补叶仍不能修补capture自身的Public闭包。
+        let child = field(&mut nodes, ar, "identity_key")
+            .unwrap()
+            .digest()
+            .unwrap();
+        for corrupt in [false, true] {
+            let mut damaged = sc::MemoryNodes::new();
+            for (d, t, b) in nodes.iter() {
+                if *d == if corrupt { leaf } else { child } {
+                    if corrupt {
+                        damaged.insert_unchecked(*d, t, vec![0]);
+                    }
+                } else {
+                    damaged.insert_unchecked(*d, t, b.to_vec());
+                }
+            }
+            let damaged_capture = sc::AuditCapture::new(damaged);
+            let mut native = super::super::history::HashReader::captured(&damaged_capture, None);
+            native.enable_full_arrays_for_test();
+            if !corrupt {
+                let (_, tag, body) = nodes.iter().find(|(d, _, _)| **d == child).unwrap();
+                native.put(child, tag, body).unwrap();
+            }
+            let error = load_for_audit(&tx, &mut native, 1).unwrap_err();
+            assert!(
+                error.contains(if corrupt {
+                    sc::code::NODE_DIGEST
+                } else {
+                    sc::code::NODE_MISSING
+                }),
+                "{error}"
+            );
+            native.clear_overlay();
+            assert!(load_for_audit(&tx, &mut native, 1).is_err());
+        }
+    }
     #[cfg(feature = "s_capture_native_testonly")]
     fn candidate_plan_signature(p: &Plan) -> Value {
         json!({"generation":p.generation,"index":format!("{:?}",p.index),"births":format!("{:?}",p.births),
