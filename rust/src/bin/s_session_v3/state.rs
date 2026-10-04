@@ -234,6 +234,61 @@ pub(super) fn audit_native_in_request(
     }
 }
 
+/// #1394 隔离测试入口：每次新capture与完整状态audit，仅精确绑定的旧来源Counts复用。
+/// keeper不接Driver/serve，预算不来自公共S7；任一错误均清除旧池及部分新证明。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(super) fn audit_native_with_source_keeper_for_testonly(
+    tx: &Transaction<'_>,
+    keeper: &mut super::cross_request_source_cache::Keeper,
+) -> Result<AuditedState, String> {
+    let prior = keeper.take();
+    let result = (|| {
+        let (capture, nodes, same_nodes) =
+            content_store::capture_with_original_subset_for_source_cache(
+                tx,
+                prior.as_ref().map(|pool| (&pool.originals, pool.nodes)),
+            )
+            .map_err(err)?;
+        let capture = capture
+            .enable_native_frame_reuse_for_testonly()
+            .map_err(err)?;
+        let mut trial =
+            super::cross_request_source_cache::Trial::new(tx, prior.as_ref(), same_nodes)?;
+        let (audited, _) = audit_core_fresh_inner(
+            tx,
+            None,
+            None,
+            None,
+            false,
+            None,
+            Some(&capture),
+            None,
+            RetentionReport::Skip,
+            Some(&mut trial),
+        )?;
+        let frontier = audited
+            .cuts
+            .last()
+            .map_or(-1, |cut| cut.metadata.input_frontier);
+        let (next, hits, cold) = trial.complete(tx, capture, nodes, frontier)?;
+        Ok::<_, String>((audited, next, hits, cold))
+    })();
+    match result {
+        Ok((audited, next, hits, cold)) => {
+            if let Err(error) = keeper.finish(prior, next, hits, cold) {
+                keeper.clear();
+                return Err(error);
+            }
+            Ok(audited)
+        }
+        Err(error) => {
+            drop(prior);
+            keeper.clear();
+            Err(error)
+        }
+    }
+}
+
 /// 计费只覆盖实际访问；完整成功后才能留作同一不可变捕获的私有用量收据。
 pub(super) fn audit_with_access(
     tx: &Transaction<'_>,
@@ -427,6 +482,35 @@ fn audit_core_fresh(
     fresh: Option<(v2::ControlHistory, super::business_json::RawEvents)>,
     retention_report: RetentionReport,
 ) -> Result<(AuditedState, Option<Value>), String> {
+    audit_core_fresh_inner(
+        tx,
+        deadline,
+        max_render_bytes,
+        budget,
+        enable_prototype_capture,
+        owned_budget,
+        external_capture,
+        fresh,
+        retention_report,
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        None,
+    )
+}
+
+fn audit_core_fresh_inner(
+    tx: &Transaction<'_>,
+    deadline: Option<std::time::Instant>,
+    max_render_bytes: Option<u64>,
+    budget: Option<&dyn audit_budget::Budget>,
+    enable_prototype_capture: bool,
+    owned_budget: Option<&sc::capture_allocation::OwnedBudget>,
+    external_capture: Option<&sc::AuditCapture>,
+    fresh: Option<(v2::ControlHistory, super::business_json::RawEvents)>,
+    retention_report: RetentionReport,
+    #[cfg(all(test, feature = "s_capture_native_testonly"))] mut source_cache: Option<
+        &mut super::cross_request_source_cache::Trial<'_>,
+    >,
+) -> Result<(AuditedState, Option<Value>), String> {
     // 外部不能带入旧捕获；只有本次fresh audit在None/None内可新建自有读集。
     #[cfg(test)]
     let capture_started = std::time::Instant::now();
@@ -580,23 +664,37 @@ fn audit_core_fresh(
             .view()
             .prefix(cut.metadata.input_frontier as usize + 1)?;
         // 5'. 真实源与生成对象配方逐代对拍；本层不重跑分类。
-        let counts = match native_sources.as_mut() {
-            Some(native) => native.audit(
-                &cut.roots.generated_state,
-                prefix.len(),
-                &cut.metadata.profile_id,
-                &cut.metadata.rule_revision,
-            )?,
-            None => source_audit::audit_generated_for_audit(
-                &mut store,
-                &cut.roots.generated_state,
-                prefix,
-                &cut.metadata.profile_id,
-                &cut.metadata.rule_revision,
-                deadline,
-                budget,
-            )?,
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        let cached_counts = source_cache
+            .as_deref_mut()
+            .and_then(|cache| cache.lookup(cut));
+        #[cfg(not(all(test, feature = "s_capture_native_testonly")))]
+        let cached_counts: Option<source_audit::Counts> = None;
+        let counts = if let Some(counts) = cached_counts {
+            counts
+        } else {
+            match native_sources.as_mut() {
+                Some(native) => native.audit(
+                    &cut.roots.generated_state,
+                    prefix.len(),
+                    &cut.metadata.profile_id,
+                    &cut.metadata.rule_revision,
+                )?,
+                None => source_audit::audit_generated_for_audit(
+                    &mut store,
+                    &cut.roots.generated_state,
+                    prefix,
+                    &cut.metadata.profile_id,
+                    &cut.metadata.rule_revision,
+                    deadline,
+                    budget,
+                )?,
+            }
         };
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        if let Some(cache) = source_cache.as_deref_mut() {
+            cache.record(cut, &counts);
+        }
         let allocation = super::audit_store::CodecRead::allocation_budget(&store);
         let (withdrawals, replaces) = object_index::changes_at_budgeted(
             &objects,

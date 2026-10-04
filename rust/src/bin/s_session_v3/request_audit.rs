@@ -73,7 +73,7 @@ impl RequestAuditContext {
 
 /// SQLite storage class/NULL/原文字节均保留；REAL按原bits比较，绝不JSON规范化。
 #[derive(Debug, PartialEq, Eq)]
-enum SqlCell {
+pub(super) enum SqlCell {
     Null,
     Integer(i64),
     Real(u64),
@@ -81,14 +81,14 @@ enum SqlCell {
     Blob(Vec<u8>),
 }
 #[derive(Debug, PartialEq, Eq)]
-struct ExactRows {
-    sql: String,
-    scope: Vec<SqlCell>,
-    columns: Vec<String>,
-    rows: Vec<Vec<SqlCell>>,
+pub(super) struct ExactRows {
+    pub(super) sql: String,
+    pub(super) scope: Vec<SqlCell>,
+    pub(super) columns: Vec<String>,
+    pub(super) rows: Vec<Vec<SqlCell>>,
 }
 impl ExactRows {
-    fn read(
+    pub(super) fn read(
         tx: &Transaction<'_>,
         sql: &str,
         params: impl Params,

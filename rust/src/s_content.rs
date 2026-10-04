@@ -2114,6 +2114,33 @@ pub struct AuditCapture {
     reads: std::cell::Cell<u64>,
 }
 impl AuditCapture {
+    /// #1394 隔离来源缓存：消费审计捕获，只保留原始tuple owner，清除全部验证和帧证明。
+    /// 不复制正文、不重新读SQL；返回值的存在不表示其中每个无关节点都被验证过。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn into_originals_only_for_testonly(mut self) -> Result<Self, CodecError> {
+        if matches!(self.nodes, CaptureNodes::AllocationPrototype(_)) {
+            return Err(CodecError::new(
+                code::SOURCE,
+                "Owned捕获不得进入Native来源缓存",
+            ));
+        }
+        *self.public.get_mut() = AuditMemo::default();
+        *self.template.get_mut() = AuditMemo::default();
+        if let CaptureNodes::Native(native) = &mut self.nodes {
+            let bytes = native.nodes.values().try_fold(0usize, |sum, node| {
+                sum.checked_add(node.body.len())
+                    .ok_or_else(|| CodecError::new(code::SOURCE, "原件body总长度溢出"))
+            })?;
+            for node in native.nodes.values_mut() {
+                *node.proof.get_mut() = None;
+            }
+            *native.memo.get_mut() = NativeFrameMemo::new(native.nodes.len(), bytes);
+        }
+        self.reads.set(0);
+        Ok(self)
+    }
+
     /// #1394 私有Native请求复用的原件绑定：比较完整digest/tag/body集合；不读取证明或摘要替代正文。
     #[cfg(feature = "s_capture_native_testonly")]
     #[doc(hidden)]
@@ -2347,6 +2374,62 @@ impl AuditCapture {
     }
 }
 struct CaptureReader<'a>(&'a AuditCapture);
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+mod source_cache_original_owner_tests {
+    use super::*;
+    #[test]
+    fn source_cache_original_owner_clears_all_memos_without_copying_body() {
+        let mut nodes = MemoryNodes::new();
+        let root = write_value(
+            &mut nodes,
+            &Value::Object(vec![(
+                "a".into(),
+                Value::Array(vec![Value::String("original".into())]),
+            )]),
+        )
+        .unwrap()
+        .content_ref();
+        let digest = root.digest().unwrap();
+        let capture = AuditCapture::new(nodes)
+            .enable_native_frame_reuse_for_testonly()
+            .unwrap();
+        let pointer = capture.original(&digest).unwrap().1.as_ptr();
+        capture.verify(&root, Mode::Public).unwrap();
+        capture.verify(&root, Mode::Template).unwrap();
+        assert!(
+            capture.retention()["public"]["seen_capacity"]
+                .as_u64()
+                .unwrap()
+                > 0
+        );
+        let keeper = capture.into_originals_only_for_testonly().unwrap();
+        assert_eq!(keeper.original(&digest).unwrap().1.as_ptr(), pointer);
+        let retention = keeper.retention();
+        for mode in ["public", "template"] {
+            assert!(retention[mode]
+                .as_object()
+                .unwrap()
+                .values()
+                .all(|v| v.as_u64() == Some(0)));
+        }
+        assert_eq!(retention["native_frame_reuse"]["retained_entries"], 0);
+        assert_eq!(
+            retention["native_frame_reuse"]["retained_body_vec_capacity_bytes"],
+            0
+        );
+        assert_eq!(retention["capture_reads"], 0);
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn source_cache_original_owner_rejects_owned() {
+        let budget = capture_allocation::OwnedBudget::new(4096);
+        let slab = capture_allocation::CaptureSlab::new(0, 0, &budget).unwrap();
+        let capture = AuditCapture::from_slab_for_allocation_prototype(slab);
+        assert!(capture.into_originals_only_for_testonly().is_err());
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+}
 impl CaptureReader<'_> {
     fn record_read(&self, digest: &NodeDigest) {
         #[cfg(test)]

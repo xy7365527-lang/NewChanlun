@@ -690,7 +690,7 @@ struct Group {
 struct Shape {
     groups: [i64; 3],
 }
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct Counts {
     pub objects: usize,
     pub groups: usize,

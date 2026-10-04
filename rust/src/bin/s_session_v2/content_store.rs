@@ -2030,6 +2030,54 @@ pub(crate) fn current_originals_equal_for_request(
     Ok(equal && seen.len() == expected_nodes)
 }
 
+/// #1394 隔离测试：本次完整捕获同时逐tuple绑定旧原件超集，允许正常新增节点。
+/// 不把旧memo移入新捕获；任何行的SQL/type错误均直接返回，包括已发现mismatch之后。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(crate) fn capture_with_original_subset_for_source_cache(
+    tx: &Transaction<'_>,
+    prior: Option<(&s_content::AuditCapture, usize)>,
+) -> Result<(s_content::AuditCapture, usize, bool), CodecError> {
+    ensure_format(tx)?;
+    PROTOTYPE_CAPTURE_WORK.with(|work| {
+        let mut work = work.borrow_mut();
+        work.capture_builds += 1;
+        work.node_scans += 1;
+        work.rebind_scans += u64::from(prior.is_some());
+    });
+    let mut nodes = s_content::MemoryNodes::new();
+    let mut seen = std::collections::HashSet::new();
+    let mut matched = 0usize;
+    let mut same = prior.is_some();
+    let mut stmt = tx
+        .prepare("SELECT digest,tag,body FROM s_content_nodes")
+        .map_err(storage_error)?;
+    let mut rows = stmt.query([]).map_err(storage_error)?;
+    while let Some(row) = rows.next().map_err(storage_error)? {
+        let digest: Vec<u8> = row.get(0).map_err(storage_error)?;
+        let digest: NodeDigest = digest
+            .try_into()
+            .map_err(|_| storage_error("捕获摘要长度"))?;
+        let tag: i64 = row.get(1).map_err(storage_error)?;
+        let tag: u8 = tag.try_into().map_err(|_| storage_error("捕获标签域"))?;
+        let body: Vec<u8> = row.get(2).map_err(storage_error)?;
+        record_prototype_row(body.len());
+        let unique = seen.insert(digest);
+        same &= unique;
+        if let Some((capture, _)) = prior {
+            if let Some((old_tag, old_body)) = capture.original(&digest) {
+                matched += usize::from(unique);
+                same &= old_tag == tag && old_body == body.as_slice();
+            }
+        }
+        nodes.insert_unchecked(digest, tag, body);
+    }
+    drop(rows);
+    stmt.finalize().map_err(storage_error)?;
+    same &= prior.is_some_and(|(_, count)| matched == count);
+    let count = nodes.len();
+    Ok((s_content::AuditCapture::new(nodes), count, same))
+}
+
 #[cfg(test)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct PrototypeCaptureWork {
