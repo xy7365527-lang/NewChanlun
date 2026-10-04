@@ -76,3 +76,16 @@ Q探针首次把wire的hex tag按十进制读取，并把TCP TIME_WAIT误作监�
 S16两次shadow仅作成本诊断，24应用表及48403行逐字段同旧原件，三audit约占末handle88%、实际SQL COMMIT37–41ms；RSS采样下界与未测全render/Valueheap边界保留。无Budget同次SQL已核帧传递小修两轴通过并集成，27靶向和non-testcheck通过，仍真重读且无跨read缓存；仅F次数锁，尚未测其S16耗时。
 
 消费者实际协议/语义测试使用封存HTTP与S16cut3/4/5源oracle，DOM/HTTP与分配适配器模拟。真实Browser及物理分配、S16正式Q的新资源域、9011双跑与完整crosswalk/资源、S3和其余六Destination仍未验。#1460产品前端独立。新增inputs均绑定原件路径、bytes和SHA，原旧60份inputs完全未变。
+
+
+## 2026-10-04 当前产物财务小域与隔离副本恢复
+
+当前受测产品固定于 `eb1c60bfb0cfc1e088d13e71e4503fe4b1917ffe`，Rust／s_session 源聚合 SHA 为 `84b6a82e166d9f1a9211ea327eef68d51306fa94f0a02fb68ccdf63f7e007acb`。S、E、B 三个 release 产物均为非测试 binary，实际 features 为 `default,s_session`，没有 Native 或其它 TestOnly 编译特性。继续复用原 `TestOnly-cash-cap-100` 输入、数量、费用、时钟和全部资源值；不为本轮补新的资金政策。
+
+本轮三个新 HFS+ owner 正式 init，Capture／Apply／BindVoice／已有责任前置经实际 Unix 服务执行；原 unit trust authority 与预装的 1307 个已验证内容节点仍是受控 TestOnly 前置。24 条 Unix 请求及 9 条 HTTP 核对通过：两个实际 Prepare、E Reserve、两个 B Commit 与幂等回执均成立，私权 40／50、锁与 grant 30／40、共同责任 90、固定 Q 12／20、实际持量 4／15，均无场所调用资格。15 个历史根及逐域 image／cut 与独立 SQL 账簿逐项相等。
+
+真实本地 Chrome 使用现有只读测试页面，完成 current→85 时点→Watch→四份 Original。11 条实际 POST 包含六次 Snapshot、一次 Watch、四份 Original；公头、双侧 payloadHash、replyID、因果、snapshot token 和全部历史 image／cut 均独立重算。85 时点双 Prepared、无本地 Commit 收据、责任 20；Watch 三域各从 cut 3 到 4，最终固定切面与当时 current 相等；四份完整原件与实际 Unix Query 相同。页面 DOM 和截图对应这些真实回包，不是模拟页面或 #1460 产品前端交付。
+
+原 `run-3` 的 240 秒浏览器协调标记超时，**其 FINAL 仍保持 FAIL，金融结果不是 Unknown**；没有倒签 BrowserDone 或重发财务请求。该运行的 21 个 Popen 已回收、三卷普通 detach、28 份来源 SHA 保持。随后仅逐字复制这三份已停止的 image，在新自有副本上补验：恢复前完整逻辑等于 PRE-Q，三库 primary SHA 等于浏览器前记录；同一 manifest 与产物在逐进程 sandbox 中禁止读取 S／peer／源 image 数据及执行 S，真实同目标执行正控和直接／子进程继承拒绝负控成立。三个 fresh recover 均到 epoch 2、stage 0，其余全部账簿、根、image、回执、消息、1307 个 published 节点及历史切面不变。恢复域 35 个登记进程和 7 个探针子进程全部回收，三个新副本普通 detach，19 项来源封存 SHA 保持。
+
+独立事实复核允许上述金融、实际浏览器与精确已提交副本恢复组成**同冻结产品的具名小域验收**，不修改原运行失败记录。完整结果和限定见 [当前结果](inputs/FINANCIAL-CURRENT-20261004.json)，427 份选择性原件、实际回包、脚本与绑定见 [原件包](inputs/FINANCIAL-CURRENT-20261004-RAW.zip)；DB／DMG／可执行文件原件仍保留在各专属载体，不入包。本结论不扩成 WAL／SHM 全部物理字节不变，也不证明完整 9011、Native、整体 heap／RSS／SQLite／I/O、所有 crosswalk 或六个 Destination。#1394 与 goal 保持未完成，未 main 合入、push、关票或改 GOAL 事件。

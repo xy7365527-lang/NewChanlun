@@ -1,0 +1,130 @@
+{
+  "ticket": 1394,
+  "result": "CURRENT_PRODUCT_NAMED_FINANCE_BROWSER_AND_COPY_RECOVERY_ACCEPTED",
+  "scope": "TestOnly-cash-cap-100具名足额财务小域；同冻结非test产品，财务/观察实际运行加精确已提交副本离线恢复",
+  "product_head": "eb1c60bfb0cfc1e088d13e71e4503fe4b1917ffe",
+  "source_aggregate_sha256": "84b6a82e166d9f1a9211ea327eef68d51306fa94f0a02fb68ccdf63f7e007acb",
+  "binaries": {
+    "e_economic_session": {
+      "path": "/Users/silencehan/.codex/worktrees/issue1394-audit-prefix/NewChanlun/.scratch/issue1394-financial-current-20261004/build-root/e_economic_session",
+      "sha256": "de917790767258702259d1aca49f398e544fc0f0cbfea2b5e31856226726966b",
+      "compiler_profile_test": false,
+      "compiler_features": [
+        "default",
+        "s_session"
+      ],
+      "compiler_executable": "/Volumes/AgentStorage/NewChanlun-Build/issue1394-owned-tail-20261003/release/e_economic_session"
+    },
+    "b_chong_session": {
+      "path": "/Users/silencehan/.codex/worktrees/issue1394-audit-prefix/NewChanlun/.scratch/issue1394-financial-current-20261004/build-root/b_chong_session",
+      "sha256": "e927b4265bcd388352a4495a8a27fea3846205a0b7aa85d533e4fbabd6355941",
+      "compiler_profile_test": false,
+      "compiler_features": [
+        "default",
+        "s_session"
+      ],
+      "compiler_executable": "/Volumes/AgentStorage/NewChanlun-Build/issue1394-owned-tail-20261003/release/b_chong_session"
+    },
+    "s_structure_session": {
+      "path": "/Users/silencehan/.codex/worktrees/issue1394-audit-prefix/NewChanlun/.scratch/issue1394-financial-current-20261004/build-root/s_structure_session",
+      "sha256": "f5e316564cd5a3bfb1e308f0f1e88df063f10a19b8f6c74085e6ee3cf95bb4c1",
+      "compiler_profile_test": false,
+      "compiler_features": [
+        "default",
+        "s_session"
+      ],
+      "compiler_executable": "/Volumes/AgentStorage/NewChanlun-Build/issue1394-owned-tail-20261003/release/s_structure_session"
+    }
+  },
+  "policy": {
+    "name": "TestOnly-cash-cap-100",
+    "cap": 100,
+    "baseline": 20,
+    "alpha_lock_grant": 30,
+    "beta_lock_grant": 40,
+    "responsibility_after_reserve": 90,
+    "rights": [
+      40,
+      50
+    ],
+    "fixed_Q": [
+      12,
+      20
+    ],
+    "actual_quantities": [
+      4,
+      15
+    ],
+    "worst_quantities": [
+      6,
+      18
+    ],
+    "new_policy_values": false
+  },
+  "actual_calls": {
+    "unix": 24,
+    "runner_http": 9,
+    "browser_posts": 11,
+    "browser_snapshots": 6,
+    "browser_watch": 1,
+    "browser_originals": 4,
+    "historical_roots_independently_recomputed": 15
+  },
+  "browser": {
+    "current": "two Committed; locks30/40; responsibility90",
+    "as_known_85": "two Prepared; no local_commit_receipt; responsibility20",
+    "watch": "each domain cut3→cut4 one exact history change; final fixed cuts equal current",
+    "full_originals_match_unix": 4,
+    "primary_db_sha_before_after_equal": true,
+    "complete_logical_state_before_after_equal": true,
+    "live_session_stopped": true
+  },
+  "fresh_recovery": {
+    "copy_domain": "/Users/silencehan/.codex/worktrees/issue1394-audit-prefix/NewChanlun/.scratch/issue1394-financial-recovery-copy-20261004/recovery-1",
+    "manifest_sha256": "b7272d25d62b46fce0c58d48c74080f0c9d4c17586af16d3cd6634a2047a6d4f",
+    "same_original_manifest_bytes": true,
+    "source_or_peer_data_exec_unavailable_by_process_sandbox": true,
+    "same_owned_executable_positive_control": true,
+    "direct_and_child_denial_controls": true,
+    "writer_epochs_after": {
+      "E": 2,
+      "B:alpha": 2,
+      "B:beta": 2
+    },
+    "staging_after": 0,
+    "all_other_oracle_fields_unchanged": true,
+    "source_seals_equal": 19,
+    "registered_popen_reaped": 35,
+    "nested_probe_children_reaped": 7,
+    "new_copy_volumes_detached": 3,
+    "financial_requests_replayed": 0
+  },
+  "preserved_failures": {
+    "run1": "hdiutil空image误用-format；未init/未财务写，原样保留",
+    "run2": "S reader preflight缺stdin；未E/B init/财务写，原样保留",
+    "run3": "root未在240s交棒截止前写BrowserDone；原FINAL保持FAIL。财务/HTTP/浏览器已取得原件，恢复另新copy域补验",
+    "run3_economic_outcome_unknown": false,
+    "run3_FINAL_sha256": "8b8a0fae2621decd3ff67e72f5633ebbffedaf9920caac730548a26b5b77eeac"
+  },
+  "independent_review": "/root/finance_runner_review已独立核全部实际协议/15root/金额/DOM/产物绑定/隔离正负控/副本身份/源seal与全部生命周期；允许此同产品小域组合验收，不改run3状态",
+  "evidence_paths": {
+    "run3": "/Users/silencehan/.codex/worktrees/issue1394-audit-prefix/NewChanlun/.scratch/issue1394-financial-current-20261004/run-3",
+    "browser": "/Users/silencehan/.codex/worktrees/issue1394-audit-prefix/NewChanlun/.scratch/issue1394-financial-current-20261004/run-3/browser",
+    "recovery": "/Users/silencehan/.codex/worktrees/issue1394-audit-prefix/NewChanlun/.scratch/issue1394-financial-recovery-copy-20261004/recovery-1"
+  },
+  "limits": [
+    "unit trust authority与1307缓存前置保持TestOnly，不是独立authority或冷导入资格",
+    "只证明三primary DB bytes和完整逻辑一致，不扩成全部WAL/SHM物理字节不变",
+    "不授予场所调用、生产资金policy或完整经营模型资格",
+    "完整9011/Native与整体heap RSS SQLite IO/其余crosswalk与六Destination未完成",
+    "产品前端1460独立；main/push/关票/GOAL事件未改"
+  ],
+  "goal_complete": false,
+  "portable_raw_archive": {
+    "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/FINANCIAL-CURRENT-20261004-RAW.zip",
+    "sha256": "bb2d318ed0fd73903a60cf6dce11abf5a22c15c639c1ef4e567bfb49a0ee6f90",
+    "bytes": 1806575,
+    "files": 427,
+    "excludes": "DB/DMG/executable/fixed-source bytes留原专属载体；archive仅来源绑定、脚本、配置、实际回包/日志/DOM/截图与独评receipt"
+  }
+}
