@@ -1,0 +1,4830 @@
+{
+  "scope": {
+    "controls": 2,
+    "events": 15,
+    "prefixes": 17,
+    "marketSamples": 0,
+    "independentReview": false
+  },
+  "results": [
+    {
+      "controlId": "D57-main8",
+      "prefixes": [
+        {
+          "controlId": "D57-main8",
+          "n": 0,
+          "steps": [],
+          "states": [
+            {
+              "bids": [
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            }
+          ],
+          "quotes": [
+            {
+              "bid": 100,
+              "ask": 102
+            }
+          ],
+          "outputs": [],
+          "direct": {
+            "domain": "all-quotes-ready",
+            "outputs": [],
+            "terminal": {
+              "tag": "NoCore",
+              "c": 0,
+              "s": 0,
+              "core": null
+            },
+            "tail": {
+              "start": 0,
+              "end": 0,
+              "eventIds": []
+            }
+          },
+          "scalarCrosscheck": null
+        },
+        {
+          "controlId": "D57-main8",
+          "n": 1,
+          "steps": [
+            {
+              "eventId": "D57-E1",
+              "amount": 1,
+              "pressure": 1,
+              "before": 0,
+              "after": 1,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            }
+          ],
+          "states": [
+            {
+              "bids": [
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b101a",
+                  "price": 101
+                },
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            }
+          ],
+          "quotes": [
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 101,
+              "ask": 102
+            }
+          ],
+          "outputs": [
+            {
+              "flowId": "D57-main8:F0",
+              "start": 0,
+              "end": 1,
+              "firstKnown": 1,
+              "knownAt": null,
+              "pressure": 1,
+              "eventIds": [
+                "D57-E1"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 100,
+                "endValue": 102,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            }
+          ],
+          "direct": {
+            "domain": "all-quotes-ready",
+            "outputs": [],
+            "terminal": {
+              "tag": "NoCore",
+              "c": 0,
+              "s": 0,
+              "core": null
+            },
+            "tail": {
+              "start": 0,
+              "end": 1,
+              "eventIds": [
+                "D57-E1"
+              ]
+            }
+          },
+          "scalarCrosscheck": {
+            "endpointSkeleton": [
+              100,
+              102
+            ],
+            "scalarOutputs": [],
+            "onlyConfirmedEndpointD54": {
+              "policy": "D54",
+              "legs": [],
+              "outputs": [],
+              "attempts": [],
+              "terminal": {
+                "tag": "NoCore",
+                "cursor": 0,
+                "rejectedSeeds": []
+              },
+              "tail": {
+                "start": 0,
+                "end": 0,
+                "ownedEvents": []
+              }
+            },
+            "clockMap": "scalar confirmation index k maps to firstKnown of original Flow k-1; not its current end"
+          }
+        },
+        {
+          "controlId": "D57-main8",
+          "n": 2,
+          "steps": [
+            {
+              "eventId": "D57-E1",
+              "amount": 1,
+              "pressure": 1,
+              "before": 0,
+              "after": 1,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E2",
+              "amount": 1,
+              "pressure": -1,
+              "before": 1,
+              "after": 2,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  100,
+                  1
+                ]
+              },
+              "validBook": true
+            }
+          ],
+          "states": [
+            {
+              "bids": [
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b101a",
+                  "price": 101
+                },
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            }
+          ],
+          "quotes": [
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 101,
+              "ask": 102
+            },
+            {
+              "bid": 100,
+              "ask": 102
+            }
+          ],
+          "outputs": [
+            {
+              "flowId": "D57-main8:F0",
+              "start": 0,
+              "end": 1,
+              "firstKnown": 1,
+              "knownAt": 2,
+              "pressure": 1,
+              "eventIds": [
+                "D57-E1"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 100,
+                "endValue": 102,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-main8:F1",
+              "start": 1,
+              "end": 2,
+              "firstKnown": 2,
+              "knownAt": null,
+              "pressure": -1,
+              "eventIds": [
+                "D57-E2"
+              ],
+              "geometry": {
+                "direction": -1,
+                "startValue": 102,
+                "endValue": 100,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            }
+          ],
+          "direct": {
+            "domain": "all-quotes-ready",
+            "outputs": [],
+            "terminal": {
+              "tag": "NoCore",
+              "c": 0,
+              "s": 0,
+              "core": null
+            },
+            "tail": {
+              "start": 0,
+              "end": 2,
+              "eventIds": [
+                "D57-E1",
+                "D57-E2"
+              ]
+            }
+          },
+          "scalarCrosscheck": {
+            "endpointSkeleton": [
+              100,
+              102,
+              100
+            ],
+            "scalarOutputs": [],
+            "onlyConfirmedEndpointD54": {
+              "policy": "D54",
+              "legs": [],
+              "outputs": [],
+              "attempts": [],
+              "terminal": {
+                "tag": "NoCore",
+                "cursor": 0,
+                "rejectedSeeds": []
+              },
+              "tail": {
+                "start": 0,
+                "end": 1,
+                "ownedEvents": [
+                  1
+                ]
+              }
+            },
+            "clockMap": "scalar confirmation index k maps to firstKnown of original Flow k-1; not its current end"
+          }
+        },
+        {
+          "controlId": "D57-main8",
+          "n": 3,
+          "steps": [
+            {
+              "eventId": "D57-E1",
+              "amount": 1,
+              "pressure": 1,
+              "before": 0,
+              "after": 1,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E2",
+              "amount": 1,
+              "pressure": -1,
+              "before": 1,
+              "after": 2,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  100,
+                  1
+                ]
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E3",
+              "amount": 1,
+              "pressure": 1,
+              "before": 2,
+              "after": 3,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            }
+          ],
+          "states": [
+            {
+              "bids": [
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b101a",
+                  "price": 101
+                },
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b101b",
+                  "price": 101
+                },
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            }
+          ],
+          "quotes": [
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 101,
+              "ask": 102
+            },
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 101,
+              "ask": 102
+            }
+          ],
+          "outputs": [
+            {
+              "flowId": "D57-main8:F0",
+              "start": 0,
+              "end": 1,
+              "firstKnown": 1,
+              "knownAt": 2,
+              "pressure": 1,
+              "eventIds": [
+                "D57-E1"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 100,
+                "endValue": 102,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-main8:F1",
+              "start": 1,
+              "end": 2,
+              "firstKnown": 2,
+              "knownAt": 3,
+              "pressure": -1,
+              "eventIds": [
+                "D57-E2"
+              ],
+              "geometry": {
+                "direction": -1,
+                "startValue": 102,
+                "endValue": 100,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-main8:F2",
+              "start": 2,
+              "end": 3,
+              "firstKnown": 3,
+              "knownAt": null,
+              "pressure": 1,
+              "eventIds": [
+                "D57-E3"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 100,
+                "endValue": 102,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            }
+          ],
+          "direct": {
+            "domain": "all-quotes-ready",
+            "outputs": [],
+            "terminal": {
+              "tag": "NoCore",
+              "c": 0,
+              "s": 0,
+              "core": null
+            },
+            "tail": {
+              "start": 0,
+              "end": 3,
+              "eventIds": [
+                "D57-E1",
+                "D57-E2",
+                "D57-E3"
+              ]
+            }
+          },
+          "scalarCrosscheck": {
+            "endpointSkeleton": [
+              100,
+              102,
+              100,
+              102
+            ],
+            "scalarOutputs": [],
+            "onlyConfirmedEndpointD54": {
+              "policy": "D54",
+              "legs": [
+                {
+                  "id": 0,
+                  "start": 0,
+                  "end": 1,
+                  "direction": 1,
+                  "low": 100,
+                  "high": 102,
+                  "knownAt": 2
+                }
+              ],
+              "outputs": [],
+              "attempts": [],
+              "terminal": {
+                "tag": "NoCore",
+                "cursor": 0,
+                "rejectedSeeds": []
+              },
+              "tail": {
+                "start": 0,
+                "end": 2,
+                "ownedEvents": [
+                  1,
+                  2
+                ]
+              }
+            },
+            "clockMap": "scalar confirmation index k maps to firstKnown of original Flow k-1; not its current end"
+          }
+        },
+        {
+          "controlId": "D57-main8",
+          "n": 4,
+          "steps": [
+            {
+              "eventId": "D57-E1",
+              "amount": 1,
+              "pressure": 1,
+              "before": 0,
+              "after": 1,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E2",
+              "amount": 1,
+              "pressure": -1,
+              "before": 1,
+              "after": 2,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  100,
+                  1
+                ]
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E3",
+              "amount": 1,
+              "pressure": 1,
+              "before": 2,
+              "after": 3,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E4",
+              "amount": 1,
+              "pressure": -1,
+              "before": 3,
+              "after": 4,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  100,
+                  1
+                ]
+              },
+              "validBook": true
+            }
+          ],
+          "states": [
+            {
+              "bids": [
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b101a",
+                  "price": 101
+                },
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b101b",
+                  "price": 101
+                },
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            }
+          ],
+          "quotes": [
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 101,
+              "ask": 102
+            },
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 101,
+              "ask": 102
+            },
+            {
+              "bid": 100,
+              "ask": 102
+            }
+          ],
+          "outputs": [
+            {
+              "flowId": "D57-main8:F0",
+              "start": 0,
+              "end": 1,
+              "firstKnown": 1,
+              "knownAt": 2,
+              "pressure": 1,
+              "eventIds": [
+                "D57-E1"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 100,
+                "endValue": 102,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-main8:F1",
+              "start": 1,
+              "end": 2,
+              "firstKnown": 2,
+              "knownAt": 3,
+              "pressure": -1,
+              "eventIds": [
+                "D57-E2"
+              ],
+              "geometry": {
+                "direction": -1,
+                "startValue": 102,
+                "endValue": 100,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-main8:F2",
+              "start": 2,
+              "end": 3,
+              "firstKnown": 3,
+              "knownAt": 4,
+              "pressure": 1,
+              "eventIds": [
+                "D57-E3"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 100,
+                "endValue": 102,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-main8:F3",
+              "start": 3,
+              "end": 4,
+              "firstKnown": 4,
+              "knownAt": null,
+              "pressure": -1,
+              "eventIds": [
+                "D57-E4"
+              ],
+              "geometry": {
+                "direction": -1,
+                "startValue": 102,
+                "endValue": 100,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            }
+          ],
+          "direct": {
+            "domain": "all-quotes-ready",
+            "outputs": [],
+            "terminal": {
+              "tag": "AwaitPair",
+              "c": 0,
+              "s": 0,
+              "core": [
+                100,
+                102
+              ]
+            },
+            "tail": {
+              "start": 0,
+              "end": 4,
+              "eventIds": [
+                "D57-E1",
+                "D57-E2",
+                "D57-E3",
+                "D57-E4"
+              ]
+            }
+          },
+          "scalarCrosscheck": {
+            "endpointSkeleton": [
+              100,
+              102,
+              100,
+              102,
+              100
+            ],
+            "scalarOutputs": [],
+            "onlyConfirmedEndpointD54": {
+              "policy": "D54",
+              "legs": [
+                {
+                  "id": 0,
+                  "start": 0,
+                  "end": 1,
+                  "direction": 1,
+                  "low": 100,
+                  "high": 102,
+                  "knownAt": 2
+                },
+                {
+                  "id": 1,
+                  "start": 1,
+                  "end": 2,
+                  "direction": -1,
+                  "low": 100,
+                  "high": 102,
+                  "knownAt": 3
+                }
+              ],
+              "outputs": [],
+              "attempts": [],
+              "terminal": {
+                "tag": "NoCore",
+                "cursor": 0,
+                "rejectedSeeds": []
+              },
+              "tail": {
+                "start": 0,
+                "end": 3,
+                "ownedEvents": [
+                  1,
+                  2,
+                  3
+                ]
+              }
+            },
+            "clockMap": "scalar confirmation index k maps to firstKnown of original Flow k-1; not its current end"
+          }
+        },
+        {
+          "controlId": "D57-main8",
+          "n": 5,
+          "steps": [
+            {
+              "eventId": "D57-E1",
+              "amount": 1,
+              "pressure": 1,
+              "before": 0,
+              "after": 1,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E2",
+              "amount": 1,
+              "pressure": -1,
+              "before": 1,
+              "after": 2,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  100,
+                  1
+                ]
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E3",
+              "amount": 1,
+              "pressure": 1,
+              "before": 2,
+              "after": 3,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E4",
+              "amount": 1,
+              "pressure": -1,
+              "before": 3,
+              "after": 4,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  100,
+                  1
+                ]
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E5",
+              "amount": 1,
+              "pressure": -1,
+              "before": 4,
+              "after": 5,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  1
+                ]
+              },
+              "validBook": true
+            }
+          ],
+          "states": [
+            {
+              "bids": [
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b101a",
+                  "price": 101
+                },
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b101b",
+                  "price": 101
+                },
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            }
+          ],
+          "quotes": [
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 101,
+              "ask": 102
+            },
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 101,
+              "ask": 102
+            },
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 1,
+              "ask": 102
+            }
+          ],
+          "outputs": [
+            {
+              "flowId": "D57-main8:F0",
+              "start": 0,
+              "end": 1,
+              "firstKnown": 1,
+              "knownAt": 2,
+              "pressure": 1,
+              "eventIds": [
+                "D57-E1"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 100,
+                "endValue": 102,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-main8:F1",
+              "start": 1,
+              "end": 2,
+              "firstKnown": 2,
+              "knownAt": 3,
+              "pressure": -1,
+              "eventIds": [
+                "D57-E2"
+              ],
+              "geometry": {
+                "direction": -1,
+                "startValue": 102,
+                "endValue": 100,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-main8:F2",
+              "start": 2,
+              "end": 3,
+              "firstKnown": 3,
+              "knownAt": 4,
+              "pressure": 1,
+              "eventIds": [
+                "D57-E3"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 100,
+                "endValue": 102,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-main8:F3",
+              "start": 3,
+              "end": 5,
+              "firstKnown": 4,
+              "knownAt": null,
+              "pressure": -1,
+              "eventIds": [
+                "D57-E4",
+                "D57-E5"
+              ],
+              "geometry": {
+                "direction": -1,
+                "startValue": 102,
+                "endValue": 1,
+                "range": [
+                  1,
+                  102
+                ]
+              }
+            }
+          ],
+          "direct": {
+            "domain": "all-quotes-ready",
+            "outputs": [],
+            "terminal": {
+              "tag": "AwaitPair",
+              "c": 0,
+              "s": 0,
+              "core": [
+                100,
+                102
+              ]
+            },
+            "tail": {
+              "start": 0,
+              "end": 5,
+              "eventIds": [
+                "D57-E1",
+                "D57-E2",
+                "D57-E3",
+                "D57-E4",
+                "D57-E5"
+              ]
+            }
+          },
+          "scalarCrosscheck": {
+            "endpointSkeleton": [
+              100,
+              102,
+              100,
+              102,
+              1
+            ],
+            "scalarOutputs": [],
+            "onlyConfirmedEndpointD54": {
+              "policy": "D54",
+              "legs": [
+                {
+                  "id": 0,
+                  "start": 0,
+                  "end": 1,
+                  "direction": 1,
+                  "low": 100,
+                  "high": 102,
+                  "knownAt": 2
+                },
+                {
+                  "id": 1,
+                  "start": 1,
+                  "end": 2,
+                  "direction": -1,
+                  "low": 100,
+                  "high": 102,
+                  "knownAt": 3
+                }
+              ],
+              "outputs": [],
+              "attempts": [],
+              "terminal": {
+                "tag": "NoCore",
+                "cursor": 0,
+                "rejectedSeeds": []
+              },
+              "tail": {
+                "start": 0,
+                "end": 3,
+                "ownedEvents": [
+                  1,
+                  2,
+                  3
+                ]
+              }
+            },
+            "clockMap": "scalar confirmation index k maps to firstKnown of original Flow k-1; not its current end"
+          }
+        },
+        {
+          "controlId": "D57-main8",
+          "n": 6,
+          "steps": [
+            {
+              "eventId": "D57-E1",
+              "amount": 1,
+              "pressure": 1,
+              "before": 0,
+              "after": 1,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E2",
+              "amount": 1,
+              "pressure": -1,
+              "before": 1,
+              "after": 2,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  100,
+                  1
+                ]
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E3",
+              "amount": 1,
+              "pressure": 1,
+              "before": 2,
+              "after": 3,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E4",
+              "amount": 1,
+              "pressure": -1,
+              "before": 3,
+              "after": 4,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  100,
+                  1
+                ]
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E5",
+              "amount": 1,
+              "pressure": -1,
+              "before": 4,
+              "after": 5,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  1
+                ]
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E6",
+              "amount": 1,
+              "pressure": -1,
+              "before": 5,
+              "after": 6,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            }
+          ],
+          "states": [
+            {
+              "bids": [
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b101a",
+                  "price": 101
+                },
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b101b",
+                  "price": 101
+                },
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a99",
+                  "price": 99
+                },
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            }
+          ],
+          "quotes": [
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 101,
+              "ask": 102
+            },
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 101,
+              "ask": 102
+            },
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 1,
+              "ask": 102
+            },
+            {
+              "bid": 1,
+              "ask": 99
+            }
+          ],
+          "outputs": [
+            {
+              "flowId": "D57-main8:F0",
+              "start": 0,
+              "end": 1,
+              "firstKnown": 1,
+              "knownAt": 2,
+              "pressure": 1,
+              "eventIds": [
+                "D57-E1"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 100,
+                "endValue": 102,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-main8:F1",
+              "start": 1,
+              "end": 2,
+              "firstKnown": 2,
+              "knownAt": 3,
+              "pressure": -1,
+              "eventIds": [
+                "D57-E2"
+              ],
+              "geometry": {
+                "direction": -1,
+                "startValue": 102,
+                "endValue": 100,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-main8:F2",
+              "start": 2,
+              "end": 3,
+              "firstKnown": 3,
+              "knownAt": 4,
+              "pressure": 1,
+              "eventIds": [
+                "D57-E3"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 100,
+                "endValue": 102,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-main8:F3",
+              "start": 3,
+              "end": 6,
+              "firstKnown": 4,
+              "knownAt": null,
+              "pressure": -1,
+              "eventIds": [
+                "D57-E4",
+                "D57-E5",
+                "D57-E6"
+              ],
+              "geometry": {
+                "direction": -1,
+                "startValue": 102,
+                "endValue": 1,
+                "range": [
+                  1,
+                  102
+                ]
+              }
+            }
+          ],
+          "direct": {
+            "domain": "all-quotes-ready",
+            "outputs": [],
+            "terminal": {
+              "tag": "AwaitPair",
+              "c": 0,
+              "s": 0,
+              "core": [
+                100,
+                102
+              ]
+            },
+            "tail": {
+              "start": 0,
+              "end": 6,
+              "eventIds": [
+                "D57-E1",
+                "D57-E2",
+                "D57-E3",
+                "D57-E4",
+                "D57-E5",
+                "D57-E6"
+              ]
+            }
+          },
+          "scalarCrosscheck": {
+            "endpointSkeleton": [
+              100,
+              102,
+              100,
+              102,
+              1
+            ],
+            "scalarOutputs": [],
+            "onlyConfirmedEndpointD54": {
+              "policy": "D54",
+              "legs": [
+                {
+                  "id": 0,
+                  "start": 0,
+                  "end": 1,
+                  "direction": 1,
+                  "low": 100,
+                  "high": 102,
+                  "knownAt": 2
+                },
+                {
+                  "id": 1,
+                  "start": 1,
+                  "end": 2,
+                  "direction": -1,
+                  "low": 100,
+                  "high": 102,
+                  "knownAt": 3
+                }
+              ],
+              "outputs": [],
+              "attempts": [],
+              "terminal": {
+                "tag": "NoCore",
+                "cursor": 0,
+                "rejectedSeeds": []
+              },
+              "tail": {
+                "start": 0,
+                "end": 3,
+                "ownedEvents": [
+                  1,
+                  2,
+                  3
+                ]
+              }
+            },
+            "clockMap": "scalar confirmation index k maps to firstKnown of original Flow k-1; not its current end"
+          }
+        },
+        {
+          "controlId": "D57-main8",
+          "n": 7,
+          "steps": [
+            {
+              "eventId": "D57-E1",
+              "amount": 1,
+              "pressure": 1,
+              "before": 0,
+              "after": 1,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E2",
+              "amount": 1,
+              "pressure": -1,
+              "before": 1,
+              "after": 2,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  100,
+                  1
+                ]
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E3",
+              "amount": 1,
+              "pressure": 1,
+              "before": 2,
+              "after": 3,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E4",
+              "amount": 1,
+              "pressure": -1,
+              "before": 3,
+              "after": 4,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  100,
+                  1
+                ]
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E5",
+              "amount": 1,
+              "pressure": -1,
+              "before": 4,
+              "after": 5,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  1
+                ]
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E6",
+              "amount": 1,
+              "pressure": -1,
+              "before": 5,
+              "after": 6,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E7",
+              "amount": 1,
+              "pressure": 1,
+              "before": 6,
+              "after": 7,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            }
+          ],
+          "states": [
+            {
+              "bids": [
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b101a",
+                  "price": 101
+                },
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b101b",
+                  "price": 101
+                },
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a99",
+                  "price": 99
+                },
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b2",
+                  "price": 2
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a99",
+                  "price": 99
+                },
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            }
+          ],
+          "quotes": [
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 101,
+              "ask": 102
+            },
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 101,
+              "ask": 102
+            },
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 1,
+              "ask": 102
+            },
+            {
+              "bid": 1,
+              "ask": 99
+            },
+            {
+              "bid": 2,
+              "ask": 99
+            }
+          ],
+          "outputs": [
+            {
+              "flowId": "D57-main8:F0",
+              "start": 0,
+              "end": 1,
+              "firstKnown": 1,
+              "knownAt": 2,
+              "pressure": 1,
+              "eventIds": [
+                "D57-E1"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 100,
+                "endValue": 102,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-main8:F1",
+              "start": 1,
+              "end": 2,
+              "firstKnown": 2,
+              "knownAt": 3,
+              "pressure": -1,
+              "eventIds": [
+                "D57-E2"
+              ],
+              "geometry": {
+                "direction": -1,
+                "startValue": 102,
+                "endValue": 100,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-main8:F2",
+              "start": 2,
+              "end": 3,
+              "firstKnown": 3,
+              "knownAt": 4,
+              "pressure": 1,
+              "eventIds": [
+                "D57-E3"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 100,
+                "endValue": 102,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-main8:F3",
+              "start": 3,
+              "end": 6,
+              "firstKnown": 4,
+              "knownAt": 7,
+              "pressure": -1,
+              "eventIds": [
+                "D57-E4",
+                "D57-E5",
+                "D57-E6"
+              ],
+              "geometry": {
+                "direction": -1,
+                "startValue": 102,
+                "endValue": 1,
+                "range": [
+                  1,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-main8:F4",
+              "start": 6,
+              "end": 7,
+              "firstKnown": 7,
+              "knownAt": null,
+              "pressure": 1,
+              "eventIds": [
+                "D57-E7"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 1,
+                "endValue": 99,
+                "range": [
+                  1,
+                  99
+                ]
+              }
+            }
+          ],
+          "direct": {
+            "domain": "all-quotes-ready",
+            "outputs": [],
+            "terminal": {
+              "tag": "AwaitPair",
+              "c": 0,
+              "s": 0,
+              "core": [
+                100,
+                102
+              ]
+            },
+            "tail": {
+              "start": 0,
+              "end": 7,
+              "eventIds": [
+                "D57-E1",
+                "D57-E2",
+                "D57-E3",
+                "D57-E4",
+                "D57-E5",
+                "D57-E6",
+                "D57-E7"
+              ]
+            }
+          },
+          "scalarCrosscheck": {
+            "endpointSkeleton": [
+              100,
+              102,
+              100,
+              102,
+              1,
+              99
+            ],
+            "scalarOutputs": [],
+            "onlyConfirmedEndpointD54": {
+              "policy": "D54",
+              "legs": [
+                {
+                  "id": 0,
+                  "start": 0,
+                  "end": 1,
+                  "direction": 1,
+                  "low": 100,
+                  "high": 102,
+                  "knownAt": 2
+                },
+                {
+                  "id": 1,
+                  "start": 1,
+                  "end": 2,
+                  "direction": -1,
+                  "low": 100,
+                  "high": 102,
+                  "knownAt": 3
+                },
+                {
+                  "id": 2,
+                  "start": 2,
+                  "end": 3,
+                  "direction": 1,
+                  "low": 100,
+                  "high": 102,
+                  "knownAt": 4
+                }
+              ],
+              "outputs": [],
+              "attempts": [],
+              "terminal": {
+                "tag": "AwaitPair",
+                "cursor": 0,
+                "seed": [
+                  0,
+                  1,
+                  2
+                ],
+                "core": [
+                  100,
+                  102
+                ],
+                "developmentLegs": [
+                  0,
+                  1,
+                  2
+                ],
+                "nextL": 3,
+                "rejectedSeeds": [],
+                "checks": [],
+                "contactEvidence": []
+              },
+              "tail": {
+                "start": 0,
+                "end": 4,
+                "ownedEvents": [
+                  1,
+                  2,
+                  3,
+                  4
+                ]
+              }
+            },
+            "clockMap": "scalar confirmation index k maps to firstKnown of original Flow k-1; not its current end"
+          }
+        },
+        {
+          "controlId": "D57-main8",
+          "n": 8,
+          "steps": [
+            {
+              "eventId": "D57-E1",
+              "amount": 1,
+              "pressure": 1,
+              "before": 0,
+              "after": 1,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E2",
+              "amount": 1,
+              "pressure": -1,
+              "before": 1,
+              "after": 2,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  100,
+                  1
+                ]
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E3",
+              "amount": 1,
+              "pressure": 1,
+              "before": 2,
+              "after": 3,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E4",
+              "amount": 1,
+              "pressure": -1,
+              "before": 3,
+              "after": 4,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  100,
+                  1
+                ]
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E5",
+              "amount": 1,
+              "pressure": -1,
+              "before": 4,
+              "after": 5,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  1
+                ]
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E6",
+              "amount": 1,
+              "pressure": -1,
+              "before": 5,
+              "after": 6,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E7",
+              "amount": 1,
+              "pressure": 1,
+              "before": 6,
+              "after": 7,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "D57-E8",
+              "amount": 1,
+              "pressure": -1,
+              "before": 7,
+              "after": 8,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  1
+                ]
+              },
+              "validBook": true
+            }
+          ],
+          "states": [
+            {
+              "bids": [
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b101a",
+                  "price": 101
+                },
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b101b",
+                  "price": 101
+                },
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b100",
+                  "price": 100
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a99",
+                  "price": 99
+                },
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b2",
+                  "price": 2
+                },
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a99",
+                  "price": 99
+                },
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "b1",
+                  "price": 1
+                }
+              ],
+              "asks": [
+                {
+                  "id": "a99",
+                  "price": 99
+                },
+                {
+                  "id": "a102",
+                  "price": 102
+                }
+              ]
+            }
+          ],
+          "quotes": [
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 101,
+              "ask": 102
+            },
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 101,
+              "ask": 102
+            },
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 1,
+              "ask": 102
+            },
+            {
+              "bid": 1,
+              "ask": 99
+            },
+            {
+              "bid": 2,
+              "ask": 99
+            },
+            {
+              "bid": 1,
+              "ask": 99
+            }
+          ],
+          "outputs": [
+            {
+              "flowId": "D57-main8:F0",
+              "start": 0,
+              "end": 1,
+              "firstKnown": 1,
+              "knownAt": 2,
+              "pressure": 1,
+              "eventIds": [
+                "D57-E1"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 100,
+                "endValue": 102,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-main8:F1",
+              "start": 1,
+              "end": 2,
+              "firstKnown": 2,
+              "knownAt": 3,
+              "pressure": -1,
+              "eventIds": [
+                "D57-E2"
+              ],
+              "geometry": {
+                "direction": -1,
+                "startValue": 102,
+                "endValue": 100,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-main8:F2",
+              "start": 2,
+              "end": 3,
+              "firstKnown": 3,
+              "knownAt": 4,
+              "pressure": 1,
+              "eventIds": [
+                "D57-E3"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 100,
+                "endValue": 102,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-main8:F3",
+              "start": 3,
+              "end": 6,
+              "firstKnown": 4,
+              "knownAt": 7,
+              "pressure": -1,
+              "eventIds": [
+                "D57-E4",
+                "D57-E5",
+                "D57-E6"
+              ],
+              "geometry": {
+                "direction": -1,
+                "startValue": 102,
+                "endValue": 1,
+                "range": [
+                  1,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-main8:F4",
+              "start": 6,
+              "end": 7,
+              "firstKnown": 7,
+              "knownAt": 8,
+              "pressure": 1,
+              "eventIds": [
+                "D57-E7"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 1,
+                "endValue": 99,
+                "range": [
+                  1,
+                  99
+                ]
+              }
+            },
+            {
+              "flowId": "D57-main8:F5",
+              "start": 7,
+              "end": 8,
+              "firstKnown": 8,
+              "knownAt": null,
+              "pressure": -1,
+              "eventIds": [
+                "D57-E8"
+              ],
+              "geometry": {
+                "direction": -1,
+                "startValue": 99,
+                "endValue": 1,
+                "range": [
+                  1,
+                  99
+                ]
+              }
+            }
+          ],
+          "direct": {
+            "domain": "all-quotes-ready",
+            "outputs": [
+              {
+                "id": "D57-main8:K0",
+                "instanceKey": {
+                  "version": "D54-direct-v1",
+                  "sourceNamespace": "D57-main8",
+                  "cycle": 0,
+                  "seedFlowIds": [
+                    "D57-main8:F0",
+                    "D57-main8:F1",
+                    "D57-main8:F2"
+                  ]
+                },
+                "start": 0,
+                "end": 6,
+                "seed": [
+                  0,
+                  1,
+                  2
+                ],
+                "core": [
+                  100,
+                  102
+                ],
+                "H": [
+                  0,
+                  1,
+                  2
+                ],
+                "M": [
+                  0,
+                  1,
+                  2
+                ],
+                "contact": [],
+                "L": 3,
+                "R": 4,
+                "side": -1,
+                "releasedFromDevelopment": [],
+                "departureWasInDevelopment": false,
+                "departureIsCoreMember": false,
+                "departureEvents": [
+                  "D57-E4",
+                  "D57-E5",
+                  "D57-E6"
+                ],
+                "seedEnd": 3,
+                "seedKnownAt": 4,
+                "relationshipPublishedAt": 8,
+                "memberEvents": [
+                  "D57-E1",
+                  "D57-E2",
+                  "D57-E3"
+                ],
+                "memberOuter": [
+                  100,
+                  102
+                ],
+                "developmentOuter": [
+                  100,
+                  102
+                ],
+                "wholeOuter": [
+                  1,
+                  102
+                ],
+                "ownedEvents": [
+                  "D57-E1",
+                  "D57-E2",
+                  "D57-E3",
+                  "D57-E4",
+                  "D57-E5",
+                  "D57-E6"
+                ],
+                "confirmationEvent": "D57-E8",
+                "RownedEvents": [
+                  "D57-E7"
+                ],
+                "sourceCut": 6,
+                "modelKind": "Closed0/P0",
+                "originalP": null,
+                "originalBreak": null,
+                "originalLevel": null,
+                "wholeF1": null,
+                "fixedF2": null,
+                "connectorIdentity": null,
+                "semanticEligibleAt": null,
+                "L56windows": [
+                  {
+                    "legs": [
+                      0,
+                      1,
+                      2
+                    ],
+                    "J": [
+                      100,
+                      102
+                    ],
+                    "positive": true,
+                    "touchesCore": true
+                  },
+                  {
+                    "legs": [
+                      1,
+                      2,
+                      3
+                    ],
+                    "J": [
+                      100,
+                      102
+                    ],
+                    "positive": true,
+                    "touchesCore": true
+                  }
+                ]
+              }
+            ],
+            "terminal": {
+              "tag": "NoCore",
+              "c": 4,
+              "s": 4,
+              "core": null
+            },
+            "tail": {
+              "start": 6,
+              "end": 8,
+              "eventIds": [
+                "D57-E7",
+                "D57-E8"
+              ]
+            }
+          },
+          "scalarCrosscheck": {
+            "endpointSkeleton": [
+              100,
+              102,
+              100,
+              102,
+              1,
+              99,
+              1
+            ],
+            "scalarOutputs": [
+              {
+                "id": 0,
+                "start": 0,
+                "end": 4,
+                "seed": [
+                  0,
+                  1,
+                  2
+                ],
+                "core": [
+                  100,
+                  102
+                ],
+                "coreMembers": [
+                  0,
+                  1,
+                  2
+                ],
+                "developmentLegs": [
+                  0,
+                  1,
+                  2
+                ],
+                "memberStart": 0,
+                "memberEnd": 3,
+                "memberEvents": [
+                  1,
+                  2,
+                  3
+                ],
+                "memberOuter": [
+                  100,
+                  102
+                ],
+                "developmentStart": 0,
+                "developmentEnd": 3,
+                "developmentEvents": [
+                  1,
+                  2,
+                  3
+                ],
+                "developmentOuter": [
+                  100,
+                  102
+                ],
+                "releasedFromDevelopment": [],
+                "releasedEvents": [],
+                "departureCandidate": 3,
+                "returnCandidate": 4,
+                "departureEvents": [
+                  4
+                ],
+                "departureWasInDevelopment": false,
+                "departureIsCoreMember": false,
+                "side": -1,
+                "seedEndpointAt": 3,
+                "seedKnownAt": 4,
+                "relationshipPublishedAt": 6,
+                "ownedEvents": [
+                  1,
+                  2,
+                  3,
+                  4
+                ],
+                "wholeOuter": [
+                  1,
+                  102
+                ],
+                "checks": [
+                  {
+                    "L": 3,
+                    "R": 4,
+                    "outcome": "Exit",
+                    "side": -1
+                  }
+                ],
+                "contactEvidence": [],
+                "originalP": null,
+                "originalBreak": null,
+                "originalLevel": null,
+                "wholeF1": null,
+                "fixedF2": null,
+                "connectorIdentity": null,
+                "semanticEligibleAt": null
+              }
+            ],
+            "onlyConfirmedEndpointD54": {
+              "policy": "D54",
+              "legs": [
+                {
+                  "id": 0,
+                  "start": 0,
+                  "end": 1,
+                  "direction": 1,
+                  "low": 100,
+                  "high": 102,
+                  "knownAt": 2
+                },
+                {
+                  "id": 1,
+                  "start": 1,
+                  "end": 2,
+                  "direction": -1,
+                  "low": 100,
+                  "high": 102,
+                  "knownAt": 3
+                },
+                {
+                  "id": 2,
+                  "start": 2,
+                  "end": 3,
+                  "direction": 1,
+                  "low": 100,
+                  "high": 102,
+                  "knownAt": 4
+                },
+                {
+                  "id": 3,
+                  "start": 3,
+                  "end": 4,
+                  "direction": -1,
+                  "low": 1,
+                  "high": 102,
+                  "knownAt": 5
+                }
+              ],
+              "outputs": [],
+              "attempts": [],
+              "terminal": {
+                "tag": "AwaitPair",
+                "cursor": 0,
+                "seed": [
+                  0,
+                  1,
+                  2
+                ],
+                "core": [
+                  100,
+                  102
+                ],
+                "developmentLegs": [
+                  0,
+                  1,
+                  2
+                ],
+                "nextL": 3,
+                "rejectedSeeds": [],
+                "checks": [],
+                "contactEvidence": []
+              },
+              "tail": {
+                "start": 0,
+                "end": 5,
+                "ownedEvents": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              }
+            },
+            "clockMap": "scalar confirmation index k maps to firstKnown of original Flow k-1; not its current end"
+          }
+        }
+      ]
+    },
+    {
+      "controlId": "D57-none7",
+      "prefixes": [
+        {
+          "controlId": "D57-none7",
+          "n": 0,
+          "steps": [],
+          "states": [
+            {
+              "bids": [
+                {
+                  "id": "nb100",
+                  "price": 100
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            }
+          ],
+          "quotes": [
+            {
+              "bid": 100,
+              "ask": 102
+            }
+          ],
+          "outputs": [],
+          "direct": {
+            "domain": "all-quotes-ready",
+            "outputs": [],
+            "terminal": {
+              "tag": "NoCore",
+              "c": 0,
+              "s": 0,
+              "core": null
+            },
+            "tail": {
+              "start": 0,
+              "end": 0,
+              "eventIds": []
+            }
+          },
+          "scalarCrosscheck": null
+        },
+        {
+          "controlId": "D57-none7",
+          "n": 1,
+          "steps": [
+            {
+              "eventId": "N57-E1",
+              "amount": 1,
+              "pressure": 1,
+              "before": 0,
+              "after": 1,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            }
+          ],
+          "states": [
+            {
+              "bids": [
+                {
+                  "id": "nb100",
+                  "price": 100
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb101",
+                  "price": 101
+                },
+                {
+                  "id": "nb100",
+                  "price": 100
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            }
+          ],
+          "quotes": [
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 101,
+              "ask": 102
+            }
+          ],
+          "outputs": [
+            {
+              "flowId": "D57-none7:F0",
+              "start": 0,
+              "end": 1,
+              "firstKnown": 1,
+              "knownAt": null,
+              "pressure": 1,
+              "eventIds": [
+                "N57-E1"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 100,
+                "endValue": 102,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            }
+          ],
+          "direct": {
+            "domain": "all-quotes-ready",
+            "outputs": [],
+            "terminal": {
+              "tag": "NoCore",
+              "c": 0,
+              "s": 0,
+              "core": null
+            },
+            "tail": {
+              "start": 0,
+              "end": 1,
+              "eventIds": [
+                "N57-E1"
+              ]
+            }
+          },
+          "scalarCrosscheck": {
+            "endpointSkeleton": [
+              100,
+              102
+            ],
+            "scalarOutputs": [],
+            "onlyConfirmedEndpointD54": {
+              "policy": "D54",
+              "legs": [],
+              "outputs": [],
+              "attempts": [],
+              "terminal": {
+                "tag": "NoCore",
+                "cursor": 0,
+                "rejectedSeeds": []
+              },
+              "tail": {
+                "start": 0,
+                "end": 0,
+                "ownedEvents": []
+              }
+            },
+            "clockMap": "scalar confirmation index k maps to firstKnown of original Flow k-1; not its current end"
+          }
+        },
+        {
+          "controlId": "D57-none7",
+          "n": 2,
+          "steps": [
+            {
+              "eventId": "N57-E1",
+              "amount": 1,
+              "pressure": 1,
+              "before": 0,
+              "after": 1,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "N57-E2",
+              "amount": 1,
+              "pressure": -1,
+              "before": 1,
+              "after": 2,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  100
+                ]
+              },
+              "validBook": true
+            }
+          ],
+          "states": [
+            {
+              "bids": [
+                {
+                  "id": "nb100",
+                  "price": 100
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb101",
+                  "price": 101
+                },
+                {
+                  "id": "nb100",
+                  "price": 100
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb100",
+                  "price": 100
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            }
+          ],
+          "quotes": [
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 101,
+              "ask": 102
+            },
+            {
+              "bid": 100,
+              "ask": 102
+            }
+          ],
+          "outputs": [
+            {
+              "flowId": "D57-none7:F0",
+              "start": 0,
+              "end": 1,
+              "firstKnown": 1,
+              "knownAt": 2,
+              "pressure": 1,
+              "eventIds": [
+                "N57-E1"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 100,
+                "endValue": 102,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-none7:F1",
+              "start": 1,
+              "end": 2,
+              "firstKnown": 2,
+              "knownAt": null,
+              "pressure": -1,
+              "eventIds": [
+                "N57-E2"
+              ],
+              "geometry": {
+                "direction": -1,
+                "startValue": 102,
+                "endValue": 100,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            }
+          ],
+          "direct": {
+            "domain": "all-quotes-ready",
+            "outputs": [],
+            "terminal": {
+              "tag": "NoCore",
+              "c": 0,
+              "s": 0,
+              "core": null
+            },
+            "tail": {
+              "start": 0,
+              "end": 2,
+              "eventIds": [
+                "N57-E1",
+                "N57-E2"
+              ]
+            }
+          },
+          "scalarCrosscheck": {
+            "endpointSkeleton": [
+              100,
+              102,
+              100
+            ],
+            "scalarOutputs": [],
+            "onlyConfirmedEndpointD54": {
+              "policy": "D54",
+              "legs": [],
+              "outputs": [],
+              "attempts": [],
+              "terminal": {
+                "tag": "NoCore",
+                "cursor": 0,
+                "rejectedSeeds": []
+              },
+              "tail": {
+                "start": 0,
+                "end": 1,
+                "ownedEvents": [
+                  1
+                ]
+              }
+            },
+            "clockMap": "scalar confirmation index k maps to firstKnown of original Flow k-1; not its current end"
+          }
+        },
+        {
+          "controlId": "D57-none7",
+          "n": 3,
+          "steps": [
+            {
+              "eventId": "N57-E1",
+              "amount": 1,
+              "pressure": 1,
+              "before": 0,
+              "after": 1,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "N57-E2",
+              "amount": 1,
+              "pressure": -1,
+              "before": 1,
+              "after": 2,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  100
+                ]
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "N57-E3",
+              "amount": 1,
+              "pressure": -1,
+              "before": 2,
+              "after": 3,
+              "updateWitness": {
+                "pre": [],
+                "post": []
+              },
+              "validBook": true
+            }
+          ],
+          "states": [
+            {
+              "bids": [
+                {
+                  "id": "nb100",
+                  "price": 100
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb101",
+                  "price": 101
+                },
+                {
+                  "id": "nb100",
+                  "price": 100
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb100",
+                  "price": 100
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            }
+          ],
+          "quotes": [
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 101,
+              "ask": 102
+            },
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            null
+          ],
+          "outputs": [
+            {
+              "flowId": "D57-none7:F0",
+              "start": 0,
+              "end": 1,
+              "firstKnown": 1,
+              "knownAt": 2,
+              "pressure": 1,
+              "eventIds": [
+                "N57-E1"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 100,
+                "endValue": 102,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-none7:F1",
+              "start": 1,
+              "end": 3,
+              "firstKnown": 2,
+              "knownAt": null,
+              "pressure": -1,
+              "eventIds": [
+                "N57-E2",
+                "N57-E3"
+              ],
+              "geometry": null
+            }
+          ],
+          "direct": {
+            "domain": "outside-all-quotes-ready",
+            "firstNone": 1,
+            "outputs": [],
+            "tail": {
+              "start": 0,
+              "end": 3,
+              "eventIds": [
+                "N57-E1",
+                "N57-E2",
+                "N57-E3"
+              ]
+            },
+            "rawOutputs": [
+              {
+                "flowId": "D57-none7:F0",
+                "start": 0,
+                "end": 1,
+                "firstKnown": 1,
+                "knownAt": 2,
+                "pressure": 1,
+                "eventIds": [
+                  "N57-E1"
+                ],
+                "geometry": {
+                  "direction": 1,
+                  "startValue": 100,
+                  "endValue": 102,
+                  "range": [
+                    100,
+                    102
+                  ]
+                }
+              },
+              {
+                "flowId": "D57-none7:F1",
+                "start": 1,
+                "end": 3,
+                "firstKnown": 2,
+                "knownAt": null,
+                "pressure": -1,
+                "eventIds": [
+                  "N57-E2",
+                  "N57-E3"
+                ],
+                "geometry": null
+              }
+            ]
+          },
+          "scalarCrosscheck": null
+        },
+        {
+          "controlId": "D57-none7",
+          "n": 4,
+          "steps": [
+            {
+              "eventId": "N57-E1",
+              "amount": 1,
+              "pressure": 1,
+              "before": 0,
+              "after": 1,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "N57-E2",
+              "amount": 1,
+              "pressure": -1,
+              "before": 1,
+              "after": 2,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  100
+                ]
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "N57-E3",
+              "amount": 1,
+              "pressure": -1,
+              "before": 2,
+              "after": 3,
+              "updateWitness": {
+                "pre": [],
+                "post": []
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "N57-E4",
+              "amount": 1,
+              "pressure": 1,
+              "before": 3,
+              "after": 4,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            }
+          ],
+          "states": [
+            {
+              "bids": [
+                {
+                  "id": "nb100",
+                  "price": 100
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb101",
+                  "price": 101
+                },
+                {
+                  "id": "nb100",
+                  "price": 100
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb100",
+                  "price": 100
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb2",
+                  "price": 2
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            }
+          ],
+          "quotes": [
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 101,
+              "ask": 102
+            },
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            null,
+            {
+              "bid": 2,
+              "ask": 102
+            }
+          ],
+          "outputs": [
+            {
+              "flowId": "D57-none7:F0",
+              "start": 0,
+              "end": 1,
+              "firstKnown": 1,
+              "knownAt": 2,
+              "pressure": 1,
+              "eventIds": [
+                "N57-E1"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 100,
+                "endValue": 102,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-none7:F1",
+              "start": 1,
+              "end": 3,
+              "firstKnown": 2,
+              "knownAt": 4,
+              "pressure": -1,
+              "eventIds": [
+                "N57-E2",
+                "N57-E3"
+              ],
+              "geometry": null
+            },
+            {
+              "flowId": "D57-none7:F2",
+              "start": 3,
+              "end": 4,
+              "firstKnown": 4,
+              "knownAt": null,
+              "pressure": 1,
+              "eventIds": [
+                "N57-E4"
+              ],
+              "geometry": null
+            }
+          ],
+          "direct": {
+            "domain": "outside-all-quotes-ready",
+            "firstNone": 1,
+            "outputs": [],
+            "tail": {
+              "start": 0,
+              "end": 4,
+              "eventIds": [
+                "N57-E1",
+                "N57-E2",
+                "N57-E3",
+                "N57-E4"
+              ]
+            },
+            "rawOutputs": [
+              {
+                "flowId": "D57-none7:F0",
+                "start": 0,
+                "end": 1,
+                "firstKnown": 1,
+                "knownAt": 2,
+                "pressure": 1,
+                "eventIds": [
+                  "N57-E1"
+                ],
+                "geometry": {
+                  "direction": 1,
+                  "startValue": 100,
+                  "endValue": 102,
+                  "range": [
+                    100,
+                    102
+                  ]
+                }
+              },
+              {
+                "flowId": "D57-none7:F1",
+                "start": 1,
+                "end": 3,
+                "firstKnown": 2,
+                "knownAt": 4,
+                "pressure": -1,
+                "eventIds": [
+                  "N57-E2",
+                  "N57-E3"
+                ],
+                "geometry": null
+              },
+              {
+                "flowId": "D57-none7:F2",
+                "start": 3,
+                "end": 4,
+                "firstKnown": 4,
+                "knownAt": null,
+                "pressure": 1,
+                "eventIds": [
+                  "N57-E4"
+                ],
+                "geometry": null
+              }
+            ]
+          },
+          "scalarCrosscheck": null
+        },
+        {
+          "controlId": "D57-none7",
+          "n": 5,
+          "steps": [
+            {
+              "eventId": "N57-E1",
+              "amount": 1,
+              "pressure": 1,
+              "before": 0,
+              "after": 1,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "N57-E2",
+              "amount": 1,
+              "pressure": -1,
+              "before": 1,
+              "after": 2,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  100
+                ]
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "N57-E3",
+              "amount": 1,
+              "pressure": -1,
+              "before": 2,
+              "after": 3,
+              "updateWitness": {
+                "pre": [],
+                "post": []
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "N57-E4",
+              "amount": 1,
+              "pressure": 1,
+              "before": 3,
+              "after": 4,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "N57-E5",
+              "amount": 1,
+              "pressure": 1,
+              "before": 4,
+              "after": 5,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            }
+          ],
+          "states": [
+            {
+              "bids": [
+                {
+                  "id": "nb100",
+                  "price": 100
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb101",
+                  "price": 101
+                },
+                {
+                  "id": "nb100",
+                  "price": 100
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb100",
+                  "price": 100
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb2",
+                  "price": 2
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb3",
+                  "price": 3
+                },
+                {
+                  "id": "nb2",
+                  "price": 2
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            }
+          ],
+          "quotes": [
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 101,
+              "ask": 102
+            },
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            null,
+            {
+              "bid": 2,
+              "ask": 102
+            },
+            {
+              "bid": 3,
+              "ask": 102
+            }
+          ],
+          "outputs": [
+            {
+              "flowId": "D57-none7:F0",
+              "start": 0,
+              "end": 1,
+              "firstKnown": 1,
+              "knownAt": 2,
+              "pressure": 1,
+              "eventIds": [
+                "N57-E1"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 100,
+                "endValue": 102,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-none7:F1",
+              "start": 1,
+              "end": 3,
+              "firstKnown": 2,
+              "knownAt": 4,
+              "pressure": -1,
+              "eventIds": [
+                "N57-E2",
+                "N57-E3"
+              ],
+              "geometry": null
+            },
+            {
+              "flowId": "D57-none7:F2",
+              "start": 3,
+              "end": 5,
+              "firstKnown": 4,
+              "knownAt": null,
+              "pressure": 1,
+              "eventIds": [
+                "N57-E4",
+                "N57-E5"
+              ],
+              "geometry": null
+            }
+          ],
+          "direct": {
+            "domain": "outside-all-quotes-ready",
+            "firstNone": 1,
+            "outputs": [],
+            "tail": {
+              "start": 0,
+              "end": 5,
+              "eventIds": [
+                "N57-E1",
+                "N57-E2",
+                "N57-E3",
+                "N57-E4",
+                "N57-E5"
+              ]
+            },
+            "rawOutputs": [
+              {
+                "flowId": "D57-none7:F0",
+                "start": 0,
+                "end": 1,
+                "firstKnown": 1,
+                "knownAt": 2,
+                "pressure": 1,
+                "eventIds": [
+                  "N57-E1"
+                ],
+                "geometry": {
+                  "direction": 1,
+                  "startValue": 100,
+                  "endValue": 102,
+                  "range": [
+                    100,
+                    102
+                  ]
+                }
+              },
+              {
+                "flowId": "D57-none7:F1",
+                "start": 1,
+                "end": 3,
+                "firstKnown": 2,
+                "knownAt": 4,
+                "pressure": -1,
+                "eventIds": [
+                  "N57-E2",
+                  "N57-E3"
+                ],
+                "geometry": null
+              },
+              {
+                "flowId": "D57-none7:F2",
+                "start": 3,
+                "end": 5,
+                "firstKnown": 4,
+                "knownAt": null,
+                "pressure": 1,
+                "eventIds": [
+                  "N57-E4",
+                  "N57-E5"
+                ],
+                "geometry": null
+              }
+            ]
+          },
+          "scalarCrosscheck": null
+        },
+        {
+          "controlId": "D57-none7",
+          "n": 6,
+          "steps": [
+            {
+              "eventId": "N57-E1",
+              "amount": 1,
+              "pressure": 1,
+              "before": 0,
+              "after": 1,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "N57-E2",
+              "amount": 1,
+              "pressure": -1,
+              "before": 1,
+              "after": 2,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  100
+                ]
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "N57-E3",
+              "amount": 1,
+              "pressure": -1,
+              "before": 2,
+              "after": 3,
+              "updateWitness": {
+                "pre": [],
+                "post": []
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "N57-E4",
+              "amount": 1,
+              "pressure": 1,
+              "before": 3,
+              "after": 4,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "N57-E5",
+              "amount": 1,
+              "pressure": 1,
+              "before": 4,
+              "after": 5,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "N57-E6",
+              "amount": 1,
+              "pressure": -1,
+              "before": 5,
+              "after": 6,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  2
+                ]
+              },
+              "validBook": true
+            }
+          ],
+          "states": [
+            {
+              "bids": [
+                {
+                  "id": "nb100",
+                  "price": 100
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb101",
+                  "price": 101
+                },
+                {
+                  "id": "nb100",
+                  "price": 100
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb100",
+                  "price": 100
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb2",
+                  "price": 2
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb3",
+                  "price": 3
+                },
+                {
+                  "id": "nb2",
+                  "price": 2
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb2",
+                  "price": 2
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            }
+          ],
+          "quotes": [
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 101,
+              "ask": 102
+            },
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            null,
+            {
+              "bid": 2,
+              "ask": 102
+            },
+            {
+              "bid": 3,
+              "ask": 102
+            },
+            {
+              "bid": 2,
+              "ask": 102
+            }
+          ],
+          "outputs": [
+            {
+              "flowId": "D57-none7:F0",
+              "start": 0,
+              "end": 1,
+              "firstKnown": 1,
+              "knownAt": 2,
+              "pressure": 1,
+              "eventIds": [
+                "N57-E1"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 100,
+                "endValue": 102,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-none7:F1",
+              "start": 1,
+              "end": 3,
+              "firstKnown": 2,
+              "knownAt": 4,
+              "pressure": -1,
+              "eventIds": [
+                "N57-E2",
+                "N57-E3"
+              ],
+              "geometry": null
+            },
+            {
+              "flowId": "D57-none7:F2",
+              "start": 3,
+              "end": 5,
+              "firstKnown": 4,
+              "knownAt": 6,
+              "pressure": 1,
+              "eventIds": [
+                "N57-E4",
+                "N57-E5"
+              ],
+              "geometry": null
+            },
+            {
+              "flowId": "D57-none7:F3",
+              "start": 5,
+              "end": 6,
+              "firstKnown": 6,
+              "knownAt": null,
+              "pressure": -1,
+              "eventIds": [
+                "N57-E6"
+              ],
+              "geometry": {
+                "direction": -1,
+                "startValue": 102,
+                "endValue": 2,
+                "range": [
+                  2,
+                  102
+                ]
+              }
+            }
+          ],
+          "direct": {
+            "domain": "outside-all-quotes-ready",
+            "firstNone": 1,
+            "outputs": [],
+            "tail": {
+              "start": 0,
+              "end": 6,
+              "eventIds": [
+                "N57-E1",
+                "N57-E2",
+                "N57-E3",
+                "N57-E4",
+                "N57-E5",
+                "N57-E6"
+              ]
+            },
+            "rawOutputs": [
+              {
+                "flowId": "D57-none7:F0",
+                "start": 0,
+                "end": 1,
+                "firstKnown": 1,
+                "knownAt": 2,
+                "pressure": 1,
+                "eventIds": [
+                  "N57-E1"
+                ],
+                "geometry": {
+                  "direction": 1,
+                  "startValue": 100,
+                  "endValue": 102,
+                  "range": [
+                    100,
+                    102
+                  ]
+                }
+              },
+              {
+                "flowId": "D57-none7:F1",
+                "start": 1,
+                "end": 3,
+                "firstKnown": 2,
+                "knownAt": 4,
+                "pressure": -1,
+                "eventIds": [
+                  "N57-E2",
+                  "N57-E3"
+                ],
+                "geometry": null
+              },
+              {
+                "flowId": "D57-none7:F2",
+                "start": 3,
+                "end": 5,
+                "firstKnown": 4,
+                "knownAt": 6,
+                "pressure": 1,
+                "eventIds": [
+                  "N57-E4",
+                  "N57-E5"
+                ],
+                "geometry": null
+              },
+              {
+                "flowId": "D57-none7:F3",
+                "start": 5,
+                "end": 6,
+                "firstKnown": 6,
+                "knownAt": null,
+                "pressure": -1,
+                "eventIds": [
+                  "N57-E6"
+                ],
+                "geometry": {
+                  "direction": -1,
+                  "startValue": 102,
+                  "endValue": 2,
+                  "range": [
+                    2,
+                    102
+                  ]
+                }
+              }
+            ]
+          },
+          "scalarCrosscheck": null
+        },
+        {
+          "controlId": "D57-none7",
+          "n": 7,
+          "steps": [
+            {
+              "eventId": "N57-E1",
+              "amount": 1,
+              "pressure": 1,
+              "before": 0,
+              "after": 1,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "N57-E2",
+              "amount": 1,
+              "pressure": -1,
+              "before": 1,
+              "after": 2,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  100
+                ]
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "N57-E3",
+              "amount": 1,
+              "pressure": -1,
+              "before": 2,
+              "after": 3,
+              "updateWitness": {
+                "pre": [],
+                "post": []
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "N57-E4",
+              "amount": 1,
+              "pressure": 1,
+              "before": 3,
+              "after": 4,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "N57-E5",
+              "amount": 1,
+              "pressure": 1,
+              "before": 4,
+              "after": 5,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            },
+            {
+              "eventId": "N57-E6",
+              "amount": 1,
+              "pressure": -1,
+              "before": 5,
+              "after": 6,
+              "updateWitness": {
+                "pre": [],
+                "post": [
+                  2
+                ]
+              },
+              "validBook": true
+            },
+            {
+              "eventId": "N57-E7",
+              "amount": 1,
+              "pressure": 1,
+              "before": 6,
+              "after": 7,
+              "updateWitness": "prepend one price",
+              "validBook": true
+            }
+          ],
+          "states": [
+            {
+              "bids": [
+                {
+                  "id": "nb100",
+                  "price": 100
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb101",
+                  "price": 101
+                },
+                {
+                  "id": "nb100",
+                  "price": 100
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb100",
+                  "price": 100
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb2",
+                  "price": 2
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb3",
+                  "price": 3
+                },
+                {
+                  "id": "nb2",
+                  "price": 2
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb2",
+                  "price": 2
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            },
+            {
+              "bids": [
+                {
+                  "id": "nb4",
+                  "price": 4
+                },
+                {
+                  "id": "nb2",
+                  "price": 2
+                }
+              ],
+              "asks": [
+                {
+                  "id": "na102",
+                  "price": 102
+                }
+              ]
+            }
+          ],
+          "quotes": [
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            {
+              "bid": 101,
+              "ask": 102
+            },
+            {
+              "bid": 100,
+              "ask": 102
+            },
+            null,
+            {
+              "bid": 2,
+              "ask": 102
+            },
+            {
+              "bid": 3,
+              "ask": 102
+            },
+            {
+              "bid": 2,
+              "ask": 102
+            },
+            {
+              "bid": 4,
+              "ask": 102
+            }
+          ],
+          "outputs": [
+            {
+              "flowId": "D57-none7:F0",
+              "start": 0,
+              "end": 1,
+              "firstKnown": 1,
+              "knownAt": 2,
+              "pressure": 1,
+              "eventIds": [
+                "N57-E1"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 100,
+                "endValue": 102,
+                "range": [
+                  100,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-none7:F1",
+              "start": 1,
+              "end": 3,
+              "firstKnown": 2,
+              "knownAt": 4,
+              "pressure": -1,
+              "eventIds": [
+                "N57-E2",
+                "N57-E3"
+              ],
+              "geometry": null
+            },
+            {
+              "flowId": "D57-none7:F2",
+              "start": 3,
+              "end": 5,
+              "firstKnown": 4,
+              "knownAt": 6,
+              "pressure": 1,
+              "eventIds": [
+                "N57-E4",
+                "N57-E5"
+              ],
+              "geometry": null
+            },
+            {
+              "flowId": "D57-none7:F3",
+              "start": 5,
+              "end": 6,
+              "firstKnown": 6,
+              "knownAt": 7,
+              "pressure": -1,
+              "eventIds": [
+                "N57-E6"
+              ],
+              "geometry": {
+                "direction": -1,
+                "startValue": 102,
+                "endValue": 2,
+                "range": [
+                  2,
+                  102
+                ]
+              }
+            },
+            {
+              "flowId": "D57-none7:F4",
+              "start": 6,
+              "end": 7,
+              "firstKnown": 7,
+              "knownAt": null,
+              "pressure": 1,
+              "eventIds": [
+                "N57-E7"
+              ],
+              "geometry": {
+                "direction": 1,
+                "startValue": 2,
+                "endValue": 102,
+                "range": [
+                  2,
+                  102
+                ]
+              }
+            }
+          ],
+          "direct": {
+            "domain": "outside-all-quotes-ready",
+            "firstNone": 1,
+            "outputs": [],
+            "tail": {
+              "start": 0,
+              "end": 7,
+              "eventIds": [
+                "N57-E1",
+                "N57-E2",
+                "N57-E3",
+                "N57-E4",
+                "N57-E5",
+                "N57-E6",
+                "N57-E7"
+              ]
+            },
+            "rawOutputs": [
+              {
+                "flowId": "D57-none7:F0",
+                "start": 0,
+                "end": 1,
+                "firstKnown": 1,
+                "knownAt": 2,
+                "pressure": 1,
+                "eventIds": [
+                  "N57-E1"
+                ],
+                "geometry": {
+                  "direction": 1,
+                  "startValue": 100,
+                  "endValue": 102,
+                  "range": [
+                    100,
+                    102
+                  ]
+                }
+              },
+              {
+                "flowId": "D57-none7:F1",
+                "start": 1,
+                "end": 3,
+                "firstKnown": 2,
+                "knownAt": 4,
+                "pressure": -1,
+                "eventIds": [
+                  "N57-E2",
+                  "N57-E3"
+                ],
+                "geometry": null
+              },
+              {
+                "flowId": "D57-none7:F2",
+                "start": 3,
+                "end": 5,
+                "firstKnown": 4,
+                "knownAt": 6,
+                "pressure": 1,
+                "eventIds": [
+                  "N57-E4",
+                  "N57-E5"
+                ],
+                "geometry": null
+              },
+              {
+                "flowId": "D57-none7:F3",
+                "start": 5,
+                "end": 6,
+                "firstKnown": 6,
+                "knownAt": 7,
+                "pressure": -1,
+                "eventIds": [
+                  "N57-E6"
+                ],
+                "geometry": {
+                  "direction": -1,
+                  "startValue": 102,
+                  "endValue": 2,
+                  "range": [
+                    2,
+                    102
+                  ]
+                }
+              },
+              {
+                "flowId": "D57-none7:F4",
+                "start": 6,
+                "end": 7,
+                "firstKnown": 7,
+                "knownAt": null,
+                "pressure": 1,
+                "eventIds": [
+                  "N57-E7"
+                ],
+                "geometry": {
+                  "direction": 1,
+                  "startValue": 2,
+                  "endValue": 102,
+                  "range": [
+                    2,
+                    102
+                  ]
+                }
+              }
+            ]
+          },
+          "scalarCrosscheck": null
+        }
+      ]
+    }
+  ]
+}

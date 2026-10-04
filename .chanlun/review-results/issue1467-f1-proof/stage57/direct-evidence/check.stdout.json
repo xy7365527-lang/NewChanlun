@@ -1,0 +1,25 @@
+{
+  "status": "author-check-pass",
+  "controls": 2,
+  "events": 15,
+  "prefixes": 17,
+  "main": {
+    "core": [
+      100,
+      102
+    ],
+    "end": 6,
+    "published": 8,
+    "wholeOuter": [
+      1,
+      102
+    ]
+  },
+  "noneGeometry": [
+    true,
+    false,
+    false,
+    true,
+    true
+  ]
+}

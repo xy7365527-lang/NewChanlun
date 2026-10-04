@@ -1,0 +1,6 @@
+{
+  "file": "RawMaximality.lean",
+  "declaration": "Stage57.terminal_root",
+  "expected_type": "∀ (α : Type) (le : α → α → Prop) (h : Stage57.Tape α le) (K : Stage57.Seed α le) (j r τ : Nat), Stage57.RawTerminal h K j r τ → (∀ k, j < k → ¬Stage57.TouchSpan h K k) ∧ (∀ q r' τ', Stage57.RawTerminal h K q r' τ' → q = j) ∧ (∀ h', Stage57.PreservesThrough h h' r → Stage57.RawTerminal h' K j r τ ∧ ∀ k, j < k → ¬Stage57.TouchSpan h' K k) ∧ Stage57.RawTerminal h K j r (h.sealAt r) ∧ (∀ t, t < h.sealAt r → ¬Stage57.RawTerminal h K j r t) ∧ h.endAt j < h.sealAt r",
+  "universes": []
+}

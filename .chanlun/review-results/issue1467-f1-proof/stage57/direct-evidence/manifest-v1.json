@@ -1,0 +1,164 @@
+{
+  "schema": "stage57-direct-freeze-v1",
+  "sourceBindings": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/BookQuoteProof.lean",
+      "sha256": "93d67dbf9b58de101ef8c0760c42c5ef809965317f32b580c5123c305e83675b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/BookQuoteSpec.lean",
+      "sha256": "a3f6da979d313002fe1c7b73a0306c2fd24c7599587827554d921e594be0e377"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/DirectHullProof.lean",
+      "sha256": "62779c7ab71c0469f840ddeef4694896bedaf60a8bc8791f8ee46101e048d21f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/DirectHullSpec.lean",
+      "sha256": "14f4d869525d1c9eaba3c353ff3aff8ffa7dec07b295068742b40bffe7ce088c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/DirectOutputProof.lean",
+      "sha256": "a891306d2e94fe60e06acdde4bb1806f37e6f71460147f4fa095d8f77b187f2a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/DirectOutputSourcePathProof.lean",
+      "sha256": "531a46969a849d5e6641a7685c398404366a308b7135e9eed79b0f3c1e8cba23"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/DirectOutputSourcePathSpec.lean",
+      "sha256": "9cccbdf9b546c51aa3eaf323f282ea81a58032d3bb15c889c18efdc17bf9d648"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/DirectOutputSpec.lean",
+      "sha256": "23d38c0d49b57d7438efd90757dc7a80e138d54400de123955280857164c8e6b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/DirectQuoteProof.lean",
+      "sha256": "a0189d52d43b3b98e6a3416a9effe904ed5a5207d90d2d6d94fd4dca6876759c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/DirectQuoteSpec.lean",
+      "sha256": "df45e6e08d020edc6bc737c0885829b37454c289f1a72c71f4186d82627591ad"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/LocatedProof.lean",
+      "sha256": "d3db2e4ce4319c00846a2c92dea6a2e6e509b71f3fdec637c5a85916226f3c8c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/LocatedSpec.lean",
+      "sha256": "03879f1a35b4a273bb1f8267c851672198206b2b8f720a47e0e57c5f99475924"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/MovingQuoteProof.lean",
+      "sha256": "5c4b37a7549e66e0fe5cb2843a3df3d46e8d73b971e0a55abcf2d42744526652"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/MovingQuoteSpec.lean",
+      "sha256": "90d6289fba1f1cfeeaa7ceac234bad76dcda515f2ef63330c5d8e7c6a6aaa762"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/MovingQuoteWireSpec.lean",
+      "sha256": "9c838d7ef90c84f497daee2420ba1bad4d002b31a11d6c6d383dfcd36a3d130a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage47OutputSourceAndRawTurns.md",
+      "sha256": "2865fca90aba4780a7c4dc393788c373111009727fb0de2acb0882aa248a2a16"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage47/independent-direct-output-comparison.md",
+      "sha256": "fd57d57d36beecb1d08dcd7854bdc95ba5551349f70bfa5c5d6a2ebd8b376884"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/contract-v1.md",
+      "sha256": "da4ffff22603b73bb213e6c3b761857252d84079e5fef45bb69424360228393e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/ordinary-proofs-v1.md",
+      "sha256": "8b43164a839a018f379e52f0878a5d01d2f5a9af15b4ff9c3e905ab825c6e8a2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/relation-reference.mjs",
+      "sha256": "cda0e5d181abf199659e52d54af3c9deb839eeee99c453f43d2a674552618382"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage53/candidate-evidence/relation-reference.mjs",
+      "sha256": "cb45d8349cabf469acdb199cb801a947ff24a1214976ebbfa9c23d60ba6fbd54"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage56/initial-p-lifecycle.md",
+      "sha256": "0d5afc78b6c44b2d0c31864e8b4bb70a392d3f53e556cf2aa03bb25b72472bea"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage56/independent-lifecycle-review.md",
+      "sha256": "173c4209e9c61cebd361a5f886ef90a3ecb6987e92f48042c41a4f7e246f7535"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage56/ScopeClarifications-v1.md",
+      "sha256": "98c77d88c29b87e388f31b0b091ff1830f7e5d21c949be8b8ae02f18d861083b"
+    }
+  ],
+  "outputs": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-lifecycle.md",
+      "sha256": "68284067dd0cf3c9361c16931afe29efa22cf5b1438b2581da2fac717169e627"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/DirectLifecycle.lean",
+      "sha256": "dbbb4e242334aacd1d546e56a68ff8fe7b583717ebfd7617712e92157cdc9703"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/ReadbackProbe.lean",
+      "sha256": "3f641eef12e05cc4b881a12eba1cff5e4bdef6fc34a64d77de7f0adab66a5da8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/actual-readback.stdout.txt",
+      "sha256": "3edbae2190aae2ea8eda0bc08a5546a1c74cbd1bebe5a40d68558f248177462a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/blind-readback-input.json",
+      "sha256": "9e31c680ffaa205e5ff766803a7b3f99deae098ad296ecde29189289ad969554"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/check-direct.mjs",
+      "sha256": "bdda545afc6649f94597c49af15d0ca0c7949bd1675151993587b1a1b5269e16"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/check.stdout.json",
+      "sha256": "09f0d7df6d169db0aa89bde3df8e8ecb076fa5eec3bea9846ef30db1aac0fe72"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/controls-v1.json",
+      "sha256": "34628fe5ed74f597b64784a075813b551d7f5d0be0632def7891d4a072c274fa"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/freeze-direct.mjs",
+      "sha256": "3f27dbb340897508ed553cd70fe0d43162dfa588d003dd2bf443d746ce3c29cb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/generate-lean.mjs",
+      "sha256": "bb97c470b7c4dfc8814241dfafa8ffc85ae95402e781c627b399722f8bc92036"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/results-v1.json",
+      "sha256": "144b2b6a3774ca5d67710c6fd4727e1c668d3f941e181ddaafd59d9f8705e102"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/verification-summary.json",
+      "sha256": "d4936890814027949fa8c73c1fbc5fd024621bde5a5d38ad9e5864c16946c4bc"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/verify-lean.sh",
+      "sha256": "711a4713043c6e7478b0dbb851354348977d8bc2cc3db1e1f6841a2f92babf55"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/witness-contract.json",
+      "sha256": "228539562896aed8dc45c4bc178dfe56ed8313bd6bae784048e999bd180e7cd9"
+    }
+  ],
+  "receipt": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/direct-author/witness-check/run-manifest.json",
+    "sha256": "2ac61e8c2499dee115b12d920f7ea978184249f877ffe8c1df477d066192f2db"
+  },
+  "note": "Content binding only, no timestamp authority or independent review"
+}

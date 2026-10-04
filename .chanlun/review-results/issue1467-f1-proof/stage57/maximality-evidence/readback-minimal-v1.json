@@ -1,0 +1,30 @@
+{
+  "source_path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/RawMaximality.lean",
+  "source_sha256": "8abac6db0faf02ea4cb0efcca7ab3d00ce0a19ee731f666e753a5e944cae65f7",
+  "definitions": "import Lean.Elab.Tactic.Omega\n\nnamespace Stage57\n\nstructure Closed (α : Type) (le : α → α → Prop) where\n  low : α\n  high : α\n  valid : le low high\n\nstructure Seed (α : Type) (le : α → α → Prop) where\n  identity : Nat\n  core : Closed α le\n  start : Nat\n\nstructure Tape (α : Type) (le : α → α → Prop) where\n  range : Nat → Closed α le\n  sealAt : Nat → Nat\n  endAt : Nat → Nat\n  seal_strict : ∀ {i j}, i < j → sealAt i < sealAt j\n  end_before_seal : ∀ i, endAt i < sealAt i\n\nvariable {α : Type} {le : α → α → Prop}\n\ndef Touch (a b : Closed α le) : Prop := le a.low b.high ∧ le b.low a.high\n\ndef TouchSpan (h : Tape α le) (K : Seed α le) (k : Nat) : Prop :=\n  K.start + 2 ≤ k ∧ ∀ i, K.start ≤ i → i ≤ k → Touch (h.range i) K.core\n\ndef RawTerminal (h : Tape α le) (K : Seed α le) (j r τ : Nat) : Prop :=\n  TouchSpan h K j ∧ r = j + 1 ∧ h.sealAt r ≤ τ ∧ ¬Touch (h.range r) K.core\n\ndef PreservesThrough (h h' : Tape α le) (r : Nat) : Prop :=\n  ∀ i, i ≤ r → h'.range i = h.range i ∧ h'.sealAt i = h.sealAt i ∧\n    h'.endAt i = h.endAt i\n\n",
+  "declaration": "Stage57.terminal_root",
+  "actual_type": "∀ (α : Type) (le : α → α → Prop) (h : Stage57.Tape α le) (K : Stage57.Seed α le) (j r τ : Nat)\n  (ht : @Stage57.RawTerminal α le h K j r τ),\n  And (∀ (k : Nat), @LT.lt.{0} Nat instLTNat j k → Not (@Stage57.TouchSpan α le h K k))\n    (And (∀ (q r' τ' : Nat), @Stage57.RawTerminal α le h K q r' τ' → @Eq.{1} Nat q j)\n      (And\n        (∀ (h' : Stage57.Tape α le),\n          @Stage57.PreservesThrough α le h h' r →\n            And (@Stage57.RawTerminal α le h' K j r τ)\n              (∀ (k : Nat), @LT.lt.{0} Nat instLTNat j k → Not (@Stage57.TouchSpan α le h' K k)))\n        (And (@Stage57.RawTerminal α le h K j r (@Stage57.Tape.sealAt α le h r))\n          (And\n            (∀ (t : Nat),\n              @LT.lt.{0} Nat instLTNat t (@Stage57.Tape.sealAt α le h r) → Not (@Stage57.RawTerminal α le h K j r t))\n            (@LT.lt.{0} Nat instLTNat (@Stage57.Tape.endAt α le h j) (@Stage57.Tape.sealAt α le h r))))))",
+  "universes": [],
+  "binder_kinds": [
+    "Lean.BinderInfo.default",
+    "Lean.BinderInfo.default",
+    "Lean.BinderInfo.default",
+    "Lean.BinderInfo.default",
+    "Lean.BinderInfo.default",
+    "Lean.BinderInfo.default",
+    "Lean.BinderInfo.default",
+    "Lean.BinderInfo.default"
+  ],
+  "environment": {
+    "lean_version": "Lean (version 4.31.0, arm64-apple-darwin24.6.0, commit 68218e876d2a38b1985b8590fff244a83c321783, Release)",
+    "lean_toolchain": "leanprover/lean4:v4.31.0",
+    "mode": "direct",
+    "import": "Lean.Elab.Tactic.Omega",
+    "inherited_lean_path": "",
+    "binary_hashes": {
+      "bin/lean": "1b370cfcbf44e80d1b004ab1b1ab9a4c73951f9f7c242140bcff9bc577576554",
+      "bin/lake": "58261a1a2fa1a362376c71e02ca854a093e71cc5e6ea64b287a931cb2565273d",
+      "lib/lean/libleanshared.dylib": "a695a9aa68481c42b99619e0103537e6b433c6fa7021927b184e19a686d03989"
+    }
+  }
+}

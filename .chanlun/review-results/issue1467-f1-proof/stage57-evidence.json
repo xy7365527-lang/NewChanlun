@@ -1,0 +1,522 @@
+{
+  "stage": 57,
+  "date": "2026-10-05",
+  "issue": 1467,
+  "related_issues": [
+    1465,
+    1469
+  ],
+  "base_commit": "aa5c007f20e66ed013c6c7ddc71b29f1c026d35f",
+  "previous_goal_turn": "progress",
+  "status": "two_readbacks_and_two_comparisons_completed",
+  "trust_level": "COORDINATOR_ATTESTED_TOOL_TRANSCRIPT_AND_HASHED_PACKETS",
+  "goal_scope": "P1-P4 and both F1 routes retained; objective, budget and usage not reset",
+  "raw_maximality": {
+    "relation": "TouchSpan fixed K/C/s over all consecutive complete original legs; RawTerminal adds adjacent sealed nonTouch R",
+    "reads_published_or_retired_flags": false,
+    "D54_success_implies_RawTerminal": true,
+    "reverse_equivalence_proved": false,
+    "ordinary_proofs": [
+      "D54 successful all-leg contact including first L",
+      "closed real interval interpretation",
+      "finite sealed prefix to total Tape conservative interpretation",
+      "actual append preserves required prefix"
+    ],
+    "generic_root": {
+      "declaration": "Stage57.terminal_root",
+      "author_exact_run": "9a4cb8befb1d4700bc4444f50374681e",
+      "author_exact_root_passed": true,
+      "domain": "Type 0, arbitrary binary Prop relation, total Tape with supplied timing proofs, given RawTerminal",
+      "conclusions": [
+        "maximum fixed-core fixed-start continuous end",
+        "endpoint uniqueness",
+        "invariance under preserving range/end/seal through R",
+        "defined threshold sealAt R",
+        "endAt L before sealAt R"
+      ],
+      "constructs_terminal_or_valid_seed_source": false,
+      "general_geometry_or_online_detection": false,
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "independent_readback_run": "ead2b4bb330b49638ca610f113927c1d",
+      "readback_status": "declaration_closed_uncompared",
+      "readback_exact_root_passed": false,
+      "readback_wrapper_exit": 0,
+      "readback_lean_commands": 5,
+      "readback_lean_exits": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "independent_comparison": "passed_scoped",
+    "frozen_items": 33,
+    "item_groups": {
+      "author": 14,
+      "dependencies": 12,
+      "external": 7
+    },
+    "source_index_lines": 52,
+    "supplementary_minimal_readback_files": 2,
+    "reused_scalar_witness": {
+      "word": [
+        0,
+        10,
+        0,
+        10,
+        0,
+        30,
+        20,
+        28,
+        22,
+        40,
+        35,
+        45
+      ],
+      "prefixes": 12,
+      "j": 4,
+      "r": 5,
+      "L_end": 5,
+      "known_at": 7,
+      "whole_range": [
+        0,
+        30
+      ],
+      "new_market_sample": false
+    },
+    "ER57": "unproved: all legal same-identity original extensions, including new cores, changed type and internal-R endpoints, must reflect to longer TouchSpan; completion and F2 still separate",
+    "real_attempt": {
+      "status": "terminated_timeout",
+      "reported_limit_seconds": 240,
+      "receipt_exit": null,
+      "receipt_signal": "SIGTERM",
+      "receipt_error": "ETIMEDOUT",
+      "receipt_has_start_end_times": false,
+      "concrete_Real_compiled": false,
+      "old_source_and_lock_preserved": true,
+      "generic_contract_separately_named": true
+    }
+  },
+  "direct_lifecycle": {
+    "A57": "ordinary source-aware primitive adaptation and D54/L56 transport",
+    "domain": "original Step/Through, actual Reads, length and valid bilateral QuoteOf at every original cut",
+    "all_order_histories_or_protocols_covered": false,
+    "event_clock_is_physical_market_clock": false,
+    "source_quoting_range": "actual L1 spread support hull, not all depth or trade prices",
+    "root": {
+      "declaration": "Stage57Direct.witness_root",
+      "author_exact_run": "517df05d332443609db0e65e8bb8cb5c",
+      "author_exact_root_passed": true,
+      "scope": "Main Fin9 and None Fin8 prefix source and construct.view equalities",
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "independent_readback_run": "04e249c751b34b8fb5d35f02b72f49eb",
+      "readback_status": "declaration_closed_uncompared",
+      "readback_wrapper_exit": 1,
+      "readback_wrapper_reason": "strict exit without expected contract",
+      "readback_all_Lean_commands_exit_zero": true,
+      "research_modules_fresh": 16,
+      "Origin_olean_modules_reused": 7,
+      "Origin_full_source_build_verified": false
+    },
+    "helper": {
+      "declaration": "Stage57Direct.primitive_strict",
+      "scope": "conditional actual some output span/direction/strict endpoint",
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "in_witness_root_dependency_closure": false
+    },
+    "A57_or_full_D54_scanner_formalized_by_root": false,
+    "independent_comparison": "passed_scoped",
+    "integrity_items_checked": 46,
+    "source_files_checked": 9,
+    "source_index_lines": 69,
+    "control_events": 15,
+    "control_prefixes": 17,
+    "market_samples": 0,
+    "main8": {
+      "seed_flows": [
+        0,
+        1,
+        2
+      ],
+      "core": [
+        100,
+        102
+      ],
+      "seed_known": 4,
+      "L_flow": 3,
+      "L_owned_events": [
+        4,
+        5,
+        6
+      ],
+      "L_known": 7,
+      "R_flow": 4,
+      "R_owned_events": [
+        7
+      ],
+      "R_known": 8,
+      "whole_owned_events": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "whole_end": 6,
+      "publication": 8,
+      "whole_outer": [
+        1,
+        102
+      ],
+      "M_H_flows": [
+        0,
+        1,
+        2
+      ],
+      "member_development_outer": [
+        100,
+        102
+      ],
+      "L_previously_absorbed": false,
+      "tail_events": [
+        7,
+        8
+      ],
+      "tail_outer": [
+        1,
+        99
+      ],
+      "original_semantic_qualification": null
+    },
+    "none7": {
+      "geometry_is_some": [
+        true,
+        false,
+        false,
+        true,
+        true
+      ],
+      "known_at": [
+        2,
+        4,
+        6,
+        7,
+        null
+      ],
+      "None_owned_events": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "left_some_end": 1,
+      "next_some_start": 5,
+      "filter_and_glue_allowed": false,
+      "cross_None_recovery_defined": false
+    },
+    "confirmed_endpoint_rescan_at_E8": {
+      "closed_scalar_legs": 4,
+      "lifecycle_outputs": 0,
+      "same_publication_as_direct": false
+    },
+    "Stage37_whole_packet_semantics_newly_approved": false
+  },
+  "ordinary_composition_on_same_main8": {
+    "C": [
+      100,
+      102
+    ],
+    "s": 0,
+    "j": 3,
+    "r": 4,
+    "tau": 8,
+    "seal_times": [
+      2,
+      3,
+      4,
+      7,
+      8
+    ],
+    "end_times": [
+      1,
+      2,
+      3,
+      6,
+      7
+    ],
+    "conclusion": "RawTerminal and fixed-core continuous TouchSpan maximality",
+    "new_control_or_new_machine_root": false,
+    "original_Move_complete": false
+  },
+  "boundaries": {
+    "ER57_proved": false,
+    "B56_proved": false,
+    "original_P_proved": false,
+    "qualified_F2_child_or_parent_closure": false,
+    "new_market_data": false,
+    "training_or_incremental_comparison": false,
+    "formal_or_canonical_or_production_changes": false,
+    "main_merge": false
+  },
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage57RawMaximalityAndDirectLifecycle.md",
+      "bytes": 8787,
+      "sha256": "f1caff88f534c34477b392ee6ab884001334a4bbfc08dcd853d9ef60c7ab3c79"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/Intent-v1.md",
+      "bytes": 3271,
+      "sha256": "f908e7edafb6ff5042232f85ce4f04a58bac55e4e47f59fe0faaca42342e89ea"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/ScopeClarifications-v1.md",
+      "bytes": 5226,
+      "sha256": "2e245224b36bd4878ca292a15e187bf4770ab6c1ff759ed3b4c80950fd03d4df"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/DirectLifecycle.lean",
+      "bytes": 15499,
+      "sha256": "dbbb4e242334aacd1d546e56a68ff8fe7b583717ebfd7617712e92157cdc9703"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/ReadbackProbe.lean",
+      "bytes": 1040,
+      "sha256": "3f641eef12e05cc4b881a12eba1cff5e4bdef6fc34a64d77de7f0adab66a5da8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/actual-readback.stdout.txt",
+      "bytes": 182569,
+      "sha256": "3edbae2190aae2ea8eda0bc08a5546a1c74cbd1bebe5a40d68558f248177462a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/blind-readback-input.json",
+      "bytes": 3705,
+      "sha256": "9e31c680ffaa205e5ff766803a7b3f99deae098ad296ecde29189289ad969554"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/check-direct.mjs",
+      "bytes": 8062,
+      "sha256": "bdda545afc6649f94597c49af15d0ca0c7949bd1675151993587b1a1b5269e16"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/check.stdout.json",
+      "bytes": 301,
+      "sha256": "09f0d7df6d169db0aa89bde3df8e8ecb076fa5eec3bea9846ef30db1aac0fe72"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/controls-v1.json",
+      "bytes": 1717,
+      "sha256": "34628fe5ed74f597b64784a075813b551d7f5d0be0632def7891d4a072c274fa"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/freeze-direct.mjs",
+      "bytes": 3758,
+      "sha256": "3f27dbb340897508ed553cd70fe0d43162dfa588d003dd2bf443d746ce3c29cb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/generate-lean.mjs",
+      "bytes": 7085,
+      "sha256": "bb97c470b7c4dfc8814241dfafa8ffc85ae95402e781c627b399722f8bc92036"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/manifest-v1.json",
+      "bytes": 7642,
+      "sha256": "86e066a7998c820c97c083b5d90a7178804e4e0426726b75c5892e55d721dfcf"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/results-v1.json",
+      "bytes": 117739,
+      "sha256": "144b2b6a3774ca5d67710c6fd4727e1c668d3f941e181ddaafd59d9f8705e102"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/verification-summary.json",
+      "bytes": 10576,
+      "sha256": "d4936890814027949fa8c73c1fbc5fd024621bde5a5d38ad9e5864c16946c4bc"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/verify-lean.sh",
+      "bytes": 1257,
+      "sha256": "711a4713043c6e7478b0dbb851354348977d8bc2cc3db1e1f6841a2f92babf55"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/witness-contract.json",
+      "bytes": 137,
+      "sha256": "228539562896aed8dc45c4bc178dfe56ed8313bd6bae784048e999bd180e7cd9"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-lifecycle.md",
+      "bytes": 13263,
+      "sha256": "68284067dd0cf3c9361c16931afe29efa22cf5b1438b2581da2fac717169e627"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-readback.md",
+      "bytes": 11617,
+      "sha256": "b505b68a959188684876bf5c977bb2e28f66387bcf34f91da00236c386f09570"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/extension-maximality.md",
+      "bytes": 14305,
+      "sha256": "3dc68266952a849551d8d42387f8754d7e85a9700a595f8a71a1b2160d9c9413"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/independent-direct-lifecycle-review.md",
+      "bytes": 14365,
+      "sha256": "ea11e807383a842f120dc13df58496fe130e4f9ad92cae4ba592ba4105b53124"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/independent-maximality-review.md",
+      "bytes": 17254,
+      "sha256": "271c9c9a7f73f96cde6c0da56bccdf24649f6e8c4571ed10c37684e970e7ffff"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/RawMaximality.lean",
+      "bytes": 3362,
+      "sha256": "8abac6db0faf02ea4cb0efcca7ab3d00ce0a19ee731f666e753a5e944cae65f7"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/certificate-v1.json",
+      "bytes": 3538,
+      "sha256": "fc8e9544eae42cf76076403d4a40d2e056bbfdb9c89291ed1194070a26a60ea7"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/check-certificate.mjs",
+      "bytes": 2718,
+      "sha256": "62dc6822a465cb8b7a3b1097a12bb1a136f76376cf272c3bf5b136f0ddc4e7fb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/contract-v1.md",
+      "bytes": 2503,
+      "sha256": "6bdf4342b578b630d14dde91de4bf0064db7a65d445fac21e8cad54eebd55a71"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/freeze-packet.mjs",
+      "bytes": 4363,
+      "sha256": "96335b1d569f2844d9f4fe053ac275a898ac51e99607e6095d2ead97ad024833"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/lean-contract-generic-v1.json",
+      "bytes": 635,
+      "sha256": "6edb54d6c1376eed96322e24f183aa984722fa2d78d5f5c2ef8ca26ca5ea3e7f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/lean-contract-v1.json",
+      "bytes": 585,
+      "sha256": "9b097964006ab214140d3958ca299770c485890e94943c4cb36e6c1c0691f97f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/lean-toolchain",
+      "bytes": 25,
+      "sha256": "efac0b94923b2d8b6840cd35be9177ad0fc5ab2332f4f4311c98712cee92fdee"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/manifest-v1.json",
+      "bytes": 9368,
+      "sha256": "4a0c11ac346bcb3390944e4dfba7b6854f6ab501541d3c5a76ff4444030a176a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/readback-minimal-lock-v1.json",
+      "bytes": 550,
+      "sha256": "60ec70f9fe086a0d30a312f295c6d17af691b346e22af807cac71a2becb62b07"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/readback-minimal-v1.json",
+      "bytes": 3374,
+      "sha256": "03a6708bd7af2598e3a52e3cb10282e90542c5c28ee913333fc1016fcc69b04f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/readback-packet-v1.json",
+      "bytes": 984575,
+      "sha256": "4e897bfcdd8b5f5c7c55de5a15689858cfce9a75683673bc7995a66e777c3622"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/run-lean.mjs",
+      "bytes": 2350,
+      "sha256": "4c4348133be79abdbcce89ef1f05bd366443b18ef2ece613046c625f07c294ba"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/source-excerpts-v1.json",
+      "bytes": 20806,
+      "sha256": "564b604abf7724c55afae44308787370dedb671db814372d84ab910b85e92044"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/verification-summary-v1.json",
+      "bytes": 2899,
+      "sha256": "3e77b4e1bfedc1fc06c37c1287b29128b73f9ffcffc5c362add32ea118363f0c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/verify-freeze.mjs",
+      "bytes": 1030,
+      "sha256": "0cb085f0628837b187a8c00a008fc5cf2c98dd94d7a533e214374f406141e816"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/maximality-readback.md",
+      "bytes": 9856,
+      "sha256": "81c4856a11e7f21542d62c2e45465fa3db5bab65032aa17f64757c3252372574"
+    }
+  ],
+  "external_receipts": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/direct-readback/readback-receipt.json",
+      "bytes": 1787,
+      "sha256": "64d8e31e7470be04704ecfa12da8342f8ff1050f89f8efcd621e7d6fc01b50e9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/maximality-readback/readback-receipt.json",
+      "bytes": 1400,
+      "sha256": "3f2a4b319e27634551fbca50a2de714f34ee1b323c746eaa27acc18c0ed7c792"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/direct-review/review-receipt.json",
+      "bytes": 3258,
+      "sha256": "83d463f4a0a5b58dda70d6244995a19471ed9db7cfa6e9096d10aa9bc1e2db9b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/maximality-review/review-receipt.json",
+      "bytes": 3317,
+      "sha256": "1ca5c7205a762dd19edf884fb10c91401ca4d6996b2035d659f226a90d692d37"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/direct-author/witness-check/run-manifest.json",
+      "bytes": 17266650,
+      "sha256": "2ac61e8c2499dee115b12d920f7ea978184249f877ffe8c1df477d066192f2db"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/maximality-author/lean-exact/run-manifest.json",
+      "bytes": 3458594,
+      "sha256": "cee665bc7dbef989b15d166f255da607b02c5466e530f774cd16a561f16b0f13"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/maximality-author/lean-real-timeout.json",
+      "bytes": 1489,
+      "sha256": "203b3c3da271ca9bed25ef6091f680924f3d2d1e5c9106eef1b0671320a1dc4f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/maximality-author/RawMaximalityRealAttempt.lean",
+      "bytes": 3115,
+      "sha256": "886ccfb46ec5e11b99cbc1d79b9f0db4cc62fa09a623f16e9e4f7670a3512d2c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/progress-own.patch",
+      "bytes": 2033,
+      "sha256": "65bb3b5bf8fbbf3f2251dd3304402ff066f26d3b3b4be01d578a3829ce8609c3"
+    }
+  ],
+  "integration_review": {
+    "status_at_freeze": "PENDING",
+    "report_path": ".chanlun/review-results/issue1467-f1-proof/stage57/independent-integration-review.md",
+    "scope": "summary/Scope/evidence/progress plus ordinary composition of already reviewed results on main8 only"
+  }
+}

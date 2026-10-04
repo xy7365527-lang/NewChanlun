@@ -1,0 +1,177 @@
+{
+  "issue": 1467,
+  "stage": 57,
+  "scope": "固定K/C/s原始最大性作者包；不锁动态Progress",
+  "author": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage57/extension-maximality.md",
+      "bytes": 14305,
+      "sha256": "3dc68266952a849551d8d42387f8754d7e85a9700a595f8a71a1b2160d9c9413"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/RawMaximality.lean",
+      "bytes": 3362,
+      "sha256": "8abac6db0faf02ea4cb0efcca7ab3d00ce0a19ee731f666e753a5e944cae65f7"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/certificate-v1.json",
+      "bytes": 3538,
+      "sha256": "fc8e9544eae42cf76076403d4a40d2e056bbfdb9c89291ed1194070a26a60ea7"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/check-certificate.mjs",
+      "bytes": 2718,
+      "sha256": "62dc6822a465cb8b7a3b1097a12bb1a136f76376cf272c3bf5b136f0ddc4e7fb"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/contract-v1.md",
+      "bytes": 2503,
+      "sha256": "6bdf4342b578b630d14dde91de4bf0064db7a65d445fac21e8cad54eebd55a71"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/freeze-packet.mjs",
+      "bytes": 4363,
+      "sha256": "96335b1d569f2844d9f4fe053ac275a898ac51e99607e6095d2ead97ad024833"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/lean-contract-generic-v1.json",
+      "bytes": 635,
+      "sha256": "6edb54d6c1376eed96322e24f183aa984722fa2d78d5f5c2ef8ca26ca5ea3e7f"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/lean-contract-v1.json",
+      "bytes": 585,
+      "sha256": "9b097964006ab214140d3958ca299770c485890e94943c4cb36e6c1c0691f97f"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/lean-toolchain",
+      "bytes": 25,
+      "sha256": "efac0b94923b2d8b6840cd35be9177ad0fc5ab2332f4f4311c98712cee92fdee"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/readback-packet-v1.json",
+      "bytes": 984575,
+      "sha256": "4e897bfcdd8b5f5c7c55de5a15689858cfce9a75683673bc7995a66e777c3622"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/run-lean.mjs",
+      "bytes": 2350,
+      "sha256": "4c4348133be79abdbcce89ef1f05bd366443b18ef2ece613046c625f07c294ba"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/source-excerpts-v1.json",
+      "bytes": 20806,
+      "sha256": "564b604abf7724c55afae44308787370dedb671db814372d84ab910b85e92044"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/verification-summary-v1.json",
+      "bytes": 2899,
+      "sha256": "3e77b4e1bfedc1fc06c37c1287b29128b73f9ffcffc5c362add32ea118363f0c"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage57/maximality-evidence/verify-freeze.mjs",
+      "bytes": 1030,
+      "sha256": "0cb085f0628837b187a8c00a008fc5cf2c98dd94d7a533e214374f406141e816"
+    }
+  ],
+  "dependencies": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage57/Intent-v1.md",
+      "bytes": 3271,
+      "sha256": "f908e7edafb6ff5042232f85ce4f04a58bac55e4e47f59fe0faaca42342e89ea"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage56/initial-p-lifecycle.md",
+      "bytes": 18280,
+      "sha256": "0d5afc78b6c44b2d0c31864e8b4bb70a392d3f53e556cf2aa03bb25b72472bea"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage56/independent-lifecycle-review.md",
+      "bytes": 12442,
+      "sha256": "173c4209e9c61cebd361a5f886ef90a3ecb6987e92f48042c41a4f7e246f7535"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage56/ScopeClarifications-v1.md",
+      "bytes": 4383,
+      "sha256": "98c77d88c29b87e388f31b0b091ff1830f7e5d21c949be8b8ae02f18d861083b"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/contract-v1.md",
+      "bytes": 6457,
+      "sha256": "da4ffff22603b73bb213e6c3b761857252d84079e5fef45bb69424360228393e"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/ordinary-proofs-v1.md",
+      "bytes": 10309,
+      "sha256": "8b43164a839a018f379e52f0878a5d01d2f5a9af15b4ff9c3e905ab825c6e8a2"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage54/initial-contract-audit.md",
+      "bytes": 21024,
+      "sha256": "7c5f9993530c16a8de959e0115db2eb7869d87b8acba9b030ebf97f7e7bb55c4"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage54/independent-initial-contract-review.md",
+      "bytes": 14326,
+      "sha256": "ae6a357ee7ed51c6bbc426a8bd6db97edd2662447d270533f895786d9053e0ed"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/018-第18课.md",
+      "bytes": 11695,
+      "sha256": "4a661fc843d0d9fcfdf32861b7dc903ee09d824d0075dd0ea7b2c19542bb2f92"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/020-第20课.md",
+      "bytes": 26838,
+      "sha256": "25f8f0bbe9ffbab48a27b552a081ff3925b6c01bfe1cae30c2616fe9b99b49ef"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/038-第38课.md",
+      "bytes": 24251,
+      "sha256": "983ce94575d61ed645fcc753eb59f9a28e8e749826a30d7bf87f19721baedc7b"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/084-第84课.md",
+      "bytes": 70833,
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26"
+    }
+  ],
+  "external": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/maximality-author/lean-exact/run-manifest.json",
+      "bytes": 3458594,
+      "sha256": "cee665bc7dbef989b15d166f255da607b02c5466e530f774cd16a561f16b0f13"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/maximality-author/lean-exact-run.json",
+      "bytes": 1000,
+      "sha256": "503d23dec34e42ffb64e4590dcc8fb91ce10d4ad02cbaa632adecd07a77018e3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/maximality-author/lean-exact-run.stdout.txt",
+      "bytes": 606,
+      "sha256": "393ffbfdc8a99319384f9d77360a467b2da7c8aa909b352f7c1bbcfd1de68292"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/maximality-author/lean-exact-run.stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/maximality-author/RawMaximalityRealAttempt.lean",
+      "bytes": 3115,
+      "sha256": "886ccfb46ec5e11b99cbc1d79b9f0db4cc62fa09a623f16e9e4f7670a3512d2c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/maximality-author/lean-contract-real-attempt.json",
+      "bytes": 585,
+      "sha256": "9b097964006ab214140d3958ca299770c485890e94943c4cb36e6c1c0691f97f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/maximality-author/lean-real-timeout.json",
+      "bytes": 1489,
+      "sha256": "203b3c3da271ca9bed25ef6091f680924f3d2d1e5c9106eef1b0671320a1dc4f"
+    }
+  ],
+  "review_status": "pending"
+}

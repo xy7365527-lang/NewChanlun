@@ -1,0 +1,25 @@
+{
+  "schema":"stage57-direct-controls-v1",
+  "provenance":"具名合成订单模型控制；非市场样本。orderId/eventId 为本控制身份；向 MovingQuote 投影后金额单位为一、订单列表只存价格。",
+  "controls":[
+    {"id":"D57-main8","initial":{"bids":[{"id":"b100","price":100},{"id":"b1","price":1}],"asks":[{"id":"a102","price":102}]},"events":[
+      {"id":"D57-E1","action":"add","side":"bid","orderId":"b101a","price":101},
+      {"id":"D57-E2","action":"cancel","side":"bid","orderId":"b101a","price":101},
+      {"id":"D57-E3","action":"add","side":"bid","orderId":"b101b","price":101},
+      {"id":"D57-E4","action":"cancel","side":"bid","orderId":"b101b","price":101},
+      {"id":"D57-E5","action":"cancel","side":"bid","orderId":"b100","price":100},
+      {"id":"D57-E6","action":"add","side":"ask","orderId":"a99","price":99},
+      {"id":"D57-E7","action":"add","side":"bid","orderId":"b2","price":2},
+      {"id":"D57-E8","action":"cancel","side":"bid","orderId":"b2","price":2}
+    ]},
+    {"id":"D57-none7","initial":{"bids":[{"id":"nb100","price":100}],"asks":[{"id":"na102","price":102}]},"events":[
+      {"id":"N57-E1","action":"add","side":"bid","orderId":"nb101","price":101},
+      {"id":"N57-E2","action":"cancel","side":"bid","orderId":"nb101","price":101},
+      {"id":"N57-E3","action":"cancel","side":"bid","orderId":"nb100","price":100},
+      {"id":"N57-E4","action":"add","side":"bid","orderId":"nb2","price":2},
+      {"id":"N57-E5","action":"add","side":"bid","orderId":"nb3","price":3},
+      {"id":"N57-E6","action":"cancel","side":"bid","orderId":"nb3","price":3},
+      {"id":"N57-E7","action":"add","side":"bid","orderId":"nb4","price":4}
+    ]}
+  ]
+}

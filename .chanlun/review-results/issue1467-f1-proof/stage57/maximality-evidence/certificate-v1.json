@@ -1,0 +1,223 @@
+{
+  "scope": "One existing scalar word, first seed only; no D54 implementation imported; no original Move qualification",
+  "source": {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/ordinary-proofs-v1.md",
+    "sha256": "8b43164a839a018f379e52f0878a5d01d2f5a9af15b4ff9c3e905ab825c6e8a2",
+    "wordLiteral": "0,10,0,10,0,30,20,28,22,40,35,45"
+  },
+  "word": [
+    0,
+    10,
+    0,
+    10,
+    0,
+    30,
+    20,
+    28,
+    22,
+    40,
+    35,
+    45
+  ],
+  "seed": {
+    "identity": "D54-existing-word:first-seed:legs-0-1-2",
+    "s": 0,
+    "core": {
+      "low": 0,
+      "high": 10
+    }
+  },
+  "rawLegsThroughR": [
+    {
+      "index": 0,
+      "start": 0,
+      "end": 1,
+      "knownAt": 2,
+      "low": 0,
+      "high": 10
+    },
+    {
+      "index": 1,
+      "start": 1,
+      "end": 2,
+      "knownAt": 3,
+      "low": 0,
+      "high": 10
+    },
+    {
+      "index": 2,
+      "start": 2,
+      "end": 3,
+      "knownAt": 4,
+      "low": 0,
+      "high": 10
+    },
+    {
+      "index": 3,
+      "start": 3,
+      "end": 4,
+      "knownAt": 5,
+      "low": 0,
+      "high": 10
+    },
+    {
+      "index": 4,
+      "start": 4,
+      "end": 5,
+      "knownAt": 6,
+      "low": 0,
+      "high": 30
+    },
+    {
+      "index": 5,
+      "start": 5,
+      "end": 6,
+      "knownAt": 7,
+      "low": 20,
+      "high": 30
+    }
+  ],
+  "terminal": {
+    "j": 4,
+    "r": 5,
+    "L_end": 5,
+    "R_knownAt": 7
+  },
+  "contactChecks": [
+    {
+      "index": 0,
+      "range": [
+        0,
+        10
+      ],
+      "touch": true
+    },
+    {
+      "index": 1,
+      "range": [
+        0,
+        10
+      ],
+      "touch": true
+    },
+    {
+      "index": 2,
+      "range": [
+        0,
+        10
+      ],
+      "touch": true
+    },
+    {
+      "index": 3,
+      "range": [
+        0,
+        10
+      ],
+      "touch": true
+    },
+    {
+      "index": 4,
+      "range": [
+        0,
+        30
+      ],
+      "touch": true
+    }
+  ],
+  "prefixChecks": [
+    {
+      "tau": 0,
+      "rawTerminal": false
+    },
+    {
+      "tau": 1,
+      "rawTerminal": false
+    },
+    {
+      "tau": 2,
+      "rawTerminal": false
+    },
+    {
+      "tau": 3,
+      "rawTerminal": false
+    },
+    {
+      "tau": 4,
+      "rawTerminal": false
+    },
+    {
+      "tau": 5,
+      "rawTerminal": false
+    },
+    {
+      "tau": 6,
+      "rawTerminal": false
+    },
+    {
+      "tau": 7,
+      "rawTerminal": true
+    },
+    {
+      "tau": 8,
+      "rawTerminal": true
+    },
+    {
+      "tau": 9,
+      "rawTerminal": true
+    },
+    {
+      "tau": 10,
+      "rawTerminal": true
+    },
+    {
+      "tau": 11,
+      "rawTerminal": true
+    }
+  ],
+  "finiteLarger": [
+    {
+      "k": 5,
+      "touchSpan": false,
+      "blockingIndex": 5
+    },
+    {
+      "k": 6,
+      "touchSpan": false,
+      "blockingIndex": 5
+    },
+    {
+      "k": 7,
+      "touchSpan": false,
+      "blockingIndex": 5
+    },
+    {
+      "k": 8,
+      "touchSpan": false,
+      "blockingIndex": 5
+    },
+    {
+      "k": 9,
+      "touchSpan": false,
+      "blockingIndex": 5
+    }
+  ],
+  "whole": {
+    "ownedEvents": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "closedStateRange": [
+      0,
+      30
+    ]
+  },
+  "limits": [
+    "Finite checks illustrate, not prove, the universal theorem.",
+    "Seed identity is a source ID, not inferred from equality of C.",
+    "Whole includes L; the contact theorem begins at s, not at an arbitrary NoCore prefix."
+  ]
+}

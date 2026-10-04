@@ -1,0 +1,51 @@
+{
+  "machine": {
+    "run_id": "9a4cb8befb1d4700bc4444f50374681e",
+    "report": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/maximality-author/lean-exact/run-manifest.json",
+    "report_sha256": "cee665bc7dbef989b15d166f255da607b02c5466e530f774cd16a561f16b0f13",
+    "machine": {
+      "status": "passed",
+      "execution_passed": true,
+      "scope": "exact_declaration",
+      "missing_files": [],
+      "scan_is_authoritative": false
+    },
+    "machine_verification_passed": true,
+    "exact_root_passed": true,
+    "root_closure": {
+      "status": "closed",
+      "exact_root_passed": true,
+      "declaration_closed": true,
+      "scope": "expected Lean type in the recorded environment; semantic review is separate"
+    },
+    "actual_type": "∀ (α : Type) (le : α → α → Prop) (h : Stage57.Tape α le) (K : Stage57.Seed α le) (j r τ : Nat)\n  (ht : @Stage57.RawTerminal α le h K j r τ),\n  And (∀ (k : Nat), @LT.lt.{0} Nat instLTNat j k → Not (@Stage57.TouchSpan α le h K k))\n    (And (∀ (q r' τ' : Nat), @Stage57.RawTerminal α le h K q r' τ' → @Eq.{1} Nat q j)\n      (And\n        (∀ (h' : Stage57.Tape α le),\n          @Stage57.PreservesThrough α le h h' r →\n            And (@Stage57.RawTerminal α le h' K j r τ)\n              (∀ (k : Nat), @LT.lt.{0} Nat instLTNat j k → Not (@Stage57.TouchSpan α le h' K k)))\n        (And (@Stage57.RawTerminal α le h K j r (@Stage57.Tape.sealAt α le h r))\n          (And\n            (∀ (t : Nat),\n              @LT.lt.{0} Nat instLTNat t (@Stage57.Tape.sealAt α le h r) → Not (@Stage57.RawTerminal α le h K j r t))\n            (@LT.lt.{0} Nat instLTNat (@Stage57.Tape.endAt α le h j) (@Stage57.Tape.sealAt α le h r))))))",
+    "axioms": [
+      "propext",
+      "Quot.sound"
+    ],
+    "unexpected_axioms": [],
+    "unsafe_dependencies": [],
+    "comparison": true,
+    "semantic": {
+      "status": "not_reviewed",
+      "reused": false,
+      "semantic_sha256": "d55f16601485b70479f253bad46674a9c02c0a95bf1e01e0c7e35ad8a07e592d"
+    }
+  },
+  "formal_scope": "泛型区间关系RawTerminal到最大性/唯一性/保留追加/时钟；D54提取和实数解释是普通证明；ER57未证。",
+  "real_attempt": {
+    "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/maximality-author/RawMaximalityRealAttempt.lean",
+    "sha256": "886ccfb46ec5e11b99cbc1d79b9f0db4cc62fa09a623f16e9e4f7670a3512d2c",
+    "contract": "lean-contract-v1.json",
+    "receipt": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/maximality-author/lean-real-timeout.json",
+    "status": "timeout_sigterm_no_compilation_claim",
+    "old_processes_checked_absent": [
+      82505,
+      82936,
+      84157
+    ]
+  },
+  "independent_review": "pending",
+  "existing_certificate": "certificate-v1.json",
+  "readback": "readback-packet-v1.json"
+}

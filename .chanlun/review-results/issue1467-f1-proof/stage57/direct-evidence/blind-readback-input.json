@@ -1,0 +1,65 @@
+{
+  "schema": "actual-declaration-input-v1",
+  "declaration": "Stage57Direct.witness_root",
+  "actualType": "Stage57Direct.WITNESS_TARGET",
+  "expectedType": "Stage57Direct.WITNESS_TARGET",
+  "runId": "517df05d332443609db0e65e8bb8cb5c",
+  "environment": {
+    "lean_version": "Lean (version 4.31.0, arm64-apple-darwin24.6.0, commit 68218e876d2a38b1985b8590fff244a83c321783, Release)",
+    "lean_status": "passed",
+    "lake_version": "Lake version 5.0.0-src+68218e8 (Lean version 4.31.0)",
+    "lake_status": "passed",
+    "lean_toolchain": "leanprover/lean4:v4.31.0",
+    "configuration_hashes": {
+      "lean-toolchain": "efac0b94923b2d8b6840cd35be9177ad0fc5ab2332f4f4311c98712cee92fdee"
+    },
+    "binary_hashes": {
+      "bin/lean": "1b370cfcbf44e80d1b004ab1b1ab9a4c73951f9f7c242140bcff9bc577576554",
+      "bin/lake": "58261a1a2fa1a362376c71e02ca854a093e71cc5e6ea64b287a931cb2565273d",
+      "lib/lean/libleanshared.dylib": "a695a9aa68481c42b99619e0103537e6b433c6fa7021927b184e19a686d03989"
+    },
+    "prefix": "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0",
+    "mode": "direct",
+    "inherited_lean_path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean",
+    "inherited_lean_src_path": "",
+    "sha256": "c5ec67a91c596a2f0be46a92622fdfae1469ab887c3fa64f8f44d78272861926"
+  },
+  "sourceFiles": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/DirectLifecycle.lean",
+      "sha256": "dbbb4e242334aacd1d546e56a68ff8fe7b583717ebfd7617712e92157cdc9703"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/DirectQuoteSpec.lean",
+      "sha256": "df45e6e08d020edc6bc737c0885829b37454c289f1a72c71f4186d82627591ad"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/MovingQuoteSpec.lean",
+      "sha256": "90d6289fba1f1cfeeaa7ceac234bad76dcda515f2ef63330c5d8e7c6a6aaa762"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/MovingQuoteWireSpec.lean",
+      "sha256": "9c838d7ef90c84f497daee2420ba1bad4d002b31a11d6c6d383dfcd36a3d130a"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/BookQuoteSpec.lean",
+      "sha256": "a3f6da979d313002fe1c7b73a0306c2fd24c7599587827554d921e594be0e377"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/Origin/ChanlunElements.lean",
+      "sha256": "19c33e884e6949cdd56a51ff7c44dc086354994b7f54431f57bec4a0849fa201"
+    }
+  ],
+  "actualPrintedDeclarations": {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/actual-readback.stdout.txt",
+    "sha256": "3edbae2190aae2ea8eda0bc08a5546a1c74cbd1bebe5a40d68558f248177462a"
+  },
+  "compiledTarget": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/direct-author/project/DirectLifecycle.lean",
+    "sha256": "dbbb4e242334aacd1d546e56a68ff8fe7b583717ebfd7617712e92157cdc9703"
+  },
+  "machineExtraction": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage57/direct-author/witness-check/lean-verification-runs/517df05d332443609db0e65e8bb8cb5c/declaration.json",
+    "sha256": "098ca7ffb8131de4f577efbe2ff2ec0707bd17e2f1d8883a8e98a078a7d47300"
+  }
+}

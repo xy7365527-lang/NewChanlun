@@ -1,0 +1,2881 @@
+Stage57Direct.witness_root : Stage57Direct.WITNESS_TARGET
+@Stage57Direct.primitive_strict : ∀ {es : List.{0} MovingQuote.Event} {bs : Nat → MovingQuote.Book}
+  {qs : List.{0} (Option.{0} MovingQuote.Quote)} {out : List.{0} MovingQuote.Output}
+  (ht : BookQuote.Through es bs (@List.length.{0} MovingQuote.Event es)) (hr : BookQuote.Reads bs qs)
+  (hlen :
+    @Eq.{1} Nat (@List.length.{0} (Option.{0} MovingQuote.Quote) qs)
+      (@HAdd.hAdd.{0, 0, 0} Nat Nat Nat (@instHAdd.{0} Nat instAddNat) (@List.length.{0} MovingQuote.Event es)
+        (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))))
+  (hc :
+    @Eq.{1} (Option.{0} (List.{0} MovingQuote.Output)) (MovingQuote.construct es qs)
+      (@Option.some.{0} (List.{0} MovingQuote.Output) out))
+  {x : MovingQuote.Output}
+  (hx :
+    @Membership.mem.{0, 0} MovingQuote.Output (List.{0} MovingQuote.Output)
+      (@List.instMembership.{0} MovingQuote.Output) out x)
+  {g : NewChanlun.Origin.Segment}
+  (hg :
+    @Eq.{1} (Option.{0} NewChanlun.Origin.Segment) (MovingQuote.Output.geometry x)
+      (@Option.some.{0} NewChanlun.Origin.Segment g)),
+  And
+    (@Eq.{1} NewChanlun.Origin.Index (NewChanlun.Origin.Segment.startIndex g)
+      (MovingQuote.Located.start (MovingQuote.Output.located x)))
+    (And
+      (@Eq.{1} NewChanlun.Origin.Index (NewChanlun.Origin.Segment.endIndex g)
+        (MovingQuote.Located.finish (MovingQuote.Output.located x)))
+      (And
+        (@LT.lt.{0} NewChanlun.Origin.Index instLTNat (NewChanlun.Origin.Segment.startIndex g)
+          (NewChanlun.Origin.Segment.endIndex g))
+        (@ite.{1} Prop
+          (@Eq.{1} Bool
+            (MovingQuote.positive (MovingQuote.Block.first (MovingQuote.Located.block (MovingQuote.Output.located x))))
+            Bool.true)
+          (instDecidableEqBool
+            (MovingQuote.positive (MovingQuote.Block.first (MovingQuote.Located.block (MovingQuote.Output.located x))))
+            Bool.true)
+          (And
+            (@Eq.{1} NewChanlun.Origin.Direction (NewChanlun.Origin.Segment.direction g) NewChanlun.Origin.Direction.up)
+            (@LT.lt.{0} NewChanlun.Origin.Tick Int.instLTInt (NewChanlun.Origin.Segment.startPrice g)
+              (NewChanlun.Origin.Segment.endPrice g)))
+          (And
+            (@Eq.{1} NewChanlun.Origin.Direction (NewChanlun.Origin.Segment.direction g)
+              NewChanlun.Origin.Direction.down)
+            (@LT.lt.{0} NewChanlun.Origin.Tick Int.instLTInt (NewChanlun.Origin.Segment.endPrice g)
+              (NewChanlun.Origin.Segment.startPrice g))))))
+def Stage57Direct.WITNESS_TARGET : Prop :=
+And
+  (∀ (n : Fin (@OfNat.ofNat.{0} Nat (nat_lit 9) (instOfNatNat (nat_lit 9)))),
+    And
+      (BookQuote.Through
+        (@List.take.{0} MovingQuote.Event (@Fin.val (@OfNat.ofNat.{0} Nat (nat_lit 9) (instOfNatNat (nat_lit 9))) n)
+          Stage57Direct.Main.es)
+        Stage57Direct.Main.books
+        (@List.length.{0} MovingQuote.Event
+          (@List.take.{0} MovingQuote.Event (@Fin.val (@OfNat.ofNat.{0} Nat (nat_lit 9) (instOfNatNat (nat_lit 9))) n)
+            Stage57Direct.Main.es)))
+      (And
+        (BookQuote.Reads Stage57Direct.Main.books
+          (@List.take.{0} (Option.{0} MovingQuote.Quote)
+            (@HAdd.hAdd.{0, 0, 0} Nat Nat Nat (@instHAdd.{0} Nat instAddNat)
+              (@Fin.val (@OfNat.ofNat.{0} Nat (nat_lit 9) (instOfNatNat (nat_lit 9))) n)
+              (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))))
+            Stage57Direct.Main.qs))
+        (And
+          (@Eq.{1} Nat
+            (@List.length.{0} (Option.{0} MovingQuote.Quote)
+              (@List.take.{0} (Option.{0} MovingQuote.Quote)
+                (@HAdd.hAdd.{0, 0, 0} Nat Nat Nat (@instHAdd.{0} Nat instAddNat)
+                  (@Fin.val (@OfNat.ofNat.{0} Nat (nat_lit 9) (instOfNatNat (nat_lit 9))) n)
+                  (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))))
+                Stage57Direct.Main.qs))
+            (@HAdd.hAdd.{0, 0, 0} Nat Nat Nat (@instHAdd.{0} Nat instAddNat)
+              (@List.length.{0} MovingQuote.Event
+                (@List.take.{0} MovingQuote.Event
+                  (@Fin.val (@OfNat.ofNat.{0} Nat (nat_lit 9) (instOfNatNat (nat_lit 9))) n) Stage57Direct.Main.es))
+              (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))))
+          (@Eq.{1}
+            (Option.{0}
+              (List.{0}
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} Nat
+                      (Prod.{0, 0} (Option.{0} Nat)
+                        (Prod.{0, 0} Bool
+                          (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                            (Option.{0}
+                              (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))))
+            (@Option.map.{0, 0} (List.{0} MovingQuote.Output)
+              (List.{0}
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} Nat
+                      (Prod.{0, 0} (Option.{0} Nat)
+                        (Prod.{0, 0} Bool
+                          (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                            (Option.{0}
+                              (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))))
+              (@List.map.{0, 0} MovingQuote.Output
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} Nat
+                      (Prod.{0, 0} (Option.{0} Nat)
+                        (Prod.{0, 0} Bool
+                          (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                            (Option.{0}
+                              (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+                Stage57Direct.view)
+              (MovingQuote.construct
+                (@List.take.{0} MovingQuote.Event
+                  (@Fin.val (@OfNat.ofNat.{0} Nat (nat_lit 9) (instOfNatNat (nat_lit 9))) n) Stage57Direct.Main.es)
+                (@List.take.{0} (Option.{0} MovingQuote.Quote)
+                  (@HAdd.hAdd.{0, 0, 0} Nat Nat Nat (@instHAdd.{0} Nat instAddNat)
+                    (@Fin.val (@OfNat.ofNat.{0} Nat (nat_lit 9) (instOfNatNat (nat_lit 9))) n)
+                    (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))))
+                  Stage57Direct.Main.qs)))
+            (@Option.some.{0}
+              (List.{0}
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} Nat
+                      (Prod.{0, 0} (Option.{0} Nat)
+                        (Prod.{0, 0} Bool
+                          (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                            (Option.{0}
+                              (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))))
+              (Stage57Direct.Main.expected
+                (@Fin.val (@OfNat.ofNat.{0} Nat (nat_lit 9) (instOfNatNat (nat_lit 9))) n)))))))
+  (∀ (n : Fin (@OfNat.ofNat.{0} Nat (nat_lit 8) (instOfNatNat (nat_lit 8)))),
+    And
+      (BookQuote.Through
+        (@List.take.{0} MovingQuote.Event (@Fin.val (@OfNat.ofNat.{0} Nat (nat_lit 8) (instOfNatNat (nat_lit 8))) n)
+          Stage57Direct.NoneControl.es)
+        Stage57Direct.NoneControl.books
+        (@List.length.{0} MovingQuote.Event
+          (@List.take.{0} MovingQuote.Event (@Fin.val (@OfNat.ofNat.{0} Nat (nat_lit 8) (instOfNatNat (nat_lit 8))) n)
+            Stage57Direct.NoneControl.es)))
+      (And
+        (BookQuote.Reads Stage57Direct.NoneControl.books
+          (@List.take.{0} (Option.{0} MovingQuote.Quote)
+            (@HAdd.hAdd.{0, 0, 0} Nat Nat Nat (@instHAdd.{0} Nat instAddNat)
+              (@Fin.val (@OfNat.ofNat.{0} Nat (nat_lit 8) (instOfNatNat (nat_lit 8))) n)
+              (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))))
+            Stage57Direct.NoneControl.qs))
+        (And
+          (@Eq.{1} Nat
+            (@List.length.{0} (Option.{0} MovingQuote.Quote)
+              (@List.take.{0} (Option.{0} MovingQuote.Quote)
+                (@HAdd.hAdd.{0, 0, 0} Nat Nat Nat (@instHAdd.{0} Nat instAddNat)
+                  (@Fin.val (@OfNat.ofNat.{0} Nat (nat_lit 8) (instOfNatNat (nat_lit 8))) n)
+                  (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))))
+                Stage57Direct.NoneControl.qs))
+            (@HAdd.hAdd.{0, 0, 0} Nat Nat Nat (@instHAdd.{0} Nat instAddNat)
+              (@List.length.{0} MovingQuote.Event
+                (@List.take.{0} MovingQuote.Event
+                  (@Fin.val (@OfNat.ofNat.{0} Nat (nat_lit 8) (instOfNatNat (nat_lit 8))) n)
+                  Stage57Direct.NoneControl.es))
+              (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))))
+          (@Eq.{1}
+            (Option.{0}
+              (List.{0}
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} Nat
+                      (Prod.{0, 0} (Option.{0} Nat)
+                        (Prod.{0, 0} Bool
+                          (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                            (Option.{0}
+                              (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))))
+            (@Option.map.{0, 0} (List.{0} MovingQuote.Output)
+              (List.{0}
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} Nat
+                      (Prod.{0, 0} (Option.{0} Nat)
+                        (Prod.{0, 0} Bool
+                          (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                            (Option.{0}
+                              (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))))
+              (@List.map.{0, 0} MovingQuote.Output
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} Nat
+                      (Prod.{0, 0} (Option.{0} Nat)
+                        (Prod.{0, 0} Bool
+                          (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                            (Option.{0}
+                              (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+                Stage57Direct.view)
+              (MovingQuote.construct
+                (@List.take.{0} MovingQuote.Event
+                  (@Fin.val (@OfNat.ofNat.{0} Nat (nat_lit 8) (instOfNatNat (nat_lit 8))) n)
+                  Stage57Direct.NoneControl.es)
+                (@List.take.{0} (Option.{0} MovingQuote.Quote)
+                  (@HAdd.hAdd.{0, 0, 0} Nat Nat Nat (@instHAdd.{0} Nat instAddNat)
+                    (@Fin.val (@OfNat.ofNat.{0} Nat (nat_lit 8) (instOfNatNat (nat_lit 8))) n)
+                    (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))))
+                  Stage57Direct.NoneControl.qs)))
+            (@Option.some.{0}
+              (List.{0}
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} Nat
+                      (Prod.{0, 0} (Option.{0} Nat)
+                        (Prod.{0, 0} Bool
+                          (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                            (Option.{0}
+                              (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))))
+              (Stage57Direct.NoneControl.expected
+                (@Fin.val (@OfNat.ofNat.{0} Nat (nat_lit 8) (instOfNatNat (nat_lit 8))) n)))))))
+def Stage57Direct.view : (x : MovingQuote.Output) →
+  Prod.{0, 0} Nat
+    (Prod.{0, 0} Nat
+      (Prod.{0, 0} Nat
+        (Prod.{0, 0} (Option.{0} Nat)
+          (Prod.{0, 0} Bool
+            (Prod.{0, 0} (List.{0} MovingQuote.Event)
+              (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))) :=
+fun (x : MovingQuote.Output) =>
+  @Prod.mk.{0, 0} Nat
+    (Prod.{0, 0} Nat
+      (Prod.{0, 0} Nat
+        (Prod.{0, 0} (Option.{0} Nat)
+          (Prod.{0, 0} Bool
+            (Prod.{0, 0} (List.{0} MovingQuote.Event)
+              (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+    (MovingQuote.Located.start (MovingQuote.Output.located x))
+    (@Prod.mk.{0, 0} Nat
+      (Prod.{0, 0} Nat
+        (Prod.{0, 0} (Option.{0} Nat)
+          (Prod.{0, 0} Bool
+            (Prod.{0, 0} (List.{0} MovingQuote.Event)
+              (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+      (MovingQuote.Located.finish (MovingQuote.Output.located x))
+      (@Prod.mk.{0, 0} Nat
+        (Prod.{0, 0} (Option.{0} Nat)
+          (Prod.{0, 0} Bool
+            (Prod.{0, 0} (List.{0} MovingQuote.Event)
+              (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+        (MovingQuote.Located.firstKnown (MovingQuote.Output.located x))
+        (@Prod.mk.{0, 0} (Option.{0} Nat)
+          (Prod.{0, 0} Bool
+            (Prod.{0, 0} (List.{0} MovingQuote.Event)
+              (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+          (MovingQuote.Located.knownAt (MovingQuote.Output.located x))
+          (@Prod.mk.{0, 0} Bool
+            (Prod.{0, 0} (List.{0} MovingQuote.Event)
+              (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+            (MovingQuote.positive (MovingQuote.Block.first (MovingQuote.Located.block (MovingQuote.Output.located x))))
+            (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+              (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+              (MovingQuote.events (MovingQuote.Located.block (MovingQuote.Output.located x)))
+              (@Option.map.{0, 0} NewChanlun.Origin.Segment
+                (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                (fun (g : NewChanlun.Origin.Segment) =>
+                  @Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))
+                    (@BEq.beq.{0} NewChanlun.Origin.Direction
+                      (@instBEqOfDecidableEq.{0} NewChanlun.Origin.Direction NewChanlun.Origin.instDecidableEqDirection)
+                      (NewChanlun.Origin.Segment.direction g) NewChanlun.Origin.Direction.up)
+                    (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                      (NewChanlun.Origin.Segment.startIndex g)
+                      (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int) (NewChanlun.Origin.Segment.endIndex g)
+                        (@Prod.mk.{0, 0} Int Int (NewChanlun.Origin.Segment.startPrice g)
+                          (NewChanlun.Origin.Segment.endPrice g)))))
+                (MovingQuote.Output.geometry x)))))))
+def Stage57Direct.Main.es : List.{0} MovingQuote.Event :=
+@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e1
+  (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e2
+    (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e3
+      (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e4
+        (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e5
+          (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e6
+            (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e7
+              (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e8 (@List.nil.{0} MovingQuote.Event))))))))
+def Stage57Direct.Main.books : Nat → MovingQuote.Book :=
+fun (x : Nat) =>
+  Stage57Direct.Main.books.match_1.{1} (fun (x : Nat) => MovingQuote.Book) x
+    (fun (_ : Unit) =>
+      MovingQuote.Book.mk
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+          (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 1) (@instOfNat (nat_lit 1))) (@List.nil.{0} Int)))
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))) (@List.nil.{0} Int)))
+    (fun (_ : Unit) =>
+      MovingQuote.Book.mk
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 101) (@instOfNat (nat_lit 101)))
+          (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+            (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 1) (@instOfNat (nat_lit 1))) (@List.nil.{0} Int))))
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))) (@List.nil.{0} Int)))
+    (fun (_ : Unit) =>
+      MovingQuote.Book.mk
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+          (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 1) (@instOfNat (nat_lit 1))) (@List.nil.{0} Int)))
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))) (@List.nil.{0} Int)))
+    (fun (_ : Unit) =>
+      MovingQuote.Book.mk
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 101) (@instOfNat (nat_lit 101)))
+          (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+            (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 1) (@instOfNat (nat_lit 1))) (@List.nil.{0} Int))))
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))) (@List.nil.{0} Int)))
+    (fun (_ : Unit) =>
+      MovingQuote.Book.mk
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+          (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 1) (@instOfNat (nat_lit 1))) (@List.nil.{0} Int)))
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))) (@List.nil.{0} Int)))
+    (fun (_ : Unit) =>
+      MovingQuote.Book.mk
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 1) (@instOfNat (nat_lit 1))) (@List.nil.{0} Int))
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))) (@List.nil.{0} Int)))
+    (fun (_ : Unit) =>
+      MovingQuote.Book.mk
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 1) (@instOfNat (nat_lit 1))) (@List.nil.{0} Int))
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 99) (@instOfNat (nat_lit 99)))
+          (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))) (@List.nil.{0} Int))))
+    (fun (_ : Unit) =>
+      MovingQuote.Book.mk
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 2) (@instOfNat (nat_lit 2)))
+          (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 1) (@instOfNat (nat_lit 1))) (@List.nil.{0} Int)))
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 99) (@instOfNat (nat_lit 99)))
+          (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))) (@List.nil.{0} Int))))
+    (fun (_ : Unit) =>
+      MovingQuote.Book.mk
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 1) (@instOfNat (nat_lit 1))) (@List.nil.{0} Int))
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 99) (@instOfNat (nat_lit 99)))
+          (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))) (@List.nil.{0} Int))))
+    fun (x : Nat) => MovingQuote.Book.mk (@List.nil.{0} Int) (@List.nil.{0} Int)
+def Stage57Direct.Main.qs : List.{0} (Option.{0} MovingQuote.Quote) :=
+@List.cons.{0} (Option.{0} MovingQuote.Quote)
+  (@Option.some.{0} MovingQuote.Quote
+    (MovingQuote.Quote.mk (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+      (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))))
+  (@List.cons.{0} (Option.{0} MovingQuote.Quote)
+    (@Option.some.{0} MovingQuote.Quote
+      (MovingQuote.Quote.mk (@OfNat.ofNat.{0} Int (nat_lit 101) (@instOfNat (nat_lit 101)))
+        (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))))
+    (@List.cons.{0} (Option.{0} MovingQuote.Quote)
+      (@Option.some.{0} MovingQuote.Quote
+        (MovingQuote.Quote.mk (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+          (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))))
+      (@List.cons.{0} (Option.{0} MovingQuote.Quote)
+        (@Option.some.{0} MovingQuote.Quote
+          (MovingQuote.Quote.mk (@OfNat.ofNat.{0} Int (nat_lit 101) (@instOfNat (nat_lit 101)))
+            (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))))
+        (@List.cons.{0} (Option.{0} MovingQuote.Quote)
+          (@Option.some.{0} MovingQuote.Quote
+            (MovingQuote.Quote.mk (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+              (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))))
+          (@List.cons.{0} (Option.{0} MovingQuote.Quote)
+            (@Option.some.{0} MovingQuote.Quote
+              (MovingQuote.Quote.mk (@OfNat.ofNat.{0} Int (nat_lit 1) (@instOfNat (nat_lit 1)))
+                (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))))
+            (@List.cons.{0} (Option.{0} MovingQuote.Quote)
+              (@Option.some.{0} MovingQuote.Quote
+                (MovingQuote.Quote.mk (@OfNat.ofNat.{0} Int (nat_lit 1) (@instOfNat (nat_lit 1)))
+                  (@OfNat.ofNat.{0} Int (nat_lit 99) (@instOfNat (nat_lit 99)))))
+              (@List.cons.{0} (Option.{0} MovingQuote.Quote)
+                (@Option.some.{0} MovingQuote.Quote
+                  (MovingQuote.Quote.mk (@OfNat.ofNat.{0} Int (nat_lit 2) (@instOfNat (nat_lit 2)))
+                    (@OfNat.ofNat.{0} Int (nat_lit 99) (@instOfNat (nat_lit 99)))))
+                (@List.cons.{0} (Option.{0} MovingQuote.Quote)
+                  (@Option.some.{0} MovingQuote.Quote
+                    (MovingQuote.Quote.mk (@OfNat.ofNat.{0} Int (nat_lit 1) (@instOfNat (nat_lit 1)))
+                      (@OfNat.ofNat.{0} Int (nat_lit 99) (@instOfNat (nat_lit 99)))))
+                  (@List.nil.{0} (Option.{0} MovingQuote.Quote))))))))))
+def Stage57Direct.Main.expected : Nat →
+  List.{0}
+    (Prod.{0, 0} Nat
+      (Prod.{0, 0} Nat
+        (Prod.{0, 0} Nat
+          (Prod.{0, 0} (Option.{0} Nat)
+            (Prod.{0, 0} Bool
+              (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))) :=
+fun (x : ⋯) =>
+  Stage57Direct.Main.books.match_1.{1}
+    (fun (x : Nat) =>
+      List.{0}
+        (Prod.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))))
+    x
+    (fun (_ : Unit) =>
+      @List.nil.{0}
+        (Prod.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))))
+    (fun (_ : Unit) =>
+      @List.cons.{0}
+        (Prod.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+        (@Prod.mk.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+              (@Prod.mk.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                (@Option.none.{0} Nat)
+                (@Prod.mk.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                  Bool.true
+                  (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                    (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e1 (@List.nil.{0} MovingQuote.Event))
+                    (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                      (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.true
+                        (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+                          (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+                            (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+                              (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))))))))))))))
+        (@List.nil.{0}
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))))
+    (fun (_ : Unit) =>
+      @List.cons.{0}
+        (Prod.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+        (@Prod.mk.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+              (@Prod.mk.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2))))
+                (@Prod.mk.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                  Bool.true
+                  (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                    (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e1 (@List.nil.{0} MovingQuote.Event))
+                    (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                      (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.true
+                        (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+                          (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+                            (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+                              (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))))))))))))))
+        (@List.cons.{0}
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                (@Prod.mk.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                  (@Option.none.{0} Nat)
+                  (@Prod.mk.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                    Bool.false
+                    (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                      (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e2 (@List.nil.{0} MovingQuote.Event))
+                      (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                        (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.false
+                          (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+                            (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                              (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))
+                                (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100))))))))))))))
+          (@List.nil.{0}
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0}
+                          (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))))))
+    (fun (_ : Unit) =>
+      @List.cons.{0}
+        (Prod.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+        (@Prod.mk.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+              (@Prod.mk.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2))))
+                (@Prod.mk.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                  Bool.true
+                  (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                    (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e1 (@List.nil.{0} MovingQuote.Event))
+                    (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                      (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.true
+                        (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+                          (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+                            (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+                              (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))))))))))))))
+        (@List.cons.{0}
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                (@Prod.mk.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                  (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3))))
+                  (@Prod.mk.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                    Bool.false
+                    (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                      (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e2 (@List.nil.{0} MovingQuote.Event))
+                      (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                        (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.false
+                          (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+                            (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                              (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))
+                                (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100))))))))))))))
+          (@List.cons.{0}
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                (@Prod.mk.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                  (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                  (@Prod.mk.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                    (@Option.none.{0} Nat)
+                    (@Prod.mk.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                      Bool.true
+                      (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                        (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e3 (@List.nil.{0} MovingQuote.Event))
+                        (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                          (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.true
+                            (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                              (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                                (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                                (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+                                  (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))))))))))))))
+            (@List.nil.{0}
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0}
+                            (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))))))
+    (fun (_ : Unit) =>
+      @List.cons.{0}
+        (Prod.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+        (@Prod.mk.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+              (@Prod.mk.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2))))
+                (@Prod.mk.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                  Bool.true
+                  (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                    (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e1 (@List.nil.{0} MovingQuote.Event))
+                    (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                      (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.true
+                        (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+                          (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+                            (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+                              (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))))))))))))))
+        (@List.cons.{0}
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                (@Prod.mk.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                  (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3))))
+                  (@Prod.mk.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                    Bool.false
+                    (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                      (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e2 (@List.nil.{0} MovingQuote.Event))
+                      (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                        (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.false
+                          (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+                            (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                              (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))
+                                (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100))))))))))))))
+          (@List.cons.{0}
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                (@Prod.mk.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                  (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                  (@Prod.mk.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                    (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 4) (instOfNatNat (nat_lit 4))))
+                    (@Prod.mk.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                      Bool.true
+                      (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                        (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e3 (@List.nil.{0} MovingQuote.Event))
+                        (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                          (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.true
+                            (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                              (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                                (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                                (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+                                  (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))))))))))))))
+            (@List.cons.{0}
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0}
+                            (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                (@Prod.mk.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+                  (@OfNat.ofNat.{0} Nat (nat_lit 4) (instOfNatNat (nat_lit 4)))
+                  (@Prod.mk.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                    (@OfNat.ofNat.{0} Nat (nat_lit 4) (instOfNatNat (nat_lit 4)))
+                    (@Prod.mk.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                      (@Option.none.{0} Nat)
+                      (@Prod.mk.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                        Bool.false
+                        (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                          (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e4 (@List.nil.{0} MovingQuote.Event))
+                          (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                            (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.false
+                              (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                                (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                                (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                                  (@OfNat.ofNat.{0} Nat (nat_lit 4) (instOfNatNat (nat_lit 4)))
+                                  (@Prod.mk.{0, 0} Int Int
+                                    (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))
+                                    (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100))))))))))))))
+              (@List.nil.{0}
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} Nat
+                      (Prod.{0, 0} (Option.{0} Nat)
+                        (Prod.{0, 0} Bool
+                          (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                            (Option.{0}
+                              (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))))))))
+    (fun (_ : Unit) =>
+      @List.cons.{0}
+        (Prod.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+        (@Prod.mk.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+              (@Prod.mk.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2))))
+                (@Prod.mk.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                  Bool.true
+                  (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                    (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e1 (@List.nil.{0} MovingQuote.Event))
+                    (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                      (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.true
+                        (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+                          (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+                            (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+                              (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))))))))))))))
+        (@List.cons.{0}
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                (@Prod.mk.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                  (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3))))
+                  (@Prod.mk.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                    Bool.false
+                    (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                      (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e2 (@List.nil.{0} MovingQuote.Event))
+                      (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                        (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.false
+                          (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+                            (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                              (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))
+                                (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100))))))))))))))
+          (@List.cons.{0}
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                (@Prod.mk.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                  (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                  (@Prod.mk.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                    (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 4) (instOfNatNat (nat_lit 4))))
+                    (@Prod.mk.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                      Bool.true
+                      (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                        (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e3 (@List.nil.{0} MovingQuote.Event))
+                        (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                          (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.true
+                            (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                              (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                                (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                                (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+                                  (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))))))))))))))
+            (@List.cons.{0}
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0}
+                            (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                (@Prod.mk.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+                  (@OfNat.ofNat.{0} Nat (nat_lit 5) (instOfNatNat (nat_lit 5)))
+                  (@Prod.mk.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                    (@OfNat.ofNat.{0} Nat (nat_lit 4) (instOfNatNat (nat_lit 4)))
+                    (@Prod.mk.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                      (@Option.none.{0} Nat)
+                      (@Prod.mk.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                        Bool.false
+                        (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                          (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e4
+                            (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e5 (@List.nil.{0} MovingQuote.Event)))
+                          (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                            (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.false
+                              (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                                (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                                (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                                  (@OfNat.ofNat.{0} Nat (nat_lit 5) (instOfNatNat (nat_lit 5)))
+                                  (@Prod.mk.{0, 0} Int Int
+                                    (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))
+                                    (@OfNat.ofNat.{0} Int (nat_lit 1) (@instOfNat (nat_lit 1))))))))))))))
+              (@List.nil.{0}
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} Nat
+                      (Prod.{0, 0} (Option.{0} Nat)
+                        (Prod.{0, 0} Bool
+                          (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                            (Option.{0}
+                              (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))))))))
+    (fun (_ : Unit) =>
+      @List.cons.{0}
+        (Prod.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+        (@Prod.mk.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+              (@Prod.mk.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2))))
+                (@Prod.mk.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                  Bool.true
+                  (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                    (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e1 (@List.nil.{0} MovingQuote.Event))
+                    (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                      (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.true
+                        (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+                          (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+                            (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+                              (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))))))))))))))
+        (@List.cons.{0}
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                (@Prod.mk.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                  (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3))))
+                  (@Prod.mk.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                    Bool.false
+                    (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                      (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e2 (@List.nil.{0} MovingQuote.Event))
+                      (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                        (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.false
+                          (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+                            (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                              (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))
+                                (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100))))))))))))))
+          (@List.cons.{0}
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                (@Prod.mk.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                  (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                  (@Prod.mk.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                    (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 4) (instOfNatNat (nat_lit 4))))
+                    (@Prod.mk.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                      Bool.true
+                      (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                        (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e3 (@List.nil.{0} MovingQuote.Event))
+                        (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                          (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.true
+                            (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                              (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                                (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                                (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+                                  (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))))))))))))))
+            (@List.cons.{0}
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0}
+                            (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                (@Prod.mk.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+                  (@OfNat.ofNat.{0} Nat (nat_lit 6) (instOfNatNat (nat_lit 6)))
+                  (@Prod.mk.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                    (@OfNat.ofNat.{0} Nat (nat_lit 4) (instOfNatNat (nat_lit 4)))
+                    (@Prod.mk.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                      (@Option.none.{0} Nat)
+                      (@Prod.mk.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                        Bool.false
+                        (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                          (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e4
+                            (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e5
+                              (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e6
+                                (@List.nil.{0} MovingQuote.Event))))
+                          (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                            (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.false
+                              (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                                (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                                (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                                  (@OfNat.ofNat.{0} Nat (nat_lit 6) (instOfNatNat (nat_lit 6)))
+                                  (@Prod.mk.{0, 0} Int Int
+                                    (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))
+                                    (@OfNat.ofNat.{0} Int (nat_lit 1) (@instOfNat (nat_lit 1))))))))))))))
+              (@List.nil.{0}
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} Nat
+                      (Prod.{0, 0} (Option.{0} Nat)
+                        (Prod.{0, 0} Bool
+                          (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                            (Option.{0}
+                              (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))))))))
+    (fun (_ : ⋯) =>
+      @List.cons.{0}
+        (Prod.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+        (@Prod.mk.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+              (@Prod.mk.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2))))
+                (@Prod.mk.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                  Bool.true
+                  (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                    (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e1 (@List.nil.{0} MovingQuote.Event))
+                    (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                      (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.true
+                        (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+                          (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+                            (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+                              (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))))))))))))))
+        (@List.cons.{0}
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                (@Prod.mk.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                  (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3))))
+                  (@Prod.mk.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                    Bool.false
+                    (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                      (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e2 (@List.nil.{0} MovingQuote.Event))
+                      (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                        (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.false
+                          (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+                            (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                              (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))
+                                (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100))))))))))))))
+          (@List.cons.{0}
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                (@Prod.mk.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                  (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                  (@Prod.mk.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                    (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 4) (instOfNatNat (nat_lit 4))))
+                    (@Prod.mk.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                      Bool.true
+                      (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                        (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e3 (@List.nil.{0} MovingQuote.Event))
+                        (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                          (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.true
+                            (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                              (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                                (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                                (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+                                  (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))))))))))))))
+            (@List.cons.{0}
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0}
+                            (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+                (@Prod.mk.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+                  (@OfNat.ofNat.{0} Nat (nat_lit 6) (instOfNatNat (nat_lit 6)))
+                  (@Prod.mk.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                    (@OfNat.ofNat.{0} Nat (nat_lit 4) (instOfNatNat (nat_lit 4)))
+                    (@Prod.mk.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                      (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 7) (instOfNatNat (nat_lit 7))))
+                      (@Prod.mk.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                        Bool.false
+                        (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                          (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e4
+                            (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e5
+                              (@List.cons.{0} MovingQuote.Event Stage57Direct.Main.e6
+                                (@List.nil.{0} MovingQuote.Event))))
+                          (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                            ⋯)))))))
+              ⋯))))
+    ⋯ ⋯
+def Stage57Direct.NoneControl.es : List.{0} MovingQuote.Event :=
+@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e1
+  (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e2
+    (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e3
+      (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e4
+        (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e5
+          (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e6
+            (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e7 (@List.nil.{0} MovingQuote.Event)))))))
+def Stage57Direct.NoneControl.books : Nat → MovingQuote.Book :=
+fun (x : Nat) =>
+  Stage57Direct.NoneControl.books.match_1.{1} (fun (x : Nat) => MovingQuote.Book) x
+    (fun (_ : Unit) =>
+      MovingQuote.Book.mk
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100))) (@List.nil.{0} Int))
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))) (@List.nil.{0} Int)))
+    (fun (_ : Unit) =>
+      MovingQuote.Book.mk
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 101) (@instOfNat (nat_lit 101)))
+          (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100))) (@List.nil.{0} Int)))
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))) (@List.nil.{0} Int)))
+    (fun (_ : Unit) =>
+      MovingQuote.Book.mk
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100))) (@List.nil.{0} Int))
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))) (@List.nil.{0} Int)))
+    (fun (_ : Unit) =>
+      MovingQuote.Book.mk (@List.nil.{0} Int)
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))) (@List.nil.{0} Int)))
+    (fun (_ : Unit) =>
+      MovingQuote.Book.mk
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 2) (@instOfNat (nat_lit 2))) (@List.nil.{0} Int))
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))) (@List.nil.{0} Int)))
+    (fun (_ : Unit) =>
+      MovingQuote.Book.mk
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 3) (@instOfNat (nat_lit 3)))
+          (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 2) (@instOfNat (nat_lit 2))) (@List.nil.{0} Int)))
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))) (@List.nil.{0} Int)))
+    (fun (_ : Unit) =>
+      MovingQuote.Book.mk
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 2) (@instOfNat (nat_lit 2))) (@List.nil.{0} Int))
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))) (@List.nil.{0} Int)))
+    (fun (_ : Unit) =>
+      MovingQuote.Book.mk
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 4) (@instOfNat (nat_lit 4)))
+          (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 2) (@instOfNat (nat_lit 2))) (@List.nil.{0} Int)))
+        (@List.cons.{0} Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))) (@List.nil.{0} Int)))
+    fun (x : Nat) => MovingQuote.Book.mk (@List.nil.{0} Int) (@List.nil.{0} Int)
+def Stage57Direct.NoneControl.qs : List.{0} (Option.{0} MovingQuote.Quote) :=
+@List.cons.{0} (Option.{0} MovingQuote.Quote)
+  (@Option.some.{0} MovingQuote.Quote
+    (MovingQuote.Quote.mk (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+      (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))))
+  (@List.cons.{0} (Option.{0} MovingQuote.Quote)
+    (@Option.some.{0} MovingQuote.Quote
+      (MovingQuote.Quote.mk (@OfNat.ofNat.{0} Int (nat_lit 101) (@instOfNat (nat_lit 101)))
+        (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))))
+    (@List.cons.{0} (Option.{0} MovingQuote.Quote)
+      (@Option.some.{0} MovingQuote.Quote
+        (MovingQuote.Quote.mk (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+          (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))))
+      (@List.cons.{0} (Option.{0} MovingQuote.Quote) (@Option.none.{0} MovingQuote.Quote)
+        (@List.cons.{0} (Option.{0} MovingQuote.Quote)
+          (@Option.some.{0} MovingQuote.Quote
+            (MovingQuote.Quote.mk (@OfNat.ofNat.{0} Int (nat_lit 2) (@instOfNat (nat_lit 2)))
+              (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))))
+          (@List.cons.{0} (Option.{0} MovingQuote.Quote)
+            (@Option.some.{0} MovingQuote.Quote
+              (MovingQuote.Quote.mk (@OfNat.ofNat.{0} Int (nat_lit 3) (@instOfNat (nat_lit 3)))
+                (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))))
+            (@List.cons.{0} (Option.{0} MovingQuote.Quote)
+              (@Option.some.{0} MovingQuote.Quote
+                (MovingQuote.Quote.mk (@OfNat.ofNat.{0} Int (nat_lit 2) (@instOfNat (nat_lit 2)))
+                  (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))))
+              (@List.cons.{0} (Option.{0} MovingQuote.Quote)
+                (@Option.some.{0} MovingQuote.Quote
+                  (MovingQuote.Quote.mk (@OfNat.ofNat.{0} Int (nat_lit 4) (@instOfNat (nat_lit 4)))
+                    (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))))
+                (@List.nil.{0} (Option.{0} MovingQuote.Quote)))))))))
+def Stage57Direct.NoneControl.expected : Nat →
+  List.{0}
+    (Prod.{0, 0} Nat
+      (Prod.{0, 0} Nat
+        (Prod.{0, 0} Nat
+          (Prod.{0, 0} (Option.{0} Nat)
+            (Prod.{0, 0} Bool
+              (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))) :=
+fun (x : Nat) =>
+  Stage57Direct.NoneControl.books.match_1.{1}
+    (fun (x : Nat) =>
+      List.{0}
+        (Prod.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))))
+    x
+    (fun (_ : Unit) =>
+      @List.nil.{0}
+        (Prod.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))))
+    (fun (_ : Unit) =>
+      @List.cons.{0}
+        (Prod.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+        (@Prod.mk.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+              (@Prod.mk.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                (@Option.none.{0} Nat)
+                (@Prod.mk.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                  Bool.true
+                  (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                    (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e1 (@List.nil.{0} MovingQuote.Event))
+                    (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                      (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.true
+                        (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+                          (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+                            (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+                              (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))))))))))))))
+        (@List.nil.{0}
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))))
+    (fun (_ : Unit) =>
+      @List.cons.{0}
+        (Prod.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+        (@Prod.mk.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+              (@Prod.mk.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2))))
+                (@Prod.mk.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                  Bool.true
+                  (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                    (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e1 (@List.nil.{0} MovingQuote.Event))
+                    (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                      (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.true
+                        (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+                          (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+                            (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+                              (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))))))))))))))
+        (@List.cons.{0}
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                (@Prod.mk.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                  (@Option.none.{0} Nat)
+                  (@Prod.mk.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                    Bool.false
+                    (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                      (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e2 (@List.nil.{0} MovingQuote.Event))
+                      (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                        (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.false
+                          (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+                            (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                              (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                              (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))
+                                (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100))))))))))))))
+          (@List.nil.{0}
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0}
+                          (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))))))
+    (fun (_ : Unit) =>
+      @List.cons.{0}
+        (Prod.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+        (@Prod.mk.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+              (@Prod.mk.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2))))
+                (@Prod.mk.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                  Bool.true
+                  (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                    (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e1 (@List.nil.{0} MovingQuote.Event))
+                    (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                      (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.true
+                        (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+                          (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+                            (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+                              (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))))))))))))))
+        (@List.cons.{0}
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                (@Prod.mk.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                  (@Option.none.{0} Nat)
+                  (@Prod.mk.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                    Bool.false
+                    (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                      (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e2
+                        (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e3
+                          (@List.nil.{0} MovingQuote.Event)))
+                      (@Option.none.{0}
+                        (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+          (@List.nil.{0}
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0}
+                          (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))))))
+    (fun (_ : Unit) =>
+      @List.cons.{0}
+        (Prod.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+        (@Prod.mk.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+              (@Prod.mk.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2))))
+                (@Prod.mk.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                  Bool.true
+                  (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                    (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e1 (@List.nil.{0} MovingQuote.Event))
+                    (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                      (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.true
+                        (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+                          (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+                            (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+                              (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))))))))))))))
+        (@List.cons.{0}
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                (@Prod.mk.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                  (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 4) (instOfNatNat (nat_lit 4))))
+                  (@Prod.mk.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                    Bool.false
+                    (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                      (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e2
+                        (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e3
+                          (@List.nil.{0} MovingQuote.Event)))
+                      (@Option.none.{0}
+                        (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+          (@List.cons.{0}
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 4) (instOfNatNat (nat_lit 4)))
+                (@Prod.mk.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                  (@OfNat.ofNat.{0} Nat (nat_lit 4) (instOfNatNat (nat_lit 4)))
+                  (@Prod.mk.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                    (@Option.none.{0} Nat)
+                    (@Prod.mk.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                      Bool.true
+                      (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                        (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e4
+                          (@List.nil.{0} MovingQuote.Event))
+                        (@Option.none.{0}
+                          (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+            (@List.nil.{0}
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0}
+                            (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))))))
+    (fun (_ : Unit) =>
+      @List.cons.{0}
+        (Prod.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+        (@Prod.mk.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+              (@Prod.mk.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2))))
+                (@Prod.mk.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                  Bool.true
+                  (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                    (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e1 (@List.nil.{0} MovingQuote.Event))
+                    (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                      (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.true
+                        (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+                          (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+                            (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+                              (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))))))))))))))
+        (@List.cons.{0}
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                (@Prod.mk.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                  (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 4) (instOfNatNat (nat_lit 4))))
+                  (@Prod.mk.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                    Bool.false
+                    (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                      (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e2
+                        (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e3
+                          (@List.nil.{0} MovingQuote.Event)))
+                      (@Option.none.{0}
+                        (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+          (@List.cons.{0}
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 5) (instOfNatNat (nat_lit 5)))
+                (@Prod.mk.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                  (@OfNat.ofNat.{0} Nat (nat_lit 4) (instOfNatNat (nat_lit 4)))
+                  (@Prod.mk.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                    (@Option.none.{0} Nat)
+                    (@Prod.mk.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                      Bool.true
+                      (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                        (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e4
+                          (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e5
+                            (@List.nil.{0} MovingQuote.Event)))
+                        (@Option.none.{0}
+                          (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+            (@List.nil.{0}
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0}
+                            (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))))))
+    (fun (_ : Unit) =>
+      @List.cons.{0}
+        (Prod.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+        (@Prod.mk.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+              (@Prod.mk.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2))))
+                (@Prod.mk.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                  Bool.true
+                  (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                    (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e1 (@List.nil.{0} MovingQuote.Event))
+                    (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                      (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.true
+                        (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+                          (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+                            (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+                              (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))))))))))))))
+        (@List.cons.{0}
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                (@Prod.mk.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                  (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 4) (instOfNatNat (nat_lit 4))))
+                  (@Prod.mk.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                    Bool.false
+                    (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                      (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e2
+                        (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e3
+                          (@List.nil.{0} MovingQuote.Event)))
+                      (@Option.none.{0}
+                        (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+          (@List.cons.{0}
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 5) (instOfNatNat (nat_lit 5)))
+                (@Prod.mk.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                  (@OfNat.ofNat.{0} Nat (nat_lit 4) (instOfNatNat (nat_lit 4)))
+                  (@Prod.mk.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                    (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 6) (instOfNatNat (nat_lit 6))))
+                    (@Prod.mk.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                      Bool.true
+                      (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                        (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e4
+                          (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e5
+                            (@List.nil.{0} MovingQuote.Event)))
+                        (@Option.none.{0}
+                          (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+            (@List.cons.{0}
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0}
+                            (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 5) (instOfNatNat (nat_lit 5)))
+                (@Prod.mk.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+                  (@OfNat.ofNat.{0} Nat (nat_lit 6) (instOfNatNat (nat_lit 6)))
+                  (@Prod.mk.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                    (@OfNat.ofNat.{0} Nat (nat_lit 6) (instOfNatNat (nat_lit 6)))
+                    (@Prod.mk.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                      (@Option.none.{0} Nat)
+                      (@Prod.mk.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                        Bool.false
+                        (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                          (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e6
+                            (@List.nil.{0} MovingQuote.Event))
+                          (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                            (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.false
+                              (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                                (@OfNat.ofNat.{0} Nat (nat_lit 5) (instOfNatNat (nat_lit 5)))
+                                (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                                  (@OfNat.ofNat.{0} Nat (nat_lit 6) (instOfNatNat (nat_lit 6)))
+                                  (@Prod.mk.{0, 0} Int Int
+                                    (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))
+                                    (@OfNat.ofNat.{0} Int (nat_lit 2) (@instOfNat (nat_lit 2))))))))))))))
+              (@List.nil.{0}
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} Nat
+                      (Prod.{0, 0} (Option.{0} Nat)
+                        (Prod.{0, 0} Bool
+                          (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                            (Option.{0}
+                              (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))))))))
+    (fun (_ : Unit) =>
+      @List.cons.{0}
+        (Prod.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+        (@Prod.mk.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+              (@Prod.mk.{0, 0} (Option.{0} Nat)
+                (Prod.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2))))
+                (@Prod.mk.{0, 0} Bool
+                  (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                  Bool.true
+                  (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                    (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                    (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e1 (@List.nil.{0} MovingQuote.Event))
+                    (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                      (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.true
+                        (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                          (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+                          (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+                            (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 100) (@instOfNat (nat_lit 100)))
+                              (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))))))))))))))
+        (@List.cons.{0}
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+          (@Prod.mk.{0, 0} Nat
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+            (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2)))
+                (@Prod.mk.{0, 0} (Option.{0} Nat)
+                  (Prod.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                  (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 4) (instOfNatNat (nat_lit 4))))
+                  (@Prod.mk.{0, 0} Bool
+                    (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                    Bool.false
+                    (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                      (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                      (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e2
+                        (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e3
+                          (@List.nil.{0} MovingQuote.Event)))
+                      (@Option.none.{0}
+                        (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+          (@List.cons.{0}
+            (Prod.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+            (@Prod.mk.{0, 0} Nat
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+              (@OfNat.ofNat.{0} Nat (nat_lit 3) (instOfNatNat (nat_lit 3)))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 5) (instOfNatNat (nat_lit 5)))
+                (@Prod.mk.{0, 0} Nat
+                  (Prod.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                  (@OfNat.ofNat.{0} Nat (nat_lit 4) (instOfNatNat (nat_lit 4)))
+                  (@Prod.mk.{0, 0} (Option.{0} Nat)
+                    (Prod.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                    (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 6) (instOfNatNat (nat_lit 6))))
+                    (@Prod.mk.{0, 0} Bool
+                      (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                      Bool.true
+                      (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                        (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                        (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e4
+                          (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e5
+                            (@List.nil.{0} MovingQuote.Event)))
+                        (@Option.none.{0}
+                          (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+            (@List.cons.{0}
+              (Prod.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0}
+                            (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+              (@Prod.mk.{0, 0} Nat
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+                (@OfNat.ofNat.{0} Nat (nat_lit 5) (instOfNatNat (nat_lit 5)))
+                (@Prod.mk.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+                  (@OfNat.ofNat.{0} Nat (nat_lit 6) (instOfNatNat (nat_lit 6)))
+                  (@Prod.mk.{0, 0} Nat
+                    (Prod.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                    (@OfNat.ofNat.{0} Nat (nat_lit 6) (instOfNatNat (nat_lit 6)))
+                    (@Prod.mk.{0, 0} (Option.{0} Nat)
+                      (Prod.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                      (@Option.some.{0} Nat (@OfNat.ofNat.{0} Nat (nat_lit 7) (instOfNatNat (nat_lit 7))))
+                      (@Prod.mk.{0, 0} Bool
+                        (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                        Bool.false
+                        (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                          (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                          (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e6
+                            (@List.nil.{0} MovingQuote.Event))
+                          (@Option.some.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                            (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.false
+                              (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                                (@OfNat.ofNat.{0} Nat (nat_lit 5) (instOfNatNat (nat_lit 5)))
+                                (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                                  (@OfNat.ofNat.{0} Nat (nat_lit 6) (instOfNatNat (nat_lit 6)))
+                                  (@Prod.mk.{0, 0} Int Int
+                                    (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102)))
+                                    (@OfNat.ofNat.{0} Int (nat_lit 2) (@instOfNat (nat_lit 2))))))))))))))
+              (@List.cons.{0}
+                (Prod.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} Nat
+                      (Prod.{0, 0} (Option.{0} Nat)
+                        (Prod.{0, 0} Bool
+                          (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                            (Option.{0}
+                              (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+                (@Prod.mk.{0, 0} Nat
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} Nat
+                      (Prod.{0, 0} (Option.{0} Nat)
+                        (Prod.{0, 0} Bool
+                          (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                            (Option.{0}
+                              (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))))
+                  (@OfNat.ofNat.{0} Nat (nat_lit 6) (instOfNatNat (nat_lit 6)))
+                  (@Prod.mk.{0, 0} Nat
+                    (Prod.{0, 0} Nat
+                      (Prod.{0, 0} (Option.{0} Nat)
+                        (Prod.{0, 0} Bool
+                          (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                            (Option.{0}
+                              (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))
+                    (@OfNat.ofNat.{0} Nat (nat_lit 7) (instOfNatNat (nat_lit 7)))
+                    (@Prod.mk.{0, 0} Nat
+                      (Prod.{0, 0} (Option.{0} Nat)
+                        (Prod.{0, 0} Bool
+                          (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                            (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))))
+                      (@OfNat.ofNat.{0} Nat (nat_lit 7) (instOfNatNat (nat_lit 7)))
+                      (@Prod.mk.{0, 0} (Option.{0} Nat)
+                        (Prod.{0, 0} Bool
+                          (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                            (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))
+                        (@Option.none.{0} Nat)
+                        (@Prod.mk.{0, 0} Bool
+                          (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                            (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))))
+                          Bool.true
+                          (@Prod.mk.{0, 0} (List.{0} MovingQuote.Event)
+                            (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))
+                            (@List.cons.{0} MovingQuote.Event Stage57Direct.NoneControl.e7
+                              (@List.nil.{0} MovingQuote.Event))
+                            (@Option.some.{0}
+                              (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))))
+                              (@Prod.mk.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))) Bool.true
+                                (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int))
+                                  (@OfNat.ofNat.{0} Nat (nat_lit 6) (instOfNatNat (nat_lit 6)))
+                                  (@Prod.mk.{0, 0} Nat (Prod.{0, 0} Int Int)
+                                    (@OfNat.ofNat.{0} Nat (nat_lit 7) (instOfNatNat (nat_lit 7)))
+                                    (@Prod.mk.{0, 0} Int Int (@OfNat.ofNat.{0} Int (nat_lit 2) (@instOfNat (nat_lit 2)))
+                                      (@OfNat.ofNat.{0} Int (nat_lit 102) (@instOfNat (nat_lit 102))))))))))))))
+                (@List.nil.{0}
+                  (Prod.{0, 0} Nat
+                    (Prod.{0, 0} Nat
+                      (Prod.{0, 0} Nat
+                        (Prod.{0, 0} (Option.{0} Nat)
+                          (Prod.{0, 0} Bool
+                            (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                              (Option.{0}
+                                (Prod.{0, 0} Bool
+                                  (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))))))))
+    fun (x : Nat) =>
+    @List.nil.{0}
+      (Prod.{0, 0} Nat
+        (Prod.{0, 0} Nat
+          (Prod.{0, 0} Nat
+            (Prod.{0, 0} (Option.{0} Nat)
+              (Prod.{0, 0} Bool
+                (Prod.{0, 0} (List.{0} MovingQuote.Event)
+                  (Option.{0} (Prod.{0, 0} Bool (Prod.{0, 0} Nat (Prod.{0, 0} Nat (Prod.{0, 0} Int Int)))))))))))
+structure MovingQuote.Event : Type
+number of parameters: 0
+fields:
+  MovingQuote.Event.core : DirectQuote.Event
+  MovingQuote.Event.price : Int
+constructor:
+  MovingQuote.Event.mk (core : DirectQuote.Event) (price : Int) : MovingQuote.Event
+structure MovingQuote.Book : Type
+number of parameters: 0
+fields:
+  MovingQuote.Book.bids : List.{0} Int
+  MovingQuote.Book.asks : List.{0} Int
+constructor:
+  MovingQuote.Book.mk (bids asks : List.{0} Int) : MovingQuote.Book
+structure MovingQuote.Quote : Type
+number of parameters: 0
+fields:
+  MovingQuote.Quote.bid : Int
+  MovingQuote.Quote.ask : Int
+constructor:
+  MovingQuote.Quote.mk (bid ask : Int) : MovingQuote.Quote
+def MovingQuote.QuoteOf : (b : MovingQuote.Book) → (q : MovingQuote.Quote) → Prop :=
+fun (b : MovingQuote.Book) (q : MovingQuote.Quote) =>
+  And (MovingQuote.BestBid (MovingQuote.Book.bids b) (MovingQuote.Quote.bid q))
+    (And (MovingQuote.BestAsk (MovingQuote.Book.asks b) (MovingQuote.Quote.ask q))
+      (@LT.lt.{0} Int Int.instLTInt (MovingQuote.Quote.bid q) (MovingQuote.Quote.ask q)))
+def MovingQuote.BestBid : (xs : List.{0} Int) → (p : Int) → Prop :=
+fun (xs : List.{0} Int) (p : Int) =>
+  And (@Membership.mem.{0, 0} Int (List.{0} Int) (@List.instMembership.{0} Int) xs p)
+    (∀ (x : Int),
+      @Membership.mem.{0, 0} Int (List.{0} Int) (@List.instMembership.{0} Int) xs x → @LE.le.{0} Int Int.instLEInt x p)
+def MovingQuote.BestAsk : (xs : List.{0} Int) → (p : Int) → Prop :=
+fun (xs : List.{0} Int) (p : Int) =>
+  And (@Membership.mem.{0, 0} Int (List.{0} Int) (@List.instMembership.{0} Int) xs p)
+    (∀ (x : Int),
+      @Membership.mem.{0, 0} Int (List.{0} Int) (@List.instMembership.{0} Int) xs x → @LE.le.{0} Int Int.instLEInt p x)
+def MovingQuote.Step : (e : MovingQuote.Event) → (a b : MovingQuote.Book) → Prop :=
+fun (e : MovingQuote.Event) (a b : MovingQuote.Book) =>
+  And
+    (@LT.lt.{0} Nat instLTNat (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+      (DirectQuote.Event.amount (MovingQuote.Event.core e)))
+    (@ite.{1} Prop (@Eq.{1} Bool (DirectQuote.Event.bidSide (MovingQuote.Event.core e)) Bool.true)
+      (instDecidableEqBool (DirectQuote.Event.bidSide (MovingQuote.Event.core e)) Bool.true)
+      (And
+        (MovingQuote.Update (DirectQuote.Event.action (MovingQuote.Event.core e)) (MovingQuote.Event.price e)
+          (DirectQuote.Event.amount (MovingQuote.Event.core e)) (MovingQuote.Book.bids a) (MovingQuote.Book.bids b))
+        (@Eq.{1} (List.{0} Int) (MovingQuote.Book.asks b) (MovingQuote.Book.asks a)))
+      (And
+        (MovingQuote.Update (DirectQuote.Event.action (MovingQuote.Event.core e)) (MovingQuote.Event.price e)
+          (DirectQuote.Event.amount (MovingQuote.Event.core e)) (MovingQuote.Book.asks a) (MovingQuote.Book.asks b))
+        (@Eq.{1} (List.{0} Int) (MovingQuote.Book.bids b) (MovingQuote.Book.bids a))))
+def MovingQuote.Update : (action : DirectQuote.Action) →
+  (price : Int) → (amount : Nat) → (before after : List.{0} Int) → Prop :=
+fun (action : DirectQuote.Action) (price : Int) (amount : Nat) (before after : List.{0} Int) =>
+  @ite.{1} Prop (@Eq.{1} DirectQuote.Action action DirectQuote.Action.add)
+    (DirectQuote.instDecidableEqAction action DirectQuote.Action.add)
+    (@Eq.{1} (List.{0} Int) after
+      (@HAppend.hAppend.{0, 0, 0} (List.{0} Int) (List.{0} Int) (List.{0} Int)
+        (@instHAppendOfAppend.{0} (List.{0} Int) (@List.instAppend.{0} Int)) (@List.replicate.{0} Int amount price)
+        before))
+    (@Exists.{1} (List.{0} Int) fun (pre : List.{0} Int) =>
+      @Exists.{1} (List.{0} Int) fun (post : List.{0} Int) =>
+        And
+          (@Eq.{1} (List.{0} Int) before
+            (@HAppend.hAppend.{0, 0, 0} (List.{0} Int) (List.{0} Int) (List.{0} Int)
+              (@instHAppendOfAppend.{0} (List.{0} Int) (@List.instAppend.{0} Int))
+              (@HAppend.hAppend.{0, 0, 0} (List.{0} Int) (List.{0} Int) (List.{0} Int)
+                (@instHAppendOfAppend.{0} (List.{0} Int) (@List.instAppend.{0} Int)) pre
+                (@List.replicate.{0} Int amount price))
+              post))
+          (@Eq.{1} (List.{0} Int) after
+            (@HAppend.hAppend.{0, 0, 0} (List.{0} Int) (List.{0} Int) (List.{0} Int)
+              (@instHAppendOfAppend.{0} (List.{0} Int) (@List.instAppend.{0} Int)) pre post)))
+def MovingQuote.positive : (e : MovingQuote.Event) → Bool :=
+fun (e : MovingQuote.Event) => DirectQuote.positive (MovingQuote.Event.core e)
+def DirectQuote.positive : (e : DirectQuote.Event) → Bool :=
+fun (e : DirectQuote.Event) =>
+  @ite.{1} Bool (@Eq.{1} Bool (DirectQuote.Event.bidSide e) Bool.true)
+    (instDecidableEqBool (DirectQuote.Event.bidSide e) Bool.true)
+    (@BEq.beq.{0} DirectQuote.Action (@instBEqOfDecidableEq.{0} DirectQuote.Action DirectQuote.instDecidableEqAction)
+      (DirectQuote.Event.action e) DirectQuote.Action.add)
+    (Bool.not
+      (@BEq.beq.{0} DirectQuote.Action (@instBEqOfDecidableEq.{0} DirectQuote.Action DirectQuote.instDecidableEqAction)
+        (DirectQuote.Event.action e) DirectQuote.Action.add))
+def MovingQuote.construct : (es : List.{0} MovingQuote.Event) →
+  (quotes : List.{0} (Option.{0} MovingQuote.Quote)) → Option.{0} (List.{0} MovingQuote.Output) :=
+fun (es : List.{0} MovingQuote.Event) (quotes : List.{0} (Option.{0} MovingQuote.Quote)) =>
+  @ite.{1} (Option.{0} (List.{0} MovingQuote.Output))
+    (@Eq.{1} Nat (@List.length.{0} (Option.{0} MovingQuote.Quote) quotes)
+      (@HAdd.hAdd.{0, 0, 0} Nat Nat Nat (@instHAdd.{0} Nat instAddNat) (@List.length.{0} MovingQuote.Event es)
+        (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))))
+    (instDecidableEqNat (@List.length.{0} (Option.{0} MovingQuote.Quote) quotes)
+      (@HAdd.hAdd.{0, 0, 0} Nat Nat Nat (@instHAdd.{0} Nat instAddNat) (@List.length.{0} MovingQuote.Event es)
+        (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))))
+    (@Option.some.{0} (List.{0} MovingQuote.Output)
+      (@List.map.{0, 0} MovingQuote.Located MovingQuote.Output
+        (fun (l : MovingQuote.Located) =>
+          MovingQuote.Output.mk l
+            (MovingQuote.readout (MovingQuote.positive (MovingQuote.Block.first (MovingQuote.Located.block l)))
+              (MovingQuote.Located.start l)
+              (@List.take.{0} (Option.{0} MovingQuote.Quote)
+                (@HAdd.hAdd.{0, 0, 0} Nat Nat Nat (@instHAdd.{0} Nat instAddNat)
+                  (@List.length.{0} MovingQuote.Event (MovingQuote.events (MovingQuote.Located.block l)))
+                  (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))))
+                (@List.drop.{0} (Option.{0} MovingQuote.Quote) (MovingQuote.Located.start l) quotes))))
+        (MovingQuote.locate (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0))) (MovingQuote.group es))))
+    (@Option.none.{0} (List.{0} MovingQuote.Output))
+def MovingQuote.readout : (pos : Bool) →
+  (start : Nat) → (qs : List.{0} (Option.{0} MovingQuote.Quote)) → Option.{0} NewChanlun.Origin.Segment :=
+fun (pos : Bool) (start : Nat) (qs : List.{0} (Option.{0} MovingQuote.Quote)) =>
+  @ite.{1} (Option.{0} NewChanlun.Origin.Segment)
+    (@LT.lt.{0} Nat instLTNat (@List.length.{0} (Option.{0} MovingQuote.Quote) qs)
+      (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2))))
+    (Nat.decLt (@List.length.{0} (Option.{0} MovingQuote.Quote) qs)
+      (@OfNat.ofNat.{0} Nat (nat_lit 2) (instOfNatNat (nat_lit 2))))
+    (@Option.none.{0} NewChanlun.Origin.Segment)
+    (@ite.{1} (Option.{0} NewChanlun.Origin.Segment)
+      (@Eq.{1} Bool (Bool.not (@List.all.{0} (Option.{0} MovingQuote.Quote) qs MovingQuote.quoteReady)) Bool.true)
+      (instDecidableEqBool (Bool.not (@List.all.{0} (Option.{0} MovingQuote.Quote) qs MovingQuote.quoteReady))
+        Bool.true)
+      (@Option.none.{0} NewChanlun.Origin.Segment)
+      (MovingQuote.readout.match_1.{1}
+        (fun (x x_1 : Option.{0} (Option.{0} MovingQuote.Quote)) => Option.{0} NewChanlun.Origin.Segment)
+        (@List.head?.{0} (Option.{0} MovingQuote.Quote) qs) (@List.getLast?.{0} (Option.{0} MovingQuote.Quote) qs)
+        (fun (q r : MovingQuote.Quote) =>
+          @ite.{1} (Option.{0} NewChanlun.Origin.Segment)
+            (@ite.{1} Prop (@Eq.{1} Bool pos Bool.true) (instDecidableEqBool pos Bool.true)
+              (@LT.lt.{0} Int Int.instLTInt (MovingQuote.Quote.bid q) (MovingQuote.Quote.ask r))
+              (@LT.lt.{0} Int Int.instLTInt (MovingQuote.Quote.bid r) (MovingQuote.Quote.ask q)))
+            (@instDecidableIte (@Eq.{1} Bool pos Bool.true)
+              (@LT.lt.{0} Int Int.instLTInt (MovingQuote.Quote.bid q) (MovingQuote.Quote.ask r))
+              (@LT.lt.{0} Int Int.instLTInt (MovingQuote.Quote.bid r) (MovingQuote.Quote.ask q))
+              (instDecidableEqBool pos Bool.true) (Int.decLt (MovingQuote.Quote.bid q) (MovingQuote.Quote.ask r))
+              (Int.decLt (MovingQuote.Quote.bid r) (MovingQuote.Quote.ask q)))
+            (@Option.some.{0} NewChanlun.Origin.Segment
+              (MovingQuote.leg pos q r start
+                (@HSub.hSub.{0, 0, 0} Nat Nat Nat (@instHSub.{0} Nat instSubNat)
+                  (@List.length.{0} (Option.{0} MovingQuote.Quote) qs)
+                  (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))))))
+            (@Option.none.{0} NewChanlun.Origin.Segment))
+        fun (x x_1 : Option.{0} (Option.{0} MovingQuote.Quote)) => @Option.none.{0} NewChanlun.Origin.Segment))
+def MovingQuote.leg : (pos : Bool) → (q r : MovingQuote.Quote) → (start len : Nat) → NewChanlun.Origin.Segment :=
+fun (pos : Bool) (q r : MovingQuote.Quote) (start len : Nat) =>
+  @ite.{1} NewChanlun.Origin.Segment (@Eq.{1} Bool pos Bool.true) (instDecidableEqBool pos Bool.true)
+    (NewChanlun.Origin.Segment.mk NewChanlun.Origin.Direction.up start
+      (@HAdd.hAdd.{0, 0, 0} Nat Nat Nat (@instHAdd.{0} Nat instAddNat) start len) (MovingQuote.Quote.bid q)
+      (MovingQuote.Quote.ask r))
+    (NewChanlun.Origin.Segment.mk NewChanlun.Origin.Direction.down start
+      (@HAdd.hAdd.{0, 0, 0} Nat Nat Nat (@instHAdd.{0} Nat instAddNat) start len) (MovingQuote.Quote.ask q)
+      (MovingQuote.Quote.bid r))
+def MovingQuote.locate : (start : Nat) → List.{0} MovingQuote.Block → List.{0} MovingQuote.Located :=
+fun (start : Nat) (x : List.{0} MovingQuote.Block) =>
+  @List.brecOn.{1, 0} MovingQuote.Block
+    (fun (x : List.{0} MovingQuote.Block) => (start : Nat) → List.{0} MovingQuote.Located) x MovingQuote.locate._f start
+def MovingQuote.group : List.{0} MovingQuote.Event → List.{0} MovingQuote.Block :=
+fun (x : List.{0} MovingQuote.Event) =>
+  @List.brecOn.{1, 0} MovingQuote.Event (fun (x : List.{0} MovingQuote.Event) => List.{0} MovingQuote.Block) x
+    MovingQuote.group._f
+def BookQuote.Through : (es : List.{0} MovingQuote.Event) → (bs : Nat → MovingQuote.Book) → (n : Nat) → Prop :=
+fun (es : List.{0} MovingQuote.Event) (bs : Nat → MovingQuote.Book) (n : Nat) =>
+  ∀ (i : Nat),
+    @LT.lt.{0} Nat instLTNat i n →
+      @Exists.{1} MovingQuote.Event fun (e : MovingQuote.Event) =>
+        And
+          (@Eq.{1} (Option.{0} MovingQuote.Event)
+            (@GetElem?.getElem?.{0, 0, 0} (List.{0} MovingQuote.Event) Nat MovingQuote.Event
+              (fun (as : List.{0} MovingQuote.Event) (i : Nat) =>
+                @LT.lt.{0} Nat instLTNat i (@List.length.{0} MovingQuote.Event as))
+              (@List.instGetElem?NatLtLength.{0} MovingQuote.Event) es i)
+            (@Option.some.{0} MovingQuote.Event e))
+          (MovingQuote.Step e (bs i)
+            (bs
+              (@HAdd.hAdd.{0, 0, 0} Nat Nat Nat (@instHAdd.{0} Nat instAddNat) i
+                (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))))))
+def BookQuote.Read : (b : MovingQuote.Book) → Option.{0} MovingQuote.Quote → Prop :=
+fun (b : MovingQuote.Book) (x : Option.{0} MovingQuote.Quote) =>
+  BookQuote.Read.match_1.{1} (fun (x : Option.{0} MovingQuote.Quote) => Prop) x
+    (fun (q : MovingQuote.Quote) => MovingQuote.QuoteOf b q) fun (_ : Unit) =>
+    Not (@Exists.{1} MovingQuote.Quote fun (q : MovingQuote.Quote) => MovingQuote.QuoteOf b q)
+def BookQuote.Reads : (bs : Nat → MovingQuote.Book) → (qs : List.{0} (Option.{0} MovingQuote.Quote)) → Prop :=
+fun (bs : Nat → MovingQuote.Book) (qs : List.{0} (Option.{0} MovingQuote.Quote)) =>
+  ∀ (i : Nat) (q : Option.{0} MovingQuote.Quote),
+    @Eq.{1} (Option.{0} (Option.{0} MovingQuote.Quote))
+        (@GetElem?.getElem?.{0, 0, 0} (List.{0} (Option.{0} MovingQuote.Quote)) Nat (Option.{0} MovingQuote.Quote)
+          (fun (as : List.{0} (Option.{0} MovingQuote.Quote)) (i : Nat) =>
+            @LT.lt.{0} Nat instLTNat i (@List.length.{0} (Option.{0} MovingQuote.Quote) as))
+          (@List.instGetElem?NatLtLength.{0} (Option.{0} MovingQuote.Quote)) qs i)
+        (@Option.some.{0} (Option.{0} MovingQuote.Quote) q) →
+      BookQuote.Read (bs i) q
+structure NewChanlun.Origin.Segment : Type
+number of parameters: 0
+fields:
+  NewChanlun.Origin.Segment.direction : NewChanlun.Origin.Direction
+  NewChanlun.Origin.Segment.startIndex : NewChanlun.Origin.Index
+  NewChanlun.Origin.Segment.endIndex : NewChanlun.Origin.Index
+  NewChanlun.Origin.Segment.startPrice : NewChanlun.Origin.Tick
+  NewChanlun.Origin.Segment.endPrice : NewChanlun.Origin.Tick
+constructor:
+  NewChanlun.Origin.Segment.mk (direction : NewChanlun.Origin.Direction) (startIndex endIndex : NewChanlun.Origin.Index)
+    (startPrice endPrice : NewChanlun.Origin.Tick) : NewChanlun.Origin.Segment
+'Stage57Direct.witness_root' depends on axioms: [propext, Quot.sound.{u}]
+'Stage57Direct.primitive_strict' depends on axioms: [propext, Classical.choice.{u}, Quot.sound.{u}]
