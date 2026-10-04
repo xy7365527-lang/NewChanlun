@@ -1,0 +1,149 @@
+{
+  "stage": 36,
+  "date": "2026-10-04",
+  "issue": 1467,
+  "profile": "REFERENCE-BASE-SOURCE-v1",
+  "declaration": "ReferenceBase.exact_root",
+  "expected_type": "ReferenceBase.SOURCE_TARGET ∧ ReferenceBase.STROKE_TARGET ∧ ReferenceBase.FEATURE_TARGET ∧ ReferenceBase.GEOMETRY_TARGET",
+  "actual_type": "And ReferenceBase.SOURCE_TARGET\n  (And ReferenceBase.STROKE_TARGET (And ReferenceBase.FEATURE_TARGET ReferenceBase.GEOMETRY_TARGET))",
+  "run_id": "40cc5c4829c943c984c8133178f29a63",
+  "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/reference-base-v1-checked/run-manifest.json",
+  "manifest_sha256": "b69de9c90b395c65fd6b96da29af96a84c498c9bd6abd7c1efea1f1a6e8f59d8",
+  "exact_root_passed": true,
+  "root_closure": {
+    "status": "closed",
+    "exact_root_passed": true,
+    "declaration_closed": true,
+    "scope": "expected Lean type in the recorded environment; semantic review is separate"
+  },
+  "semantic": {
+    "status": "not_reviewed",
+    "reused": false,
+    "semantic_sha256": "13db45c6723731b572f2e2f2022a12e14e22ad0f7500ab73f92bacb06126ce99"
+  },
+  "axioms": [
+    "propext",
+    "Quot.sound"
+  ],
+  "unexpected_axioms": [],
+  "unknown_dependencies": [],
+  "unsafe_dependencies": [],
+  "lock_unchanged": true,
+  "checked_source_copies_equal": true,
+  "freshness_exit_code": 0,
+  "LEAN_PATH": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean",
+  "fixture": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/reference-base-v1/fixture.json",
+    "sha256": "5512a3cff966e1523a2dbc85138d8342e3917d5c1a3bc4d7549ba7bd89c995d5",
+    "states": 95,
+    "events": 94,
+    "reference_strokes": 23,
+    "stable_prefixes": [
+      {
+        "cut": 38,
+        "count": 8
+      },
+      {
+        "cut": 66,
+        "count": 15
+      },
+      {
+        "cut": 86,
+        "count": 20
+      }
+    ]
+  },
+  "binary": {
+    "path": "/tmp/nc1467-cargo-target/debug/order-reference-base-witness",
+    "sha256": "3ff6fb7ed17e1cfa091effa0257eb1780ac18ca05c090b3ba345613272014a37"
+  },
+  "scope": "指定合成历史的数量/笔源、第一种情况段尾及三段严格核心；非完整F1或F2、非普遍唯一分解与不可撤回",
+  "sources": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage36WorkCard.md",
+      "sha256": "49391f8816d25cb7da6bd59ec4b67397c15a07bb20cea11950a9fc9d5373009b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/ReferenceBaseFixture.lean",
+      "sha256": "bf89332a05592d0010a3107433887b2798a7ed297dd5755740862d912ef9082d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/ReferenceBaseSpec.lean",
+      "sha256": "b65a89ee4042504c87c1e92eb3af83607765636f894ba5cdfadbc1cee33c2918"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/ReferenceBaseProof.lean",
+      "sha256": "a11d0bd08f3e34e1b533c02eb4e657a6ff626cd4a72e121b841547175ee7a4d1"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/reference_base_probe.rs",
+      "sha256": "fe2ebc30d6043d5af91f8473f6e44a9535258adf0e7f0c4fd7b543205644db38"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage36_fixture.mjs",
+      "sha256": "53787a61b9c4ad9a4ec7f1b08cba8214bfa54f5ca0df4271f2b8f6656fc34301"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/strict_point_reference.rs",
+      "sha256": "3d511d2b9541f2dbfb88962232fab3c8f7a46404b3c5ecc668b5e9bf168ad472"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage36-reference/Cargo.toml",
+      "sha256": "4d61e4099695287c23e9b5a6b89468cdea8482319b322edcf6ab81faff416419"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage36-reference/Cargo.lock",
+      "sha256": "b5d0d4e30ba38fd66dea2e66763747670cf1dc27cf461d46357468f6dab2d9df"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage36ReferenceBaseWitness.md",
+      "sha256": "c0619b001d5325cdb7e15f111a7ab3f4b78d121139750d21cb1563b347b9f7d1"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage36PendingReview.md",
+      "sha256": "30453c92958482957f5f85d29c6fdc531a37df3700eeba36fa25c8d834fb1b25"
+    },
+    {
+      "path": "docs/chanlun/text/blog/067-第67课.md",
+      "sha256": "257521bf636734a6d71d724674aac093976e5f505c8ff156619fe7d3b1af459a"
+    },
+    {
+      "path": "docs/chanlun/text/blog/078-第78课.md",
+      "sha256": "7575dfe108360af50ea9bc1309635044e775f92d3d22f12169f048bd02bb75c5"
+    },
+    {
+      "path": "docs/chanlun/text/blog/081-第81课.md",
+      "sha256": "18caff8a718f9cbccee454872e85350fcd99b051ebedda4b19578c341136d7b8"
+    },
+    {
+      "path": "docs/chanlun/text/blog/084-第84课.md",
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26"
+    },
+    {
+      "path": "formal/Origin/SegmentFeatureSeq.lean",
+      "sha256": "4f727a53f24ee548abd340ab6894be5f976d21ef4bd1d12bde18f5e3973429dc"
+    },
+    {
+      "path": "formal/Origin/SegmentFeatureComplete.lean",
+      "sha256": "c740b9a77bbda167f6ef3d08f2ad3d24dbe0ba0f617d5eedc0f88ab1bd07ef7e"
+    },
+    {
+      "path": "formal/Origin/SegmentAutoConstruct.lean",
+      "sha256": "3ffd1f05eb003e812c4c6a68327bec3897e5f432bdc39cf80f498e7245df026c"
+    },
+    {
+      "path": "formal/Origin/CenterComplete.lean",
+      "sha256": "478e34e703801742e6808c834488b7fe009d94bb0d896eb65e7d6a20105d64c2"
+    }
+  ],
+  "artifact_bytes": 28988443,
+  "artifact_budget_bytes": 67108864,
+  "commands_receipt": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/reference-base-v1/exact-command.json",
+  "rust_formatted_rerun": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/reference-base-v1/formatted-rerun.json",
+  "failed_proofs": [
+    "ReferenceBaseProof-first-failed.txt",
+    "ReferenceBaseProof-second-failed.txt",
+    "ReferenceBaseProof-third-failed.txt"
+  ],
+  "review_channel": "awaiting user response on parent model switching constraint; no child spawned"
+}

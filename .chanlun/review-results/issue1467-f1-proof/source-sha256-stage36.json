@@ -1,0 +1,15 @@
+{
+  "Stage36WorkCard.md": "49391f8816d25cb7da6bd59ec4b67397c15a07bb20cea11950a9fc9d5373009b",
+  "ReferenceBaseFixture.lean": "bf89332a05592d0010a3107433887b2798a7ed297dd5755740862d912ef9082d",
+  "ReferenceBaseSpec.lean": "b65a89ee4042504c87c1e92eb3af83607765636f894ba5cdfadbc1cee33c2918",
+  "ReferenceBaseProof.lean": "a11d0bd08f3e34e1b533c02eb4e657a6ff626cd4a72e121b841547175ee7a4d1",
+  "reference_base_probe.rs": "fe2ebc30d6043d5af91f8473f6e44a9535258adf0e7f0c4fd7b543205644db38",
+  "stage36_fixture.mjs": "53787a61b9c4ad9a4ec7f1b08cba8214bfa54f5ca0df4271f2b8f6656fc34301",
+  "strict_point_reference.rs": "3d511d2b9541f2dbfb88962232fab3c8f7a46404b3c5ecc668b5e9bf168ad472",
+  "stage36-reference/Cargo.toml": "4d61e4099695287c23e9b5a6b89468cdea8482319b322edcf6ab81faff416419",
+  "stage36-reference/Cargo.lock": "b5d0d4e30ba38fd66dea2e66763747670cf1dc27cf461d46357468f6dab2d9df",
+  "Stage36ReferenceBaseWitness.md": "c0619b001d5325cdb7e15f111a7ab3f4b78d121139750d21cb1563b347b9f7d1",
+  "Stage36PendingReview.md": "30453c92958482957f5f85d29c6fdc531a37df3700eeba36fa25c8d834fb1b25",
+  "stage36-evidence.json": "afe1f92c6bc4721a9fa320d6c4ed491148fb71829f870b6fbe6a437ab512a568",
+  "stage36-declaration-lock.json": "e2fc0b10c271e9f0fa715e58b167a32ee0a155c3a9d0603184ee268dcc44407e"
+}

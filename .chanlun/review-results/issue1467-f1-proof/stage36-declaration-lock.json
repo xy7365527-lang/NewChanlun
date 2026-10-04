@@ -1,0 +1,8 @@
+{
+  "profile": "REFERENCE-BASE-SOURCE-v1",
+  "expected_type": "ReferenceBase.SOURCE_TARGET ∧ ReferenceBase.STROKE_TARGET ∧ ReferenceBase.FEATURE_TARGET ∧ ReferenceBase.GEOMETRY_TARGET",
+  "sources": {
+    "ReferenceBaseFixture.lean": "bf89332a05592d0010a3107433887b2798a7ed297dd5755740862d912ef9082d",
+    "ReferenceBaseSpec.lean": "b65a89ee4042504c87c1e92eb3af83607765636f894ba5cdfadbc1cee33c2918"
+  }
+}
