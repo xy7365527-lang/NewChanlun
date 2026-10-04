@@ -1,0 +1,1794 @@
+{
+  "name": "same_down_mirror",
+  "source": {
+    "epoch": "synthetic-rc49-v1",
+    "initial": {
+      "bid": {
+        "id": "reservoir",
+        "price": 100,
+        "quantity": 1660
+      },
+      "ask": {
+        "id": "ask",
+        "price": 102,
+        "quantity": 10
+      }
+    },
+    "events": [
+      {
+        "seq": 1,
+        "kind": "add",
+        "id": "deep-1",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 2,
+        "kind": "add",
+        "id": "up-2",
+        "side": "bid",
+        "price": 100,
+        "quantity": 40
+      },
+      {
+        "seq": 3,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 30
+      },
+      {
+        "seq": 4,
+        "kind": "add",
+        "id": "up-4",
+        "side": "bid",
+        "price": 100,
+        "quantity": 20
+      },
+      {
+        "seq": 5,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 130
+      },
+      {
+        "seq": 6,
+        "kind": "add",
+        "id": "up-6",
+        "side": "bid",
+        "price": 100,
+        "quantity": 40
+      },
+      {
+        "seq": 7,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 30
+      },
+      {
+        "seq": 8,
+        "kind": "add",
+        "id": "up-8",
+        "side": "bid",
+        "price": 100,
+        "quantity": 20
+      },
+      {
+        "seq": 9,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 30
+      },
+      {
+        "seq": 10,
+        "kind": "add",
+        "id": "up-10",
+        "side": "bid",
+        "price": 100,
+        "quantity": 5
+      },
+      {
+        "seq": 11,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 3
+      },
+      {
+        "seq": 12,
+        "kind": "add",
+        "id": "up-12",
+        "side": "bid",
+        "price": 100,
+        "quantity": 2
+      },
+      {
+        "seq": 13,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 104
+      },
+      {
+        "seq": 14,
+        "kind": "add",
+        "id": "up-14",
+        "side": "bid",
+        "price": 100,
+        "quantity": 40
+      },
+      {
+        "seq": 15,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 30
+      },
+      {
+        "seq": 16,
+        "kind": "add",
+        "id": "up-16",
+        "side": "bid",
+        "price": 100,
+        "quantity": 20
+      },
+      {
+        "seq": 17,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 30
+      },
+      {
+        "seq": 18,
+        "kind": "add",
+        "id": "up-18",
+        "side": "bid",
+        "price": 100,
+        "quantity": 5
+      },
+      {
+        "seq": 19,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 3
+      },
+      {
+        "seq": 20,
+        "kind": "add",
+        "id": "up-20",
+        "side": "bid",
+        "price": 100,
+        "quantity": 2
+      },
+      {
+        "seq": 21,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 104
+      },
+      {
+        "seq": 22,
+        "kind": "add",
+        "id": "up-22",
+        "side": "bid",
+        "price": 100,
+        "quantity": 40
+      },
+      {
+        "seq": 23,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 30
+      },
+      {
+        "seq": 24,
+        "kind": "add",
+        "id": "up-24",
+        "side": "bid",
+        "price": 100,
+        "quantity": 20
+      },
+      {
+        "seq": 25,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 30
+      },
+      {
+        "seq": 26,
+        "kind": "add",
+        "id": "up-26",
+        "side": "bid",
+        "price": 100,
+        "quantity": 5
+      },
+      {
+        "seq": 27,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 3
+      },
+      {
+        "seq": 28,
+        "kind": "add",
+        "id": "up-28",
+        "side": "bid",
+        "price": 100,
+        "quantity": 2
+      },
+      {
+        "seq": 29,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 104
+      },
+      {
+        "seq": 30,
+        "kind": "add",
+        "id": "up-30",
+        "side": "bid",
+        "price": 100,
+        "quantity": 40
+      },
+      {
+        "seq": 31,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 30
+      },
+      {
+        "seq": 32,
+        "kind": "add",
+        "id": "up-32",
+        "side": "bid",
+        "price": 100,
+        "quantity": 20
+      },
+      {
+        "seq": 33,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 130
+      },
+      {
+        "seq": 34,
+        "kind": "add",
+        "id": "up-34",
+        "side": "bid",
+        "price": 100,
+        "quantity": 40
+      },
+      {
+        "seq": 35,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 30
+      },
+      {
+        "seq": 36,
+        "kind": "add",
+        "id": "up-36",
+        "side": "bid",
+        "price": 100,
+        "quantity": 20
+      },
+      {
+        "seq": 37,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 130
+      },
+      {
+        "seq": 38,
+        "kind": "add",
+        "id": "up-38",
+        "side": "bid",
+        "price": 100,
+        "quantity": 40
+      },
+      {
+        "seq": 39,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 30
+      },
+      {
+        "seq": 40,
+        "kind": "add",
+        "id": "up-40",
+        "side": "bid",
+        "price": 100,
+        "quantity": 20
+      }
+    ],
+    "states": [
+      {
+        "event": 0,
+        "q": 1660,
+        "w": "17032/167"
+      },
+      {
+        "event": 1,
+        "q": 1660,
+        "w": "17032/167"
+      },
+      {
+        "event": 2,
+        "q": 1700,
+        "w": "17440/171"
+      },
+      {
+        "event": 3,
+        "q": 1670,
+        "w": "8567/84"
+      },
+      {
+        "event": 4,
+        "q": 1690,
+        "w": "8669/85"
+      },
+      {
+        "event": 5,
+        "q": 1560,
+        "w": "16012/157"
+      },
+      {
+        "event": 6,
+        "q": 1600,
+        "w": "16420/161"
+      },
+      {
+        "event": 7,
+        "q": 1570,
+        "w": "8057/79"
+      },
+      {
+        "event": 8,
+        "q": 1590,
+        "w": "8159/80"
+      },
+      {
+        "event": 9,
+        "q": 1560,
+        "w": "16012/157"
+      },
+      {
+        "event": 10,
+        "q": 1565,
+        "w": "32126/315"
+      },
+      {
+        "event": 11,
+        "q": 1562,
+        "w": "40081/393"
+      },
+      {
+        "event": 12,
+        "q": 1564,
+        "w": "80264/787"
+      },
+      {
+        "event": 13,
+        "q": 1460,
+        "w": "14992/147"
+      },
+      {
+        "event": 14,
+        "q": 1500,
+        "w": "15400/151"
+      },
+      {
+        "event": 15,
+        "q": 1470,
+        "w": "7547/74"
+      },
+      {
+        "event": 16,
+        "q": 1490,
+        "w": "7649/75"
+      },
+      {
+        "event": 17,
+        "q": 1460,
+        "w": "14992/147"
+      },
+      {
+        "event": 18,
+        "q": 1465,
+        "w": "30086/295"
+      },
+      {
+        "event": 19,
+        "q": 1462,
+        "w": "37531/368"
+      },
+      {
+        "event": 20,
+        "q": 1464,
+        "w": "75164/737"
+      },
+      {
+        "event": 21,
+        "q": 1360,
+        "w": "13972/137"
+      },
+      {
+        "event": 22,
+        "q": 1400,
+        "w": "14380/141"
+      },
+      {
+        "event": 23,
+        "q": 1370,
+        "w": "7037/69"
+      },
+      {
+        "event": 24,
+        "q": 1390,
+        "w": "7139/70"
+      },
+      {
+        "event": 25,
+        "q": 1360,
+        "w": "13972/137"
+      },
+      {
+        "event": 26,
+        "q": 1365,
+        "w": "28046/275"
+      },
+      {
+        "event": 27,
+        "q": 1362,
+        "w": "34981/343"
+      },
+      {
+        "event": 28,
+        "q": 1364,
+        "w": "70064/687"
+      },
+      {
+        "event": 29,
+        "q": 1260,
+        "w": "12952/127"
+      },
+      {
+        "event": 30,
+        "q": 1300,
+        "w": "13360/131"
+      },
+      {
+        "event": 31,
+        "q": 1270,
+        "w": "6527/64"
+      },
+      {
+        "event": 32,
+        "q": 1290,
+        "w": "6629/65"
+      },
+      {
+        "event": 33,
+        "q": 1160,
+        "w": "11932/117"
+      },
+      {
+        "event": 34,
+        "q": 1200,
+        "w": "12340/121"
+      },
+      {
+        "event": 35,
+        "q": 1170,
+        "w": "6017/59"
+      },
+      {
+        "event": 36,
+        "q": 1190,
+        "w": "6119/60"
+      },
+      {
+        "event": 37,
+        "q": 1060,
+        "w": "10912/107"
+      },
+      {
+        "event": 38,
+        "q": 1100,
+        "w": "11320/111"
+      },
+      {
+        "event": 39,
+        "q": 1070,
+        "w": "5507/54"
+      },
+      {
+        "event": 40,
+        "q": 1090,
+        "w": "5609/55"
+      }
+    ],
+    "coordinates": [
+      660,
+      700,
+      670,
+      690,
+      560,
+      600,
+      570,
+      590,
+      560,
+      565,
+      562,
+      564,
+      460,
+      500,
+      470,
+      490,
+      460,
+      465,
+      462,
+      464,
+      360,
+      400,
+      370,
+      390,
+      360,
+      365,
+      362,
+      364,
+      260,
+      300,
+      270,
+      290,
+      160,
+      200,
+      170,
+      190,
+      60,
+      100,
+      70,
+      90
+    ],
+    "shift": 1000
+  },
+  "result": {
+    "legs": {
+      "completed": [
+        {
+          "id": 0,
+          "start": 0,
+          "end": 2,
+          "direction": "Up",
+          "range": [
+            1660,
+            1700
+          ],
+          "knownAt": 3
+        },
+        {
+          "id": 1,
+          "start": 2,
+          "end": 3,
+          "direction": "Down",
+          "range": [
+            1670,
+            1700
+          ],
+          "knownAt": 4
+        },
+        {
+          "id": 2,
+          "start": 3,
+          "end": 4,
+          "direction": "Up",
+          "range": [
+            1670,
+            1690
+          ],
+          "knownAt": 5
+        },
+        {
+          "id": 3,
+          "start": 4,
+          "end": 5,
+          "direction": "Down",
+          "range": [
+            1560,
+            1690
+          ],
+          "knownAt": 6
+        },
+        {
+          "id": 4,
+          "start": 5,
+          "end": 6,
+          "direction": "Up",
+          "range": [
+            1560,
+            1600
+          ],
+          "knownAt": 7
+        },
+        {
+          "id": 5,
+          "start": 6,
+          "end": 7,
+          "direction": "Down",
+          "range": [
+            1570,
+            1600
+          ],
+          "knownAt": 8
+        },
+        {
+          "id": 6,
+          "start": 7,
+          "end": 8,
+          "direction": "Up",
+          "range": [
+            1570,
+            1590
+          ],
+          "knownAt": 9
+        },
+        {
+          "id": 7,
+          "start": 8,
+          "end": 9,
+          "direction": "Down",
+          "range": [
+            1560,
+            1590
+          ],
+          "knownAt": 10
+        },
+        {
+          "id": 8,
+          "start": 9,
+          "end": 10,
+          "direction": "Up",
+          "range": [
+            1560,
+            1565
+          ],
+          "knownAt": 11
+        },
+        {
+          "id": 9,
+          "start": 10,
+          "end": 11,
+          "direction": "Down",
+          "range": [
+            1562,
+            1565
+          ],
+          "knownAt": 12
+        },
+        {
+          "id": 10,
+          "start": 11,
+          "end": 12,
+          "direction": "Up",
+          "range": [
+            1562,
+            1564
+          ],
+          "knownAt": 13
+        },
+        {
+          "id": 11,
+          "start": 12,
+          "end": 13,
+          "direction": "Down",
+          "range": [
+            1460,
+            1564
+          ],
+          "knownAt": 14
+        },
+        {
+          "id": 12,
+          "start": 13,
+          "end": 14,
+          "direction": "Up",
+          "range": [
+            1460,
+            1500
+          ],
+          "knownAt": 15
+        },
+        {
+          "id": 13,
+          "start": 14,
+          "end": 15,
+          "direction": "Down",
+          "range": [
+            1470,
+            1500
+          ],
+          "knownAt": 16
+        },
+        {
+          "id": 14,
+          "start": 15,
+          "end": 16,
+          "direction": "Up",
+          "range": [
+            1470,
+            1490
+          ],
+          "knownAt": 17
+        },
+        {
+          "id": 15,
+          "start": 16,
+          "end": 17,
+          "direction": "Down",
+          "range": [
+            1460,
+            1490
+          ],
+          "knownAt": 18
+        },
+        {
+          "id": 16,
+          "start": 17,
+          "end": 18,
+          "direction": "Up",
+          "range": [
+            1460,
+            1465
+          ],
+          "knownAt": 19
+        },
+        {
+          "id": 17,
+          "start": 18,
+          "end": 19,
+          "direction": "Down",
+          "range": [
+            1462,
+            1465
+          ],
+          "knownAt": 20
+        },
+        {
+          "id": 18,
+          "start": 19,
+          "end": 20,
+          "direction": "Up",
+          "range": [
+            1462,
+            1464
+          ],
+          "knownAt": 21
+        },
+        {
+          "id": 19,
+          "start": 20,
+          "end": 21,
+          "direction": "Down",
+          "range": [
+            1360,
+            1464
+          ],
+          "knownAt": 22
+        },
+        {
+          "id": 20,
+          "start": 21,
+          "end": 22,
+          "direction": "Up",
+          "range": [
+            1360,
+            1400
+          ],
+          "knownAt": 23
+        },
+        {
+          "id": 21,
+          "start": 22,
+          "end": 23,
+          "direction": "Down",
+          "range": [
+            1370,
+            1400
+          ],
+          "knownAt": 24
+        },
+        {
+          "id": 22,
+          "start": 23,
+          "end": 24,
+          "direction": "Up",
+          "range": [
+            1370,
+            1390
+          ],
+          "knownAt": 25
+        },
+        {
+          "id": 23,
+          "start": 24,
+          "end": 25,
+          "direction": "Down",
+          "range": [
+            1360,
+            1390
+          ],
+          "knownAt": 26
+        },
+        {
+          "id": 24,
+          "start": 25,
+          "end": 26,
+          "direction": "Up",
+          "range": [
+            1360,
+            1365
+          ],
+          "knownAt": 27
+        },
+        {
+          "id": 25,
+          "start": 26,
+          "end": 27,
+          "direction": "Down",
+          "range": [
+            1362,
+            1365
+          ],
+          "knownAt": 28
+        },
+        {
+          "id": 26,
+          "start": 27,
+          "end": 28,
+          "direction": "Up",
+          "range": [
+            1362,
+            1364
+          ],
+          "knownAt": 29
+        },
+        {
+          "id": 27,
+          "start": 28,
+          "end": 29,
+          "direction": "Down",
+          "range": [
+            1260,
+            1364
+          ],
+          "knownAt": 30
+        },
+        {
+          "id": 28,
+          "start": 29,
+          "end": 30,
+          "direction": "Up",
+          "range": [
+            1260,
+            1300
+          ],
+          "knownAt": 31
+        },
+        {
+          "id": 29,
+          "start": 30,
+          "end": 31,
+          "direction": "Down",
+          "range": [
+            1270,
+            1300
+          ],
+          "knownAt": 32
+        },
+        {
+          "id": 30,
+          "start": 31,
+          "end": 32,
+          "direction": "Up",
+          "range": [
+            1270,
+            1290
+          ],
+          "knownAt": 33
+        },
+        {
+          "id": 31,
+          "start": 32,
+          "end": 33,
+          "direction": "Down",
+          "range": [
+            1160,
+            1290
+          ],
+          "knownAt": 34
+        },
+        {
+          "id": 32,
+          "start": 33,
+          "end": 34,
+          "direction": "Up",
+          "range": [
+            1160,
+            1200
+          ],
+          "knownAt": 35
+        },
+        {
+          "id": 33,
+          "start": 34,
+          "end": 35,
+          "direction": "Down",
+          "range": [
+            1170,
+            1200
+          ],
+          "knownAt": 36
+        },
+        {
+          "id": 34,
+          "start": 35,
+          "end": 36,
+          "direction": "Up",
+          "range": [
+            1170,
+            1190
+          ],
+          "knownAt": 37
+        },
+        {
+          "id": 35,
+          "start": 36,
+          "end": 37,
+          "direction": "Down",
+          "range": [
+            1060,
+            1190
+          ],
+          "knownAt": 38
+        },
+        {
+          "id": 36,
+          "start": 37,
+          "end": 38,
+          "direction": "Up",
+          "range": [
+            1060,
+            1100
+          ],
+          "knownAt": 39
+        },
+        {
+          "id": 37,
+          "start": 38,
+          "end": 39,
+          "direction": "Down",
+          "range": [
+            1070,
+            1100
+          ],
+          "knownAt": 40
+        }
+      ],
+      "active": {
+        "start": 39,
+        "end": 40,
+        "direction": "Up",
+        "range": [
+          1070,
+          1090
+        ],
+        "knownAt": null
+      }
+    },
+    "coreScan": {
+      "completed": [
+        {
+          "id": "K0",
+          "level": 0,
+          "seed": [
+            0,
+            1,
+            2
+          ],
+          "core": [
+            1670,
+            1690
+          ],
+          "members": [
+            0,
+            1,
+            2
+          ],
+          "sourceStart": 0,
+          "sourceEnd": 4,
+          "outer": [
+            1660,
+            1700
+          ],
+          "bornAt": 5,
+          "startDirection": "Up",
+          "sealedAt": 7,
+          "exit": {
+            "departure": 3,
+            "return": 4,
+            "returnRange": [
+              1560,
+              1600
+            ],
+            "side": "Down",
+            "knownAt": 7,
+            "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+          }
+        },
+        {
+          "id": "K1",
+          "level": 0,
+          "seed": [
+            4,
+            5,
+            6
+          ],
+          "core": [
+            1570,
+            1590
+          ],
+          "members": [
+            4,
+            5,
+            6
+          ],
+          "sourceStart": 5,
+          "sourceEnd": 8,
+          "outer": [
+            1560,
+            1600
+          ],
+          "bornAt": 9,
+          "startDirection": "Up",
+          "sealedAt": 11,
+          "exit": {
+            "departure": 7,
+            "return": 8,
+            "returnRange": [
+              1560,
+              1565
+            ],
+            "side": "Down",
+            "knownAt": 11,
+            "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+          }
+        },
+        {
+          "id": "K2",
+          "level": 0,
+          "seed": [
+            8,
+            9,
+            10
+          ],
+          "core": [
+            1562,
+            1564
+          ],
+          "members": [
+            8,
+            9,
+            10
+          ],
+          "sourceStart": 9,
+          "sourceEnd": 12,
+          "outer": [
+            1560,
+            1565
+          ],
+          "bornAt": 13,
+          "startDirection": "Up",
+          "sealedAt": 15,
+          "exit": {
+            "departure": 11,
+            "return": 12,
+            "returnRange": [
+              1460,
+              1500
+            ],
+            "side": "Down",
+            "knownAt": 15,
+            "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+          }
+        },
+        {
+          "id": "K3",
+          "level": 0,
+          "seed": [
+            12,
+            13,
+            14
+          ],
+          "core": [
+            1470,
+            1490
+          ],
+          "members": [
+            12,
+            13,
+            14
+          ],
+          "sourceStart": 13,
+          "sourceEnd": 16,
+          "outer": [
+            1460,
+            1500
+          ],
+          "bornAt": 17,
+          "startDirection": "Up",
+          "sealedAt": 19,
+          "exit": {
+            "departure": 15,
+            "return": 16,
+            "returnRange": [
+              1460,
+              1465
+            ],
+            "side": "Down",
+            "knownAt": 19,
+            "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+          }
+        },
+        {
+          "id": "K4",
+          "level": 0,
+          "seed": [
+            16,
+            17,
+            18
+          ],
+          "core": [
+            1462,
+            1464
+          ],
+          "members": [
+            16,
+            17,
+            18
+          ],
+          "sourceStart": 17,
+          "sourceEnd": 20,
+          "outer": [
+            1460,
+            1465
+          ],
+          "bornAt": 21,
+          "startDirection": "Up",
+          "sealedAt": 23,
+          "exit": {
+            "departure": 19,
+            "return": 20,
+            "returnRange": [
+              1360,
+              1400
+            ],
+            "side": "Down",
+            "knownAt": 23,
+            "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+          }
+        },
+        {
+          "id": "K5",
+          "level": 0,
+          "seed": [
+            20,
+            21,
+            22
+          ],
+          "core": [
+            1370,
+            1390
+          ],
+          "members": [
+            20,
+            21,
+            22
+          ],
+          "sourceStart": 21,
+          "sourceEnd": 24,
+          "outer": [
+            1360,
+            1400
+          ],
+          "bornAt": 25,
+          "startDirection": "Up",
+          "sealedAt": 27,
+          "exit": {
+            "departure": 23,
+            "return": 24,
+            "returnRange": [
+              1360,
+              1365
+            ],
+            "side": "Down",
+            "knownAt": 27,
+            "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+          }
+        },
+        {
+          "id": "K6",
+          "level": 0,
+          "seed": [
+            24,
+            25,
+            26
+          ],
+          "core": [
+            1362,
+            1364
+          ],
+          "members": [
+            24,
+            25,
+            26
+          ],
+          "sourceStart": 25,
+          "sourceEnd": 28,
+          "outer": [
+            1360,
+            1365
+          ],
+          "bornAt": 29,
+          "startDirection": "Up",
+          "sealedAt": 31,
+          "exit": {
+            "departure": 27,
+            "return": 28,
+            "returnRange": [
+              1260,
+              1300
+            ],
+            "side": "Down",
+            "knownAt": 31,
+            "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+          }
+        },
+        {
+          "id": "K7",
+          "level": 0,
+          "seed": [
+            28,
+            29,
+            30
+          ],
+          "core": [
+            1270,
+            1290
+          ],
+          "members": [
+            28,
+            29,
+            30
+          ],
+          "sourceStart": 29,
+          "sourceEnd": 32,
+          "outer": [
+            1260,
+            1300
+          ],
+          "bornAt": 33,
+          "startDirection": "Up",
+          "sealedAt": 35,
+          "exit": {
+            "departure": 31,
+            "return": 32,
+            "returnRange": [
+              1160,
+              1200
+            ],
+            "side": "Down",
+            "knownAt": 35,
+            "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+          }
+        },
+        {
+          "id": "K8",
+          "level": 0,
+          "seed": [
+            32,
+            33,
+            34
+          ],
+          "core": [
+            1170,
+            1190
+          ],
+          "members": [
+            32,
+            33,
+            34
+          ],
+          "sourceStart": 33,
+          "sourceEnd": 36,
+          "outer": [
+            1160,
+            1200
+          ],
+          "bornAt": 37,
+          "startDirection": "Up",
+          "sealedAt": 39,
+          "exit": {
+            "departure": 35,
+            "return": 36,
+            "returnRange": [
+              1060,
+              1100
+            ],
+            "side": "Down",
+            "knownAt": 39,
+            "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+          }
+        }
+      ],
+      "active": null,
+      "skipped": [],
+      "scanCursor": 36
+    },
+    "outputs": [
+      {
+        "id": "M0",
+        "epoch": "synthetic-rc49-v1",
+        "level": 0,
+        "type": "D",
+        "conceptDirection": "Down",
+        "breakDirection": "Down",
+        "start": 0,
+        "end": 8,
+        "sourceEvents": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ],
+        "startValue": 1660,
+        "endValue": 1590,
+        "range": [
+          1560,
+          1700
+        ],
+        "wRange": [
+          "16012/157",
+          "17440/171"
+        ],
+        "ownedCoreIDs": [
+          "K0",
+          "K1"
+        ],
+        "cores": [
+          {
+            "id": "K0",
+            "level": 0,
+            "seed": [
+              0,
+              1,
+              2
+            ],
+            "core": [
+              1670,
+              1690
+            ],
+            "members": [
+              0,
+              1,
+              2
+            ],
+            "sourceStart": 0,
+            "sourceEnd": 4,
+            "outer": [
+              1660,
+              1700
+            ],
+            "bornAt": 5,
+            "startDirection": "Up",
+            "sealedAt": 7,
+            "exit": {
+              "departure": 3,
+              "return": 4,
+              "returnRange": [
+                1560,
+                1600
+              ],
+              "side": "Down",
+              "knownAt": 7,
+              "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+            }
+          },
+          {
+            "id": "K1",
+            "level": 0,
+            "seed": [
+              4,
+              5,
+              6
+            ],
+            "core": [
+              1570,
+              1590
+            ],
+            "members": [
+              4,
+              5,
+              6
+            ],
+            "sourceStart": 5,
+            "sourceEnd": 8,
+            "outer": [
+              1560,
+              1600
+            ],
+            "bornAt": 9,
+            "startDirection": "Up",
+            "sealedAt": 11,
+            "exit": {
+              "departure": 7,
+              "return": 8,
+              "returnRange": [
+                1560,
+                1565
+              ],
+              "side": "Down",
+              "knownAt": 11,
+              "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+            }
+          }
+        ],
+        "bornAt": 9,
+        "confirmedAt": 15,
+        "publishedAt": 15,
+        "completion": {
+          "kind": "noncontinuing-sealed-successor",
+          "witnessCore": "K2",
+          "relation": "Overlap",
+          "knownAt": 15,
+          "scope": "candidate completion rule, to be checked against original semantics"
+        }
+      },
+      {
+        "id": "M1",
+        "epoch": "synthetic-rc49-v1",
+        "level": 0,
+        "type": "D",
+        "conceptDirection": "Down",
+        "breakDirection": "Down",
+        "start": 8,
+        "end": 16,
+        "sourceEvents": [
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16
+        ],
+        "startValue": 1590,
+        "endValue": 1490,
+        "range": [
+          1460,
+          1590
+        ],
+        "wRange": [
+          "14992/147",
+          "8159/80"
+        ],
+        "ownedCoreIDs": [
+          "K2",
+          "K3"
+        ],
+        "cores": [
+          {
+            "id": "K2",
+            "level": 0,
+            "seed": [
+              8,
+              9,
+              10
+            ],
+            "core": [
+              1562,
+              1564
+            ],
+            "members": [
+              8,
+              9,
+              10
+            ],
+            "sourceStart": 9,
+            "sourceEnd": 12,
+            "outer": [
+              1560,
+              1565
+            ],
+            "bornAt": 13,
+            "startDirection": "Up",
+            "sealedAt": 15,
+            "exit": {
+              "departure": 11,
+              "return": 12,
+              "returnRange": [
+                1460,
+                1500
+              ],
+              "side": "Down",
+              "knownAt": 15,
+              "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+            }
+          },
+          {
+            "id": "K3",
+            "level": 0,
+            "seed": [
+              12,
+              13,
+              14
+            ],
+            "core": [
+              1470,
+              1490
+            ],
+            "members": [
+              12,
+              13,
+              14
+            ],
+            "sourceStart": 13,
+            "sourceEnd": 16,
+            "outer": [
+              1460,
+              1500
+            ],
+            "bornAt": 17,
+            "startDirection": "Up",
+            "sealedAt": 19,
+            "exit": {
+              "departure": 15,
+              "return": 16,
+              "returnRange": [
+                1460,
+                1465
+              ],
+              "side": "Down",
+              "knownAt": 19,
+              "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+            }
+          }
+        ],
+        "bornAt": 17,
+        "confirmedAt": 23,
+        "publishedAt": 23,
+        "completion": {
+          "kind": "noncontinuing-sealed-successor",
+          "witnessCore": "K4",
+          "relation": "Overlap",
+          "knownAt": 23,
+          "scope": "candidate completion rule, to be checked against original semantics"
+        }
+      },
+      {
+        "id": "M2",
+        "epoch": "synthetic-rc49-v1",
+        "level": 0,
+        "type": "D",
+        "conceptDirection": "Down",
+        "breakDirection": "Down",
+        "start": 16,
+        "end": 24,
+        "sourceEvents": [
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24
+        ],
+        "startValue": 1490,
+        "endValue": 1390,
+        "range": [
+          1360,
+          1490
+        ],
+        "wRange": [
+          "13972/137",
+          "7649/75"
+        ],
+        "ownedCoreIDs": [
+          "K4",
+          "K5"
+        ],
+        "cores": [
+          {
+            "id": "K4",
+            "level": 0,
+            "seed": [
+              16,
+              17,
+              18
+            ],
+            "core": [
+              1462,
+              1464
+            ],
+            "members": [
+              16,
+              17,
+              18
+            ],
+            "sourceStart": 17,
+            "sourceEnd": 20,
+            "outer": [
+              1460,
+              1465
+            ],
+            "bornAt": 21,
+            "startDirection": "Up",
+            "sealedAt": 23,
+            "exit": {
+              "departure": 19,
+              "return": 20,
+              "returnRange": [
+                1360,
+                1400
+              ],
+              "side": "Down",
+              "knownAt": 23,
+              "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+            }
+          },
+          {
+            "id": "K5",
+            "level": 0,
+            "seed": [
+              20,
+              21,
+              22
+            ],
+            "core": [
+              1370,
+              1390
+            ],
+            "members": [
+              20,
+              21,
+              22
+            ],
+            "sourceStart": 21,
+            "sourceEnd": 24,
+            "outer": [
+              1360,
+              1400
+            ],
+            "bornAt": 25,
+            "startDirection": "Up",
+            "sealedAt": 27,
+            "exit": {
+              "departure": 23,
+              "return": 24,
+              "returnRange": [
+                1360,
+                1365
+              ],
+              "side": "Down",
+              "knownAt": 27,
+              "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+            }
+          }
+        ],
+        "bornAt": 25,
+        "confirmedAt": 31,
+        "publishedAt": 31,
+        "completion": {
+          "kind": "noncontinuing-sealed-successor",
+          "witnessCore": "K6",
+          "relation": "Overlap",
+          "knownAt": 31,
+          "scope": "candidate completion rule, to be checked against original semantics"
+        }
+      }
+    ],
+    "tail": {
+      "start": 24,
+      "end": 40,
+      "sourceEvents": [
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40
+      ],
+      "range": [
+        1060,
+        1390
+      ],
+      "wRange": [
+        "10912/107",
+        "7139/70"
+      ],
+      "sealedCoreIDs": [
+        "K6",
+        "K7",
+        "K8"
+      ],
+      "activeCore": null,
+      "activeLeg": {
+        "start": 39,
+        "end": 40,
+        "direction": "Up",
+        "range": [
+          1070,
+          1090
+        ],
+        "knownAt": null
+      },
+      "status": "CoreActive"
+    }
+  },
+  "transitions": [
+    "D->D",
+    "D->D"
+  ],
+  "violations": [
+    "D->D",
+    "D->D"
+  ],
+  "parentRequests": [
+    {
+      "members": [
+        "M0",
+        "M1",
+        "M2"
+      ],
+      "ranges": [
+        [
+          1560,
+          1700
+        ],
+        [
+          1460,
+          1590
+        ],
+        [
+          1360,
+          1490
+        ]
+      ],
+      "intersection": [
+        1560,
+        1490
+      ],
+      "strict": false,
+      "directions": [
+        "Down",
+        "Down",
+        "Down"
+      ],
+      "directionAlternation": false,
+      "fullSemanticAdmissibility": false,
+      "reason": "candidate has forbidden completed-type succession"
+    }
+  ]
+}

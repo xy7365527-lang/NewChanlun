@@ -1,0 +1,240 @@
+{
+  "name": "adverse_10x3_30_20x3_15x3",
+  "source": {
+    "epoch": "synthetic-rc49-v1",
+    "initial": {
+      "bid": {
+        "id": "reservoir",
+        "price": 100,
+        "quantity": 1010
+      },
+      "ask": {
+        "id": "ask",
+        "price": 102,
+        "quantity": 10
+      }
+    },
+    "events": [
+      {
+        "seq": 1,
+        "kind": "add",
+        "id": "deep-1",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 2,
+        "kind": "add",
+        "id": "deep-2",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 3,
+        "kind": "add",
+        "id": "deep-3",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 4,
+        "kind": "add",
+        "id": "up-4",
+        "side": "bid",
+        "price": 100,
+        "quantity": 20
+      },
+      {
+        "seq": 5,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 10
+      },
+      {
+        "seq": 6,
+        "kind": "add",
+        "id": "deep-6",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 7,
+        "kind": "add",
+        "id": "deep-7",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 8,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 5
+      },
+      {
+        "seq": 9,
+        "kind": "add",
+        "id": "deep-9",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 10,
+        "kind": "add",
+        "id": "deep-10",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      }
+    ],
+    "states": [
+      {
+        "event": 0,
+        "q": 1010,
+        "w": "5201/51"
+      },
+      {
+        "event": 1,
+        "q": 1010,
+        "w": "5201/51"
+      },
+      {
+        "event": 2,
+        "q": 1010,
+        "w": "5201/51"
+      },
+      {
+        "event": 3,
+        "q": 1010,
+        "w": "5201/51"
+      },
+      {
+        "event": 4,
+        "q": 1030,
+        "w": "5303/52"
+      },
+      {
+        "event": 5,
+        "q": 1020,
+        "w": "10504/103"
+      },
+      {
+        "event": 6,
+        "q": 1020,
+        "w": "10504/103"
+      },
+      {
+        "event": 7,
+        "q": 1020,
+        "w": "10504/103"
+      },
+      {
+        "event": 8,
+        "q": 1015,
+        "w": "20906/205"
+      },
+      {
+        "event": 9,
+        "q": 1015,
+        "w": "20906/205"
+      },
+      {
+        "event": 10,
+        "q": 1015,
+        "w": "20906/205"
+      }
+    ],
+    "coordinates": [
+      10,
+      10,
+      10,
+      30,
+      20,
+      20,
+      20,
+      15,
+      15,
+      15
+    ],
+    "shift": 1000
+  },
+  "result": {
+    "legs": {
+      "completed": [
+        {
+          "id": 0,
+          "start": 0,
+          "end": 4,
+          "direction": "Up",
+          "range": [
+            1010,
+            1030
+          ],
+          "knownAt": 5
+        }
+      ],
+      "active": {
+        "start": 4,
+        "end": 10,
+        "direction": "Down",
+        "range": [
+          1015,
+          1030
+        ],
+        "knownAt": null
+      }
+    },
+    "coreScan": {
+      "completed": [],
+      "active": null,
+      "skipped": [],
+      "scanCursor": 0
+    },
+    "outputs": [],
+    "tail": {
+      "start": 0,
+      "end": 10,
+      "sourceEvents": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "range": [
+        1010,
+        1030
+      ],
+      "wRange": [
+        "5201/51",
+        "5303/52"
+      ],
+      "sealedCoreIDs": [],
+      "activeCore": null,
+      "activeLeg": {
+        "start": 4,
+        "end": 10,
+        "direction": "Down",
+        "range": [
+          1015,
+          1030
+        ],
+        "knownAt": null
+      },
+      "status": "NoCore"
+    }
+  },
+  "transitions": [],
+  "violations": [],
+  "parentRequests": []
+}

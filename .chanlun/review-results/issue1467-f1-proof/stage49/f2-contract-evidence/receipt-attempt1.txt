@@ -1,0 +1,37 @@
+Lean (version 4.31.0, arm64-apple-darwin24.6.0, commit 68218e876d2a38b1985b8590fff244a83c321783, Release)
+fresh source build: Origin.SourceAxioms PASS
+fresh source build: Origin.CompleteClassification PASS
+fresh source build: Origin.ChanlunElements PASS
+fresh source build: Origin.CenterStates PASS
+fresh source build: Origin.CenterFull PASS
+fresh source build: Origin.CenterConstruction PASS
+fresh source build: Origin.CenterComplete PASS
+/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage49/f2-contract-evidence/NonNormProbe.lean:54:60: error: failed to synthesize
+  Decidable
+    (computeZD actualA actualB actualC = 10 ∧
+      computeZG actualA actualB actualC = 10 ∧ ¬CenterConfirmedComplete actualA actualB actualC)
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage49/f2-contract-evidence/NonNormProbe.lean:64:55: error: failed to synthesize
+  Decidable
+    (computeZD rangeA rangeB rangeC = 10 ∧
+      computeZG rangeA rangeB rangeC = 25 ∧
+        computeDD rangeA rangeB rangeC = 5 ∧
+          computeGG rangeA rangeB rangeC = 30 ∧ CenterConfirmedComplete rangeA rangeB rangeC)
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+'Stage49.F2InputContract.real_ranges' does not depend on any axioms
+'Stage49.F2InputContract.actual_all_non_norm' does not depend on any axioms
+'Stage49.F2InputContract.actual_boundaries_connect' does not depend on any axioms
+'Stage49.F2InputContract.actual_directions_alternate' does not depend on any axioms
+'Stage49.F2InputContract.endpoint_projection_loses_range' does not depend on any axioms
+'Stage49.F2InputContract.endpoints_reject_at_singleton' depends on axioms: [sorryAx]
+'Stage49.F2InputContract.range_encoding_is_exact' does not depend on any axioms
+'Stage49.F2InputContract.ranges_pass_local_criterion' depends on axioms: [sorryAx]
+'Stage49.F2InputContract.range_encoding_changes_boundary_and_breaks_connection' does not depend on any axioms
+'Stage49.F2InputContract.upward_endpoint_projection_iff' depends on axioms: [propext, Quot.sound]
+some (10, 30)
+some (5, 25)
+some (5, 28)
+(false, true)
+(10, 25, 5, 30)

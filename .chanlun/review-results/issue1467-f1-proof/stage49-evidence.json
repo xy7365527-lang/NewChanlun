@@ -1,0 +1,437 @@
+{
+  "stage": 49,
+  "date": "2026-10-05",
+  "issue": 1467,
+  "related_issues": [
+    1465,
+    1469
+  ],
+  "base_commit": "2e3551802306b704e759631487a75498b3b08b12",
+  "previous_goal_turn": "progress: Stage48 verified and published",
+  "trust_level": "COORDINATOR_ATTESTED_TOOL_TRANSCRIPT",
+  "model_requested": "gpt-6-astra",
+  "agents": [
+    {
+      "task_name": "/root/f2_input_contract",
+      "role": "source/code contract author",
+      "fork_turns": "none",
+      "completed": true,
+      "interrupt_agent_called": true
+    },
+    {
+      "task_name": "/root/base_core_identity",
+      "role": "source/identity candidate author",
+      "fork_turns": "none",
+      "completed": true,
+      "interrupt_agent_called": true
+    },
+    {
+      "task_name": "/root/full_base_candidate",
+      "role": "complete-candidate author",
+      "fork_turns": "none",
+      "completed": true,
+      "interrupt_agent_called": true
+    },
+    {
+      "task_name": "/root/readback_f2_probe",
+      "role": "fresh declaration-only readback; no author contract or Rust supplied",
+      "fork_turns": "none",
+      "completed": true,
+      "interrupt_agent_called": true
+    },
+    {
+      "task_name": "/root/review_f2_contract",
+      "role": "fresh source/math comparison and independent cold-build review",
+      "fork_turns": "none",
+      "completed": true,
+      "interrupt_agent_called": true
+    },
+    {
+      "task_name": "/root/review_core_identity",
+      "role": "fresh identity/source/independent-streaming review",
+      "fork_turns": "none",
+      "completed": true,
+      "interrupt_agent_called": true
+    },
+    {
+      "task_name": "/root/review_rc49_candidate",
+      "role": "fresh full-candidate counterexample and independent native replay review",
+      "fork_turns": "none",
+      "completed": true,
+      "interrupt_agent_called": true
+    }
+  ],
+  "f2_adoption": {
+    "scope": "research input contract, no universal additional Norm gate justified by checked sources, limited numerical source-function distinctions",
+    "qualified_non_norm_original_move_exists_proved": false,
+    "true_ranges": [
+      [
+        10,
+        30
+      ],
+      [
+        5,
+        25
+      ],
+      [
+        5,
+        28
+      ]
+    ],
+    "true_endpoints": [
+      10,
+      20,
+      5,
+      10
+    ],
+    "full_range_local_core": [
+      10,
+      25
+    ],
+    "actual_endpoint_intersection": [
+      10,
+      10
+    ],
+    "range_reencoding_first_seam": [
+      30,
+      25
+    ],
+    "range_reencoding_second_seam": [
+      5,
+      5
+    ],
+    "probe_has_complete_move_identity_level_or_completion_certificates": false,
+    "lean_mode": "independent direct cold compile of 7 original Origin modules and NonNormProbe; #check and #print axioms",
+    "lean_declarations": 10,
+    "declaration_scope": "9 closed finite examples; 1 pure Int min/max conditional equivalence",
+    "axioms": {
+      "first_nine": [],
+      "tenth": [
+        "propext",
+        "Quot.sound"
+      ]
+    },
+    "exact_verifier_run": false,
+    "independent_oleans_matching_author": 8,
+    "rust_scope": "path-imported original types.rs and center.rs; not full production validation",
+    "failure_source_snapshot_preserved": false,
+    "entire_standard_library_and_dynamic_libraries_hashed": false
+  },
+  "identity_adoption": {
+    "literal_trade_point_base_role_supported": true,
+    "order_observation_center_identity_certified": false,
+    "candidate": "C_RET-v0",
+    "scope": "new relation R1-R4 only",
+    "outer_support": "owned event-after observations, excludes shared entry state",
+    "native_lift_provided": false,
+    "author_counts": {
+      "words_length_1_to_8": 9840,
+      "repeated_prefix_positions": 83652,
+      "closed_comparisons": 468
+    },
+    "independent_counts": {
+      "distinct_prefixes": 88573,
+      "append_steps": 88572,
+      "small_closed_comparisons": 3870,
+      "all_closed_comparisons": 183076,
+      "named_examples": 14,
+      "long_words": 300,
+      "long_word_prefixes": 28742
+    },
+    "provisional_numeric_labels_example": {
+      "word": "10^3,20^3,5^3",
+      "prefixes": [
+        6,
+        7,
+        9
+      ],
+      "labels": [
+        "U",
+        "expansion",
+        "U"
+      ],
+      "closed_old_instance_changes": false
+    }
+  },
+  "rc49_adoption": {
+    "candidate": "RC49-v1",
+    "original_completed_move_interpretation": "refuted",
+    "scope": "frozen positive-width core, extension/outer, delayed closure and same-level restart combination only",
+    "up_and_down_adjacent_counterexamples": true,
+    "occurrence_ends": [
+      8,
+      16,
+      24
+    ],
+    "confirmation_indices": [
+      15,
+      23,
+      31
+    ],
+    "template_two_output_failure_prefix": 23,
+    "global_minimum_proved": false,
+    "up_true_ranges": [
+      [
+        1000,
+        1140
+      ],
+      [
+        1110,
+        1240
+      ],
+      [
+        1210,
+        1340
+      ]
+    ],
+    "up_three_intersection_bounds": [
+      1210,
+      1140
+    ],
+    "native_histories": 9,
+    "native_events": 304,
+    "prefixes_including_initial": 313,
+    "adds": 202,
+    "cancels": 102,
+    "minimum_remaining_reservoir": 599,
+    "sealed_core_instances": 26,
+    "order_identity_replay_independent": true,
+    "w_serialization_limitation": "states and Move/tail have explicit exact W; legs/core/outer/exit.returnRange only explicitly q; W can be recomputed, not all dual fields stored",
+    "birth_scope": "M0 bornAt=9 is seed milestone; two sealed cores available 11; candidate confirmation 15",
+    "P_completion_proved": false,
+    "F2_qualified_input_proved": false
+  },
+  "external_review_receipts": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage49-f2-contract-independent/SHA256SUMS",
+      "bytes": 3716,
+      "sha256": "f7495e87adf92e530a31374c81ac5f408c2757e839ecaf3810709a0d646f56de"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage49-core-identity-independent/independent-results.json",
+      "bytes": 1849,
+      "sha256": "5550eb54dcf7c4397597714b52edbc3428e419473a8b48e07eb4bfca5b97543d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage49-core-identity-independent/freeze-and-author-replay.json",
+      "bytes": 3666,
+      "sha256": "441446a5950c016bacb25053c944214cd2c025fda6a63c39def8cd2528c1a8c5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage49-rc49-independent/evidence-manifest.json",
+      "bytes": 7877,
+      "sha256": "1c4dcfd8bd74ae4e8e0fd947c4e34c739f919406daad557b8bb4ebdf77002ac8"
+    }
+  ],
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage49FullRangeCoreIdentityAndRestart.md",
+      "bytes": 7680,
+      "sha256": "8424331afa13a37917969593e694d6f00e67f5415154e5dbcc1ab2a61125dee2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/Intent-v1.md",
+      "bytes": 2804,
+      "sha256": "a7ab85876512ff5fc961a553009272bfbc6af06da6cfe83951c0a29c635f1bee"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/ScopeClarifications-v1.md",
+      "bytes": 2696,
+      "sha256": "77b518dac43eff7cf730b4b5a3829e6ef09304f7f536af87af8bdbe35ce10376"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/base-core-identity.md",
+      "bytes": 27437,
+      "sha256": "258fcb8b482df90f898b7dac9eb2ff88be612158c13bbcb6650237072333ed0a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/check-certificate.mjs",
+      "bytes": 5082,
+      "sha256": "faf45f9654ac1ee36c8d317e6ef319779635fafc50c31c4b0a23d8b5dba11a15"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/frozen-manifest.json",
+      "bytes": 8638,
+      "sha256": "ce89d08ec541d20957ce0c8f92e744b7e8958ccab77bd688a4f430e6864313aa"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/rc49-v1-definition.md",
+      "bytes": 4141,
+      "sha256": "cb1edaba2255b367220b2e7f9787d36f6c13da3586a586459ba1f89399e4e510"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/rc49-v1.mjs",
+      "bytes": 11376,
+      "sha256": "90555d39c8b30362027e23d6027e941d9d83781641ba7da70c9ce40a86296043"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/adverse_10x3_30_20x3_15x3.json",
+      "bytes": 4008,
+      "sha256": "61b4de4cffbb3ec7ebc4a5c726c02f0a96e5366076ece4df726fdb3b04bb3091"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/certificate-check.json",
+      "bytes": 2470,
+      "sha256": "9b4cf22787401af796d1f418c1c6ef9ccfd7e05b40e7bfc2b15fb33f28a8f9c8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/flat_10.json",
+      "bytes": 21480,
+      "sha256": "c2fab85d95cace523d8e375b88c52f8d392013ce99ca0adcc90f4d3ff48cc62b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/long_10_20.json",
+      "bytes": 39159,
+      "sha256": "3ee2594e4475297edd7826fa45bd0d9e2e303ace92f335ed3dda00ae56bf148e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/p_completion_disjoint.json",
+      "bytes": 13096,
+      "sha256": "1f39a0d57a8e1f0e0f1e16313a44f1731ab94fb64f1d25241a4f315723176031"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/p_completion_overlap.json",
+      "bytes": 14839,
+      "sha256": "73096cff40a246b6ef1983f4234dee0b659073e4b48f473730e0d088922fb769"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/same_down_mirror.json",
+      "bytes": 34742,
+      "sha256": "af882f3c4afa4a68ed289405e7044d063b2d12c6f6b6f1eed207a51ae4c98793"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/same_up_counterexample.json",
+      "bytes": 34694,
+      "sha256": "70fb54425e9ea60c7aa0f3bdb51813177ca1e003c6ec9cb65b604bdbf0c06f96"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/short_platform.json",
+      "bytes": 3231,
+      "sha256": "f53b4ee4e57bee30eb6093c5272b9f16fece346ef245e5e490a4e14830f968da"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/short_platform_after_trend.json",
+      "bytes": 3743,
+      "sha256": "52ac08dd90654ae1d7f275c50042ddf3dfbdb00274f147923920ff123e4c00b0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/summary.json",
+      "bytes": 4737,
+      "sha256": "7ddac38bcbfa9566fcdf60ddacd4203d3899c27c616f220e9513b6c163541d32"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/core-identity-evidence/check.mjs",
+      "bytes": 7512,
+      "sha256": "219006155f4c2ebd1c97133f0d2c5b004160d32831bda4312d46a27a05bade5b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/core-identity-evidence/frozen-manifest.json",
+      "bytes": 1181,
+      "sha256": "19e1513eca2def7a3bd7a017fb83cd55e5a52bd04ab154dc4f82a3a3d235cba1"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/core-identity-evidence/results.json",
+      "bytes": 23071,
+      "sha256": "1bf5ca51ea7fdbd39052c45d893eac12ce761284c6d5a91bda7f0125daf6bd52"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/core-identity-evidence/source-manifest.json",
+      "bytes": 100965,
+      "sha256": "9241b2c69e8c8bf7dad6034b8f94b00a98c1cb73198ecabb776e4f6d2dd3abf2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/core-identity-evidence/verify-freeze.mjs",
+      "bytes": 966,
+      "sha256": "bc786334e5f5c7d8e0f2d783bf014d2c0dc3a42b220cbd3f65c131dbf8c2360b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/f2-contract-evidence/NonNormProbe.lean",
+      "bytes": 4648,
+      "sha256": "d1d58f53aefe1ca0bf1272b73d928272e2b5b11311f7c44a2f3b4399071441cd"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/f2-contract-evidence/SHA256SUMS",
+      "bytes": 803,
+      "sha256": "a0412b81ccb40d3a2b4e5c56cce31eb9eb6e7e730c595a10a7a35775aa3cfddd"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/f2-contract-evidence/non_norm_probe.rs",
+      "bytes": 3227,
+      "sha256": "3ed5f63f33e4099f81c2c85af5cf963ceac05edc5b39a4ffc2de94f86427b88b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/f2-contract-evidence/receipt-attempt1.txt",
+      "bytes": 2378,
+      "sha256": "5611478413ab8b984c87f37cc2202190c21b75884e92022c5f80fe480e21ee91"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/f2-contract-evidence/receipt.txt",
+      "bytes": 3687,
+      "sha256": "72700c16d49af9781579075faefd762b7008aaba014f5ded09b4f5ab7eba6b2a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/f2-contract-evidence/run.sh",
+      "bytes": 2805,
+      "sha256": "d0e6fd148700bd15976d4c586a9c8a290ea3ffb349fd98d57e9fedb09b5d8b96"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/f2-contract-evidence/source-build.json",
+      "bytes": 4225,
+      "sha256": "ec15f826d041885a50f400e65a63db9ac6eafd2be7082cc55aecee4f8d693709"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/f2-contract-evidence/sources.json",
+      "bytes": 7148,
+      "sha256": "4ca03a7c3e7fd72d5e95a5a5b6cf3069af1d531abe392ac8eede96489313c98d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/f2-input-contract.md",
+      "bytes": 23221,
+      "sha256": "43cbc60ebdf67bc75b2a6c2a5fcab55f5e93e2ea0eb6d0c0a19adb126033f531"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/f2-probe-readback-input-hashes.json",
+      "bytes": 5544,
+      "sha256": "3a5db2b04de00de2922389fa2d763a9227af5c7b2cb557d0907b71c0a272328f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/f2-probe-readback.md",
+      "bytes": 11155,
+      "sha256": "cf456561b32781c5c5da21450d5bf102e2e628ae04d8f705577293d1107a7092"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/full-base-candidate.md",
+      "bytes": 18298,
+      "sha256": "684407d7368a35a06f9150d6044a42c993b8c980688c3b1746156281ac7c9e11"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/independent-core-identity-review.md",
+      "bytes": 15869,
+      "sha256": "83f254db32e8454416052330f0dbc4084404e8a70fb6e9ea462e1499c32b76df"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/independent-f2-contract-review.md",
+      "bytes": 14685,
+      "sha256": "786d00bafae9ff7e8eb2a7191b2fce3d22b8d697e9c4ac64f2d54543c6da1f6c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/independent-rc49-review.md",
+      "bytes": 17510,
+      "sha256": "e6e31dd86afa482deff5898e6d9e6a43ef1063d1eb189196cb7428e1b72b9933"
+    }
+  ],
+  "coordinator_checks": [
+    "seven frozen author/readback/reviewer report hashes match",
+    "unrelated ResearchProgress six-line and Stage40 two-line additions preserved; own-only patch prepared"
+  ],
+  "new_Lean_claim": true,
+  "new_Lean_scope": "limited direct-compiled probe as above, not full F1/F2 or exact-root verification",
+  "formal_source_modified": false,
+  "production_modified": false,
+  "fixture_drift_required": false,
+  "original_a1_or_F2_qualified": false,
+  "market_value_tested": false,
+  "production_adopted": false,
+  "goal_complete": false,
+  "goal_status": "active"
+}

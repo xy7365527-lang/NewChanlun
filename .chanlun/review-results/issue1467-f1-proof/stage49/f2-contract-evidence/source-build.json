@@ -1,0 +1,125 @@
+{
+  "method": "direct Lean source builds; direct root elaboration and olean emission; #check and #print axioms; not verify_lean_project",
+  "head": "2e3551802306b704e759631487a75498b3b08b12",
+  "lean_toolchain_file": {
+    "sha256": "efac0b94923b2d8b6840cd35be9177ad0fc5ab2332f4f4311c98712cee92fdee",
+    "bytes": 25
+  },
+  "lean_executable": {
+    "path": "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+    "sha256": "1b370cfcbf44e80d1b004ab1b1ab9a4c73951f9f7c242140bcff9bc577576554",
+    "bytes": 49968
+  },
+  "rustc_executable": {
+    "path": "/opt/homebrew/Cellar/rust/1.98.0/bin/rustc",
+    "sha256": "b0cf136c59e80f0eb7bafbd772f73a412911a55fb99857dcdc1d1bad2423a0ee",
+    "bytes": 343600
+  },
+  "fresh_source_modules": [
+    {
+      "module": "Origin.SourceAxioms",
+      "source": "formal/Origin/SourceAxioms.lean",
+      "source_digest": {
+        "sha256": "2154cb85c1ac80685e8d2091259818e3543ad76dfeeb08640df0ae236d39ff6f",
+        "bytes": 2773
+      },
+      "olean_digest": {
+        "sha256": "06d541e138fc57fb9d34fabf569daddc75fc0af74003ae86f9e7e0d001a07542",
+        "bytes": 309728
+      }
+    },
+    {
+      "module": "Origin.CompleteClassification",
+      "source": "formal/Origin/CompleteClassification.lean",
+      "source_digest": {
+        "sha256": "066f1feaec8f6e8a93a4f3c4a516bff51af31689e382d20964e06526fa831b26",
+        "bytes": 3920
+      },
+      "olean_digest": {
+        "sha256": "2228f091fe5eae15bcfaccfd4adff2fc25b0bcd9eae90d55f9fd7e25303d6438",
+        "bytes": 135728
+      }
+    },
+    {
+      "module": "Origin.ChanlunElements",
+      "source": "formal/Origin/ChanlunElements.lean",
+      "source_digest": {
+        "sha256": "19c33e884e6949cdd56a51ff7c44dc086354994b7f54431f57bec4a0849fa201",
+        "bytes": 6035
+      },
+      "olean_digest": {
+        "sha256": "98b790efd826ea9613f6822081d8fc9ed2a6fdbeaf1d3c5ac469fa40291a278e",
+        "bytes": 988480
+      }
+    },
+    {
+      "module": "Origin.CenterStates",
+      "source": "formal/Origin/CenterStates.lean",
+      "source_digest": {
+        "sha256": "8355eaba2ca8b0f1ef50b8167802ce2f5c6abdab188dd3f49ea25859936a1a0a",
+        "bytes": 26194
+      },
+      "olean_digest": {
+        "sha256": "3d2c5eb1ebe8ff953782cab786e63e8b894c1aa9cab5cd754dd88e0d485f4cd8",
+        "bytes": 537136
+      }
+    },
+    {
+      "module": "Origin.CenterFull",
+      "source": "formal/Origin/CenterFull.lean",
+      "source_digest": {
+        "sha256": "00b40dd9f75756edb1a3155c04f301de9c8986bb148f753b56e7707686d73959",
+        "bytes": 10018
+      },
+      "olean_digest": {
+        "sha256": "e0448606327f6735a01d73a717de85c0dac316ea08533ece6f93768c6582f11f",
+        "bytes": 172400
+      }
+    },
+    {
+      "module": "Origin.CenterConstruction",
+      "source": "formal/Origin/CenterConstruction.lean",
+      "source_digest": {
+        "sha256": "478a00a239e77b6ac66554c8428efaff7f1af69f9edbf73f2f4250aaa895bc3c",
+        "bytes": 21312
+      },
+      "olean_digest": {
+        "sha256": "d99752b1554d4455382e632aaff7eb03bbb57cc3514ad1f0b9bcf6259f0404d8",
+        "bytes": 330104
+      }
+    },
+    {
+      "module": "Origin.CenterComplete",
+      "source": "formal/Origin/CenterComplete.lean",
+      "source_digest": {
+        "sha256": "478e34e703801742e6808c834488b7fe009d94bb0d896eb65e7d6a20105d64c2",
+        "bytes": 38751
+      },
+      "olean_digest": {
+        "sha256": "b5813e0477506a3fe748c4f7f9dada97790d17bb3a8f35e8b4bb5a08eacd4c5a",
+        "bytes": 425024
+      }
+    }
+  ],
+  "probe_source": {
+    "sha256": "d1d58f53aefe1ca0bf1272b73d928272e2b5b11311f7c44a2f3b4399071441cd",
+    "bytes": 4648
+  },
+  "probe_olean": {
+    "sha256": "7eb680ec931464024ccf41d38f53c5e5e1d30e96f3eedaaaf50f15aa0c19e0be",
+    "bytes": 153928
+  },
+  "rust_driver": {
+    "sha256": "3ed5f63f33e4099f81c2c85af5cf963ceac05edc5b39a4ffc2de94f86427b88b",
+    "bytes": 3227
+  },
+  "rust_binary": {
+    "sha256": "015ee2831ceae49a54c14a2cae145bc08fda5926c43616abadde7934c42ee50b",
+    "bytes": 462576
+  },
+  "lean_root_exit": 0,
+  "rust_compile_exit": 0,
+  "rust_run_exit": 0,
+  "build_outputs_preserved": false,
+  "note": "Only digests are preserved; temporary olean and binary outputs are deleted by the EXIT trap."
+}

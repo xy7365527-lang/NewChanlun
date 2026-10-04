@@ -1,0 +1,123 @@
+{
+  "scope": "separate author arithmetic/source checker; not independent review",
+  "findings": [
+    {
+      "name": "same_up_counterexample",
+      "eventsReplayed": 40,
+      "firstForbiddenAdjacentCompletionKnownAt": 23,
+      "objectsAt23": [
+        {
+          "id": "M0",
+          "type": "U",
+          "level": 0,
+          "start": 0,
+          "end": 8,
+          "range": [
+            1000,
+            1140
+          ],
+          "confirmedAt": 15,
+          "sourceEvents": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ]
+        },
+        {
+          "id": "M1",
+          "type": "U",
+          "level": 0,
+          "start": 8,
+          "end": 16,
+          "range": [
+            1110,
+            1240
+          ],
+          "confirmedAt": 23,
+          "sourceEvents": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ]
+        }
+      ],
+      "noEventGap": true,
+      "disjointOwnedCores": true,
+      "threeCandidateObjectsKnownAt": 31,
+      "originalCompletedSuccession": false
+    },
+    {
+      "name": "same_down_mirror",
+      "eventsReplayed": 40,
+      "firstForbiddenAdjacentCompletionKnownAt": 23,
+      "objectsAt23": [
+        {
+          "id": "M0",
+          "type": "D",
+          "level": 0,
+          "start": 0,
+          "end": 8,
+          "range": [
+            1560,
+            1700
+          ],
+          "confirmedAt": 15,
+          "sourceEvents": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ]
+        },
+        {
+          "id": "M1",
+          "type": "D",
+          "level": 0,
+          "start": 8,
+          "end": 16,
+          "range": [
+            1460,
+            1590
+          ],
+          "confirmedAt": 23,
+          "sourceEvents": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ]
+        }
+      ],
+      "noEventGap": true,
+      "disjointOwnedCores": true,
+      "threeCandidateObjectsKnownAt": 31,
+      "originalCompletedSuccession": false
+    }
+  ],
+  "pFork": {
+    "commonEvents": 7,
+    "oldCoreEnd": 4,
+    "oldCoreSealedAt": 7,
+    "overlapCandidatePConfirmedAt": 11,
+    "disjointBranchNoP": true
+  },
+  "allAssertionsPassed": true
+}

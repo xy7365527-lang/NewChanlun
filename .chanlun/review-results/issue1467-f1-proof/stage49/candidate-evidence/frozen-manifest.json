@@ -1,0 +1,210 @@
+{
+  "schema": "rc49-frozen-author-packet/v1",
+  "createdAt": "2026-10-04T16:35:20.217Z",
+  "baseHead": "2e3551802306b704e759631487a75498b3b08b12",
+  "candidate": "RC49-v1",
+  "verdict": "refuted as an original-completed-F1 candidate by U->U and D->D; independent review pending",
+  "authorClaims": [
+    "finite relation is total and unique with active tail",
+    "full ranges and raw event ownership are preserved",
+    "completed candidate fields are prefix stable in valid append domain",
+    "original completed type succession is violated at event 23"
+  ],
+  "notClaimed": [
+    "core semantic bridge",
+    "P original completion",
+    "three original-completed units accepted by F2",
+    "full F2 closure",
+    "market value",
+    "Lean proof",
+    "independent review"
+  ],
+  "reviewObligations": [
+    "definition vs executable match",
+    "replay order mutations and W observations",
+    "same-level continuous ownership with no missing intermediate move",
+    "outer/core separation including true expansion conjunction",
+    "first two candidate completions known at 15 and 23, ends 8 and 16",
+    "B4 source supports rejecting same-direction consecutive completed trends",
+    "P fork is rule behavior not completion theorem",
+    "OC-v1 comparison is an added-conditions test, not a new discovery of the old type axiom"
+  ],
+  "reproduce": [
+    "node rc49-v1.mjs <new-empty-output-dir>",
+    "node check-certificate.mjs <same-output-dir>"
+  ],
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/full-base-candidate.md",
+      "sha256": "684407d7368a35a06f9150d6044a42c993b8c980688c3b1746156281ac7c9e11",
+      "bytes": 18298
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/check-certificate.mjs",
+      "sha256": "faf45f9654ac1ee36c8d317e6ef319779635fafc50c31c4b0a23d8b5dba11a15",
+      "bytes": 5082
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/rc49-v1-definition.md",
+      "sha256": "cb1edaba2255b367220b2e7f9787d36f6c13da3586a586459ba1f89399e4e510",
+      "bytes": 4141
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/rc49-v1.mjs",
+      "sha256": "90555d39c8b30362027e23d6027e941d9d83781641ba7da70c9ce40a86296043",
+      "bytes": 11376
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/adverse_10x3_30_20x3_15x3.json",
+      "sha256": "61b4de4cffbb3ec7ebc4a5c726c02f0a96e5366076ece4df726fdb3b04bb3091",
+      "bytes": 4008
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/certificate-check.json",
+      "sha256": "9b4cf22787401af796d1f418c1c6ef9ccfd7e05b40e7bfc2b15fb33f28a8f9c8",
+      "bytes": 2470
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/flat_10.json",
+      "sha256": "c2fab85d95cace523d8e375b88c52f8d392013ce99ca0adcc90f4d3ff48cc62b",
+      "bytes": 21480
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/long_10_20.json",
+      "sha256": "3ee2594e4475297edd7826fa45bd0d9e2e303ace92f335ed3dda00ae56bf148e",
+      "bytes": 39159
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/p_completion_disjoint.json",
+      "sha256": "1f39a0d57a8e1f0e0f1e16313a44f1731ab94fb64f1d25241a4f315723176031",
+      "bytes": 13096
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/p_completion_overlap.json",
+      "sha256": "73096cff40a246b6ef1983f4234dee0b659073e4b48f473730e0d088922fb769",
+      "bytes": 14839
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/same_down_mirror.json",
+      "sha256": "af882f3c4afa4a68ed289405e7044d063b2d12c6f6b6f1eed207a51ae4c98793",
+      "bytes": 34742
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/same_up_counterexample.json",
+      "sha256": "70fb54425e9ea60c7aa0f3bdb51813177ca1e003c6ec9cb65b604bdbf0c06f96",
+      "bytes": 34694
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/short_platform.json",
+      "sha256": "f53b4ee4e57bee30eb6093c5272b9f16fece346ef245e5e490a4e14830f968da",
+      "bytes": 3231
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/short_platform_after_trend.json",
+      "sha256": "52ac08dd90654ae1d7f275c50042ddf3dfbdb00274f147923920ff123e4c00b0",
+      "bytes": 3743
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/candidate-evidence/results-v1/summary.json",
+      "sha256": "7ddac38bcbfa9566fcdf60ddacd4203d3899c27c616f220e9513b6c163541d32",
+      "bytes": 4737
+    }
+  ],
+  "sources": [
+    {
+      "path": ".agents/skills/rigorous-open-math-research/SKILL.md",
+      "sha256": "2cf200984572271b8689ab93e2069cc2e31b85e2824e06a9467352350b4591ed",
+      "bytes": 3921
+    },
+    {
+      "path": ".agents/skills/math-research-workflow/SKILL.md",
+      "sha256": "df37a4bd8939717159d63a85f9be2f2f9fb303e0034c93604d347bfc5977ba96",
+      "bytes": 3427
+    },
+    {
+      "path": "docs/chanlun/text/blog/017-第17课.md",
+      "sha256": "bce847aaacac3b3a79e56b3c49aca6f0c454a0917977bdbb1e0f1f553ddff026",
+      "bytes": 55792
+    },
+    {
+      "path": "docs/chanlun/text/blog/018-第18课.md",
+      "sha256": "4a661fc843d0d9fcfdf32861b7dc903ee09d824d0075dd0ea7b2c19542bb2f92",
+      "bytes": 11695
+    },
+    {
+      "path": "docs/chanlun/text/blog/020-第20课.md",
+      "sha256": "25f8f0bbe9ffbab48a27b552a081ff3925b6c01bfe1cae30c2616fe9b99b49ef",
+      "bytes": 26838
+    },
+    {
+      "path": "docs/chanlun/text/blog/035-第35课.md",
+      "sha256": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023",
+      "bytes": 19125
+    },
+    {
+      "path": "docs/chanlun/text/blog/084-第84课.md",
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26",
+      "bytes": 70833
+    },
+    {
+      "path": ".chanlun/definitions/zhongshu.md",
+      "sha256": "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882",
+      "bytes": 53981
+    },
+    {
+      "path": ".chanlun/definitions/qushi.md",
+      "sha256": "ce48f8cda6a3f02afd9fddbc0f93cb43431524b66472e579a927af5ce4bc3c46",
+      "bytes": 33811
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/GoalReframe-v4.md",
+      "sha256": "36159c5f6bd4062a6654bd3f22b3eaf00e678e5d5dacda844cbf659e230ce39d",
+      "bytes": 10098
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage47OutputSourceAndRawTurns.md",
+      "sha256": "2865fca90aba4780a7c4dc393788c373111009727fb0de2acb0882aa248a2a16",
+      "bytes": 7760
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage48FeasiblePartitionsAndCompletion.md",
+      "sha256": "2951fc8bf2df266b747f9394d44010ce3699c7825b92fb0c86f679e8c080c7ac",
+      "bytes": 7560
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage22CenterExit.md",
+      "sha256": "b6736cbe947dc0119f54350f5dc8eedaf1cdd2385ebd840287e6ab7a8c1ff652",
+      "bytes": 6408
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage38SegmentLiftReachability.md",
+      "sha256": "e067cfda1c251d4d0394cc5b9060820f5074d6dc5aa846a941eb1f9cdb3050c2",
+      "bytes": 7106
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage40CompletionGate.md",
+      "sha256": "ce88203d0aa44ed9d89073d4373c709881c0ca0e72a2d67ef123cbc1db43dcf0",
+      "bytes": 7311
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage43/panzheng-completion.md",
+      "sha256": "ca91a02139000990692a25705b447e85bf0b9a31f50904c1739abef05e5a8b16",
+      "bytes": 20212
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage43/owned-core-candidate.md",
+      "sha256": "5b0d92d2a32d885ff89647be31c089226ea228fa1cad1385db1825cf20270990",
+      "bytes": 29395
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage44/f1-completion-scope.md",
+      "sha256": "cdf58e8f2f4cded394a973b8b4de9bce6ed2af5e740f0da502027cb70246e0f2",
+      "bytes": 22530
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage44/ScopeCorrections-v2.md",
+      "sha256": "6d6efc677c2b0aad9a759f2ea5c35c2a5a626897568fc0c6a276668ff6868aa6",
+      "bytes": 7436
+    }
+  ]
+}

@@ -1,0 +1,176 @@
+{
+  "head": "2e3551802306b704e759631487a75498b3b08b12",
+  "date": "2026-10-05",
+  "graph_discovery": {
+    "tool": "codebase-memory-mcp.search_graph",
+    "project": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun",
+    "name_pattern": ".*(MovesComposedFrom|UnitRange|center_from_segments|center_from_window|Move.interval).*",
+    "result": "project not found or not indexed",
+    "fallback": "task-specified known exact source paths; no other-worktree index substitution"
+  },
+  "sources": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/GoalReframe-v4.md",
+      "sha256": "36159c5f6bd4062a6654bd3f22b3eaf00e678e5d5dacda844cbf659e230ce39d",
+      "bytes": 10098,
+      "read_or_build_scope": "全部目标及分支协议"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage48FeasiblePartitionsAndCompletion.md",
+      "sha256": "2951fc8bf2df266b747f9394d44010ce3699c7825b92fb0c86f679e8c080c7ac",
+      "bytes": 7560,
+      "read_or_build_scope": "全部汇总"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage48/mature-core-completion.md",
+      "sha256": "3db5fddec709fbc61e056fb2fedee922842781d9d92a44f459750cdebf6d085e",
+      "bytes": 23634,
+      "read_or_build_scope": "15-61,108-152,213-215"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage19ComposeAudit.md",
+      "sha256": "26145ba5465e5bb9aabb3d100f2f27ed43634a382df7bd3e098090dad296c84f",
+      "bytes": 8216,
+      "read_or_build_scope": "15-73"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage20SourceHull.md",
+      "sha256": "8557c9e385842adc42e1c28a08fe1bfd989e41c57c0c2515980d144f1877ea7d",
+      "bytes": 5797,
+      "read_or_build_scope": "9-56"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage34BaseObjectAudit.md",
+      "sha256": "63d02f1223434ebe3d2f01470562d7ae1fc7cdca4903a8bf4d30e366b988101e",
+      "bytes": 11456,
+      "read_or_build_scope": "对象与来源、前提定域、成员与支持、下一项"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage39ScopeAudit.md",
+      "sha256": "2313437cd9e5c9adbed8c6bdff1d685ec4e6334c885cfbb58d840e2095d05936",
+      "bytes": 9098,
+      "read_or_build_scope": "原文义务、范围判别、完整F1约束"
+    },
+    {
+      "path": ".chanlun/definitions/zhongshu.md",
+      "sha256": "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882",
+      "bytes": 53981,
+      "read_or_build_scope": "41-146,195-214"
+    },
+    {
+      "path": ".chanlun/definitions/level_recursion.md",
+      "sha256": "06ac7aee96b089536766ac172b52ff0f8d702f2e4ec01ca2b47b1f3a590e1637",
+      "bytes": 26523,
+      "read_or_build_scope": "16-91,229-237,283-297,329-340"
+    },
+    {
+      "path": ".chanlun/definitions/qushi.md",
+      "sha256": "ce48f8cda6a3f02afd9fddbc0f93cb43431524b66472e579a927af5ce4bc3c46",
+      "bytes": 33811,
+      "read_or_build_scope": "40-61,179-200"
+    },
+    {
+      "path": "docs/chanlun/text/blog/018-第18课.md",
+      "sha256": "4a661fc843d0d9fcfdf32861b7dc903ee09d824d0075dd0ea7b2c19542bb2f92",
+      "bytes": 11695,
+      "read_or_build_scope": "18-42;正文界68;24行娇注排除"
+    },
+    {
+      "path": "docs/chanlun/text/blog/031-第31课.md",
+      "sha256": "c784ee15c21cef965b6e073a89224e56b29bad03a9ecd1dc9e130c54083d47d5",
+      "bytes": 80982,
+      "read_or_build_scope": "374-393;正文界32;386作者回答部分及390重复"
+    },
+    {
+      "path": "docs/chanlun/text/blog/035-第35课.md",
+      "sha256": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023",
+      "bytes": 19125,
+      "read_or_build_scope": "12-38;正文;无引文内编注"
+    },
+    {
+      "path": "docs/chanlun/text/blog/049-第49课.md",
+      "sha256": "9aacf49b222c2bda2f607d7b918590ceebaac1194bab87c9af9e073a8fd25bcb",
+      "bytes": 21786,
+      "read_or_build_scope": "126-140;正文界78;134问题/138回答"
+    },
+    {
+      "path": "docs/chanlun/text/blog/052-第52课.md",
+      "sha256": "a505332be8b87094ccab01165ccffa71ec7833dcd723e94467fa88744dc0bfcb",
+      "bytes": 39398,
+      "read_or_build_scope": "308-334;正文界26;320问题/328回答;330不作独立证据"
+    },
+    {
+      "path": "docs/chanlun/text/blog/084-第84课.md",
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26",
+      "bytes": 70833,
+      "read_or_build_scope": "44-68;52-56正文无引文内编注"
+    },
+    {
+      "path": "formal/Origin/SourceAxioms.lean",
+      "sha256": "2154cb85c1ac80685e8d2091259818e3543ad76dfeeb08640df0ae236d39ff6f",
+      "bytes": 2773,
+      "read_or_build_scope": "全文件冷编依赖"
+    },
+    {
+      "path": "formal/Origin/CompleteClassification.lean",
+      "sha256": "066f1feaec8f6e8a93a4f3c4a516bff51af31689e382d20964e06526fa831b26",
+      "bytes": 3920,
+      "read_or_build_scope": "14-112;全文件冷编"
+    },
+    {
+      "path": "formal/Origin/ChanlunElements.lean",
+      "sha256": "19c33e884e6949cdd56a51ff7c44dc086354994b7f54431f57bec4a0849fa201",
+      "bytes": 6035,
+      "read_or_build_scope": "13-190;全文件冷编"
+    },
+    {
+      "path": "formal/Origin/CenterStates.lean",
+      "sha256": "8355eaba2ca8b0f1ef50b8167802ce2f5c6abdab188dd3f49ea25859936a1a0a",
+      "bytes": 26194,
+      "read_or_build_scope": "导入依赖与冷编"
+    },
+    {
+      "path": "formal/Origin/CenterFull.lean",
+      "sha256": "00b40dd9f75756edb1a3155c04f301de9c8986bb148f753b56e7707686d73959",
+      "bytes": 10018,
+      "read_or_build_scope": "45-67;全文件冷编"
+    },
+    {
+      "path": "formal/Origin/CenterConstruction.lean",
+      "sha256": "478a00a239e77b6ac66554c8428efaff7f1af69f9edbf73f2f4250aaa895bc3c",
+      "bytes": 21312,
+      "read_or_build_scope": "47-260;全文件冷编"
+    },
+    {
+      "path": "formal/Origin/CenterComplete.lean",
+      "sha256": "478e34e703801742e6808c834488b7fe009d94bb0d896eb65e7d6a20105d64c2",
+      "bytes": 38751,
+      "read_or_build_scope": "72-223;全文件冷编"
+    },
+    {
+      "path": "formal/Formal/RecursiveConstruction.lean",
+      "sha256": "142686bda93dd3ab77359eb93b4926cf5c7ef69d09f92bc18ad99467ec705a85",
+      "bytes": 41411,
+      "read_or_build_scope": "25-265;未重跑旧反例"
+    },
+    {
+      "path": "rust/src/theta_v0/types.rs",
+      "sha256": "4370651d94e1be89d83d26c2d8ab00a7f7cd961693f071749afb10bf95f6bca0",
+      "bytes": 22076,
+      "read_or_build_scope": "15-42,118-136;整个文件直接编入驱动"
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/center.rs",
+      "sha256": "06832a4649601863778548cb840dab0de99ccf192b76cb93949ab72a0e4d6c13",
+      "bytes": 45892,
+      "read_or_build_scope": "74-299;整个文件直接编入驱动"
+    },
+    {
+      "path": "formal/lean-toolchain",
+      "sha256": "efac0b94923b2d8b6840cd35be9177ad0fc5ab2332f4f4311c98712cee92fdee",
+      "bytes": 25,
+      "read_or_build_scope": "工具链声明"
+    }
+  ],
+  "scope": "Read-only input contract plus local finite coordinate probe. Not full a1/F2 completion; no production fix; not independently reviewed."
+}

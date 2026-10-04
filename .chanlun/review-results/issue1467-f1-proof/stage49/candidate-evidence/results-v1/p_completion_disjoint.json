@@ -1,0 +1,719 @@
+{
+  "name": "p_completion_disjoint",
+  "source": {
+    "epoch": "synthetic-rc49-v1",
+    "initial": {
+      "bid": {
+        "id": "reservoir",
+        "price": 100,
+        "quantity": 1140
+      },
+      "ask": {
+        "id": "ask",
+        "price": 102,
+        "quantity": 10
+      }
+    },
+    "events": [
+      {
+        "seq": 1,
+        "kind": "add",
+        "id": "deep-1",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 2,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 40
+      },
+      {
+        "seq": 3,
+        "kind": "add",
+        "id": "up-3",
+        "side": "bid",
+        "price": 100,
+        "quantity": 20
+      },
+      {
+        "seq": 4,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 40
+      },
+      {
+        "seq": 5,
+        "kind": "add",
+        "id": "up-5",
+        "side": "bid",
+        "price": 100,
+        "quantity": 120
+      },
+      {
+        "seq": 6,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 40
+      },
+      {
+        "seq": 7,
+        "kind": "add",
+        "id": "up-7",
+        "side": "bid",
+        "price": 100,
+        "quantity": 60
+      },
+      {
+        "seq": 8,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 40
+      },
+      {
+        "seq": 9,
+        "kind": "add",
+        "id": "up-9",
+        "side": "bid",
+        "price": 100,
+        "quantity": 60
+      },
+      {
+        "seq": 10,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 10
+      },
+      {
+        "seq": 11,
+        "kind": "add",
+        "id": "up-11",
+        "side": "bid",
+        "price": 100,
+        "quantity": 8
+      },
+      {
+        "seq": 12,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 6
+      },
+      {
+        "seq": 13,
+        "kind": "add",
+        "id": "up-13",
+        "side": "bid",
+        "price": 100,
+        "quantity": 108
+      },
+      {
+        "seq": 14,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 40
+      },
+      {
+        "seq": 15,
+        "kind": "add",
+        "id": "up-15",
+        "side": "bid",
+        "price": 100,
+        "quantity": 30
+      },
+      {
+        "seq": 16,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 20
+      },
+      {
+        "seq": 17,
+        "kind": "add",
+        "id": "up-17",
+        "side": "bid",
+        "price": 100,
+        "quantity": 130
+      },
+      {
+        "seq": 18,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 40
+      },
+      {
+        "seq": 19,
+        "kind": "add",
+        "id": "up-19",
+        "side": "bid",
+        "price": 100,
+        "quantity": 30
+      },
+      {
+        "seq": 20,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 20
+      }
+    ],
+    "states": [
+      {
+        "event": 0,
+        "q": 1140,
+        "w": "11728/115"
+      },
+      {
+        "event": 1,
+        "q": 1140,
+        "w": "11728/115"
+      },
+      {
+        "event": 2,
+        "q": 1100,
+        "w": "11320/111"
+      },
+      {
+        "event": 3,
+        "q": 1120,
+        "w": "11524/113"
+      },
+      {
+        "event": 4,
+        "q": 1080,
+        "w": "11116/109"
+      },
+      {
+        "event": 5,
+        "q": 1200,
+        "w": "12340/121"
+      },
+      {
+        "event": 6,
+        "q": 1160,
+        "w": "11932/117"
+      },
+      {
+        "event": 7,
+        "q": 1220,
+        "w": "12544/123"
+      },
+      {
+        "event": 8,
+        "q": 1180,
+        "w": "12136/119"
+      },
+      {
+        "event": 9,
+        "q": 1240,
+        "w": "12748/125"
+      },
+      {
+        "event": 10,
+        "q": 1230,
+        "w": "6323/62"
+      },
+      {
+        "event": 11,
+        "q": 1238,
+        "w": "31819/312"
+      },
+      {
+        "event": 12,
+        "q": 1232,
+        "w": "63332/621"
+      },
+      {
+        "event": 13,
+        "q": 1340,
+        "w": "13768/135"
+      },
+      {
+        "event": 14,
+        "q": 1300,
+        "w": "13360/131"
+      },
+      {
+        "event": 15,
+        "q": 1330,
+        "w": "6833/67"
+      },
+      {
+        "event": 16,
+        "q": 1310,
+        "w": "6731/66"
+      },
+      {
+        "event": 17,
+        "q": 1440,
+        "w": "14788/145"
+      },
+      {
+        "event": 18,
+        "q": 1400,
+        "w": "14380/141"
+      },
+      {
+        "event": 19,
+        "q": 1430,
+        "w": "7343/72"
+      },
+      {
+        "event": 20,
+        "q": 1410,
+        "w": "7241/71"
+      }
+    ],
+    "coordinates": [
+      140,
+      100,
+      120,
+      80,
+      200,
+      160,
+      220,
+      180,
+      240,
+      230,
+      238,
+      232,
+      340,
+      300,
+      330,
+      310,
+      440,
+      400,
+      430,
+      410
+    ],
+    "shift": 1000
+  },
+  "result": {
+    "legs": {
+      "completed": [
+        {
+          "id": 0,
+          "start": 0,
+          "end": 2,
+          "direction": "Down",
+          "range": [
+            1100,
+            1140
+          ],
+          "knownAt": 3
+        },
+        {
+          "id": 1,
+          "start": 2,
+          "end": 3,
+          "direction": "Up",
+          "range": [
+            1100,
+            1120
+          ],
+          "knownAt": 4
+        },
+        {
+          "id": 2,
+          "start": 3,
+          "end": 4,
+          "direction": "Down",
+          "range": [
+            1080,
+            1120
+          ],
+          "knownAt": 5
+        },
+        {
+          "id": 3,
+          "start": 4,
+          "end": 5,
+          "direction": "Up",
+          "range": [
+            1080,
+            1200
+          ],
+          "knownAt": 6
+        },
+        {
+          "id": 4,
+          "start": 5,
+          "end": 6,
+          "direction": "Down",
+          "range": [
+            1160,
+            1200
+          ],
+          "knownAt": 7
+        },
+        {
+          "id": 5,
+          "start": 6,
+          "end": 7,
+          "direction": "Up",
+          "range": [
+            1160,
+            1220
+          ],
+          "knownAt": 8
+        },
+        {
+          "id": 6,
+          "start": 7,
+          "end": 8,
+          "direction": "Down",
+          "range": [
+            1180,
+            1220
+          ],
+          "knownAt": 9
+        },
+        {
+          "id": 7,
+          "start": 8,
+          "end": 9,
+          "direction": "Up",
+          "range": [
+            1180,
+            1240
+          ],
+          "knownAt": 10
+        },
+        {
+          "id": 8,
+          "start": 9,
+          "end": 10,
+          "direction": "Down",
+          "range": [
+            1230,
+            1240
+          ],
+          "knownAt": 11
+        },
+        {
+          "id": 9,
+          "start": 10,
+          "end": 11,
+          "direction": "Up",
+          "range": [
+            1230,
+            1238
+          ],
+          "knownAt": 12
+        },
+        {
+          "id": 10,
+          "start": 11,
+          "end": 12,
+          "direction": "Down",
+          "range": [
+            1232,
+            1238
+          ],
+          "knownAt": 13
+        },
+        {
+          "id": 11,
+          "start": 12,
+          "end": 13,
+          "direction": "Up",
+          "range": [
+            1232,
+            1340
+          ],
+          "knownAt": 14
+        },
+        {
+          "id": 12,
+          "start": 13,
+          "end": 14,
+          "direction": "Down",
+          "range": [
+            1300,
+            1340
+          ],
+          "knownAt": 15
+        },
+        {
+          "id": 13,
+          "start": 14,
+          "end": 15,
+          "direction": "Up",
+          "range": [
+            1300,
+            1330
+          ],
+          "knownAt": 16
+        },
+        {
+          "id": 14,
+          "start": 15,
+          "end": 16,
+          "direction": "Down",
+          "range": [
+            1310,
+            1330
+          ],
+          "knownAt": 17
+        },
+        {
+          "id": 15,
+          "start": 16,
+          "end": 17,
+          "direction": "Up",
+          "range": [
+            1310,
+            1440
+          ],
+          "knownAt": 18
+        },
+        {
+          "id": 16,
+          "start": 17,
+          "end": 18,
+          "direction": "Down",
+          "range": [
+            1400,
+            1440
+          ],
+          "knownAt": 19
+        },
+        {
+          "id": 17,
+          "start": 18,
+          "end": 19,
+          "direction": "Up",
+          "range": [
+            1400,
+            1430
+          ],
+          "knownAt": 20
+        }
+      ],
+      "active": {
+        "start": 19,
+        "end": 20,
+        "direction": "Down",
+        "range": [
+          1410,
+          1430
+        ],
+        "knownAt": null
+      }
+    },
+    "coreScan": {
+      "completed": [
+        {
+          "id": "K0",
+          "level": 0,
+          "seed": [
+            0,
+            1,
+            2
+          ],
+          "core": [
+            1100,
+            1120
+          ],
+          "members": [
+            0,
+            1,
+            2
+          ],
+          "sourceStart": 0,
+          "sourceEnd": 4,
+          "outer": [
+            1080,
+            1140
+          ],
+          "bornAt": 5,
+          "startDirection": "Down",
+          "sealedAt": 7,
+          "exit": {
+            "departure": 3,
+            "return": 4,
+            "returnRange": [
+              1160,
+              1200
+            ],
+            "side": "Up",
+            "knownAt": 7,
+            "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+          }
+        },
+        {
+          "id": "K1",
+          "level": 0,
+          "seed": [
+            4,
+            5,
+            6
+          ],
+          "core": [
+            1180,
+            1200
+          ],
+          "members": [
+            4,
+            5,
+            6
+          ],
+          "sourceStart": 5,
+          "sourceEnd": 8,
+          "outer": [
+            1160,
+            1220
+          ],
+          "bornAt": 9,
+          "startDirection": "Down",
+          "sealedAt": 11,
+          "exit": {
+            "departure": 7,
+            "return": 8,
+            "returnRange": [
+              1230,
+              1240
+            ],
+            "side": "Up",
+            "knownAt": 11,
+            "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+          }
+        },
+        {
+          "id": "K2",
+          "level": 0,
+          "seed": [
+            8,
+            9,
+            10
+          ],
+          "core": [
+            1232,
+            1238
+          ],
+          "members": [
+            8,
+            9,
+            10
+          ],
+          "sourceStart": 9,
+          "sourceEnd": 12,
+          "outer": [
+            1230,
+            1240
+          ],
+          "bornAt": 13,
+          "startDirection": "Down",
+          "sealedAt": 15,
+          "exit": {
+            "departure": 11,
+            "return": 12,
+            "returnRange": [
+              1300,
+              1340
+            ],
+            "side": "Up",
+            "knownAt": 15,
+            "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+          }
+        },
+        {
+          "id": "K3",
+          "level": 0,
+          "seed": [
+            12,
+            13,
+            14
+          ],
+          "core": [
+            1310,
+            1330
+          ],
+          "members": [
+            12,
+            13,
+            14
+          ],
+          "sourceStart": 13,
+          "sourceEnd": 16,
+          "outer": [
+            1300,
+            1340
+          ],
+          "bornAt": 17,
+          "startDirection": "Down",
+          "sealedAt": 19,
+          "exit": {
+            "departure": 15,
+            "return": 16,
+            "returnRange": [
+              1400,
+              1440
+            ],
+            "side": "Up",
+            "knownAt": 19,
+            "scope": "RC49 initial stopping law; not original sublevel-move certificate"
+          }
+        }
+      ],
+      "active": null,
+      "skipped": [],
+      "scanCursor": 16
+    },
+    "outputs": [],
+    "tail": {
+      "start": 0,
+      "end": 20,
+      "sourceEvents": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+      ],
+      "range": [
+        1080,
+        1440
+      ],
+      "wRange": [
+        "11116/109",
+        "14788/145"
+      ],
+      "sealedCoreIDs": [
+        "K0",
+        "K1",
+        "K2",
+        "K3"
+      ],
+      "activeCore": null,
+      "activeLeg": {
+        "start": 19,
+        "end": 20,
+        "direction": "Down",
+        "range": [
+          1410,
+          1430
+        ],
+        "knownAt": null
+      },
+      "status": "CoreActive"
+    }
+  },
+  "transitions": [],
+  "violations": [],
+  "parentRequests": []
+}

@@ -1,0 +1,1255 @@
+{
+  "candidate": "C_RET-v0",
+  "status": "author_only_not_semantic_admission",
+  "arithmeticScope": "synthetic observation words; no claim of literal order-message reachability",
+  "examples": {
+    "constant3": {
+      "xs": [
+        10,
+        10,
+        10
+      ],
+      "platforms": [
+        {
+          "start": 1,
+          "end": 3,
+          "value": 10,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 3
+        }
+      ],
+      "tokens": [
+        {
+          "start": 1,
+          "end": 3,
+          "value": 10,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 3,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        }
+      ],
+      "instances": [
+        {
+          "start": 1,
+          "value": 10,
+          "birth": 3,
+          "seedStarts": [
+            1
+          ],
+          "end": 3,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ],
+          "sourceEvents": [
+            1,
+            2,
+            3
+          ],
+          "closed": false,
+          "confirmation": null,
+          "membershipStatus": "provisional_at_this_prefix"
+        }
+      ],
+      "leadingNoCore": [],
+      "tokenRelations": [],
+      "instanceRelations": []
+    },
+    "constant6": {
+      "xs": [
+        10,
+        10,
+        10,
+        10,
+        10,
+        10
+      ],
+      "platforms": [
+        {
+          "start": 1,
+          "end": 6,
+          "value": 10,
+          "seedCount": 4,
+          "mature": true,
+          "birth": 3
+        }
+      ],
+      "tokens": [
+        {
+          "start": 1,
+          "end": 6,
+          "value": 10,
+          "seedCount": 4,
+          "mature": true,
+          "birth": 3,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        }
+      ],
+      "instances": [
+        {
+          "start": 1,
+          "value": 10,
+          "birth": 3,
+          "seedStarts": [
+            1
+          ],
+          "end": 6,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ],
+          "sourceEvents": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "closed": false,
+          "confirmation": null,
+          "membershipStatus": "provisional_at_this_prefix"
+        }
+      ],
+      "leadingNoCore": [],
+      "tokenRelations": [],
+      "instanceRelations": []
+    },
+    "constant9": {
+      "xs": [
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10
+      ],
+      "platforms": [
+        {
+          "start": 1,
+          "end": 9,
+          "value": 10,
+          "seedCount": 7,
+          "mature": true,
+          "birth": 3
+        }
+      ],
+      "tokens": [
+        {
+          "start": 1,
+          "end": 9,
+          "value": 10,
+          "seedCount": 7,
+          "mature": true,
+          "birth": 3,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        }
+      ],
+      "instances": [
+        {
+          "start": 1,
+          "value": 10,
+          "birth": 3,
+          "seedStarts": [
+            1
+          ],
+          "end": 9,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ],
+          "sourceEvents": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+          ],
+          "closed": false,
+          "confirmation": null,
+          "membershipStatus": "provisional_at_this_prefix"
+        }
+      ],
+      "leadingNoCore": [],
+      "tokenRelations": [],
+      "instanceRelations": []
+    },
+    "shortReturn": {
+      "xs": [
+        10,
+        10,
+        10,
+        20,
+        10,
+        10,
+        10
+      ],
+      "platforms": [
+        {
+          "start": 1,
+          "end": 3,
+          "value": 10,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 3
+        },
+        {
+          "start": 4,
+          "end": 4,
+          "value": 20,
+          "seedCount": 0,
+          "mature": false,
+          "birth": 6
+        },
+        {
+          "start": 5,
+          "end": 7,
+          "value": 10,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 7
+        }
+      ],
+      "tokens": [
+        {
+          "start": 1,
+          "end": 3,
+          "value": 10,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 3,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        },
+        {
+          "start": 5,
+          "end": 7,
+          "value": 10,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 7,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        }
+      ],
+      "instances": [
+        {
+          "start": 1,
+          "value": 10,
+          "birth": 3,
+          "seedStarts": [
+            1,
+            5
+          ],
+          "end": 7,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            20
+          ],
+          "sourceEvents": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "closed": false,
+          "confirmation": null,
+          "membershipStatus": "provisional_at_this_prefix"
+        }
+      ],
+      "leadingNoCore": [],
+      "tokenRelations": [
+        "neither_new_trend_nor_separated_core_expansion"
+      ],
+      "instanceRelations": []
+    },
+    "shortReturn2": {
+      "xs": [
+        10,
+        10,
+        10,
+        20,
+        20,
+        10,
+        10,
+        10
+      ],
+      "platforms": [
+        {
+          "start": 1,
+          "end": 3,
+          "value": 10,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 3
+        },
+        {
+          "start": 4,
+          "end": 5,
+          "value": 20,
+          "seedCount": 0,
+          "mature": false,
+          "birth": 6
+        },
+        {
+          "start": 6,
+          "end": 8,
+          "value": 10,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 8
+        }
+      ],
+      "tokens": [
+        {
+          "start": 1,
+          "end": 3,
+          "value": 10,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 3,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        },
+        {
+          "start": 6,
+          "end": 8,
+          "value": 10,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 8,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        }
+      ],
+      "instances": [
+        {
+          "start": 1,
+          "value": 10,
+          "birth": 3,
+          "seedStarts": [
+            1,
+            6
+          ],
+          "end": 8,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            20
+          ],
+          "sourceEvents": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "closed": false,
+          "confirmation": null,
+          "membershipStatus": "provisional_at_this_prefix"
+        }
+      ],
+      "leadingNoCore": [],
+      "tokenRelations": [
+        "neither_new_trend_nor_separated_core_expansion"
+      ],
+      "instanceRelations": []
+    },
+    "alternatingMature": {
+      "xs": [
+        10,
+        10,
+        10,
+        20,
+        20,
+        20,
+        10,
+        10,
+        10,
+        20,
+        20,
+        20
+      ],
+      "platforms": [
+        {
+          "start": 1,
+          "end": 3,
+          "value": 10,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 3
+        },
+        {
+          "start": 4,
+          "end": 6,
+          "value": 20,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 6
+        },
+        {
+          "start": 7,
+          "end": 9,
+          "value": 10,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 9
+        },
+        {
+          "start": 10,
+          "end": 12,
+          "value": 20,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 12
+        }
+      ],
+      "tokens": [
+        {
+          "start": 1,
+          "end": 3,
+          "value": 10,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 3,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        },
+        {
+          "start": 4,
+          "end": 6,
+          "value": 20,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 6,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            20,
+            20
+          ]
+        },
+        {
+          "start": 7,
+          "end": 9,
+          "value": 10,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 9,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        },
+        {
+          "start": 10,
+          "end": 12,
+          "value": 20,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 12,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            20,
+            20
+          ]
+        }
+      ],
+      "instances": [
+        {
+          "start": 1,
+          "value": 10,
+          "birth": 3,
+          "seedStarts": [
+            1
+          ],
+          "end": 3,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ],
+          "sourceEvents": [
+            1,
+            2,
+            3
+          ],
+          "closed": true,
+          "confirmation": 6,
+          "membershipStatus": "frozen"
+        },
+        {
+          "start": 4,
+          "value": 20,
+          "birth": 6,
+          "seedStarts": [
+            4
+          ],
+          "end": 6,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            20,
+            20
+          ],
+          "sourceEvents": [
+            4,
+            5,
+            6
+          ],
+          "closed": true,
+          "confirmation": 9,
+          "membershipStatus": "frozen"
+        },
+        {
+          "start": 7,
+          "value": 10,
+          "birth": 9,
+          "seedStarts": [
+            7
+          ],
+          "end": 9,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ],
+          "sourceEvents": [
+            7,
+            8,
+            9
+          ],
+          "closed": true,
+          "confirmation": 12,
+          "membershipStatus": "frozen"
+        },
+        {
+          "start": 10,
+          "value": 20,
+          "birth": 12,
+          "seedStarts": [
+            10
+          ],
+          "end": 12,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            20,
+            20
+          ],
+          "sourceEvents": [
+            10,
+            11,
+            12
+          ],
+          "closed": false,
+          "confirmation": null,
+          "membershipStatus": "provisional_at_this_prefix"
+        }
+      ],
+      "leadingNoCore": [],
+      "tokenRelations": [
+        "up_numeric",
+        "down_numeric",
+        "up_numeric"
+      ],
+      "instanceRelations": [
+        "up_numeric",
+        "down_numeric",
+        "up_numeric"
+      ]
+    },
+    "noCorePreserved": {
+      "xs": [
+        10,
+        10,
+        10,
+        30,
+        25,
+        20,
+        20,
+        20
+      ],
+      "platforms": [
+        {
+          "start": 1,
+          "end": 3,
+          "value": 10,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 3
+        },
+        {
+          "start": 4,
+          "end": 4,
+          "value": 30,
+          "seedCount": 0,
+          "mature": false,
+          "birth": 6
+        },
+        {
+          "start": 5,
+          "end": 5,
+          "value": 25,
+          "seedCount": 0,
+          "mature": false,
+          "birth": 7
+        },
+        {
+          "start": 6,
+          "end": 8,
+          "value": 20,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 8
+        }
+      ],
+      "tokens": [
+        {
+          "start": 1,
+          "end": 3,
+          "value": 10,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 3,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        },
+        {
+          "start": 6,
+          "end": 8,
+          "value": 20,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 8,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            20,
+            20
+          ]
+        }
+      ],
+      "instances": [
+        {
+          "start": 1,
+          "value": 10,
+          "birth": 3,
+          "seedStarts": [
+            1
+          ],
+          "end": 5,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            30
+          ],
+          "sourceEvents": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "closed": true,
+          "confirmation": 8,
+          "membershipStatus": "frozen"
+        },
+        {
+          "start": 6,
+          "value": 20,
+          "birth": 8,
+          "seedStarts": [
+            6
+          ],
+          "end": 8,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            20,
+            20
+          ],
+          "sourceEvents": [
+            6,
+            7,
+            8
+          ],
+          "closed": false,
+          "confirmation": null,
+          "membershipStatus": "provisional_at_this_prefix"
+        }
+      ],
+      "leadingNoCore": [],
+      "tokenRelations": [
+        "up_numeric"
+      ],
+      "instanceRelations": [
+        "expansion_numeric"
+      ]
+    },
+    "earlierSpike": {
+      "xs": [
+        10,
+        10,
+        10,
+        30,
+        20,
+        20,
+        20,
+        15,
+        15,
+        15
+      ],
+      "platforms": [
+        {
+          "start": 1,
+          "end": 3,
+          "value": 10,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 3
+        },
+        {
+          "start": 4,
+          "end": 4,
+          "value": 30,
+          "seedCount": 0,
+          "mature": false,
+          "birth": 6
+        },
+        {
+          "start": 5,
+          "end": 7,
+          "value": 20,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 7
+        },
+        {
+          "start": 8,
+          "end": 10,
+          "value": 15,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 10
+        }
+      ],
+      "tokens": [
+        {
+          "start": 1,
+          "end": 3,
+          "value": 10,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 3,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        },
+        {
+          "start": 5,
+          "end": 7,
+          "value": 20,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 7,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            20,
+            20
+          ]
+        },
+        {
+          "start": 8,
+          "end": 10,
+          "value": 15,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 10,
+          "core": [
+            15,
+            15
+          ],
+          "outer": [
+            15,
+            15
+          ]
+        }
+      ],
+      "instances": [
+        {
+          "start": 1,
+          "value": 10,
+          "birth": 3,
+          "seedStarts": [
+            1
+          ],
+          "end": 4,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            30
+          ],
+          "sourceEvents": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "closed": true,
+          "confirmation": 7,
+          "membershipStatus": "frozen"
+        },
+        {
+          "start": 5,
+          "value": 20,
+          "birth": 7,
+          "seedStarts": [
+            5
+          ],
+          "end": 7,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            20,
+            20
+          ],
+          "sourceEvents": [
+            5,
+            6,
+            7
+          ],
+          "closed": true,
+          "confirmation": 10,
+          "membershipStatus": "frozen"
+        },
+        {
+          "start": 8,
+          "value": 15,
+          "birth": 10,
+          "seedStarts": [
+            8
+          ],
+          "end": 10,
+          "core": [
+            15,
+            15
+          ],
+          "outer": [
+            15,
+            15
+          ],
+          "sourceEvents": [
+            8,
+            9,
+            10
+          ],
+          "closed": false,
+          "confirmation": null,
+          "membershipStatus": "provisional_at_this_prefix"
+        }
+      ],
+      "leadingNoCore": [],
+      "tokenRelations": [
+        "up_numeric",
+        "down_numeric"
+      ],
+      "instanceRelations": [
+        "expansion_numeric",
+        "down_numeric"
+      ]
+    },
+    "noMature": {
+      "xs": [
+        10,
+        20,
+        10,
+        20,
+        10,
+        20
+      ],
+      "platforms": [
+        {
+          "start": 1,
+          "end": 1,
+          "value": 10,
+          "seedCount": 0,
+          "mature": false,
+          "birth": 3
+        },
+        {
+          "start": 2,
+          "end": 2,
+          "value": 20,
+          "seedCount": 0,
+          "mature": false,
+          "birth": 4
+        },
+        {
+          "start": 3,
+          "end": 3,
+          "value": 10,
+          "seedCount": 0,
+          "mature": false,
+          "birth": 5
+        },
+        {
+          "start": 4,
+          "end": 4,
+          "value": 20,
+          "seedCount": 0,
+          "mature": false,
+          "birth": 6
+        },
+        {
+          "start": 5,
+          "end": 5,
+          "value": 10,
+          "seedCount": 0,
+          "mature": false,
+          "birth": 7
+        },
+        {
+          "start": 6,
+          "end": 6,
+          "value": 20,
+          "seedCount": 0,
+          "mature": false,
+          "birth": 8
+        }
+      ],
+      "tokens": [],
+      "instances": [],
+      "leadingNoCore": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "tokenRelations": [],
+      "instanceRelations": []
+    },
+    "ascending": {
+      "xs": [
+        10,
+        10,
+        10,
+        20,
+        20,
+        20,
+        30,
+        30,
+        30
+      ],
+      "platforms": [
+        {
+          "start": 1,
+          "end": 3,
+          "value": 10,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 3
+        },
+        {
+          "start": 4,
+          "end": 6,
+          "value": 20,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 6
+        },
+        {
+          "start": 7,
+          "end": 9,
+          "value": 30,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 9
+        }
+      ],
+      "tokens": [
+        {
+          "start": 1,
+          "end": 3,
+          "value": 10,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 3,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ]
+        },
+        {
+          "start": 4,
+          "end": 6,
+          "value": 20,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 6,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            20,
+            20
+          ]
+        },
+        {
+          "start": 7,
+          "end": 9,
+          "value": 30,
+          "seedCount": 1,
+          "mature": true,
+          "birth": 9,
+          "core": [
+            30,
+            30
+          ],
+          "outer": [
+            30,
+            30
+          ]
+        }
+      ],
+      "instances": [
+        {
+          "start": 1,
+          "value": 10,
+          "birth": 3,
+          "seedStarts": [
+            1
+          ],
+          "end": 3,
+          "core": [
+            10,
+            10
+          ],
+          "outer": [
+            10,
+            10
+          ],
+          "sourceEvents": [
+            1,
+            2,
+            3
+          ],
+          "closed": true,
+          "confirmation": 6,
+          "membershipStatus": "frozen"
+        },
+        {
+          "start": 4,
+          "value": 20,
+          "birth": 6,
+          "seedStarts": [
+            4
+          ],
+          "end": 6,
+          "core": [
+            20,
+            20
+          ],
+          "outer": [
+            20,
+            20
+          ],
+          "sourceEvents": [
+            4,
+            5,
+            6
+          ],
+          "closed": true,
+          "confirmation": 9,
+          "membershipStatus": "frozen"
+        },
+        {
+          "start": 7,
+          "value": 30,
+          "birth": 9,
+          "seedStarts": [
+            7
+          ],
+          "end": 9,
+          "core": [
+            30,
+            30
+          ],
+          "outer": [
+            30,
+            30
+          ],
+          "sourceEvents": [
+            7,
+            8,
+            9
+          ],
+          "closed": false,
+          "confirmation": null,
+          "membershipStatus": "provisional_at_this_prefix"
+        }
+      ],
+      "leadingNoCore": [],
+      "tokenRelations": [
+        "up_numeric",
+        "up_numeric"
+      ],
+      "instanceRelations": [
+        "up_numeric",
+        "up_numeric"
+      ]
+    }
+  },
+  "checks": {
+    "words": 9840,
+    "prefixes": 83652,
+    "frozenComparisons": 468,
+    "coverage": true,
+    "closedIdentityStable": true
+  },
+  "notProved": [
+    "source necessity of seed identity policy",
+    "complete move existence/uniqueness",
+    "P completion",
+    "a1",
+    "F2 closure",
+    "market value"
+  ]
+}

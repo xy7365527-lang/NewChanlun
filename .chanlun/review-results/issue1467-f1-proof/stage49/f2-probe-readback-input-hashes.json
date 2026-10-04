@@ -1,0 +1,108 @@
+{
+  "review": "Stage49 F2 Lean declaration cold read",
+  "workspace": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun",
+  "evidence_head_record_only": "2e3551802306b704e759631487a75498b3b08b12",
+  "independent_lean_execution": false,
+  "exact_verifier_execution": false,
+  "inputs": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage49/f2-contract-evidence/NonNormProbe.lean",
+      "role": "probe",
+      "sha256": "d1d58f53aefe1ca0bf1272b73d928272e2b5b11311f7c44a2f3b4399071441cd",
+      "bytes": 4648,
+      "recorded_sha256": "d1d58f53aefe1ca0bf1272b73d928272e2b5b11311f7c44a2f3b4399071441cd",
+      "recorded_hash_matches": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage49/f2-contract-evidence/receipt.txt",
+      "role": "saved_evidence",
+      "sha256": "72700c16d49af9781579075faefd762b7008aaba014f5ded09b4f5ab7eba6b2a",
+      "bytes": 3687
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage49/f2-contract-evidence/source-build.json",
+      "role": "saved_evidence",
+      "sha256": "ec15f826d041885a50f400e65a63db9ac6eafd2be7082cc55aecee4f8d693709",
+      "bytes": 4225
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/Origin/SourceAxioms.lean",
+      "role": "transitive_project_import",
+      "sha256": "2154cb85c1ac80685e8d2091259818e3543ad76dfeeb08640df0ae236d39ff6f",
+      "bytes": 2773,
+      "recorded_sha256": "2154cb85c1ac80685e8d2091259818e3543ad76dfeeb08640df0ae236d39ff6f",
+      "recorded_hash_matches": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/Origin/CompleteClassification.lean",
+      "role": "transitive_project_import",
+      "sha256": "066f1feaec8f6e8a93a4f3c4a516bff51af31689e382d20964e06526fa831b26",
+      "bytes": 3920,
+      "recorded_sha256": "066f1feaec8f6e8a93a4f3c4a516bff51af31689e382d20964e06526fa831b26",
+      "recorded_hash_matches": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/Origin/ChanlunElements.lean",
+      "role": "transitive_project_import",
+      "sha256": "19c33e884e6949cdd56a51ff7c44dc086354994b7f54431f57bec4a0849fa201",
+      "bytes": 6035,
+      "recorded_sha256": "19c33e884e6949cdd56a51ff7c44dc086354994b7f54431f57bec4a0849fa201",
+      "recorded_hash_matches": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/Origin/CenterStates.lean",
+      "role": "transitive_project_import",
+      "sha256": "8355eaba2ca8b0f1ef50b8167802ce2f5c6abdab188dd3f49ea25859936a1a0a",
+      "bytes": 26194,
+      "recorded_sha256": "8355eaba2ca8b0f1ef50b8167802ce2f5c6abdab188dd3f49ea25859936a1a0a",
+      "recorded_hash_matches": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/Origin/CenterFull.lean",
+      "role": "transitive_project_import",
+      "sha256": "00b40dd9f75756edb1a3155c04f301de9c8986bb148f753b56e7707686d73959",
+      "bytes": 10018,
+      "recorded_sha256": "00b40dd9f75756edb1a3155c04f301de9c8986bb148f753b56e7707686d73959",
+      "recorded_hash_matches": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/Origin/CenterConstruction.lean",
+      "role": "transitive_project_import",
+      "sha256": "478a00a239e77b6ac66554c8428efaff7f1af69f9edbf73f2f4250aaa895bc3c",
+      "bytes": 21312,
+      "recorded_sha256": "478a00a239e77b6ac66554c8428efaff7f1af69f9edbf73f2f4250aaa895bc3c",
+      "recorded_hash_matches": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/Origin/CenterComplete.lean",
+      "role": "transitive_project_import",
+      "sha256": "478e34e703801742e6808c834488b7fe009d94bb0d896eb65e7d6a20105d64c2",
+      "bytes": 38751,
+      "recorded_sha256": "478e34e703801742e6808c834488b7fe009d94bb0d896eb65e7d6a20105d64c2",
+      "recorded_hash_matches": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/lean-toolchain",
+      "role": "environment_binding",
+      "sha256": "efac0b94923b2d8b6840cd35be9177ad0fc5ab2332f4f4311c98712cee92fdee",
+      "bytes": 25,
+      "recorded_sha256": "efac0b94923b2d8b6840cd35be9177ad0fc5ab2332f4f4311c98712cee92fdee",
+      "recorded_hash_matches": true
+    },
+    {
+      "path": "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+      "role": "environment_binding",
+      "sha256": "1b370cfcbf44e80d1b004ab1b1ab9a4c73951f9f7c242140bcff9bc577576554",
+      "bytes": 49968,
+      "recorded_sha256": "1b370cfcbf44e80d1b004ab1b1ab9a4c73951f9f7c242140bcff9bc577576554",
+      "recorded_hash_matches": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.agents/skills/lean-verify/SKILL.md",
+      "role": "review_method",
+      "sha256": "8c448198a3fe52c8e5368501394bb5459fd794a13f0666186711543f603d27f8",
+      "bytes": 3439
+    }
+  ],
+  "scope_note": "receipt.txt is hashed as a whole, but only Lean declaration/axiom output is used as machine evidence. No Rust result is adopted. Deleted olean outputs cannot be rehashed."
+}

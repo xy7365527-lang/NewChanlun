@@ -1,0 +1,27 @@
+{
+  "frozenAt": "2026-10-04T16:31:12.007Z",
+  "expectedHead": "2e3551802306b704e759631487a75498b3b08b12",
+  "status": "author_frozen_awaiting_independent_review",
+  "artifacts": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/base-core-identity.md",
+      "sha256": "258fcb8b482df90f898b7dac9eb2ff88be612158c13bbcb6650237072333ed0a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/core-identity-evidence/check.mjs",
+      "sha256": "219006155f4c2ebd1c97133f0d2c5b004160d32831bda4312d46a27a05bade5b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/core-identity-evidence/verify-freeze.mjs",
+      "sha256": "bc786334e5f5c7d8e0f2d783bf014d2c0dc3a42b220cbd3f65c131dbf8c2360b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/core-identity-evidence/source-manifest.json",
+      "sha256": "9241b2c69e8c8bf7dad6034b8f94b00a98c1cb73198ecabb776e4f6d2dd3abf2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/core-identity-evidence/results.json",
+      "sha256": "1bf5ca51ea7fdbd39052c45d893eac12ce761284c6d5a91bda7f0125daf6bd52"
+    }
+  ]
+}

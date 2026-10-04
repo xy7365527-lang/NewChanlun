@@ -1,0 +1,223 @@
+{
+  "name": "short_platform_after_trend",
+  "source": {
+    "epoch": "synthetic-rc49-v1",
+    "initial": {
+      "bid": {
+        "id": "reservoir",
+        "price": 100,
+        "quantity": 1010
+      },
+      "ask": {
+        "id": "ask",
+        "price": 102,
+        "quantity": 10
+      }
+    },
+    "events": [
+      {
+        "seq": 1,
+        "kind": "add",
+        "id": "deep-1",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 2,
+        "kind": "add",
+        "id": "deep-2",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 3,
+        "kind": "add",
+        "id": "deep-3",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 4,
+        "kind": "add",
+        "id": "up-4",
+        "side": "bid",
+        "price": 100,
+        "quantity": 10
+      },
+      {
+        "seq": 5,
+        "kind": "add",
+        "id": "deep-5",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 6,
+        "kind": "add",
+        "id": "deep-6",
+        "side": "bid",
+        "price": 99,
+        "quantity": 1
+      },
+      {
+        "seq": 7,
+        "kind": "reduce",
+        "id": "reservoir",
+        "quantity": 10
+      },
+      {
+        "seq": 8,
+        "kind": "add",
+        "id": "up-8",
+        "side": "bid",
+        "price": 100,
+        "quantity": 10
+      }
+    ],
+    "states": [
+      {
+        "event": 0,
+        "q": 1010,
+        "w": "5201/51"
+      },
+      {
+        "event": 1,
+        "q": 1010,
+        "w": "5201/51"
+      },
+      {
+        "event": 2,
+        "q": 1010,
+        "w": "5201/51"
+      },
+      {
+        "event": 3,
+        "q": 1010,
+        "w": "5201/51"
+      },
+      {
+        "event": 4,
+        "q": 1020,
+        "w": "10504/103"
+      },
+      {
+        "event": 5,
+        "q": 1020,
+        "w": "10504/103"
+      },
+      {
+        "event": 6,
+        "q": 1020,
+        "w": "10504/103"
+      },
+      {
+        "event": 7,
+        "q": 1010,
+        "w": "5201/51"
+      },
+      {
+        "event": 8,
+        "q": 1020,
+        "w": "10504/103"
+      }
+    ],
+    "coordinates": [
+      10,
+      10,
+      10,
+      20,
+      20,
+      20,
+      10,
+      20
+    ],
+    "shift": 1000
+  },
+  "result": {
+    "legs": {
+      "completed": [
+        {
+          "id": 0,
+          "start": 0,
+          "end": 6,
+          "direction": "Up",
+          "range": [
+            1010,
+            1020
+          ],
+          "knownAt": 7
+        },
+        {
+          "id": 1,
+          "start": 6,
+          "end": 7,
+          "direction": "Down",
+          "range": [
+            1010,
+            1020
+          ],
+          "knownAt": 8
+        }
+      ],
+      "active": {
+        "start": 7,
+        "end": 8,
+        "direction": "Up",
+        "range": [
+          1010,
+          1020
+        ],
+        "knownAt": null
+      }
+    },
+    "coreScan": {
+      "completed": [],
+      "active": null,
+      "skipped": [],
+      "scanCursor": 0
+    },
+    "outputs": [],
+    "tail": {
+      "start": 0,
+      "end": 8,
+      "sourceEvents": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "range": [
+        1010,
+        1020
+      ],
+      "wRange": [
+        "5201/51",
+        "10504/103"
+      ],
+      "sealedCoreIDs": [],
+      "activeCore": null,
+      "activeLeg": {
+        "start": 7,
+        "end": 8,
+        "direction": "Up",
+        "range": [
+          1010,
+          1020
+        ],
+        "knownAt": null
+      },
+      "status": "NoCore"
+    }
+  },
+  "transitions": [],
+  "violations": [],
+  "parentRequests": []
+}
