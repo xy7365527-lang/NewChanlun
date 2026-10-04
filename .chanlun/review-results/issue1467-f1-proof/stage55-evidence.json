@@ -1,0 +1,238 @@
+{
+  "stage": 55,
+  "date": "2026-10-05",
+  "issue": 1467,
+  "related_map": 1465,
+  "base_commit": "24cb99773182d1a4e5f1f858c14abd4f5f64053f",
+  "status": "reviewed_with_two_scoped_corrections",
+  "trust_level": "COORDINATOR_ATTESTED_TOOL_TRANSCRIPT_AND_HASHED_PACKETS",
+  "original_review": {
+    "findings": [
+      "P2-1",
+      "P2-2"
+    ],
+    "counted_frozen_files": 29,
+    "source_files": 10,
+    "source_index_lines": 63,
+    "source_lines_are_independent_claims": false,
+    "author_replay_identical_items": 4
+  },
+  "repair_review": {
+    "status": "PASS_SCOPED_REPAIR",
+    "input_items": 7,
+    "new_or_remaining_findings": 0,
+    "mathematical_candidate_repaired": false,
+    "scope_qualification_repaired": true
+  },
+  "accepted_finite_results": {
+    "synthetic_trade_control_events": 40,
+    "three_trade_formation_witnesses": 13,
+    "certified_independent_original_centers": false,
+    "numeric_segments": 6,
+    "cuts": [
+      6,
+      12,
+      18,
+      25,
+      31,
+      37
+    ],
+    "raw_triple_intersections": [
+      [
+        2,
+        9
+      ],
+      [
+        3,
+        8
+      ]
+    ],
+    "arbitrary_relabelled_partition_counterexample_to_fixed_delta_uniqueness": false,
+    "fixed_delta_cut_computable_from_nuclear_member_indices": true,
+    "relabelled_end_examples": [
+      18,
+      19
+    ],
+    "relabelled_second_full_ranges": [
+      [
+        1,
+        9
+      ],
+      [
+        1,
+        8
+      ]
+    ],
+    "fixed_delta_changed_input_diagnostic": {
+      "event": 19,
+      "old_value": 8,
+      "new_value": 99,
+      "candidate_nuclear_signature_and_cuts_unchanged": true,
+      "T4_full_ranges": [
+        [
+          1,
+          9
+        ],
+        [
+          1,
+          99
+        ]
+      ],
+      "original_legal_decomposition_nonidentifiability": false
+    },
+    "zero_direction_gap": {
+      "word": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ],
+      "candidate_nuclear_values": [
+        0,
+        0
+      ],
+      "candidate_nuclear_event_members": [
+        [
+          1,
+          2,
+          3
+        ],
+        [
+          5,
+          6,
+          7
+        ]
+      ],
+      "branch_defined": false,
+      "certified_two_original_instances": false
+    },
+    "reused_OC_failure": {
+      "nuclear_word": [
+        0,
+        10,
+        5,
+        15,
+        4
+      ],
+      "synthetic_trades": 15,
+      "computed_labels": [
+        "U",
+        "U"
+      ],
+      "meaning": "rejects direct interpretation as adjacent completed same-level original U without intervening object",
+      "new_discovery": false,
+      "all_F1_impossible": false
+    },
+    "six_equal_trade_two_instance_repair": "not established; disjoint formation witnesses do not prove distinct original centers"
+  },
+  "adoption": {
+    "original_report_alone_reusable": false,
+    "read_with": "stage55/ScopeCorrections-v1.md and independent-scope-repair-review.md",
+    "deltaR_global_relation_defined": false,
+    "deltaR_direct_completion_interpretation": "REJECTED",
+    "same_mechanism_retries": "STOP",
+    "restart_requires": "new version changes a failed premise and addresses five-core succession plus seven-trade equal candidate cores when claiming coverage"
+  },
+  "boundaries": {
+    "complete_original_P_obtained": false,
+    "GoodOmega_obtained": false,
+    "F1_F2_complete": false,
+    "P1_P4_scope_and_both_F1_routes_preserved": true,
+    "market_samples_added": 0,
+    "new_Lean_or_formal_change": false,
+    "old_enumeration_or_full_repo_tests_rerun": false,
+    "production_adoption": false
+  },
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage55/ScopeCorrections-v1.md",
+      "bytes": 4819,
+      "sha256": "36e14f346ea531755c5840db008538cef5d318a1c242433e3bffde899bcbb06f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage55/complete-p-evidence/check-control.mjs",
+      "bytes": 5353,
+      "sha256": "6c8bf262379485945ff82ceed64ad1d4e64c16294a3c4b6ee0bb5be51ef5ffbb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage55/complete-p-evidence/control-v1.json",
+      "bytes": 10294,
+      "sha256": "4ba51cb56e44b25be6eef016ab5a4dede017a18e6dfd84181b45924468ae2f5e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage55/complete-p-evidence/manifest-v1.json",
+      "bytes": 6370,
+      "sha256": "cab36e2b619556239c895f174ad4bdd24e42fdf1608ac7b0e1d7159bb7e91e28"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage55/complete-p-evidence/run-receipt.txt",
+      "bytes": 122,
+      "sha256": "edc4cd4c7d6a79c32fc399ec4562bc387c8901e974ef8967ae606697ab318a8e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage55/complete-p-evidence/source-excerpts-v1.json",
+      "bytes": 30175,
+      "sha256": "3ead7426f737aed701fa201c707099aedd0a12c574c0fdfa9196e23fc36ba577"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage55/complete-p-route.md",
+      "bytes": 19011,
+      "sha256": "a1c5d3f294f9afed6a3cb127475a741e75df0aad999417171fbad4408e69e126"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage55/independent-complete-p-review.md",
+      "bytes": 15399,
+      "sha256": "ab0dc74b632c0b76cea55041a40d6326882a77eaa5abda89fb57797fd459d636"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage55/independent-scope-repair-review.md",
+      "bytes": 6706,
+      "sha256": "463ad3dbfaea029bd2f851d129579b9d6901e1aba6ba43ad16f02452acf90de1"
+    }
+  ],
+  "external_evidence": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage55/author-completion-receipt.json",
+      "bytes": 473,
+      "sha256": "5b6e8519f81554a033a1c2f271f9e200c479497e68831d88c46c69b0632dda2c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage55/review/review-receipt.json",
+      "bytes": 3801,
+      "sha256": "9a23367699ab08e73368f037e558fdb9ce0215ae28aca1a75d264e01aa8549fc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage55/review-completion-receipt.json",
+      "bytes": 377,
+      "sha256": "efb290bfe59a4c5c8870494e5e9af686827db4c8f3d3567ae1aa8fd051e4dd44"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage55/repair-input-manifest-v1.json",
+      "bytes": 1950,
+      "sha256": "a11e8871abe9ec7075ac982c36e567aae364642f923eea4b5833a36580d6c32b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage55/repair-review/review-receipt.json",
+      "bytes": 5563,
+      "sha256": "35d447ed91e5c9a86804624b41fea1b7a76ba85ef101dd38f9d4f1da0dbb30e8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage55/repair-review-completion-receipt.json",
+      "bytes": 439,
+      "sha256": "a288b556e1cb2d0036b39180ea32fbfb735fa2fb6462674c2385df9eaccfeb2d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage55/coordinator-repair-check.json",
+      "bytes": 866,
+      "sha256": "18a77cf0a0a0fa90dd8d394fe103c8e6ae4ccb40370d4284f01f35e75cf5e598"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage55/progress-own.patch",
+      "bytes": 2084,
+      "sha256": "3e20cdc520a89df991345c1d5a563f6dda060ef8ccc3a755790b2d24478a32a2"
+    }
+  ]
+}

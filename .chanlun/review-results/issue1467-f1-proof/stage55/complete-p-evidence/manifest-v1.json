@@ -1,0 +1,161 @@
+{
+  "packet": "stage55-complete-p-route-v1",
+  "independentReview": "not performed by author; requires new-context review",
+  "authorFiles": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage55/complete-p-route.md",
+      "bytes": 19011,
+      "sha256": "a1c5d3f294f9afed6a3cb127475a741e75df0aad999417171fbad4408e69e126"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage55/complete-p-evidence/check-control.mjs",
+      "bytes": 5353,
+      "sha256": "6c8bf262379485945ff82ceed64ad1d4e64c16294a3c4b6ee0bb5be51ef5ffbb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage55/complete-p-evidence/control-v1.json",
+      "bytes": 10294,
+      "sha256": "4ba51cb56e44b25be6eef016ab5a4dede017a18e6dfd84181b45924468ae2f5e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage55/complete-p-evidence/source-excerpts-v1.json",
+      "bytes": 30175,
+      "sha256": "3ead7426f737aed701fa201c707099aedd0a12c574c0fdfa9196e23fc36ba577"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage55/complete-p-evidence/run-receipt.txt",
+      "bytes": 122,
+      "sha256": "edc4cd4c7d6a79c32fc399ec4562bc387c8901e974ef8967ae606697ab318a8e"
+    }
+  ],
+  "inputs": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/initial-contract-audit.md",
+      "bytes": 21024,
+      "sha256": "7c5f9993530c16a8de959e0115db2eb7869d87b8acba9b030ebf97f7e7bb55c4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/independent-initial-contract-review.md",
+      "bytes": 14326,
+      "sha256": "ae6a357ee7ed51c6bbc426a8bd6db97edd2662447d270533f895786d9053e0ed"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/source-evidence/DirectionMappingQualification-v1.md",
+      "bytes": 10896,
+      "sha256": "d35523b76d2e2c770eb0db230d171b674d8135efb70e20fdb59d60fe432be070"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/independent-direction-mapping-repair-review.md",
+      "bytes": 9300,
+      "sha256": "05c1bc67355fa77505f0421203a55f04641bb41c53c9c312aa51e1cc32b39daf"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage53/candidate-evidence/contract-v1.md",
+      "bytes": 6367,
+      "sha256": "3b522df7a0b4a9c97df1fc7c391772ab6c7146e93817a728696cf8c7b454feae"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/candidate-evidence/contract-v1.md",
+      "bytes": 6457,
+      "sha256": "da4ffff22603b73bb213e6c3b761857252d84079e5fef45bb69424360228393e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/exit-release-candidate.md",
+      "bytes": 12218,
+      "sha256": "3a361e5ae60184aa69cfa69de74f6cdc8259cbd523bb958a7a9d2ffcb0421a39"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage43/panzheng-completion.md",
+      "bytes": 20212,
+      "sha256": "ca91a02139000990692a25705b447e85bf0b9a31f50904c1739abef05e5a8b16"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage43/owned-core-candidate.md",
+      "bytes": 29395,
+      "sha256": "5b0d92d2a32d885ff89647be31c089226ea228fa1cad1385db1825cf20270990"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/candidate-evidence/definition-v1.md",
+      "bytes": 6897,
+      "sha256": "908e34191fd95968ec9c18bcc47de7d2785383983710ec84aaaa3167138f7e19"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage49/base-core-identity.md",
+      "bytes": 27437,
+      "sha256": "258fcb8b482df90f898b7dac9eb2ff88be612158c13bbcb6650237072333ed0a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage49FullRangeCoreIdentityAndRestart.md",
+      "bytes": 7680,
+      "sha256": "8424331afa13a37917969593e694d6f00e67f5415154e5dbcc1ab2a61125dee2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/GoalReframe-v4.md",
+      "bytes": 10098,
+      "sha256": "36159c5f6bd4062a6654bd3f22b3eaf00e678e5d5dacda844cbf659e230ce39d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/ResearchContract-v1.md",
+      "bytes": 5671,
+      "sha256": "18a55763c6f8fdd08322beec01af37ee89a004789806fa1bf3f533ff61ec5f04"
+    }
+  ],
+  "sources": [
+    {
+      "path": "docs/chanlun/text/blog/017-第17课.md",
+      "bytes": 55792,
+      "sha256": "bce847aaacac3b3a79e56b3c49aca6f0c454a0917977bdbb1e0f1f553ddff026"
+    },
+    {
+      "path": "docs/chanlun/text/blog/018-第18课.md",
+      "bytes": 11695,
+      "sha256": "4a661fc843d0d9fcfdf32861b7dc903ee09d824d0075dd0ea7b2c19542bb2f92"
+    },
+    {
+      "path": "docs/chanlun/text/blog/020-第20课.md",
+      "bytes": 26838,
+      "sha256": "25f8f0bbe9ffbab48a27b552a081ff3925b6c01bfe1cae30c2616fe9b99b49ef"
+    },
+    {
+      "path": "docs/chanlun/text/blog/032-第32课.md",
+      "bytes": 40917,
+      "sha256": "ac22871db235b921bfd288b8664bac1fa6180f243c84a85f87e5c8ba08115470"
+    },
+    {
+      "path": "docs/chanlun/text/blog/035-第35课.md",
+      "bytes": 19125,
+      "sha256": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023"
+    },
+    {
+      "path": "docs/chanlun/text/blog/037-第37课.md",
+      "bytes": 47970,
+      "sha256": "f360d985b3f3b1fa567ca13e15f2ffaf9eae39dbb418519f75d1f6175ac70753"
+    },
+    {
+      "path": "docs/chanlun/text/blog/038-第38课.md",
+      "bytes": 24251,
+      "sha256": "983ce94575d61ed645fcc753eb59f9a28e8e749826a30d7bf87f19721baedc7b"
+    },
+    {
+      "path": "docs/chanlun/text/blog/039-第39课.md",
+      "bytes": 34743,
+      "sha256": "f7ab535b5899c2b11d1aa1c181b906b2bf719ef5f0b9471ddf85b745053bceca"
+    },
+    {
+      "path": "docs/chanlun/text/blog/061-第61课.md",
+      "bytes": 21387,
+      "sha256": "2451e6d514b37aa5da00ca608a88fb46c8e31fe8859226534be7deb6c1007573"
+    },
+    {
+      "path": "docs/chanlun/text/blog/084-第84课.md",
+      "bytes": 70833,
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26"
+    }
+  ],
+  "verification": "40 synthetic trade arithmetic and source line identity; no original completion proof; no old tests or enumeration",
+  "context": {
+    "stage54AuthorBase": "23f33fb8ae0df856bf2281d196e3d3190579f295",
+    "headAtFreeze": "24cb99773182d1a4e5f1f858c14abd4f5f64053f",
+    "mutableProgressExcluded": true
+  }
+}

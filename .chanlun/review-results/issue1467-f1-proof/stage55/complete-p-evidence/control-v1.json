@@ -1,0 +1,638 @@
+{
+  "identity": "B55-TR40-v1",
+  "status": "synthetic-trade-model; no market sample; no semantic completion certificate",
+  "nucleusIdentityQualification": "nuclei means the selected candidate directory of three-trade formation witnesses; distinct original instances and lifecycle are not certified",
+  "coordinateConvention": "coordinate = transaction price - 100; all printed ranges use coordinate",
+  "events": [
+    {
+      "seq": 1,
+      "price": 100,
+      "coordinate": 0,
+      "quantity": 1
+    },
+    {
+      "seq": 2,
+      "price": 100,
+      "coordinate": 0,
+      "quantity": 1
+    },
+    {
+      "seq": 3,
+      "price": 100,
+      "coordinate": 0,
+      "quantity": 1
+    },
+    {
+      "seq": 4,
+      "price": 110,
+      "coordinate": 10,
+      "quantity": 1
+    },
+    {
+      "seq": 5,
+      "price": 110,
+      "coordinate": 10,
+      "quantity": 1
+    },
+    {
+      "seq": 6,
+      "price": 110,
+      "coordinate": 10,
+      "quantity": 1
+    },
+    {
+      "seq": 7,
+      "price": 107,
+      "coordinate": 7,
+      "quantity": 1
+    },
+    {
+      "seq": 8,
+      "price": 107,
+      "coordinate": 7,
+      "quantity": 1
+    },
+    {
+      "seq": 9,
+      "price": 107,
+      "coordinate": 7,
+      "quantity": 1
+    },
+    {
+      "seq": 10,
+      "price": 102,
+      "coordinate": 2,
+      "quantity": 1
+    },
+    {
+      "seq": 11,
+      "price": 102,
+      "coordinate": 2,
+      "quantity": 1
+    },
+    {
+      "seq": 12,
+      "price": 102,
+      "coordinate": 2,
+      "quantity": 1
+    },
+    {
+      "seq": 13,
+      "price": 104,
+      "coordinate": 4,
+      "quantity": 1
+    },
+    {
+      "seq": 14,
+      "price": 104,
+      "coordinate": 4,
+      "quantity": 1
+    },
+    {
+      "seq": 15,
+      "price": 104,
+      "coordinate": 4,
+      "quantity": 1
+    },
+    {
+      "seq": 16,
+      "price": 109,
+      "coordinate": 9,
+      "quantity": 1
+    },
+    {
+      "seq": 17,
+      "price": 109,
+      "coordinate": 9,
+      "quantity": 1
+    },
+    {
+      "seq": 18,
+      "price": 109,
+      "coordinate": 9,
+      "quantity": 1
+    },
+    {
+      "seq": 19,
+      "price": 108,
+      "coordinate": 8,
+      "quantity": 1
+    },
+    {
+      "seq": 20,
+      "price": 106,
+      "coordinate": 6,
+      "quantity": 1
+    },
+    {
+      "seq": 21,
+      "price": 106,
+      "coordinate": 6,
+      "quantity": 1
+    },
+    {
+      "seq": 22,
+      "price": 106,
+      "coordinate": 6,
+      "quantity": 1
+    },
+    {
+      "seq": 23,
+      "price": 101,
+      "coordinate": 1,
+      "quantity": 1
+    },
+    {
+      "seq": 24,
+      "price": 101,
+      "coordinate": 1,
+      "quantity": 1
+    },
+    {
+      "seq": 25,
+      "price": 101,
+      "coordinate": 1,
+      "quantity": 1
+    },
+    {
+      "seq": 26,
+      "price": 103,
+      "coordinate": 3,
+      "quantity": 1
+    },
+    {
+      "seq": 27,
+      "price": 103,
+      "coordinate": 3,
+      "quantity": 1
+    },
+    {
+      "seq": 28,
+      "price": 103,
+      "coordinate": 3,
+      "quantity": 1
+    },
+    {
+      "seq": 29,
+      "price": 108,
+      "coordinate": 8,
+      "quantity": 1
+    },
+    {
+      "seq": 30,
+      "price": 108,
+      "coordinate": 8,
+      "quantity": 1
+    },
+    {
+      "seq": 31,
+      "price": 108,
+      "coordinate": 8,
+      "quantity": 1
+    },
+    {
+      "seq": 32,
+      "price": 106,
+      "coordinate": 6,
+      "quantity": 1
+    },
+    {
+      "seq": 33,
+      "price": 106,
+      "coordinate": 6,
+      "quantity": 1
+    },
+    {
+      "seq": 34,
+      "price": 106,
+      "coordinate": 6,
+      "quantity": 1
+    },
+    {
+      "seq": 35,
+      "price": 103,
+      "coordinate": 3,
+      "quantity": 1
+    },
+    {
+      "seq": 36,
+      "price": 103,
+      "coordinate": 3,
+      "quantity": 1
+    },
+    {
+      "seq": 37,
+      "price": 103,
+      "coordinate": 3,
+      "quantity": 1
+    },
+    {
+      "seq": 38,
+      "price": 104,
+      "coordinate": 4,
+      "quantity": 1
+    },
+    {
+      "seq": 39,
+      "price": 104,
+      "coordinate": 4,
+      "quantity": 1
+    },
+    {
+      "seq": 40,
+      "price": 104,
+      "coordinate": 4,
+      "quantity": 1
+    }
+  ],
+  "initialPrice": 100,
+  "initialStateCoordinate": 0,
+  "nuclei": [
+    {
+      "id": "K0",
+      "price": 0,
+      "first": 1,
+      "last": 3,
+      "count": 3
+    },
+    {
+      "id": "K1",
+      "price": 10,
+      "first": 4,
+      "last": 6,
+      "count": 3
+    },
+    {
+      "id": "K2",
+      "price": 7,
+      "first": 7,
+      "last": 9,
+      "count": 3
+    },
+    {
+      "id": "K3",
+      "price": 2,
+      "first": 10,
+      "last": 12,
+      "count": 3
+    },
+    {
+      "id": "K4",
+      "price": 4,
+      "first": 13,
+      "last": 15,
+      "count": 3
+    },
+    {
+      "id": "K5",
+      "price": 9,
+      "first": 16,
+      "last": 18,
+      "count": 3
+    },
+    {
+      "id": "K6",
+      "price": 6,
+      "first": 20,
+      "last": 22,
+      "count": 3
+    },
+    {
+      "id": "K7",
+      "price": 1,
+      "first": 23,
+      "last": 25,
+      "count": 3
+    },
+    {
+      "id": "K8",
+      "price": 3,
+      "first": 26,
+      "last": 28,
+      "count": 3
+    },
+    {
+      "id": "K9",
+      "price": 8,
+      "first": 29,
+      "last": 31,
+      "count": 3
+    },
+    {
+      "id": "K10",
+      "price": 6,
+      "first": 32,
+      "last": 34,
+      "count": 3
+    },
+    {
+      "id": "K11",
+      "price": 3,
+      "first": 35,
+      "last": 37,
+      "count": 3
+    },
+    {
+      "id": "K12",
+      "price": 4,
+      "first": 38,
+      "last": 40,
+      "count": 3
+    }
+  ],
+  "nonNucleus": [
+    {
+      "price": 8,
+      "first": 19,
+      "last": 19,
+      "count": 1
+    }
+  ],
+  "selectedDelta": "deltaR: end at last owned nucleus; transition event 19 belongs to successor",
+  "selectedFactors": [
+    {
+      "id": "T1",
+      "start": 0,
+      "end": 6,
+      "proposedType": "U",
+      "nuclei": [
+        "K0",
+        "K1"
+      ],
+      "reversalNucleus": "K2",
+      "reversalKnownAt": 9,
+      "rawFullRange": [
+        0,
+        10
+      ]
+    },
+    {
+      "id": "T2",
+      "start": 6,
+      "end": 12,
+      "proposedType": "D",
+      "nuclei": [
+        "K2",
+        "K3"
+      ],
+      "reversalNucleus": "K4",
+      "reversalKnownAt": 15,
+      "rawFullRange": [
+        2,
+        10
+      ]
+    },
+    {
+      "id": "T3",
+      "start": 12,
+      "end": 18,
+      "proposedType": "U",
+      "nuclei": [
+        "K4",
+        "K5"
+      ],
+      "reversalNucleus": "K6",
+      "reversalKnownAt": 22,
+      "rawFullRange": [
+        2,
+        9
+      ]
+    },
+    {
+      "id": "T4",
+      "start": 18,
+      "end": 25,
+      "proposedType": "D",
+      "nuclei": [
+        "K6",
+        "K7"
+      ],
+      "reversalNucleus": "K8",
+      "reversalKnownAt": 28,
+      "rawFullRange": [
+        1,
+        9
+      ]
+    },
+    {
+      "id": "T5",
+      "start": 25,
+      "end": 31,
+      "proposedType": "U",
+      "nuclei": [
+        "K8",
+        "K9"
+      ],
+      "reversalNucleus": "K10",
+      "reversalKnownAt": 34,
+      "rawFullRange": [
+        1,
+        8
+      ]
+    },
+    {
+      "id": "T6",
+      "start": 31,
+      "end": 37,
+      "proposedType": "D",
+      "nuclei": [
+        "K10",
+        "K11"
+      ],
+      "reversalNucleus": "K12",
+      "reversalKnownAt": 40,
+      "rawFullRange": [
+        3,
+        8
+      ]
+    }
+  ],
+  "selectedGroups": [
+    {
+      "factors": [
+        "T1",
+        "T2",
+        "T3"
+      ],
+      "start": 0,
+      "end": 18,
+      "rawFullRange": [
+        0,
+        10
+      ],
+      "threeRangeIntersection": [
+        2,
+        9
+      ]
+    },
+    {
+      "factors": [
+        "T4",
+        "T5",
+        "T6"
+      ],
+      "start": 18,
+      "end": 37,
+      "rawFullRange": [
+        1,
+        9
+      ],
+      "threeRangeIntersection": [
+        3,
+        8
+      ]
+    }
+  ],
+  "comparisonPurpose": "test information content of the nucleus/reversal certificate only; not a second legal decomposition",
+  "comparisonFactors": [
+    {
+      "id": "T1",
+      "start": 0,
+      "end": 6,
+      "proposedType": "U",
+      "nuclei": [
+        "K0",
+        "K1"
+      ],
+      "reversalNucleus": "K2",
+      "reversalKnownAt": 9,
+      "rawFullRange": [
+        0,
+        10
+      ]
+    },
+    {
+      "id": "T2",
+      "start": 6,
+      "end": 12,
+      "proposedType": "D",
+      "nuclei": [
+        "K2",
+        "K3"
+      ],
+      "reversalNucleus": "K4",
+      "reversalKnownAt": 15,
+      "rawFullRange": [
+        2,
+        10
+      ]
+    },
+    {
+      "id": "T3",
+      "start": 12,
+      "end": 19,
+      "proposedType": "U",
+      "nuclei": [
+        "K4",
+        "K5"
+      ],
+      "reversalNucleus": "K6",
+      "reversalKnownAt": 22,
+      "rawFullRange": [
+        2,
+        9
+      ]
+    },
+    {
+      "id": "T4",
+      "start": 19,
+      "end": 25,
+      "proposedType": "D",
+      "nuclei": [
+        "K6",
+        "K7"
+      ],
+      "reversalNucleus": "K8",
+      "reversalKnownAt": 28,
+      "rawFullRange": [
+        1,
+        8
+      ]
+    },
+    {
+      "id": "T5",
+      "start": 25,
+      "end": 31,
+      "proposedType": "U",
+      "nuclei": [
+        "K8",
+        "K9"
+      ],
+      "reversalNucleus": "K10",
+      "reversalKnownAt": 34,
+      "rawFullRange": [
+        1,
+        8
+      ]
+    },
+    {
+      "id": "T6",
+      "start": 31,
+      "end": 37,
+      "proposedType": "D",
+      "nuclei": [
+        "K10",
+        "K11"
+      ],
+      "reversalNucleus": "K12",
+      "reversalKnownAt": 40,
+      "rawFullRange": [
+        3,
+        8
+      ]
+    }
+  ],
+  "comparisonGroups": [
+    {
+      "factors": [
+        "T1",
+        "T2",
+        "T3"
+      ],
+      "start": 0,
+      "end": 19,
+      "rawFullRange": [
+        0,
+        10
+      ],
+      "threeRangeIntersection": [
+        2,
+        9
+      ]
+    },
+    {
+      "factors": [
+        "T4",
+        "T5",
+        "T6"
+      ],
+      "start": 19,
+      "end": 37,
+      "rawFullRange": [
+        1,
+        8
+      ],
+      "threeRangeIntersection": [
+        3,
+        8
+      ]
+    }
+  ],
+  "numericalFindings": {
+    "nucleusAndReversalSignaturesEqual": true,
+    "firstGroupEnd": [
+      18,
+      19
+    ],
+    "secondGroupRange": [
+      [
+        1,
+        9
+      ],
+      [
+        1,
+        8
+      ]
+    ]
+  }
+}
