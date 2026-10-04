@@ -89,3 +89,14 @@ S16两次shadow仅作成本诊断，24应用表及48403行逐字段同旧原件�
 原 `run-3` 的 240 秒浏览器协调标记超时，**其 FINAL 仍保持 FAIL，金融结果不是 Unknown**；没有倒签 BrowserDone 或重发财务请求。该运行的 21 个 Popen 已回收、三卷普通 detach、28 份来源 SHA 保持。随后仅逐字复制这三份已停止的 image，在新自有副本上补验：恢复前完整逻辑等于 PRE-Q，三库 primary SHA 等于浏览器前记录；同一 manifest 与产物在逐进程 sandbox 中禁止读取 S／peer／源 image 数据及执行 S，真实同目标执行正控和直接／子进程继承拒绝负控成立。三个 fresh recover 均到 epoch 2、stage 0，其余全部账簿、根、image、回执、消息、1307 个 published 节点及历史切面不变。恢复域 35 个登记进程和 7 个探针子进程全部回收，三个新副本普通 detach，19 项来源封存 SHA 保持。
 
 独立事实复核允许上述金融、实际浏览器与精确已提交副本恢复组成**同冻结产品的具名小域验收**，不修改原运行失败记录。完整结果和限定见 [当前结果](inputs/FINANCIAL-CURRENT-20261004.json)，427 份选择性原件、实际回包、脚本与绑定见 [原件包](inputs/FINANCIAL-CURRENT-20261004-RAW.zip)；DB／DMG／可执行文件原件仍保留在各专属载体，不入包。本结论不扩成 WAL／SHM 全部物理字节不变，也不证明完整 9011、Native、整体 heap／RSS／SQLite／I/O、所有 crosswalk 或六个 Destination。#1394 与 goal 保持未完成，未 main 合入、push、关票或改 GOAL 事件。
+
+
+## 2026-10-05 Native 来源缓存与正常服务窗口
+
+代码从 `a60b265` 的独立 Native 来源 Counts 原型推进到 `ee8ea240` 的 Driver 接线。当前受测源聚合 SHA 为 `30c47e4b219dabba322c1d214c2fd766f7e9bf640fcbf0165173a609e659a5c9`，非 test Native binary SHA 为 `203e19edab94c29f725e83a084b59110ffdf8224802c8d35709bca5b7a6824b9`，实际 features 为 `default,s_capture_native_testonly,s_session`。每次请求仍读取当前原件并核验 control／raw／history／独立索引／catalog；同一 handler 内的历史结果仍须通过现有原件相等门才能复用。只有精确当前原件绑定后的来源 Counts 可跨请求复用；完整历史结果和 Public／Template／Frame 校验缓存在请求结束释放，保留池按规范源成本计费。该预算不代表整体 heap／RSS 上限。
+
+用户已确认新隔离正常窗口的 512 MiB 源预算，即 536870912 B；30 秒响应期限不变。用户停止故意损坏数据与故障注入后，最后两项 Driver 正常测试通过，覆盖正常 append／repost／restart、输出一致及合法预算变体。此前 36 passed、2 ignored 回归记录按实际时序保留，不叠成 38 项不同的当前覆盖，也未在停止指令后新增故障验证。Driver readiness／proposal 是运行前快照，执行结果以随后两个 ROOT-RESULT 为准。
+
+同一 Native binary 在独立 CopyQualified149 副本上实际收到 150／151 两请求。正常 S7=1 baseline 的整请求耗时为 27.448542667／25.890727542 秒；512 MiB 具名域为 25.398280166／23.490618250 秒，分别减少约 7.5%／9.3%。回执与持久 oracle 均同 baseline，原件封存不变；两域实际 Popen 全部回收、controller 关闭、socket 移除，终态均为 generation151、idle、151 Committed／published、453 clocks、next ordinal152。
+
+原型同一静态副本的有限 audit 收益为约 23–26%，不作为整请求收益。上述两请求窗口不能与原 Unknown 或其它独立窗口拼成完整 9011，也不证明任意历史规模、整体资源资格或六个 Destination；#1394 与 goal 仍未完成，#1460 保持独立，未 main 合入或 push。摘要与原件索引见 [SOURCE-CACHE-20261005.json](inputs/SOURCE-CACHE-20261005.json)，1422 份选择性原件见 [SOURCE-CACHE-20261005-RAW.zip](inputs/SOURCE-CACHE-20261005-RAW.zip)，942709 B，SHA `b2993816962d2c65f236c1f8ad4836b50e1a19f7f04a52a09c2d7a22719ff9fc`。DB／DMG／可执行文件继续保留在专属载体。
