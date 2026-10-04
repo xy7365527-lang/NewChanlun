@@ -111,3 +111,14 @@ S16两次shadow仅作成本诊断，24应用表及48403行逐字段同旧原件�
 此前来源缓存完整重放 A 域只完成 165 条 Received；第 166 条在 30.041357375 秒成为 DeliveryUnknown，持久状态虽为 Committed，仍不计作已收响应。B 域未创建，进程均回收；最终快照保存了材料，但完整 9011 终态验证因缺条未通过。上述独立窗口不拼接成完整重放。
 
 聚合结果及逐文件 SHA 清单见 [PROJECTION-SWEEP-20261005.json](inputs/PROJECTION-SWEEP-20261005.json) 和 [原始材料 ZIP](inputs/PROJECTION-SWEEP-20261005-RAW.zip)。归档只保留完整重放失败域的终态摘要、166 记录和快照 manifest，不含封存 DB 或快照行块。全资源资格、正式双跑及整图 goal 均未完成；后续原型另行实测。
+## 2026-10-05 Native codec 成功根证书复用
+
+隔离提交 `857e76459bb9609127ee13dc9e099879b1257812` 只保存完整 codec 核验成功的外层根证书，按 Public／Template 分池。新的 Native capture 在封闭接口内逐项确认全部旧 `(digest, tag, body)` 原件仍完整相同后，才把成功根以 Value 上下文放入新的 seen 集合；当前根声明仍真实读取并核验。其他 memo、Frame、旧用量收据及完整历史结果不跨请求转移；当前业务、独立索引和 catalog 核验保留。同一 handler 的合法追加也使用这道原件绑定门。
+
+独评发现并修正了一个正常测试夹具误用公开值 writer 的问题，修正发生在任何测试执行之前；r2 静态通过。随后新增 library 正常测试 3 项、handler 合法增长对拍 1 项及现有 Driver 正常测试 2 项全部通过，Native 非 test release 构建和 feature-off 检查通过。相同原件的小型夹具读取从 74 次降至 2 次、严格 Frame 核验从 53 次降至 2 次；合法追加的严格 Frame 核验从 67 次降至 16 次。这些是组件工作量，不是整请求耗时。
+
+同来源和 512 MiB 预算的新 CopyQualified149→150／151 窗口完整通过，响应字节、持久 oracle、终态与前版一致，封存身份及进程／socket 清理再核通过。整请求为 23.759416459／22.815395542 秒，前版为 24.649966042／23.370007625 秒，单次减少约 3.61%／2.37%。仍只是小幅改善，不能宣称完整 9011 超时问题已解决。
+
+S7 新增私有证书源成本为 `43 + 32 × (Public 根数 + Template 根数)`，与原件及 Counts 成本相加，仍按同一 536870912 字节上限整池准入。容器实际 capacity 单独披露；这不是 heap／RSS 上限或全资源资格证明。规范没有现成的根证书字节配方，此公式是当前私有实现的明确计费口径。
+
+源码聚合 SHA `508de546473df055f9805055331f6ddbfe8a971a4b9baaad7b0816d152948648`，非 test 服务 SHA `9b09fc209ef614aa5d856a6ec9b334f3ef5077bbbd391e80c0863381867026ee`。结果及原始材料见 [CODEC-ROOT-CACHE-20261005.json](inputs/CODEC-ROOT-CACHE-20261005.json) 与 [原始材料 ZIP](inputs/CODEC-ROOT-CACHE-20261005-RAW.zip)。本轮没有故障注入；正式完整双跑、全资源资格和整图 goal 仍未完成。
