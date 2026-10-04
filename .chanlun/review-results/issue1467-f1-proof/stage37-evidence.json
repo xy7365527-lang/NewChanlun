@@ -1,0 +1,90 @@
+{
+  "stage": 37,
+  "date": "2026-10-04",
+  "issue": 1467,
+  "profile": "PRESSURE-DC1-LAST-v1",
+  "declaration": "PressureDCKernel.exact_root",
+  "expected_type": "PressureDC.PROJECTION_TARGET ∧ PressureDC.TRACE_TARGET ∧ PressureDC.GEOMETRY_TARGET ∧ PressureDC.TIE_TARGET ∧ PressureDCKernel.KERNEL_TARGET",
+  "actual_type": "And PressureDC.PROJECTION_TARGET\n  (And PressureDC.TRACE_TARGET\n    (And PressureDC.GEOMETRY_TARGET (And PressureDC.TIE_TARGET PressureDCKernel.KERNEL_TARGET)))",
+  "run_id": "133bd6791e2a42c38b3ec025332333bf",
+  "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/pressure-dc-v1-checked/run-manifest.json",
+  "manifest_sha256": "0bf122a4b1d7dfa9e8f3cb557ce2ad4c103ce19209700b84130c96f3ec85b929",
+  "exact_root_passed": true,
+  "root_closure": {
+    "status": "closed",
+    "exact_root_passed": true,
+    "declaration_closed": true,
+    "scope": "expected Lean type in the recorded environment; semantic review is separate"
+  },
+  "semantic": {
+    "status": "not_reviewed",
+    "reused": false,
+    "semantic_sha256": "7fb65238104e6a2d93f17bc61821c022c4370ac0216bfff75c281e0230296ccf"
+  },
+  "axioms": [
+    "propext",
+    "Quot.sound"
+  ],
+  "unexpected_axioms": [],
+  "unknown_dependencies": [],
+  "unsafe_dependencies": [],
+  "locks_unchanged": true,
+  "checked_source_copies_equal": true,
+  "freshness_exit_code": 0,
+  "LEAN_PATH": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/formal/.lake/build/lib/lean:/Users/silencehan/Documents/Codex/research-evidence/issue1467/moving-quote-v1-checked/lean-verification-runs/dab78e23087045249ac84871dd73c164/lib:/Users/silencehan/Documents/Codex/research-evidence/issue1467/direct-quote-verified-v1/lean-verification-runs/6fb6a2f71c86428997a7be2a9148863e/lib",
+  "commands_receipt": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/pressure-dc-v1/exact-command.json",
+  "scope": "任意有限有效模型历史的方向字及实际group/locate投影对应，具名δ1末极值内核；非完整F1/F2及全部construct/Rust/原生时钟精化",
+  "artifact_bytes": 17559964,
+  "artifact_budget_bytes": 67108864,
+  "sources": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage37WorkCard.md",
+      "sha256": "36d9616bbebe8c689e14b19a3ddded0999c3a3b318b0881dc4e38789c706a3c2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/PressureDCSpec.lean",
+      "sha256": "229cc8648aac0adea1a36952a40425f5cccd5be0421a076cfa938e352726847b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/PressureDCProof.lean",
+      "sha256": "7d3aea3a5b722f56576b96f0e65df1a1bdebfb51c62130d06e8d2a2f2dacf8a0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/PressureDCKernelSpec.lean",
+      "sha256": "50474bf787b7250ef35e57ac5caa203a9e7776bbef08a24d512db1b9e79dd16f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/PressureDCKernelProof.lean",
+      "sha256": "275927746057e5b59ef1739e0d6153c83fccc9374a347b9449550ac22255fc0b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage37PressureDC.md",
+      "sha256": "19d21721568a2ed30ca89f65e76e193b6e98da55fd9e177863cefd42d7f9c495"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage37PendingReview.md",
+      "sha256": "fde1c7a4f35ab2a8cd34dd164e07537b2c7fa7d5cd7be1d48f3ad9a3cb15d6eb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/DCSemantics.lean",
+      "sha256": "a2fbd4becc7a692ba10b6aff6c84dd511ccb5062dae734c9a56616324db0a972"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/MovingQuoteSpec.lean",
+      "sha256": "90d6289fba1f1cfeeaa7ceac234bad76dcda515f2ef63330c5d8e7c6a6aaa762"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/MovingQuoteProof.lean",
+      "sha256": "5c4b37a7549e66e0fe5cb2843a3df3d46e8d73b971e0a55abcf2d42744526652"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/DirectQuoteSpec.lean",
+      "sha256": "df45e6e08d020edc6bc737c0885829b37454c289f1a72c71f4186d82627591ad"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/DirectQuoteProof.lean",
+      "sha256": "a0189d52d43b3b98e6a3416a9effe904ed5a5207d90d2d6d94fd4dca6876759c"
+    }
+  ],
+  "review_channel": "用户派发前父换模问题尚无答复；未派发子代理"
+}

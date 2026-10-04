@@ -1,0 +1,7 @@
+{
+  "expected_type": "PressureDC.PROJECTION_TARGET ∧ PressureDC.TRACE_TARGET ∧ PressureDC.GEOMETRY_TARGET ∧ PressureDC.TIE_TARGET ∧ PressureDCKernel.KERNEL_TARGET",
+  "sources": {
+    "PressureDCSpec.lean": "229cc8648aac0adea1a36952a40425f5cccd5be0421a076cfa938e352726847b",
+    "PressureDCKernelSpec.lean": "50474bf787b7250ef35e57ac5caa203a9e7776bbef08a24d512db1b9e79dd16f"
+  }
+}
