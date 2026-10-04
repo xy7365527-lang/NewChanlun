@@ -32,6 +32,7 @@ pub(super) fn native_source_prefix_stats() -> Option<[u64; 4]> {
 fn err(e: impl std::fmt::Display) -> String {
     format!("SourceAuditInvalid：{e}")
 }
+#[cfg(test)]
 fn f(k: &str) -> PathStep {
     PathStep::Field(k.into())
 }
@@ -399,6 +400,18 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
             self.owned_role(|s| s.lookup_ref(r, p))
         } else {
             sc::path::lookup_path_refview(self, r, p).map(RefValue::Plain)
+        }
+    }
+    fn lookup_field_ref(
+        &mut self,
+        r: sc::RefView<'_>,
+        key: &str,
+    ) -> Result<RefValue, sc::CodecError> {
+        if self.source.owned_codec_active() {
+            // 同 lookup_ref 的实际 full-array 角色；不得继承先造 String 的默认实现。
+            self.owned_role(|s| s.lookup_field_ref(r, key))
+        } else {
+            self.lookup_ref(r, &[PathStep::Field(key.into())])
         }
     }
     fn lookup_fields_ref<'a>(
@@ -1346,7 +1359,7 @@ fn audit_generated_in_store(
         }
         &ordinary_raw
     };
-    let object_array = s.lookup_ref(state, &[f("objects")]).map_err(err)?;
+    let object_array = field_ref(s, state, "objects")?;
     #[cfg(test)]
     super::state::trace_event("source_objects", None);
     // 活期只覆盖当前一次audit_generated；不在代际、事务或源修订之间带出。
@@ -3344,6 +3357,173 @@ mod closed_array_role_probe {
     };
     use super::*;
     use sc::capture_allocation::{CaptureSlab, OwnedBudget};
+
+    #[test]
+    fn source_field_uses_borrowed_entry_without_generic_retry() {
+        let mut probe = super::super::state::borrowed_field_probe::Probe::new();
+        let root = probe.reference.clone();
+        assert_eq!(
+            field_ref(&mut probe, (&root).into(), "borrowed😀")
+                .unwrap()
+                .digest()
+                .unwrap(),
+            root.digest().unwrap()
+        );
+        assert_eq!(probe.fields, 1);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_source_single_field_borrowed_navigation_roles_failure_and_layout_refusal() {
+        let mut nodes = sc::MemoryNodes::new();
+        let root = sc::write_value(
+            &mut nodes,
+            &V::Object(vec![
+                ("a".into(), V::String("1".into())),
+                ("b".into(), V::String("2".into())),
+                ("c".into(), V::String("3".into())),
+            ]),
+        )
+        .unwrap()
+        .content_ref();
+        let ordinary = sc::AuditCapture::new(nodes.clone());
+        let count = nodes.len();
+        let bytes = nodes.iter().map(|(_, _, b)| b.len()).sum();
+        let budget = OwnedBudget::new(50 * 1024 * 1024);
+        let mut slab = CaptureSlab::new(count, bytes, &budget).unwrap();
+        for (d, t, b) in nodes.iter() {
+            slab.push(*d, t, b).unwrap();
+        }
+        let owned = sc::AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
+        let capture_live = budget.snapshot().live_requested_layout_bytes;
+        let operation = |reader: &mut HashReader<'_>, full_arrays, deadline| {
+            let frames = sc::frame_calls_on_thread();
+            let mut view = StoreView::for_audit(reader);
+            let mut source = ArrayAuditSource {
+                source: &mut view,
+                full_arrays,
+                deadline,
+                fields: None,
+            };
+            let got = field_ref(&mut source, (&root).into(), "b").unwrap();
+            let failure = field_ref(&mut source, (&root).into(), "missing").unwrap_err();
+            let shape = field_ref(&mut source, got.view(), "b").unwrap_err();
+            drop(source);
+            drop(view);
+            assert!(
+                !reader.audit_full_array_scan(),
+                "成功与两类失败均恢复inner角色"
+            );
+            (
+                got.digest().unwrap(),
+                failure,
+                shape,
+                sc::frame_calls_on_thread() - frames,
+            )
+        };
+        for (full_arrays, deadline) in [
+            (true, None),
+            (false, None),
+            (
+                true,
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(30)),
+            ),
+        ] {
+            let expected = operation(
+                &mut HashReader::captured(&ordinary, None),
+                full_arrays,
+                deadline,
+            );
+            let actual = with_overlay_prototype(
+                OverlayPrototype {
+                    slots: 32768,
+                    bytes: 1_000_000,
+                    budget: budget.clone(),
+                    peaks: std::rc::Rc::new(std::cell::Cell::new((0, 0))),
+                },
+                || {
+                    operation(
+                        &mut HashReader::captured_for_audit(&owned, None).unwrap(),
+                        full_arrays,
+                        deadline,
+                    )
+                },
+            );
+            assert_eq!(actual, expected);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, capture_live);
+        }
+        with_overlay_prototype(
+            OverlayPrototype {
+                slots: 32768,
+                bytes: 1_000_000,
+                budget: budget.clone(),
+                peaks: std::rc::Rc::new(std::cell::Cell::new((0, 0))),
+            },
+            || {
+                let mut reader = HashReader::captured_for_audit(&owned, None).unwrap();
+                // 通用读取故障探针：实际Owned捕获不得经擦除后的动态source完成导航。
+                assert_eq!(
+                    reader.read(&root.digest().unwrap()).unwrap_err().code(),
+                    sc::capture_allocation::INCOMPLETE
+                );
+                let mut view = StoreView::for_audit(&mut reader);
+                let mut source = ArrayAuditSource {
+                    source: &mut view,
+                    full_arrays: true,
+                    deadline: None,
+                    fields: None,
+                };
+                field_ref(&mut source, (&root).into(), "b").unwrap();
+                let live = budget.snapshot().live_requested_layout_bytes;
+                let discovery =
+                    CaptureSlab::new(0, budget.snapshot().limit_bytes - live - 1, &budget).unwrap();
+                let failure = field_ref(&mut source, (&root).into(), "b").unwrap_err();
+                assert!(failure.contains(sc::capture_allocation::LIMIT), "{failure}");
+                let layout = budget.allocation_request_probe();
+                assert!(layout.refused_kind.ends_with("::path::Ancestor"));
+                drop(discovery);
+                let ballast = CaptureSlab::new(
+                    0,
+                    budget.snapshot().limit_bytes - live - layout.refused_bytes + 1,
+                    &budget,
+                )
+                .unwrap();
+                let before = budget.snapshot();
+                let failure = field_ref(&mut source, (&root).into(), "b").unwrap_err();
+                assert!(failure.contains(sc::capture_allocation::LIMIT), "{failure}");
+                let refusal = budget.allocation_request_probe();
+                assert_eq!(refusal.refused_bytes, layout.refused_bytes);
+                assert_eq!(refusal.refused_align, layout.refused_align);
+                assert_eq!(
+                    refusal.live_before_refusal + refusal.refused_bytes,
+                    before.limit_bytes + 1
+                );
+                assert_eq!(
+                    budget.snapshot().allocation_attempts,
+                    before.allocation_attempts
+                );
+                assert_eq!(
+                    budget.snapshot().live_requested_layout_bytes,
+                    before.live_requested_layout_bytes
+                );
+                drop(ballast);
+                assert!(matches!(
+                    field_ref(&mut source, (&root).into(), "b").unwrap(),
+                    RefValue::Owned(_)
+                ));
+                drop(source);
+                drop(view);
+                assert!(!reader.audit_full_array_scan());
+            },
+        );
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, capture_live);
+        drop(owned);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        assert_eq!(
+            budget.snapshot().allocated_layouts,
+            budget.snapshot().released_layouts
+        );
+    }
     #[cfg(feature = "s_allocation_json_testonly")]
     fn owned_coordinate_source() -> (sc::AuditCapture, OwnedBudget, ContentRef, ContentRef) {
         let mut nodes = sc::MemoryNodes::new();
@@ -3624,7 +3804,7 @@ fn field_ref(
     r: sc::RefView<'_>,
     k: &str,
 ) -> Result<RefValue, String> {
-    s.lookup_ref(r, &[f(k)]).map_err(err)
+    s.lookup_field_ref(r, k).map_err(err)
 }
 fn elements_ref(
     s: &mut (impl CodecRead + ?Sized),

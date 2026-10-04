@@ -114,7 +114,16 @@ pub(super) fn audit_native_current(tx: &Transaction<'_>) -> Result<AuditedState,
             .map_err(err)?
             .enable_native_frame_reuse_for_testonly()
             .map_err(err)?;
-        let (audited, _) = audit_core(tx, None, None, None, false, None, Some(&capture))?;
+        let (audited, _) = audit_core(
+            tx,
+            None,
+            None,
+            None,
+            false,
+            None,
+            Some(&capture),
+            RetentionReport::Skip,
+        )?;
         drop(capture);
         Ok(audited)
     }
@@ -204,6 +213,7 @@ pub(super) fn audit_native_in_request(
             None,
             Some(&capture),
             Some((control, raw)),
+            RetentionReport::Skip,
         )?;
         let HistoricalOwner::Unique(result) = audited.historical else {
             unreachable!()
@@ -284,6 +294,7 @@ pub(crate) fn audit_bounded_with_allocation(
             false,
             Some(&profile.budget),
             Some(source),
+            RetentionReport::Skip,
         )
         .map(|(s, _)| s)
     });
@@ -317,6 +328,7 @@ pub(crate) fn audit_with_access_and_allocation(
                 false,
                 Some(&profile.budget),
                 Some(source),
+                RetentionReport::Skip,
             )
             .map(|(s, _)| s)
         })?;
@@ -373,7 +385,14 @@ fn audit_with_capture_impl(
         #[cfg(not(test))]
         None,
         None,
+        RetentionReport::Collect,
     )
+}
+// #1394：具名捕获诊断才生成普通 JSON；正式 Owned/native 审计不构造后再丢弃。
+#[derive(Clone, Copy)]
+enum RetentionReport {
+    Skip,
+    Collect,
 }
 fn audit_core(
     tx: &Transaction<'_>,
@@ -383,6 +402,7 @@ fn audit_core(
     enable_prototype_capture: bool,
     owned_budget: Option<&sc::capture_allocation::OwnedBudget>,
     external_capture: Option<&sc::AuditCapture>,
+    retention_report: RetentionReport,
 ) -> Result<(AuditedState, Option<Value>), String> {
     audit_core_fresh(
         tx,
@@ -393,6 +413,7 @@ fn audit_core(
         owned_budget,
         external_capture,
         None,
+        retention_report,
     )
 }
 fn audit_core_fresh(
@@ -404,6 +425,7 @@ fn audit_core_fresh(
     owned_budget: Option<&sc::capture_allocation::OwnedBudget>,
     external_capture: Option<&sc::AuditCapture>,
     fresh: Option<(v2::ControlHistory, super::business_json::RawEvents)>,
+    retention_report: RetentionReport,
 ) -> Result<(AuditedState, Option<Value>), String> {
     // 外部不能带入旧捕获；只有本次fresh audit在None/None内可新建自有读集。
     #[cfg(test)]
@@ -521,13 +543,7 @@ fn audit_core_fresh(
     // 4. 从未运行的目录行：空初态（generation=0）要求全部行都仍是未运行。
     verify_unrun_catalog(tx, cuts.is_empty(), control_owner)?;
     // 5. 来源审计与目录证据只接线 OHLC 档；非 OHLC 明确拒绝，不跳过也不宣布永久缩小范围。
-    let profile_id = meta_get_opt(tx, "profile_id")?.ok_or_else(|| err("缺冻结字段 profile_id"))?;
-    if profile_id != tb02a::PROFILE {
-        return Err(err(format!(
-            "非OHLC档（profile=`{profile_id}`）：完整状态审计的来源/目录证据只接线 `{}`，其他档仍待接线，拒绝按此口径放行",
-            tb02a::PROFILE
-        )));
-    }
+    let _profile_id = audit_profile_id(tx, control_owner)?;
     // 只读源 + 内存派生层：overlay 随本函数内的 store 一起销毁，不是 SQLite 写入通道。
     let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
     if budget.is_none() {
@@ -625,14 +641,18 @@ fn audit_core_fresh(
     history::check_deadline(deadline)?;
     #[cfg(test)]
     trace_event("complete", None);
-    let capacity = capture.as_ref().map(|c| {
-        let mut value = c.retention();
-        #[cfg(test)]
-        {
-            value["capture_ns"] = json!(capture_ns.to_string());
-        }
-        value
-    });
+    let capacity = capture
+        .filter(|_| matches!(retention_report, RetentionReport::Collect))
+        .map(|c| {
+            #[cfg(test)]
+            RETENTION_REPORT_CALLS.with(|calls| calls.set(calls.get() + 1));
+            let mut value = c.retention();
+            #[cfg(test)]
+            {
+                value["capture_ns"] = json!(capture_ns.to_string());
+            }
+            value
+        });
     // 当前 Capture memo 的 Raw 借用到此结束，输出可转移已审原始账。
     drop(native_sources);
     Ok((
@@ -670,6 +690,7 @@ struct AuditTrace {
 #[cfg(test)]
 thread_local! {
     static AUDIT_TRACE: std::cell::RefCell<Option<AuditTrace>> = const { std::cell::RefCell::new(None) };
+    static RETENTION_REPORT_CALLS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 #[cfg(test)]
 pub(super) fn trace_event(phase: &'static str, generation: Option<i64>) {
@@ -740,6 +761,22 @@ pub(super) fn traced<T>(count_nodes: bool, action: impl FnOnce() -> T) -> (T, Ve
     (result, trace.events, json!(trace.work))
 }
 
+/// 与共享控制层相同的 SQL 文本所有者；返回值在本次完整审计活期内持账。
+fn audit_profile_id(
+    tx: &Transaction<'_>,
+    allocation: Option<&sc::capture_allocation::OwnedBudget>,
+) -> Result<super::business_json::TextValue, String> {
+    let profile_id = v2::control_meta_text(tx, "profile_id", allocation)?
+        .ok_or_else(|| err("缺冻结字段 profile_id"))?;
+    if profile_id != tb02a::PROFILE {
+        return Err(err(format!(
+            "非OHLC档（profile=`{profile_id}`）：完整状态审计的来源/目录证据只接线 `{}`，其他档仍待接线，拒绝按此口径放行",
+            tb02a::PROFILE
+        )));
+    }
+    Ok(profile_id)
+}
+
 /// 静态列/冻结原件由共享控制审计核验；本层补核从未运行的动态列。
 fn verify_unrun_catalog(
     tx: &Transaction<'_>,
@@ -799,8 +836,79 @@ fn field<'r>(
     r: impl Into<sc::RefView<'r>>,
     key: &str,
 ) -> Result<super::audit_store::RefValue, String> {
-    s.lookup_ref(r.into(), &[sc::path::PathStep::Field(key.into())])
-        .map_err(err)
+    s.lookup_field_ref(r.into(), key).map_err(err)
+}
+
+// #1394：入口路由锁。默认/通用 path 会失败，绿判据必须来自真实 borrowed 方法。
+#[cfg(test)]
+pub(super) mod borrowed_field_probe {
+    use super::super::audit_store::{CodecRead, CodecStore, RefValue};
+    use super::*;
+    use sc::{CodecError, NodeDigest, NodeRead, NodeSink, NodeSource};
+
+    pub(crate) struct Probe {
+        pub(crate) reference: ContentRef,
+        pub(crate) fields: usize,
+    }
+    impl Probe {
+        pub(crate) fn new() -> Self {
+            Self {
+                reference: sc::write_value(&mut sc::MemoryNodes::new(), &sc::Value::Null)
+                    .unwrap()
+                    .content_ref(),
+                fields: 0,
+            }
+        }
+    }
+    impl NodeSource for Probe {
+        fn read(&mut self, _: &NodeDigest) -> Result<NodeRead, CodecError> {
+            panic!("borrowed字段入口不得退回generic read")
+        }
+    }
+    impl NodeSink for Probe {
+        fn put(&mut self, _: NodeDigest, _: u8, _: &[u8]) -> Result<(), CodecError> {
+            panic!("字段导航不得写入")
+        }
+    }
+    impl CodecRead for Probe {
+        fn lookup_ref(
+            &mut self,
+            _: sc::RefView<'_>,
+            _: &[sc::path::PathStep],
+        ) -> Result<RefValue, CodecError> {
+            panic!("borrowed字段入口不得先造owned PathStep")
+        }
+        fn lookup_field_ref(
+            &mut self,
+            _: sc::RefView<'_>,
+            key: &str,
+        ) -> Result<RefValue, CodecError> {
+            assert_eq!(key, "borrowed😀");
+            self.fields += 1;
+            Ok(RefValue::Plain(self.reference.clone()))
+        }
+        fn generic_source(&mut self) -> &mut dyn NodeSource {
+            panic!("borrowed字段入口不得擦除codec")
+        }
+    }
+    impl CodecStore for Probe {
+        fn generic_store(&mut self) -> &mut dyn sc::NodeStore {
+            self
+        }
+    }
+    #[test]
+    fn state_field_uses_borrowed_entry_without_generic_retry() {
+        let mut probe = Probe::new();
+        let root = probe.reference.clone();
+        assert_eq!(
+            field(&mut probe, &root, "borrowed😀")
+                .unwrap()
+                .digest()
+                .unwrap(),
+            root.digest().unwrap()
+        );
+        assert_eq!(probe.fields, 1);
+    }
 }
 
 /// #1394 TestOnly observation, not a writer resource policy or a memo substitute.
@@ -1657,7 +1765,17 @@ pub(super) fn audit_owned_capture_for_testonly(
     tx: &Transaction<'_>,
     budget: &sc::capture_allocation::OwnedBudget,
 ) -> Result<AuditedState, String> {
-    audit_with_capture_impl(tx, None, None, None, true, Some(budget)).map(|(state, _)| state)
+    audit_core(
+        tx,
+        None,
+        None,
+        None,
+        true,
+        Some(budget),
+        None,
+        RetentionReport::Skip,
+    )
+    .map(|(state, _)| state)
 }
 
 #[cfg(all(test, feature = "s_allocation_json_testonly"))]
@@ -1665,6 +1783,109 @@ mod unrun_catalog_owner_tests {
     use super::*;
     use newchan_rust::s_content::capture_allocation::OwnedBudget;
     use rusqlite::Connection;
+
+    #[test]
+    fn audit_profile_sql_text_layout_missing_types_and_read_errors_release() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE meta(key TEXT PRIMARY KEY,value);")
+            .unwrap();
+        conn.execute(
+            "INSERT INTO meta VALUES('profile_id',?1)",
+            params![tb02a::PROFILE],
+        )
+        .unwrap();
+        let budget = OwnedBudget::new(50 * 1024 * 1024);
+        let tx = conn.transaction().unwrap();
+        let normal = audit_profile_id(&tx, None).unwrap();
+        let owned = audit_profile_id(&tx, Some(&budget)).unwrap();
+        assert_eq!(normal.as_str(), owned.as_str());
+        assert!(matches!(
+            &owned,
+            super::super::business_json::TextValue::Owned(_)
+        ));
+        let request = budget.allocation_request_probe().last_request_bytes;
+        assert!(request > 0);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, request);
+        drop(owned);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        let short = OwnedBudget::new(request - 1);
+        let failure = audit_profile_id(&tx, Some(&short)).unwrap_err();
+        assert!(failure.contains(sc::capture_allocation::LIMIT), "{failure}");
+        assert_eq!(short.allocation_request_probe().refused_bytes, request);
+        assert_eq!(short.snapshot().allocation_attempts, 0);
+        assert_eq!(short.snapshot().live_requested_layout_bytes, 0);
+        for value in ["NULL", "7", "x'ff'", "CAST(x'ff' AS TEXT)", "'另一个档😀'"] {
+            tx.execute_batch(&format!("UPDATE meta SET value={value}"))
+                .unwrap();
+            assert_eq!(
+                audit_profile_id(&tx, None).unwrap_err(),
+                audit_profile_id(&tx, Some(&budget)).unwrap_err()
+            );
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        }
+        tx.execute("DELETE FROM meta", []).unwrap();
+        assert_eq!(
+            audit_profile_id(&tx, Some(&budget)).unwrap_err(),
+            err("缺冻结字段 profile_id")
+        );
+        tx.execute("DROP TABLE meta", []).unwrap();
+        let normal = audit_profile_id(&tx, None).unwrap_err();
+        assert!(normal.starts_with("读 meta.profile_id 失败："));
+        assert_eq!(audit_profile_id(&tx, Some(&budget)).unwrap_err(), normal);
+        assert_eq!(
+            budget.snapshot().allocated_layouts,
+            budget.snapshot().released_layouts
+        );
+    }
+
+    #[test]
+    fn owned_formal_audit_skips_retention_dto_and_named_diagnostic_keeps_it() {
+        let mut fixture = super::super::prepared::tests::Fixture::new();
+        for n in 1..=3 {
+            let id = format!("raw-{n}");
+            let (event, token) =
+                fixture.accept_begin(n, (&id, n * 10, 6 + n, 12 + n, 3 + n, 7 + n), 1);
+            fixture.publish(&event, &token).unwrap();
+        }
+        let tx = fixture.conn.transaction().unwrap();
+        let profile = super::super::q_allocation::Profile {
+            budget: OwnedBudget::new(50 * 1024 * 1024),
+            overlay_slots: 32768,
+            overlay_bytes: 1_000_000,
+        };
+        let expected = audit(&tx).unwrap();
+        let before = RETENTION_REPORT_CALLS.with(|calls| calls.get());
+        let (actual, source) = audit_bounded_with_allocation(&tx, None, None, &profile).unwrap();
+        assert_eq!(actual.cuts.len(), 3);
+        assert_eq!(
+            serde_json::to_value(&expected.raw).unwrap(),
+            serde_json::to_value(&actual.raw).unwrap()
+        );
+        for (a, b) in expected.cuts.iter().zip(actual.cuts.iter()) {
+            assert_eq!(
+                a.roots.generated_state.digest().unwrap(),
+                b.roots.generated_state.digest().unwrap()
+            );
+            assert_eq!(a.delta.digest().unwrap(), b.delta.digest().unwrap());
+        }
+        assert_eq!(RETENTION_REPORT_CALLS.with(|calls| calls.get()), before);
+        drop(actual);
+        drop(source);
+        assert_eq!(profile.budget.snapshot().live_requested_layout_bytes, 0);
+        let (_, diagnostic) = history::with_overlay_prototype(
+            history::OverlayPrototype {
+                slots: profile.overlay_slots,
+                bytes: profile.overlay_bytes,
+                budget: profile.budget.clone(),
+                peaks: std::rc::Rc::new(std::cell::Cell::new((0, 0))),
+            },
+            || audit_with_capture_impl(&tx, None, None, None, true, Some(&profile.budget)),
+        )
+        .unwrap();
+        assert!(diagnostic.unwrap().get("capture_ns").is_some());
+        assert_eq!(RETENTION_REPORT_CALLS.with(|calls| calls.get()), before + 1);
+        assert_eq!(profile.budget.snapshot().live_requested_layout_bytes, 0);
+    }
 
     fn oracle(tx: &Transaction<'_>, initial: bool) -> Result<(), String> {
         let mut stmt = tx

@@ -25,10 +25,10 @@ use super::business_json::{self as bj, JsonOwner, RawEventsView, TextValue};
 use crate::{
     canonical_json, content_manifest, content_manifest::ManifestMetadata, tb02a, tb02a_facts,
 };
+#[cfg(test)]
+use newchan_rust::s_content::path::{lookup_path, PathStep};
 use newchan_rust::s_content::{
-    self as sc,
-    path::{lookup_path, PathStep},
-    ContentRef, Kind, NodeDigest, NodeSink, NodeSource, NodeStore, Value as V,
+    self as sc, ContentRef, Kind, NodeDigest, NodeSink, NodeSource, NodeStore, Value as V,
 };
 use newchan_rust::session_protocol::{parse_canonical_i64, strict_json};
 use rusqlite::{params, OptionalExtension, Transaction};
@@ -72,6 +72,7 @@ const EVIDENCE_FIELDS: [&str; 16] = [
     "axes",
 ];
 
+#[cfg(test)]
 fn f(key: &str) -> PathStep {
     PathStep::Field(key.into())
 }
@@ -125,7 +126,7 @@ fn field_ref(
     root: sc::RefView<'_>,
     key: &str,
 ) -> Result<RefValue, String> {
-    s.lookup_ref(root, &[f(key)]).map_err(err)
+    s.lookup_field_ref(root, key).map_err(err)
 }
 fn normal_ref(reference: RefValue) -> Result<ContentRef, String> {
     match reference {
@@ -831,6 +832,20 @@ mod owned_catalog_temp_tests {
     use sc::capture_allocation::{CaptureSlab, OwnedBudget};
 
     #[test]
+    fn catalog_field_uses_borrowed_entry_without_generic_retry() {
+        let mut probe = super::super::state::borrowed_field_probe::Probe::new();
+        let root = probe.reference.clone();
+        assert_eq!(
+            field_ref(&mut probe, (&root).into(), "borrowed😀")
+                .unwrap()
+                .digest()
+                .unwrap(),
+            root.digest().unwrap()
+        );
+        assert_eq!(probe.fields, 1);
+    }
+
+    #[test]
     fn actual_catalog_sql_and_scalar_owners_share_live_capture_and_refuse_before_mutation() {
         let mut fixture = super::super::prepared::tests::Fixture::new();
         for n in 1..=2 {
@@ -845,7 +860,7 @@ mod owned_catalog_temp_tests {
         let generated = &audited.cuts.last().unwrap().roots.generated_state;
         let mut normal_source = crate::content_store::ReadStore::new(&tx).unwrap();
         let normal_axes = normal_source
-            .lookup_ref(generated.view(), &[f("catalog_axes")])
+            .lookup_field_ref(generated.view(), "catalog_axes")
             .unwrap();
         let normal = axes_entries(&mut normal_source, normal_axes.view()).unwrap();
         let expected: Vec<_> = normal
@@ -879,7 +894,7 @@ mod owned_catalog_temp_tests {
             1_000_000,
             |store| {
                 let axes = store
-                    .lookup_ref(generated.view(), &[f("catalog_axes")])
+                    .lookup_field_ref(generated.view(), "catalog_axes")
                     .unwrap();
                 let entries = axes_entries(store, axes.view()).unwrap();
                 let actual: Vec<_> = entries
