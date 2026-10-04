@@ -1,0 +1,177 @@
+{
+  "stage": 34,
+  "ticket": 1467,
+  "date": "2026-10-04",
+  "baseline_head": "4cf74d4abe101a0a0af3dfb9930b7e417aaa8fad",
+  "scope": "作者来源审计与两事件纸面推导；不是新的Lean检查或教义裁定",
+  "machine_verification": "not_run_no_new_lean_target",
+  "independent_semantics": "not_reviewed",
+  "sources": [
+    {
+      "path": "docs/chanlun/text/blog/017-第17课.md",
+      "sha256": "bce847aaacac3b3a79e56b3c49aca6f0c454a0917977bdbb1e0f1f553ddff026",
+      "read_ranges": [
+        [
+          38,
+          46
+        ],
+        [
+          50,
+          56
+        ],
+        [
+          98,
+          98
+        ]
+      ],
+      "line_count": 1176
+    },
+    {
+      "path": "docs/chanlun/text/blog/018-第18课.md",
+      "sha256": "4a661fc843d0d9fcfdf32861b7dc903ee09d824d0075dd0ea7b2c19542bb2f92",
+      "read_ranges": [
+        [
+          14,
+          50
+        ],
+        [
+          68,
+          68
+        ]
+      ],
+      "line_count": 106
+    },
+    {
+      "path": "docs/chanlun/text/blog/038-第38课.md",
+      "sha256": "983ce94575d61ed645fcc753eb59f9a28e8e749826a30d7bf87f19721baedc7b",
+      "read_ranges": [
+        [
+          14,
+          28
+        ],
+        [
+          42,
+          44
+        ]
+      ],
+      "line_count": 334
+    },
+    {
+      "path": "docs/chanlun/text/blog/049-第49课.md",
+      "sha256": "9aacf49b222c2bda2f607d7b918590ceebaac1194bab87c9af9e073a8fd25bcb",
+      "read_ranges": [
+        [
+          52,
+          52
+        ],
+        [
+          78,
+          78
+        ],
+        [
+          128,
+          140
+        ]
+      ],
+      "line_count": 210
+    },
+    {
+      "path": "docs/chanlun/text/blog/084-第84课.md",
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26",
+      "read_ranges": [
+        [
+          50,
+          60
+        ],
+        [
+          68,
+          68
+        ]
+      ],
+      "line_count": 562
+    },
+    {
+      "path": ".chanlun/definitions/zhongshu.md",
+      "sha256": "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882",
+      "read_ranges": [
+        [
+          24,
+          37
+        ],
+        [
+          95,
+          140
+        ]
+      ],
+      "line_count": 592
+    },
+    {
+      "path": ".chanlun/definitions/level_recursion.md",
+      "sha256": "06ac7aee96b089536766ac172b52ff0f8d702f2e4ec01ca2b47b1f3a590e1637",
+      "read_ranges": [
+        [
+          29,
+          71
+        ],
+        [
+          99,
+          110
+        ],
+        [
+          283,
+          297
+        ]
+      ],
+      "line_count": 388
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/DirectQuoteSpec.lean",
+      "sha256": "df45e6e08d020edc6bc737c0885829b37454c289f1a72c71f4186d82627591ad",
+      "read_ranges": [
+        [
+          11,
+          32
+        ],
+        [
+          40,
+          60
+        ],
+        [
+          67,
+          93
+        ]
+      ],
+      "line_count": 135
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage32ExitLiftReadiness.md",
+      "sha256": "b0234eb5bdde7f50ed062498d0c9fdaf51e9d25112125229e7ae7724dbd6f5f3",
+      "read_ranges": null,
+      "line_count": 77
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage4FormalSemantics.md",
+      "sha256": "2055d393cd86e07ac226f8ef805ddefe0ab8fc36947a7208aca94f486be0523f",
+      "read_ranges": null,
+      "line_count": 77
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage15DirectQuoteCandidate.md",
+      "sha256": "7826996889374257bc3491246d589dfa6ba1dc5081dd71ff83dd07ff5a1b944a",
+      "read_ranges": null,
+      "line_count": 93
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/GoalReframe-v4.md",
+      "sha256": "36159c5f6bd4062a6654bd3f22b3eaf00e678e5d5dacda844cbf659e230ce39d",
+      "read_ranges": null,
+      "line_count": 68
+    }
+  ],
+  "online_crosscheck": {
+    "url": "https://eczsc.com/originals/84",
+    "role": "原文转载交叉核对；未取得新浪原帖独立认证",
+    "locator": "第43至46行的工具抽取，F1/F2及最低级别对象段",
+    "third_party_interpretations_used": false
+  }
+}
