@@ -1,0 +1,1124 @@
+{
+  "schema": "stage56-lifecycle-two-controls-v1",
+  "controls": [
+    {
+      "id": "five-core-raw-15",
+      "input": {
+        "kind": "synthetic-trade-model",
+        "marketData": false,
+        "coordinateShift": 100,
+        "initial": {
+          "price": 100,
+          "isTrade": false
+        },
+        "events": [
+          {
+            "seq": 1,
+            "id": "five-core-raw-15-e1",
+            "kind": "trade",
+            "price": 100,
+            "quantity": 1
+          },
+          {
+            "seq": 2,
+            "id": "five-core-raw-15-e2",
+            "kind": "trade",
+            "price": 100,
+            "quantity": 1
+          },
+          {
+            "seq": 3,
+            "id": "five-core-raw-15-e3",
+            "kind": "trade",
+            "price": 100,
+            "quantity": 1
+          },
+          {
+            "seq": 4,
+            "id": "five-core-raw-15-e4",
+            "kind": "trade",
+            "price": 110,
+            "quantity": 1
+          },
+          {
+            "seq": 5,
+            "id": "five-core-raw-15-e5",
+            "kind": "trade",
+            "price": 110,
+            "quantity": 1
+          },
+          {
+            "seq": 6,
+            "id": "five-core-raw-15-e6",
+            "kind": "trade",
+            "price": 110,
+            "quantity": 1
+          },
+          {
+            "seq": 7,
+            "id": "five-core-raw-15-e7",
+            "kind": "trade",
+            "price": 105,
+            "quantity": 1
+          },
+          {
+            "seq": 8,
+            "id": "five-core-raw-15-e8",
+            "kind": "trade",
+            "price": 105,
+            "quantity": 1
+          },
+          {
+            "seq": 9,
+            "id": "five-core-raw-15-e9",
+            "kind": "trade",
+            "price": 105,
+            "quantity": 1
+          },
+          {
+            "seq": 10,
+            "id": "five-core-raw-15-e10",
+            "kind": "trade",
+            "price": 115,
+            "quantity": 1
+          },
+          {
+            "seq": 11,
+            "id": "five-core-raw-15-e11",
+            "kind": "trade",
+            "price": 115,
+            "quantity": 1
+          },
+          {
+            "seq": 12,
+            "id": "five-core-raw-15-e12",
+            "kind": "trade",
+            "price": 115,
+            "quantity": 1
+          },
+          {
+            "seq": 13,
+            "id": "five-core-raw-15-e13",
+            "kind": "trade",
+            "price": 104,
+            "quantity": 1
+          },
+          {
+            "seq": 14,
+            "id": "five-core-raw-15-e14",
+            "kind": "trade",
+            "price": 104,
+            "quantity": 1
+          },
+          {
+            "seq": 15,
+            "id": "five-core-raw-15-e15",
+            "kind": "trade",
+            "price": 104,
+            "quantity": 1
+          }
+        ]
+      },
+      "prefixes": [
+        {
+          "prefixAt": 0,
+          "result": {
+            "policy": "D54",
+            "legs": [],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "NoCore",
+              "cursor": 0,
+              "rejectedSeeds": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 0,
+              "ownedEvents": []
+            }
+          }
+        },
+        {
+          "prefixAt": 1,
+          "result": {
+            "policy": "D54",
+            "legs": [],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "NoCore",
+              "cursor": 0,
+              "rejectedSeeds": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 1,
+              "ownedEvents": [
+                1
+              ]
+            }
+          }
+        },
+        {
+          "prefixAt": 2,
+          "result": {
+            "policy": "D54",
+            "legs": [],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "NoCore",
+              "cursor": 0,
+              "rejectedSeeds": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 2,
+              "ownedEvents": [
+                1,
+                2
+              ]
+            }
+          }
+        },
+        {
+          "prefixAt": 3,
+          "result": {
+            "policy": "D54",
+            "legs": [],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "NoCore",
+              "cursor": 0,
+              "rejectedSeeds": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 3,
+              "ownedEvents": [
+                1,
+                2,
+                3
+              ]
+            }
+          }
+        },
+        {
+          "prefixAt": 4,
+          "result": {
+            "policy": "D54",
+            "legs": [],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "NoCore",
+              "cursor": 0,
+              "rejectedSeeds": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 4,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4
+              ]
+            }
+          }
+        },
+        {
+          "prefixAt": 5,
+          "result": {
+            "policy": "D54",
+            "legs": [],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "NoCore",
+              "cursor": 0,
+              "rejectedSeeds": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 5,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4,
+                5
+              ]
+            }
+          }
+        },
+        {
+          "prefixAt": 6,
+          "result": {
+            "policy": "D54",
+            "legs": [],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "NoCore",
+              "cursor": 0,
+              "rejectedSeeds": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 6,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ]
+            }
+          }
+        },
+        {
+          "prefixAt": 7,
+          "result": {
+            "policy": "D54",
+            "legs": [
+              {
+                "id": 0,
+                "start": 0,
+                "end": 6,
+                "direction": 1,
+                "low": 100,
+                "high": 110,
+                "knownAt": 7
+              }
+            ],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "NoCore",
+              "cursor": 0,
+              "rejectedSeeds": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 7,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            }
+          }
+        },
+        {
+          "prefixAt": 8,
+          "result": {
+            "policy": "D54",
+            "legs": [
+              {
+                "id": 0,
+                "start": 0,
+                "end": 6,
+                "direction": 1,
+                "low": 100,
+                "high": 110,
+                "knownAt": 7
+              }
+            ],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "NoCore",
+              "cursor": 0,
+              "rejectedSeeds": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 8,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+              ]
+            }
+          }
+        },
+        {
+          "prefixAt": 9,
+          "result": {
+            "policy": "D54",
+            "legs": [
+              {
+                "id": 0,
+                "start": 0,
+                "end": 6,
+                "direction": 1,
+                "low": 100,
+                "high": 110,
+                "knownAt": 7
+              }
+            ],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "NoCore",
+              "cursor": 0,
+              "rejectedSeeds": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 9,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+              ]
+            }
+          }
+        },
+        {
+          "prefixAt": 10,
+          "result": {
+            "policy": "D54",
+            "legs": [
+              {
+                "id": 0,
+                "start": 0,
+                "end": 6,
+                "direction": 1,
+                "low": 100,
+                "high": 110,
+                "knownAt": 7
+              },
+              {
+                "id": 1,
+                "start": 6,
+                "end": 9,
+                "direction": -1,
+                "low": 105,
+                "high": 110,
+                "knownAt": 10
+              }
+            ],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "NoCore",
+              "cursor": 0,
+              "rejectedSeeds": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 10,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ]
+            }
+          }
+        },
+        {
+          "prefixAt": 11,
+          "result": {
+            "policy": "D54",
+            "legs": [
+              {
+                "id": 0,
+                "start": 0,
+                "end": 6,
+                "direction": 1,
+                "low": 100,
+                "high": 110,
+                "knownAt": 7
+              },
+              {
+                "id": 1,
+                "start": 6,
+                "end": 9,
+                "direction": -1,
+                "low": 105,
+                "high": 110,
+                "knownAt": 10
+              }
+            ],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "NoCore",
+              "cursor": 0,
+              "rejectedSeeds": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 11,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ]
+            }
+          }
+        },
+        {
+          "prefixAt": 12,
+          "result": {
+            "policy": "D54",
+            "legs": [
+              {
+                "id": 0,
+                "start": 0,
+                "end": 6,
+                "direction": 1,
+                "low": 100,
+                "high": 110,
+                "knownAt": 7
+              },
+              {
+                "id": 1,
+                "start": 6,
+                "end": 9,
+                "direction": -1,
+                "low": 105,
+                "high": 110,
+                "knownAt": 10
+              }
+            ],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "NoCore",
+              "cursor": 0,
+              "rejectedSeeds": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 12,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12
+              ]
+            }
+          }
+        },
+        {
+          "prefixAt": 13,
+          "result": {
+            "policy": "D54",
+            "legs": [
+              {
+                "id": 0,
+                "start": 0,
+                "end": 6,
+                "direction": 1,
+                "low": 100,
+                "high": 110,
+                "knownAt": 7
+              },
+              {
+                "id": 1,
+                "start": 6,
+                "end": 9,
+                "direction": -1,
+                "low": 105,
+                "high": 110,
+                "knownAt": 10
+              },
+              {
+                "id": 2,
+                "start": 9,
+                "end": 12,
+                "direction": 1,
+                "low": 105,
+                "high": 115,
+                "knownAt": 13
+              }
+            ],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "AwaitPair",
+              "cursor": 0,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "core": [
+                105,
+                110
+              ],
+              "developmentLegs": [
+                0,
+                1,
+                2
+              ],
+              "nextL": 3,
+              "rejectedSeeds": [],
+              "checks": [],
+              "contactEvidence": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 13,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13
+              ]
+            }
+          }
+        },
+        {
+          "prefixAt": 14,
+          "result": {
+            "policy": "D54",
+            "legs": [
+              {
+                "id": 0,
+                "start": 0,
+                "end": 6,
+                "direction": 1,
+                "low": 100,
+                "high": 110,
+                "knownAt": 7
+              },
+              {
+                "id": 1,
+                "start": 6,
+                "end": 9,
+                "direction": -1,
+                "low": 105,
+                "high": 110,
+                "knownAt": 10
+              },
+              {
+                "id": 2,
+                "start": 9,
+                "end": 12,
+                "direction": 1,
+                "low": 105,
+                "high": 115,
+                "knownAt": 13
+              }
+            ],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "AwaitPair",
+              "cursor": 0,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "core": [
+                105,
+                110
+              ],
+              "developmentLegs": [
+                0,
+                1,
+                2
+              ],
+              "nextL": 3,
+              "rejectedSeeds": [],
+              "checks": [],
+              "contactEvidence": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 14,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14
+              ]
+            }
+          }
+        },
+        {
+          "prefixAt": 15,
+          "result": {
+            "policy": "D54",
+            "legs": [
+              {
+                "id": 0,
+                "start": 0,
+                "end": 6,
+                "direction": 1,
+                "low": 100,
+                "high": 110,
+                "knownAt": 7
+              },
+              {
+                "id": 1,
+                "start": 6,
+                "end": 9,
+                "direction": -1,
+                "low": 105,
+                "high": 110,
+                "knownAt": 10
+              },
+              {
+                "id": 2,
+                "start": 9,
+                "end": 12,
+                "direction": 1,
+                "low": 105,
+                "high": 115,
+                "knownAt": 13
+              }
+            ],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "AwaitPair",
+              "cursor": 0,
+              "seed": [
+                0,
+                1,
+                2
+              ],
+              "core": [
+                105,
+                110
+              ],
+              "developmentLegs": [
+                0,
+                1,
+                2
+              ],
+              "nextL": 3,
+              "rejectedSeeds": [],
+              "checks": [],
+              "contactEvidence": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 15,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15
+              ]
+            }
+          }
+        }
+      ],
+      "summary": {
+        "events": 15,
+        "prefixes": 16,
+        "outputs": 0,
+        "terminal": {
+          "tag": "AwaitPair",
+          "cursor": 0,
+          "seed": [
+            0,
+            1,
+            2
+          ],
+          "core": [
+            105,
+            110
+          ],
+          "developmentLegs": [
+            0,
+            1,
+            2
+          ],
+          "nextL": 3,
+          "rejectedSeeds": [],
+          "checks": [],
+          "contactEvidence": []
+        },
+        "unpublishedWholeRange": [
+          100,
+          115
+        ],
+        "fixedF2EligibleInputs": 0,
+        "originalP": null
+      }
+    },
+    {
+      "id": "equal-return-raw-7",
+      "input": {
+        "kind": "synthetic-trade-model",
+        "marketData": false,
+        "coordinateShift": 100,
+        "initial": {
+          "price": 100,
+          "isTrade": false
+        },
+        "events": [
+          {
+            "seq": 1,
+            "id": "equal-return-raw-7-e1",
+            "kind": "trade",
+            "price": 100,
+            "quantity": 1
+          },
+          {
+            "seq": 2,
+            "id": "equal-return-raw-7-e2",
+            "kind": "trade",
+            "price": 100,
+            "quantity": 1
+          },
+          {
+            "seq": 3,
+            "id": "equal-return-raw-7-e3",
+            "kind": "trade",
+            "price": 100,
+            "quantity": 1
+          },
+          {
+            "seq": 4,
+            "id": "equal-return-raw-7-e4",
+            "kind": "trade",
+            "price": 101,
+            "quantity": 1
+          },
+          {
+            "seq": 5,
+            "id": "equal-return-raw-7-e5",
+            "kind": "trade",
+            "price": 100,
+            "quantity": 1
+          },
+          {
+            "seq": 6,
+            "id": "equal-return-raw-7-e6",
+            "kind": "trade",
+            "price": 100,
+            "quantity": 1
+          },
+          {
+            "seq": 7,
+            "id": "equal-return-raw-7-e7",
+            "kind": "trade",
+            "price": 100,
+            "quantity": 1
+          }
+        ]
+      },
+      "prefixes": [
+        {
+          "prefixAt": 0,
+          "result": {
+            "policy": "D54",
+            "legs": [],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "NoCore",
+              "cursor": 0,
+              "rejectedSeeds": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 0,
+              "ownedEvents": []
+            }
+          }
+        },
+        {
+          "prefixAt": 1,
+          "result": {
+            "policy": "D54",
+            "legs": [],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "NoCore",
+              "cursor": 0,
+              "rejectedSeeds": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 1,
+              "ownedEvents": [
+                1
+              ]
+            }
+          }
+        },
+        {
+          "prefixAt": 2,
+          "result": {
+            "policy": "D54",
+            "legs": [],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "NoCore",
+              "cursor": 0,
+              "rejectedSeeds": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 2,
+              "ownedEvents": [
+                1,
+                2
+              ]
+            }
+          }
+        },
+        {
+          "prefixAt": 3,
+          "result": {
+            "policy": "D54",
+            "legs": [],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "NoCore",
+              "cursor": 0,
+              "rejectedSeeds": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 3,
+              "ownedEvents": [
+                1,
+                2,
+                3
+              ]
+            }
+          }
+        },
+        {
+          "prefixAt": 4,
+          "result": {
+            "policy": "D54",
+            "legs": [],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "NoCore",
+              "cursor": 0,
+              "rejectedSeeds": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 4,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4
+              ]
+            }
+          }
+        },
+        {
+          "prefixAt": 5,
+          "result": {
+            "policy": "D54",
+            "legs": [
+              {
+                "id": 0,
+                "start": 0,
+                "end": 4,
+                "direction": 1,
+                "low": 100,
+                "high": 101,
+                "knownAt": 5
+              }
+            ],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "NoCore",
+              "cursor": 0,
+              "rejectedSeeds": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 5,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4,
+                5
+              ]
+            }
+          }
+        },
+        {
+          "prefixAt": 6,
+          "result": {
+            "policy": "D54",
+            "legs": [
+              {
+                "id": 0,
+                "start": 0,
+                "end": 4,
+                "direction": 1,
+                "low": 100,
+                "high": 101,
+                "knownAt": 5
+              }
+            ],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "NoCore",
+              "cursor": 0,
+              "rejectedSeeds": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 6,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ]
+            }
+          }
+        },
+        {
+          "prefixAt": 7,
+          "result": {
+            "policy": "D54",
+            "legs": [
+              {
+                "id": 0,
+                "start": 0,
+                "end": 4,
+                "direction": 1,
+                "low": 100,
+                "high": 101,
+                "knownAt": 5
+              }
+            ],
+            "outputs": [],
+            "attempts": [],
+            "terminal": {
+              "tag": "NoCore",
+              "cursor": 0,
+              "rejectedSeeds": []
+            },
+            "tail": {
+              "start": 0,
+              "end": 7,
+              "ownedEvents": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            }
+          }
+        }
+      ],
+      "summary": {
+        "events": 7,
+        "prefixes": 8,
+        "outputs": 0,
+        "terminal": {
+          "tag": "NoCore",
+          "cursor": 0,
+          "rejectedSeeds": []
+        },
+        "unpublishedWholeRange": [
+          100,
+          101
+        ],
+        "fixedF2EligibleInputs": 0,
+        "originalP": null
+      }
+    }
+  ],
+  "totals": {
+    "controls": 2,
+    "events": 22,
+    "prefixes": 24
+  },
+  "scope": "Two synthetic raw trade controls only; numeric D54 checks are not original completion or F2 certification."
+}

@@ -1,0 +1,12 @@
+{
+  "scope": "作者开发检查；非独评、非原义完成证明、非市场样本",
+  "command": "node .chanlun/review-results/issue1467-f1-proof/stage56/lifecycle-evidence/check-two-controls.mjs",
+  "cwd": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun",
+  "toolChunk": "7a9b2f",
+  "exitCode": 0,
+  "stdout": "{\"ok\":true,\"controls\":{\"controls\":2,\"events\":22,\"prefixes\":24},\"terminalTags\":[\"AwaitPair\",\"NoCore\"],\"semanticStatus\":\"unproved\"}\n",
+  "stderr": "",
+  "reranHistoricalEnumeration": false,
+  "newMarketData": false,
+  "leanExecuted": false
+}

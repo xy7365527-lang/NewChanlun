@@ -1,0 +1,167 @@
+{
+  "profile": "stage56-consumer-author-packet/1",
+  "issue": [
+    1467,
+    1468,
+    1465
+  ],
+  "status": "author_checks_passed_pending_independent_review",
+  "command": "node /Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage56/consumer-evidence/verify-consumer.mjs /Users/silencehan/Documents/Codex/research-evidence/issue1467 NEW_OUTPUT_DIRECTORY",
+  "exit_code": 0,
+  "passed": 13,
+  "input_identity": {
+    "view": {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/causal-view-v1/rows.jsonl",
+      "sha256": "a52374d3d1fc922eca44a692cc4243db2a083ee93346bc5b2181292ae66a47a5",
+      "bytes": 13416347
+    },
+    "native": {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/native-quote-v1/baseline/rows.jsonl.gz",
+      "sha256": "5c233367178b64ddbcd992bf869793f4bf12a415ed90d50d1ee1d481d04763cf",
+      "bytes": 2577319
+    },
+    "raw": {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/data-readiness-v1/coinbase-20210101-0000-btcusd-full.ndjson",
+      "sha256": "8fa0b1a21a02140aafcc679fb656f39499f8e24c4b0928a436852b4f9d7407fd",
+      "bytes": 8401206
+    },
+    "features": {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-grid-b-v1/features.jsonl",
+      "sha256": "be957271f54b1b912e537bd6a2802ab0646d6e77b13d623ed070dd0ad3659adc",
+      "bytes": 304870
+    },
+    "labels": {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/label-grid-v2/labels.jsonl",
+      "sha256": "b945b5c6e0148b67ee6b1dda958b9200b91e16db4fff3c25f55622f6e83805fa",
+      "bytes": 207360
+    }
+  },
+  "files": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage56/causal-consumer.md",
+      "sha256": "df08b78c59667c3c79c3a632c596b862a3cbcfedacad2e53ca1b177d8f03fd8a",
+      "bytes": 10126
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage56/consumer-evidence/consumer-boundary.mjs",
+      "sha256": "ce116c1feb3b9509abdd653900b3c6f11799eddaaa96dc2d10240a57851618ee",
+      "bytes": 5378
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage56/consumer-evidence/consume-stdin.mjs",
+      "sha256": "d8de25f86adb3a0ee53077f194a5eb2e8120eef03c8b0c1cf15ad0cb6c8c0132",
+      "bytes": 1223
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage56/consumer-evidence/verify-consumer.mjs",
+      "sha256": "30ff3576544f5ac3f89c17c8824fe297cd48bb4650be079f084d365b8fa495e9",
+      "bytes": 14017
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/book_grid_features.mjs",
+      "sha256": "fbd18461dc3917184cb58e8229c727cfb69abcb5ae1a06eccea2395ffe032d39",
+      "bytes": 13356
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/trade_grid_features.mjs",
+      "sha256": "7dba29c959e9ff04cea98c123cff567d902631d047e593cb26575781690c4499",
+      "bytes": 8789
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/order_label_probe.mjs",
+      "sha256": "d909d6aac8b222cde57c3c35730bbae822fe9cf2481a16a78157b3e02c5553da",
+      "bytes": 8196
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/GoalReframe-v4.md",
+      "sha256": "36159c5f6bd4062a6654bd3f22b3eaf00e678e5d5dacda844cbf659e230ce39d",
+      "bytes": 10098
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage35ExternalTarget.md",
+      "sha256": "23140dcd39546fbe6e6c268b92f86ae2b6fb87e4b1b08f87a109794418f7feeb",
+      "bytes": 5496
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage44BaseCompletionAndB.md",
+      "sha256": "df996cb667b7de83232bc93dd0471236b21f174be80d3d6493a5c0025f85c831",
+      "bytes": 7522
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/BookGridB-v1.md",
+      "sha256": "10d6d356f9ff61376eb1d15a707038b64cf530c9b402f6a3ab9709339fb8c5d7",
+      "bytes": 10753
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/ExperimentDesignCandidate-v1.md",
+      "sha256": "fa5cc0c57fadf723629969267ae58ab85ac5bd478ac7ab9ebe742f0565c57dac",
+      "bytes": 7981
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage44/independent-book-grid-b-review.md",
+      "sha256": "0be23e687c3e85984c22a45a75ba7562c10302da26ad080d313152b7218b9bdc",
+      "bytes": 8761
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage56/consumer-author/run-v4/receipt.json",
+      "sha256": "ce69b5eb1c026eb4cce8dfd316845d9381a753615d1b2fbd7d799db69f0dc07c",
+      "bytes": 8481
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage56/consumer-author/run-v4.stdout.json",
+      "sha256": "ce69b5eb1c026eb4cce8dfd316845d9381a753615d1b2fbd7d799db69f0dc07c",
+      "bytes": 8481
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage56/consumer-author/run-v4.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage56/consumer-author/run-v4/consumer-processes.json",
+      "sha256": "7052115df5a62802e478c0e27514a374a2e9d7193733ed88e924564a937815ee",
+      "bytes": 3084
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage56/consumer-author/run-v4/evaluation-only.json",
+      "sha256": "47a31359087fd73c5dc7fc3d33903b12e3b967b5eaefede5c7c8f2ee87661467",
+      "bytes": 197418
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage56/consumer-author/run-v4/evaluation-stress-only.json",
+      "sha256": "8ce9e69beb8b8b093571091f09f69cea36a235f661fb7b929db5022c6489032d",
+      "bytes": 211794
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage56/consumer-author/run-v4/packet-0.json.gz",
+      "sha256": "0548222ba773c5288fba1544b20654eefa75d7ca3cd5ec66ca8be6a7069a051b",
+      "bytes": 4584
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage56/consumer-author/run-v4/packet-250.json.gz",
+      "sha256": "98c8c36cf694dd025c231572ec69321a404e6b322f29d241002bec509de08f1b",
+      "bytes": 1919435
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage56/consumer-author/run-v4/packet-3.json.gz",
+      "sha256": "816368c211abf5defb1627fbc441f7f0c6c458fb4e695ceca2524621f134089e",
+      "bytes": 1321178
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage56/consumer-author/run-v4/packet-identities.json",
+      "sha256": "9fe54815ba48f519e820ab61593959112dd902d17c7bb77adde46374d62dfd23",
+      "bytes": 1642
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage56/consumer-author/run-v4/seal-counterexample.json",
+      "sha256": "03f84739ae0871dea2e8fc73af241461e60cad40f570192590ade45846f69519",
+      "bytes": 2831
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage56/consumer-author/run-v4/suffix-comparisons.json",
+      "sha256": "276a232e5e038cc8735c7ee9d6af969675861f0a1e11e476b4f4f4cd16fa774e",
+      "bytes": 4181
+    }
+  ],
+  "excluded": "dynamic Progress; prior full recovery matrix; any training or confirmation claim"
+}
