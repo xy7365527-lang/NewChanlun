@@ -378,6 +378,7 @@ fn read_indexed_history_inner(
     let mut object_sweep = objects.native_sweep();
     let publication_memo = content_publication::NativePublicationMemo::new(&store);
     let mut native_aux = aux_index::NativeAuxAudit::from_loaded(&store, &auxiliary, raw);
+    let mut native_prefix = NativeHistoryPrefixes::new(&store, raw, allocation.as_ref());
     let mut effective = bj::new_map::<i64, NodeDigest>(allocation.as_ref());
     let mut previous = -1i64;
     let mut output = bj::new_work(allocation.as_ref());
@@ -644,45 +645,73 @@ fn read_indexed_history_inner(
             if bj::field(event, "seq").as_i64() != Some(n) {
                 return Err(err("真实原始账序与数组位置不符"));
             }
+            let coord = bj::coord(event)?;
             effective
-                .insert(bj::coord(event)?, raw_nodes[n as usize])
+                .insert(coord, raw_nodes[n as usize])
                 .map_err(err)?;
+            if let Some(prefix) = &mut native_prefix {
+                // Only the actual newly checked interval is appended. Future raw material
+                // was hashed above but does not enter any earlier cut's prefix.
+                prefix.append(coord, raw_nodes[n as usize], raw_wire_nodes[n as usize])?;
+            }
         }
         same_digest(
             &mut store,
             roots.generated_state.view(),
             "raw_events",
-            hash_array_metered_with_owner(
-                &raw_nodes[..=frontier as usize],
-                deadline,
-                budget,
-                false,
-                allocation.as_ref(),
-            )?,
+            match &native_prefix {
+                Some(prefix) => prefix.raw_root(frontier as usize + 1)?,
+                None => {
+                    #[cfg(test)]
+                    record_history_prefix_leaves(0, frontier as u64 + 1);
+                    hash_array_metered_with_owner(
+                        &raw_nodes[..=frontier as usize],
+                        deadline,
+                        budget,
+                        false,
+                        allocation.as_ref(),
+                    )?
+                }
+            },
         )?;
         same_digest(
             &mut store,
             roots.generated_state.view(),
             "effective_events",
-            hash_array_metered_with_owner(
-                &ordered_effective_nodes(&effective, allocation.as_ref())?,
-                deadline,
-                budget,
-                false,
-                allocation.as_ref(),
-            )?,
+            match native_prefix.as_ref().and_then(|p| p.effective.as_ref()) {
+                Some(prefix) => prefix.array_root()?,
+                None => {
+                    let nodes = ordered_effective_nodes(&effective, allocation.as_ref())?;
+                    #[cfg(test)]
+                    record_history_prefix_leaves(1, nodes.len() as u64);
+                    hash_array_metered_with_owner(
+                        &nodes,
+                        deadline,
+                        budget,
+                        false,
+                        allocation.as_ref(),
+                    )?
+                }
+            },
         )?;
         same_digest(
             &mut store,
             &snapshot,
             "raw_history",
-            hash_array_metered_with_owner(
-                &raw_wire_nodes[..=frontier as usize],
-                deadline,
-                budget,
-                true,
-                allocation.as_ref(),
-            )?,
+            match &native_prefix {
+                Some(prefix) => prefix.wire_root(frontier as usize + 1)?,
+                None => {
+                    #[cfg(test)]
+                    record_history_prefix_leaves(2, frontier as u64 + 1);
+                    hash_array_metered_with_owner(
+                        &raw_wire_nodes[..=frontier as usize],
+                        deadline,
+                        budget,
+                        true,
+                        allocation.as_ref(),
+                    )?
+                }
+            },
         )?;
         same_digest(
             &mut store,
@@ -1361,6 +1390,153 @@ fn hash_array_metered_with_owner(
     sc::write_value_view(&mut Discard(deadline, budget), value)
         .map(|built| built.digest)
         .map_err(err)
+}
+
+/// 本次 cold history 内的追加路径；不是任意 M 的 concat/split 算法。
+/// 等长子树向左合并，取 cut 时从右向左 fold，与 write_sequence_ctx 同形。
+/// 共追加 N 叶的构建为 O(N)，每 cut 取根为 O(log N)，仅留 O(log N) 摘要。
+#[derive(Default)]
+struct PrefixArray {
+    count: u64,
+    stack: Vec<(u64, NodeDigest)>,
+}
+impl PrefixArray {
+    fn branch(left: &NodeDigest, right: &NodeDigest, count: u64) -> Result<NodeDigest, String> {
+        let mut body = [0; 72];
+        body[..8].copy_from_slice(&sc::checked_frame_len(count).map_err(err)?);
+        body[8..40].copy_from_slice(left);
+        body[40..].copy_from_slice(right);
+        Ok(sc::frame(sc::tag::SEQ_BRANCH, &body))
+    }
+    fn append(&mut self, digest: NodeDigest) -> Result<(), String> {
+        let next = self
+            .count
+            .checked_add(1)
+            .ok_or_else(|| err("前缀叶数溢出"))?;
+        sc::checked_frame_len(next).map_err(err)?;
+        self.stack.push((1, sc::frame(sc::tag::SEQ_LEAF, &digest)));
+        while self.stack.len() >= 2 {
+            let (right_count, right) = self.stack[self.stack.len() - 1];
+            let (left_count, left) = self.stack[self.stack.len() - 2];
+            if left_count != right_count {
+                break;
+            }
+            let count = left_count
+                .checked_add(right_count)
+                .ok_or_else(|| err("前缀分支叶数溢出"))?;
+            let digest = Self::branch(&left, &right, count)?;
+            self.stack.truncate(self.stack.len() - 2);
+            self.stack.push((count, digest));
+        }
+        self.count = next;
+        Ok(())
+    }
+    fn array_root(&self) -> Result<NodeDigest, String> {
+        let mut iter = self.stack.iter().rev();
+        let (count, root) = match iter.next() {
+            None => (0, sc::frame(sc::tag::SEQ_EMPTY, &[])),
+            Some(&(mut count, mut root)) => {
+                for &(left_count, left) in iter {
+                    count = left_count
+                        .checked_add(count)
+                        .ok_or_else(|| err("前缀取根叶数溢出"))?;
+                    root = Self::branch(&left, &root, count)?;
+                }
+                (count, root)
+            }
+        };
+        if count != self.count {
+            return Err(err("前缀序列叶数记账不符"));
+        }
+        let mut body = [0; 40];
+        body[..8].copy_from_slice(&sc::checked_frame_len(count).map_err(err)?);
+        body[8..].copy_from_slice(&root);
+        Ok(sc::frame(sc::tag::ARRAY, &body))
+    }
+    fn root_at(&self, count: usize) -> Result<NodeDigest, String> {
+        if u64::try_from(count).ok() != Some(self.count) {
+            return Err(err("前缀与当前已检查cut长度不符"));
+        }
+        self.array_root()
+    }
+}
+
+/// 唯一 owner 随本次实际多 cut 循环创建及销毁，不跨事务或请求保存。
+struct NativeHistoryPrefixes<'capture> {
+    _capture: &'capture sc::AuditCapture,
+    raw: PrefixArray,
+    wire: PrefixArray,
+    effective: Option<PrefixArray>,
+    last_coord: Option<i64>,
+}
+impl<'capture> NativeHistoryPrefixes<'capture> {
+    fn new(
+        store: &HashReader<'capture>,
+        raw: RawEventsView<'_>,
+        allocation: Option<&OwnedBudget>,
+    ) -> Option<Self> {
+        if store.max_render_bytes.is_some() || raw.budget().is_some() || allocation.is_some() {
+            return None;
+        }
+        let capture = store.native_projection_capture()?;
+        Some(Self {
+            _capture: capture,
+            raw: PrefixArray::default(),
+            wire: PrefixArray::default(),
+            effective: Some(PrefixArray::default()),
+            last_coord: None,
+        })
+    }
+    fn append(&mut self, coord: i64, raw: NodeDigest, wire: NodeDigest) -> Result<(), String> {
+        self.raw.append(raw)?;
+        self.wire.append(wire)?;
+        #[cfg(test)]
+        {
+            record_history_prefix_leaves(3, 1);
+            record_history_prefix_leaves(5, 1);
+        }
+        // effective 的旧语义是按 coord 最后覆盖。仅严格递增输入的有序 map
+        // 等于追加数组；重复/乱序由输入拓扑永久关闭本 cold 的 effective fold，
+        // 继续使用同一规范 hash_array。此处分派不消费任何根校验失败。
+        if self.last_coord.is_some_and(|last| coord <= last) {
+            self.effective = None;
+        }
+        if let Some(effective) = &mut self.effective {
+            effective.append(raw)?;
+            self.last_coord = Some(coord);
+            #[cfg(test)]
+            record_history_prefix_leaves(4, 1);
+        }
+        Ok(())
+    }
+    fn raw_root(&self, count: usize) -> Result<NodeDigest, String> {
+        self.raw.root_at(count)
+    }
+    fn wire_root(&self, count: usize) -> Result<NodeDigest, String> {
+        self.wire.root_at(count)
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    // 旧 raw/effective/wire 重建叶访问；实际 Native 三路追加叶访问。
+    static HISTORY_PREFIX_LEAVES: std::cell::Cell<[u64; 6]> = const { std::cell::Cell::new([0; 6]) };
+}
+#[cfg(test)]
+fn record_history_prefix_leaves(index: usize, count: u64) {
+    HISTORY_PREFIX_LEAVES.with(|stats| {
+        let mut counts = stats.get();
+        counts[index] += count;
+        stats.set(counts);
+    });
+}
+#[cfg(test)]
+fn reset_history_prefix_leaves() {
+    HISTORY_PREFIX_LEAVES.with(|stats| stats.set([0; 6]));
+}
+#[cfg(test)]
+fn history_prefix_leaves() -> [u64; 6] {
+    HISTORY_PREFIX_LEAVES.with(std::cell::Cell::get)
 }
 
 enum ReadOwner<'a> {
@@ -2388,6 +2564,96 @@ fn report_owned_overlay_peak((x, y): (usize, usize)) {
 mod tests {
     use super::*;
 
+    #[test]
+    fn prefix_array_all_prefixes_and_jump_cuts_match_strict_array_hash() {
+        // 固定种子的伪随机摘要覆盖非规范值叶；叶本身沿用已有 digest。
+        let mut seed = 0x1394_9011_65_u64;
+        let nodes = (0..9011)
+            .map(|_| {
+                let mut digest = [0; 32];
+                for byte in &mut digest {
+                    seed ^= seed << 13;
+                    seed ^= seed >> 7;
+                    seed ^= seed << 17;
+                    *byte = seed as u8;
+                }
+                digest
+            })
+            .collect::<Vec<_>>();
+        let mut prefix = PrefixArray::default();
+        for n in 0..=257 {
+            assert_eq!(prefix.root_at(n).unwrap(), hash_array(&nodes[..n]).unwrap());
+            assert!(prefix.stack.len() <= 64);
+            if let Some(digest) = nodes.get(n) {
+                prefix.append(*digest).unwrap();
+            }
+        }
+        let mut jumps = PrefixArray::default();
+        let mut previous = 0;
+        for n in [0, 1, 2, 3, 31, 32, 33, 63, 64, 65, 127, 128, 129, 257] {
+            for digest in &nodes[previous..n] {
+                jumps.append(*digest).unwrap();
+            }
+            assert_eq!(jumps.root_at(n).unwrap(), hash_array(&nodes[..n]).unwrap());
+            previous = n;
+        }
+        assert!(jumps.root_at(258).is_err());
+        for digest in &nodes[257..] {
+            jumps.append(*digest).unwrap();
+        }
+        assert_eq!(jumps.root_at(9011).unwrap(), hash_array(&nodes).unwrap());
+        let mut overflow = PrefixArray {
+            count: sc::MAX_FRAME_LEN,
+            stack: Vec::new(),
+        };
+        assert!(overflow.append([0; 32]).is_err());
+        assert_eq!(overflow.count, sc::MAX_FRAME_LEN);
+        assert!(overflow.stack.is_empty());
+        assert!(overflow.array_root().is_err(), "算法错误必须直传");
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_history_prefix_effective_topology_keeps_last_coord_overwrite() {
+        let capture = sc::AuditCapture::new(sc::MemoryNodes::new());
+        let mut reader = HashReader::captured_for_audit(&capture, None).unwrap();
+        reader.enable_full_arrays_for_test();
+        for coords in [
+            [0, 10, 20, 30],
+            [20, 0, 10, 30],
+            [0, 10, 10, 20],
+            [0, 5, 9011, i64::MAX],
+        ] {
+            let mut prefix = NativeHistoryPrefixes::new(&reader, (&[][..]).into(), None).unwrap();
+            let mut map = bj::new_map(None);
+            let mut nodes = Vec::new();
+            let mut wires = Vec::new();
+            let mut increasing = true;
+            for (n, coord) in coords.into_iter().enumerate() {
+                let digest = sc::frame(sc::tag::STRING, &(n as u64).to_be_bytes());
+                let wire = sc::frame(sc::tag::STRING, &(!(n as u64)).to_be_bytes());
+                nodes.push(digest);
+                wires.push(wire);
+                map.insert(coord, digest).unwrap();
+                prefix.append(coord, digest, wire).unwrap();
+                increasing &= n == 0 || coord > coords[n - 1];
+                assert_eq!(prefix.effective.is_some(), increasing);
+                let ordered = ordered_effective_nodes(&map, None).unwrap();
+                let effective_root = match &prefix.effective {
+                    Some(p) => p.array_root().unwrap(),
+                    None => hash_array(&ordered).unwrap(),
+                };
+                assert_eq!(effective_root, hash_array(&ordered).unwrap());
+                assert_eq!(prefix.raw_root(n + 1).unwrap(), hash_array(&nodes).unwrap());
+                assert_eq!(
+                    prefix.wire_root(n + 1).unwrap(),
+                    hash_array(&wires).unwrap()
+                );
+            }
+            assert!(prefix.raw_root(5).is_err());
+        }
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn native_full_audit_duplicate_put_keeps_current_source_vec_and_first_f() {
@@ -2644,27 +2910,36 @@ mod tests {
         let gate = Gate;
         let capture = sc::AuditCapture::new(sc::MemoryNodes::new());
         let mut reader = HashReader::captured(&capture, None);
+        let raw = RawEventsView::plain(&[]);
         assert!(
             reader.native_projection_capture().is_none(),
             "普通 reader 没有历史审计资格"
         );
+        assert!(NativeHistoryPrefixes::new(&reader, raw, None).is_none());
         assert!(content_publication::NativePublicationMemo::new(&reader).is_none());
         reader.enable_full_arrays_for_test();
         assert!(std::ptr::eq(
             reader.native_projection_capture().unwrap(),
             &capture
         ));
+        assert!(NativeHistoryPrefixes::new(&reader, raw, None).is_some());
+        reader.max_render_bytes = Some(1_000_000);
+        assert!(NativeHistoryPrefixes::new(&reader, raw, None).is_none());
+        reader.max_render_bytes = None;
         reader.deadline = Some(std::time::Instant::now() + std::time::Duration::from_secs(10));
         assert!(reader.native_projection_capture().is_none());
+        assert!(NativeHistoryPrefixes::new(&reader, raw, None).is_none());
         assert!(content_publication::NativePublicationMemo::new(&reader).is_none());
         reader.deadline = None;
         reader.budget = Some(&gate);
         assert!(reader.native_projection_capture().is_none());
+        assert!(NativeHistoryPrefixes::new(&reader, raw, None).is_none());
         assert!(content_publication::NativePublicationMemo::new(&reader).is_none());
         let mut nodes = sc::MemoryNodes::new();
         let mut ordinary = HashReader::new(&mut nodes);
         ordinary.enable_full_arrays_for_test();
         assert!(ordinary.native_projection_capture().is_none());
+        assert!(NativeHistoryPrefixes::new(&ordinary, raw, None).is_none());
         assert!(content_publication::NativePublicationMemo::new(&ordinary).is_none());
         let budget = OwnedBudget::new(1_000_000);
         let slab = sc::capture_allocation::CaptureSlab::new(0, 0, &budget)
@@ -2678,7 +2953,15 @@ mod tests {
             owned_reader.native_projection_capture().is_none(),
             "Owned capture 不能进入 Native memo"
         );
+        assert!(NativeHistoryPrefixes::new(&owned_reader, raw, None).is_none());
         assert!(content_publication::NativePublicationMemo::new(&owned_reader).is_none());
+        reader.budget = None;
+        assert!(NativeHistoryPrefixes::new(&reader, raw, Some(&budget)).is_none());
+        #[cfg(feature = "s_allocation_json_testonly")]
+        {
+            let owned_raw = bj::RawEvents::Owned(OwnedJson::parse(b"[]", &budget).unwrap());
+            assert!(NativeHistoryPrefixes::new(&reader, owned_raw.view(), None).is_none());
+        }
     }
 
     #[test]
@@ -3710,6 +3993,251 @@ mod tests {
         assert_ne!(cut.roots.publication_template, cut.snapshot);
         assert_ne!(cut.roots.delta_template, cut.delta);
     }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_history_prefix_real_multicut_roots_and_linear_leaf_visits() {
+        let bars = [(6, 12, 3, 7), (8, 16, 6, 12), (8, 13, 4, 7), (8, 17, 6, 12)];
+        for (coords, ids, revisions, fast_effective, old_effective) in [
+            ([0, 10, 20, 30], ["a", "b", "c", "d"], [1; 4], 4, 0),
+            ([20, 0, 10, 30], ["a", "b", "c", "d"], [1; 4], 1, 9),
+            ([0, 10, 20, 10], ["a", "b", "c", "b"], [1, 1, 1, 2], 3, 3),
+            ([0, 100, 1000, 9010], ["a", "b", "c", "d"], [1; 4], 4, 0),
+        ] {
+            let mut fixture = super::prepared::tests::Fixture::new();
+            for n in 0..4 {
+                let (open, high, low, close) = bars[n];
+                let (envelope, token) = fixture.accept_begin(
+                    n as i64 + 1,
+                    (ids[n], coords[n], open, high, low, close),
+                    revisions[n],
+                );
+                fixture.publish(&envelope, &token).unwrap();
+            }
+            let tx = fixture.conn.transaction().unwrap();
+            let raw = read_raw_events(&tx).unwrap();
+            reset_history_prefix_leaves();
+            let ordinary = read_indexed_history_for_audit(
+                &tx,
+                &raw,
+                control_audit::prepare_s3_control_history(&tx).unwrap(),
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+            let old = history_prefix_leaves();
+            assert_eq!(old[0], 10);
+            assert_eq!(old[2], 10);
+            assert_eq!(&old[3..], &[0; 3]);
+            let capture = content_store::capture_for_prototype(&tx).unwrap();
+            reset_history_prefix_leaves();
+            let native = read_indexed_history_for_audit_captured(
+                &tx,
+                &raw,
+                control_audit::prepare_s3_control_history(&tx).unwrap(),
+                None,
+                None,
+                None,
+                Some(&capture),
+            )
+            .unwrap();
+            assert_eq!(
+                history_prefix_leaves(),
+                [0, old_effective, 0, 4, fast_effective, 4]
+            );
+            assert_eq!(ordinary.cuts.len(), 4);
+            assert_eq!(native.cuts.len(), 4);
+            for (a, b) in ordinary.cuts.iter().zip(native.cuts.iter()) {
+                assert_eq!(a.snapshot, b.snapshot);
+                assert_eq!(a.delta, b.delta);
+                assert_eq!(a.batch_id, b.batch_id);
+                assert_eq!(a.metadata.generation, b.metadata.generation);
+                assert_eq!(a.metadata.input_frontier, b.metadata.input_frontier);
+                for (a, b) in [
+                    (&a.roots.generated_state, &b.roots.generated_state),
+                    (&a.roots.publication_template, &b.roots.publication_template),
+                    (&a.roots.delta_template, &b.roots.delta_template),
+                ] {
+                    assert_eq!(a.view().root(), b.view().root());
+                    assert_eq!(a.view().kind(), b.view().kind());
+                    assert_eq!(a.view().extent(), b.view().extent());
+                }
+            }
+            // Captured 有期限/render 限制时仍逐 cut 走原数组重建。
+            for (deadline, render) in [
+                (
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(60)),
+                    None,
+                ),
+                (None, Some(16_000_000)),
+            ] {
+                reset_history_prefix_leaves();
+                let gated = read_indexed_history_for_audit_captured(
+                    &tx,
+                    &raw,
+                    control_audit::prepare_s3_control_history(&tx).unwrap(),
+                    deadline,
+                    render,
+                    None,
+                    Some(&capture),
+                )
+                .unwrap();
+                assert_eq!(history_prefix_leaves(), old);
+                for (a, b) in ordinary.cuts.iter().zip(gated.cuts.iter()) {
+                    assert_eq!(a.snapshot, b.snapshot);
+                    assert_eq!(a.delta, b.delta);
+                }
+            }
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_history_prefix_bad_cut_and_unpublished_future_material_still_reject() {
+        let mut fixture = super::prepared::tests::Fixture::new();
+        for (n, row) in [
+            (1, ("a", 0, 6, 12, 3, 7)),
+            (2, ("b", 10, 8, 16, 6, 12)),
+            (3, ("c", 20, 8, 13, 4, 7)),
+        ] {
+            let (envelope, token) = fixture.accept_begin(n, row, 1);
+            fixture.publish(&envelope, &token).unwrap();
+        }
+        // 第4份原始输入真实接纳并 Begin，但还没发布；其内容须全核，不能入旧cut根。
+        let _unpublished = fixture.accept_begin(4, ("d", 30, 8, 17, 6, 12), 1);
+        let tx = fixture.conn.transaction().unwrap();
+        let raw = read_raw_events(&tx).unwrap();
+        assert_eq!(raw.len(), 4);
+        let capture = content_store::capture_for_prototype(&tx).unwrap();
+        reset_history_prefix_leaves();
+        let native = read_indexed_history_for_audit_captured(
+            &tx,
+            &raw,
+            control_audit::prepare_s3_control_history(&tx).unwrap(),
+            None,
+            None,
+            None,
+            Some(&capture),
+        )
+        .unwrap();
+        assert_eq!(native.cuts.len(), 3);
+        assert_eq!(history_prefix_leaves(), [0, 0, 0, 3, 3, 3]);
+        // 闭包合法的原始叶替换，与当前或后续真实根不符；不能因前cut已核就放行。
+        for cut in [0, 2] {
+            let mut wrong = raw.clone();
+            wrong[cut]["price"] = json!("9999");
+            let old = read_indexed_history_for_audit(
+                &tx,
+                &wrong,
+                control_audit::prepare_s3_control_history(&tx).unwrap(),
+                None,
+                None,
+                None,
+            );
+            reset_history_prefix_leaves();
+            let new = read_indexed_history_for_audit_captured(
+                &tx,
+                &wrong,
+                control_audit::prepare_s3_control_history(&tx).unwrap(),
+                None,
+                None,
+                None,
+                Some(&capture),
+            );
+            assert!(old.is_err());
+            assert!(new.is_err());
+            assert!(history_prefix_leaves()[3] <= cut as u64 + 1);
+            assert_eq!(history_prefix_leaves()[0], 0, "校验失败不转原数组重判");
+        }
+        let mut future = raw.clone();
+        future[3]["revision"] = json!("invalid");
+        assert!(read_indexed_history_for_audit(
+            &tx,
+            &future,
+            control_audit::prepare_s3_control_history(&tx).unwrap(),
+            None,
+            None,
+            None,
+        )
+        .is_err());
+        reset_history_prefix_leaves();
+        assert!(read_indexed_history_for_audit_captured(
+            &tx,
+            &future,
+            control_audit::prepare_s3_control_history(&tx).unwrap(),
+            None,
+            None,
+            None,
+            Some(&capture),
+        )
+        .is_err());
+        assert_eq!(
+            history_prefix_leaves(),
+            [0; 6],
+            "未来非法data仍先全raw验证拒绝"
+        );
+        // 后cut的seq/coord仍在真实区间检查拒绝；只计已经通过的前缀。
+        for (field, value) in [("seq", json!(100)), ("source_coord", json!("invalid"))] {
+            let mut bad = raw.clone();
+            bad[2][field] = value;
+            reset_history_prefix_leaves();
+            let old = read_indexed_history_for_audit(
+                &tx,
+                &bad,
+                control_audit::prepare_s3_control_history(&tx).unwrap(),
+                None,
+                None,
+                None,
+            )
+            .err()
+            .unwrap();
+            let old_counts = history_prefix_leaves();
+            reset_history_prefix_leaves();
+            let new = read_indexed_history_for_audit_captured(
+                &tx,
+                &bad,
+                control_audit::prepare_s3_control_history(&tx).unwrap(),
+                None,
+                None,
+                None,
+                Some(&capture),
+            )
+            .err()
+            .unwrap();
+            assert_eq!(old, new, "{field}旧/新失败门一致");
+            assert_eq!(&old_counts[..3], &[3; 3]);
+            assert_eq!(history_prefix_leaves(), [0, 0, 0, 2, 2, 2]);
+        }
+        // 当前/后续发布根损坏在完整闭包门拒绝，前一次成功审计不能授权新capture。
+        for generation in [1, 3] {
+            let original: Vec<u8> = tx.query_row(
+                "SELECT body FROM s_content_nodes WHERE digest=(SELECT snapshot_root FROM s_content_publications WHERE generation=?1)",
+                [generation], |r| r.get(0),
+            ).unwrap();
+            tx.execute(
+                "UPDATE s_content_nodes SET body=x'00' WHERE digest=(SELECT snapshot_root FROM s_content_publications WHERE generation=?1)",
+                [generation],
+            ).unwrap();
+            let damaged = content_store::capture_for_prototype(&tx).unwrap();
+            reset_history_prefix_leaves();
+            assert!(read_indexed_history_for_audit_captured(
+                &tx,
+                &raw,
+                control_audit::prepare_s3_control_history(&tx).unwrap(),
+                None,
+                None,
+                None,
+                Some(&damaged),
+            )
+            .is_err());
+            assert_eq!(history_prefix_leaves(), [0; 6]);
+            tx.execute(
+                "UPDATE s_content_nodes SET body=?1 WHERE digest=(SELECT snapshot_root FROM s_content_publications WHERE generation=?2)",
+                params![original, generation],
+            ).unwrap();
+        }
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn native_cut_projection_full_history_matches_ordinary_and_rejects_fresh_damage() {
