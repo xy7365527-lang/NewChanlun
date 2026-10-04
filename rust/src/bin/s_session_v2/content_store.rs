@@ -229,6 +229,209 @@ impl SameMaterial {
     }
 }
 
+/// 直接 PRAGMA 的 metadata 也属于证据：SQLITE_IGNORE 可成功返回零列，必须拒绝。
+/// 所有行严格取型并读到末尾；正常空列表仅在列名/列数已核实后才成立。
+#[cfg(feature = "s_capture_native_testonly")]
+fn native_pragma_rows<T>(
+    conn: &Connection,
+    sql: &str,
+    columns: &[&str],
+    mut decode: impl FnMut(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
+) -> Result<Vec<T>, CodecError> {
+    let mut stmt = conn.prepare(sql).map_err(storage_error)?;
+    let result = (|| {
+        if stmt.column_names() != columns {
+            return Err(storage_error(format!("Native PRAGMA metadata 不符：{sql}")));
+        }
+        let mut rows = stmt.query([]).map_err(storage_error)?;
+        let mut values = Vec::new();
+        while let Some(row) = rows.next().map_err(storage_error)? {
+            values.push(decode(row).map_err(storage_error)?);
+        }
+        Ok(values)
+    })();
+    let finalized = stmt.finalize().map_err(storage_error);
+    let values = result?;
+    finalized?;
+    Ok(values)
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+fn native_insert_can_preserve(conn: &Connection) -> Result<bool, CodecError> {
+    fn tables(
+        conn: &Connection,
+        schema: &str,
+    ) -> Result<Vec<(String, String, String, i64, i64, i64)>, CodecError> {
+        native_pragma_rows(
+            conn,
+            &format!("PRAGMA {schema}.table_list"),
+            &["schema", "name", "type", "ncol", "wr", "strict"],
+            |r| {
+                Ok((
+                    r.get(0)?,
+                    r.get(1)?,
+                    r.get(2)?,
+                    r.get(3)?,
+                    r.get(4)?,
+                    r.get(5)?,
+                ))
+            },
+        )
+    }
+    let main = tables(conn, "main")?;
+    let temp = tables(conn, "temp")?;
+    // 每个正常 temp.table_list 必含 schema 表，空结果不证明没有 TEMP 遮蔽。
+    if !temp.iter().any(|r| {
+        r.0 == "temp"
+            && r.1 == "sqlite_temp_schema"
+            && r.2 == "table"
+            && r.3 == 5
+            && r.4 == 0
+            && r.5 == 0
+    }) {
+        return Err(storage_error("Native temp.table_list 缺少 schema 见证"));
+    }
+    let shadowed = temp.iter().any(|r| {
+        r.1.eq_ignore_ascii_case("s_content_nodes") || r.1.eq_ignore_ascii_case("s_content_meta")
+    });
+    let normal = main
+        .iter()
+        .filter(|r| r.1.eq_ignore_ascii_case("s_content_nodes"))
+        .collect::<Vec<_>>();
+    if shadowed
+        || normal.len() != 1
+        || normal[0].0 != "main"
+        || normal[0].1 != "s_content_nodes"
+        || normal[0].2 != "table"
+        || normal[0].3 != 3
+        || normal[0].4 != 1
+        || !matches!(normal[0].5, 0 | 1)
+    {
+        return Ok(false);
+    }
+    let columns: Vec<(i64, String, String, i64, Option<String>, i64, i64)> = native_pragma_rows(
+        conn,
+        "PRAGMA main.table_xinfo('s_content_nodes')",
+        &[
+            "cid",
+            "name",
+            "type",
+            "notnull",
+            "dflt_value",
+            "pk",
+            "hidden",
+        ],
+        |r| {
+            Ok((
+                r.get(0)?,
+                r.get(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get(4)?,
+                r.get(5)?,
+                r.get(6)?,
+            ))
+        },
+    )?;
+    let columns_ok = columns.len() == 3
+        && columns
+            .iter()
+            .zip([
+                (0, "digest", "BLOB", 1, 1),
+                (1, "tag", "INTEGER", 1, 0),
+                (2, "body", "BLOB", 1, 0),
+            ])
+            .all(|(r, expected)| {
+                r.0 == expected.0
+                    && r.1 == expected.1
+                    && r.2.eq_ignore_ascii_case(expected.2)
+                    && r.3 == expected.3
+                    && r.4.is_none()
+                    && r.5 == expected.4
+                    && r.6 == 0
+            });
+    let foreign_keys: Vec<(
+        i64,
+        i64,
+        String,
+        Option<String>,
+        Option<String>,
+        String,
+        String,
+        String,
+    )> = native_pragma_rows(
+        conn,
+        "PRAGMA main.foreign_key_list('s_content_nodes')",
+        &[
+            "id",
+            "seq",
+            "table",
+            "from",
+            "to",
+            "on_update",
+            "on_delete",
+            "match",
+        ],
+        |r| {
+            Ok((
+                r.get(0)?,
+                r.get(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get(4)?,
+                r.get(5)?,
+                r.get(6)?,
+                r.get(7)?,
+            ))
+        },
+    )?;
+    let indexes: Vec<(i64, String, i64, String, i64)> = native_pragma_rows(
+        conn,
+        "PRAGMA main.index_list('s_content_nodes')",
+        &["seq", "name", "unique", "origin", "partial"],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+    )?;
+    let mut indexes_ok = indexes.len() == 1;
+    for index in indexes {
+        indexes_ok &= index.0 == 0 && index.2 == 1 && index.3 == "pk" && index.4 == 0;
+        // 名称由 SQLite 返回；字符串引用必须转义，不能拼成任意 SQL。
+        let quoted = index.1.replace('\'', "''");
+        let info: Vec<(i64, i64, Option<String>, i64, Option<String>, i64)> = native_pragma_rows(
+            conn,
+            &format!("PRAGMA main.index_xinfo('{quoted}')"),
+            &["seqno", "cid", "name", "desc", "coll", "key"],
+            |r| {
+                Ok((
+                    r.get(0)?,
+                    r.get(1)?,
+                    r.get(2)?,
+                    r.get(3)?,
+                    r.get(4)?,
+                    r.get(5)?,
+                ))
+            },
+        )?;
+        indexes_ok &= info.len() == 3
+            && info
+                .iter()
+                .zip([(0, 0, "digest", 1), (1, 1, "tag", 0), (2, 2, "body", 0)])
+                .all(|(r, expected)| {
+                    r.0 == expected.0
+                        && r.1 == expected.1
+                        && r.2.as_deref() == Some(expected.2)
+                        && r.3 == 0
+                        && r.4.as_deref() == Some("BINARY")
+                        && r.5 == expected.3
+                });
+    }
+    Ok(columns_ok && foreign_keys.is_empty() && indexes_ok)
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+fn native_insert_only_target(before: u64, after: u64, direct: u64) -> bool {
+    direct == 1 && after.checked_sub(before) == Some(1)
+}
+
 /// #1394 Native prepare only: exclusive, snapshot-bound node-read phase. No SQL/connection
 /// getter, Deref, savepoint, rollback or staged owner is exposed. Actual puts always stay cold.
 #[cfg(feature = "s_capture_native_testonly")]
@@ -236,6 +439,7 @@ pub(super) struct NativeReadLease<'lease, 'conn> {
     tx: &'lease mut Transaction<'conn>,
     material: SameMaterial,
     poisoned: bool,
+    insert_can_preserve: bool,
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
@@ -243,19 +447,22 @@ impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
         if tx.is_autocommit() {
             return Err(storage_error("Native读取租约要求活动事务"));
         }
-        let isolation: i64 = tx
-            .query_row("PRAGMA read_uncommitted", [], |r| r.get(0))
-            .map_err(storage_error)?;
-        if isolation != 0 {
+        let isolation: Vec<i64> =
+            native_pragma_rows(tx, "PRAGMA read_uncommitted", &["read_uncommitted"], |r| {
+                r.get(0)
+            })?;
+        if isolation.as_slice() != [0] {
             return Err(storage_error(
                 "Native读取租约要求read_uncommitted=0；不修改配置",
             ));
         }
         ensure_format(tx)?;
+        let insert_can_preserve = native_insert_can_preserve(tx)?;
         Ok(Self {
             tx,
             material: Default::default(),
             poisoned: false,
+            insert_can_preserve,
         })
     }
     fn clear(&mut self) {
@@ -319,15 +526,34 @@ impl NodeSink for NativeReadLease<'_, '_> {
         // Private short reborrow avoids a self-referential &mut Transaction + TxStore pair.
         // Constructor already checked the format once, exactly as original TxStore::new does.
         let material = &mut self.material;
+        let tx = &*self.tx;
+        let preserve = self.insert_can_preserve;
+        let mut parked = None;
         let result = TxStore {
-            tx: &*self.tx,
+            tx,
             #[cfg(all(test, feature = "s_capture_native_testonly"))]
             stage: None,
         }
         .put_before_write(digest, tag, body, || {
-            // 实际写入的触发器可能改动旧节点；冷查确认无写入时保留成功读素材。
-            *material = SameMaterial::default();
+            let mut old = std::mem::take(material);
+            if preserve {
+                // PK REPLACE 隐式删除不计入 total_changes；唯一冲突键限定为 digest，
+                // 因而即使 authorizer 将现有目标读成 Missing，也绝不恢复目标旧素材。
+                if let Some((_, capacity)) = old.frames.remove(&digest) {
+                    old.retained_capacity -= capacity;
+                }
+                parked = Some((old, tx.total_changes()));
+            }
         });
+        if result.is_ok() {
+            if let Some((old, before)) = parked {
+                let after = tx.total_changes();
+                let direct = tx.changes();
+                if native_insert_only_target(before, after, direct) {
+                    self.material = old;
+                }
+            }
+        }
         if result.is_err() {
             self.clear();
             self.poisoned = true;
@@ -928,6 +1154,394 @@ mod tests {
         fresh.checked_read(&digest).unwrap();
         assert_eq!(sql_reads_on_thread() - before, 1);
     }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_insert_preserves_only_prior_other_reads_and_keeps_put_cold() {
+        let mut conn = database("s-session/3");
+        let mut tx = conn.transaction().unwrap();
+        init_schema(&tx).unwrap();
+        let a = s_content::frame(s_content::tag::BOOL_TRUE, &[]);
+        let b = s_content::frame(s_content::tag::BOOL_FALSE, &[]);
+        TxStore::new(&tx)
+            .unwrap()
+            .put(a, s_content::tag::BOOL_TRUE, &[])
+            .unwrap();
+        let mut lease = NativeReadLease::new(&mut tx).unwrap();
+        assert!(lease.insert_can_preserve);
+        lease.checked_read(&a).unwrap();
+        let sql = sql_reads_on_thread();
+        let f = s_content::frame_calls_on_thread();
+        let changes = lease.tx.total_changes();
+        lease.put(b, s_content::tag::BOOL_FALSE, &[]).unwrap();
+        assert_eq!(sql_reads_on_thread() - sql, 1);
+        assert_eq!(
+            s_content::frame_calls_on_thread() - f,
+            1,
+            "put 入参核 F；Missing 无旧 F"
+        );
+        assert_eq!(lease.tx.total_changes() - changes, 1, "实际 INSERT");
+        assert!(lease.material.frames.contains_key(&a));
+        assert!(
+            !lease.material.frames.contains_key(&b),
+            "禁止用 put 入参 seed"
+        );
+        lease.checked_read(&a).unwrap();
+        assert_eq!(sql_reads_on_thread() - sql, 1);
+        assert_eq!(s_content::frame_calls_on_thread() - f, 1);
+        lease.checked_read(&b).unwrap();
+        assert_eq!(sql_reads_on_thread() - sql, 2, "B 首读仍 cold");
+        assert_eq!(s_content::frame_calls_on_thread() - f, 2);
+        assert_eq!(lease.material.retained_capacity, 0);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_insert_effects_cover_main_temp_indirect_delete_replace_and_ignore() {
+        // pure SELECT / AFTER IGNORE 不改其它 digest，可复用；真正附加写即全清。
+        for (trigger, retained, old_present, old_valid, target_present) in [
+            ("CREATE TRIGGER effect AFTER INSERT ON s_content_nodes BEGIN SELECT 1; END;", true, true, true, true),
+            ("CREATE TRIGGER effect AFTER INSERT ON s_content_nodes BEGIN UPDATE s_content_nodes SET body=x'01' WHERE digest<>NEW.digest; END;", false, true, false, true),
+            ("CREATE TEMP TRIGGER effect AFTER INSERT ON main.s_content_nodes BEGIN UPDATE s_content_nodes SET body=x'01' WHERE digest<>NEW.digest; END;", false, true, false, true),
+            ("CREATE TABLE side(x); CREATE TRIGGER hop AFTER INSERT ON side BEGIN UPDATE s_content_nodes SET body=x'01'; END; CREATE TRIGGER effect AFTER INSERT ON s_content_nodes BEGIN INSERT INTO side VALUES(1); END;", false, true, false, true),
+            ("CREATE TRIGGER effect AFTER INSERT ON s_content_nodes BEGIN DELETE FROM s_content_nodes WHERE digest<>NEW.digest; END;", false, false, false, true),
+            ("CREATE TRIGGER effect AFTER INSERT ON s_content_nodes BEGIN INSERT OR REPLACE INTO s_content_nodes SELECT digest,tag,x'01' FROM s_content_nodes WHERE digest<>NEW.digest; END;", false, true, false, true),
+            ("CREATE TRIGGER effect BEFORE INSERT ON s_content_nodes BEGIN SELECT RAISE(IGNORE); END;", false, true, true, false),
+            ("CREATE TRIGGER effect BEFORE INSERT ON s_content_nodes BEGIN UPDATE s_content_nodes SET body=x'01'; SELECT RAISE(IGNORE); END;", false, true, false, false),
+            ("CREATE TRIGGER effect AFTER INSERT ON s_content_nodes BEGIN SELECT RAISE(IGNORE); END;", true, true, true, true),
+            ("CREATE TRIGGER effect AFTER INSERT ON s_content_nodes BEGIN UPDATE s_content_nodes SET body=x'01' WHERE digest<>NEW.digest; SELECT RAISE(IGNORE); END;", false, true, false, true),
+        ] {
+            let mut conn = database("s-session/3");
+            let mut tx = conn.transaction().unwrap();
+            init_schema(&tx).unwrap();
+            let a = s_content::frame(s_content::tag::BOOL_TRUE, &[]);
+            let b = s_content::frame(s_content::tag::BOOL_FALSE, &[]);
+            TxStore::new(&tx).unwrap().put(a, s_content::tag::BOOL_TRUE, &[]).unwrap();
+            tx.execute_batch(trigger).unwrap();
+            let mut lease = NativeReadLease::new(&mut tx).unwrap();
+            assert!(lease.insert_can_preserve, "trigger 本身不预先排除：{trigger}");
+            lease.checked_read(&a).unwrap();
+            lease.put(b, s_content::tag::BOOL_FALSE, &[]).unwrap();
+            assert_eq!(lease.material.frames.contains_key(&a), retained, "{trigger}");
+            assert!(!lease.material.frames.contains_key(&b));
+            assert!(!lease.poisoned);
+            let target: bool = lease.tx.query_row("SELECT EXISTS(SELECT 1 FROM s_content_nodes WHERE digest=?1)", params![&b[..]], |r| r.get(0)).unwrap();
+            assert_eq!(target, target_present, "{trigger}");
+            let result = lease.checked_read(&a);
+            if old_valid {
+                assert!(result.unwrap().is_some(), "{trigger}");
+            } else if old_present {
+                assert_eq!(result.unwrap_err().code(), code::NODE_DIGEST, "{trigger}");
+                assert!(lease.poisoned && lease.material.frames.is_empty());
+            } else {
+                assert!(result.unwrap().is_none(), "{trigger}");
+            }
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_insert_hidden_loaded_trigger_uses_actual_effects() {
+        let mut conn = database("s-session/3");
+        let mut tx = conn.transaction().unwrap();
+        init_schema(&tx).unwrap();
+        let a = s_content::frame(s_content::tag::BOOL_TRUE, &[]);
+        let b = s_content::frame(s_content::tag::BOOL_FALSE, &[]);
+        TxStore::new(&tx)
+            .unwrap()
+            .put(a, s_content::tag::BOOL_TRUE, &[])
+            .unwrap();
+        tx.execute_batch("CREATE TRIGGER hidden_effect AFTER INSERT ON s_content_nodes BEGIN UPDATE s_content_nodes SET body=x'01' WHERE digest<>NEW.digest; END;").unwrap();
+        // 加载 INSERT 的 trigger 程序，再删除 raw schema 记录而不 bump schema_version。
+        tx.prepare("INSERT INTO s_content_nodes VALUES(?1,?2,?3)")
+            .unwrap()
+            .finalize()
+            .unwrap();
+        tx.execute_batch("PRAGMA writable_schema=ON; DELETE FROM sqlite_schema WHERE type='trigger' AND name='hidden_effect'; PRAGMA writable_schema=OFF;").unwrap();
+        assert_eq!(
+            tx.query_row(
+                "SELECT count(*) FROM sqlite_schema WHERE type='trigger'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+            0
+        );
+        let mut lease = NativeReadLease::new(&mut tx).unwrap();
+        assert!(lease.insert_can_preserve);
+        lease.checked_read(&a).unwrap();
+        let changes = lease.tx.total_changes();
+        lease.put(b, s_content::tag::BOOL_FALSE, &[]).unwrap();
+        assert_eq!(
+            lease.tx.total_changes() - changes,
+            2,
+            "隐藏已加载 trigger 确实执行"
+        );
+        assert!(lease.material.frames.is_empty());
+        assert_eq!(
+            lease.checked_read(&a).unwrap_err().code(),
+            code::NODE_DIGEST
+        );
+        assert!(lease.poisoned);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_insert_loaded_shape_and_temp_shadow_reject_preservation() {
+        for schema in [
+            "CREATE UNIQUE INDEX extra ON s_content_nodes(tag);",
+            "CREATE INDEX extra ON s_content_nodes(body);",
+            "CREATE INDEX extra ON s_content_nodes((tag+1)) WHERE tag>0;",
+            "CREATE UNIQUE INDEX extra ON s_content_nodes(tag); PRAGMA main.index_list('s_content_nodes'); PRAGMA writable_schema=ON; DELETE FROM sqlite_schema WHERE name='extra'; PRAGMA writable_schema=OFF;",
+            "CREATE TEMP TABLE S_CONTENT_NODES(digest BLOB PRIMARY KEY,tag INTEGER,body BLOB) WITHOUT ROWID;",
+            "CREATE TEMP VIEW S_CONTENT_NODES AS SELECT digest,tag,body FROM main.s_content_nodes;",
+            "CREATE TEMP TABLE S_CONTENT_META(singleton INTEGER,content_format TEXT); INSERT INTO S_CONTENT_META VALUES(1,'s-content/1');",
+            "DROP TABLE s_content_nodes; CREATE TABLE s_content_nodes(digest BLOB PRIMARY KEY,tag INTEGER NOT NULL,body BLOB NOT NULL);",
+            "DROP TABLE s_content_nodes; CREATE TABLE s_content_nodes(digest BLOB PRIMARY KEY,tag INTEGER NOT NULL,body BLOB NOT NULL, extra INTEGER GENERATED ALWAYS AS (tag+1) VIRTUAL) WITHOUT ROWID;",
+            "DROP TABLE s_content_nodes; CREATE TABLE s_content_nodes(digest BLOB PRIMARY KEY,tag INTEGER NOT NULL,body BLOB NOT NULL, UNIQUE(tag) ON CONFLICT REPLACE) WITHOUT ROWID;",
+            "CREATE TABLE parent(tag INTEGER PRIMARY KEY); DROP TABLE s_content_nodes; CREATE TABLE s_content_nodes(digest BLOB PRIMARY KEY,tag INTEGER NOT NULL REFERENCES parent(tag),body BLOB NOT NULL) WITHOUT ROWID;",
+            "DROP TABLE s_content_nodes; CREATE TABLE s_content_nodes(digest BLOB COLLATE NOCASE PRIMARY KEY,tag INTEGER NOT NULL,body BLOB NOT NULL) WITHOUT ROWID;",
+            "DROP TABLE s_content_nodes; CREATE VIRTUAL TABLE s_content_nodes USING fts5(digest,tag,body);",
+            "DROP TABLE s_content_nodes;",
+        ] {
+            let mut conn = database("s-session/3");
+            let mut tx = conn.transaction().unwrap();
+            init_schema(&tx).unwrap();
+            tx.execute_batch(schema).unwrap();
+            let lease = NativeReadLease::new(&mut tx).unwrap();
+            assert!(!lease.insert_can_preserve, "{schema}");
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_insert_unqualified_unique_replace_keeps_old_full_clear() {
+        for schema in [
+            "DROP TABLE s_content_nodes; CREATE TABLE s_content_nodes(digest BLOB PRIMARY KEY,tag INTEGER NOT NULL UNIQUE ON CONFLICT REPLACE,body BLOB NOT NULL) WITHOUT ROWID;",
+            "CREATE TEMP TABLE S_CONTENT_NODES(digest BLOB PRIMARY KEY,tag INTEGER NOT NULL UNIQUE ON CONFLICT REPLACE,body BLOB NOT NULL) WITHOUT ROWID;",
+            "DROP TABLE s_content_nodes; CREATE TABLE s_content_nodes(digest BLOB PRIMARY KEY,tag INTEGER NOT NULL UNIQUE ON CONFLICT REPLACE,body BLOB NOT NULL) WITHOUT ROWID; PRAGMA main.index_list('s_content_nodes'); PRAGMA writable_schema=ON; UPDATE sqlite_schema SET sql='CREATE TABLE s_content_nodes(digest BLOB PRIMARY KEY,tag INTEGER NOT NULL,body BLOB NOT NULL) WITHOUT ROWID' WHERE name='s_content_nodes'; PRAGMA writable_schema=OFF;",
+        ] {
+            let mut conn = database("s-session/3");
+            let mut tx = conn.transaction().unwrap();
+            init_schema(&tx).unwrap();
+            tx.execute_batch(schema).unwrap();
+            let a = s_content::frame(s_content::tag::BYTES_CHUNK, &[1]);
+            let b = s_content::frame(s_content::tag::BYTES_CHUNK, &[2]);
+            TxStore::new(&tx).unwrap().put(a, s_content::tag::BYTES_CHUNK, &[1]).unwrap();
+            let mut lease = NativeReadLease::new(&mut tx).unwrap();
+            assert!(!lease.insert_can_preserve, "{schema}");
+            lease.checked_read(&a).unwrap();
+            let changes = lease.tx.total_changes();
+            lease.put(b, s_content::tag::BYTES_CHUNK, &[2]).unwrap();
+            assert_eq!(lease.tx.total_changes() - changes, 1, "另一个 digest 的隐式删除不计数：{schema}");
+            assert!(lease.material.frames.is_empty());
+            assert!(lease.checked_read(&a).unwrap().is_none(), "{schema}");
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_insert_trigger_replace_delete_ignore_still_counts_inner_insert() {
+        let mut conn = database("s-session/3");
+        let mut tx = conn.transaction().unwrap();
+        init_schema(&tx).unwrap();
+        tx.execute_batch("PRAGMA recursive_triggers=ON;").unwrap();
+        let a = s_content::frame(s_content::tag::BOOL_TRUE, &[]);
+        let b = s_content::frame(s_content::tag::BOOL_FALSE, &[]);
+        TxStore::new(&tx)
+            .unwrap()
+            .put(a, s_content::tag::BOOL_TRUE, &[])
+            .unwrap();
+        tx.execute_batch("CREATE TRIGGER stop_delete AFTER DELETE ON s_content_nodes BEGIN SELECT RAISE(IGNORE); END; CREATE TRIGGER effect AFTER INSERT ON s_content_nodes WHEN NEW.tag<>OLD_TAG_PLACEHOLDER BEGIN INSERT OR REPLACE INTO s_content_nodes SELECT digest,tag,x'01' FROM s_content_nodes WHERE digest<>NEW.digest; END;".replace("OLD_TAG_PLACEHOLDER", &s_content::tag::BOOL_TRUE.to_string()).as_str()).unwrap();
+        let mut lease = NativeReadLease::new(&mut tx).unwrap();
+        assert!(lease.insert_can_preserve);
+        lease.checked_read(&a).unwrap();
+        let before = lease.tx.total_changes();
+        lease.put(b, s_content::tag::BOOL_FALSE, &[]).unwrap();
+        assert_eq!(lease.tx.total_changes() - before, 2);
+        assert!(lease.material.frames.is_empty());
+        assert_eq!(
+            lease.checked_read(&a).unwrap_err().code(),
+            code::NODE_DIGEST
+        );
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_insert_actual_constraint_and_insert_deny_errors_poison_unchanged() {
+        use rusqlite::hooks::{AuthAction, Authorization};
+        for deny in [false, true] {
+            let mut conn = database("s-session/3");
+            let mut tx = conn.transaction().unwrap();
+            init_schema(&tx).unwrap();
+            if !deny {
+                tx.execute_batch("DROP TABLE s_content_nodes; CREATE TABLE s_content_nodes(digest BLOB PRIMARY KEY,tag INTEGER NOT NULL,body BLOB NOT NULL CHECK(body<>x'02')) WITHOUT ROWID;").unwrap();
+            }
+            let a = s_content::frame(s_content::tag::BYTES_CHUNK, &[1]);
+            let b = s_content::frame(s_content::tag::BYTES_CHUNK, &[2]);
+            TxStore::new(&tx)
+                .unwrap()
+                .put(a, s_content::tag::BYTES_CHUNK, &[1])
+                .unwrap();
+            let mut lease = NativeReadLease::new(&mut tx).unwrap();
+            assert!(lease.insert_can_preserve);
+            lease.checked_read(&a).unwrap();
+            if deny {
+                lease
+                    .tx
+                    .authorizer(Some(|ctx: rusqlite::hooks::AuthContext<'_>| {
+                        if matches!(
+                            ctx.action,
+                            AuthAction::Insert {
+                                table_name: "s_content_nodes"
+                            }
+                        ) {
+                            Authorization::Deny
+                        } else {
+                            Authorization::Allow
+                        }
+                    }))
+                    .unwrap();
+            }
+            // 普通 TxStore 的同一个真正 INSERT 失败先取原错误，租约必须逐字传播。
+            let original = TxStore::new(lease.tx)
+                .unwrap()
+                .put(b, s_content::tag::BYTES_CHUNK, &[2])
+                .unwrap_err();
+            let sql = sql_reads_on_thread();
+            let f = s_content::frame_calls_on_thread();
+            let before = lease.tx.total_changes();
+            let error = lease.put(b, s_content::tag::BYTES_CHUNK, &[2]).unwrap_err();
+            assert_eq!(error.to_string(), original.to_string());
+            assert_eq!(sql_reads_on_thread() - sql, 1);
+            assert_eq!(s_content::frame_calls_on_thread() - f, 1);
+            assert_eq!(lease.tx.total_changes(), before);
+            assert!(lease.poisoned && lease.material.frames.is_empty());
+            assert!(lease.checked_read(&a).is_err());
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_insert_ignored_pragma_metadata_is_error_including_temp_replace_shadow() {
+        use rusqlite::hooks::{AuthAction, Authorization};
+        for ignored in [
+            "read_uncommitted",
+            "table_list",
+            "table_xinfo",
+            "foreign_key_list",
+            "index_list",
+            "index_xinfo",
+        ] {
+            let mut conn = database("s-session/3");
+            let mut tx = conn.transaction().unwrap();
+            init_schema(&tx).unwrap();
+            tx.authorizer(Some(move |ctx: rusqlite::hooks::AuthContext<'_>| {
+                if matches!(ctx.action, AuthAction::Pragma { pragma_name, .. } if pragma_name.eq_ignore_ascii_case(ignored)) {
+                    Authorization::Ignore
+                } else { Authorization::Allow }
+            })).unwrap();
+            let error = NativeReadLease::new(&mut tx).err().unwrap();
+            assert_eq!(error.code(), code::SOURCE, "{ignored}");
+        }
+        let mut conn = database("s-session/3");
+        let mut tx = conn.transaction().unwrap();
+        init_schema(&tx).unwrap();
+        tx.execute_batch("CREATE TEMP TABLE S_CONTENT_NODES(digest BLOB PRIMARY KEY,tag INTEGER NOT NULL UNIQUE ON CONFLICT REPLACE,body BLOB NOT NULL) WITHOUT ROWID;").unwrap();
+        // 仅忽略 temp table_list：main 的正常结构绝不能替 TEMP 背书。
+        tx.authorizer(Some(|ctx: rusqlite::hooks::AuthContext<'_>| {
+            if ctx.database_name == Some("temp")
+                && matches!(
+                    ctx.action,
+                    AuthAction::Pragma {
+                        pragma_name: "table_list",
+                        ..
+                    }
+                )
+            {
+                Authorization::Ignore
+            } else {
+                Authorization::Allow
+            }
+        }))
+        .unwrap();
+        assert_eq!(
+            NativeReadLease::new(&mut tx).err().unwrap().code(),
+            code::SOURCE
+        );
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_insert_pk_replace_misread_missing_removes_only_target_proof() {
+        use rusqlite::hooks::{AuthAction, Authorization};
+        let mut conn = database("s-session/3");
+        let mut tx = conn.transaction().unwrap();
+        init_schema(&tx).unwrap();
+        tx.execute_batch("DROP TABLE s_content_nodes; CREATE TABLE s_content_nodes(digest BLOB PRIMARY KEY ON CONFLICT REPLACE, tag INTEGER NOT NULL, body BLOB NOT NULL) WITHOUT ROWID;").unwrap();
+        let a = s_content::frame(s_content::tag::BYTES_CHUNK, &[1, 2]);
+        let b = s_content::frame(s_content::tag::BYTES_CHUNK, &[3]);
+        let mut store = TxStore::new(&tx).unwrap();
+        store.put(a, s_content::tag::BYTES_CHUNK, &[1, 2]).unwrap();
+        store.put(b, s_content::tag::BYTES_CHUNK, &[3]).unwrap();
+        drop(store);
+        let mut lease = NativeReadLease::new(&mut tx).unwrap();
+        assert!(lease.insert_can_preserve);
+        lease.checked_read(&a).unwrap();
+        lease.checked_read(&b).unwrap();
+        assert_eq!(lease.material.retained_capacity, 3);
+        lease
+            .tx
+            .authorizer(Some(|ctx: rusqlite::hooks::AuthContext<'_>| {
+                if matches!(
+                    ctx.action,
+                    AuthAction::Read {
+                        table_name: "s_content_nodes",
+                        column_name: "digest"
+                    }
+                ) {
+                    Authorization::Ignore
+                } else {
+                    Authorization::Allow
+                }
+            }))
+            .unwrap();
+        let changes = lease.tx.total_changes();
+        lease.put(b, s_content::tag::BYTES_CHUNK, &[3]).unwrap();
+        assert_eq!(
+            lease.tx.total_changes() - changes,
+            1,
+            "REPLACE 删除不入计数"
+        );
+        assert!(lease.material.frames.contains_key(&a));
+        assert!(!lease.material.frames.contains_key(&b));
+        assert_eq!(lease.material.retained_capacity, 2);
+        lease
+            .tx
+            .authorizer(None::<fn(rusqlite::hooks::AuthContext<'_>) -> Authorization>)
+            .unwrap();
+        let sql = sql_reads_on_thread();
+        let f = s_content::frame_calls_on_thread();
+        lease.checked_read(&b).unwrap();
+        assert_eq!(sql_reads_on_thread() - sql, 1);
+        assert_eq!(s_content::frame_calls_on_thread() - f, 1);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_insert_counter_witness_rejects_every_unproven_effect() {
+        for (before, after, direct, expected) in [
+            (7, 8, 1, true),
+            (7, 7, 1, false),
+            (7, 9, 1, false),
+            (7, 8, 0, false),
+            (7, 8, 2, false),
+            (8, 7, 1, false),
+            (u64::MAX, 0, 1, false),
+        ] {
+            assert_eq!(native_insert_only_target(before, after, direct), expected);
+        }
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn native_read_lease_put_trigger_errors_and_poison_do_not_repair() {
