@@ -385,6 +385,11 @@ impl<'capture> NativeSourceMemo<'capture> {
             stats: [0; 4],
         }
     }
+    pub(super) fn clear(&mut self) {
+        self.coords.clear();
+        self.references.clear();
+        self.intern.clear();
+    }
     fn winner_intervals(
         raw: RawEventsView<'_>,
     ) -> Result<HashMap<(i64, NodeDigest, bool), Vec<Interval>>, String> {

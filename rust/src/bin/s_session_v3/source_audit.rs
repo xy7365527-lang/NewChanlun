@@ -643,6 +643,7 @@ fn coords(s: &mut (impl CodecRead + ?Sized), r: &RefValue) -> Result<sc::CodecVe
     }
     Ok(out)
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Source {
     wire: NodeDigest,
     numeric: NodeDigest,
@@ -962,12 +963,174 @@ impl<'capture> NativeWitnessIdentityMemo<'capture> {
         Ok(())
     }
 }
+// #1394：账本只借同一完整 immutable raw；请求只能指定 prefix，不能替换原件。
+// 先选本 cut 最终身份赢家，再核全部变化坐标，最后才按 coord hash；跳跃中的
+// 暂态赢家、暂态坐标碰撞和未来事件均不取得 Source 构造资格。
+#[derive(Clone, Copy)]
+struct NativeRawWinner {
+    revision: i64,
+    ordinal: usize,
+    coord: Option<i64>,
+}
+#[cfg(test)]
+#[derive(Default, Clone, Copy, Debug)]
+pub(super) struct NativeRawLedgerStats {
+    pub raw_visits: u64,
+    pub coord_decodes: u64,
+    pub source_hashes: u64,
+    pub map_updates: u64,
+    pub rewinds: u64,
+}
+struct NativeRawLedger<'raw> {
+    raw: RawEventsView<'raw>,
+    prefix: usize,
+    winners: std::collections::HashMap<&'raw str, NativeRawWinner>,
+    sources: BusinessMap<i64, Source>,
+    originals: std::collections::HashMap<usize, (i64, Source)>,
+    #[cfg(test)]
+    stats: NativeRawLedgerStats,
+}
+impl<'raw> NativeRawLedger<'raw> {
+    fn new(raw: RawEventsView<'raw>) -> Self {
+        Self {
+            raw,
+            prefix: 0,
+            winners: Default::default(),
+            sources: bj::new_map(None),
+            originals: Default::default(),
+            #[cfg(test)]
+            stats: Default::default(),
+        }
+    }
+    fn reset_progress(&mut self) {
+        self.prefix = 0;
+        self.winners.clear();
+        self.sources = bj::new_map(None);
+    }
+    fn clear(&mut self) {
+        self.reset_progress();
+        self.originals.clear();
+    }
+    fn advance(
+        &mut self,
+        s: &mut (impl CodecRead + ?Sized),
+        prefix: usize,
+    ) -> Result<&BusinessMap<i64, Source>, String> {
+        if let Err(error) = self.advance_inner(s, prefix) {
+            self.clear();
+            return Err(error);
+        }
+        Ok(&self.sources)
+    }
+    fn advance_inner(
+        &mut self,
+        s: &mut (impl CodecRead + ?Sized),
+        prefix: usize,
+    ) -> Result<(), String> {
+        self.raw.prefix(prefix)?;
+        if prefix < self.prefix {
+            self.reset_progress();
+            #[cfg(test)]
+            {
+                self.stats.rewinds += 1;
+            }
+        }
+        let mut changed = std::collections::BTreeMap::new();
+        for ordinal in self.prefix..prefix {
+            #[cfg(test)]
+            {
+                self.stats.raw_visits += 1;
+            }
+            let event = self.raw.get(ordinal).expect("checked raw prefix");
+            let identity = bj::field(event, "identity_key").as_str().unwrap_or("");
+            let revision = bj::field(event, "revision").as_i64().unwrap_or(0);
+            let previous = self.winners.get(identity).copied();
+            if previous.is_some_and(|old| {
+                !bj::effective_precedence(revision, ordinal, old.revision, old.ordinal).is_lt()
+            }) {
+                continue;
+            }
+            changed
+                .entry(identity)
+                .or_insert(previous.and_then(|old| old.coord));
+            self.winners.insert(
+                identity,
+                NativeRawWinner {
+                    revision,
+                    ordinal,
+                    coord: None,
+                },
+            );
+        }
+        // 与 effective 相同：先按身份顺序验证坐标，再计算任何来源摘要。
+        let mut additions = Vec::with_capacity(changed.len());
+        for &identity in changed.keys() {
+            let winner = self.winners.get(identity).expect("changed winner");
+            let coord = if let Some((coord, _)) = self.originals.get(&winner.ordinal) {
+                *coord
+            } else {
+                #[cfg(test)]
+                {
+                    self.stats.coord_decodes += 1;
+                }
+                bj::coord(self.raw.get(winner.ordinal).expect("winner original"))?
+            };
+            additions.push((coord, identity, winner.ordinal));
+        }
+        // 先移除全部旧赢家再核最终坐标；允许坐标交换，不拒绝跳过前缀的暂态冲突。
+        for coord in changed.values().flatten() {
+            self.sources.remove(coord);
+        }
+        additions.sort_unstable_by_key(|(coord, _, _)| *coord);
+        if additions.windows(2).any(|v| v[0].0 == v[1].0)
+            || additions
+                .iter()
+                .any(|(coord, _, _)| self.sources.contains_key(coord))
+        {
+            return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖业务身份".into());
+        }
+        for (coord, identity, ordinal) in additions {
+            let source = if let Some((_, source)) = self.originals.get(&ordinal) {
+                *source
+            } else {
+                let event = self.raw.get(ordinal).expect("winner original");
+                let wire = bj::RawReference::new(event, false)?;
+                let numeric = bj::RawReference::new(event, true)?;
+                // hash_json_in_store 用 Discard 丢弃节点，不写 reader overlay。
+                // 后续只比较这三个摘要，从不以它们读取节点。
+                let source = Source {
+                    wire: super::history::hash_json_in_store(s, wire.view(), None, None)?,
+                    numeric: super::history::hash_json_in_store(s, numeric.view(), None, None)?,
+                    raw: super::history::hash_json_in_store(s, event, None, None)?,
+                };
+                #[cfg(test)]
+                {
+                    self.stats.source_hashes += 3;
+                }
+                self.originals.insert(ordinal, (coord, source));
+                source
+            };
+            self.sources.insert(coord, source).map_err(err)?;
+            self.winners
+                .get_mut(identity)
+                .expect("changed winner")
+                .coord = Some(coord);
+            #[cfg(test)]
+            {
+                self.stats.map_updates += 1;
+            }
+        }
+        self.prefix = prefix;
+        Ok(())
+    }
+}
 /// 私有 Native 当前审计上下文：源及身份 memo 都由同一不可变 Capture 构造。
 /// audit 不接外来 store、资格 bool 或跨请求数据；reader/overlay 随本次 audit 释放。
 pub(super) struct NativeSourceAudit<'capture> {
     reader: super::history::HashReader<'capture>,
     memo: NativeWitnessIdentityMemo<'capture>,
     source_memo: NativeSourceMemo<'capture>,
+    ledger: NativeRawLedger<'capture>,
     fields: NativeFieldMemo<'capture>,
     raw: RawEventsView<'capture>,
 }
@@ -982,11 +1145,16 @@ impl<'capture> NativeSourceAudit<'capture> {
         }
         Ok(Self {
             source_memo: NativeSourceMemo::new(capture, raw),
+            ledger: NativeRawLedger::new(raw),
             fields: NativeFieldMemo::new(capture),
             raw,
             reader: super::history::HashReader::captured(capture, None),
             memo: NativeWitnessIdentityMemo::new(capture)?,
         })
+    }
+    #[cfg(test)]
+    pub(super) fn raw_ledger_stats(&self) -> NativeRawLedgerStats {
+        self.ledger.stats
     }
     pub(super) fn audit<'a>(
         &mut self,
@@ -1007,10 +1175,14 @@ impl<'capture> NativeSourceAudit<'capture> {
                 Some(&mut self.memo),
                 Some(&mut self.source_memo),
                 Some(&mut self.fields),
+                Some(&mut self.ledger),
             )
         })();
         if result.is_err() {
             self.fields.clear();
+            self.ledger.clear();
+            self.source_memo.clear();
+            self.memo.entries.clear();
         }
         result
     }
@@ -1055,6 +1227,7 @@ pub(super) fn audit_generated_metered<'a>(
         None,
         None,
         None,
+        None,
     )
 }
 pub(super) fn audit_generated_for_audit<'a>(
@@ -1077,6 +1250,7 @@ pub(super) fn audit_generated_for_audit<'a>(
         None,
         None,
         None,
+        None,
     )
 }
 fn audit_generated_in_store(
@@ -1090,6 +1264,7 @@ fn audit_generated_in_store(
     mut native_identity: Option<&mut NativeWitnessIdentityMemo<'_>>,
     mut native_sources: Option<&mut NativeSourceMemo<'_>>,
     native_fields: Option<&mut NativeFieldMemo<'_>>,
+    native_ledger: Option<&mut NativeRawLedger<'_>>,
 ) -> Result<Counts, String> {
     super::history::check_deadline(deadline)?;
     #[cfg(test)]
@@ -1110,24 +1285,39 @@ fn audit_generated_in_store(
         ));
     }
     let producer = Cc004Producer::new(profile, rule);
-    let effective = bj::effective(raw_prefix, deadline)?;
-    let allocation = source_allocation(s)?;
-    let mut raw = bj::new_map(allocation.as_ref());
-    for event in effective.iter() {
-        super::history::check_deadline(deadline)?;
-        let coord = bj::coord(event)?;
-        let wire = bj::RawReference::new(event, false)?;
-        let numeric = bj::RawReference::new(event, true)?;
-        raw.insert(
-            coord,
-            Source {
-                wire: super::history::hash_json_in_store(s, wire.view(), deadline, budget)?,
-                numeric: super::history::hash_json_in_store(s, numeric.view(), deadline, budget)?,
-                raw: super::history::hash_json_in_store(s, event, deadline, budget)?,
-            },
-        )
-        .map_err(err)?;
-    }
+    let allocation;
+    let ordinary_effective;
+    let mut ordinary_raw;
+    let raw = if let Some(ledger) = native_ledger {
+        allocation = source_allocation(s)?;
+        ledger.advance(s, raw_prefix.len())?
+    } else {
+        ordinary_effective = bj::effective(raw_prefix, deadline)?;
+        allocation = source_allocation(s)?;
+        ordinary_raw = bj::new_map(allocation.as_ref());
+        for event in ordinary_effective.iter() {
+            super::history::check_deadline(deadline)?;
+            let coord = bj::coord(event)?;
+            let wire = bj::RawReference::new(event, false)?;
+            let numeric = bj::RawReference::new(event, true)?;
+            ordinary_raw
+                .insert(
+                    coord,
+                    Source {
+                        wire: super::history::hash_json_in_store(s, wire.view(), deadline, budget)?,
+                        numeric: super::history::hash_json_in_store(
+                            s,
+                            numeric.view(),
+                            deadline,
+                            budget,
+                        )?,
+                        raw: super::history::hash_json_in_store(s, event, deadline, budget)?,
+                    },
+                )
+                .map_err(err)?;
+        }
+        &ordinary_raw
+    };
     let object_array = s.lookup_ref(state, &[f("objects")]).map_err(err)?;
     #[cfg(test)]
     super::state::trace_event("source_objects", None);
@@ -1577,7 +1767,7 @@ fn audit_generated_in_store(
         objects: objects.len(),
         groups: groups.len(),
         windows: groups.len().saturating_sub(2),
-        effective: effective.len(),
+        effective: raw.len(),
         insufficient,
         outside_domain,
     })
@@ -1687,6 +1877,253 @@ mod tests {
         let generated = runtime.generate(&mut store, &input).unwrap();
         let root = generated.generated_state.clone();
         (store, root, raw, rule)
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn ledger_event(identity: &str, coord: &str, revision: i64, seq: i64) -> Value {
+        json!({"identity_key": identity, "source_coord": coord, "revision": revision,
+            "seq": seq, "payload_hash": "same-price", "receipt_id": format!("r-{seq}"),
+            "event_id": format!("e-{seq}"), "input_revision": "1"})
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn original_sources(raw: &[Value], n: usize) -> Result<BusinessMap<i64, Source>, String> {
+        let effective = bj::effective(RawEventsView::plain(&raw[..n]), None)?;
+        let mut sources = bj::new_map(None);
+        for event in effective.iter() {
+            let wire = bj::RawReference::new(event, false)?;
+            let numeric = bj::RawReference::new(event, true)?;
+            sources
+                .insert(
+                    bj::coord(event)?,
+                    Source {
+                        wire: sc::write_json_view(&mut HashOnly, wire.view())
+                            .map_err(err)?
+                            .digest,
+                        numeric: sc::write_json_view(&mut HashOnly, numeric.view())
+                            .map_err(err)?
+                            .digest,
+                        raw: sc::write_json_view(&mut HashOnly, event)
+                            .map_err(err)?
+                            .digest,
+                    },
+                )
+                .map_err(err)?;
+        }
+        Ok(sources)
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn source_entries(map: &BusinessMap<i64, Source>) -> std::collections::BTreeMap<i64, Source> {
+        map.iter()
+            .map(|(coord, source)| (*coord, *source))
+            .collect()
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_raw_ledger_incremental_winners_rewind_and_overlay_clear() {
+        let raw = vec![
+            ledger_event("a", "900", 3, 40),
+            ledger_event("b", "7", 1, 20),
+            ledger_event("a", "900", 3, 1),
+            ledger_event("a", "900", 2, 80),
+            ledger_event("b", "7", 5, 99),
+            ledger_event("a", "900", 4, 2),
+            ledger_event("c", "88", 1, 3),
+        ];
+        let capture = sc::AuditCapture::new(MemoryNodes::default());
+        let mut reader = super::super::history::HashReader::captured(&capture, None);
+        let mut ledger = NativeRawLedger::new((&raw).into());
+        for n in 0..=raw.len() {
+            let want = original_sources(&raw, n).unwrap();
+            let got = ledger.advance(&mut reader, n).unwrap();
+            assert_eq!(source_entries(got), source_entries(&want), "prefix={n}");
+            reader.clear_overlay();
+        }
+        assert_eq!(ledger.stats.raw_visits, 7);
+        assert_eq!(ledger.stats.coord_decodes, 5);
+        assert_eq!(ledger.stats.source_hashes, 15);
+        assert_eq!(ledger.stats.map_updates, 5);
+        for n in [0, 3, 6, 1, 7, 7] {
+            assert_eq!(
+                source_entries(ledger.advance(&mut reader, n).unwrap()),
+                source_entries(&original_sources(&raw, n).unwrap()),
+                "rewind prefix={n}"
+            );
+            reader.clear_overlay();
+        }
+        assert_eq!(
+            ledger.stats.source_hashes, 15,
+            "successful originals hash once, including rewind"
+        );
+        assert_eq!(ledger.stats.coord_decodes, 5);
+        assert_eq!(ledger.stats.rewinds, 2);
+        let fresh = NativeRawLedger::new((&raw).into());
+        assert!(fresh.sources.is_empty() && fresh.originals.is_empty() && fresh.winners.is_empty());
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_raw_ledger_jump_skips_invalid_transients_and_checks_final_collisions_first() {
+        let mut bad = ledger_event("a", "-1", 2, 2);
+        bad["seq"] = Value::Null;
+        let raw = vec![
+            ledger_event("a", "5", 1, 0),
+            ledger_event("b", "9", 1, 1),
+            bad,
+            ledger_event("a", "7", 3, 3),
+            ledger_event("b", "7", 2, 4),
+            ledger_event("b", "5", 3, 5),
+            ledger_event("future", "01", 1, 6),
+        ];
+        let capture = sc::AuditCapture::new(MemoryNodes::default());
+        let mut reader = super::super::history::HashReader::captured(&capture, None);
+        let mut ledger = NativeRawLedger::new((&raw).into());
+        for n in [2, 6] {
+            assert_eq!(
+                source_entries(ledger.advance(&mut reader, n).unwrap()),
+                source_entries(&original_sources(&raw, n).unwrap())
+            );
+        }
+        assert_eq!(ledger.stats.raw_visits, 6);
+        assert_eq!(
+            ledger.stats.coord_decodes, 4,
+            "transient/future coords never decoded"
+        );
+        assert_eq!(ledger.stats.source_hashes, 12);
+        assert_eq!(
+            ledger.advance(&mut reader, 7).err().unwrap(),
+            original_sources(&raw, 7).err().unwrap()
+        );
+        assert!(
+            ledger.sources.is_empty() && ledger.originals.is_empty() && ledger.winners.is_empty()
+        );
+        ledger.advance(&mut reader, 6).unwrap();
+        assert_eq!(
+            ledger.stats.source_hashes, 18,
+            "failure removed prior successful originals"
+        );
+        assert_eq!(
+            ledger.advance(&mut reader, 5).err().unwrap(),
+            original_sources(&raw, 5).err().unwrap()
+        );
+        assert!(ledger.originals.is_empty());
+        let mut collision = vec![ledger_event("a", "7", 1, 0), ledger_event("b", "7", 1, 1)];
+        collision[0]["seq"] = Value::Null;
+        let mut ledger = NativeRawLedger::new((&collision).into());
+        assert_eq!(
+            ledger.advance(&mut reader, 2).err().unwrap(),
+            original_sources(&collision, 2).err().unwrap()
+        );
+        assert_eq!(
+            ledger.stats.source_hashes, 0,
+            "final collision before RawReference or hash"
+        );
+        assert!(ledger.advance(&mut reader, 3).is_err());
+        assert!(ledger.sources.is_empty() && ledger.originals.is_empty());
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_raw_ledger_invalid_source_only_checked_for_final_winner() {
+        let mut bad = ledger_event("a", "5", 2, 1);
+        bad["seq"] = Value::Null;
+        let raw = vec![
+            ledger_event("a", "5", 1, 0),
+            bad,
+            ledger_event("a", "5", 3, 2),
+        ];
+        let capture = sc::AuditCapture::new(MemoryNodes::default());
+        let mut reader = super::super::history::HashReader::captured(&capture, None);
+        let mut ledger = NativeRawLedger::new((&raw).into());
+        ledger.advance(&mut reader, 1).unwrap();
+        ledger.advance(&mut reader, 3).unwrap();
+        assert_eq!(ledger.stats.source_hashes, 6);
+        assert_eq!(
+            ledger.advance(&mut reader, 2).err().unwrap(),
+            original_sources(&raw, 2).err().unwrap()
+        );
+        assert!(ledger.originals.is_empty());
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_raw_ledger_real_multicut_matches_full_source_audit() {
+        // 复用已通过的不同 OHLC 夹具；每个前缀有实际来源变化及合法组/形状依赖。
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept_ohlc(&files, &located_ohlc_input(&tb02b_oracle_rows()));
+        let c = open_db(&files.db()).unwrap();
+        let raw = read_raw_events(&c).unwrap();
+        let get = |k| meta_get_opt(&c, k).unwrap().unwrap();
+        let profile_hash = get("profile_hash");
+        let rule = get("rule_revision");
+        let catalog = get("catalog_revision");
+        let scope = serde_json::from_str(&get("scope")).unwrap();
+        let mut nodes = MemoryNodes::default();
+        let mut roots = Vec::new();
+        for n in 1..=raw.len() {
+            let mut runtime =
+                GenerationRuntime::new(format!("source-ledger-{n}"), tb02a::PROFILE, &rule);
+            let effective = read_effective_events(&raw[..n]).unwrap();
+            let cut = format!("cut-{n}");
+            roots.push(
+                runtime
+                    .generate(
+                        &mut nodes,
+                        &GenerationInput {
+                            all_events: (&raw[..n]).into(),
+                            effective: (&effective).into(),
+                            generation: n as i64,
+                            structure_cut: &cut,
+                            input_frontier: n as i64 - 1,
+                            profile_id: tb02a::PROFILE,
+                            profile_hash: &profile_hash,
+                            rule_revision: &rule,
+                            catalog_revision: &catalog,
+                            scope: &scope,
+                            semantic_commit_ns: None,
+                            prior: PriorState {
+                                bi_records: vec![],
+                                version_record: None,
+                            },
+                        },
+                    )
+                    .unwrap()
+                    .generated_state,
+            );
+        }
+        let capture = sc::AuditCapture::new(nodes);
+        let mut native = NativeSourceAudit::new(&capture, (&raw).into()).unwrap();
+        for n in (1..=raw.len()).chain([3, raw.len(), 3, raw.len()]) {
+            let root = &roots[n - 1];
+            let mut ordinary = super::super::history::HashReader::captured(&capture, None);
+            let want = audit_generated_for_audit(
+                &mut ordinary,
+                root,
+                &raw[..n],
+                tb02a::PROFILE,
+                &rule,
+                None,
+                None,
+            )
+            .unwrap();
+            let got = native.audit(root, n, tb02a::PROFILE, &rule).unwrap();
+            assert_eq!(
+                format!("{got:?}"),
+                format!("{want:?}"),
+                "real cut={n} root={}",
+                root.root
+            );
+            native.reader.clear_overlay();
+        }
+        let stats = native.raw_ledger_stats();
+        assert_eq!(stats.source_hashes, raw.len() as u64 * 3);
+        assert_eq!(stats.coord_decodes, raw.len() as u64);
+        assert_eq!(stats.rewinds, 2);
+        assert!(stats.raw_visits < (raw.len() * (raw.len() + 1) / 2) as u64);
+        assert_eq!(native.ledger.originals.len(), raw.len());
+        assert!(native.audit(&roots[0], 1, "wrong-profile", &rule).is_err());
+        assert!(native.ledger.sources.is_empty() && native.ledger.originals.is_empty());
+        native.audit(&roots[0], 1, tb02a::PROFILE, &rule).unwrap();
+        assert_eq!(
+            native.raw_ledger_stats().source_hashes,
+            stats.source_hashes + 3
+        );
     }
     #[test]
     fn source_fields_preserves_owned_collection_element_layout() {
@@ -1828,13 +2265,7 @@ mod tests {
             bad.root.push('0');
             assert!(SourceFields::read_subset(&mut source, (&bad).into(), &["a"]).is_err());
             let field_count = source.fields.as_ref().unwrap().fields.len();
-            let scalar_count = source
-                .fields
-                .as_ref()
-                .unwrap()
-                .scalars
-                .values
-                .len();
+            let scalar_count = source.fields.as_ref().unwrap().scalars.values.len();
             let overlay = source
                 .write_json_view((&json!({"a":"overlay"})).into())
                 .unwrap()
@@ -1843,13 +2274,7 @@ mod tests {
             assert_eq!(fields.text(&mut source, "a").unwrap(), "overlay");
             assert_eq!(source.fields.as_ref().unwrap().fields.len(), field_count);
             assert_eq!(
-                source
-                    .fields
-                    .as_ref()
-                    .unwrap()
-                    .scalars
-                    .values
-                    .len(),
+                source.fields.as_ref().unwrap().scalars.values.len(),
                 scalar_count
             );
         }
