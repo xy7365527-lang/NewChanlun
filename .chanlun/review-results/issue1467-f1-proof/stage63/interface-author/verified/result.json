@@ -1,0 +1,1590 @@
+{
+  "scope": "same-source finite transport test, no general impossibility claim",
+  "counts": {
+    "events": 342,
+    "segments": 16,
+    "partitions": 4,
+    "boundary_positions": 3,
+    "windows": 14
+  },
+  "segments": [
+    {
+      "id": "S0",
+      "up": true,
+      "start": 1,
+      "end": 21,
+      "owned_events": [
+        2,
+        21
+      ],
+      "members": [
+        0,
+        5
+      ],
+      "range": [
+        20000,
+        32000
+      ],
+      "known_at": 38,
+      "first_selected": [
+        3,
+        5,
+        7
+      ],
+      "selected_ranges": [
+        [
+          26000,
+          30000
+        ],
+        [
+          29000,
+          32000
+        ],
+        [
+          26000,
+          31000
+        ]
+      ],
+      "gap": false,
+      "initial_three_core": [
+        22000,
+        24000
+      ],
+      "force": {
+        "coordinates": [
+          1,
+          5,
+          17,
+          21
+        ],
+        "v0": 1000,
+        "v1": 1500,
+        "L": 500
+      }
+    },
+    {
+      "id": "S1",
+      "up": false,
+      "start": 21,
+      "end": 41,
+      "owned_events": [
+        22,
+        41
+      ],
+      "members": [
+        5,
+        10
+      ],
+      "range": [
+        24000,
+        32000
+      ],
+      "known_at": 58,
+      "first_selected": [
+        8,
+        10,
+        12
+      ],
+      "selected_ranges": [
+        [
+          26000,
+          28000
+        ],
+        [
+          24000,
+          27000
+        ],
+        [
+          25000,
+          29000
+        ]
+      ],
+      "gap": false,
+      "initial_three_core": [
+        29000,
+        31000
+      ],
+      "force": {
+        "coordinates": [
+          21,
+          25,
+          37,
+          41
+        ],
+        "v0": -750,
+        "v1": -1000,
+        "L": -250
+      }
+    },
+    {
+      "id": "S2",
+      "up": true,
+      "start": 41,
+      "end": 61,
+      "owned_events": [
+        42,
+        61
+      ],
+      "members": [
+        10,
+        15
+      ],
+      "range": [
+        24000,
+        30000
+      ],
+      "known_at": 78,
+      "first_selected": [
+        13,
+        15,
+        17
+      ],
+      "selected_ranges": [
+        [
+          26000,
+          29000
+        ],
+        [
+          28000,
+          30000
+        ],
+        [
+          26000,
+          29600
+        ]
+      ],
+      "gap": false,
+      "initial_three_core": [
+        25000,
+        27000
+      ],
+      "force": {
+        "coordinates": [
+          41,
+          45,
+          57,
+          61
+        ],
+        "v0": 750,
+        "v1": 1000,
+        "L": 250
+      }
+    },
+    {
+      "id": "S3",
+      "up": false,
+      "start": 61,
+      "end": 81,
+      "owned_events": [
+        62,
+        81
+      ],
+      "members": [
+        15,
+        20
+      ],
+      "range": [
+        25000,
+        30000
+      ],
+      "known_at": 98,
+      "first_selected": [
+        18,
+        20,
+        22
+      ],
+      "selected_ranges": [
+        [
+          26000,
+          28000
+        ],
+        [
+          25000,
+          27000
+        ],
+        [
+          26000,
+          35600
+        ]
+      ],
+      "gap": false,
+      "initial_three_core": [
+        28000,
+        29600
+      ],
+      "force": {
+        "coordinates": [
+          61,
+          65,
+          77,
+          81
+        ],
+        "v0": -500,
+        "v1": -750,
+        "L": -250
+      }
+    },
+    {
+      "id": "S4",
+      "up": true,
+      "start": 81,
+      "end": 101,
+      "owned_events": [
+        82,
+        101
+      ],
+      "members": [
+        20,
+        25
+      ],
+      "range": [
+        25000,
+        36000
+      ],
+      "known_at": 118,
+      "first_selected": [
+        23,
+        25,
+        27
+      ],
+      "selected_ranges": [
+        [
+          35000,
+          35600
+        ],
+        [
+          35200,
+          36000
+        ],
+        [
+          34000,
+          35800
+        ]
+      ],
+      "gap": false,
+      "initial_three_core": [
+        26000,
+        27000
+      ],
+      "force": {
+        "coordinates": [
+          81,
+          85,
+          97,
+          101
+        ],
+        "v0": 500,
+        "v1": 250,
+        "L": -250
+      }
+    },
+    {
+      "id": "S5",
+      "up": false,
+      "start": 101,
+      "end": 121,
+      "owned_events": [
+        102,
+        121
+      ],
+      "members": [
+        25,
+        30
+      ],
+      "range": [
+        32000,
+        36000
+      ],
+      "known_at": 138,
+      "first_selected": [
+        28,
+        30,
+        32
+      ],
+      "selected_ranges": [
+        [
+          34000,
+          35000
+        ],
+        [
+          32000,
+          34400
+        ],
+        [
+          32600,
+          34800
+        ]
+      ],
+      "gap": false,
+      "initial_three_core": [
+        35200,
+        35800
+      ],
+      "force": {
+        "coordinates": [
+          101,
+          105,
+          117,
+          121
+        ],
+        "v0": -200,
+        "v1": -750,
+        "L": -550
+      }
+    },
+    {
+      "id": "S6",
+      "up": true,
+      "start": 121,
+      "end": 141,
+      "owned_events": [
+        122,
+        141
+      ],
+      "members": [
+        30,
+        35
+      ],
+      "range": [
+        32000,
+        35000
+      ],
+      "known_at": 158,
+      "first_selected": [
+        33,
+        35,
+        37
+      ],
+      "selected_ranges": [
+        [
+          33200,
+          34800
+        ],
+        [
+          34000,
+          35000
+        ],
+        [
+          33400,
+          34600
+        ]
+      ],
+      "gap": false,
+      "initial_three_core": [
+        32600,
+        34400
+      ],
+      "force": {
+        "coordinates": [
+          121,
+          125,
+          137,
+          141
+        ],
+        "v0": 600,
+        "v1": 450,
+        "L": -150
+      }
+    },
+    {
+      "id": "S7",
+      "up": false,
+      "start": 141,
+      "end": 161,
+      "owned_events": [
+        142,
+        161
+      ],
+      "members": [
+        35,
+        40
+      ],
+      "range": [
+        33000,
+        35000
+      ],
+      "known_at": 178,
+      "first_selected": [
+        38,
+        40,
+        42
+      ],
+      "selected_ranges": [
+        [
+          33400,
+          34200
+        ],
+        [
+          33000,
+          33800
+        ],
+        [
+          33200,
+          34200
+        ]
+      ],
+      "gap": false,
+      "initial_three_core": [
+        34000,
+        34600
+      ],
+      "force": {
+        "coordinates": [
+          141,
+          145,
+          157,
+          161
+        ],
+        "v0": -250,
+        "v1": -300,
+        "L": -50
+      }
+    },
+    {
+      "id": "S8",
+      "up": true,
+      "start": 161,
+      "end": 181,
+      "owned_events": [
+        162,
+        181
+      ],
+      "members": [
+        40,
+        45
+      ],
+      "range": [
+        33000,
+        34400
+      ],
+      "known_at": 198,
+      "first_selected": [
+        43,
+        45,
+        47
+      ],
+      "selected_ranges": [
+        [
+          33400,
+          34200
+        ],
+        [
+          34000,
+          34400
+        ],
+        [
+          31600,
+          34200
+        ]
+      ],
+      "gap": false,
+      "initial_three_core": [
+        33200,
+        33800
+      ],
+      "force": {
+        "coordinates": [
+          161,
+          165,
+          177,
+          181
+        ],
+        "v0": 200,
+        "v1": 250,
+        "L": 50
+      }
+    },
+    {
+      "id": "S9",
+      "up": false,
+      "start": 181,
+      "end": 201,
+      "owned_events": [
+        182,
+        201
+      ],
+      "members": [
+        45,
+        50
+      ],
+      "range": [
+        31000,
+        34400
+      ],
+      "known_at": 218,
+      "first_selected": [
+        48,
+        50,
+        52
+      ],
+      "selected_ranges": [
+        [
+          31600,
+          33800
+        ],
+        [
+          31000,
+          31800
+        ],
+        [
+          31400,
+          32400
+        ]
+      ],
+      "gap": false,
+      "initial_three_core": [
+        34000,
+        34200
+      ],
+      "force": {
+        "coordinates": [
+          181,
+          185,
+          197,
+          201
+        ],
+        "v0": -100,
+        "v1": -700,
+        "L": -600
+      }
+    },
+    {
+      "id": "S10",
+      "up": true,
+      "start": 201,
+      "end": 221,
+      "owned_events": [
+        202,
+        221
+      ],
+      "members": [
+        50,
+        55
+      ],
+      "range": [
+        31000,
+        32800
+      ],
+      "known_at": 238,
+      "first_selected": [
+        53,
+        55,
+        57
+      ],
+      "selected_ranges": [
+        [
+          31800,
+          32400
+        ],
+        [
+          32200,
+          32800
+        ],
+        [
+          30800,
+          32600
+        ]
+      ],
+      "gap": false,
+      "initial_three_core": [
+        31400,
+        31800
+      ],
+      "force": {
+        "coordinates": [
+          201,
+          205,
+          217,
+          221
+        ],
+        "v0": 200,
+        "v1": 250,
+        "L": 50
+      }
+    },
+    {
+      "id": "S11",
+      "up": false,
+      "start": 221,
+      "end": 241,
+      "owned_events": [
+        222,
+        241
+      ],
+      "members": [
+        55,
+        60
+      ],
+      "range": [
+        30000,
+        32800
+      ],
+      "known_at": 258,
+      "first_selected": [
+        58,
+        60,
+        62
+      ],
+      "selected_ranges": [
+        [
+          30800,
+          32000
+        ],
+        [
+          30000,
+          31000
+        ],
+        [
+          30400,
+          31600
+        ]
+      ],
+      "gap": false,
+      "initial_three_core": [
+        32200,
+        32600
+      ],
+      "force": {
+        "coordinates": [
+          221,
+          225,
+          237,
+          241
+        ],
+        "v0": -150,
+        "v1": -500,
+        "L": -350
+      }
+    },
+    {
+      "id": "S12",
+      "up": true,
+      "start": 241,
+      "end": 261,
+      "owned_events": [
+        242,
+        261
+      ],
+      "members": [
+        60,
+        65
+      ],
+      "range": [
+        30000,
+        32000
+      ],
+      "known_at": 278,
+      "first_selected": [
+        63,
+        65,
+        67
+      ],
+      "selected_ranges": [
+        [
+          30800,
+          31600
+        ],
+        [
+          31400,
+          32000
+        ],
+        [
+          30800,
+          31800
+        ]
+      ],
+      "gap": false,
+      "initial_three_core": [
+        30400,
+        31000
+      ],
+      "force": {
+        "coordinates": [
+          241,
+          245,
+          257,
+          261
+        ],
+        "v0": 250,
+        "v1": 300,
+        "L": 50
+      }
+    },
+    {
+      "id": "S13",
+      "up": false,
+      "start": 261,
+      "end": 281,
+      "owned_events": [
+        262,
+        281
+      ],
+      "members": [
+        65,
+        70
+      ],
+      "range": [
+        30400,
+        32000
+      ],
+      "known_at": 298,
+      "first_selected": [
+        68,
+        70,
+        72
+      ],
+      "selected_ranges": [
+        [
+          30800,
+          31600
+        ],
+        [
+          30400,
+          31200
+        ],
+        [
+          31000,
+          36200
+        ]
+      ],
+      "gap": false,
+      "initial_three_core": [
+        31400,
+        31800
+      ],
+      "force": {
+        "coordinates": [
+          261,
+          265,
+          277,
+          281
+        ],
+        "v0": -150,
+        "v1": -300,
+        "L": -150
+      }
+    },
+    {
+      "id": "S14",
+      "up": true,
+      "start": 281,
+      "end": 301,
+      "owned_events": [
+        282,
+        301
+      ],
+      "members": [
+        70,
+        75
+      ],
+      "range": [
+        30400,
+        36400
+      ],
+      "known_at": 318,
+      "first_selected": [
+        73,
+        75,
+        77
+      ],
+      "selected_ranges": [
+        [
+          36000,
+          36200
+        ],
+        [
+          36100,
+          36400
+        ],
+        [
+          35200,
+          36300
+        ]
+      ],
+      "gap": false,
+      "initial_three_core": [
+        31000,
+        31200
+      ],
+      "force": {
+        "coordinates": [
+          281,
+          285,
+          297,
+          301
+        ],
+        "v0": 200,
+        "v1": 100,
+        "L": -100
+      }
+    },
+    {
+      "id": "S15",
+      "up": false,
+      "start": 301,
+      "end": 321,
+      "owned_events": [
+        302,
+        321
+      ],
+      "members": [
+        75,
+        80
+      ],
+      "range": [
+        34000,
+        36400
+      ],
+      "known_at": 338,
+      "first_selected": [
+        78,
+        80,
+        82
+      ],
+      "selected_ranges": [
+        [
+          35200,
+          35800
+        ],
+        [
+          34000,
+          35400
+        ],
+        [
+          34400,
+          35800
+        ]
+      ],
+      "gap": false,
+      "initial_three_core": [
+        36100,
+        36300
+      ],
+      "force": {
+        "coordinates": [
+          301,
+          305,
+          317,
+          321
+        ],
+        "v0": -75,
+        "v1": -450,
+        "L": -375
+      }
+    }
+  ],
+  "kernels": [
+    {
+      "id": "K0",
+      "members": [
+        "S1",
+        "S2",
+        "S3"
+      ],
+      "core": [
+        25000,
+        30000
+      ],
+      "member_outer": [
+        24000,
+        32000
+      ],
+      "known_at": 98,
+      "grade": 0,
+      "outer_status": "initial member envelope; DD/GG role conditional"
+    },
+    {
+      "id": "K1",
+      "members": [
+        "S6",
+        "S7",
+        "S8"
+      ],
+      "core": [
+        33000,
+        34400
+      ],
+      "member_outer": [
+        32000,
+        35000
+      ],
+      "known_at": 198,
+      "grade": 0,
+      "outer_status": "initial member envelope; DD/GG role conditional"
+    },
+    {
+      "id": "K2",
+      "members": [
+        "S11",
+        "S12",
+        "S13"
+      ],
+      "core": [
+        30400,
+        32000
+      ],
+      "member_outer": [
+        30000,
+        32800
+      ],
+      "known_at": 298,
+      "grade": 0,
+      "outer_status": "initial member envelope; DD/GG role conditional"
+    }
+  ],
+  "pairs": [
+    {
+      "a": "K0",
+      "b": "K1",
+      "strict_up": false,
+      "strict_down": false,
+      "outer_intersection": [
+        32000,
+        32000
+      ],
+      "core_up": true,
+      "core_down": false,
+      "expansion_if_original_roles": true
+    },
+    {
+      "a": "K1",
+      "b": "K2",
+      "strict_up": false,
+      "strict_down": false,
+      "outer_intersection": [
+        32000,
+        32800
+      ],
+      "core_up": false,
+      "core_down": true,
+      "expansion_if_original_roles": true
+    },
+    {
+      "a": "K0",
+      "b": "K2",
+      "strict_up": false,
+      "strict_down": false,
+      "outer_intersection": [
+        30000,
+        32000
+      ],
+      "core_up": true,
+      "core_down": false,
+      "expansion_if_original_roles": true
+    }
+  ],
+  "assignment": {
+    "id": "S63-reassociate-A01-B2-v1",
+    "objects": [
+      {
+        "id": "A01",
+        "grade": 0,
+        "proposed_kind": "U",
+        "Own": [
+          2,
+          201
+        ],
+        "whole": [
+          20000,
+          36000
+        ],
+        "start_price": 20000,
+        "end_price": 31000,
+        "kernels": [
+          "K0",
+          "K1"
+        ],
+        "proposed_completed": true,
+        "accepted_completed": false,
+        "certificate": "X1",
+        "endpoint_at": 201,
+        "known_at": 218
+      },
+      {
+        "id": "B2",
+        "grade": 0,
+        "proposed_kind": "P",
+        "Own": [
+          202,
+          301
+        ],
+        "whole": [
+          30000,
+          36400
+        ],
+        "start_price": 31000,
+        "end_price": 36400,
+        "kernels": [
+          "K2"
+        ],
+        "proposed_completed": true,
+        "accepted_completed": "local policy only; original/F2 unproved",
+        "certificate": "X2",
+        "endpoint_at": 301,
+        "known_at": 318
+      }
+    ],
+    "kernels": [
+      {
+        "id": "K0",
+        "members": [
+          "S1",
+          "S2",
+          "S3"
+        ],
+        "core": [
+          25000,
+          30000
+        ],
+        "member_outer": [
+          24000,
+          32000
+        ],
+        "known_at": 98,
+        "grade": 0,
+        "outer_status": "initial member envelope; DD/GG role conditional"
+      },
+      {
+        "id": "K1",
+        "members": [
+          "S6",
+          "S7",
+          "S8"
+        ],
+        "core": [
+          33000,
+          34400
+        ],
+        "member_outer": [
+          32000,
+          35000
+        ],
+        "known_at": 198,
+        "grade": 0,
+        "outer_status": "initial member envelope; DD/GG role conditional"
+      },
+      {
+        "id": "K2",
+        "members": [
+          "S11",
+          "S12",
+          "S13"
+        ],
+        "core": [
+          30400,
+          32000
+        ],
+        "member_outer": [
+          30000,
+          32800
+        ],
+        "known_at": 298,
+        "grade": 0,
+        "outer_status": "initial member envelope; DD/GG role conditional"
+      }
+    ],
+    "delta_c0_attempt": [
+      "A01",
+      "B2"
+    ],
+    "Adj_delta_c0": [
+      [
+        "A01",
+        "B2"
+      ]
+    ],
+    "NoPP_on_proposed_tags": true,
+    "nonempty": true,
+    "source_owned": [
+      2,
+      301
+    ],
+    "source_excluded_left_support": [
+      0,
+      1
+    ],
+    "active_tail": {
+      "Own": [
+        302,
+        342
+      ],
+      "segments": [
+        "S15"
+      ],
+      "uncertified_remainder": [
+        322,
+        342
+      ],
+      "grade": 0,
+      "completed": false
+    },
+    "F2": {
+      "attempted_consumption": [
+        "A01",
+        "B2"
+      ],
+      "completed_same_grade_triple": false,
+      "first_rejected_object": "A01",
+      "rejection": "retained K0/K1 envelopes are not strictly separated; X1 local end does not certify A01",
+      "parent_core": null,
+      "parent_completed": false
+    },
+    "first_failure": {
+      "predicate": "strict_up(K0,K1)",
+      "left": 32000,
+      "operator": ">",
+      "right": 32000,
+      "value": false,
+      "conditional_scope": "original DD/GG roles or this v1 initial member-envelope trend rule"
+    }
+  },
+  "partitions": [
+    {
+      "blocks": [
+        [
+          "X0"
+        ],
+        [
+          "X1"
+        ],
+        [
+          "X2"
+        ]
+      ],
+      "delta": [
+        "X0",
+        "X1",
+        "X2"
+      ],
+      "failure": "NoPP at X0/X1"
+    },
+    {
+      "blocks": [
+        [
+          "X0",
+          "X1"
+        ],
+        [
+          "X2"
+        ]
+      ],
+      "delta": [
+        "A01",
+        "B2"
+      ],
+      "failure": "A01 retained cores fail strict same-grade trend relation"
+    },
+    {
+      "blocks": [
+        [
+          "X0"
+        ],
+        [
+          "X1",
+          "X2"
+        ]
+      ],
+      "delta": [
+        "X0",
+        "A12"
+      ],
+      "failure": "A12 retained cores fail strict same-grade trend relation"
+    },
+    {
+      "blocks": [
+        [
+          "X0",
+          "X1",
+          "X2"
+        ]
+      ],
+      "delta": [
+        "A012"
+      ],
+      "failure": "three retained cores neither one-core P nor monotone strictly separated U/D"
+    }
+  ],
+  "shifts": [
+    {
+      "cut": 181,
+      "left": {
+        "Own": [
+          2,
+          181
+        ],
+        "whole": [
+          20000,
+          36000
+        ],
+        "terminal_segment": "S8",
+        "terminal_up": true,
+        "endpoint": 34400,
+        "up_endpoint_new_high": false
+      },
+      "right": {
+        "Own": [
+          182,
+          301
+        ],
+        "whole": [
+          30000,
+          36400
+        ],
+        "first_segment": "S9",
+        "first_up": false,
+        "terminal_segment": "S14",
+        "terminal_up": true,
+        "same_direction_arms": false,
+        "first_arm_is_K2_member": false
+      },
+      "old_certificate_transport": "old X1 event201 endpoint not equal new left endpoint; old X2 start201 not equal new right start"
+    },
+    {
+      "cut": 201,
+      "left": {
+        "Own": [
+          2,
+          201
+        ],
+        "whole": [
+          20000,
+          36000
+        ],
+        "terminal_segment": "S9",
+        "terminal_up": false,
+        "endpoint": 31000,
+        "up_endpoint_new_high": false
+      },
+      "right": {
+        "Own": [
+          202,
+          301
+        ],
+        "whole": [
+          30000,
+          36400
+        ],
+        "first_segment": "S10",
+        "first_up": true,
+        "terminal_segment": "S14",
+        "terminal_up": true,
+        "same_direction_arms": true,
+        "first_arm_is_K2_member": false
+      },
+      "old_certificate_transport": "X1 endpoint preserved only for original X1; left aggregate still not certified"
+    },
+    {
+      "cut": 221,
+      "left": {
+        "Own": [
+          2,
+          221
+        ],
+        "whole": [
+          20000,
+          36000
+        ],
+        "terminal_segment": "S10",
+        "terminal_up": true,
+        "endpoint": 32800,
+        "up_endpoint_new_high": false
+      },
+      "right": {
+        "Own": [
+          222,
+          301
+        ],
+        "whole": [
+          30000,
+          36400
+        ],
+        "first_segment": "S11",
+        "first_up": false,
+        "terminal_segment": "S14",
+        "terminal_up": true,
+        "same_direction_arms": false,
+        "first_arm_is_K2_member": true
+      },
+      "old_certificate_transport": "old X1 event201 endpoint not equal new left endpoint; old X2 start201 not equal new right start"
+    }
+  ],
+  "windows": [
+    {
+      "members": [
+        "S0",
+        "S1",
+        "S2"
+      ],
+      "core": [
+        24000,
+        30000
+      ],
+      "outer": [
+        20000,
+        32000
+      ],
+      "known_at": 78
+    },
+    {
+      "members": [
+        "S1",
+        "S2",
+        "S3"
+      ],
+      "core": [
+        25000,
+        30000
+      ],
+      "outer": [
+        24000,
+        32000
+      ],
+      "known_at": 98
+    },
+    {
+      "members": [
+        "S2",
+        "S3",
+        "S4"
+      ],
+      "core": [
+        25000,
+        30000
+      ],
+      "outer": [
+        24000,
+        36000
+      ],
+      "known_at": 118
+    },
+    {
+      "members": [
+        "S3",
+        "S4",
+        "S5"
+      ],
+      "core": [
+        32000,
+        30000
+      ],
+      "outer": [
+        25000,
+        36000
+      ],
+      "known_at": 138
+    },
+    {
+      "members": [
+        "S4",
+        "S5",
+        "S6"
+      ],
+      "core": [
+        32000,
+        35000
+      ],
+      "outer": [
+        25000,
+        36000
+      ],
+      "known_at": 158
+    },
+    {
+      "members": [
+        "S5",
+        "S6",
+        "S7"
+      ],
+      "core": [
+        33000,
+        35000
+      ],
+      "outer": [
+        32000,
+        36000
+      ],
+      "known_at": 178
+    },
+    {
+      "members": [
+        "S6",
+        "S7",
+        "S8"
+      ],
+      "core": [
+        33000,
+        34400
+      ],
+      "outer": [
+        32000,
+        35000
+      ],
+      "known_at": 198
+    },
+    {
+      "members": [
+        "S7",
+        "S8",
+        "S9"
+      ],
+      "core": [
+        33000,
+        34400
+      ],
+      "outer": [
+        31000,
+        35000
+      ],
+      "known_at": 218
+    },
+    {
+      "members": [
+        "S8",
+        "S9",
+        "S10"
+      ],
+      "core": [
+        33000,
+        32800
+      ],
+      "outer": [
+        31000,
+        34400
+      ],
+      "known_at": 238
+    },
+    {
+      "members": [
+        "S9",
+        "S10",
+        "S11"
+      ],
+      "core": [
+        31000,
+        32800
+      ],
+      "outer": [
+        30000,
+        34400
+      ],
+      "known_at": 258
+    },
+    {
+      "members": [
+        "S10",
+        "S11",
+        "S12"
+      ],
+      "core": [
+        31000,
+        32000
+      ],
+      "outer": [
+        30000,
+        32800
+      ],
+      "known_at": 278
+    },
+    {
+      "members": [
+        "S11",
+        "S12",
+        "S13"
+      ],
+      "core": [
+        30400,
+        32000
+      ],
+      "outer": [
+        30000,
+        32800
+      ],
+      "known_at": 298
+    },
+    {
+      "members": [
+        "S12",
+        "S13",
+        "S14"
+      ],
+      "core": [
+        30400,
+        32000
+      ],
+      "outer": [
+        30000,
+        36400
+      ],
+      "known_at": 318
+    },
+    {
+      "members": [
+        "S13",
+        "S14",
+        "S15"
+      ],
+      "core": [
+        34000,
+        32000
+      ],
+      "outer": [
+        30400,
+        36400
+      ],
+      "known_at": 338
+    }
+  ],
+  "lift": {
+    "id": "Y012",
+    "Own": [
+      2,
+      301
+    ],
+    "grade": 1,
+    "whole": [
+      20000,
+      36400
+    ],
+    "core": [
+      31000,
+      36000
+    ],
+    "core_members": [
+      "X0",
+      "X1",
+      "X2"
+    ],
+    "member_outer": [
+      20000,
+      36400
+    ],
+    "completed": false,
+    "active": true,
+    "borrowed_arms": [
+      "S0",
+      "S14"
+    ],
+    "arms_inside_members": true,
+    "old_X2_certificate_scope": [
+      202,
+      301
+    ],
+    "whole_scope": [
+      2,
+      301
+    ],
+    "right_return": {
+      "S15": [
+        34000,
+        36400
+      ],
+      "intersection_with_parent_core": [
+        34000,
+        36000
+      ],
+      "not_return": false
+    },
+    "delta_c0_replacement_valid": false,
+    "F2_input": "conditional only: three source X are not authenticated construction children"
+  }
+}

@@ -1,0 +1,98 @@
+[
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/084-第84课.md",
+    "lines": [
+      52,
+      56
+    ],
+    "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26"
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/035-第35课.md",
+    "lines": [
+      14,
+      24
+    ],
+    "sha256": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023"
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/018-第18课.md",
+    "lines": [
+      24,
+      44
+    ],
+    "sha256": "4a661fc843d0d9fcfdf32861b7dc903ee09d824d0075dd0ea7b2c19542bb2f92"
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/020-第20课.md",
+    "lines": [
+      48,
+      60
+    ],
+    "sha256": "25f8f0bbe9ffbab48a27b552a081ff3925b6c01bfe1cae30c2616fe9b99b49ef"
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/037-第37课.md",
+    "lines": [
+      14,
+      22
+    ],
+    "sha256": "f360d985b3f3b1fa567ca13e15f2ffaf9eae39dbb418519f75d1f6175ac70753"
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/038-第38课.md",
+    "lines": [
+      18,
+      36
+    ],
+    "sha256": "983ce94575d61ed645fcc753eb59f9a28e8e749826a30d7bf87f19721baedc7b"
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/fenjie.md",
+    "lines": [
+      21,
+      31
+    ],
+    "sha256": "a09645ca57627e4dfe1197a9c1872c01e3326ba9387475f9b5378b509b4a9db0"
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/adr/0011-operation-decomposition-layer.md",
+    "lines": [
+      55,
+      70
+    ],
+    "sha256": "30098873c67878af850e8ff9502fdf69e332343e3576e551bab6768d6eb59860"
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/zhongshu.md",
+    "lines": [
+      130,
+      146
+    ],
+    "sha256": "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882"
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/zhongshu.md",
+    "lines": [
+      218,
+      244
+    ],
+    "sha256": "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882"
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage58/admissibility-audit.md",
+    "lines": [
+      31,
+      45
+    ],
+    "sha256": "bc10877560995661968633dacb69fc37ebd551ab35f23e54c5adb9df0869526b"
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage58/independent-admissibility-review.md",
+    "lines": [
+      96,
+      105
+    ],
+    "sha256": "9037ef7623b625881171c2d2afa8af98a50d3cc7ec3f02826eb8d60bc8a51c4b"
+  }
+]

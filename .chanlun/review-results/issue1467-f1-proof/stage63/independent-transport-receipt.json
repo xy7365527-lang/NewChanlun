@@ -1,0 +1,19 @@
+{
+  "status": "ACCEPT_FINITE_CONDITIONAL_TRANSPORT_ONLY",
+  "reviewer": "/root/stage63_transport_review_resume",
+  "completed_at": "2026-10-05T14:54:41.415280+00:00",
+  "author_report_sha256": "df3402d76b0c1d55fb7fda47304ad8d2c674effdefd293ce2ddd2c9937d5931f",
+  "author_sums_sha256": "01a0c424fe2cdd60a578179e55723b8d6082196af24090f23b96800775994743",
+  "author_packet_unchanged": true,
+  "mandatory_revisions_within_scope": [],
+  "independent_command": "python3 /Users/silencehan/Documents/Codex/research-evidence/issue1467/stage63/independent-transport/independent_check.py",
+  "independent_exit_code": 0,
+  "author_replay_exit_code": 0,
+  "author_replay_matches_verified": true,
+  "RW_executed": false,
+  "stage62_segment_identity_reproved": false,
+  "review_sha256": "f3ea2d51791e73be082a8bbdaf34047e487636228d0b16617efcdb3087bc40fa",
+  "independent_result_sha256": "f9171d51eb7640b6dfe951e390ad0b3ed68f6d5fd3b2b0dfb727736ecc1649e0",
+  "scope": "四种连续合并及181/201/221所选边界、保留目录/包络/旧证书的有限运输；不证明F1全域不可能或原义父核成立",
+  "trust": "本工具运行回执；独立会话为上下文隔离，非OS沙盒或服务器签名"
+}

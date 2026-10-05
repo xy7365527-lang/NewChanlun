@@ -1,0 +1,50 @@
+{
+  "status": "author evidence only; independent transport review pending",
+  "files": [
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage63/interface-author/Report.md",
+      "copy": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage63/interface-author/Report.md",
+      "sha256": "df3402d76b0c1d55fb7fda47304ad8d2c674effdefd293ce2ddd2c9937d5931f"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage63/interface-author/Sources.md",
+      "copy": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage63/interface-author/Sources.md",
+      "sha256": "314b8861c412255f6861fcb4f885ae79721b2a38188984f92178a8c6a9c655ef"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage63/interface-author/WorkCard.md",
+      "copy": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage63/interface-author/WorkCard.md",
+      "sha256": "cf632b701b55eb6d30df9fb8ab33d1c930c9301bb57038816163567f6e9bd064"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage63/interface-author/check.mjs",
+      "copy": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage63/interface-author/check.mjs",
+      "sha256": "1864b91193e8535a4d2cdf1c0bfa4bab18c9823fda106c01fb4b974aadf98bbd"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage63/interface-author/source-manifest.json",
+      "copy": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage63/interface-author/source-manifest.json",
+      "sha256": "357b223cb508d36e09b933e8be5b2f056fb4960b558ac6a81df480646f0dd47f"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage63/interface-author/receipt.json",
+      "copy": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage63/interface-author/receipt.json",
+      "sha256": "6b0e0733463e49d803e66fac5573b590d2ff4f66d58769b3474786de7b419b1e"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage63/interface-author/verified/result.json",
+      "copy": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage63/interface-author/verified/result.json",
+      "sha256": "ade78adce6101391e5640ce5288317367e801a4d6dbc241c14c76cb578709163"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage63/interface-author/verified/input-manifest.json",
+      "copy": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage63/interface-author/verified/input-manifest.json",
+      "sha256": "1daef815f040f7bb7fc6d3cdc7e77ceedcb714bdf6c2dbfb8e939639c1aee935"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage63/interface-author/verified.stdout",
+      "copy": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage63/interface-author/verified.stdout",
+      "sha256": "14a92e5d0845c0eda9b426345e5c1eb3515d82e2d4e752837e4e5fe3b6971528"
+    }
+  ]
+}

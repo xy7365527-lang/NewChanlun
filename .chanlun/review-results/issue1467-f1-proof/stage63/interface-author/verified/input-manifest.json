@@ -1,0 +1,18 @@
+[
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage62/run-v1/T62-joint.source.json",
+    "sha256": "0c9bbb46dd9b313bfee6ef898f229e3ad2237ef947b2f4ce8fa5d93d4f2c5f4e"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage62/run-v1/segments.json",
+    "sha256": "fef1b7494129c92a88f68d6676676196ed7308957fc517b66cb77bb41b9a612b"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage62/run-v1/periods.json",
+    "sha256": "4f6b2968595f56538215c9885ced0ed3da406083e4e6fd93bba21f60daa8e274"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage62/run-v1/T62-joint.reference.stdout",
+    "sha256": "d14e4b6029b36ae7d8f7239adbd7ebbb792e1b95e38ff418ce4a882cfad81da4"
+  }
+]

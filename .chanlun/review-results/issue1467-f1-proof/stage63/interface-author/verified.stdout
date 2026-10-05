@@ -1,0 +1,217 @@
+{
+  "exit": "pass",
+  "meaning": "finite negative certificates reproduced",
+  "counts": {
+    "events": 342,
+    "segments": 16,
+    "partitions": 4,
+    "boundary_positions": 3,
+    "windows": 14
+  },
+  "first_failure": {
+    "predicate": "strict_up(K0,K1)",
+    "left": 32000,
+    "operator": ">",
+    "right": 32000,
+    "value": false,
+    "conditional_scope": "original DD/GG roles or this v1 initial member-envelope trend rule"
+  },
+  "pairs": [
+    {
+      "a": "K0",
+      "b": "K1",
+      "strict_up": false,
+      "strict_down": false,
+      "outer_intersection": [
+        32000,
+        32000
+      ],
+      "core_up": true,
+      "core_down": false,
+      "expansion_if_original_roles": true
+    },
+    {
+      "a": "K1",
+      "b": "K2",
+      "strict_up": false,
+      "strict_down": false,
+      "outer_intersection": [
+        32000,
+        32800
+      ],
+      "core_up": false,
+      "core_down": true,
+      "expansion_if_original_roles": true
+    },
+    {
+      "a": "K0",
+      "b": "K2",
+      "strict_up": false,
+      "strict_down": false,
+      "outer_intersection": [
+        30000,
+        32000
+      ],
+      "core_up": true,
+      "core_down": false,
+      "expansion_if_original_roles": true
+    }
+  ],
+  "shifts": [
+    {
+      "cut": 181,
+      "left": {
+        "Own": [
+          2,
+          181
+        ],
+        "whole": [
+          20000,
+          36000
+        ],
+        "terminal_segment": "S8",
+        "terminal_up": true,
+        "endpoint": 34400,
+        "up_endpoint_new_high": false
+      },
+      "right": {
+        "Own": [
+          182,
+          301
+        ],
+        "whole": [
+          30000,
+          36400
+        ],
+        "first_segment": "S9",
+        "first_up": false,
+        "terminal_segment": "S14",
+        "terminal_up": true,
+        "same_direction_arms": false,
+        "first_arm_is_K2_member": false
+      },
+      "old_certificate_transport": "old X1 event201 endpoint not equal new left endpoint; old X2 start201 not equal new right start"
+    },
+    {
+      "cut": 201,
+      "left": {
+        "Own": [
+          2,
+          201
+        ],
+        "whole": [
+          20000,
+          36000
+        ],
+        "terminal_segment": "S9",
+        "terminal_up": false,
+        "endpoint": 31000,
+        "up_endpoint_new_high": false
+      },
+      "right": {
+        "Own": [
+          202,
+          301
+        ],
+        "whole": [
+          30000,
+          36400
+        ],
+        "first_segment": "S10",
+        "first_up": true,
+        "terminal_segment": "S14",
+        "terminal_up": true,
+        "same_direction_arms": true,
+        "first_arm_is_K2_member": false
+      },
+      "old_certificate_transport": "X1 endpoint preserved only for original X1; left aggregate still not certified"
+    },
+    {
+      "cut": 221,
+      "left": {
+        "Own": [
+          2,
+          221
+        ],
+        "whole": [
+          20000,
+          36000
+        ],
+        "terminal_segment": "S10",
+        "terminal_up": true,
+        "endpoint": 32800,
+        "up_endpoint_new_high": false
+      },
+      "right": {
+        "Own": [
+          222,
+          301
+        ],
+        "whole": [
+          30000,
+          36400
+        ],
+        "first_segment": "S11",
+        "first_up": false,
+        "terminal_segment": "S14",
+        "terminal_up": true,
+        "same_direction_arms": false,
+        "first_arm_is_K2_member": true
+      },
+      "old_certificate_transport": "old X1 event201 endpoint not equal new left endpoint; old X2 start201 not equal new right start"
+    }
+  ],
+  "lift": {
+    "id": "Y012",
+    "Own": [
+      2,
+      301
+    ],
+    "grade": 1,
+    "whole": [
+      20000,
+      36400
+    ],
+    "core": [
+      31000,
+      36000
+    ],
+    "core_members": [
+      "X0",
+      "X1",
+      "X2"
+    ],
+    "member_outer": [
+      20000,
+      36400
+    ],
+    "completed": false,
+    "active": true,
+    "borrowed_arms": [
+      "S0",
+      "S14"
+    ],
+    "arms_inside_members": true,
+    "old_X2_certificate_scope": [
+      202,
+      301
+    ],
+    "whole_scope": [
+      2,
+      301
+    ],
+    "right_return": {
+      "S15": [
+        34000,
+        36400
+      ],
+      "intersection_with_parent_core": [
+        34000,
+        36000
+      ],
+      "not_return": false
+    },
+    "delta_c0_replacement_valid": false,
+    "F2_input": "conditional only: three source X are not authenticated construction children"
+  }
+}
