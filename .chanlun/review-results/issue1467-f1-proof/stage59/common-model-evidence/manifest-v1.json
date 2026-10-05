@@ -1,0 +1,184 @@
+{
+  "schema": "stage59-common-model-freeze-v1",
+  "version": "F59-C-v1",
+  "status": "author-frozen-awaiting-independent-review",
+  "root": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun",
+  "packet": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage59/common-model.md",
+      "bytes": 16078,
+      "sha256": "e2f0d95f4d0a434be76f7905fcac8b8ab519463215717f5969c83445d06796b6"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage59/common-model-evidence/check-common-model.mjs",
+      "bytes": 4284,
+      "sha256": "b493d4a7bdf107b4889ba9450fa854fa40b91cb4c1619bd66808e52d11f5c1e8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage59/common-model-evidence/direct-semantics-v1.mjs",
+      "bytes": 5704,
+      "sha256": "425fb54d054bb004f23656849f8288065563c922aa91e48988844d3c1a32e55c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage59/common-model-evidence/main16-control-v1.json",
+      "bytes": 2477,
+      "sha256": "94e875f2c42f011ba25ca25532510c537f548b1d8e0a0f91e80ef57050e55934"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage59/common-model-evidence/main16-results-v1.json",
+      "bytes": 100155,
+      "sha256": "3369b1e1c3dd1e09aa4e2e3c827f791e6ed3c082db37541ef10821332b27929a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage59/common-model-evidence/self-check-v1.json",
+      "bytes": 1717,
+      "sha256": "469e37a7eb994b5491ec7d3cfbdf0e52ec2a53459446a42f870acfe023c10ecf"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage59/common-model-evidence/semantics-extraction-v1.json",
+      "bytes": 439,
+      "sha256": "0730b79af45842383ee2ef68b014b08fea45b9a1bd521a101cb1f7e562521fc8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage59/common-model-evidence/source-excerpts-v1.json",
+      "bytes": 76865,
+      "sha256": "b867cef8ef2d2ff44cd75c4c8a691fb7f369543dceb4ee067939e45dd6264d72"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage59/common-model-evidence/verify-manifest.mjs",
+      "bytes": 1835,
+      "sha256": "9651ca794198cd2433483f33c74b5b86ebbeda93fd88ad1fa4f248f50e3668e4"
+    }
+  ],
+  "dependencies": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage58InitialModelAndReflectionAudit.md",
+      "bytes": 7087,
+      "sha256": "92fce14701726c0c45e3fb6af8df02f8b8c0485fbc38c32fc82187797c770ba8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage58/admissibility-audit.md",
+      "bytes": 26881,
+      "sha256": "bc10877560995661968633dacb69fc37ebd551ab35f23e54c5adb9df0869526b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage58/independent-admissibility-review.md",
+      "bytes": 20851,
+      "sha256": "9037ef7623b625881171c2d2afa8af98a50d3cc7ec3f02826eb8d60bc8a51c4b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage58/ScopeCorrections-v1.md",
+      "bytes": 6299,
+      "sha256": "a8b17dd90897bbceb06d68b4789c6e422c8da7cf15f52af53e87aef3b1081e30"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage58/admissibility-evidence/main8-model-v1.json",
+      "bytes": 4966,
+      "sha256": "29496ff42b670ffb625d78a44cd8357442934925abe61919b15542d456bc1e17"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-lifecycle.md",
+      "bytes": 13263,
+      "sha256": "68284067dd0cf3c9361c16931afe29efa22cf5b1438b2581da2fac717169e627"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/check-direct.mjs",
+      "bytes": 8062,
+      "sha256": "bdda545afc6649f94597c49af15d0ca0c7949bd1675151993587b1a1b5269e16"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/initial-contract-audit.md",
+      "bytes": 21024,
+      "sha256": "7c5f9993530c16a8de959e0115db2eb7869d87b8acba9b030ebf97f7e7bb55c4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage52/ScopeClarifications-v1.md",
+      "bytes": 2852,
+      "sha256": "a1cbb45fb2c58cecad0675ac1977aee3dccd198da4fdc4c1ca5d03df5a7c375c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/p-direction-scope.md",
+      "bytes": 22930,
+      "sha256": "d7da7668a3134139496328015edc5b377bce3a0b8f06a981ddef1b668b71a30b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage51/independent-source-scope-review.md",
+      "bytes": 15622,
+      "sha256": "1839550e5925c5a4f56b1d0cd7f413dcd1b76b6bec95103b93b8b76796a34d6b"
+    },
+    {
+      "path": "docs/chanlun/text/blog/017-第17课.md",
+      "bytes": 55792,
+      "sha256": "bce847aaacac3b3a79e56b3c49aca6f0c454a0917977bdbb1e0f1f553ddff026"
+    },
+    {
+      "path": "docs/chanlun/text/blog/018-第18课.md",
+      "bytes": 11695,
+      "sha256": "4a661fc843d0d9fcfdf32861b7dc903ee09d824d0075dd0ea7b2c19542bb2f92"
+    },
+    {
+      "path": "docs/chanlun/text/blog/029-第29课.md",
+      "bytes": 51933,
+      "sha256": "5716dbd674811392ac563cde255edec00c2902e3c3561159faa5ce2118fa369f"
+    },
+    {
+      "path": "docs/chanlun/text/blog/031-第31课.md",
+      "bytes": 80982,
+      "sha256": "c784ee15c21cef965b6e073a89224e56b29bad03a9ecd1dc9e130c54083d47d5"
+    },
+    {
+      "path": "docs/chanlun/text/blog/035-第35课.md",
+      "bytes": 19125,
+      "sha256": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023"
+    },
+    {
+      "path": "docs/chanlun/text/blog/038-第38课.md",
+      "bytes": 24251,
+      "sha256": "983ce94575d61ed645fcc753eb59f9a28e8e749826a30d7bf87f19721baedc7b"
+    },
+    {
+      "path": "docs/chanlun/text/blog/039-第39课.md",
+      "bytes": 34743,
+      "sha256": "f7ab535b5899c2b11d1aa1c181b906b2bf719ef5f0b9471ddf85b745053bceca"
+    },
+    {
+      "path": "docs/chanlun/text/blog/084-第84课.md",
+      "bytes": 70833,
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26"
+    },
+    {
+      "path": "docs/adr/0011-operation-decomposition-layer.md",
+      "bytes": 14485,
+      "sha256": "30098873c67878af850e8ff9502fdf69e332343e3576e551bab6768d6eb59860"
+    },
+    {
+      "path": ".chanlun/definitions/zhongshu.md",
+      "bytes": 53981,
+      "sha256": "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882"
+    },
+    {
+      "path": ".chanlun/definitions/qushi.md",
+      "bytes": 33811,
+      "sha256": "ce48f8cda6a3f02afd9fddbc0f93cb43431524b66472e579a927af5ce4bc3c46"
+    },
+    {
+      "path": ".chanlun/definitions/beichi.md",
+      "bytes": 108519,
+      "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6"
+    }
+  ],
+  "claims": [
+    "同Hᴰ上两个实际End58周期",
+    "B1-B4保身份构造消费不相容",
+    "只合并已有两格时二选一及身份改变",
+    "有限源合并结构不是完整共同模型"
+  ],
+  "excluded": [
+    "原义完成证书",
+    "所有F1不可能",
+    "全部P/P非法",
+    "固定F2合格三元组或父完成",
+    "全域共同模型存在",
+    "新Lean证明"
+  ]
+}

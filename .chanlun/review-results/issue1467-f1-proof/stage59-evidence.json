@@ -1,0 +1,218 @@
+{
+  "schema": "stage59-integrated-evidence-v1",
+  "utc": "2026-10-05T01:38:04.150871+00:00",
+  "scope": "reviewed conditional CROSS/CLOCK/F59-C, adoption corrections await isolated integration review",
+  "files": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/Intent-v1.md",
+      "bytes": 1122,
+      "sha256": "d90b1a8c06bcd0e4f5733c5b85624282429f3a5edf09cef158dcc3f82e4dfd9a"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/ScopeCorrections-v1.md",
+      "bytes": 2340,
+      "sha256": "01f2ebec34b5b2c0941f3739f44b6fe12857b92851e729d75b98d153ddfc8868"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/common-model-evidence/check-common-model.mjs",
+      "bytes": 4284,
+      "sha256": "b493d4a7bdf107b4889ba9450fa854fa40b91cb4c1619bd66808e52d11f5c1e8"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/common-model-evidence/direct-semantics-v1.mjs",
+      "bytes": 5704,
+      "sha256": "425fb54d054bb004f23656849f8288065563c922aa91e48988844d3c1a32e55c"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/common-model-evidence/main16-control-v1.json",
+      "bytes": 2477,
+      "sha256": "94e875f2c42f011ba25ca25532510c537f548b1d8e0a0f91e80ef57050e55934"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/common-model-evidence/main16-results-v1.json",
+      "bytes": 100155,
+      "sha256": "3369b1e1c3dd1e09aa4e2e3c827f791e6ed3c082db37541ef10821332b27929a"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/common-model-evidence/manifest-v1.json",
+      "bytes": 7138,
+      "sha256": "9ed5f0c186ac992870b3a089c807e9cb49fcba77467f1a6b32d1d0997167dfe7"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/common-model-evidence/self-check-v1.json",
+      "bytes": 1717,
+      "sha256": "469e37a7eb994b5491ec7d3cfbdf0e52ec2a53459446a42f870acfe023c10ecf"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/common-model-evidence/semantics-extraction-v1.json",
+      "bytes": 439,
+      "sha256": "0730b79af45842383ee2ef68b014b08fea45b9a1bd521a101cb1f7e562521fc8"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/common-model-evidence/source-excerpts-v1.json",
+      "bytes": 76865,
+      "sha256": "b867cef8ef2d2ff44cd75c4c8a691fb7f369543dceb4ee067939e45dd6264d72"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/common-model-evidence/verify-manifest.mjs",
+      "bytes": 1835,
+      "sha256": "9651ca794198cd2433483f33c74b5b86ebbeda93fd88ad1fa4f248f50e3668e4"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/common-model.md",
+      "bytes": 16078,
+      "sha256": "e2f0d95f4d0a434be76f7905fcac8b8ab519463215717f5969c83445d06796b6"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/dynamics-evidence/check.mjs",
+      "bytes": 10514,
+      "sha256": "fdb0095fe924700f80dfa5f211cb77044d8ed98faa3470f9b13cd77a0d0c7a21"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/dynamics-evidence/control-result.json",
+      "bytes": 6954,
+      "sha256": "b60392832b87b86f7ede93069681aa730f1974c91a3600e7ec8fe68ee13e4e7d"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/dynamics-evidence/execution-receipt.json",
+      "bytes": 623,
+      "sha256": "ae16bd02f068c86a26947019f8160a9a9637fda090860c6d202b145682c28b2a"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/dynamics-evidence/manifest-v1.json",
+      "bytes": 5762,
+      "sha256": "c64056d5df019417980ab3bde376987179723bc4f43719f9e1871134318ab125"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/dynamics-evidence/source-evidence.json",
+      "bytes": 28158,
+      "sha256": "d4a1463e2b3a5c60d224bdd0d6b4fe000235244301a3764f408528b5c210482f"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/dynamics-evidence/verify.mjs",
+      "bytes": 1327,
+      "sha256": "0e2865d13f208733a673abb0f0f2135e64ebba963acec41ca506ec613a82012c"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/general-completion.md",
+      "bytes": 21017,
+      "sha256": "ef0ef4cc7fa01bc8111747a0fd643a2ace479365ffdb8c283fe4613906893026"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/independent-common-model-review.md",
+      "bytes": 16419,
+      "sha256": "2678050e6619131d3b544f8fcf92c1b030eb21f4d04b8c745ee7f4aab83e3dd5"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/independent-dynamics-review.md",
+      "bytes": 12449,
+      "sha256": "d09072f7732f50161ada57dd54ebe894a21648a1a272df5a2e0042c075977bce"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage59CommonExpansionObstructions.md",
+      "bytes": 5210,
+      "sha256": "c1136df1a79e469c5c289e40d49f1870ed5befb7c75872c8dc3ec676076b477b"
+    }
+  ],
+  "external": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage59/native-spawns.json",
+      "bytes": 712,
+      "sha256": "fca627d85af4c0cf6cc327e0736f57a1be7a8a3be3c9e245408ad7f53e0af21d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage59/review-spawns-v1.json",
+      "bytes": 1094,
+      "sha256": "0385c5e5013b41c91af30e5bbdacb15cabbe9d23dd347b79c2944bc1b5ee5a3c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage59/integration-fields-v1.json",
+      "bytes": 1970,
+      "sha256": "32610da841bc350d7a897c9848fd952c24305716a90b9cb023aeefb5ea43c7d5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage59/dynamics-review/review-receipt.json",
+      "bytes": 6191,
+      "sha256": "a50f83746337a72e19033a6f6a91816b7dd74070a10122baa67c5cbf0b00ae8f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage59/dynamics-review/replay-receipt.json",
+      "bytes": 8426,
+      "sha256": "7f8ee2167d8adcfa22aba148d5cb51e56f059b6935d41e306d63d31f5f5d3faa"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage59/dynamics-review/independent-check-result.json",
+      "bytes": 1079,
+      "sha256": "322c78e585acc3e9c4e19d68b1346015e070ed183743a11636c80517009fca9b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage59/dynamics-review/independent-check.mjs",
+      "bytes": 5542,
+      "sha256": "e8effbce2f615db74684665da1636486305e3096734ec0314a7241ec7483be9d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage59/common-model-review/manifest-audit.json",
+      "bytes": 12387,
+      "sha256": "4fda4da5728997cd151f5459eed19b1116a9adcad2c94c4d8f00c0890eff4706"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage59/common-model-review/source-lines-audit.json",
+      "bytes": 3713,
+      "sha256": "618bd05df406fef7049075fcef83a86325ceba525ec58984f904a05971764552"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage59/common-model-review/copied-author-run-receipt.json",
+      "bytes": 841,
+      "sha256": "a502dd96f90b69bcf3ff90cc79091f0ebc9a4396602029c7959ae22c4cd2ce42"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage59/common-model-review/independent-finite-check.mjs",
+      "bytes": 6552,
+      "sha256": "0decc2d56c28b0aa3d225e1afd0e1549091ea799602046e04afd83f847363e8e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage59/common-model-review/independent-finite-receipt.json",
+      "bytes": 5411,
+      "sha256": "283016fb63bbc0ea0f79de1955b3e883c5b1fdc9779c847671675235820c503b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage59/common-model-review/namespace-embedding-audit.json",
+      "bytes": 1467,
+      "sha256": "60ea52c23ced84c0f74ea0ed0c97ad6f52fa4febbeea6930517c0d0caeb167f3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage59/common-model-review/manifest-final-audit.json",
+      "bytes": 191,
+      "sha256": "56c321374c791cd17ca0bef01e4d7992bcf455b9cad3bb543bc13ccbdc1aaba7"
+    }
+  ],
+  "findings": {
+    "F59-ID-01": {
+      "adoption_fix": "ScopeCorrections-v1.md namespace mapping",
+      "rereview": "PENDING"
+    },
+    "F59-D1": {
+      "adoption_fix": "Certified_G59 protocol only; no semantic completeness theorem",
+      "rereview": "PENDING"
+    }
+  },
+  "results": {
+    "CC58_crossing_pair_obstruction": "conditional ordinary proof + exact finite control",
+    "clock_classification": "ordinary proof on independent positive durations; clock qualification separate",
+    "F59-C": "conditional contradiction under B1-B4 within h16",
+    "W": "finite source record only",
+    "G59": "chosen certification protocol only"
+  },
+  "not_proved": [
+    "general semantic completion",
+    "full common expansion",
+    "qualified original P",
+    "fixed F2 and recursive closure",
+    "market incremental value"
+  ],
+  "market_samples": 0,
+  "new_Lean_runs": 0,
+  "integration_fields_matched": 11,
+  "namespace_identity_preserved_across_packages": false,
+  "goal_mutated": false
+}

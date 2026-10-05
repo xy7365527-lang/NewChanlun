@@ -1,0 +1,138 @@
+{
+  "schema": "stage59-order-control-v1",
+  "id": "D59-main16",
+  "initial": {
+    "bids": [
+      {
+        "id": "b100",
+        "price": 100
+      },
+      {
+        "id": "b1",
+        "price": 1
+      }
+    ],
+    "asks": [
+      {
+        "id": "a102",
+        "price": 102
+      }
+    ]
+  },
+  "events": [
+    {
+      "id": "D57-E1",
+      "action": "add",
+      "side": "bid",
+      "orderId": "b101a",
+      "price": 101
+    },
+    {
+      "id": "D57-E2",
+      "action": "cancel",
+      "side": "bid",
+      "orderId": "b101a",
+      "price": 101
+    },
+    {
+      "id": "D57-E3",
+      "action": "add",
+      "side": "bid",
+      "orderId": "b101b",
+      "price": 101
+    },
+    {
+      "id": "D57-E4",
+      "action": "cancel",
+      "side": "bid",
+      "orderId": "b101b",
+      "price": 101
+    },
+    {
+      "id": "D57-E5",
+      "action": "cancel",
+      "side": "bid",
+      "orderId": "b100",
+      "price": 100
+    },
+    {
+      "id": "D57-E6",
+      "action": "add",
+      "side": "ask",
+      "orderId": "a99",
+      "price": 99
+    },
+    {
+      "id": "D57-E7",
+      "action": "add",
+      "side": "bid",
+      "orderId": "b2",
+      "price": 2
+    },
+    {
+      "id": "D57-E8",
+      "action": "cancel",
+      "side": "bid",
+      "orderId": "b2",
+      "price": 2
+    },
+    {
+      "id": "D59-E9",
+      "action": "add",
+      "side": "ask",
+      "orderId": "s59-a110",
+      "price": 110
+    },
+    {
+      "id": "D59-E10",
+      "action": "add",
+      "side": "bid",
+      "orderId": "s59-b3",
+      "price": 3
+    },
+    {
+      "id": "D59-E11",
+      "action": "cancel",
+      "side": "bid",
+      "orderId": "s59-b3",
+      "price": 3
+    },
+    {
+      "id": "D59-E12",
+      "action": "cancel",
+      "side": "ask",
+      "orderId": "a99",
+      "price": 99
+    },
+    {
+      "id": "D59-E13",
+      "action": "cancel",
+      "side": "ask",
+      "orderId": "a102",
+      "price": 102
+    },
+    {
+      "id": "D59-E14",
+      "action": "add",
+      "side": "bid",
+      "orderId": "s59-b103",
+      "price": 103
+    },
+    {
+      "id": "D59-E15",
+      "action": "add",
+      "side": "ask",
+      "orderId": "s59-a109",
+      "price": 109
+    },
+    {
+      "id": "D59-E16",
+      "action": "add",
+      "side": "bid",
+      "orderId": "s59-b104",
+      "price": 104
+    }
+  ],
+  "basePrefix": "D57-main8",
+  "scope": "同原Step、Reads、全程双边有效整数域的合成延伸；无市场资格主张；非原义完成证书"
+}

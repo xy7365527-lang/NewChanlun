@@ -1,0 +1,49 @@
+{
+  "schema": "stage59-adoption-evidence-v2",
+  "preserved_v1_evidence": {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59-evidence.json",
+    "bytes": 11089,
+    "sha256": "8933ba9179174e19d934000349359823a8cb097ed8b8b8cefe88e1df3836bdec"
+  },
+  "current_summary": {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage59CommonExpansionObstructions-v2.md",
+    "bytes": 5352,
+    "sha256": "01c6fb8c240074bed8138a2a3887a611967d50d6e7d1bf3e53b6935b80a3667a"
+  },
+  "current_scope": {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/ScopeCorrections-v2.md",
+    "bytes": 2876,
+    "sha256": "22ecf0fecce65175604821a1d1c1e93f18dcb543d11e2859129d573267447de1"
+  },
+  "prior_integration_review": {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/independent-integration-review.md",
+    "bytes": 8631,
+    "sha256": "def431713d7bd1bbf58a17bd6ed84606882eafd30871467f68955cf802212174"
+  },
+  "prior_integration_receipt": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage59/integration-review/review-receipt.json",
+    "bytes": 4127,
+    "sha256": "13efd8f22c5c2ab7e40ddba9bffdb69a74309b1749fa9775729f87f776583f5e"
+  },
+  "adoption_diff": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage59/integration-v1-to-v2.diff",
+    "bytes": 5381,
+    "sha256": "979b0bdb85dc0d02e166e4ef5f5bb7d864ac28d19fee1f6bd30164f343503617"
+  },
+  "progress_patch": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage59/progress-own-v2.patch",
+    "bytes": 2050,
+    "sha256": "c009cfc7c192de953a2ce63dcc87c3d44ffd7e33f4fe8fa4fe45a18cd2067161"
+  },
+  "findings": {
+    "F59-ID-01": "adoption correction accepted in first integration review",
+    "F59-D1": "adoption correction accepted in first integration review",
+    "F59-INT-01": "nonzero condition restored; new isolated review PENDING"
+  },
+  "theory_changed": false,
+  "old_frozen_inputs_modified": false,
+  "current_original_P_qualification": false,
+  "fixed_F2_qualification": false,
+  "market_incremental_value_verified": false,
+  "goal_mutated": false
+}

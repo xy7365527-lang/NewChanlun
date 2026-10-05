@@ -1,0 +1,141 @@
+{
+  "schema": "stage59-general-completion-frozen-packet-v1",
+  "issue": 1467,
+  "parent_map": 1465,
+  "frozen_at_utc": "2026-10-05T01:26:08.603Z",
+  "root": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun",
+  "report": ".chanlun/review-results/issue1467-f1-proof/stage59/general-completion.md",
+  "status": "author proof and exact controls; independent review pending",
+  "claims": [
+    "GC59-CROSS: no two disjoint ordered crossing spans in specified main8 Flow carriers",
+    "GC59-CLOCK: necessary and sufficient positive-duration coefficient classification plus independent-box extrema"
+  ],
+  "not_claimed": [
+    "original main8 completion",
+    "full source-compatible joint expansion",
+    "legal Chan retiming counterexample",
+    "fixed F2 closure"
+  ],
+  "artifacts": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage59/general-completion.md",
+      "bytes": 21017,
+      "sha256": "ef0ef4cc7fa01bc8111747a0fd643a2ace479365ffdb8c283fe4613906893026"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage59/dynamics-evidence/check.mjs",
+      "bytes": 10514,
+      "sha256": "fdb0095fe924700f80dfa5f211cb77044d8ed98faa3470f9b13cd77a0d0c7a21"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage59/dynamics-evidence/verify.mjs",
+      "bytes": 1327,
+      "sha256": "0e2865d13f208733a673abb0f0f2135e64ebba963acec41ca506ec613a82012c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage59/dynamics-evidence/control-result.json",
+      "bytes": 6954,
+      "sha256": "b60392832b87b86f7ede93069681aa730f1974c91a3600e7ec8fe68ee13e4e7d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage59/dynamics-evidence/source-evidence.json",
+      "bytes": 28158,
+      "sha256": "d4a1463e2b3a5c60d224bdd0d6b4fe000235244301a3764f408528b5c210482f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage59/dynamics-evidence/execution-receipt.json",
+      "bytes": 623,
+      "sha256": "ae16bd02f068c86a26947019f8160a9a9637fda090860c6d202b145682c28b2a"
+    }
+  ],
+  "inputs": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage58InitialModelAndReflectionAudit.md",
+      "bytes": 7087,
+      "sha256": "92fce14701726c0c45e3fb6af8df02f8b8c0485fbc38c32fc82187797c770ba8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage58/ScopeCorrections-v1.md",
+      "bytes": 6299,
+      "sha256": "a8b17dd90897bbceb06d68b4789c6e422c8da7cf15f52af53e87aef3b1081e30"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage58/admissibility-audit.md",
+      "bytes": 26881,
+      "sha256": "bc10877560995661968633dacb69fc37ebd551ab35f23e54c5adb9df0869526b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage58/independent-admissibility-review.md",
+      "bytes": 20851,
+      "sha256": "9037ef7623b625881171c2d2afa8af98a50d3cc7ec3f02826eb8d60bc8a51c4b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage58/admissibility-evidence/main8-model-v1.json",
+      "bytes": 4966,
+      "sha256": "29496ff42b670ffb625d78a44cd8357442934925abe61919b15542d456bc1e17"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage27ForceTransport.md",
+      "bytes": 6523,
+      "sha256": "ef91d6db7ab1033313611887606f11d729d56da23a729e9a4f0a0da4533ec835"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage28ClockAndEdges.md",
+      "bytes": 6574,
+      "sha256": "7fc683a6660d2561b9ed6cd4101569df709b90dcfb87f8da91e8e9c133bc563b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage29NativeStateTime.md",
+      "bytes": 6320,
+      "sha256": "32dd0f8474351890f61f822de674156eeeff57f8871105a62993d65c0f8e8ce3"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage30BaseAndClockScope.md",
+      "bytes": 6778,
+      "sha256": "509b6a667da1742860c5a0c2efd097fd6c7ae5f14c29aca84b97a415883f12c2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage31TurnCoverage.md",
+      "bytes": 7518,
+      "sha256": "70311529108fa4948747ec1e1e89805a907495aad59511bb5bf635c78fa6b389"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage36ReferenceBaseWitness.md",
+      "bytes": 7322,
+      "sha256": "c0619b001d5325cdb7e15f111a7ab3f4b78d121139750d21cb1563b347b9f7d1"
+    },
+    {
+      "path": "docs/chanlun/text/blog/037-第37课.md",
+      "bytes": 47970,
+      "sha256": "f360d985b3f3b1fa567ca13e15f2ffaf9eae39dbb418519f75d1f6175ac70753"
+    },
+    {
+      "path": "docs/chanlun/text/blog/043-第43课.md",
+      "bytes": 25182,
+      "sha256": "f28824c26843e5799ad8f07db6bb9b02956d0fc7ac97d9d3d2fc70a7c3004909"
+    },
+    {
+      "path": "docs/chanlun/text/blog/044-第44课.md",
+      "bytes": 21419,
+      "sha256": "827191f7e01799d606520b8774bcc5948b35324dbde6d9a3f05fb5a83be8f70b"
+    },
+    {
+      "path": "docs/chanlun/text/blog/061-第61课.md",
+      "bytes": 21387,
+      "sha256": "2451e6d514b37aa5da00ca608a88fb46c8e31fe8859226534be7deb6c1007573"
+    },
+    {
+      "path": "docs/chanlun/text/blog/084-第84课.md",
+      "bytes": 70833,
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26"
+    },
+    {
+      "path": ".chanlun/definitions/beichi.md",
+      "bytes": 108519,
+      "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6"
+    }
+  ],
+  "rerun": "node .chanlun/review-results/issue1467-f1-proof/stage59/dynamics-evidence/check.mjs",
+  "verify": "node .chanlun/review-results/issue1467-f1-proof/stage59/dynamics-evidence/verify.mjs",
+  "self_hash": "Manifest hash is supplied separately; no self-referential digest."
+}

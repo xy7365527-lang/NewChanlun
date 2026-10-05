@@ -1,0 +1,4960 @@
+{
+  "control": {
+    "schema": "stage59-order-control-v1",
+    "id": "D59-main16",
+    "initial": {
+      "bids": [
+        {
+          "id": "b100",
+          "price": 100
+        },
+        {
+          "id": "b1",
+          "price": 1
+        }
+      ],
+      "asks": [
+        {
+          "id": "a102",
+          "price": 102
+        }
+      ]
+    },
+    "events": [
+      {
+        "id": "D57-E1",
+        "action": "add",
+        "side": "bid",
+        "orderId": "b101a",
+        "price": 101
+      },
+      {
+        "id": "D57-E2",
+        "action": "cancel",
+        "side": "bid",
+        "orderId": "b101a",
+        "price": 101
+      },
+      {
+        "id": "D57-E3",
+        "action": "add",
+        "side": "bid",
+        "orderId": "b101b",
+        "price": 101
+      },
+      {
+        "id": "D57-E4",
+        "action": "cancel",
+        "side": "bid",
+        "orderId": "b101b",
+        "price": 101
+      },
+      {
+        "id": "D57-E5",
+        "action": "cancel",
+        "side": "bid",
+        "orderId": "b100",
+        "price": 100
+      },
+      {
+        "id": "D57-E6",
+        "action": "add",
+        "side": "ask",
+        "orderId": "a99",
+        "price": 99
+      },
+      {
+        "id": "D57-E7",
+        "action": "add",
+        "side": "bid",
+        "orderId": "b2",
+        "price": 2
+      },
+      {
+        "id": "D57-E8",
+        "action": "cancel",
+        "side": "bid",
+        "orderId": "b2",
+        "price": 2
+      },
+      {
+        "id": "D59-E9",
+        "action": "add",
+        "side": "ask",
+        "orderId": "s59-a110",
+        "price": 110
+      },
+      {
+        "id": "D59-E10",
+        "action": "add",
+        "side": "bid",
+        "orderId": "s59-b3",
+        "price": 3
+      },
+      {
+        "id": "D59-E11",
+        "action": "cancel",
+        "side": "bid",
+        "orderId": "s59-b3",
+        "price": 3
+      },
+      {
+        "id": "D59-E12",
+        "action": "cancel",
+        "side": "ask",
+        "orderId": "a99",
+        "price": 99
+      },
+      {
+        "id": "D59-E13",
+        "action": "cancel",
+        "side": "ask",
+        "orderId": "a102",
+        "price": 102
+      },
+      {
+        "id": "D59-E14",
+        "action": "add",
+        "side": "bid",
+        "orderId": "s59-b103",
+        "price": 103
+      },
+      {
+        "id": "D59-E15",
+        "action": "add",
+        "side": "ask",
+        "orderId": "s59-a109",
+        "price": 109
+      },
+      {
+        "id": "D59-E16",
+        "action": "add",
+        "side": "bid",
+        "orderId": "s59-b104",
+        "price": 104
+      }
+    ],
+    "basePrefix": "D57-main8",
+    "scope": "同原Step、Reads、全程双边有效整数域的合成延伸；无市场资格主张；非原义完成证书"
+  },
+  "outputs": [
+    {
+      "n": 0,
+      "quotes": [
+        {
+          "bid": 100,
+          "ask": 102
+        }
+      ],
+      "flows": [],
+      "closed": [],
+      "tail": {
+        "start": 0,
+        "end": 0,
+        "eventIds": []
+      },
+      "terminal": {
+        "tag": "NoCore",
+        "c": 0,
+        "s": 0,
+        "core": null
+      }
+    },
+    {
+      "n": 1,
+      "quotes": [
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        }
+      ],
+      "flows": [
+        {
+          "flowId": "D59-main16:F0",
+          "start": 0,
+          "end": 1,
+          "firstKnown": 1,
+          "knownAt": null,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E1"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        }
+      ],
+      "closed": [],
+      "tail": {
+        "start": 0,
+        "end": 1,
+        "eventIds": [
+          "D57-E1"
+        ]
+      },
+      "terminal": {
+        "tag": "NoCore",
+        "c": 0,
+        "s": 0,
+        "core": null
+      }
+    },
+    {
+      "n": 2,
+      "quotes": [
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        }
+      ],
+      "flows": [
+        {
+          "flowId": "D59-main16:F0",
+          "start": 0,
+          "end": 1,
+          "firstKnown": 1,
+          "knownAt": 2,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E1"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F1",
+          "start": 1,
+          "end": 2,
+          "firstKnown": 2,
+          "knownAt": null,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E2"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 100,
+            "range": [
+              100,
+              102
+            ]
+          }
+        }
+      ],
+      "closed": [],
+      "tail": {
+        "start": 0,
+        "end": 2,
+        "eventIds": [
+          "D57-E1",
+          "D57-E2"
+        ]
+      },
+      "terminal": {
+        "tag": "NoCore",
+        "c": 0,
+        "s": 0,
+        "core": null
+      }
+    },
+    {
+      "n": 3,
+      "quotes": [
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        }
+      ],
+      "flows": [
+        {
+          "flowId": "D59-main16:F0",
+          "start": 0,
+          "end": 1,
+          "firstKnown": 1,
+          "knownAt": 2,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E1"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F1",
+          "start": 1,
+          "end": 2,
+          "firstKnown": 2,
+          "knownAt": 3,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E2"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 100,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F2",
+          "start": 2,
+          "end": 3,
+          "firstKnown": 3,
+          "knownAt": null,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E3"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        }
+      ],
+      "closed": [],
+      "tail": {
+        "start": 0,
+        "end": 3,
+        "eventIds": [
+          "D57-E1",
+          "D57-E2",
+          "D57-E3"
+        ]
+      },
+      "terminal": {
+        "tag": "NoCore",
+        "c": 0,
+        "s": 0,
+        "core": null
+      }
+    },
+    {
+      "n": 4,
+      "quotes": [
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        }
+      ],
+      "flows": [
+        {
+          "flowId": "D59-main16:F0",
+          "start": 0,
+          "end": 1,
+          "firstKnown": 1,
+          "knownAt": 2,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E1"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F1",
+          "start": 1,
+          "end": 2,
+          "firstKnown": 2,
+          "knownAt": 3,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E2"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 100,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F2",
+          "start": 2,
+          "end": 3,
+          "firstKnown": 3,
+          "knownAt": 4,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E3"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F3",
+          "start": 3,
+          "end": 4,
+          "firstKnown": 4,
+          "knownAt": null,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E4"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 100,
+            "range": [
+              100,
+              102
+            ]
+          }
+        }
+      ],
+      "closed": [],
+      "tail": {
+        "start": 0,
+        "end": 4,
+        "eventIds": [
+          "D57-E1",
+          "D57-E2",
+          "D57-E3",
+          "D57-E4"
+        ]
+      },
+      "terminal": {
+        "tag": "AwaitPair",
+        "c": 0,
+        "s": 0,
+        "core": [
+          100,
+          102
+        ]
+      }
+    },
+    {
+      "n": 5,
+      "quotes": [
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 102
+        }
+      ],
+      "flows": [
+        {
+          "flowId": "D59-main16:F0",
+          "start": 0,
+          "end": 1,
+          "firstKnown": 1,
+          "knownAt": 2,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E1"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F1",
+          "start": 1,
+          "end": 2,
+          "firstKnown": 2,
+          "knownAt": 3,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E2"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 100,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F2",
+          "start": 2,
+          "end": 3,
+          "firstKnown": 3,
+          "knownAt": 4,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E3"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F3",
+          "start": 3,
+          "end": 5,
+          "firstKnown": 4,
+          "knownAt": null,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E4",
+            "D57-E5"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 1,
+            "range": [
+              1,
+              102
+            ]
+          }
+        }
+      ],
+      "closed": [],
+      "tail": {
+        "start": 0,
+        "end": 5,
+        "eventIds": [
+          "D57-E1",
+          "D57-E2",
+          "D57-E3",
+          "D57-E4",
+          "D57-E5"
+        ]
+      },
+      "terminal": {
+        "tag": "AwaitPair",
+        "c": 0,
+        "s": 0,
+        "core": [
+          100,
+          102
+        ]
+      }
+    },
+    {
+      "n": 6,
+      "quotes": [
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        }
+      ],
+      "flows": [
+        {
+          "flowId": "D59-main16:F0",
+          "start": 0,
+          "end": 1,
+          "firstKnown": 1,
+          "knownAt": 2,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E1"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F1",
+          "start": 1,
+          "end": 2,
+          "firstKnown": 2,
+          "knownAt": 3,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E2"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 100,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F2",
+          "start": 2,
+          "end": 3,
+          "firstKnown": 3,
+          "knownAt": 4,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E3"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F3",
+          "start": 3,
+          "end": 6,
+          "firstKnown": 4,
+          "knownAt": null,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 1,
+            "range": [
+              1,
+              102
+            ]
+          }
+        }
+      ],
+      "closed": [],
+      "tail": {
+        "start": 0,
+        "end": 6,
+        "eventIds": [
+          "D57-E1",
+          "D57-E2",
+          "D57-E3",
+          "D57-E4",
+          "D57-E5",
+          "D57-E6"
+        ]
+      },
+      "terminal": {
+        "tag": "AwaitPair",
+        "c": 0,
+        "s": 0,
+        "core": [
+          100,
+          102
+        ]
+      }
+    },
+    {
+      "n": 7,
+      "quotes": [
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 2,
+          "ask": 99
+        }
+      ],
+      "flows": [
+        {
+          "flowId": "D59-main16:F0",
+          "start": 0,
+          "end": 1,
+          "firstKnown": 1,
+          "knownAt": 2,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E1"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F1",
+          "start": 1,
+          "end": 2,
+          "firstKnown": 2,
+          "knownAt": 3,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E2"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 100,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F2",
+          "start": 2,
+          "end": 3,
+          "firstKnown": 3,
+          "knownAt": 4,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E3"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F3",
+          "start": 3,
+          "end": 6,
+          "firstKnown": 4,
+          "knownAt": 7,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 1,
+            "range": [
+              1,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F4",
+          "start": 6,
+          "end": 7,
+          "firstKnown": 7,
+          "knownAt": null,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E7"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 99,
+            "range": [
+              1,
+              99
+            ]
+          }
+        }
+      ],
+      "closed": [],
+      "tail": {
+        "start": 0,
+        "end": 7,
+        "eventIds": [
+          "D57-E1",
+          "D57-E2",
+          "D57-E3",
+          "D57-E4",
+          "D57-E5",
+          "D57-E6",
+          "D57-E7"
+        ]
+      },
+      "terminal": {
+        "tag": "AwaitPair",
+        "c": 0,
+        "s": 0,
+        "core": [
+          100,
+          102
+        ]
+      }
+    },
+    {
+      "n": 8,
+      "quotes": [
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 2,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        }
+      ],
+      "flows": [
+        {
+          "flowId": "D59-main16:F0",
+          "start": 0,
+          "end": 1,
+          "firstKnown": 1,
+          "knownAt": 2,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E1"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F1",
+          "start": 1,
+          "end": 2,
+          "firstKnown": 2,
+          "knownAt": 3,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E2"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 100,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F2",
+          "start": 2,
+          "end": 3,
+          "firstKnown": 3,
+          "knownAt": 4,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E3"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F3",
+          "start": 3,
+          "end": 6,
+          "firstKnown": 4,
+          "knownAt": 7,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 1,
+            "range": [
+              1,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F4",
+          "start": 6,
+          "end": 7,
+          "firstKnown": 7,
+          "knownAt": 8,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E7"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 99,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F5",
+          "start": 7,
+          "end": 8,
+          "firstKnown": 8,
+          "knownAt": null,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E8"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 99,
+            "endValue": 1,
+            "range": [
+              1,
+              99
+            ]
+          }
+        }
+      ],
+      "closed": [
+        {
+          "id": "D59-main16:K0",
+          "instanceKey": {
+            "version": "D54-direct-v1",
+            "sourceNamespace": "D59-main16",
+            "cycle": 0,
+            "seedFlowIds": [
+              "D59-main16:F0",
+              "D59-main16:F1",
+              "D59-main16:F2"
+            ]
+          },
+          "start": 0,
+          "end": 6,
+          "seed": [
+            0,
+            1,
+            2
+          ],
+          "core": [
+            100,
+            102
+          ],
+          "H": [
+            0,
+            1,
+            2
+          ],
+          "M": [
+            0,
+            1,
+            2
+          ],
+          "contact": [],
+          "L": 3,
+          "R": 4,
+          "side": -1,
+          "releasedFromDevelopment": [],
+          "departureWasInDevelopment": false,
+          "departureIsCoreMember": false,
+          "departureEvents": [
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "seedEnd": 3,
+          "seedKnownAt": 4,
+          "relationshipPublishedAt": 8,
+          "memberEvents": [
+            "D57-E1",
+            "D57-E2",
+            "D57-E3"
+          ],
+          "memberOuter": [
+            100,
+            102
+          ],
+          "developmentOuter": [
+            100,
+            102
+          ],
+          "wholeOuter": [
+            1,
+            102
+          ],
+          "ownedEvents": [
+            "D57-E1",
+            "D57-E2",
+            "D57-E3",
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "confirmationEvent": "D57-E8",
+          "RownedEvents": [
+            "D57-E7"
+          ],
+          "sourceCut": 6,
+          "modelKind": "Closed0/P0",
+          "originalP": null,
+          "originalBreak": null,
+          "originalLevel": null,
+          "wholeF1": null,
+          "fixedF2": null,
+          "connectorIdentity": null,
+          "semanticEligibleAt": null,
+          "L56windows": [
+            {
+              "legs": [
+                0,
+                1,
+                2
+              ],
+              "J": [
+                100,
+                102
+              ],
+              "positive": true,
+              "touchesCore": true
+            },
+            {
+              "legs": [
+                1,
+                2,
+                3
+              ],
+              "J": [
+                100,
+                102
+              ],
+              "positive": true,
+              "touchesCore": true
+            }
+          ]
+        }
+      ],
+      "tail": {
+        "start": 6,
+        "end": 8,
+        "eventIds": [
+          "D57-E7",
+          "D57-E8"
+        ]
+      },
+      "terminal": {
+        "tag": "NoCore",
+        "c": 4,
+        "s": 4,
+        "core": null
+      }
+    },
+    {
+      "n": 9,
+      "quotes": [
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 2,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        }
+      ],
+      "flows": [
+        {
+          "flowId": "D59-main16:F0",
+          "start": 0,
+          "end": 1,
+          "firstKnown": 1,
+          "knownAt": 2,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E1"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F1",
+          "start": 1,
+          "end": 2,
+          "firstKnown": 2,
+          "knownAt": 3,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E2"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 100,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F2",
+          "start": 2,
+          "end": 3,
+          "firstKnown": 3,
+          "knownAt": 4,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E3"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F3",
+          "start": 3,
+          "end": 6,
+          "firstKnown": 4,
+          "knownAt": 7,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 1,
+            "range": [
+              1,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F4",
+          "start": 6,
+          "end": 7,
+          "firstKnown": 7,
+          "knownAt": 8,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E7"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 99,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F5",
+          "start": 7,
+          "end": 9,
+          "firstKnown": 8,
+          "knownAt": null,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E8",
+            "D59-E9"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 99,
+            "endValue": 1,
+            "range": [
+              1,
+              99
+            ]
+          }
+        }
+      ],
+      "closed": [
+        {
+          "id": "D59-main16:K0",
+          "instanceKey": {
+            "version": "D54-direct-v1",
+            "sourceNamespace": "D59-main16",
+            "cycle": 0,
+            "seedFlowIds": [
+              "D59-main16:F0",
+              "D59-main16:F1",
+              "D59-main16:F2"
+            ]
+          },
+          "start": 0,
+          "end": 6,
+          "seed": [
+            0,
+            1,
+            2
+          ],
+          "core": [
+            100,
+            102
+          ],
+          "H": [
+            0,
+            1,
+            2
+          ],
+          "M": [
+            0,
+            1,
+            2
+          ],
+          "contact": [],
+          "L": 3,
+          "R": 4,
+          "side": -1,
+          "releasedFromDevelopment": [],
+          "departureWasInDevelopment": false,
+          "departureIsCoreMember": false,
+          "departureEvents": [
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "seedEnd": 3,
+          "seedKnownAt": 4,
+          "relationshipPublishedAt": 8,
+          "memberEvents": [
+            "D57-E1",
+            "D57-E2",
+            "D57-E3"
+          ],
+          "memberOuter": [
+            100,
+            102
+          ],
+          "developmentOuter": [
+            100,
+            102
+          ],
+          "wholeOuter": [
+            1,
+            102
+          ],
+          "ownedEvents": [
+            "D57-E1",
+            "D57-E2",
+            "D57-E3",
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "confirmationEvent": "D57-E8",
+          "RownedEvents": [
+            "D57-E7"
+          ],
+          "sourceCut": 6,
+          "modelKind": "Closed0/P0",
+          "originalP": null,
+          "originalBreak": null,
+          "originalLevel": null,
+          "wholeF1": null,
+          "fixedF2": null,
+          "connectorIdentity": null,
+          "semanticEligibleAt": null,
+          "L56windows": [
+            {
+              "legs": [
+                0,
+                1,
+                2
+              ],
+              "J": [
+                100,
+                102
+              ],
+              "positive": true,
+              "touchesCore": true
+            },
+            {
+              "legs": [
+                1,
+                2,
+                3
+              ],
+              "J": [
+                100,
+                102
+              ],
+              "positive": true,
+              "touchesCore": true
+            }
+          ]
+        }
+      ],
+      "tail": {
+        "start": 6,
+        "end": 9,
+        "eventIds": [
+          "D57-E7",
+          "D57-E8",
+          "D59-E9"
+        ]
+      },
+      "terminal": {
+        "tag": "NoCore",
+        "c": 4,
+        "s": 4,
+        "core": null
+      }
+    },
+    {
+      "n": 10,
+      "quotes": [
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 2,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 3,
+          "ask": 99
+        }
+      ],
+      "flows": [
+        {
+          "flowId": "D59-main16:F0",
+          "start": 0,
+          "end": 1,
+          "firstKnown": 1,
+          "knownAt": 2,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E1"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F1",
+          "start": 1,
+          "end": 2,
+          "firstKnown": 2,
+          "knownAt": 3,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E2"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 100,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F2",
+          "start": 2,
+          "end": 3,
+          "firstKnown": 3,
+          "knownAt": 4,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E3"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F3",
+          "start": 3,
+          "end": 6,
+          "firstKnown": 4,
+          "knownAt": 7,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 1,
+            "range": [
+              1,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F4",
+          "start": 6,
+          "end": 7,
+          "firstKnown": 7,
+          "knownAt": 8,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E7"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 99,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F5",
+          "start": 7,
+          "end": 9,
+          "firstKnown": 8,
+          "knownAt": 10,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E8",
+            "D59-E9"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 99,
+            "endValue": 1,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F6",
+          "start": 9,
+          "end": 10,
+          "firstKnown": 10,
+          "knownAt": null,
+          "pressure": 1,
+          "eventIds": [
+            "D59-E10"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 99,
+            "range": [
+              1,
+              99
+            ]
+          }
+        }
+      ],
+      "closed": [
+        {
+          "id": "D59-main16:K0",
+          "instanceKey": {
+            "version": "D54-direct-v1",
+            "sourceNamespace": "D59-main16",
+            "cycle": 0,
+            "seedFlowIds": [
+              "D59-main16:F0",
+              "D59-main16:F1",
+              "D59-main16:F2"
+            ]
+          },
+          "start": 0,
+          "end": 6,
+          "seed": [
+            0,
+            1,
+            2
+          ],
+          "core": [
+            100,
+            102
+          ],
+          "H": [
+            0,
+            1,
+            2
+          ],
+          "M": [
+            0,
+            1,
+            2
+          ],
+          "contact": [],
+          "L": 3,
+          "R": 4,
+          "side": -1,
+          "releasedFromDevelopment": [],
+          "departureWasInDevelopment": false,
+          "departureIsCoreMember": false,
+          "departureEvents": [
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "seedEnd": 3,
+          "seedKnownAt": 4,
+          "relationshipPublishedAt": 8,
+          "memberEvents": [
+            "D57-E1",
+            "D57-E2",
+            "D57-E3"
+          ],
+          "memberOuter": [
+            100,
+            102
+          ],
+          "developmentOuter": [
+            100,
+            102
+          ],
+          "wholeOuter": [
+            1,
+            102
+          ],
+          "ownedEvents": [
+            "D57-E1",
+            "D57-E2",
+            "D57-E3",
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "confirmationEvent": "D57-E8",
+          "RownedEvents": [
+            "D57-E7"
+          ],
+          "sourceCut": 6,
+          "modelKind": "Closed0/P0",
+          "originalP": null,
+          "originalBreak": null,
+          "originalLevel": null,
+          "wholeF1": null,
+          "fixedF2": null,
+          "connectorIdentity": null,
+          "semanticEligibleAt": null,
+          "L56windows": [
+            {
+              "legs": [
+                0,
+                1,
+                2
+              ],
+              "J": [
+                100,
+                102
+              ],
+              "positive": true,
+              "touchesCore": true
+            },
+            {
+              "legs": [
+                1,
+                2,
+                3
+              ],
+              "J": [
+                100,
+                102
+              ],
+              "positive": true,
+              "touchesCore": true
+            }
+          ]
+        }
+      ],
+      "tail": {
+        "start": 6,
+        "end": 10,
+        "eventIds": [
+          "D57-E7",
+          "D57-E8",
+          "D59-E9",
+          "D59-E10"
+        ]
+      },
+      "terminal": {
+        "tag": "NoCore",
+        "c": 4,
+        "s": 4,
+        "core": null
+      }
+    },
+    {
+      "n": 11,
+      "quotes": [
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 2,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 3,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        }
+      ],
+      "flows": [
+        {
+          "flowId": "D59-main16:F0",
+          "start": 0,
+          "end": 1,
+          "firstKnown": 1,
+          "knownAt": 2,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E1"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F1",
+          "start": 1,
+          "end": 2,
+          "firstKnown": 2,
+          "knownAt": 3,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E2"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 100,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F2",
+          "start": 2,
+          "end": 3,
+          "firstKnown": 3,
+          "knownAt": 4,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E3"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F3",
+          "start": 3,
+          "end": 6,
+          "firstKnown": 4,
+          "knownAt": 7,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 1,
+            "range": [
+              1,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F4",
+          "start": 6,
+          "end": 7,
+          "firstKnown": 7,
+          "knownAt": 8,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E7"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 99,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F5",
+          "start": 7,
+          "end": 9,
+          "firstKnown": 8,
+          "knownAt": 10,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E8",
+            "D59-E9"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 99,
+            "endValue": 1,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F6",
+          "start": 9,
+          "end": 10,
+          "firstKnown": 10,
+          "knownAt": 11,
+          "pressure": 1,
+          "eventIds": [
+            "D59-E10"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 99,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F7",
+          "start": 10,
+          "end": 11,
+          "firstKnown": 11,
+          "knownAt": null,
+          "pressure": -1,
+          "eventIds": [
+            "D59-E11"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 99,
+            "endValue": 1,
+            "range": [
+              1,
+              99
+            ]
+          }
+        }
+      ],
+      "closed": [
+        {
+          "id": "D59-main16:K0",
+          "instanceKey": {
+            "version": "D54-direct-v1",
+            "sourceNamespace": "D59-main16",
+            "cycle": 0,
+            "seedFlowIds": [
+              "D59-main16:F0",
+              "D59-main16:F1",
+              "D59-main16:F2"
+            ]
+          },
+          "start": 0,
+          "end": 6,
+          "seed": [
+            0,
+            1,
+            2
+          ],
+          "core": [
+            100,
+            102
+          ],
+          "H": [
+            0,
+            1,
+            2
+          ],
+          "M": [
+            0,
+            1,
+            2
+          ],
+          "contact": [],
+          "L": 3,
+          "R": 4,
+          "side": -1,
+          "releasedFromDevelopment": [],
+          "departureWasInDevelopment": false,
+          "departureIsCoreMember": false,
+          "departureEvents": [
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "seedEnd": 3,
+          "seedKnownAt": 4,
+          "relationshipPublishedAt": 8,
+          "memberEvents": [
+            "D57-E1",
+            "D57-E2",
+            "D57-E3"
+          ],
+          "memberOuter": [
+            100,
+            102
+          ],
+          "developmentOuter": [
+            100,
+            102
+          ],
+          "wholeOuter": [
+            1,
+            102
+          ],
+          "ownedEvents": [
+            "D57-E1",
+            "D57-E2",
+            "D57-E3",
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "confirmationEvent": "D57-E8",
+          "RownedEvents": [
+            "D57-E7"
+          ],
+          "sourceCut": 6,
+          "modelKind": "Closed0/P0",
+          "originalP": null,
+          "originalBreak": null,
+          "originalLevel": null,
+          "wholeF1": null,
+          "fixedF2": null,
+          "connectorIdentity": null,
+          "semanticEligibleAt": null,
+          "L56windows": [
+            {
+              "legs": [
+                0,
+                1,
+                2
+              ],
+              "J": [
+                100,
+                102
+              ],
+              "positive": true,
+              "touchesCore": true
+            },
+            {
+              "legs": [
+                1,
+                2,
+                3
+              ],
+              "J": [
+                100,
+                102
+              ],
+              "positive": true,
+              "touchesCore": true
+            }
+          ]
+        }
+      ],
+      "tail": {
+        "start": 6,
+        "end": 11,
+        "eventIds": [
+          "D57-E7",
+          "D57-E8",
+          "D59-E9",
+          "D59-E10",
+          "D59-E11"
+        ]
+      },
+      "terminal": {
+        "tag": "AwaitPair",
+        "c": 4,
+        "s": 4,
+        "core": [
+          1,
+          99
+        ]
+      }
+    },
+    {
+      "n": 12,
+      "quotes": [
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 2,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 3,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 102
+        }
+      ],
+      "flows": [
+        {
+          "flowId": "D59-main16:F0",
+          "start": 0,
+          "end": 1,
+          "firstKnown": 1,
+          "knownAt": 2,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E1"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F1",
+          "start": 1,
+          "end": 2,
+          "firstKnown": 2,
+          "knownAt": 3,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E2"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 100,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F2",
+          "start": 2,
+          "end": 3,
+          "firstKnown": 3,
+          "knownAt": 4,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E3"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F3",
+          "start": 3,
+          "end": 6,
+          "firstKnown": 4,
+          "knownAt": 7,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 1,
+            "range": [
+              1,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F4",
+          "start": 6,
+          "end": 7,
+          "firstKnown": 7,
+          "knownAt": 8,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E7"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 99,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F5",
+          "start": 7,
+          "end": 9,
+          "firstKnown": 8,
+          "knownAt": 10,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E8",
+            "D59-E9"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 99,
+            "endValue": 1,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F6",
+          "start": 9,
+          "end": 10,
+          "firstKnown": 10,
+          "knownAt": 11,
+          "pressure": 1,
+          "eventIds": [
+            "D59-E10"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 99,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F7",
+          "start": 10,
+          "end": 11,
+          "firstKnown": 11,
+          "knownAt": 12,
+          "pressure": -1,
+          "eventIds": [
+            "D59-E11"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 99,
+            "endValue": 1,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F8",
+          "start": 11,
+          "end": 12,
+          "firstKnown": 12,
+          "knownAt": null,
+          "pressure": 1,
+          "eventIds": [
+            "D59-E12"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 102,
+            "range": [
+              1,
+              102
+            ]
+          }
+        }
+      ],
+      "closed": [
+        {
+          "id": "D59-main16:K0",
+          "instanceKey": {
+            "version": "D54-direct-v1",
+            "sourceNamespace": "D59-main16",
+            "cycle": 0,
+            "seedFlowIds": [
+              "D59-main16:F0",
+              "D59-main16:F1",
+              "D59-main16:F2"
+            ]
+          },
+          "start": 0,
+          "end": 6,
+          "seed": [
+            0,
+            1,
+            2
+          ],
+          "core": [
+            100,
+            102
+          ],
+          "H": [
+            0,
+            1,
+            2
+          ],
+          "M": [
+            0,
+            1,
+            2
+          ],
+          "contact": [],
+          "L": 3,
+          "R": 4,
+          "side": -1,
+          "releasedFromDevelopment": [],
+          "departureWasInDevelopment": false,
+          "departureIsCoreMember": false,
+          "departureEvents": [
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "seedEnd": 3,
+          "seedKnownAt": 4,
+          "relationshipPublishedAt": 8,
+          "memberEvents": [
+            "D57-E1",
+            "D57-E2",
+            "D57-E3"
+          ],
+          "memberOuter": [
+            100,
+            102
+          ],
+          "developmentOuter": [
+            100,
+            102
+          ],
+          "wholeOuter": [
+            1,
+            102
+          ],
+          "ownedEvents": [
+            "D57-E1",
+            "D57-E2",
+            "D57-E3",
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "confirmationEvent": "D57-E8",
+          "RownedEvents": [
+            "D57-E7"
+          ],
+          "sourceCut": 6,
+          "modelKind": "Closed0/P0",
+          "originalP": null,
+          "originalBreak": null,
+          "originalLevel": null,
+          "wholeF1": null,
+          "fixedF2": null,
+          "connectorIdentity": null,
+          "semanticEligibleAt": null,
+          "L56windows": [
+            {
+              "legs": [
+                0,
+                1,
+                2
+              ],
+              "J": [
+                100,
+                102
+              ],
+              "positive": true,
+              "touchesCore": true
+            },
+            {
+              "legs": [
+                1,
+                2,
+                3
+              ],
+              "J": [
+                100,
+                102
+              ],
+              "positive": true,
+              "touchesCore": true
+            }
+          ]
+        }
+      ],
+      "tail": {
+        "start": 6,
+        "end": 12,
+        "eventIds": [
+          "D57-E7",
+          "D57-E8",
+          "D59-E9",
+          "D59-E10",
+          "D59-E11",
+          "D59-E12"
+        ]
+      },
+      "terminal": {
+        "tag": "AwaitPair",
+        "c": 4,
+        "s": 4,
+        "core": [
+          1,
+          99
+        ]
+      }
+    },
+    {
+      "n": 13,
+      "quotes": [
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 2,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 3,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 110
+        }
+      ],
+      "flows": [
+        {
+          "flowId": "D59-main16:F0",
+          "start": 0,
+          "end": 1,
+          "firstKnown": 1,
+          "knownAt": 2,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E1"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F1",
+          "start": 1,
+          "end": 2,
+          "firstKnown": 2,
+          "knownAt": 3,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E2"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 100,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F2",
+          "start": 2,
+          "end": 3,
+          "firstKnown": 3,
+          "knownAt": 4,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E3"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F3",
+          "start": 3,
+          "end": 6,
+          "firstKnown": 4,
+          "knownAt": 7,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 1,
+            "range": [
+              1,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F4",
+          "start": 6,
+          "end": 7,
+          "firstKnown": 7,
+          "knownAt": 8,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E7"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 99,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F5",
+          "start": 7,
+          "end": 9,
+          "firstKnown": 8,
+          "knownAt": 10,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E8",
+            "D59-E9"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 99,
+            "endValue": 1,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F6",
+          "start": 9,
+          "end": 10,
+          "firstKnown": 10,
+          "knownAt": 11,
+          "pressure": 1,
+          "eventIds": [
+            "D59-E10"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 99,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F7",
+          "start": 10,
+          "end": 11,
+          "firstKnown": 11,
+          "knownAt": 12,
+          "pressure": -1,
+          "eventIds": [
+            "D59-E11"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 99,
+            "endValue": 1,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F8",
+          "start": 11,
+          "end": 13,
+          "firstKnown": 12,
+          "knownAt": null,
+          "pressure": 1,
+          "eventIds": [
+            "D59-E12",
+            "D59-E13"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 110,
+            "range": [
+              1,
+              110
+            ]
+          }
+        }
+      ],
+      "closed": [
+        {
+          "id": "D59-main16:K0",
+          "instanceKey": {
+            "version": "D54-direct-v1",
+            "sourceNamespace": "D59-main16",
+            "cycle": 0,
+            "seedFlowIds": [
+              "D59-main16:F0",
+              "D59-main16:F1",
+              "D59-main16:F2"
+            ]
+          },
+          "start": 0,
+          "end": 6,
+          "seed": [
+            0,
+            1,
+            2
+          ],
+          "core": [
+            100,
+            102
+          ],
+          "H": [
+            0,
+            1,
+            2
+          ],
+          "M": [
+            0,
+            1,
+            2
+          ],
+          "contact": [],
+          "L": 3,
+          "R": 4,
+          "side": -1,
+          "releasedFromDevelopment": [],
+          "departureWasInDevelopment": false,
+          "departureIsCoreMember": false,
+          "departureEvents": [
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "seedEnd": 3,
+          "seedKnownAt": 4,
+          "relationshipPublishedAt": 8,
+          "memberEvents": [
+            "D57-E1",
+            "D57-E2",
+            "D57-E3"
+          ],
+          "memberOuter": [
+            100,
+            102
+          ],
+          "developmentOuter": [
+            100,
+            102
+          ],
+          "wholeOuter": [
+            1,
+            102
+          ],
+          "ownedEvents": [
+            "D57-E1",
+            "D57-E2",
+            "D57-E3",
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "confirmationEvent": "D57-E8",
+          "RownedEvents": [
+            "D57-E7"
+          ],
+          "sourceCut": 6,
+          "modelKind": "Closed0/P0",
+          "originalP": null,
+          "originalBreak": null,
+          "originalLevel": null,
+          "wholeF1": null,
+          "fixedF2": null,
+          "connectorIdentity": null,
+          "semanticEligibleAt": null,
+          "L56windows": [
+            {
+              "legs": [
+                0,
+                1,
+                2
+              ],
+              "J": [
+                100,
+                102
+              ],
+              "positive": true,
+              "touchesCore": true
+            },
+            {
+              "legs": [
+                1,
+                2,
+                3
+              ],
+              "J": [
+                100,
+                102
+              ],
+              "positive": true,
+              "touchesCore": true
+            }
+          ]
+        }
+      ],
+      "tail": {
+        "start": 6,
+        "end": 13,
+        "eventIds": [
+          "D57-E7",
+          "D57-E8",
+          "D59-E9",
+          "D59-E10",
+          "D59-E11",
+          "D59-E12",
+          "D59-E13"
+        ]
+      },
+      "terminal": {
+        "tag": "AwaitPair",
+        "c": 4,
+        "s": 4,
+        "core": [
+          1,
+          99
+        ]
+      }
+    },
+    {
+      "n": 14,
+      "quotes": [
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 2,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 3,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 110
+        },
+        {
+          "bid": 103,
+          "ask": 110
+        }
+      ],
+      "flows": [
+        {
+          "flowId": "D59-main16:F0",
+          "start": 0,
+          "end": 1,
+          "firstKnown": 1,
+          "knownAt": 2,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E1"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F1",
+          "start": 1,
+          "end": 2,
+          "firstKnown": 2,
+          "knownAt": 3,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E2"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 100,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F2",
+          "start": 2,
+          "end": 3,
+          "firstKnown": 3,
+          "knownAt": 4,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E3"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F3",
+          "start": 3,
+          "end": 6,
+          "firstKnown": 4,
+          "knownAt": 7,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 1,
+            "range": [
+              1,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F4",
+          "start": 6,
+          "end": 7,
+          "firstKnown": 7,
+          "knownAt": 8,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E7"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 99,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F5",
+          "start": 7,
+          "end": 9,
+          "firstKnown": 8,
+          "knownAt": 10,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E8",
+            "D59-E9"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 99,
+            "endValue": 1,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F6",
+          "start": 9,
+          "end": 10,
+          "firstKnown": 10,
+          "knownAt": 11,
+          "pressure": 1,
+          "eventIds": [
+            "D59-E10"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 99,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F7",
+          "start": 10,
+          "end": 11,
+          "firstKnown": 11,
+          "knownAt": 12,
+          "pressure": -1,
+          "eventIds": [
+            "D59-E11"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 99,
+            "endValue": 1,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F8",
+          "start": 11,
+          "end": 14,
+          "firstKnown": 12,
+          "knownAt": null,
+          "pressure": 1,
+          "eventIds": [
+            "D59-E12",
+            "D59-E13",
+            "D59-E14"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 110,
+            "range": [
+              1,
+              110
+            ]
+          }
+        }
+      ],
+      "closed": [
+        {
+          "id": "D59-main16:K0",
+          "instanceKey": {
+            "version": "D54-direct-v1",
+            "sourceNamespace": "D59-main16",
+            "cycle": 0,
+            "seedFlowIds": [
+              "D59-main16:F0",
+              "D59-main16:F1",
+              "D59-main16:F2"
+            ]
+          },
+          "start": 0,
+          "end": 6,
+          "seed": [
+            0,
+            1,
+            2
+          ],
+          "core": [
+            100,
+            102
+          ],
+          "H": [
+            0,
+            1,
+            2
+          ],
+          "M": [
+            0,
+            1,
+            2
+          ],
+          "contact": [],
+          "L": 3,
+          "R": 4,
+          "side": -1,
+          "releasedFromDevelopment": [],
+          "departureWasInDevelopment": false,
+          "departureIsCoreMember": false,
+          "departureEvents": [
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "seedEnd": 3,
+          "seedKnownAt": 4,
+          "relationshipPublishedAt": 8,
+          "memberEvents": [
+            "D57-E1",
+            "D57-E2",
+            "D57-E3"
+          ],
+          "memberOuter": [
+            100,
+            102
+          ],
+          "developmentOuter": [
+            100,
+            102
+          ],
+          "wholeOuter": [
+            1,
+            102
+          ],
+          "ownedEvents": [
+            "D57-E1",
+            "D57-E2",
+            "D57-E3",
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "confirmationEvent": "D57-E8",
+          "RownedEvents": [
+            "D57-E7"
+          ],
+          "sourceCut": 6,
+          "modelKind": "Closed0/P0",
+          "originalP": null,
+          "originalBreak": null,
+          "originalLevel": null,
+          "wholeF1": null,
+          "fixedF2": null,
+          "connectorIdentity": null,
+          "semanticEligibleAt": null,
+          "L56windows": [
+            {
+              "legs": [
+                0,
+                1,
+                2
+              ],
+              "J": [
+                100,
+                102
+              ],
+              "positive": true,
+              "touchesCore": true
+            },
+            {
+              "legs": [
+                1,
+                2,
+                3
+              ],
+              "J": [
+                100,
+                102
+              ],
+              "positive": true,
+              "touchesCore": true
+            }
+          ]
+        }
+      ],
+      "tail": {
+        "start": 6,
+        "end": 14,
+        "eventIds": [
+          "D57-E7",
+          "D57-E8",
+          "D59-E9",
+          "D59-E10",
+          "D59-E11",
+          "D59-E12",
+          "D59-E13",
+          "D59-E14"
+        ]
+      },
+      "terminal": {
+        "tag": "AwaitPair",
+        "c": 4,
+        "s": 4,
+        "core": [
+          1,
+          99
+        ]
+      }
+    },
+    {
+      "n": 15,
+      "quotes": [
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 2,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 3,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 110
+        },
+        {
+          "bid": 103,
+          "ask": 110
+        },
+        {
+          "bid": 103,
+          "ask": 109
+        }
+      ],
+      "flows": [
+        {
+          "flowId": "D59-main16:F0",
+          "start": 0,
+          "end": 1,
+          "firstKnown": 1,
+          "knownAt": 2,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E1"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F1",
+          "start": 1,
+          "end": 2,
+          "firstKnown": 2,
+          "knownAt": 3,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E2"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 100,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F2",
+          "start": 2,
+          "end": 3,
+          "firstKnown": 3,
+          "knownAt": 4,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E3"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F3",
+          "start": 3,
+          "end": 6,
+          "firstKnown": 4,
+          "knownAt": 7,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 1,
+            "range": [
+              1,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F4",
+          "start": 6,
+          "end": 7,
+          "firstKnown": 7,
+          "knownAt": 8,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E7"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 99,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F5",
+          "start": 7,
+          "end": 9,
+          "firstKnown": 8,
+          "knownAt": 10,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E8",
+            "D59-E9"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 99,
+            "endValue": 1,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F6",
+          "start": 9,
+          "end": 10,
+          "firstKnown": 10,
+          "knownAt": 11,
+          "pressure": 1,
+          "eventIds": [
+            "D59-E10"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 99,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F7",
+          "start": 10,
+          "end": 11,
+          "firstKnown": 11,
+          "knownAt": 12,
+          "pressure": -1,
+          "eventIds": [
+            "D59-E11"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 99,
+            "endValue": 1,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F8",
+          "start": 11,
+          "end": 14,
+          "firstKnown": 12,
+          "knownAt": 15,
+          "pressure": 1,
+          "eventIds": [
+            "D59-E12",
+            "D59-E13",
+            "D59-E14"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 110,
+            "range": [
+              1,
+              110
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F9",
+          "start": 14,
+          "end": 15,
+          "firstKnown": 15,
+          "knownAt": null,
+          "pressure": -1,
+          "eventIds": [
+            "D59-E15"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 110,
+            "endValue": 103,
+            "range": [
+              103,
+              110
+            ]
+          }
+        }
+      ],
+      "closed": [
+        {
+          "id": "D59-main16:K0",
+          "instanceKey": {
+            "version": "D54-direct-v1",
+            "sourceNamespace": "D59-main16",
+            "cycle": 0,
+            "seedFlowIds": [
+              "D59-main16:F0",
+              "D59-main16:F1",
+              "D59-main16:F2"
+            ]
+          },
+          "start": 0,
+          "end": 6,
+          "seed": [
+            0,
+            1,
+            2
+          ],
+          "core": [
+            100,
+            102
+          ],
+          "H": [
+            0,
+            1,
+            2
+          ],
+          "M": [
+            0,
+            1,
+            2
+          ],
+          "contact": [],
+          "L": 3,
+          "R": 4,
+          "side": -1,
+          "releasedFromDevelopment": [],
+          "departureWasInDevelopment": false,
+          "departureIsCoreMember": false,
+          "departureEvents": [
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "seedEnd": 3,
+          "seedKnownAt": 4,
+          "relationshipPublishedAt": 8,
+          "memberEvents": [
+            "D57-E1",
+            "D57-E2",
+            "D57-E3"
+          ],
+          "memberOuter": [
+            100,
+            102
+          ],
+          "developmentOuter": [
+            100,
+            102
+          ],
+          "wholeOuter": [
+            1,
+            102
+          ],
+          "ownedEvents": [
+            "D57-E1",
+            "D57-E2",
+            "D57-E3",
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "confirmationEvent": "D57-E8",
+          "RownedEvents": [
+            "D57-E7"
+          ],
+          "sourceCut": 6,
+          "modelKind": "Closed0/P0",
+          "originalP": null,
+          "originalBreak": null,
+          "originalLevel": null,
+          "wholeF1": null,
+          "fixedF2": null,
+          "connectorIdentity": null,
+          "semanticEligibleAt": null,
+          "L56windows": [
+            {
+              "legs": [
+                0,
+                1,
+                2
+              ],
+              "J": [
+                100,
+                102
+              ],
+              "positive": true,
+              "touchesCore": true
+            },
+            {
+              "legs": [
+                1,
+                2,
+                3
+              ],
+              "J": [
+                100,
+                102
+              ],
+              "positive": true,
+              "touchesCore": true
+            }
+          ]
+        }
+      ],
+      "tail": {
+        "start": 6,
+        "end": 15,
+        "eventIds": [
+          "D57-E7",
+          "D57-E8",
+          "D59-E9",
+          "D59-E10",
+          "D59-E11",
+          "D59-E12",
+          "D59-E13",
+          "D59-E14",
+          "D59-E15"
+        ]
+      },
+      "terminal": {
+        "tag": "AwaitPair",
+        "c": 4,
+        "s": 4,
+        "core": [
+          1,
+          99
+        ]
+      }
+    },
+    {
+      "n": 16,
+      "quotes": [
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 101,
+          "ask": 102
+        },
+        {
+          "bid": 100,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 2,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 3,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 99
+        },
+        {
+          "bid": 1,
+          "ask": 102
+        },
+        {
+          "bid": 1,
+          "ask": 110
+        },
+        {
+          "bid": 103,
+          "ask": 110
+        },
+        {
+          "bid": 103,
+          "ask": 109
+        },
+        {
+          "bid": 104,
+          "ask": 109
+        }
+      ],
+      "flows": [
+        {
+          "flowId": "D59-main16:F0",
+          "start": 0,
+          "end": 1,
+          "firstKnown": 1,
+          "knownAt": 2,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E1"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F1",
+          "start": 1,
+          "end": 2,
+          "firstKnown": 2,
+          "knownAt": 3,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E2"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 100,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F2",
+          "start": 2,
+          "end": 3,
+          "firstKnown": 3,
+          "knownAt": 4,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E3"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 100,
+            "endValue": 102,
+            "range": [
+              100,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F3",
+          "start": 3,
+          "end": 6,
+          "firstKnown": 4,
+          "knownAt": 7,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 102,
+            "endValue": 1,
+            "range": [
+              1,
+              102
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F4",
+          "start": 6,
+          "end": 7,
+          "firstKnown": 7,
+          "knownAt": 8,
+          "pressure": 1,
+          "eventIds": [
+            "D57-E7"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 99,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F5",
+          "start": 7,
+          "end": 9,
+          "firstKnown": 8,
+          "knownAt": 10,
+          "pressure": -1,
+          "eventIds": [
+            "D57-E8",
+            "D59-E9"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 99,
+            "endValue": 1,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F6",
+          "start": 9,
+          "end": 10,
+          "firstKnown": 10,
+          "knownAt": 11,
+          "pressure": 1,
+          "eventIds": [
+            "D59-E10"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 99,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F7",
+          "start": 10,
+          "end": 11,
+          "firstKnown": 11,
+          "knownAt": 12,
+          "pressure": -1,
+          "eventIds": [
+            "D59-E11"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 99,
+            "endValue": 1,
+            "range": [
+              1,
+              99
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F8",
+          "start": 11,
+          "end": 14,
+          "firstKnown": 12,
+          "knownAt": 15,
+          "pressure": 1,
+          "eventIds": [
+            "D59-E12",
+            "D59-E13",
+            "D59-E14"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 1,
+            "endValue": 110,
+            "range": [
+              1,
+              110
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F9",
+          "start": 14,
+          "end": 15,
+          "firstKnown": 15,
+          "knownAt": 16,
+          "pressure": -1,
+          "eventIds": [
+            "D59-E15"
+          ],
+          "geometry": {
+            "direction": -1,
+            "startValue": 110,
+            "endValue": 103,
+            "range": [
+              103,
+              110
+            ]
+          }
+        },
+        {
+          "flowId": "D59-main16:F10",
+          "start": 15,
+          "end": 16,
+          "firstKnown": 16,
+          "knownAt": null,
+          "pressure": 1,
+          "eventIds": [
+            "D59-E16"
+          ],
+          "geometry": {
+            "direction": 1,
+            "startValue": 103,
+            "endValue": 109,
+            "range": [
+              103,
+              109
+            ]
+          }
+        }
+      ],
+      "closed": [
+        {
+          "id": "D59-main16:K0",
+          "instanceKey": {
+            "version": "D54-direct-v1",
+            "sourceNamespace": "D59-main16",
+            "cycle": 0,
+            "seedFlowIds": [
+              "D59-main16:F0",
+              "D59-main16:F1",
+              "D59-main16:F2"
+            ]
+          },
+          "start": 0,
+          "end": 6,
+          "seed": [
+            0,
+            1,
+            2
+          ],
+          "core": [
+            100,
+            102
+          ],
+          "H": [
+            0,
+            1,
+            2
+          ],
+          "M": [
+            0,
+            1,
+            2
+          ],
+          "contact": [],
+          "L": 3,
+          "R": 4,
+          "side": -1,
+          "releasedFromDevelopment": [],
+          "departureWasInDevelopment": false,
+          "departureIsCoreMember": false,
+          "departureEvents": [
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "seedEnd": 3,
+          "seedKnownAt": 4,
+          "relationshipPublishedAt": 8,
+          "memberEvents": [
+            "D57-E1",
+            "D57-E2",
+            "D57-E3"
+          ],
+          "memberOuter": [
+            100,
+            102
+          ],
+          "developmentOuter": [
+            100,
+            102
+          ],
+          "wholeOuter": [
+            1,
+            102
+          ],
+          "ownedEvents": [
+            "D57-E1",
+            "D57-E2",
+            "D57-E3",
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "confirmationEvent": "D57-E8",
+          "RownedEvents": [
+            "D57-E7"
+          ],
+          "sourceCut": 6,
+          "modelKind": "Closed0/P0",
+          "originalP": null,
+          "originalBreak": null,
+          "originalLevel": null,
+          "wholeF1": null,
+          "fixedF2": null,
+          "connectorIdentity": null,
+          "semanticEligibleAt": null,
+          "L56windows": [
+            {
+              "legs": [
+                0,
+                1,
+                2
+              ],
+              "J": [
+                100,
+                102
+              ],
+              "positive": true,
+              "touchesCore": true
+            },
+            {
+              "legs": [
+                1,
+                2,
+                3
+              ],
+              "J": [
+                100,
+                102
+              ],
+              "positive": true,
+              "touchesCore": true
+            }
+          ]
+        },
+        {
+          "id": "D59-main16:K1",
+          "instanceKey": {
+            "version": "D54-direct-v1",
+            "sourceNamespace": "D59-main16",
+            "cycle": 1,
+            "seedFlowIds": [
+              "D59-main16:F4",
+              "D59-main16:F5",
+              "D59-main16:F6"
+            ]
+          },
+          "start": 6,
+          "end": 14,
+          "seed": [
+            4,
+            5,
+            6
+          ],
+          "core": [
+            1,
+            99
+          ],
+          "H": [
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "M": [
+            4,
+            5,
+            6,
+            7
+          ],
+          "contact": [
+            {
+              "L": 7,
+              "R": 8,
+              "knownAt": 15
+            }
+          ],
+          "L": 8,
+          "R": 9,
+          "side": 1,
+          "releasedFromDevelopment": [
+            8
+          ],
+          "departureWasInDevelopment": true,
+          "departureIsCoreMember": false,
+          "departureEvents": [
+            "D59-E12",
+            "D59-E13",
+            "D59-E14"
+          ],
+          "seedEnd": 10,
+          "seedKnownAt": 11,
+          "relationshipPublishedAt": 16,
+          "memberEvents": [
+            "D57-E7",
+            "D57-E8",
+            "D59-E9",
+            "D59-E10",
+            "D59-E11"
+          ],
+          "memberOuter": [
+            1,
+            99
+          ],
+          "developmentOuter": [
+            1,
+            110
+          ],
+          "wholeOuter": [
+            1,
+            110
+          ],
+          "ownedEvents": [
+            "D57-E7",
+            "D57-E8",
+            "D59-E9",
+            "D59-E10",
+            "D59-E11",
+            "D59-E12",
+            "D59-E13",
+            "D59-E14"
+          ],
+          "confirmationEvent": "D59-E16",
+          "RownedEvents": [
+            "D59-E15"
+          ],
+          "sourceCut": 14,
+          "modelKind": "Closed0/P0",
+          "originalP": null,
+          "originalBreak": null,
+          "originalLevel": null,
+          "wholeF1": null,
+          "fixedF2": null,
+          "connectorIdentity": null,
+          "semanticEligibleAt": null,
+          "L56windows": [
+            {
+              "legs": [
+                4,
+                5,
+                6
+              ],
+              "J": [
+                1,
+                99
+              ],
+              "positive": true,
+              "touchesCore": true
+            },
+            {
+              "legs": [
+                5,
+                6,
+                7
+              ],
+              "J": [
+                1,
+                99
+              ],
+              "positive": true,
+              "touchesCore": true
+            },
+            {
+              "legs": [
+                6,
+                7,
+                8
+              ],
+              "J": [
+                1,
+                99
+              ],
+              "positive": true,
+              "touchesCore": true
+            }
+          ]
+        }
+      ],
+      "tail": {
+        "start": 14,
+        "end": 16,
+        "eventIds": [
+          "D59-E15",
+          "D59-E16"
+        ]
+      },
+      "terminal": {
+        "tag": "NoCore",
+        "c": 9,
+        "s": 9,
+        "core": null
+      }
+    }
+  ],
+  "returnControl": {
+    "input": {
+      "schema": "stage59-order-control-v1",
+      "id": "D59-return16",
+      "initial": {
+        "bids": [
+          {
+            "id": "b100",
+            "price": 100
+          },
+          {
+            "id": "b1",
+            "price": 1
+          }
+        ],
+        "asks": [
+          {
+            "id": "a102",
+            "price": 102
+          }
+        ]
+      },
+      "events": [
+        {
+          "id": "D57-E1",
+          "action": "add",
+          "side": "bid",
+          "orderId": "b101a",
+          "price": 101
+        },
+        {
+          "id": "D57-E2",
+          "action": "cancel",
+          "side": "bid",
+          "orderId": "b101a",
+          "price": 101
+        },
+        {
+          "id": "D57-E3",
+          "action": "add",
+          "side": "bid",
+          "orderId": "b101b",
+          "price": 101
+        },
+        {
+          "id": "D57-E4",
+          "action": "cancel",
+          "side": "bid",
+          "orderId": "b101b",
+          "price": 101
+        },
+        {
+          "id": "D57-E5",
+          "action": "cancel",
+          "side": "bid",
+          "orderId": "b100",
+          "price": 100
+        },
+        {
+          "id": "D57-E6",
+          "action": "add",
+          "side": "ask",
+          "orderId": "a99",
+          "price": 99
+        },
+        {
+          "id": "D57-E7",
+          "action": "add",
+          "side": "bid",
+          "orderId": "b2",
+          "price": 2
+        },
+        {
+          "id": "D57-E8",
+          "action": "cancel",
+          "side": "bid",
+          "orderId": "b2",
+          "price": 2
+        },
+        {
+          "id": "D59-E9",
+          "action": "add",
+          "side": "ask",
+          "orderId": "s59-a110",
+          "price": 110
+        },
+        {
+          "id": "D59-E10",
+          "action": "add",
+          "side": "bid",
+          "orderId": "s59-b3",
+          "price": 3
+        },
+        {
+          "id": "D59-E11",
+          "action": "cancel",
+          "side": "bid",
+          "orderId": "s59-b3",
+          "price": 3
+        },
+        {
+          "id": "D59-E12",
+          "action": "cancel",
+          "side": "ask",
+          "orderId": "a99",
+          "price": 99
+        },
+        {
+          "id": "D59-E13",
+          "action": "cancel",
+          "side": "ask",
+          "orderId": "a102",
+          "price": 102
+        },
+        {
+          "id": "D59-E14",
+          "action": "add",
+          "side": "bid",
+          "orderId": "s59-b103",
+          "price": 103
+        },
+        {
+          "id": "D59-return-E15",
+          "action": "cancel",
+          "side": "bid",
+          "orderId": "s59-b103",
+          "price": 103
+        },
+        {
+          "id": "D59-return-E16",
+          "action": "add",
+          "side": "bid",
+          "orderId": "s59-b104",
+          "price": 104
+        }
+      ],
+      "basePrefix": "D57-main8",
+      "scope": "同原Step、Reads、全程双边有效整数域的合成延伸；无市场资格主张；非原义完成证书"
+    },
+    "quotes": [
+      {
+        "bid": 100,
+        "ask": 102
+      },
+      {
+        "bid": 101,
+        "ask": 102
+      },
+      {
+        "bid": 100,
+        "ask": 102
+      },
+      {
+        "bid": 101,
+        "ask": 102
+      },
+      {
+        "bid": 100,
+        "ask": 102
+      },
+      {
+        "bid": 1,
+        "ask": 102
+      },
+      {
+        "bid": 1,
+        "ask": 99
+      },
+      {
+        "bid": 2,
+        "ask": 99
+      },
+      {
+        "bid": 1,
+        "ask": 99
+      },
+      {
+        "bid": 1,
+        "ask": 99
+      },
+      {
+        "bid": 3,
+        "ask": 99
+      },
+      {
+        "bid": 1,
+        "ask": 99
+      },
+      {
+        "bid": 1,
+        "ask": 102
+      },
+      {
+        "bid": 1,
+        "ask": 110
+      },
+      {
+        "bid": 103,
+        "ask": 110
+      },
+      {
+        "bid": 1,
+        "ask": 110
+      },
+      {
+        "bid": 104,
+        "ask": 110
+      }
+    ],
+    "flows": [
+      {
+        "flowId": "D59-return16:F0",
+        "start": 0,
+        "end": 1,
+        "firstKnown": 1,
+        "knownAt": 2,
+        "pressure": 1,
+        "eventIds": [
+          "D57-E1"
+        ],
+        "geometry": {
+          "direction": 1,
+          "startValue": 100,
+          "endValue": 102,
+          "range": [
+            100,
+            102
+          ]
+        }
+      },
+      {
+        "flowId": "D59-return16:F1",
+        "start": 1,
+        "end": 2,
+        "firstKnown": 2,
+        "knownAt": 3,
+        "pressure": -1,
+        "eventIds": [
+          "D57-E2"
+        ],
+        "geometry": {
+          "direction": -1,
+          "startValue": 102,
+          "endValue": 100,
+          "range": [
+            100,
+            102
+          ]
+        }
+      },
+      {
+        "flowId": "D59-return16:F2",
+        "start": 2,
+        "end": 3,
+        "firstKnown": 3,
+        "knownAt": 4,
+        "pressure": 1,
+        "eventIds": [
+          "D57-E3"
+        ],
+        "geometry": {
+          "direction": 1,
+          "startValue": 100,
+          "endValue": 102,
+          "range": [
+            100,
+            102
+          ]
+        }
+      },
+      {
+        "flowId": "D59-return16:F3",
+        "start": 3,
+        "end": 6,
+        "firstKnown": 4,
+        "knownAt": 7,
+        "pressure": -1,
+        "eventIds": [
+          "D57-E4",
+          "D57-E5",
+          "D57-E6"
+        ],
+        "geometry": {
+          "direction": -1,
+          "startValue": 102,
+          "endValue": 1,
+          "range": [
+            1,
+            102
+          ]
+        }
+      },
+      {
+        "flowId": "D59-return16:F4",
+        "start": 6,
+        "end": 7,
+        "firstKnown": 7,
+        "knownAt": 8,
+        "pressure": 1,
+        "eventIds": [
+          "D57-E7"
+        ],
+        "geometry": {
+          "direction": 1,
+          "startValue": 1,
+          "endValue": 99,
+          "range": [
+            1,
+            99
+          ]
+        }
+      },
+      {
+        "flowId": "D59-return16:F5",
+        "start": 7,
+        "end": 9,
+        "firstKnown": 8,
+        "knownAt": 10,
+        "pressure": -1,
+        "eventIds": [
+          "D57-E8",
+          "D59-E9"
+        ],
+        "geometry": {
+          "direction": -1,
+          "startValue": 99,
+          "endValue": 1,
+          "range": [
+            1,
+            99
+          ]
+        }
+      },
+      {
+        "flowId": "D59-return16:F6",
+        "start": 9,
+        "end": 10,
+        "firstKnown": 10,
+        "knownAt": 11,
+        "pressure": 1,
+        "eventIds": [
+          "D59-E10"
+        ],
+        "geometry": {
+          "direction": 1,
+          "startValue": 1,
+          "endValue": 99,
+          "range": [
+            1,
+            99
+          ]
+        }
+      },
+      {
+        "flowId": "D59-return16:F7",
+        "start": 10,
+        "end": 11,
+        "firstKnown": 11,
+        "knownAt": 12,
+        "pressure": -1,
+        "eventIds": [
+          "D59-E11"
+        ],
+        "geometry": {
+          "direction": -1,
+          "startValue": 99,
+          "endValue": 1,
+          "range": [
+            1,
+            99
+          ]
+        }
+      },
+      {
+        "flowId": "D59-return16:F8",
+        "start": 11,
+        "end": 14,
+        "firstKnown": 12,
+        "knownAt": 15,
+        "pressure": 1,
+        "eventIds": [
+          "D59-E12",
+          "D59-E13",
+          "D59-E14"
+        ],
+        "geometry": {
+          "direction": 1,
+          "startValue": 1,
+          "endValue": 110,
+          "range": [
+            1,
+            110
+          ]
+        }
+      },
+      {
+        "flowId": "D59-return16:F9",
+        "start": 14,
+        "end": 15,
+        "firstKnown": 15,
+        "knownAt": 16,
+        "pressure": -1,
+        "eventIds": [
+          "D59-return-E15"
+        ],
+        "geometry": {
+          "direction": -1,
+          "startValue": 110,
+          "endValue": 1,
+          "range": [
+            1,
+            110
+          ]
+        }
+      },
+      {
+        "flowId": "D59-return16:F10",
+        "start": 15,
+        "end": 16,
+        "firstKnown": 16,
+        "knownAt": null,
+        "pressure": 1,
+        "eventIds": [
+          "D59-return-E16"
+        ],
+        "geometry": {
+          "direction": 1,
+          "startValue": 1,
+          "endValue": 110,
+          "range": [
+            1,
+            110
+          ]
+        }
+      }
+    ],
+    "relation": {
+      "domain": "all-quotes-ready",
+      "outputs": [
+        {
+          "id": "D59-return16:K0",
+          "instanceKey": {
+            "version": "D54-direct-v1",
+            "sourceNamespace": "D59-return16",
+            "cycle": 0,
+            "seedFlowIds": [
+              "D59-return16:F0",
+              "D59-return16:F1",
+              "D59-return16:F2"
+            ]
+          },
+          "start": 0,
+          "end": 6,
+          "seed": [
+            0,
+            1,
+            2
+          ],
+          "core": [
+            100,
+            102
+          ],
+          "H": [
+            0,
+            1,
+            2
+          ],
+          "M": [
+            0,
+            1,
+            2
+          ],
+          "contact": [],
+          "L": 3,
+          "R": 4,
+          "side": -1,
+          "releasedFromDevelopment": [],
+          "departureWasInDevelopment": false,
+          "departureIsCoreMember": false,
+          "departureEvents": [
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "seedEnd": 3,
+          "seedKnownAt": 4,
+          "relationshipPublishedAt": 8,
+          "memberEvents": [
+            "D57-E1",
+            "D57-E2",
+            "D57-E3"
+          ],
+          "memberOuter": [
+            100,
+            102
+          ],
+          "developmentOuter": [
+            100,
+            102
+          ],
+          "wholeOuter": [
+            1,
+            102
+          ],
+          "ownedEvents": [
+            "D57-E1",
+            "D57-E2",
+            "D57-E3",
+            "D57-E4",
+            "D57-E5",
+            "D57-E6"
+          ],
+          "confirmationEvent": "D57-E8",
+          "RownedEvents": [
+            "D57-E7"
+          ],
+          "sourceCut": 6,
+          "modelKind": "Closed0/P0",
+          "originalP": null,
+          "originalBreak": null,
+          "originalLevel": null,
+          "wholeF1": null,
+          "fixedF2": null,
+          "connectorIdentity": null,
+          "semanticEligibleAt": null,
+          "L56windows": [
+            {
+              "legs": [
+                0,
+                1,
+                2
+              ],
+              "J": [
+                100,
+                102
+              ],
+              "positive": true,
+              "touchesCore": true
+            },
+            {
+              "legs": [
+                1,
+                2,
+                3
+              ],
+              "J": [
+                100,
+                102
+              ],
+              "positive": true,
+              "touchesCore": true
+            }
+          ]
+        }
+      ],
+      "terminal": {
+        "tag": "AwaitPair",
+        "c": 4,
+        "s": 4,
+        "core": [
+          1,
+          99
+        ]
+      },
+      "tail": {
+        "start": 6,
+        "end": 16,
+        "eventIds": [
+          "D57-E7",
+          "D57-E8",
+          "D59-E9",
+          "D59-E10",
+          "D59-E11",
+          "D59-E12",
+          "D59-E13",
+          "D59-E14",
+          "D59-return-E15",
+          "D59-return-E16"
+        ]
+      }
+    }
+  }
+}

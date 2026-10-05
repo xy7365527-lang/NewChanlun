@@ -1,0 +1,398 @@
+{
+  "schema": "stage59-dynamics-development-check-v1",
+  "input": {
+    "path": ".chanlun/review-results/issue1467-f1-proof/stage58/admissibility-evidence/main8-model-v1.json",
+    "sha256": "29496ff42b670ffb625d78a44cd8357442934925abe61919b15542d456bc1e17"
+  },
+  "endAt": 6,
+  "knownAt": 8,
+  "quotes": [
+    [
+      100,
+      102
+    ],
+    [
+      101,
+      102
+    ],
+    [
+      100,
+      102
+    ],
+    [
+      101,
+      102
+    ],
+    [
+      100,
+      102
+    ],
+    [
+      1,
+      102
+    ],
+    [
+      1,
+      99
+    ],
+    [
+      2,
+      99
+    ],
+    [
+      1,
+      99
+    ]
+  ],
+  "crossing": [
+    {
+      "n": 4,
+      "spans": 10,
+      "ordered_nonoverlapping_pairs": 15,
+      "relaxed_crossing_spans": [
+        {
+          "lo": 0,
+          "hi": 3,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        },
+        {
+          "lo": 1,
+          "hi": 3,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        },
+        {
+          "lo": 2,
+          "hi": 3,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        },
+        {
+          "lo": 3,
+          "hi": 3,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        }
+      ],
+      "qualifying_pairs": 0,
+      "meaning": "whole at endAt 6"
+    },
+    {
+      "n": 5,
+      "spans": 15,
+      "ordered_nonoverlapping_pairs": 35,
+      "relaxed_crossing_spans": [
+        {
+          "lo": 0,
+          "hi": 3,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        },
+        {
+          "lo": 0,
+          "hi": 4,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        },
+        {
+          "lo": 1,
+          "hi": 3,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        },
+        {
+          "lo": 1,
+          "hi": 4,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        },
+        {
+          "lo": 2,
+          "hi": 3,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        },
+        {
+          "lo": 2,
+          "hi": 4,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        },
+        {
+          "lo": 3,
+          "hi": 3,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        },
+        {
+          "lo": 3,
+          "hi": 4,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        }
+      ],
+      "qualifying_pairs": 0,
+      "meaning": "sealed flows at knownAt 8"
+    },
+    {
+      "n": 6,
+      "spans": 21,
+      "ordered_nonoverlapping_pairs": 70,
+      "relaxed_crossing_spans": [
+        {
+          "lo": 0,
+          "hi": 3,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        },
+        {
+          "lo": 0,
+          "hi": 4,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        },
+        {
+          "lo": 0,
+          "hi": 5,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        },
+        {
+          "lo": 1,
+          "hi": 3,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        },
+        {
+          "lo": 1,
+          "hi": 4,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        },
+        {
+          "lo": 1,
+          "hi": 5,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        },
+        {
+          "lo": 2,
+          "hi": 3,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        },
+        {
+          "lo": 2,
+          "hi": 4,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        },
+        {
+          "lo": 2,
+          "hi": 5,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        },
+        {
+          "lo": 3,
+          "hi": 3,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        },
+        {
+          "lo": 3,
+          "hi": 4,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        },
+        {
+          "lo": 3,
+          "hi": 5,
+          "range": [
+            1,
+            102
+          ],
+          "crossNecessary": true
+        }
+      ],
+      "qualifying_pairs": 0,
+      "meaning": "relaxed geometry including active F5 at 8, not completed"
+    }
+  ],
+  "coefficient_controls": 625,
+  "timedControl": {
+    "displacements": [
+      2,
+      -1,
+      3,
+      -2,
+      4,
+      -1,
+      5
+    ],
+    "b": [
+      0,
+      2
+    ],
+    "c": [
+      4,
+      6
+    ],
+    "coefficients": [
+      "2",
+      "0",
+      "-3",
+      "0",
+      "-4",
+      "0",
+      "5"
+    ],
+    "status": "algebraic carrier only; no legal Chan atom or structural divergence qualification",
+    "classification": "flips",
+    "negative": {
+      "durations": [
+        "1/1",
+        "1/1",
+        "1/15",
+        "1/1",
+        "1/1",
+        "1/1",
+        "1/1"
+      ],
+      "clock": [
+        "0/1",
+        "1/1",
+        "2/1",
+        "31/15",
+        "46/15",
+        "61/15",
+        "76/15",
+        "91/15"
+      ],
+      "value": "-42/1",
+      "fixed_total_11_durations": [
+        "165/91",
+        "165/91",
+        "11/91",
+        "165/91",
+        "165/91",
+        "165/91",
+        "165/91"
+      ],
+      "fixed_total_value": "-1274/55"
+    },
+    "positive": {
+      "durations": [
+        "1/15",
+        "1/1",
+        "1/1",
+        "1/1",
+        "1/1",
+        "1/1",
+        "1/1"
+      ],
+      "clock": [
+        "0/1",
+        "1/15",
+        "16/15",
+        "31/15",
+        "46/15",
+        "61/15",
+        "76/15",
+        "91/15"
+      ],
+      "value": "28/1",
+      "fixed_total_11_durations": [
+        "11/91",
+        "165/91",
+        "165/91",
+        "165/91",
+        "165/91",
+        "165/91",
+        "165/91"
+      ],
+      "fixed_total_value": "2548/165"
+    }
+  },
+  "boundedControl": {
+    "minimum": "-5/3",
+    "maximum": "-1/2",
+    "robust_strict_weak": true
+  },
+  "tests": {
+    "zero_duration_rejected": true,
+    "singleton_coalescence": true,
+    "normalized_total_signs_checked": true
+  },
+  "evidence_status": "author exact finite self-check plus ordinary proof in report; not independent review or full original model proof"
+}

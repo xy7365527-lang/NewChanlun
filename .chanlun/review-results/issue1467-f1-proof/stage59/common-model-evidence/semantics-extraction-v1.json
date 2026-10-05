@@ -1,0 +1,8 @@
+{
+  "source": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/check-direct.mjs",
+  "sha256": "bdda545afc6649f94597c49af15d0ca0c7949bd1675151993587b1a1b5269e16",
+  "sliceStart": "const copy=",
+  "sliceEnd": "const results=[];",
+  "extractedBodySha256": "1a405b7a6b9918daac5ea0587bd5788e1232e67094a145ea8b516b82b4885a3a",
+  "notRun": "旧检查器未运行，旧results未写入；复制既有语义，仅新增控制"
+}

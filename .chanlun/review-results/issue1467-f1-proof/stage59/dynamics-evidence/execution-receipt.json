@@ -1,0 +1,13 @@
+{
+  "schema": "stage59-dynamics-author-run-v1",
+  "command": "node .chanlun/review-results/issue1467-f1-proof/stage59/dynamics-evidence/check.mjs",
+  "cwd": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun",
+  "node_version": "v22.23.1",
+  "exit_code": 0,
+  "stdout": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage59/dynamics/check-stdout.txt",
+  "status": "author self-check; independent review pending",
+  "no_market_replay": true,
+  "no_lean_run": true,
+  "no_production_change": true,
+  "stdout_sha256": "356d6cf3b149ed15e2f30016f823b6abbcae498740a131453373be4923face5f"
+}
