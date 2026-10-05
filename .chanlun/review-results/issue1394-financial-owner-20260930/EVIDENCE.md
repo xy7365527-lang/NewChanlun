@@ -159,3 +159,15 @@ S7 新增私有证书源成本为 `43 + 32 × (Public 根数 + Template 根数)`
 两请求旧池加workspace来源费用仍为425279813／425483331 B，低于同一536870912 B S7。源码聚合SHA `c8ead0d4167da9f6af7629cf916371b950e6f5d41f2a8611f012079a11628aa6`；服务SHA `98e4e61d707f98c0f25a80934f1bf654cc9b5dd4db754ef3edaf768fd5b16726`。结果、绑定、补丁和运行原件见 [NATIVE-SCAN-20261005.json](inputs/NATIVE-SCAN-20261005.json) 与 [原件包](inputs/NATIVE-SCAN-20261005-RAW.zip)。准备文件的pending是运行前快照，未覆盖它们。代码提交与Rust树登记在scan产物ROOT-RESULT，窗口ROOT-RESULT仅登记运行事实。
 
 未新增或执行故障注入、坏数据测试，未恢复取消的birth-only／candidate／wire重构。此增量没有消除跨请求重复核旧历史的增长成本，未重新启动完整9011；既有165 Received、166 DeliveryUnknown失败域保持。完整双跑、其余验收及整图goal仍未完成，前端#1460独立，未合入main或push。
+
+## 2026-10-05 SQLite pager 缺页定位与正常对照
+
+隔离提交 `ecd8371e8fe71f33d2af040d32c2aa3b1bacdfbe` 增加仅 Native TestOnly、显式诊断开启时生效的 pager 计数，以及连接会话内的可选缓存实验输入。默认不改缓存量。每个原 SQL、F、业务核验和事务边界保持；WAL、synchronous=FULL、macOS fullfsync、auto checkpoint均保持。独立静态审查通过，非test Native构建和feature-off检查通过；没有新增或执行故障测试。
+
+同一冻结服务在两个新 CopyQualified149 副本分别运行默认与256 MiB页缓存建议值，各完整收到150／151。默认连接实际 `cache_size=-2000`，耗时20.694023／19.834563417秒；实验显式 `S_NATIVE_SQLITE_CACHE_KIB=262144`，回读 `cache_size=-262144`，耗时17.691335209／17.030979916秒，单次下降14.51%／14.13%。两域的完整请求、回复、持久oracle和终态一致，源封条与绑定再核通过，服务、controller及socket全部回收；合并独立事实复核通过。独立窗口不拼接为正式重放。
+
+两版每请求的pager命中加缺页总数完全相同，分别为18910523／15809238。缺页从5736413／4917505降为500929／499846，减少91.27%／89.84%；事务中途溢写从30756／53012页降为0／0页。实际脏页写出从31208／53462降为24307／35909。统计是本连接的SQLite累计端点差，不是SSD实际读写量；计数没有复位，i32端点均非负单调，不外推为任意长运行无溢出。
+
+SQLite记录的pager当前近似用量在采样点最多为默认2116736 B、实验276057728 B。256 MiB是建议页缓存量，元数据及整个进程内存另算。进程截至最后采样的内核RSS高水位分别为2270969856／2588622848 B，后者多317652992 B；这不是Rust heap或该请求独立峰值。SQLite这些计数的highwater字段恒0，未被当成pager峰值。`cache_spill`查询的有效阈值从483变为63429，仍启用溢写，补丁没有写这个PRAGMA。S7仍为536870912 B的保留审计来源额度，两请求旧池加workspace仍为425279813／425483331 B；启动与请求仍为30秒。
+
+源码聚合SHA为 `86d44f8c22423ea3e7276d6a706fd84762c179ee08188135b995e1f73abb1fe1`，服务SHA为 `0e9cef4460f284d8fa8a60fae155bef11843714b459c239a5c9aabed2ff07bdf`，两域使用完全相同的非test产物。实验值、默认实测依据、脚本、绑定、计数、RSS和清理证据见 [SQLITE-PAGER-20261005.json](inputs/SQLITE-PAGER-20261005.json) 及 [原件包](inputs/SQLITE-PAGER-20261005-RAW.zip)。本结论仅是正常两请求的物理读取成本改善；逻辑历史增长未消除，完整9011、生产默认配置及整图完成均未获证明。未合入main或push。
