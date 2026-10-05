@@ -171,3 +171,21 @@ S7 新增私有证书源成本为 `43 + 32 × (Public 根数 + Template 根数)`
 SQLite记录的pager当前近似用量在采样点最多为默认2116736 B、实验276057728 B。256 MiB是建议页缓存量，元数据及整个进程内存另算。进程截至最后采样的内核RSS高水位分别为2270969856／2588622848 B，后者多317652992 B；这不是Rust heap或该请求独立峰值。SQLite这些计数的highwater字段恒0，未被当成pager峰值。`cache_spill`查询的有效阈值从483变为63429，仍启用溢写，补丁没有写这个PRAGMA。S7仍为536870912 B的保留审计来源额度，两请求旧池加workspace仍为425279813／425483331 B；启动与请求仍为30秒。
 
 源码聚合SHA为 `86d44f8c22423ea3e7276d6a706fd84762c179ee08188135b995e1f73abb1fe1`，服务SHA为 `0e9cef4460f284d8fa8a60fae155bef11843714b459c239a5c9aabed2ff07bdf`，两域使用完全相同的非test产物。实验值、默认实测依据、脚本、绑定、计数、RSS和清理证据见 [SQLITE-PAGER-20261005.json](inputs/SQLITE-PAGER-20261005.json) 及 [原件包](inputs/SQLITE-PAGER-20261005-RAW.zip)。本结论仅是正常两请求的物理读取成本改善；逻辑历史增长未消除，完整9011、生产默认配置及整图完成均未获证明。未合入main或push。
+
+## 2026-10-05 Counts 来源闭包体积测量
+
+隔离提交 `801f3904c6c7f73d06f2b5b2a09288d139f81e43` 只增加一项 Native、Unix、ignored 正常诊断，原文件前缀逐字不变，未修改缓存资格或生产路径。首次编译因报告JSON宏递归深度失败；拆为三个Map后全部50字段与值表达式保持，R4编译和增量独评通过，原失败记录保留。
+
+从已封存的256 MiB pager窗口151终态，仅按字节复制主库、WAL、SHM到新专属owner；WAL保留，未使用immutable模式。固定测试产物以READ_ONLY、query_only及只读事务完整审核151个cut，随后使用顶层字段导航和三份全新Verifier，统计objects、witnesses、observations闭包及去重union。未播种旧memo，未把共享展开的相邻差集冒充独立proof。精确一项正常测试通过，进程观察13.245708秒，其中完整审核12.050376秒、额外体积测量0.706780秒；这是离线测量，不能当作服务请求耗时。
+
+| 材料 | 唯一节点 | 正文字节与97B节点证书费用之和 |
+|---|---:|---:|
+| objects全闭包 | 547221 | 85888790 B |
+| witnesses全闭包 | 27340 | 4024729 B |
+| observations全闭包 | 4412 | 656833 B |
+| 顶层导航 | 5787 | 884091 B |
+| 上述去重union | 573916 | 89950830 B |
+
+完整capture为2375001节点，正文157406070 B、节点证书230375097 B、SQL绑定965410 B、Key/Counts44998 B、codec根证书2159915 B、frontier8 B，合计390951498 B。候选Counts材料以去重union加原SQL绑定、Key/Counts与frontier，合计90961246 B；相对含codec完整费用减少76.7334%，两边均去掉codec根证书后减少76.6041%。新持久依赖描述、完整proof接纳数仍为null；没有把原料低于512 MiB直接写成已可准入或所有9011可装下。
+
+独立事实复核通过。封存来源前后完整stat/SHA不变，新owner的主库/WAL字节不变，本次SHM也未改变；测试进程由同一Popen回收且PID消失。没有启动服务、发送请求或故障注入。源码聚合SHA为 `b699ab1f9f8acc78fee5a51ed46cede98c9fdf47b22cee63ad9c67f259b9ed98`，冻结test产物SHA为 `dc7ccc01d322cba907b00aa4fa1cdde00c045c74c7a656b03d459556e0821c07`。输入、证书、精确test列表、报告、费用重算和清理证据见 [COUNTS-FOOTPRINT-20261005.json](inputs/COUNTS-FOOTPRINT-20261005.json) 与 [原件包](inputs/COUNTS-FOOTPRINT-20261005-RAW.zip)。稀疏池尚未实装，正式完整双跑和整图仍未完成。
