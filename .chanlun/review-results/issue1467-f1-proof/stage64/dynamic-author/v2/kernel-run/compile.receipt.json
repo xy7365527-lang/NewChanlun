@@ -1,0 +1,24 @@
+{
+  "argv": [
+    "rustc",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/v2/f2_kernel_probe.rs",
+    "--edition=2021",
+    "-A",
+    "dead_code",
+    "-L",
+    "dependency=/tmp/nc1467-cargo-target/debug/deps",
+    "-L",
+    "native=/Users/silencehan/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib",
+    "-C",
+    "link-arg=-Wl,-rpath,/Users/silencehan/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib",
+    "--extern",
+    "newchan_rust=/tmp/nc1467-cargo-target/debug/deps/libnewchan_rust.rlib",
+    "--extern",
+    "serde_json=/tmp/nc1467-cargo-target/debug/deps/libserde_json-d8aa09aa6d50fe2e.rlib",
+    "-o",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/v2/kernel-run/kernel-probe"
+  ],
+  "status": 0,
+  "error": null,
+  "elapsed_ms": 172
+}

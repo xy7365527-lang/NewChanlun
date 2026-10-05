@@ -1,0 +1,20 @@
+{
+  "id": "V0",
+  "clause": "A64-035: completed trend iff next nucleus no longer same direction",
+  "completed_object": "X0",
+  "ended_at": 181,
+  "end_known_at": 198,
+  "last_core": "K1",
+  "last_outer": [
+    68000,
+    72000
+  ],
+  "next_core": "K2",
+  "next_outer": [
+    76000,
+    79200
+  ],
+  "next_core_known_at": 278,
+  "continues_same_direction": true,
+  "contradiction_first_known_at": 278
+}

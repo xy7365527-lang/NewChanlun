@@ -1,0 +1,1 @@
+{"actual_admitted_F2_inputs":0,"center":{"dd":38000,"end_index":541,"gg":82000,"start_index":1,"zd":40000,"zg":80000},"function":"center_from_segments","kernel_returns_some":true,"mode":"conditional kernel projection only","parent_completed":false,"semantic_F2_input_certified":false,"uses":"three complete-candidate whole ranges and technical Up/Down/Up"}

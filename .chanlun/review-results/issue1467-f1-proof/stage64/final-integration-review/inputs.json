@@ -1,0 +1,86 @@
+{
+  "reviewer": "/root/stage64_final_integration_review",
+  "time": "2026-10-05T15:51:35.364858+00:00",
+  "scope": "fresh C64v3 effective representation and adoption comparison only",
+  "path_resolution": "publication-causality/dynamics-causality-audit.json absent; actual frozen artifact dynamic-review/dynamics-causality-audit.json selected",
+  "inputs": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v3/input-lock.json",
+      "sha256": "4893723b2211ef656081a8d977ca31e4930b267e0c20931b174fe55dc322e5f6",
+      "expected": null,
+      "matches_expected": null
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v3/Report.md",
+      "sha256": "bb1bc43844824f69299d755a4a7b5c27aef6b31a6d20a21993956da39d8cd54c",
+      "expected": "bb1bc43844824f69299d755a4a7b5c27aef6b31a6d20a21993956da39d8cd54c",
+      "matches_expected": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v3/WorkCard.md",
+      "sha256": "7093945bea22ca2a141da97f2852b42c149b6fae9478e830e7fb4cce459c1171",
+      "expected": null,
+      "matches_expected": null
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v3/effective-check.mjs",
+      "sha256": "d7069b282d5303e1244538deba49d35e3b3c6e2381d33b22d92577f417c5857c",
+      "expected": null,
+      "matches_expected": null
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v3/manifest.json",
+      "sha256": "8c453feefeffdc67784fa8e57079cd2a8bec97a7b1886cd6b31da5b8e1ec2f51",
+      "expected": "8c453feefeffdc67784fa8e57079cd2a8bec97a7b1886cd6b31da5b8e1ec2f51",
+      "matches_expected": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v3/effective-result.json",
+      "sha256": "8c579ac39a8371b43d4c62468ae4cac8041f25a24b7ba91e211846a74de7649e",
+      "expected": null,
+      "matches_expected": null
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v3/effective.mjs",
+      "sha256": "72237f11751bd42c6cb4f6813ffe49d0652eec09f808667ee81c6bdf7020cf29",
+      "expected": null,
+      "matches_expected": null
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v2/Report.md",
+      "sha256": "9a3e4fcf3620437040fa6d6b0d541b0fbafc2b99cc4e7366bf5755fd9f802051",
+      "expected": null,
+      "matches_expected": null
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-rereview/review.md",
+      "sha256": "fabe122f7996aac2f0da439edbe999baeffb4511b57d4c8dd82ffadbf40de811",
+      "expected": null,
+      "matches_expected": null
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/adoption/ScopeCorrections-v1.md",
+      "sha256": "b5da8a8d96522f0d3c3255aaea6df30e3ef51dfc084dc2c6399b3cd5f2a472e9",
+      "expected": "b5da8a8d96522f0d3c3255aaea6df30e3ef51dfc084dc2c6399b3cd5f2a472e9",
+      "matches_expected": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-review/review.md",
+      "sha256": "44261d7f58cce104a5f82c19d70ac936237b192f6bab2919c4d28d36ae9ad3b4",
+      "expected": "44261d7f58cce104a5f82c19d70ac936237b192f6bab2919c4d28d36ae9ad3b4",
+      "matches_expected": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-review/dynamics-causality-audit.json",
+      "sha256": "a0506b75a121f2c523ac70f886b904d3d82f8bfe7c451e6c6eb48577ea3595e4",
+      "expected": null,
+      "matches_expected": null
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-review/publication-causality.json",
+      "sha256": "f34b9ed997929811d5b87242779f7be2cef399afdfa711b075bb7e260eb0549a",
+      "expected": null,
+      "matches_expected": null
+    }
+  ]
+}

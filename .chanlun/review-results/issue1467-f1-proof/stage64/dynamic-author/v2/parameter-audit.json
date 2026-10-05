@@ -1,0 +1,212 @@
+{
+  "pre_execution_correction": {
+    "file": "WorkCard-v2.md",
+    "sha256": "c9c08f85d69742aa4cc4c7315717d8730d30aac1767f720f418549c9e73e1af6",
+    "S13": {
+      "v1": {
+        "f": 3,
+        "l": 1
+      },
+      "before_first_execution_v2": {
+        "f": 3,
+        "l": 1.5
+      },
+      "H1_actual_row": [
+        78800,
+        77600,
+        78200,
+        58200,
+        58600,
+        58000
+      ],
+      "H2_actual_row": [
+        78800,
+        77600,
+        78200,
+        58200,
+        58600,
+        58000
+      ]
+    }
+  },
+  "H2_changed_rows_only": [
+    8,
+    26
+  ],
+  "H2_changed_observations": [
+    162,
+    163,
+    164,
+    165,
+    166,
+    167,
+    168,
+    169,
+    170,
+    171,
+    172,
+    522,
+    523,
+    524,
+    525,
+    526,
+    527,
+    528,
+    529,
+    530,
+    531,
+    532
+  ],
+  "force_source": {
+    "S4": {
+      "first": {
+        "end": 85,
+        "end_price": 50400,
+        "start": 81,
+        "start_price": 50000,
+        "up": true,
+        "pen": 20,
+        "start_time": 81,
+        "end_time": 85,
+        "v": 100.0
+      },
+      "last": {
+        "end": 101,
+        "end_price": 72000,
+        "start": 97,
+        "start_price": 70800,
+        "up": true,
+        "pen": 24,
+        "start_time": 97,
+        "end_time": 101,
+        "v": 300.0
+      },
+      "L": 200.0
+    },
+    "S8": {
+      "first": {
+        "end": 165,
+        "end_price": 69200,
+        "start": 161,
+        "start_price": 68800,
+        "up": true,
+        "pen": 40,
+        "start_time": 161,
+        "end_time": 165,
+        "v": 100.0
+      },
+      "last": {
+        "end": 181,
+        "end_price": 80000,
+        "start": 177,
+        "start_price": 79400,
+        "up": true,
+        "pen": 44,
+        "start_time": 177,
+        "end_time": 181,
+        "v": 150.0
+      },
+      "L": 50.0
+    },
+    "S13": {
+      "first": {
+        "end": 265,
+        "end_price": 77600,
+        "start": 261,
+        "start_price": 78800,
+        "up": false,
+        "pen": 65,
+        "start_time": 261,
+        "end_time": 265,
+        "v": -300.0
+      },
+      "last": {
+        "end": 281,
+        "end_price": 58000,
+        "start": 277,
+        "start_price": 58600,
+        "up": false,
+        "pen": 69,
+        "start_time": 277,
+        "end_time": 281,
+        "v": -150.0
+      },
+      "L": 150.0
+    },
+    "S17": {
+      "first": {
+        "end": 345,
+        "end_price": 60800,
+        "start": 341,
+        "start_price": 61200,
+        "up": false,
+        "pen": 85,
+        "start_time": 341,
+        "end_time": 345,
+        "v": -100.0
+      },
+      "last": {
+        "end": 361,
+        "end_price": 38000,
+        "start": 357,
+        "start_price": 39600,
+        "up": false,
+        "pen": 89,
+        "start_time": 357,
+        "end_time": 361,
+        "v": -400.0
+      },
+      "L": -300.0
+    },
+    "S22": {
+      "first": {
+        "end": 445,
+        "end_price": 41200,
+        "start": 441,
+        "start_price": 40800,
+        "up": true,
+        "pen": 110,
+        "start_time": 441,
+        "end_time": 445,
+        "v": 100.0
+      },
+      "last": {
+        "end": 461,
+        "end_price": 68000,
+        "start": 457,
+        "start_price": 66800,
+        "up": true,
+        "pen": 114,
+        "start_time": 457,
+        "end_time": 461,
+        "v": 300.0
+      },
+      "L": 200.0
+    },
+    "S26": {
+      "first": {
+        "end": 525,
+        "end_price": 65200,
+        "start": 521,
+        "start_price": 64800,
+        "up": true,
+        "pen": 130,
+        "start_time": 521,
+        "end_time": 525,
+        "v": 100.0
+      },
+      "last": {
+        "end": 541,
+        "end_price": 82000,
+        "start": 537,
+        "start_price": 81400,
+        "up": true,
+        "pen": 134,
+        "start_time": 537,
+        "end_time": 541,
+        "v": 150.0
+      },
+      "L": 50.0
+    }
+  }
+}

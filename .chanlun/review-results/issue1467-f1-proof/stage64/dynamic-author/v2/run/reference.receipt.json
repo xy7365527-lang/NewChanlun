@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/v2/run/reference-probe",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/v2/run/source.json"
+  ],
+  "status": 0,
+  "signal": null,
+  "error": null,
+  "elapsed_ms": 1264
+}

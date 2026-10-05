@@ -1,0 +1,72 @@
+{
+  "frozen_utc": "2026-10-05T15:47:29.297001+00:00",
+  "review_status": "finite_scope_accepted_with_adoption_scope_corrections",
+  "full_F1_or_joint_interpretation_approved": false,
+  "review": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-review/review.md",
+    "sha256": "44261d7f58cce104a5f82c19d70ac936237b192f6bab2919c4d28d36ae9ad3b4"
+  },
+  "manifest": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-review/SHA256SUMS-review",
+    "sha256": "fa13a178461753f906fcc96e7408392c6a82692212b6a62e30e68c9afa4cce0e",
+    "file_count": 28
+  },
+  "independent_result": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-review/independent-result.json",
+    "sha256": "c3fe176b7c2f233019a7ed53a83460dbaa3811c1c67192328a9f647353842be9"
+  },
+  "independent_script": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-review/independent_check.py",
+    "sha256": "e8eb57e8568b950b4078e4464f4b6df7555b7c3a27451e2c3baecab27cd02763"
+  },
+  "scope": {
+    "histories": 2,
+    "raw_events": 1164,
+    "all_prefix_R_W_comparisons": 1166,
+    "H1_failed_slots": [
+      7,
+      25
+    ],
+    "H1_EOF_pending_slot": 28,
+    "H2_selected_segments": 28,
+    "local_candidates": [
+      "U",
+      "D",
+      "U"
+    ],
+    "initial_cores": 6,
+    "first_joint_failure": 278,
+    "conditional_fixed_kernel_calls_verified": true,
+    "joint_admitted_F2_triples": 0,
+    "original_certified_F2_triples": 0,
+    "parent_completed": false
+  },
+  "required_adoption_corrections": [
+    {
+      "id": "R1",
+      "statement": "30 dynamics points are retrospective final-pen samples, each pen first appears one event later; no all-prefix causal L implementation certified. Existing endpoint publication trajectory is independently checked and does not require future information. Adopt scope correction only, no new model required for the finite findings."
+    },
+    {
+      "id": "R2",
+      "statement": "Pre-execution ordering is author process attestation plus current byte consistency, not independently proven preregistration."
+    }
+  ],
+  "publication_future_information_defect_found": false,
+  "endpoint_publication_prefixes_verified": [
+    118,
+    198,
+    298,
+    378,
+    478,
+    558
+  ],
+  "live_L_all_prefix_certified": false,
+  "original_sources_and_author_inputs_unchanged": true,
+  "commands_passed": [
+    "independent-check",
+    "kernel-compile",
+    "independent-kernel",
+    "author-binary-replay"
+  ],
+  "writes_confined_to": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-review"
+}

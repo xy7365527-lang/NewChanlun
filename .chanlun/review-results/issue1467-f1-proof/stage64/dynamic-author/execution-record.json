@@ -1,0 +1,39 @@
+{
+  "status": "author-complete; independent-review-pending",
+  "actual_histories": 2,
+  "new_market_samples": 0,
+  "H1": {
+    "command": "node check.mjs <fresh-absolute-output>",
+    "actual_output": "run-v2",
+    "exit_code": 0,
+    "meaning": "execution recorded frozen strict-segment rejection; candidate failed"
+  },
+  "H2": {
+    "command": "node v2/check.mjs <fresh-absolute-output>",
+    "actual_output": "v2/run",
+    "exit_code": 0,
+    "meaning": "local candidates generated; joint A64-global contradiction at 278"
+  },
+  "kernel": {
+    "command": "node v2/kernel_check.mjs",
+    "actual_output": "v2/kernel-run",
+    "compile_exit": 0,
+    "run_exit": 0,
+    "meaning": "unchanged kernel conditional projection Some; semantic admission remains 0"
+  },
+  "status_check": {
+    "command": "node v2/status_check.mjs",
+    "exit_code": 0
+  },
+  "H1_immutable_check": {
+    "command": "shasum -a 256 -c H1-SHA256SUMS",
+    "exit_code": 0,
+    "matched": 23
+  },
+  "repo_write_count": 0,
+  "formal_write_count": 0,
+  "production_write_count": 0,
+  "tracker_write_count": 0,
+  "independent_review_complete": false,
+  "relevant_memory_use": "Memory quick pass scoped prior setup vs substantive result; current evidence re-read and supersedes old status"
+}

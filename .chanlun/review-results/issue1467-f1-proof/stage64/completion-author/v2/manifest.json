@@ -1,0 +1,25 @@
+{
+  "status": "C64v2-author-frozen-awaiting-fresh-review",
+  "files": [
+    {
+      "path": "Report.md",
+      "sha256": "9a3e4fcf3620437040fa6d6b0d541b0fbafc2b99cc4e7366bf5755fd9f802051"
+    },
+    {
+      "path": "WorkCard.md",
+      "sha256": "3ad0d79573487ca683dda4ccd36b29cc9f219980ce3fd12823d7a174faa6f3c1"
+    },
+    {
+      "path": "input-lock.json",
+      "sha256": "2a01e7b517f1664c6376c36c725a9862d92e7622cde8e70be745eb44479c14cd"
+    },
+    {
+      "path": "scan-check.mjs",
+      "sha256": "57c8d8fc82d9dcf2e4abf00ec6c79c9adbabc423cefb02f4d806f04c6904b05c"
+    },
+    {
+      "path": "scan-result.json",
+      "sha256": "fe9ddc1e4bc332a7973e5302f8f74c15478c7616fdead21a816500d9dd267c1e"
+    }
+  ]
+}

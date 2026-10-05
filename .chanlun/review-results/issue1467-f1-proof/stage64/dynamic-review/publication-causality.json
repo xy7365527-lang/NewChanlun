@@ -1,0 +1,116 @@
+[
+  {
+    "c": "S4",
+    "publication_prefix": 118,
+    "all_b_c_pens_already_stable": true,
+    "checked_pen_indices": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      20,
+      21,
+      22,
+      23,
+      24
+    ],
+    "all_owned_cores_already_known": true,
+    "future_price_required": false
+  },
+  {
+    "c": "S8",
+    "publication_prefix": 198,
+    "all_b_c_pens_already_stable": true,
+    "checked_pen_indices": [
+      20,
+      21,
+      22,
+      23,
+      24,
+      40,
+      41,
+      42,
+      43,
+      44
+    ],
+    "all_owned_cores_already_known": true,
+    "future_price_required": false
+  },
+  {
+    "c": "S13",
+    "publication_prefix": 298,
+    "all_b_c_pens_already_stable": true,
+    "checked_pen_indices": [
+      45,
+      46,
+      47,
+      48,
+      49,
+      65,
+      66,
+      67,
+      68,
+      69
+    ],
+    "all_owned_cores_already_known": true,
+    "future_price_required": false
+  },
+  {
+    "c": "S17",
+    "publication_prefix": 378,
+    "all_b_c_pens_already_stable": true,
+    "checked_pen_indices": [
+      65,
+      66,
+      67,
+      68,
+      69,
+      85,
+      86,
+      87,
+      88,
+      89
+    ],
+    "all_owned_cores_already_known": true,
+    "future_price_required": false
+  },
+  {
+    "c": "S22",
+    "publication_prefix": 478,
+    "all_b_c_pens_already_stable": true,
+    "checked_pen_indices": [
+      90,
+      91,
+      92,
+      93,
+      94,
+      110,
+      111,
+      112,
+      113,
+      114
+    ],
+    "all_owned_cores_already_known": true,
+    "future_price_required": false
+  },
+  {
+    "c": "S26",
+    "publication_prefix": 558,
+    "all_b_c_pens_already_stable": true,
+    "checked_pen_indices": [
+      110,
+      111,
+      112,
+      113,
+      114,
+      130,
+      131,
+      132,
+      133,
+      134
+    ],
+    "all_owned_cores_already_known": true,
+    "future_price_required": false
+  }
+]

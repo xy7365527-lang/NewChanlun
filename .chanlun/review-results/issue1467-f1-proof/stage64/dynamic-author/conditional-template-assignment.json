@@ -1,0 +1,380 @@
+{
+  "status": "counterfactual arithmetic only; not a second F1 or changed gate",
+  "objects": [
+    {
+      "id": "X0",
+      "grade": 0,
+      "type": "U",
+      "own": [
+        2,
+        181
+      ],
+      "start": 1,
+      "end": 181,
+      "whole_range": [
+        40000,
+        80000
+      ],
+      "cores": [
+        "K0",
+        "K1"
+      ],
+      "members": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8"
+      ],
+      "segment_qualification": false,
+      "initial_outer_separation": true,
+      "b": "S4",
+      "c": "S8",
+      "Lb": 200,
+      "Lc": -50,
+      "strict_extreme": true,
+      "arithmetic_general_div_test": true,
+      "candidate_completed_if_all_structure_admitted": true,
+      "actual_completed": false,
+      "c_end_certificate_known_at": 198
+    },
+    {
+      "id": "X1",
+      "grade": 0,
+      "type": "D",
+      "own": [
+        182,
+        361
+      ],
+      "start": 181,
+      "end": 361,
+      "whole_range": [
+        38000,
+        80000
+      ],
+      "cores": [
+        "K2",
+        "K3"
+      ],
+      "members": [
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17"
+      ],
+      "segment_qualification": true,
+      "initial_outer_separation": true,
+      "b": "S13",
+      "c": "S17",
+      "Lb": 150,
+      "Lc": -300,
+      "strict_extreme": true,
+      "arithmetic_general_div_test": true,
+      "candidate_completed_if_all_structure_admitted": true,
+      "actual_completed": false,
+      "c_end_certificate_known_at": 378
+    },
+    {
+      "id": "X2",
+      "grade": 0,
+      "type": "U",
+      "own": [
+        362,
+        541
+      ],
+      "start": 361,
+      "end": 541,
+      "whole_range": [
+        38000,
+        82000
+      ],
+      "cores": [
+        "K4",
+        "K5"
+      ],
+      "members": [
+        "S18",
+        "S19",
+        "S20",
+        "S21",
+        "S22",
+        "S23",
+        "S24",
+        "S25",
+        "S26"
+      ],
+      "segment_qualification": false,
+      "initial_outer_separation": true,
+      "b": "S22",
+      "c": "S26",
+      "Lb": 200,
+      "Lc": -50,
+      "strict_extreme": true,
+      "arithmetic_general_div_test": true,
+      "candidate_completed_if_all_structure_admitted": true,
+      "actual_completed": false,
+      "c_end_certificate_known_at": 558
+    }
+  ],
+  "cores": [
+    {
+      "id": "K0",
+      "grade": 0,
+      "members": [
+        "S1",
+        "S2",
+        "S3"
+      ],
+      "member_own": [
+        22,
+        81
+      ],
+      "core": [
+        50000,
+        60000
+      ],
+      "initial_outer": [
+        48000,
+        64000
+      ],
+      "qualified": true,
+      "known_at": 98
+    },
+    {
+      "id": "K1",
+      "grade": 0,
+      "members": [
+        "S5",
+        "S6",
+        "S7"
+      ],
+      "member_own": [
+        102,
+        161
+      ],
+      "core": [
+        68800,
+        71200
+      ],
+      "initial_outer": [
+        68000,
+        72000
+      ],
+      "qualified": false,
+      "known_at": null
+    },
+    {
+      "id": "K2",
+      "grade": 0,
+      "members": [
+        "S10",
+        "S11",
+        "S12"
+      ],
+      "member_own": [
+        202,
+        261
+      ],
+      "core": [
+        76800,
+        78800
+      ],
+      "initial_outer": [
+        76000,
+        79200
+      ],
+      "qualified": true,
+      "known_at": 278
+    },
+    {
+      "id": "K3",
+      "grade": 0,
+      "members": [
+        "S14",
+        "S15",
+        "S16"
+      ],
+      "member_own": [
+        282,
+        341
+      ],
+      "core": [
+        59200,
+        61200
+      ],
+      "initial_outer": [
+        58000,
+        62000
+      ],
+      "qualified": true,
+      "known_at": 358
+    },
+    {
+      "id": "K4",
+      "grade": 0,
+      "members": [
+        "S19",
+        "S20",
+        "S21"
+      ],
+      "member_own": [
+        382,
+        441
+      ],
+      "core": [
+        40800,
+        44000
+      ],
+      "initial_outer": [
+        40000,
+        46000
+      ],
+      "qualified": true,
+      "known_at": 458
+    },
+    {
+      "id": "K5",
+      "grade": 0,
+      "members": [
+        "S23",
+        "S24",
+        "S25"
+      ],
+      "member_own": [
+        462,
+        521
+      ],
+      "core": [
+        64800,
+        67200
+      ],
+      "initial_outer": [
+        64000,
+        68000
+      ],
+      "qualified": false,
+      "known_at": null
+    }
+  ],
+  "first_single_core_tests": [
+    {
+      "object": "X0",
+      "candidate_P_force_a": 100,
+      "candidate_P_force_c": 200,
+      "strict_weakening": false
+    },
+    {
+      "object": "X1",
+      "candidate_P_force_a": -100,
+      "candidate_P_force_c": 150,
+      "strict_weakening": false
+    },
+    {
+      "object": "X2",
+      "candidate_P_force_a": 100,
+      "candidate_P_force_c": 200,
+      "strict_weakening": false
+    }
+  ],
+  "delta_c0_if_admitted": [
+    "X0",
+    "X1",
+    "X2"
+  ],
+  "source_next_if_admitted": [
+    [
+      "X0",
+      "X1"
+    ],
+    [
+      "X1",
+      "X2"
+    ]
+  ],
+  "NoPP_if_admitted": true,
+  "F2_if_admitted": {
+    "children": [
+      "X0",
+      "X1",
+      "X2"
+    ],
+    "whole_ranges": [
+      [
+        40000,
+        80000
+      ],
+      [
+        38000,
+        80000
+      ],
+      [
+        38000,
+        82000
+      ]
+    ],
+    "core": [
+      40000,
+      80000
+    ],
+    "strict_core": true,
+    "grade": 1,
+    "completed": false,
+    "admitted": false,
+    "actual_certified_input_count": 0
+  },
+  "global_successor_conditional_conflicts": [
+    {
+      "pair": [
+        "X0",
+        "X1"
+      ],
+      "global_catalog_successor": [
+        "K1",
+        "K2"
+      ],
+      "last_outer": [
+        68000,
+        72000
+      ],
+      "next_outer": [
+        76000,
+        79200
+      ],
+      "same_direction": true,
+      "source_implies_old_lifecycle_successor": false,
+      "actual_contradiction": false,
+      "conditional_incompatibility": "only if all slots admitted AND frozen global-catalog-successor inheritance A64 imposed; not an original Next theorem"
+    },
+    {
+      "pair": [
+        "X1",
+        "X2"
+      ],
+      "global_catalog_successor": [
+        "K3",
+        "K4"
+      ],
+      "last_outer": [
+        58000,
+        62000
+      ],
+      "next_outer": [
+        40000,
+        46000
+      ],
+      "same_direction": true,
+      "source_implies_old_lifecycle_successor": false,
+      "actual_contradiction": false,
+      "conditional_incompatibility": "only if all slots admitted AND frozen global-catalog-successor inheritance A64 imposed; not an original Next theorem"
+    }
+  ]
+}

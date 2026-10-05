@@ -1,0 +1,248 @@
+{
+  "retrospective_sample_count": 30,
+  "all_sample_values_match": true,
+  "all_prefix_live_L_implementation_delivered": false,
+  "scope": "Sample numbers verified; no causal continuous or every-prefix L(c,t) certificate. Published LocalDyn64 endpoint evaluations use already stable pens.",
+  "samples": [
+    {
+      "c": "S4",
+      "pen": 20,
+      "sample_event": 85,
+      "first_R_W_pen_visible_at": 86,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 118
+    },
+    {
+      "c": "S4",
+      "pen": 21,
+      "sample_event": 89,
+      "first_R_W_pen_visible_at": 90,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 118
+    },
+    {
+      "c": "S4",
+      "pen": 22,
+      "sample_event": 93,
+      "first_R_W_pen_visible_at": 94,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 118
+    },
+    {
+      "c": "S4",
+      "pen": 23,
+      "sample_event": 97,
+      "first_R_W_pen_visible_at": 98,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 118
+    },
+    {
+      "c": "S4",
+      "pen": 24,
+      "sample_event": 101,
+      "first_R_W_pen_visible_at": 102,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 118
+    },
+    {
+      "c": "S8",
+      "pen": 40,
+      "sample_event": 165,
+      "first_R_W_pen_visible_at": 166,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 198
+    },
+    {
+      "c": "S8",
+      "pen": 41,
+      "sample_event": 169,
+      "first_R_W_pen_visible_at": 170,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 198
+    },
+    {
+      "c": "S8",
+      "pen": 42,
+      "sample_event": 173,
+      "first_R_W_pen_visible_at": 174,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 198
+    },
+    {
+      "c": "S8",
+      "pen": 43,
+      "sample_event": 177,
+      "first_R_W_pen_visible_at": 178,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 198
+    },
+    {
+      "c": "S8",
+      "pen": 44,
+      "sample_event": 181,
+      "first_R_W_pen_visible_at": 182,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 198
+    },
+    {
+      "c": "S13",
+      "pen": 65,
+      "sample_event": 265,
+      "first_R_W_pen_visible_at": 266,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 298
+    },
+    {
+      "c": "S13",
+      "pen": 66,
+      "sample_event": 269,
+      "first_R_W_pen_visible_at": 270,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 298
+    },
+    {
+      "c": "S13",
+      "pen": 67,
+      "sample_event": 273,
+      "first_R_W_pen_visible_at": 274,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 298
+    },
+    {
+      "c": "S13",
+      "pen": 68,
+      "sample_event": 277,
+      "first_R_W_pen_visible_at": 278,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 298
+    },
+    {
+      "c": "S13",
+      "pen": 69,
+      "sample_event": 281,
+      "first_R_W_pen_visible_at": 282,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 298
+    },
+    {
+      "c": "S17",
+      "pen": 85,
+      "sample_event": 345,
+      "first_R_W_pen_visible_at": 346,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 378
+    },
+    {
+      "c": "S17",
+      "pen": 86,
+      "sample_event": 349,
+      "first_R_W_pen_visible_at": 350,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 378
+    },
+    {
+      "c": "S17",
+      "pen": 87,
+      "sample_event": 353,
+      "first_R_W_pen_visible_at": 354,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 378
+    },
+    {
+      "c": "S17",
+      "pen": 88,
+      "sample_event": 357,
+      "first_R_W_pen_visible_at": 358,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 378
+    },
+    {
+      "c": "S17",
+      "pen": 89,
+      "sample_event": 361,
+      "first_R_W_pen_visible_at": 362,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 378
+    },
+    {
+      "c": "S22",
+      "pen": 110,
+      "sample_event": 445,
+      "first_R_W_pen_visible_at": 446,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 478
+    },
+    {
+      "c": "S22",
+      "pen": 111,
+      "sample_event": 449,
+      "first_R_W_pen_visible_at": 450,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 478
+    },
+    {
+      "c": "S22",
+      "pen": 112,
+      "sample_event": 453,
+      "first_R_W_pen_visible_at": 454,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 478
+    },
+    {
+      "c": "S22",
+      "pen": 113,
+      "sample_event": 457,
+      "first_R_W_pen_visible_at": 458,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 478
+    },
+    {
+      "c": "S22",
+      "pen": 114,
+      "sample_event": 461,
+      "first_R_W_pen_visible_at": 462,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 478
+    },
+    {
+      "c": "S26",
+      "pen": 130,
+      "sample_event": 525,
+      "first_R_W_pen_visible_at": 526,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 558
+    },
+    {
+      "c": "S26",
+      "pen": 131,
+      "sample_event": 529,
+      "first_R_W_pen_visible_at": 530,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 558
+    },
+    {
+      "c": "S26",
+      "pen": 132,
+      "sample_event": 533,
+      "first_R_W_pen_visible_at": 534,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 558
+    },
+    {
+      "c": "S26",
+      "pen": 133,
+      "sample_event": 537,
+      "first_R_W_pen_visible_at": 538,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 558
+    },
+    {
+      "c": "S26",
+      "pen": 134,
+      "sample_event": 541,
+      "first_R_W_pen_visible_at": 542,
+      "sample_uses_final_pen_not_present_at_sample_prefix": true,
+      "local_certificate_published_at": 558
+    }
+  ]
+}

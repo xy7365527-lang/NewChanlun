@@ -1,0 +1,57 @@
+{
+  "status": "ACCEPT_SCOPED_C64V3_EFFECTIVITY_AND_ADOPTION",
+  "review": "review.md",
+  "review_sha256": "e09e1820a13d87fecec63be290875271754ecf521e92a17363092e4bef9282ad",
+  "receipt_sha256": "2f9580b97e481f7882751e356c74c72017557a74c5974d01efa520786b16c9a9",
+  "inputs_sha256": "84e6849df431a00518284f879517e13e8e26bc4b42f27329df0fbcfb7433c9cc",
+  "manifest_sha256": "faa98b6a9f7b25f0ca8c01ea3544551ba8cf5dc3784fe6ea9e1ae303af41ff2f",
+  "blocking_findings": [],
+  "limits": [
+    "Selected finite-tree instance only",
+    "H1-H6 and E1-E3 conditional",
+    "No actual Omega full semantic bridge",
+    "No complete author market scanner"
+  ],
+  "files": [
+    {
+      "path": "author-replay-receipt.json",
+      "sha256": "4d2f50e13dad5d454eefb17d64c656ab372873ed354ebe4dd50db27b32b3ce92"
+    },
+    {
+      "path": "author-replay-result.json",
+      "sha256": "8c579ac39a8371b43d4c62468ae4cac8041f25a24b7ba91e211846a74de7649e"
+    },
+    {
+      "path": "author-replay.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "author-replay.stdout",
+      "sha256": "177497d153a60a4707233d7021accd593f1bb827f98b06cfe1c6cd79d976a12e"
+    },
+    {
+      "path": "independent-check.mjs",
+      "sha256": "3c4eace2a3414d88f18eab2372a795dc173e1872c3d448192bc3fc62870b1d93"
+    },
+    {
+      "path": "independent-result.json",
+      "sha256": "b52d30a2bf652677cfe7d2c1c6a75091c354c5cb3a57c6fd6b9cccb6272d24c7"
+    },
+    {
+      "path": "inputs.json",
+      "sha256": "84e6849df431a00518284f879517e13e8e26bc4b42f27329df0fbcfb7433c9cc"
+    },
+    {
+      "path": "packet-and-adoption-check.json",
+      "sha256": "175367ab136156d23077cc06adcf1435d05bc8a5dc4d0a5938fc769be778a8a3"
+    },
+    {
+      "path": "receipt.json",
+      "sha256": "2f9580b97e481f7882751e356c74c72017557a74c5974d01efa520786b16c9a9"
+    },
+    {
+      "path": "review.md",
+      "sha256": "e09e1820a13d87fecec63be290875271754ecf521e92a17363092e4bef9282ad"
+    }
+  ]
+}

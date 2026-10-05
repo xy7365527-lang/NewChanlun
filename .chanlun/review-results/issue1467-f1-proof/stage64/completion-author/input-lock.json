@@ -1,0 +1,46 @@
+{
+  "sources": [
+    {
+      "path": "docs/chanlun/text/blog/035-第35课.md",
+      "sha256": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023"
+    },
+    {
+      "path": "docs/chanlun/text/blog/084-第84课.md",
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26"
+    },
+    {
+      "path": "docs/chanlun/text/blog/038-第38课.md",
+      "sha256": "983ce94575d61ed645fcc753eb59f9a28e8e749826a30d7bf87f19721baedc7b"
+    },
+    {
+      "path": "docs/chanlun/text/blog/037-第37课.md",
+      "sha256": "f360d985b3f3b1fa567ca13e15f2ffaf9eae39dbb418519f75d1f6175ac70753"
+    },
+    {
+      "path": ".chanlun/definitions/beichi.md",
+      "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6"
+    }
+  ],
+  "prior": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage58/ScopeCorrections-v1.md",
+      "sha256": "a8b17dd90897bbceb06d68b4789c6e422c8da7cf15f52af53e87aef3b1081e30"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage63CertificateTransport.md",
+      "sha256": "6a801345af58d59e601138c8124f459b740d30e5819e78adc18d404f405cb8c7"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage59CommonExpansionObstructions-v2.md",
+      "sha256": "01c6fb8c240074bed8138a2a3887a611967d50d6e7d1bf3e53b6935b80a3667a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage59/general-completion.md",
+      "sha256": "ef0ef4cc7fa01bc8111747a0fd643a2ace479365ffdb8c283fe4613906893026"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage52BoundaryRolesAndRepartition.md",
+      "sha256": "c14a12a4e6483b804075c531afd8eded6c8ebc732aa9d90003c257721a8ae338"
+    }
+  ]
+}

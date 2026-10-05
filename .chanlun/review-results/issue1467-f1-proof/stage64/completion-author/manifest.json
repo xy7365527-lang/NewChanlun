@@ -1,0 +1,37 @@
+{
+  "status": "author-frozen-awaiting-independent-review",
+  "files": [
+    {
+      "path": "Report.md",
+      "sha256": "f751ce24a144ed7f42a07dafb71ba0ec40350711e8eeec294552c27d817b530e"
+    },
+    {
+      "path": "WorkCard.md",
+      "sha256": "cae223d80f976ff985cc6012bd21475577dfb249d79c94af7995e18c9e60a6b2"
+    },
+    {
+      "path": "check-result.json",
+      "sha256": "1599303329fe0e5d9dfbf0573770a63ed43c7840a945f6d4fc3c5a5ca96c73ff"
+    },
+    {
+      "path": "check.mjs",
+      "sha256": "3e3988f964c2248ac1e3f16485e8ce377f946797b02f9bb7869a677948a47ee8"
+    },
+    {
+      "path": "input-lock.json",
+      "sha256": "fc5677c11b77a1558774f597b6b7b6e3958eddb86e75c9a9bc701515b2ec52f4"
+    },
+    {
+      "path": "issue865.json",
+      "sha256": "fa9aa8e7aed8e742927b75e236432a7cc6df70876059228b07f745b2a1c4d4d4"
+    },
+    {
+      "path": "issue873.json",
+      "sha256": "760dad7ccc94d7679517c9b893c738103f1a4c93fe9f3875c15d0ded1c0cfd67"
+    },
+    {
+      "path": "source-excerpts.json",
+      "sha256": "ff8798d14659dac38d0d0f83017f8ea27fcafae270ee5e829d306c1b1d5e1f6f"
+    }
+  ]
+}

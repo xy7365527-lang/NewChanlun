@@ -1,0 +1,113 @@
+{
+  "v3_manifest": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v3/Report.md",
+      "actual": "bb1bc43844824f69299d755a4a7b5c27aef6b31a6d20a21993956da39d8cd54c",
+      "matches": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v3/WorkCard.md",
+      "actual": "7093945bea22ca2a141da97f2852b42c149b6fae9478e830e7fb4cce459c1171",
+      "matches": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v3/effective-check.mjs",
+      "actual": "d7069b282d5303e1244538deba49d35e3b3c6e2381d33b22d92577f417c5857c",
+      "matches": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v3/effective-result.json",
+      "actual": "8c579ac39a8371b43d4c62468ae4cac8041f25a24b7ba91e211846a74de7649e",
+      "matches": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v3/effective.mjs",
+      "actual": "72237f11751bd42c6cb4f6813ffe49d0652eec09f808667ee81c6bdf7020cf29",
+      "matches": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v3/input-lock.json",
+      "actual": "4893723b2211ef656081a8d977ca31e4930b267e0c20931b174fe55dc322e5f6",
+      "matches": true
+    }
+  ],
+  "inputs_unchanged": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v3/input-lock.json",
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v3/Report.md",
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v3/WorkCard.md",
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v3/effective-check.mjs",
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v3/manifest.json",
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v3/effective-result.json",
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v3/effective.mjs",
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/v2/Report.md",
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-rereview/review.md",
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/adoption/ScopeCorrections-v1.md",
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-review/review.md",
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-review/dynamics-causality-audit.json",
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-review/publication-causality.json",
+      "unchanged": true
+    }
+  ],
+  "author_40_replay_matches_frozen": true,
+  "adoption_evidence_checks": {
+    "retrospective_samples": 30,
+    "all_prefix_live_L_delivered": false,
+    "first_pen_visibility_pair": [
+      85,
+      86
+    ],
+    "all_samples_one_event_later": true,
+    "comparison_times": [
+      118,
+      198,
+      298,
+      378,
+      478,
+      558
+    ],
+    "candidate_publication_times_from_review": [
+      198,
+      378,
+      558
+    ],
+    "comparison_evidence_already_stable": true,
+    "full_prefix_replay_performed": false
+  }
+}

@@ -1,0 +1,684 @@
+{
+  "candidate": "D64-035-conservative-H2",
+  "counts": {
+    "observations": 583,
+    "events": 582,
+    "actual_strokes": 144,
+    "stable_at_eof": 143,
+    "segments": 28,
+    "candidate_completed_trends": 3,
+    "candidate_P": 0,
+    "original_completed_certified": 0,
+    "conditional_F2_triples": 1,
+    "certified_F2_triples": 0
+  },
+  "initial_construction": {
+    "cores": [
+      {
+        "id": "K0",
+        "grade": 0,
+        "members": [
+          "S1",
+          "S2",
+          "S3"
+        ],
+        "member_own": [
+          22,
+          81
+        ],
+        "core": [
+          50000,
+          60000
+        ],
+        "initial_outer": [
+          48000,
+          64000
+        ],
+        "seed_happened_at": 81,
+        "known_at": 98,
+        "lifecycle": "seed_frozen; successor relation checked separately"
+      },
+      {
+        "id": "K1",
+        "grade": 0,
+        "members": [
+          "S5",
+          "S6",
+          "S7"
+        ],
+        "member_own": [
+          102,
+          161
+        ],
+        "core": [
+          68800,
+          71200
+        ],
+        "initial_outer": [
+          68000,
+          72000
+        ],
+        "seed_happened_at": 161,
+        "known_at": 178,
+        "lifecycle": "seed_frozen; successor relation checked separately"
+      },
+      {
+        "id": "K2",
+        "grade": 0,
+        "members": [
+          "S10",
+          "S11",
+          "S12"
+        ],
+        "member_own": [
+          202,
+          261
+        ],
+        "core": [
+          76800,
+          78800
+        ],
+        "initial_outer": [
+          76000,
+          79200
+        ],
+        "seed_happened_at": 261,
+        "known_at": 278,
+        "lifecycle": "seed_frozen; successor relation checked separately"
+      },
+      {
+        "id": "K3",
+        "grade": 0,
+        "members": [
+          "S14",
+          "S15",
+          "S16"
+        ],
+        "member_own": [
+          282,
+          341
+        ],
+        "core": [
+          59200,
+          61200
+        ],
+        "initial_outer": [
+          58000,
+          62000
+        ],
+        "seed_happened_at": 341,
+        "known_at": 358,
+        "lifecycle": "seed_frozen; successor relation checked separately"
+      },
+      {
+        "id": "K4",
+        "grade": 0,
+        "members": [
+          "S19",
+          "S20",
+          "S21"
+        ],
+        "member_own": [
+          382,
+          441
+        ],
+        "core": [
+          40800,
+          44000
+        ],
+        "initial_outer": [
+          40000,
+          46000
+        ],
+        "seed_happened_at": 441,
+        "known_at": 458,
+        "lifecycle": "seed_frozen; successor relation checked separately"
+      },
+      {
+        "id": "K5",
+        "grade": 0,
+        "members": [
+          "S23",
+          "S24",
+          "S25"
+        ],
+        "member_own": [
+          462,
+          521
+        ],
+        "core": [
+          64800,
+          67200
+        ],
+        "initial_outer": [
+          64000,
+          68000
+        ],
+        "seed_happened_at": 521,
+        "known_at": 538,
+        "lifecycle": "seed_frozen; successor relation checked separately"
+      }
+    ],
+    "objects": [
+      {
+        "id": "X0",
+        "grade": 0,
+        "type": "U",
+        "technical_direction": "Up",
+        "start": 1,
+        "end": 181,
+        "own": [
+          2,
+          181
+        ],
+        "whole_range": [
+          40000,
+          80000
+        ],
+        "members": [
+          "S0",
+          "S1",
+          "S2",
+          "S3",
+          "S4",
+          "S5",
+          "S6",
+          "S7",
+          "S8"
+        ],
+        "cores": [
+          "K0",
+          "K1"
+        ],
+        "general_div": {
+          "object_index": 0,
+          "cores": [
+            "K0",
+            "K1"
+          ],
+          "b": "S4",
+          "c": "S8",
+          "b_force": {
+            "first_pen": 20,
+            "last_pen": 24,
+            "first_v": 100,
+            "last_v": 300,
+            "L": 200
+          },
+          "c_force": {
+            "first_pen": 40,
+            "last_pen": 44,
+            "first_v": 100,
+            "last_v": 150,
+            "L": 50
+          },
+          "strict_weakening": true,
+          "strict_extreme": true,
+          "prior_extreme": 72000,
+          "endpoint": 80000,
+          "GeneralDiv64": true,
+          "happened_at": 181,
+          "known_at": 198
+        },
+        "completed": true,
+        "completion_status": "candidate interpretation only",
+        "original_completed_certified": false,
+        "source_next_start": 181
+      },
+      {
+        "id": "X1",
+        "grade": 0,
+        "type": "D",
+        "technical_direction": "Down",
+        "start": 181,
+        "end": 361,
+        "own": [
+          182,
+          361
+        ],
+        "whole_range": [
+          38000,
+          80000
+        ],
+        "members": [
+          "S9",
+          "S10",
+          "S11",
+          "S12",
+          "S13",
+          "S14",
+          "S15",
+          "S16",
+          "S17"
+        ],
+        "cores": [
+          "K2",
+          "K3"
+        ],
+        "general_div": {
+          "object_index": 1,
+          "cores": [
+            "K2",
+            "K3"
+          ],
+          "b": "S13",
+          "c": "S17",
+          "b_force": {
+            "first_pen": 65,
+            "last_pen": 69,
+            "first_v": -300,
+            "last_v": -150,
+            "L": 150
+          },
+          "c_force": {
+            "first_pen": 85,
+            "last_pen": 89,
+            "first_v": -100,
+            "last_v": -400,
+            "L": -300
+          },
+          "strict_weakening": true,
+          "strict_extreme": true,
+          "prior_extreme": 58000,
+          "endpoint": 38000,
+          "GeneralDiv64": true,
+          "happened_at": 361,
+          "known_at": 378
+        },
+        "completed": true,
+        "completion_status": "candidate interpretation only",
+        "original_completed_certified": false,
+        "source_next_start": 361
+      },
+      {
+        "id": "X2",
+        "grade": 0,
+        "type": "U",
+        "technical_direction": "Up",
+        "start": 361,
+        "end": 541,
+        "own": [
+          362,
+          541
+        ],
+        "whole_range": [
+          38000,
+          82000
+        ],
+        "members": [
+          "S18",
+          "S19",
+          "S20",
+          "S21",
+          "S22",
+          "S23",
+          "S24",
+          "S25",
+          "S26"
+        ],
+        "cores": [
+          "K4",
+          "K5"
+        ],
+        "general_div": {
+          "object_index": 2,
+          "cores": [
+            "K4",
+            "K5"
+          ],
+          "b": "S22",
+          "c": "S26",
+          "b_force": {
+            "first_pen": 110,
+            "last_pen": 114,
+            "first_v": 100,
+            "last_v": 300,
+            "L": 200
+          },
+          "c_force": {
+            "first_pen": 130,
+            "last_pen": 134,
+            "first_v": 100,
+            "last_v": 150,
+            "L": 50
+          },
+          "strict_weakening": true,
+          "strict_extreme": true,
+          "prior_extreme": 68000,
+          "endpoint": 82000,
+          "GeneralDiv64": true,
+          "happened_at": 541,
+          "known_at": 558
+        },
+        "completed": true,
+        "completion_status": "candidate interpretation only",
+        "original_completed_certified": false,
+        "source_next_start": 541
+      }
+    ],
+    "source_next": [
+      [
+        "X0",
+        "X1"
+      ],
+      [
+        "X1",
+        "X2"
+      ]
+    ],
+    "delta_c0": [
+      "X0",
+      "X1",
+      "X2"
+    ],
+    "noPP": true
+  },
+  "attempts": [
+    {
+      "object_index": 0,
+      "cores": [
+        "K0"
+      ],
+      "b": "S0",
+      "c": "S4",
+      "b_force": {
+        "first_pen": 0,
+        "last_pen": 4,
+        "first_v": 100,
+        "last_v": 200,
+        "L": 100
+      },
+      "c_force": {
+        "first_pen": 20,
+        "last_pen": 24,
+        "first_v": 100,
+        "last_v": 300,
+        "L": 200
+      },
+      "strict_weakening": false,
+      "strict_extreme": true,
+      "prior_extreme": 64000,
+      "endpoint": 72000,
+      "GeneralDiv64": false,
+      "happened_at": 101,
+      "known_at": 118
+    },
+    {
+      "object_index": 0,
+      "cores": [
+        "K0",
+        "K1"
+      ],
+      "b": "S4",
+      "c": "S8",
+      "b_force": {
+        "first_pen": 20,
+        "last_pen": 24,
+        "first_v": 100,
+        "last_v": 300,
+        "L": 200
+      },
+      "c_force": {
+        "first_pen": 40,
+        "last_pen": 44,
+        "first_v": 100,
+        "last_v": 150,
+        "L": 50
+      },
+      "strict_weakening": true,
+      "strict_extreme": true,
+      "prior_extreme": 72000,
+      "endpoint": 80000,
+      "GeneralDiv64": true,
+      "happened_at": 181,
+      "known_at": 198
+    },
+    {
+      "object_index": 1,
+      "cores": [
+        "K2"
+      ],
+      "b": "S9",
+      "c": "S13",
+      "b_force": {
+        "first_pen": 45,
+        "last_pen": 49,
+        "first_v": -100,
+        "last_v": -200,
+        "L": -100
+      },
+      "c_force": {
+        "first_pen": 65,
+        "last_pen": 69,
+        "first_v": -300,
+        "last_v": -150,
+        "L": 150
+      },
+      "strict_weakening": false,
+      "strict_extreme": true,
+      "prior_extreme": 76000,
+      "endpoint": 58000,
+      "GeneralDiv64": false,
+      "happened_at": 281,
+      "known_at": 298
+    },
+    {
+      "object_index": 1,
+      "cores": [
+        "K2",
+        "K3"
+      ],
+      "b": "S13",
+      "c": "S17",
+      "b_force": {
+        "first_pen": 65,
+        "last_pen": 69,
+        "first_v": -300,
+        "last_v": -150,
+        "L": 150
+      },
+      "c_force": {
+        "first_pen": 85,
+        "last_pen": 89,
+        "first_v": -100,
+        "last_v": -400,
+        "L": -300
+      },
+      "strict_weakening": true,
+      "strict_extreme": true,
+      "prior_extreme": 58000,
+      "endpoint": 38000,
+      "GeneralDiv64": true,
+      "happened_at": 361,
+      "known_at": 378
+    },
+    {
+      "object_index": 2,
+      "cores": [
+        "K4"
+      ],
+      "b": "S18",
+      "c": "S22",
+      "b_force": {
+        "first_pen": 90,
+        "last_pen": 94,
+        "first_v": 100,
+        "last_v": 200,
+        "L": 100
+      },
+      "c_force": {
+        "first_pen": 110,
+        "last_pen": 114,
+        "first_v": 100,
+        "last_v": 300,
+        "L": 200
+      },
+      "strict_weakening": false,
+      "strict_extreme": true,
+      "prior_extreme": 46000,
+      "endpoint": 68000,
+      "GeneralDiv64": false,
+      "happened_at": 461,
+      "known_at": 478
+    },
+    {
+      "object_index": 2,
+      "cores": [
+        "K4",
+        "K5"
+      ],
+      "b": "S22",
+      "c": "S26",
+      "b_force": {
+        "first_pen": 110,
+        "last_pen": 114,
+        "first_v": 100,
+        "last_v": 300,
+        "L": 200
+      },
+      "c_force": {
+        "first_pen": 130,
+        "last_pen": 134,
+        "first_v": 100,
+        "last_v": 150,
+        "L": 50
+      },
+      "strict_weakening": true,
+      "strict_extreme": true,
+      "prior_extreme": 68000,
+      "endpoint": 82000,
+      "GeneralDiv64": true,
+      "happened_at": 541,
+      "known_at": 558
+    }
+  ],
+  "parent": {
+    "id": "Y0-conditional",
+    "grade": 1,
+    "children": [
+      "X0",
+      "X1",
+      "X2"
+    ],
+    "whole_ranges": [
+      [
+        40000,
+        80000
+      ],
+      [
+        38000,
+        80000
+      ],
+      [
+        38000,
+        82000
+      ]
+    ],
+    "core": [
+      40000,
+      80000
+    ],
+    "strict_core": true,
+    "source_contiguous": true,
+    "alternating_direction": true,
+    "candidate_children_completed": true,
+    "original_children_completed_certified": false,
+    "conditional_core_known_at": 558,
+    "completed": false,
+    "status": "F2 input blocked by failed common interpretation; range intersection is conditional only"
+  },
+  "violations": [
+    {
+      "id": "V0",
+      "clause": "A64-035: completed trend iff next nucleus no longer same direction",
+      "completed_object": "X0",
+      "ended_at": 181,
+      "end_known_at": 198,
+      "last_core": "K1",
+      "last_outer": [
+        68000,
+        72000
+      ],
+      "next_core": "K2",
+      "next_outer": [
+        76000,
+        79200
+      ],
+      "next_core_known_at": 278,
+      "continues_same_direction": true,
+      "contradiction_first_known_at": 278
+    },
+    {
+      "id": "V1",
+      "clause": "A64-035: completed trend iff next nucleus no longer same direction",
+      "completed_object": "X1",
+      "ended_at": 361,
+      "end_known_at": 378,
+      "last_core": "K3",
+      "last_outer": [
+        58000,
+        62000
+      ],
+      "next_core": "K4",
+      "next_outer": [
+        40000,
+        46000
+      ],
+      "next_core_known_at": 458,
+      "continues_same_direction": true,
+      "contradiction_first_known_at": 458
+    }
+  ],
+  "first_failure": {
+    "id": "V0",
+    "clause": "A64-035: completed trend iff next nucleus no longer same direction",
+    "completed_object": "X0",
+    "ended_at": 181,
+    "end_known_at": 198,
+    "last_core": "K1",
+    "last_outer": [
+      68000,
+      72000
+    ],
+    "next_core": "K2",
+    "next_outer": [
+      76000,
+      79200
+    ],
+    "next_core_known_at": 278,
+    "continues_same_direction": true,
+    "contradiction_first_known_at": 278
+  },
+  "ownership": {
+    "left_support_events": [
+      1,
+      1
+    ],
+    "completed_candidate_window": [
+      2,
+      541
+    ],
+    "active_tail_events": [
+      542,
+      582
+    ],
+    "state_zero": "initial support; not event",
+    "confirmation_support_owned_by_successor": true
+  },
+  "scope": {
+    "status": "refuted on one declared history relative to explicit A64-035 inheritance",
+    "not_refuted": [
+      "all initial F1 definitions",
+      "084 alternative lifecycle choices",
+      "fixed F2 semantics",
+      "original #873 force with full structural roles"
+    ],
+    "open": [
+      "original dynamic roles and whole semantics",
+      "P domain global compatibility and liveness",
+      "semantic uniqueness of raw decomposition",
+      "fixed F2 parent lifecycle and recursive closure",
+      "P1-P4"
+    ]
+  }
+}

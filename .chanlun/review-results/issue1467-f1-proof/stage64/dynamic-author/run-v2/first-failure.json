@@ -1,0 +1,22 @@
+{
+  "stage": "initial-segment-construction",
+  "expected": 28,
+  "actual": 26,
+  "failures": [
+    {
+      "segment": 7,
+      "eof_pending": false,
+      "reason": "no declared strict no-gap certificate"
+    },
+    {
+      "segment": 25,
+      "eof_pending": false,
+      "reason": "no declared strict no-gap certificate"
+    },
+    {
+      "segment": 28,
+      "eof_pending": true,
+      "reason": "no declared strict no-gap certificate"
+    }
+  ]
+}

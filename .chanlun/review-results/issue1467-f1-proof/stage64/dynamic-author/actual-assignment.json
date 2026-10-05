@@ -1,0 +1,376 @@
+{
+  "input_events": 582,
+  "input_observations": 583,
+  "declared_profile": "D64-035-conservative-v2",
+  "history_count": 1,
+  "actual_R_W_strokes": 144,
+  "stable_at_eof": 143,
+  "certified_five_pen_slots": [
+    "S0",
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6",
+    "S8",
+    "S9",
+    "S10",
+    "S11",
+    "S12",
+    "S13",
+    "S14",
+    "S15",
+    "S16",
+    "S17",
+    "S18",
+    "S19",
+    "S20",
+    "S21",
+    "S22",
+    "S23",
+    "S24",
+    "S26",
+    "S27"
+  ],
+  "slot_certificate_failures": [
+    {
+      "candidate_segment": "S7",
+      "direction": "Down",
+      "intended_own": [
+        142,
+        161
+      ],
+      "actual_pens": [
+        {
+          "end": 149,
+          "end_price": 71000,
+          "start": 145,
+          "start_price": 70800,
+          "up": true,
+          "pen": 36,
+          "range": [
+            70800,
+            71000
+          ]
+        },
+        {
+          "end": 157,
+          "end_price": 69600,
+          "start": 153,
+          "start_price": 69000,
+          "up": true,
+          "pen": 38,
+          "range": [
+            69000,
+            69600
+          ]
+        },
+        {
+          "end": 165,
+          "end_price": 69600,
+          "start": 161,
+          "start_price": 68800,
+          "up": true,
+          "pen": 40,
+          "range": [
+            68800,
+            69600
+          ]
+        },
+        {
+          "end": 173,
+          "end_price": 79800,
+          "start": 169,
+          "start_price": 69200,
+          "up": true,
+          "pen": 42,
+          "range": [
+            69200,
+            79800
+          ]
+        }
+      ],
+      "first_rejection_pair": [
+        38,
+        40
+      ],
+      "previous_feature": [
+        69000,
+        69600
+      ],
+      "next_feature": [
+        68800,
+        69600
+      ],
+      "next_contains_previous": true,
+      "strict_bottom_neck_test": "69600 < 69600",
+      "strict_bottom_neck": false,
+      "first_pair_known_at": 170,
+      "original_R_W_pen_certificate": true,
+      "declared_five_pen_segment_certificate": false,
+      "reason": "fixed no-inclusion/no-gap certificate rejects containment; equality independently violates strict bottom-neck condition; no full segment semantics impossibility asserted"
+    },
+    {
+      "candidate_segment": "S25",
+      "direction": "Down",
+      "intended_own": [
+        502,
+        521
+      ],
+      "actual_pens": [
+        {
+          "end": 509,
+          "end_price": 67000,
+          "start": 505,
+          "start_price": 66800,
+          "up": true,
+          "pen": 126,
+          "range": [
+            66800,
+            67000
+          ]
+        },
+        {
+          "end": 517,
+          "end_price": 65600,
+          "start": 513,
+          "start_price": 65000,
+          "up": true,
+          "pen": 128,
+          "range": [
+            65000,
+            65600
+          ]
+        },
+        {
+          "end": 525,
+          "end_price": 65600,
+          "start": 521,
+          "start_price": 64800,
+          "up": true,
+          "pen": 130,
+          "range": [
+            64800,
+            65600
+          ]
+        },
+        {
+          "end": 533,
+          "end_price": 81800,
+          "start": 529,
+          "start_price": 65200,
+          "up": true,
+          "pen": 132,
+          "range": [
+            65200,
+            81800
+          ]
+        }
+      ],
+      "first_rejection_pair": [
+        128,
+        130
+      ],
+      "previous_feature": [
+        65000,
+        65600
+      ],
+      "next_feature": [
+        64800,
+        65600
+      ],
+      "next_contains_previous": true,
+      "strict_bottom_neck_test": "65600 < 65600",
+      "strict_bottom_neck": false,
+      "first_pair_known_at": 530,
+      "original_R_W_pen_certificate": true,
+      "declared_five_pen_segment_certificate": false,
+      "reason": "fixed no-inclusion/no-gap certificate rejects containment; equality independently violates strict bottom-neck condition; no full segment semantics impossibility asserted"
+    }
+  ],
+  "initial_centers": [
+    {
+      "id": "K0",
+      "grade": 0,
+      "members": [
+        "S1",
+        "S2",
+        "S3"
+      ],
+      "member_own": [
+        22,
+        81
+      ],
+      "core": [
+        50000,
+        60000
+      ],
+      "initial_outer": [
+        48000,
+        64000
+      ],
+      "known_at": 98,
+      "lifecycle": "seed_frozen; no certified whole completion"
+    }
+  ],
+  "candidate_partial_second_center": {
+    "id": "K1-pending",
+    "attempted_members": [
+      "S5",
+      "S6",
+      "S7"
+    ],
+    "qualified_members": [
+      "S5",
+      "S6"
+    ],
+    "missing_member": "S7",
+    "core": null,
+    "completed_seed": false
+  },
+  "firstPTest": {
+    "candidate": "X-active",
+    "b": "S0",
+    "c": "S4",
+    "b_force": {
+      "L": 100,
+      "first_pen": 0,
+      "last_pen": 4,
+      "first_v": 100,
+      "last_v": 200
+    },
+    "c_force": {
+      "L": 200,
+      "first_pen": 20,
+      "last_pen": 24,
+      "first_v": 100,
+      "last_v": 300
+    },
+    "strict_weakening": false,
+    "strict_extreme": true,
+    "c_end": 101,
+    "c_known_at": 118,
+    "general_div": false,
+    "completed": false
+  },
+  "active_container": {
+    "id": "X-active",
+    "grade": 0,
+    "own": [
+      2,
+      582
+    ],
+    "start_state": 1,
+    "end_state": 582,
+    "range": [
+      38000,
+      82000
+    ],
+    "admitted_core_ids": [
+      "K0"
+    ],
+    "provisional_kind": "P-development-only",
+    "general_div": false,
+    "completed": false,
+    "status": "construction_failed_on_this_input; retained raw container, not accepted permanent-active solution"
+  },
+  "general_div_relation": [],
+  "complete_relation": [],
+  "delta_c0": [],
+  "source_next": [],
+  "F2": {
+    "candidate_input_triples": [],
+    "certified_input_triples": [],
+    "produced_centers": [],
+    "produced_completed": []
+  },
+  "ownership": {
+    "support": [
+      1,
+      1
+    ],
+    "retained_failure_container": [
+      2,
+      582
+    ],
+    "event_partition_complete": true
+  },
+  "first_substantive_failure": {
+    "candidate_segment": "S7",
+    "direction": "Down",
+    "intended_own": [
+      142,
+      161
+    ],
+    "actual_pens": [
+      {
+        "end": 149,
+        "end_price": 71000,
+        "start": 145,
+        "start_price": 70800,
+        "up": true,
+        "pen": 36,
+        "range": [
+          70800,
+          71000
+        ]
+      },
+      {
+        "end": 157,
+        "end_price": 69600,
+        "start": 153,
+        "start_price": 69000,
+        "up": true,
+        "pen": 38,
+        "range": [
+          69000,
+          69600
+        ]
+      },
+      {
+        "end": 165,
+        "end_price": 69600,
+        "start": 161,
+        "start_price": 68800,
+        "up": true,
+        "pen": 40,
+        "range": [
+          68800,
+          69600
+        ]
+      },
+      {
+        "end": 173,
+        "end_price": 79800,
+        "start": 169,
+        "start_price": 69200,
+        "up": true,
+        "pen": 42,
+        "range": [
+          69200,
+          79800
+        ]
+      }
+    ],
+    "first_rejection_pair": [
+      38,
+      40
+    ],
+    "previous_feature": [
+      69000,
+      69600
+    ],
+    "next_feature": [
+      68800,
+      69600
+    ],
+    "next_contains_previous": true,
+    "strict_bottom_neck_test": "69600 < 69600",
+    "strict_bottom_neck": false,
+    "first_pair_known_at": 170,
+    "original_R_W_pen_certificate": true,
+    "declared_five_pen_segment_certificate": false,
+    "reason": "fixed no-inclusion/no-gap certificate rejects containment; equality independently violates strict bottom-neck condition; no full segment semantics impossibility asserted"
+  }
+}

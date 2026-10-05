@@ -1,0 +1,37 @@
+{
+  "frozen_at_utc": "2026-10-05T15:32:16.788Z",
+  "status": "author_complete_independent_review_pending",
+  "report": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/Report.md",
+    "sha256": "a6cfc3bff75603c43f0fe788bb7fd0fb0c15e5e6302f5048029d91434ee065c7"
+  },
+  "manifest": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/SHA256SUMS-final",
+    "sha256": "a85b55e3d399ec761f3075ecc8f37fadf8a67a58e17b537b3c5bc0bd4d2612f2",
+    "file_count": 64,
+    "verified_files": 64
+  },
+  "actual_histories": 2,
+  "local_completed_candidates": 3,
+  "conditional_fixed_kernel_triples": 1,
+  "joint_admitted_F2_triples": 0,
+  "original_certified_F2_triples": 0,
+  "first_joint_failure": 278,
+  "evidence_bytes": 28886320,
+  "independent_review_complete": false,
+  "first_history_manifest_preserved": true,
+  "final_manifest_name": "SHA256SUMS-final",
+  "incomplete_manifest_name": "SHA256SUMS",
+  "scope_warning": "Full directory CatalogSucc is a self-chosen A64-global relation, not proved original lifecycle Next. X1/X2/F2 after 278 are diagnostic projections.",
+  "entrypoints": [
+    "Report.md",
+    "FirstHistoryReport.md",
+    "v2/WorkCard.md",
+    "v2/run/result.json",
+    "v2/adoption-status.json",
+    "v2/parameter-audit.json",
+    "v2/causal-timeline.json",
+    "v2/kernel-run/manifest.json",
+    "source-excerpts.json"
+  ]
+}

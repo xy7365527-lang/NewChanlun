@@ -1,0 +1,41 @@
+{
+  "inputs": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/v2/f2_kernel_probe.rs",
+      "sha256": "8afc3a953377679cba4300b7ee50da0f55b292b80572c3c0d4494b35886db953"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/v2/run/result.json",
+      "sha256": "33b6d5d0e59a2f31d3fda8a0914bb47364645389d69aaf52ff44c13a95deadcb"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/rust/src/theta_v0/classifier/center.rs",
+      "sha256": "06832a4649601863778548cb840dab0de99ccf192b76cb93949ab72a0e4d6c13"
+    },
+    {
+      "path": "/tmp/nc1467-cargo-target/debug/deps/libnewchan_rust.rlib",
+      "sha256": "663835a8e945d621428ef4fe0fb4198eb865a431dc89d7517996aa61ed197a39"
+    },
+    {
+      "path": "/tmp/nc1467-cargo-target/debug/deps/libserde_json-d8aa09aa6d50fe2e.rlib",
+      "sha256": "749252887bad46820322854e23d159bdbee8952f932ea4f696f352617ea71394"
+    }
+  ],
+  "result": {
+    "actual_admitted_F2_inputs": 0,
+    "center": {
+      "dd": 38000,
+      "end_index": 541,
+      "gg": 82000,
+      "start_index": 1,
+      "zd": 40000,
+      "zg": 80000
+    },
+    "function": "center_from_segments",
+    "kernel_returns_some": true,
+    "mode": "conditional kernel projection only",
+    "parent_completed": false,
+    "semantic_F2_input_certified": false,
+    "uses": "three complete-candidate whole ranges and technical Up/Down/Up"
+  }
+}

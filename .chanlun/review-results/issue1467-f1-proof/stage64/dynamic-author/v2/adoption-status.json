@@ -1,0 +1,288 @@
+{
+  "schema": "stage64-local-vs-joint-v1",
+  "history_id": "H2",
+  "exploratory_revision_after_H1": true,
+  "changed_rows": [
+    8,
+    26
+  ],
+  "changed_observations": [
+    {
+      "index": 162,
+      "old": 69000,
+      "new": 68900
+    },
+    {
+      "index": 163,
+      "old": 69200,
+      "new": 69000
+    },
+    {
+      "index": 164,
+      "old": 69400,
+      "new": 69100
+    },
+    {
+      "index": 165,
+      "old": 69600,
+      "new": 69200
+    },
+    {
+      "index": 166,
+      "old": 69500,
+      "new": 69150
+    },
+    {
+      "index": 167,
+      "old": 69400,
+      "new": 69100
+    },
+    {
+      "index": 168,
+      "old": 69300,
+      "new": 69050
+    },
+    {
+      "index": 169,
+      "old": 69200,
+      "new": 69000
+    },
+    {
+      "index": 170,
+      "old": 71850,
+      "new": 71700
+    },
+    {
+      "index": 171,
+      "old": 74500,
+      "new": 74400
+    },
+    {
+      "index": 172,
+      "old": 77150,
+      "new": 77100
+    },
+    {
+      "index": 522,
+      "old": 65000,
+      "new": 64900
+    },
+    {
+      "index": 523,
+      "old": 65200,
+      "new": 65000
+    },
+    {
+      "index": 524,
+      "old": 65400,
+      "new": 65100
+    },
+    {
+      "index": 525,
+      "old": 65600,
+      "new": 65200
+    },
+    {
+      "index": 526,
+      "old": 65500,
+      "new": 65150
+    },
+    {
+      "index": 527,
+      "old": 65400,
+      "new": 65100
+    },
+    {
+      "index": 528,
+      "old": 65300,
+      "new": 65050
+    },
+    {
+      "index": 529,
+      "old": 65200,
+      "new": 65000
+    },
+    {
+      "index": 530,
+      "old": 69350,
+      "new": 69200
+    },
+    {
+      "index": 531,
+      "old": 73500,
+      "new": 73400
+    },
+    {
+      "index": 532,
+      "old": 77650,
+      "new": 77600
+    }
+  ],
+  "local_dynamics": {
+    "objects": [
+      {
+        "id": "X0",
+        "type": "U",
+        "own": [
+          2,
+          181
+        ],
+        "happened_at": 181,
+        "local_certificate_published_at": 198,
+        "local_dyn_complete": true,
+        "joint_admitted": false,
+        "original_complete_certified": false,
+        "published_after_joint_refutation": false
+      },
+      {
+        "id": "X1",
+        "type": "D",
+        "own": [
+          182,
+          361
+        ],
+        "happened_at": 361,
+        "local_certificate_published_at": 378,
+        "local_dyn_complete": true,
+        "joint_admitted": false,
+        "original_complete_certified": false,
+        "published_after_joint_refutation": true
+      },
+      {
+        "id": "X2",
+        "type": "U",
+        "own": [
+          362,
+          541
+        ],
+        "happened_at": 541,
+        "local_certificate_published_at": 558,
+        "local_dyn_complete": true,
+        "joint_admitted": false,
+        "original_complete_certified": false,
+        "published_after_joint_refutation": true
+      }
+    ],
+    "source_next": [
+      [
+        "X0",
+        "X1"
+      ],
+      [
+        "X1",
+        "X2"
+      ]
+    ],
+    "source_next_semantics": "local candidate-own adjacency only; not original completion Next",
+    "nonempty": true
+  },
+  "global_successor": {
+    "relation": [
+      [
+        "K0",
+        "K1"
+      ],
+      [
+        "K1",
+        "K2"
+      ],
+      [
+        "K2",
+        "K3"
+      ],
+      [
+        "K3",
+        "K4"
+      ],
+      [
+        "K4",
+        "K5"
+      ]
+    ],
+    "first_failure_known_at": 278,
+    "source_entails_old_lifecycle_membership": false,
+    "extra_A64_choice": true,
+    "next_K2_owned_by": "local successor candidate X1; never reassigned into X0"
+  },
+  "joint_interpretation": {
+    "before_first_failure": "unproved/pending, never certified",
+    "from_278": "refuted relative to explicit A64-global",
+    "accepted_complete_count": 0
+  },
+  "F2": {
+    "kernel_projection_executed": true,
+    "local_candidate_triples": 1,
+    "joint_admitted_triples": 0,
+    "original_certified_triples": 0,
+    "kernel_call_after_refutation": true,
+    "conditional_core": [
+      40000,
+      80000
+    ],
+    "conditional_outer": [
+      38000,
+      82000
+    ],
+    "parent_completed": false,
+    "parent_general_div_certified": false,
+    "conditional_seed_known_at": 558,
+    "source_children": [
+      "X0",
+      "X1",
+      "X2"
+    ]
+  },
+  "tail": {
+    "own": [
+      542,
+      582
+    ],
+    "first_segment": {
+      "id": "S27",
+      "up": false,
+      "start": 541,
+      "end": 561,
+      "own": [
+        542,
+        561
+      ],
+      "members": [
+        135,
+        140
+      ],
+      "range": [
+        74000,
+        82000
+      ],
+      "known_at": 578,
+      "first_selected": [
+        138,
+        140,
+        142
+      ],
+      "selected_ranges": [
+        [
+          74200,
+          74800
+        ],
+        [
+          74000,
+          74400
+        ],
+        [
+          74200,
+          79800
+        ]
+      ],
+      "gap": false,
+      "initial_three_core": [
+        81600,
+        81800
+      ]
+    },
+    "next_five_pen_slot": "S28 pending at EOF",
+    "next_grade0_complete": false,
+    "can_use_S27_as_parent_return": false,
+    "parent_return_reason": "S27 is initial raw segment, not complete grade0 whole; its numerical range [74000,82000] also intersects conditional parent core"
+  }
+}

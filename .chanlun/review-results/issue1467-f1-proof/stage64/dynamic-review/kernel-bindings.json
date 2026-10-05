@@ -1,0 +1,127 @@
+{
+  "verified_author_source_entries": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/strict_point_reference.rs",
+      "sha256": "3d511d2b9541f2dbfb88962232fab3c8f7a46404b3c5ecc668b5e9bf168ad472"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/rust/src/theta_v0/types.rs",
+      "sha256": "4370651d94e1be89d83d26c2d8ab00a7f7cd961693f071749afb10bf95f6bca0"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+      "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/zhongshu.md",
+      "sha256": "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/035-第35课.md",
+      "sha256": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/084-第84课.md",
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/018-第18课.md",
+      "sha256": "4a661fc843d0d9fcfdf32861b7dc903ee09d824d0075dd0ea7b2c19542bb2f92"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/037-第37课.md",
+      "sha256": "f360d985b3f3b1fa567ca13e15f2ffaf9eae39dbb418519f75d1f6175ac70753"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/033-第33课.md",
+      "sha256": "51be1fe8461dc36ceadb879f7a47ccad780f8898c7311429dbf06eb7cc240ab7"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/061-第61课.md",
+      "sha256": "2451e6d514b37aa5da00ca608a88fb46c8e31fe8859226534be7deb6c1007573"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/v2/WorkCard.md",
+      "sha256": "de465d69a9a622f56721e8fd2260a43c2c7071fbc21f468f0f59c29e96064132"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/v2/WorkCard-v2.md",
+      "sha256": "d33231cb5b950daaaa02aa6519cc1563fee352298f7c8791e129049be3a7ed93"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/v2/check.mjs",
+      "sha256": "eecb3ddbf9c586da989031814535f899d909f22ff2e3d433f78a6b2d61504e5f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/v2/reference_probe.rs",
+      "sha256": "b56671fbc4e3cbb463698196575f7bab3a4d74278a66febeaae1179e06639a38"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/v2/f2_kernel_probe.rs",
+      "sha256": "8afc3a953377679cba4300b7ee50da0f55b292b80572c3c0d4494b35886db953"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/v2/run/result.json",
+      "sha256": "33b6d5d0e59a2f31d3fda8a0914bb47364645389d69aaf52ff44c13a95deadcb"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/rust/src/theta_v0/classifier/center.rs",
+      "sha256": "06832a4649601863778548cb840dab0de99ccf192b76cb93949ab72a0e4d6c13"
+    },
+    {
+      "path": "/tmp/nc1467-cargo-target/debug/deps/libnewchan_rust.rlib",
+      "sha256": "663835a8e945d621428ef4fe0fb4198eb865a431dc89d7517996aa61ed197a39"
+    },
+    {
+      "path": "/tmp/nc1467-cargo-target/debug/deps/libserde_json-d8aa09aa6d50fe2e.rlib",
+      "sha256": "749252887bad46820322854e23d159bdbee8952f932ea4f696f352617ea71394"
+    }
+  ],
+  "review_inputs_and_outputs": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-review/independent_kernel.rs",
+      "sha256": "3f74b11242e2ddc92dfc55299498ac0680566803d002f86ca813be61a1b972b5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-review/independent-kernel",
+      "sha256": "17716ebcffc21a4837a536255eae8d9bb0701c0be4f6c2e3f7f388149e98fb29"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-review/independent-kernel-input.json",
+      "sha256": "c6cfb48d487a8cef3d17492377b353cfebe9bda9075ccb6702687e18e99b4db6"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-review/independent-kernel.stdout",
+      "sha256": "c983ae50fc6ce37e4052be779112732878f2dda46e30265337e3fd4173044606"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/v2/kernel-run/kernel-probe",
+      "sha256": "2955dc0cd56593e79d2efab16da0b1d43f4806c50155ad5ad2106f768d640fce"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/v2/f2_kernel_probe.rs",
+      "sha256": "8afc3a953377679cba4300b7ee50da0f55b292b80572c3c0d4494b35886db953"
+    },
+    {
+      "path": "/tmp/nc1467-cargo-target/debug/deps/libnewchan_rust.rlib",
+      "sha256": "663835a8e945d621428ef4fe0fb4198eb865a431dc89d7517996aa61ed197a39"
+    },
+    {
+      "path": "/tmp/nc1467-cargo-target/debug/deps/libserde_json-d8aa09aa6d50fe2e.rlib",
+      "sha256": "749252887bad46820322854e23d159bdbee8952f932ea4f696f352617ea71394"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/rust/src/theta_v0/classifier/center.rs",
+      "sha256": "06832a4649601863778548cb840dab0de99ccf192b76cb93949ab72a0e4d6c13"
+    }
+  ],
+  "result": {
+    "zd": 40000,
+    "zg": 80000,
+    "dd": 38000,
+    "gg": 82000,
+    "start_index": 1,
+    "end_index": 541
+  },
+  "evidence_scope": "actual source function fresh compile + independent inputs + author binary replay; linked crate supplies types, not center function"
+}
