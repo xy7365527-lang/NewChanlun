@@ -6,6 +6,8 @@
 
 ## 当前理解
 
+- [Stage58](Stage58InitialModelAndReflectionAudit.md)：084允许明示非循环初始解释，不以预存Iref或ER编码为共同门；Ω58-IC仅获main8的有限结构片段。F58-01订正：原义完成的一般动力学义务不可当可选声明，生成态条目不覆盖已裁约束。固定Ext且T57成立时ER等价无右延伸。S58来源条件非蕴含、R58精确运输与紧邻子类、G58内部端点障碍均限域，未拼成Ω56反例。下一项是一般完成动力学/构造读法/F₂共同扩充；原义P/GoodΩ/F₂仍未证。
+
 - [Stage57](Stage57RawMaximalityAndDirectLifecycle.md)：独立RawTerminal关系给固定同核片的最大性/唯一性/保留稳定，泛型Lean根经冷读与比较，D54只单向推出它，ER57原义延伸反映仍未证。R_D新增A57适配及8事件非空数值whole（E1…E6、E8发布），None7事件禁止过滤拼接；有限原构造Lean根、普通适配和JS核验分开。两包组合给同一直接控制的RawTerminal，不授原义P/B56/F₂或价值；两路线/P1–P4保持。
 
 - [Stage56](Stage56InitialLifecycleAndCausalConsumer.md)：L56独评证明成功whole内的正宽三腿核均触固定C，仅非空闭交；初始生命周期部分模型仍缺B56原义完成桥。15笔控制只有前四组归seed/H，第五组属未封腿，LC56-01另版订正。消费者13检查独立复跑，7个实际stdin载荷/3个合法后缀对照通过；标签须按封桶可知时刻切分，压力切点排除4行。只补探针API及评价检查，真实训练、四臂公平、完整F₁/F₂与增量仍未完成。

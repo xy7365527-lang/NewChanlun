@@ -1,0 +1,70 @@
+{
+  "schema": "stage58-admissibility-context-lock-v1",
+  "dependencies": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/GoalReframe-v4.md",
+      "sha256": "36159c5f6bd4062a6654bd3f22b3eaf00e678e5d5dacda844cbf659e230ce39d",
+      "bytes": 10098
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/initial-contract-audit.md",
+      "sha256": "7c5f9993530c16a8de959e0115db2eb7869d87b8acba9b030ebf97f7e7bb55c4",
+      "bytes": 21024
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage54/independent-initial-contract-review.md",
+      "sha256": "ae6a357ee7ed51c6bbc426a8bd6db97edd2662447d270533f895786d9053e0ed",
+      "bytes": 14326
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage57RawMaximalityAndDirectLifecycle.md",
+      "sha256": "f1caff88f534c34477b392ee6ab884001334a4bbfc08dcd853d9ef60c7ab3c79",
+      "bytes": 8787
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/ScopeClarifications-v1.md",
+      "sha256": "2e245224b36bd4878ca292a15e187bf4770ab6c1ff759ed3b4c80950fd03d4df",
+      "bytes": 5226
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/extension-maximality.md",
+      "sha256": "3dc68266952a849551d8d42387f8754d7e85a9700a595f8a71a1b2160d9c9413",
+      "bytes": 14305
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/independent-maximality-review.md",
+      "sha256": "271c9c9a7f73f96cde6c0da56bccdf24649f6e8c4571ed10c37684e970e7ffff",
+      "bytes": 17254
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-lifecycle.md",
+      "sha256": "68284067dd0cf3c9361c16931afe29efa22cf5b1438b2581da2fac717169e627",
+      "bytes": 13263
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/independent-direct-lifecycle-review.md",
+      "sha256": "ea11e807383a842f120dc13df58496fe130e4f9ad92cae4ba592ba4105b53124",
+      "bytes": 14365
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage57/direct-evidence/controls-v1.json",
+      "sha256": "34628fe5ed74f597b64784a075813b551d7f5d0be0632def7891d4a072c274fa",
+      "bytes": 1717
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage56/initial-p-lifecycle.md",
+      "sha256": "0d5afc78b6c44b2d0c31864e8b4bb70a392d3f53e556cf2aa03bb25b72472bea",
+      "bytes": 18280
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage56/independent-lifecycle-review.md",
+      "sha256": "173c4209e9c61cebd361a5f886ef90a3ecb6987e92f48042c41a4f7e246f7535",
+      "bytes": 12442
+    }
+  ],
+  "excluded_dynamic_files": [
+    "ResearchProgress.md",
+    "Progress"
+  ],
+  "no_new_execution_of_dependencies": true
+}

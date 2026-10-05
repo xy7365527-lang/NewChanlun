@@ -1,0 +1,257 @@
+{
+  "schema": "stage58-initial-structural-model-v1",
+  "version": "Omega58-IC",
+  "status": "proposed_initial_semantics_with_ordinary_local_proof_not_reviewed",
+  "not_qualified": [
+    "original_Omega57",
+    "full_source_dynamics",
+    "fixed_F2_closure",
+    "nonempty_fixed_F2_upgrade",
+    "full_GoodOmega"
+  ],
+  "input": {
+    "id": "D57-main8",
+    "initial": {
+      "bids": [
+        {
+          "id": "b100",
+          "price": 100
+        },
+        {
+          "id": "b1",
+          "price": 1
+        }
+      ],
+      "asks": [
+        {
+          "id": "a102",
+          "price": 102
+        }
+      ]
+    },
+    "events": [
+      {
+        "id": "D57-E1",
+        "action": "add",
+        "side": "bid",
+        "orderId": "b101a",
+        "price": 101
+      },
+      {
+        "id": "D57-E2",
+        "action": "cancel",
+        "side": "bid",
+        "orderId": "b101a",
+        "price": 101
+      },
+      {
+        "id": "D57-E3",
+        "action": "add",
+        "side": "bid",
+        "orderId": "b101b",
+        "price": 101
+      },
+      {
+        "id": "D57-E4",
+        "action": "cancel",
+        "side": "bid",
+        "orderId": "b101b",
+        "price": 101
+      },
+      {
+        "id": "D57-E5",
+        "action": "cancel",
+        "side": "bid",
+        "orderId": "b100",
+        "price": 100
+      },
+      {
+        "id": "D57-E6",
+        "action": "add",
+        "side": "ask",
+        "orderId": "a99",
+        "price": 99
+      },
+      {
+        "id": "D57-E7",
+        "action": "add",
+        "side": "bid",
+        "orderId": "b2",
+        "price": 2
+      },
+      {
+        "id": "D57-E8",
+        "action": "cancel",
+        "side": "bid",
+        "orderId": "b2",
+        "price": 2
+      }
+    ]
+  },
+  "input_provenance": "具名合成订单模型控制；非市场样本。orderId/eventId 为本控制身份；向 MovingQuote 投影后金额单位为一、订单列表只存价格。",
+  "base_level": 0,
+  "raw_flow_semantics": "原已封pressure Flow，不宣称低一级原义走势。geometry为实际完整L1 spread支撑，不是成交价轨迹。",
+  "choice": "单核心周期；首次合格原始离开L及已封反号R不回C确定whole末端L.end；R/封定支持留后继。",
+  "raw_flows": [
+    {
+      "id": "F0",
+      "events": [
+        "D57-E1"
+      ],
+      "start": 100,
+      "end": 102,
+      "range": [
+        100,
+        102
+      ],
+      "knownAt": 2
+    },
+    {
+      "id": "F1",
+      "events": [
+        "D57-E2"
+      ],
+      "start": 102,
+      "end": 100,
+      "range": [
+        100,
+        102
+      ],
+      "knownAt": 3
+    },
+    {
+      "id": "F2",
+      "events": [
+        "D57-E3"
+      ],
+      "start": 100,
+      "end": 102,
+      "range": [
+        100,
+        102
+      ],
+      "knownAt": 4
+    },
+    {
+      "id": "F3",
+      "events": [
+        "D57-E4",
+        "D57-E5",
+        "D57-E6"
+      ],
+      "start": 102,
+      "end": 1,
+      "range": [
+        1,
+        102
+      ],
+      "knownAt": 7
+    },
+    {
+      "id": "F4",
+      "events": [
+        "D57-E7"
+      ],
+      "start": 1,
+      "end": 99,
+      "range": [
+        1,
+        99
+      ],
+      "knownAt": 8
+    },
+    {
+      "id": "F5",
+      "events": [
+        "D57-E8"
+      ],
+      "start": 99,
+      "end": 1,
+      "range_at_8": [
+        1,
+        99
+      ],
+      "knownAt": null
+    }
+  ],
+  "initial_completed_P0": {
+    "identity": "D57-main8:K0",
+    "source_state_boundaries": [
+      0,
+      6
+    ],
+    "events": [
+      "D57-E1",
+      "D57-E2",
+      "D57-E3",
+      "D57-E4",
+      "D57-E5",
+      "D57-E6"
+    ],
+    "core": [
+      100,
+      102
+    ],
+    "seed": [
+      "F0",
+      "F1",
+      "F2"
+    ],
+    "M": [
+      "F0",
+      "F1",
+      "F2"
+    ],
+    "H": [
+      "F0",
+      "F1",
+      "F2"
+    ],
+    "member_events": [
+      "D57-E1",
+      "D57-E2",
+      "D57-E3"
+    ],
+    "member_outer": [
+      100,
+      102
+    ],
+    "whole_range": [
+      1,
+      102
+    ],
+    "boundary_values": [
+      100,
+      1
+    ],
+    "endAt": 6,
+    "knownAt": 8,
+    "publishedAt": 8,
+    "conceptual_direction": null,
+    "L": "F3",
+    "R_support": "F4",
+    "R_own_event": "D57-E7",
+    "seal_support_event": "D57-E8",
+    "released_from_development": []
+  },
+  "active_successor": {
+    "initial_candidate_level": 0,
+    "source_start_state": 6,
+    "events": [
+      "D57-E7",
+      "D57-E8"
+    ],
+    "range_at_8": [
+      1,
+      99
+    ],
+    "core": null,
+    "completed_type": null,
+    "sealed_flows": [
+      "F4"
+    ],
+    "active_flow": "F5"
+  },
+  "new_local_inference": "在原全双边域且继续同号负pressure的F5块内，ask不升、初始ask99，故所有该块支撑上界≤99，不触C下界100。不证明F5现已封，不生成未来订单。",
+  "None_boundary": "沿Stage57保留全部None/活动源；本模型及推论只用其明示全双边域，不覆盖跨None恢复，不过滤或拼接None块。"
+}

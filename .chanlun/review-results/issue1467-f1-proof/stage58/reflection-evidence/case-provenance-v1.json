@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "sourceCase": "S43",
+  "sourceCaseCount": 1,
+  "scalarControlCount": 1,
+  "sourceContext": {
+    "omega": "原课自身走势结构；未映入Ω56-L",
+    "delta": "043第二类场景下的30分钟走势分解",
+    "object": "同一O=a+A+b+B+c，延伸为O+C1",
+    "oldCore": "B",
+    "whole": "从a起点到c结束；不是B局部",
+    "laterWhole": "同起点且纳入C1"
+  },
+  "premises": [
+    {
+      "id": "source_level_and_divergence",
+      "source": "043:32/34",
+      "kind": "author-text"
+    },
+    {
+      "id": "same_object_continuation",
+      "source": "043:46/48-first-branch",
+      "kind": "author-text"
+    },
+    {
+      "id": "qualified_Z_ranges",
+      "source": "020:52/54/58",
+      "kind": "author-text"
+    },
+    {
+      "id": "local_refinement_leg_q",
+      "source": null,
+      "kind": "explicit structural premise of conditional R58; not instantiated in Ω56/57"
+    },
+    {
+      "id": "q_equals_j_plus_one",
+      "source": null,
+      "kind": "additional finite index certificate for R58-ER; not instantiated"
+    }
+  ],
+  "statements": {
+    "S58": "source-conditioned non-implication",
+    "R58": "conditional obstruction to exact whole representation; naked ER57 refuted only in additional q=j+1 subclass R58-ER",
+    "G58": "exact whole/full-leg endpoint obstruction",
+    "D43": "conditional sufficient class from independently certified same-level trend divergence"
+  },
+  "qualification": {
+    "rawD54InstanceOfS43": null,
+    "omega56OriginalInterpretation": null,
+    "originalP": null,
+    "fixedF2Child": null,
+    "independentReview": null
+  }
+}
