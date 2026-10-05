@@ -189,3 +189,15 @@ SQLite记录的pager当前近似用量在采样点最多为默认2116736 B、实
 完整capture为2375001节点，正文157406070 B、节点证书230375097 B、SQL绑定965410 B、Key/Counts44998 B、codec根证书2159915 B、frontier8 B，合计390951498 B。候选Counts材料以去重union加原SQL绑定、Key/Counts与frontier，合计90961246 B；相对含codec完整费用减少76.7334%，两边均去掉codec根证书后减少76.6041%。新持久依赖描述、完整proof接纳数仍为null；没有把原料低于512 MiB直接写成已可准入或所有9011可装下。
 
 独立事实复核通过。封存来源前后完整stat/SHA不变，新owner的主库/WAL字节不变，本次SHM也未改变；测试进程由同一Popen回收且PID消失。没有启动服务、发送请求或故障注入。源码聚合SHA为 `b699ab1f9f8acc78fee5a51ed46cede98c9fdf47b22cee63ad9c67f259b9ed98`，冻结test产物SHA为 `dc7ccc01d322cba907b00aa4fa1cdde00c045c74c7a656b03d459556e0821c07`。输入、证书、精确test列表、报告、费用重算和清理证据见 [COUNTS-FOOTPRINT-20261005.json](inputs/COUNTS-FOOTPRINT-20261005.json) 与 [原件包](inputs/COUNTS-FOOTPRINT-20261005-RAW.zip)。稀疏池尚未实装，正式完整双跑和整图仍未完成。
+
+## 2026-10-05 Counts 完整证明组稀疏保留
+
+隔离提交 `92eabc10f2571017bcf31ecd95c7fad4d0054954` 将 Native Keeper 改为按完整Counts证明组保留。单个全新Public Verifier从新到旧取得顶层导航及objects、witnesses、observations完整闭包；整组核验和全部费用通过才接纳。超额组新增材料回滚后立即停止并丢弃Verifier，此前完整组保留；首组即超额则不留池。正文Vec按值移入稀疏索引，排除正文释放。私有证书保存完整state及三根声明和版本，新增费实记；跨请求codec根清空，不能拿裁剪原件为旧全集根背书。全部当前SQL扫描、行错误、旧保留tuple逐字比对、原SQL Binding/Key和独立历史核不变。
+
+静态独评r3通过。预算组正例在r2通过；r3仅改变新增owner测试的合法价格序列，生产字节与r2相同，另6项精确正常测试通过，覆盖完整输出、正文原字节/指针、合法无关原件追加、请求/重复请求/重启与共享S7。r2 owner测试先在Fixture.publish的既有来源组覆盖门失败，尚未进入新保留逻辑；同价失败原件保留，不声称同价一般域通过。旧无关原件变更负例仍采用全池策略的失效计数断言，未修改或执行，不能称完整旧故障回归通过。非test Native构建与feature-off检查通过。
+
+同256 MiB pager建议值和512 MiB S7，新CopyQualified149→150／151窗口完整Received，request/reply wire、持久oracle及终态与基线一致。两次入口old_pool均为88768569 B，基线为382405282／382215714 B；workspace来源费用仍为42874531／43267617 B，共享合计降至131643100／132036186 B，入口余量为448102343 B，未增加额度。完整原件重绑和实际发布put读数保持，旧source与新pool指针别名、每组新增证书费和codec根清空没有在本实窗日志单列，按正常测试与静态证明的范围分别报告。
+
+整请求耗时20.037953583／18.900813833秒，基线17.691335209／17.030979916秒，本次慢13.26%／10.98%，均仍在30秒内。它解决保留材料与整池超额的策略问题，但不是全面提速结论；新增闭包遍历和清除跨请求codec复用的代价没有隐去。pager实际配置及命中/缺页/写页读数与基线相同。进程截至末次采样的内核RSS高水位为2421145600 B，基线2588622848 B；非Rust heap或单请求独立峰值。
+
+源码聚合SHA `63ae89d62f67c3f27e065495617bca753c55bd80f08632a9eb20b45d316e4d11`；服务SHA `4154968619d9abb5f3039c0e6ff531b7dadc588f1145caa4397a334191fc8275`。旧dual构建缓存库在切feature时被服务构建覆盖，旧build时SHA不改写；冻结test/service均经otool确认没有newchan动态库依赖，固定binary/源码/执行日志仍各自绑定。源文件封条、同Popen回收、controller关闭、socket移除均通过。摘要及原始证据见 [COUNTS-SUBSET-20261005.json](inputs/COUNTS-SUBSET-20261005.json) 与 [原件包](inputs/COUNTS-SUBSET-20261005-RAW.zip)。归档含 1380 份材料，只保存一份 643 项冻结源码完整快照；ZIP 为 8892093 B，SHA `4fbda57f26f6f30ee31c610c210c272a149d6e0150ce413ba12976f52a7386bd`。逐文件 bytes/SHA 清单与 ZIP 全项回读校验通过，r2 首次失败、修正补丁及旧构建绑定均保留；DB、编译可执行文件和 pycache 不入包。未运行故障注入，未合入main、push或改GOAL；完整9011、其它验收及整图goal仍未完成。
