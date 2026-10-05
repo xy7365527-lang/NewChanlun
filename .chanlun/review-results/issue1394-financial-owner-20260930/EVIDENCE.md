@@ -201,3 +201,11 @@ SQLite记录的pager当前近似用量在采样点最多为默认2116736 B、实
 整请求耗时20.037953583／18.900813833秒，基线17.691335209／17.030979916秒，本次慢13.26%／10.98%，均仍在30秒内。它解决保留材料与整池超额的策略问题，但不是全面提速结论；新增闭包遍历和清除跨请求codec复用的代价没有隐去。pager实际配置及命中/缺页/写页读数与基线相同。进程截至末次采样的内核RSS高水位为2421145600 B，基线2588622848 B；非Rust heap或单请求独立峰值。
 
 源码聚合SHA `63ae89d62f67c3f27e065495617bca753c55bd80f08632a9eb20b45d316e4d11`；服务SHA `4154968619d9abb5f3039c0e6ff531b7dadc588f1145caa4397a334191fc8275`。旧dual构建缓存库在切feature时被服务构建覆盖，旧build时SHA不改写；冻结test/service均经otool确认没有newchan动态库依赖，固定binary/源码/执行日志仍各自绑定。源文件封条、同Popen回收、controller关闭、socket移除均通过。摘要及原始证据见 [COUNTS-SUBSET-20261005.json](inputs/COUNTS-SUBSET-20261005.json) 与 [原件包](inputs/COUNTS-SUBSET-20261005-RAW.zip)。归档含 1380 份材料，只保存一份 643 项冻结源码完整快照；ZIP 为 8892093 B，SHA `4fbda57f26f6f30ee31c610c210c272a149d6e0150ce413ba12976f52a7386bd`。逐文件 bytes/SHA 清单与 ZIP 全项回读校验通过，r2 首次失败、修正补丁及旧构建绑定均保留；DB、编译可执行文件和 pycache 不入包。未运行故障注入，未合入main、push或改GOAL；完整9011、其它验收及整图goal仍未完成。
+
+## 2026-10-05 Counts 子集有限 codec 成功根
+
+隔离提交 `a81aec3b11b0acc91f036c87978181b9bf997ec3` 仅恢复已接纳 Counts 完整组的 Public/Value 成功根，按唯一根去重计入整组预算，清理其余缓存后私有保存。下一请求仍逐字绑定真实原件，再播种成功根；Template、generated_state 和旧全集根不获资格。独评 r1、r2 及 r3 类型修正通过，正常测试共 10 项，其中 r1 的 lib 3 项／bin 3 项沿未变代码复用，r3 Driver 4 项实跑；服务构建和 feature-off 检查通过。r1 混合日志绑定工具错误、旧零根断言失败及 r2 测试类型编译失败均保留，未新运行故障测试。
+
+新 CopyQualified149→150／151 窗口完整 request／reply／持久 oracle 与终态同前版，耗时 17.839879584／16.758944375 秒，单次减少 10.97%／11.33%。old_pool 均为 88782841 B，来源合计 131657372／132050458 B，同享 536870912 B S7；pager 256 MiB 仍为私有建议值。RSS 是截至采样的进程生命周期高水位 2491465728 B。源封条、原件和副本 stat/SHA、同 Popen／controller／socket 回收经根事实复核通过。实窗没有单列 codec 根身份、数量或逐组 metadata 费；精确根资格属于单测与代码证据。跨请求历史读取成本仍存在，单次窗口不证明稳定收益、完整 9011 或全资源资格，整图未完成，产品前端仍归独立工作线。
+
+源码聚合 SHA `f5e596ab408531dac56de7142b323b4ee5ac1d24bcf8a9348d0ea218e682c194`，服务 SHA `0da858872deb645a6a3c305803de429e4c5f73e94e1ba32e8c234ccfa771eac1`。摘要及逐文件清单见 [COUNTS-SUBSET-CODEC-20261005.json](inputs/COUNTS-SUBSET-CODEC-20261005.json)，[原件包](inputs/COUNTS-SUBSET-CODEC-20261005-RAW.zip) 含 1338 项、9099437 B，SHA `a2cd01f53324b237dac8d9b4d922829796f1d5714317a0e87ae17895058d1e00`。只收一份 643 项 service r3 完整冻结源码，旧 manifest、补丁与旧 Driver 足以重构；失败日志、绑定及外部 s.log 字节保留。逐文件 bytes/SHA 与 ZIP 全项回读通过，DB、编译可执行文件和 pycache 不入包；未打开 SQLite 或重跑 Cargo／测试，未 push／merge。
