@@ -1,0 +1,48 @@
+{
+  "ordered_gate_failure": {
+    "gate": "P2 completion -> K1 complete first-three input",
+    "object": "P2",
+    "missing_certificate": "S15",
+    "certificate_contract": "unchanged no-inclusion/no-gap 067 proof fragment, direction now from actual first pen",
+    "inclusion_pair": [
+      {
+        "end": 317,
+        "end_price": 72000,
+        "start": 313,
+        "start_price": 72400,
+        "up": false,
+        "pen": 78,
+        "range": [
+          72000,
+          72400
+        ]
+      },
+      {
+        "end": 325,
+        "end_price": 67200,
+        "start": 321,
+        "start_price": 72800,
+        "up": false,
+        "pen": 80,
+        "range": [
+          67200,
+          72800
+        ]
+      }
+    ],
+    "claim": "the old P2 c-end certificate does not transport into this new continuation; no full original impossibility claim"
+  },
+  "earlier_conditional_NoPP": {
+    "expression": "Input0-K1",
+    "pair": [
+      "P0",
+      "P1"
+    ],
+    "known_at": 238,
+    "reason": "these are actually presented as independent constructor inputs; not inferred for every possible expression"
+  },
+  "b_source_bridge": {
+    "source": "035:22 permits lower complete movement types, 057:26/28 only at chosen minimum analysis level; no line upgrades a raw S0 067 end into a generally completed lower movement type",
+    "value": "unverified; do not reclassify b as q0"
+  }
+}

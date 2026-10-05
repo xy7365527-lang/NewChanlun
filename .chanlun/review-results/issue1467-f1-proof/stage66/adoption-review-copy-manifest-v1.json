@@ -1,0 +1,52 @@
+{
+  "files": [
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption-review/FINAL.json",
+      "path": "adoption-review/FINAL.json",
+      "bytes": 1555,
+      "sha256": "49de862679ab279059bcc8e67465b562429729a50fa23fb2114ed98e9a416e93"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption-review/inputhash.json",
+      "path": "adoption-review/inputhash.json",
+      "bytes": 31969,
+      "sha256": "654eb53c645f4b807ab8c61b1ea0b0f25aa406f5bca1c07ccefd51809c0de60a"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption-review/receipt.json",
+      "path": "adoption-review/receipt.json",
+      "bytes": 5306,
+      "sha256": "39fc5bb244603c01872b5b00e8274280788e83c70e8964df0c0126c1489b1791"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption-review/review.md",
+      "path": "adoption-review/review.md",
+      "bytes": 8164,
+      "sha256": "a96c6d441bd75542b6144a2e7f4d04a8afeac362e7a65a43ea1bc8bad53c73bd"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption-review/v2/FINAL.json",
+      "path": "adoption-review/v2/FINAL.json",
+      "bytes": 1252,
+      "sha256": "b81b4f63d13fad70d99b4bd0fdd76b7e5c4a8dc14bbeb5006ba4f56ce85407d4"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption-review/v2/inputhash.json",
+      "path": "adoption-review/v2/inputhash.json",
+      "bytes": 5482,
+      "sha256": "22553510e971fdfb5a21dd7d2582a9903333d1350d22cc3bbfb4dbe3df2f14fe"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption-review/v2/receipt.json",
+      "path": "adoption-review/v2/receipt.json",
+      "bytes": 1263,
+      "sha256": "63e25d4df5d84763d2b5043b55392514463422f9a6664163e968f16bb4055590"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption-review/v2/review.md",
+      "path": "adoption-review/v2/review.md",
+      "bytes": 3191,
+      "sha256": "d5376e3e45735ab28009d0f4adee0762f7340d57e1a4e677e76af57dac7eb2a3"
+    }
+  ]
+}

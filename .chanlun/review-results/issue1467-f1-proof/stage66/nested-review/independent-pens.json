@@ -1,0 +1,772 @@
+[
+  {
+    "up": false,
+    "start": 1,
+    "end": 5,
+    "start_price": 76000,
+    "end_price": 60000
+  },
+  {
+    "up": true,
+    "start": 5,
+    "end": 9,
+    "start_price": 60000,
+    "end_price": 68000
+  },
+  {
+    "up": false,
+    "start": 9,
+    "end": 13,
+    "start_price": 68000,
+    "end_price": 46000
+  },
+  {
+    "up": true,
+    "start": 13,
+    "end": 17,
+    "start_price": 46000,
+    "end_price": 60000
+  },
+  {
+    "up": false,
+    "start": 17,
+    "end": 21,
+    "start_price": 60000,
+    "end_price": 40000
+  },
+  {
+    "up": true,
+    "start": 21,
+    "end": 25,
+    "start_price": 40000,
+    "end_price": 48000
+  },
+  {
+    "up": false,
+    "start": 25,
+    "end": 29,
+    "start_price": 48000,
+    "end_price": 44000
+  },
+  {
+    "up": true,
+    "start": 29,
+    "end": 33,
+    "start_price": 44000,
+    "end_price": 60000
+  },
+  {
+    "up": false,
+    "start": 33,
+    "end": 37,
+    "start_price": 60000,
+    "end_price": 52000
+  },
+  {
+    "up": true,
+    "start": 37,
+    "end": 41,
+    "start_price": 52000,
+    "end_price": 64000
+  },
+  {
+    "up": false,
+    "start": 41,
+    "end": 45,
+    "start_price": 64000,
+    "end_price": 58000
+  },
+  {
+    "up": true,
+    "start": 45,
+    "end": 49,
+    "start_price": 58000,
+    "end_price": 62000
+  },
+  {
+    "up": false,
+    "start": 49,
+    "end": 53,
+    "start_price": 62000,
+    "end_price": 52000
+  },
+  {
+    "up": true,
+    "start": 53,
+    "end": 57,
+    "start_price": 52000,
+    "end_price": 56000
+  },
+  {
+    "up": false,
+    "start": 57,
+    "end": 61,
+    "start_price": 56000,
+    "end_price": 48000
+  },
+  {
+    "up": true,
+    "start": 61,
+    "end": 65,
+    "start_price": 48000,
+    "end_price": 54000
+  },
+  {
+    "up": false,
+    "start": 65,
+    "end": 69,
+    "start_price": 54000,
+    "end_price": 50000
+  },
+  {
+    "up": true,
+    "start": 69,
+    "end": 73,
+    "start_price": 50000,
+    "end_price": 58000
+  },
+  {
+    "up": false,
+    "start": 73,
+    "end": 77,
+    "start_price": 58000,
+    "end_price": 52000
+  },
+  {
+    "up": true,
+    "start": 77,
+    "end": 81,
+    "start_price": 52000,
+    "end_price": 60000
+  },
+  {
+    "up": false,
+    "start": 81,
+    "end": 85,
+    "start_price": 60000,
+    "end_price": 56000
+  },
+  {
+    "up": true,
+    "start": 85,
+    "end": 89,
+    "start_price": 56000,
+    "end_price": 59200
+  },
+  {
+    "up": false,
+    "start": 89,
+    "end": 93,
+    "start_price": 59200,
+    "end_price": 52000
+  },
+  {
+    "up": true,
+    "start": 93,
+    "end": 97,
+    "start_price": 52000,
+    "end_price": 56000
+  },
+  {
+    "up": false,
+    "start": 97,
+    "end": 101,
+    "start_price": 56000,
+    "end_price": 50000
+  },
+  {
+    "up": true,
+    "start": 101,
+    "end": 105,
+    "start_price": 50000,
+    "end_price": 54000
+  },
+  {
+    "up": false,
+    "start": 105,
+    "end": 109,
+    "start_price": 54000,
+    "end_price": 52000
+  },
+  {
+    "up": true,
+    "start": 109,
+    "end": 113,
+    "start_price": 52000,
+    "end_price": 71200
+  },
+  {
+    "up": false,
+    "start": 113,
+    "end": 117,
+    "start_price": 71200,
+    "end_price": 70000
+  },
+  {
+    "up": true,
+    "start": 117,
+    "end": 121,
+    "start_price": 70000,
+    "end_price": 72000
+  },
+  {
+    "up": false,
+    "start": 121,
+    "end": 125,
+    "start_price": 72000,
+    "end_price": 70400
+  },
+  {
+    "up": true,
+    "start": 125,
+    "end": 129,
+    "start_price": 70400,
+    "end_price": 71600
+  },
+  {
+    "up": false,
+    "start": 129,
+    "end": 133,
+    "start_price": 71600,
+    "end_price": 68000
+  },
+  {
+    "up": true,
+    "start": 133,
+    "end": 137,
+    "start_price": 68000,
+    "end_price": 70000
+  },
+  {
+    "up": false,
+    "start": 137,
+    "end": 141,
+    "start_price": 70000,
+    "end_price": 64000
+  },
+  {
+    "up": true,
+    "start": 141,
+    "end": 145,
+    "start_price": 64000,
+    "end_price": 68800
+  },
+  {
+    "up": false,
+    "start": 145,
+    "end": 149,
+    "start_price": 68800,
+    "end_price": 65200
+  },
+  {
+    "up": true,
+    "start": 149,
+    "end": 153,
+    "start_price": 65200,
+    "end_price": 69600
+  },
+  {
+    "up": false,
+    "start": 153,
+    "end": 157,
+    "start_price": 69600,
+    "end_price": 66400
+  },
+  {
+    "up": true,
+    "start": 157,
+    "end": 161,
+    "start_price": 66400,
+    "end_price": 70000
+  },
+  {
+    "up": false,
+    "start": 161,
+    "end": 165,
+    "start_price": 70000,
+    "end_price": 68000
+  },
+  {
+    "up": true,
+    "start": 165,
+    "end": 169,
+    "start_price": 68000,
+    "end_price": 69200
+  },
+  {
+    "up": false,
+    "start": 169,
+    "end": 173,
+    "start_price": 69200,
+    "end_price": 66800
+  },
+  {
+    "up": true,
+    "start": 173,
+    "end": 177,
+    "start_price": 66800,
+    "end_price": 68400
+  },
+  {
+    "up": false,
+    "start": 177,
+    "end": 181,
+    "start_price": 68400,
+    "end_price": 66000
+  },
+  {
+    "up": true,
+    "start": 181,
+    "end": 185,
+    "start_price": 66000,
+    "end_price": 67600
+  },
+  {
+    "up": false,
+    "start": 185,
+    "end": 189,
+    "start_price": 67600,
+    "end_price": 66400
+  },
+  {
+    "up": true,
+    "start": 189,
+    "end": 193,
+    "start_price": 66400,
+    "end_price": 68400
+  },
+  {
+    "up": false,
+    "start": 193,
+    "end": 197,
+    "start_price": 68400,
+    "end_price": 66800
+  },
+  {
+    "up": true,
+    "start": 197,
+    "end": 201,
+    "start_price": 66800,
+    "end_price": 68800
+  },
+  {
+    "up": false,
+    "start": 201,
+    "end": 205,
+    "start_price": 68800,
+    "end_price": 68000
+  },
+  {
+    "up": true,
+    "start": 205,
+    "end": 209,
+    "start_price": 68000,
+    "end_price": 68400
+  },
+  {
+    "up": false,
+    "start": 209,
+    "end": 213,
+    "start_price": 68400,
+    "end_price": 63200
+  },
+  {
+    "up": true,
+    "start": 213,
+    "end": 217,
+    "start_price": 63200,
+    "end_price": 67600
+  },
+  {
+    "up": false,
+    "start": 217,
+    "end": 221,
+    "start_price": 67600,
+    "end_price": 62000
+  },
+  {
+    "up": true,
+    "start": 221,
+    "end": 225,
+    "start_price": 62000,
+    "end_price": 63600
+  },
+  {
+    "up": false,
+    "start": 225,
+    "end": 229,
+    "start_price": 63600,
+    "end_price": 62800
+  },
+  {
+    "up": true,
+    "start": 229,
+    "end": 233,
+    "start_price": 62800,
+    "end_price": 64800
+  },
+  {
+    "up": false,
+    "start": 233,
+    "end": 237,
+    "start_price": 64800,
+    "end_price": 63600
+  },
+  {
+    "up": true,
+    "start": 237,
+    "end": 241,
+    "start_price": 63600,
+    "end_price": 65600
+  },
+  {
+    "up": false,
+    "start": 241,
+    "end": 245,
+    "start_price": 65600,
+    "end_price": 64400
+  },
+  {
+    "up": true,
+    "start": 245,
+    "end": 249,
+    "start_price": 64400,
+    "end_price": 65200
+  },
+  {
+    "up": false,
+    "start": 249,
+    "end": 253,
+    "start_price": 65200,
+    "end_price": 61600
+  },
+  {
+    "up": true,
+    "start": 253,
+    "end": 257,
+    "start_price": 61600,
+    "end_price": 64000
+  },
+  {
+    "up": false,
+    "start": 257,
+    "end": 261,
+    "start_price": 64000,
+    "end_price": 60000
+  },
+  {
+    "up": true,
+    "start": 261,
+    "end": 265,
+    "start_price": 60000,
+    "end_price": 62000
+  },
+  {
+    "up": false,
+    "start": 265,
+    "end": 269,
+    "start_price": 62000,
+    "end_price": 60800
+  },
+  {
+    "up": true,
+    "start": 269,
+    "end": 273,
+    "start_price": 60800,
+    "end_price": 63200
+  },
+  {
+    "up": false,
+    "start": 273,
+    "end": 277,
+    "start_price": 63200,
+    "end_price": 61600
+  },
+  {
+    "up": true,
+    "start": 277,
+    "end": 281,
+    "start_price": 61600,
+    "end_price": 64000
+  },
+  {
+    "up": false,
+    "start": 281,
+    "end": 285,
+    "start_price": 64000,
+    "end_price": 62800
+  },
+  {
+    "up": true,
+    "start": 285,
+    "end": 289,
+    "start_price": 62800,
+    "end_price": 63600
+  },
+  {
+    "up": false,
+    "start": 289,
+    "end": 293,
+    "start_price": 63600,
+    "end_price": 61600
+  },
+  {
+    "up": true,
+    "start": 293,
+    "end": 297,
+    "start_price": 61600,
+    "end_price": 63200
+  },
+  {
+    "up": false,
+    "start": 297,
+    "end": 301,
+    "start_price": 63200,
+    "end_price": 60800
+  },
+  {
+    "up": true,
+    "start": 301,
+    "end": 305,
+    "start_price": 60800,
+    "end_price": 62400
+  },
+  {
+    "up": false,
+    "start": 305,
+    "end": 309,
+    "start_price": 62400,
+    "end_price": 62000
+  },
+  {
+    "up": true,
+    "start": 309,
+    "end": 313,
+    "start_price": 62000,
+    "end_price": 72400
+  },
+  {
+    "up": false,
+    "start": 313,
+    "end": 317,
+    "start_price": 72400,
+    "end_price": 72000
+  },
+  {
+    "up": true,
+    "start": 317,
+    "end": 321,
+    "start_price": 72000,
+    "end_price": 72800
+  },
+  {
+    "up": false,
+    "start": 321,
+    "end": 325,
+    "start_price": 72800,
+    "end_price": 67200
+  },
+  {
+    "up": true,
+    "start": 325,
+    "end": 329,
+    "start_price": 67200,
+    "end_price": 71400
+  },
+  {
+    "up": false,
+    "start": 329,
+    "end": 333,
+    "start_price": 71400,
+    "end_price": 58800
+  },
+  {
+    "up": true,
+    "start": 333,
+    "end": 337,
+    "start_price": 58800,
+    "end_price": 65800
+  },
+  {
+    "up": false,
+    "start": 337,
+    "end": 341,
+    "start_price": 65800,
+    "end_price": 44800
+  },
+  {
+    "up": true,
+    "start": 341,
+    "end": 345,
+    "start_price": 44800,
+    "end_price": 61600
+  },
+  {
+    "up": false,
+    "start": 345,
+    "end": 349,
+    "start_price": 61600,
+    "end_price": 49000
+  },
+  {
+    "up": true,
+    "start": 349,
+    "end": 353,
+    "start_price": 49000,
+    "end_price": 64400
+  },
+  {
+    "up": false,
+    "start": 353,
+    "end": 357,
+    "start_price": 64400,
+    "end_price": 53200
+  },
+  {
+    "up": true,
+    "start": 357,
+    "end": 361,
+    "start_price": 53200,
+    "end_price": 65800
+  },
+  {
+    "up": false,
+    "start": 361,
+    "end": 365,
+    "start_price": 65800,
+    "end_price": 58800
+  },
+  {
+    "up": true,
+    "start": 365,
+    "end": 369,
+    "start_price": 58800,
+    "end_price": 63000
+  },
+  {
+    "up": false,
+    "start": 369,
+    "end": 373,
+    "start_price": 63000,
+    "end_price": 54600
+  },
+  {
+    "up": true,
+    "start": 373,
+    "end": 377,
+    "start_price": 54600,
+    "end_price": 60200
+  },
+  {
+    "up": false,
+    "start": 377,
+    "end": 381,
+    "start_price": 60200,
+    "end_price": 51800
+  },
+  {
+    "up": true,
+    "start": 381,
+    "end": 385,
+    "start_price": 51800,
+    "end_price": 57400
+  },
+  {
+    "up": false,
+    "start": 385,
+    "end": 389,
+    "start_price": 57400,
+    "end_price": 53200
+  },
+  {
+    "up": true,
+    "start": 389,
+    "end": 393,
+    "start_price": 53200,
+    "end_price": 60200
+  },
+  {
+    "up": false,
+    "start": 393,
+    "end": 397,
+    "start_price": 60200,
+    "end_price": 54600
+  },
+  {
+    "up": true,
+    "start": 397,
+    "end": 401,
+    "start_price": 54600,
+    "end_price": 61600
+  },
+  {
+    "up": false,
+    "start": 401,
+    "end": 405,
+    "start_price": 61600,
+    "end_price": 58800
+  },
+  {
+    "up": true,
+    "start": 405,
+    "end": 409,
+    "start_price": 58800,
+    "end_price": 60200
+  },
+  {
+    "up": false,
+    "start": 409,
+    "end": 413,
+    "start_price": 60200,
+    "end_price": 42000
+  },
+  {
+    "up": true,
+    "start": 413,
+    "end": 417,
+    "start_price": 42000,
+    "end_price": 57400
+  },
+  {
+    "up": false,
+    "start": 417,
+    "end": 421,
+    "start_price": 57400,
+    "end_price": 37800
+  },
+  {
+    "up": true,
+    "start": 421,
+    "end": 425,
+    "start_price": 37800,
+    "end_price": 43400
+  },
+  {
+    "up": false,
+    "start": 425,
+    "end": 429,
+    "start_price": 43400,
+    "end_price": 40600
+  },
+  {
+    "up": true,
+    "start": 429,
+    "end": 433,
+    "start_price": 40600,
+    "end_price": 47600
+  },
+  {
+    "up": false,
+    "start": 433,
+    "end": 437,
+    "start_price": 47600,
+    "end_price": 43400
+  },
+  {
+    "up": true,
+    "start": 437,
+    "end": 441,
+    "start_price": 43400,
+    "end_price": 50400
+  }
+]

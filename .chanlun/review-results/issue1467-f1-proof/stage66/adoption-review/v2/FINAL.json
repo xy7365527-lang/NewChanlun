@@ -1,0 +1,36 @@
+{
+  "id": "Stage66-adoption-review-v2",
+  "verdict": "accepted scoped adoption",
+  "must_revise": [],
+  "resolved_findings": [
+    "A1"
+  ],
+  "scope": "仅本次采用修订及摘要范围",
+  "main_report_sha256": "98c5de34e8ecaa8116bcea3f407f76a6f1248251bf791f108061d5ac3256126d",
+  "outputs": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption-review/v2/review.md",
+      "bytes": 3191,
+      "sha256": "d5376e3e45735ab28009d0f4adee0762f7340d57e1a4e677e76af57dac7eb2a3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption-review/v2/receipt.json",
+      "bytes": 1263,
+      "sha256": "63e25d4df5d84763d2b5043b55392514463422f9a6664163e968f16bb4055590"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption-review/v2/inputhash.json",
+      "bytes": 5482,
+      "sha256": "22553510e971fdfb5a21dd7d2582a9903333d1350d22cc3bbfb4dbe3df2f14fe"
+    }
+  ],
+  "all_inputs_unchanged": true,
+  "input_count": 12,
+  "prior_round_preserved": true,
+  "rerun_count": 0,
+  "new_history_count": 0,
+  "new_Lean_count": 0,
+  "full_F1_fixed_F2": "not established",
+  "original_completion": "not established"
+}
+

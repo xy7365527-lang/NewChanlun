@@ -1,0 +1,102 @@
+{
+  "partition": {
+    "support": [
+      1,
+      1
+    ],
+    "b": [
+      2,
+      21
+    ],
+    "P0": [
+      22,
+      121
+    ],
+    "P1": [
+      122,
+      221
+    ],
+    "P2": [
+      222,
+      321
+    ],
+    "c0": [
+      322,
+      421
+    ],
+    "tail": [
+      422,
+      442
+    ]
+  },
+  "duplicates": 0,
+  "missing": 0,
+  "D1_outer_adj": [
+    [
+      "b_low",
+      "K1"
+    ],
+    [
+      "K1",
+      "c0"
+    ]
+  ],
+  "MemberNext": [
+    [
+      "P0",
+      "P1"
+    ],
+    [
+      "P1",
+      "P2"
+    ]
+  ],
+  "canonical_adj": null,
+  "D0_conditional_pair": [
+    "P0",
+    "P1"
+  ],
+  "D0_local_joint_known": 238,
+  "promotion": {
+    "core": [
+      62000,
+      72000
+    ],
+    "directions": [
+      "Down",
+      "Up",
+      "Down"
+    ],
+    "time_contiguous": true,
+    "candidate_joint_known": 238,
+    "source_complete_members": "unestablished",
+    "first_among_selected_carrier_triples_only": true
+  },
+  "full_extension": {
+    "K1_seed_direction": "Up",
+    "Zn_among_selected": [
+      "P0",
+      "P2"
+    ],
+    "c0_direction": "Down",
+    "c0_is_Zn": false,
+    "c0_core_intersection": [
+      62000,
+      72000
+    ],
+    "seed_Zn_outer": {
+      "GG": 72800,
+      "DD": 40000
+    },
+    "extension_original_membership": "unestablished",
+    "if_full_center_own_is_22_421_duplicate_events": 100,
+    "conditional_duplicates": [
+      322,
+      421
+    ],
+    "whole_hull_not_proved_Zn_outer": [
+      37800,
+      72800
+    ]
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "status": "independent_review_complete",
+  "verdict": "accepted_with_explicit_scope_limits",
+  "report": "review.md",
+  "report_sha256": "1c14cc745a48a2de4bd619357403256375ac335f03d6945a151447975e0060db",
+  "manifest": "manifest.json",
+  "manifest_sha256": "75f82d8dda877dc7115945fed563ab8f8dabf93a584db82082f9a5a1e0f75c46",
+  "reviewed_author_report_sha256": "76c0a8f99d864a7dc42abe0ffdb4f04f26a41bf702ce0b788007874e69790dce",
+  "reviewed_author_manifest_sha256": "000c0984e3afdb5080379f67b3d198b51781f880866b1e2f67a13dfed0294df5",
+  "checks": {
+    "mapped_32": 32,
+    "additional": 36,
+    "source": 181,
+    "total": 249,
+    "failed": 0
+  },
+  "actual_prefixes": [
+    218,
+    318,
+    342
+  ],
+  "actual_original_completed_children": 0,
+  "actual_parent_completed": 0,
+  "conditional_parent_instantiated": false,
+  "must_revise": [],
+  "accepted": [
+    "Jdirect conditional incompatibility under explicit nonempty ordered nonoverlapping identity-preserving factor contract",
+    "permanent records compatible with later derived frontier update",
+    "NoPP is not automatically applied to arbitrary MemberNext",
+    "current project role policy applies to explicit upward independent factors; no generic child-table exemption"
+  ],
+  "unresolved": [
+    "original child completion and kinds",
+    "true parent certificate",
+    "normalization and fixed F2 consumer bridge",
+    "full F1/F2 semantics"
+  ],
+  "other_history_438_not_used_as_tauW": true,
+  "input_hashes_unchanged": true,
+  "no_author_repo_canonical_production_formal_tracker_write": true
+}

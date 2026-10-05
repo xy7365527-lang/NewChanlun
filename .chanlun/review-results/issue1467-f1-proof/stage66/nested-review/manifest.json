@@ -1,0 +1,96 @@
+{
+  "status": "independent-review-must-revise",
+  "files": [
+    {
+      "path": "H_b-evidence-versus-semantics.json",
+      "bytes": 591,
+      "sha256": "a4b05d93400933b8d2e939593781c3cdbf1d6ca2f6fb493f3998a1e26193fad9"
+    },
+    {
+      "path": "comparison-after-independent-computation.json",
+      "bytes": 88,
+      "sha256": "14f7ded8fbbb60e18e915039213a817c8755aa27d4e5daeb4b6231d86f34809c"
+    },
+    {
+      "path": "doctrine-extract-audit.json",
+      "bytes": 1932,
+      "sha256": "0f2b6c9df905e832b774501f273711b4fe24d3063855ab42c171860f66b293ae"
+    },
+    {
+      "path": "independent-S15.json",
+      "bytes": 682,
+      "sha256": "ceb810600171b901b3dde1cbf461adda5db279fad9308ad35916a569814e8384"
+    },
+    {
+      "path": "independent-narrow-segments.json",
+      "bytes": 13494,
+      "sha256": "8a1f96cb06d58e4a2076d051f14f7587fad7a58578b2fc4462b65c9633612e0c"
+    },
+    {
+      "path": "independent-objects.json",
+      "bytes": 3447,
+      "sha256": "789ea728db62d245ef30d9e801cb25897838547737e81225323057b9922f2a3c"
+    },
+    {
+      "path": "independent-parent.json",
+      "bytes": 1774,
+      "sha256": "a3a9091e3ad43f37eaa3e7f95f6121e7932a89aec3572af874d748c676bd8a5a"
+    },
+    {
+      "path": "independent-pens.json",
+      "bytes": 11884,
+      "sha256": "305f747678d93c877a6a0c7da502cb7da63bdb29697b58e0ccd34415c0c965a4"
+    },
+    {
+      "path": "independent-prefixes.json",
+      "bytes": 5897126,
+      "sha256": "c6c53c27554a65f0a1c5520760f4d9fd9a7fd4124ffdf9bdf0f08e6a36ac3aba"
+    },
+    {
+      "path": "independent-relations.json",
+      "bytes": 1474,
+      "sha256": "55e280e34713a02868c91e01f23a3057676c55014fbc52aea840d7a027103337"
+    },
+    {
+      "path": "independent_recompute.py",
+      "bytes": 19933,
+      "sha256": "a1d5caff3196acc31b197eb8c0d2bd0b02c10e30cf26e4d68a8e49e3b3ac8992"
+    },
+    {
+      "path": "inputhash-after.json",
+      "bytes": 14438,
+      "sha256": "fa9430997716d6739b4852bc3b366f0e11b4e7f071a8cd3b33c849a7e8ef3efa"
+    },
+    {
+      "path": "inputhash-before.json",
+      "bytes": 14438,
+      "sha256": "fa9430997716d6739b4852bc3b366f0e11b4e7f071a8cd3b33c849a7e8ef3efa"
+    },
+    {
+      "path": "order-replay.json",
+      "bytes": 244390,
+      "sha256": "6cdd8195eb28f7ff2d50adc350bd44c21c493ea93f5ce82f97b5d7aeda371730"
+    },
+    {
+      "path": "receipt.json",
+      "bytes": 1737,
+      "sha256": "c3762b3a5dc7d6554a48e3d74dd04fccf0f6d122d00fa49cbb1c9880fdbe4b5f"
+    },
+    {
+      "path": "recompute-result.json",
+      "bytes": 727,
+      "sha256": "5d0f949676ba29048319535fbc2d93749dc5f1c9972e9b653fd1f192058c4405"
+    },
+    {
+      "path": "review.md",
+      "bytes": 11574,
+      "sha256": "81a97eb5d978c2c300fc5d288d3501a243d0c94ee2d316e59ac0533283d0c295"
+    },
+    {
+      "path": "source-line-audit.json",
+      "bytes": 53891,
+      "sha256": "8d427024bf0d97e4ad2ef38d98e6d0cfd916963bde75995a8e42cf5a2a0c70a8"
+    }
+  ],
+  "total_bytes_before_manifest_final": 6293620
+}

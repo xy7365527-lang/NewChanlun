@@ -1,0 +1,882 @@
+[
+  {
+    "id": "S0",
+    "up": false,
+    "start": 1,
+    "end": 21,
+    "own": [
+      2,
+      21
+    ],
+    "members": [
+      0,
+      5
+    ],
+    "range": [
+      40000,
+      76000
+    ],
+    "known_at": 38,
+    "first_selected": [
+      3,
+      5,
+      7
+    ],
+    "selected_ranges": [
+      [
+        46000,
+        60000
+      ],
+      [
+        40000,
+        48000
+      ],
+      [
+        44000,
+        60000
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      60000,
+      68000
+    ],
+    "persists_all_later_prefixes": true
+  },
+  {
+    "id": "S1",
+    "up": true,
+    "start": 21,
+    "end": 41,
+    "own": [
+      22,
+      41
+    ],
+    "members": [
+      5,
+      10
+    ],
+    "range": [
+      40000,
+      64000
+    ],
+    "known_at": 58,
+    "first_selected": [
+      8,
+      10,
+      12
+    ],
+    "selected_ranges": [
+      [
+        52000,
+        60000
+      ],
+      [
+        58000,
+        64000
+      ],
+      [
+        52000,
+        62000
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      44000,
+      48000
+    ],
+    "persists_all_later_prefixes": true
+  },
+  {
+    "id": "S2",
+    "up": false,
+    "start": 41,
+    "end": 61,
+    "own": [
+      42,
+      61
+    ],
+    "members": [
+      10,
+      15
+    ],
+    "range": [
+      48000,
+      64000
+    ],
+    "known_at": 78,
+    "first_selected": [
+      13,
+      15,
+      17
+    ],
+    "selected_ranges": [
+      [
+        52000,
+        56000
+      ],
+      [
+        48000,
+        54000
+      ],
+      [
+        50000,
+        58000
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      58000,
+      62000
+    ],
+    "persists_all_later_prefixes": true
+  },
+  {
+    "id": "S3",
+    "up": true,
+    "start": 61,
+    "end": 81,
+    "own": [
+      62,
+      81
+    ],
+    "members": [
+      15,
+      20
+    ],
+    "range": [
+      48000,
+      60000
+    ],
+    "known_at": 98,
+    "first_selected": [
+      18,
+      20,
+      22
+    ],
+    "selected_ranges": [
+      [
+        52000,
+        58000
+      ],
+      [
+        56000,
+        60000
+      ],
+      [
+        52000,
+        59200
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      50000,
+      54000
+    ],
+    "persists_all_later_prefixes": true
+  },
+  {
+    "id": "S4",
+    "up": false,
+    "start": 81,
+    "end": 101,
+    "own": [
+      82,
+      101
+    ],
+    "members": [
+      20,
+      25
+    ],
+    "range": [
+      50000,
+      60000
+    ],
+    "known_at": 118,
+    "first_selected": [
+      23,
+      25,
+      27
+    ],
+    "selected_ranges": [
+      [
+        52000,
+        56000
+      ],
+      [
+        50000,
+        54000
+      ],
+      [
+        52000,
+        71200
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      56000,
+      59200
+    ],
+    "persists_all_later_prefixes": true
+  },
+  {
+    "id": "S5",
+    "up": true,
+    "start": 101,
+    "end": 121,
+    "own": [
+      102,
+      121
+    ],
+    "members": [
+      25,
+      30
+    ],
+    "range": [
+      50000,
+      72000
+    ],
+    "known_at": 138,
+    "first_selected": [
+      28,
+      30,
+      32
+    ],
+    "selected_ranges": [
+      [
+        70000,
+        71200
+      ],
+      [
+        70400,
+        72000
+      ],
+      [
+        68000,
+        71600
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      52000,
+      54000
+    ],
+    "persists_all_later_prefixes": true
+  },
+  {
+    "id": "S6",
+    "up": false,
+    "start": 121,
+    "end": 141,
+    "own": [
+      122,
+      141
+    ],
+    "members": [
+      30,
+      35
+    ],
+    "range": [
+      64000,
+      72000
+    ],
+    "known_at": 158,
+    "first_selected": [
+      33,
+      35,
+      37
+    ],
+    "selected_ranges": [
+      [
+        68000,
+        70000
+      ],
+      [
+        64000,
+        68800
+      ],
+      [
+        65200,
+        69600
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      70400,
+      71600
+    ],
+    "persists_all_later_prefixes": true
+  },
+  {
+    "id": "S7",
+    "up": true,
+    "start": 141,
+    "end": 161,
+    "own": [
+      142,
+      161
+    ],
+    "members": [
+      35,
+      40
+    ],
+    "range": [
+      64000,
+      70000
+    ],
+    "known_at": 178,
+    "first_selected": [
+      38,
+      40,
+      42
+    ],
+    "selected_ranges": [
+      [
+        66400,
+        69600
+      ],
+      [
+        68000,
+        70000
+      ],
+      [
+        66800,
+        69200
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      65200,
+      68800
+    ],
+    "persists_all_later_prefixes": true
+  },
+  {
+    "id": "S8",
+    "up": false,
+    "start": 161,
+    "end": 181,
+    "own": [
+      162,
+      181
+    ],
+    "members": [
+      40,
+      45
+    ],
+    "range": [
+      66000,
+      70000
+    ],
+    "known_at": 198,
+    "first_selected": [
+      43,
+      45,
+      47
+    ],
+    "selected_ranges": [
+      [
+        66800,
+        68400
+      ],
+      [
+        66000,
+        67600
+      ],
+      [
+        66400,
+        68400
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      68000,
+      69200
+    ],
+    "persists_all_later_prefixes": true
+  },
+  {
+    "id": "S9",
+    "up": true,
+    "start": 181,
+    "end": 201,
+    "own": [
+      182,
+      201
+    ],
+    "members": [
+      45,
+      50
+    ],
+    "range": [
+      66000,
+      68800
+    ],
+    "known_at": 218,
+    "first_selected": [
+      48,
+      50,
+      52
+    ],
+    "selected_ranges": [
+      [
+        66800,
+        68400
+      ],
+      [
+        68000,
+        68800
+      ],
+      [
+        63200,
+        68400
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      66400,
+      67600
+    ],
+    "persists_all_later_prefixes": true
+  },
+  {
+    "id": "S10",
+    "up": false,
+    "start": 201,
+    "end": 221,
+    "own": [
+      202,
+      221
+    ],
+    "members": [
+      50,
+      55
+    ],
+    "range": [
+      62000,
+      68800
+    ],
+    "known_at": 238,
+    "first_selected": [
+      53,
+      55,
+      57
+    ],
+    "selected_ranges": [
+      [
+        63200,
+        67600
+      ],
+      [
+        62000,
+        63600
+      ],
+      [
+        62800,
+        64800
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      68000,
+      68400
+    ],
+    "persists_all_later_prefixes": true
+  },
+  {
+    "id": "S11",
+    "up": true,
+    "start": 221,
+    "end": 241,
+    "own": [
+      222,
+      241
+    ],
+    "members": [
+      55,
+      60
+    ],
+    "range": [
+      62000,
+      65600
+    ],
+    "known_at": 258,
+    "first_selected": [
+      58,
+      60,
+      62
+    ],
+    "selected_ranges": [
+      [
+        63600,
+        64800
+      ],
+      [
+        64400,
+        65600
+      ],
+      [
+        61600,
+        65200
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      62800,
+      63600
+    ],
+    "persists_all_later_prefixes": true
+  },
+  {
+    "id": "S12",
+    "up": false,
+    "start": 241,
+    "end": 261,
+    "own": [
+      242,
+      261
+    ],
+    "members": [
+      60,
+      65
+    ],
+    "range": [
+      60000,
+      65600
+    ],
+    "known_at": 278,
+    "first_selected": [
+      63,
+      65,
+      67
+    ],
+    "selected_ranges": [
+      [
+        61600,
+        64000
+      ],
+      [
+        60000,
+        62000
+      ],
+      [
+        60800,
+        63200
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      64400,
+      65200
+    ],
+    "persists_all_later_prefixes": true
+  },
+  {
+    "id": "S13",
+    "up": true,
+    "start": 261,
+    "end": 281,
+    "own": [
+      262,
+      281
+    ],
+    "members": [
+      65,
+      70
+    ],
+    "range": [
+      60000,
+      64000
+    ],
+    "known_at": 298,
+    "first_selected": [
+      68,
+      70,
+      72
+    ],
+    "selected_ranges": [
+      [
+        61600,
+        63200
+      ],
+      [
+        62800,
+        64000
+      ],
+      [
+        61600,
+        63600
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      60800,
+      62000
+    ],
+    "persists_all_later_prefixes": true
+  },
+  {
+    "id": "S14",
+    "up": false,
+    "start": 281,
+    "end": 301,
+    "own": [
+      282,
+      301
+    ],
+    "members": [
+      70,
+      75
+    ],
+    "range": [
+      60800,
+      64000
+    ],
+    "known_at": 318,
+    "first_selected": [
+      73,
+      75,
+      77
+    ],
+    "selected_ranges": [
+      [
+        61600,
+        63200
+      ],
+      [
+        60800,
+        62400
+      ],
+      [
+        62000,
+        72400
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      62800,
+      63600
+    ],
+    "persists_all_later_prefixes": true
+  },
+  {
+    "id": "S16",
+    "up": false,
+    "start": 321,
+    "end": 341,
+    "own": [
+      322,
+      341
+    ],
+    "members": [
+      80,
+      85
+    ],
+    "range": [
+      44800,
+      72800
+    ],
+    "known_at": 358,
+    "first_selected": [
+      83,
+      85,
+      87
+    ],
+    "selected_ranges": [
+      [
+        58800,
+        65800
+      ],
+      [
+        44800,
+        61600
+      ],
+      [
+        49000,
+        64400
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      67200,
+      71400
+    ],
+    "persists_all_later_prefixes": true
+  },
+  {
+    "id": "S17",
+    "up": true,
+    "start": 341,
+    "end": 361,
+    "own": [
+      342,
+      361
+    ],
+    "members": [
+      85,
+      90
+    ],
+    "range": [
+      44800,
+      65800
+    ],
+    "known_at": 378,
+    "first_selected": [
+      88,
+      90,
+      92
+    ],
+    "selected_ranges": [
+      [
+        53200,
+        64400
+      ],
+      [
+        58800,
+        65800
+      ],
+      [
+        54600,
+        63000
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      49000,
+      61600
+    ],
+    "persists_all_later_prefixes": true
+  },
+  {
+    "id": "S18",
+    "up": false,
+    "start": 361,
+    "end": 381,
+    "own": [
+      362,
+      381
+    ],
+    "members": [
+      90,
+      95
+    ],
+    "range": [
+      51800,
+      65800
+    ],
+    "known_at": 398,
+    "first_selected": [
+      93,
+      95,
+      97
+    ],
+    "selected_ranges": [
+      [
+        54600,
+        60200
+      ],
+      [
+        51800,
+        57400
+      ],
+      [
+        53200,
+        60200
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      58800,
+      63000
+    ],
+    "persists_all_later_prefixes": true
+  },
+  {
+    "id": "S19",
+    "up": true,
+    "start": 381,
+    "end": 401,
+    "own": [
+      382,
+      401
+    ],
+    "members": [
+      95,
+      100
+    ],
+    "range": [
+      51800,
+      61600
+    ],
+    "known_at": 418,
+    "first_selected": [
+      98,
+      100,
+      102
+    ],
+    "selected_ranges": [
+      [
+        54600,
+        60200
+      ],
+      [
+        58800,
+        61600
+      ],
+      [
+        42000,
+        60200
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      53200,
+      57400
+    ],
+    "persists_all_later_prefixes": true
+  },
+  {
+    "id": "S20",
+    "up": false,
+    "start": 401,
+    "end": 421,
+    "own": [
+      402,
+      421
+    ],
+    "members": [
+      100,
+      105
+    ],
+    "range": [
+      37800,
+      61600
+    ],
+    "known_at": 438,
+    "first_selected": [
+      103,
+      105,
+      107
+    ],
+    "selected_ranges": [
+      [
+        42000,
+        57400
+      ],
+      [
+        37800,
+        43400
+      ],
+      [
+        40600,
+        47600
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      58800,
+      60200
+    ],
+    "persists_all_later_prefixes": true
+  }
+]

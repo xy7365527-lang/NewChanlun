@@ -1,0 +1,45 @@
+{
+  "status": "independent-review-complete-must-revise",
+  "time_utc": "2026-10-05T18:17:22.317000+00:00",
+  "command": [
+    "python3",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent_recompute.py"
+  ],
+  "exit_code": 0,
+  "python": "3.14.6",
+  "one_existing_history_only": true,
+  "new_histories": 0,
+  "observations": 443,
+  "events": 442,
+  "prefixes": 443,
+  "pens": 110,
+  "eof_stable": 109,
+  "selected_segment_certificates": 21,
+  "source_body_lines_checked": 67,
+  "doctrine_extracts_checked": 14,
+  "inputhash_equal": true,
+  "bytes_before_receipt_manifest_final": 6291883,
+  "budget_bytes": 100663296,
+  "scope": "fresh frozen-proof review; no MEMORY, ResearchProgress, author conversation, other agent conclusions; no author/repo/formal/production/tracker writes",
+  "findings": [
+    "R1 full-extension source membership and Zn outer not established",
+    "R2 H_b evidence rejection is not semantic false; no author executable guard receipt",
+    "R3 promoted first-kernel and 238 clock require explicit source-role/clock premises",
+    "R4 D0 238 is local conditional timing, not proved original publication"
+  ],
+  "accepted": [
+    "legal raw order history",
+    "independent R_W finite prefixes",
+    "20 restrictive certificates and selected S15 source071 certificate",
+    "local objects and parent numeric candidate",
+    "Own partition and separated MemberNext/Adj",
+    "conditional 100-event set intersection only"
+  ],
+  "unresolved": [
+    "original Completed/GeneralDiv/known_at/published_at",
+    "H_b source interface bridge",
+    "full extension membership and lifecycle",
+    "canonical delta/NoPP",
+    "full F1/fixed F2 and NE/all continuations"
+  ]
+}

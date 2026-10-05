@@ -1,0 +1,14 @@
+{
+  "status": "must-revise",
+  "review": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/review.md",
+  "review_sha256": "81a97eb5d978c2c300fc5d288d3501a243d0c94ee2d316e59ac0533283d0c295",
+  "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/manifest.json",
+  "manifest_sha256": "c0693e88076bcf24608501db4e46f41a5e9655492fef7229e8e28b018e80e238",
+  "receipt": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/receipt.json",
+  "receipt_sha256": "c3762b3a5dc7d6554a48e3d74dd04fccf0f6d122d00fa49cbb1c9880fdbe4b5f",
+  "independent_program_sha256": "a1d5caff3196acc31b197eb8c0d2bd0b02c10e30cf26e4d68a8e49e3b3ac8992",
+  "recompute_result_sha256": "5d0f949676ba29048319535fbc2d93749dc5f1c9972e9b653fd1f192058c4405",
+  "inputhash_before_sha256": "fa9430997716d6739b4852bc3b366f0e11b4e7f071a8cd3b33c849a7e8ef3efa",
+  "inputhash_after_sha256": "fa9430997716d6739b4852bc3b366f0e11b4e7f071a8cd3b33c849a7e8ef3efa",
+  "summary": "Finite recomputation and selected S15 certificate accepted; source extension/Zn claim rejected; H_b and promotion/D0 clocks require scope corrections; full F1/F2 remain open."
+}

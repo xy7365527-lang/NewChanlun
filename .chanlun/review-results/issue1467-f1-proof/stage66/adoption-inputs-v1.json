@@ -1,0 +1,32 @@
+{
+  "inputs": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage66NestedExpressionAndConsumerScope.md",
+      "sha256": "37eb0527830fb4a8f26811b81f656dc6a0502f0ba8820246e8f9ef044dcab16d"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage66/DeliveryStatus-v1.md",
+      "sha256": "2c17d3b4bda269beaa208cb7ce7f5316554e0ec2f942d5b487bd16f29adcdcba"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage66/adoption/ScopeCorrections-v2.md",
+      "sha256": "859b6160177cddeec890b9db17a30b8da0fdf92c9bf4d7421761adbffd726c14"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage66/adoption/corrections-v2.json",
+      "sha256": "db02a2bef42ef5bded46a9f2eb4d0f9fecd9ba75ced0012d7c77e870af7c07be"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage66/nested-review/review.md",
+      "sha256": "81a97eb5d978c2c300fc5d288d3501a243d0c94ee2d316e59ac0533283d0c295"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage66/scope-review/review.md",
+      "sha256": "1c14cc745a48a2de4bd619357403256375ac335f03d6945a151447975e0060db"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/progress-addition-v1.md",
+      "sha256": "d8c90ed8a6adc3a95b4dfa46c180490539d066c93a580f90e596421ffa226506"
+    }
+  ]
+}

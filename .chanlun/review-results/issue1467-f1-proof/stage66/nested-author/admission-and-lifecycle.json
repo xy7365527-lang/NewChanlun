@@ -1,0 +1,114 @@
+{
+  "candidate": "N66-source-supplement-v2",
+  "first_actual_submitted_model_failure": {
+    "gate": "H_b: complete lower movement type admitted as entry comparison arm",
+    "object": "b_low",
+    "owns": [
+      2,
+      21
+    ],
+    "raw_end_at": 21,
+    "raw_certificate_known_at": 38,
+    "actual_tag": "raw-067-segment; no automatic original movement-type assignment",
+    "required_tag": "completed-original-motion",
+    "actual_original_general_div": null,
+    "actual_original_completed": null,
+    "typed_gate_value": false,
+    "scope": "submitted carrier fails this typed admission, not a theorem that no valid lower movement exists on the observations"
+  },
+  "promotion_counterexample": {
+    "allowed": false,
+    "changed_object_identity": true,
+    "first_member_triple": [
+      "b_low",
+      "P0",
+      "P1"
+    ],
+    "core": [
+      62000,
+      72000
+    ],
+    "candidate_known_at": 238,
+    "planned_triple": [
+      "P0",
+      "P1",
+      "P2"
+    ],
+    "planned_known_at": 338,
+    "reason": "Cannot promote b into a complete q0 unit then ignore the earlier overlapping triple; no such promotion is performed."
+  },
+  "center_lifecycle": {
+    "seed": "K1",
+    "seed_members": [
+      "P0",
+      "P1",
+      "P2"
+    ],
+    "seed_core": [
+      62000,
+      72000
+    ],
+    "fourth_local_candidate": "c0",
+    "fourth_whole": [
+      37800,
+      72800
+    ],
+    "intersection": [
+      62000,
+      72000
+    ],
+    "extension_at_local_known": 438,
+    "extension_test": true,
+    "current_member_table_under_full_extension": [
+      "P0",
+      "P1",
+      "P2",
+      "c0"
+    ],
+    "current_outer": [
+      37800,
+      72800
+    ],
+    "conditional_on_original_child_qualification": true
+  },
+  "ownership_check_if_K_means_full_extended_center": {
+    "attempt": "Seq(b_low,FullExtendedCenter(K1),c0)",
+    "b_own": [
+      2,
+      21
+    ],
+    "full_center_own": [
+      22,
+      421
+    ],
+    "c_own": [
+      322,
+      421
+    ],
+    "duplicates": [
+      322,
+      421
+    ],
+    "duplicate_events": 100,
+    "pass": false,
+    "scope": "rejects this full-center reading of D1. The actual D1 seed-view has no duplication, but it does not itself certify lifecycle or canonical normal form."
+  },
+  "NoPP": {
+    "selected_nested": "not established",
+    "direct_diagnostic": "P0,P1 at238 only if the separate direct expression is selected",
+    "no_blanket_HAdj_added": true
+  },
+  "general_completion": {
+    "local_candidates": [
+      "P0",
+      "P1",
+      "P2",
+      "c0"
+    ],
+    "parent_local_candidate_end": 421,
+    "parent_local_candidate_known": 438,
+    "original_certified": [],
+    "NE": null,
+    "full_F1_accepted": false
+  }
+}

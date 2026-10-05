@@ -1,0 +1,580 @@
+{
+  "raw_initial_carrier": [
+    {
+      "id": "b_low",
+      "rank": -1,
+      "semantic_kind": "raw-067-segment; no automatic original movement-type assignment",
+      "start": 1,
+      "end": 21,
+      "own": [
+        2,
+        21
+      ],
+      "whole": [
+        40000,
+        76000
+      ],
+      "certificate": {
+        "id": "S0",
+        "up": false,
+        "start": 1,
+        "end": 21,
+        "own": [
+          2,
+          21
+        ],
+        "members": [
+          0,
+          5
+        ],
+        "range": [
+          40000,
+          76000
+        ],
+        "known_at": 38,
+        "first_selected": [
+          3,
+          5,
+          7
+        ],
+        "selected_ranges": [
+          [
+            46000,
+            60000
+          ],
+          [
+            40000,
+            48000
+          ],
+          [
+            44000,
+            60000
+          ]
+        ],
+        "gap": false,
+        "initial_three_core": [
+          60000,
+          68000
+        ],
+        "persists_all_later_prefixes": true
+      },
+      "force": {
+        "first_pen": 0,
+        "last_pen": 4,
+        "first_v": -4000,
+        "last_v": -5000,
+        "L": -1000
+      },
+      "original_general_div": null,
+      "original_completed": null
+    },
+    {
+      "id": "P0",
+      "rank": 0,
+      "kind": "P-candidate",
+      "technical_direction": "Up",
+      "start": 21,
+      "end": 121,
+      "own": [
+        22,
+        121
+      ],
+      "whole": [
+        40000,
+        72000
+      ],
+      "segments": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5"
+      ],
+      "core": {
+        "id": "k0",
+        "rank": 0,
+        "members": [
+          "S2",
+          "S3",
+          "S4"
+        ],
+        "core": [
+          50000,
+          60000
+        ],
+        "happened_at": 101,
+        "known_at": 118
+      },
+      "general_div": {
+        "b": "S1",
+        "c": "S5",
+        "b_force": {
+          "first_pen": 5,
+          "last_pen": 9,
+          "first_v": 2000,
+          "last_v": 3000,
+          "L": 1000
+        },
+        "c_force": {
+          "first_pen": 25,
+          "last_pen": 29,
+          "first_v": 1000,
+          "last_v": 500,
+          "L": -500
+        },
+        "strict_weakening": true,
+        "strict_extreme": true,
+        "prior_extreme": 64000,
+        "end_price": 72000,
+        "all_segment_certificates": true,
+        "GeneralDiv_local": true
+      },
+      "completion": {
+        "candidate": true,
+        "happened_at": 121,
+        "known_at": 138,
+        "published_at": 138,
+        "original_certified": false
+      },
+      "missing_segment_ids": []
+    },
+    {
+      "id": "P1",
+      "rank": 0,
+      "kind": "P-candidate",
+      "technical_direction": "Down",
+      "start": 121,
+      "end": 221,
+      "own": [
+        122,
+        221
+      ],
+      "whole": [
+        62000,
+        72000
+      ],
+      "segments": [
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10"
+      ],
+      "core": {
+        "id": "k1",
+        "rank": 0,
+        "members": [
+          "S7",
+          "S8",
+          "S9"
+        ],
+        "core": [
+          66000,
+          68800
+        ],
+        "happened_at": 201,
+        "known_at": 218
+      },
+      "general_div": {
+        "b": "S6",
+        "c": "S10",
+        "b_force": {
+          "first_pen": 30,
+          "last_pen": 34,
+          "first_v": -400,
+          "last_v": -1500,
+          "L": -1100
+        },
+        "c_force": {
+          "first_pen": 50,
+          "last_pen": 54,
+          "first_v": -200,
+          "last_v": -1400,
+          "L": -1200
+        },
+        "strict_weakening": true,
+        "strict_extreme": true,
+        "prior_extreme": 64000,
+        "end_price": 62000,
+        "all_segment_certificates": true,
+        "GeneralDiv_local": true
+      },
+      "completion": {
+        "candidate": true,
+        "happened_at": 221,
+        "known_at": 238,
+        "published_at": 238,
+        "original_certified": false
+      },
+      "missing_segment_ids": []
+    },
+    {
+      "id": "P2",
+      "rank": 0,
+      "kind": "P-candidate",
+      "technical_direction": "Up",
+      "start": 221,
+      "end": 321,
+      "own": [
+        222,
+        321
+      ],
+      "whole": [
+        60000,
+        72800
+      ],
+      "segments": [
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15"
+      ],
+      "core": {
+        "id": "k2",
+        "rank": 0,
+        "members": [
+          "S12",
+          "S13",
+          "S14"
+        ],
+        "core": [
+          60800,
+          64000
+        ],
+        "happened_at": 301,
+        "known_at": 318
+      },
+      "general_div": {
+        "b": "S11",
+        "c": "S15",
+        "b_force": {
+          "first_pen": 55,
+          "last_pen": 59,
+          "first_v": 400,
+          "last_v": 500,
+          "L": 100
+        },
+        "c_force": {
+          "first_pen": 75,
+          "last_pen": 79,
+          "first_v": 400,
+          "last_v": 200,
+          "L": -200
+        },
+        "strict_weakening": true,
+        "strict_extreme": true,
+        "prior_extreme": 65600,
+        "end_price": 72800,
+        "all_segment_certificates": false,
+        "GeneralDiv_local": false
+      },
+      "completion": {
+        "candidate": false,
+        "happened_at": 321,
+        "known_at": null,
+        "published_at": null,
+        "original_certified": false
+      },
+      "missing_segment_ids": [
+        "S15"
+      ]
+    },
+    {
+      "id": "c0",
+      "rank": 0,
+      "kind": "P-candidate",
+      "technical_direction": "Down",
+      "start": 321,
+      "end": 421,
+      "own": [
+        322,
+        421
+      ],
+      "whole": [
+        37800,
+        72800
+      ],
+      "segments": [
+        "S16",
+        "S17",
+        "S18",
+        "S19",
+        "S20"
+      ],
+      "core": {
+        "id": "k3",
+        "rank": 0,
+        "members": [
+          "S17",
+          "S18",
+          "S19"
+        ],
+        "core": [
+          51800,
+          61600
+        ],
+        "happened_at": 401,
+        "known_at": 418
+      },
+      "general_div": {
+        "b": "S16",
+        "c": "S20",
+        "b_force": {
+          "first_pen": 80,
+          "last_pen": 84,
+          "first_v": -1400,
+          "last_v": -5250,
+          "L": -3850
+        },
+        "c_force": {
+          "first_pen": 100,
+          "last_pen": 104,
+          "first_v": -700,
+          "last_v": -4900,
+          "L": -4200
+        },
+        "strict_weakening": true,
+        "strict_extreme": true,
+        "prior_extreme": 44800,
+        "end_price": 37800,
+        "all_segment_certificates": true,
+        "GeneralDiv_local": true
+      },
+      "completion": {
+        "candidate": true,
+        "happened_at": 421,
+        "known_at": 438,
+        "published_at": 438,
+        "original_certified": false
+      },
+      "missing_segment_ids": []
+    }
+  ],
+  "F2_member_table": {
+    "K1": [
+      {
+        "slot": 0,
+        "object": "P0",
+        "rank": 0,
+        "own": [
+          22,
+          121
+        ],
+        "whole": [
+          40000,
+          72000
+        ],
+        "completed_candidate": true
+      },
+      {
+        "slot": 1,
+        "object": "P1",
+        "rank": 0,
+        "own": [
+          122,
+          221
+        ],
+        "whole": [
+          62000,
+          72000
+        ],
+        "completed_candidate": true
+      },
+      {
+        "slot": 2,
+        "object": "P2",
+        "rank": 0,
+        "own": [
+          222,
+          321
+        ],
+        "whole": [
+          60000,
+          72800
+        ],
+        "completed_candidate": false
+      }
+    ]
+  },
+  "source_next": [
+    [
+      "b_low",
+      "P0"
+    ],
+    [
+      "P0",
+      "P1"
+    ],
+    [
+      "P1",
+      "P2"
+    ],
+    [
+      "P2",
+      "c0"
+    ]
+  ],
+  "member_next_K1": [
+    [
+      "P0",
+      "P1"
+    ],
+    [
+      "P1",
+      "P2"
+    ]
+  ],
+  "expressions": [
+    {
+      "id": "D1-attempt",
+      "role": "parent defining expression, not certified whole",
+      "ast": {
+        "Seq": [
+          "b_low",
+          {
+            "Core1": {
+              "F2Input0": [
+                "P0",
+                "P1",
+                "P2"
+              ]
+            }
+          },
+          "c0"
+        ]
+      },
+      "outer_adj": [
+        [
+          "b_low",
+          "K1"
+        ],
+        [
+          "K1",
+          "c0"
+        ]
+      ],
+      "outer_NoPP_application": "undefined: K1 is a center, not a completed movement type; D1 is mixed-rank."
+    },
+    {
+      "id": "Input0-K1",
+      "role": "explicit ordered complete-candidate interface consumed to construct K1",
+      "items": [
+        "P0",
+        "P1",
+        "P2"
+      ],
+      "own_preserved": true,
+      "kind_preserved": true,
+      "rank": 0,
+      "adj": [
+        [
+          "P0",
+          "P1"
+        ],
+        [
+          "P1",
+          "P2"
+        ]
+      ],
+      "NoPP": {
+        "test": "if these same objects are admitted as independent canonical construction inputs, fenjie29/ADR0011 construction role applies",
+        "holds": false,
+        "first_candidate_violation": [
+          "P0",
+          "P1"
+        ],
+        "first_known_at": 238,
+        "original_qualification_already_failed": "unresolved, not assumed true for a source theorem"
+      }
+    },
+    {
+      "id": "delta1-canonical",
+      "items": [],
+      "status": "not constructed; Y1 cannot be published. Empty output is not NoPP success."
+    }
+  ],
+  "parent": {
+    "id": "Y1",
+    "rank": 1,
+    "start": 1,
+    "end": 421,
+    "own": [
+      2,
+      421
+    ],
+    "whole": [
+      37800,
+      76000
+    ],
+    "members": {
+      "entry": "b_low",
+      "kernel": "K1",
+      "exit": "c0"
+    },
+    "kernel": {
+      "id": "K1",
+      "rank": 1,
+      "member_ids": [
+        "P0",
+        "P1",
+        "P2"
+      ],
+      "whole_ranges": [
+        [
+          40000,
+          72000
+        ],
+        [
+          62000,
+          72000
+        ],
+        [
+          60000,
+          72800
+        ]
+      ],
+      "core": [
+        62000,
+        72000
+      ],
+      "happened_at": 321,
+      "known_at": null,
+      "member_completion_candidate": false,
+      "original_F2_certified": false
+    },
+    "comparison": {
+      "b": "b_low",
+      "c": "c0",
+      "b_rank": -1,
+      "c_rank": 0,
+      "rank_b_le_c": true,
+      "b_force": {
+        "first_pen": 0,
+        "last_pen": 4,
+        "first_v": -4000,
+        "last_v": -5000,
+        "L": -1000
+      },
+      "c_force": {
+        "first_pen": 80,
+        "last_pen": 104,
+        "first_v": -1400,
+        "last_v": -4900,
+        "L": -3500
+      },
+      "strict_weakening": true,
+      "b_direction": "Down",
+      "c_direction": "Down",
+      "prior_global_min": 40000,
+      "c_end": 37800,
+      "strict_extreme": true,
+      "c_whole_completed_candidate": true
+    },
+    "happened_at": 421,
+    "candidate_known_at": null,
+    "original_known_at": null,
+    "published_at": null,
+    "original_completed": false
+  }
+}

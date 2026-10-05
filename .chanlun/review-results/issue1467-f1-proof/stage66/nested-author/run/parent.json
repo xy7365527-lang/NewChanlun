@@ -1,0 +1,83 @@
+{
+  "id": "Y1",
+  "rank": 1,
+  "start": 1,
+  "end": 421,
+  "own": [
+    2,
+    421
+  ],
+  "whole": [
+    37800,
+    76000
+  ],
+  "members": {
+    "entry": "b_low",
+    "kernel": "K1",
+    "exit": "c0"
+  },
+  "kernel": {
+    "id": "K1",
+    "rank": 1,
+    "member_ids": [
+      "P0",
+      "P1",
+      "P2"
+    ],
+    "whole_ranges": [
+      [
+        40000,
+        72000
+      ],
+      [
+        62000,
+        72000
+      ],
+      [
+        60000,
+        72800
+      ]
+    ],
+    "core": [
+      62000,
+      72000
+    ],
+    "happened_at": 321,
+    "known_at": null,
+    "member_completion_candidate": false,
+    "original_F2_certified": false
+  },
+  "comparison": {
+    "b": "b_low",
+    "c": "c0",
+    "b_rank": -1,
+    "c_rank": 0,
+    "rank_b_le_c": true,
+    "b_force": {
+      "first_pen": 0,
+      "last_pen": 4,
+      "first_v": -4000,
+      "last_v": -5000,
+      "L": -1000
+    },
+    "c_force": {
+      "first_pen": 80,
+      "last_pen": 104,
+      "first_v": -1400,
+      "last_v": -4900,
+      "L": -3500
+    },
+    "strict_weakening": true,
+    "b_direction": "Down",
+    "c_direction": "Down",
+    "prior_global_min": 40000,
+    "c_end": 37800,
+    "strict_extreme": true,
+    "c_whole_completed_candidate": true
+  },
+  "happened_at": 421,
+  "candidate_known_at": null,
+  "original_known_at": null,
+  "published_at": null,
+  "original_completed": false
+}

@@ -1,0 +1,45 @@
+{
+  "id": "Stage66-adoption-review-v2",
+  "created_at": "2026-10-05T18:31:15.189Z",
+  "verdict": "accepted scoped adoption",
+  "must_revise": [],
+  "review_scope": "A1采用修订的有限差异复审",
+  "prior_finding": {
+    "id": "A1",
+    "status": "resolved",
+    "prior_review_sha256": "a96c6d441bd75542b6144a2e7f4d04a8afeac362e7a65a43ea1bc8bad53c73bd",
+    "prior_final_sha256": "49de862679ab279059bcc8e67465b562429729a50fa23fb2114ed98e9a416e93",
+    "resolution": "第35行区分局部标签诊断和原义资格条件；第37行明写原义已完成并保持独立构造消费合同。"
+  },
+  "diff": {
+    "main_changed_lines": [
+      3,
+      35,
+      37
+    ],
+    "delivery_changed_lines": [
+      3
+    ],
+    "other_content_changes": false
+  },
+  "frozen_inputs": 7,
+  "integrity_inputs": 12,
+  "prior_round_files_preserved": true,
+  "old_summary_bytes_preserved": true,
+  "scope_corrections_v2_unchanged": true,
+  "progress_addition_unchanged": true,
+  "full_F1_or_F2_accepted": false,
+  "original_completion_accepted": false,
+  "rerun_prior_19_checks": false,
+  "rerun_prefixes": 0,
+  "rerun_RW": 0,
+  "new_histories": 0,
+  "new_Lean": 0,
+  "output_files": [
+    "review.md",
+    "receipt.json",
+    "inputhash.json",
+    "FINAL.json"
+  ]
+}
+

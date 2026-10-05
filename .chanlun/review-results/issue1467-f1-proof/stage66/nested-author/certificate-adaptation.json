@@ -1,0 +1,6 @@
+{
+  "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/extracted.mjs",
+  "change": "Segment direction derives from actual first pen, because the one new leading segment points down. Every certAt geometry condition remains; localDynScan is not imported or called.",
+  "old": "up=s%2===0",
+  "replacement": "up=mem[0].up"
+}

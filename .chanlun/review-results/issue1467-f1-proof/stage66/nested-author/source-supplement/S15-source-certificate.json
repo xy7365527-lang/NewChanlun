@@ -1,0 +1,78 @@
+{
+  "id": "S15-071-first-break",
+  "old_segment": {
+    "members": [
+      75,
+      80
+    ],
+    "start": 301,
+    "end": 321,
+    "own": [
+      302,
+      321
+    ],
+    "range": [
+      60800,
+      72800
+    ]
+  },
+  "source": [
+    "065:44",
+    "065:48",
+    "065:50",
+    "071:26",
+    "071:30",
+    "071:42",
+    "078:54"
+  ],
+  "d": [
+    60800,
+    62000,
+    72000
+  ],
+  "g": [
+    62400,
+    72400,
+    72800
+  ],
+  "first_break": {
+    "d4": 67200,
+    "g2": 72400,
+    "j": 4,
+    "i": 2,
+    "j_ge_i_plus_2": true,
+    "first_post_turn_pen": 80,
+    "previous_d3_gt_g1": true
+  },
+  "new_first_three": {
+    "members": [
+      80,
+      83
+    ],
+    "ranges": [
+      [
+        67200,
+        72800
+      ],
+      [
+        67200,
+        71400
+      ],
+      [
+        58800,
+        71400
+      ]
+    ],
+    "overlap": [
+      67200,
+      71400
+    ],
+    "third_low": 58800,
+    "first_low": 67200,
+    "strict_break": true
+  },
+  "happened_at": 321,
+  "known_at": 338,
+  "persists_all_later_prefixes": true,
+  "scope": "source-backed selected boundary witness, not a full segment normalizer or a newly selected input. Cross-boundary containment is not merged."
+}

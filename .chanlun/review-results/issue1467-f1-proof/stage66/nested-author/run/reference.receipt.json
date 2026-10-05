@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/reference-probe",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/source.json"
+  ],
+  "exit": 0,
+  "signal": null,
+  "error": null,
+  "elapsed_ms": 3471
+}

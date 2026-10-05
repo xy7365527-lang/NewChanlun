@@ -1,0 +1,9 @@
+{
+  "status": "author-complete; independent-review-pending",
+  "report": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/Report.md",
+  "report_sha256": "b345bff754af332b75b4582753a1f820e2d4d7dd17c35cbef07423a40c9bb97a",
+  "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/manifest.json",
+  "manifest_sha256": "6ecad7097243ef76892769621542efc724a3ee3e02049febe59160592ead9099",
+  "actual_relations": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/source-supplement/actual-relations-v2.json",
+  "conclusion": "nonempty nested parent local candidate constructed; raw b admission fails; canonical NoPP remains unestablished; no full F1/F2 certification"
+}

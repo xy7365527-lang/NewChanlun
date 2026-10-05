@@ -1,0 +1,100 @@
+[
+  {
+    "path": ".chanlun/definitions/beichi.md",
+    "start": 260,
+    "end": 274,
+    "hash_exact": true,
+    "text_exact": true
+  },
+  {
+    "path": ".chanlun/definitions/beichi.md",
+    "start": 309,
+    "end": 326,
+    "hash_exact": true,
+    "text_exact": true
+  },
+  {
+    "path": ".chanlun/definitions/beichi.md",
+    "start": 336,
+    "end": 357,
+    "hash_exact": true,
+    "text_exact": true
+  },
+  {
+    "path": ".chanlun/definitions/beichi.md",
+    "start": 521,
+    "end": 537,
+    "hash_exact": true,
+    "text_exact": true
+  },
+  {
+    "path": ".chanlun/definitions/beichi.md",
+    "start": 561,
+    "end": 584,
+    "hash_exact": true,
+    "text_exact": true
+  },
+  {
+    "path": ".chanlun/definitions/zhongshu.md",
+    "start": 130,
+    "end": 146,
+    "hash_exact": true,
+    "text_exact": true
+  },
+  {
+    "path": ".chanlun/definitions/zhongshu.md",
+    "start": 220,
+    "end": 228,
+    "hash_exact": true,
+    "text_exact": true
+  },
+  {
+    "path": ".chanlun/definitions/zhongshu.md",
+    "start": 300,
+    "end": 328,
+    "hash_exact": true,
+    "text_exact": true
+  },
+  {
+    "path": ".chanlun/definitions/fenjie.md",
+    "start": 9,
+    "end": 29,
+    "hash_exact": true,
+    "text_exact": true
+  },
+  {
+    "path": "docs/adr/0011-operation-decomposition-layer.md",
+    "start": 55,
+    "end": 77,
+    "hash_exact": true,
+    "text_exact": true
+  },
+  {
+    "path": ".chanlun/definitions/xianduan.md",
+    "start": 106,
+    "end": 115,
+    "hash_exact": true,
+    "text_exact": true
+  },
+  {
+    "path": ".chanlun/definitions/xianduan.md",
+    "start": 131,
+    "end": 142,
+    "hash_exact": true,
+    "text_exact": true
+  },
+  {
+    "path": ".chanlun/definitions/xianduan.md",
+    "start": 234,
+    "end": 240,
+    "hash_exact": true,
+    "text_exact": true
+  },
+  {
+    "path": ".chanlun/definitions/xianduan.md",
+    "start": 251,
+    "end": 268,
+    "hash_exact": true,
+    "text_exact": true
+  }
+]

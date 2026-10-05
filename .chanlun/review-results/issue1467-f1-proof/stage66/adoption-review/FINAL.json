@@ -1,0 +1,30 @@
+{
+  "id": "Stage66-adoption-review-v1",
+  "verdict": "must revise",
+  "adoption_v2_verdict": "accepted scoped adoption",
+  "must_revise": [
+    {
+      "id": "A1",
+      "severity": "must_revise",
+      "scope": "summary qualification",
+      "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage66NestedExpressionAndConsumerScope.md",
+      "line": 35,
+      "title": "D0摘要遗漏原义已完成P资格前提",
+      "detail": "第35行从同级独立构造因子和238局部发布直接写NoPP=false，未明确局部P标签检查或补加原义已完成P资格；v2 R4已明确原义前提未认证。",
+      "required_revision": "分开局部标签NoPP=false与原义条件反证；后者显式保留原义已完成P资格、保同级/Own/独立身份及指定构造消费合同；原义资格可知/发布时间仍null。",
+      "frozen_author_change_required": false,
+      "rerun_required": false
+    }
+  ],
+  "review_sha256": "a96c6d441bd75542b6144a2e7f4d04a8afeac362e7a65a43ea1bc8bad53c73bd",
+  "inputhash_sha256": "654eb53c645f4b807ab8c61b1ea0b0f25aa406f5bca1c07ccefd51809c0de60a",
+  "receipt_sha256": "39fc5bb244603c01872b5b00e8274280788e83c70e8964df0c0126c1489b1791",
+  "seven_inputs_unchanged": true,
+  "supporting_inputs_unchanged": true,
+  "finite_checks_passed": 19,
+  "rerun_count": 0,
+  "new_history_count": 0,
+  "new_Lean_count": 0,
+  "next_scope": "只修主报告第35行并冻结有限差异复审；v2四项订正及其余范围无新增阻塞。"
+}
+

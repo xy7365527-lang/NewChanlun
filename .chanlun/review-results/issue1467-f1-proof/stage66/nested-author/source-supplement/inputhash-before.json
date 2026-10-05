@@ -1,0 +1,26 @@
+[
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/source.json",
+    "sha256": "8c8b0e442195c76f25eb60462272aa5718e77f470d4981a4092720301a628883"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/reference.stdout",
+    "sha256": "c2c10a13535a6da668653b6acd843c50d30201fef17824a602dbb8bf9da5f311"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/segments.json",
+    "sha256": "2d06f8a8efab89a456115548732f0938aa251d799c1b10305e5faaebd5b072b5"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/objects.json",
+    "sha256": "c768fa5c9418cd9cea1abcae0a94ac83c91579fc0b60f5e6be86ba8e0c87116c"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/parent.json",
+    "sha256": "4f1365cf69036d5f0b34295c27af1a5ed2a0a8cc65c668afa408d20774e72cd4"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/actual-relations.json",
+    "sha256": "d7553789992a52e70a0f273f9671b3ab379d9c597b0dd2c4af729aae5a473462"
+  }
+]

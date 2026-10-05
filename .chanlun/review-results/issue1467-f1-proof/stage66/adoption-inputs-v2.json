@@ -1,0 +1,33 @@
+{
+  "reason": "A1: qualify local NoPP diagnostic and original completed-P conditional theorem; update final review links",
+  "inputs": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage66NestedExpressionAndConsumerScope.md",
+      "sha256": "98c5de34e8ecaa8116bcea3f407f76a6f1248251bf791f108061d5ac3256126d"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage66/DeliveryStatus-v1.md",
+      "sha256": "a5fef174b3c75f4c9e377390341fa5b7a4168d4f5362c1fab6bb9954f4185d38"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption/Summary-v1.md",
+      "sha256": "37eb0527830fb4a8f26811b81f656dc6a0502f0ba8820246e8f9ef044dcab16d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption/DeliveryStatus-before-A1.md",
+      "sha256": "2c17d3b4bda269beaa208cb7ce7f5316554e0ec2f942d5b487bd16f29adcdcba"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption-review/review.md",
+      "sha256": "a96c6d441bd75542b6144a2e7f4d04a8afeac362e7a65a43ea1bc8bad53c73bd"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage66/adoption/ScopeCorrections-v2.md",
+      "sha256": "859b6160177cddeec890b9db17a30b8da0fdf92c9bf4d7421761adbffd726c14"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage66/adoption/corrections-v2.json",
+      "sha256": "db02a2bef42ef5bded46a9f2eb4d0f9fecd9ba75ced0012d7c77e870af7c07be"
+    }
+  ]
+}

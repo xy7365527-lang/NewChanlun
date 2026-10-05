@@ -1,0 +1,17 @@
+{
+  "pass": true,
+  "observations": 443,
+  "events": 442,
+  "adds": 221,
+  "cancels": 221,
+  "price_bounds": [
+    37800,
+    76000
+  ],
+  "denominator_bounds": [
+    160,
+    924
+  ],
+  "raw_domain_unchanged": true,
+  "quantity_limit_assumed": false
+}

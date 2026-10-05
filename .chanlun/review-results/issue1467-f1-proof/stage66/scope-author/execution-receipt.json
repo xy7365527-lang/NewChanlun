@@ -1,0 +1,69 @@
+{
+  "recorded_at_utc": "2026-10-05T17:53:16.958595+00:00",
+  "command": "node /Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-author/check-relations.mjs > /Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-author/check.stdout.json",
+  "exit_code": 0,
+  "stdout": "check.stdout.json",
+  "assertions": 32,
+  "no_new_history": true,
+  "parser_executed": false,
+  "source_hash_checks": [
+    {
+      "path": "docs/chanlun/text/blog/017-第17课.md",
+      "match": true
+    },
+    {
+      "path": "docs/chanlun/text/blog/035-第35课.md",
+      "match": true
+    },
+    {
+      "path": "docs/chanlun/text/blog/038-第38课.md",
+      "match": true
+    },
+    {
+      "path": "docs/chanlun/text/blog/038-第38课.md",
+      "match": true
+    },
+    {
+      "path": "docs/chanlun/text/blog/039-第39课.md",
+      "match": true
+    },
+    {
+      "path": "docs/chanlun/text/blog/084-第84课.md",
+      "match": true
+    },
+    {
+      "path": ".chanlun/definitions/fenjie.md",
+      "match": true
+    },
+    {
+      "path": ".chanlun/definitions/zhongshu.md",
+      "match": true
+    },
+    {
+      "path": ".chanlun/definitions/zhongshu.md",
+      "match": true
+    },
+    {
+      "path": ".chanlun/definitions/zhongshu.md",
+      "match": true
+    },
+    {
+      "path": "docs/adr/0011-operation-decomposition-layer.md",
+      "match": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage54InitialContractAndMemberRelease.md",
+      "match": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1470-order-recursion-research-protocol-20261003.md",
+      "match": true
+    },
+    {
+      "path": "docs/adr/0011-operation-decomposition-layer.md",
+      "match": true
+    }
+  ],
+  "independent_review": "not performed; parent will assign a fresh reviewer",
+  "git_head": "2e9d08df5887383b5c68338ff567f1f66feec7c5"
+}

@@ -1,0 +1,49 @@
+{
+  "id": "S15",
+  "up": true,
+  "start": 301,
+  "end": 321,
+  "own": [
+    302,
+    321
+  ],
+  "members": [
+    75,
+    80
+  ],
+  "range": [
+    60800,
+    72800
+  ],
+  "known_at": 338,
+  "prior_S14_known_at": 318,
+  "old_first_three_overlap": [
+    62000,
+    62400
+  ],
+  "old_breaks": [],
+  "new_first_breaks": [
+    [
+      2,
+      4
+    ]
+  ],
+  "new_first_three_overlap": [
+    67200,
+    71400
+  ],
+  "d": [
+    60800,
+    62000,
+    72000
+  ],
+  "g": [
+    62400,
+    72400,
+    72800
+  ],
+  "new_third_breaks_first_end": true,
+  "new_second_does_not_rebreak_turn": true,
+  "all_later_finite_prefixes": true,
+  "scope": "selected source071 boundary, no full normalizer"
+}

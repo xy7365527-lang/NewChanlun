@@ -1,0 +1,858 @@
+{
+  "raw_initial_carrier": [
+    {
+      "id": "b_low",
+      "rank": -1,
+      "semantic_kind": "raw-067-segment; no automatic original movement-type assignment",
+      "start": 1,
+      "end": 21,
+      "own": [
+        2,
+        21
+      ],
+      "whole": [
+        40000,
+        76000
+      ],
+      "certificate": {
+        "id": "S0",
+        "up": false,
+        "start": 1,
+        "end": 21,
+        "own": [
+          2,
+          21
+        ],
+        "members": [
+          0,
+          5
+        ],
+        "range": [
+          40000,
+          76000
+        ],
+        "known_at": 38,
+        "first_selected": [
+          3,
+          5,
+          7
+        ],
+        "selected_ranges": [
+          [
+            46000,
+            60000
+          ],
+          [
+            40000,
+            48000
+          ],
+          [
+            44000,
+            60000
+          ]
+        ],
+        "gap": false,
+        "initial_three_core": [
+          60000,
+          68000
+        ],
+        "persists_all_later_prefixes": true
+      },
+      "force": {
+        "first_pen": 0,
+        "last_pen": 4,
+        "first_v": -4000,
+        "last_v": -5000,
+        "L": -1000
+      },
+      "original_general_div": null,
+      "original_completed": null
+    },
+    {
+      "id": "P0",
+      "rank": 0,
+      "kind": "P-candidate",
+      "technical_direction": "Up",
+      "start": 21,
+      "end": 121,
+      "own": [
+        22,
+        121
+      ],
+      "whole": [
+        40000,
+        72000
+      ],
+      "segments": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5"
+      ],
+      "core": {
+        "id": "k0",
+        "rank": 0,
+        "members": [
+          "S2",
+          "S3",
+          "S4"
+        ],
+        "core": [
+          50000,
+          60000
+        ],
+        "happened_at": 101,
+        "known_at": 118
+      },
+      "general_div": {
+        "b": "S1",
+        "c": "S5",
+        "b_force": {
+          "first_pen": 5,
+          "last_pen": 9,
+          "first_v": 2000,
+          "last_v": 3000,
+          "L": 1000
+        },
+        "c_force": {
+          "first_pen": 25,
+          "last_pen": 29,
+          "first_v": 1000,
+          "last_v": 500,
+          "L": -500
+        },
+        "strict_weakening": true,
+        "strict_extreme": true,
+        "prior_extreme": 64000,
+        "end_price": 72000,
+        "all_segment_certificates": true,
+        "GeneralDiv_local": true
+      },
+      "completion": {
+        "candidate": true,
+        "happened_at": 121,
+        "known_at": 138,
+        "published_at": 138,
+        "original_certified": false
+      },
+      "missing_segment_ids": []
+    },
+    {
+      "id": "P1",
+      "rank": 0,
+      "kind": "P-candidate",
+      "technical_direction": "Down",
+      "start": 121,
+      "end": 221,
+      "own": [
+        122,
+        221
+      ],
+      "whole": [
+        62000,
+        72000
+      ],
+      "segments": [
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10"
+      ],
+      "core": {
+        "id": "k1",
+        "rank": 0,
+        "members": [
+          "S7",
+          "S8",
+          "S9"
+        ],
+        "core": [
+          66000,
+          68800
+        ],
+        "happened_at": 201,
+        "known_at": 218
+      },
+      "general_div": {
+        "b": "S6",
+        "c": "S10",
+        "b_force": {
+          "first_pen": 30,
+          "last_pen": 34,
+          "first_v": -400,
+          "last_v": -1500,
+          "L": -1100
+        },
+        "c_force": {
+          "first_pen": 50,
+          "last_pen": 54,
+          "first_v": -200,
+          "last_v": -1400,
+          "L": -1200
+        },
+        "strict_weakening": true,
+        "strict_extreme": true,
+        "prior_extreme": 64000,
+        "end_price": 62000,
+        "all_segment_certificates": true,
+        "GeneralDiv_local": true
+      },
+      "completion": {
+        "candidate": true,
+        "happened_at": 221,
+        "known_at": 238,
+        "published_at": 238,
+        "original_certified": false
+      },
+      "missing_segment_ids": []
+    },
+    {
+      "id": "P2",
+      "rank": 0,
+      "kind": "P-candidate",
+      "technical_direction": "Up",
+      "start": 221,
+      "end": 321,
+      "own": [
+        222,
+        321
+      ],
+      "whole": [
+        60000,
+        72800
+      ],
+      "segments": [
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15"
+      ],
+      "core": {
+        "id": "k2",
+        "rank": 0,
+        "members": [
+          "S12",
+          "S13",
+          "S14"
+        ],
+        "core": [
+          60800,
+          64000
+        ],
+        "happened_at": 301,
+        "known_at": 318
+      },
+      "general_div": {
+        "b": "S11",
+        "c": "S15",
+        "b_force": {
+          "first_pen": 55,
+          "last_pen": 59,
+          "first_v": 400,
+          "last_v": 500,
+          "L": 100
+        },
+        "c_force": {
+          "first_pen": 75,
+          "last_pen": 79,
+          "first_v": 400,
+          "last_v": 200,
+          "L": -200
+        },
+        "strict_weakening": true,
+        "strict_extreme": true,
+        "prior_extreme": 65600,
+        "end_price": 72800,
+        "all_segment_certificates": true,
+        "GeneralDiv_local": true
+      },
+      "completion": {
+        "candidate": true,
+        "happened_at": 321,
+        "known_at": 338,
+        "published_at": 338,
+        "original_certified": false,
+        "certificate_extension": "S15-source-certificate.json; prior fixed no-inclusion helper failure preserved"
+      },
+      "missing_segment_ids": []
+    },
+    {
+      "id": "c0",
+      "rank": 0,
+      "kind": "P-candidate",
+      "technical_direction": "Down",
+      "start": 321,
+      "end": 421,
+      "own": [
+        322,
+        421
+      ],
+      "whole": [
+        37800,
+        72800
+      ],
+      "segments": [
+        "S16",
+        "S17",
+        "S18",
+        "S19",
+        "S20"
+      ],
+      "core": {
+        "id": "k3",
+        "rank": 0,
+        "members": [
+          "S17",
+          "S18",
+          "S19"
+        ],
+        "core": [
+          51800,
+          61600
+        ],
+        "happened_at": 401,
+        "known_at": 418
+      },
+      "general_div": {
+        "b": "S16",
+        "c": "S20",
+        "b_force": {
+          "first_pen": 80,
+          "last_pen": 84,
+          "first_v": -1400,
+          "last_v": -5250,
+          "L": -3850
+        },
+        "c_force": {
+          "first_pen": 100,
+          "last_pen": 104,
+          "first_v": -700,
+          "last_v": -4900,
+          "L": -4200
+        },
+        "strict_weakening": true,
+        "strict_extreme": true,
+        "prior_extreme": 44800,
+        "end_price": 37800,
+        "all_segment_certificates": true,
+        "GeneralDiv_local": true
+      },
+      "completion": {
+        "candidate": true,
+        "happened_at": 421,
+        "known_at": 438,
+        "published_at": 438,
+        "original_certified": false
+      },
+      "missing_segment_ids": []
+    }
+  ],
+  "F2_member_table": {
+    "K1": [
+      {
+        "slot": 0,
+        "object": "P0",
+        "rank": 0,
+        "own": [
+          22,
+          121
+        ],
+        "whole": [
+          40000,
+          72000
+        ],
+        "completed_candidate": true
+      },
+      {
+        "slot": 1,
+        "object": "P1",
+        "rank": 0,
+        "own": [
+          122,
+          221
+        ],
+        "whole": [
+          62000,
+          72000
+        ],
+        "completed_candidate": true
+      },
+      {
+        "slot": 2,
+        "object": "P2",
+        "rank": 0,
+        "own": [
+          222,
+          321
+        ],
+        "whole": [
+          60000,
+          72800
+        ],
+        "completed_candidate": true,
+        "completion_source": "S15-071-first-break at338"
+      }
+    ]
+  },
+  "source_next": [
+    [
+      "b_low",
+      "P0"
+    ],
+    [
+      "P0",
+      "P1"
+    ],
+    [
+      "P1",
+      "P2"
+    ],
+    [
+      "P2",
+      "c0"
+    ]
+  ],
+  "member_next_K1": [
+    [
+      "P0",
+      "P1"
+    ],
+    [
+      "P1",
+      "P2"
+    ]
+  ],
+  "expressions": [
+    {
+      "id": "D1-nested-attempt",
+      "role": "mixed-rank defining expression of a parent candidate",
+      "ast": {
+        "Seq": [
+          "b_low",
+          {
+            "Core1": {
+              "members": [
+                "P0",
+                "P1",
+                "P2"
+              ]
+            }
+          },
+          "c0"
+        ]
+      },
+      "outer_adj": [
+        [
+          "b_low",
+          "K1"
+        ],
+        [
+          "K1",
+          "c0"
+        ]
+      ],
+      "NoPP": {
+        "applied": false,
+        "holds": null,
+        "reason": "Seq children are mixed-rank and K1 is a center. This is not a sequence of independently completed movement types in the source sense."
+      }
+    },
+    {
+      "id": "K1-member-arguments",
+      "role": "F2 child table; proposed upward construction consumer",
+      "items": [
+        "P0",
+        "P1",
+        "P2"
+      ],
+      "member_adj": [
+        [
+          "P0",
+          "P1"
+        ],
+        [
+          "P1",
+          "P2"
+        ]
+      ],
+      "canonical_adj": null,
+      "NoPP": {
+        "applied": false,
+        "holds": null,
+        "reason": "A member table alone does not supply a canonical movement expression. fenjie29/ADR0011 still require construction-role compatibility; not discharged by wrapping the table in Core1."
+      }
+    },
+    {
+      "id": "delta1-canonical",
+      "items": [],
+      "status": "unconstructed, not a vacuous success",
+      "NoPP": {
+        "applied": false,
+        "holds": null
+      }
+    },
+    {
+      "id": "D0-direct-counterfactual",
+      "role": "explicitly separate direct expression, not the selected nested expression",
+      "items": [
+        "P0",
+        "P1",
+        "P2"
+      ],
+      "adj": [
+        [
+          "P0",
+          "P1"
+        ],
+        [
+          "P1",
+          "P2"
+        ]
+      ],
+      "preserves_identity_own_and_grade": true,
+      "NoPP": {
+        "applied_conditionally": true,
+        "holds": false,
+        "first_pair": [
+          "P0",
+          "P1"
+        ],
+        "first_known_at": 238,
+        "scope": "If this direct expression is selected/admitted, same previously audited obstruction; no claim that every nested F2 child table is this expression."
+      }
+    }
+  ],
+  "parent": {
+    "id": "Y1",
+    "rank": 1,
+    "start": 1,
+    "end": 421,
+    "own": [
+      2,
+      421
+    ],
+    "whole": [
+      37800,
+      76000
+    ],
+    "members": {
+      "entry": "b_low",
+      "kernel": "K1",
+      "exit": "c0"
+    },
+    "kernel": {
+      "id": "K1",
+      "rank": 1,
+      "member_ids": [
+        "P0",
+        "P1",
+        "P2"
+      ],
+      "whole_ranges": [
+        [
+          40000,
+          72000
+        ],
+        [
+          62000,
+          72000
+        ],
+        [
+          60000,
+          72800
+        ]
+      ],
+      "core": [
+        62000,
+        72000
+      ],
+      "happened_at": 321,
+      "known_at": 338,
+      "member_completion_candidate": true,
+      "original_F2_certified": false
+    },
+    "comparison": {
+      "b": "b_low",
+      "c": "c0",
+      "b_rank": -1,
+      "c_rank": 0,
+      "rank_b_le_c": true,
+      "b_force": {
+        "first_pen": 0,
+        "last_pen": 4,
+        "first_v": -4000,
+        "last_v": -5000,
+        "L": -1000
+      },
+      "c_force": {
+        "first_pen": 80,
+        "last_pen": 104,
+        "first_v": -1400,
+        "last_v": -4900,
+        "L": -3500
+      },
+      "strict_weakening": true,
+      "b_direction": "Down",
+      "c_direction": "Down",
+      "prior_global_min": 40000,
+      "c_end": 37800,
+      "strict_extreme": true,
+      "c_whole_completed_candidate": true
+    },
+    "happened_at": 421,
+    "candidate_known_at": 438,
+    "original_known_at": null,
+    "published_at": null,
+    "original_completed": false,
+    "local_completion": {
+      "GeneralDiv_numeric": true,
+      "happened_at": 421,
+      "known_at": 438,
+      "published_candidate_at": 438,
+      "typed_completed_original": false,
+      "semantic_gap": "b_low has raw segment certificate only; initial four whole candidates lack original GeneralDiv/Completed certification; canonical construction expression/lifecycle not furnished"
+    }
+  },
+  "version": "N66-source-supplement-v2",
+  "event_partition": {
+    "left_support": [
+      1,
+      1
+    ],
+    "b_low": [
+      2,
+      21
+    ],
+    "P0": [
+      22,
+      121
+    ],
+    "P1": [
+      122,
+      221
+    ],
+    "P2": [
+      222,
+      321
+    ],
+    "c0": [
+      322,
+      421
+    ],
+    "active_tail": [
+      422,
+      442
+    ]
+  },
+  "coverage": {
+    "exact_events": 442,
+    "duplicates": 0,
+    "missing": 0,
+    "parent_owns": [
+      2,
+      421
+    ],
+    "parent_confirmation_support_owned_by_tail": [
+      422,
+      438
+    ]
+  },
+  "counterfactual_b_promoted_to_rank0": {
+    "allowed": false,
+    "changed_object_identity": true,
+    "first_member_triple": [
+      "b_low",
+      "P0",
+      "P1"
+    ],
+    "core": [
+      62000,
+      72000
+    ],
+    "candidate_known_at": 238,
+    "planned_triple": [
+      "P0",
+      "P1",
+      "P2"
+    ],
+    "planned_known_at": 338,
+    "reason": "Cannot promote b into a complete q0 unit then ignore the earlier overlapping triple; no such promotion is performed."
+  },
+  "obligations": [
+    {
+      "id": "raw-domain",
+      "value": true,
+      "evidence": "443 observations from exact positive integer add/cancel queue replay"
+    },
+    {
+      "id": "exact-Own",
+      "value": true,
+      "evidence": {
+        "left_support": [
+          1,
+          1
+        ],
+        "b_low": [
+          2,
+          21
+        ],
+        "P0": [
+          22,
+          121
+        ],
+        "P1": [
+          122,
+          221
+        ],
+        "P2": [
+          222,
+          321
+        ],
+        "c0": [
+          322,
+          421
+        ],
+        "active_tail": [
+          422,
+          442
+        ]
+      }
+    },
+    {
+      "id": "b-raw-end",
+      "value": true,
+      "evidence": "S0 067 end21 known38"
+    },
+    {
+      "id": "b-original-motion-and-GeneralDiv",
+      "value": null,
+      "evidence": "raw 067 end concerns S0 only. 035:22 permits lower movement types but does not prove this one; 057 view role is not generic original qualification."
+    },
+    {
+      "id": "q0-original-GeneralDiv-and-Completed",
+      "value": null,
+      "evidence": "P0/P1/P2/c0 values below are local candidate relations. 084 does not waive F2 input ontology."
+    },
+    {
+      "id": "local-q0-GeneralDiv-and-Completed",
+      "value": true,
+      "evidence": [
+        {
+          "id": "P0",
+          "general_div": true,
+          "happened": 121,
+          "known": 138
+        },
+        {
+          "id": "P1",
+          "general_div": true,
+          "happened": 221,
+          "known": 238
+        },
+        {
+          "id": "P2",
+          "general_div": true,
+          "happened": 321,
+          "known": 338
+        },
+        {
+          "id": "c0",
+          "general_div": true,
+          "happened": 421,
+          "known": 438
+        }
+      ]
+    },
+    {
+      "id": "K1-seed-three-whole",
+      "value": true,
+      "evidence": {
+        "member_order": [
+          "P0",
+          "P1",
+          "P2"
+        ],
+        "core": [
+          62000,
+          72000
+        ],
+        "directions": [
+          "Up",
+          "Down",
+          "Up"
+        ],
+        "b_not_member": true
+      }
+    },
+    {
+      "id": "K1-original-complete-children",
+      "value": null,
+      "evidence": "018:24 original completion is still unverified for the local objects"
+    },
+    {
+      "id": "parent-b-c-force",
+      "value": true,
+      "evidence": {
+        "b": "b_low",
+        "c": "c0",
+        "b_rank": -1,
+        "c_rank": 0,
+        "rank_b_le_c": true,
+        "b_force": {
+          "first_pen": 0,
+          "last_pen": 4,
+          "first_v": -4000,
+          "last_v": -5000,
+          "L": -1000
+        },
+        "c_force": {
+          "first_pen": 80,
+          "last_pen": 104,
+          "first_v": -1400,
+          "last_v": -4900,
+          "L": -3500
+        },
+        "strict_weakening": true,
+        "b_direction": "Down",
+        "c_direction": "Down",
+        "prior_global_min": 40000,
+        "c_end": 37800,
+        "strict_extreme": true,
+        "c_whole_completed_candidate": true
+      }
+    },
+    {
+      "id": "parent-full-c0-candidate",
+      "value": true,
+      "evidence": "whole [321,421], 25 pens/five segments, own E322..421, local end421 known438, not only S20"
+    },
+    {
+      "id": "parent-original-b-c-roles",
+      "value": null,
+      "evidence": "b_low original motion qualification; initial original q0 whole completion; lifecycle and external-arm roles unproven"
+    },
+    {
+      "id": "NoPP-selected-nested",
+      "value": null,
+      "evidence": "No qualified canonical movement expression; no empty-list/single-container pass; direct counterfactual kept separate"
+    },
+    {
+      "id": "NE-and-all-extensions",
+      "value": null,
+      "evidence": "only one finite history, no lifecycle closure theorem"
+    },
+    {
+      "id": "online-L-all-times",
+      "value": null,
+      "evidence": "known endpoint comparisons are causal; no every-time original arm identity/L contract claimed"
+    },
+    {
+      "id": "full-F1-fixed-F2",
+      "value": false,
+      "evidence": "this submitted interpretation is incomplete and hence not an accepted witness; not an impossibility theorem"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "object": "b_low",
+  "actual_tag": "raw-067-segment; no automatic original movement-type assignment",
+  "required_tag_in_author_interface": "completed-original-motion",
+  "semantic_GeneralDiv": null,
+  "semantic_Completed": null,
+  "evidence_tag_matches": false,
+  "evidence_Completed_present_true": false,
+  "source_requires_this_literal_tag": false,
+  "source_084_initial_layer_admission_theorem": null,
+  "null_implies_semantic_false": false,
+  "all_legal_b_absent": null,
+  "reviewer_evaluated_author_evidence_guard": false,
+  "author_executable_guard_found_in_two_scripts": false
+}

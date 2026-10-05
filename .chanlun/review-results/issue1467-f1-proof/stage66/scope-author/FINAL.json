@@ -1,0 +1,29 @@
+{
+  "status": "author_complete_review_pending",
+  "claim": "S66-SCOPE-v1",
+  "report": "Report.md",
+  "report_sha256": "76c0a8f99d864a7dc42abe0ffdb4f04f26a41bf702ce0b788007874e69790dce",
+  "manifest_sha256": "000c0984e3afdb5080379f67b3d198b51781f880866b1e2f67a13dfed0294df5",
+  "assertions": 32,
+  "actual_prefixes": [
+    218,
+    318,
+    342
+  ],
+  "actual_original_completed_children": 0,
+  "actual_parent_completed": 0,
+  "parent_conditional_table_instantiated": false,
+  "proved": [
+    "Jdirect conditional two-P incompatibility without universal same-level coverage",
+    "record persistence compatible with derived frontier replacement",
+    "later q1 parent does not repair q0 identity factor input or earlier clock"
+  ],
+  "unresolved": [
+    "original X completion",
+    "true parent certificate",
+    "consumer-authoritative normalization bridge",
+    "full F1/F2 joint semantics"
+  ],
+  "no_canonical_or_production_or_formal_or_tracker_write": true,
+  "independent_review": "parent to assign; author self-check only"
+}

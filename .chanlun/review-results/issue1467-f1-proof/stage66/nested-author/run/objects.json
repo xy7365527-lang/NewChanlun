@@ -1,0 +1,284 @@
+[
+  {
+    "id": "P0",
+    "rank": 0,
+    "kind": "P-candidate",
+    "technical_direction": "Up",
+    "start": 21,
+    "end": 121,
+    "own": [
+      22,
+      121
+    ],
+    "whole": [
+      40000,
+      72000
+    ],
+    "segments": [
+      "S1",
+      "S2",
+      "S3",
+      "S4",
+      "S5"
+    ],
+    "core": {
+      "id": "k0",
+      "rank": 0,
+      "members": [
+        "S2",
+        "S3",
+        "S4"
+      ],
+      "core": [
+        50000,
+        60000
+      ],
+      "happened_at": 101,
+      "known_at": 118
+    },
+    "general_div": {
+      "b": "S1",
+      "c": "S5",
+      "b_force": {
+        "first_pen": 5,
+        "last_pen": 9,
+        "first_v": 2000,
+        "last_v": 3000,
+        "L": 1000
+      },
+      "c_force": {
+        "first_pen": 25,
+        "last_pen": 29,
+        "first_v": 1000,
+        "last_v": 500,
+        "L": -500
+      },
+      "strict_weakening": true,
+      "strict_extreme": true,
+      "prior_extreme": 64000,
+      "end_price": 72000,
+      "all_segment_certificates": true,
+      "GeneralDiv_local": true
+    },
+    "completion": {
+      "candidate": true,
+      "happened_at": 121,
+      "known_at": 138,
+      "published_at": 138,
+      "original_certified": false
+    },
+    "missing_segment_ids": []
+  },
+  {
+    "id": "P1",
+    "rank": 0,
+    "kind": "P-candidate",
+    "technical_direction": "Down",
+    "start": 121,
+    "end": 221,
+    "own": [
+      122,
+      221
+    ],
+    "whole": [
+      62000,
+      72000
+    ],
+    "segments": [
+      "S6",
+      "S7",
+      "S8",
+      "S9",
+      "S10"
+    ],
+    "core": {
+      "id": "k1",
+      "rank": 0,
+      "members": [
+        "S7",
+        "S8",
+        "S9"
+      ],
+      "core": [
+        66000,
+        68800
+      ],
+      "happened_at": 201,
+      "known_at": 218
+    },
+    "general_div": {
+      "b": "S6",
+      "c": "S10",
+      "b_force": {
+        "first_pen": 30,
+        "last_pen": 34,
+        "first_v": -400,
+        "last_v": -1500,
+        "L": -1100
+      },
+      "c_force": {
+        "first_pen": 50,
+        "last_pen": 54,
+        "first_v": -200,
+        "last_v": -1400,
+        "L": -1200
+      },
+      "strict_weakening": true,
+      "strict_extreme": true,
+      "prior_extreme": 64000,
+      "end_price": 62000,
+      "all_segment_certificates": true,
+      "GeneralDiv_local": true
+    },
+    "completion": {
+      "candidate": true,
+      "happened_at": 221,
+      "known_at": 238,
+      "published_at": 238,
+      "original_certified": false
+    },
+    "missing_segment_ids": []
+  },
+  {
+    "id": "P2",
+    "rank": 0,
+    "kind": "P-candidate",
+    "technical_direction": "Up",
+    "start": 221,
+    "end": 321,
+    "own": [
+      222,
+      321
+    ],
+    "whole": [
+      60000,
+      72800
+    ],
+    "segments": [
+      "S11",
+      "S12",
+      "S13",
+      "S14",
+      "S15"
+    ],
+    "core": {
+      "id": "k2",
+      "rank": 0,
+      "members": [
+        "S12",
+        "S13",
+        "S14"
+      ],
+      "core": [
+        60800,
+        64000
+      ],
+      "happened_at": 301,
+      "known_at": 318
+    },
+    "general_div": {
+      "b": "S11",
+      "c": "S15",
+      "b_force": {
+        "first_pen": 55,
+        "last_pen": 59,
+        "first_v": 400,
+        "last_v": 500,
+        "L": 100
+      },
+      "c_force": {
+        "first_pen": 75,
+        "last_pen": 79,
+        "first_v": 400,
+        "last_v": 200,
+        "L": -200
+      },
+      "strict_weakening": true,
+      "strict_extreme": true,
+      "prior_extreme": 65600,
+      "end_price": 72800,
+      "all_segment_certificates": false,
+      "GeneralDiv_local": false
+    },
+    "completion": {
+      "candidate": false,
+      "happened_at": 321,
+      "known_at": null,
+      "published_at": null,
+      "original_certified": false
+    },
+    "missing_segment_ids": [
+      "S15"
+    ]
+  },
+  {
+    "id": "c0",
+    "rank": 0,
+    "kind": "P-candidate",
+    "technical_direction": "Down",
+    "start": 321,
+    "end": 421,
+    "own": [
+      322,
+      421
+    ],
+    "whole": [
+      37800,
+      72800
+    ],
+    "segments": [
+      "S16",
+      "S17",
+      "S18",
+      "S19",
+      "S20"
+    ],
+    "core": {
+      "id": "k3",
+      "rank": 0,
+      "members": [
+        "S17",
+        "S18",
+        "S19"
+      ],
+      "core": [
+        51800,
+        61600
+      ],
+      "happened_at": 401,
+      "known_at": 418
+    },
+    "general_div": {
+      "b": "S16",
+      "c": "S20",
+      "b_force": {
+        "first_pen": 80,
+        "last_pen": 84,
+        "first_v": -1400,
+        "last_v": -5250,
+        "L": -3850
+      },
+      "c_force": {
+        "first_pen": 100,
+        "last_pen": 104,
+        "first_v": -700,
+        "last_v": -4900,
+        "L": -4200
+      },
+      "strict_weakening": true,
+      "strict_extreme": true,
+      "prior_extreme": 44800,
+      "end_price": 37800,
+      "all_segment_certificates": true,
+      "GeneralDiv_local": true
+    },
+    "completion": {
+      "candidate": true,
+      "happened_at": 421,
+      "known_at": 438,
+      "published_at": 438,
+      "original_certified": false
+    },
+    "missing_segment_ids": []
+  }
+]

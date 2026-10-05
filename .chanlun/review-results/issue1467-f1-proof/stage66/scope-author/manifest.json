@@ -1,0 +1,142 @@
+{
+  "claim": "S66-SCOPE-v1",
+  "inputs": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/017-第17课.md",
+      "sha256": "bce847aaacac3b3a79e56b3c49aca6f0c454a0917977bdbb1e0f1f553ddff026"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/035-第35课.md",
+      "sha256": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/038-第38课.md",
+      "sha256": "983ce94575d61ed645fcc753eb59f9a28e8e749826a30d7bf87f19721baedc7b"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/039-第39课.md",
+      "sha256": "f7ab535b5899c2b11d1aa1c181b906b2bf719ef5f0b9471ddf85b745053bceca"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/084-第84课.md",
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/fenjie.md",
+      "sha256": "a09645ca57627e4dfe1197a9c1872c01e3326ba9387475f9b5378b509b4a9db0"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/zhongshu.md",
+      "sha256": "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/adr/0011-operation-decomposition-layer.md",
+      "sha256": "30098873c67878af850e8ff9502fdf69e332343e3576e551bab6768d6eb59860"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage54InitialContractAndMemberRelease.md",
+      "sha256": "5acb45493a85f991bf61a155a8844a5a6f7814550158fafbd1cf311320e20441"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1470-order-recursion-research-protocol-20261003.md",
+      "sha256": "8ee3e3371fe4757e20b756192db93af03b6550943d8526b9210c55226bbc16d2"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.agents/skills/rigorous-open-math-research/SKILL.md",
+      "sha256": "2cf200984572271b8689ab93e2069cc2e31b85e2824e06a9467352350b4591ed"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.agents/skills/math-research-workflow/SKILL.md",
+      "sha256": "df37a4bd8939717159d63a85f9be2f2f9fb303e0034c93604d347bfc5977ba96"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/agents/research-workflows/order-recursion-research.md",
+      "sha256": "9763196d7566dec659fc54b403c3e25eeeccf2f9ee3878d36fb3d710b5a89111"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/ResearchContract-v1.md",
+      "sha256": "18a55763c6f8fdd08322beec01af37ee89a004789806fa1bf3f533ff61ec5f04"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage61CompletionAndRankContracts.md",
+      "sha256": "74f706554ac9d5e81dc9e19f9496c281e7372e49ed7c73a80fd479e648828b24"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage62JointInterpretationAndSourceAdjacency-v2.md",
+      "sha256": "2ab0609b287b4f50fb8b870b897ed6fa3d6f16edb48fbb13cda93b225847537f"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage65DomainAndLifecycleObstructions.md",
+      "sha256": "761fa6ec06fe9a25ca64e080e45663f50a0afe0c19ee1017281de41b28b6df3e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/run/source.json",
+      "sha256": "0d0573cc7cf43ec8aeb6e65f7b34070e169bb8ca96ad894ed23a089f3165c0fa"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/run/scan.json",
+      "sha256": "404f17fb3c5a714f5124886c08d883d8af4ba0377a1b3919d287cddb081bafe9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/run/timeline.json",
+      "sha256": "fbedca292fe7ff2c288c690a504892d4d57f913eec37c5e6bd5b36f030acf515"
+    }
+  ],
+  "outputs": [
+    {
+      "file": "Report.md",
+      "sha256": "76c0a8f99d864a7dc42abe0ffdb4f04f26a41bf702ce0b788007874e69790dce",
+      "bytes": 16805
+    },
+    {
+      "file": "WorkCard.md",
+      "sha256": "5cf5d541683f82f0cf62c9d238dab00155823012bae2e5749ffdf6737b94203a",
+      "bytes": 2135
+    },
+    {
+      "file": "check-relations.mjs",
+      "sha256": "ad576ba21e6f0715a9c1a8737ce11c6392ab017a4f08539d70685754e2791150",
+      "bytes": 6124
+    },
+    {
+      "file": "check.stdout.json",
+      "sha256": "8b17f1262e57d7cf04d2c551b1be4349e7aa75f7b81e3d2f08fae1f796110672",
+      "bytes": 122
+    },
+    {
+      "file": "execution-receipt.json",
+      "sha256": "a109ff6da9c091139ba3b8709190888e96c752aa257fadd054d8ff512860a027",
+      "bytes": 1901
+    },
+    {
+      "file": "issue812-decisive-comment.md",
+      "sha256": "e05260b6e97690f4558e0a19f86ebe84d7bb932ecbe2fb7650ef376e1428552d",
+      "bytes": 3402
+    },
+    {
+      "file": "issue812.json",
+      "sha256": "58b2fc850ddb492b41fa6bb70f0b43362a48daafdbeed4be8d45b413931c2ed3",
+      "bytes": 65349
+    },
+    {
+      "file": "issue827-decisive-comment.md",
+      "sha256": "c08a93f2212482fae2a5f737c2c8e3eb2e55771b6badd0b8bc4efb494b451d31",
+      "bytes": 8656
+    },
+    {
+      "file": "issue827.json",
+      "sha256": "fa838e79fee3745968ce9365befa9cba052b0c7b3b509f2c6aad9058804d89b9",
+      "bytes": 19728
+    },
+    {
+      "file": "relation-structure.json",
+      "sha256": "2af95a87756a2d5221ffd5bddb24876303a9a88aadc3cee315c5610b8db80730",
+      "bytes": 14362
+    },
+    {
+      "file": "source-evidence.json",
+      "sha256": "f2fb6862ef888d6e96911e957fb36836c4a715a2d82a0dab43126ef9f980fb1f",
+      "bytes": 54013
+    }
+  ]
+}

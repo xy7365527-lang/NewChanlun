@@ -1,0 +1,523 @@
+{
+  "stage": 66,
+  "files": [
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/Report.md",
+      "path": "nested-author/Report.md",
+      "bytes": 12648,
+      "sha256": "b345bff754af332b75b4582753a1f820e2d4d7dd17c35cbef07423a40c9bb97a"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/WorkCard.md",
+      "path": "nested-author/WorkCard.md",
+      "bytes": 1655,
+      "sha256": "47e074cb3cb26847985b72adffa41c97992bbbdc838d6ab65dd46a4851f0acd5"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/admission-and-lifecycle.json",
+      "path": "nested-author/admission-and-lifecycle.json",
+      "bytes": 2698,
+      "sha256": "82c37f622ebf1306fe7eafec4908bfdebce36ff893cb59f60813a33e7b75859c"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/author-receipt.json",
+      "path": "nested-author/author-receipt.json",
+      "bytes": 1116,
+      "sha256": "ffe33e5f5b9d8c72a955b9ce83b13b4bedd172242fb6184888c6c6f0ef5d73ef"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/build_check.mjs",
+      "path": "nested-author/build_check.mjs",
+      "bytes": 11570,
+      "sha256": "2fc42b887db4e0b0d99015eb4385ef32947bf278935c5622984796c00012a187"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/capture-sources.mjs",
+      "path": "nested-author/capture-sources.mjs",
+      "bytes": 3496,
+      "sha256": "3033ca3f7c7f6d2aec22f426391ab10381413ef64fa136a4914a63ccbf80f410"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/card.json",
+      "path": "nested-author/card.json",
+      "bytes": 4883,
+      "sha256": "bf858afd31a3588f309d76f4199f9bccf43f84345a6921760245f284bbbe714d"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/certificate-adaptation.json",
+      "path": "nested-author/certificate-adaptation.json",
+      "bytes": 372,
+      "sha256": "ed2cfe0c7589348e3fc79cc27eebc29bf982593eb77a767a48e91ad277b6e9d2"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/context-input-hashes.json",
+      "path": "nested-author/context-input-hashes.json",
+      "bytes": 2518,
+      "sha256": "e30f45d58e297e7cf21c8cbeaeae2c85a3a24f8b95a0aa7f0308092d5746a674"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/reference_probe.rs",
+      "path": "nested-author/reference_probe.rs",
+      "bytes": 1726,
+      "sha256": "b56671fbc4e3cbb463698196575f7bab3a4d74278a66febeaae1179e06639a38"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/actual-relations.json",
+      "path": "nested-author/run/actual-relations.json",
+      "bytes": 11102,
+      "sha256": "d7553789992a52e70a0f273f9671b3ab379d9c597b0dd2c4af729aae5a473462"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/compile.receipt.json",
+      "path": "nested-author/run/compile.receipt.json",
+      "bytes": 838,
+      "sha256": "2fe399c218e58a9e46ebcd6e5b5dfe144c89943d419c43924c6026d3be3be961"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/first-failures.json",
+      "path": "nested-author/run/first-failures.json",
+      "bytes": 1395,
+      "sha256": "5bd538c9d3c6178f2608052b8c30a7a83437ab5744a02e2a1a9f99c72373eaf4"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/inputhash-after.json",
+      "path": "nested-author/run/inputhash-after.json",
+      "bytes": 2237,
+      "sha256": "60b7795b33f19f2ceabe718e7cd4a12e71ee97e53f4e38b4a02e6d5bcb9792f9"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/inputhash-before.json",
+      "path": "nested-author/run/inputhash-before.json",
+      "bytes": 2237,
+      "sha256": "60b7795b33f19f2ceabe718e7cd4a12e71ee97e53f4e38b4a02e6d5bcb9792f9"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/objects.json",
+      "path": "nested-author/run/objects.json",
+      "bytes": 5108,
+      "sha256": "c768fa5c9418cd9cea1abcae0a94ac83c91579fc0b60f5e6be86ba8e0c87116c"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/parent.json",
+      "path": "nested-author/run/parent.json",
+      "bytes": 1374,
+      "sha256": "4f1365cf69036d5f0b34295c27af1a5ed2a0a8cc65c668afa408d20774e72cd4"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/pending-segments.json",
+      "path": "nested-author/run/pending-segments.json",
+      "bytes": 15,
+      "sha256": "0934a2340f2779649451c154b55eab3c61cd1ad27ebe32edbfe0344ff13cff8e"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/reference.receipt.json",
+      "path": "nested-author/run/reference.receipt.json",
+      "bytes": 307,
+      "sha256": "482eff3c4085489a2ed0120d1dc78b4ce6fecb08f3c4bd7e1fdee2893a85b658"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/result.json",
+      "path": "nested-author/run/result.json",
+      "bytes": 1017,
+      "sha256": "d037c5d039497b415ea88f10107d6e4526b493a5f6acf10069339c4f15c2ad3a"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/runtime.json",
+      "path": "nested-author/run/runtime.json",
+      "bytes": 68,
+      "sha256": "b9dd6fbf41dab2cbdd6f3fcfd954f0f50ed93c6829efc8499841b7b22d5a234d"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/segments.json",
+      "path": "nested-author/run/segments.json",
+      "bytes": 11481,
+      "sha256": "2d06f8a8efab89a456115548732f0938aa251d799c1b10305e5faaebd5b072b5"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/source-domain.json",
+      "path": "nested-author/run/source-domain.json",
+      "bytes": 253,
+      "sha256": "e656f4071481c38425f5794c90e1f6868af7b9131e73b98bcadc3e5e325c786c"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/source.json",
+      "path": "nested-author/run/source.json",
+      "bytes": 1079239,
+      "sha256": "8c8b0e442195c76f25eb60462272aa5718e77f470d4981a4092720301a628883"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/timeline.json",
+      "path": "nested-author/run/timeline.json",
+      "bytes": 120611,
+      "sha256": "91206376a28d01da32cf2f85e6b81a8878f40617490fe311909b06df848fb5eb"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/segment-certificate.mjs",
+      "path": "nested-author/segment-certificate.mjs",
+      "bytes": 1647,
+      "sha256": "c56622b57b0498aaaf29eb8f7bf81151924149f8e55bb330c6827cf39ae41225"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/source-evidence.json",
+      "path": "nested-author/source-evidence.json",
+      "bytes": 119312,
+      "sha256": "c546b2ccd1aece10ec5dfb002ae6004cd80a14d7ace0622548097bcb255658d4"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/source-supplement/NoPP-scope-correction.json",
+      "path": "nested-author/source-supplement/NoPP-scope-correction.json",
+      "bytes": 578,
+      "sha256": "e2ac3720d3b2fadf145d49cec79832b16ee51472160db0fe8633aed93c0c101f"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/source-supplement/S15-source-certificate.json",
+      "path": "nested-author/source-supplement/S15-source-certificate.json",
+      "bytes": 1187,
+      "sha256": "084f839c0c6ce496b5c172bdfa885a2bf42a8a7141ec5f07f5d9667da4ed4d4c"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/source-supplement/actual-relations-v2.json",
+      "path": "nested-author/source-supplement/actual-relations-v2.json",
+      "bytes": 17649,
+      "sha256": "d57fe905fc0a75096dd08b1a298690952eac9b2288d3358b66daf5b9a8a8aea3"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/source-supplement/inputhash-after.json",
+      "path": "nested-author/source-supplement/inputhash-after.json",
+      "bytes": 1251,
+      "sha256": "52b5f733b10be2773d571f19145631dd423c4c670faa8b461fedbea9bc750daf"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/source-supplement/inputhash-before.json",
+      "path": "nested-author/source-supplement/inputhash-before.json",
+      "bytes": 1251,
+      "sha256": "52b5f733b10be2773d571f19145631dd423c4c670faa8b461fedbea9bc750daf"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/source-supplement/objects-v2.json",
+      "path": "nested-author/source-supplement/objects-v2.json",
+      "bytes": 5199,
+      "sha256": "76339def0f7e67a06f49794d5b7bd56207650e193acf50b965e6c0347b502e61"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/source-supplement.mjs",
+      "path": "nested-author/source-supplement.mjs",
+      "bytes": 8903,
+      "sha256": "5beb1cca5718c3f0de060dcb6c64a98510ee555a67589c7584fe0a777c0e280c"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/sourcehash.json",
+      "path": "nested-author/sourcehash.json",
+      "bytes": 3871,
+      "sha256": "6f46a390fea30217e19e31fc2e6e13b5d2ba259303778626fef1f90c2f4d0d4d"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/manifest.json",
+      "path": "nested-author/manifest.json",
+      "bytes": 6737,
+      "sha256": "6ecad7097243ef76892769621542efc724a3ee3e02049febe59160592ead9099"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/FINAL",
+      "path": "nested-author/FINAL",
+      "bytes": 774,
+      "sha256": "eab7077141f12c6ed7d0beb092c1d1d80a60f78b8afae7cfa2366c853231c998"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-author/Report.md",
+      "path": "scope-author/Report.md",
+      "bytes": 16805,
+      "sha256": "76c0a8f99d864a7dc42abe0ffdb4f04f26a41bf702ce0b788007874e69790dce"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-author/WorkCard.md",
+      "path": "scope-author/WorkCard.md",
+      "bytes": 2135,
+      "sha256": "5cf5d541683f82f0cf62c9d238dab00155823012bae2e5749ffdf6737b94203a"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-author/check-relations.mjs",
+      "path": "scope-author/check-relations.mjs",
+      "bytes": 6124,
+      "sha256": "ad576ba21e6f0715a9c1a8737ce11c6392ab017a4f08539d70685754e2791150"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-author/check.stdout.json",
+      "path": "scope-author/check.stdout.json",
+      "bytes": 122,
+      "sha256": "8b17f1262e57d7cf04d2c551b1be4349e7aa75f7b81e3d2f08fae1f796110672"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-author/execution-receipt.json",
+      "path": "scope-author/execution-receipt.json",
+      "bytes": 1901,
+      "sha256": "a109ff6da9c091139ba3b8709190888e96c752aa257fadd054d8ff512860a027"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-author/issue812-decisive-comment.md",
+      "path": "scope-author/issue812-decisive-comment.md",
+      "bytes": 3402,
+      "sha256": "e05260b6e97690f4558e0a19f86ebe84d7bb932ecbe2fb7650ef376e1428552d"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-author/issue812.json",
+      "path": "scope-author/issue812.json",
+      "bytes": 65349,
+      "sha256": "58b2fc850ddb492b41fa6bb70f0b43362a48daafdbeed4be8d45b413931c2ed3"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-author/issue827-decisive-comment.md",
+      "path": "scope-author/issue827-decisive-comment.md",
+      "bytes": 8656,
+      "sha256": "c08a93f2212482fae2a5f737c2c8e3eb2e55771b6badd0b8bc4efb494b451d31"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-author/issue827.json",
+      "path": "scope-author/issue827.json",
+      "bytes": 19728,
+      "sha256": "fa838e79fee3745968ce9365befa9cba052b0c7b3b509f2c6aad9058804d89b9"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-author/relation-structure.json",
+      "path": "scope-author/relation-structure.json",
+      "bytes": 14362,
+      "sha256": "2af95a87756a2d5221ffd5bddb24876303a9a88aadc3cee315c5610b8db80730"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-author/source-evidence.json",
+      "path": "scope-author/source-evidence.json",
+      "bytes": 54013,
+      "sha256": "f2fb6862ef888d6e96911e957fb36836c4a715a2d82a0dab43126ef9f980fb1f"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-author/manifest.json",
+      "path": "scope-author/manifest.json",
+      "bytes": 6514,
+      "sha256": "000c0984e3afdb5080379f67b3d198b51781f880866b1e2f67a13dfed0294df5"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-author/FINAL.json",
+      "path": "scope-author/FINAL.json",
+      "bytes": 1033,
+      "sha256": "844294f69d2f90d22105806115625f163999943872718dbf7d5bca622f9dd53c"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/dispatch-v1.json",
+      "path": "dispatch-v1.json",
+      "bytes": 894,
+      "sha256": "2e8b9bb0461600f8b4a81a42b8fd736e975fac216ddc44734d09dc231b6521fd"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/review-dispatch-v1.json",
+      "path": "review-dispatch-v1.json",
+      "bytes": 1459,
+      "sha256": "92e6b4ffd1681407d1eadc92bcfb7e3dea29c88a60c4b343188ca95df04c9c42"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/controller-freeze-check-v1.json",
+      "path": "controller-freeze-check-v1.json",
+      "bytes": 8773,
+      "sha256": "b6f554906043a85a42f4ff7983b6043371683d905b9a59f3905291cb7e709e0b"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/FINAL.json",
+      "path": "nested-review/FINAL.json",
+      "bytes": 1212,
+      "sha256": "f4c8d41faeb933dc6c3783b8e028c73872361fefce655cf1638973bd700bc689"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/H_b-evidence-versus-semantics.json",
+      "path": "nested-review/H_b-evidence-versus-semantics.json",
+      "bytes": 591,
+      "sha256": "a4b05d93400933b8d2e939593781c3cdbf1d6ca2f6fb493f3998a1e26193fad9"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/comparison-after-independent-computation.json",
+      "path": "nested-review/comparison-after-independent-computation.json",
+      "bytes": 88,
+      "sha256": "14f7ded8fbbb60e18e915039213a817c8755aa27d4e5daeb4b6231d86f34809c"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/doctrine-extract-audit.json",
+      "path": "nested-review/doctrine-extract-audit.json",
+      "bytes": 1932,
+      "sha256": "0f2b6c9df905e832b774501f273711b4fe24d3063855ab42c171860f66b293ae"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent-S15.json",
+      "path": "nested-review/independent-S15.json",
+      "bytes": 682,
+      "sha256": "ceb810600171b901b3dde1cbf461adda5db279fad9308ad35916a569814e8384"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent-narrow-segments.json",
+      "path": "nested-review/independent-narrow-segments.json",
+      "bytes": 13494,
+      "sha256": "8a1f96cb06d58e4a2076d051f14f7587fad7a58578b2fc4462b65c9633612e0c"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent-objects.json",
+      "path": "nested-review/independent-objects.json",
+      "bytes": 3447,
+      "sha256": "789ea728db62d245ef30d9e801cb25897838547737e81225323057b9922f2a3c"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent-parent.json",
+      "path": "nested-review/independent-parent.json",
+      "bytes": 1774,
+      "sha256": "a3a9091e3ad43f37eaa3e7f95f6121e7932a89aec3572af874d748c676bd8a5a"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent-pens.json",
+      "path": "nested-review/independent-pens.json",
+      "bytes": 11884,
+      "sha256": "305f747678d93c877a6a0c7da502cb7da63bdb29697b58e0ccd34415c0c965a4"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent-relations.json",
+      "path": "nested-review/independent-relations.json",
+      "bytes": 1474,
+      "sha256": "55e280e34713a02868c91e01f23a3057676c55014fbc52aea840d7a027103337"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent_recompute.py",
+      "path": "nested-review/independent_recompute.py",
+      "bytes": 19933,
+      "sha256": "a1d5caff3196acc31b197eb8c0d2bd0b02c10e30cf26e4d68a8e49e3b3ac8992"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/inputhash-after.json",
+      "path": "nested-review/inputhash-after.json",
+      "bytes": 14438,
+      "sha256": "fa9430997716d6739b4852bc3b366f0e11b4e7f071a8cd3b33c849a7e8ef3efa"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/inputhash-before.json",
+      "path": "nested-review/inputhash-before.json",
+      "bytes": 14438,
+      "sha256": "fa9430997716d6739b4852bc3b366f0e11b4e7f071a8cd3b33c849a7e8ef3efa"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/manifest.json",
+      "path": "nested-review/manifest.json",
+      "bytes": 2974,
+      "sha256": "c0693e88076bcf24608501db4e46f41a5e9655492fef7229e8e28b018e80e238"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/order-replay.json",
+      "path": "nested-review/order-replay.json",
+      "bytes": 244390,
+      "sha256": "6cdd8195eb28f7ff2d50adc350bd44c21c493ea93f5ce82f97b5d7aeda371730"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/receipt.json",
+      "path": "nested-review/receipt.json",
+      "bytes": 1737,
+      "sha256": "c3762b3a5dc7d6554a48e3d74dd04fccf0f6d122d00fa49cbb1c9880fdbe4b5f"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/recompute-result.json",
+      "path": "nested-review/recompute-result.json",
+      "bytes": 727,
+      "sha256": "5d0f949676ba29048319535fbc2d93749dc5f1c9972e9b653fd1f192058c4405"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/review.md",
+      "path": "nested-review/review.md",
+      "bytes": 11574,
+      "sha256": "81a97eb5d978c2c300fc5d288d3501a243d0c94ee2d316e59ac0533283d0c295"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/source-line-audit.json",
+      "path": "nested-review/source-line-audit.json",
+      "bytes": 53891,
+      "sha256": "8d427024bf0d97e4ad2ef38d98e6d0cfd916963bde75995a8e42cf5a2a0c70a8"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-review/FINAL.json",
+      "path": "scope-review/FINAL.json",
+      "bytes": 1567,
+      "sha256": "3dd307436dc4c91ed9c52d80bcc641d857cc68611bd6d6543088239a05785bba"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-review/check-result.json",
+      "path": "scope-review/check-result.json",
+      "bytes": 126,
+      "sha256": "060650d32919fc1f3b5701ea2c1dda2056ce07a1c4357669f8c1d1922f7947f8"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-review/check.stdout.json",
+      "path": "scope-review/check.stdout.json",
+      "bytes": 101,
+      "sha256": "de91b91ed3157e692881dee9aaba712ed6931494e0e22fe643e4eeb879eec132"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-review/execution-receipt.json",
+      "path": "scope-review/execution-receipt.json",
+      "bytes": 1195,
+      "sha256": "0604ade5b7b08311b719efcdb8a925f5550c19ce0822be3d70ea9fcd10ba9e81"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-review/independent-check.mjs",
+      "path": "scope-review/independent-check.mjs",
+      "bytes": 12184,
+      "sha256": "18e602186d7a8b01bb2d7c34647be838f16739190a99f6751b2e80397c113c98"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-review/independent-relations.json",
+      "path": "scope-review/independent-relations.json",
+      "bytes": 39553,
+      "sha256": "94370716c5d6739a85fc1d570c60179bb938d3a80677998817736907887fb880"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-review/input-hashes-after-check.json",
+      "path": "scope-review/input-hashes-after-check.json",
+      "bytes": 8579,
+      "sha256": "446a3bb96bd48b0c865a09c62cac2781079fb24a5bd16192db4eab86a8764053"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-review/input-hashes-after.json",
+      "path": "scope-review/input-hashes-after.json",
+      "bytes": 8579,
+      "sha256": "f83063ec475d7933a15ce2d6ea5a7f8864701dcda2d7671ee0fddd1841344a4f"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-review/input-hashes-before.json",
+      "path": "scope-review/input-hashes-before.json",
+      "bytes": 8579,
+      "sha256": "5db5c4a6495125359736977a6691b0e32b8904c0f0cd97602aacb822cd49924d"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-review/issue812-comment-live.json",
+      "path": "scope-review/issue812-comment-live.json",
+      "bytes": 5106,
+      "sha256": "8d22d02be2dc6950be93734003abe154f4769092d6f8a1729b9e563a7dc6ee85"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-review/issue827-comment-live.json",
+      "path": "scope-review/issue827-comment-live.json",
+      "bytes": 10414,
+      "sha256": "4cf5a505c348691be0d2a8fe5c6284b5657ee2504f1784312f6fab2ed13e5909"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-review/manifest.json",
+      "path": "scope-review/manifest.json",
+      "bytes": 10700,
+      "sha256": "75f82d8dda877dc7115945fed563ab8f8dabf93a584db82082f9a5a1e0f75c46"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-review/review.md",
+      "path": "scope-review/review.md",
+      "bytes": 11319,
+      "sha256": "1c14cc745a48a2de4bd619357403256375ac335f03d6945a151447975e0060db"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-review/source-audit.json",
+      "path": "scope-review/source-audit.json",
+      "bytes": 159898,
+      "sha256": "3aae2e177472cdb8e8ea27529b062f450c9244d16f4dcff0cdf5ba0b086f0f9d"
+    }
+  ],
+  "external_archive": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66",
+  "omitted": "Author reference binary, 6.5MB reference stdout and empty compiler streams remain in the hash-bound external archive. Any review file >=2MiB also remains external; its manifest binds it."
+}

@@ -1,0 +1,1824 @@
+{
+  "claim": "finite frozen relation audit; no parser run or new history",
+  "author_check_count": 32,
+  "independent_basic_count": 32,
+  "actual_states": [
+    {
+      "cut": 218,
+      "Rec": [
+        "X0",
+        "X1"
+      ],
+      "Cert_original": [],
+      "I0": [
+        "X0",
+        "X1"
+      ],
+      "delta0": {
+        "ids": [
+          "X0",
+          "X1"
+        ],
+        "grades": [
+          0,
+          0
+        ],
+        "NoPP": false
+      },
+      "N_certified": null,
+      "A": [
+        202,
+        218
+      ],
+      "Own": [
+        [
+          2,
+          101
+        ],
+        [
+          102,
+          201
+        ]
+      ],
+      "direct_adjacent_pairs": [
+        {
+          "pair": [
+            "X0",
+            "X1"
+          ],
+          "shared_boundary": 101,
+          "touching": true,
+          "same_grade": true
+        }
+      ],
+      "parent_completed": false
+    },
+    {
+      "cut": 318,
+      "Rec": [
+        "X0",
+        "X1",
+        "X2"
+      ],
+      "Cert_original": [],
+      "I0": [
+        "X0",
+        "X1",
+        "X2"
+      ],
+      "delta0": {
+        "ids": [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        "grades": [
+          0,
+          0,
+          0
+        ],
+        "NoPP": false
+      },
+      "N_certified": null,
+      "A": [
+        302,
+        318
+      ],
+      "Own": [
+        [
+          2,
+          101
+        ],
+        [
+          102,
+          201
+        ],
+        [
+          202,
+          301
+        ]
+      ],
+      "direct_adjacent_pairs": [
+        {
+          "pair": [
+            "X0",
+            "X1"
+          ],
+          "shared_boundary": 101,
+          "touching": true,
+          "same_grade": true
+        },
+        {
+          "pair": [
+            "X1",
+            "X2"
+          ],
+          "shared_boundary": 201,
+          "touching": true,
+          "same_grade": true
+        }
+      ],
+      "parent_completed": false
+    },
+    {
+      "cut": 342,
+      "Rec": [
+        "X0",
+        "X1",
+        "X2"
+      ],
+      "Cert_original": [],
+      "I0": [
+        "X0",
+        "X1",
+        "X2"
+      ],
+      "delta0": {
+        "ids": [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        "grades": [
+          0,
+          0,
+          0
+        ],
+        "NoPP": false
+      },
+      "N_certified": null,
+      "A": [
+        302,
+        342
+      ],
+      "Own": [
+        [
+          2,
+          101
+        ],
+        [
+          102,
+          201
+        ],
+        [
+          202,
+          301
+        ]
+      ],
+      "direct_adjacent_pairs": [
+        {
+          "pair": [
+            "X0",
+            "X1"
+          ],
+          "shared_boundary": 101,
+          "touching": true,
+          "same_grade": true
+        },
+        {
+          "pair": [
+            "X1",
+            "X2"
+          ],
+          "shared_boundary": 201,
+          "touching": true,
+          "same_grade": true
+        }
+      ],
+      "parent_completed": false
+    }
+  ],
+  "geometry": {
+    "intersection": [
+      62000,
+      72000
+    ],
+    "envelope": [
+      40000,
+      72800
+    ]
+  },
+  "clocks": {
+    "stage65": [
+      {
+        "id": "X0",
+        "own": [
+          2,
+          101
+        ],
+        "known_at": 118
+      },
+      {
+        "id": "X1",
+        "own": [
+          102,
+          201
+        ],
+        "known_at": 218
+      },
+      {
+        "id": "X2",
+        "own": [
+          202,
+          301
+        ],
+        "known_at": 318
+      }
+    ],
+    "nested": [
+      {
+        "id": "P0",
+        "own": [
+          22,
+          121
+        ],
+        "known_at": 138
+      },
+      {
+        "id": "P1",
+        "own": [
+          122,
+          221
+        ],
+        "known_at": 238
+      },
+      {
+        "id": "P2",
+        "own": [
+          222,
+          321
+        ],
+        "known_at": 338
+      },
+      {
+        "id": "c0",
+        "own": [
+          322,
+          421
+        ],
+        "known_at": 438
+      }
+    ],
+    "conditional_parent": "tauW remains symbolic; 438 belongs only to a different history and local candidate"
+  },
+  "checks": [
+    {
+      "name": "X0: actual whole range includes start/end",
+      "pass": true,
+      "actual": [
+        40000,
+        72000
+      ],
+      "expected": [
+        40000,
+        72000
+      ]
+    },
+    {
+      "name": "X0: own event bounds",
+      "pass": true,
+      "actual": [
+        2,
+        101
+      ],
+      "expected": [
+        2,
+        101
+      ]
+    },
+    {
+      "name": "X0: actual local publication",
+      "pass": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "X0: no earlier local publication",
+      "pass": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "name": "X0: source completion uncertified",
+      "pass": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "name": "X1: actual whole range includes start/end",
+      "pass": true,
+      "actual": [
+        62000,
+        72000
+      ],
+      "expected": [
+        62000,
+        72000
+      ]
+    },
+    {
+      "name": "X1: own event bounds",
+      "pass": true,
+      "actual": [
+        102,
+        201
+      ],
+      "expected": [
+        102,
+        201
+      ]
+    },
+    {
+      "name": "X1: actual local publication",
+      "pass": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "X1: no earlier local publication",
+      "pass": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "name": "X1: source completion uncertified",
+      "pass": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "name": "X2: actual whole range includes start/end",
+      "pass": true,
+      "actual": [
+        60000,
+        72800
+      ],
+      "expected": [
+        60000,
+        72800
+      ]
+    },
+    {
+      "name": "X2: own event bounds",
+      "pass": true,
+      "actual": [
+        202,
+        301
+      ],
+      "expected": [
+        202,
+        301
+      ]
+    },
+    {
+      "name": "X2: actual local publication",
+      "pass": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "X2: no earlier local publication",
+      "pass": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "name": "X2: source completion uncertified",
+      "pass": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "name": "t218: complete raw prefix coverage without overlap",
+      "pass": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "t218: declaration matches frozen candidate timeline",
+      "pass": true,
+      "actual": [
+        "X0",
+        "X1"
+      ],
+      "expected": [
+        "X0",
+        "X1"
+      ]
+    },
+    {
+      "name": "t218: direct expression violates NoPP",
+      "pass": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "name": "t218: actual source completed list remains empty",
+      "pass": true,
+      "actual": [],
+      "expected": []
+    },
+    {
+      "name": "t318: complete raw prefix coverage without overlap",
+      "pass": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "t318: declaration matches frozen candidate timeline",
+      "pass": true,
+      "actual": [
+        "X0",
+        "X1",
+        "X2"
+      ],
+      "expected": [
+        "X0",
+        "X1",
+        "X2"
+      ]
+    },
+    {
+      "name": "t318: direct expression violates NoPP",
+      "pass": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "name": "t318: actual source completed list remains empty",
+      "pass": true,
+      "actual": [],
+      "expected": []
+    },
+    {
+      "name": "t342: complete raw prefix coverage without overlap",
+      "pass": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "t342: declaration matches frozen candidate timeline",
+      "pass": true,
+      "actual": [
+        "X0",
+        "X1",
+        "X2"
+      ],
+      "expected": [
+        "X0",
+        "X1",
+        "X2"
+      ]
+    },
+    {
+      "name": "t342: direct expression violates NoPP",
+      "pass": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "name": "t342: actual source completed list remains empty",
+      "pass": true,
+      "actual": [],
+      "expected": []
+    },
+    {
+      "name": "actual strict triple whole intersection",
+      "pass": true,
+      "actual": [
+        62000,
+        72000
+      ],
+      "expected": [
+        62000,
+        72000
+      ]
+    },
+    {
+      "name": "strict triple intersection nonempty",
+      "pass": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "joined owned events",
+      "pass": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "parent proposed whole union range",
+      "pass": true,
+      "actual": [
+        40000,
+        72800
+      ],
+      "expected": [
+        40000,
+        72800
+      ]
+    },
+    {
+      "name": "immutable input bytes",
+      "pass": true,
+      "actual": [
+        "0d0573cc7cf43ec8aeb6e65f7b34070e169bb8ca96ad894ed23a089f3165c0fa",
+        "404f17fb3c5a714f5124886c08d883d8af4ba0377a1b3919d287cddb081bafe9",
+        "fbedca292fe7ff2c288c690a504892d4d57f913eec37c5e6bd5b36f030acf515"
+      ],
+      "expected": [
+        "0d0573cc7cf43ec8aeb6e65f7b34070e169bb8ca96ad894ed23a089f3165c0fa",
+        "404f17fb3c5a714f5124886c08d883d8af4ba0377a1b3919d287cddb081bafe9",
+        "fbedca292fe7ff2c288c690a504892d4d57f913eec37c5e6bd5b36f030acf515"
+      ]
+    }
+  ],
+  "additional_checks": [
+    {
+      "name": "t218: Rec I0 and direct factors are exact frozen references",
+      "pass": true,
+      "actual": [
+        [
+          "X0",
+          "X1"
+        ],
+        [
+          "X0",
+          "X1"
+        ],
+        [
+          "X0",
+          "X1"
+        ],
+        [
+          "X0",
+          "X1"
+        ],
+        [
+          "X0",
+          "X1"
+        ]
+      ],
+      "expected": [
+        [
+          "X0",
+          "X1"
+        ],
+        [
+          "X0",
+          "X1"
+        ],
+        [
+          "X0",
+          "X1"
+        ],
+        [
+          "X0",
+          "X1"
+        ],
+        [
+          "X0",
+          "X1"
+        ]
+      ]
+    },
+    {
+      "name": "t218: direct grades and Own match frozen objects",
+      "pass": true,
+      "actual": [
+        [
+          0,
+          0
+        ],
+        [
+          [
+            2,
+            101
+          ],
+          [
+            102,
+            201
+          ]
+        ]
+      ],
+      "expected": [
+        [
+          0,
+          0
+        ],
+        [
+          [
+            2,
+            101
+          ],
+          [
+            102,
+            201
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "t218: canonical unconstructed and no actual parent claim",
+      "pass": true,
+      "actual": [
+        null,
+        [],
+        false
+      ],
+      "expected": [
+        null,
+        [],
+        false
+      ]
+    },
+    {
+      "name": "t218: cache does not own children and raw tail is exact",
+      "pass": true,
+      "actual": [
+        [
+          "X0",
+          "X1"
+        ],
+        false,
+        [
+          [
+            202,
+            218
+          ]
+        ]
+      ],
+      "expected": [
+        [
+          "X0",
+          "X1"
+        ],
+        false,
+        [
+          [
+            202,
+            218
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "t318: Rec I0 and direct factors are exact frozen references",
+      "pass": true,
+      "actual": [
+        [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        [
+          "X0",
+          "X1",
+          "X2"
+        ]
+      ],
+      "expected": [
+        [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        [
+          "X0",
+          "X1",
+          "X2"
+        ]
+      ]
+    },
+    {
+      "name": "t318: direct grades and Own match frozen objects",
+      "pass": true,
+      "actual": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          [
+            2,
+            101
+          ],
+          [
+            102,
+            201
+          ],
+          [
+            202,
+            301
+          ]
+        ]
+      ],
+      "expected": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          [
+            2,
+            101
+          ],
+          [
+            102,
+            201
+          ],
+          [
+            202,
+            301
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "t318: canonical unconstructed and no actual parent claim",
+      "pass": true,
+      "actual": [
+        null,
+        [],
+        false
+      ],
+      "expected": [
+        null,
+        [],
+        false
+      ]
+    },
+    {
+      "name": "t318: cache does not own children and raw tail is exact",
+      "pass": true,
+      "actual": [
+        [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        false,
+        [
+          [
+            302,
+            318
+          ]
+        ]
+      ],
+      "expected": [
+        [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        false,
+        [
+          [
+            302,
+            318
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "t342: Rec I0 and direct factors are exact frozen references",
+      "pass": true,
+      "actual": [
+        [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        [
+          "X0",
+          "X1",
+          "X2"
+        ]
+      ],
+      "expected": [
+        [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        [
+          "X0",
+          "X1",
+          "X2"
+        ]
+      ]
+    },
+    {
+      "name": "t342: direct grades and Own match frozen objects",
+      "pass": true,
+      "actual": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          [
+            2,
+            101
+          ],
+          [
+            102,
+            201
+          ],
+          [
+            202,
+            301
+          ]
+        ]
+      ],
+      "expected": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          [
+            2,
+            101
+          ],
+          [
+            102,
+            201
+          ],
+          [
+            202,
+            301
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "t342: canonical unconstructed and no actual parent claim",
+      "pass": true,
+      "actual": [
+        null,
+        [],
+        false
+      ],
+      "expected": [
+        null,
+        [],
+        false
+      ]
+    },
+    {
+      "name": "t342: cache does not own children and raw tail is exact",
+      "pass": true,
+      "actual": [
+        [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        false,
+        [
+          [
+            302,
+            342
+          ]
+        ]
+      ],
+      "expected": [
+        [
+          "X0",
+          "X1",
+          "X2"
+        ],
+        false,
+        [
+          [
+            302,
+            342
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "original records copied without mutation",
+      "pass": true,
+      "actual": [
+        {
+          "id": "X0",
+          "grade": 0,
+          "type": "P",
+          "technical_direction": "Up",
+          "start": 1,
+          "end": 101,
+          "own": [
+            2,
+            101
+          ],
+          "whole_range": [
+            40000,
+            72000
+          ],
+          "members": [
+            "S0",
+            "S1",
+            "S2",
+            "S3",
+            "S4"
+          ],
+          "cores": [
+            "K0"
+          ],
+          "general_div": {
+            "object_index": 0,
+            "cores": [
+              "K0"
+            ],
+            "b": "S0",
+            "c": "S4",
+            "b_force": {
+              "first_pen": 0,
+              "last_pen": 4,
+              "first_v": 2000,
+              "last_v": 3000,
+              "L": 1000
+            },
+            "c_force": {
+              "first_pen": 20,
+              "last_pen": 24,
+              "first_v": 1000,
+              "last_v": 500,
+              "L": -500
+            },
+            "strict_weakening": true,
+            "strict_extreme": true,
+            "prior_extreme": 64000,
+            "endpoint": 72000,
+            "GeneralDiv64": true,
+            "happened_at": 101,
+            "known_at": 118
+          },
+          "completed": true,
+          "completion_status": "candidate interpretation only",
+          "original_completed_certified": false,
+          "source_next_start": 101
+        },
+        {
+          "id": "X1",
+          "grade": 0,
+          "type": "P",
+          "technical_direction": "Down",
+          "start": 101,
+          "end": 201,
+          "own": [
+            102,
+            201
+          ],
+          "whole_range": [
+            62000,
+            72000
+          ],
+          "members": [
+            "S5",
+            "S6",
+            "S7",
+            "S8",
+            "S9"
+          ],
+          "cores": [
+            "K1"
+          ],
+          "general_div": {
+            "object_index": 1,
+            "cores": [
+              "K1"
+            ],
+            "b": "S5",
+            "c": "S9",
+            "b_force": {
+              "first_pen": 25,
+              "last_pen": 29,
+              "first_v": -400,
+              "last_v": -1500,
+              "L": -1100
+            },
+            "c_force": {
+              "first_pen": 45,
+              "last_pen": 49,
+              "first_v": -200,
+              "last_v": -1400,
+              "L": -1200
+            },
+            "strict_weakening": true,
+            "strict_extreme": true,
+            "prior_extreme": 64000,
+            "endpoint": 62000,
+            "GeneralDiv64": true,
+            "happened_at": 201,
+            "known_at": 218
+          },
+          "completed": true,
+          "completion_status": "candidate interpretation only",
+          "original_completed_certified": false,
+          "source_next_start": 201
+        },
+        {
+          "id": "X2",
+          "grade": 0,
+          "type": "P",
+          "technical_direction": "Up",
+          "start": 201,
+          "end": 301,
+          "own": [
+            202,
+            301
+          ],
+          "whole_range": [
+            60000,
+            72800
+          ],
+          "members": [
+            "S10",
+            "S11",
+            "S12",
+            "S13",
+            "S14"
+          ],
+          "cores": [
+            "K2"
+          ],
+          "general_div": {
+            "object_index": 2,
+            "cores": [
+              "K2"
+            ],
+            "b": "S10",
+            "c": "S14",
+            "b_force": {
+              "first_pen": 50,
+              "last_pen": 54,
+              "first_v": 400,
+              "last_v": 500,
+              "L": 100
+            },
+            "c_force": {
+              "first_pen": 70,
+              "last_pen": 74,
+              "first_v": 400,
+              "last_v": 200,
+              "L": -200
+            },
+            "strict_weakening": true,
+            "strict_extreme": true,
+            "prior_extreme": 65600,
+            "endpoint": 72800,
+            "GeneralDiv64": true,
+            "happened_at": 301,
+            "known_at": 318
+          },
+          "completed": true,
+          "completion_status": "candidate interpretation only",
+          "original_completed_certified": false,
+          "source_next_start": 301
+        }
+      ],
+      "expected": [
+        {
+          "id": "X0",
+          "grade": 0,
+          "type": "P",
+          "technical_direction": "Up",
+          "start": 1,
+          "end": 101,
+          "own": [
+            2,
+            101
+          ],
+          "whole_range": [
+            40000,
+            72000
+          ],
+          "members": [
+            "S0",
+            "S1",
+            "S2",
+            "S3",
+            "S4"
+          ],
+          "cores": [
+            "K0"
+          ],
+          "general_div": {
+            "object_index": 0,
+            "cores": [
+              "K0"
+            ],
+            "b": "S0",
+            "c": "S4",
+            "b_force": {
+              "first_pen": 0,
+              "last_pen": 4,
+              "first_v": 2000,
+              "last_v": 3000,
+              "L": 1000
+            },
+            "c_force": {
+              "first_pen": 20,
+              "last_pen": 24,
+              "first_v": 1000,
+              "last_v": 500,
+              "L": -500
+            },
+            "strict_weakening": true,
+            "strict_extreme": true,
+            "prior_extreme": 64000,
+            "endpoint": 72000,
+            "GeneralDiv64": true,
+            "happened_at": 101,
+            "known_at": 118
+          },
+          "completed": true,
+          "completion_status": "candidate interpretation only",
+          "original_completed_certified": false,
+          "source_next_start": 101
+        },
+        {
+          "id": "X1",
+          "grade": 0,
+          "type": "P",
+          "technical_direction": "Down",
+          "start": 101,
+          "end": 201,
+          "own": [
+            102,
+            201
+          ],
+          "whole_range": [
+            62000,
+            72000
+          ],
+          "members": [
+            "S5",
+            "S6",
+            "S7",
+            "S8",
+            "S9"
+          ],
+          "cores": [
+            "K1"
+          ],
+          "general_div": {
+            "object_index": 1,
+            "cores": [
+              "K1"
+            ],
+            "b": "S5",
+            "c": "S9",
+            "b_force": {
+              "first_pen": 25,
+              "last_pen": 29,
+              "first_v": -400,
+              "last_v": -1500,
+              "L": -1100
+            },
+            "c_force": {
+              "first_pen": 45,
+              "last_pen": 49,
+              "first_v": -200,
+              "last_v": -1400,
+              "L": -1200
+            },
+            "strict_weakening": true,
+            "strict_extreme": true,
+            "prior_extreme": 64000,
+            "endpoint": 62000,
+            "GeneralDiv64": true,
+            "happened_at": 201,
+            "known_at": 218
+          },
+          "completed": true,
+          "completion_status": "candidate interpretation only",
+          "original_completed_certified": false,
+          "source_next_start": 201
+        },
+        {
+          "id": "X2",
+          "grade": 0,
+          "type": "P",
+          "technical_direction": "Up",
+          "start": 201,
+          "end": 301,
+          "own": [
+            202,
+            301
+          ],
+          "whole_range": [
+            60000,
+            72800
+          ],
+          "members": [
+            "S10",
+            "S11",
+            "S12",
+            "S13",
+            "S14"
+          ],
+          "cores": [
+            "K2"
+          ],
+          "general_div": {
+            "object_index": 2,
+            "cores": [
+              "K2"
+            ],
+            "b": "S10",
+            "c": "S14",
+            "b_force": {
+              "first_pen": 50,
+              "last_pen": 54,
+              "first_v": 400,
+              "last_v": 500,
+              "L": 100
+            },
+            "c_force": {
+              "first_pen": 70,
+              "last_pen": 74,
+              "first_v": 400,
+              "last_v": 200,
+              "L": -200
+            },
+            "strict_weakening": true,
+            "strict_extreme": true,
+            "prior_extreme": 65600,
+            "endpoint": 72800,
+            "GeneralDiv64": true,
+            "happened_at": 301,
+            "known_at": 318
+          },
+          "completed": true,
+          "completion_status": "candidate interpretation only",
+          "original_completed_certified": false,
+          "source_next_start": 301
+        }
+      ]
+    },
+    {
+      "name": "all selected objects really are grade zero P candidates",
+      "pass": true,
+      "actual": [
+        [
+          0,
+          "P",
+          true
+        ],
+        [
+          0,
+          "P",
+          true
+        ],
+        [
+          0,
+          "P",
+          true
+        ]
+      ],
+      "expected": [
+        [
+          0,
+          "P",
+          true
+        ],
+        [
+          0,
+          "P",
+          true
+        ],
+        [
+          0,
+          "P",
+          true
+        ]
+      ]
+    },
+    {
+      "name": "known clock is endpoint plus confirmation lag; not endpoint clock",
+      "pass": true,
+      "actual": [
+        [
+          101,
+          101,
+          118
+        ],
+        [
+          201,
+          201,
+          218
+        ],
+        [
+          301,
+          301,
+          318
+        ]
+      ],
+      "expected": [
+        [
+          101,
+          101,
+          118
+        ],
+        [
+          201,
+          201,
+          218
+        ],
+        [
+          301,
+          301,
+          318
+        ]
+      ]
+    },
+    {
+      "name": "frozen observations have explicit sequential event indices",
+      "pass": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "candidate publication persists through all later frozen prefixes",
+      "pass": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "no original completion was supplied at any frozen prefix",
+      "pass": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "name": "strict center needs alternating directions, satisfied geometrically here",
+      "pass": true,
+      "actual": [
+        "Up",
+        "Down",
+        "Up"
+      ],
+      "expected": [
+        "Up",
+        "Down",
+        "Up"
+      ]
+    },
+    {
+      "name": "conditional parent remains uninstantiated",
+      "pass": true,
+      "actual": [
+        false,
+        0
+      ],
+      "expected": [
+        false,
+        0
+      ]
+    },
+    {
+      "name": "conditional W is new q1 object over same owned interval, not q0",
+      "pass": true,
+      "actual": [
+        1,
+        [
+          2,
+          301
+        ],
+        [
+          40000,
+          72800
+        ],
+        false
+      ],
+      "expected": [
+        1,
+        [
+          2,
+          301
+        ],
+        [
+          40000,
+          72800
+        ],
+        false
+      ]
+    },
+    {
+      "name": "conditional parent time stays symbolic",
+      "pass": true,
+      "actual": "tauW",
+      "expected": "tauW"
+    },
+    {
+      "name": "parent record addition preserves exact child IDs",
+      "pass": true,
+      "actual": [
+        "X0",
+        "X1",
+        "X2",
+        "W"
+      ],
+      "expected": [
+        "X0",
+        "X1",
+        "X2",
+        "W"
+      ]
+    },
+    {
+      "name": "parent-child edges retained",
+      "pass": true,
+      "actual": [
+        [
+          "W",
+          "X0"
+        ],
+        [
+          "W",
+          "X1"
+        ],
+        [
+          "W",
+          "X2"
+        ]
+      ],
+      "expected": [
+        [
+          "W",
+          "X0"
+        ],
+        [
+          "W",
+          "X1"
+        ],
+        [
+          "W",
+          "X2"
+        ]
+      ]
+    },
+    {
+      "name": "all 32 independent checks map to author names",
+      "pass": true,
+      "actual": [
+        "X0: actual whole range includes start/end",
+        "X0: own event bounds",
+        "X0: actual local publication",
+        "X0: no earlier local publication",
+        "X0: source completion uncertified",
+        "X1: actual whole range includes start/end",
+        "X1: own event bounds",
+        "X1: actual local publication",
+        "X1: no earlier local publication",
+        "X1: source completion uncertified",
+        "X2: actual whole range includes start/end",
+        "X2: own event bounds",
+        "X2: actual local publication",
+        "X2: no earlier local publication",
+        "X2: source completion uncertified",
+        "t218: complete raw prefix coverage without overlap",
+        "t218: declaration matches frozen candidate timeline",
+        "t218: direct expression violates NoPP",
+        "t218: actual source completed list remains empty",
+        "t318: complete raw prefix coverage without overlap",
+        "t318: declaration matches frozen candidate timeline",
+        "t318: direct expression violates NoPP",
+        "t318: actual source completed list remains empty",
+        "t342: complete raw prefix coverage without overlap",
+        "t342: declaration matches frozen candidate timeline",
+        "t342: direct expression violates NoPP",
+        "t342: actual source completed list remains empty",
+        "actual strict triple whole intersection",
+        "strict triple intersection nonempty",
+        "joined owned events",
+        "parent proposed whole union range",
+        "immutable input bytes"
+      ],
+      "expected": [
+        "X0: actual whole range includes start/end",
+        "X0: own event bounds",
+        "X0: actual local publication",
+        "X0: no earlier local publication",
+        "X0: source completion uncertified",
+        "X1: actual whole range includes start/end",
+        "X1: own event bounds",
+        "X1: actual local publication",
+        "X1: no earlier local publication",
+        "X1: source completion uncertified",
+        "X2: actual whole range includes start/end",
+        "X2: own event bounds",
+        "X2: actual local publication",
+        "X2: no earlier local publication",
+        "X2: source completion uncertified",
+        "t218: complete raw prefix coverage without overlap",
+        "t218: declaration matches frozen candidate timeline",
+        "t218: direct expression violates NoPP",
+        "t218: actual source completed list remains empty",
+        "t318: complete raw prefix coverage without overlap",
+        "t318: declaration matches frozen candidate timeline",
+        "t318: direct expression violates NoPP",
+        "t318: actual source completed list remains empty",
+        "t342: complete raw prefix coverage without overlap",
+        "t342: declaration matches frozen candidate timeline",
+        "t342: direct expression violates NoPP",
+        "t342: actual source completed list remains empty",
+        "actual strict triple whole intersection",
+        "strict triple intersection nonempty",
+        "joined owned events",
+        "parent proposed whole union range",
+        "immutable input bytes"
+      ]
+    },
+    {
+      "name": "actual geometry agrees with packet",
+      "pass": true,
+      "actual": {
+        "triple_whole_intersection": [
+          62000,
+          72000
+        ],
+        "parent_union_whole": [
+          40000,
+          72800
+        ]
+      },
+      "expected": {
+        "triple_whole_intersection": [
+          62000,
+          72000
+        ],
+        "parent_union_whole": [
+          40000,
+          72800
+        ]
+      }
+    },
+    {
+      "name": "D1 really is nested mixed-rank AST",
+      "pass": true,
+      "actual": {
+        "Seq": [
+          "b_low",
+          {
+            "Core1": {
+              "members": [
+                "P0",
+                "P1",
+                "P2"
+              ]
+            }
+          },
+          "c0"
+        ]
+      },
+      "expected": {
+        "Seq": [
+          "b_low",
+          {
+            "Core1": {
+              "members": [
+                "P0",
+                "P1",
+                "P2"
+              ]
+            }
+          },
+          "c0"
+        ]
+      }
+    },
+    {
+      "name": "D1 does not claim a NoPP pass",
+      "pass": true,
+      "actual": [
+        false,
+        null
+      ],
+      "expected": [
+        false,
+        null
+      ]
+    },
+    {
+      "name": "nested parent 438 remains local only",
+      "pass": true,
+      "actual": [
+        438,
+        null,
+        false,
+        false
+      ],
+      "expected": [
+        438,
+        null,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "two histories use different first direct pair clock",
+      "pass": true,
+      "actual": [
+        218,
+        238
+      ],
+      "expected": [
+        218,
+        238
+      ]
+    },
+    {
+      "name": "two histories use different Own, never interchangeable",
+      "pass": true,
+      "actual": [
+        [
+          2,
+          101
+        ],
+        [
+          22,
+          121
+        ]
+      ],
+      "expected": [
+        [
+          2,
+          101
+        ],
+        [
+          22,
+          121
+        ]
+      ]
+    },
+    {
+      "name": "nested Core1 does not discharge construction-role policy",
+      "pass": true,
+      "actual": null,
+      "expected": null
+    },
+    {
+      "name": "author manifest input/output identity",
+      "pass": true,
+      "actual": [],
+      "expected": []
+    },
+    {
+      "name": "frozen Report SHA256",
+      "pass": true,
+      "actual": "76c0a8f99d864a7dc42abe0ffdb4f04f26a41bf702ce0b788007874e69790dce",
+      "expected": "76c0a8f99d864a7dc42abe0ffdb4f04f26a41bf702ce0b788007874e69790dce"
+    },
+    {
+      "name": "frozen manifest SHA256",
+      "pass": true,
+      "actual": "000c0984e3afdb5080379f67b3d198b51781f880866b1e2f67a13dfed0294df5",
+      "expected": "000c0984e3afdb5080379f67b3d198b51781f880866b1e2f67a13dfed0294df5"
+    },
+    {
+      "name": "all declared input bytes unchanged across independent check",
+      "pass": true,
+      "actual": [
+        "844294f69d2f90d22105806115625f163999943872718dbf7d5bca622f9dd53c",
+        "76c0a8f99d864a7dc42abe0ffdb4f04f26a41bf702ce0b788007874e69790dce",
+        "5cf5d541683f82f0cf62c9d238dab00155823012bae2e5749ffdf6737b94203a",
+        "ad576ba21e6f0715a9c1a8737ce11c6392ab017a4f08539d70685754e2791150",
+        "8b17f1262e57d7cf04d2c551b1be4349e7aa75f7b81e3d2f08fae1f796110672",
+        "a109ff6da9c091139ba3b8709190888e96c752aa257fadd054d8ff512860a027",
+        "e05260b6e97690f4558e0a19f86ebe84d7bb932ecbe2fb7650ef376e1428552d",
+        "58b2fc850ddb492b41fa6bb70f0b43362a48daafdbeed4be8d45b413931c2ed3",
+        "c08a93f2212482fae2a5f737c2c8e3eb2e55771b6badd0b8bc4efb494b451d31",
+        "fa838e79fee3745968ce9365befa9cba052b0c7b3b509f2c6aad9058804d89b9",
+        "000c0984e3afdb5080379f67b3d198b51781f880866b1e2f67a13dfed0294df5",
+        "2af95a87756a2d5221ffd5bddb24876303a9a88aadc3cee315c5610b8db80730",
+        "f2fb6862ef888d6e96911e957fb36836c4a715a2d82a0dab43126ef9f980fb1f",
+        "bce847aaacac3b3a79e56b3c49aca6f0c454a0917977bdbb1e0f1f553ddff026",
+        "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023",
+        "983ce94575d61ed645fcc753eb59f9a28e8e749826a30d7bf87f19721baedc7b",
+        "f7ab535b5899c2b11d1aa1c181b906b2bf719ef5f0b9471ddf85b745053bceca",
+        "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26",
+        "a09645ca57627e4dfe1197a9c1872c01e3326ba9387475f9b5378b509b4a9db0",
+        "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882",
+        "30098873c67878af850e8ff9502fdf69e332343e3576e551bab6768d6eb59860",
+        "5acb45493a85f991bf61a155a8844a5a6f7814550158fafbd1cf311320e20441",
+        "8ee3e3371fe4757e20b756192db93af03b6550943d8526b9210c55226bbc16d2",
+        "2cf200984572271b8689ab93e2069cc2e31b85e2824e06a9467352350b4591ed",
+        "df37a4bd8939717159d63a85f9be2f2f9fb303e0034c93604d347bfc5977ba96",
+        "9763196d7566dec659fc54b403c3e25eeeccf2f9ee3878d36fb3d710b5a89111",
+        "18a55763c6f8fdd08322beec01af37ee89a004789806fa1bf3f533ff61ec5f04",
+        "74f706554ac9d5e81dc9e19f9496c281e7372e49ed7c73a80fd479e648828b24",
+        "2ab0609b287b4f50fb8b870b897ed6fa3d6f16edb48fbb13cda93b225847537f",
+        "761fa6ec06fe9a25ca64e080e45663f50a0afe0c19ee1017281de41b28b6df3e",
+        "0d0573cc7cf43ec8aeb6e65f7b34070e169bb8ca96ad894ed23a089f3165c0fa",
+        "404f17fb3c5a714f5124886c08d883d8af4ba0377a1b3919d287cddb081bafe9",
+        "fbedca292fe7ff2c288c690a504892d4d57f913eec37c5e6bd5b36f030acf515",
+        "d57fe905fc0a75096dd08b1a298690952eac9b2288d3358b66daf5b9a8a8aea3"
+      ],
+      "expected": [
+        "844294f69d2f90d22105806115625f163999943872718dbf7d5bca622f9dd53c",
+        "76c0a8f99d864a7dc42abe0ffdb4f04f26a41bf702ce0b788007874e69790dce",
+        "5cf5d541683f82f0cf62c9d238dab00155823012bae2e5749ffdf6737b94203a",
+        "ad576ba21e6f0715a9c1a8737ce11c6392ab017a4f08539d70685754e2791150",
+        "8b17f1262e57d7cf04d2c551b1be4349e7aa75f7b81e3d2f08fae1f796110672",
+        "a109ff6da9c091139ba3b8709190888e96c752aa257fadd054d8ff512860a027",
+        "e05260b6e97690f4558e0a19f86ebe84d7bb932ecbe2fb7650ef376e1428552d",
+        "58b2fc850ddb492b41fa6bb70f0b43362a48daafdbeed4be8d45b413931c2ed3",
+        "c08a93f2212482fae2a5f737c2c8e3eb2e55771b6badd0b8bc4efb494b451d31",
+        "fa838e79fee3745968ce9365befa9cba052b0c7b3b509f2c6aad9058804d89b9",
+        "000c0984e3afdb5080379f67b3d198b51781f880866b1e2f67a13dfed0294df5",
+        "2af95a87756a2d5221ffd5bddb24876303a9a88aadc3cee315c5610b8db80730",
+        "f2fb6862ef888d6e96911e957fb36836c4a715a2d82a0dab43126ef9f980fb1f",
+        "bce847aaacac3b3a79e56b3c49aca6f0c454a0917977bdbb1e0f1f553ddff026",
+        "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023",
+        "983ce94575d61ed645fcc753eb59f9a28e8e749826a30d7bf87f19721baedc7b",
+        "f7ab535b5899c2b11d1aa1c181b906b2bf719ef5f0b9471ddf85b745053bceca",
+        "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26",
+        "a09645ca57627e4dfe1197a9c1872c01e3326ba9387475f9b5378b509b4a9db0",
+        "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882",
+        "30098873c67878af850e8ff9502fdf69e332343e3576e551bab6768d6eb59860",
+        "5acb45493a85f991bf61a155a8844a5a6f7814550158fafbd1cf311320e20441",
+        "8ee3e3371fe4757e20b756192db93af03b6550943d8526b9210c55226bbc16d2",
+        "2cf200984572271b8689ab93e2069cc2e31b85e2824e06a9467352350b4591ed",
+        "df37a4bd8939717159d63a85f9be2f2f9fb303e0034c93604d347bfc5977ba96",
+        "9763196d7566dec659fc54b403c3e25eeeccf2f9ee3878d36fb3d710b5a89111",
+        "18a55763c6f8fdd08322beec01af37ee89a004789806fa1bf3f533ff61ec5f04",
+        "74f706554ac9d5e81dc9e19f9496c281e7372e49ed7c73a80fd479e648828b24",
+        "2ab0609b287b4f50fb8b870b897ed6fa3d6f16edb48fbb13cda93b225847537f",
+        "761fa6ec06fe9a25ca64e080e45663f50a0afe0c19ee1017281de41b28b6df3e",
+        "0d0573cc7cf43ec8aeb6e65f7b34070e169bb8ca96ad894ed23a089f3165c0fa",
+        "404f17fb3c5a714f5124886c08d883d8af4ba0377a1b3919d287cddb081bafe9",
+        "fbedca292fe7ff2c288c690a504892d4d57f913eec37c5e6bd5b36f030acf515",
+        "d57fe905fc0a75096dd08b1a298690952eac9b2288d3358b66daf5b9a8a8aea3"
+      ]
+    }
+  ]
+}

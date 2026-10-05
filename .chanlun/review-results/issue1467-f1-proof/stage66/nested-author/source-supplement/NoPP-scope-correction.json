@@ -1,0 +1,6 @@
+{
+  "old_file": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/actual-relations.json",
+  "issue": "The first script named a child interface Input0-K1 and placed a conditional false NoPP field inside it. That is only the direct counterfactual, not an inferred canonical adjacency of the nested expression. v2 separates these relations explicitly.",
+  "source_certificate_revision": "fixed no-inclusion helper still fails S15; selected boundary has distinct source proof under065/071; no run/helper bytes changed",
+  "new_histories": 0
+}

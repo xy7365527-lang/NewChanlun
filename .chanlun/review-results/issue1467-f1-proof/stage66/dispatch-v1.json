@@ -1,0 +1,27 @@
+{
+  "stage": 66,
+  "issue": 1467,
+  "baseline": "2e9d08df5887383b5c68338ff567f1f66feec7c5",
+  "previous_turn": "progress: Stage65 reviewed, pushed and tracker read back",
+  "goal_status": "active",
+  "tasks": [
+    {
+      "task": "/root/stage66_nested_expression",
+      "role": "construction author",
+      "owns": "nested-author/"
+    },
+    {
+      "task": "/root/stage66_nopp_consumption_scope",
+      "role": "source and relation author",
+      "owns": "scope-author/"
+    }
+  ],
+  "hypothesis": "test a real hierarchical expression and parent completion against fixed F2 and the exact NoPP scope; no activity-container shortcut",
+  "new_history_limit": 1,
+  "max_observations": 1024,
+  "max_strokes": 256,
+  "max_segments": 48,
+  "independent_review": "not yet dispatched",
+  "production_changes": false,
+  "trust": "coordinator attestation of actual dispatch; not a completion claim"
+}

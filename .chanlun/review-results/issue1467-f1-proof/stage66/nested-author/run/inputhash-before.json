@@ -1,0 +1,52 @@
+[
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/card.json",
+    "sha256": "bf858afd31a3588f309d76f4199f9bccf43f84345a6921760245f284bbbe714d",
+    "bytes": 4883
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/WorkCard.md",
+    "sha256": "47e074cb3cb26847985b72adffa41c97992bbbdc838d6ab65dd46a4851f0acd5",
+    "bytes": 1655
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/build_check.mjs",
+    "sha256": "2fc42b887db4e0b0d99015eb4385ef32947bf278935c5622984796c00012a187",
+    "bytes": 11570
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/segment-certificate.mjs",
+    "sha256": "c56622b57b0498aaaf29eb8f7bf81151924149f8e55bb330c6827cf39ae41225",
+    "bytes": 1647
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/reference_probe.rs",
+    "sha256": "b56671fbc4e3cbb463698196575f7bab3a4d74278a66febeaae1179e06639a38",
+    "bytes": 1726
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/run/reference.stdout",
+    "sha256": "0e410ea2785b60e7d372e9529617a985e8d784fe189c232b83f34cf7e646acb2",
+    "bytes": 3918348
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/strict_point_reference.rs",
+    "sha256": "3d511d2b9541f2dbfb88962232fab3c8f7a46404b3c5ecc668b5e9bf168ad472",
+    "bytes": 3378
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/rust/src/theta_v0/types.rs",
+    "sha256": "4370651d94e1be89d83d26c2d8ab00a7f7cd961693f071749afb10bf95f6bca0",
+    "bytes": 22076
+  },
+  {
+    "path": "/tmp/nc1467-cargo-target/debug/deps/libnewchan_rust.rlib",
+    "sha256": "663835a8e945d621428ef4fe0fb4198eb865a431dc89d7517996aa61ed197a39",
+    "bytes": 145777232
+  },
+  {
+    "path": "/tmp/nc1467-cargo-target/debug/deps/libserde_json-d8aa09aa6d50fe2e.rlib",
+    "sha256": "749252887bad46820322854e23d159bdbee8952f932ea4f696f352617ea71394",
+    "bytes": 3537912
+  }
+]

@@ -1,0 +1,153 @@
+{
+  "manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption-inputs-v2.json",
+  "declared_hashes_match": true,
+  "all_unchanged": true,
+  "input_count": 12,
+  "checks": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption-inputs-v2.json",
+      "before": {
+        "bytes": 1838,
+        "sha256": "05277f7acccd573e3bebb385c74688902a4a383da50604596ee33b0fa270b876"
+      },
+      "after": {
+        "bytes": 1838,
+        "sha256": "05277f7acccd573e3bebb385c74688902a4a383da50604596ee33b0fa270b876"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage66NestedExpressionAndConsumerScope.md",
+      "before": {
+        "bytes": 6066,
+        "sha256": "98c5de34e8ecaa8116bcea3f407f76a6f1248251bf791f108061d5ac3256126d"
+      },
+      "after": {
+        "bytes": 6066,
+        "sha256": "98c5de34e8ecaa8116bcea3f407f76a6f1248251bf791f108061d5ac3256126d"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage66/DeliveryStatus-v1.md",
+      "before": {
+        "bytes": 1116,
+        "sha256": "a5fef174b3c75f4c9e377390341fa5b7a4168d4f5362c1fab6bb9954f4185d38"
+      },
+      "after": {
+        "bytes": 1116,
+        "sha256": "a5fef174b3c75f4c9e377390341fa5b7a4168d4f5362c1fab6bb9954f4185d38"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption/Summary-v1.md",
+      "before": {
+        "bytes": 5854,
+        "sha256": "37eb0527830fb4a8f26811b81f656dc6a0502f0ba8820246e8f9ef044dcab16d"
+      },
+      "after": {
+        "bytes": 5854,
+        "sha256": "37eb0527830fb4a8f26811b81f656dc6a0502f0ba8820246e8f9ef044dcab16d"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption/DeliveryStatus-before-A1.md",
+      "before": {
+        "bytes": 1113,
+        "sha256": "2c17d3b4bda269beaa208cb7ce7f5316554e0ec2f942d5b487bd16f29adcdcba"
+      },
+      "after": {
+        "bytes": 1113,
+        "sha256": "2c17d3b4bda269beaa208cb7ce7f5316554e0ec2f942d5b487bd16f29adcdcba"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption-review/review.md",
+      "before": {
+        "bytes": 8164,
+        "sha256": "a96c6d441bd75542b6144a2e7f4d04a8afeac362e7a65a43ea1bc8bad53c73bd"
+      },
+      "after": {
+        "bytes": 8164,
+        "sha256": "a96c6d441bd75542b6144a2e7f4d04a8afeac362e7a65a43ea1bc8bad53c73bd"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage66/adoption/ScopeCorrections-v2.md",
+      "before": {
+        "bytes": 10104,
+        "sha256": "859b6160177cddeec890b9db17a30b8da0fdf92c9bf4d7421761adbffd726c14"
+      },
+      "after": {
+        "bytes": 10104,
+        "sha256": "859b6160177cddeec890b9db17a30b8da0fdf92c9bf4d7421761adbffd726c14"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage66/adoption/corrections-v2.json",
+      "before": {
+        "bytes": 20883,
+        "sha256": "db02a2bef42ef5bded46a9f2eb4d0f9fecd9ba75ced0012d7c77e870af7c07be"
+      },
+      "after": {
+        "bytes": 20883,
+        "sha256": "db02a2bef42ef5bded46a9f2eb4d0f9fecd9ba75ced0012d7c77e870af7c07be"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption-review/FINAL.json",
+      "before": {
+        "bytes": 1555,
+        "sha256": "49de862679ab279059bcc8e67465b562429729a50fa23fb2114ed98e9a416e93"
+      },
+      "after": {
+        "bytes": 1555,
+        "sha256": "49de862679ab279059bcc8e67465b562429729a50fa23fb2114ed98e9a416e93"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption-review/receipt.json",
+      "before": {
+        "bytes": 5306,
+        "sha256": "39fc5bb244603c01872b5b00e8274280788e83c70e8964df0c0126c1489b1791"
+      },
+      "after": {
+        "bytes": 5306,
+        "sha256": "39fc5bb244603c01872b5b00e8274280788e83c70e8964df0c0126c1489b1791"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption-review/inputhash.json",
+      "before": {
+        "bytes": 31969,
+        "sha256": "654eb53c645f4b807ab8c61b1ea0b0f25aa406f5bca1c07ccefd51809c0de60a"
+      },
+      "after": {
+        "bytes": 31969,
+        "sha256": "654eb53c645f4b807ab8c61b1ea0b0f25aa406f5bca1c07ccefd51809c0de60a"
+      },
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/progress-addition-v1.md",
+      "before": {
+        "bytes": 661,
+        "sha256": "d8c90ed8a6adc3a95b4dfa46c180490539d066c93a580f90e596421ffa226506"
+      },
+      "after": {
+        "bytes": 661,
+        "sha256": "d8c90ed8a6adc3a95b4dfa46c180490539d066c93a580f90e596421ffa226506"
+      },
+      "unchanged": true
+    }
+  ]
+}
+

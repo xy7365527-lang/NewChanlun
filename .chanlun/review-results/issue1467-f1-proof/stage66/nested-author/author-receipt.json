@@ -1,0 +1,33 @@
+{
+  "candidate": "N66-source-supplement-v2",
+  "tool_exit_codes": {
+    "build_check": 0,
+    "source_supplement": 0,
+    "capture_sources": 0,
+    "admission_lifecycle": 0
+  },
+  "commands": [
+    [
+      "node",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/build_check.mjs",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run"
+    ],
+    [
+      "node",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/source-supplement.mjs",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/source-supplement"
+    ],
+    [
+      "node",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/capture-sources.mjs"
+    ]
+  ],
+  "subprocess_receipts": [
+    "run/compile.receipt.json",
+    "run/reference.receipt.json"
+  ],
+  "no_new_history_in_supplement": true,
+  "original_completed_certified": 0,
+  "independent_review": "not performed by author; assigned separately by parent",
+  "time": "2026-10-05T17:59:19.788Z"
+}

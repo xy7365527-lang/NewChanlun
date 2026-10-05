@@ -1,0 +1,249 @@
+{
+  "id": "Stage66-adoption-review-v1",
+  "created_at": "2026-10-05T18:27:20.474Z",
+  "verdict": "must revise",
+  "adoption_v2_verdict": "accepted scoped adoption",
+  "must_revise": [
+    {
+      "id": "A1",
+      "severity": "must_revise",
+      "scope": "summary qualification",
+      "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage66NestedExpressionAndConsumerScope.md",
+      "line": 35,
+      "title": "D0摘要遗漏原义已完成P资格前提",
+      "detail": "第35行从同级独立构造因子和238局部发布直接写NoPP=false，未明确局部P标签检查或补加原义已完成P资格；v2 R4已明确原义前提未认证。",
+      "required_revision": "分开局部标签NoPP=false与原义条件反证；后者显式保留原义已完成P资格、保同级/Own/独立身份及指定构造消费合同；原义资格可知/发布时间仍null。",
+      "frozen_author_change_required": false,
+      "rerun_required": false
+    }
+  ],
+  "scope": "修订采用与摘要范围检查",
+  "independence": {
+    "fresh_context": true,
+    "not_author_or_prior_reviewer": true,
+    "no_memory": true,
+    "no_ResearchProgress": true,
+    "no_other_agent_conversations": true
+  },
+  "input_count": 73,
+  "all_inputs_unchanged": true,
+  "author_files_frozen": 42,
+  "v1_preserved": true,
+  "verification": {
+    "checks": [
+      {
+        "id": "R1.seed_directions",
+        "actual": [
+          "Up",
+          "Down",
+          "Up"
+        ],
+        "expected": [
+          "Up",
+          "Down",
+          "Up"
+        ],
+        "pass": true
+      },
+      {
+        "id": "R1.c0_direction",
+        "actual": "Down",
+        "expected": "Down",
+        "pass": true
+      },
+      {
+        "id": "R1.core_and_c0_intersection",
+        "actual": [
+          62000,
+          72000
+        ],
+        "expected": [
+          62000,
+          72000
+        ],
+        "pass": true
+      },
+      {
+        "id": "R1.selected_Zn_DD_GG",
+        "actual": [
+          40000,
+          72800
+        ],
+        "expected": [
+          40000,
+          72800
+        ],
+        "pass": true
+      },
+      {
+        "id": "R1.given_Own_overlap_count",
+        "actual": 100,
+        "expected": 100,
+        "pass": true
+      },
+      {
+        "id": "R1.adopted_extension_fields",
+        "actual": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expected": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "pass": true
+      },
+      {
+        "id": "R2.actual_null_values",
+        "actual": [
+          null,
+          null
+        ],
+        "expected": [
+          null,
+          null
+        ],
+        "pass": true
+      },
+      {
+        "id": "R2.interface_evidence_predicate",
+        "actual": false,
+        "expected": false,
+        "pass": true
+      },
+      {
+        "id": "R2.adopted_semantic_values",
+        "actual": [
+          null,
+          null,
+          null
+        ],
+        "expected": [
+          null,
+          null,
+          null
+        ],
+        "pass": true
+      },
+      {
+        "id": "R3.selected_triple_core",
+        "actual": [
+          62000,
+          72000
+        ],
+        "expected": [
+          62000,
+          72000
+        ],
+        "pass": true
+      },
+      {
+        "id": "R3.selected_adjacency",
+        "actual": [
+          true,
+          true
+        ],
+        "expected": [
+          true,
+          true
+        ],
+        "pass": true
+      },
+      {
+        "id": "R3.geometrical_end_comparison",
+        "actual": [
+          221,
+          321
+        ],
+        "expected": [
+          221,
+          321
+        ],
+        "pass": true
+      },
+      {
+        "id": "R3.old_local_aggregate",
+        "actual": 238,
+        "expected": 238,
+        "pass": true
+      },
+      {
+        "id": "R3.clock_premise_status",
+        "actual": "not_established",
+        "expected": "not_established",
+        "pass": true
+      },
+      {
+        "id": "R4.local_aggregate",
+        "actual": 238,
+        "expected": 238,
+        "pass": true
+      },
+      {
+        "id": "R4.original_qualification_uncertified",
+        "actual": [
+          false,
+          false,
+          false
+        ],
+        "expected": [
+          false,
+          false,
+          false
+        ],
+        "pass": true
+      },
+      {
+        "id": "R4.adopted_original_clocks",
+        "actual": [
+          null,
+          null,
+          null
+        ],
+        "expected": [
+          null,
+          null,
+          null
+        ],
+        "pass": true
+      },
+      {
+        "id": "history.separate_scope_cuts",
+        "actual": [
+          218,
+          318,
+          342
+        ],
+        "expected": [
+          218,
+          318,
+          342
+        ],
+        "pass": true
+      },
+      {
+        "id": "history.true_parent_uninstantiated",
+        "actual": false,
+        "expected": false,
+        "pass": true
+      }
+    ],
+    "passed": 19,
+    "failed": 0
+  },
+  "rerun_prefixes": 0,
+  "rerun_RW": 0,
+  "new_histories": 0,
+  "new_Lean": 0,
+  "mutations": [
+    "review.md",
+    "inputhash.json",
+    "receipt.json",
+    "FINAL.json"
+  ]
+}
+

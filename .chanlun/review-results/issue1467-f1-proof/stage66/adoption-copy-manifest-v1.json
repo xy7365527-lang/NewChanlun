@@ -1,0 +1,28 @@
+{
+  "files": [
+    {
+      "path": "adoption/ScopeCorrections-v1.md",
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption/ScopeCorrections-v1.md",
+      "bytes": 6361,
+      "sha256": "08efab10eb1fb045221d93c315540952cc6280271e1e7324b9ee66e680c59e4a"
+    },
+    {
+      "path": "adoption/ScopeCorrections-v2.md",
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption/ScopeCorrections-v2.md",
+      "bytes": 10104,
+      "sha256": "859b6160177cddeec890b9db17a30b8da0fdf92c9bf4d7421761adbffd726c14"
+    },
+    {
+      "path": "adoption/corrections-v1.json",
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption/corrections-v1.json",
+      "bytes": 15246,
+      "sha256": "cb18df2d6aca88f99f731168813170ddf17da753707e0efe265a9788633c34be"
+    },
+    {
+      "path": "adoption/corrections-v2.json",
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption/corrections-v2.json",
+      "bytes": 20883,
+      "sha256": "db02a2bef42ef5bded46a9f2eb4d0f9fecd9ba75ced0012d7c77e870af7c07be"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "freeze_pass": true,
+  "manifest_entries": 40,
+  "raw_history_count": 1,
+  "observations": 443,
+  "events": 442,
+  "prefixes": 443,
+  "pens": 110,
+  "eof_stable": 109,
+  "narrow_certificates": 20,
+  "selected_071_certificate": 1,
+  "pending_tail_slot": 21,
+  "S15_known": 338,
+  "objects_local_known": {
+    "P0": 138,
+    "P1": 238,
+    "P2": 338,
+    "c0": 438
+  },
+  "parent_force": [
+    -1000,
+    -3500
+  ],
+  "parent_local_known": 438,
+  "original_completed_certified": 0,
+  "source_lines_checked": 67,
+  "comparison": {
+    "pens_equal": true,
+    "prefixes_equal": true,
+    "narrow_certificates_equal": true
+  },
+  "source_extension_claim_accepted": false,
+  "inputhash_equal": true,
+  "elapsed_seconds": 0.149
+}

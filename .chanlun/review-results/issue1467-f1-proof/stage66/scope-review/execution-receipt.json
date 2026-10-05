@@ -1,0 +1,39 @@
+{
+  "review": "S66-SCOPE-INDEPENDENT-REVIEW-v1",
+  "date": "2026-10-05T18:16:12.489Z",
+  "method": "new-context source and logic review plus independent frozen-JSON relation checks",
+  "command": "node independent-check.mjs > check.stdout.json",
+  "exit_code": 0,
+  "counts": {
+    "mapped_author_checks": 32,
+    "additional_relation_identity_checks": 36,
+    "source_checks": 181,
+    "total": 249,
+    "failures": 0
+  },
+  "input_files": 34,
+  "input_hashes_unchanged": true,
+  "live_comment_reads": [
+    {
+      "issue": 812,
+      "id": 5147131478,
+      "file": "issue812-comment-live.json"
+    },
+    {
+      "issue": 827,
+      "id": 5153724096,
+      "file": "issue827-comment-live.json"
+    }
+  ],
+  "only_output_directory": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/scope-review",
+  "author_checker_executed": false,
+  "parser_executed": false,
+  "new_history_created": false,
+  "memory_read": false,
+  "ResearchProgress_read": false,
+  "author_session_read": false,
+  "other_current_review_read": false,
+  "no_author_repo_canonical_production_formal_tracker_write": true,
+  "verdict": "accepted_with_explicit_scope_limits",
+  "blocking_revisions": []
+}

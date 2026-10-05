@@ -1,0 +1,48 @@
+{
+  "id": "N66-low-prefix-nested-v1",
+  "new_histories": 1,
+  "observations": 443,
+  "events": 442,
+  "pens": 110,
+  "stable_eof": 109,
+  "certified_segments": 20,
+  "pending_segment_slots": [
+    15,
+    21
+  ],
+  "completed_candidates": [
+    "P0",
+    "P1",
+    "c0"
+  ],
+  "original_completed_certified": 0,
+  "parent_numeric_conditions": {
+    "b": "b_low",
+    "c": "c0",
+    "b_rank": -1,
+    "c_rank": 0,
+    "rank_b_le_c": true,
+    "b_force": {
+      "first_pen": 0,
+      "last_pen": 4,
+      "first_v": -4000,
+      "last_v": -5000,
+      "L": -1000
+    },
+    "c_force": {
+      "first_pen": 80,
+      "last_pen": 104,
+      "first_v": -1400,
+      "last_v": -4900,
+      "L": -3500
+    },
+    "strict_weakening": true,
+    "b_direction": "Down",
+    "c_direction": "Down",
+    "prior_global_min": 40000,
+    "c_end": 37800,
+    "strict_extreme": true,
+    "c_whole_completed_candidate": true
+  },
+  "result": "candidate failed before full F2 eligibility; outer regrouping gives no NoPP certification"
+}
