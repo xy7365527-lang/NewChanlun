@@ -562,6 +562,54 @@ impl NodeSink for NativeReadLease<'_, '_> {
     }
 }
 
+// Fixed publication operations only. No connection/SQL getter is exposed to the caller.
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) fn publication_insert_gate(tx: &mut Transaction<'_>) -> Result<bool, CodecError> {
+    let lease = NativeReadLease::new(tx)?;
+    Ok(lease.insert_can_preserve)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) fn publication_read_checked(
+    tx: &Transaction<'_>,
+    digest: &NodeDigest,
+) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
+    read_checked_node(tx, digest)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) enum PublicationPutEffect {
+    Noop,
+    InsertPreservingBase,
+    Unknown,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) fn publication_put(
+    tx: &Transaction<'_>,
+    insert_can_preserve: bool,
+    digest: NodeDigest,
+    tag: u8,
+    body: &[u8],
+) -> Result<PublicationPutEffect, CodecError> {
+    let mut before_write = None;
+    TxStore {
+        tx,
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        stage: None,
+    }
+    .put_before_write(digest, tag, body, || {
+        before_write = Some(tx.total_changes())
+    })?;
+    Ok(match before_write {
+        None => PublicationPutEffect::Noop,
+        Some(before)
+            if insert_can_preserve
+                && native_insert_only_target(before, tx.total_changes(), tx.changes()) =>
+        {
+            PublicationPutEffect::InsertPreservingBase
+        }
+        Some(_) => PublicationPutEffect::Unknown,
+    })
+}
+
 pub(super) struct TxStore<'a, 'conn> {
     tx: &'a Transaction<'conn>,
     #[cfg(all(test, feature = "s_capture_native_testonly"))]

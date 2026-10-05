@@ -414,6 +414,12 @@ pub(crate) struct ManifestWorkspaceStats {
     pub rebound: u64,
     pub rebind_rows: u64,
     pub replay_puts: u64,
+    pub publication_owner_scopes: u64,
+    pub publication_reused_reads: u64,
+    pub publication_fallback_sql_reads: u64,
+    pub publication_put_sql_checks: u64,
+    pub publication_unknown_write_invalidations: u64,
+    pub publication_owner_drops: u64,
     pub recorded_entries: u64,
     pub recorded_body_len: u64,
     pub recorded_body_capacity: u64,
@@ -485,64 +491,296 @@ pub(crate) struct PreparedManifestWorkspace {
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl PreparedManifestWorkspace {
-    /// Consume the frozen workspace before any independent SQL/index processing. Every row
-    /// is read again, including after an earlier mismatch, so SQL/type errors remain errors.
-    /// A mismatch forfeits only this optimization and the original strict assembler runs.
-    pub(crate) fn rebind_and_replay(
+    /// Consume into a fixed, exclusive transaction phase. The private lease has no raw SQL,
+    /// hook or connection access API. Nothing qualified is returned to the Commit caller.
+    pub(crate) fn resolve_in_publication(
         self,
-        store: &mut dyn NodeStore,
+        tx: &mut rusqlite::Transaction<'_>,
+        token: &str,
         metadata: &ManifestMetadata,
         roots: &ManifestRoots,
         manifest: &UnpublishedManifest,
-    ) -> Result<bool, CodecError> {
-        let mut equal = self.revision == MANIFEST_WORKSPACE_REVISION
-            && self.format == s_content::CONTENT_FORMAT
-            && self.metadata == *metadata
-            && self.roots == *roots
-            && self.manifest_value == manifest.value
-            && self.batch_id == manifest.batch_id;
-        for (digest, (tag, body)) in &self.originals {
-            record_workspace_stats(|stats| stats.rebind_rows += 1);
-            match s_content::NodeSource::read(store, digest)? {
-                s_content::NodeRead::Found {
-                    tag: now_tag,
-                    body: now_body,
-                } => {
-                    equal &= now_tag == *tag && now_body.as_slice() == body.as_slice();
+    ) -> Result<super::content_publication::ResolvedTemplates, String> {
+        // No qualified originals exist across these actual Begin/scope/frontier SELECTs.
+        // The issuer itself performs them; callers cannot substitute a scope/frontier token.
+        super::content_publication::verify_current_begin(tx, token, metadata)?;
+        let previous_frontier = super::content_publication::current_publication_frontier(tx)?;
+        NativePublicationLease::new(tx)
+            .map_err(|e| format!("PublicationInvalid：{e}"))?
+            .resolve(self, metadata, roots, manifest, previous_frontier)
+    }
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+struct NativePublicationLease<'lease, 'conn> {
+    tx: &'lease mut rusqlite::Transaction<'conn>,
+    insert_can_preserve: bool,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl<'lease, 'conn> NativePublicationLease<'lease, 'conn> {
+    fn new(tx: &'lease mut rusqlite::Transaction<'conn>) -> Result<Self, CodecError> {
+        let insert_can_preserve = super::content_store::publication_insert_gate(tx)?;
+        Ok(Self {
+            tx,
+            insert_can_preserve,
+        })
+    }
+    fn resolve(
+        self,
+        workspace: PreparedManifestWorkspace,
+        metadata: &ManifestMetadata,
+        roots: &ManifestRoots,
+        manifest: &UnpublishedManifest,
+        previous_frontier: i64,
+    ) -> Result<super::content_publication::ResolvedTemplates, String> {
+        let budget = workspace.budget;
+        let source_cost = workspace.source_cost;
+        let before = manifest_workspace_stats();
+        let tx = &*self.tx;
+        let mut store = PublicationMaterialStore::new(tx, self.insert_can_preserve);
+        let mut issued_owner = false;
+        let mut bound_originals = 0usize;
+        let mut owner_body_capacity = 0usize;
+        let result = (|| {
+            let context_equal = workspace.revision == MANIFEST_WORKSPACE_REVISION
+                && workspace.format == s_content::CONTENT_FORMAT
+                && workspace.metadata == *metadata
+                && workspace.roots == *roots
+                && workspace.manifest_value == manifest.value
+                && workspace.batch_id == manifest.batch_id;
+            // The private helper always reads *every* actual row with SQL + F and compares
+            // all bytes, even after context/material mismatch. No caller can mint its owner.
+            let equal = store
+                .rebind_originals(&workspace.originals)
+                .map_err(|e| format!("PublicationInvalid：{e}"))?
+                && context_equal;
+            if equal {
+                record_workspace_stats(|stats| stats.rebound += 1);
+                // Qualification has not been installed yet: replay owns these literal puts.
+                // Each put still performs its original SQL/full-byte check. Unknown effects
+                // forfeit the base before it can be installed; the strict final reads remain.
+                for digest in &workspace.puts {
+                    let (tag, body) = workspace
+                        .originals
+                        .get(digest)
+                        .expect("recorded successful put");
+                    s_content::NodeSink::put(&mut store, *digest, *tag, body)
+                        .map_err(|e| format!("PublicationInvalid：{e}"))?;
+                    record_workspace_stats(|stats| stats.replay_puts += 1);
                 }
-                s_content::NodeRead::Missing => equal = false,
+                if store.bind_after_replay {
+                    // Move the single budgeted map; never clone a second complete pool.
+                    store.originals = workspace.originals;
+                    // Even a real put which was a Noop retires its target. The next read is
+                    // actual SQL/F, and remains cold here (no new unbudgeted full-node memo).
+                    for digest in workspace.puts {
+                        store.originals.remove(&digest);
+                    }
+                    bound_originals = store.originals.len();
+                    owner_body_capacity = store
+                        .originals
+                        .values()
+                        .map(|(_, body)| body.capacity())
+                        .sum();
+                    issued_owner = true;
+                    record_workspace_stats(|stats| stats.publication_owner_scopes += 1);
+                } else {
+                    drop(workspace); // Unknown effects cannot carry qualified originals onward.
+                }
+            } else {
+                drop(workspace);
+                let computed = assemble_unpublished(&mut store, metadata, roots)
+                    .map_err(|e| format!("PublicationInvalid：{e}"))?;
+                if computed.batch_id != manifest.batch_id
+                    || computed.value.content_ref() != manifest.value.content_ref()
+                {
+                    return Err("IdentityConflict：manifest 与当前三个根/上下文不符".into());
+                }
+            }
+            // This fixed helper has only actual independent-index SELECTs and NodeStore
+            // reads/puts. Both final Public roots still run the original fresh codec pass.
+            super::content_publication::resolve_indexed_templates(
+                tx,
+                &mut store as &mut dyn NodeStore,
+                metadata,
+                roots,
+                &manifest.batch_id,
+                previous_frontier,
+            )
+        })();
+        // Qualified bytes end here, before later raw SQL and before the new keeper exists.
+        let remaining_originals = store.originals.len();
+        drop(store);
+        if issued_owner {
+            record_workspace_stats(|stats| stats.publication_owner_drops += 1);
+        }
+        diagnose_manifest_publication_reuse(
+            metadata.generation,
+            budget,
+            source_cost,
+            bound_originals,
+            remaining_originals,
+            owner_body_capacity,
+            before,
+        );
+        result
+    }
+}
+
+/// Private to the fixed Native publication lease. The actual SQL rebind is the sole issuer;
+/// no constructor, serialization, transaction getter or caller-provided bool grants a base.
+#[cfg(feature = "s_capture_native_testonly")]
+struct PublicationMaterialStore<'a, 'conn> {
+    tx: &'a rusqlite::Transaction<'conn>,
+    originals: std::collections::BTreeMap<NodeDigest, (u8, Vec<u8>)>,
+    insert_can_preserve: bool,
+    bind_after_replay: bool,
+    poisoned: bool,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
+    fn new(tx: &'a rusqlite::Transaction<'conn>, insert_can_preserve: bool) -> Self {
+        Self {
+            tx,
+            originals: Default::default(),
+            insert_can_preserve,
+            bind_after_replay: true,
+            poisoned: false,
+        }
+    }
+    fn check_live(&mut self) -> Result<(), CodecError> {
+        if self.poisoned || self.tx.is_autocommit() {
+            self.originals.clear();
+            self.poisoned = true;
+            return Err(CodecError::new(
+                s_content::code::SOURCE,
+                "Native发布租约已失败或事务已结束；不得重试/回落",
+            ));
+        }
+        Ok(())
+    }
+    fn rebind_originals(
+        &mut self,
+        originals: &std::collections::BTreeMap<NodeDigest, (u8, Vec<u8>)>,
+    ) -> Result<bool, CodecError> {
+        let mut equal = true;
+        for (digest, (tag, body)) in originals {
+            record_workspace_stats(|stats| stats.rebind_rows += 1);
+            match s_content::NodeSource::checked_read(self, digest)? {
+                Some(frame) => equal &= frame.tag() == *tag && frame.body() == body.as_slice(),
+                None => equal = false,
             }
         }
-        if !equal {
-            diagnose_manifest_workspace(
-                "publish-rebind-mismatch",
-                metadata.generation,
-                self.budget,
-                self.source_cost,
-                self.source_cost,
-            );
-            return Ok(false);
-        }
-        record_workspace_stats(|stats| stats.rebound += 1);
-        // The former second assemble made real puts even for existing nodes. Preserve every
-        // put, its order, and its actual SQL/error boundary instead of treating identity as put.
-        for digest in self.puts {
-            let (tag, body) = self
-                .originals
-                .get(&digest)
-                .expect("recorded successful put");
-            s_content::NodeSink::put(store, digest, *tag, body)?;
-            record_workspace_stats(|stats| stats.replay_puts += 1);
-        }
-        diagnose_manifest_workspace(
-            "publish-rebound-replayed",
-            metadata.generation,
-            self.budget,
-            self.source_cost,
-            self.source_cost,
-        );
-        Ok(true)
+        Ok(equal)
     }
+    fn current_checked(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
+        self.check_live()?;
+        let result = if let Some((tag, body)) = self.originals.get(digest) {
+            record_workspace_stats(|stats| stats.publication_reused_reads += 1);
+            // Only SQL acquisition is reused. Fresh F/frame checks and all codec/business
+            // validation still run on this current owner, including final two-root fresh.
+            s_content::job::CheckedFrame::checked(digest, *tag, body.clone()).map(Some)
+        } else {
+            record_workspace_stats(|stats| stats.publication_fallback_sql_reads += 1);
+            super::content_store::publication_read_checked(self.tx, digest)
+        };
+        if result.is_err() {
+            self.originals.clear();
+            self.poisoned = true;
+        }
+        result
+    }
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl s_content::NodeSource for PublicationMaterialStore<'_, '_> {
+    fn read(&mut self, digest: &NodeDigest) -> Result<s_content::NodeRead, CodecError> {
+        self.current_checked(digest).map(|frame| match frame {
+            None => s_content::NodeRead::Missing,
+            Some(frame) => {
+                let (tag, body) = frame.into_parts();
+                s_content::NodeRead::Found { tag, body }
+            }
+        })
+    }
+    fn checked_read(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
+        self.current_checked(digest)
+    }
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl s_content::NodeSink for PublicationMaterialStore<'_, '_> {
+    fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError> {
+        self.check_live()?;
+        // Retire the target before every real put, even Noop. Its first subsequent read
+        // cannot reuse the old owner. The original SQL and byte/digest checks are mandatory.
+        self.originals.remove(&digest);
+        record_workspace_stats(|stats| stats.publication_put_sql_checks += 1);
+        let result = super::content_store::publication_put(
+            self.tx,
+            self.insert_can_preserve,
+            digest,
+            tag,
+            body,
+        );
+        match result {
+            Ok(
+                super::content_store::PublicationPutEffect::Noop
+                | super::content_store::PublicationPutEffect::InsertPreservingBase,
+            ) => Ok(()),
+            Ok(super::content_store::PublicationPutEffect::Unknown) => {
+                self.originals.clear();
+                self.bind_after_replay = false;
+                record_workspace_stats(|stats| stats.publication_unknown_write_invalidations += 1);
+                Ok(())
+            }
+            Err(error) => {
+                self.originals.clear();
+                self.poisoned = true;
+                Err(error)
+            }
+        }
+    }
+}
+#[cfg(feature = "s_capture_native_testonly")]
+fn diagnose_manifest_publication_reuse(
+    generation: i64,
+    budget: crate::v3::ManifestWorkspaceBudget,
+    source_cost: usize,
+    bound_originals: usize,
+    remaining_originals: usize,
+    owner_body_capacity: usize,
+    before: ManifestWorkspaceStats,
+) {
+    if std::env::var_os("S_MANIFEST_WORKSPACE_DIAGNOSTICS").as_deref()
+        != Some(std::ffi::OsStr::new("1"))
+    {
+        return;
+    }
+    use std::io::Write as _;
+    let after = manifest_workspace_stats();
+    let line = serde_json::json!({
+        "diagnostic": "NativeTestOnlyManifestWorkspace",
+        "stage": "publish-material-owner-dropped",
+        "generation": generation,
+        "budget": budget,
+        "workspace_source_cost": source_cost,
+        "scope_bound_originals": bound_originals,
+        "scope_remaining_originals": remaining_originals,
+        "scope_owner_body_capacity": owner_body_capacity,
+        "scope_rebind_sql_rows": after.rebind_rows - before.rebind_rows,
+        "scope_reused_original_reads": after.publication_reused_reads - before.publication_reused_reads,
+        "scope_fallback_sql_reads": after.publication_fallback_sql_reads - before.publication_fallback_sql_reads,
+        "scope_put_sql_checks": after.publication_put_sql_checks - before.publication_put_sql_checks,
+        "scope_unknown_write_invalidations": after.publication_unknown_write_invalidations - before.publication_unknown_write_invalidations,
+        "scope_owner_drops": after.publication_owner_drops - before.publication_owner_drops,
+        "stats": after,
+    });
+    let _ = writeln!(std::io::stderr().lock(), "{line}");
 }
 // Source-cost encoding, not heap accounting: text = u64 length + UTF-8 bytes;
 // ContentRef = both texts + kind/extent-present bytes + optional u64 extent. Numeric
@@ -1240,6 +1478,69 @@ mod tests {
     use super::*;
     use newchan_rust::s_content::{MemoryNodes, NumberToken, Value as V};
     use serde_json::{json, Value as J};
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_publication_material_owner_normal_puts_keep_base_and_read_targets_cold() {
+        use s_content::{NodeSink, NodeSource};
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE s_protocol_meta(singleton INTEGER PRIMARY KEY,protocol_revision TEXT NOT NULL); INSERT INTO s_protocol_meta VALUES(1,'s-session/3');").unwrap();
+        let mut tx = conn.transaction().unwrap();
+        super::super::content_store::init_schema(&tx).unwrap();
+        let tag = s_content::tag::BYTES_CHUNK;
+        let a = s_content::frame(tag, &[7]);
+        let b = s_content::frame(tag, &[8]);
+        let c = s_content::frame(tag, &[9]);
+        let mut seed = super::super::content_store::TxStore::new(&tx).unwrap();
+        seed.put(a, tag, &[7]).unwrap();
+        seed.put(b, tag, &[8]).unwrap();
+        drop(seed);
+        let lease = NativePublicationLease::new(&mut tx).unwrap();
+        let mut store = PublicationMaterialStore::new(&*lease.tx, lease.insert_can_preserve);
+        let originals =
+            std::collections::BTreeMap::from([(a, (tag, vec![7])), (b, (tag, vec![8]))]);
+        let sql = super::super::content_store::sql_reads_on_thread();
+        let f = s_content::frame_calls_on_thread();
+        assert!(store.rebind_originals(&originals).unwrap());
+        assert_eq!(super::super::content_store::sql_reads_on_thread() - sql, 2);
+        assert_eq!(s_content::frame_calls_on_thread() - f, 2);
+        store.originals = originals; // Test uses the same actual-SQL issuer as fixed resolve.
+        let sql = super::super::content_store::sql_reads_on_thread();
+        assert_eq!(store.checked_read(&a).unwrap().unwrap().body(), &[7]);
+        assert_eq!(store.checked_read(&b).unwrap().unwrap().body(), &[8]);
+        assert_eq!(super::super::content_store::sql_reads_on_thread() - sql, 0);
+        let sql = super::super::content_store::sql_reads_on_thread();
+        let f = s_content::frame_calls_on_thread();
+        store.put(a, tag, &[7]).unwrap(); // Legal existing-node Noop is still SQL + two Fs.
+        assert_eq!(super::super::content_store::sql_reads_on_thread() - sql, 1);
+        assert_eq!(s_content::frame_calls_on_thread() - f, 2);
+        let sql = super::super::content_store::sql_reads_on_thread();
+        assert_eq!(store.checked_read(&a).unwrap().unwrap().body(), &[7]);
+        assert_eq!(super::super::content_store::sql_reads_on_thread() - sql, 1);
+        assert!(!store.originals.contains_key(&a));
+        let sql = super::super::content_store::sql_reads_on_thread();
+        store.put(c, tag, &[9]).unwrap(); // Legal controlled insert preserves the other base.
+        assert!(store.originals.contains_key(&b));
+        assert_eq!(super::super::content_store::sql_reads_on_thread() - sql, 1);
+        let sql = super::super::content_store::sql_reads_on_thread();
+        assert_eq!(store.checked_read(&c).unwrap().unwrap().body(), &[9]);
+        assert_eq!(super::super::content_store::sql_reads_on_thread() - sql, 1);
+        let sql = super::super::content_store::sql_reads_on_thread();
+        assert_eq!(store.checked_read(&b).unwrap().unwrap().body(), &[8]);
+        assert_eq!(super::super::content_store::sql_reads_on_thread() - sql, 0);
+        drop(store);
+        drop(lease);
+        let sql = super::super::content_store::sql_reads_on_thread();
+        let mut fresh = super::super::content_store::TxStore::new(&tx).unwrap();
+        for (digest, body) in [(a, &[7][..]), (b, &[8][..]), (c, &[9][..])] {
+            assert_eq!(fresh.checked_read(&digest).unwrap().unwrap().body(), body);
+        }
+        assert_eq!(
+            super::super::content_store::sql_reads_on_thread() - sql,
+            3,
+            "租约结束后所有目标重新来自实际 SQL"
+        );
+    }
 
     fn cv(value: &J) -> V {
         match value {

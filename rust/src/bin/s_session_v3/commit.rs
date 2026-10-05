@@ -101,7 +101,7 @@ pub(super) fn publish_prepared_with_workspace(
     )
 }
 fn publish_prepared_inner(
-    tx: Transaction<'_>,
+    mut tx: Transaction<'_>,
     begin_token: &str,
     metadata: &ManifestMetadata,
     roots: &ManifestRoots,
@@ -136,7 +136,7 @@ fn publish_prepared_inner(
             stage,
         )?,
         None => content_publication::resolve_current_births_with_workspace(
-            &tx,
+            &mut tx,
             begin_token,
             m,
             roots,
@@ -146,7 +146,7 @@ fn publish_prepared_inner(
     };
     #[cfg(all(not(test), feature = "s_capture_native_testonly"))]
     let resolved = content_publication::resolve_current_births_with_workspace(
-        &tx,
+        &mut tx,
         begin_token,
         m,
         roots,

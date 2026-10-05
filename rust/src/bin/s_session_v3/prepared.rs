@@ -1442,6 +1442,22 @@ pub(crate) mod tests {
         assert_eq!(after.issued - before.issued, 4);
         assert_eq!(after.rebound - before.rebound, 4);
         assert_eq!(after.overflow - before.overflow, 0);
+        assert_eq!(
+            after.publication_owner_scopes - before.publication_owner_scopes,
+            after.rebound - before.rebound
+        );
+        assert_eq!(
+            after.publication_owner_drops - before.publication_owner_drops,
+            after.publication_owner_scopes - before.publication_owner_scopes
+        );
+        assert!(after.publication_reused_reads > before.publication_reused_reads);
+        assert!(after.publication_fallback_sql_reads > before.publication_fallback_sql_reads);
+        assert!(after.publication_put_sql_checks > before.publication_put_sql_checks);
+        assert_eq!(
+            after.publication_unknown_write_invalidations
+                - before.publication_unknown_write_invalidations,
+            0
+        );
         assert!(after.rebind_rows > before.rebind_rows);
         assert!(after.replay_puts > before.replay_puts);
         assert!(
