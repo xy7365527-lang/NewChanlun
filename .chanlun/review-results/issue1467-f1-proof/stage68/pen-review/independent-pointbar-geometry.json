@@ -1,0 +1,772 @@
+[
+  {
+    "version": "DP:1@2:v5",
+    "knownAt": 6,
+    "start": 1,
+    "end": 5,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:5@6:v9",
+    "knownAt": 10,
+    "start": 5,
+    "end": 9,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:9@10:v13",
+    "knownAt": 14,
+    "start": 9,
+    "end": 13,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:13@14:v17",
+    "knownAt": 18,
+    "start": 13,
+    "end": 17,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:17@18:v21",
+    "knownAt": 22,
+    "start": 17,
+    "end": 21,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:21@22:v25",
+    "knownAt": 26,
+    "start": 21,
+    "end": 25,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:25@26:v29",
+    "knownAt": 30,
+    "start": 25,
+    "end": 29,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:29@30:v33",
+    "knownAt": 34,
+    "start": 29,
+    "end": 33,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:33@34:v37",
+    "knownAt": 38,
+    "start": 33,
+    "end": 37,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:37@38:v41",
+    "knownAt": 42,
+    "start": 37,
+    "end": 41,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:41@42:v45",
+    "knownAt": 46,
+    "start": 41,
+    "end": 45,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:45@46:v49",
+    "knownAt": 50,
+    "start": 45,
+    "end": 49,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:49@50:v53",
+    "knownAt": 54,
+    "start": 49,
+    "end": 53,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:53@54:v57",
+    "knownAt": 58,
+    "start": 53,
+    "end": 57,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:57@58:v61",
+    "knownAt": 62,
+    "start": 57,
+    "end": 61,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:61@62:v65",
+    "knownAt": 66,
+    "start": 61,
+    "end": 65,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:65@66:v69",
+    "knownAt": 70,
+    "start": 65,
+    "end": 69,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:69@70:v73",
+    "knownAt": 74,
+    "start": 69,
+    "end": 73,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:73@74:v77",
+    "knownAt": 78,
+    "start": 73,
+    "end": 77,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:77@78:v81",
+    "knownAt": 82,
+    "start": 77,
+    "end": 81,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:81@82:v85",
+    "knownAt": 86,
+    "start": 81,
+    "end": 85,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:85@86:v89",
+    "knownAt": 90,
+    "start": 85,
+    "end": 89,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:89@90:v93",
+    "knownAt": 94,
+    "start": 89,
+    "end": 93,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:93@94:v97",
+    "knownAt": 98,
+    "start": 93,
+    "end": 97,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:97@98:v101",
+    "knownAt": 102,
+    "start": 97,
+    "end": 101,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:101@102:v105",
+    "knownAt": 106,
+    "start": 101,
+    "end": 105,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:105@106:v109",
+    "knownAt": 110,
+    "start": 105,
+    "end": 109,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:109@110:v113",
+    "knownAt": 114,
+    "start": 109,
+    "end": 113,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:113@114:v117",
+    "knownAt": 118,
+    "start": 113,
+    "end": 117,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:117@118:v121",
+    "knownAt": 122,
+    "start": 117,
+    "end": 121,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:121@122:v125",
+    "knownAt": 126,
+    "start": 121,
+    "end": 125,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:125@126:v129",
+    "knownAt": 130,
+    "start": 125,
+    "end": 129,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:129@130:v133",
+    "knownAt": 134,
+    "start": 129,
+    "end": 133,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:133@134:v137",
+    "knownAt": 138,
+    "start": 133,
+    "end": 137,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:137@138:v141",
+    "knownAt": 142,
+    "start": 137,
+    "end": 141,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:141@142:v145",
+    "knownAt": 146,
+    "start": 141,
+    "end": 145,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:145@146:v149",
+    "knownAt": 150,
+    "start": 145,
+    "end": 149,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:149@150:v153",
+    "knownAt": 154,
+    "start": 149,
+    "end": 153,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:153@154:v157",
+    "knownAt": 158,
+    "start": 153,
+    "end": 157,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:157@158:v161",
+    "knownAt": 162,
+    "start": 157,
+    "end": 161,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:161@162:v165",
+    "knownAt": 166,
+    "start": 161,
+    "end": 165,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:165@166:v169",
+    "knownAt": 170,
+    "start": 165,
+    "end": 169,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:169@170:v173",
+    "knownAt": 174,
+    "start": 169,
+    "end": 173,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:173@174:v177",
+    "knownAt": 178,
+    "start": 173,
+    "end": 177,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:177@178:v181",
+    "knownAt": 182,
+    "start": 177,
+    "end": 181,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:181@182:v185",
+    "knownAt": 186,
+    "start": 181,
+    "end": 185,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:185@186:v189",
+    "knownAt": 190,
+    "start": 185,
+    "end": 189,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:189@190:v193",
+    "knownAt": 194,
+    "start": 189,
+    "end": 193,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:193@194:v197",
+    "knownAt": 198,
+    "start": 193,
+    "end": 197,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:197@198:v201",
+    "knownAt": 202,
+    "start": 197,
+    "end": 201,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:201@202:v205",
+    "knownAt": 206,
+    "start": 201,
+    "end": 205,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:205@206:v209",
+    "knownAt": 210,
+    "start": 205,
+    "end": 209,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:209@210:v213",
+    "knownAt": 214,
+    "start": 209,
+    "end": 213,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:213@214:v217",
+    "knownAt": 218,
+    "start": 213,
+    "end": 217,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:217@218:v221",
+    "knownAt": 222,
+    "start": 217,
+    "end": 221,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:221@222:v225",
+    "knownAt": 226,
+    "start": 221,
+    "end": 225,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:225@226:v229",
+    "knownAt": 230,
+    "start": 225,
+    "end": 229,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:229@230:v233",
+    "knownAt": 234,
+    "start": 229,
+    "end": 233,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:233@234:v237",
+    "knownAt": 238,
+    "start": 233,
+    "end": 237,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:237@238:v241",
+    "knownAt": 242,
+    "start": 237,
+    "end": 241,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:241@242:v245",
+    "knownAt": 246,
+    "start": 241,
+    "end": 245,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:245@246:v249",
+    "knownAt": 250,
+    "start": 245,
+    "end": 249,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:249@250:v253",
+    "knownAt": 254,
+    "start": 249,
+    "end": 253,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:253@254:v257",
+    "knownAt": 258,
+    "start": 253,
+    "end": 257,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:257@258:v261",
+    "knownAt": 262,
+    "start": 257,
+    "end": 261,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:261@262:v265",
+    "knownAt": 266,
+    "start": 261,
+    "end": 265,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:265@266:v269",
+    "knownAt": 270,
+    "start": 265,
+    "end": 269,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:269@270:v273",
+    "knownAt": 274,
+    "start": 269,
+    "end": 273,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:273@274:v277",
+    "knownAt": 278,
+    "start": 273,
+    "end": 277,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:277@278:v281",
+    "knownAt": 282,
+    "start": 277,
+    "end": 281,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:281@282:v285",
+    "knownAt": 286,
+    "start": 281,
+    "end": 285,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:285@286:v289",
+    "knownAt": 290,
+    "start": 285,
+    "end": 289,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:289@290:v293",
+    "knownAt": 294,
+    "start": 289,
+    "end": 293,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:293@294:v297",
+    "knownAt": 298,
+    "start": 293,
+    "end": 297,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:297@298:v301",
+    "knownAt": 302,
+    "start": 297,
+    "end": 301,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:301@302:v305",
+    "knownAt": 306,
+    "start": 301,
+    "end": 305,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:305@306:v309",
+    "knownAt": 310,
+    "start": 305,
+    "end": 309,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:309@310:v313",
+    "knownAt": 314,
+    "start": 309,
+    "end": 313,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:313@314:v317",
+    "knownAt": 318,
+    "start": 313,
+    "end": 317,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:317@318:v321",
+    "knownAt": 322,
+    "start": 317,
+    "end": 321,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:321@322:v325",
+    "knownAt": 326,
+    "start": 321,
+    "end": 325,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:325@326:v329",
+    "knownAt": 330,
+    "start": 325,
+    "end": 329,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:329@330:v333",
+    "knownAt": 334,
+    "start": 329,
+    "end": 333,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:333@334:v337",
+    "knownAt": 338,
+    "start": 333,
+    "end": 337,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:337@338:v341",
+    "knownAt": 342,
+    "start": 337,
+    "end": 341,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:341@342:v345",
+    "knownAt": 346,
+    "start": 341,
+    "end": 345,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:345@346:v349",
+    "knownAt": 350,
+    "start": 345,
+    "end": 349,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:349@350:v353",
+    "knownAt": 354,
+    "start": 349,
+    "end": 353,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:353@354:v357",
+    "knownAt": 358,
+    "start": 353,
+    "end": 357,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:357@358:v361",
+    "knownAt": 362,
+    "start": 357,
+    "end": 361,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:361@362:v365",
+    "knownAt": 366,
+    "start": 361,
+    "end": 365,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:365@366:v369",
+    "knownAt": 370,
+    "start": 365,
+    "end": 369,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:369@370:v373",
+    "knownAt": 374,
+    "start": 369,
+    "end": 373,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:373@374:v377",
+    "knownAt": 378,
+    "start": 373,
+    "end": 377,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:377@378:v381",
+    "knownAt": 382,
+    "start": 377,
+    "end": 381,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:381@382:v385",
+    "knownAt": 386,
+    "start": 381,
+    "end": 385,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:385@386:v389",
+    "knownAt": 390,
+    "start": 385,
+    "end": 389,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:389@390:v393",
+    "knownAt": 394,
+    "start": 389,
+    "end": 393,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:393@394:v397",
+    "knownAt": 398,
+    "start": 393,
+    "end": 397,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:397@398:v401",
+    "knownAt": 402,
+    "start": 397,
+    "end": 401,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:401@402:v405",
+    "knownAt": 406,
+    "start": 401,
+    "end": 405,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:405@406:v409",
+    "knownAt": 410,
+    "start": 405,
+    "end": 409,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:409@410:v413",
+    "knownAt": 414,
+    "start": 409,
+    "end": 413,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:413@414:v417",
+    "knownAt": 418,
+    "start": 413,
+    "end": 417,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:417@418:v421",
+    "knownAt": 422,
+    "start": 417,
+    "end": 421,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:421@422:v425",
+    "knownAt": 426,
+    "start": 421,
+    "end": 425,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:425@426:v429",
+    "knownAt": 430,
+    "start": 425,
+    "end": 429,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:429@430:v433",
+    "knownAt": 434,
+    "start": 429,
+    "end": 433,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:433@434:v437",
+    "knownAt": 438,
+    "start": 433,
+    "end": 437,
+    "pointbar_shape": true
+  },
+  {
+    "version": "DP:437@438:v441",
+    "knownAt": 442,
+    "start": 437,
+    "end": 441,
+    "pointbar_shape": true
+  }
+]

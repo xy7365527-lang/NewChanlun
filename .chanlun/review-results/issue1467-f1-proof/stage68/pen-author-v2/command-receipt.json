@@ -1,0 +1,17 @@
+{
+  "command": "python3 /Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/check_pen.py",
+  "exit_code": 0,
+  "main_replays": 1,
+  "main_prefixes": 443,
+  "state_control_messages": 8,
+  "new_market_observations_in_control": 0,
+  "new_histories": 0,
+  "rw_runs": 0,
+  "peak_rss_bytes": 35258368,
+  "stdout": "stdout.log",
+  "stderr": "stderr.log",
+  "stderr_empty": true,
+  "ast_parse": "pass",
+  "compile_without_pyc": "pass",
+  "independent_review": "pending"
+}

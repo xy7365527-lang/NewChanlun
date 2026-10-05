@@ -1,0 +1,48 @@
+{
+  "tools": {
+    "ruff": {
+      "executable": null,
+      "module_available": false
+    },
+    "mypy": {
+      "executable": null,
+      "module_available": false
+    },
+    "pylint": {
+      "executable": null,
+      "module_available": false
+    },
+    "black": {
+      "executable": null,
+      "module_available": false
+    }
+  },
+  "files": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author/check_joint.py",
+      "ast_parse_and_inmemory_compile": true,
+      "public_functions_missing_annotations": [
+        "sha",
+        "save",
+        "hashes",
+        "force",
+        "meet",
+        "paths_from",
+        "f2_contract",
+        "visit"
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author/assemble.py",
+      "ast_parse_and_inmemory_compile": true,
+      "public_functions_missing_annotations": [
+        "write"
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author/complete_path_scope.py",
+      "ast_parse_and_inmemory_compile": true,
+      "public_functions_missing_annotations": []
+    }
+  ]
+}

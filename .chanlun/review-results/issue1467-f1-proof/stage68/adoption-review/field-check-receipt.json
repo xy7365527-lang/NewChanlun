@@ -1,0 +1,9 @@
+{
+  "completed_utc": "2026-10-05T21:18:24.770341+00:00",
+  "cwd": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/adoption-review",
+  "command": "python3 stdin artifact-only hash and necessary-field assertions; reviewed scripts neither imported nor executed",
+  "exit_code": 0,
+  "elapsed_seconds": 0.019606292247772217,
+  "output": "field-audit.json",
+  "scope": "existing-artifact hashes and necessary field checks only; no prefix-step, state-control, candidate or parser execution"
+}

@@ -1,0 +1,7587 @@
+[
+  {
+    "knownAt": 2,
+    "kind": "proposed",
+    "version": "DP:1@2:v2"
+  },
+  {
+    "knownAt": 3,
+    "kind": "retracted-proposal",
+    "version": "DP:1@2:v2",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 3,
+    "kind": "proposed",
+    "version": "DP:1@2:v3"
+  },
+  {
+    "knownAt": 4,
+    "kind": "retracted-proposal",
+    "version": "DP:1@2:v3",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 4,
+    "kind": "proposed",
+    "version": "DP:1@2:v4"
+  },
+  {
+    "knownAt": 5,
+    "kind": "retracted-proposal",
+    "version": "DP:1@2:v4",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 5,
+    "kind": "proposed",
+    "version": "DP:1@2:v5"
+  },
+  {
+    "knownAt": 6,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 1,
+      "end": 5,
+      "start_price": 76000,
+      "end_price": 60000
+    },
+    "candidateVersion": "DP:1@2:v5",
+    "geometryIndex": 0
+  },
+  {
+    "knownAt": 6,
+    "kind": "proposed",
+    "version": "DP:5@6:v6"
+  },
+  {
+    "knownAt": 7,
+    "kind": "retracted-proposal",
+    "version": "DP:5@6:v6",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 7,
+    "kind": "proposed",
+    "version": "DP:5@6:v7"
+  },
+  {
+    "knownAt": 8,
+    "kind": "retracted-proposal",
+    "version": "DP:5@6:v7",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 8,
+    "kind": "proposed",
+    "version": "DP:5@6:v8"
+  },
+  {
+    "knownAt": 9,
+    "kind": "retracted-proposal",
+    "version": "DP:5@6:v8",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 9,
+    "kind": "proposed",
+    "version": "DP:5@6:v9"
+  },
+  {
+    "knownAt": 10,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 1,
+      "end": 5,
+      "start_price": 76000,
+      "end_price": 60000
+    },
+    "candidateVersion": "DP:1@2:v5"
+  },
+  {
+    "knownAt": 10,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 5,
+      "end": 9,
+      "start_price": 60000,
+      "end_price": 68000
+    },
+    "candidateVersion": "DP:5@6:v9",
+    "geometryIndex": 1
+  },
+  {
+    "knownAt": 10,
+    "kind": "proposed",
+    "version": "DP:9@10:v10"
+  },
+  {
+    "knownAt": 11,
+    "kind": "retracted-proposal",
+    "version": "DP:9@10:v10",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 11,
+    "kind": "proposed",
+    "version": "DP:9@10:v11"
+  },
+  {
+    "knownAt": 12,
+    "kind": "retracted-proposal",
+    "version": "DP:9@10:v11",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 12,
+    "kind": "proposed",
+    "version": "DP:9@10:v12"
+  },
+  {
+    "knownAt": 13,
+    "kind": "retracted-proposal",
+    "version": "DP:9@10:v12",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 13,
+    "kind": "proposed",
+    "version": "DP:9@10:v13"
+  },
+  {
+    "knownAt": 14,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 5,
+      "end": 9,
+      "start_price": 60000,
+      "end_price": 68000
+    },
+    "candidateVersion": "DP:5@6:v9"
+  },
+  {
+    "knownAt": 14,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 9,
+      "end": 13,
+      "start_price": 68000,
+      "end_price": 46000
+    },
+    "candidateVersion": "DP:9@10:v13",
+    "geometryIndex": 2
+  },
+  {
+    "knownAt": 14,
+    "kind": "proposed",
+    "version": "DP:13@14:v14"
+  },
+  {
+    "knownAt": 15,
+    "kind": "retracted-proposal",
+    "version": "DP:13@14:v14",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 15,
+    "kind": "proposed",
+    "version": "DP:13@14:v15"
+  },
+  {
+    "knownAt": 16,
+    "kind": "retracted-proposal",
+    "version": "DP:13@14:v15",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 16,
+    "kind": "proposed",
+    "version": "DP:13@14:v16"
+  },
+  {
+    "knownAt": 17,
+    "kind": "retracted-proposal",
+    "version": "DP:13@14:v16",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 17,
+    "kind": "proposed",
+    "version": "DP:13@14:v17"
+  },
+  {
+    "knownAt": 18,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 9,
+      "end": 13,
+      "start_price": 68000,
+      "end_price": 46000
+    },
+    "candidateVersion": "DP:9@10:v13"
+  },
+  {
+    "knownAt": 18,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 13,
+      "end": 17,
+      "start_price": 46000,
+      "end_price": 60000
+    },
+    "candidateVersion": "DP:13@14:v17",
+    "geometryIndex": 3
+  },
+  {
+    "knownAt": 18,
+    "kind": "proposed",
+    "version": "DP:17@18:v18"
+  },
+  {
+    "knownAt": 19,
+    "kind": "retracted-proposal",
+    "version": "DP:17@18:v18",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 19,
+    "kind": "proposed",
+    "version": "DP:17@18:v19"
+  },
+  {
+    "knownAt": 20,
+    "kind": "retracted-proposal",
+    "version": "DP:17@18:v19",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 20,
+    "kind": "proposed",
+    "version": "DP:17@18:v20"
+  },
+  {
+    "knownAt": 21,
+    "kind": "retracted-proposal",
+    "version": "DP:17@18:v20",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 21,
+    "kind": "proposed",
+    "version": "DP:17@18:v21"
+  },
+  {
+    "knownAt": 22,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 13,
+      "end": 17,
+      "start_price": 46000,
+      "end_price": 60000
+    },
+    "candidateVersion": "DP:13@14:v17"
+  },
+  {
+    "knownAt": 22,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 17,
+      "end": 21,
+      "start_price": 60000,
+      "end_price": 40000
+    },
+    "candidateVersion": "DP:17@18:v21",
+    "geometryIndex": 4
+  },
+  {
+    "knownAt": 22,
+    "kind": "proposed",
+    "version": "DP:21@22:v22"
+  },
+  {
+    "knownAt": 23,
+    "kind": "retracted-proposal",
+    "version": "DP:21@22:v22",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 23,
+    "kind": "proposed",
+    "version": "DP:21@22:v23"
+  },
+  {
+    "knownAt": 24,
+    "kind": "retracted-proposal",
+    "version": "DP:21@22:v23",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 24,
+    "kind": "proposed",
+    "version": "DP:21@22:v24"
+  },
+  {
+    "knownAt": 25,
+    "kind": "retracted-proposal",
+    "version": "DP:21@22:v24",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 25,
+    "kind": "proposed",
+    "version": "DP:21@22:v25"
+  },
+  {
+    "knownAt": 26,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 17,
+      "end": 21,
+      "start_price": 60000,
+      "end_price": 40000
+    },
+    "candidateVersion": "DP:17@18:v21"
+  },
+  {
+    "knownAt": 26,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 21,
+      "end": 25,
+      "start_price": 40000,
+      "end_price": 48000
+    },
+    "candidateVersion": "DP:21@22:v25",
+    "geometryIndex": 5
+  },
+  {
+    "knownAt": 26,
+    "kind": "proposed",
+    "version": "DP:25@26:v26"
+  },
+  {
+    "knownAt": 26,
+    "kind": "freeze-raw-pen-span",
+    "raw": {
+      "id": "Raw:0",
+      "start": 1,
+      "candidateFirstKnownAt": 6,
+      "end": 21,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "endpointKnownAt": 22,
+      "terminalCandidate": "DP:17@18:v21",
+      "frozenL": {
+        "num": -1000,
+        "den": 1
+      },
+      "frozenAt": 26
+    }
+  },
+  {
+    "knownAt": 27,
+    "kind": "retracted-proposal",
+    "version": "DP:25@26:v26",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 27,
+    "kind": "proposed",
+    "version": "DP:25@26:v27"
+  },
+  {
+    "knownAt": 28,
+    "kind": "retracted-proposal",
+    "version": "DP:25@26:v27",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 28,
+    "kind": "proposed",
+    "version": "DP:25@26:v28"
+  },
+  {
+    "knownAt": 29,
+    "kind": "retracted-proposal",
+    "version": "DP:25@26:v28",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 29,
+    "kind": "proposed",
+    "version": "DP:25@26:v29"
+  },
+  {
+    "knownAt": 30,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 21,
+      "end": 25,
+      "start_price": 40000,
+      "end_price": 48000
+    },
+    "candidateVersion": "DP:21@22:v25"
+  },
+  {
+    "knownAt": 30,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 25,
+      "end": 29,
+      "start_price": 48000,
+      "end_price": 44000
+    },
+    "candidateVersion": "DP:25@26:v29",
+    "geometryIndex": 6
+  },
+  {
+    "knownAt": 30,
+    "kind": "proposed",
+    "version": "DP:29@30:v30"
+  },
+  {
+    "knownAt": 31,
+    "kind": "retracted-proposal",
+    "version": "DP:29@30:v30",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 31,
+    "kind": "proposed",
+    "version": "DP:29@30:v31"
+  },
+  {
+    "knownAt": 32,
+    "kind": "retracted-proposal",
+    "version": "DP:29@30:v31",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 32,
+    "kind": "proposed",
+    "version": "DP:29@30:v32"
+  },
+  {
+    "knownAt": 33,
+    "kind": "retracted-proposal",
+    "version": "DP:29@30:v32",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 33,
+    "kind": "proposed",
+    "version": "DP:29@30:v33"
+  },
+  {
+    "knownAt": 34,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 25,
+      "end": 29,
+      "start_price": 48000,
+      "end_price": 44000
+    },
+    "candidateVersion": "DP:25@26:v29"
+  },
+  {
+    "knownAt": 34,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 29,
+      "end": 33,
+      "start_price": 44000,
+      "end_price": 60000
+    },
+    "candidateVersion": "DP:29@30:v33",
+    "geometryIndex": 7
+  },
+  {
+    "knownAt": 34,
+    "kind": "proposed",
+    "version": "DP:33@34:v34"
+  },
+  {
+    "knownAt": 35,
+    "kind": "retracted-proposal",
+    "version": "DP:33@34:v34",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 35,
+    "kind": "proposed",
+    "version": "DP:33@34:v35"
+  },
+  {
+    "knownAt": 36,
+    "kind": "retracted-proposal",
+    "version": "DP:33@34:v35",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 36,
+    "kind": "proposed",
+    "version": "DP:33@34:v36"
+  },
+  {
+    "knownAt": 37,
+    "kind": "retracted-proposal",
+    "version": "DP:33@34:v36",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 37,
+    "kind": "proposed",
+    "version": "DP:33@34:v37"
+  },
+  {
+    "knownAt": 38,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 29,
+      "end": 33,
+      "start_price": 44000,
+      "end_price": 60000
+    },
+    "candidateVersion": "DP:29@30:v33"
+  },
+  {
+    "knownAt": 38,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 33,
+      "end": 37,
+      "start_price": 60000,
+      "end_price": 52000
+    },
+    "candidateVersion": "DP:33@34:v37",
+    "geometryIndex": 8
+  },
+  {
+    "knownAt": 38,
+    "kind": "proposed",
+    "version": "DP:37@38:v38"
+  },
+  {
+    "knownAt": 39,
+    "kind": "retracted-proposal",
+    "version": "DP:37@38:v38",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 39,
+    "kind": "proposed",
+    "version": "DP:37@38:v39"
+  },
+  {
+    "knownAt": 40,
+    "kind": "retracted-proposal",
+    "version": "DP:37@38:v39",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 40,
+    "kind": "proposed",
+    "version": "DP:37@38:v40"
+  },
+  {
+    "knownAt": 41,
+    "kind": "retracted-proposal",
+    "version": "DP:37@38:v40",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 41,
+    "kind": "proposed",
+    "version": "DP:37@38:v41"
+  },
+  {
+    "knownAt": 42,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 33,
+      "end": 37,
+      "start_price": 60000,
+      "end_price": 52000
+    },
+    "candidateVersion": "DP:33@34:v37"
+  },
+  {
+    "knownAt": 42,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 37,
+      "end": 41,
+      "start_price": 52000,
+      "end_price": 64000
+    },
+    "candidateVersion": "DP:37@38:v41",
+    "geometryIndex": 9
+  },
+  {
+    "knownAt": 42,
+    "kind": "proposed",
+    "version": "DP:41@42:v42"
+  },
+  {
+    "knownAt": 43,
+    "kind": "retracted-proposal",
+    "version": "DP:41@42:v42",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 43,
+    "kind": "proposed",
+    "version": "DP:41@42:v43"
+  },
+  {
+    "knownAt": 44,
+    "kind": "retracted-proposal",
+    "version": "DP:41@42:v43",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 44,
+    "kind": "proposed",
+    "version": "DP:41@42:v44"
+  },
+  {
+    "knownAt": 45,
+    "kind": "retracted-proposal",
+    "version": "DP:41@42:v44",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 45,
+    "kind": "proposed",
+    "version": "DP:41@42:v45"
+  },
+  {
+    "knownAt": 46,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 37,
+      "end": 41,
+      "start_price": 52000,
+      "end_price": 64000
+    },
+    "candidateVersion": "DP:37@38:v41"
+  },
+  {
+    "knownAt": 46,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 41,
+      "end": 45,
+      "start_price": 64000,
+      "end_price": 58000
+    },
+    "candidateVersion": "DP:41@42:v45",
+    "geometryIndex": 10
+  },
+  {
+    "knownAt": 46,
+    "kind": "proposed",
+    "version": "DP:45@46:v46"
+  },
+  {
+    "knownAt": 46,
+    "kind": "freeze-raw-pen-span",
+    "raw": {
+      "id": "Raw:1",
+      "start": 21,
+      "candidateFirstKnownAt": 26,
+      "end": 41,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "endpointKnownAt": 42,
+      "terminalCandidate": "DP:37@38:v41",
+      "frozenL": {
+        "num": 1000,
+        "den": 1
+      },
+      "frozenAt": 46
+    }
+  },
+  {
+    "knownAt": 47,
+    "kind": "retracted-proposal",
+    "version": "DP:45@46:v46",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 47,
+    "kind": "proposed",
+    "version": "DP:45@46:v47"
+  },
+  {
+    "knownAt": 48,
+    "kind": "retracted-proposal",
+    "version": "DP:45@46:v47",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 48,
+    "kind": "proposed",
+    "version": "DP:45@46:v48"
+  },
+  {
+    "knownAt": 49,
+    "kind": "retracted-proposal",
+    "version": "DP:45@46:v48",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 49,
+    "kind": "proposed",
+    "version": "DP:45@46:v49"
+  },
+  {
+    "knownAt": 50,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 41,
+      "end": 45,
+      "start_price": 64000,
+      "end_price": 58000
+    },
+    "candidateVersion": "DP:41@42:v45"
+  },
+  {
+    "knownAt": 50,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 45,
+      "end": 49,
+      "start_price": 58000,
+      "end_price": 62000
+    },
+    "candidateVersion": "DP:45@46:v49",
+    "geometryIndex": 11
+  },
+  {
+    "knownAt": 50,
+    "kind": "proposed",
+    "version": "DP:49@50:v50"
+  },
+  {
+    "knownAt": 51,
+    "kind": "retracted-proposal",
+    "version": "DP:49@50:v50",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 51,
+    "kind": "proposed",
+    "version": "DP:49@50:v51"
+  },
+  {
+    "knownAt": 52,
+    "kind": "retracted-proposal",
+    "version": "DP:49@50:v51",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 52,
+    "kind": "proposed",
+    "version": "DP:49@50:v52"
+  },
+  {
+    "knownAt": 53,
+    "kind": "retracted-proposal",
+    "version": "DP:49@50:v52",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 53,
+    "kind": "proposed",
+    "version": "DP:49@50:v53"
+  },
+  {
+    "knownAt": 54,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 45,
+      "end": 49,
+      "start_price": 58000,
+      "end_price": 62000
+    },
+    "candidateVersion": "DP:45@46:v49"
+  },
+  {
+    "knownAt": 54,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 49,
+      "end": 53,
+      "start_price": 62000,
+      "end_price": 52000
+    },
+    "candidateVersion": "DP:49@50:v53",
+    "geometryIndex": 12
+  },
+  {
+    "knownAt": 54,
+    "kind": "proposed",
+    "version": "DP:53@54:v54"
+  },
+  {
+    "knownAt": 55,
+    "kind": "retracted-proposal",
+    "version": "DP:53@54:v54",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 55,
+    "kind": "proposed",
+    "version": "DP:53@54:v55"
+  },
+  {
+    "knownAt": 56,
+    "kind": "retracted-proposal",
+    "version": "DP:53@54:v55",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 56,
+    "kind": "proposed",
+    "version": "DP:53@54:v56"
+  },
+  {
+    "knownAt": 57,
+    "kind": "retracted-proposal",
+    "version": "DP:53@54:v56",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 57,
+    "kind": "proposed",
+    "version": "DP:53@54:v57"
+  },
+  {
+    "knownAt": 58,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 49,
+      "end": 53,
+      "start_price": 62000,
+      "end_price": 52000
+    },
+    "candidateVersion": "DP:49@50:v53"
+  },
+  {
+    "knownAt": 58,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 53,
+      "end": 57,
+      "start_price": 52000,
+      "end_price": 56000
+    },
+    "candidateVersion": "DP:53@54:v57",
+    "geometryIndex": 13
+  },
+  {
+    "knownAt": 58,
+    "kind": "proposed",
+    "version": "DP:57@58:v58"
+  },
+  {
+    "knownAt": 59,
+    "kind": "retracted-proposal",
+    "version": "DP:57@58:v58",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 59,
+    "kind": "proposed",
+    "version": "DP:57@58:v59"
+  },
+  {
+    "knownAt": 60,
+    "kind": "retracted-proposal",
+    "version": "DP:57@58:v59",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 60,
+    "kind": "proposed",
+    "version": "DP:57@58:v60"
+  },
+  {
+    "knownAt": 61,
+    "kind": "retracted-proposal",
+    "version": "DP:57@58:v60",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 61,
+    "kind": "proposed",
+    "version": "DP:57@58:v61"
+  },
+  {
+    "knownAt": 62,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 53,
+      "end": 57,
+      "start_price": 52000,
+      "end_price": 56000
+    },
+    "candidateVersion": "DP:53@54:v57"
+  },
+  {
+    "knownAt": 62,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 57,
+      "end": 61,
+      "start_price": 56000,
+      "end_price": 48000
+    },
+    "candidateVersion": "DP:57@58:v61",
+    "geometryIndex": 14
+  },
+  {
+    "knownAt": 62,
+    "kind": "proposed",
+    "version": "DP:61@62:v62"
+  },
+  {
+    "knownAt": 63,
+    "kind": "retracted-proposal",
+    "version": "DP:61@62:v62",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 63,
+    "kind": "proposed",
+    "version": "DP:61@62:v63"
+  },
+  {
+    "knownAt": 64,
+    "kind": "retracted-proposal",
+    "version": "DP:61@62:v63",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 64,
+    "kind": "proposed",
+    "version": "DP:61@62:v64"
+  },
+  {
+    "knownAt": 65,
+    "kind": "retracted-proposal",
+    "version": "DP:61@62:v64",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 65,
+    "kind": "proposed",
+    "version": "DP:61@62:v65"
+  },
+  {
+    "knownAt": 66,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 57,
+      "end": 61,
+      "start_price": 56000,
+      "end_price": 48000
+    },
+    "candidateVersion": "DP:57@58:v61"
+  },
+  {
+    "knownAt": 66,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 61,
+      "end": 65,
+      "start_price": 48000,
+      "end_price": 54000
+    },
+    "candidateVersion": "DP:61@62:v65",
+    "geometryIndex": 15
+  },
+  {
+    "knownAt": 66,
+    "kind": "proposed",
+    "version": "DP:65@66:v66"
+  },
+  {
+    "knownAt": 66,
+    "kind": "freeze-raw-pen-span",
+    "raw": {
+      "id": "Raw:2",
+      "start": 41,
+      "candidateFirstKnownAt": 46,
+      "end": 61,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "endpointKnownAt": 62,
+      "terminalCandidate": "DP:57@58:v61",
+      "frozenL": {
+        "num": -500,
+        "den": 1
+      },
+      "frozenAt": 66
+    }
+  },
+  {
+    "knownAt": 67,
+    "kind": "retracted-proposal",
+    "version": "DP:65@66:v66",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 67,
+    "kind": "proposed",
+    "version": "DP:65@66:v67"
+  },
+  {
+    "knownAt": 68,
+    "kind": "retracted-proposal",
+    "version": "DP:65@66:v67",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 68,
+    "kind": "proposed",
+    "version": "DP:65@66:v68"
+  },
+  {
+    "knownAt": 69,
+    "kind": "retracted-proposal",
+    "version": "DP:65@66:v68",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 69,
+    "kind": "proposed",
+    "version": "DP:65@66:v69"
+  },
+  {
+    "knownAt": 70,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 61,
+      "end": 65,
+      "start_price": 48000,
+      "end_price": 54000
+    },
+    "candidateVersion": "DP:61@62:v65"
+  },
+  {
+    "knownAt": 70,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 65,
+      "end": 69,
+      "start_price": 54000,
+      "end_price": 50000
+    },
+    "candidateVersion": "DP:65@66:v69",
+    "geometryIndex": 16
+  },
+  {
+    "knownAt": 70,
+    "kind": "proposed",
+    "version": "DP:69@70:v70"
+  },
+  {
+    "knownAt": 71,
+    "kind": "retracted-proposal",
+    "version": "DP:69@70:v70",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 71,
+    "kind": "proposed",
+    "version": "DP:69@70:v71"
+  },
+  {
+    "knownAt": 72,
+    "kind": "retracted-proposal",
+    "version": "DP:69@70:v71",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 72,
+    "kind": "proposed",
+    "version": "DP:69@70:v72"
+  },
+  {
+    "knownAt": 73,
+    "kind": "retracted-proposal",
+    "version": "DP:69@70:v72",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 73,
+    "kind": "proposed",
+    "version": "DP:69@70:v73"
+  },
+  {
+    "knownAt": 74,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 65,
+      "end": 69,
+      "start_price": 54000,
+      "end_price": 50000
+    },
+    "candidateVersion": "DP:65@66:v69"
+  },
+  {
+    "knownAt": 74,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 69,
+      "end": 73,
+      "start_price": 50000,
+      "end_price": 58000
+    },
+    "candidateVersion": "DP:69@70:v73",
+    "geometryIndex": 17
+  },
+  {
+    "knownAt": 74,
+    "kind": "proposed",
+    "version": "DP:73@74:v74"
+  },
+  {
+    "knownAt": 75,
+    "kind": "retracted-proposal",
+    "version": "DP:73@74:v74",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 75,
+    "kind": "proposed",
+    "version": "DP:73@74:v75"
+  },
+  {
+    "knownAt": 76,
+    "kind": "retracted-proposal",
+    "version": "DP:73@74:v75",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 76,
+    "kind": "proposed",
+    "version": "DP:73@74:v76"
+  },
+  {
+    "knownAt": 77,
+    "kind": "retracted-proposal",
+    "version": "DP:73@74:v76",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 77,
+    "kind": "proposed",
+    "version": "DP:73@74:v77"
+  },
+  {
+    "knownAt": 78,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 69,
+      "end": 73,
+      "start_price": 50000,
+      "end_price": 58000
+    },
+    "candidateVersion": "DP:69@70:v73"
+  },
+  {
+    "knownAt": 78,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 73,
+      "end": 77,
+      "start_price": 58000,
+      "end_price": 52000
+    },
+    "candidateVersion": "DP:73@74:v77",
+    "geometryIndex": 18
+  },
+  {
+    "knownAt": 78,
+    "kind": "proposed",
+    "version": "DP:77@78:v78"
+  },
+  {
+    "knownAt": 79,
+    "kind": "retracted-proposal",
+    "version": "DP:77@78:v78",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 79,
+    "kind": "proposed",
+    "version": "DP:77@78:v79"
+  },
+  {
+    "knownAt": 80,
+    "kind": "retracted-proposal",
+    "version": "DP:77@78:v79",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 80,
+    "kind": "proposed",
+    "version": "DP:77@78:v80"
+  },
+  {
+    "knownAt": 81,
+    "kind": "retracted-proposal",
+    "version": "DP:77@78:v80",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 81,
+    "kind": "proposed",
+    "version": "DP:77@78:v81"
+  },
+  {
+    "knownAt": 82,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 73,
+      "end": 77,
+      "start_price": 58000,
+      "end_price": 52000
+    },
+    "candidateVersion": "DP:73@74:v77"
+  },
+  {
+    "knownAt": 82,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 77,
+      "end": 81,
+      "start_price": 52000,
+      "end_price": 60000
+    },
+    "candidateVersion": "DP:77@78:v81",
+    "geometryIndex": 19
+  },
+  {
+    "knownAt": 82,
+    "kind": "proposed",
+    "version": "DP:81@82:v82"
+  },
+  {
+    "knownAt": 83,
+    "kind": "retracted-proposal",
+    "version": "DP:81@82:v82",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 83,
+    "kind": "proposed",
+    "version": "DP:81@82:v83"
+  },
+  {
+    "knownAt": 84,
+    "kind": "retracted-proposal",
+    "version": "DP:81@82:v83",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 84,
+    "kind": "proposed",
+    "version": "DP:81@82:v84"
+  },
+  {
+    "knownAt": 85,
+    "kind": "retracted-proposal",
+    "version": "DP:81@82:v84",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 85,
+    "kind": "proposed",
+    "version": "DP:81@82:v85"
+  },
+  {
+    "knownAt": 86,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 77,
+      "end": 81,
+      "start_price": 52000,
+      "end_price": 60000
+    },
+    "candidateVersion": "DP:77@78:v81"
+  },
+  {
+    "knownAt": 86,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 81,
+      "end": 85,
+      "start_price": 60000,
+      "end_price": 56000
+    },
+    "candidateVersion": "DP:81@82:v85",
+    "geometryIndex": 20
+  },
+  {
+    "knownAt": 86,
+    "kind": "proposed",
+    "version": "DP:85@86:v86"
+  },
+  {
+    "knownAt": 86,
+    "kind": "freeze-raw-pen-span",
+    "raw": {
+      "id": "Raw:3",
+      "start": 61,
+      "candidateFirstKnownAt": 66,
+      "end": 81,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "endpointKnownAt": 82,
+      "terminalCandidate": "DP:77@78:v81",
+      "frozenL": {
+        "num": 500,
+        "den": 1
+      },
+      "frozenAt": 86
+    }
+  },
+  {
+    "knownAt": 87,
+    "kind": "retracted-proposal",
+    "version": "DP:85@86:v86",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 87,
+    "kind": "proposed",
+    "version": "DP:85@86:v87"
+  },
+  {
+    "knownAt": 88,
+    "kind": "retracted-proposal",
+    "version": "DP:85@86:v87",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 88,
+    "kind": "proposed",
+    "version": "DP:85@86:v88"
+  },
+  {
+    "knownAt": 89,
+    "kind": "retracted-proposal",
+    "version": "DP:85@86:v88",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 89,
+    "kind": "proposed",
+    "version": "DP:85@86:v89"
+  },
+  {
+    "knownAt": 90,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 81,
+      "end": 85,
+      "start_price": 60000,
+      "end_price": 56000
+    },
+    "candidateVersion": "DP:81@82:v85"
+  },
+  {
+    "knownAt": 90,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 85,
+      "end": 89,
+      "start_price": 56000,
+      "end_price": 59200
+    },
+    "candidateVersion": "DP:85@86:v89",
+    "geometryIndex": 21
+  },
+  {
+    "knownAt": 90,
+    "kind": "proposed",
+    "version": "DP:89@90:v90"
+  },
+  {
+    "knownAt": 91,
+    "kind": "retracted-proposal",
+    "version": "DP:89@90:v90",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 91,
+    "kind": "proposed",
+    "version": "DP:89@90:v91"
+  },
+  {
+    "knownAt": 92,
+    "kind": "retracted-proposal",
+    "version": "DP:89@90:v91",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 92,
+    "kind": "proposed",
+    "version": "DP:89@90:v92"
+  },
+  {
+    "knownAt": 93,
+    "kind": "retracted-proposal",
+    "version": "DP:89@90:v92",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 93,
+    "kind": "proposed",
+    "version": "DP:89@90:v93"
+  },
+  {
+    "knownAt": 94,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 85,
+      "end": 89,
+      "start_price": 56000,
+      "end_price": 59200
+    },
+    "candidateVersion": "DP:85@86:v89"
+  },
+  {
+    "knownAt": 94,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 89,
+      "end": 93,
+      "start_price": 59200,
+      "end_price": 52000
+    },
+    "candidateVersion": "DP:89@90:v93",
+    "geometryIndex": 22
+  },
+  {
+    "knownAt": 94,
+    "kind": "proposed",
+    "version": "DP:93@94:v94"
+  },
+  {
+    "knownAt": 95,
+    "kind": "retracted-proposal",
+    "version": "DP:93@94:v94",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 95,
+    "kind": "proposed",
+    "version": "DP:93@94:v95"
+  },
+  {
+    "knownAt": 96,
+    "kind": "retracted-proposal",
+    "version": "DP:93@94:v95",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 96,
+    "kind": "proposed",
+    "version": "DP:93@94:v96"
+  },
+  {
+    "knownAt": 97,
+    "kind": "retracted-proposal",
+    "version": "DP:93@94:v96",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 97,
+    "kind": "proposed",
+    "version": "DP:93@94:v97"
+  },
+  {
+    "knownAt": 98,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 89,
+      "end": 93,
+      "start_price": 59200,
+      "end_price": 52000
+    },
+    "candidateVersion": "DP:89@90:v93"
+  },
+  {
+    "knownAt": 98,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 93,
+      "end": 97,
+      "start_price": 52000,
+      "end_price": 56000
+    },
+    "candidateVersion": "DP:93@94:v97",
+    "geometryIndex": 23
+  },
+  {
+    "knownAt": 98,
+    "kind": "proposed",
+    "version": "DP:97@98:v98"
+  },
+  {
+    "knownAt": 99,
+    "kind": "retracted-proposal",
+    "version": "DP:97@98:v98",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 99,
+    "kind": "proposed",
+    "version": "DP:97@98:v99"
+  },
+  {
+    "knownAt": 100,
+    "kind": "retracted-proposal",
+    "version": "DP:97@98:v99",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 100,
+    "kind": "proposed",
+    "version": "DP:97@98:v100"
+  },
+  {
+    "knownAt": 101,
+    "kind": "retracted-proposal",
+    "version": "DP:97@98:v100",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 101,
+    "kind": "proposed",
+    "version": "DP:97@98:v101"
+  },
+  {
+    "knownAt": 102,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 93,
+      "end": 97,
+      "start_price": 52000,
+      "end_price": 56000
+    },
+    "candidateVersion": "DP:93@94:v97"
+  },
+  {
+    "knownAt": 102,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 97,
+      "end": 101,
+      "start_price": 56000,
+      "end_price": 50000
+    },
+    "candidateVersion": "DP:97@98:v101",
+    "geometryIndex": 24
+  },
+  {
+    "knownAt": 102,
+    "kind": "proposed",
+    "version": "DP:101@102:v102"
+  },
+  {
+    "knownAt": 103,
+    "kind": "retracted-proposal",
+    "version": "DP:101@102:v102",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 103,
+    "kind": "proposed",
+    "version": "DP:101@102:v103"
+  },
+  {
+    "knownAt": 104,
+    "kind": "retracted-proposal",
+    "version": "DP:101@102:v103",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 104,
+    "kind": "proposed",
+    "version": "DP:101@102:v104"
+  },
+  {
+    "knownAt": 105,
+    "kind": "retracted-proposal",
+    "version": "DP:101@102:v104",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 105,
+    "kind": "proposed",
+    "version": "DP:101@102:v105"
+  },
+  {
+    "knownAt": 106,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 97,
+      "end": 101,
+      "start_price": 56000,
+      "end_price": 50000
+    },
+    "candidateVersion": "DP:97@98:v101"
+  },
+  {
+    "knownAt": 106,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 101,
+      "end": 105,
+      "start_price": 50000,
+      "end_price": 54000
+    },
+    "candidateVersion": "DP:101@102:v105",
+    "geometryIndex": 25
+  },
+  {
+    "knownAt": 106,
+    "kind": "proposed",
+    "version": "DP:105@106:v106"
+  },
+  {
+    "knownAt": 106,
+    "kind": "freeze-raw-pen-span",
+    "raw": {
+      "id": "Raw:4",
+      "start": 81,
+      "candidateFirstKnownAt": 86,
+      "end": 101,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "endpointKnownAt": 102,
+      "terminalCandidate": "DP:97@98:v101",
+      "frozenL": {
+        "num": -500,
+        "den": 1
+      },
+      "frozenAt": 106
+    }
+  },
+  {
+    "knownAt": 107,
+    "kind": "retracted-proposal",
+    "version": "DP:105@106:v106",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 107,
+    "kind": "proposed",
+    "version": "DP:105@106:v107"
+  },
+  {
+    "knownAt": 108,
+    "kind": "retracted-proposal",
+    "version": "DP:105@106:v107",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 108,
+    "kind": "proposed",
+    "version": "DP:105@106:v108"
+  },
+  {
+    "knownAt": 109,
+    "kind": "retracted-proposal",
+    "version": "DP:105@106:v108",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 109,
+    "kind": "proposed",
+    "version": "DP:105@106:v109"
+  },
+  {
+    "knownAt": 110,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 101,
+      "end": 105,
+      "start_price": 50000,
+      "end_price": 54000
+    },
+    "candidateVersion": "DP:101@102:v105"
+  },
+  {
+    "knownAt": 110,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 105,
+      "end": 109,
+      "start_price": 54000,
+      "end_price": 52000
+    },
+    "candidateVersion": "DP:105@106:v109",
+    "geometryIndex": 26
+  },
+  {
+    "knownAt": 110,
+    "kind": "proposed",
+    "version": "DP:109@110:v110"
+  },
+  {
+    "knownAt": 111,
+    "kind": "retracted-proposal",
+    "version": "DP:109@110:v110",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 111,
+    "kind": "proposed",
+    "version": "DP:109@110:v111"
+  },
+  {
+    "knownAt": 112,
+    "kind": "retracted-proposal",
+    "version": "DP:109@110:v111",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 112,
+    "kind": "proposed",
+    "version": "DP:109@110:v112"
+  },
+  {
+    "knownAt": 113,
+    "kind": "retracted-proposal",
+    "version": "DP:109@110:v112",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 113,
+    "kind": "proposed",
+    "version": "DP:109@110:v113"
+  },
+  {
+    "knownAt": 114,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 105,
+      "end": 109,
+      "start_price": 54000,
+      "end_price": 52000
+    },
+    "candidateVersion": "DP:105@106:v109"
+  },
+  {
+    "knownAt": 114,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 109,
+      "end": 113,
+      "start_price": 52000,
+      "end_price": 71200
+    },
+    "candidateVersion": "DP:109@110:v113",
+    "geometryIndex": 27
+  },
+  {
+    "knownAt": 114,
+    "kind": "proposed",
+    "version": "DP:113@114:v114"
+  },
+  {
+    "knownAt": 115,
+    "kind": "retracted-proposal",
+    "version": "DP:113@114:v114",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 115,
+    "kind": "proposed",
+    "version": "DP:113@114:v115"
+  },
+  {
+    "knownAt": 116,
+    "kind": "retracted-proposal",
+    "version": "DP:113@114:v115",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 116,
+    "kind": "proposed",
+    "version": "DP:113@114:v116"
+  },
+  {
+    "knownAt": 117,
+    "kind": "retracted-proposal",
+    "version": "DP:113@114:v116",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 117,
+    "kind": "proposed",
+    "version": "DP:113@114:v117"
+  },
+  {
+    "knownAt": 118,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 109,
+      "end": 113,
+      "start_price": 52000,
+      "end_price": 71200
+    },
+    "candidateVersion": "DP:109@110:v113"
+  },
+  {
+    "knownAt": 118,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 113,
+      "end": 117,
+      "start_price": 71200,
+      "end_price": 70000
+    },
+    "candidateVersion": "DP:113@114:v117",
+    "geometryIndex": 28
+  },
+  {
+    "knownAt": 118,
+    "kind": "proposed",
+    "version": "DP:117@118:v118"
+  },
+  {
+    "knownAt": 119,
+    "kind": "retracted-proposal",
+    "version": "DP:117@118:v118",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 119,
+    "kind": "proposed",
+    "version": "DP:117@118:v119"
+  },
+  {
+    "knownAt": 120,
+    "kind": "retracted-proposal",
+    "version": "DP:117@118:v119",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 120,
+    "kind": "proposed",
+    "version": "DP:117@118:v120"
+  },
+  {
+    "knownAt": 121,
+    "kind": "retracted-proposal",
+    "version": "DP:117@118:v120",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 121,
+    "kind": "proposed",
+    "version": "DP:117@118:v121"
+  },
+  {
+    "knownAt": 122,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 113,
+      "end": 117,
+      "start_price": 71200,
+      "end_price": 70000
+    },
+    "candidateVersion": "DP:113@114:v117"
+  },
+  {
+    "knownAt": 122,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 117,
+      "end": 121,
+      "start_price": 70000,
+      "end_price": 72000
+    },
+    "candidateVersion": "DP:117@118:v121",
+    "geometryIndex": 29
+  },
+  {
+    "knownAt": 122,
+    "kind": "proposed",
+    "version": "DP:121@122:v122"
+  },
+  {
+    "knownAt": 122,
+    "kind": "whole-endpoint-proposal-confirmed-rw",
+    "whole": {
+      "id": "P0",
+      "start": 21,
+      "candidateFirstKnownAt": 22,
+      "end": 121,
+      "state": "ended-awaiting-stability",
+      "Completed_original": null,
+      "Owner_original": null,
+      "Next_original": null,
+      "F2_original": null,
+      "endpointKnownAt": 122,
+      "terminalCandidate": "DP:117@118:v121"
+    }
+  },
+  {
+    "knownAt": 123,
+    "kind": "retracted-proposal",
+    "version": "DP:121@122:v122",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 123,
+    "kind": "proposed",
+    "version": "DP:121@122:v123"
+  },
+  {
+    "knownAt": 124,
+    "kind": "retracted-proposal",
+    "version": "DP:121@122:v123",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 124,
+    "kind": "proposed",
+    "version": "DP:121@122:v124"
+  },
+  {
+    "knownAt": 125,
+    "kind": "retracted-proposal",
+    "version": "DP:121@122:v124",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 125,
+    "kind": "proposed",
+    "version": "DP:121@122:v125"
+  },
+  {
+    "knownAt": 126,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 117,
+      "end": 121,
+      "start_price": 70000,
+      "end_price": 72000
+    },
+    "candidateVersion": "DP:117@118:v121"
+  },
+  {
+    "knownAt": 126,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 121,
+      "end": 125,
+      "start_price": 72000,
+      "end_price": 70400
+    },
+    "candidateVersion": "DP:121@122:v125",
+    "geometryIndex": 30
+  },
+  {
+    "knownAt": 126,
+    "kind": "proposed",
+    "version": "DP:125@126:v126"
+  },
+  {
+    "knownAt": 126,
+    "kind": "freeze-raw-pen-span",
+    "raw": {
+      "id": "Raw:5",
+      "start": 101,
+      "candidateFirstKnownAt": 106,
+      "end": 121,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "endpointKnownAt": 122,
+      "terminalCandidate": "DP:117@118:v121",
+      "frozenL": {
+        "num": -500,
+        "den": 1
+      },
+      "frozenAt": 126
+    }
+  },
+  {
+    "knownAt": 126,
+    "kind": "freeze-whole-pen-span",
+    "whole": {
+      "id": "P0",
+      "start": 21,
+      "candidateFirstKnownAt": 22,
+      "end": 121,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "Completed_original": null,
+      "Owner_original": null,
+      "Next_original": null,
+      "F2_original": null,
+      "endpointKnownAt": 122,
+      "terminalCandidate": "DP:117@118:v121",
+      "frozenAt": 126,
+      "wholeFrozenL": {
+        "num": -1500,
+        "den": 1
+      },
+      "cFrozenL": {
+        "num": -500,
+        "den": 1
+      }
+    }
+  },
+  {
+    "knownAt": 127,
+    "kind": "retracted-proposal",
+    "version": "DP:125@126:v126",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 127,
+    "kind": "proposed",
+    "version": "DP:125@126:v127"
+  },
+  {
+    "knownAt": 128,
+    "kind": "retracted-proposal",
+    "version": "DP:125@126:v127",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 128,
+    "kind": "proposed",
+    "version": "DP:125@126:v128"
+  },
+  {
+    "knownAt": 129,
+    "kind": "retracted-proposal",
+    "version": "DP:125@126:v128",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 129,
+    "kind": "proposed",
+    "version": "DP:125@126:v129"
+  },
+  {
+    "knownAt": 130,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 121,
+      "end": 125,
+      "start_price": 72000,
+      "end_price": 70400
+    },
+    "candidateVersion": "DP:121@122:v125"
+  },
+  {
+    "knownAt": 130,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 125,
+      "end": 129,
+      "start_price": 70400,
+      "end_price": 71600
+    },
+    "candidateVersion": "DP:125@126:v129",
+    "geometryIndex": 31
+  },
+  {
+    "knownAt": 130,
+    "kind": "proposed",
+    "version": "DP:129@130:v130"
+  },
+  {
+    "knownAt": 131,
+    "kind": "retracted-proposal",
+    "version": "DP:129@130:v130",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 131,
+    "kind": "proposed",
+    "version": "DP:129@130:v131"
+  },
+  {
+    "knownAt": 132,
+    "kind": "retracted-proposal",
+    "version": "DP:129@130:v131",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 132,
+    "kind": "proposed",
+    "version": "DP:129@130:v132"
+  },
+  {
+    "knownAt": 133,
+    "kind": "retracted-proposal",
+    "version": "DP:129@130:v132",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 133,
+    "kind": "proposed",
+    "version": "DP:129@130:v133"
+  },
+  {
+    "knownAt": 134,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 125,
+      "end": 129,
+      "start_price": 70400,
+      "end_price": 71600
+    },
+    "candidateVersion": "DP:125@126:v129"
+  },
+  {
+    "knownAt": 134,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 129,
+      "end": 133,
+      "start_price": 71600,
+      "end_price": 68000
+    },
+    "candidateVersion": "DP:129@130:v133",
+    "geometryIndex": 32
+  },
+  {
+    "knownAt": 134,
+    "kind": "proposed",
+    "version": "DP:133@134:v134"
+  },
+  {
+    "knownAt": 135,
+    "kind": "retracted-proposal",
+    "version": "DP:133@134:v134",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 135,
+    "kind": "proposed",
+    "version": "DP:133@134:v135"
+  },
+  {
+    "knownAt": 136,
+    "kind": "retracted-proposal",
+    "version": "DP:133@134:v135",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 136,
+    "kind": "proposed",
+    "version": "DP:133@134:v136"
+  },
+  {
+    "knownAt": 137,
+    "kind": "retracted-proposal",
+    "version": "DP:133@134:v136",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 137,
+    "kind": "proposed",
+    "version": "DP:133@134:v137"
+  },
+  {
+    "knownAt": 138,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 129,
+      "end": 133,
+      "start_price": 71600,
+      "end_price": 68000
+    },
+    "candidateVersion": "DP:129@130:v133"
+  },
+  {
+    "knownAt": 138,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 133,
+      "end": 137,
+      "start_price": 68000,
+      "end_price": 70000
+    },
+    "candidateVersion": "DP:133@134:v137",
+    "geometryIndex": 33
+  },
+  {
+    "knownAt": 138,
+    "kind": "proposed",
+    "version": "DP:137@138:v138"
+  },
+  {
+    "knownAt": 138,
+    "kind": "selected-whole-raw-evidence-complete",
+    "whole": {
+      "id": "P0",
+      "start": 21,
+      "candidateFirstKnownAt": 22,
+      "end": 121,
+      "state": "selected-raw-evidence-complete",
+      "Completed_original": null,
+      "Owner_original": null,
+      "Next_original": null,
+      "F2_original": null,
+      "endpointKnownAt": 122,
+      "terminalCandidate": "DP:117@118:v121",
+      "frozenAt": 126,
+      "wholeFrozenL": {
+        "num": -1500,
+        "den": 1
+      },
+      "cFrozenL": {
+        "num": -500,
+        "den": 1
+      },
+      "rawEvidenceKnownAt": 138
+    },
+    "basis": "reviewed-Stage67-current-row"
+  },
+  {
+    "knownAt": 139,
+    "kind": "retracted-proposal",
+    "version": "DP:137@138:v138",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 139,
+    "kind": "proposed",
+    "version": "DP:137@138:v139"
+  },
+  {
+    "knownAt": 140,
+    "kind": "retracted-proposal",
+    "version": "DP:137@138:v139",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 140,
+    "kind": "proposed",
+    "version": "DP:137@138:v140"
+  },
+  {
+    "knownAt": 141,
+    "kind": "retracted-proposal",
+    "version": "DP:137@138:v140",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 141,
+    "kind": "proposed",
+    "version": "DP:137@138:v141"
+  },
+  {
+    "knownAt": 142,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 133,
+      "end": 137,
+      "start_price": 68000,
+      "end_price": 70000
+    },
+    "candidateVersion": "DP:133@134:v137"
+  },
+  {
+    "knownAt": 142,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 137,
+      "end": 141,
+      "start_price": 70000,
+      "end_price": 64000
+    },
+    "candidateVersion": "DP:137@138:v141",
+    "geometryIndex": 34
+  },
+  {
+    "knownAt": 142,
+    "kind": "proposed",
+    "version": "DP:141@142:v142"
+  },
+  {
+    "knownAt": 143,
+    "kind": "retracted-proposal",
+    "version": "DP:141@142:v142",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 143,
+    "kind": "proposed",
+    "version": "DP:141@142:v143"
+  },
+  {
+    "knownAt": 144,
+    "kind": "retracted-proposal",
+    "version": "DP:141@142:v143",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 144,
+    "kind": "proposed",
+    "version": "DP:141@142:v144"
+  },
+  {
+    "knownAt": 145,
+    "kind": "retracted-proposal",
+    "version": "DP:141@142:v144",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 145,
+    "kind": "proposed",
+    "version": "DP:141@142:v145"
+  },
+  {
+    "knownAt": 146,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 137,
+      "end": 141,
+      "start_price": 70000,
+      "end_price": 64000
+    },
+    "candidateVersion": "DP:137@138:v141"
+  },
+  {
+    "knownAt": 146,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 141,
+      "end": 145,
+      "start_price": 64000,
+      "end_price": 68800
+    },
+    "candidateVersion": "DP:141@142:v145",
+    "geometryIndex": 35
+  },
+  {
+    "knownAt": 146,
+    "kind": "proposed",
+    "version": "DP:145@146:v146"
+  },
+  {
+    "knownAt": 146,
+    "kind": "freeze-raw-pen-span",
+    "raw": {
+      "id": "Raw:6",
+      "start": 121,
+      "candidateFirstKnownAt": 126,
+      "end": 141,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "endpointKnownAt": 142,
+      "terminalCandidate": "DP:137@138:v141",
+      "frozenL": {
+        "num": -1100,
+        "den": 1
+      },
+      "frozenAt": 146
+    }
+  },
+  {
+    "knownAt": 147,
+    "kind": "retracted-proposal",
+    "version": "DP:145@146:v146",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 147,
+    "kind": "proposed",
+    "version": "DP:145@146:v147"
+  },
+  {
+    "knownAt": 148,
+    "kind": "retracted-proposal",
+    "version": "DP:145@146:v147",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 148,
+    "kind": "proposed",
+    "version": "DP:145@146:v148"
+  },
+  {
+    "knownAt": 149,
+    "kind": "retracted-proposal",
+    "version": "DP:145@146:v148",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 149,
+    "kind": "proposed",
+    "version": "DP:145@146:v149"
+  },
+  {
+    "knownAt": 150,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 141,
+      "end": 145,
+      "start_price": 64000,
+      "end_price": 68800
+    },
+    "candidateVersion": "DP:141@142:v145"
+  },
+  {
+    "knownAt": 150,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 145,
+      "end": 149,
+      "start_price": 68800,
+      "end_price": 65200
+    },
+    "candidateVersion": "DP:145@146:v149",
+    "geometryIndex": 36
+  },
+  {
+    "knownAt": 150,
+    "kind": "proposed",
+    "version": "DP:149@150:v150"
+  },
+  {
+    "knownAt": 151,
+    "kind": "retracted-proposal",
+    "version": "DP:149@150:v150",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 151,
+    "kind": "proposed",
+    "version": "DP:149@150:v151"
+  },
+  {
+    "knownAt": 152,
+    "kind": "retracted-proposal",
+    "version": "DP:149@150:v151",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 152,
+    "kind": "proposed",
+    "version": "DP:149@150:v152"
+  },
+  {
+    "knownAt": 153,
+    "kind": "retracted-proposal",
+    "version": "DP:149@150:v152",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 153,
+    "kind": "proposed",
+    "version": "DP:149@150:v153"
+  },
+  {
+    "knownAt": 154,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 145,
+      "end": 149,
+      "start_price": 68800,
+      "end_price": 65200
+    },
+    "candidateVersion": "DP:145@146:v149"
+  },
+  {
+    "knownAt": 154,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 149,
+      "end": 153,
+      "start_price": 65200,
+      "end_price": 69600
+    },
+    "candidateVersion": "DP:149@150:v153",
+    "geometryIndex": 37
+  },
+  {
+    "knownAt": 154,
+    "kind": "proposed",
+    "version": "DP:153@154:v154"
+  },
+  {
+    "knownAt": 155,
+    "kind": "retracted-proposal",
+    "version": "DP:153@154:v154",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 155,
+    "kind": "proposed",
+    "version": "DP:153@154:v155"
+  },
+  {
+    "knownAt": 156,
+    "kind": "retracted-proposal",
+    "version": "DP:153@154:v155",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 156,
+    "kind": "proposed",
+    "version": "DP:153@154:v156"
+  },
+  {
+    "knownAt": 157,
+    "kind": "retracted-proposal",
+    "version": "DP:153@154:v156",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 157,
+    "kind": "proposed",
+    "version": "DP:153@154:v157"
+  },
+  {
+    "knownAt": 158,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 149,
+      "end": 153,
+      "start_price": 65200,
+      "end_price": 69600
+    },
+    "candidateVersion": "DP:149@150:v153"
+  },
+  {
+    "knownAt": 158,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 153,
+      "end": 157,
+      "start_price": 69600,
+      "end_price": 66400
+    },
+    "candidateVersion": "DP:153@154:v157",
+    "geometryIndex": 38
+  },
+  {
+    "knownAt": 158,
+    "kind": "proposed",
+    "version": "DP:157@158:v158"
+  },
+  {
+    "knownAt": 159,
+    "kind": "retracted-proposal",
+    "version": "DP:157@158:v158",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 159,
+    "kind": "proposed",
+    "version": "DP:157@158:v159"
+  },
+  {
+    "knownAt": 160,
+    "kind": "retracted-proposal",
+    "version": "DP:157@158:v159",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 160,
+    "kind": "proposed",
+    "version": "DP:157@158:v160"
+  },
+  {
+    "knownAt": 161,
+    "kind": "retracted-proposal",
+    "version": "DP:157@158:v160",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 161,
+    "kind": "proposed",
+    "version": "DP:157@158:v161"
+  },
+  {
+    "knownAt": 162,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 153,
+      "end": 157,
+      "start_price": 69600,
+      "end_price": 66400
+    },
+    "candidateVersion": "DP:153@154:v157"
+  },
+  {
+    "knownAt": 162,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 157,
+      "end": 161,
+      "start_price": 66400,
+      "end_price": 70000
+    },
+    "candidateVersion": "DP:157@158:v161",
+    "geometryIndex": 39
+  },
+  {
+    "knownAt": 162,
+    "kind": "proposed",
+    "version": "DP:161@162:v162"
+  },
+  {
+    "knownAt": 163,
+    "kind": "retracted-proposal",
+    "version": "DP:161@162:v162",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 163,
+    "kind": "proposed",
+    "version": "DP:161@162:v163"
+  },
+  {
+    "knownAt": 164,
+    "kind": "retracted-proposal",
+    "version": "DP:161@162:v163",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 164,
+    "kind": "proposed",
+    "version": "DP:161@162:v164"
+  },
+  {
+    "knownAt": 165,
+    "kind": "retracted-proposal",
+    "version": "DP:161@162:v164",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 165,
+    "kind": "proposed",
+    "version": "DP:161@162:v165"
+  },
+  {
+    "knownAt": 166,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 157,
+      "end": 161,
+      "start_price": 66400,
+      "end_price": 70000
+    },
+    "candidateVersion": "DP:157@158:v161"
+  },
+  {
+    "knownAt": 166,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 161,
+      "end": 165,
+      "start_price": 70000,
+      "end_price": 68000
+    },
+    "candidateVersion": "DP:161@162:v165",
+    "geometryIndex": 40
+  },
+  {
+    "knownAt": 166,
+    "kind": "proposed",
+    "version": "DP:165@166:v166"
+  },
+  {
+    "knownAt": 166,
+    "kind": "freeze-raw-pen-span",
+    "raw": {
+      "id": "Raw:7",
+      "start": 141,
+      "candidateFirstKnownAt": 146,
+      "end": 161,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "endpointKnownAt": 162,
+      "terminalCandidate": "DP:157@158:v161",
+      "frozenL": {
+        "num": -300,
+        "den": 1
+      },
+      "frozenAt": 166
+    }
+  },
+  {
+    "knownAt": 167,
+    "kind": "retracted-proposal",
+    "version": "DP:165@166:v166",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 167,
+    "kind": "proposed",
+    "version": "DP:165@166:v167"
+  },
+  {
+    "knownAt": 168,
+    "kind": "retracted-proposal",
+    "version": "DP:165@166:v167",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 168,
+    "kind": "proposed",
+    "version": "DP:165@166:v168"
+  },
+  {
+    "knownAt": 169,
+    "kind": "retracted-proposal",
+    "version": "DP:165@166:v168",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 169,
+    "kind": "proposed",
+    "version": "DP:165@166:v169"
+  },
+  {
+    "knownAt": 170,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 161,
+      "end": 165,
+      "start_price": 70000,
+      "end_price": 68000
+    },
+    "candidateVersion": "DP:161@162:v165"
+  },
+  {
+    "knownAt": 170,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 165,
+      "end": 169,
+      "start_price": 68000,
+      "end_price": 69200
+    },
+    "candidateVersion": "DP:165@166:v169",
+    "geometryIndex": 41
+  },
+  {
+    "knownAt": 170,
+    "kind": "proposed",
+    "version": "DP:169@170:v170"
+  },
+  {
+    "knownAt": 171,
+    "kind": "retracted-proposal",
+    "version": "DP:169@170:v170",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 171,
+    "kind": "proposed",
+    "version": "DP:169@170:v171"
+  },
+  {
+    "knownAt": 172,
+    "kind": "retracted-proposal",
+    "version": "DP:169@170:v171",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 172,
+    "kind": "proposed",
+    "version": "DP:169@170:v172"
+  },
+  {
+    "knownAt": 173,
+    "kind": "retracted-proposal",
+    "version": "DP:169@170:v172",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 173,
+    "kind": "proposed",
+    "version": "DP:169@170:v173"
+  },
+  {
+    "knownAt": 174,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 165,
+      "end": 169,
+      "start_price": 68000,
+      "end_price": 69200
+    },
+    "candidateVersion": "DP:165@166:v169"
+  },
+  {
+    "knownAt": 174,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 169,
+      "end": 173,
+      "start_price": 69200,
+      "end_price": 66800
+    },
+    "candidateVersion": "DP:169@170:v173",
+    "geometryIndex": 42
+  },
+  {
+    "knownAt": 174,
+    "kind": "proposed",
+    "version": "DP:173@174:v174"
+  },
+  {
+    "knownAt": 175,
+    "kind": "retracted-proposal",
+    "version": "DP:173@174:v174",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 175,
+    "kind": "proposed",
+    "version": "DP:173@174:v175"
+  },
+  {
+    "knownAt": 176,
+    "kind": "retracted-proposal",
+    "version": "DP:173@174:v175",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 176,
+    "kind": "proposed",
+    "version": "DP:173@174:v176"
+  },
+  {
+    "knownAt": 177,
+    "kind": "retracted-proposal",
+    "version": "DP:173@174:v176",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 177,
+    "kind": "proposed",
+    "version": "DP:173@174:v177"
+  },
+  {
+    "knownAt": 178,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 169,
+      "end": 173,
+      "start_price": 69200,
+      "end_price": 66800
+    },
+    "candidateVersion": "DP:169@170:v173"
+  },
+  {
+    "knownAt": 178,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 173,
+      "end": 177,
+      "start_price": 66800,
+      "end_price": 68400
+    },
+    "candidateVersion": "DP:173@174:v177",
+    "geometryIndex": 43
+  },
+  {
+    "knownAt": 178,
+    "kind": "proposed",
+    "version": "DP:177@178:v178"
+  },
+  {
+    "knownAt": 179,
+    "kind": "retracted-proposal",
+    "version": "DP:177@178:v178",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 179,
+    "kind": "proposed",
+    "version": "DP:177@178:v179"
+  },
+  {
+    "knownAt": 180,
+    "kind": "retracted-proposal",
+    "version": "DP:177@178:v179",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 180,
+    "kind": "proposed",
+    "version": "DP:177@178:v180"
+  },
+  {
+    "knownAt": 181,
+    "kind": "retracted-proposal",
+    "version": "DP:177@178:v180",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 181,
+    "kind": "proposed",
+    "version": "DP:177@178:v181"
+  },
+  {
+    "knownAt": 182,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 173,
+      "end": 177,
+      "start_price": 66800,
+      "end_price": 68400
+    },
+    "candidateVersion": "DP:173@174:v177"
+  },
+  {
+    "knownAt": 182,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 177,
+      "end": 181,
+      "start_price": 68400,
+      "end_price": 66000
+    },
+    "candidateVersion": "DP:177@178:v181",
+    "geometryIndex": 44
+  },
+  {
+    "knownAt": 182,
+    "kind": "proposed",
+    "version": "DP:181@182:v182"
+  },
+  {
+    "knownAt": 183,
+    "kind": "retracted-proposal",
+    "version": "DP:181@182:v182",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 183,
+    "kind": "proposed",
+    "version": "DP:181@182:v183"
+  },
+  {
+    "knownAt": 184,
+    "kind": "retracted-proposal",
+    "version": "DP:181@182:v183",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 184,
+    "kind": "proposed",
+    "version": "DP:181@182:v184"
+  },
+  {
+    "knownAt": 185,
+    "kind": "retracted-proposal",
+    "version": "DP:181@182:v184",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 185,
+    "kind": "proposed",
+    "version": "DP:181@182:v185"
+  },
+  {
+    "knownAt": 186,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 177,
+      "end": 181,
+      "start_price": 68400,
+      "end_price": 66000
+    },
+    "candidateVersion": "DP:177@178:v181"
+  },
+  {
+    "knownAt": 186,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 181,
+      "end": 185,
+      "start_price": 66000,
+      "end_price": 67600
+    },
+    "candidateVersion": "DP:181@182:v185",
+    "geometryIndex": 45
+  },
+  {
+    "knownAt": 186,
+    "kind": "proposed",
+    "version": "DP:185@186:v186"
+  },
+  {
+    "knownAt": 186,
+    "kind": "freeze-raw-pen-span",
+    "raw": {
+      "id": "Raw:8",
+      "start": 161,
+      "candidateFirstKnownAt": 166,
+      "end": 181,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "endpointKnownAt": 182,
+      "terminalCandidate": "DP:177@178:v181",
+      "frozenL": {
+        "num": -100,
+        "den": 1
+      },
+      "frozenAt": 186
+    }
+  },
+  {
+    "knownAt": 187,
+    "kind": "retracted-proposal",
+    "version": "DP:185@186:v186",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 187,
+    "kind": "proposed",
+    "version": "DP:185@186:v187"
+  },
+  {
+    "knownAt": 188,
+    "kind": "retracted-proposal",
+    "version": "DP:185@186:v187",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 188,
+    "kind": "proposed",
+    "version": "DP:185@186:v188"
+  },
+  {
+    "knownAt": 189,
+    "kind": "retracted-proposal",
+    "version": "DP:185@186:v188",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 189,
+    "kind": "proposed",
+    "version": "DP:185@186:v189"
+  },
+  {
+    "knownAt": 190,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 181,
+      "end": 185,
+      "start_price": 66000,
+      "end_price": 67600
+    },
+    "candidateVersion": "DP:181@182:v185"
+  },
+  {
+    "knownAt": 190,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 185,
+      "end": 189,
+      "start_price": 67600,
+      "end_price": 66400
+    },
+    "candidateVersion": "DP:185@186:v189",
+    "geometryIndex": 46
+  },
+  {
+    "knownAt": 190,
+    "kind": "proposed",
+    "version": "DP:189@190:v190"
+  },
+  {
+    "knownAt": 191,
+    "kind": "retracted-proposal",
+    "version": "DP:189@190:v190",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 191,
+    "kind": "proposed",
+    "version": "DP:189@190:v191"
+  },
+  {
+    "knownAt": 192,
+    "kind": "retracted-proposal",
+    "version": "DP:189@190:v191",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 192,
+    "kind": "proposed",
+    "version": "DP:189@190:v192"
+  },
+  {
+    "knownAt": 193,
+    "kind": "retracted-proposal",
+    "version": "DP:189@190:v192",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 193,
+    "kind": "proposed",
+    "version": "DP:189@190:v193"
+  },
+  {
+    "knownAt": 194,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 185,
+      "end": 189,
+      "start_price": 67600,
+      "end_price": 66400
+    },
+    "candidateVersion": "DP:185@186:v189"
+  },
+  {
+    "knownAt": 194,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 189,
+      "end": 193,
+      "start_price": 66400,
+      "end_price": 68400
+    },
+    "candidateVersion": "DP:189@190:v193",
+    "geometryIndex": 47
+  },
+  {
+    "knownAt": 194,
+    "kind": "proposed",
+    "version": "DP:193@194:v194"
+  },
+  {
+    "knownAt": 195,
+    "kind": "retracted-proposal",
+    "version": "DP:193@194:v194",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 195,
+    "kind": "proposed",
+    "version": "DP:193@194:v195"
+  },
+  {
+    "knownAt": 196,
+    "kind": "retracted-proposal",
+    "version": "DP:193@194:v195",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 196,
+    "kind": "proposed",
+    "version": "DP:193@194:v196"
+  },
+  {
+    "knownAt": 197,
+    "kind": "retracted-proposal",
+    "version": "DP:193@194:v196",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 197,
+    "kind": "proposed",
+    "version": "DP:193@194:v197"
+  },
+  {
+    "knownAt": 198,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 189,
+      "end": 193,
+      "start_price": 66400,
+      "end_price": 68400
+    },
+    "candidateVersion": "DP:189@190:v193"
+  },
+  {
+    "knownAt": 198,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 193,
+      "end": 197,
+      "start_price": 68400,
+      "end_price": 66800
+    },
+    "candidateVersion": "DP:193@194:v197",
+    "geometryIndex": 48
+  },
+  {
+    "knownAt": 198,
+    "kind": "proposed",
+    "version": "DP:197@198:v198"
+  },
+  {
+    "knownAt": 199,
+    "kind": "retracted-proposal",
+    "version": "DP:197@198:v198",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 199,
+    "kind": "proposed",
+    "version": "DP:197@198:v199"
+  },
+  {
+    "knownAt": 200,
+    "kind": "retracted-proposal",
+    "version": "DP:197@198:v199",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 200,
+    "kind": "proposed",
+    "version": "DP:197@198:v200"
+  },
+  {
+    "knownAt": 201,
+    "kind": "retracted-proposal",
+    "version": "DP:197@198:v200",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 201,
+    "kind": "proposed",
+    "version": "DP:197@198:v201"
+  },
+  {
+    "knownAt": 202,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 193,
+      "end": 197,
+      "start_price": 68400,
+      "end_price": 66800
+    },
+    "candidateVersion": "DP:193@194:v197"
+  },
+  {
+    "knownAt": 202,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 197,
+      "end": 201,
+      "start_price": 66800,
+      "end_price": 68800
+    },
+    "candidateVersion": "DP:197@198:v201",
+    "geometryIndex": 49
+  },
+  {
+    "knownAt": 202,
+    "kind": "proposed",
+    "version": "DP:201@202:v202"
+  },
+  {
+    "knownAt": 203,
+    "kind": "retracted-proposal",
+    "version": "DP:201@202:v202",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 203,
+    "kind": "proposed",
+    "version": "DP:201@202:v203"
+  },
+  {
+    "knownAt": 204,
+    "kind": "retracted-proposal",
+    "version": "DP:201@202:v203",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 204,
+    "kind": "proposed",
+    "version": "DP:201@202:v204"
+  },
+  {
+    "knownAt": 205,
+    "kind": "retracted-proposal",
+    "version": "DP:201@202:v204",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 205,
+    "kind": "proposed",
+    "version": "DP:201@202:v205"
+  },
+  {
+    "knownAt": 206,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 197,
+      "end": 201,
+      "start_price": 66800,
+      "end_price": 68800
+    },
+    "candidateVersion": "DP:197@198:v201"
+  },
+  {
+    "knownAt": 206,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 201,
+      "end": 205,
+      "start_price": 68800,
+      "end_price": 68000
+    },
+    "candidateVersion": "DP:201@202:v205",
+    "geometryIndex": 50
+  },
+  {
+    "knownAt": 206,
+    "kind": "proposed",
+    "version": "DP:205@206:v206"
+  },
+  {
+    "knownAt": 206,
+    "kind": "freeze-raw-pen-span",
+    "raw": {
+      "id": "Raw:9",
+      "start": 181,
+      "candidateFirstKnownAt": 186,
+      "end": 201,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "endpointKnownAt": 202,
+      "terminalCandidate": "DP:197@198:v201",
+      "frozenL": {
+        "num": 100,
+        "den": 1
+      },
+      "frozenAt": 206
+    }
+  },
+  {
+    "knownAt": 207,
+    "kind": "retracted-proposal",
+    "version": "DP:205@206:v206",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 207,
+    "kind": "proposed",
+    "version": "DP:205@206:v207"
+  },
+  {
+    "knownAt": 208,
+    "kind": "retracted-proposal",
+    "version": "DP:205@206:v207",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 208,
+    "kind": "proposed",
+    "version": "DP:205@206:v208"
+  },
+  {
+    "knownAt": 209,
+    "kind": "retracted-proposal",
+    "version": "DP:205@206:v208",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 209,
+    "kind": "proposed",
+    "version": "DP:205@206:v209"
+  },
+  {
+    "knownAt": 210,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 201,
+      "end": 205,
+      "start_price": 68800,
+      "end_price": 68000
+    },
+    "candidateVersion": "DP:201@202:v205"
+  },
+  {
+    "knownAt": 210,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 205,
+      "end": 209,
+      "start_price": 68000,
+      "end_price": 68400
+    },
+    "candidateVersion": "DP:205@206:v209",
+    "geometryIndex": 51
+  },
+  {
+    "knownAt": 210,
+    "kind": "proposed",
+    "version": "DP:209@210:v210"
+  },
+  {
+    "knownAt": 211,
+    "kind": "retracted-proposal",
+    "version": "DP:209@210:v210",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 211,
+    "kind": "proposed",
+    "version": "DP:209@210:v211"
+  },
+  {
+    "knownAt": 212,
+    "kind": "retracted-proposal",
+    "version": "DP:209@210:v211",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 212,
+    "kind": "proposed",
+    "version": "DP:209@210:v212"
+  },
+  {
+    "knownAt": 213,
+    "kind": "retracted-proposal",
+    "version": "DP:209@210:v212",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 213,
+    "kind": "proposed",
+    "version": "DP:209@210:v213"
+  },
+  {
+    "knownAt": 214,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 205,
+      "end": 209,
+      "start_price": 68000,
+      "end_price": 68400
+    },
+    "candidateVersion": "DP:205@206:v209"
+  },
+  {
+    "knownAt": 214,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 209,
+      "end": 213,
+      "start_price": 68400,
+      "end_price": 63200
+    },
+    "candidateVersion": "DP:209@210:v213",
+    "geometryIndex": 52
+  },
+  {
+    "knownAt": 214,
+    "kind": "proposed",
+    "version": "DP:213@214:v214"
+  },
+  {
+    "knownAt": 215,
+    "kind": "retracted-proposal",
+    "version": "DP:213@214:v214",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 215,
+    "kind": "proposed",
+    "version": "DP:213@214:v215"
+  },
+  {
+    "knownAt": 216,
+    "kind": "retracted-proposal",
+    "version": "DP:213@214:v215",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 216,
+    "kind": "proposed",
+    "version": "DP:213@214:v216"
+  },
+  {
+    "knownAt": 217,
+    "kind": "retracted-proposal",
+    "version": "DP:213@214:v216",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 217,
+    "kind": "proposed",
+    "version": "DP:213@214:v217"
+  },
+  {
+    "knownAt": 218,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 209,
+      "end": 213,
+      "start_price": 68400,
+      "end_price": 63200
+    },
+    "candidateVersion": "DP:209@210:v213"
+  },
+  {
+    "knownAt": 218,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 213,
+      "end": 217,
+      "start_price": 63200,
+      "end_price": 67600
+    },
+    "candidateVersion": "DP:213@214:v217",
+    "geometryIndex": 53
+  },
+  {
+    "knownAt": 218,
+    "kind": "proposed",
+    "version": "DP:217@218:v218"
+  },
+  {
+    "knownAt": 219,
+    "kind": "retracted-proposal",
+    "version": "DP:217@218:v218",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 219,
+    "kind": "proposed",
+    "version": "DP:217@218:v219"
+  },
+  {
+    "knownAt": 220,
+    "kind": "retracted-proposal",
+    "version": "DP:217@218:v219",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 220,
+    "kind": "proposed",
+    "version": "DP:217@218:v220"
+  },
+  {
+    "knownAt": 221,
+    "kind": "retracted-proposal",
+    "version": "DP:217@218:v220",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 221,
+    "kind": "proposed",
+    "version": "DP:217@218:v221"
+  },
+  {
+    "knownAt": 222,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 213,
+      "end": 217,
+      "start_price": 63200,
+      "end_price": 67600
+    },
+    "candidateVersion": "DP:213@214:v217"
+  },
+  {
+    "knownAt": 222,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 217,
+      "end": 221,
+      "start_price": 67600,
+      "end_price": 62000
+    },
+    "candidateVersion": "DP:217@218:v221",
+    "geometryIndex": 54
+  },
+  {
+    "knownAt": 222,
+    "kind": "proposed",
+    "version": "DP:221@222:v222"
+  },
+  {
+    "knownAt": 222,
+    "kind": "whole-endpoint-proposal-confirmed-rw",
+    "whole": {
+      "id": "P1",
+      "start": 121,
+      "candidateFirstKnownAt": 122,
+      "end": 221,
+      "state": "ended-awaiting-stability",
+      "Completed_original": null,
+      "Owner_original": null,
+      "Next_original": null,
+      "F2_original": null,
+      "endpointKnownAt": 222,
+      "terminalCandidate": "DP:217@218:v221"
+    }
+  },
+  {
+    "knownAt": 223,
+    "kind": "retracted-proposal",
+    "version": "DP:221@222:v222",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 223,
+    "kind": "proposed",
+    "version": "DP:221@222:v223"
+  },
+  {
+    "knownAt": 224,
+    "kind": "retracted-proposal",
+    "version": "DP:221@222:v223",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 224,
+    "kind": "proposed",
+    "version": "DP:221@222:v224"
+  },
+  {
+    "knownAt": 225,
+    "kind": "retracted-proposal",
+    "version": "DP:221@222:v224",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 225,
+    "kind": "proposed",
+    "version": "DP:221@222:v225"
+  },
+  {
+    "knownAt": 226,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 217,
+      "end": 221,
+      "start_price": 67600,
+      "end_price": 62000
+    },
+    "candidateVersion": "DP:217@218:v221"
+  },
+  {
+    "knownAt": 226,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 221,
+      "end": 225,
+      "start_price": 62000,
+      "end_price": 63600
+    },
+    "candidateVersion": "DP:221@222:v225",
+    "geometryIndex": 55
+  },
+  {
+    "knownAt": 226,
+    "kind": "proposed",
+    "version": "DP:225@226:v226"
+  },
+  {
+    "knownAt": 226,
+    "kind": "freeze-raw-pen-span",
+    "raw": {
+      "id": "Raw:10",
+      "start": 201,
+      "candidateFirstKnownAt": 206,
+      "end": 221,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "endpointKnownAt": 222,
+      "terminalCandidate": "DP:217@218:v221",
+      "frozenL": {
+        "num": -1200,
+        "den": 1
+      },
+      "frozenAt": 226
+    }
+  },
+  {
+    "knownAt": 226,
+    "kind": "freeze-whole-pen-span",
+    "whole": {
+      "id": "P1",
+      "start": 121,
+      "candidateFirstKnownAt": 122,
+      "end": 221,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "Completed_original": null,
+      "Owner_original": null,
+      "Next_original": null,
+      "F2_original": null,
+      "endpointKnownAt": 222,
+      "terminalCandidate": "DP:217@218:v221",
+      "frozenAt": 226,
+      "wholeFrozenL": {
+        "num": -1000,
+        "den": 1
+      },
+      "cFrozenL": {
+        "num": -1200,
+        "den": 1
+      }
+    }
+  },
+  {
+    "knownAt": 227,
+    "kind": "retracted-proposal",
+    "version": "DP:225@226:v226",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 227,
+    "kind": "proposed",
+    "version": "DP:225@226:v227"
+  },
+  {
+    "knownAt": 228,
+    "kind": "retracted-proposal",
+    "version": "DP:225@226:v227",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 228,
+    "kind": "proposed",
+    "version": "DP:225@226:v228"
+  },
+  {
+    "knownAt": 229,
+    "kind": "retracted-proposal",
+    "version": "DP:225@226:v228",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 229,
+    "kind": "proposed",
+    "version": "DP:225@226:v229"
+  },
+  {
+    "knownAt": 230,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 221,
+      "end": 225,
+      "start_price": 62000,
+      "end_price": 63600
+    },
+    "candidateVersion": "DP:221@222:v225"
+  },
+  {
+    "knownAt": 230,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 225,
+      "end": 229,
+      "start_price": 63600,
+      "end_price": 62800
+    },
+    "candidateVersion": "DP:225@226:v229",
+    "geometryIndex": 56
+  },
+  {
+    "knownAt": 230,
+    "kind": "proposed",
+    "version": "DP:229@230:v230"
+  },
+  {
+    "knownAt": 231,
+    "kind": "retracted-proposal",
+    "version": "DP:229@230:v230",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 231,
+    "kind": "proposed",
+    "version": "DP:229@230:v231"
+  },
+  {
+    "knownAt": 232,
+    "kind": "retracted-proposal",
+    "version": "DP:229@230:v231",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 232,
+    "kind": "proposed",
+    "version": "DP:229@230:v232"
+  },
+  {
+    "knownAt": 233,
+    "kind": "retracted-proposal",
+    "version": "DP:229@230:v232",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 233,
+    "kind": "proposed",
+    "version": "DP:229@230:v233"
+  },
+  {
+    "knownAt": 234,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 225,
+      "end": 229,
+      "start_price": 63600,
+      "end_price": 62800
+    },
+    "candidateVersion": "DP:225@226:v229"
+  },
+  {
+    "knownAt": 234,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 229,
+      "end": 233,
+      "start_price": 62800,
+      "end_price": 64800
+    },
+    "candidateVersion": "DP:229@230:v233",
+    "geometryIndex": 57
+  },
+  {
+    "knownAt": 234,
+    "kind": "proposed",
+    "version": "DP:233@234:v234"
+  },
+  {
+    "knownAt": 235,
+    "kind": "retracted-proposal",
+    "version": "DP:233@234:v234",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 235,
+    "kind": "proposed",
+    "version": "DP:233@234:v235"
+  },
+  {
+    "knownAt": 236,
+    "kind": "retracted-proposal",
+    "version": "DP:233@234:v235",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 236,
+    "kind": "proposed",
+    "version": "DP:233@234:v236"
+  },
+  {
+    "knownAt": 237,
+    "kind": "retracted-proposal",
+    "version": "DP:233@234:v236",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 237,
+    "kind": "proposed",
+    "version": "DP:233@234:v237"
+  },
+  {
+    "knownAt": 238,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 229,
+      "end": 233,
+      "start_price": 62800,
+      "end_price": 64800
+    },
+    "candidateVersion": "DP:229@230:v233"
+  },
+  {
+    "knownAt": 238,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 233,
+      "end": 237,
+      "start_price": 64800,
+      "end_price": 63600
+    },
+    "candidateVersion": "DP:233@234:v237",
+    "geometryIndex": 58
+  },
+  {
+    "knownAt": 238,
+    "kind": "proposed",
+    "version": "DP:237@238:v238"
+  },
+  {
+    "knownAt": 238,
+    "kind": "selected-whole-raw-evidence-complete",
+    "whole": {
+      "id": "P1",
+      "start": 121,
+      "candidateFirstKnownAt": 122,
+      "end": 221,
+      "state": "selected-raw-evidence-complete",
+      "Completed_original": null,
+      "Owner_original": null,
+      "Next_original": null,
+      "F2_original": null,
+      "endpointKnownAt": 222,
+      "terminalCandidate": "DP:217@218:v221",
+      "frozenAt": 226,
+      "wholeFrozenL": {
+        "num": -1000,
+        "den": 1
+      },
+      "cFrozenL": {
+        "num": -1200,
+        "den": 1
+      },
+      "rawEvidenceKnownAt": 238
+    },
+    "basis": "reviewed-Stage67-current-row"
+  },
+  {
+    "knownAt": 239,
+    "kind": "retracted-proposal",
+    "version": "DP:237@238:v238",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 239,
+    "kind": "proposed",
+    "version": "DP:237@238:v239"
+  },
+  {
+    "knownAt": 240,
+    "kind": "retracted-proposal",
+    "version": "DP:237@238:v239",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 240,
+    "kind": "proposed",
+    "version": "DP:237@238:v240"
+  },
+  {
+    "knownAt": 241,
+    "kind": "retracted-proposal",
+    "version": "DP:237@238:v240",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 241,
+    "kind": "proposed",
+    "version": "DP:237@238:v241"
+  },
+  {
+    "knownAt": 242,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 233,
+      "end": 237,
+      "start_price": 64800,
+      "end_price": 63600
+    },
+    "candidateVersion": "DP:233@234:v237"
+  },
+  {
+    "knownAt": 242,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 237,
+      "end": 241,
+      "start_price": 63600,
+      "end_price": 65600
+    },
+    "candidateVersion": "DP:237@238:v241",
+    "geometryIndex": 59
+  },
+  {
+    "knownAt": 242,
+    "kind": "proposed",
+    "version": "DP:241@242:v242"
+  },
+  {
+    "knownAt": 243,
+    "kind": "retracted-proposal",
+    "version": "DP:241@242:v242",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 243,
+    "kind": "proposed",
+    "version": "DP:241@242:v243"
+  },
+  {
+    "knownAt": 244,
+    "kind": "retracted-proposal",
+    "version": "DP:241@242:v243",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 244,
+    "kind": "proposed",
+    "version": "DP:241@242:v244"
+  },
+  {
+    "knownAt": 245,
+    "kind": "retracted-proposal",
+    "version": "DP:241@242:v244",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 245,
+    "kind": "proposed",
+    "version": "DP:241@242:v245"
+  },
+  {
+    "knownAt": 246,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 237,
+      "end": 241,
+      "start_price": 63600,
+      "end_price": 65600
+    },
+    "candidateVersion": "DP:237@238:v241"
+  },
+  {
+    "knownAt": 246,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 241,
+      "end": 245,
+      "start_price": 65600,
+      "end_price": 64400
+    },
+    "candidateVersion": "DP:241@242:v245",
+    "geometryIndex": 60
+  },
+  {
+    "knownAt": 246,
+    "kind": "proposed",
+    "version": "DP:245@246:v246"
+  },
+  {
+    "knownAt": 246,
+    "kind": "freeze-raw-pen-span",
+    "raw": {
+      "id": "Raw:11",
+      "start": 221,
+      "candidateFirstKnownAt": 226,
+      "end": 241,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "endpointKnownAt": 242,
+      "terminalCandidate": "DP:237@238:v241",
+      "frozenL": {
+        "num": 100,
+        "den": 1
+      },
+      "frozenAt": 246
+    }
+  },
+  {
+    "knownAt": 247,
+    "kind": "retracted-proposal",
+    "version": "DP:245@246:v246",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 247,
+    "kind": "proposed",
+    "version": "DP:245@246:v247"
+  },
+  {
+    "knownAt": 248,
+    "kind": "retracted-proposal",
+    "version": "DP:245@246:v247",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 248,
+    "kind": "proposed",
+    "version": "DP:245@246:v248"
+  },
+  {
+    "knownAt": 249,
+    "kind": "retracted-proposal",
+    "version": "DP:245@246:v248",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 249,
+    "kind": "proposed",
+    "version": "DP:245@246:v249"
+  },
+  {
+    "knownAt": 250,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 241,
+      "end": 245,
+      "start_price": 65600,
+      "end_price": 64400
+    },
+    "candidateVersion": "DP:241@242:v245"
+  },
+  {
+    "knownAt": 250,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 245,
+      "end": 249,
+      "start_price": 64400,
+      "end_price": 65200
+    },
+    "candidateVersion": "DP:245@246:v249",
+    "geometryIndex": 61
+  },
+  {
+    "knownAt": 250,
+    "kind": "proposed",
+    "version": "DP:249@250:v250"
+  },
+  {
+    "knownAt": 251,
+    "kind": "retracted-proposal",
+    "version": "DP:249@250:v250",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 251,
+    "kind": "proposed",
+    "version": "DP:249@250:v251"
+  },
+  {
+    "knownAt": 252,
+    "kind": "retracted-proposal",
+    "version": "DP:249@250:v251",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 252,
+    "kind": "proposed",
+    "version": "DP:249@250:v252"
+  },
+  {
+    "knownAt": 253,
+    "kind": "retracted-proposal",
+    "version": "DP:249@250:v252",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 253,
+    "kind": "proposed",
+    "version": "DP:249@250:v253"
+  },
+  {
+    "knownAt": 254,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 245,
+      "end": 249,
+      "start_price": 64400,
+      "end_price": 65200
+    },
+    "candidateVersion": "DP:245@246:v249"
+  },
+  {
+    "knownAt": 254,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 249,
+      "end": 253,
+      "start_price": 65200,
+      "end_price": 61600
+    },
+    "candidateVersion": "DP:249@250:v253",
+    "geometryIndex": 62
+  },
+  {
+    "knownAt": 254,
+    "kind": "proposed",
+    "version": "DP:253@254:v254"
+  },
+  {
+    "knownAt": 255,
+    "kind": "retracted-proposal",
+    "version": "DP:253@254:v254",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 255,
+    "kind": "proposed",
+    "version": "DP:253@254:v255"
+  },
+  {
+    "knownAt": 256,
+    "kind": "retracted-proposal",
+    "version": "DP:253@254:v255",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 256,
+    "kind": "proposed",
+    "version": "DP:253@254:v256"
+  },
+  {
+    "knownAt": 257,
+    "kind": "retracted-proposal",
+    "version": "DP:253@254:v256",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 257,
+    "kind": "proposed",
+    "version": "DP:253@254:v257"
+  },
+  {
+    "knownAt": 258,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 249,
+      "end": 253,
+      "start_price": 65200,
+      "end_price": 61600
+    },
+    "candidateVersion": "DP:249@250:v253"
+  },
+  {
+    "knownAt": 258,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 253,
+      "end": 257,
+      "start_price": 61600,
+      "end_price": 64000
+    },
+    "candidateVersion": "DP:253@254:v257",
+    "geometryIndex": 63
+  },
+  {
+    "knownAt": 258,
+    "kind": "proposed",
+    "version": "DP:257@258:v258"
+  },
+  {
+    "knownAt": 259,
+    "kind": "retracted-proposal",
+    "version": "DP:257@258:v258",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 259,
+    "kind": "proposed",
+    "version": "DP:257@258:v259"
+  },
+  {
+    "knownAt": 260,
+    "kind": "retracted-proposal",
+    "version": "DP:257@258:v259",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 260,
+    "kind": "proposed",
+    "version": "DP:257@258:v260"
+  },
+  {
+    "knownAt": 261,
+    "kind": "retracted-proposal",
+    "version": "DP:257@258:v260",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 261,
+    "kind": "proposed",
+    "version": "DP:257@258:v261"
+  },
+  {
+    "knownAt": 262,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 253,
+      "end": 257,
+      "start_price": 61600,
+      "end_price": 64000
+    },
+    "candidateVersion": "DP:253@254:v257"
+  },
+  {
+    "knownAt": 262,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 257,
+      "end": 261,
+      "start_price": 64000,
+      "end_price": 60000
+    },
+    "candidateVersion": "DP:257@258:v261",
+    "geometryIndex": 64
+  },
+  {
+    "knownAt": 262,
+    "kind": "proposed",
+    "version": "DP:261@262:v262"
+  },
+  {
+    "knownAt": 263,
+    "kind": "retracted-proposal",
+    "version": "DP:261@262:v262",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 263,
+    "kind": "proposed",
+    "version": "DP:261@262:v263"
+  },
+  {
+    "knownAt": 264,
+    "kind": "retracted-proposal",
+    "version": "DP:261@262:v263",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 264,
+    "kind": "proposed",
+    "version": "DP:261@262:v264"
+  },
+  {
+    "knownAt": 265,
+    "kind": "retracted-proposal",
+    "version": "DP:261@262:v264",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 265,
+    "kind": "proposed",
+    "version": "DP:261@262:v265"
+  },
+  {
+    "knownAt": 266,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 257,
+      "end": 261,
+      "start_price": 64000,
+      "end_price": 60000
+    },
+    "candidateVersion": "DP:257@258:v261"
+  },
+  {
+    "knownAt": 266,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 261,
+      "end": 265,
+      "start_price": 60000,
+      "end_price": 62000
+    },
+    "candidateVersion": "DP:261@262:v265",
+    "geometryIndex": 65
+  },
+  {
+    "knownAt": 266,
+    "kind": "proposed",
+    "version": "DP:265@266:v266"
+  },
+  {
+    "knownAt": 266,
+    "kind": "freeze-raw-pen-span",
+    "raw": {
+      "id": "Raw:12",
+      "start": 241,
+      "candidateFirstKnownAt": 246,
+      "end": 261,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "endpointKnownAt": 262,
+      "terminalCandidate": "DP:257@258:v261",
+      "frozenL": {
+        "num": -700,
+        "den": 1
+      },
+      "frozenAt": 266
+    }
+  },
+  {
+    "knownAt": 267,
+    "kind": "retracted-proposal",
+    "version": "DP:265@266:v266",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 267,
+    "kind": "proposed",
+    "version": "DP:265@266:v267"
+  },
+  {
+    "knownAt": 268,
+    "kind": "retracted-proposal",
+    "version": "DP:265@266:v267",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 268,
+    "kind": "proposed",
+    "version": "DP:265@266:v268"
+  },
+  {
+    "knownAt": 269,
+    "kind": "retracted-proposal",
+    "version": "DP:265@266:v268",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 269,
+    "kind": "proposed",
+    "version": "DP:265@266:v269"
+  },
+  {
+    "knownAt": 270,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 261,
+      "end": 265,
+      "start_price": 60000,
+      "end_price": 62000
+    },
+    "candidateVersion": "DP:261@262:v265"
+  },
+  {
+    "knownAt": 270,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 265,
+      "end": 269,
+      "start_price": 62000,
+      "end_price": 60800
+    },
+    "candidateVersion": "DP:265@266:v269",
+    "geometryIndex": 66
+  },
+  {
+    "knownAt": 270,
+    "kind": "proposed",
+    "version": "DP:269@270:v270"
+  },
+  {
+    "knownAt": 271,
+    "kind": "retracted-proposal",
+    "version": "DP:269@270:v270",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 271,
+    "kind": "proposed",
+    "version": "DP:269@270:v271"
+  },
+  {
+    "knownAt": 272,
+    "kind": "retracted-proposal",
+    "version": "DP:269@270:v271",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 272,
+    "kind": "proposed",
+    "version": "DP:269@270:v272"
+  },
+  {
+    "knownAt": 273,
+    "kind": "retracted-proposal",
+    "version": "DP:269@270:v272",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 273,
+    "kind": "proposed",
+    "version": "DP:269@270:v273"
+  },
+  {
+    "knownAt": 274,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 265,
+      "end": 269,
+      "start_price": 62000,
+      "end_price": 60800
+    },
+    "candidateVersion": "DP:265@266:v269"
+  },
+  {
+    "knownAt": 274,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 269,
+      "end": 273,
+      "start_price": 60800,
+      "end_price": 63200
+    },
+    "candidateVersion": "DP:269@270:v273",
+    "geometryIndex": 67
+  },
+  {
+    "knownAt": 274,
+    "kind": "proposed",
+    "version": "DP:273@274:v274"
+  },
+  {
+    "knownAt": 275,
+    "kind": "retracted-proposal",
+    "version": "DP:273@274:v274",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 275,
+    "kind": "proposed",
+    "version": "DP:273@274:v275"
+  },
+  {
+    "knownAt": 276,
+    "kind": "retracted-proposal",
+    "version": "DP:273@274:v275",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 276,
+    "kind": "proposed",
+    "version": "DP:273@274:v276"
+  },
+  {
+    "knownAt": 277,
+    "kind": "retracted-proposal",
+    "version": "DP:273@274:v276",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 277,
+    "kind": "proposed",
+    "version": "DP:273@274:v277"
+  },
+  {
+    "knownAt": 278,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 269,
+      "end": 273,
+      "start_price": 60800,
+      "end_price": 63200
+    },
+    "candidateVersion": "DP:269@270:v273"
+  },
+  {
+    "knownAt": 278,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 273,
+      "end": 277,
+      "start_price": 63200,
+      "end_price": 61600
+    },
+    "candidateVersion": "DP:273@274:v277",
+    "geometryIndex": 68
+  },
+  {
+    "knownAt": 278,
+    "kind": "proposed",
+    "version": "DP:277@278:v278"
+  },
+  {
+    "knownAt": 279,
+    "kind": "retracted-proposal",
+    "version": "DP:277@278:v278",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 279,
+    "kind": "proposed",
+    "version": "DP:277@278:v279"
+  },
+  {
+    "knownAt": 280,
+    "kind": "retracted-proposal",
+    "version": "DP:277@278:v279",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 280,
+    "kind": "proposed",
+    "version": "DP:277@278:v280"
+  },
+  {
+    "knownAt": 281,
+    "kind": "retracted-proposal",
+    "version": "DP:277@278:v280",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 281,
+    "kind": "proposed",
+    "version": "DP:277@278:v281"
+  },
+  {
+    "knownAt": 282,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 273,
+      "end": 277,
+      "start_price": 63200,
+      "end_price": 61600
+    },
+    "candidateVersion": "DP:273@274:v277"
+  },
+  {
+    "knownAt": 282,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 277,
+      "end": 281,
+      "start_price": 61600,
+      "end_price": 64000
+    },
+    "candidateVersion": "DP:277@278:v281",
+    "geometryIndex": 69
+  },
+  {
+    "knownAt": 282,
+    "kind": "proposed",
+    "version": "DP:281@282:v282"
+  },
+  {
+    "knownAt": 283,
+    "kind": "retracted-proposal",
+    "version": "DP:281@282:v282",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 283,
+    "kind": "proposed",
+    "version": "DP:281@282:v283"
+  },
+  {
+    "knownAt": 284,
+    "kind": "retracted-proposal",
+    "version": "DP:281@282:v283",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 284,
+    "kind": "proposed",
+    "version": "DP:281@282:v284"
+  },
+  {
+    "knownAt": 285,
+    "kind": "retracted-proposal",
+    "version": "DP:281@282:v284",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 285,
+    "kind": "proposed",
+    "version": "DP:281@282:v285"
+  },
+  {
+    "knownAt": 286,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 277,
+      "end": 281,
+      "start_price": 61600,
+      "end_price": 64000
+    },
+    "candidateVersion": "DP:277@278:v281"
+  },
+  {
+    "knownAt": 286,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 281,
+      "end": 285,
+      "start_price": 64000,
+      "end_price": 62800
+    },
+    "candidateVersion": "DP:281@282:v285",
+    "geometryIndex": 70
+  },
+  {
+    "knownAt": 286,
+    "kind": "proposed",
+    "version": "DP:285@286:v286"
+  },
+  {
+    "knownAt": 286,
+    "kind": "freeze-raw-pen-span",
+    "raw": {
+      "id": "Raw:13",
+      "start": 261,
+      "candidateFirstKnownAt": 266,
+      "end": 281,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "endpointKnownAt": 282,
+      "terminalCandidate": "DP:277@278:v281",
+      "frozenL": {
+        "num": 100,
+        "den": 1
+      },
+      "frozenAt": 286
+    }
+  },
+  {
+    "knownAt": 287,
+    "kind": "retracted-proposal",
+    "version": "DP:285@286:v286",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 287,
+    "kind": "proposed",
+    "version": "DP:285@286:v287"
+  },
+  {
+    "knownAt": 288,
+    "kind": "retracted-proposal",
+    "version": "DP:285@286:v287",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 288,
+    "kind": "proposed",
+    "version": "DP:285@286:v288"
+  },
+  {
+    "knownAt": 289,
+    "kind": "retracted-proposal",
+    "version": "DP:285@286:v288",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 289,
+    "kind": "proposed",
+    "version": "DP:285@286:v289"
+  },
+  {
+    "knownAt": 290,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 281,
+      "end": 285,
+      "start_price": 64000,
+      "end_price": 62800
+    },
+    "candidateVersion": "DP:281@282:v285"
+  },
+  {
+    "knownAt": 290,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 285,
+      "end": 289,
+      "start_price": 62800,
+      "end_price": 63600
+    },
+    "candidateVersion": "DP:285@286:v289",
+    "geometryIndex": 71
+  },
+  {
+    "knownAt": 290,
+    "kind": "proposed",
+    "version": "DP:289@290:v290"
+  },
+  {
+    "knownAt": 291,
+    "kind": "retracted-proposal",
+    "version": "DP:289@290:v290",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 291,
+    "kind": "proposed",
+    "version": "DP:289@290:v291"
+  },
+  {
+    "knownAt": 292,
+    "kind": "retracted-proposal",
+    "version": "DP:289@290:v291",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 292,
+    "kind": "proposed",
+    "version": "DP:289@290:v292"
+  },
+  {
+    "knownAt": 293,
+    "kind": "retracted-proposal",
+    "version": "DP:289@290:v292",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 293,
+    "kind": "proposed",
+    "version": "DP:289@290:v293"
+  },
+  {
+    "knownAt": 294,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 285,
+      "end": 289,
+      "start_price": 62800,
+      "end_price": 63600
+    },
+    "candidateVersion": "DP:285@286:v289"
+  },
+  {
+    "knownAt": 294,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 289,
+      "end": 293,
+      "start_price": 63600,
+      "end_price": 61600
+    },
+    "candidateVersion": "DP:289@290:v293",
+    "geometryIndex": 72
+  },
+  {
+    "knownAt": 294,
+    "kind": "proposed",
+    "version": "DP:293@294:v294"
+  },
+  {
+    "knownAt": 295,
+    "kind": "retracted-proposal",
+    "version": "DP:293@294:v294",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 295,
+    "kind": "proposed",
+    "version": "DP:293@294:v295"
+  },
+  {
+    "knownAt": 296,
+    "kind": "retracted-proposal",
+    "version": "DP:293@294:v295",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 296,
+    "kind": "proposed",
+    "version": "DP:293@294:v296"
+  },
+  {
+    "knownAt": 297,
+    "kind": "retracted-proposal",
+    "version": "DP:293@294:v296",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 297,
+    "kind": "proposed",
+    "version": "DP:293@294:v297"
+  },
+  {
+    "knownAt": 298,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 289,
+      "end": 293,
+      "start_price": 63600,
+      "end_price": 61600
+    },
+    "candidateVersion": "DP:289@290:v293"
+  },
+  {
+    "knownAt": 298,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 293,
+      "end": 297,
+      "start_price": 61600,
+      "end_price": 63200
+    },
+    "candidateVersion": "DP:293@294:v297",
+    "geometryIndex": 73
+  },
+  {
+    "knownAt": 298,
+    "kind": "proposed",
+    "version": "DP:297@298:v298"
+  },
+  {
+    "knownAt": 299,
+    "kind": "retracted-proposal",
+    "version": "DP:297@298:v298",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 299,
+    "kind": "proposed",
+    "version": "DP:297@298:v299"
+  },
+  {
+    "knownAt": 300,
+    "kind": "retracted-proposal",
+    "version": "DP:297@298:v299",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 300,
+    "kind": "proposed",
+    "version": "DP:297@298:v300"
+  },
+  {
+    "knownAt": 301,
+    "kind": "retracted-proposal",
+    "version": "DP:297@298:v300",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 301,
+    "kind": "proposed",
+    "version": "DP:297@298:v301"
+  },
+  {
+    "knownAt": 302,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 293,
+      "end": 297,
+      "start_price": 61600,
+      "end_price": 63200
+    },
+    "candidateVersion": "DP:293@294:v297"
+  },
+  {
+    "knownAt": 302,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 297,
+      "end": 301,
+      "start_price": 63200,
+      "end_price": 60800
+    },
+    "candidateVersion": "DP:297@298:v301",
+    "geometryIndex": 74
+  },
+  {
+    "knownAt": 302,
+    "kind": "proposed",
+    "version": "DP:301@302:v302"
+  },
+  {
+    "knownAt": 303,
+    "kind": "retracted-proposal",
+    "version": "DP:301@302:v302",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 303,
+    "kind": "proposed",
+    "version": "DP:301@302:v303"
+  },
+  {
+    "knownAt": 304,
+    "kind": "retracted-proposal",
+    "version": "DP:301@302:v303",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 304,
+    "kind": "proposed",
+    "version": "DP:301@302:v304"
+  },
+  {
+    "knownAt": 305,
+    "kind": "retracted-proposal",
+    "version": "DP:301@302:v304",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 305,
+    "kind": "proposed",
+    "version": "DP:301@302:v305"
+  },
+  {
+    "knownAt": 306,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 297,
+      "end": 301,
+      "start_price": 63200,
+      "end_price": 60800
+    },
+    "candidateVersion": "DP:297@298:v301"
+  },
+  {
+    "knownAt": 306,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 301,
+      "end": 305,
+      "start_price": 60800,
+      "end_price": 62400
+    },
+    "candidateVersion": "DP:301@302:v305",
+    "geometryIndex": 75
+  },
+  {
+    "knownAt": 306,
+    "kind": "proposed",
+    "version": "DP:305@306:v306"
+  },
+  {
+    "knownAt": 306,
+    "kind": "freeze-raw-pen-span",
+    "raw": {
+      "id": "Raw:14",
+      "start": 281,
+      "candidateFirstKnownAt": 286,
+      "end": 301,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "endpointKnownAt": 302,
+      "terminalCandidate": "DP:297@298:v301",
+      "frozenL": {
+        "num": -300,
+        "den": 1
+      },
+      "frozenAt": 306
+    }
+  },
+  {
+    "knownAt": 307,
+    "kind": "retracted-proposal",
+    "version": "DP:305@306:v306",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 307,
+    "kind": "proposed",
+    "version": "DP:305@306:v307"
+  },
+  {
+    "knownAt": 308,
+    "kind": "retracted-proposal",
+    "version": "DP:305@306:v307",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 308,
+    "kind": "proposed",
+    "version": "DP:305@306:v308"
+  },
+  {
+    "knownAt": 309,
+    "kind": "retracted-proposal",
+    "version": "DP:305@306:v308",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 309,
+    "kind": "proposed",
+    "version": "DP:305@306:v309"
+  },
+  {
+    "knownAt": 310,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 301,
+      "end": 305,
+      "start_price": 60800,
+      "end_price": 62400
+    },
+    "candidateVersion": "DP:301@302:v305"
+  },
+  {
+    "knownAt": 310,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 305,
+      "end": 309,
+      "start_price": 62400,
+      "end_price": 62000
+    },
+    "candidateVersion": "DP:305@306:v309",
+    "geometryIndex": 76
+  },
+  {
+    "knownAt": 310,
+    "kind": "proposed",
+    "version": "DP:309@310:v310"
+  },
+  {
+    "knownAt": 311,
+    "kind": "retracted-proposal",
+    "version": "DP:309@310:v310",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 311,
+    "kind": "proposed",
+    "version": "DP:309@310:v311"
+  },
+  {
+    "knownAt": 312,
+    "kind": "retracted-proposal",
+    "version": "DP:309@310:v311",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 312,
+    "kind": "proposed",
+    "version": "DP:309@310:v312"
+  },
+  {
+    "knownAt": 313,
+    "kind": "retracted-proposal",
+    "version": "DP:309@310:v312",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 313,
+    "kind": "proposed",
+    "version": "DP:309@310:v313"
+  },
+  {
+    "knownAt": 314,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 305,
+      "end": 309,
+      "start_price": 62400,
+      "end_price": 62000
+    },
+    "candidateVersion": "DP:305@306:v309"
+  },
+  {
+    "knownAt": 314,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 309,
+      "end": 313,
+      "start_price": 62000,
+      "end_price": 72400
+    },
+    "candidateVersion": "DP:309@310:v313",
+    "geometryIndex": 77
+  },
+  {
+    "knownAt": 314,
+    "kind": "proposed",
+    "version": "DP:313@314:v314"
+  },
+  {
+    "knownAt": 315,
+    "kind": "retracted-proposal",
+    "version": "DP:313@314:v314",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 315,
+    "kind": "proposed",
+    "version": "DP:313@314:v315"
+  },
+  {
+    "knownAt": 316,
+    "kind": "retracted-proposal",
+    "version": "DP:313@314:v315",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 316,
+    "kind": "proposed",
+    "version": "DP:313@314:v316"
+  },
+  {
+    "knownAt": 317,
+    "kind": "retracted-proposal",
+    "version": "DP:313@314:v316",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 317,
+    "kind": "proposed",
+    "version": "DP:313@314:v317"
+  },
+  {
+    "knownAt": 318,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 309,
+      "end": 313,
+      "start_price": 62000,
+      "end_price": 72400
+    },
+    "candidateVersion": "DP:309@310:v313"
+  },
+  {
+    "knownAt": 318,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 313,
+      "end": 317,
+      "start_price": 72400,
+      "end_price": 72000
+    },
+    "candidateVersion": "DP:313@314:v317",
+    "geometryIndex": 78
+  },
+  {
+    "knownAt": 318,
+    "kind": "proposed",
+    "version": "DP:317@318:v318"
+  },
+  {
+    "knownAt": 319,
+    "kind": "retracted-proposal",
+    "version": "DP:317@318:v318",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 319,
+    "kind": "proposed",
+    "version": "DP:317@318:v319"
+  },
+  {
+    "knownAt": 320,
+    "kind": "retracted-proposal",
+    "version": "DP:317@318:v319",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 320,
+    "kind": "proposed",
+    "version": "DP:317@318:v320"
+  },
+  {
+    "knownAt": 321,
+    "kind": "retracted-proposal",
+    "version": "DP:317@318:v320",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 321,
+    "kind": "proposed",
+    "version": "DP:317@318:v321"
+  },
+  {
+    "knownAt": 322,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 313,
+      "end": 317,
+      "start_price": 72400,
+      "end_price": 72000
+    },
+    "candidateVersion": "DP:313@314:v317"
+  },
+  {
+    "knownAt": 322,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 317,
+      "end": 321,
+      "start_price": 72000,
+      "end_price": 72800
+    },
+    "candidateVersion": "DP:317@318:v321",
+    "geometryIndex": 79
+  },
+  {
+    "knownAt": 322,
+    "kind": "proposed",
+    "version": "DP:321@322:v322"
+  },
+  {
+    "knownAt": 322,
+    "kind": "whole-endpoint-proposal-confirmed-rw",
+    "whole": {
+      "id": "P2",
+      "start": 221,
+      "candidateFirstKnownAt": 222,
+      "end": 321,
+      "state": "ended-awaiting-stability",
+      "Completed_original": null,
+      "Owner_original": null,
+      "Next_original": null,
+      "F2_original": null,
+      "endpointKnownAt": 322,
+      "terminalCandidate": "DP:317@318:v321"
+    }
+  },
+  {
+    "knownAt": 323,
+    "kind": "retracted-proposal",
+    "version": "DP:321@322:v322",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 323,
+    "kind": "proposed",
+    "version": "DP:321@322:v323"
+  },
+  {
+    "knownAt": 324,
+    "kind": "retracted-proposal",
+    "version": "DP:321@322:v323",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 324,
+    "kind": "proposed",
+    "version": "DP:321@322:v324"
+  },
+  {
+    "knownAt": 325,
+    "kind": "retracted-proposal",
+    "version": "DP:321@322:v324",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 325,
+    "kind": "proposed",
+    "version": "DP:321@322:v325"
+  },
+  {
+    "knownAt": 326,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 317,
+      "end": 321,
+      "start_price": 72000,
+      "end_price": 72800
+    },
+    "candidateVersion": "DP:317@318:v321"
+  },
+  {
+    "knownAt": 326,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 321,
+      "end": 325,
+      "start_price": 72800,
+      "end_price": 67200
+    },
+    "candidateVersion": "DP:321@322:v325",
+    "geometryIndex": 80
+  },
+  {
+    "knownAt": 326,
+    "kind": "proposed",
+    "version": "DP:325@326:v326"
+  },
+  {
+    "knownAt": 326,
+    "kind": "freeze-raw-pen-span",
+    "raw": {
+      "id": "Raw:15",
+      "start": 301,
+      "candidateFirstKnownAt": 306,
+      "end": 321,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "endpointKnownAt": 322,
+      "terminalCandidate": "DP:317@318:v321",
+      "frozenL": {
+        "num": -200,
+        "den": 1
+      },
+      "frozenAt": 326
+    }
+  },
+  {
+    "knownAt": 326,
+    "kind": "freeze-whole-pen-span",
+    "whole": {
+      "id": "P2",
+      "start": 221,
+      "candidateFirstKnownAt": 222,
+      "end": 321,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "Completed_original": null,
+      "Owner_original": null,
+      "Next_original": null,
+      "F2_original": null,
+      "endpointKnownAt": 322,
+      "terminalCandidate": "DP:317@318:v321",
+      "frozenAt": 326,
+      "wholeFrozenL": {
+        "num": -200,
+        "den": 1
+      },
+      "cFrozenL": {
+        "num": -200,
+        "den": 1
+      }
+    }
+  },
+  {
+    "knownAt": 327,
+    "kind": "retracted-proposal",
+    "version": "DP:325@326:v326",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 327,
+    "kind": "proposed",
+    "version": "DP:325@326:v327"
+  },
+  {
+    "knownAt": 328,
+    "kind": "retracted-proposal",
+    "version": "DP:325@326:v327",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 328,
+    "kind": "proposed",
+    "version": "DP:325@326:v328"
+  },
+  {
+    "knownAt": 329,
+    "kind": "retracted-proposal",
+    "version": "DP:325@326:v328",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 329,
+    "kind": "proposed",
+    "version": "DP:325@326:v329"
+  },
+  {
+    "knownAt": 330,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 321,
+      "end": 325,
+      "start_price": 72800,
+      "end_price": 67200
+    },
+    "candidateVersion": "DP:321@322:v325"
+  },
+  {
+    "knownAt": 330,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 325,
+      "end": 329,
+      "start_price": 67200,
+      "end_price": 71400
+    },
+    "candidateVersion": "DP:325@326:v329",
+    "geometryIndex": 81
+  },
+  {
+    "knownAt": 330,
+    "kind": "proposed",
+    "version": "DP:329@330:v330"
+  },
+  {
+    "knownAt": 331,
+    "kind": "retracted-proposal",
+    "version": "DP:329@330:v330",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 331,
+    "kind": "proposed",
+    "version": "DP:329@330:v331"
+  },
+  {
+    "knownAt": 332,
+    "kind": "retracted-proposal",
+    "version": "DP:329@330:v331",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 332,
+    "kind": "proposed",
+    "version": "DP:329@330:v332"
+  },
+  {
+    "knownAt": 333,
+    "kind": "retracted-proposal",
+    "version": "DP:329@330:v332",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 333,
+    "kind": "proposed",
+    "version": "DP:329@330:v333"
+  },
+  {
+    "knownAt": 334,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 325,
+      "end": 329,
+      "start_price": 67200,
+      "end_price": 71400
+    },
+    "candidateVersion": "DP:325@326:v329"
+  },
+  {
+    "knownAt": 334,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 329,
+      "end": 333,
+      "start_price": 71400,
+      "end_price": 58800
+    },
+    "candidateVersion": "DP:329@330:v333",
+    "geometryIndex": 82
+  },
+  {
+    "knownAt": 334,
+    "kind": "proposed",
+    "version": "DP:333@334:v334"
+  },
+  {
+    "knownAt": 335,
+    "kind": "retracted-proposal",
+    "version": "DP:333@334:v334",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 335,
+    "kind": "proposed",
+    "version": "DP:333@334:v335"
+  },
+  {
+    "knownAt": 336,
+    "kind": "retracted-proposal",
+    "version": "DP:333@334:v335",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 336,
+    "kind": "proposed",
+    "version": "DP:333@334:v336"
+  },
+  {
+    "knownAt": 337,
+    "kind": "retracted-proposal",
+    "version": "DP:333@334:v336",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 337,
+    "kind": "proposed",
+    "version": "DP:333@334:v337"
+  },
+  {
+    "knownAt": 338,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 329,
+      "end": 333,
+      "start_price": 71400,
+      "end_price": 58800
+    },
+    "candidateVersion": "DP:329@330:v333"
+  },
+  {
+    "knownAt": 338,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 333,
+      "end": 337,
+      "start_price": 58800,
+      "end_price": 65800
+    },
+    "candidateVersion": "DP:333@334:v337",
+    "geometryIndex": 83
+  },
+  {
+    "knownAt": 338,
+    "kind": "proposed",
+    "version": "DP:337@338:v338"
+  },
+  {
+    "knownAt": 338,
+    "kind": "selected-whole-raw-evidence-complete",
+    "whole": {
+      "id": "P2",
+      "start": 221,
+      "candidateFirstKnownAt": 222,
+      "end": 321,
+      "state": "selected-raw-evidence-complete",
+      "Completed_original": null,
+      "Owner_original": null,
+      "Next_original": null,
+      "F2_original": null,
+      "endpointKnownAt": 322,
+      "terminalCandidate": "DP:317@318:v321",
+      "frozenAt": 326,
+      "wholeFrozenL": {
+        "num": -200,
+        "den": 1
+      },
+      "cFrozenL": {
+        "num": -200,
+        "den": 1
+      },
+      "rawEvidenceKnownAt": 338
+    },
+    "basis": "reviewed-Stage67-current-row"
+  },
+  {
+    "knownAt": 339,
+    "kind": "retracted-proposal",
+    "version": "DP:337@338:v338",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 339,
+    "kind": "proposed",
+    "version": "DP:337@338:v339"
+  },
+  {
+    "knownAt": 340,
+    "kind": "retracted-proposal",
+    "version": "DP:337@338:v339",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 340,
+    "kind": "proposed",
+    "version": "DP:337@338:v340"
+  },
+  {
+    "knownAt": 341,
+    "kind": "retracted-proposal",
+    "version": "DP:337@338:v340",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 341,
+    "kind": "proposed",
+    "version": "DP:337@338:v341"
+  },
+  {
+    "knownAt": 342,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 333,
+      "end": 337,
+      "start_price": 58800,
+      "end_price": 65800
+    },
+    "candidateVersion": "DP:333@334:v337"
+  },
+  {
+    "knownAt": 342,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 337,
+      "end": 341,
+      "start_price": 65800,
+      "end_price": 44800
+    },
+    "candidateVersion": "DP:337@338:v341",
+    "geometryIndex": 84
+  },
+  {
+    "knownAt": 342,
+    "kind": "proposed",
+    "version": "DP:341@342:v342"
+  },
+  {
+    "knownAt": 343,
+    "kind": "retracted-proposal",
+    "version": "DP:341@342:v342",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 343,
+    "kind": "proposed",
+    "version": "DP:341@342:v343"
+  },
+  {
+    "knownAt": 344,
+    "kind": "retracted-proposal",
+    "version": "DP:341@342:v343",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 344,
+    "kind": "proposed",
+    "version": "DP:341@342:v344"
+  },
+  {
+    "knownAt": 345,
+    "kind": "retracted-proposal",
+    "version": "DP:341@342:v344",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 345,
+    "kind": "proposed",
+    "version": "DP:341@342:v345"
+  },
+  {
+    "knownAt": 346,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 337,
+      "end": 341,
+      "start_price": 65800,
+      "end_price": 44800
+    },
+    "candidateVersion": "DP:337@338:v341"
+  },
+  {
+    "knownAt": 346,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 341,
+      "end": 345,
+      "start_price": 44800,
+      "end_price": 61600
+    },
+    "candidateVersion": "DP:341@342:v345",
+    "geometryIndex": 85
+  },
+  {
+    "knownAt": 346,
+    "kind": "proposed",
+    "version": "DP:345@346:v346"
+  },
+  {
+    "knownAt": 346,
+    "kind": "freeze-raw-pen-span",
+    "raw": {
+      "id": "Raw:16",
+      "start": 321,
+      "candidateFirstKnownAt": 326,
+      "end": 341,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "endpointKnownAt": 342,
+      "terminalCandidate": "DP:337@338:v341",
+      "frozenL": {
+        "num": -3850,
+        "den": 1
+      },
+      "frozenAt": 346
+    }
+  },
+  {
+    "knownAt": 347,
+    "kind": "retracted-proposal",
+    "version": "DP:345@346:v346",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 347,
+    "kind": "proposed",
+    "version": "DP:345@346:v347"
+  },
+  {
+    "knownAt": 348,
+    "kind": "retracted-proposal",
+    "version": "DP:345@346:v347",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 348,
+    "kind": "proposed",
+    "version": "DP:345@346:v348"
+  },
+  {
+    "knownAt": 349,
+    "kind": "retracted-proposal",
+    "version": "DP:345@346:v348",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 349,
+    "kind": "proposed",
+    "version": "DP:345@346:v349"
+  },
+  {
+    "knownAt": 350,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 341,
+      "end": 345,
+      "start_price": 44800,
+      "end_price": 61600
+    },
+    "candidateVersion": "DP:341@342:v345"
+  },
+  {
+    "knownAt": 350,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 345,
+      "end": 349,
+      "start_price": 61600,
+      "end_price": 49000
+    },
+    "candidateVersion": "DP:345@346:v349",
+    "geometryIndex": 86
+  },
+  {
+    "knownAt": 350,
+    "kind": "proposed",
+    "version": "DP:349@350:v350"
+  },
+  {
+    "knownAt": 351,
+    "kind": "retracted-proposal",
+    "version": "DP:349@350:v350",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 351,
+    "kind": "proposed",
+    "version": "DP:349@350:v351"
+  },
+  {
+    "knownAt": 352,
+    "kind": "retracted-proposal",
+    "version": "DP:349@350:v351",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 352,
+    "kind": "proposed",
+    "version": "DP:349@350:v352"
+  },
+  {
+    "knownAt": 353,
+    "kind": "retracted-proposal",
+    "version": "DP:349@350:v352",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 353,
+    "kind": "proposed",
+    "version": "DP:349@350:v353"
+  },
+  {
+    "knownAt": 354,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 345,
+      "end": 349,
+      "start_price": 61600,
+      "end_price": 49000
+    },
+    "candidateVersion": "DP:345@346:v349"
+  },
+  {
+    "knownAt": 354,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 349,
+      "end": 353,
+      "start_price": 49000,
+      "end_price": 64400
+    },
+    "candidateVersion": "DP:349@350:v353",
+    "geometryIndex": 87
+  },
+  {
+    "knownAt": 354,
+    "kind": "proposed",
+    "version": "DP:353@354:v354"
+  },
+  {
+    "knownAt": 355,
+    "kind": "retracted-proposal",
+    "version": "DP:353@354:v354",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 355,
+    "kind": "proposed",
+    "version": "DP:353@354:v355"
+  },
+  {
+    "knownAt": 356,
+    "kind": "retracted-proposal",
+    "version": "DP:353@354:v355",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 356,
+    "kind": "proposed",
+    "version": "DP:353@354:v356"
+  },
+  {
+    "knownAt": 357,
+    "kind": "retracted-proposal",
+    "version": "DP:353@354:v356",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 357,
+    "kind": "proposed",
+    "version": "DP:353@354:v357"
+  },
+  {
+    "knownAt": 358,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 349,
+      "end": 353,
+      "start_price": 49000,
+      "end_price": 64400
+    },
+    "candidateVersion": "DP:349@350:v353"
+  },
+  {
+    "knownAt": 358,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 353,
+      "end": 357,
+      "start_price": 64400,
+      "end_price": 53200
+    },
+    "candidateVersion": "DP:353@354:v357",
+    "geometryIndex": 88
+  },
+  {
+    "knownAt": 358,
+    "kind": "proposed",
+    "version": "DP:357@358:v358"
+  },
+  {
+    "knownAt": 359,
+    "kind": "retracted-proposal",
+    "version": "DP:357@358:v358",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 359,
+    "kind": "proposed",
+    "version": "DP:357@358:v359"
+  },
+  {
+    "knownAt": 360,
+    "kind": "retracted-proposal",
+    "version": "DP:357@358:v359",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 360,
+    "kind": "proposed",
+    "version": "DP:357@358:v360"
+  },
+  {
+    "knownAt": 361,
+    "kind": "retracted-proposal",
+    "version": "DP:357@358:v360",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 361,
+    "kind": "proposed",
+    "version": "DP:357@358:v361"
+  },
+  {
+    "knownAt": 362,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 353,
+      "end": 357,
+      "start_price": 64400,
+      "end_price": 53200
+    },
+    "candidateVersion": "DP:353@354:v357"
+  },
+  {
+    "knownAt": 362,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 357,
+      "end": 361,
+      "start_price": 53200,
+      "end_price": 65800
+    },
+    "candidateVersion": "DP:357@358:v361",
+    "geometryIndex": 89
+  },
+  {
+    "knownAt": 362,
+    "kind": "proposed",
+    "version": "DP:361@362:v362"
+  },
+  {
+    "knownAt": 363,
+    "kind": "retracted-proposal",
+    "version": "DP:361@362:v362",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 363,
+    "kind": "proposed",
+    "version": "DP:361@362:v363"
+  },
+  {
+    "knownAt": 364,
+    "kind": "retracted-proposal",
+    "version": "DP:361@362:v363",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 364,
+    "kind": "proposed",
+    "version": "DP:361@362:v364"
+  },
+  {
+    "knownAt": 365,
+    "kind": "retracted-proposal",
+    "version": "DP:361@362:v364",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 365,
+    "kind": "proposed",
+    "version": "DP:361@362:v365"
+  },
+  {
+    "knownAt": 366,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 357,
+      "end": 361,
+      "start_price": 53200,
+      "end_price": 65800
+    },
+    "candidateVersion": "DP:357@358:v361"
+  },
+  {
+    "knownAt": 366,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 361,
+      "end": 365,
+      "start_price": 65800,
+      "end_price": 58800
+    },
+    "candidateVersion": "DP:361@362:v365",
+    "geometryIndex": 90
+  },
+  {
+    "knownAt": 366,
+    "kind": "proposed",
+    "version": "DP:365@366:v366"
+  },
+  {
+    "knownAt": 366,
+    "kind": "freeze-raw-pen-span",
+    "raw": {
+      "id": "Raw:17",
+      "start": 341,
+      "candidateFirstKnownAt": 346,
+      "end": 361,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "endpointKnownAt": 362,
+      "terminalCandidate": "DP:357@358:v361",
+      "frozenL": {
+        "num": -1050,
+        "den": 1
+      },
+      "frozenAt": 366
+    }
+  },
+  {
+    "knownAt": 367,
+    "kind": "retracted-proposal",
+    "version": "DP:365@366:v366",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 367,
+    "kind": "proposed",
+    "version": "DP:365@366:v367"
+  },
+  {
+    "knownAt": 368,
+    "kind": "retracted-proposal",
+    "version": "DP:365@366:v367",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 368,
+    "kind": "proposed",
+    "version": "DP:365@366:v368"
+  },
+  {
+    "knownAt": 369,
+    "kind": "retracted-proposal",
+    "version": "DP:365@366:v368",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 369,
+    "kind": "proposed",
+    "version": "DP:365@366:v369"
+  },
+  {
+    "knownAt": 370,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 361,
+      "end": 365,
+      "start_price": 65800,
+      "end_price": 58800
+    },
+    "candidateVersion": "DP:361@362:v365"
+  },
+  {
+    "knownAt": 370,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 365,
+      "end": 369,
+      "start_price": 58800,
+      "end_price": 63000
+    },
+    "candidateVersion": "DP:365@366:v369",
+    "geometryIndex": 91
+  },
+  {
+    "knownAt": 370,
+    "kind": "proposed",
+    "version": "DP:369@370:v370"
+  },
+  {
+    "knownAt": 371,
+    "kind": "retracted-proposal",
+    "version": "DP:369@370:v370",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 371,
+    "kind": "proposed",
+    "version": "DP:369@370:v371"
+  },
+  {
+    "knownAt": 372,
+    "kind": "retracted-proposal",
+    "version": "DP:369@370:v371",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 372,
+    "kind": "proposed",
+    "version": "DP:369@370:v372"
+  },
+  {
+    "knownAt": 373,
+    "kind": "retracted-proposal",
+    "version": "DP:369@370:v372",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 373,
+    "kind": "proposed",
+    "version": "DP:369@370:v373"
+  },
+  {
+    "knownAt": 374,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 365,
+      "end": 369,
+      "start_price": 58800,
+      "end_price": 63000
+    },
+    "candidateVersion": "DP:365@366:v369"
+  },
+  {
+    "knownAt": 374,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 369,
+      "end": 373,
+      "start_price": 63000,
+      "end_price": 54600
+    },
+    "candidateVersion": "DP:369@370:v373",
+    "geometryIndex": 92
+  },
+  {
+    "knownAt": 374,
+    "kind": "proposed",
+    "version": "DP:373@374:v374"
+  },
+  {
+    "knownAt": 375,
+    "kind": "retracted-proposal",
+    "version": "DP:373@374:v374",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 375,
+    "kind": "proposed",
+    "version": "DP:373@374:v375"
+  },
+  {
+    "knownAt": 376,
+    "kind": "retracted-proposal",
+    "version": "DP:373@374:v375",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 376,
+    "kind": "proposed",
+    "version": "DP:373@374:v376"
+  },
+  {
+    "knownAt": 377,
+    "kind": "retracted-proposal",
+    "version": "DP:373@374:v376",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 377,
+    "kind": "proposed",
+    "version": "DP:373@374:v377"
+  },
+  {
+    "knownAt": 378,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 369,
+      "end": 373,
+      "start_price": 63000,
+      "end_price": 54600
+    },
+    "candidateVersion": "DP:369@370:v373"
+  },
+  {
+    "knownAt": 378,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 373,
+      "end": 377,
+      "start_price": 54600,
+      "end_price": 60200
+    },
+    "candidateVersion": "DP:373@374:v377",
+    "geometryIndex": 93
+  },
+  {
+    "knownAt": 378,
+    "kind": "proposed",
+    "version": "DP:377@378:v378"
+  },
+  {
+    "knownAt": 379,
+    "kind": "retracted-proposal",
+    "version": "DP:377@378:v378",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 379,
+    "kind": "proposed",
+    "version": "DP:377@378:v379"
+  },
+  {
+    "knownAt": 380,
+    "kind": "retracted-proposal",
+    "version": "DP:377@378:v379",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 380,
+    "kind": "proposed",
+    "version": "DP:377@378:v380"
+  },
+  {
+    "knownAt": 381,
+    "kind": "retracted-proposal",
+    "version": "DP:377@378:v380",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 381,
+    "kind": "proposed",
+    "version": "DP:377@378:v381"
+  },
+  {
+    "knownAt": 382,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 373,
+      "end": 377,
+      "start_price": 54600,
+      "end_price": 60200
+    },
+    "candidateVersion": "DP:373@374:v377"
+  },
+  {
+    "knownAt": 382,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 377,
+      "end": 381,
+      "start_price": 60200,
+      "end_price": 51800
+    },
+    "candidateVersion": "DP:377@378:v381",
+    "geometryIndex": 94
+  },
+  {
+    "knownAt": 382,
+    "kind": "proposed",
+    "version": "DP:381@382:v382"
+  },
+  {
+    "knownAt": 383,
+    "kind": "retracted-proposal",
+    "version": "DP:381@382:v382",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 383,
+    "kind": "proposed",
+    "version": "DP:381@382:v383"
+  },
+  {
+    "knownAt": 384,
+    "kind": "retracted-proposal",
+    "version": "DP:381@382:v383",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 384,
+    "kind": "proposed",
+    "version": "DP:381@382:v384"
+  },
+  {
+    "knownAt": 385,
+    "kind": "retracted-proposal",
+    "version": "DP:381@382:v384",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 385,
+    "kind": "proposed",
+    "version": "DP:381@382:v385"
+  },
+  {
+    "knownAt": 386,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 377,
+      "end": 381,
+      "start_price": 60200,
+      "end_price": 51800
+    },
+    "candidateVersion": "DP:377@378:v381"
+  },
+  {
+    "knownAt": 386,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 381,
+      "end": 385,
+      "start_price": 51800,
+      "end_price": 57400
+    },
+    "candidateVersion": "DP:381@382:v385",
+    "geometryIndex": 95
+  },
+  {
+    "knownAt": 386,
+    "kind": "proposed",
+    "version": "DP:385@386:v386"
+  },
+  {
+    "knownAt": 386,
+    "kind": "freeze-raw-pen-span",
+    "raw": {
+      "id": "Raw:18",
+      "start": 361,
+      "candidateFirstKnownAt": 366,
+      "end": 381,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "endpointKnownAt": 382,
+      "terminalCandidate": "DP:377@378:v381",
+      "frozenL": {
+        "num": -350,
+        "den": 1
+      },
+      "frozenAt": 386
+    }
+  },
+  {
+    "knownAt": 387,
+    "kind": "retracted-proposal",
+    "version": "DP:385@386:v386",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 387,
+    "kind": "proposed",
+    "version": "DP:385@386:v387"
+  },
+  {
+    "knownAt": 388,
+    "kind": "retracted-proposal",
+    "version": "DP:385@386:v387",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 388,
+    "kind": "proposed",
+    "version": "DP:385@386:v388"
+  },
+  {
+    "knownAt": 389,
+    "kind": "retracted-proposal",
+    "version": "DP:385@386:v388",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 389,
+    "kind": "proposed",
+    "version": "DP:385@386:v389"
+  },
+  {
+    "knownAt": 390,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 381,
+      "end": 385,
+      "start_price": 51800,
+      "end_price": 57400
+    },
+    "candidateVersion": "DP:381@382:v385"
+  },
+  {
+    "knownAt": 390,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 385,
+      "end": 389,
+      "start_price": 57400,
+      "end_price": 53200
+    },
+    "candidateVersion": "DP:385@386:v389",
+    "geometryIndex": 96
+  },
+  {
+    "knownAt": 390,
+    "kind": "proposed",
+    "version": "DP:389@390:v390"
+  },
+  {
+    "knownAt": 391,
+    "kind": "retracted-proposal",
+    "version": "DP:389@390:v390",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 391,
+    "kind": "proposed",
+    "version": "DP:389@390:v391"
+  },
+  {
+    "knownAt": 392,
+    "kind": "retracted-proposal",
+    "version": "DP:389@390:v391",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 392,
+    "kind": "proposed",
+    "version": "DP:389@390:v392"
+  },
+  {
+    "knownAt": 393,
+    "kind": "retracted-proposal",
+    "version": "DP:389@390:v392",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 393,
+    "kind": "proposed",
+    "version": "DP:389@390:v393"
+  },
+  {
+    "knownAt": 394,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 385,
+      "end": 389,
+      "start_price": 57400,
+      "end_price": 53200
+    },
+    "candidateVersion": "DP:385@386:v389"
+  },
+  {
+    "knownAt": 394,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 389,
+      "end": 393,
+      "start_price": 53200,
+      "end_price": 60200
+    },
+    "candidateVersion": "DP:389@390:v393",
+    "geometryIndex": 97
+  },
+  {
+    "knownAt": 394,
+    "kind": "proposed",
+    "version": "DP:393@394:v394"
+  },
+  {
+    "knownAt": 395,
+    "kind": "retracted-proposal",
+    "version": "DP:393@394:v394",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 395,
+    "kind": "proposed",
+    "version": "DP:393@394:v395"
+  },
+  {
+    "knownAt": 396,
+    "kind": "retracted-proposal",
+    "version": "DP:393@394:v395",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 396,
+    "kind": "proposed",
+    "version": "DP:393@394:v396"
+  },
+  {
+    "knownAt": 397,
+    "kind": "retracted-proposal",
+    "version": "DP:393@394:v396",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 397,
+    "kind": "proposed",
+    "version": "DP:393@394:v397"
+  },
+  {
+    "knownAt": 398,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 389,
+      "end": 393,
+      "start_price": 53200,
+      "end_price": 60200
+    },
+    "candidateVersion": "DP:389@390:v393"
+  },
+  {
+    "knownAt": 398,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 393,
+      "end": 397,
+      "start_price": 60200,
+      "end_price": 54600
+    },
+    "candidateVersion": "DP:393@394:v397",
+    "geometryIndex": 98
+  },
+  {
+    "knownAt": 398,
+    "kind": "proposed",
+    "version": "DP:397@398:v398"
+  },
+  {
+    "knownAt": 399,
+    "kind": "retracted-proposal",
+    "version": "DP:397@398:v398",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 399,
+    "kind": "proposed",
+    "version": "DP:397@398:v399"
+  },
+  {
+    "knownAt": 400,
+    "kind": "retracted-proposal",
+    "version": "DP:397@398:v399",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 400,
+    "kind": "proposed",
+    "version": "DP:397@398:v400"
+  },
+  {
+    "knownAt": 401,
+    "kind": "retracted-proposal",
+    "version": "DP:397@398:v400",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 401,
+    "kind": "proposed",
+    "version": "DP:397@398:v401"
+  },
+  {
+    "knownAt": 402,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 393,
+      "end": 397,
+      "start_price": 60200,
+      "end_price": 54600
+    },
+    "candidateVersion": "DP:393@394:v397"
+  },
+  {
+    "knownAt": 402,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 397,
+      "end": 401,
+      "start_price": 54600,
+      "end_price": 61600
+    },
+    "candidateVersion": "DP:397@398:v401",
+    "geometryIndex": 99
+  },
+  {
+    "knownAt": 402,
+    "kind": "proposed",
+    "version": "DP:401@402:v402"
+  },
+  {
+    "knownAt": 403,
+    "kind": "retracted-proposal",
+    "version": "DP:401@402:v402",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 403,
+    "kind": "proposed",
+    "version": "DP:401@402:v403"
+  },
+  {
+    "knownAt": 404,
+    "kind": "retracted-proposal",
+    "version": "DP:401@402:v403",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 404,
+    "kind": "proposed",
+    "version": "DP:401@402:v404"
+  },
+  {
+    "knownAt": 405,
+    "kind": "retracted-proposal",
+    "version": "DP:401@402:v404",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 405,
+    "kind": "proposed",
+    "version": "DP:401@402:v405"
+  },
+  {
+    "knownAt": 406,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 397,
+      "end": 401,
+      "start_price": 54600,
+      "end_price": 61600
+    },
+    "candidateVersion": "DP:397@398:v401"
+  },
+  {
+    "knownAt": 406,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 401,
+      "end": 405,
+      "start_price": 61600,
+      "end_price": 58800
+    },
+    "candidateVersion": "DP:401@402:v405",
+    "geometryIndex": 100
+  },
+  {
+    "knownAt": 406,
+    "kind": "proposed",
+    "version": "DP:405@406:v406"
+  },
+  {
+    "knownAt": 406,
+    "kind": "freeze-raw-pen-span",
+    "raw": {
+      "id": "Raw:19",
+      "start": 381,
+      "candidateFirstKnownAt": 386,
+      "end": 401,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "endpointKnownAt": 402,
+      "terminalCandidate": "DP:397@398:v401",
+      "frozenL": {
+        "num": 350,
+        "den": 1
+      },
+      "frozenAt": 406
+    }
+  },
+  {
+    "knownAt": 407,
+    "kind": "retracted-proposal",
+    "version": "DP:405@406:v406",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 407,
+    "kind": "proposed",
+    "version": "DP:405@406:v407"
+  },
+  {
+    "knownAt": 408,
+    "kind": "retracted-proposal",
+    "version": "DP:405@406:v407",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 408,
+    "kind": "proposed",
+    "version": "DP:405@406:v408"
+  },
+  {
+    "knownAt": 409,
+    "kind": "retracted-proposal",
+    "version": "DP:405@406:v408",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 409,
+    "kind": "proposed",
+    "version": "DP:405@406:v409"
+  },
+  {
+    "knownAt": 410,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 401,
+      "end": 405,
+      "start_price": 61600,
+      "end_price": 58800
+    },
+    "candidateVersion": "DP:401@402:v405"
+  },
+  {
+    "knownAt": 410,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 405,
+      "end": 409,
+      "start_price": 58800,
+      "end_price": 60200
+    },
+    "candidateVersion": "DP:405@406:v409",
+    "geometryIndex": 101
+  },
+  {
+    "knownAt": 410,
+    "kind": "proposed",
+    "version": "DP:409@410:v410"
+  },
+  {
+    "knownAt": 411,
+    "kind": "retracted-proposal",
+    "version": "DP:409@410:v410",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 411,
+    "kind": "proposed",
+    "version": "DP:409@410:v411"
+  },
+  {
+    "knownAt": 412,
+    "kind": "retracted-proposal",
+    "version": "DP:409@410:v411",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 412,
+    "kind": "proposed",
+    "version": "DP:409@410:v412"
+  },
+  {
+    "knownAt": 413,
+    "kind": "retracted-proposal",
+    "version": "DP:409@410:v412",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 413,
+    "kind": "proposed",
+    "version": "DP:409@410:v413"
+  },
+  {
+    "knownAt": 414,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 405,
+      "end": 409,
+      "start_price": 58800,
+      "end_price": 60200
+    },
+    "candidateVersion": "DP:405@406:v409"
+  },
+  {
+    "knownAt": 414,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 409,
+      "end": 413,
+      "start_price": 60200,
+      "end_price": 42000
+    },
+    "candidateVersion": "DP:409@410:v413",
+    "geometryIndex": 102
+  },
+  {
+    "knownAt": 414,
+    "kind": "proposed",
+    "version": "DP:413@414:v414"
+  },
+  {
+    "knownAt": 415,
+    "kind": "retracted-proposal",
+    "version": "DP:413@414:v414",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 415,
+    "kind": "proposed",
+    "version": "DP:413@414:v415"
+  },
+  {
+    "knownAt": 416,
+    "kind": "retracted-proposal",
+    "version": "DP:413@414:v415",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 416,
+    "kind": "proposed",
+    "version": "DP:413@414:v416"
+  },
+  {
+    "knownAt": 417,
+    "kind": "retracted-proposal",
+    "version": "DP:413@414:v416",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 417,
+    "kind": "proposed",
+    "version": "DP:413@414:v417"
+  },
+  {
+    "knownAt": 418,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 409,
+      "end": 413,
+      "start_price": 60200,
+      "end_price": 42000
+    },
+    "candidateVersion": "DP:409@410:v413"
+  },
+  {
+    "knownAt": 418,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 413,
+      "end": 417,
+      "start_price": 42000,
+      "end_price": 57400
+    },
+    "candidateVersion": "DP:413@414:v417",
+    "geometryIndex": 103
+  },
+  {
+    "knownAt": 418,
+    "kind": "proposed",
+    "version": "DP:417@418:v418"
+  },
+  {
+    "knownAt": 419,
+    "kind": "retracted-proposal",
+    "version": "DP:417@418:v418",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 419,
+    "kind": "proposed",
+    "version": "DP:417@418:v419"
+  },
+  {
+    "knownAt": 420,
+    "kind": "retracted-proposal",
+    "version": "DP:417@418:v419",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 420,
+    "kind": "proposed",
+    "version": "DP:417@418:v420"
+  },
+  {
+    "knownAt": 421,
+    "kind": "retracted-proposal",
+    "version": "DP:417@418:v420",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 421,
+    "kind": "proposed",
+    "version": "DP:417@418:v421"
+  },
+  {
+    "knownAt": 422,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 413,
+      "end": 417,
+      "start_price": 42000,
+      "end_price": 57400
+    },
+    "candidateVersion": "DP:413@414:v417"
+  },
+  {
+    "knownAt": 422,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 417,
+      "end": 421,
+      "start_price": 57400,
+      "end_price": 37800
+    },
+    "candidateVersion": "DP:417@418:v421",
+    "geometryIndex": 104
+  },
+  {
+    "knownAt": 422,
+    "kind": "proposed",
+    "version": "DP:421@422:v422"
+  },
+  {
+    "knownAt": 422,
+    "kind": "whole-endpoint-proposal-confirmed-rw",
+    "whole": {
+      "id": "c0",
+      "start": 321,
+      "candidateFirstKnownAt": 322,
+      "end": 421,
+      "state": "ended-awaiting-stability",
+      "Completed_original": null,
+      "Owner_original": null,
+      "Next_original": null,
+      "F2_original": null,
+      "endpointKnownAt": 422,
+      "terminalCandidate": "DP:417@418:v421"
+    }
+  },
+  {
+    "knownAt": 423,
+    "kind": "retracted-proposal",
+    "version": "DP:421@422:v422",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 423,
+    "kind": "proposed",
+    "version": "DP:421@422:v423"
+  },
+  {
+    "knownAt": 424,
+    "kind": "retracted-proposal",
+    "version": "DP:421@422:v423",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 424,
+    "kind": "proposed",
+    "version": "DP:421@422:v424"
+  },
+  {
+    "knownAt": 425,
+    "kind": "retracted-proposal",
+    "version": "DP:421@422:v424",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 425,
+    "kind": "proposed",
+    "version": "DP:421@422:v425"
+  },
+  {
+    "knownAt": 426,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 417,
+      "end": 421,
+      "start_price": 57400,
+      "end_price": 37800
+    },
+    "candidateVersion": "DP:417@418:v421"
+  },
+  {
+    "knownAt": 426,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 421,
+      "end": 425,
+      "start_price": 37800,
+      "end_price": 43400
+    },
+    "candidateVersion": "DP:421@422:v425",
+    "geometryIndex": 105
+  },
+  {
+    "knownAt": 426,
+    "kind": "proposed",
+    "version": "DP:425@426:v426"
+  },
+  {
+    "knownAt": 426,
+    "kind": "freeze-raw-pen-span",
+    "raw": {
+      "id": "Raw:20",
+      "start": 401,
+      "candidateFirstKnownAt": 406,
+      "end": 421,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "endpointKnownAt": 422,
+      "terminalCandidate": "DP:417@418:v421",
+      "frozenL": {
+        "num": -4200,
+        "den": 1
+      },
+      "frozenAt": 426
+    }
+  },
+  {
+    "knownAt": 426,
+    "kind": "freeze-whole-pen-span",
+    "whole": {
+      "id": "c0",
+      "start": 321,
+      "candidateFirstKnownAt": 322,
+      "end": 421,
+      "state": "frozen-pens-awaiting-raw-proof",
+      "Completed_original": null,
+      "Owner_original": null,
+      "Next_original": null,
+      "F2_original": null,
+      "endpointKnownAt": 422,
+      "terminalCandidate": "DP:417@418:v421",
+      "frozenAt": 426,
+      "wholeFrozenL": {
+        "num": -3500,
+        "den": 1
+      },
+      "cFrozenL": {
+        "num": -4200,
+        "den": 1
+      }
+    }
+  },
+  {
+    "knownAt": 427,
+    "kind": "retracted-proposal",
+    "version": "DP:425@426:v426",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 427,
+    "kind": "proposed",
+    "version": "DP:425@426:v427"
+  },
+  {
+    "knownAt": 428,
+    "kind": "retracted-proposal",
+    "version": "DP:425@426:v427",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 428,
+    "kind": "proposed",
+    "version": "DP:425@426:v428"
+  },
+  {
+    "knownAt": 429,
+    "kind": "retracted-proposal",
+    "version": "DP:425@426:v428",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 429,
+    "kind": "proposed",
+    "version": "DP:425@426:v429"
+  },
+  {
+    "knownAt": 430,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 421,
+      "end": 425,
+      "start_price": 37800,
+      "end_price": 43400
+    },
+    "candidateVersion": "DP:421@422:v425"
+  },
+  {
+    "knownAt": 430,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 425,
+      "end": 429,
+      "start_price": 43400,
+      "end_price": 40600
+    },
+    "candidateVersion": "DP:425@426:v429",
+    "geometryIndex": 106
+  },
+  {
+    "knownAt": 430,
+    "kind": "proposed",
+    "version": "DP:429@430:v430"
+  },
+  {
+    "knownAt": 431,
+    "kind": "retracted-proposal",
+    "version": "DP:429@430:v430",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 431,
+    "kind": "proposed",
+    "version": "DP:429@430:v431"
+  },
+  {
+    "knownAt": 432,
+    "kind": "retracted-proposal",
+    "version": "DP:429@430:v431",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 432,
+    "kind": "proposed",
+    "version": "DP:429@430:v432"
+  },
+  {
+    "knownAt": 433,
+    "kind": "retracted-proposal",
+    "version": "DP:429@430:v432",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 433,
+    "kind": "proposed",
+    "version": "DP:429@430:v433"
+  },
+  {
+    "knownAt": 434,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 425,
+      "end": 429,
+      "start_price": 43400,
+      "end_price": 40600
+    },
+    "candidateVersion": "DP:425@426:v429"
+  },
+  {
+    "knownAt": 434,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 429,
+      "end": 433,
+      "start_price": 40600,
+      "end_price": 47600
+    },
+    "candidateVersion": "DP:429@430:v433",
+    "geometryIndex": 107
+  },
+  {
+    "knownAt": 434,
+    "kind": "proposed",
+    "version": "DP:433@434:v434"
+  },
+  {
+    "knownAt": 435,
+    "kind": "retracted-proposal",
+    "version": "DP:433@434:v434",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 435,
+    "kind": "proposed",
+    "version": "DP:433@434:v435"
+  },
+  {
+    "knownAt": 436,
+    "kind": "retracted-proposal",
+    "version": "DP:433@434:v435",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 436,
+    "kind": "proposed",
+    "version": "DP:433@434:v436"
+  },
+  {
+    "knownAt": 437,
+    "kind": "retracted-proposal",
+    "version": "DP:433@434:v436",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 437,
+    "kind": "proposed",
+    "version": "DP:433@434:v437"
+  },
+  {
+    "knownAt": 438,
+    "kind": "stable-rw",
+    "pen": {
+      "up": true,
+      "start": 429,
+      "end": 433,
+      "start_price": 40600,
+      "end_price": 47600
+    },
+    "candidateVersion": "DP:429@430:v433"
+  },
+  {
+    "knownAt": 438,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": false,
+      "start": 433,
+      "end": 437,
+      "start_price": 47600,
+      "end_price": 43400
+    },
+    "candidateVersion": "DP:433@434:v437",
+    "geometryIndex": 108
+  },
+  {
+    "knownAt": 438,
+    "kind": "proposed",
+    "version": "DP:437@438:v438"
+  },
+  {
+    "knownAt": 438,
+    "kind": "selected-whole-raw-evidence-complete",
+    "whole": {
+      "id": "c0",
+      "start": 321,
+      "candidateFirstKnownAt": 322,
+      "end": 421,
+      "state": "selected-raw-evidence-complete",
+      "Completed_original": null,
+      "Owner_original": null,
+      "Next_original": null,
+      "F2_original": null,
+      "endpointKnownAt": 422,
+      "terminalCandidate": "DP:417@418:v421",
+      "frozenAt": 426,
+      "wholeFrozenL": {
+        "num": -3500,
+        "den": 1
+      },
+      "cFrozenL": {
+        "num": -4200,
+        "den": 1
+      },
+      "rawEvidenceKnownAt": 438
+    },
+    "basis": "reviewed-Stage67-current-row"
+  },
+  {
+    "knownAt": 439,
+    "kind": "retracted-proposal",
+    "version": "DP:437@438:v438",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 439,
+    "kind": "proposed",
+    "version": "DP:437@438:v439"
+  },
+  {
+    "knownAt": 440,
+    "kind": "retracted-proposal",
+    "version": "DP:437@438:v439",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 440,
+    "kind": "proposed",
+    "version": "DP:437@438:v440"
+  },
+  {
+    "knownAt": 441,
+    "kind": "retracted-proposal",
+    "version": "DP:437@438:v440",
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "knownAt": 441,
+    "kind": "proposed",
+    "version": "DP:437@438:v441"
+  },
+  {
+    "knownAt": 442,
+    "kind": "stable-rw",
+    "pen": {
+      "up": false,
+      "start": 433,
+      "end": 437,
+      "start_price": 47600,
+      "end_price": 43400
+    },
+    "candidateVersion": "DP:433@434:v437"
+  },
+  {
+    "knownAt": 442,
+    "kind": "confirmed-rw-active",
+    "pen": {
+      "up": true,
+      "start": 437,
+      "end": 441,
+      "start_price": 43400,
+      "end_price": 50400
+    },
+    "candidateVersion": "DP:437@438:v441",
+    "geometryIndex": 109
+  },
+  {
+    "knownAt": 442,
+    "kind": "proposed",
+    "version": "DP:441@442:v442"
+  }
+]

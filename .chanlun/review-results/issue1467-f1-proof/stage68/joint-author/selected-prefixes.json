@@ -1,0 +1,1428 @@
+[
+  {
+    "t": 38,
+    "raw_known": [
+      "S0"
+    ],
+    "counts": {
+      "available_grammar_windows": 0,
+      "structural_pass": 0,
+      "roles_pass_after_structure": 0,
+      "whole_extreme_after_structure_roles": 0,
+      "candidate_completion_edges": 0,
+      "maximal_delta_paths": 1,
+      "no_pp_paths": 0,
+      "three_child_paths": 0,
+      "candidate_f2_pass": 0,
+      "original_f2_pass": 0
+    },
+    "deltas": [
+      {
+        "delta": [],
+        "kinds": [],
+        "no_pp": true,
+        "pp_violations": [],
+        "has_three": false,
+        "counterfactual_no_pp_removed": false,
+        "candidate_member_table": [],
+        "candidate_center": null,
+        "candidate_interface_pass": false,
+        "original_interface_pass": false,
+        "original_completion_status": "unknown",
+        "reasons": [
+          "no_nonempty_candidate_delta",
+          "fewer_than_three_completed_candidate_children"
+        ],
+        "original_reasons": [
+          "OriginalCompleted(child) is unknown",
+          "RootArm68 source compatibility unknown",
+          "Outer0=core interpretation as original outer unknown",
+          "JEnd68 => whole MovementCompleted not proved"
+        ],
+        "ownership": {
+          "E1": "leading-observation",
+          "raw_prelude": [
+            2,
+            21
+          ],
+          "factors": [],
+          "active_remainder": [
+            22,
+            38
+          ],
+          "coverage_once": true,
+          "confirmed_original_factors": []
+        }
+      }
+    ],
+    "no_pp_removed_control": [
+      {
+        "delta": [],
+        "kinds": [],
+        "no_pp": true,
+        "pp_violations": [],
+        "has_three": false,
+        "counterfactual_no_pp_removed": true,
+        "candidate_member_table": [],
+        "candidate_center": null,
+        "candidate_interface_pass": false,
+        "original_interface_pass": false,
+        "original_completion_status": "unknown",
+        "reasons": [
+          "no_nonempty_candidate_delta",
+          "fewer_than_three_completed_candidate_children"
+        ],
+        "original_reasons": [
+          "OriginalCompleted(child) is unknown",
+          "RootArm68 source compatibility unknown",
+          "Outer0=core interpretation as original outer unknown",
+          "JEnd68 => whole MovementCompleted not proved"
+        ],
+        "ownership": {
+          "E1": "leading-observation",
+          "raw_prelude": [
+            2,
+            21
+          ],
+          "factors": [],
+          "active_remainder": [
+            22,
+            38
+          ],
+          "coverage_once": true,
+          "confirmed_original_factors": []
+        }
+      }
+    ]
+  },
+  {
+    "t": 118,
+    "raw_known": [
+      "S0",
+      "S1",
+      "S2",
+      "S3",
+      "S4"
+    ],
+    "counts": {
+      "available_grammar_windows": 0,
+      "structural_pass": 0,
+      "roles_pass_after_structure": 0,
+      "whole_extreme_after_structure_roles": 0,
+      "candidate_completion_edges": 0,
+      "maximal_delta_paths": 1,
+      "no_pp_paths": 0,
+      "three_child_paths": 0,
+      "candidate_f2_pass": 0,
+      "original_f2_pass": 0
+    },
+    "deltas": [
+      {
+        "delta": [],
+        "kinds": [],
+        "no_pp": true,
+        "pp_violations": [],
+        "has_three": false,
+        "counterfactual_no_pp_removed": false,
+        "candidate_member_table": [],
+        "candidate_center": null,
+        "candidate_interface_pass": false,
+        "original_interface_pass": false,
+        "original_completion_status": "unknown",
+        "reasons": [
+          "no_nonempty_candidate_delta",
+          "fewer_than_three_completed_candidate_children"
+        ],
+        "original_reasons": [
+          "OriginalCompleted(child) is unknown",
+          "RootArm68 source compatibility unknown",
+          "Outer0=core interpretation as original outer unknown",
+          "JEnd68 => whole MovementCompleted not proved"
+        ],
+        "ownership": {
+          "E1": "leading-observation",
+          "raw_prelude": [
+            2,
+            21
+          ],
+          "factors": [],
+          "active_remainder": [
+            22,
+            118
+          ],
+          "coverage_once": true,
+          "confirmed_original_factors": []
+        }
+      }
+    ],
+    "no_pp_removed_control": [
+      {
+        "delta": [],
+        "kinds": [],
+        "no_pp": true,
+        "pp_violations": [],
+        "has_three": false,
+        "counterfactual_no_pp_removed": true,
+        "candidate_member_table": [],
+        "candidate_center": null,
+        "candidate_interface_pass": false,
+        "original_interface_pass": false,
+        "original_completion_status": "unknown",
+        "reasons": [
+          "no_nonempty_candidate_delta",
+          "fewer_than_three_completed_candidate_children"
+        ],
+        "original_reasons": [
+          "OriginalCompleted(child) is unknown",
+          "RootArm68 source compatibility unknown",
+          "Outer0=core interpretation as original outer unknown",
+          "JEnd68 => whole MovementCompleted not proved"
+        ],
+        "ownership": {
+          "E1": "leading-observation",
+          "raw_prelude": [
+            2,
+            21
+          ],
+          "factors": [],
+          "active_remainder": [
+            22,
+            118
+          ],
+          "coverage_once": true,
+          "confirmed_original_factors": []
+        }
+      }
+    ]
+  },
+  {
+    "t": 138,
+    "raw_known": [
+      "S0",
+      "S1",
+      "S2",
+      "S3",
+      "S4",
+      "S5"
+    ],
+    "counts": {
+      "available_grammar_windows": 1,
+      "structural_pass": 1,
+      "roles_pass_after_structure": 1,
+      "whole_extreme_after_structure_roles": 1,
+      "candidate_completion_edges": 1,
+      "maximal_delta_paths": 1,
+      "no_pp_paths": 1,
+      "three_child_paths": 0,
+      "candidate_f2_pass": 0,
+      "original_f2_pass": 0
+    },
+    "deltas": [
+      {
+        "delta": [
+          "W68:S1-S5"
+        ],
+        "kinds": [
+          "P"
+        ],
+        "no_pp": true,
+        "pp_violations": [],
+        "has_three": false,
+        "counterfactual_no_pp_removed": false,
+        "candidate_member_table": [],
+        "candidate_center": null,
+        "candidate_interface_pass": false,
+        "original_interface_pass": false,
+        "original_completion_status": "unknown",
+        "reasons": [
+          "fewer_than_three_completed_candidate_children"
+        ],
+        "original_reasons": [
+          "OriginalCompleted(child) is unknown",
+          "RootArm68 source compatibility unknown",
+          "Outer0=core interpretation as original outer unknown",
+          "JEnd68 => whole MovementCompleted not proved"
+        ],
+        "ownership": {
+          "E1": "leading-observation",
+          "raw_prelude": [
+            2,
+            21
+          ],
+          "factors": [
+            {
+              "id": "W68:S1-S5",
+              "own": [
+                22,
+                121
+              ]
+            }
+          ],
+          "active_remainder": [
+            122,
+            138
+          ],
+          "coverage_once": true,
+          "confirmed_original_factors": []
+        }
+      }
+    ],
+    "no_pp_removed_control": [
+      {
+        "delta": [
+          "W68:S1-S5"
+        ],
+        "kinds": [
+          "P"
+        ],
+        "no_pp": true,
+        "pp_violations": [],
+        "has_three": false,
+        "counterfactual_no_pp_removed": true,
+        "candidate_member_table": [],
+        "candidate_center": null,
+        "candidate_interface_pass": false,
+        "original_interface_pass": false,
+        "original_completion_status": "unknown",
+        "reasons": [
+          "fewer_than_three_completed_candidate_children"
+        ],
+        "original_reasons": [
+          "OriginalCompleted(child) is unknown",
+          "RootArm68 source compatibility unknown",
+          "Outer0=core interpretation as original outer unknown",
+          "JEnd68 => whole MovementCompleted not proved"
+        ],
+        "ownership": {
+          "E1": "leading-observation",
+          "raw_prelude": [
+            2,
+            21
+          ],
+          "factors": [
+            {
+              "id": "W68:S1-S5",
+              "own": [
+                22,
+                121
+              ]
+            }
+          ],
+          "active_remainder": [
+            122,
+            138
+          ],
+          "coverage_once": true,
+          "confirmed_original_factors": []
+        }
+      }
+    ]
+  },
+  {
+    "t": 218,
+    "raw_known": [
+      "S0",
+      "S1",
+      "S2",
+      "S3",
+      "S4",
+      "S5",
+      "S6",
+      "S7",
+      "S8",
+      "S9"
+    ],
+    "counts": {
+      "available_grammar_windows": 6,
+      "structural_pass": 5,
+      "roles_pass_after_structure": 1,
+      "whole_extreme_after_structure_roles": 1,
+      "candidate_completion_edges": 1,
+      "maximal_delta_paths": 1,
+      "no_pp_paths": 1,
+      "three_child_paths": 0,
+      "candidate_f2_pass": 0,
+      "original_f2_pass": 0
+    },
+    "deltas": [
+      {
+        "delta": [
+          "W68:S1-S5"
+        ],
+        "kinds": [
+          "P"
+        ],
+        "no_pp": true,
+        "pp_violations": [],
+        "has_three": false,
+        "counterfactual_no_pp_removed": false,
+        "candidate_member_table": [],
+        "candidate_center": null,
+        "candidate_interface_pass": false,
+        "original_interface_pass": false,
+        "original_completion_status": "unknown",
+        "reasons": [
+          "fewer_than_three_completed_candidate_children"
+        ],
+        "original_reasons": [
+          "OriginalCompleted(child) is unknown",
+          "RootArm68 source compatibility unknown",
+          "Outer0=core interpretation as original outer unknown",
+          "JEnd68 => whole MovementCompleted not proved"
+        ],
+        "ownership": {
+          "E1": "leading-observation",
+          "raw_prelude": [
+            2,
+            21
+          ],
+          "factors": [
+            {
+              "id": "W68:S1-S5",
+              "own": [
+                22,
+                121
+              ]
+            }
+          ],
+          "active_remainder": [
+            122,
+            218
+          ],
+          "coverage_once": true,
+          "confirmed_original_factors": []
+        }
+      }
+    ],
+    "no_pp_removed_control": [
+      {
+        "delta": [
+          "W68:S1-S5"
+        ],
+        "kinds": [
+          "P"
+        ],
+        "no_pp": true,
+        "pp_violations": [],
+        "has_three": false,
+        "counterfactual_no_pp_removed": true,
+        "candidate_member_table": [],
+        "candidate_center": null,
+        "candidate_interface_pass": false,
+        "original_interface_pass": false,
+        "original_completion_status": "unknown",
+        "reasons": [
+          "fewer_than_three_completed_candidate_children"
+        ],
+        "original_reasons": [
+          "OriginalCompleted(child) is unknown",
+          "RootArm68 source compatibility unknown",
+          "Outer0=core interpretation as original outer unknown",
+          "JEnd68 => whole MovementCompleted not proved"
+        ],
+        "ownership": {
+          "E1": "leading-observation",
+          "raw_prelude": [
+            2,
+            21
+          ],
+          "factors": [
+            {
+              "id": "W68:S1-S5",
+              "own": [
+                22,
+                121
+              ]
+            }
+          ],
+          "active_remainder": [
+            122,
+            218
+          ],
+          "coverage_once": true,
+          "confirmed_original_factors": []
+        }
+      }
+    ]
+  },
+  {
+    "t": 238,
+    "raw_known": [
+      "S0",
+      "S1",
+      "S2",
+      "S3",
+      "S4",
+      "S5",
+      "S6",
+      "S7",
+      "S8",
+      "S9",
+      "S10"
+    ],
+    "counts": {
+      "available_grammar_windows": 8,
+      "structural_pass": 6,
+      "roles_pass_after_structure": 2,
+      "whole_extreme_after_structure_roles": 2,
+      "candidate_completion_edges": 2,
+      "maximal_delta_paths": 1,
+      "no_pp_paths": 0,
+      "three_child_paths": 0,
+      "candidate_f2_pass": 0,
+      "original_f2_pass": 0
+    },
+    "deltas": [
+      {
+        "delta": [
+          "W68:S1-S5",
+          "W68:S6-S10"
+        ],
+        "kinds": [
+          "P",
+          "P"
+        ],
+        "no_pp": false,
+        "pp_violations": [
+          [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ]
+        ],
+        "has_three": false,
+        "counterfactual_no_pp_removed": false,
+        "candidate_member_table": [],
+        "candidate_center": null,
+        "candidate_interface_pass": false,
+        "original_interface_pass": false,
+        "original_completion_status": "unknown",
+        "reasons": [
+          "NoPP",
+          "fewer_than_three_completed_candidate_children"
+        ],
+        "original_reasons": [
+          "OriginalCompleted(child) is unknown",
+          "RootArm68 source compatibility unknown",
+          "Outer0=core interpretation as original outer unknown",
+          "JEnd68 => whole MovementCompleted not proved"
+        ],
+        "ownership": {
+          "E1": "leading-observation",
+          "raw_prelude": [
+            2,
+            21
+          ],
+          "factors": [
+            {
+              "id": "W68:S1-S5",
+              "own": [
+                22,
+                121
+              ]
+            },
+            {
+              "id": "W68:S6-S10",
+              "own": [
+                122,
+                221
+              ]
+            }
+          ],
+          "active_remainder": [
+            222,
+            238
+          ],
+          "coverage_once": true,
+          "confirmed_original_factors": []
+        }
+      }
+    ],
+    "no_pp_removed_control": [
+      {
+        "delta": [
+          "W68:S1-S5",
+          "W68:S6-S10"
+        ],
+        "kinds": [
+          "P",
+          "P"
+        ],
+        "no_pp": false,
+        "pp_violations": [
+          [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ]
+        ],
+        "has_three": false,
+        "counterfactual_no_pp_removed": true,
+        "candidate_member_table": [],
+        "candidate_center": null,
+        "candidate_interface_pass": false,
+        "original_interface_pass": false,
+        "original_completion_status": "unknown",
+        "reasons": [
+          "fewer_than_three_completed_candidate_children"
+        ],
+        "original_reasons": [
+          "OriginalCompleted(child) is unknown",
+          "RootArm68 source compatibility unknown",
+          "Outer0=core interpretation as original outer unknown",
+          "JEnd68 => whole MovementCompleted not proved"
+        ],
+        "ownership": {
+          "E1": "leading-observation",
+          "raw_prelude": [
+            2,
+            21
+          ],
+          "factors": [
+            {
+              "id": "W68:S1-S5",
+              "own": [
+                22,
+                121
+              ]
+            },
+            {
+              "id": "W68:S6-S10",
+              "own": [
+                122,
+                221
+              ]
+            }
+          ],
+          "active_remainder": [
+            222,
+            238
+          ],
+          "coverage_once": true,
+          "confirmed_original_factors": []
+        }
+      }
+    ]
+  },
+  {
+    "t": 318,
+    "raw_known": [
+      "S0",
+      "S1",
+      "S2",
+      "S3",
+      "S4",
+      "S5",
+      "S6",
+      "S7",
+      "S8",
+      "S9",
+      "S10",
+      "S11",
+      "S12",
+      "S13",
+      "S14"
+    ],
+    "counts": {
+      "available_grammar_windows": 18,
+      "structural_pass": 10,
+      "roles_pass_after_structure": 4,
+      "whole_extreme_after_structure_roles": 2,
+      "candidate_completion_edges": 2,
+      "maximal_delta_paths": 1,
+      "no_pp_paths": 0,
+      "three_child_paths": 0,
+      "candidate_f2_pass": 0,
+      "original_f2_pass": 0
+    },
+    "deltas": [
+      {
+        "delta": [
+          "W68:S1-S5",
+          "W68:S6-S10"
+        ],
+        "kinds": [
+          "P",
+          "P"
+        ],
+        "no_pp": false,
+        "pp_violations": [
+          [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ]
+        ],
+        "has_three": false,
+        "counterfactual_no_pp_removed": false,
+        "candidate_member_table": [],
+        "candidate_center": null,
+        "candidate_interface_pass": false,
+        "original_interface_pass": false,
+        "original_completion_status": "unknown",
+        "reasons": [
+          "NoPP",
+          "fewer_than_three_completed_candidate_children"
+        ],
+        "original_reasons": [
+          "OriginalCompleted(child) is unknown",
+          "RootArm68 source compatibility unknown",
+          "Outer0=core interpretation as original outer unknown",
+          "JEnd68 => whole MovementCompleted not proved"
+        ],
+        "ownership": {
+          "E1": "leading-observation",
+          "raw_prelude": [
+            2,
+            21
+          ],
+          "factors": [
+            {
+              "id": "W68:S1-S5",
+              "own": [
+                22,
+                121
+              ]
+            },
+            {
+              "id": "W68:S6-S10",
+              "own": [
+                122,
+                221
+              ]
+            }
+          ],
+          "active_remainder": [
+            222,
+            318
+          ],
+          "coverage_once": true,
+          "confirmed_original_factors": []
+        }
+      }
+    ],
+    "no_pp_removed_control": [
+      {
+        "delta": [
+          "W68:S1-S5",
+          "W68:S6-S10"
+        ],
+        "kinds": [
+          "P",
+          "P"
+        ],
+        "no_pp": false,
+        "pp_violations": [
+          [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ]
+        ],
+        "has_three": false,
+        "counterfactual_no_pp_removed": true,
+        "candidate_member_table": [],
+        "candidate_center": null,
+        "candidate_interface_pass": false,
+        "original_interface_pass": false,
+        "original_completion_status": "unknown",
+        "reasons": [
+          "fewer_than_three_completed_candidate_children"
+        ],
+        "original_reasons": [
+          "OriginalCompleted(child) is unknown",
+          "RootArm68 source compatibility unknown",
+          "Outer0=core interpretation as original outer unknown",
+          "JEnd68 => whole MovementCompleted not proved"
+        ],
+        "ownership": {
+          "E1": "leading-observation",
+          "raw_prelude": [
+            2,
+            21
+          ],
+          "factors": [
+            {
+              "id": "W68:S1-S5",
+              "own": [
+                22,
+                121
+              ]
+            },
+            {
+              "id": "W68:S6-S10",
+              "own": [
+                122,
+                221
+              ]
+            }
+          ],
+          "active_remainder": [
+            222,
+            318
+          ],
+          "coverage_once": true,
+          "confirmed_original_factors": []
+        }
+      }
+    ]
+  },
+  {
+    "t": 338,
+    "raw_known": [
+      "S0",
+      "S1",
+      "S2",
+      "S3",
+      "S4",
+      "S5",
+      "S6",
+      "S7",
+      "S8",
+      "S9",
+      "S10",
+      "S11",
+      "S12",
+      "S13",
+      "S14",
+      "S15"
+    ],
+    "counts": {
+      "available_grammar_windows": 21,
+      "structural_pass": 11,
+      "roles_pass_after_structure": 4,
+      "whole_extreme_after_structure_roles": 2,
+      "candidate_completion_edges": 2,
+      "maximal_delta_paths": 1,
+      "no_pp_paths": 0,
+      "three_child_paths": 0,
+      "candidate_f2_pass": 0,
+      "original_f2_pass": 0
+    },
+    "deltas": [
+      {
+        "delta": [
+          "W68:S1-S5",
+          "W68:S6-S10"
+        ],
+        "kinds": [
+          "P",
+          "P"
+        ],
+        "no_pp": false,
+        "pp_violations": [
+          [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ]
+        ],
+        "has_three": false,
+        "counterfactual_no_pp_removed": false,
+        "candidate_member_table": [],
+        "candidate_center": null,
+        "candidate_interface_pass": false,
+        "original_interface_pass": false,
+        "original_completion_status": "unknown",
+        "reasons": [
+          "NoPP",
+          "fewer_than_three_completed_candidate_children"
+        ],
+        "original_reasons": [
+          "OriginalCompleted(child) is unknown",
+          "RootArm68 source compatibility unknown",
+          "Outer0=core interpretation as original outer unknown",
+          "JEnd68 => whole MovementCompleted not proved"
+        ],
+        "ownership": {
+          "E1": "leading-observation",
+          "raw_prelude": [
+            2,
+            21
+          ],
+          "factors": [
+            {
+              "id": "W68:S1-S5",
+              "own": [
+                22,
+                121
+              ]
+            },
+            {
+              "id": "W68:S6-S10",
+              "own": [
+                122,
+                221
+              ]
+            }
+          ],
+          "active_remainder": [
+            222,
+            338
+          ],
+          "coverage_once": true,
+          "confirmed_original_factors": []
+        }
+      }
+    ],
+    "no_pp_removed_control": [
+      {
+        "delta": [
+          "W68:S1-S5",
+          "W68:S6-S10"
+        ],
+        "kinds": [
+          "P",
+          "P"
+        ],
+        "no_pp": false,
+        "pp_violations": [
+          [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ]
+        ],
+        "has_three": false,
+        "counterfactual_no_pp_removed": true,
+        "candidate_member_table": [],
+        "candidate_center": null,
+        "candidate_interface_pass": false,
+        "original_interface_pass": false,
+        "original_completion_status": "unknown",
+        "reasons": [
+          "fewer_than_three_completed_candidate_children"
+        ],
+        "original_reasons": [
+          "OriginalCompleted(child) is unknown",
+          "RootArm68 source compatibility unknown",
+          "Outer0=core interpretation as original outer unknown",
+          "JEnd68 => whole MovementCompleted not proved"
+        ],
+        "ownership": {
+          "E1": "leading-observation",
+          "raw_prelude": [
+            2,
+            21
+          ],
+          "factors": [
+            {
+              "id": "W68:S1-S5",
+              "own": [
+                22,
+                121
+              ]
+            },
+            {
+              "id": "W68:S6-S10",
+              "own": [
+                122,
+                221
+              ]
+            }
+          ],
+          "active_remainder": [
+            222,
+            338
+          ],
+          "coverage_once": true,
+          "confirmed_original_factors": []
+        }
+      }
+    ]
+  },
+  {
+    "t": 418,
+    "raw_known": [
+      "S0",
+      "S1",
+      "S2",
+      "S3",
+      "S4",
+      "S5",
+      "S6",
+      "S7",
+      "S8",
+      "S9",
+      "S10",
+      "S11",
+      "S12",
+      "S13",
+      "S14",
+      "S15",
+      "S16",
+      "S17",
+      "S18",
+      "S19"
+    ],
+    "counts": {
+      "available_grammar_windows": 36,
+      "structural_pass": 15,
+      "roles_pass_after_structure": 6,
+      "whole_extreme_after_structure_roles": 3,
+      "candidate_completion_edges": 3,
+      "maximal_delta_paths": 1,
+      "no_pp_paths": 0,
+      "three_child_paths": 0,
+      "candidate_f2_pass": 0,
+      "original_f2_pass": 0
+    },
+    "deltas": [
+      {
+        "delta": [
+          "W68:S1-S5",
+          "W68:S6-S10"
+        ],
+        "kinds": [
+          "P",
+          "P"
+        ],
+        "no_pp": false,
+        "pp_violations": [
+          [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ]
+        ],
+        "has_three": false,
+        "counterfactual_no_pp_removed": false,
+        "candidate_member_table": [],
+        "candidate_center": null,
+        "candidate_interface_pass": false,
+        "original_interface_pass": false,
+        "original_completion_status": "unknown",
+        "reasons": [
+          "NoPP",
+          "fewer_than_three_completed_candidate_children"
+        ],
+        "original_reasons": [
+          "OriginalCompleted(child) is unknown",
+          "RootArm68 source compatibility unknown",
+          "Outer0=core interpretation as original outer unknown",
+          "JEnd68 => whole MovementCompleted not proved"
+        ],
+        "ownership": {
+          "E1": "leading-observation",
+          "raw_prelude": [
+            2,
+            21
+          ],
+          "factors": [
+            {
+              "id": "W68:S1-S5",
+              "own": [
+                22,
+                121
+              ]
+            },
+            {
+              "id": "W68:S6-S10",
+              "own": [
+                122,
+                221
+              ]
+            }
+          ],
+          "active_remainder": [
+            222,
+            418
+          ],
+          "coverage_once": true,
+          "confirmed_original_factors": []
+        }
+      }
+    ],
+    "no_pp_removed_control": [
+      {
+        "delta": [
+          "W68:S1-S5",
+          "W68:S6-S10"
+        ],
+        "kinds": [
+          "P",
+          "P"
+        ],
+        "no_pp": false,
+        "pp_violations": [
+          [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ]
+        ],
+        "has_three": false,
+        "counterfactual_no_pp_removed": true,
+        "candidate_member_table": [],
+        "candidate_center": null,
+        "candidate_interface_pass": false,
+        "original_interface_pass": false,
+        "original_completion_status": "unknown",
+        "reasons": [
+          "fewer_than_three_completed_candidate_children"
+        ],
+        "original_reasons": [
+          "OriginalCompleted(child) is unknown",
+          "RootArm68 source compatibility unknown",
+          "Outer0=core interpretation as original outer unknown",
+          "JEnd68 => whole MovementCompleted not proved"
+        ],
+        "ownership": {
+          "E1": "leading-observation",
+          "raw_prelude": [
+            2,
+            21
+          ],
+          "factors": [
+            {
+              "id": "W68:S1-S5",
+              "own": [
+                22,
+                121
+              ]
+            },
+            {
+              "id": "W68:S6-S10",
+              "own": [
+                122,
+                221
+              ]
+            }
+          ],
+          "active_remainder": [
+            222,
+            418
+          ],
+          "coverage_once": true,
+          "confirmed_original_factors": []
+        }
+      }
+    ]
+  },
+  {
+    "t": 438,
+    "raw_known": [
+      "S0",
+      "S1",
+      "S2",
+      "S3",
+      "S4",
+      "S5",
+      "S6",
+      "S7",
+      "S8",
+      "S9",
+      "S10",
+      "S11",
+      "S12",
+      "S13",
+      "S14",
+      "S15",
+      "S16",
+      "S17",
+      "S18",
+      "S19",
+      "S20"
+    ],
+    "counts": {
+      "available_grammar_windows": 40,
+      "structural_pass": 16,
+      "roles_pass_after_structure": 7,
+      "whole_extreme_after_structure_roles": 4,
+      "candidate_completion_edges": 4,
+      "maximal_delta_paths": 1,
+      "no_pp_paths": 0,
+      "three_child_paths": 0,
+      "candidate_f2_pass": 0,
+      "original_f2_pass": 0
+    },
+    "deltas": [
+      {
+        "delta": [
+          "W68:S1-S5",
+          "W68:S6-S10"
+        ],
+        "kinds": [
+          "P",
+          "P"
+        ],
+        "no_pp": false,
+        "pp_violations": [
+          [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ]
+        ],
+        "has_three": false,
+        "counterfactual_no_pp_removed": false,
+        "candidate_member_table": [],
+        "candidate_center": null,
+        "candidate_interface_pass": false,
+        "original_interface_pass": false,
+        "original_completion_status": "unknown",
+        "reasons": [
+          "NoPP",
+          "fewer_than_three_completed_candidate_children"
+        ],
+        "original_reasons": [
+          "OriginalCompleted(child) is unknown",
+          "RootArm68 source compatibility unknown",
+          "Outer0=core interpretation as original outer unknown",
+          "JEnd68 => whole MovementCompleted not proved"
+        ],
+        "ownership": {
+          "E1": "leading-observation",
+          "raw_prelude": [
+            2,
+            21
+          ],
+          "factors": [
+            {
+              "id": "W68:S1-S5",
+              "own": [
+                22,
+                121
+              ]
+            },
+            {
+              "id": "W68:S6-S10",
+              "own": [
+                122,
+                221
+              ]
+            }
+          ],
+          "active_remainder": [
+            222,
+            438
+          ],
+          "coverage_once": true,
+          "confirmed_original_factors": []
+        }
+      }
+    ],
+    "no_pp_removed_control": [
+      {
+        "delta": [
+          "W68:S1-S5",
+          "W68:S6-S10"
+        ],
+        "kinds": [
+          "P",
+          "P"
+        ],
+        "no_pp": false,
+        "pp_violations": [
+          [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ]
+        ],
+        "has_three": false,
+        "counterfactual_no_pp_removed": true,
+        "candidate_member_table": [],
+        "candidate_center": null,
+        "candidate_interface_pass": false,
+        "original_interface_pass": false,
+        "original_completion_status": "unknown",
+        "reasons": [
+          "fewer_than_three_completed_candidate_children"
+        ],
+        "original_reasons": [
+          "OriginalCompleted(child) is unknown",
+          "RootArm68 source compatibility unknown",
+          "Outer0=core interpretation as original outer unknown",
+          "JEnd68 => whole MovementCompleted not proved"
+        ],
+        "ownership": {
+          "E1": "leading-observation",
+          "raw_prelude": [
+            2,
+            21
+          ],
+          "factors": [
+            {
+              "id": "W68:S1-S5",
+              "own": [
+                22,
+                121
+              ]
+            },
+            {
+              "id": "W68:S6-S10",
+              "own": [
+                122,
+                221
+              ]
+            }
+          ],
+          "active_remainder": [
+            222,
+            438
+          ],
+          "coverage_once": true,
+          "confirmed_original_factors": []
+        }
+      }
+    ]
+  },
+  {
+    "t": 442,
+    "raw_known": [
+      "S0",
+      "S1",
+      "S2",
+      "S3",
+      "S4",
+      "S5",
+      "S6",
+      "S7",
+      "S8",
+      "S9",
+      "S10",
+      "S11",
+      "S12",
+      "S13",
+      "S14",
+      "S15",
+      "S16",
+      "S17",
+      "S18",
+      "S19",
+      "S20"
+    ],
+    "counts": {
+      "available_grammar_windows": 40,
+      "structural_pass": 16,
+      "roles_pass_after_structure": 7,
+      "whole_extreme_after_structure_roles": 4,
+      "candidate_completion_edges": 4,
+      "maximal_delta_paths": 1,
+      "no_pp_paths": 0,
+      "three_child_paths": 0,
+      "candidate_f2_pass": 0,
+      "original_f2_pass": 0
+    },
+    "deltas": [
+      {
+        "delta": [
+          "W68:S1-S5",
+          "W68:S6-S10"
+        ],
+        "kinds": [
+          "P",
+          "P"
+        ],
+        "no_pp": false,
+        "pp_violations": [
+          [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ]
+        ],
+        "has_three": false,
+        "counterfactual_no_pp_removed": false,
+        "candidate_member_table": [],
+        "candidate_center": null,
+        "candidate_interface_pass": false,
+        "original_interface_pass": false,
+        "original_completion_status": "unknown",
+        "reasons": [
+          "NoPP",
+          "fewer_than_three_completed_candidate_children"
+        ],
+        "original_reasons": [
+          "OriginalCompleted(child) is unknown",
+          "RootArm68 source compatibility unknown",
+          "Outer0=core interpretation as original outer unknown",
+          "JEnd68 => whole MovementCompleted not proved"
+        ],
+        "ownership": {
+          "E1": "leading-observation",
+          "raw_prelude": [
+            2,
+            21
+          ],
+          "factors": [
+            {
+              "id": "W68:S1-S5",
+              "own": [
+                22,
+                121
+              ]
+            },
+            {
+              "id": "W68:S6-S10",
+              "own": [
+                122,
+                221
+              ]
+            }
+          ],
+          "active_remainder": [
+            222,
+            442
+          ],
+          "coverage_once": true,
+          "confirmed_original_factors": []
+        }
+      }
+    ],
+    "no_pp_removed_control": [
+      {
+        "delta": [
+          "W68:S1-S5",
+          "W68:S6-S10"
+        ],
+        "kinds": [
+          "P",
+          "P"
+        ],
+        "no_pp": false,
+        "pp_violations": [
+          [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ]
+        ],
+        "has_three": false,
+        "counterfactual_no_pp_removed": true,
+        "candidate_member_table": [],
+        "candidate_center": null,
+        "candidate_interface_pass": false,
+        "original_interface_pass": false,
+        "original_completion_status": "unknown",
+        "reasons": [
+          "fewer_than_three_completed_candidate_children"
+        ],
+        "original_reasons": [
+          "OriginalCompleted(child) is unknown",
+          "RootArm68 source compatibility unknown",
+          "Outer0=core interpretation as original outer unknown",
+          "JEnd68 => whole MovementCompleted not proved"
+        ],
+        "ownership": {
+          "E1": "leading-observation",
+          "raw_prelude": [
+            2,
+            21
+          ],
+          "factors": [
+            {
+              "id": "W68:S1-S5",
+              "own": [
+                22,
+                121
+              ]
+            },
+            {
+              "id": "W68:S6-S10",
+              "own": [
+                122,
+                221
+              ]
+            }
+          ],
+          "active_remainder": [
+            222,
+            442
+          ],
+          "coverage_once": true,
+          "confirmed_original_factors": []
+        }
+      }
+    ]
+  }
+]

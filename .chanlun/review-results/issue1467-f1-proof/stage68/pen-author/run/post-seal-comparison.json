@@ -1,0 +1,66 @@
+[
+  {
+    "id": "P0",
+    "end": 121,
+    "endpointKnownAt": 122,
+    "frozenAt": 126,
+    "rawEvidenceKnownAt": 138,
+    "cFrozenL": {
+      "num": -500,
+      "den": 1
+    },
+    "wholeFrozenL": {
+      "num": -1500,
+      "den": 1
+    },
+    "match": true
+  },
+  {
+    "id": "P1",
+    "end": 221,
+    "endpointKnownAt": 222,
+    "frozenAt": 226,
+    "rawEvidenceKnownAt": 238,
+    "cFrozenL": {
+      "num": -1200,
+      "den": 1
+    },
+    "wholeFrozenL": {
+      "num": -1000,
+      "den": 1
+    },
+    "match": true
+  },
+  {
+    "id": "P2",
+    "end": 321,
+    "endpointKnownAt": 322,
+    "frozenAt": 326,
+    "rawEvidenceKnownAt": 338,
+    "cFrozenL": {
+      "num": -200,
+      "den": 1
+    },
+    "wholeFrozenL": {
+      "num": -200,
+      "den": 1
+    },
+    "match": true
+  },
+  {
+    "id": "c0",
+    "end": 421,
+    "endpointKnownAt": 422,
+    "frozenAt": 426,
+    "rawEvidenceKnownAt": 438,
+    "cFrozenL": {
+      "num": -4200,
+      "den": 1
+    },
+    "wholeFrozenL": {
+      "num": -3500,
+      "den": 1
+    },
+    "match": true
+  }
+]

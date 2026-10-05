@@ -1,0 +1,41 @@
+{
+  "status": "independent-adoption-review-complete",
+  "verdict": "accepted",
+  "accepted": true,
+  "must_revise": [],
+  "issue": 1467,
+  "stage": 68,
+  "review": "review.md",
+  "review_sha256": "96ccbcdf720ee6ba08c8bd66dcd0cbd02fbbd665f592b35764a3518989beb7ed",
+  "frozen_entry_sha256": "3dac5940f48089a4e0616af15e3e29cf6e7514015fef1f732288e2dc5917d682",
+  "frozen_inputs_verified": 9,
+  "tracked_inputs_unchanged": 81,
+  "checks": "field-audit.json",
+  "receipt": "receipt.json",
+  "accepted_scope": [
+    "DP68-v2 implemented tentative endpoint retraction and finite tested controls",
+    "summary preserves 11 replay artifacts, 10 independent controls and four entire-Machine rejection checks",
+    "JointCut finite negative result with ScopeCorrections, PathScopeCorrections, all-delta-paths and path-classes",
+    "InvocationCorrections as author disclosure, not reconstructed historical invocation",
+    "ordinary weighted-slope algebra with positive time weights and fixed initial velocity when comparing L"
+  ],
+  "not_accepted": [
+    "standalone check_joint.py as complete R_delta implementation",
+    "generic DP68 state-machine totality or actual market active-replacement coverage",
+    "original F1/F2 qualification, complete unique decomposition or nonempty recursive success",
+    "all-F1, all-future or all-history impossibility",
+    "physical future-byte isolation",
+    "Lean or production completion",
+    "P1-P4, R_W/R_D or value closure"
+  ],
+  "standalone_joint_code_verdict": "Block retained",
+  "corrected_joint_evidence_verdict": "Accept retained",
+  "executions_this_review": {
+    "replays": 0,
+    "state_controls": 0,
+    "rw": 0,
+    "lean": 0,
+    "new_histories": 0
+  },
+  "files_changed_outside_review_directory": false
+}

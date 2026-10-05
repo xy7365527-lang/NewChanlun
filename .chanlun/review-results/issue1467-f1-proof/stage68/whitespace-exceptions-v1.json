@@ -1,0 +1,18 @@
+{
+  "check": "git diff --cached --check",
+  "raw_exit": 2,
+  "exceptions": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage68/pen-author-v2/v1-to-v2.diff",
+      "lines": [
+        21,
+        26,
+        228
+      ],
+      "literal": " ",
+      "sha256": "afebe0ff59136642fe2008e999ef164d10fdb4bac1de8c1554b832478f5233e7",
+      "reason": "Frozen unified-diff blank context lines; preserve original reviewer-bound bytes"
+    }
+  ],
+  "remaining_files_exit": 0
+}

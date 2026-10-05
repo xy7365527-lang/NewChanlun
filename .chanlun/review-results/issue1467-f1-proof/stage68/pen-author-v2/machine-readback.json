@@ -1,0 +1,54 @@
+{
+  "status": "author-readback-pass",
+  "review_fix": "actual template withdrawal propagation implemented",
+  "functions": [
+    "withdraw_active",
+    "clear_span",
+    "observe_active",
+    "bind_terminal",
+    "freeze_span",
+    "check_stable_prefix"
+  ],
+  "propagation": "non-stable terminal withdrawal clears raw/whole current end and references, preserving historical snapshots",
+  "no_backfill": "new active with no preexisting qualified version has pending end=null; no proposal fabricated",
+  "freeze_gate": "current terminal tuple == version tuple; object end == terminal end; stable certificate candidateVersion == terminalCandidate",
+  "stable_guard": "monotone prefix guard before observation append; stable withdrawal rejected before clearing spans",
+  "v1_core_files_identical": 11,
+  "main_prefixes": 443,
+  "main_active_replacements": 0,
+  "control_messages": 8,
+  "control_scope": "interface state messages on two captured checkpoints; no second valid market history",
+  "actual_present_fields_cleared": [
+    "end",
+    "endpointKnownAt",
+    "terminalCandidate",
+    "pendingTerminalPen",
+    "pendingTerminalKnownAt"
+  ],
+  "confirmed_dependency_fields_in_control": "actual frozen and rawEvidence fields retained on rejected operations; absent while tentative",
+  "not_proved": [
+    "generic candidate coverage",
+    "generic transition totality",
+    "real-market active replacement",
+    "order pointbar source bridge",
+    "original StructuralPenNow",
+    "original Completed",
+    "RootArm67",
+    "Owner",
+    "Next",
+    "fixed F2",
+    "full F1"
+  ],
+  "original_gates": {
+    "StructuralPenNow": null,
+    "GeneralDiv": null,
+    "Completed": null,
+    "RootArm67": null,
+    "Owner": null,
+    "Next": null,
+    "F2": null,
+    "full_F1": null
+  },
+  "core_computation_runs": 1,
+  "ordinary_lemma": "unchanged v1 exact algebra; no new Lean"
+}

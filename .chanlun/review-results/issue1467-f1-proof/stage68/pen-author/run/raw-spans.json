@@ -1,0 +1,309 @@
+[
+  {
+    "id": "Raw:0",
+    "start": 1,
+    "candidateFirstKnownAt": 6,
+    "end": 21,
+    "state": "frozen-pens-awaiting-raw-proof",
+    "endpointKnownAt": 22,
+    "terminalCandidate": "DP:17@18:v21",
+    "frozenL": {
+      "num": -1000,
+      "den": 1
+    },
+    "frozenAt": 26
+  },
+  {
+    "id": "Raw:1",
+    "start": 21,
+    "candidateFirstKnownAt": 26,
+    "end": 41,
+    "state": "frozen-pens-awaiting-raw-proof",
+    "endpointKnownAt": 42,
+    "terminalCandidate": "DP:37@38:v41",
+    "frozenL": {
+      "num": 1000,
+      "den": 1
+    },
+    "frozenAt": 46
+  },
+  {
+    "id": "Raw:2",
+    "start": 41,
+    "candidateFirstKnownAt": 46,
+    "end": 61,
+    "state": "frozen-pens-awaiting-raw-proof",
+    "endpointKnownAt": 62,
+    "terminalCandidate": "DP:57@58:v61",
+    "frozenL": {
+      "num": -500,
+      "den": 1
+    },
+    "frozenAt": 66
+  },
+  {
+    "id": "Raw:3",
+    "start": 61,
+    "candidateFirstKnownAt": 66,
+    "end": 81,
+    "state": "frozen-pens-awaiting-raw-proof",
+    "endpointKnownAt": 82,
+    "terminalCandidate": "DP:77@78:v81",
+    "frozenL": {
+      "num": 500,
+      "den": 1
+    },
+    "frozenAt": 86
+  },
+  {
+    "id": "Raw:4",
+    "start": 81,
+    "candidateFirstKnownAt": 86,
+    "end": 101,
+    "state": "frozen-pens-awaiting-raw-proof",
+    "endpointKnownAt": 102,
+    "terminalCandidate": "DP:97@98:v101",
+    "frozenL": {
+      "num": -500,
+      "den": 1
+    },
+    "frozenAt": 106
+  },
+  {
+    "id": "Raw:5",
+    "start": 101,
+    "candidateFirstKnownAt": 106,
+    "end": 121,
+    "state": "selected-raw-evidence-complete",
+    "endpointKnownAt": 122,
+    "terminalCandidate": "DP:117@118:v121",
+    "frozenL": {
+      "num": -500,
+      "den": 1
+    },
+    "frozenAt": 126,
+    "rawEvidenceKnownAt": 138
+  },
+  {
+    "id": "Raw:6",
+    "start": 121,
+    "candidateFirstKnownAt": 126,
+    "end": 141,
+    "state": "frozen-pens-awaiting-raw-proof",
+    "endpointKnownAt": 142,
+    "terminalCandidate": "DP:137@138:v141",
+    "frozenL": {
+      "num": -1100,
+      "den": 1
+    },
+    "frozenAt": 146
+  },
+  {
+    "id": "Raw:7",
+    "start": 141,
+    "candidateFirstKnownAt": 146,
+    "end": 161,
+    "state": "frozen-pens-awaiting-raw-proof",
+    "endpointKnownAt": 162,
+    "terminalCandidate": "DP:157@158:v161",
+    "frozenL": {
+      "num": -300,
+      "den": 1
+    },
+    "frozenAt": 166
+  },
+  {
+    "id": "Raw:8",
+    "start": 161,
+    "candidateFirstKnownAt": 166,
+    "end": 181,
+    "state": "frozen-pens-awaiting-raw-proof",
+    "endpointKnownAt": 182,
+    "terminalCandidate": "DP:177@178:v181",
+    "frozenL": {
+      "num": -100,
+      "den": 1
+    },
+    "frozenAt": 186
+  },
+  {
+    "id": "Raw:9",
+    "start": 181,
+    "candidateFirstKnownAt": 186,
+    "end": 201,
+    "state": "frozen-pens-awaiting-raw-proof",
+    "endpointKnownAt": 202,
+    "terminalCandidate": "DP:197@198:v201",
+    "frozenL": {
+      "num": 100,
+      "den": 1
+    },
+    "frozenAt": 206
+  },
+  {
+    "id": "Raw:10",
+    "start": 201,
+    "candidateFirstKnownAt": 206,
+    "end": 221,
+    "state": "selected-raw-evidence-complete",
+    "endpointKnownAt": 222,
+    "terminalCandidate": "DP:217@218:v221",
+    "frozenL": {
+      "num": -1200,
+      "den": 1
+    },
+    "frozenAt": 226,
+    "rawEvidenceKnownAt": 238
+  },
+  {
+    "id": "Raw:11",
+    "start": 221,
+    "candidateFirstKnownAt": 226,
+    "end": 241,
+    "state": "frozen-pens-awaiting-raw-proof",
+    "endpointKnownAt": 242,
+    "terminalCandidate": "DP:237@238:v241",
+    "frozenL": {
+      "num": 100,
+      "den": 1
+    },
+    "frozenAt": 246
+  },
+  {
+    "id": "Raw:12",
+    "start": 241,
+    "candidateFirstKnownAt": 246,
+    "end": 261,
+    "state": "frozen-pens-awaiting-raw-proof",
+    "endpointKnownAt": 262,
+    "terminalCandidate": "DP:257@258:v261",
+    "frozenL": {
+      "num": -700,
+      "den": 1
+    },
+    "frozenAt": 266
+  },
+  {
+    "id": "Raw:13",
+    "start": 261,
+    "candidateFirstKnownAt": 266,
+    "end": 281,
+    "state": "frozen-pens-awaiting-raw-proof",
+    "endpointKnownAt": 282,
+    "terminalCandidate": "DP:277@278:v281",
+    "frozenL": {
+      "num": 100,
+      "den": 1
+    },
+    "frozenAt": 286
+  },
+  {
+    "id": "Raw:14",
+    "start": 281,
+    "candidateFirstKnownAt": 286,
+    "end": 301,
+    "state": "frozen-pens-awaiting-raw-proof",
+    "endpointKnownAt": 302,
+    "terminalCandidate": "DP:297@298:v301",
+    "frozenL": {
+      "num": -300,
+      "den": 1
+    },
+    "frozenAt": 306
+  },
+  {
+    "id": "Raw:15",
+    "start": 301,
+    "candidateFirstKnownAt": 306,
+    "end": 321,
+    "state": "selected-raw-evidence-complete",
+    "endpointKnownAt": 322,
+    "terminalCandidate": "DP:317@318:v321",
+    "frozenL": {
+      "num": -200,
+      "den": 1
+    },
+    "frozenAt": 326,
+    "rawEvidenceKnownAt": 338
+  },
+  {
+    "id": "Raw:16",
+    "start": 321,
+    "candidateFirstKnownAt": 326,
+    "end": 341,
+    "state": "frozen-pens-awaiting-raw-proof",
+    "endpointKnownAt": 342,
+    "terminalCandidate": "DP:337@338:v341",
+    "frozenL": {
+      "num": -3850,
+      "den": 1
+    },
+    "frozenAt": 346
+  },
+  {
+    "id": "Raw:17",
+    "start": 341,
+    "candidateFirstKnownAt": 346,
+    "end": 361,
+    "state": "frozen-pens-awaiting-raw-proof",
+    "endpointKnownAt": 362,
+    "terminalCandidate": "DP:357@358:v361",
+    "frozenL": {
+      "num": -1050,
+      "den": 1
+    },
+    "frozenAt": 366
+  },
+  {
+    "id": "Raw:18",
+    "start": 361,
+    "candidateFirstKnownAt": 366,
+    "end": 381,
+    "state": "frozen-pens-awaiting-raw-proof",
+    "endpointKnownAt": 382,
+    "terminalCandidate": "DP:377@378:v381",
+    "frozenL": {
+      "num": -350,
+      "den": 1
+    },
+    "frozenAt": 386
+  },
+  {
+    "id": "Raw:19",
+    "start": 381,
+    "candidateFirstKnownAt": 386,
+    "end": 401,
+    "state": "frozen-pens-awaiting-raw-proof",
+    "endpointKnownAt": 402,
+    "terminalCandidate": "DP:397@398:v401",
+    "frozenL": {
+      "num": 350,
+      "den": 1
+    },
+    "frozenAt": 406
+  },
+  {
+    "id": "Raw:20",
+    "start": 401,
+    "candidateFirstKnownAt": 406,
+    "end": 421,
+    "state": "selected-raw-evidence-complete",
+    "endpointKnownAt": 422,
+    "terminalCandidate": "DP:417@418:v421",
+    "frozenL": {
+      "num": -4200,
+      "den": 1
+    },
+    "frozenAt": 426,
+    "rawEvidenceKnownAt": 438
+  },
+  {
+    "id": "Raw:21",
+    "start": 421,
+    "candidateFirstKnownAt": 426,
+    "end": 441,
+    "state": "ended-awaiting-stability",
+    "endpointKnownAt": 442,
+    "terminalCandidate": "DP:437@438:v441"
+  }
+]

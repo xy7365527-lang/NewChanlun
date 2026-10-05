@@ -1,0 +1,1118 @@
+{
+  "versions_checked": 441,
+  "anchors": [
+    {
+      "anchor": 1,
+      "knownAt": 2,
+      "support": [
+        0,
+        1,
+        2
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 5,
+      "knownAt": 6,
+      "support": [
+        4,
+        5,
+        6
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 9,
+      "knownAt": 10,
+      "support": [
+        8,
+        9,
+        10
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 13,
+      "knownAt": 14,
+      "support": [
+        12,
+        13,
+        14
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 17,
+      "knownAt": 18,
+      "support": [
+        16,
+        17,
+        18
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 21,
+      "knownAt": 22,
+      "support": [
+        20,
+        21,
+        22
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 25,
+      "knownAt": 26,
+      "support": [
+        24,
+        25,
+        26
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 29,
+      "knownAt": 30,
+      "support": [
+        28,
+        29,
+        30
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 33,
+      "knownAt": 34,
+      "support": [
+        32,
+        33,
+        34
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 37,
+      "knownAt": 38,
+      "support": [
+        36,
+        37,
+        38
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 41,
+      "knownAt": 42,
+      "support": [
+        40,
+        41,
+        42
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 45,
+      "knownAt": 46,
+      "support": [
+        44,
+        45,
+        46
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 49,
+      "knownAt": 50,
+      "support": [
+        48,
+        49,
+        50
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 53,
+      "knownAt": 54,
+      "support": [
+        52,
+        53,
+        54
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 57,
+      "knownAt": 58,
+      "support": [
+        56,
+        57,
+        58
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 61,
+      "knownAt": 62,
+      "support": [
+        60,
+        61,
+        62
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 65,
+      "knownAt": 66,
+      "support": [
+        64,
+        65,
+        66
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 69,
+      "knownAt": 70,
+      "support": [
+        68,
+        69,
+        70
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 73,
+      "knownAt": 74,
+      "support": [
+        72,
+        73,
+        74
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 77,
+      "knownAt": 78,
+      "support": [
+        76,
+        77,
+        78
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 81,
+      "knownAt": 82,
+      "support": [
+        80,
+        81,
+        82
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 85,
+      "knownAt": 86,
+      "support": [
+        84,
+        85,
+        86
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 89,
+      "knownAt": 90,
+      "support": [
+        88,
+        89,
+        90
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 93,
+      "knownAt": 94,
+      "support": [
+        92,
+        93,
+        94
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 97,
+      "knownAt": 98,
+      "support": [
+        96,
+        97,
+        98
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 101,
+      "knownAt": 102,
+      "support": [
+        100,
+        101,
+        102
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 105,
+      "knownAt": 106,
+      "support": [
+        104,
+        105,
+        106
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 109,
+      "knownAt": 110,
+      "support": [
+        108,
+        109,
+        110
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 113,
+      "knownAt": 114,
+      "support": [
+        112,
+        113,
+        114
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 117,
+      "knownAt": 118,
+      "support": [
+        116,
+        117,
+        118
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 121,
+      "knownAt": 122,
+      "support": [
+        120,
+        121,
+        122
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 125,
+      "knownAt": 126,
+      "support": [
+        124,
+        125,
+        126
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 129,
+      "knownAt": 130,
+      "support": [
+        128,
+        129,
+        130
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 133,
+      "knownAt": 134,
+      "support": [
+        132,
+        133,
+        134
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 137,
+      "knownAt": 138,
+      "support": [
+        136,
+        137,
+        138
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 141,
+      "knownAt": 142,
+      "support": [
+        140,
+        141,
+        142
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 145,
+      "knownAt": 146,
+      "support": [
+        144,
+        145,
+        146
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 149,
+      "knownAt": 150,
+      "support": [
+        148,
+        149,
+        150
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 153,
+      "knownAt": 154,
+      "support": [
+        152,
+        153,
+        154
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 157,
+      "knownAt": 158,
+      "support": [
+        156,
+        157,
+        158
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 161,
+      "knownAt": 162,
+      "support": [
+        160,
+        161,
+        162
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 165,
+      "knownAt": 166,
+      "support": [
+        164,
+        165,
+        166
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 169,
+      "knownAt": 170,
+      "support": [
+        168,
+        169,
+        170
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 173,
+      "knownAt": 174,
+      "support": [
+        172,
+        173,
+        174
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 177,
+      "knownAt": 178,
+      "support": [
+        176,
+        177,
+        178
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 181,
+      "knownAt": 182,
+      "support": [
+        180,
+        181,
+        182
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 185,
+      "knownAt": 186,
+      "support": [
+        184,
+        185,
+        186
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 189,
+      "knownAt": 190,
+      "support": [
+        188,
+        189,
+        190
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 193,
+      "knownAt": 194,
+      "support": [
+        192,
+        193,
+        194
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 197,
+      "knownAt": 198,
+      "support": [
+        196,
+        197,
+        198
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 201,
+      "knownAt": 202,
+      "support": [
+        200,
+        201,
+        202
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 205,
+      "knownAt": 206,
+      "support": [
+        204,
+        205,
+        206
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 209,
+      "knownAt": 210,
+      "support": [
+        208,
+        209,
+        210
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 213,
+      "knownAt": 214,
+      "support": [
+        212,
+        213,
+        214
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 217,
+      "knownAt": 218,
+      "support": [
+        216,
+        217,
+        218
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 221,
+      "knownAt": 222,
+      "support": [
+        220,
+        221,
+        222
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 225,
+      "knownAt": 226,
+      "support": [
+        224,
+        225,
+        226
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 229,
+      "knownAt": 230,
+      "support": [
+        228,
+        229,
+        230
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 233,
+      "knownAt": 234,
+      "support": [
+        232,
+        233,
+        234
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 237,
+      "knownAt": 238,
+      "support": [
+        236,
+        237,
+        238
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 241,
+      "knownAt": 242,
+      "support": [
+        240,
+        241,
+        242
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 245,
+      "knownAt": 246,
+      "support": [
+        244,
+        245,
+        246
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 249,
+      "knownAt": 250,
+      "support": [
+        248,
+        249,
+        250
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 253,
+      "knownAt": 254,
+      "support": [
+        252,
+        253,
+        254
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 257,
+      "knownAt": 258,
+      "support": [
+        256,
+        257,
+        258
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 261,
+      "knownAt": 262,
+      "support": [
+        260,
+        261,
+        262
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 265,
+      "knownAt": 266,
+      "support": [
+        264,
+        265,
+        266
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 269,
+      "knownAt": 270,
+      "support": [
+        268,
+        269,
+        270
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 273,
+      "knownAt": 274,
+      "support": [
+        272,
+        273,
+        274
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 277,
+      "knownAt": 278,
+      "support": [
+        276,
+        277,
+        278
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 281,
+      "knownAt": 282,
+      "support": [
+        280,
+        281,
+        282
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 285,
+      "knownAt": 286,
+      "support": [
+        284,
+        285,
+        286
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 289,
+      "knownAt": 290,
+      "support": [
+        288,
+        289,
+        290
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 293,
+      "knownAt": 294,
+      "support": [
+        292,
+        293,
+        294
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 297,
+      "knownAt": 298,
+      "support": [
+        296,
+        297,
+        298
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 301,
+      "knownAt": 302,
+      "support": [
+        300,
+        301,
+        302
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 305,
+      "knownAt": 306,
+      "support": [
+        304,
+        305,
+        306
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 309,
+      "knownAt": 310,
+      "support": [
+        308,
+        309,
+        310
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 313,
+      "knownAt": 314,
+      "support": [
+        312,
+        313,
+        314
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 317,
+      "knownAt": 318,
+      "support": [
+        316,
+        317,
+        318
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 321,
+      "knownAt": 322,
+      "support": [
+        320,
+        321,
+        322
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 325,
+      "knownAt": 326,
+      "support": [
+        324,
+        325,
+        326
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 329,
+      "knownAt": 330,
+      "support": [
+        328,
+        329,
+        330
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 333,
+      "knownAt": 334,
+      "support": [
+        332,
+        333,
+        334
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 337,
+      "knownAt": 338,
+      "support": [
+        336,
+        337,
+        338
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 341,
+      "knownAt": 342,
+      "support": [
+        340,
+        341,
+        342
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 345,
+      "knownAt": 346,
+      "support": [
+        344,
+        345,
+        346
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 349,
+      "knownAt": 350,
+      "support": [
+        348,
+        349,
+        350
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 353,
+      "knownAt": 354,
+      "support": [
+        352,
+        353,
+        354
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 357,
+      "knownAt": 358,
+      "support": [
+        356,
+        357,
+        358
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 361,
+      "knownAt": 362,
+      "support": [
+        360,
+        361,
+        362
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 365,
+      "knownAt": 366,
+      "support": [
+        364,
+        365,
+        366
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 369,
+      "knownAt": 370,
+      "support": [
+        368,
+        369,
+        370
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 373,
+      "knownAt": 374,
+      "support": [
+        372,
+        373,
+        374
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 377,
+      "knownAt": 378,
+      "support": [
+        376,
+        377,
+        378
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 381,
+      "knownAt": 382,
+      "support": [
+        380,
+        381,
+        382
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 385,
+      "knownAt": 386,
+      "support": [
+        384,
+        385,
+        386
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 389,
+      "knownAt": 390,
+      "support": [
+        388,
+        389,
+        390
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 393,
+      "knownAt": 394,
+      "support": [
+        392,
+        393,
+        394
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 397,
+      "knownAt": 398,
+      "support": [
+        396,
+        397,
+        398
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 401,
+      "knownAt": 402,
+      "support": [
+        400,
+        401,
+        402
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 405,
+      "knownAt": 406,
+      "support": [
+        404,
+        405,
+        406
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 409,
+      "knownAt": 410,
+      "support": [
+        408,
+        409,
+        410
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 413,
+      "knownAt": 414,
+      "support": [
+        412,
+        413,
+        414
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 417,
+      "knownAt": 418,
+      "support": [
+        416,
+        417,
+        418
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 421,
+      "knownAt": 422,
+      "support": [
+        420,
+        421,
+        422
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 425,
+      "knownAt": 426,
+      "support": [
+        424,
+        425,
+        426
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 429,
+      "knownAt": 430,
+      "support": [
+        428,
+        429,
+        430
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 433,
+      "knownAt": 434,
+      "support": [
+        432,
+        433,
+        434
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 437,
+      "knownAt": 438,
+      "support": [
+        436,
+        437,
+        438
+      ],
+      "pointbarStrictFractal": true
+    },
+    {
+      "anchor": 441,
+      "knownAt": 442,
+      "support": [
+        440,
+        441,
+        442
+      ],
+      "pointbarStrictFractal": true
+    }
+  ],
+  "failures": [],
+  "future_support_used": false,
+  "mode": "emitted-version finite readback; only support indices <= anchorKnownAt"
+}

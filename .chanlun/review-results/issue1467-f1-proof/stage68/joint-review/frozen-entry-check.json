@@ -1,0 +1,20 @@
+[
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author/FINAL.json",
+    "sha256": "778ffffb4a3cb89c23083242fe497d2eb99867d3a9b979b51e474b727346d02e",
+    "expected": "778ffffb4a3cb89c23083242fe497d2eb99867d3a9b979b51e474b727346d02e",
+    "match": true
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author/manifest.json",
+    "sha256": "5b364164b5356880135262e150195b7f03044fe2e8d7d779f31d044d6315a1e3",
+    "expected": "5b364164b5356880135262e150195b7f03044fe2e8d7d779f31d044d6315a1e3",
+    "match": true
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author/Report.md",
+    "sha256": "e67550836f37fca13fb7255c10d10dac639d476aecddb89bce3c395261cb2de3",
+    "expected": "e67550836f37fca13fb7255c10d10dac639d476aecddb89bce3c395261cb2de3",
+    "match": true
+  }
+]

@@ -1,0 +1,121 @@
+{
+  "version": "DP68-v2-independent-review-frozen",
+  "root": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-v2-review",
+  "files": [
+    {
+      "path": "audit-receipt.json",
+      "bytes": 889,
+      "sha256": "810a582c2a897ca8bebdbedb2355a7f97860a8ff6a14016266cf1a1aaf5fb80d"
+    },
+    {
+      "path": "code-reading.md",
+      "bytes": 4711,
+      "sha256": "e63676515fe1aa77757df7ad75628d8d5167c37c1dad0706b0ab7a882aa94f18"
+    },
+    {
+      "path": "command-receipt.json",
+      "bytes": 440,
+      "sha256": "25e86df7bf869fbfbb00adefdf5331ba594902dadd6243196774366a6bedba02"
+    },
+    {
+      "path": "independent-control-results.json",
+      "bytes": 32675,
+      "sha256": "1126e8959775f769c4dec04625108bbb12aa11e9fac7d0145b11379f9ba85dd9"
+    },
+    {
+      "path": "independent-results.json",
+      "bytes": 548,
+      "sha256": "0665f69b4a8c240c16be96b94e59c3874f781e0ce322175361f304589b4ce2ef"
+    },
+    {
+      "path": "independent_review.py",
+      "bytes": 16231,
+      "sha256": "039f4f962dee1a7d818285e30155d051979bfe85dcc779a4466e05bd6e7a13e9"
+    },
+    {
+      "path": "inputhash-after.json",
+      "bytes": 23717,
+      "sha256": "a4ca88564ebb01d6b0819ef850875cf0971b9294f375982f36d5663a954bd9cd"
+    },
+    {
+      "path": "inputhash-before.json",
+      "bytes": 23717,
+      "sha256": "a4ca88564ebb01d6b0819ef850875cf0971b9294f375982f36d5663a954bd9cd"
+    },
+    {
+      "path": "replay/all-prefixes.jsonl",
+      "bytes": 1484918,
+      "sha256": "97503b14f781080cd3c41d640d5b6bb6f81aeed6adfc6309b1a2932c40aca07e"
+    },
+    {
+      "path": "replay/completion-candidates.json",
+      "bytes": 8041,
+      "sha256": "fe1de9113a8372d9094d1932ff3973e84254d9020bfedc54fb0dbc4c7cf8adec"
+    },
+    {
+      "path": "replay/events.json",
+      "bytes": 151577,
+      "sha256": "0f08624ad54da0618329cf394a0e3638d6a26e5eec62bf64d158695688caf32b"
+    },
+    {
+      "path": "replay/initialization.json",
+      "bytes": 22813,
+      "sha256": "0ad23747f54d9f01ff0962a1973f5a25e53e5ef13011084ce0f78b83011b7247"
+    },
+    {
+      "path": "replay/key-trajectories.json",
+      "bytes": 164385,
+      "sha256": "8459c737d754ada878611571faae28904df10db601f2d48be5811ef1d852cf4f"
+    },
+    {
+      "path": "replay/pointbar-geometry.json",
+      "bytes": 79789,
+      "sha256": "7715fb2f20901038551c55b57bbe37d7c0c64ae8824af84027b2388bc2324ad0"
+    },
+    {
+      "path": "replay/post-seal-comparison.json",
+      "bytes": 1052,
+      "sha256": "bc155d4aedc824a0ce800def6b2dba1b133219aa6aadab8b7a4fa84f9fd76ce2"
+    },
+    {
+      "path": "replay/raw-spans.json",
+      "bytes": 6463,
+      "sha256": "cdbcaa182e5a48224502d56935afd5b5dd95f95130956c6ed7dbf57f15142d5e"
+    },
+    {
+      "path": "replay/versions.json",
+      "bytes": 274457,
+      "sha256": "e41ef3aa849508b58241ad696fd7cacd1b5dabf1a924c7250fced5195f710dc4"
+    },
+    {
+      "path": "replay/weighted-lemma.json",
+      "bytes": 274,
+      "sha256": "400f01f6f9a45098ca04571417bec5e1e533fb47399b1d472aa69d8df67b1753"
+    },
+    {
+      "path": "replay/whole-spans.json",
+      "bytes": 2018,
+      "sha256": "4fd30d62edf61b0317a277dfd0bf4d59b411b19a601028ba64b3904421e143ea"
+    },
+    {
+      "path": "replay-equality.json",
+      "bytes": 3342,
+      "sha256": "b139aace4944fe02bc0d0a7fa9d9bed7ce869d8d565993eab224ddafef33900a"
+    },
+    {
+      "path": "review.md",
+      "bytes": 7389,
+      "sha256": "a35de1a085221b241bd2d3060ffc8baae3b63b92c2c9cec8088c0d0c1176fa0c"
+    },
+    {
+      "path": "stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "stdout.log",
+      "bytes": 498,
+      "sha256": "3808c682f05217c823c09042cabc0dfbcb21a5bd7c91b8337b73d0d72f41cd78"
+    }
+  ]
+}

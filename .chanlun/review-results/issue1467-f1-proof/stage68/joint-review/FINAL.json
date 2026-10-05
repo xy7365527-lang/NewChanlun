@@ -1,0 +1,40 @@
+{
+  "status": "independent_review_complete_finite_negative_accepted_with_existing_scope_corrections",
+  "review": "review.md",
+  "report_sha256": "37a5a606f4bd928f3d57917d69d0868e1ba4ee269c062ea4ea7d0a6cea6b1b3e",
+  "manifest_sha256": "73438974a790ca85225229890c65e2ca2ed8d1cdfe07cf5c0f8041be9a52a941",
+  "frozen_author_final_sha256": "778ffffb4a3cb89c23083242fe497d2eb99867d3a9b979b51e474b727346d02e",
+  "frozen_author_manifest_sha256": "5b364164b5356880135262e150195b7f03044fe2e8d7d779f31d044d6315a1e3",
+  "frozen_author_report_sha256": "e67550836f37fca13fb7255c10d10dac639d476aecddb89bce3c395261cb2de3",
+  "accept_finite_candidate_negative": true,
+  "accept_original_F1_F2_qualification": false,
+  "original_complete_generaldiv_NE_owner_next": "unproved",
+  "counts": [
+    40,
+    16,
+    7,
+    4
+  ],
+  "independent_windows_equal": 40,
+  "independent_prefix_path_classes_equal": 443,
+  "max_children_without_NoPP": 2,
+  "finite_obstruction": "unique5/9/5 middle fails whole Extreme and signed force",
+  "proof_scope": "fixed S1 origin, S1..S20, JointCut4k+1 grammar, 40 windows, supplied443 observations",
+  "source_count": 11,
+  "independent_execution_count": 1,
+  "author_execution_count_scope": "package records one JointCut main run and one unexecuted superseded draft; author session not inspected",
+  "new_history_count": 0,
+  "rw_parser_executed": false,
+  "max_rss_bytes": 50446336,
+  "artifact_bytes_before_manifest": 1053585,
+  "required_adoption_conditions": [
+    "ScopeCorrections.md and PathScopeCorrections.json plus all-delta-paths.json and path-classes.json govern all-path claims",
+    "InvocationCorrections.json governs disclosed author cwd; original tool event was outside blind review",
+    "No promotion of candidate true fields or incomplete short NoPP paths to original complete decomposition",
+    "Existing standalone main-script all-path contract defect must be fixed only before code reuse; no frozen package edit required"
+  ],
+  "python_standalone_full_Rdelta_approval": "Block; known maximal-only source remains, corrected frozen evidence accepted",
+  "author_review_assistance_counted_independent": false,
+  "author_source_hashes_before_after_equal": true,
+  "files_changed_outside_joint_review": false
+}

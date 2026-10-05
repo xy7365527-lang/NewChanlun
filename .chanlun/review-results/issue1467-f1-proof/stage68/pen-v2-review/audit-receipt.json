@@ -1,0 +1,31 @@
+{
+  "issue": 1467,
+  "freeze_checks": {
+    "pen-author": {
+      "manifest_entries": 27,
+      "all_match": true
+    },
+    "pen-author-v2": {
+      "manifest_entries": 29,
+      "all_match": true
+    }
+  },
+  "input_files": 109,
+  "inputs_changed": 0,
+  "author_final_sha256": "07394ba791fec2413c83a46ff8aa0cd718572b498f3ff1a97b3d0539980d39aa",
+  "author_manifest_sha256": "50e04c6534fdbd805d2a590c0544730c1331d688958985e6b8a3b294c357543f",
+  "git_diff_python_output_empty": true,
+  "ast_compile_author_reviewer": "pass",
+  "static_tool_modules": {
+    "ruff": false,
+    "mypy": false,
+    "pylint": false,
+    "black": false
+  },
+  "installed_tools": false,
+  "code_graph": "requested project not indexed; specified external file read fallback",
+  "memory_read": false,
+  "research_progress_read": false,
+  "author_conversation_read": false,
+  "writes": "stage68/pen-v2-review only"
+}

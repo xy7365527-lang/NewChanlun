@@ -1,0 +1,118 @@
+[
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/qushi.md",
+    "sha256": "ce48f8cda6a3f02afd9fddbc0f93cb43431524b66472e579a927af5ce4bc3c46",
+    "lines": [
+      {
+        "line": 124,
+        "text": "## #815 M-2 裁定：两中枢「同向」＝ 外缘分离（后 DD > 前 GG）（2026-08-03）"
+      },
+      {
+        "line": 125,
+        "text": ""
+      },
+      {
+        "line": 126,
+        "text": "**裁定原文**（[#815](https://github.com/xy7365527-lang/NewChanlun/issues/815) M-2 定案 comment；考据底稿 `.chanlun/review-results/issue815-m2-same-direction-doctrine-20260803.md`）："
+      },
+      {
+        "line": 127,
+        "text": ""
+      },
+      {
+        "line": 128,
+        "text": "> **两个同级别中枢「依次同向」（构成趋势）的判据 ＝ 外缘分离：后 `DD` > 前 `GG`（上涨）／后 `GG` < 前 `DD`（下跌）。**"
+      },
+      {
+        "line": 129,
+        "text": "> **核心分离（`后 ZD > 前 ZG`）但外缘仍重叠 ＝ 中枢扩展，升一级，不是趋势。**"
+      },
+      {
+        "line": 130,
+        "text": ""
+      },
+      {
+        "line": 131,
+        "text": "名分 `[旧缠论]`。"
+      },
+      {
+        "line": 132,
+        "text": ""
+      },
+      {
+        "line": 133,
+        "text": "### 决定性依据：中心定理二把两种边界写在同一句里，分工明确"
+      },
+      {
+        "line": 134,
+        "text": ""
+      },
+      {
+        "line": 135,
+        "text": "`020-第20课.md:58`【正文】逐字："
+      },
+      {
+        "line": 136,
+        "text": ""
+      },
+      {
+        "line": 137,
+        "text": "> 「缠中说禅走势中枢中心定理二：前后同级别的两个缠中说禅走势中枢，后GG<前DD，等价于下跌及其延续；后DD>前GG等价于上涨及其延续。后ZG<前ZD且后GG>=前DD，或后ZD>前ZG且后DD=<前GG，则等价于形成高级别的走势中枢。」"
+      },
+      {
+        "line": 138,
+        "text": ""
+      },
+      {
+        "line": 139,
+        "text": "| 条件 | 原文判 | 用的量 |"
+      },
+      {
+        "line": 140,
+        "text": "|---|---|---|"
+      },
+      {
+        "line": 141,
+        "text": "| 后 DD > 前 GG | **上涨及其延续（趋势）** | **外缘** |"
+      },
+      {
+        "line": 142,
+        "text": "| 后 ZD > 前 ZG **且** 后 DD ≤ 前 GG | **形成高级别走势中枢（扩展）** | 核心 + 外缘 |"
+      },
+      {
+        "line": 143,
+        "text": ""
+      },
+      {
+        "line": 144,
+        "text": "**⟹ `ZD`/`ZG` 在定理里出现了，但它管的是「是不是扩展」；管「是不是趋势」的那一支，明写用 `DD`/`GG`。** 这不是从两个候选里挑了一个，是**原文把两个都写出来并各自指派了角色**。"
+      }
+    ]
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+    "lines": [
+      {
+        "line": 429,
+        "text": "#### 「新高」在这套定义里干什么"
+      },
+      {
+        "line": 430,
+        "text": ""
+      },
+      {
+        "line": 431,
+        "text": "背驰的结构前提要求 c 创新高（`037-第37课.md:20`、`061-第61课.md:28`）。它锁的是**终点位置**，**不是段内位移**（b 从 100→120 后回撤到 110、c 从 110→125：c 创了新高，但 c 走的比 b 少——两回事）。"
+      },
+      {
+        "line": 432,
+        "text": ""
+      },
+      {
+        "line": 433,
+        "text": "缠师讲过反面，把这一点钉死：`038-第38课.md:192`【答疑】「如果连新高都创不出，那力度就最弱，当然更不行。这时候，**根本连 MACD 的辅助都没必要**。」⟹ **没创新高，位置这一维直接判死、不必比；创了新高，才轮到力度出场。**"
+      }
+    ]
+  }
+]

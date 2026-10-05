@@ -1,0 +1,103 @@
+{
+  "frozen_main_files_unchanged": true,
+  "candidate_reruns": 0,
+  "problem": "Main output enumerated maximal paths only, while frozen R_delta says all edge paths.",
+  "mathematical_completion": "Every path in finite forward DAG extends to a maximal path; all prefixes of every recorded maximal path give every edge path.",
+  "first_two_nonempty_paths_at": 238,
+  "distinct_attempts_at_238": [
+    {
+      "delta": [],
+      "kinds": [],
+      "is_maximal": false,
+      "no_pp": true,
+      "pp_violations": [],
+      "has_three": false,
+      "candidate_F2_pass": false,
+      "original_F2_pass": false,
+      "factor_owns": [],
+      "active_tail": [
+        22,
+        238
+      ],
+      "original_completed": []
+    },
+    {
+      "delta": [
+        "W68:S1-S5"
+      ],
+      "kinds": [
+        "P"
+      ],
+      "is_maximal": false,
+      "no_pp": true,
+      "pp_violations": [],
+      "has_three": false,
+      "candidate_F2_pass": false,
+      "original_F2_pass": false,
+      "factor_owns": [
+        [
+          22,
+          121
+        ]
+      ],
+      "active_tail": [
+        122,
+        238
+      ],
+      "original_completed": [
+        null
+      ]
+    },
+    {
+      "delta": [
+        "W68:S1-S5",
+        "W68:S6-S10"
+      ],
+      "kinds": [
+        "P",
+        "P"
+      ],
+      "is_maximal": true,
+      "no_pp": false,
+      "pp_violations": [
+        [
+          "W68:S1-S5",
+          "W68:S6-S10"
+        ]
+      ],
+      "has_three": false,
+      "candidate_F2_pass": false,
+      "original_F2_pass": false,
+      "factor_owns": [
+        [
+          22,
+          121
+        ],
+        [
+          122,
+          221
+        ]
+      ],
+      "active_tail": [
+        222,
+        238
+      ],
+      "original_completed": [
+        null,
+        null
+      ]
+    }
+  ],
+  "changed_claims": [
+    "result.final_counts.maximal_delta_paths remains1 and refers only to maximal paths",
+    "result.earliest_multiple_maximal_delta remains null, not a proof all delta paths unique",
+    "model.multiple_delta_paths_found=false refers only to maximal; all-path relation has two nonempty attempts from238",
+    "NoPP no_pp_paths=0 at238 in main result is maximal-only; one nonempty shorter prefix passes NoPP but lacks three children"
+  ],
+  "unchanged_claims": [
+    "all40 windows and4 accepted edges unchanged",
+    "no path has3 children even withoutNoPP",
+    "finite5+9+5 obstruction unchanged"
+  ],
+  "original_legal_relation_uniqueness": "unknown, not inferred from either number of candidate attempts or maximal paths"
+}

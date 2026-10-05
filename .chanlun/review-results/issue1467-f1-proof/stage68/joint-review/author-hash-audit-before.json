@@ -1,0 +1,9 @@
+{
+  "manifest_entries": 32,
+  "manifest_mismatches": [],
+  "main_input_hashes": 31,
+  "main_input_mismatches": [],
+  "three_author_hash_files_equal": true,
+  "author_auxiliary_reviews_read": false,
+  "only_auxiliary_bytes_hashed": true
+}

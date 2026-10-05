@@ -1,0 +1,33 @@
+{
+  "stage": 68,
+  "issue": 1467,
+  "map": 1465,
+  "previous_turn": "progress",
+  "baseCommit": "71d42595e5d1d7ad0231c6a0433a6b6b232eb6a1",
+  "prior_report": {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage67LiveForceAndInitialRoots.md",
+    "sha256": "331a788f2f58c1886b277e629533f0a4d135cdd2dfe69057416bdd467fee5a98"
+  },
+  "authors": [
+    {
+      "task": "/root/stage68_developing_pen",
+      "out": "pen-author",
+      "question": "Concrete developing-pen identity, confirmation/withdrawal, force and whole boundary transition"
+    },
+    {
+      "task": "/root/stage68_joint_bootstrap",
+      "out": "joint-author",
+      "question": "One explicit joint initial completion, normalization and fixed-F2 consumer model"
+    }
+  ],
+  "limits": {
+    "new_histories": 0,
+    "max_existing_prefixes": 443,
+    "max_bytes_per_author": 100663296,
+    "max_candidates_per_author": 1,
+    "rerun_RW": false,
+    "canonical_mutation": false
+  },
+  "accepted_scope": "P1-P4 and R_W/R_D unchanged; author results need independent review; no production/main/purchase/trades",
+  "createdAt": "2026-10-05T19:59:12.328Z"
+}

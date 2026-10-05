@@ -1,0 +1,14 @@
+{
+  "workcard_v2_hash_matches": true,
+  "main_inputs_unchanged": true,
+  "main_exit_zero": true,
+  "main_execution_count": 1,
+  "all_windows_retained": true,
+  "prefixes_retained": true,
+  "all_path_closure_retained": true,
+  "source_states_original_unknown": true,
+  "no_candidate_f2_pass": true,
+  "no_three_all_paths": true,
+  "rss_bytes": 37666816,
+  "independent_review": "pending"
+}

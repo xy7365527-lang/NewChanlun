@@ -1,0 +1,383 @@
+{
+  "statement": "Within frozen JointCut grammar from S1 with at most 20 raw segments, no nonempty F2 input of >=3 completed candidate factors satisfies NoPP.",
+  "assumptions": [
+    "each factor uses 4*k+1 raw segments, k>=1",
+    "k=1 iff candidate kind P",
+    "factors are adjacent nonempty disjoint whole intervals starting at S1",
+    "at most 20 raw segments S1..S20",
+    "NoPP on independent same-grade factors",
+    "JEnd68 requires whole Extreme and signed force weakening"
+  ],
+  "length_proof": [
+    "n>=5 requires >=25 segments, impossible",
+    "n=4 all-single-core factors are P/P/P/P and violate NoPP; any multi-core factor raises length to >=24, impossible",
+    "n=3 gives 4*sum(k)+3<=20, hence sum(k)<=4; sum(k)=3 gives P/P/P",
+    "sum(k)=4 gives exactly one k=2 factor; NoPP forces it to the middle",
+    "therefore unique length vector is (5,9,5); source-contiguity fixes S1..5 | S6..14 | S15..19"
+  ],
+  "unique_required_assignment": [
+    {
+      "id": "W68:S1-S5",
+      "raw_start": 1,
+      "raw_stop": 6,
+      "k": 1,
+      "grade": 0,
+      "kind": "P",
+      "conceptual_direction": null,
+      "technical_up": true,
+      "raws": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5"
+      ],
+      "cores": [
+        {
+          "id": "IC68:1:0",
+          "members": [
+            "S2",
+            "S3",
+            "S4"
+          ],
+          "core": [
+            50000,
+            60000
+          ],
+          "Outer0": [
+            50000,
+            60000
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            42,
+            101
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 101,
+          "raw_known": 118
+        }
+      ],
+      "start": 21,
+      "end": 121,
+      "own": [
+        22,
+        121
+      ],
+      "whole": [
+        40000,
+        72000
+      ],
+      "b_ref": "S1",
+      "c": "S5",
+      "b_force": {
+        "first_pen": 5,
+        "last_pen": 9,
+        "first_v": 2000.0,
+        "last_v": 3000.0,
+        "L": 1000.0
+      },
+      "c_force": {
+        "first_pen": 25,
+        "last_pen": 29,
+        "first_v": 1000.0,
+        "last_v": 500.0,
+        "L": -500.0
+      },
+      "prior_whole_extreme": 64000,
+      "end_price": 72000,
+      "candidate_happened": 121,
+      "candidate_known": 138,
+      "structural_pass": true,
+      "role_pass": true,
+      "CycleDiv68": true,
+      "RawEnd68": true,
+      "JEnd68": true,
+      "OriginalGeneralDiv": null,
+      "OriginalMovementCompleted": null,
+      "original_happened": null,
+      "original_known": null,
+      "original_published": null,
+      "checks": {
+        "strict_cores": true,
+        "member_direction_alternates": true,
+        "coherent_type": true,
+        "same_direction_comparison_arms": true,
+        "entry_cross": true,
+        "exit_cross": true,
+        "whole_extreme": true,
+        "signed_force_weakening": true
+      },
+      "rejections": [],
+      "owns_each_event_once": true
+    },
+    {
+      "id": "W68:S6-S14",
+      "raw_start": 6,
+      "raw_stop": 15,
+      "k": 2,
+      "grade": 0,
+      "kind": "D",
+      "conceptual_direction": "D",
+      "technical_up": false,
+      "raws": [
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14"
+      ],
+      "cores": [
+        {
+          "id": "IC68:6:0",
+          "members": [
+            "S7",
+            "S8",
+            "S9"
+          ],
+          "core": [
+            66000,
+            68800
+          ],
+          "Outer0": [
+            66000,
+            68800
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            142,
+            201
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 201,
+          "raw_known": 218
+        },
+        {
+          "id": "IC68:6:1",
+          "members": [
+            "S11",
+            "S12",
+            "S13"
+          ],
+          "core": [
+            62000,
+            64000
+          ],
+          "Outer0": [
+            62000,
+            64000
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            222,
+            281
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 281,
+          "raw_known": 298
+        }
+      ],
+      "start": 121,
+      "end": 301,
+      "own": [
+        122,
+        301
+      ],
+      "whole": [
+        60000,
+        72000
+      ],
+      "b_ref": "S10",
+      "c": "S14",
+      "b_force": {
+        "first_pen": 50,
+        "last_pen": 54,
+        "first_v": -200.0,
+        "last_v": -1400.0,
+        "L": -1200.0
+      },
+      "c_force": {
+        "first_pen": 70,
+        "last_pen": 74,
+        "first_v": -300.0,
+        "last_v": -600.0,
+        "L": -300.0
+      },
+      "prior_whole_extreme": 60000,
+      "end_price": 60800,
+      "candidate_happened": 301,
+      "candidate_known": 318,
+      "structural_pass": true,
+      "role_pass": true,
+      "CycleDiv68": false,
+      "RawEnd68": true,
+      "JEnd68": false,
+      "OriginalGeneralDiv": null,
+      "OriginalMovementCompleted": null,
+      "original_happened": null,
+      "original_known": null,
+      "original_published": null,
+      "checks": {
+        "strict_cores": true,
+        "member_direction_alternates": true,
+        "coherent_type": true,
+        "same_direction_comparison_arms": true,
+        "entry_cross": true,
+        "exit_cross": true,
+        "whole_extreme": false,
+        "signed_force_weakening": false
+      },
+      "rejections": [
+        "whole_extreme",
+        "signed_force_weakening"
+      ],
+      "owns_each_event_once": true
+    },
+    {
+      "id": "W68:S15-S19",
+      "raw_start": 15,
+      "raw_stop": 20,
+      "k": 1,
+      "grade": 0,
+      "kind": "P",
+      "conceptual_direction": null,
+      "technical_up": true,
+      "raws": [
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19"
+      ],
+      "cores": [
+        {
+          "id": "IC68:15:0",
+          "members": [
+            "S16",
+            "S17",
+            "S18"
+          ],
+          "core": [
+            51800,
+            65800
+          ],
+          "Outer0": [
+            51800,
+            65800
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            322,
+            381
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 381,
+          "raw_known": 398
+        }
+      ],
+      "start": 301,
+      "end": 401,
+      "own": [
+        302,
+        401
+      ],
+      "whole": [
+        44800,
+        72800
+      ],
+      "b_ref": "S15",
+      "c": "S19",
+      "b_force": {
+        "first_pen": 75,
+        "last_pen": 79,
+        "first_v": 400.0,
+        "last_v": 200.0,
+        "L": -200.0
+      },
+      "c_force": {
+        "first_pen": 95,
+        "last_pen": 99,
+        "first_v": 1400.0,
+        "last_v": 1750.0,
+        "L": 350.0
+      },
+      "prior_whole_extreme": 72800,
+      "end_price": 61600,
+      "candidate_happened": 401,
+      "candidate_known": 418,
+      "structural_pass": true,
+      "role_pass": false,
+      "CycleDiv68": false,
+      "RawEnd68": true,
+      "JEnd68": false,
+      "OriginalGeneralDiv": null,
+      "OriginalMovementCompleted": null,
+      "original_happened": null,
+      "original_known": null,
+      "original_published": null,
+      "checks": {
+        "strict_cores": true,
+        "member_direction_alternates": true,
+        "coherent_type": true,
+        "same_direction_comparison_arms": true,
+        "entry_cross": false,
+        "exit_cross": false,
+        "whole_extreme": false,
+        "signed_force_weakening": false
+      },
+      "rejections": [
+        "entry_cross",
+        "exit_cross",
+        "whole_extreme",
+        "signed_force_weakening"
+      ],
+      "owns_each_event_once": true
+    }
+  ],
+  "decisive_middle": {
+    "id": "W68:S6-S14",
+    "known_at": 318,
+    "candidate_kind": "D",
+    "own": [
+      122,
+      301
+    ],
+    "cores": [
+      [
+        66000,
+        68800
+      ],
+      [
+        62000,
+        64000
+      ]
+    ],
+    "reference_arm": "S10",
+    "exit_arm": "S14",
+    "L_b": -1200,
+    "L_c": -300,
+    "weakening": false,
+    "prior_whole_min": 60000,
+    "endpoint_price": 60800,
+    "whole_extreme": false,
+    "raw_end": 301,
+    "assertion": "Both required dynamic conjuncts fail independently. No RootArm or initial Outer admission can reverse these numeric facts without changing this candidate."
+  },
+  "not_claimed": [
+    "not all source-valid F1 grammars",
+    "not original GeneralDiv=false",
+    "not market generality",
+    "not every raw cut forbidden"
+  ],
+  "source_raw_validity_unchanged": true,
+  "general_length_bound": "NoPP implies at least floor(n/2) multi-core factors, hence 5*n+4*floor(n/2); for n>=4 this is at least28.",
+  "n4_bound_note": "The >=24 argument above is a valid loose lower bound only, not the exact NoPP minimum."
+}

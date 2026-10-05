@@ -1,0 +1,2560 @@
+{
+  "name": "Omega68-JointCut-v1",
+  "classification": "finite explicit joint candidate with rejected fixed-F2 interface",
+  "status": "author computation complete; independent review pending",
+  "one_candidate": true,
+  "new_histories": 0,
+  "input": "Stage66 N66-low-prefix-nested-v1, 443 observations",
+  "initial_level": 0,
+  "grammar": "b K1 (bridge K)* c, each K is exactly three raw segments; length=4k+1",
+  "raw_root": {
+    "id": "S0",
+    "identity": "Raw067Segment",
+    "raw_rank": -1,
+    "own": [
+      2,
+      21
+    ],
+    "end": 21,
+    "raw_known": 38,
+    "RawClosed": true,
+    "force": -1000,
+    "MovementCompleted_original": null,
+    "GeneralDiv_original": null,
+    "original_q0_member": false,
+    "q0_member_false_scope": "this explicit mapping only",
+    "ComparisonReady68": "only in actual external context under new RootArm68; not all core contexts",
+    "source_role_compatibility": null
+  },
+  "root_hypothesis": "RawClosed plus stable real pens and actual external crossing geometry may supply fixed comparison L without asserting same-class Movement completion. Candidate assumption, not proved semantic bridge.",
+  "initial_outer_choice": "Outer0=core; neither original Zn nor original DD/GG assigned",
+  "object_table": [
+    {
+      "id": "W68:S1-S5",
+      "raw_input": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5"
+      ],
+      "core_ids": [
+        "IC68:1:0"
+      ],
+      "Own": [
+        22,
+        121
+      ],
+      "grade": 0,
+      "structural_type": "P",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": true,
+      "CycleDiv68": true,
+      "Completed68": true,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 121,
+      "raw_evidence_complete": 138,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S1-S5"
+      },
+      "rejections": []
+    },
+    {
+      "id": "W68:S1-S9",
+      "raw_input": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9"
+      ],
+      "core_ids": [
+        "IC68:1:0",
+        "IC68:1:1"
+      ],
+      "Own": [
+        22,
+        201
+      ],
+      "grade": 0,
+      "structural_type": "U",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 201,
+      "raw_evidence_complete": 218,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S1-S9"
+      },
+      "rejections": [
+        "exit_cross",
+        "whole_extreme",
+        "signed_force_weakening"
+      ]
+    },
+    {
+      "id": "W68:S1-S13",
+      "raw_input": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13"
+      ],
+      "core_ids": [
+        "IC68:1:0",
+        "IC68:1:1",
+        "IC68:1:2"
+      ],
+      "Own": [
+        22,
+        281
+      ],
+      "grade": 0,
+      "structural_type": null,
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 281,
+      "raw_evidence_complete": 298,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S1-S13"
+      },
+      "rejections": [
+        "coherent_type",
+        "entry_cross",
+        "exit_cross",
+        "whole_extreme",
+        "signed_force_weakening"
+      ]
+    },
+    {
+      "id": "W68:S1-S17",
+      "raw_input": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17"
+      ],
+      "core_ids": [
+        "IC68:1:0",
+        "IC68:1:1",
+        "IC68:1:2",
+        "IC68:1:3"
+      ],
+      "Own": [
+        22,
+        361
+      ],
+      "grade": 0,
+      "structural_type": null,
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": true,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 361,
+      "raw_evidence_complete": 378,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S1-S17"
+      },
+      "rejections": [
+        "coherent_type",
+        "whole_extreme"
+      ]
+    },
+    {
+      "id": "W68:S2-S6",
+      "raw_input": [
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6"
+      ],
+      "core_ids": [
+        "IC68:2:0"
+      ],
+      "Own": [
+        42,
+        141
+      ],
+      "grade": 0,
+      "structural_type": "P",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 141,
+      "raw_evidence_complete": 158,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S2-S6"
+      },
+      "rejections": [
+        "exit_cross",
+        "whole_extreme"
+      ]
+    },
+    {
+      "id": "W68:S2-S10",
+      "raw_input": [
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10"
+      ],
+      "core_ids": [
+        "IC68:2:0",
+        "IC68:2:1"
+      ],
+      "Own": [
+        42,
+        221
+      ],
+      "grade": 0,
+      "structural_type": "U",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": true,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 221,
+      "raw_evidence_complete": 238,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S2-S10"
+      },
+      "rejections": [
+        "coherent_type",
+        "whole_extreme"
+      ]
+    },
+    {
+      "id": "W68:S2-S14",
+      "raw_input": [
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14"
+      ],
+      "core_ids": [
+        "IC68:2:0",
+        "IC68:2:1",
+        "IC68:2:2"
+      ],
+      "Own": [
+        42,
+        301
+      ],
+      "grade": 0,
+      "structural_type": null,
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": true,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 301,
+      "raw_evidence_complete": 318,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S2-S14"
+      },
+      "rejections": [
+        "coherent_type",
+        "whole_extreme",
+        "signed_force_weakening"
+      ]
+    },
+    {
+      "id": "W68:S2-S18",
+      "raw_input": [
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18"
+      ],
+      "core_ids": [
+        "IC68:2:0",
+        "IC68:2:1",
+        "IC68:2:2",
+        "IC68:2:3"
+      ],
+      "Own": [
+        42,
+        381
+      ],
+      "grade": 0,
+      "structural_type": null,
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 381,
+      "raw_evidence_complete": 398,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S2-S18"
+      },
+      "rejections": [
+        "coherent_type",
+        "entry_cross",
+        "whole_extreme"
+      ]
+    },
+    {
+      "id": "W68:S3-S7",
+      "raw_input": [
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7"
+      ],
+      "core_ids": [
+        "IC68:3:0"
+      ],
+      "Own": [
+        62,
+        161
+      ],
+      "grade": 0,
+      "structural_type": "P",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 161,
+      "raw_evidence_complete": 178,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S3-S7"
+      },
+      "rejections": [
+        "strict_cores",
+        "entry_cross",
+        "exit_cross",
+        "whole_extreme"
+      ]
+    },
+    {
+      "id": "W68:S3-S11",
+      "raw_input": [
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11"
+      ],
+      "core_ids": [
+        "IC68:3:0",
+        "IC68:3:1"
+      ],
+      "Own": [
+        62,
+        241
+      ],
+      "grade": 0,
+      "structural_type": "U",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 241,
+      "raw_evidence_complete": 258,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S3-S11"
+      },
+      "rejections": [
+        "strict_cores",
+        "exit_cross",
+        "whole_extreme",
+        "signed_force_weakening"
+      ]
+    },
+    {
+      "id": "W68:S3-S15",
+      "raw_input": [
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15"
+      ],
+      "core_ids": [
+        "IC68:3:0",
+        "IC68:3:1",
+        "IC68:3:2"
+      ],
+      "Own": [
+        62,
+        321
+      ],
+      "grade": 0,
+      "structural_type": null,
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 321,
+      "raw_evidence_complete": 338,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S3-S15"
+      },
+      "rejections": [
+        "strict_cores",
+        "coherent_type",
+        "entry_cross"
+      ]
+    },
+    {
+      "id": "W68:S3-S19",
+      "raw_input": [
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19"
+      ],
+      "core_ids": [
+        "IC68:3:0",
+        "IC68:3:1",
+        "IC68:3:2",
+        "IC68:3:3"
+      ],
+      "Own": [
+        62,
+        401
+      ],
+      "grade": 0,
+      "structural_type": null,
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 401,
+      "raw_evidence_complete": 418,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S3-S19"
+      },
+      "rejections": [
+        "strict_cores",
+        "coherent_type",
+        "entry_cross",
+        "exit_cross",
+        "whole_extreme",
+        "signed_force_weakening"
+      ]
+    },
+    {
+      "id": "W68:S4-S8",
+      "raw_input": [
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8"
+      ],
+      "core_ids": [
+        "IC68:4:0"
+      ],
+      "Own": [
+        82,
+        181
+      ],
+      "grade": 0,
+      "structural_type": "P",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 181,
+      "raw_evidence_complete": 198,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S4-S8"
+      },
+      "rejections": [
+        "entry_cross",
+        "exit_cross",
+        "whole_extreme",
+        "signed_force_weakening"
+      ]
+    },
+    {
+      "id": "W68:S4-S12",
+      "raw_input": [
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12"
+      ],
+      "core_ids": [
+        "IC68:4:0",
+        "IC68:4:1"
+      ],
+      "Own": [
+        82,
+        261
+      ],
+      "grade": 0,
+      "structural_type": null,
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 261,
+      "raw_evidence_complete": 278,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S4-S12"
+      },
+      "rejections": [
+        "strict_cores",
+        "coherent_type",
+        "entry_cross",
+        "exit_cross",
+        "whole_extreme"
+      ]
+    },
+    {
+      "id": "W68:S4-S16",
+      "raw_input": [
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16"
+      ],
+      "core_ids": [
+        "IC68:4:0",
+        "IC68:4:1",
+        "IC68:4:2"
+      ],
+      "Own": [
+        82,
+        341
+      ],
+      "grade": 0,
+      "structural_type": null,
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": true,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 341,
+      "raw_evidence_complete": 358,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S4-S16"
+      },
+      "rejections": [
+        "strict_cores",
+        "coherent_type"
+      ]
+    },
+    {
+      "id": "W68:S4-S20",
+      "raw_input": [
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19",
+        "S20"
+      ],
+      "core_ids": [
+        "IC68:4:0",
+        "IC68:4:1",
+        "IC68:4:2",
+        "IC68:4:3"
+      ],
+      "Own": [
+        82,
+        421
+      ],
+      "grade": 0,
+      "structural_type": null,
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": true,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 421,
+      "raw_evidence_complete": 438,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S4-S20"
+      },
+      "rejections": [
+        "strict_cores",
+        "coherent_type"
+      ]
+    },
+    {
+      "id": "W68:S5-S9",
+      "raw_input": [
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9"
+      ],
+      "core_ids": [
+        "IC68:5:0"
+      ],
+      "Own": [
+        102,
+        201
+      ],
+      "grade": 0,
+      "structural_type": "P",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 201,
+      "raw_evidence_complete": 218,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S5-S9"
+      },
+      "rejections": [
+        "exit_cross",
+        "whole_extreme",
+        "signed_force_weakening"
+      ]
+    },
+    {
+      "id": "W68:S5-S13",
+      "raw_input": [
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13"
+      ],
+      "core_ids": [
+        "IC68:5:0",
+        "IC68:5:1"
+      ],
+      "Own": [
+        102,
+        281
+      ],
+      "grade": 0,
+      "structural_type": "D",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 281,
+      "raw_evidence_complete": 298,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S5-S13"
+      },
+      "rejections": [
+        "coherent_type",
+        "entry_cross",
+        "exit_cross",
+        "whole_extreme",
+        "signed_force_weakening"
+      ]
+    },
+    {
+      "id": "W68:S5-S17",
+      "raw_input": [
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17"
+      ],
+      "core_ids": [
+        "IC68:5:0",
+        "IC68:5:1",
+        "IC68:5:2"
+      ],
+      "Own": [
+        102,
+        361
+      ],
+      "grade": 0,
+      "structural_type": null,
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": true,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 361,
+      "raw_evidence_complete": 378,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S5-S17"
+      },
+      "rejections": [
+        "coherent_type",
+        "whole_extreme"
+      ]
+    },
+    {
+      "id": "W68:S6-S10",
+      "raw_input": [
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10"
+      ],
+      "core_ids": [
+        "IC68:6:0"
+      ],
+      "Own": [
+        122,
+        221
+      ],
+      "grade": 0,
+      "structural_type": "P",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": true,
+      "CycleDiv68": true,
+      "Completed68": true,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 221,
+      "raw_evidence_complete": 238,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S6-S10"
+      },
+      "rejections": []
+    },
+    {
+      "id": "W68:S6-S14",
+      "raw_input": [
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14"
+      ],
+      "core_ids": [
+        "IC68:6:0",
+        "IC68:6:1"
+      ],
+      "Own": [
+        122,
+        301
+      ],
+      "grade": 0,
+      "structural_type": "D",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": true,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 301,
+      "raw_evidence_complete": 318,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S6-S14"
+      },
+      "rejections": [
+        "whole_extreme",
+        "signed_force_weakening"
+      ]
+    },
+    {
+      "id": "W68:S6-S18",
+      "raw_input": [
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18"
+      ],
+      "core_ids": [
+        "IC68:6:0",
+        "IC68:6:1",
+        "IC68:6:2"
+      ],
+      "Own": [
+        122,
+        381
+      ],
+      "grade": 0,
+      "structural_type": null,
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 381,
+      "raw_evidence_complete": 398,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S6-S18"
+      },
+      "rejections": [
+        "coherent_type",
+        "entry_cross",
+        "whole_extreme"
+      ]
+    },
+    {
+      "id": "W68:S7-S11",
+      "raw_input": [
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11"
+      ],
+      "core_ids": [
+        "IC68:7:0"
+      ],
+      "Own": [
+        142,
+        241
+      ],
+      "grade": 0,
+      "structural_type": "P",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 241,
+      "raw_evidence_complete": 258,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S7-S11"
+      },
+      "rejections": [
+        "exit_cross",
+        "whole_extreme",
+        "signed_force_weakening"
+      ]
+    },
+    {
+      "id": "W68:S7-S15",
+      "raw_input": [
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15"
+      ],
+      "core_ids": [
+        "IC68:7:0",
+        "IC68:7:1"
+      ],
+      "Own": [
+        142,
+        321
+      ],
+      "grade": 0,
+      "structural_type": "D",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 321,
+      "raw_evidence_complete": 338,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S7-S15"
+      },
+      "rejections": [
+        "coherent_type",
+        "entry_cross"
+      ]
+    },
+    {
+      "id": "W68:S7-S19",
+      "raw_input": [
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19"
+      ],
+      "core_ids": [
+        "IC68:7:0",
+        "IC68:7:1",
+        "IC68:7:2"
+      ],
+      "Own": [
+        142,
+        401
+      ],
+      "grade": 0,
+      "structural_type": null,
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 401,
+      "raw_evidence_complete": 418,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S7-S19"
+      },
+      "rejections": [
+        "coherent_type",
+        "entry_cross",
+        "exit_cross",
+        "whole_extreme",
+        "signed_force_weakening"
+      ]
+    },
+    {
+      "id": "W68:S8-S12",
+      "raw_input": [
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12"
+      ],
+      "core_ids": [
+        "IC68:8:0"
+      ],
+      "Own": [
+        162,
+        261
+      ],
+      "grade": 0,
+      "structural_type": "P",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 261,
+      "raw_evidence_complete": 278,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S8-S12"
+      },
+      "rejections": [
+        "strict_cores",
+        "entry_cross",
+        "exit_cross"
+      ]
+    },
+    {
+      "id": "W68:S8-S16",
+      "raw_input": [
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16"
+      ],
+      "core_ids": [
+        "IC68:8:0",
+        "IC68:8:1"
+      ],
+      "Own": [
+        162,
+        341
+      ],
+      "grade": 0,
+      "structural_type": "D",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": true,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 341,
+      "raw_evidence_complete": 358,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S8-S16"
+      },
+      "rejections": [
+        "strict_cores"
+      ]
+    },
+    {
+      "id": "W68:S8-S20",
+      "raw_input": [
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19",
+        "S20"
+      ],
+      "core_ids": [
+        "IC68:8:0",
+        "IC68:8:1",
+        "IC68:8:2"
+      ],
+      "Own": [
+        162,
+        421
+      ],
+      "grade": 0,
+      "structural_type": null,
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": true,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 421,
+      "raw_evidence_complete": 438,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S8-S20"
+      },
+      "rejections": [
+        "strict_cores",
+        "coherent_type"
+      ]
+    },
+    {
+      "id": "W68:S9-S13",
+      "raw_input": [
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13"
+      ],
+      "core_ids": [
+        "IC68:9:0"
+      ],
+      "Own": [
+        182,
+        281
+      ],
+      "grade": 0,
+      "structural_type": "P",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 281,
+      "raw_evidence_complete": 298,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S9-S13"
+      },
+      "rejections": [
+        "entry_cross",
+        "exit_cross",
+        "whole_extreme",
+        "signed_force_weakening"
+      ]
+    },
+    {
+      "id": "W68:S9-S17",
+      "raw_input": [
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17"
+      ],
+      "core_ids": [
+        "IC68:9:0",
+        "IC68:9:1"
+      ],
+      "Own": [
+        182,
+        361
+      ],
+      "grade": 0,
+      "structural_type": null,
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": true,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 361,
+      "raw_evidence_complete": 378,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S9-S17"
+      },
+      "rejections": [
+        "coherent_type",
+        "whole_extreme"
+      ]
+    },
+    {
+      "id": "W68:S10-S14",
+      "raw_input": [
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14"
+      ],
+      "core_ids": [
+        "IC68:10:0"
+      ],
+      "Own": [
+        202,
+        301
+      ],
+      "grade": 0,
+      "structural_type": "P",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": true,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 301,
+      "raw_evidence_complete": 318,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S10-S14"
+      },
+      "rejections": [
+        "whole_extreme",
+        "signed_force_weakening"
+      ]
+    },
+    {
+      "id": "W68:S10-S18",
+      "raw_input": [
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18"
+      ],
+      "core_ids": [
+        "IC68:10:0",
+        "IC68:10:1"
+      ],
+      "Own": [
+        202,
+        381
+      ],
+      "grade": 0,
+      "structural_type": null,
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 381,
+      "raw_evidence_complete": 398,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S10-S18"
+      },
+      "rejections": [
+        "coherent_type",
+        "entry_cross",
+        "whole_extreme"
+      ]
+    },
+    {
+      "id": "W68:S11-S15",
+      "raw_input": [
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15"
+      ],
+      "core_ids": [
+        "IC68:11:0"
+      ],
+      "Own": [
+        222,
+        321
+      ],
+      "grade": 0,
+      "structural_type": "P",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 321,
+      "raw_evidence_complete": 338,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S11-S15"
+      },
+      "rejections": [
+        "entry_cross"
+      ]
+    },
+    {
+      "id": "W68:S11-S19",
+      "raw_input": [
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19"
+      ],
+      "core_ids": [
+        "IC68:11:0",
+        "IC68:11:1"
+      ],
+      "Own": [
+        222,
+        401
+      ],
+      "grade": 0,
+      "structural_type": null,
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 401,
+      "raw_evidence_complete": 418,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S11-S19"
+      },
+      "rejections": [
+        "coherent_type",
+        "entry_cross",
+        "exit_cross",
+        "whole_extreme",
+        "signed_force_weakening"
+      ]
+    },
+    {
+      "id": "W68:S12-S16",
+      "raw_input": [
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16"
+      ],
+      "core_ids": [
+        "IC68:12:0"
+      ],
+      "Own": [
+        242,
+        341
+      ],
+      "grade": 0,
+      "structural_type": "P",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": true,
+      "CycleDiv68": true,
+      "Completed68": true,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 341,
+      "raw_evidence_complete": 358,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S12-S16"
+      },
+      "rejections": []
+    },
+    {
+      "id": "W68:S12-S20",
+      "raw_input": [
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19",
+        "S20"
+      ],
+      "core_ids": [
+        "IC68:12:0",
+        "IC68:12:1"
+      ],
+      "Own": [
+        242,
+        421
+      ],
+      "grade": 0,
+      "structural_type": null,
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": true,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 421,
+      "raw_evidence_complete": 438,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S12-S20"
+      },
+      "rejections": [
+        "coherent_type"
+      ]
+    },
+    {
+      "id": "W68:S13-S17",
+      "raw_input": [
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17"
+      ],
+      "core_ids": [
+        "IC68:13:0"
+      ],
+      "Own": [
+        262,
+        361
+      ],
+      "grade": 0,
+      "structural_type": "P",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": true,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 361,
+      "raw_evidence_complete": 378,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S13-S17"
+      },
+      "rejections": [
+        "whole_extreme"
+      ]
+    },
+    {
+      "id": "W68:S14-S18",
+      "raw_input": [
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18"
+      ],
+      "core_ids": [
+        "IC68:14:0"
+      ],
+      "Own": [
+        282,
+        381
+      ],
+      "grade": 0,
+      "structural_type": "P",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 381,
+      "raw_evidence_complete": 398,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S14-S18"
+      },
+      "rejections": [
+        "entry_cross",
+        "whole_extreme"
+      ]
+    },
+    {
+      "id": "W68:S15-S19",
+      "raw_input": [
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19"
+      ],
+      "core_ids": [
+        "IC68:15:0"
+      ],
+      "Own": [
+        302,
+        401
+      ],
+      "grade": 0,
+      "structural_type": "P",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": false,
+      "CycleDiv68": false,
+      "Completed68": false,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 401,
+      "raw_evidence_complete": 418,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S15-S19"
+      },
+      "rejections": [
+        "entry_cross",
+        "exit_cross",
+        "whole_extreme",
+        "signed_force_weakening"
+      ]
+    },
+    {
+      "id": "W68:S16-S20",
+      "raw_input": [
+        "S16",
+        "S17",
+        "S18",
+        "S19",
+        "S20"
+      ],
+      "core_ids": [
+        "IC68:16:0"
+      ],
+      "Own": [
+        322,
+        421
+      ],
+      "grade": 0,
+      "structural_type": "P",
+      "raw_support_certified": true,
+      "ComparisonReady68_for_this_core": true,
+      "CycleDiv68": true,
+      "Completed68": true,
+      "Completed68_means": "explicit candidate interpretation from CycleDiv68 and raw c closure; no source sufficiency proof",
+      "GeneralDiv_original": null,
+      "MovementCompleted_original": null,
+      "raw_occurrence": 421,
+      "raw_evidence_complete": 438,
+      "original_occurrence": null,
+      "original_confirmation": null,
+      "original_publication": null,
+      "evidence": {
+        "file": "all-windows.json",
+        "id": "W68:S16-S20"
+      },
+      "rejections": []
+    }
+  ],
+  "prefix_contract": "local raw certificate known_at governs edge availability, full physical input preloading disclosed",
+  "Owner": {
+    "candidate_edge": "Own=(actual start,actual end]",
+    "delta": "disjoint continuous edge path from raw index1",
+    "source_accounting": "E1 prelude, S0 raw root, delta factors, unresolved source remainder",
+    "raw_ledger": "all old local records permanently retained; only actual delta factors participate in Adj"
+  },
+  "Next": {
+    "delta": "actual successor in selected rooted path",
+    "MemberNext": "separate field of potential F2 member table",
+    "original_Next": null,
+    "multiple_delta_paths_found": false,
+    "uniqueness_claim": "only finite maximal candidate path; no full legal relation uniqueness proof"
+  },
+  "consumer": "f2_contract in check_joint.py: executable necessary fixed-interface predicates, not production or complete F2 implementation",
+  "selected_prefixes": [
+    {
+      "t": 138,
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5"
+      ],
+      "counts": {
+        "available_grammar_windows": 1,
+        "structural_pass": 1,
+        "roles_pass_after_structure": 1,
+        "whole_extreme_after_structure_roles": 1,
+        "candidate_completion_edges": 1,
+        "maximal_delta_paths": 1,
+        "no_pp_paths": 1,
+        "three_child_paths": 0,
+        "candidate_f2_pass": 0,
+        "original_f2_pass": 0
+      },
+      "deltas": [
+        {
+          "delta": [
+            "W68:S1-S5"
+          ],
+          "kinds": [
+            "P"
+          ],
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "counterfactual_no_pp_removed": false,
+          "candidate_member_table": [],
+          "candidate_center": null,
+          "candidate_interface_pass": false,
+          "original_interface_pass": false,
+          "original_completion_status": "unknown",
+          "reasons": [
+            "fewer_than_three_completed_candidate_children"
+          ],
+          "original_reasons": [
+            "OriginalCompleted(child) is unknown",
+            "RootArm68 source compatibility unknown",
+            "Outer0=core interpretation as original outer unknown",
+            "JEnd68 => whole MovementCompleted not proved"
+          ],
+          "ownership": {
+            "E1": "leading-observation",
+            "raw_prelude": [
+              2,
+              21
+            ],
+            "factors": [
+              {
+                "id": "W68:S1-S5",
+                "own": [
+                  22,
+                  121
+                ]
+              }
+            ],
+            "active_remainder": [
+              122,
+              138
+            ],
+            "coverage_once": true,
+            "confirmed_original_factors": []
+          }
+        }
+      ],
+      "no_pp_removed_control": [
+        {
+          "delta": [
+            "W68:S1-S5"
+          ],
+          "kinds": [
+            "P"
+          ],
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "counterfactual_no_pp_removed": true,
+          "candidate_member_table": [],
+          "candidate_center": null,
+          "candidate_interface_pass": false,
+          "original_interface_pass": false,
+          "original_completion_status": "unknown",
+          "reasons": [
+            "fewer_than_three_completed_candidate_children"
+          ],
+          "original_reasons": [
+            "OriginalCompleted(child) is unknown",
+            "RootArm68 source compatibility unknown",
+            "Outer0=core interpretation as original outer unknown",
+            "JEnd68 => whole MovementCompleted not proved"
+          ],
+          "ownership": {
+            "E1": "leading-observation",
+            "raw_prelude": [
+              2,
+              21
+            ],
+            "factors": [
+              {
+                "id": "W68:S1-S5",
+                "own": [
+                  22,
+                  121
+                ]
+              }
+            ],
+            "active_remainder": [
+              122,
+              138
+            ],
+            "coverage_once": true,
+            "confirmed_original_factors": []
+          }
+        }
+      ]
+    },
+    {
+      "t": 238,
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10"
+      ],
+      "counts": {
+        "available_grammar_windows": 8,
+        "structural_pass": 6,
+        "roles_pass_after_structure": 2,
+        "whole_extreme_after_structure_roles": 2,
+        "candidate_completion_edges": 2,
+        "maximal_delta_paths": 1,
+        "no_pp_paths": 0,
+        "three_child_paths": 0,
+        "candidate_f2_pass": 0,
+        "original_f2_pass": 0
+      },
+      "deltas": [
+        {
+          "delta": [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ],
+          "kinds": [
+            "P",
+            "P"
+          ],
+          "no_pp": false,
+          "pp_violations": [
+            [
+              "W68:S1-S5",
+              "W68:S6-S10"
+            ]
+          ],
+          "has_three": false,
+          "counterfactual_no_pp_removed": false,
+          "candidate_member_table": [],
+          "candidate_center": null,
+          "candidate_interface_pass": false,
+          "original_interface_pass": false,
+          "original_completion_status": "unknown",
+          "reasons": [
+            "NoPP",
+            "fewer_than_three_completed_candidate_children"
+          ],
+          "original_reasons": [
+            "OriginalCompleted(child) is unknown",
+            "RootArm68 source compatibility unknown",
+            "Outer0=core interpretation as original outer unknown",
+            "JEnd68 => whole MovementCompleted not proved"
+          ],
+          "ownership": {
+            "E1": "leading-observation",
+            "raw_prelude": [
+              2,
+              21
+            ],
+            "factors": [
+              {
+                "id": "W68:S1-S5",
+                "own": [
+                  22,
+                  121
+                ]
+              },
+              {
+                "id": "W68:S6-S10",
+                "own": [
+                  122,
+                  221
+                ]
+              }
+            ],
+            "active_remainder": [
+              222,
+              238
+            ],
+            "coverage_once": true,
+            "confirmed_original_factors": []
+          }
+        }
+      ],
+      "no_pp_removed_control": [
+        {
+          "delta": [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ],
+          "kinds": [
+            "P",
+            "P"
+          ],
+          "no_pp": false,
+          "pp_violations": [
+            [
+              "W68:S1-S5",
+              "W68:S6-S10"
+            ]
+          ],
+          "has_three": false,
+          "counterfactual_no_pp_removed": true,
+          "candidate_member_table": [],
+          "candidate_center": null,
+          "candidate_interface_pass": false,
+          "original_interface_pass": false,
+          "original_completion_status": "unknown",
+          "reasons": [
+            "fewer_than_three_completed_candidate_children"
+          ],
+          "original_reasons": [
+            "OriginalCompleted(child) is unknown",
+            "RootArm68 source compatibility unknown",
+            "Outer0=core interpretation as original outer unknown",
+            "JEnd68 => whole MovementCompleted not proved"
+          ],
+          "ownership": {
+            "E1": "leading-observation",
+            "raw_prelude": [
+              2,
+              21
+            ],
+            "factors": [
+              {
+                "id": "W68:S1-S5",
+                "own": [
+                  22,
+                  121
+                ]
+              },
+              {
+                "id": "W68:S6-S10",
+                "own": [
+                  122,
+                  221
+                ]
+              }
+            ],
+            "active_remainder": [
+              222,
+              238
+            ],
+            "coverage_once": true,
+            "confirmed_original_factors": []
+          }
+        }
+      ]
+    },
+    {
+      "t": 338,
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15"
+      ],
+      "counts": {
+        "available_grammar_windows": 21,
+        "structural_pass": 11,
+        "roles_pass_after_structure": 4,
+        "whole_extreme_after_structure_roles": 2,
+        "candidate_completion_edges": 2,
+        "maximal_delta_paths": 1,
+        "no_pp_paths": 0,
+        "three_child_paths": 0,
+        "candidate_f2_pass": 0,
+        "original_f2_pass": 0
+      },
+      "deltas": [
+        {
+          "delta": [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ],
+          "kinds": [
+            "P",
+            "P"
+          ],
+          "no_pp": false,
+          "pp_violations": [
+            [
+              "W68:S1-S5",
+              "W68:S6-S10"
+            ]
+          ],
+          "has_three": false,
+          "counterfactual_no_pp_removed": false,
+          "candidate_member_table": [],
+          "candidate_center": null,
+          "candidate_interface_pass": false,
+          "original_interface_pass": false,
+          "original_completion_status": "unknown",
+          "reasons": [
+            "NoPP",
+            "fewer_than_three_completed_candidate_children"
+          ],
+          "original_reasons": [
+            "OriginalCompleted(child) is unknown",
+            "RootArm68 source compatibility unknown",
+            "Outer0=core interpretation as original outer unknown",
+            "JEnd68 => whole MovementCompleted not proved"
+          ],
+          "ownership": {
+            "E1": "leading-observation",
+            "raw_prelude": [
+              2,
+              21
+            ],
+            "factors": [
+              {
+                "id": "W68:S1-S5",
+                "own": [
+                  22,
+                  121
+                ]
+              },
+              {
+                "id": "W68:S6-S10",
+                "own": [
+                  122,
+                  221
+                ]
+              }
+            ],
+            "active_remainder": [
+              222,
+              338
+            ],
+            "coverage_once": true,
+            "confirmed_original_factors": []
+          }
+        }
+      ],
+      "no_pp_removed_control": [
+        {
+          "delta": [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ],
+          "kinds": [
+            "P",
+            "P"
+          ],
+          "no_pp": false,
+          "pp_violations": [
+            [
+              "W68:S1-S5",
+              "W68:S6-S10"
+            ]
+          ],
+          "has_three": false,
+          "counterfactual_no_pp_removed": true,
+          "candidate_member_table": [],
+          "candidate_center": null,
+          "candidate_interface_pass": false,
+          "original_interface_pass": false,
+          "original_completion_status": "unknown",
+          "reasons": [
+            "fewer_than_three_completed_candidate_children"
+          ],
+          "original_reasons": [
+            "OriginalCompleted(child) is unknown",
+            "RootArm68 source compatibility unknown",
+            "Outer0=core interpretation as original outer unknown",
+            "JEnd68 => whole MovementCompleted not proved"
+          ],
+          "ownership": {
+            "E1": "leading-observation",
+            "raw_prelude": [
+              2,
+              21
+            ],
+            "factors": [
+              {
+                "id": "W68:S1-S5",
+                "own": [
+                  22,
+                  121
+                ]
+              },
+              {
+                "id": "W68:S6-S10",
+                "own": [
+                  122,
+                  221
+                ]
+              }
+            ],
+            "active_remainder": [
+              222,
+              338
+            ],
+            "coverage_once": true,
+            "confirmed_original_factors": []
+          }
+        }
+      ]
+    },
+    {
+      "t": 438,
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19",
+        "S20"
+      ],
+      "counts": {
+        "available_grammar_windows": 40,
+        "structural_pass": 16,
+        "roles_pass_after_structure": 7,
+        "whole_extreme_after_structure_roles": 4,
+        "candidate_completion_edges": 4,
+        "maximal_delta_paths": 1,
+        "no_pp_paths": 0,
+        "three_child_paths": 0,
+        "candidate_f2_pass": 0,
+        "original_f2_pass": 0
+      },
+      "deltas": [
+        {
+          "delta": [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ],
+          "kinds": [
+            "P",
+            "P"
+          ],
+          "no_pp": false,
+          "pp_violations": [
+            [
+              "W68:S1-S5",
+              "W68:S6-S10"
+            ]
+          ],
+          "has_three": false,
+          "counterfactual_no_pp_removed": false,
+          "candidate_member_table": [],
+          "candidate_center": null,
+          "candidate_interface_pass": false,
+          "original_interface_pass": false,
+          "original_completion_status": "unknown",
+          "reasons": [
+            "NoPP",
+            "fewer_than_three_completed_candidate_children"
+          ],
+          "original_reasons": [
+            "OriginalCompleted(child) is unknown",
+            "RootArm68 source compatibility unknown",
+            "Outer0=core interpretation as original outer unknown",
+            "JEnd68 => whole MovementCompleted not proved"
+          ],
+          "ownership": {
+            "E1": "leading-observation",
+            "raw_prelude": [
+              2,
+              21
+            ],
+            "factors": [
+              {
+                "id": "W68:S1-S5",
+                "own": [
+                  22,
+                  121
+                ]
+              },
+              {
+                "id": "W68:S6-S10",
+                "own": [
+                  122,
+                  221
+                ]
+              }
+            ],
+            "active_remainder": [
+              222,
+              438
+            ],
+            "coverage_once": true,
+            "confirmed_original_factors": []
+          }
+        }
+      ],
+      "no_pp_removed_control": [
+        {
+          "delta": [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ],
+          "kinds": [
+            "P",
+            "P"
+          ],
+          "no_pp": false,
+          "pp_violations": [
+            [
+              "W68:S1-S5",
+              "W68:S6-S10"
+            ]
+          ],
+          "has_three": false,
+          "counterfactual_no_pp_removed": true,
+          "candidate_member_table": [],
+          "candidate_center": null,
+          "candidate_interface_pass": false,
+          "original_interface_pass": false,
+          "original_completion_status": "unknown",
+          "reasons": [
+            "fewer_than_three_completed_candidate_children"
+          ],
+          "original_reasons": [
+            "OriginalCompleted(child) is unknown",
+            "RootArm68 source compatibility unknown",
+            "Outer0=core interpretation as original outer unknown",
+            "JEnd68 => whole MovementCompleted not proved"
+          ],
+          "ownership": {
+            "E1": "leading-observation",
+            "raw_prelude": [
+              2,
+              21
+            ],
+            "factors": [
+              {
+                "id": "W68:S1-S5",
+                "own": [
+                  22,
+                  121
+                ]
+              },
+              {
+                "id": "W68:S6-S10",
+                "own": [
+                  122,
+                  221
+                ]
+              }
+            ],
+            "active_remainder": [
+              222,
+              438
+            ],
+            "coverage_once": true,
+            "confirmed_original_factors": []
+          }
+        }
+      ]
+    }
+  ],
+  "positive_fragment": {
+    "nonempty_candidate_wholes": [
+      "W68:S1-S5",
+      "W68:S6-S10",
+      "W68:S12-S16",
+      "W68:S16-S20"
+    ],
+    "new_shifted_whole": "W68:S12-S16, own E242..341, evidence by358",
+    "source_whole_completion_certified": false,
+    "original_F2_nonempty_witness": false
+  },
+  "decisive_obstruction": "finite-obstruction.json",
+  "source_constraints": [
+    {
+      "id": "084-initial",
+      "class": "original text",
+      "source": "084:52/54/56",
+      "premise": "new f1 defines lowest centers and movements; f2 retained",
+      "actual": "one fully explicit finite grammar with no parent-to-child feedback",
+      "met": true,
+      "limit": "permission to construct, not semantic sufficiency"
+    },
+    {
+      "id": "057-view",
+      "class": "original text",
+      "source": "057:26/28/30/32",
+      "premise": "viewpoint uniformity; restore actual structure for operational roles",
+      "actual": "same raw grammar and numeric predicates for every window; raw b not promoted to q0 child",
+      "met": true,
+      "limit": "source permission of exact RootArm68 role remains unknown; no same-view promotion of b/P0/P1, so earlier triple not silently excluded"
+    },
+    {
+      "id": "061-role",
+      "class": "original text and project inference",
+      "source": "061:26; beichi:265",
+      "premise": "same center; nearest prior same-direction external crossing arm",
+      "actual": "fixed grammar selects immediately preceding raw arm, checks entry/exit direction, excludes core members",
+      "met": true,
+      "limit": "geometric candidate role only; no original completed-entry inference"
+    },
+    {
+      "id": "061-live",
+      "class": "original text",
+      "source": "061:26",
+      "premise": "live weakness is provisional and can be negated",
+      "actual": "no 118-type weak event is latched; candidate ends require complete raw c evidence",
+      "met": true,
+      "limit": "delayed raw confirmation does not prove whole completion"
+    },
+    {
+      "id": "865-arrow",
+      "class": "project inference",
+      "source": "beichi:313-323; cached #865",
+      "premise": "Movement completion needs dynamics, cannot derive from containing a core",
+      "actual": "JEnd68 uses force+extreme+roles, not core existence alone; raw c closure is separately typed",
+      "met": null,
+      "limit": "local CycleDiv68 + raw c closure => whole original completion is unproved"
+    },
+    {
+      "id": "873-force",
+      "class": "project inference",
+      "source": "beichi:335-343; cached #873",
+      "premise": "velocity net increment on actual pens, common time axis",
+      "actual": "each window uses source pen endpoints and event-duration slopes; same signed inequality throughout",
+      "met": true,
+      "limit": "finite arithmetic convention, not equivalence to production inclusive-bar formula or proof of every time totality"
+    },
+    {
+      "id": "037-trend",
+      "class": "original text",
+      "source": "037:16-22",
+      "premise": "trend c has sublevel/third-point/internal structure qualification",
+      "actual": "new k>=2 windows are enumerated but raw c does not have these qualifications",
+      "met": null,
+      "limit": "no original TrendDiv asserted; selected middle already numerically fails"
+    },
+    {
+      "id": "043-whole",
+      "class": "original text",
+      "source": "043:34/38/48; qushi:50",
+      "premise": "local divergence need not end entire enclosing movement",
+      "actual": "new whole ownership is explicit, but no source theorem equates JEnd68 to final whole completion",
+      "met": null,
+      "limit": "four positive candidate edges are not certified original completed movements"
+    },
+    {
+      "id": "C9-outer",
+      "class": "new initial choice under prior project inference",
+      "source": "Stage58 C9; 020:52-58; qushi:124-144",
+      "premise": "if Outer0 is original DD/GG it must realize actual Zn extrema",
+      "actual": "Outer0=core is explicit new definition, original Zn/DD/GG role not assigned",
+      "met": null,
+      "limit": "cannot use core separation as already proven original trend separation"
+    },
+    {
+      "id": "018-F2",
+      "class": "original text",
+      "source": "018:24; fixed F2",
+      "premise": "three completed same-grade continuous whole ranges",
+      "actual": "actual maximal rooted delta has two candidate factors; original completion all unknown",
+      "met": false,
+      "limit": "finite interface not satisfied, no q1 output"
+    },
+    {
+      "id": "827-NoPP",
+      "class": "project inference",
+      "source": "Stage66 scope review; #827 current policy",
+      "premise": "NoPP on actual independent constructive delta factors",
+      "actual": "delta explicitly owns intervals and submitted to F2; first two candidate factors P/P at238",
+      "met": false,
+      "limit": "candidate mapping diagnostic; finite obstruction also covers all released grammar alternatives"
+    }
+  ],
+  "P1": "this finite joint candidate fails requested nonempty fixed F2 and has unresolved original completion; all F1 not disproved",
+  "P2": "finite candidate dependencies and explicit delayed clocks only; no full parser/recovery/latency proof",
+  "P3": "not run",
+  "P4": "no adoption claim",
+  "R_W": "this local branch attempted",
+  "R_D": "unchanged/open"
+}

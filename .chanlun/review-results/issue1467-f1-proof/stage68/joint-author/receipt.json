@@ -1,0 +1,17 @@
+{
+  "command": "python3 check_joint.py",
+  "cwd": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author",
+  "started_at": "2026-10-05T20:08:22.710434+00:00",
+  "elapsed_seconds": 0.02886779187247157,
+  "max_rss_bytes": 37666816,
+  "rss_limit_bytes": 100663296,
+  "input_hashes_unchanged": true,
+  "input_count": 31,
+  "exit_code": 0,
+  "full_source_and_reference_arrays_loaded": true,
+  "claim_physical_future_read_isolation": false,
+  "candidate_dependency": "an edge becomes available only after all constituent raw known_at; its price/pen support ends no later than known_at",
+  "new_market_data": 0,
+  "rw_parser_executed": false,
+  "production_F2_executed": false
+}

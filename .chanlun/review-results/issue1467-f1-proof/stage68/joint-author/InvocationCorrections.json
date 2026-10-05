@@ -1,0 +1,11 @@
+{
+  "original_receipt_retained": true,
+  "incorrect_field": "receipt.json/cwd",
+  "original_value": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author",
+  "adopted_actual_cwd": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun",
+  "actual_command": "python3 /Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author/check_joint.py > /Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author/run.stdout 2> /Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author/run.stderr",
+  "why": "receipt stored HERE, which is output directory, not actual subprocess working directory; tool invocation used R",
+  "execution_count": 1,
+  "result_effect": "none; all paths in candidate script are absolute",
+  "known_early_prefix_coverage_field": "prefix ownership coverage_once is computed only at t>=21; early raw prelude is developing, not a completed q0 factor"
+}

@@ -1,0 +1,50 @@
+{
+  "history": "N66-low-prefix-nested-v1",
+  "observations": 443,
+  "events": 442,
+  "raw_segments": 21,
+  "candidate_count": 1,
+  "unexecuted_superseded_drafts": 1,
+  "new_histories": 0,
+  "parser_reruns": 0,
+  "grammar_windows": 40,
+  "window_lengths": {
+    "5": 16,
+    "9": 12,
+    "13": 8,
+    "17": 4
+  },
+  "rejection_counts_over_all_windows": {
+    "exit_cross": 16,
+    "whole_extreme": 27,
+    "signed_force_weakening": 15,
+    "coherent_type": 20,
+    "entry_cross": 18,
+    "strict_cores": 10
+  },
+  "final_counts": {
+    "available_grammar_windows": 40,
+    "structural_pass": 16,
+    "roles_pass_after_structure": 7,
+    "whole_extreme_after_structure_roles": 4,
+    "candidate_completion_edges": 4,
+    "maximal_delta_paths": 1,
+    "no_pp_paths": 0,
+    "three_child_paths": 0,
+    "candidate_f2_pass": 0,
+    "original_f2_pass": 0
+  },
+  "candidate_edges": [
+    "W68:S1-S5",
+    "W68:S6-S10",
+    "W68:S12-S16",
+    "W68:S16-S20"
+  ],
+  "first_candidate_F2_witness": null,
+  "first_NoPP_removed_F2_witness": null,
+  "earliest_nonempty_delta": 138,
+  "earliest_multiple_maximal_delta": null,
+  "source_semantic_admission": false,
+  "GeneralDiv_original": "unknown",
+  "scope": "all 40 windows and all candidate-edge partitions of this fixed grammar from S1; not all F1 models"
+}

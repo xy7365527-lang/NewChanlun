@@ -1,0 +1,30 @@
+{
+  "status": "completed",
+  "completed_utc": "2026-10-05T21:20:29.077989+00:00",
+  "cwd": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/adoption-review",
+  "method": "read-only adoption audit of nine frozen texts; direct source/definition reading; current hash and stored-artifact field assertions",
+  "skill": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.agents/skills/rigorous-open-math-research/SKILL.md",
+  "frozen_entry": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/adoption-inputs-v1.json",
+  "frozen_entry_sha256": "3dac5940f48089a4e0616af15e3e29cf6e7514015fef1f732288e2dc5917d682",
+  "frozen_inputs_verified": 9,
+  "tracked_inputs": 81,
+  "tracked_inputs_unchanged": true,
+  "baseline_timing": "Initial read-only inspection preceded the recorded baseline; support additions are disclosed in inputhash-before.json",
+  "author_or_independent_scripts_executed": false,
+  "replay_count": 0,
+  "state_control_executions": 0,
+  "new_histories": 0,
+  "rw_runs": 0,
+  "lean_runs": 0,
+  "tool_installations": 0,
+  "excluded_context_read": {
+    "MEMORY": false,
+    "ResearchProgress": false,
+    "author_conversation": false,
+    "author_assistant_conclusions": false
+  },
+  "write_scope": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/adoption-review",
+  "field_check_receipt": "field-check-receipt.json",
+  "field_check_exit_code": 0,
+  "review_sha256": "96ccbcdf720ee6ba08c8bd66dcd0cbd02fbbd665f592b35764a3518989beb7ed"
+}

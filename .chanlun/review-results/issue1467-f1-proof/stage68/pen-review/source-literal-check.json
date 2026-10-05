@@ -1,0 +1,135 @@
+[
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/062-第62课.md",
+    "sha256": "289acd34caf0b502f2da409f1abdd2dd37d316769e6f61018dc35c334fed8c4a",
+    "lines_checked": [
+      12,
+      18,
+      22,
+      24,
+      26,
+      28,
+      32,
+      36
+    ],
+    "literal_matches": true
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/065-第65课.md",
+    "sha256": "5eab5a88ab5433c1324a25da370c1fe4bb8e05a9069ce83883c8583df4a6d807",
+    "lines_checked": [
+      12,
+      28,
+      30,
+      34,
+      36,
+      38,
+      40,
+      56
+    ],
+    "literal_matches": true
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/081-第81课.md",
+    "sha256": "18caff8a718f9cbccee454872e85350fcd99b051ebedda4b19578c341136d7b8",
+    "lines_checked": [
+      78,
+      100,
+      102,
+      108,
+      110,
+      112,
+      114,
+      118
+    ],
+    "literal_matches": true
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/082-第82课.md",
+    "sha256": "30199f4bba2e7c8af03b7363f25352a528fbb4d4451c8ddd415e01463f1c8851",
+    "lines_checked": [
+      12,
+      20,
+      22,
+      30,
+      38,
+      40,
+      42,
+      64
+    ],
+    "literal_matches": true
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/bi.md",
+    "sha256": "b4a0497ed0487a9d63fb239d20a4b564b6fbc8aa239b2abee7f18c895feb0a4b",
+    "lines_checked": [
+      77,
+      78,
+      79,
+      80,
+      81,
+      82,
+      83,
+      84,
+      85,
+      86,
+      87,
+      88,
+      89,
+      90,
+      91,
+      92,
+      93,
+      94,
+      106,
+      107,
+      108,
+      109,
+      110,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116,
+      117,
+      118,
+      119,
+      120,
+      121,
+      122,
+      123,
+      124,
+      125,
+      126,
+      127,
+      128,
+      129,
+      130,
+      131,
+      132,
+      133,
+      134,
+      135,
+      136,
+      137,
+      138,
+      139
+    ],
+    "literal_matches": true
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+    "lines_checked": [
+      315,
+      317,
+      338,
+      563,
+      565,
+      567,
+      569
+    ],
+    "literal_matches": true
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "prefixes": 443,
+  "hashes": {
+    "all-prefixes.jsonl": "97503b14f781080cd3c41d640d5b6bb6f81aeed6adfc6309b1a2932c40aca07e",
+    "events.json": "0f08624ad54da0618329cf394a0e3638d6a26e5eec62bf64d158695688caf32b",
+    "versions.json": "e41ef3aa849508b58241ad696fd7cacd1b5dabf1a924c7250fced5195f710dc4",
+    "completion-candidates.json": "fe1de9113a8372d9094d1932ff3973e84254d9020bfedc54fb0dbc4c7cf8adec",
+    "pointbar-geometry.json": "7715fb2f20901038551c55b57bbe37d7c0c64ae8824af84027b2388bc2324ad0",
+    "raw-spans.json": "cdbcaa182e5a48224502d56935afd5b5dd95f95130956c6ed7dbf57f15142d5e",
+    "whole-spans.json": "4fd30d62edf61b0317a277dfd0bf4d59b411b19a601028ba64b3904421e143ea"
+  },
+  "final_pens_objects_parent_certs_json_deserialized_before_seal": false,
+  "final_bytes_prehashed": true,
+  "driver_source_array_preloaded": true,
+  "prefix_array_text_character_buffer": 65536,
+  "stage67_current_rows_streamed": true,
+  "step_input": "one observation, one reviewed prefix, five reviewed Stage67 current-cut rows",
+  "claim": "conditional step dependency only; no claim of physically absent future bytes or blind author"
+}

@@ -1,0 +1,79 @@
+[
+  {
+    "file": "all-prefixes.jsonl",
+    "v1": "97503b14f781080cd3c41d640d5b6bb6f81aeed6adfc6309b1a2932c40aca07e",
+    "v2": "97503b14f781080cd3c41d640d5b6bb6f81aeed6adfc6309b1a2932c40aca07e",
+    "replay": "97503b14f781080cd3c41d640d5b6bb6f81aeed6adfc6309b1a2932c40aca07e",
+    "all_equal": true
+  },
+  {
+    "file": "events.json",
+    "v1": "0f08624ad54da0618329cf394a0e3638d6a26e5eec62bf64d158695688caf32b",
+    "v2": "0f08624ad54da0618329cf394a0e3638d6a26e5eec62bf64d158695688caf32b",
+    "replay": "0f08624ad54da0618329cf394a0e3638d6a26e5eec62bf64d158695688caf32b",
+    "all_equal": true
+  },
+  {
+    "file": "versions.json",
+    "v1": "e41ef3aa849508b58241ad696fd7cacd1b5dabf1a924c7250fced5195f710dc4",
+    "v2": "e41ef3aa849508b58241ad696fd7cacd1b5dabf1a924c7250fced5195f710dc4",
+    "replay": "e41ef3aa849508b58241ad696fd7cacd1b5dabf1a924c7250fced5195f710dc4",
+    "all_equal": true
+  },
+  {
+    "file": "completion-candidates.json",
+    "v1": "fe1de9113a8372d9094d1932ff3973e84254d9020bfedc54fb0dbc4c7cf8adec",
+    "v2": "fe1de9113a8372d9094d1932ff3973e84254d9020bfedc54fb0dbc4c7cf8adec",
+    "replay": "fe1de9113a8372d9094d1932ff3973e84254d9020bfedc54fb0dbc4c7cf8adec",
+    "all_equal": true
+  },
+  {
+    "file": "pointbar-geometry.json",
+    "v1": "7715fb2f20901038551c55b57bbe37d7c0c64ae8824af84027b2388bc2324ad0",
+    "v2": "7715fb2f20901038551c55b57bbe37d7c0c64ae8824af84027b2388bc2324ad0",
+    "replay": "7715fb2f20901038551c55b57bbe37d7c0c64ae8824af84027b2388bc2324ad0",
+    "all_equal": true
+  },
+  {
+    "file": "initialization.json",
+    "v1": "0ad23747f54d9f01ff0962a1973f5a25e53e5ef13011084ce0f78b83011b7247",
+    "v2": "0ad23747f54d9f01ff0962a1973f5a25e53e5ef13011084ce0f78b83011b7247",
+    "replay": "0ad23747f54d9f01ff0962a1973f5a25e53e5ef13011084ce0f78b83011b7247",
+    "all_equal": true
+  },
+  {
+    "file": "raw-spans.json",
+    "v1": "cdbcaa182e5a48224502d56935afd5b5dd95f95130956c6ed7dbf57f15142d5e",
+    "v2": "cdbcaa182e5a48224502d56935afd5b5dd95f95130956c6ed7dbf57f15142d5e",
+    "replay": "cdbcaa182e5a48224502d56935afd5b5dd95f95130956c6ed7dbf57f15142d5e",
+    "all_equal": true
+  },
+  {
+    "file": "whole-spans.json",
+    "v1": "4fd30d62edf61b0317a277dfd0bf4d59b411b19a601028ba64b3904421e143ea",
+    "v2": "4fd30d62edf61b0317a277dfd0bf4d59b411b19a601028ba64b3904421e143ea",
+    "replay": "4fd30d62edf61b0317a277dfd0bf4d59b411b19a601028ba64b3904421e143ea",
+    "all_equal": true
+  },
+  {
+    "file": "key-trajectories.json",
+    "v1": "8459c737d754ada878611571faae28904df10db601f2d48be5811ef1d852cf4f",
+    "v2": "8459c737d754ada878611571faae28904df10db601f2d48be5811ef1d852cf4f",
+    "replay": "8459c737d754ada878611571faae28904df10db601f2d48be5811ef1d852cf4f",
+    "all_equal": true
+  },
+  {
+    "file": "post-seal-comparison.json",
+    "v1": "bc155d4aedc824a0ce800def6b2dba1b133219aa6aadab8b7a4fa84f9fd76ce2",
+    "v2": "bc155d4aedc824a0ce800def6b2dba1b133219aa6aadab8b7a4fa84f9fd76ce2",
+    "replay": "bc155d4aedc824a0ce800def6b2dba1b133219aa6aadab8b7a4fa84f9fd76ce2",
+    "all_equal": true
+  },
+  {
+    "file": "weighted-lemma.json",
+    "v1": "400f01f6f9a45098ca04571417bec5e1e533fb47399b1d472aa69d8df67b1753",
+    "v2": "400f01f6f9a45098ca04571417bec5e1e533fb47399b1d472aa69d8df67b1753",
+    "replay": "400f01f6f9a45098ca04571417bec5e1e533fb47399b1d472aa69d8df67b1753",
+    "all_equal": true
+  }
+]

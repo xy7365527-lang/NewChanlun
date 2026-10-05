@@ -1,0 +1,47 @@
+{
+  "status": "finite-results-accepted-with-required-claim-qualification",
+  "approval": "Warning",
+  "issue": 1467,
+  "author_manifest_sha256": "cb6b1ea7ec569768ce7cc45f4390ff13ba51bff3731c055131de440803d65a3d",
+  "author_FINAL_sha256": "232dcdad4242be696cfe11deb9fae890e9adb3a0d40d8a6a64f8de996b3328c9",
+  "manifest_sha256": "0aa7603884bcc8d9f3d48b89f0252e82f6b1de89b8213d9b4565e1e6f717027b",
+  "report": "review.md",
+  "source_reading": "source-reading.md",
+  "independent_script": "independent_check.py",
+  "independent_result": "independent-results.json",
+  "read_order_script": "audit_read_order.py",
+  "read_order_result": "runtime-read-order.json",
+  "required_qualifications": [
+    {
+      "severity": "MEDIUM",
+      "file": "pen-author/Report.md:62",
+      "summary": "Do not claim template-end cancellation implemented; only active-certificate retraction event exists and active replacement is untested."
+    }
+  ],
+  "original_failure_interpretation": "Original force qualification not established by this model; no source-level counterexample or impossibility theorem.",
+  "prefixes": 443,
+  "versions": 441,
+  "families": 111,
+  "active_matches": 110,
+  "stable_matches": 109,
+  "endpoint_proposal_retractions": 330,
+  "current_active_equality_domain": 437,
+  "current_stable_equality_domain": 433,
+  "new_histories": 0,
+  "rw_runs": 0,
+  "independent_mathematical_histories": 1,
+  "author_replay_extra_samples": 0,
+  "peak_rss_bytes": 56360960,
+  "inputhash_unchanged": true,
+  "author_unchanged": true,
+  "files_frozen": 36,
+  "original_statuses": {
+    "StructuralPenNow": null,
+    "RootArm67": null,
+    "Completed": null,
+    "Owner": null,
+    "Next": null,
+    "F2": null,
+    "full_F1": null
+  }
+}

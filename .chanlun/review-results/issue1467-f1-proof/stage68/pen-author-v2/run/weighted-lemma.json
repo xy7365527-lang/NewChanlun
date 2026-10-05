@@ -1,0 +1,22 @@
+{
+  "a": 113,
+  "r": 117,
+  "t": 121,
+  "oldVelocity": {
+    "num": -300,
+    "den": 1
+  },
+  "residualVelocity": {
+    "num": 500,
+    "den": 1
+  },
+  "chordVelocity": {
+    "num": 100,
+    "den": 1
+  },
+  "weighted": {
+    "num": 100,
+    "den": 1
+  },
+  "equal": false
+}

@@ -1,0 +1,357 @@
+--- pen-author/check_pen.py
++++ pen-author-v2/check_pen.py
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env python3
+ """DP68-v1: reuse reviewed prefixes, never execute R_W. Explicit data-dependency audit."""
+ from __future__ import annotations
+-import hashlib, json, resource, sys, time
++import copy, hashlib, json, resource, sys, time
+ from collections import Counter
+ from fractions import Fraction
+ from pathlib import Path
+@@ -16,8 +16,10 @@
+ CERTS = E/'stage67/live-review/independent-certificates.json'
+ NAMES = ['P0','P1','P2','c0']
+ OUT = Path(sys.argv[1]).resolve() if len(sys.argv)>1 else HERE/'run'
+-OUT.mkdir(parents=True, exist_ok=False)
+ READS=[]
++
++class CommitmentError(RuntimeError):
++    """拒绝破坏稳定承诺或在末笔身份未对齐时冻结。"""
+ 
+ def dump(name, value):
+     (OUT/name).write_text(json.dumps(value, ensure_ascii=False, indent=2)+'\n')
+@@ -33,7 +35,7 @@
+     return json.loads(path.read_text())
+ 
+ def items(path):
+-    READS.append({'path':str(path),'action':'array-item-stream','phase':'online','byte_buffer':65536})
++    READS.append({'path':str(path),'action':'array-item-stream','phase':'online','text_character_buffer':65536})
+     d=json.JSONDecoder(); buf=''; started=False; eof=False
+     with path.open() as f:
+         while True:
+@@ -63,8 +65,103 @@
+         self.first_stable={};self.confirmed={};self.stable={};self.geometry=[]
+         self.raw={};self.wholes={};self.weak_current={};self.weak_events=[];self.relations=[]
+         self.init=[];self.counts=Counter();self.births=[];self.readback=[]
++        self.live_confirmed=set();self.unrepresented={}
+     def velocity(self,p):return Fraction(p['end_price']-p['start_price'],self.times[p['end']]-self.times[p['start']])
+     def emit(self,t,kind,**kw):self.events.append({'knownAt':t,'kind':kind,**kw})
++    def reject(self,t,reason,**details):
++        self.emit(t,'rejected-state-transition',reason=reason,**details)
++        raise CommitmentError(reason)
++    def check_stable_prefix(self,stable,t):
++        if stable[:len(self.previous_stable)]!=self.previous_stable:
++            self.reject(t,'stable-prefix-rewrite',previous=copy.deepcopy(self.previous_stable),incoming=copy.deepcopy(stable))
++    def terminal_key(self,obj):
++        version=self.versions.get(obj.get('terminalCandidate'))
++        if version is not None:return key(version)
++        pending=obj.get('pendingTerminalPen')
++        return key(pending) if pending is not None else None
++    def clear_span(self,obj,t,reason):
++        terminal=self.terminal_key(obj)
++        if terminal in self.stable:
++            self.reject(t,'stable-span-cannot-be-canceled',object=obj['id'],terminal=terminal)
++        before=copy.deepcopy(obj)
++        for field in ('endpointKnownAt','terminalCandidate','frozenL','wholeFrozenL','cFrozenL',
++                      'frozenAt','rawEvidenceKnownAt','rawEvidencePending','pendingTerminalPen','pendingTerminalKnownAt'):
++            obj.pop(field,None)
++        obj.update(end=None,state='open-after-terminal-withdrawal')
++        self.emit(t,'template-endpoint-canceled',object=obj['id'],reason=reason,previous=before,
++                  current=copy.deepcopy(obj))
++    def withdraw_active(self,p,t,reason='active-identity-replaced'):
++        """接口撤销：先检查全部承诺，再清当前依赖；历史证书和proposal从不删除。"""
++        k=key(p)
++        if k in self.stable:self.reject(t,'stable-pen-cannot-be-retracted',pen=copy.deepcopy(p))
++        affected=[obj for obj in list(self.raw.values())+list(self.wholes.values()) if self.terminal_key(obj)==k]
++        # Preflight all objects before mutating any current endpoint.
++        for obj in affected:
++            if self.terminal_key(obj) in self.stable:
++                self.reject(t,'stable-span-cannot-be-canceled',object=obj['id'],terminal=k)
++        self.live_confirmed.discard(k);self.unrepresented.pop(k,None)
++        if self.previous_active is not None and key(self.previous_active)==k:self.previous_active=None
++        self.emit(t,'retracted-confirmed-rw' if k in self.confirmed else 'retracted-unrepresented-active',
++                  pen=copy.deepcopy(p),reason=reason)
++        for obj in affected:self.clear_span(obj,t,reason)
++    def observe_active(self,p,t,anchors):
++        """只引用已存在版本；找不到时记录待表示，不回填历史提案。"""
++        self.previous_active=copy.deepcopy(p)
++        k=key(p);v=self.lookup.get(k)
++        if v is None or self.versions[v]['evidenceState']!='pending-opposite-fractal':
++            if k not in self.unrepresented:
++                self.unrepresented[k]={'pen':copy.deepcopy(p),'knownAt':t,'reason':'no-existing-qualified-proposal'}
++                self.emit(t,'unrepresented-active',**self.unrepresented[k])
++            return False
++        if k not in self.live_confirmed:
++            geom=self.certify_geometry(p,t,anchors);self.geometry.append(geom)
++            cert={'pen':dict(p),'knownAt':t,'candidateVersion':v,'geometryIndex':len(self.geometry)-1}
++            if k not in self.confirmed:
++                self.confirmed[k]=cert;self.emit(t,'confirmed-rw-active',**cert)
++            else:self.emit(t,'reactivated-confirmed-rw',**cert)
++            self.live_confirmed.add(k);self.unrepresented.pop(k,None)
++        return True
++    def observe_stable(self,p,t):
++        k=key(p)
++        if k in self.stable:return
++        candidate=self.confirmed[k]['candidateVersion'] if k in self.live_confirmed else None
++        immutable={'pen':copy.deepcopy(p),'knownAt':t,'candidateVersion':candidate}
++        self.stable[k]=immutable;self.first_stable.setdefault(p['start'],t)
++        self.emit(t,'stable-rw' if candidate is not None else 'stable-rw-unrepresented',**immutable)
++    def bind_terminal(self,obj,terminal,t):
++        """每步核终点，不以旧end非空作为沿用或冻结依据。"""
++        k=key(terminal);existing=self.terminal_key(obj)
++        if existing is not None and existing!=k:self.clear_span(obj,t,'current-terminal-identity-changed')
++        version=self.lookup.get(k)
++        stable=self.stable.get(k)
++        represented=(version is not None and
++                     self.versions[version]['evidenceState']=='pending-opposite-fractal' and
++                     (k in self.live_confirmed or (stable is not None and stable['candidateVersion']==version)))
++        if not represented:
++            if obj.get('end') is not None:self.clear_span(obj,t,'terminal-proposal-unrepresented')
++            obj.update(end=None,state='pending-unrepresented-terminal',pendingTerminalPen=copy.deepcopy(terminal),pendingTerminalKnownAt=t)
++            return False
++        if obj.get('end') is None:
++            obj.pop('pendingTerminalPen',None);obj.pop('pendingTerminalKnownAt',None)
++            obj.update(end=terminal['end'],endpointKnownAt=t,state='ended-awaiting-stability',terminalCandidate=version)
++        if obj['end']!=terminal['end'] or sig(self.versions[obj['terminalCandidate']])!=sig(terminal):
++            self.reject(t,'terminal-candidate-identity-mismatch',object=obj['id'])
++        return True
++    def freeze_span(self,obj,chunk,t,whole=False):
++        terminal=chunk[-1];v=self.versions.get(obj.get('terminalCandidate'));certificate=self.stable.get(key(terminal))
++        if (v is None or sig(v)!=sig(terminal) or obj.get('end')!=terminal['end'] or
++                certificate is None or certificate['candidateVersion']!=obj.get('terminalCandidate')):
++            self.reject(t,'freeze-terminal-identity-not-stable',object=obj['id'],terminal=copy.deepcopy(terminal),
++                        terminalCandidate=obj.get('terminalCandidate'),end=obj.get('end'))
++        if whole:
++            if 'wholeFrozenL' not in obj:
++                obj.update(state='frozen-pens-awaiting-raw-proof',frozenAt=t,
++                           wholeFrozenL=pack(self.velocity(terminal)-self.velocity(chunk[0])),
++                           cFrozenL=pack(self.velocity(terminal)-self.velocity(chunk[-5])))
++                self.emit(t,'freeze-whole-pen-span',whole=dict(obj))
++        elif 'frozenL' not in obj:
++            obj.update(state='frozen-pens-awaiting-raw-proof',frozenL=pack(self.velocity(terminal)-self.velocity(chunk[0])),frozenAt=t)
++            self.emit(t,'freeze-raw-pen-span',raw=dict(obj))
+     def version(self,a,t):
+         start=a['raw'];up=not a['top'];duration=self.times[t]-self.times[start]
+         disp=self.prices[t]-self.prices[start];sgn=signed_direction(up)
+@@ -99,29 +196,20 @@
+                 'pointbar_source_shape':assertions,'source_admission':None}
+     def step(self,obs,prefix,oldrows):
+         t=prefix['cut'];assert t==len(self.prices)==obs['index']==obs['time']
++        self.check_stable_prefix(prefix['stable'],t)
+         self.prices.append(obs['price']);self.times.append(obs['time'])
+         st,act,anchors=prefix['stable'],prefix['active'],prefix['anchors']
+-        assert st[:len(self.previous_stable)]==self.previous_stable
+         assert prefix['stable_count']==len(st)
+         for a in anchors:
+             assert a['raw']+1<=t and a['known_at']<=t and self.prices[a['raw']]==a['price']
+         newly_stable=st[len(self.previous_stable):]
+-        for p in newly_stable:
+-            k=key(p);assert k in self.confirmed
+-            immutable={'pen':p,'knownAt':t,'candidateVersion':self.confirmed[k]['candidateVersion']}
+-            self.stable[k]=immutable;self.first_stable.setdefault(p['start'],t)
+-            self.emit(t,'stable-rw',**immutable)
++        for p in newly_stable:self.observe_stable(p,t)
+         if self.previous_active and (not act or sig(act)!=sig(self.previous_active)) and key(self.previous_active) not in self.stable:
+-            self.emit(t,'retracted-confirmed-rw',pen=self.previous_active,reason='active-identity-replaced')
+-        if act and key(act) not in self.confirmed:
+-            k=key(act);v=self.lookup.get(k);assert v is not None,(t,act)
+-            assert self.versions[v]['evidenceState']=='pending-opposite-fractal'
+-            geom=self.certify_geometry(act,t,anchors);self.geometry.append(geom)
+-            cert={'pen':dict(act),'knownAt':t,'candidateVersion':v,'geometryIndex':len(self.geometry)-1}
+-            self.confirmed[k]=cert;self.emit(t,'confirmed-rw-active',**cert)
++            self.withdraw_active(self.previous_active,t)
++        if act:self.observe_active(act,t,anchors)
+         if self.current:
+             previous=self.versions[self.current];k=key(previous)
+-            if k not in self.confirmed:
++            if k not in self.live_confirmed and k not in self.stable:
+                 reason='anchor-replaced' if anchors and anchors[-1]['raw']!=previous['start'] else 'endpoint-version-superseded'
+                 self.emit(t,'retracted-proposal',version=self.current,reason=reason)
+         if not anchors:
+@@ -144,31 +232,27 @@
+             start=anchors[first]['raw'];chunk=pens[first:first+5]
+             obj=self.raw.setdefault(block,{'id':f'Raw:{block}','start':start,'candidateFirstKnownAt':t,'end':None,'state':'open'})
+             assert obj['start']==start
+-            if len(chunk)==5 and obj['end'] is None:
+-                obj.update(end=chunk[-1]['end'],endpointKnownAt=t,state='ended-awaiting-stability',terminalCandidate=self.lookup[key(chunk[-1])])
+-            if len(st)>=first+5 and 'frozenL' not in obj:
+-                force=self.velocity(chunk[-1])-self.velocity(chunk[0]);obj.update(state='frozen-pens-awaiting-raw-proof',frozenL=pack(force),frozenAt=t)
+-                self.emit(t,'freeze-raw-pen-span',raw=dict(obj))
++            represented=self.bind_terminal(obj,chunk[-1],t) if len(chunk)==5 else False
++            if len(st)>=first+5 and represented:self.freeze_span(obj,chunk,t)
+         for g,name in enumerate(NAMES):
+             first=5+25*g
+             if first>=len(anchors):continue
+             start=anchors[first]['raw'];chunk=pens[first:first+25]
+             obj=self.wholes.setdefault(name,{'id':name,'start':start,'candidateFirstKnownAt':t,'end':None,'state':'open',
+                                             'Completed_original':None,'Owner_original':None,'Next_original':None,'F2_original':None})
+-            if len(chunk)==25 and obj['end'] is None:
+-                obj.update(end=chunk[-1]['end'],endpointKnownAt=t,state='ended-awaiting-stability',terminalCandidate=self.lookup[key(chunk[-1])])
++            prior_end=obj['end']
++            represented=self.bind_terminal(obj,chunk[-1],t) if len(chunk)==25 else False
++            if represented and prior_end is None:
+                 self.emit(t,'whole-endpoint-proposal-confirmed-rw',whole=dict(obj))
+-            if len(st)>=first+25 and 'wholeFrozenL' not in obj:
+-                obj.update(state='frozen-pens-awaiting-raw-proof',frozenAt=t,
+-                           wholeFrozenL=pack(self.velocity(chunk[-1])-self.velocity(chunk[0])),
+-                           cFrozenL=pack(self.velocity(chunk[-1])-self.velocity(chunk[-5])))
+-                self.emit(t,'freeze-whole-pen-span',whole=dict(obj))
++            if len(st)>=first+25 and represented:self.freeze_span(obj,chunk,t,whole=True)
+             row=oldrows[name]
+             if row['lifecycle']=='closed-local-certificate' and 'rawEvidenceKnownAt' not in obj:
+-                assert obj['end'] is not None and 'cFrozenL' in obj
+-                obj.update(state='selected-raw-evidence-complete',rawEvidenceKnownAt=t)
+-                self.raw[5+5*g].update(rawEvidenceKnownAt=t,state='selected-raw-evidence-complete')
+-                self.emit(t,'selected-whole-raw-evidence-complete',whole=dict(obj),basis='reviewed-Stage67-current-row')
++                if represented and 'cFrozenL' in obj:
++                    obj.pop('rawEvidencePending',None)
++                    obj.update(state='selected-raw-evidence-complete',rawEvidenceKnownAt=t)
++                    self.raw[5+5*g].update(rawEvidenceKnownAt=t,state='selected-raw-evidence-complete')
++                    self.emit(t,'selected-whole-raw-evidence-complete',whole=dict(obj),basis='reviewed-Stage67-current-row')
++                else:obj['rawEvidencePending']='terminal-proposal-or-stability-not-established'
+         # Domain-aware proposal: once the selected whole endpoint is known, do not put later residual in it.
+         force_rows=[]
+         for g,name in enumerate(NAMES+['parent']):
+@@ -203,7 +287,7 @@
+                                'rawEvidenceKnownAt':obj.get('rawEvidenceKnownAt') if obj else None,
+                                'stage67R':row['R'].get('L'),'stage67JointCandidate':row['R']['complete_candidate']})
+         out={'cut':t,'price':self.prices[t],'current':current,'active':act,'stableCount':len(st),
+-             'activeCandidateVersion':self.confirmed[key(act)]['candidateVersion'] if act else None,
++             'activeCandidateVersion':self.confirmed[key(act)]['candidateVersion'] if act and key(act) in self.live_confirmed else None,
+              'currentSameAsActive':bool(act and current.get('id') and sig(act)==sig(current)),
+              'currentSameAsAnyStable':bool(current.get('id') and key(current) in self.stable),
+              'templateCurrentRawSlot':len(anchors)-1 if anchors else None,
+@@ -211,12 +295,92 @@
+         self.relations.append(out);self.previous_stable=st;self.previous_active=act
+         return out
+ 
++def state_control(seeds):
++    """八条接口消息；只用回放已捕获状态，不step新行情、不创造proposal。"""
++    m,anchors=seeds[122];n,_=seeds[138]
++    p=copy.deepcopy(m.previous_active);assert p['start']==117 and p['end']==121
++    original_versions=copy.deepcopy(m.versions);original_confirmed=copy.deepcopy(m.confirmed)
++    trace=[]
++    fields=('endpointKnownAt','terminalCandidate','frozenL','wholeFrozenL','cFrozenL','frozenAt','rawEvidenceKnownAt','pendingTerminalPen','pendingTerminalKnownAt')
++    def state(which):
++        return {'raw5':copy.deepcopy(which.raw[5]),'P0':copy.deepcopy(which.wholes['P0']),
++                'stableCount':len(which.stable),'versionCount':len(which.versions),'priceCount':len(which.prices)}
++    def record(kind,which,**extra):trace.append({'message':len(trace)+1,'kind':kind,'state':state(which),**extra})
++    # 1. Existing tentative endpoint receives an actual interface withdrawal notification.
++    before=state(m);m.withdraw_active(p,122,'control-withdrawal-not-market-history')
++    for obj in (m.raw[5],m.wholes['P0']):assert obj['end'] is None and all(f not in obj for f in fields)
++    assert m.confirmed==original_confirmed and m.versions==original_versions
++    record('withdraw-existing-tentative-terminal',m,before=before,cleared_current_fields=['end','endpointKnownAt','terminalCandidate'],
++           absent_dependency_fields_checked=['frozenL','wholeFrozenL','cFrozenL','frozenAt','rawEvidenceKnownAt'])
++    # 2. Coordinates already observed at cut122, but no proposal with this same start/end exists.
++    replacement={**p,'end':122,'end_price':m.prices[122]}
++    assert key(replacement) not in m.lookup
++    assert not m.observe_active(replacement,122,anchors)
++    for obj in (m.raw[5],m.wholes['P0']):
++        assert not m.bind_terminal(obj,replacement,122)
++        assert obj['end'] is None and 'terminalCandidate' not in obj and obj['state']=='pending-unrepresented-terminal'
++    assert m.versions==original_versions
++    record('unrepresented-active-notification',m,notification=replacement,proposal_backfilled=False,
++           semantics='API identity notification only; this endpoint is not asserted to be a valid market fractal')
++    # 3. Withdrawal also cancels unrepresented pending-terminal references.
++    m.withdraw_active(replacement,122,'control-withdraw-unrepresented')
++    for obj in (m.raw[5],m.wholes['P0']):assert obj['end'] is None and all(f not in obj for f in fields)
++    record('withdraw-unrepresented-terminal',m)
++    # 4. Re-admit only the genuinely existing historical proposal, without inventing past versions.
++    assert m.observe_active(p,122,anchors)
++    for obj in (m.raw[5],m.wholes['P0']):assert m.bind_terminal(obj,p,122) and obj['end']==121
++    assert m.confirmed==original_confirmed and m.versions==original_versions
++    record('reactivate-existing-proposal-and-rebind',m,proposal=m.lookup[key(p)])
++    # 5. Reuse the actual certificate knownAt126; this is a state acknowledgement, not four new prices.
++    stable_receipt=n.stable[key(p)];assert stable_receipt['knownAt']==126
++    m.observe_stable(p,stable_receipt['knownAt'])
++    pens=m.previous_stable+[p]
++    m.freeze_span(m.raw[5],pens[25:30],126)
++    m.freeze_span(m.wholes['P0'],pens[5:30],126,whole=True)
++    assert m.raw[5]['frozenL']=={'num':-500,'den':1}
++    assert m.wholes['P0']['wholeFrozenL']=={'num':-1500,'den':1}
++    assert m.wholes['P0']['cFrozenL']=={'num':-500,'den':1}
++    assert 'rawEvidenceKnownAt' not in m.wholes['P0']
++    record('actual-stable-receipt-and-rebuilt-freeze',m,receipt=stable_receipt,new_market_observations=0)
++    # 6-8. A real raw-evidence-complete checkpoint retains its commitment on rejected requests.
++    frozen=state(n);stable_before=copy.deepcopy(n.stable)
++    bad_chunk=copy.deepcopy(n.previous_stable[25:30]);bad_chunk[-1]=copy.deepcopy(n.previous_stable[30])
++    try:n.freeze_span(n.wholes['P0'],n.previous_stable[5:29]+[bad_chunk[-1]],138,whole=True)
++    except CommitmentError as e:assert str(e)=='freeze-terminal-identity-not-stable'
++    else:raise AssertionError('mismatching freeze accepted')
++    assert state(n)==frozen and n.stable==stable_before
++    record('reject-freeze-with-different-current-terminal',n,rejection=n.events[-1])
++    try:n.withdraw_active(p,138,'control-attempt-stable-retraction')
++    except CommitmentError as e:assert str(e)=='stable-pen-cannot-be-retracted'
++    else:raise AssertionError('stable retraction accepted')
++    assert state(n)==frozen and n.stable==stable_before
++    record('reject-stable-retraction',n,rejection=n.events[-1])
++    wrong=copy.deepcopy(n.previous_stable);wrong[-1]['end']+=1
++    try:n.check_stable_prefix(wrong,138)
++    except CommitmentError as e:assert str(e)=='stable-prefix-rewrite'
++    else:raise AssertionError('stable rewrite accepted')
++    assert state(n)==frozen and n.stable==stable_before
++    record('reject-stable-prefix-rewrite',n,rejection=n.events[-1])
++    assert len(trace)==8 and m.versions==original_versions and m.confirmed==original_confirmed
++    assert len(m.prices)==123 and len(n.prices)==139
++    dump('state-control.json',{'status':'pass','messages':trace,'message_count':8,'new_histories':0,
++                             'new_market_observations':0,'rw_runs':0,'proposal_backfills':0,
++                             'source_seed_cuts':[122,138],'real_active_replacement_observed_in_main_history':False,
++                             'cancellation_events':m.events[-16:],
++                             'scope':'interface state messages on captured checkpoints, not a second valid price history'})
++
+ def main():
+-    started=time.perf_counter();inputs=[SOURCE,PREFIX,ROWS67,HERE/'WorkCard.md',HERE/'check_pen.py']+FINALS+[CERTS]
++    OUT.mkdir(parents=True,exist_ok=False)
++    started=time.perf_counter();v1=HERE.parent/'pen-author'
++    prior_manifest=json.loads((v1/'manifest.json').read_text())
++    READS.append({'path':str(v1/'manifest.json'),'action':'manifest-json-deserialize','phase':'pre-online',
++                  'contents':'file paths, byte lengths, SHA256 values; not final pen/object data'})
++    frozen_v1=[v1/x['path'] for x in prior_manifest['files']]+[v1/'manifest.json',v1/'FINAL.json']
++    inputs=[SOURCE,PREFIX,ROWS67,HERE/'WorkCard.md',HERE/'check_pen.py']+FINALS+[CERTS]+frozen_v1
+     before={str(p):sha(p) for p in inputs};dump('inputhash-before.json',before)
+     READS.append({'action':'sha256-byte-precheck','phase':'pre-online','paths':[str(p) for p in inputs],
+                   'final_files_bytes_read':True,'final_files_json_deserialized':False})
+-    source=load(SOURCE,'pre-online');machine=Machine();rows_count=0
++    source=load(SOURCE,'pre-online');machine=Machine();rows_count=0;seeds={}
+     READS.append({'path':str(ROWS67),'action':'jsonl-row-stream','phase':'online','future_json_rows_deserialized':False})
+     with ROWS67.open() as prior,(OUT/'all-prefixes.jsonl').open('w') as output:
+         for t,prefix in enumerate(items(PREFIX)):
+@@ -226,6 +390,7 @@
+             assert set(rows)==set(NAMES+['parent'])
+             observation=source['observations'][t]
+             result=machine.step(observation,prefix,rows);output.write(json.dumps(result,ensure_ascii=False,separators=(',',':'))+'\n');rows_count+=1
++            if t in (122,138):seeds[t]=(copy.deepcopy(machine),copy.deepcopy(prefix['anchors']))
+         assert not prior.read().strip()
+     assert rows_count==443
+     for name,data in [('events.json',machine.events),('versions.json',list(machine.versions.values())),
+@@ -233,8 +398,8 @@
+                       ('initialization.json',{'noAnchor':machine.init,'zeroDurationBirths':machine.births}),
+                       ('raw-spans.json',list(machine.raw.values())),('whole-spans.json',machine.wholes)]:dump(name,data)
+     seal={'prefixes':443,'hashes':{n:sha(OUT/n) for n in ['all-prefixes.jsonl','events.json','versions.json','completion-candidates.json','pointbar-geometry.json','raw-spans.json','whole-spans.json']},
+-          'final_json_deserialized_before_seal':False,'final_bytes_prehashed':True,'driver_source_array_preloaded':True,
+-          'prefix_array_byte_read_ahead':65536,'stage67_current_rows_streamed':True,
++          'final_pens_objects_parent_certs_json_deserialized_before_seal':False,'final_bytes_prehashed':True,'driver_source_array_preloaded':True,
++          'prefix_array_text_character_buffer':65536,'stage67_current_rows_streamed':True,
+           'step_input':'one observation, one reviewed prefix, five reviewed Stage67 current-cut rows',
+           'claim':'conditional step dependency only; no claim of physically absent future bytes or blind author'}
+     dump('online-seal.json',seal);READS.append({'action':'seal-written','phase':'online-end','hash':sha(OUT/'online-seal.json')})
+@@ -258,10 +423,17 @@
+     lemma={'a':a,'r':r,'t':t,'oldVelocity':pack(vold),'residualVelocity':pack(vr),'chordVelocity':pack(va),'weighted':pack(weighted),'equal':va==vr}
+     keys=[0,1,2,5,6,10,102,105,106,109,110,117,118,119,120,121,122,126,138,217,218,220,221,222,226,238,417,418,420,421,422,426,438,442]
+     dump('key-trajectories.json',[machine.relations[t] for t in keys]);dump('post-seal-comparison.json',compares);dump('weighted-lemma.json',lemma)
++    core=['all-prefixes.jsonl','events.json','versions.json','completion-candidates.json','pointbar-geometry.json',
++          'initialization.json','raw-spans.json','whole-spans.json','key-trajectories.json','post-seal-comparison.json','weighted-lemma.json']
++    equality=[{'file':name,'v1_sha256':sha(v1/'run'/name),'v2_sha256':sha(OUT/name),
++               'equal':sha(v1/'run'/name)==sha(OUT/name)} for name in core]
++    dump('v1-core-equality.json',equality);assert all(x['equal'] for x in equality)
++    state_control(seeds)
+     after={str(p):sha(p) for p in inputs};dump('inputhash-after.json',after);assert before==after
+     dump('reading-order.json',READS)
+     rss=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss*(1 if sys.platform=='darwin' else 1024);assert rss<=96*1024*1024
+-    status={'status':'finite-state-machine-author-self-check-pass','prefixes':443,'new_histories':0,'rw_runs':0,
++    status={'status':'v2-retraction-propagation-author-self-check-pass','prefixes':443,'new_histories':0,'rw_runs':0,
++            'main_replays':1,'state_control_messages':8,'v1_identical_core_files':len(core),
+             'confirmed_count':len(machine.confirmed),'stable_count':len(machine.stable),'version_count':len(machine.versions),
+             'proposal_states':dict(machine.counts),'retraction_events':sum(e['kind']=='retracted-proposal' for e in machine.events),
+             'active_retraction_events':sum(e['kind']=='retracted-confirmed-rw' for e in machine.events),

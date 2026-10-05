@@ -1,0 +1,18 @@
+{
+  "status": "pass",
+  "prefix_count": 443,
+  "unique_version_count": 441,
+  "118_endpoint_candidate_superseded_at119": true,
+  "118_historical_reading_retained": true,
+  "117_121_active_at122": true,
+  "117_121_stable_at126": true,
+  "inputs_unchanged": true,
+  "source_admission_claimed": false,
+  "independent_review": "pending",
+  "prior_readback_attempt": {
+    "exit": 1,
+    "reason": "checker looked for cut in events whose clock key is knownAt",
+    "implementation_or_data_change": false
+  },
+  "corrected_readback_exit": 0
+}

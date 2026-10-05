@@ -1,0 +1,40 @@
+{
+  "inputs": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage68PenTransitionsAndJointCuts.md",
+      "sha256": "9367973e4230f5eb947e10c75e84f68b7da296bd73e8ffb6f6a54d68a81e095d"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage68/DeliveryStatus-v1.md",
+      "sha256": "656c2673494cece15b82290ab6cd35e66f8b5db4224d080ec353375184fb27de"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage68/pen-author-v2/Report.md",
+      "sha256": "393fb7a561f89dcf75450b3f4cbe219ecfb701076c6552b94e804e840e5a7e5f"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage68/pen-v2-review/review.md",
+      "sha256": "a35de1a085221b241bd2d3060ffc8baae3b63b92c2c9cec8088c0d0c1176fa0c"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage68/joint-author/Report.md",
+      "sha256": "e67550836f37fca13fb7255c10d10dac639d476aecddb89bce3c395261cb2de3"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage68/joint-author/ScopeCorrections.md",
+      "sha256": "cc0547731d403abe567db7a05185f6731218508763cb6de1014a8c79a8521dad"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage68/joint-author/PathScopeCorrections.json",
+      "sha256": "b87517ec8dc9a09fa833ac4ac8b60028626ec3e17309619d818fb347e7fa96c8"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage68/joint-review/review.md",
+      "sha256": "37a5a606f4bd928f3d57917d69d0868e1ba4ee269c062ea4ea7d0a6cea6b1b3e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/progress-addition-v1.md",
+      "sha256": "0fdef5d033727086ea0b720978e5de8b44f1d7b8efe50b0e933a586de2195d4f"
+    }
+  ]
+}

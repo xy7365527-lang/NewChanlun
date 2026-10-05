@@ -1,0 +1,37 @@
+{
+  "status": "author_complete_finite_candidate_rejected_independent_review_pending",
+  "report": "Report.md",
+  "candidate": "Omega68-JointCut-v1",
+  "scope_corrections": [
+    "ScopeCorrections.md",
+    "InvocationCorrections.json"
+  ],
+  "actual_new_result": "40-window joint cut relation has no >=3-factor fixed-F2 input; mandatory NoPP P/T/P middle fails whole Extreme and signed force",
+  "new_positive_candidate": "W68:S12-S16, not source-qualified",
+  "all_path_relation": "all paths:3 including empty after238; nonempty NoPP:1; paths with>=3 children:0; none certified complete original decomposition",
+  "semantic_admission_pass": false,
+  "original_complete_F1": false,
+  "original_nonempty_F2_witness": false,
+  "GeneralDiv_original": null,
+  "MovementCompleted_original": null,
+  "history_count": 1,
+  "new_history_count": 0,
+  "main_candidate_execution_count": 1,
+  "unexecuted_draft_count": 1,
+  "P1_P4_entire_goal_complete": false,
+  "independent_review": "pending",
+  "manifest_sha256": "5b364164b5356880135262e150195b7f03044fe2e8d7d779f31d044d6315a1e3",
+  "report_sha256": "e67550836f37fca13fb7255c10d10dac639d476aecddb89bce3c395261cb2de3",
+  "frozen_workcard_sha256": "15047cf4a61366e6f6187b3f0c0587bf5f5dd74e07abd6623297e341c9133045",
+  "max_rss_bytes": 37666816,
+  "artifact_bytes": 3384880,
+  "no_changes_to": [
+    "old evidence",
+    "repository",
+    "production",
+    "formal",
+    "doctrine",
+    "tracker"
+  ],
+  "path_classes": "path-classes.json"
+}

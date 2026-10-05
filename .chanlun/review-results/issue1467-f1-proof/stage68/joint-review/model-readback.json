@@ -1,0 +1,14 @@
+{
+  "all21_raw_records_match": true,
+  "all40_model_object_candidate_and_original_fields_match": true,
+  "S0": {
+    "own": [
+      2,
+      21
+    ],
+    "happened": 21,
+    "known": 38,
+    "L": -1000
+  },
+  "original_qualified_fields_never_true": true
+}

@@ -1,0 +1,2569 @@
+[
+  {
+    "cut": 0,
+    "current": null,
+    "sameActive": false,
+    "sameStable": false,
+    "slot": null,
+    "primitivePenSlot": null,
+    "rawBlockSlot": null,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 1,
+    "current": null,
+    "sameActive": false,
+    "sameStable": false,
+    "slot": null,
+    "primitivePenSlot": null,
+    "rawBlockSlot": null,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 2,
+    "current": {
+      "id": "DP:1@2:v2",
+      "family": "DP:1@2",
+      "version": 2,
+      "observedAt": 2,
+      "anchorKnownAt": 2,
+      "startFractal": {
+        "top": true,
+        "raw": 1,
+        "price": 76000,
+        "known_at": 2
+      },
+      "start": 1,
+      "end": 2,
+      "start_price": 76000,
+      "end_price": 72000,
+      "up": false,
+      "direction": "Down",
+      "evidenceState": "waiting-spacing",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 1,
+      "v": {
+        "num": -4000,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 0,
+    "primitivePenSlot": 0,
+    "rawBlockSlot": 0,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 102,
+    "current": {
+      "id": "DP:101@102:v102",
+      "family": "DP:101@102",
+      "version": 102,
+      "observedAt": 102,
+      "anchorKnownAt": 102,
+      "startFractal": {
+        "top": false,
+        "raw": 101,
+        "price": 50000,
+        "known_at": 102
+      },
+      "start": 101,
+      "end": 102,
+      "start_price": 50000,
+      "end_price": 51000,
+      "up": true,
+      "direction": "Up",
+      "evidenceState": "waiting-spacing",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 1,
+      "v": {
+        "num": 1000,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 25,
+    "primitivePenSlot": 25,
+    "rawBlockSlot": 5,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "first-pen-not-stable",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 109,
+    "current": {
+      "id": "DP:105@106:v109",
+      "family": "DP:105@106",
+      "version": 109,
+      "observedAt": 109,
+      "anchorKnownAt": 106,
+      "startFractal": {
+        "top": true,
+        "raw": 105,
+        "price": 54000,
+        "known_at": 106
+      },
+      "start": 105,
+      "end": 109,
+      "start_price": 54000,
+      "end_price": 52000,
+      "up": false,
+      "direction": "Down",
+      "evidenceState": "pending-opposite-fractal",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 4,
+      "v": {
+        "num": -500,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 26,
+    "primitivePenSlot": 26,
+    "rawBlockSlot": 5,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "first-pen-not-stable",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 110,
+    "current": {
+      "id": "DP:109@110:v110",
+      "family": "DP:109@110",
+      "version": 110,
+      "observedAt": 110,
+      "anchorKnownAt": 110,
+      "startFractal": {
+        "top": false,
+        "raw": 109,
+        "price": 52000,
+        "known_at": 110
+      },
+      "start": 109,
+      "end": 110,
+      "start_price": 52000,
+      "end_price": 56800,
+      "up": true,
+      "direction": "Up",
+      "evidenceState": "waiting-spacing",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 1,
+      "v": {
+        "num": 4800,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 27,
+    "primitivePenSlot": 27,
+    "rawBlockSlot": 5,
+    "force": [
+      {
+        "id": "P0",
+        "L": {
+          "num": 3800,
+          "den": 1
+        },
+        "reason": null,
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 117,
+    "current": {
+      "id": "DP:113@114:v117",
+      "family": "DP:113@114",
+      "version": 117,
+      "observedAt": 117,
+      "anchorKnownAt": 114,
+      "startFractal": {
+        "top": true,
+        "raw": 113,
+        "price": 71200,
+        "known_at": 114
+      },
+      "start": 113,
+      "end": 117,
+      "start_price": 71200,
+      "end_price": 70000,
+      "up": false,
+      "direction": "Down",
+      "evidenceState": "pending-opposite-fractal",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 4,
+      "v": {
+        "num": -300,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 28,
+    "primitivePenSlot": 28,
+    "rawBlockSlot": 5,
+    "force": [
+      {
+        "id": "P0",
+        "L": {
+          "num": -1300,
+          "den": 1
+        },
+        "reason": null,
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 118,
+    "current": {
+      "id": "DP:117@118:v118",
+      "family": "DP:117@118",
+      "version": 118,
+      "observedAt": 118,
+      "anchorKnownAt": 118,
+      "startFractal": {
+        "top": false,
+        "raw": 117,
+        "price": 70000,
+        "known_at": 118
+      },
+      "start": 117,
+      "end": 118,
+      "start_price": 70000,
+      "end_price": 70500,
+      "up": true,
+      "direction": "Up",
+      "evidenceState": "waiting-spacing",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 1,
+      "v": {
+        "num": 500,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 29,
+    "primitivePenSlot": 29,
+    "rawBlockSlot": 5,
+    "force": [
+      {
+        "id": "P0",
+        "L": {
+          "num": -500,
+          "den": 1
+        },
+        "reason": null,
+        "jointCandidate": true,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 119,
+    "current": {
+      "id": "DP:117@118:v119",
+      "family": "DP:117@118",
+      "version": 119,
+      "observedAt": 119,
+      "anchorKnownAt": 118,
+      "startFractal": {
+        "top": false,
+        "raw": 117,
+        "price": 70000,
+        "known_at": 118
+      },
+      "start": 117,
+      "end": 119,
+      "start_price": 70000,
+      "end_price": 71000,
+      "up": true,
+      "direction": "Up",
+      "evidenceState": "waiting-spacing",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 2,
+      "v": {
+        "num": 500,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 29,
+    "primitivePenSlot": 29,
+    "rawBlockSlot": 5,
+    "force": [
+      {
+        "id": "P0",
+        "L": {
+          "num": -500,
+          "den": 1
+        },
+        "reason": null,
+        "jointCandidate": true,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 120,
+    "current": {
+      "id": "DP:117@118:v120",
+      "family": "DP:117@118",
+      "version": 120,
+      "observedAt": 120,
+      "anchorKnownAt": 118,
+      "startFractal": {
+        "top": false,
+        "raw": 117,
+        "price": 70000,
+        "known_at": 118
+      },
+      "start": 117,
+      "end": 120,
+      "start_price": 70000,
+      "end_price": 71500,
+      "up": true,
+      "direction": "Up",
+      "evidenceState": "waiting-spacing",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 3,
+      "v": {
+        "num": 500,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 29,
+    "primitivePenSlot": 29,
+    "rawBlockSlot": 5,
+    "force": [
+      {
+        "id": "P0",
+        "L": {
+          "num": -500,
+          "den": 1
+        },
+        "reason": null,
+        "jointCandidate": true,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 121,
+    "current": {
+      "id": "DP:117@118:v121",
+      "family": "DP:117@118",
+      "version": 121,
+      "observedAt": 121,
+      "anchorKnownAt": 118,
+      "startFractal": {
+        "top": false,
+        "raw": 117,
+        "price": 70000,
+        "known_at": 118
+      },
+      "start": 117,
+      "end": 121,
+      "start_price": 70000,
+      "end_price": 72000,
+      "up": true,
+      "direction": "Up",
+      "evidenceState": "pending-opposite-fractal",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 4,
+      "v": {
+        "num": 500,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 29,
+    "primitivePenSlot": 29,
+    "rawBlockSlot": 5,
+    "force": [
+      {
+        "id": "P0",
+        "L": {
+          "num": -500,
+          "den": 1
+        },
+        "reason": null,
+        "jointCandidate": true,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 122,
+    "current": {
+      "id": "DP:121@122:v122",
+      "family": "DP:121@122",
+      "version": 122,
+      "observedAt": 122,
+      "anchorKnownAt": 122,
+      "startFractal": {
+        "top": true,
+        "raw": 121,
+        "price": 72000,
+        "known_at": 122
+      },
+      "start": 121,
+      "end": 122,
+      "start_price": 72000,
+      "end_price": 71600,
+      "up": false,
+      "direction": "Down",
+      "evidenceState": "waiting-spacing",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 1,
+      "v": {
+        "num": -400,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 30,
+    "primitivePenSlot": 30,
+    "rawBlockSlot": 6,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 125,
+    "current": {
+      "id": "DP:121@122:v125",
+      "family": "DP:121@122",
+      "version": 125,
+      "observedAt": 125,
+      "anchorKnownAt": 122,
+      "startFractal": {
+        "top": true,
+        "raw": 121,
+        "price": 72000,
+        "known_at": 122
+      },
+      "start": 121,
+      "end": 125,
+      "start_price": 72000,
+      "end_price": 70400,
+      "up": false,
+      "direction": "Down",
+      "evidenceState": "pending-opposite-fractal",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 4,
+      "v": {
+        "num": -400,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 30,
+    "primitivePenSlot": 30,
+    "rawBlockSlot": 6,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 126,
+    "current": {
+      "id": "DP:125@126:v126",
+      "family": "DP:125@126",
+      "version": 126,
+      "observedAt": 126,
+      "anchorKnownAt": 126,
+      "startFractal": {
+        "top": false,
+        "raw": 125,
+        "price": 70400,
+        "known_at": 126
+      },
+      "start": 125,
+      "end": 126,
+      "start_price": 70400,
+      "end_price": 70700,
+      "up": true,
+      "direction": "Up",
+      "evidenceState": "waiting-spacing",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 1,
+      "v": {
+        "num": 300,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 31,
+    "primitivePenSlot": 31,
+    "rawBlockSlot": 6,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -500,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 137,
+    "current": {
+      "id": "DP:133@134:v137",
+      "family": "DP:133@134",
+      "version": 137,
+      "observedAt": 137,
+      "anchorKnownAt": 134,
+      "startFractal": {
+        "top": false,
+        "raw": 133,
+        "price": 68000,
+        "known_at": 134
+      },
+      "start": 133,
+      "end": 137,
+      "start_price": 68000,
+      "end_price": 70000,
+      "up": true,
+      "direction": "Up",
+      "evidenceState": "pending-opposite-fractal",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 4,
+      "v": {
+        "num": 500,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 33,
+    "primitivePenSlot": 33,
+    "rawBlockSlot": 6,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -500,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 138,
+    "current": {
+      "id": "DP:137@138:v138",
+      "family": "DP:137@138",
+      "version": 138,
+      "observedAt": 138,
+      "anchorKnownAt": 138,
+      "startFractal": {
+        "top": true,
+        "raw": 137,
+        "price": 70000,
+        "known_at": 138
+      },
+      "start": 137,
+      "end": 138,
+      "start_price": 70000,
+      "end_price": 68500,
+      "up": false,
+      "direction": "Down",
+      "evidenceState": "waiting-spacing",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 1,
+      "v": {
+        "num": -1500,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 34,
+    "primitivePenSlot": 34,
+    "rawBlockSlot": 6,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -500,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 138
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 217,
+    "current": {
+      "id": "DP:213@214:v217",
+      "family": "DP:213@214",
+      "version": 217,
+      "observedAt": 217,
+      "anchorKnownAt": 214,
+      "startFractal": {
+        "top": false,
+        "raw": 213,
+        "price": 63200,
+        "known_at": 214
+      },
+      "start": 213,
+      "end": 217,
+      "start_price": 63200,
+      "end_price": 67600,
+      "up": true,
+      "direction": "Up",
+      "evidenceState": "pending-opposite-fractal",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 4,
+      "v": {
+        "num": 1100,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 53,
+    "primitivePenSlot": 53,
+    "rawBlockSlot": 10,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -500,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 138
+      },
+      {
+        "id": "P1",
+        "L": {
+          "num": 1300,
+          "den": 1
+        },
+        "reason": null,
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 221,
+    "current": {
+      "id": "DP:217@218:v221",
+      "family": "DP:217@218",
+      "version": 221,
+      "observedAt": 221,
+      "anchorKnownAt": 218,
+      "startFractal": {
+        "top": true,
+        "raw": 217,
+        "price": 67600,
+        "known_at": 218
+      },
+      "start": 217,
+      "end": 221,
+      "start_price": 67600,
+      "end_price": 62000,
+      "up": false,
+      "direction": "Down",
+      "evidenceState": "pending-opposite-fractal",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 4,
+      "v": {
+        "num": -1400,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 54,
+    "primitivePenSlot": 54,
+    "rawBlockSlot": 10,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -500,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 138
+      },
+      {
+        "id": "P1",
+        "L": {
+          "num": -1200,
+          "den": 1
+        },
+        "reason": null,
+        "jointCandidate": true,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 222,
+    "current": {
+      "id": "DP:221@222:v222",
+      "family": "DP:221@222",
+      "version": 222,
+      "observedAt": 222,
+      "anchorKnownAt": 222,
+      "startFractal": {
+        "top": false,
+        "raw": 221,
+        "price": 62000,
+        "known_at": 222
+      },
+      "start": 221,
+      "end": 222,
+      "start_price": 62000,
+      "end_price": 62400,
+      "up": true,
+      "direction": "Up",
+      "evidenceState": "waiting-spacing",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 1,
+      "v": {
+        "num": 400,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 55,
+    "primitivePenSlot": 55,
+    "rawBlockSlot": 11,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -500,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 138
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 226,
+    "current": {
+      "id": "DP:225@226:v226",
+      "family": "DP:225@226",
+      "version": 226,
+      "observedAt": 226,
+      "anchorKnownAt": 226,
+      "startFractal": {
+        "top": true,
+        "raw": 225,
+        "price": 63600,
+        "known_at": 226
+      },
+      "start": 225,
+      "end": 226,
+      "start_price": 63600,
+      "end_price": 63400,
+      "up": false,
+      "direction": "Down",
+      "evidenceState": "waiting-spacing",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 1,
+      "v": {
+        "num": -200,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 56,
+    "primitivePenSlot": 56,
+    "rawBlockSlot": 11,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -500,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 138
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -1200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 238,
+    "current": {
+      "id": "DP:237@238:v238",
+      "family": "DP:237@238",
+      "version": 238,
+      "observedAt": 238,
+      "anchorKnownAt": 238,
+      "startFractal": {
+        "top": false,
+        "raw": 237,
+        "price": 63600,
+        "known_at": 238
+      },
+      "start": 237,
+      "end": 238,
+      "start_price": 63600,
+      "end_price": 64100,
+      "up": true,
+      "direction": "Up",
+      "evidenceState": "waiting-spacing",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 1,
+      "v": {
+        "num": 500,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 59,
+    "primitivePenSlot": 59,
+    "rawBlockSlot": 11,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -500,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 138
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -1200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 238
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 321,
+    "current": {
+      "id": "DP:317@318:v321",
+      "family": "DP:317@318",
+      "version": 321,
+      "observedAt": 321,
+      "anchorKnownAt": 318,
+      "startFractal": {
+        "top": false,
+        "raw": 317,
+        "price": 72000,
+        "known_at": 318
+      },
+      "start": 317,
+      "end": 321,
+      "start_price": 72000,
+      "end_price": 72800,
+      "up": true,
+      "direction": "Up",
+      "evidenceState": "pending-opposite-fractal",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 4,
+      "v": {
+        "num": 200,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 79,
+    "primitivePenSlot": 79,
+    "rawBlockSlot": 15,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -500,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 138
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -1200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 238
+      },
+      {
+        "id": "P2",
+        "L": {
+          "num": -200,
+          "den": 1
+        },
+        "reason": null,
+        "jointCandidate": true,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 322,
+    "current": {
+      "id": "DP:321@322:v322",
+      "family": "DP:321@322",
+      "version": 322,
+      "observedAt": 322,
+      "anchorKnownAt": 322,
+      "startFractal": {
+        "top": true,
+        "raw": 321,
+        "price": 72800,
+        "known_at": 322
+      },
+      "start": 321,
+      "end": 322,
+      "start_price": 72800,
+      "end_price": 71400,
+      "up": false,
+      "direction": "Down",
+      "evidenceState": "waiting-spacing",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 1,
+      "v": {
+        "num": -1400,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 80,
+    "primitivePenSlot": 80,
+    "rawBlockSlot": 16,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -500,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 138
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -1200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 238
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "first-pen-not-stable",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 326,
+    "current": {
+      "id": "DP:325@326:v326",
+      "family": "DP:325@326",
+      "version": 326,
+      "observedAt": 326,
+      "anchorKnownAt": 326,
+      "startFractal": {
+        "top": false,
+        "raw": 325,
+        "price": 67200,
+        "known_at": 326
+      },
+      "start": 325,
+      "end": 326,
+      "start_price": 67200,
+      "end_price": 68250,
+      "up": true,
+      "direction": "Up",
+      "evidenceState": "waiting-spacing",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 1,
+      "v": {
+        "num": 1050,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 81,
+    "primitivePenSlot": 81,
+    "rawBlockSlot": 16,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -500,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 138
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -1200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 238
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "first-pen-not-stable",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 338,
+    "current": {
+      "id": "DP:337@338:v338",
+      "family": "DP:337@338",
+      "version": 338,
+      "observedAt": 338,
+      "anchorKnownAt": 338,
+      "startFractal": {
+        "top": true,
+        "raw": 337,
+        "price": 65800,
+        "known_at": 338
+      },
+      "start": 337,
+      "end": 338,
+      "start_price": 65800,
+      "end_price": 60550,
+      "up": false,
+      "direction": "Down",
+      "evidenceState": "waiting-spacing",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 1,
+      "v": {
+        "num": -5250,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 84,
+    "primitivePenSlot": 84,
+    "rawBlockSlot": 16,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -500,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 138
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -1200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 238
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 338
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "start-anchor-not-known",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": {
+          "num": -3850,
+          "den": 1
+        },
+        "reason": null,
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 417,
+    "current": {
+      "id": "DP:413@414:v417",
+      "family": "DP:413@414",
+      "version": 417,
+      "observedAt": 417,
+      "anchorKnownAt": 414,
+      "startFractal": {
+        "top": false,
+        "raw": 413,
+        "price": 42000,
+        "known_at": 414
+      },
+      "start": 413,
+      "end": 417,
+      "start_price": 42000,
+      "end_price": 57400,
+      "up": true,
+      "direction": "Up",
+      "evidenceState": "pending-opposite-fractal",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 4,
+      "v": {
+        "num": 3850,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 103,
+    "primitivePenSlot": 103,
+    "rawBlockSlot": 20,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -500,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 138
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -1200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 238
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 338
+      },
+      {
+        "id": "c0",
+        "L": {
+          "num": 4550,
+          "den": 1
+        },
+        "reason": null,
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": {
+          "num": 5250,
+          "den": 1
+        },
+        "reason": null,
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 421,
+    "current": {
+      "id": "DP:417@418:v421",
+      "family": "DP:417@418",
+      "version": 421,
+      "observedAt": 421,
+      "anchorKnownAt": 418,
+      "startFractal": {
+        "top": true,
+        "raw": 417,
+        "price": 57400,
+        "known_at": 418
+      },
+      "start": 417,
+      "end": 421,
+      "start_price": 57400,
+      "end_price": 37800,
+      "up": false,
+      "direction": "Down",
+      "evidenceState": "pending-opposite-fractal",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 4,
+      "v": {
+        "num": -4900,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 104,
+    "primitivePenSlot": 104,
+    "rawBlockSlot": 20,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -500,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 138
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -1200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 238
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 338
+      },
+      {
+        "id": "c0",
+        "L": {
+          "num": -4200,
+          "den": 1
+        },
+        "reason": null,
+        "jointCandidate": true,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": {
+          "num": -3500,
+          "den": 1
+        },
+        "reason": null,
+        "jointCandidate": true,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 422,
+    "current": {
+      "id": "DP:421@422:v422",
+      "family": "DP:421@422",
+      "version": 422,
+      "observedAt": 422,
+      "anchorKnownAt": 422,
+      "startFractal": {
+        "top": false,
+        "raw": 421,
+        "price": 37800,
+        "known_at": 422
+      },
+      "start": 421,
+      "end": 422,
+      "start_price": 37800,
+      "end_price": 39200,
+      "up": true,
+      "direction": "Up",
+      "evidenceState": "waiting-spacing",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 1,
+      "v": {
+        "num": 1400,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 105,
+    "primitivePenSlot": 105,
+    "rawBlockSlot": 21,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -500,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 138
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -1200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 238
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 338
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": null,
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 426,
+    "current": {
+      "id": "DP:425@426:v426",
+      "family": "DP:425@426",
+      "version": 426,
+      "observedAt": 426,
+      "anchorKnownAt": 426,
+      "startFractal": {
+        "top": true,
+        "raw": 425,
+        "price": 43400,
+        "known_at": 426
+      },
+      "start": 425,
+      "end": 426,
+      "start_price": 43400,
+      "end_price": 42700,
+      "up": false,
+      "direction": "Down",
+      "evidenceState": "waiting-spacing",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 1,
+      "v": {
+        "num": -700,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 106,
+    "primitivePenSlot": 106,
+    "rawBlockSlot": 21,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -500,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 138
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -1200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 238
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 338
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -4200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": null
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -3500,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": null
+      }
+    ]
+  },
+  {
+    "cut": 438,
+    "current": {
+      "id": "DP:437@438:v438",
+      "family": "DP:437@438",
+      "version": 438,
+      "observedAt": 438,
+      "anchorKnownAt": 438,
+      "startFractal": {
+        "top": false,
+        "raw": 437,
+        "price": 43400,
+        "known_at": 438
+      },
+      "start": 437,
+      "end": 438,
+      "start_price": 43400,
+      "end_price": 45150,
+      "up": true,
+      "direction": "Up",
+      "evidenceState": "waiting-spacing",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 1,
+      "v": {
+        "num": 1750,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 109,
+    "primitivePenSlot": 109,
+    "rawBlockSlot": 21,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -500,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 138
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -1200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 238
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 338
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -4200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 438
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -3500,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 438
+      }
+    ]
+  },
+  {
+    "cut": 442,
+    "current": {
+      "id": "DP:441@442:v442",
+      "family": "DP:441@442",
+      "version": 442,
+      "observedAt": 442,
+      "anchorKnownAt": 442,
+      "startFractal": {
+        "top": true,
+        "raw": 441,
+        "price": 50400,
+        "known_at": 442
+      },
+      "start": 441,
+      "end": 442,
+      "start_price": 50400,
+      "end_price": 50200,
+      "up": false,
+      "direction": "Down",
+      "evidenceState": "waiting-spacing",
+      "extendable": true,
+      "terminalFractalKnownAt": null,
+      "duration": 1,
+      "v": {
+        "num": -200,
+        "den": 1
+      },
+      "StructuralPenNow_original": null,
+      "source_pointbar_mapping_proven": null
+    },
+    "sameActive": false,
+    "sameStable": false,
+    "slot": 110,
+    "primitivePenSlot": 110,
+    "rawBlockSlot": 22,
+    "force": [
+      {
+        "id": "P0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -500,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 138
+      },
+      {
+        "id": "P1",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -1200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 238
+      },
+      {
+        "id": "P2",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 338
+      },
+      {
+        "id": "c0",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -4200,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 438
+      },
+      {
+        "id": "parent",
+        "L": null,
+        "reason": "old-span-ended-new-residual-has-separate-template-slot",
+        "jointCandidate": false,
+        "frozenL": {
+          "num": -3500,
+          "den": 1
+        },
+        "rawEvidenceKnownAt": 438
+      }
+    ]
+  }
+]

@@ -1,0 +1,694 @@
+{
+  "counts": {
+    "grammar": 40,
+    "structure": 16,
+    "roles_after_structure": 7,
+    "extreme_after_roles": 4,
+    "JEnd68": 4
+  },
+  "edges": [
+    {
+      "id": "W68:S1-S5",
+      "edge": [
+        1,
+        6
+      ],
+      "own": [
+        22,
+        121
+      ],
+      "happened": 121,
+      "known": 138
+    },
+    {
+      "id": "W68:S6-S10",
+      "edge": [
+        6,
+        11
+      ],
+      "own": [
+        122,
+        221
+      ],
+      "happened": 221,
+      "known": 238
+    },
+    {
+      "id": "W68:S12-S16",
+      "edge": [
+        12,
+        17
+      ],
+      "own": [
+        242,
+        341
+      ],
+      "happened": 341,
+      "known": 358
+    },
+    {
+      "id": "W68:S16-S20",
+      "edge": [
+        16,
+        21
+      ],
+      "own": [
+        322,
+        421
+      ],
+      "happened": 421,
+      "known": 438
+    }
+  ],
+  "all_40_window_fields_match": true,
+  "all_443_path_classes_match": true,
+  "all_443_price_support_prefix_recomputations_match": true,
+  "selected_prefixes": [
+    {
+      "t": 138,
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5"
+      ],
+      "edges": [
+        "W68:S1-S5"
+      ],
+      "all_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": false,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            138
+          ],
+          "original_completed": [],
+          "extendable_now": true,
+          "candidate_windows_inside_tail": [
+            "W68:S1-S5"
+          ],
+          "complete_original_decomposition": null
+        },
+        {
+          "delta": [
+            "W68:S1-S5"
+          ],
+          "kinds": [
+            "P"
+          ],
+          "is_maximal": true,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [
+            [
+              22,
+              121
+            ]
+          ],
+          "active_tail": [
+            122,
+            138
+          ],
+          "original_completed": [
+            null
+          ],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [],
+          "complete_original_decomposition": null
+        }
+      ],
+      "counts": {
+        "all": 2,
+        "nonempty": 1,
+        "no_pp_nonempty": 1,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      },
+      "available_count": 1
+    },
+    {
+      "t": 238,
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10"
+      ],
+      "edges": [
+        "W68:S1-S5",
+        "W68:S6-S10"
+      ],
+      "all_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": false,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            238
+          ],
+          "original_completed": [],
+          "extendable_now": true,
+          "candidate_windows_inside_tail": [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ],
+          "complete_original_decomposition": null
+        },
+        {
+          "delta": [
+            "W68:S1-S5"
+          ],
+          "kinds": [
+            "P"
+          ],
+          "is_maximal": false,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [
+            [
+              22,
+              121
+            ]
+          ],
+          "active_tail": [
+            122,
+            238
+          ],
+          "original_completed": [
+            null
+          ],
+          "extendable_now": true,
+          "candidate_windows_inside_tail": [
+            "W68:S6-S10"
+          ],
+          "complete_original_decomposition": null
+        },
+        {
+          "delta": [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ],
+          "kinds": [
+            "P",
+            "P"
+          ],
+          "is_maximal": true,
+          "no_pp": false,
+          "pp_violations": [
+            [
+              "W68:S1-S5",
+              "W68:S6-S10"
+            ]
+          ],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [
+            [
+              22,
+              121
+            ],
+            [
+              122,
+              221
+            ]
+          ],
+          "active_tail": [
+            222,
+            238
+          ],
+          "original_completed": [
+            null,
+            null
+          ],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [],
+          "complete_original_decomposition": null
+        }
+      ],
+      "counts": {
+        "all": 3,
+        "nonempty": 2,
+        "no_pp_nonempty": 1,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      },
+      "available_count": 8
+    },
+    {
+      "t": 338,
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15"
+      ],
+      "edges": [
+        "W68:S1-S5",
+        "W68:S6-S10"
+      ],
+      "all_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": false,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            338
+          ],
+          "original_completed": [],
+          "extendable_now": true,
+          "candidate_windows_inside_tail": [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ],
+          "complete_original_decomposition": null
+        },
+        {
+          "delta": [
+            "W68:S1-S5"
+          ],
+          "kinds": [
+            "P"
+          ],
+          "is_maximal": false,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [
+            [
+              22,
+              121
+            ]
+          ],
+          "active_tail": [
+            122,
+            338
+          ],
+          "original_completed": [
+            null
+          ],
+          "extendable_now": true,
+          "candidate_windows_inside_tail": [
+            "W68:S6-S10"
+          ],
+          "complete_original_decomposition": null
+        },
+        {
+          "delta": [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ],
+          "kinds": [
+            "P",
+            "P"
+          ],
+          "is_maximal": true,
+          "no_pp": false,
+          "pp_violations": [
+            [
+              "W68:S1-S5",
+              "W68:S6-S10"
+            ]
+          ],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [
+            [
+              22,
+              121
+            ],
+            [
+              122,
+              221
+            ]
+          ],
+          "active_tail": [
+            222,
+            338
+          ],
+          "original_completed": [
+            null,
+            null
+          ],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [],
+          "complete_original_decomposition": null
+        }
+      ],
+      "counts": {
+        "all": 3,
+        "nonempty": 2,
+        "no_pp_nonempty": 1,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      },
+      "available_count": 21
+    },
+    {
+      "t": 438,
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19",
+        "S20"
+      ],
+      "edges": [
+        "W68:S1-S5",
+        "W68:S6-S10",
+        "W68:S12-S16",
+        "W68:S16-S20"
+      ],
+      "all_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": false,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            438
+          ],
+          "original_completed": [],
+          "extendable_now": true,
+          "candidate_windows_inside_tail": [
+            "W68:S1-S5",
+            "W68:S6-S10",
+            "W68:S12-S16",
+            "W68:S16-S20"
+          ],
+          "complete_original_decomposition": null
+        },
+        {
+          "delta": [
+            "W68:S1-S5"
+          ],
+          "kinds": [
+            "P"
+          ],
+          "is_maximal": false,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [
+            [
+              22,
+              121
+            ]
+          ],
+          "active_tail": [
+            122,
+            438
+          ],
+          "original_completed": [
+            null
+          ],
+          "extendable_now": true,
+          "candidate_windows_inside_tail": [
+            "W68:S6-S10",
+            "W68:S12-S16",
+            "W68:S16-S20"
+          ],
+          "complete_original_decomposition": null
+        },
+        {
+          "delta": [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ],
+          "kinds": [
+            "P",
+            "P"
+          ],
+          "is_maximal": true,
+          "no_pp": false,
+          "pp_violations": [
+            [
+              "W68:S1-S5",
+              "W68:S6-S10"
+            ]
+          ],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [
+            [
+              22,
+              121
+            ],
+            [
+              122,
+              221
+            ]
+          ],
+          "active_tail": [
+            222,
+            438
+          ],
+          "original_completed": [
+            null,
+            null
+          ],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [
+            "W68:S12-S16",
+            "W68:S16-S20"
+          ],
+          "complete_original_decomposition": null
+        }
+      ],
+      "counts": {
+        "all": 3,
+        "nonempty": 2,
+        "no_pp_nonempty": 1,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      },
+      "available_count": 40
+    },
+    {
+      "t": 442,
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19",
+        "S20"
+      ],
+      "edges": [
+        "W68:S1-S5",
+        "W68:S6-S10",
+        "W68:S12-S16",
+        "W68:S16-S20"
+      ],
+      "all_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": false,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            442
+          ],
+          "original_completed": [],
+          "extendable_now": true,
+          "candidate_windows_inside_tail": [
+            "W68:S1-S5",
+            "W68:S6-S10",
+            "W68:S12-S16",
+            "W68:S16-S20"
+          ],
+          "complete_original_decomposition": null
+        },
+        {
+          "delta": [
+            "W68:S1-S5"
+          ],
+          "kinds": [
+            "P"
+          ],
+          "is_maximal": false,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [
+            [
+              22,
+              121
+            ]
+          ],
+          "active_tail": [
+            122,
+            442
+          ],
+          "original_completed": [
+            null
+          ],
+          "extendable_now": true,
+          "candidate_windows_inside_tail": [
+            "W68:S6-S10",
+            "W68:S12-S16",
+            "W68:S16-S20"
+          ],
+          "complete_original_decomposition": null
+        },
+        {
+          "delta": [
+            "W68:S1-S5",
+            "W68:S6-S10"
+          ],
+          "kinds": [
+            "P",
+            "P"
+          ],
+          "is_maximal": true,
+          "no_pp": false,
+          "pp_violations": [
+            [
+              "W68:S1-S5",
+              "W68:S6-S10"
+            ]
+          ],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [
+            [
+              22,
+              121
+            ],
+            [
+              122,
+              221
+            ]
+          ],
+          "active_tail": [
+            222,
+            442
+          ],
+          "original_completed": [
+            null,
+            null
+          ],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [
+            "W68:S12-S16",
+            "W68:S16-S20"
+          ],
+          "complete_original_decomposition": null
+        }
+      ],
+      "counts": {
+        "all": 3,
+        "nonempty": 2,
+        "no_pp_nonempty": 1,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      },
+      "available_count": 40
+    }
+  ],
+  "NoPP_removed_max_children": 2,
+  "source_parser_reruns": 0,
+  "new_histories": 0,
+  "original_completion_claim": false
+}

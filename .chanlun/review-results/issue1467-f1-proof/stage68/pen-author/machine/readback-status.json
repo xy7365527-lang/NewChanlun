@@ -1,0 +1,67 @@
+{
+  "readback_kind": "author-machine-contract-readback",
+  "not_independent": true,
+  "declaration": "Machine.step(obs,prefix,oldrows)",
+  "actual_inputs": [
+    "one indexed observation",
+    "one reviewed R_W prefix",
+    "five Stage67 same-cut result rows"
+  ],
+  "actual_state": [
+    "past prices/times",
+    "immutable candidate payload table",
+    "append-only event records",
+    "confirmed and stable certificate maps",
+    "selected raw and whole span bookkeeping"
+  ],
+  "proved_by_run": [
+    "443 consecutive cuts",
+    "stable-prefix preservation",
+    "110 exact historical-version to active matches",
+    "109 prior-active to stable matches",
+    "110 pointbar source-shape checks",
+    "330 endpoint version retractions",
+    "four raw-evidence lifecycle joins",
+    "four final-c-force equalities",
+    "input byte hashes unchanged"
+  ],
+  "not_proved": [
+    "generic reanchoring behavior",
+    "generic active-replacement completeness",
+    "original order-observation to K-line mapping",
+    "source validity of current unconfirmed endpoint as pen",
+    "every-time numeric original force",
+    "RootArm67",
+    "original movement completion",
+    "unique original Owner/Next",
+    "fixed F2 consumption"
+  ],
+  "initialization_scope": "2 real no-anchor prefixes; 111 zero-duration initialization microsteps at anchor arrival, not additional market events",
+  "actual_proposal_status_counts": {
+    "waiting-spacing": 331,
+    "pending-opposite-fractal": 110
+  },
+  "confirmed_semantics": "a certificate that a prior version exactly matches R_W active at knownAt; retractable before stable",
+  "stable_semantics": "new certificate for unchanged geometry in reviewed stable list; not original movement completion",
+  "raw_slot_field_semantics": "templateCurrentRawSlot is the primitive pen slot len(anchors)-1; the five-pen raw segment slot is floor(value/5)",
+  "final_reference_readback": "final files prehashed as bytes; final JSON parsing after online seal; driver source arrays preloaded",
+  "ordinary_lemma_readback": "for real a<r<t, vA=((r-a)/(t-a))*u+((t-r)/(t-a))*vR; equality iff u=vR",
+  "original_statuses": {
+    "StructuralPenNow": null,
+    "GeneralDiv": null,
+    "Completed": null,
+    "RootArm67": null,
+    "Owner": null,
+    "Next": null,
+    "F2": null,
+    "full_F1": null
+  },
+  "endpoint_retraction_semantics": "330 current-endpoint proposals superseded; historical values remain; logical families not counted as retracted",
+  "uncovered_branches": [
+    "same-price positive-time",
+    "direction-invalid",
+    "endpoint-not-current-extreme",
+    "same-type anchor replacement",
+    "active replacement before stable"
+  ]
+}

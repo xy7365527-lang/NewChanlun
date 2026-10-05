@@ -1,0 +1,255 @@
+{
+  "all_length_sequences": [
+    [],
+    [
+      1
+    ],
+    [
+      2
+    ],
+    [
+      3
+    ],
+    [
+      4
+    ],
+    [
+      1,
+      1
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      1,
+      3
+    ],
+    [
+      2,
+      1
+    ],
+    [
+      2,
+      2
+    ],
+    [
+      3,
+      1
+    ],
+    [
+      1,
+      1,
+      1
+    ],
+    [
+      1,
+      1,
+      2
+    ],
+    [
+      1,
+      2,
+      1
+    ],
+    [
+      2,
+      1,
+      1
+    ],
+    [
+      1,
+      1,
+      1,
+      1
+    ]
+  ],
+  "NoPP_at_least_three": [
+    [
+      1,
+      2,
+      1
+    ]
+  ],
+  "bounds": [
+    {
+      "n": 1,
+      "minimum_nonP": 0,
+      "length_lower_bound": 5
+    },
+    {
+      "n": 2,
+      "minimum_nonP": 1,
+      "length_lower_bound": 14
+    },
+    {
+      "n": 3,
+      "minimum_nonP": 1,
+      "length_lower_bound": 19
+    },
+    {
+      "n": 4,
+      "minimum_nonP": 2,
+      "length_lower_bound": 28
+    },
+    {
+      "n": 5,
+      "minimum_nonP": 2,
+      "length_lower_bound": 33
+    },
+    {
+      "n": 6,
+      "minimum_nonP": 3,
+      "length_lower_bound": 42
+    },
+    {
+      "n": 7,
+      "minimum_nonP": 3,
+      "length_lower_bound": 47
+    },
+    {
+      "n": 8,
+      "minimum_nonP": 4,
+      "length_lower_bound": 56
+    },
+    {
+      "n": 9,
+      "minimum_nonP": 4,
+      "length_lower_bound": 61
+    },
+    {
+      "n": 10,
+      "minimum_nonP": 5,
+      "length_lower_bound": 70
+    }
+  ],
+  "middle": {
+    "id": "W68:S6-S14",
+    "raw_start": 6,
+    "raw_stop": 15,
+    "k": 2,
+    "grade": 0,
+    "kind": "D",
+    "conceptual_direction": "D",
+    "technical_up": false,
+    "raws": [
+      "S6",
+      "S7",
+      "S8",
+      "S9",
+      "S10",
+      "S11",
+      "S12",
+      "S13",
+      "S14"
+    ],
+    "cores": [
+      {
+        "id": "IC68:6:0",
+        "members": [
+          "S7",
+          "S8",
+          "S9"
+        ],
+        "core": [
+          66000,
+          68800
+        ],
+        "Outer0": [
+          66000,
+          68800
+        ],
+        "Outer0_original_DD_GG": null,
+        "own": [
+          142,
+          201
+        ],
+        "strict": true,
+        "direction_alternates": true,
+        "happened": 201,
+        "raw_known": 218
+      },
+      {
+        "id": "IC68:6:1",
+        "members": [
+          "S11",
+          "S12",
+          "S13"
+        ],
+        "core": [
+          62000,
+          64000
+        ],
+        "Outer0": [
+          62000,
+          64000
+        ],
+        "Outer0_original_DD_GG": null,
+        "own": [
+          222,
+          281
+        ],
+        "strict": true,
+        "direction_alternates": true,
+        "happened": 281,
+        "raw_known": 298
+      }
+    ],
+    "start": 121,
+    "end": 301,
+    "own": [
+      122,
+      301
+    ],
+    "whole": [
+      60000,
+      72000
+    ],
+    "b_ref": "S10",
+    "c": "S14",
+    "b_force": {
+      "first_pen": 50,
+      "last_pen": 54,
+      "first_v": -200,
+      "last_v": -1400,
+      "L": -1200
+    },
+    "c_force": {
+      "first_pen": 70,
+      "last_pen": 74,
+      "first_v": -300,
+      "last_v": -600,
+      "L": -300
+    },
+    "prior_whole_extreme": 60000,
+    "end_price": 60800,
+    "candidate_happened": 301,
+    "candidate_known": 318,
+    "structural_pass": true,
+    "role_pass": true,
+    "CycleDiv68": false,
+    "RawEnd68": true,
+    "JEnd68": false,
+    "OriginalGeneralDiv": null,
+    "OriginalMovementCompleted": null,
+    "original_happened": null,
+    "original_known": null,
+    "original_published": null,
+    "checks": {
+      "strict_cores": true,
+      "member_direction_alternates": true,
+      "coherent_type": true,
+      "same_direction_comparison_arms": true,
+      "entry_cross": true,
+      "exit_cross": true,
+      "whole_extreme": false,
+      "signed_force_weakening": false
+    },
+    "rejections": [
+      "whole_extreme",
+      "signed_force_weakening"
+    ],
+    "owns_each_event_once": true
+  },
+  "proof": "NoPP gives at most ceil(n/2) P, so at least floor(n/2) nonP. Each P needs5 and each nonP needs>=9. Thus >=5n+4floor(n/2). At n>=4 >=28; n=3 under20 forces (k1,k2,k3)=(1,2,1). The fixed start fixes actual cuts. The middle fails two necessary conjuncts."
+}

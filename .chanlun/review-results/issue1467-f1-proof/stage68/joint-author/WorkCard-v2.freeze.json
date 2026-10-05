@@ -1,0 +1,10 @@
+{
+  "frozen_at": "2026-10-05T20:05:17.830654+00:00",
+  "sha256": "15047cf4a61366e6f6187b3f0c0587bf5f5dd74e07abd6623297e341c9133045",
+  "candidate_count": 1,
+  "main_candidate_executions_before_freeze": 0,
+  "new_histories": 0,
+  "rss_limit": 100663296,
+  "supersedes_unexecuted": "WorkCard.md",
+  "exact_predicates_frozen_before_main_run": true
+}

@@ -1,0 +1,22 @@
+{
+  "kind": "independent-contract-readback",
+  "author_frozen_manifest": "cb6b1ea7ec569768ce7cc45f4390ff13ba51bff3731c055131de440803d65a3d",
+  "inputs": "one existing reviewed 443-prefix history; current Stage67 rows; direct source texts",
+  "accepted": "finite endpoint versions, exact active/stable matches, endpoint proposal supersession, preserved historical L, no rewrite of stable, template finite separation and frozen values",
+  "unaccepted_general_contract": "template-end cancellation after active replacement is not implemented; active retraction event does not update raw/whole end",
+  "totality_scope": "443 actual prefixes and 111 initialization birth branches only",
+  "future_access": "driver source arrays fully preloaded and final files prehashed; post-seal final JSON parsing verified by instrumented replay",
+  "original_statuses": {
+    "StructuralPenNow": null,
+    "RootArm67": null,
+    "Completed": null,
+    "Owner": null,
+    "Next": null,
+    "F2": null,
+    "full_F1": null
+  },
+  "new_histories": 0,
+  "rw_runs": 0,
+  "mathematical_sample_count": 1,
+  "independent_result": "independent-finite-crosscheck-pass"
+}

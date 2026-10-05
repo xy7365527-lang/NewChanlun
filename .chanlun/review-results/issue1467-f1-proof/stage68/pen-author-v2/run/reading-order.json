@@ -1,0 +1,96 @@
+[
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/manifest.json",
+    "action": "manifest-json-deserialize",
+    "phase": "pre-online",
+    "contents": "file paths, byte lengths, SHA256 values; not final pen/object data"
+  },
+  {
+    "action": "sha256-byte-precheck",
+    "phase": "pre-online",
+    "paths": [
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/source.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent-prefixes.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/live-review/independent-prefix-results.jsonl",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/WorkCard.md",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/check_pen.py",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent-pens.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent-objects.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent-parent.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/live-review/independent-certificates.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/Report.md",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/WorkCard.md",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/WorkCard.sha256.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/anchor-readback.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/author-self-check.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/check_pen.py",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/command-receipt.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/machine/readback-status.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/all-prefixes.jsonl",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/completion-candidates.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/events.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/initialization.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/inputhash-after.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/inputhash-before.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/key-trajectories.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/machine-status.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/online-seal.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/pointbar-geometry.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/post-seal-comparison.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/raw-spans.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/reading-order.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/versions.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/weighted-lemma.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/whole-spans.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/source-evidence.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/stderr.log",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/stdout.log",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/manifest.json",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/FINAL.json"
+    ],
+    "final_files_bytes_read": true,
+    "final_files_json_deserialized": false
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/source.json",
+    "action": "whole-json-deserialize",
+    "phase": "pre-online"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/live-review/independent-prefix-results.jsonl",
+    "action": "jsonl-row-stream",
+    "phase": "online",
+    "future_json_rows_deserialized": false
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent-prefixes.json",
+    "action": "array-item-stream",
+    "phase": "online",
+    "text_character_buffer": 65536
+  },
+  {
+    "action": "seal-written",
+    "phase": "online-end",
+    "hash": "c923949efbd5a01061d6d7783a163f9c21e4538ae303bbcec5a05942c8b08e23"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent-pens.json",
+    "action": "whole-json-deserialize",
+    "phase": "post-seal"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent-objects.json",
+    "action": "whole-json-deserialize",
+    "phase": "post-seal"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent-parent.json",
+    "action": "whole-json-deserialize",
+    "phase": "post-seal"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/live-review/independent-certificates.json",
+    "action": "whole-json-deserialize",
+    "phase": "post-seal"
+  }
+]

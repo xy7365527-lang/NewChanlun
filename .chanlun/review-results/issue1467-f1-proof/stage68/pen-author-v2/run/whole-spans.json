@@ -1,0 +1,94 @@
+{
+  "P0": {
+    "id": "P0",
+    "start": 21,
+    "candidateFirstKnownAt": 22,
+    "end": 121,
+    "state": "selected-raw-evidence-complete",
+    "Completed_original": null,
+    "Owner_original": null,
+    "Next_original": null,
+    "F2_original": null,
+    "endpointKnownAt": 122,
+    "terminalCandidate": "DP:117@118:v121",
+    "frozenAt": 126,
+    "wholeFrozenL": {
+      "num": -1500,
+      "den": 1
+    },
+    "cFrozenL": {
+      "num": -500,
+      "den": 1
+    },
+    "rawEvidenceKnownAt": 138
+  },
+  "P1": {
+    "id": "P1",
+    "start": 121,
+    "candidateFirstKnownAt": 122,
+    "end": 221,
+    "state": "selected-raw-evidence-complete",
+    "Completed_original": null,
+    "Owner_original": null,
+    "Next_original": null,
+    "F2_original": null,
+    "endpointKnownAt": 222,
+    "terminalCandidate": "DP:217@218:v221",
+    "frozenAt": 226,
+    "wholeFrozenL": {
+      "num": -1000,
+      "den": 1
+    },
+    "cFrozenL": {
+      "num": -1200,
+      "den": 1
+    },
+    "rawEvidenceKnownAt": 238
+  },
+  "P2": {
+    "id": "P2",
+    "start": 221,
+    "candidateFirstKnownAt": 222,
+    "end": 321,
+    "state": "selected-raw-evidence-complete",
+    "Completed_original": null,
+    "Owner_original": null,
+    "Next_original": null,
+    "F2_original": null,
+    "endpointKnownAt": 322,
+    "terminalCandidate": "DP:317@318:v321",
+    "frozenAt": 326,
+    "wholeFrozenL": {
+      "num": -200,
+      "den": 1
+    },
+    "cFrozenL": {
+      "num": -200,
+      "den": 1
+    },
+    "rawEvidenceKnownAt": 338
+  },
+  "c0": {
+    "id": "c0",
+    "start": 321,
+    "candidateFirstKnownAt": 322,
+    "end": 421,
+    "state": "selected-raw-evidence-complete",
+    "Completed_original": null,
+    "Owner_original": null,
+    "Next_original": null,
+    "F2_original": null,
+    "endpointKnownAt": 422,
+    "terminalCandidate": "DP:417@418:v421",
+    "frozenAt": 426,
+    "wholeFrozenL": {
+      "num": -3500,
+      "den": 1
+    },
+    "cFrozenL": {
+      "num": -4200,
+      "den": 1
+    },
+    "rawEvidenceKnownAt": 438
+  }
+}

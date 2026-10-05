@@ -1,0 +1,1164 @@
+{
+  "status": "pass",
+  "messages": [
+    {
+      "message": 1,
+      "kind": "withdraw-existing-tentative-terminal",
+      "state": {
+        "raw5": {
+          "id": "Raw:5",
+          "start": 101,
+          "candidateFirstKnownAt": 106,
+          "end": null,
+          "state": "open-after-terminal-withdrawal"
+        },
+        "P0": {
+          "id": "P0",
+          "start": 21,
+          "candidateFirstKnownAt": 22,
+          "end": null,
+          "state": "open-after-terminal-withdrawal",
+          "Completed_original": null,
+          "Owner_original": null,
+          "Next_original": null,
+          "F2_original": null
+        },
+        "stableCount": 29,
+        "versionCount": 121,
+        "priceCount": 123
+      },
+      "before": {
+        "raw5": {
+          "id": "Raw:5",
+          "start": 101,
+          "candidateFirstKnownAt": 106,
+          "end": 121,
+          "state": "ended-awaiting-stability",
+          "endpointKnownAt": 122,
+          "terminalCandidate": "DP:117@118:v121"
+        },
+        "P0": {
+          "id": "P0",
+          "start": 21,
+          "candidateFirstKnownAt": 22,
+          "end": 121,
+          "state": "ended-awaiting-stability",
+          "Completed_original": null,
+          "Owner_original": null,
+          "Next_original": null,
+          "F2_original": null,
+          "endpointKnownAt": 122,
+          "terminalCandidate": "DP:117@118:v121"
+        },
+        "stableCount": 29,
+        "versionCount": 121,
+        "priceCount": 123
+      },
+      "cleared_current_fields": [
+        "end",
+        "endpointKnownAt",
+        "terminalCandidate"
+      ],
+      "absent_dependency_fields_checked": [
+        "frozenL",
+        "wholeFrozenL",
+        "cFrozenL",
+        "frozenAt",
+        "rawEvidenceKnownAt"
+      ]
+    },
+    {
+      "message": 2,
+      "kind": "unrepresented-active-notification",
+      "state": {
+        "raw5": {
+          "id": "Raw:5",
+          "start": 101,
+          "candidateFirstKnownAt": 106,
+          "end": null,
+          "state": "pending-unrepresented-terminal",
+          "pendingTerminalPen": {
+            "up": true,
+            "start": 117,
+            "end": 122,
+            "start_price": 70000,
+            "end_price": 71600
+          },
+          "pendingTerminalKnownAt": 122
+        },
+        "P0": {
+          "id": "P0",
+          "start": 21,
+          "candidateFirstKnownAt": 22,
+          "end": null,
+          "state": "pending-unrepresented-terminal",
+          "Completed_original": null,
+          "Owner_original": null,
+          "Next_original": null,
+          "F2_original": null,
+          "pendingTerminalPen": {
+            "up": true,
+            "start": 117,
+            "end": 122,
+            "start_price": 70000,
+            "end_price": 71600
+          },
+          "pendingTerminalKnownAt": 122
+        },
+        "stableCount": 29,
+        "versionCount": 121,
+        "priceCount": 123
+      },
+      "notification": {
+        "up": true,
+        "start": 117,
+        "end": 122,
+        "start_price": 70000,
+        "end_price": 71600
+      },
+      "proposal_backfilled": false,
+      "semantics": "API identity notification only; this endpoint is not asserted to be a valid market fractal"
+    },
+    {
+      "message": 3,
+      "kind": "withdraw-unrepresented-terminal",
+      "state": {
+        "raw5": {
+          "id": "Raw:5",
+          "start": 101,
+          "candidateFirstKnownAt": 106,
+          "end": null,
+          "state": "open-after-terminal-withdrawal"
+        },
+        "P0": {
+          "id": "P0",
+          "start": 21,
+          "candidateFirstKnownAt": 22,
+          "end": null,
+          "state": "open-after-terminal-withdrawal",
+          "Completed_original": null,
+          "Owner_original": null,
+          "Next_original": null,
+          "F2_original": null
+        },
+        "stableCount": 29,
+        "versionCount": 121,
+        "priceCount": 123
+      }
+    },
+    {
+      "message": 4,
+      "kind": "reactivate-existing-proposal-and-rebind",
+      "state": {
+        "raw5": {
+          "id": "Raw:5",
+          "start": 101,
+          "candidateFirstKnownAt": 106,
+          "end": 121,
+          "state": "ended-awaiting-stability",
+          "endpointKnownAt": 122,
+          "terminalCandidate": "DP:117@118:v121"
+        },
+        "P0": {
+          "id": "P0",
+          "start": 21,
+          "candidateFirstKnownAt": 22,
+          "end": 121,
+          "state": "ended-awaiting-stability",
+          "Completed_original": null,
+          "Owner_original": null,
+          "Next_original": null,
+          "F2_original": null,
+          "endpointKnownAt": 122,
+          "terminalCandidate": "DP:117@118:v121"
+        },
+        "stableCount": 29,
+        "versionCount": 121,
+        "priceCount": 123
+      },
+      "proposal": "DP:117@118:v121"
+    },
+    {
+      "message": 5,
+      "kind": "actual-stable-receipt-and-rebuilt-freeze",
+      "state": {
+        "raw5": {
+          "id": "Raw:5",
+          "start": 101,
+          "candidateFirstKnownAt": 106,
+          "end": 121,
+          "state": "frozen-pens-awaiting-raw-proof",
+          "endpointKnownAt": 122,
+          "terminalCandidate": "DP:117@118:v121",
+          "frozenL": {
+            "num": -500,
+            "den": 1
+          },
+          "frozenAt": 126
+        },
+        "P0": {
+          "id": "P0",
+          "start": 21,
+          "candidateFirstKnownAt": 22,
+          "end": 121,
+          "state": "frozen-pens-awaiting-raw-proof",
+          "Completed_original": null,
+          "Owner_original": null,
+          "Next_original": null,
+          "F2_original": null,
+          "endpointKnownAt": 122,
+          "terminalCandidate": "DP:117@118:v121",
+          "frozenAt": 126,
+          "wholeFrozenL": {
+            "num": -1500,
+            "den": 1
+          },
+          "cFrozenL": {
+            "num": -500,
+            "den": 1
+          }
+        },
+        "stableCount": 30,
+        "versionCount": 121,
+        "priceCount": 123
+      },
+      "receipt": {
+        "pen": {
+          "up": true,
+          "start": 117,
+          "end": 121,
+          "start_price": 70000,
+          "end_price": 72000
+        },
+        "knownAt": 126,
+        "candidateVersion": "DP:117@118:v121"
+      },
+      "new_market_observations": 0
+    },
+    {
+      "message": 6,
+      "kind": "reject-freeze-with-different-current-terminal",
+      "state": {
+        "raw5": {
+          "id": "Raw:5",
+          "start": 101,
+          "candidateFirstKnownAt": 106,
+          "end": 121,
+          "state": "selected-raw-evidence-complete",
+          "endpointKnownAt": 122,
+          "terminalCandidate": "DP:117@118:v121",
+          "frozenL": {
+            "num": -500,
+            "den": 1
+          },
+          "frozenAt": 126,
+          "rawEvidenceKnownAt": 138
+        },
+        "P0": {
+          "id": "P0",
+          "start": 21,
+          "candidateFirstKnownAt": 22,
+          "end": 121,
+          "state": "selected-raw-evidence-complete",
+          "Completed_original": null,
+          "Owner_original": null,
+          "Next_original": null,
+          "F2_original": null,
+          "endpointKnownAt": 122,
+          "terminalCandidate": "DP:117@118:v121",
+          "frozenAt": 126,
+          "wholeFrozenL": {
+            "num": -1500,
+            "den": 1
+          },
+          "cFrozenL": {
+            "num": -500,
+            "den": 1
+          },
+          "rawEvidenceKnownAt": 138
+        },
+        "stableCount": 33,
+        "versionCount": 137,
+        "priceCount": 139
+      },
+      "rejection": {
+        "knownAt": 138,
+        "kind": "rejected-state-transition",
+        "reason": "freeze-terminal-identity-not-stable",
+        "object": "P0",
+        "terminal": {
+          "up": false,
+          "start": 121,
+          "end": 125,
+          "start_price": 72000,
+          "end_price": 70400
+        },
+        "terminalCandidate": "DP:117@118:v121",
+        "end": 121
+      }
+    },
+    {
+      "message": 7,
+      "kind": "reject-stable-retraction",
+      "state": {
+        "raw5": {
+          "id": "Raw:5",
+          "start": 101,
+          "candidateFirstKnownAt": 106,
+          "end": 121,
+          "state": "selected-raw-evidence-complete",
+          "endpointKnownAt": 122,
+          "terminalCandidate": "DP:117@118:v121",
+          "frozenL": {
+            "num": -500,
+            "den": 1
+          },
+          "frozenAt": 126,
+          "rawEvidenceKnownAt": 138
+        },
+        "P0": {
+          "id": "P0",
+          "start": 21,
+          "candidateFirstKnownAt": 22,
+          "end": 121,
+          "state": "selected-raw-evidence-complete",
+          "Completed_original": null,
+          "Owner_original": null,
+          "Next_original": null,
+          "F2_original": null,
+          "endpointKnownAt": 122,
+          "terminalCandidate": "DP:117@118:v121",
+          "frozenAt": 126,
+          "wholeFrozenL": {
+            "num": -1500,
+            "den": 1
+          },
+          "cFrozenL": {
+            "num": -500,
+            "den": 1
+          },
+          "rawEvidenceKnownAt": 138
+        },
+        "stableCount": 33,
+        "versionCount": 137,
+        "priceCount": 139
+      },
+      "rejection": {
+        "knownAt": 138,
+        "kind": "rejected-state-transition",
+        "reason": "stable-pen-cannot-be-retracted",
+        "pen": {
+          "up": true,
+          "start": 117,
+          "end": 121,
+          "start_price": 70000,
+          "end_price": 72000
+        }
+      }
+    },
+    {
+      "message": 8,
+      "kind": "reject-stable-prefix-rewrite",
+      "state": {
+        "raw5": {
+          "id": "Raw:5",
+          "start": 101,
+          "candidateFirstKnownAt": 106,
+          "end": 121,
+          "state": "selected-raw-evidence-complete",
+          "endpointKnownAt": 122,
+          "terminalCandidate": "DP:117@118:v121",
+          "frozenL": {
+            "num": -500,
+            "den": 1
+          },
+          "frozenAt": 126,
+          "rawEvidenceKnownAt": 138
+        },
+        "P0": {
+          "id": "P0",
+          "start": 21,
+          "candidateFirstKnownAt": 22,
+          "end": 121,
+          "state": "selected-raw-evidence-complete",
+          "Completed_original": null,
+          "Owner_original": null,
+          "Next_original": null,
+          "F2_original": null,
+          "endpointKnownAt": 122,
+          "terminalCandidate": "DP:117@118:v121",
+          "frozenAt": 126,
+          "wholeFrozenL": {
+            "num": -1500,
+            "den": 1
+          },
+          "cFrozenL": {
+            "num": -500,
+            "den": 1
+          },
+          "rawEvidenceKnownAt": 138
+        },
+        "stableCount": 33,
+        "versionCount": 137,
+        "priceCount": 139
+      },
+      "rejection": {
+        "knownAt": 138,
+        "kind": "rejected-state-transition",
+        "reason": "stable-prefix-rewrite",
+        "previous": [
+          {
+            "up": false,
+            "start": 1,
+            "end": 5,
+            "start_price": 76000,
+            "end_price": 60000
+          },
+          {
+            "up": true,
+            "start": 5,
+            "end": 9,
+            "start_price": 60000,
+            "end_price": 68000
+          },
+          {
+            "up": false,
+            "start": 9,
+            "end": 13,
+            "start_price": 68000,
+            "end_price": 46000
+          },
+          {
+            "up": true,
+            "start": 13,
+            "end": 17,
+            "start_price": 46000,
+            "end_price": 60000
+          },
+          {
+            "up": false,
+            "start": 17,
+            "end": 21,
+            "start_price": 60000,
+            "end_price": 40000
+          },
+          {
+            "up": true,
+            "start": 21,
+            "end": 25,
+            "start_price": 40000,
+            "end_price": 48000
+          },
+          {
+            "up": false,
+            "start": 25,
+            "end": 29,
+            "start_price": 48000,
+            "end_price": 44000
+          },
+          {
+            "up": true,
+            "start": 29,
+            "end": 33,
+            "start_price": 44000,
+            "end_price": 60000
+          },
+          {
+            "up": false,
+            "start": 33,
+            "end": 37,
+            "start_price": 60000,
+            "end_price": 52000
+          },
+          {
+            "up": true,
+            "start": 37,
+            "end": 41,
+            "start_price": 52000,
+            "end_price": 64000
+          },
+          {
+            "up": false,
+            "start": 41,
+            "end": 45,
+            "start_price": 64000,
+            "end_price": 58000
+          },
+          {
+            "up": true,
+            "start": 45,
+            "end": 49,
+            "start_price": 58000,
+            "end_price": 62000
+          },
+          {
+            "up": false,
+            "start": 49,
+            "end": 53,
+            "start_price": 62000,
+            "end_price": 52000
+          },
+          {
+            "up": true,
+            "start": 53,
+            "end": 57,
+            "start_price": 52000,
+            "end_price": 56000
+          },
+          {
+            "up": false,
+            "start": 57,
+            "end": 61,
+            "start_price": 56000,
+            "end_price": 48000
+          },
+          {
+            "up": true,
+            "start": 61,
+            "end": 65,
+            "start_price": 48000,
+            "end_price": 54000
+          },
+          {
+            "up": false,
+            "start": 65,
+            "end": 69,
+            "start_price": 54000,
+            "end_price": 50000
+          },
+          {
+            "up": true,
+            "start": 69,
+            "end": 73,
+            "start_price": 50000,
+            "end_price": 58000
+          },
+          {
+            "up": false,
+            "start": 73,
+            "end": 77,
+            "start_price": 58000,
+            "end_price": 52000
+          },
+          {
+            "up": true,
+            "start": 77,
+            "end": 81,
+            "start_price": 52000,
+            "end_price": 60000
+          },
+          {
+            "up": false,
+            "start": 81,
+            "end": 85,
+            "start_price": 60000,
+            "end_price": 56000
+          },
+          {
+            "up": true,
+            "start": 85,
+            "end": 89,
+            "start_price": 56000,
+            "end_price": 59200
+          },
+          {
+            "up": false,
+            "start": 89,
+            "end": 93,
+            "start_price": 59200,
+            "end_price": 52000
+          },
+          {
+            "up": true,
+            "start": 93,
+            "end": 97,
+            "start_price": 52000,
+            "end_price": 56000
+          },
+          {
+            "up": false,
+            "start": 97,
+            "end": 101,
+            "start_price": 56000,
+            "end_price": 50000
+          },
+          {
+            "up": true,
+            "start": 101,
+            "end": 105,
+            "start_price": 50000,
+            "end_price": 54000
+          },
+          {
+            "up": false,
+            "start": 105,
+            "end": 109,
+            "start_price": 54000,
+            "end_price": 52000
+          },
+          {
+            "up": true,
+            "start": 109,
+            "end": 113,
+            "start_price": 52000,
+            "end_price": 71200
+          },
+          {
+            "up": false,
+            "start": 113,
+            "end": 117,
+            "start_price": 71200,
+            "end_price": 70000
+          },
+          {
+            "up": true,
+            "start": 117,
+            "end": 121,
+            "start_price": 70000,
+            "end_price": 72000
+          },
+          {
+            "up": false,
+            "start": 121,
+            "end": 125,
+            "start_price": 72000,
+            "end_price": 70400
+          },
+          {
+            "up": true,
+            "start": 125,
+            "end": 129,
+            "start_price": 70400,
+            "end_price": 71600
+          },
+          {
+            "up": false,
+            "start": 129,
+            "end": 133,
+            "start_price": 71600,
+            "end_price": 68000
+          }
+        ],
+        "incoming": [
+          {
+            "up": false,
+            "start": 1,
+            "end": 5,
+            "start_price": 76000,
+            "end_price": 60000
+          },
+          {
+            "up": true,
+            "start": 5,
+            "end": 9,
+            "start_price": 60000,
+            "end_price": 68000
+          },
+          {
+            "up": false,
+            "start": 9,
+            "end": 13,
+            "start_price": 68000,
+            "end_price": 46000
+          },
+          {
+            "up": true,
+            "start": 13,
+            "end": 17,
+            "start_price": 46000,
+            "end_price": 60000
+          },
+          {
+            "up": false,
+            "start": 17,
+            "end": 21,
+            "start_price": 60000,
+            "end_price": 40000
+          },
+          {
+            "up": true,
+            "start": 21,
+            "end": 25,
+            "start_price": 40000,
+            "end_price": 48000
+          },
+          {
+            "up": false,
+            "start": 25,
+            "end": 29,
+            "start_price": 48000,
+            "end_price": 44000
+          },
+          {
+            "up": true,
+            "start": 29,
+            "end": 33,
+            "start_price": 44000,
+            "end_price": 60000
+          },
+          {
+            "up": false,
+            "start": 33,
+            "end": 37,
+            "start_price": 60000,
+            "end_price": 52000
+          },
+          {
+            "up": true,
+            "start": 37,
+            "end": 41,
+            "start_price": 52000,
+            "end_price": 64000
+          },
+          {
+            "up": false,
+            "start": 41,
+            "end": 45,
+            "start_price": 64000,
+            "end_price": 58000
+          },
+          {
+            "up": true,
+            "start": 45,
+            "end": 49,
+            "start_price": 58000,
+            "end_price": 62000
+          },
+          {
+            "up": false,
+            "start": 49,
+            "end": 53,
+            "start_price": 62000,
+            "end_price": 52000
+          },
+          {
+            "up": true,
+            "start": 53,
+            "end": 57,
+            "start_price": 52000,
+            "end_price": 56000
+          },
+          {
+            "up": false,
+            "start": 57,
+            "end": 61,
+            "start_price": 56000,
+            "end_price": 48000
+          },
+          {
+            "up": true,
+            "start": 61,
+            "end": 65,
+            "start_price": 48000,
+            "end_price": 54000
+          },
+          {
+            "up": false,
+            "start": 65,
+            "end": 69,
+            "start_price": 54000,
+            "end_price": 50000
+          },
+          {
+            "up": true,
+            "start": 69,
+            "end": 73,
+            "start_price": 50000,
+            "end_price": 58000
+          },
+          {
+            "up": false,
+            "start": 73,
+            "end": 77,
+            "start_price": 58000,
+            "end_price": 52000
+          },
+          {
+            "up": true,
+            "start": 77,
+            "end": 81,
+            "start_price": 52000,
+            "end_price": 60000
+          },
+          {
+            "up": false,
+            "start": 81,
+            "end": 85,
+            "start_price": 60000,
+            "end_price": 56000
+          },
+          {
+            "up": true,
+            "start": 85,
+            "end": 89,
+            "start_price": 56000,
+            "end_price": 59200
+          },
+          {
+            "up": false,
+            "start": 89,
+            "end": 93,
+            "start_price": 59200,
+            "end_price": 52000
+          },
+          {
+            "up": true,
+            "start": 93,
+            "end": 97,
+            "start_price": 52000,
+            "end_price": 56000
+          },
+          {
+            "up": false,
+            "start": 97,
+            "end": 101,
+            "start_price": 56000,
+            "end_price": 50000
+          },
+          {
+            "up": true,
+            "start": 101,
+            "end": 105,
+            "start_price": 50000,
+            "end_price": 54000
+          },
+          {
+            "up": false,
+            "start": 105,
+            "end": 109,
+            "start_price": 54000,
+            "end_price": 52000
+          },
+          {
+            "up": true,
+            "start": 109,
+            "end": 113,
+            "start_price": 52000,
+            "end_price": 71200
+          },
+          {
+            "up": false,
+            "start": 113,
+            "end": 117,
+            "start_price": 71200,
+            "end_price": 70000
+          },
+          {
+            "up": true,
+            "start": 117,
+            "end": 121,
+            "start_price": 70000,
+            "end_price": 72000
+          },
+          {
+            "up": false,
+            "start": 121,
+            "end": 125,
+            "start_price": 72000,
+            "end_price": 70400
+          },
+          {
+            "up": true,
+            "start": 125,
+            "end": 129,
+            "start_price": 70400,
+            "end_price": 71600
+          },
+          {
+            "up": false,
+            "start": 129,
+            "end": 134,
+            "start_price": 71600,
+            "end_price": 68000
+          }
+        ]
+      }
+    }
+  ],
+  "message_count": 8,
+  "new_histories": 0,
+  "new_market_observations": 0,
+  "rw_runs": 0,
+  "proposal_backfills": 0,
+  "source_seed_cuts": [
+    122,
+    138
+  ],
+  "real_active_replacement_observed_in_main_history": false,
+  "cancellation_events": [
+    {
+      "knownAt": 121,
+      "kind": "proposed",
+      "version": "DP:117@118:v121"
+    },
+    {
+      "knownAt": 122,
+      "kind": "stable-rw",
+      "pen": {
+        "up": false,
+        "start": 113,
+        "end": 117,
+        "start_price": 71200,
+        "end_price": 70000
+      },
+      "candidateVersion": "DP:113@114:v117"
+    },
+    {
+      "knownAt": 122,
+      "kind": "confirmed-rw-active",
+      "pen": {
+        "up": true,
+        "start": 117,
+        "end": 121,
+        "start_price": 70000,
+        "end_price": 72000
+      },
+      "candidateVersion": "DP:117@118:v121",
+      "geometryIndex": 29
+    },
+    {
+      "knownAt": 122,
+      "kind": "proposed",
+      "version": "DP:121@122:v122"
+    },
+    {
+      "knownAt": 122,
+      "kind": "whole-endpoint-proposal-confirmed-rw",
+      "whole": {
+        "id": "P0",
+        "start": 21,
+        "candidateFirstKnownAt": 22,
+        "end": 121,
+        "state": "ended-awaiting-stability",
+        "Completed_original": null,
+        "Owner_original": null,
+        "Next_original": null,
+        "F2_original": null,
+        "endpointKnownAt": 122,
+        "terminalCandidate": "DP:117@118:v121"
+      }
+    },
+    {
+      "knownAt": 122,
+      "kind": "retracted-confirmed-rw",
+      "pen": {
+        "up": true,
+        "start": 117,
+        "end": 121,
+        "start_price": 70000,
+        "end_price": 72000
+      },
+      "reason": "control-withdrawal-not-market-history"
+    },
+    {
+      "knownAt": 122,
+      "kind": "template-endpoint-canceled",
+      "object": "Raw:5",
+      "reason": "control-withdrawal-not-market-history",
+      "previous": {
+        "id": "Raw:5",
+        "start": 101,
+        "candidateFirstKnownAt": 106,
+        "end": 121,
+        "state": "ended-awaiting-stability",
+        "endpointKnownAt": 122,
+        "terminalCandidate": "DP:117@118:v121"
+      },
+      "current": {
+        "id": "Raw:5",
+        "start": 101,
+        "candidateFirstKnownAt": 106,
+        "end": null,
+        "state": "open-after-terminal-withdrawal"
+      }
+    },
+    {
+      "knownAt": 122,
+      "kind": "template-endpoint-canceled",
+      "object": "P0",
+      "reason": "control-withdrawal-not-market-history",
+      "previous": {
+        "id": "P0",
+        "start": 21,
+        "candidateFirstKnownAt": 22,
+        "end": 121,
+        "state": "ended-awaiting-stability",
+        "Completed_original": null,
+        "Owner_original": null,
+        "Next_original": null,
+        "F2_original": null,
+        "endpointKnownAt": 122,
+        "terminalCandidate": "DP:117@118:v121"
+      },
+      "current": {
+        "id": "P0",
+        "start": 21,
+        "candidateFirstKnownAt": 22,
+        "end": null,
+        "state": "open-after-terminal-withdrawal",
+        "Completed_original": null,
+        "Owner_original": null,
+        "Next_original": null,
+        "F2_original": null
+      }
+    },
+    {
+      "knownAt": 122,
+      "kind": "unrepresented-active",
+      "pen": {
+        "up": true,
+        "start": 117,
+        "end": 122,
+        "start_price": 70000,
+        "end_price": 71600
+      },
+      "reason": "no-existing-qualified-proposal"
+    },
+    {
+      "knownAt": 122,
+      "kind": "retracted-unrepresented-active",
+      "pen": {
+        "up": true,
+        "start": 117,
+        "end": 122,
+        "start_price": 70000,
+        "end_price": 71600
+      },
+      "reason": "control-withdraw-unrepresented"
+    },
+    {
+      "knownAt": 122,
+      "kind": "template-endpoint-canceled",
+      "object": "Raw:5",
+      "reason": "control-withdraw-unrepresented",
+      "previous": {
+        "id": "Raw:5",
+        "start": 101,
+        "candidateFirstKnownAt": 106,
+        "end": null,
+        "state": "pending-unrepresented-terminal",
+        "pendingTerminalPen": {
+          "up": true,
+          "start": 117,
+          "end": 122,
+          "start_price": 70000,
+          "end_price": 71600
+        },
+        "pendingTerminalKnownAt": 122
+      },
+      "current": {
+        "id": "Raw:5",
+        "start": 101,
+        "candidateFirstKnownAt": 106,
+        "end": null,
+        "state": "open-after-terminal-withdrawal"
+      }
+    },
+    {
+      "knownAt": 122,
+      "kind": "template-endpoint-canceled",
+      "object": "P0",
+      "reason": "control-withdraw-unrepresented",
+      "previous": {
+        "id": "P0",
+        "start": 21,
+        "candidateFirstKnownAt": 22,
+        "end": null,
+        "state": "pending-unrepresented-terminal",
+        "Completed_original": null,
+        "Owner_original": null,
+        "Next_original": null,
+        "F2_original": null,
+        "pendingTerminalPen": {
+          "up": true,
+          "start": 117,
+          "end": 122,
+          "start_price": 70000,
+          "end_price": 71600
+        },
+        "pendingTerminalKnownAt": 122
+      },
+      "current": {
+        "id": "P0",
+        "start": 21,
+        "candidateFirstKnownAt": 22,
+        "end": null,
+        "state": "open-after-terminal-withdrawal",
+        "Completed_original": null,
+        "Owner_original": null,
+        "Next_original": null,
+        "F2_original": null
+      }
+    },
+    {
+      "knownAt": 122,
+      "kind": "reactivated-confirmed-rw",
+      "pen": {
+        "up": true,
+        "start": 117,
+        "end": 121,
+        "start_price": 70000,
+        "end_price": 72000
+      },
+      "candidateVersion": "DP:117@118:v121",
+      "geometryIndex": 30
+    },
+    {
+      "knownAt": 126,
+      "kind": "stable-rw",
+      "pen": {
+        "up": true,
+        "start": 117,
+        "end": 121,
+        "start_price": 70000,
+        "end_price": 72000
+      },
+      "candidateVersion": "DP:117@118:v121"
+    },
+    {
+      "knownAt": 126,
+      "kind": "freeze-raw-pen-span",
+      "raw": {
+        "id": "Raw:5",
+        "start": 101,
+        "candidateFirstKnownAt": 106,
+        "end": 121,
+        "state": "frozen-pens-awaiting-raw-proof",
+        "endpointKnownAt": 122,
+        "terminalCandidate": "DP:117@118:v121",
+        "frozenL": {
+          "num": -500,
+          "den": 1
+        },
+        "frozenAt": 126
+      }
+    },
+    {
+      "knownAt": 126,
+      "kind": "freeze-whole-pen-span",
+      "whole": {
+        "id": "P0",
+        "start": 21,
+        "candidateFirstKnownAt": 22,
+        "end": 121,
+        "state": "frozen-pens-awaiting-raw-proof",
+        "Completed_original": null,
+        "Owner_original": null,
+        "Next_original": null,
+        "F2_original": null,
+        "endpointKnownAt": 122,
+        "terminalCandidate": "DP:117@118:v121",
+        "frozenAt": 126,
+        "wholeFrozenL": {
+          "num": -1500,
+          "den": 1
+        },
+        "cFrozenL": {
+          "num": -500,
+          "den": 1
+        }
+      }
+    }
+  ],
+  "scope": "interface state messages on captured checkpoints, not a second valid price history"
+}

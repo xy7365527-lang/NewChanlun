@@ -1,0 +1,11 @@
+{
+  "command": [
+    "/opt/homebrew/bin/python3",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-review/audit_read_order.py"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 0.13001298904418945,
+  "stdout": "{\"status\": \"read-order-replay-pass\", \"steps\": 443, \"peak_rss_bytes\": 33226752, \"author_replay_count\": 1, \"additional_histories\": 0, \"rw_runs\": 0, \"new_independent_mathematical_samples\": 0, \"physical_future_isolation\": false, \"post_seal_final_json_parse\": true, \"claim\": \"profile observes calls; sha reads complete file bytes, source loads all observations/events, prefix parser buffers 65536 characters and only yields current decoded object\"}\n",
+  "stderr": "",
+  "independent_new_samples": 0
+}

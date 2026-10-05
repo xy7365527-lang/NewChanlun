@@ -1,0 +1,99 @@
+{
+  "status": "finite-state-machine-author-self-check-pass",
+  "prefixes": 443,
+  "new_histories": 0,
+  "rw_runs": 0,
+  "confirmed_count": 110,
+  "stable_count": 109,
+  "version_count": 441,
+  "proposal_states": {
+    "waiting-spacing": 331,
+    "pending-opposite-fractal": 110
+  },
+  "retraction_events": 330,
+  "active_retraction_events": 0,
+  "pointbar_geometry_checked": 110,
+  "no_anchor_states": 2,
+  "zero_duration_births": 111,
+  "current_equals_active_count": 0,
+  "current_equals_stable_count": 0,
+  "whole_comparison": [
+    {
+      "id": "P0",
+      "end": 121,
+      "endpointKnownAt": 122,
+      "frozenAt": 126,
+      "rawEvidenceKnownAt": 138,
+      "cFrozenL": {
+        "num": -500,
+        "den": 1
+      },
+      "wholeFrozenL": {
+        "num": -1500,
+        "den": 1
+      },
+      "match": true
+    },
+    {
+      "id": "P1",
+      "end": 221,
+      "endpointKnownAt": 222,
+      "frozenAt": 226,
+      "rawEvidenceKnownAt": 238,
+      "cFrozenL": {
+        "num": -1200,
+        "den": 1
+      },
+      "wholeFrozenL": {
+        "num": -1000,
+        "den": 1
+      },
+      "match": true
+    },
+    {
+      "id": "P2",
+      "end": 321,
+      "endpointKnownAt": 322,
+      "frozenAt": 326,
+      "rawEvidenceKnownAt": 338,
+      "cFrozenL": {
+        "num": -200,
+        "den": 1
+      },
+      "wholeFrozenL": {
+        "num": -200,
+        "den": 1
+      },
+      "match": true
+    },
+    {
+      "id": "c0",
+      "end": 421,
+      "endpointKnownAt": 422,
+      "frozenAt": 426,
+      "rawEvidenceKnownAt": 438,
+      "cFrozenL": {
+        "num": -4200,
+        "den": 1
+      },
+      "wholeFrozenL": {
+        "num": -3500,
+        "den": 1
+      },
+      "match": true
+    }
+  ],
+  "peak_rss_bytes": 32702464,
+  "elapsed_seconds": 0.07224483322352171,
+  "original_StructuralPenNow": null,
+  "original_GeneralDiv": null,
+  "original_Completed": null,
+  "RootArm67": null,
+  "Owner": null,
+  "Next": null,
+  "F2": null,
+  "source_pointbar_bridge": null,
+  "full_F1": null,
+  "independent_review": "pending",
+  "scope": "one selected template on one existing synthetic history; finite conditional geometry and lifecycle only"
+}

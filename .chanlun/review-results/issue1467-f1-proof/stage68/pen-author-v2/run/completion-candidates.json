@@ -1,0 +1,405 @@
+[
+  {
+    "cut": 118,
+    "id": "P0",
+    "kind": "propose-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:117@118:v118",
+      "end": 118,
+      "knownAt": 118,
+      "L": {
+        "num": -500,
+        "den": 1
+      },
+      "Completed_original": null
+    }
+  },
+  {
+    "cut": 119,
+    "id": "P0",
+    "kind": "cancel-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:117@118:v118",
+      "end": 118,
+      "knownAt": 118,
+      "L": {
+        "num": -500,
+        "den": 1
+      },
+      "Completed_original": null
+    },
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "cut": 119,
+    "id": "P0",
+    "kind": "propose-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:117@118:v119",
+      "end": 119,
+      "knownAt": 119,
+      "L": {
+        "num": -500,
+        "den": 1
+      },
+      "Completed_original": null
+    }
+  },
+  {
+    "cut": 120,
+    "id": "P0",
+    "kind": "cancel-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:117@118:v119",
+      "end": 119,
+      "knownAt": 119,
+      "L": {
+        "num": -500,
+        "den": 1
+      },
+      "Completed_original": null
+    },
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "cut": 120,
+    "id": "P0",
+    "kind": "propose-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:117@118:v120",
+      "end": 120,
+      "knownAt": 120,
+      "L": {
+        "num": -500,
+        "den": 1
+      },
+      "Completed_original": null
+    }
+  },
+  {
+    "cut": 121,
+    "id": "P0",
+    "kind": "cancel-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:117@118:v120",
+      "end": 120,
+      "knownAt": 120,
+      "L": {
+        "num": -500,
+        "den": 1
+      },
+      "Completed_original": null
+    },
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "cut": 121,
+    "id": "P0",
+    "kind": "propose-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:117@118:v121",
+      "end": 121,
+      "knownAt": 121,
+      "L": {
+        "num": -500,
+        "den": 1
+      },
+      "Completed_original": null
+    }
+  },
+  {
+    "cut": 122,
+    "id": "P0",
+    "kind": "cancel-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:117@118:v121",
+      "end": 121,
+      "knownAt": 121,
+      "L": {
+        "num": -500,
+        "den": 1
+      },
+      "Completed_original": null
+    },
+    "reason": "selected-span-ended"
+  },
+  {
+    "cut": 220,
+    "id": "P1",
+    "kind": "propose-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:217@218:v220",
+      "end": 220,
+      "knownAt": 220,
+      "L": {
+        "num": -1200,
+        "den": 1
+      },
+      "Completed_original": null
+    }
+  },
+  {
+    "cut": 221,
+    "id": "P1",
+    "kind": "cancel-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:217@218:v220",
+      "end": 220,
+      "knownAt": 220,
+      "L": {
+        "num": -1200,
+        "den": 1
+      },
+      "Completed_original": null
+    },
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "cut": 221,
+    "id": "P1",
+    "kind": "propose-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:217@218:v221",
+      "end": 221,
+      "knownAt": 221,
+      "L": {
+        "num": -1200,
+        "den": 1
+      },
+      "Completed_original": null
+    }
+  },
+  {
+    "cut": 222,
+    "id": "P1",
+    "kind": "cancel-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:217@218:v221",
+      "end": 221,
+      "knownAt": 221,
+      "L": {
+        "num": -1200,
+        "den": 1
+      },
+      "Completed_original": null
+    },
+    "reason": "selected-span-ended"
+  },
+  {
+    "cut": 318,
+    "id": "P2",
+    "kind": "propose-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:317@318:v318",
+      "end": 318,
+      "knownAt": 318,
+      "L": {
+        "num": -200,
+        "den": 1
+      },
+      "Completed_original": null
+    }
+  },
+  {
+    "cut": 319,
+    "id": "P2",
+    "kind": "cancel-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:317@318:v318",
+      "end": 318,
+      "knownAt": 318,
+      "L": {
+        "num": -200,
+        "den": 1
+      },
+      "Completed_original": null
+    },
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "cut": 319,
+    "id": "P2",
+    "kind": "propose-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:317@318:v319",
+      "end": 319,
+      "knownAt": 319,
+      "L": {
+        "num": -200,
+        "den": 1
+      },
+      "Completed_original": null
+    }
+  },
+  {
+    "cut": 320,
+    "id": "P2",
+    "kind": "cancel-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:317@318:v319",
+      "end": 319,
+      "knownAt": 319,
+      "L": {
+        "num": -200,
+        "den": 1
+      },
+      "Completed_original": null
+    },
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "cut": 320,
+    "id": "P2",
+    "kind": "propose-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:317@318:v320",
+      "end": 320,
+      "knownAt": 320,
+      "L": {
+        "num": -200,
+        "den": 1
+      },
+      "Completed_original": null
+    }
+  },
+  {
+    "cut": 321,
+    "id": "P2",
+    "kind": "cancel-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:317@318:v320",
+      "end": 320,
+      "knownAt": 320,
+      "L": {
+        "num": -200,
+        "den": 1
+      },
+      "Completed_original": null
+    },
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "cut": 321,
+    "id": "P2",
+    "kind": "propose-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:317@318:v321",
+      "end": 321,
+      "knownAt": 321,
+      "L": {
+        "num": -200,
+        "den": 1
+      },
+      "Completed_original": null
+    }
+  },
+  {
+    "cut": 322,
+    "id": "P2",
+    "kind": "cancel-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:317@318:v321",
+      "end": 321,
+      "knownAt": 321,
+      "L": {
+        "num": -200,
+        "den": 1
+      },
+      "Completed_original": null
+    },
+    "reason": "selected-span-ended"
+  },
+  {
+    "cut": 420,
+    "id": "c0",
+    "kind": "propose-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:417@418:v420",
+      "end": 420,
+      "knownAt": 420,
+      "L": {
+        "num": -4200,
+        "den": 1
+      },
+      "Completed_original": null
+    }
+  },
+  {
+    "cut": 421,
+    "id": "c0",
+    "kind": "cancel-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:417@418:v420",
+      "end": 420,
+      "knownAt": 420,
+      "L": {
+        "num": -4200,
+        "den": 1
+      },
+      "Completed_original": null
+    },
+    "reason": "endpoint-version-superseded"
+  },
+  {
+    "cut": 421,
+    "id": "c0",
+    "kind": "propose-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:417@418:v421",
+      "end": 421,
+      "knownAt": 421,
+      "L": {
+        "num": -4200,
+        "den": 1
+      },
+      "Completed_original": null
+    }
+  },
+  {
+    "cut": 421,
+    "id": "parent",
+    "kind": "propose-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:417@418:v421",
+      "end": 421,
+      "knownAt": 421,
+      "L": {
+        "num": -3500,
+        "den": 1
+      },
+      "Completed_original": null
+    }
+  },
+  {
+    "cut": 422,
+    "id": "c0",
+    "kind": "cancel-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:417@418:v421",
+      "end": 421,
+      "knownAt": 421,
+      "L": {
+        "num": -4200,
+        "den": 1
+      },
+      "Completed_original": null
+    },
+    "reason": "selected-span-ended"
+  },
+  {
+    "cut": 422,
+    "id": "parent",
+    "kind": "cancel-endpoint-completion-candidate",
+    "candidate": {
+      "version": "DP:417@418:v421",
+      "end": 421,
+      "knownAt": 421,
+      "L": {
+        "num": -3500,
+        "den": 1
+      },
+      "Completed_original": null
+    },
+    "reason": "selected-span-ended"
+  }
+]

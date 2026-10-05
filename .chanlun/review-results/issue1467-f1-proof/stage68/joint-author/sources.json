@@ -1,0 +1,1898 @@
+{
+  "direct_sources": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/018-第18课.md",
+      "sha256": "4a661fc843d0d9fcfdf32861b7dc903ee09d824d0075dd0ea7b2c19542bb2f92",
+      "body_end": 68,
+      "lines": [
+        {
+          "line": 24,
+          "text": "缠中说禅走势中枢：某级别走势类型中，被至少三个连续次级别走势类型所重叠的部分。具体的计算以前三个连续次级别的重叠为准，严格的公式可以这样表示：次级别的连续三个走势类型A、B、C，分别的高、低点是a1\\a2,b1\\b2,c1\\c2。则，中枢的区间就是（max（a2,b2,c2），min（a1,b1,c1））而实际上用目测就可以，不用这么复杂。注意，次级别的前三个走势类型都是完成的才构成该级别的缠中说禅走势中枢，完成的走势类型(娇：盘整和趋势），在次级别图上是很明显的，根本就不用着再看次级别下面级别的图了。",
+          "before_body_end": true,
+          "editor_note_flag": true,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 25,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 26,
+          "text": "缠中说禅盘整：在任何级别的任何走势中，某完成的走势类型只包含一个缠中说禅走势中枢，就称为该级别的缠中说禅盘整。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 27,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 28,
+          "text": "缠中说禅趋势：在任何级别的任何走势中，某完成的走势类型至少包含两个以上依次同向的缠中说禅走势中枢，就称为该级别的缠中说禅趋势。该方向向上就称为上涨，向下就称为下跌。注意，趋势中的缠中说禅走势中枢之间必须绝对不存在重叠。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 29,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 30,
+          "text": "“缠中说禅技术分析基本原理一”：任何级别的任何走势类型终要完成。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 31,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 32,
+          "text": "“缠中说禅技术分析基本原理二”：任何级别任何完成的走势类型，必然包含一个以上的缠中说禅走势中枢。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 40,
+          "text": "这里最大的也是唯一的难点在于“走势类型的延伸”。例如一个盘整，三个重叠的连续次级别走势类型后，盘整就可以随时完成，也就是说，只要三个重叠的连续次级别走势类型走出来后，盘整随时结束都是完美的，但这可以不结束，可以不断延伸下去，不断围绕这缠中说禅中枢上上下下地延伸下去直到无穷都是可以的。这有点像一个雏男在某种标准达到后就具有立刻成为面首的条件，随时可以被面首，但却也可以一直坚持下去，一直自我封闭，一直不让消费，最后把自己给浪费掉了，直到最后变成一个烂苹果。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 41,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 42,
+          "text": "同样，面对趋势，形成两个依次同向的缠中说禅走势中枢后，任何趋势都可以随时结束而完美，但也可以不断地延伸下去，形成更多的中枢。这种情况在实际操作中太常见了，如果这趋势是向上的，会不断上涨，看看600519之类的图，如果把复权算上，就可以看到一个标准的不断延伸的上涨。大盘2005年见底后的30分钟图上，同样可以看到这种情况。很多人抓不住牛股，经常在第一个中枢时就被震下马，最主要就是对此没有明确的认识。反之，对于下跌的延伸，是所有抄底者的噩梦。逃顶、抄底为何难？归根结底就是这“走势类型的延伸”闹的。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 43,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 44,
+          "text": "如何判别“走势类型延伸”是否结束？这里，必须首先搞清楚，“走势类型延伸”的实质是什么？对于趋势来说，其“延伸”就在于同级别的同向“缠中说禅走势中枢”不断产生；而对于盘整来说，其“延伸”就在于不能产生新的“缠中说禅走势中枢”。由于“走势类型延伸”意味着当下的“走势类型”随时可以完成，因此相应的“类型”必然是确定的，因此“走势类型延伸”是否结束的判断关键就在于是否产生新的“缠中说禅走势中枢”。此外，由于趋势至少包含两个“缠中说禅走势中枢”，而盘整之有一个，因此趋势与盘整的判别关键也就在于是否产生新的“缠中说禅走势中枢”。由此可见，“缠中说禅走势中枢”的问题是技术分析中的核心问题，该问题一旦解决，很多判断上的大难题也将引刃而解。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 45,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 46,
+          "text": "(娇注：判断盘整延伸结束是产生3买卖。判断趋势延伸结束是同级别走势回拉中枢--3买卖后扩展或者非标准趋势延伸9段成大中枢。出3买卖趋势有延伸可能--中枢上移或者扩展大中枢的前者，不出3买卖盘整延伸。",
+          "before_body_end": true,
+          "editor_note_flag": true,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 47,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 48,
+          "text": "一句话，次级别走势或者本级别能否回到中枢为判断标准。趋势类型后走势回中枢，趋势延伸结束。盘整类型后次级别不能拉回中枢，盘整延伸结束。）",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 49,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 50,
+          "text": "“缠中说禅走势中枢定理一”：在趋势中，连接两个同级别“缠中说禅走势中枢”的必然是次级别以下级别(娇注：次级别以及次级别以下级别）的走势类型。",
+          "before_body_end": true,
+          "editor_note_flag": true,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 51,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 52,
+          "text": "用反证法，该定理的证明是很简单的，而这也回答了上一章中的作业一“连接两相邻同级别缠中说禅走势中枢的一定是趋势吗？一定是次级别的趋势吗？”首先，这不必然是趋势，任何走势类型都可能，最极端的就是跳空缺口后形成新的“缠中说禅走势中枢”；其次，也不一定是次级别的，只要是次级别以下，例如跳空缺口，就属于最低级别，如果图上是日线、周线，就不会是次级别了；最后，往往相连走势类型的级别越低，表示其力度越大，这也就是为什么缺口在分析中有比较强技术含义的理论依据所在。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        }
+      ]
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/020-第20课.md",
+      "sha256": "25f8f0bbe9ffbab48a27b552a081ff3925b6c01bfe1cae30c2616fe9b99b49ef",
+      "body_end": 94,
+      "lines": [
+        {
+          "line": 30,
+          "text": "一、走势中枢以及其延伸。这种情况下，所有围绕走势中枢产生的前后两个次级波动都必须至少有一个触及走势中枢的区间。否则，就必然产生一个新的三次连续次级走势类型的重叠部分离开原来的走势中枢，这与走势中枢的延续矛盾。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 40,
+          "text": "缠中说禅走势级别延续定理一：在更大级别缠中说禅走势中枢产生前，该级别走势类型将延续。也就是说，只能是只具有该级别缠中说禅走势中枢的盘整或趋势的延续。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 41,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 42,
+          "text": "看看去年指数的走势，就知道该定理的重要。很多人总是说，怎么都涨那么多了还涨，明白这个定理，就知道，要这个市场跌，现在这种最多只出现过日线走势中枢的走势，在周线走势中枢出现前，不可能结束。而且，从去年8月份开始的走势，甚至连日线的走势中枢都没形成过，最多就是30分钟的，要结束这种走势，首先要形成日线的中枢。明白这个定理，就不会整天自己吓自己。这里由定理一很简单就能证明一个更重要的定理对走势改变给一个更精确、预先的界定：",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 43,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 44,
+          "text": "缠中说禅走势级别延续定理二：更大级别缠中说禅走势中枢产生，当且仅当围绕连续两个同级别缠中说禅走势中枢产生的波动区间产生重叠。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 52,
+          "text": "对于第一种有a1=b1,b2=c2；对第二种有a2=b2,b1=c1。但无论是哪种情况，中枢的公式都可以简化为[max（a2,c2），min（a1,c1）]。显然，A、C段，其方向与中枢形成的方向是一致的，由此可见，在中枢的形成与延伸中，由与中枢形成方向一致的次级别走势类型的区间重叠确定。例如，回升形成的中枢，由向上的次级别走势类型的区间重叠确定，反之依然。为方便起见，以后都把这些与中枢方向一致的次级别走势类型称为Z走势段，按中枢中的时间顺序，分别记为Zn等，而相应的高、低点分别记为gn、dn,定义四个指标：GG=max(gn),G=min(gn),D=max(dn),DD=min(dn)，n遍历中枢中所有Zn。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 53,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 54,
+          "text": "特别地，再定义ZG= min(g1、g2),ZD=max(d1、d2)，显然，[ZD，ZG]就是缠中说禅走势中枢的区间，由此有了如下定理：",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 55,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 56,
+          "text": "缠中说禅走势中枢中心定理一：走势中枢的延伸等价于任意区间[dn，gn]与[ZD，ZG]有重叠。换言之，若有Zn，使得dn>ZG或gn<ZD，则必然产生高级别的走势中枢或趋势及延续。（注：3买卖点后中枢移动趋势延续或者3买卖点后中枢扩展成高级别中枢）",
+          "before_body_end": true,
+          "editor_note_flag": true,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 57,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 58,
+          "text": "缠中说禅走势中枢中心定理二：前后同级别的两个缠中说禅走势中枢，后GG<前DD，等价于下跌及其延续；后DD>前GG等价于上涨及其延续。后ZG<前ZD且后GG>=前DD，或后ZD>前ZG且后DD=<前GG，则等价于形成高级别的走势中枢。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 59,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 60,
+          "text": "由定理一，可以得到第三类买卖点定理：一个次级别走势类型向上离开缠中说禅走势中枢，然后以一个次级别走势类型回试，其低点不跌破ZG，则构成第三类买点；一个次级别走势类型向下离开缠中说禅走势中枢，然后以一个次级别走势类型回抽，其高点不升破ZD，则构成第三类卖点。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        }
+      ]
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/035-第35课.md",
+      "sha256": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023",
+      "body_end": 38,
+      "lines": [
+        {
+          "line": 14,
+          "text": "个人的理解能力之间相差太大，自然就有先后之别，因此用一堂课给基础差的同学补补课也是应该的，而且很多自以为基础好、明白的，看看也有益，有些细微处的理解也不一定能完全到位。前面课程，最基础的无非两方面，一、中枢；二、走势类型及其连接。这两方面相互依存，如果没有走势类型，中枢也无法定义；而没有中枢，走势也无法分出类型。如果理论就此打住，那么一个循环定义就不可避免。要解决该循环，级别的概念是不可缺少的。有了级别，一个严格的递归式定义才可以展开。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 15,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 16,
+          "text": "所谓的最低级别，就如量子力学的量子概念，物理世界不是想当然地无限连续的，而市场的交易同样如此。最严格去定义，每笔的交易是最低级别的，连续三笔相同价位的交易，就构成最低级别的中枢。有一个最低级别中枢的走势，就是最低级别的盘整走势类型；有两个最低级别中枢的走势，就是最低级别的趋势走势类型，如果第二个中枢比第一个高，那就是上涨走势类型，反之就是下跌走势类型。一般来说，假设依次存在着N（N>2）个中枢，只要依次保持着第N个中枢比N-1个高的状态，那么就是上涨走势类型的延续；依次保持着第N个中枢比N-1个低的状态，就是下跌走势类型的延续。显然，根据上面的定义，在最低级别的上涨里，只要也只有出现依次第N个中枢不再高于、即等于或低于第N-1个的状态，才可说这最低级别的上涨结束。最低级别下跌的情况与此相反。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 17,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 18,
+          "text": "上面就用最低级别的中枢把走势在最低级别上进行了完全分类，而三个连续的最低级别走势类型之间，如果发生重叠关系，也就是三个最低级别走势类型所分别经过的价格区间有交集，那么就形成了高一级别的缠中说禅中枢。有了该中枢定义，依照在最低级别上的分类方法，同样在高级别上可以把走势进行完全的分类，而这个过程可以逐级上推，然后就可以严格定义各级别的中枢与走势类型而不涉及任何循环定义的问题。但如果按严格定义操作，必须从最低级别开始逐步确认其级别，太麻烦也没多大意义，所以才有了后面1、5、15、30、60分钟，日、周、月、季、年的级别分类。在这种情况下，就可以不大严格地说，三个连续1分钟走势类型的重叠构成5分钟的中枢，三个连续5分钟走势类型的重叠构成15或30分钟的中枢等话。在实际操作上，这种不大严格的说法不会产生任何原则性的问题，而且很方便，所以就用了，对此，必须再次明确。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 19,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 20,
+          "text": "以上这些，都在前面反复提到，但很多人好象还是糊涂，不妨最后再说一次。显然，站在任意一个固定级别里，走势类型是可以被严格划分的。例如，说一个5分钟的走势类型，显然不可能包含一个30分钟的中枢，因为按定义，一个单独的5分钟走势类型无论如何延续，也不可能出现一个30分钟的中枢。要形成一个30分钟的中枢，显然只能是3个以上5分钟走势类型的连接才可能。走势类型与走势类型的连接，这两个概念不可能有任何含糊的地方。5分钟走势类型，必须包含也最多包含5分钟级别中枢，至于是1个还是5个，都不影响是5分钟走势类型，只不过可被分类成是5分钟级别的盘整类型还是趋势类型而已。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 21,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 22,
+          "text": "显然，一个高级别的走势类型必然就是由几个低级别的走势类型连接而成，但不一定都是次级别的走势类型，例如，a+B+b，B是30分钟中枢，由3个5分钟走势类型构成，a、b是1分钟走势类型，那么a+B+b这个30分钟走势类型就能分解成2个1分钟走势类型和3个5分钟走势类型的连接。但我们还可以通过拆散重分，使得一个高级别的走势类型必然就是由几个次级别的走势类型连接而成，由于中枢里至少有三段次级别走势类型，所以就有了“缠中说禅走势分解定理二“：任何级别的任何走势类型，都至少由三段以上次级别走势类型构成。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 23,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 24,
+          "text": "例如，还是上面a+B+b的例子，估计很多人怎么都看不出为什么这分解定理一定成立。其实，不妨假设B中有三段5分钟走势类型，分别表示为B1、B2、B3，那么a+B+b=a+ B1+B2+B3+b=（ a+ B1）+B2+（B3+b），显然（ a+ B1）、B2、（B3+b）都是5分钟走势类型，这就是该分解定理所说的东西。学过一点抽象代数的都容易理解上面的话，用抽象的话说，就是走势类型连接这种运算是符合结合律的。但走势类型的连接运算不符合交换率，这就是该运算的特别之处。只要明白了走势类型连接运算的结合性，那就不难同时明白“缠中说禅走势分解定理一”：任何级别的任何走势，都可以分解成同级别“盘整”、“下跌”与“上涨”三种走势类型的连接。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        }
+      ]
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/037-第37课.md",
+      "sha256": "f360d985b3f3b1fa567ca13e15f2ffaf9eae39dbb418519f75d1f6175ac70753",
+      "body_end": 40,
+      "lines": [
+        {
+          "line": 16,
+          "text": "没有趋势，没有背驰，不是任何a+A+b+B+c形式的都有背驰的。当说a+A+b+B+c中有背驰时，首先要a+A+b+B+c是一个趋势。而一个趋势，就意味着A、B是同级别的中枢，否则，就只能看成是其中较大中枢的一个震荡。例如，如果A的级别比B大，就有a+A+b+B+c=a+A+（b+B+c），a与（b+B+c）就是围绕中枢A的一些小级别波动。这样，是不存在背驰的，最多就是盘整背驰。当然，对于最后一个中枢B，背驰与盘整背驰有很多类似的地方，用多义性，可以把b、c当成B的次级波动。但多义性只是多角度，不能有了把b、c当成B的次级波动这一个角度，就忘了a+A+b+B+c是趋势且A、B级别相同的角度。多义性不是含糊性，不是怎么干怎么分都可以，这是必须不断反复强调的。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 17,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 18,
+          "text": "其次，c必然是次级别的，也就是说，c至少包含对B的一个第三类买卖点，否则，就可以看成是B中枢的小级别波动，完全可以用盘整背驰来处理。而b是有可能小于次级别的，力度最大的就是连续的缺口，也就是说，b在级别上是不能大于c的。例如，如果b是次级别，而c出现连续缺口，即使c没完成，最终也延续成次级别，但c是背驰的可能性就很小了，就算是，最终也要特别留意，出现最弱走势的可能性极大（扩展后续涨续跌）。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 19,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 20,
+          "text": "还有，如果a+A+b+B+c是上涨，c一定要创出新高；a+A+b+B+c是下跌，c一定要创出新低。否则，就算c包含B的第三类买卖点，也可以对围绕B的次级别震荡用盘整背驰的方式进行判断。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 21,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 22,
+          "text": "对c的内部进行分析，由于c包含B的第三类买卖点，则c至少包含两个次级别中枢，否则满足不了次级别离开后次级别回拉不重回中枢的条件。这两个中枢构成次级别趋势的关系，是最标准最常见的情况，这种情况下，就可以继续套用a+A+b+B+c的形式进行次级别分析确定c中内部结构里次级别趋势的背驰问题，形成类似区间套的状态，这样对其后的背驰就可以更精确地进行定位了。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        }
+      ]
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/043-第43课.md",
+      "sha256": "f28824c26843e5799ad8f07db6bb9b02956d0fc7ac97d9d3d2fc70a7c3004909",
+      "body_end": 52,
+      "lines": [
+        {
+          "line": 18,
+          "text": "转折必然由背驰导致，但背驰导致的转折并不一定是同一级别的。在“教你炒股票29：转折的力度与级别”中有“缠中说禅背驰-转折定理：某级别趋势的背驰将导致该趋势最后一个中枢的级别扩展、该级别更大级别的盘整或该级别以上级别的反趋势。”这是一个十分重要的定理，这定理说明了什么？就是某级别的背驰必然导致该级别原走势类型的终止，进而开始该级别或以上级别的另外一个走势类型。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 19,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 20,
+          "text": "由于不允许“上涨+上涨”、“下跌+下跌”的情况，所以，这定理对实际操作就很有意义了。例如，一个1分钟级别的顶背驰，就意味着必然导致一个至少1分钟级别的盘整或下跌走势类型，这就为背驰以后可能的走势以及级别给出了很明确的划定。有人经常问，为什么1分钟顶背驰后还涨，那有什么奇怪的，只要有一个1分钟的盘整，那就可以继续涨，这是1分钟顶背驰后可能的情况之一，(注：背驰后中枢扩展）",
+          "before_body_end": true,
+          "editor_note_flag": true,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 21,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 22,
+          "text": "![缠论第43课：有关背驰的补习课-图片1](https://www.fengmr.com/wp-content/uploads/2022/05/img_627091af01bdf.png)",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 23,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 24,
+          "text": "当然，还有其他可能的情况，例如，最极端的，制造出一个年线级别的下跌，但不能说这个制造是由于1分钟顶背驰造成的，因为这是1分钟顶背驰后，形成的盘整或下跌逐步级别扩张，最后才慢慢形成的，如果随便看到一个1分钟顶背驰就说要形成年线级别大调整，那就是脑子水太多了。如果市场的转折与背驰都有这在级别上一一对应关系，那这市场也太没意思、太刻板了，而由于这种小级别背驰逐步积累后导致大级别转折的可能，才使得市场充满当下的生机。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 25,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 26,
+          "text": "注意，这两种不同的转折方式的区分是十分关键的。所有的转折都与背驰相关，但加上背驰的级别与当下走势级别的关系，就有了这两种不同的转折方式。由于背驰的级别不可能大于当下走势的级别，例如一个30分钟级别的背驰，只可能存在于一个至少是30分钟级别的走势类型中，所以就有这两种不同转折方式的明确分类。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 27,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 28,
+          "text": "一、背驰级别等于当下的走势级别",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 29,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 30,
+          "text": "例如，一个30分钟的走势类型，出现一个30分钟级别的背驰，那么这个背驰至少把走势拉向该30分钟走势最后一个中枢，当然就会跌破或升破相应的高点或低点。注意，这种情况包括进入背驰段的情况，(注：趋势背驰与盘整背驰）例如，一个30分钟的走势类型，在30分钟级别进入背驰段，当然，这个背驰段并不一定就演化成背驰，因为，小级别的延伸足以使得大级别最终摆脱背驰，这与当下的走势判断相关。",
+          "before_body_end": true,
+          "editor_note_flag": true,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 31,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 32,
+          "text": "二、背驰级别小于于当下的走势级别",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 33,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 34,
+          "text": "这种情况下，是走势已经明显没有相应级别的背驰，例如，一个30分钟的走势类型，明确显示没有出现30分钟的背驰，也就是背驰段最终不成立，但却出现一个1分钟级别的背驰，用一个最简单的形式向上的a+A+b+B+c，A、B是30分钟中枢，在c中出现1分钟背驰，而c对b在30分钟级别并没有出现背驰，这时候并不必然保证c的1分钟转折的最终走势就一定不跌回B里，但即使这个回跌出现，其形式也和第一种情况不同。这第二种情况，必然要先形成一个比1分钟级别要大的中枢，然后向下突破，最终形成回跌到B中的走势。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 35,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 36,
+          "text": "![缠论第43课：有关背驰的补习课-图片2](https://www.fengmr.com/wp-content/uploads/2022/05/img_627091c56b20d.png)",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 37,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 38,
+          "text": "有人可能要问，第一种情况中如果是5分钟级别的回跌，也会形成一个比1分钟级别大的中枢，那和第二种情况有什么区别？这区别太大了，在第一种情况中，其回跌是必然的，而第二种情况，在形成一个比1分钟大的中枢后，并不必然回跌，可以往上突破，使得a+A+b+B+c继续延伸。(娇：上下中枢的区别）.",
+          "before_body_end": true,
+          "editor_note_flag": true,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 39,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 40,
+          "text": "这种小级别背驰最终转化成大级别转折的情况，最值得注意的，是出现在趋势走势的冲顶或赶底之中，这种情况一般都会引发大级别的转折，这种例子前面都说过，例如20070104的工行，20061207的北辰实业、20070122的水井坊等。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 41,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 42,
+          "text": "以上两种情况，对走势的分解也是很有意义的，例如对一个30分钟的走势类型，其完结也同样有相应的两种情况，最普通的一种，例如出现一个30分钟的背驰，从而完成一个30分钟级别走势类型，在这种情况下，对该走势类型的分解就不存在任何含糊的地方，前后两个走势类型，就以该背驰点为分界；至于小级别背驰引发大级别转折的情况，这种情况比较复杂，但分解的原则是一致的，就是：",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 43,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 44,
+          "text": "缠中说禅走势类型分解原则：一个某级别的走势类型中，不可能出现比该级别更大的中枢，一旦出现，就证明这不是一个某级别的走势类型，而是更大级别走势类型的一部分或几个该级别走势类型的连接。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 45,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 46,
+          "text": "这里，把上面第二种情况下的分解可能分析如下：",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 47,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 48,
+          "text": "不妨还是以上面向上30分钟级别的a+A+b+B+c为例子，在c中出现一个1分钟级别背驰，不妨假设后面演化出一个30分钟中枢C，如果C和B没有任何重叠，那就意味着原来的a+A+b+B+c并不是一个完成了的30分钟走势类型，该走势类型将延伸为a+A+b+B+c+C，相应的分解要等到该走势类型完成了才可以进行；如果C和B有重合，那么a+A+b+B+c+C=a+A+b+（B+c+C），其中（B+c+C）必然演化成(注：纯中枢分解）一个日线中枢，那么a+A+b+B+c只是一个日线级别走势类型的一部分，如果一定要按30分钟级别来进行同级别分解，那么该分解点就是那1分钟的背驰点，a+A+b+B+c+C=（a+A+b+B+c）+C。（注：同级别分解）",
+          "before_body_end": true,
+          "editor_note_flag": true,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        }
+      ]
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/057-第57课.md",
+      "sha256": "ddf81002acbebfa198320e44d63093e915cce8e73dcc102bdba93b3ca164973f",
+      "body_end": 48,
+      "lines": [
+        {
+          "line": 26,
+          "text": "对着图，首先要确定最小分析级别，也就是说，这级别以下的都可以看成是线段，而站在最小分析级别的角度，每一线段就是其次级别走势类型，三个线段重合部分就构成最小分析级别的中枢。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 27,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 28,
+          "text": "当然这些线段本身，可能都属于不同级别，这问题在前面已经说过了。例如本图，最小分析级别先规定为1分钟级别的，所以所有1分钟级别以下的，都是线段，在图上标记着数字，所有的[N，N+1]，都是线段。有人可能要问，01段是跳空缺口，23段上上下下，很复杂，怎么都是线段？因为这都不是1分钟的走势类型，里面没有1分钟的中枢，所以都是1分钟以下级别的，虽然缺口是最低级别的，当然比23段这种要低级别，但在1分钟级别显微镜下，没有区别，都可以看成是没有内部结构的线段。当然，如果你要考察23段的内部结构，也是可以的，但那就不是站在1分钟级别的基础上了。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 29,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 30,
+          "text": "由此可见，上图可以看成是10段线段构成的，线段中的波动，至少在分析1分钟级别的角度，就是可以忽略不计的。这里有一个地方是可能有疑问的，在23、78段5个带绿箭头指着的地方，似乎可以看成是一线段，但为什么没有？因为在这似乎是三段的结构中，第三段的都太微弱，把图形缩小后几乎就看不到了，对比一下89段带绿箭头的地方，这第三段就明显不同了，所以这是一个1分钟以下级别的上下上结构，而前面的不是。当然，如果你一定要说78段那箭头的地方很明显，那么78、89就合成一线段的上涨趋势了，这也可以，只是如果你是按这个标准的，那么所有和78段箭头位置微弱程度一样的，都要这样处理。本ID还是按图上的标记线段。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 31,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 32,
+          "text": "线段有了以后，一切都好分析了。当然，在当下时，例如在今早9点30分钟，是没有后面的线段的，但线段的标准，是一样的。你可以很精细地分析56段，是一个上下上的内部结构，其中下一段是跳空缺口，但无论如何，这就是一个线段。不过，由于前面12、23、34构成的中枢只有1分钟级别的，那么其构成第三类卖点的次级别就是1分钟以下级别的线段，这时候，就要考察一个有上下上结构的1分钟的次级别结构了，而56段显然符合这个结构，有明显的上下上，而45段也是符合1分钟次级别的要求的，注意，当考察1分钟的次级别时，就不能笼统地把所有1分钟以下的都看成1分钟的次级别了，因为这里的视点已经不同。显然，这个的45、56，就构成了标准的次级别离开中枢与反抽中枢，而这1分钟中枢的区间是[4087，4122]，而56段只到了4077，所以这就是第三类卖点了。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        }
+      ]
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/061-第61课.md",
+      "sha256": "2451e6d514b37aa5da00ca608a88fb46c8e31fe8859226534be7deb6c1007573",
+      "body_end": 56,
+      "lines": [
+        {
+          "line": 26,
+          "text": "要比较力度，发现背驰，首先要搞清楚是哪两段比较，其实，只要是围绕一中枢的两段走势都可以比较力度。显然，对于60-65这个1分钟中枢，55-60与65开始的一段之间就可以比较。在实际操作中，65开始的走势，由于没实际走出来，所以在和55-60比较时，都可以先假设是进入背驰段。而当走势实际走出来，一旦力度大于前者，那么就可以断定背驰段不成立，也就不会出现背驰。在没有证据否定背驰之前，就要观察从65开始的一段其内部结构中的背驰情况，这种方法可以逐次下去，这就是区间套的定位方法，这种方法，可以在当下精确地定位走势的转折点。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 27,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 28,
+          "text": "对于65开始背驰段的内部走势，当下走到69时，并不构成任何背驰，为什么？因为背驰如果没有创新高，是不存在的。所以，只有等70点出现时，大盘才进入真正的背驰危险区。由于69-70段与67-68段比并没有盘整背驰，所以70点并没有走的理由，除非你是按线段以下级别操作的。而71点，构成对66-69这1分钟中枢的第三类买点。按照本ID的理论，其后无非只有两种情况，中枢级别扩展或者走出新的中枢上移。对后者（走出新的中枢上移），一个最基本的要求就是，从71点这第三类买点开始的向上段不能出现盘整背驰；而在实际中，不难发现，71点开始的走势力度明显比不上69-70段，而对于65-66段，69开始的走势力度也明显比不上，这从两者下面对应的MACD红柱子面积之和可以辅助判断。(娇注：盘背比较先最近同向一段再中枢两头）",
+          "before_body_end": true,
+          "editor_note_flag": true,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        }
+      ]
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/084-第84课.md",
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26",
+      "body_end": 68,
+      "lines": [
+        {
+          "line": 52,
+          "text": "其次，分型只是中枢与走势级别递归定义的一个启始程序，甚至可以说，并不是本ID理论中必然需要的东西，其目的，不过是为了中枢等的递归性定义中给出其最开始的部分，完全可以用别的定义去取代。例如，我们可以用收盘的价位去定义顶分型、低分型结构，也可以用成交量给出相应的递归开始部分，只要能保证分解的唯一性，就可以。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 53,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 54,
+          "text": "本ID关于中枢等的定义，其实一直没有改变过，因为中枢定义的关键，在于定义的递归性。一般的递归定义，由两部分组成，一、f1(a0)=a1；二、f2(an)=an+1；关于第二条的中枢过程规则，是一直没有任何改变的，而关于第一条，其实，可以随意设置任何的，都不会改变中枢定义的递归性。而且，任何有点数学常识的都知道，f1(a0)=a1之前是不需要再有什么递归性的，也就是，一和二之间的f1、f2可以是完全不同的两个函数。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 55,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 56,
+          "text": "有些人一直还搞不清楚中枢，就是一直都搞不清楚这点。例如，可以用分型、线段这样的函数关系去构造最低级别的中枢、走势类型，也就是一中的a1，而在二中，也就是最低级别以上，可以用另一套规则去定义，也就是有着和f1完全不同的f2。这个问题其实太简单了，有点数学常识都不会有疑问，所以这问题，以后就不再说了。",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        }
+      ]
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+      "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+      "body_end": 204,
+      "lines": [
+        {
+          "line": 263,
+          "text": "**第一层・结构层**：先定比哪两段。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 264,
+          "text": "- 趋势背驰 = c 段 vs b 段（031:881【答疑】缠师亲口；第24课的 A 段即此处 b 段，同一对段两种读法）；须满足 037:16-22【正文】五条结构前提（见上「原文谱系·第37课」）。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 265,
+          "text": "- 盘整背驰的比较对象（#814 D-3 裁定）：**拿这次冲出中枢的那一段，跟往回最近的一次同方向跨界段比——首次离开时 = 进入段；反复震荡时 = 上一次冲出去的那段。** 只算**跨过中枢边界**的段（进入段、离开段）；中枢内部的震荡段是中枢的构造材料，不参与力度比较。`[新缠论:推论]`——061:26 与 049:38 不是两条规则，是同一条规则的两种情况：「往回最近的同方向跨界段」在首次离开时恰好是进入段，反复震荡时恰好是上次离开段；趋势背驰的 c vs b（031:881【答疑】，见上）也是这条规则（b 是进入最后那个中枢的段），这正解释了缠师为何说盘整背驰是趋势背驰方法的「推广用法」（053:24【正文】）。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 266,
+          "text": "  - `061-第61课.md:26`【正文】「要比较力度，发现背驰，首先要搞清楚是哪两段比较，其实，只要是围绕一中枢的两段走势都可以比较力度。显然，对于60-65这个1分钟中枢，55-60与65开始的一段之间就可以比较。」（55-60=进入段，65开始=离开段，两段都在中枢外）",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 267,
+          "text": "  - `049-第49课.md:38`【正文】「注意，用来比较的某段，最标准的情况，当然是前面最近向下的，一般情况下，中枢震荡都是逐步收敛的，这样，如果继续是中枢震荡，后面的向下离开力度一定比前一个小。」",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 268,
+          "text": "  - `053-第53课.md:24`【正文】「a+B+c中，a和c的盘整背驰，其实都可以看成是B的中枢震荡」",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 313,
+          "text": "1. **量的对象是集合**（该段走势覆盖的东西）；**值是一个数**；**没有「不可比」第三态**——要么背驰要么不背驰。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 314,
+          "text": "   「不可比」不是力度自带的性质，只在**不把值压成一个数**时才出现（比两条分布曲线、曲线交叉）；[#856](https://github.com/xy7365527-lang/NewChanlun/issues/856) 实测的 56 条不可比来自一阶随机占优构造，**而那套构造已被同一张票证伪**。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 315,
+          "text": "2. **定义域 = 围绕同一中枢的段**，不是任意走势段。依据 `061-第61课.md:26`【正文】「**只要是围绕一中枢的两段走势都可以比较力度**」。加递归穷尽 ⟹ 父 = 进入段 + 中枢 + 离开段，无剩余。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 316,
+          "text": "   **注**：`a+b+c=父` 仍推不出 a 与 c 谁大——此条使问题变小，未消掉横向那道坎。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 317,
+          "text": "3. **定义在「进行中的段」上，是随时间演化的量**——段一开始就有值、一直在长；背驰 = 当下的 `L(c)` 比已完成的 `L(b)`，**不需等 c 完成**。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 318,
+          "text": "   `024-第24课.md:24`「C 段的走势类型**完成时**……构成**标准的**背弛」读作**标准背驰的确认时刻**（数走完最硬），**不是 `L` 的定义域限制**。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 319,
+          "text": "4. **★「完成」由背驰定义，归动力学。**",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 320,
+          "text": "   **成因是一个真循环**：要算背驰须先知段完成 → 「完成」= 不再延续 = 不再产生同向新中枢 → **而这正是背驰要推出的结论**（`NE_q`）。此即 `079-第79课.md:52`（「延伸了就证明这地方没出现背驰」）那个循环的根。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 321,
+          "text": "   **裁定把箭头定死**：不是先由形状判出完成再喂给背驰，而是**背驰判出来了就叫完成**。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 322,
+          "text": "   **代价**：「走势类型完成」从此**不是纯形态学**（`072-第72课.md:40` 意义上归动力学）。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 323,
+          "text": "   **连带订正**：`017-第17课.md:52` 基本原理二方向是「完成 ⟹ 含中枢」，是**必要条件不是判据**（[#866](https://github.com/xy7365527-lang/NewChanlun/issues/866) 已判）——不得当作「完成」的独立判据用。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 324,
+          "text": "5. **⚠️ 本条原为「力度是无量纲的比重」——已由 [#873](https://github.com/xy7365527-lang/NewChanlun/issues/873) 订正。**",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 325,
+          "text": "   **订正**：力度 = 速度的净增量（见下「力度的精确定义」节），**是有量纲的**（价格 ÷ 时间）。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 326,
+          "text": "   **这反而更好，不是退步**：速度天然跨级别可比——5 分钟段与日线段都是「每根 K 线涨多少」，同一把尺子，**不必再去凑无量纲**。本条原来引入「比重」正是为了凑跨级别同尺度，那个动机已被消解。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 327,
+          "text": "   **原条文保留在此供追溯**：`μ(a)/μ(D)` 与 `μ(c)/μ(D)` 相比，分母**约掉**（换中枢当分母亦然）⟹ 比较与整体大小无关 ⟹ 力度只需定到「相差一个正倍数」；分子分母同量纲 ⟹ 无量纲。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 328,
+          "text": "   **⟹ 该推理本身不错，错在它解决的是一个不存在的问题**：分母约掉恰恰说明父集不参与，而 [#873](https://github.com/xy7365527-lang/NewChanlun/issues/873) 表明真正让两个不相交的段可比的，是「μ 由一个定义在整条时间轴上的函数 F 导出」，不是绕父做中介。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 329,
+          "text": "   ~~**顺带解决跨级别怎么比**：绝对量下大级别的段天然数值大、没法跨级比；**比重下每级都落在 [0,1]，天然同尺度**——这也让 `018-第18课.md:52`「**往往**相连走势类型的级别越低，表示其力度越大」讲得通（绝对量看是荒谬的，比重看就通）。~~ **（此段随本条一并作废：跨级别同尺度改由「速度是同一把尺子」给出，不需要比重；且 `018:52` 带对冲词「往往」，本就不承重。）**",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 330,
+          "text": "   **⚠️ 本条唯一存活的一句（诊断正确，且已被 [#873](https://github.com/xy7365527-lang/NewChanlun/issues/873) 解决）**：那道坎**不是「a 与 c 不可比」**（两个数当然能比），**而是「μ 本身不唯一」**；换参照救不了它——参照可任意替换即说明它不干活。约分只消掉**整体大小**这一个自由度，**没消掉「形状」**。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 331,
+          "text": "   **⟹ [#873](https://github.com/xy7365527-lang/NewChanlun/issues/873) 的解法**：不去构造 μ，而是取一个定义在整条时间轴上的累积函数 `F = 速度`，令 `μ((a,b]) = F(b) − F(a)`（Lebesgue–Stieltjes）。**F 一定，形状随之定死**——「μ 不唯一」转化为「F 是什么」，而 F 已定。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 332,
+          "text": "6. **⚠️ 本条原为「自由度缩减：力度被一组每级分叉比重定死／给定比重则测度唯一／压缩映射不动点结构」——已由 [#859](https://github.com/xy7365527-lang/NewChanlun/issues/859)（D-2）整体撤回。**",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 333,
+          "text": "   **撤回理由（编排者逐条指出，主控核实）**：① **比重是多余的包装**——本节第 5 条「分母约掉」本身就说明父集不参与比较，再引入比重等于把父集塞回去，自相矛盾；② 那个「自由度缩减」是**买来的**——它靠「每一级用同一套比重（自相似）」这个**未标出的假设**换来，而该假设既非原文所给、亦非推出；③ 压缩映射整套是为「把测度定唯一」造的，而**根本不需要测度**。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 334,
+          "text": "   **本条唯一保留的一句**：力度由段内部的结构决定，且缠论是递归的。**但这句话不构成定义**——见下「留白」。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 335,
+          "text": "",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 336,
+          "text": "### ★力度的精确定义（map #854 / [#873](https://github.com/xy7365527-lang/NewChanlun/issues/873) 裁定，2026-08-03——**D-2「原文空白只能自选」已整体改判**）",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 337,
+          "text": "",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 338,
+          "text": "> **定义：`L(段) = 该段的速度净增量 = v(段末) − v(段初)`；速度在结构给定的最小单元（笔）上量，即「这一笔涨了多少 ÷ 这一笔用了几根 K 线」。**",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 339,
+          "text": ">",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 340,
+          "text": "> **物理上这就是单位质量的冲量（`F·Δt = m·Δv`）——缠师管它叫「力度」，字面即「力」。**",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 341,
+          "text": ">",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 342,
+          "text": "> **名分：`[新缠论:推论]`**（推理链见下，每一步可复核）。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 343,
+          "text": "",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        }
+      ]
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/qushi.md",
+      "sha256": "ce48f8cda6a3f02afd9fddbc0f93cb43431524b66472e579a927af5ce4bc3c46",
+      "body_end": 87,
+      "lines": [
+        {
+          "line": 40,
+          "text": "### 盘整（Panzheng / Consolidation）[旧缠论]",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 41,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 42,
+          "text": "> \"缠中说禅盘整：在任何级别的任何走势中，某完成的走势类型只包含一个缠中说禅走势中枢，就称为该级别的缠中说禅盘整。\" — 第17课",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 43,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 44,
+          "text": "**核心特征**：",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 45,
+          "text": "- 中枢数量：恰好 **1 个「相应级别的」中枢**（限定词由 #815 M-1 补上，见下「#815 M-1 裁定」节——**计数永远相对于指定级别，从来不是绝对的**）",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 46,
+          "text": "- 方向：**无**（第31课L390：\"盘整哪里有什么方向，只有趋势才有方向，这是最基本的概念。\"）",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 47,
+          "text": "  - 数据模型中 `Move.direction` 字段在盘整时填充中枢的 `break_direction`（突破方向），这是技术性标识字段，用于前端展示和走势连接定位，不表示盘整走势类型本身的概念方向",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 48,
+          "text": "- 完成条件：3个连续次级别走势类型重叠形成中枢后即可完成，但可无限延伸",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 49,
+          "text": "- 延伸机制：围绕同一中枢 [ZD, ZG] 反复震荡，不产生新中枢",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 50,
+          "text": "- 背驰类型：**盘整背驰**（力度衰竭不一定终结走势）",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 51,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 52,
+          "text": "### 趋势（Qushi / Trend）[旧缠论]",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 53,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 54,
+          "text": "> \"缠中说禅趋势：在任何级别的任何走势中，某完成的走势类型至少包含两个以上依次同向的缠中说禅走势中枢，就称为该级别的缠中说禅趋势。该方向向上就称为上涨，向下就称为下跌。\" — 第17课",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 55,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 56,
+          "text": "**核心特征**：",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 57,
+          "text": "- 中枢数量：**≥2 个「相应级别的」中枢**（依次同向；限定词同上，#815 M-1）",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 58,
+          "text": "- 方向：**有**（上涨/下跌）",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 59,
+          "text": "  - 上涨：后DD > 前GG（中心定理二，第20课）— **外缘**分离，#815 M-2 裁定，见下",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 60,
+          "text": "  - 下跌：后GG < 前DD（中心定理二，第20课）— 同上",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 61,
+          "text": "- 完成条件：2个依次同向中枢形成后即可完成，但可无限延续",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 62,
+          "text": "- 延伸机制：不断产生新的同向中枢",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 63,
+          "text": "- 背驰类型：**趋势背驰**（必然终结趋势）",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 64,
+          "text": "- 内部结构：a+A+b+B+c（A/B为中枢，a/b/c为连接段）— 第37课",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 65,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 66,
+          "text": "### 趋势中枢间约束 [旧缠论]",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 67,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 68,
+          "text": "> \"缠中说禅走势中枢定理一：在趋势中，连接两个同级别'缠中说禅走势中枢'的必然是次级别以下级别的走势类型。\" — 第18课",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 69,
+          "text": "",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 70,
+          "text": "> \"趋势中的中枢之间必须绝对不存在重叠。\" — 第18课L28",
+          "before_body_end": true,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 88,
+          "text": "- **两处「级别」作用位置不同**：`017:44` 的「该级别」指*这个盘整属于哪一级*；`031:390` 的「相应级别」指*数哪一级的中枢*。**两处合看 ⟹ 级别不是外挂条件，是定义自带的。** `[新缠论:推论]`（推理链：定义句自带级别归属 + 复述句自带计数级别 ⟹ 计数与级别不可分离）。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 89,
+          "text": "- **延伸不增计数** `030-第30课.md:92`【答疑】逐字：「其实没必要考虑什么头肩顶。中枢扩展有精确的数学定义，在一个中枢还延伸的时候，只有一个中枢，不存在中枢1、2的问题。」；`018-第18课.md:44`【正文】：「而对于盘整来说，其\"延伸\"就在于不能产生新的……」",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 90,
+          "text": "- **扩展不放宽计数，而是升级别** `033-第33课.md:196`【答疑】逐字：「盘整+盘整还是盘整，但加多了就是级别大的盘整，这没有什么问题。盘整还有一个级别的问题。」；`023-第23课.md:188`【答疑】：「但两个中枢并没有形成趋势，只形成了中枢的扩展。只有中枢的新生才能形成趋势的。」",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 91,
+          "text": "  **升完在新级别上仍是一个中枢** —— `[新缠论:推论]`（推理链：升级后该段在新级别上只对应一个新级别中枢 ⟹ 新级别上计数回到 1 ⟹ 仍是盘整；与中心定理二 `020:58` 的「形成高级别的走势中枢」那一支同构）。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 92,
+          "text": "",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 93,
+          "text": "### 裁定二：多中枢 `Consolidation` 块 ＝ **标错了级别**，不是标错了名字 `[新缠论:推论]`",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 94,
+          "text": "",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 95,
+          "text": "编排者在两说法中取前者：",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 96,
+          "text": "",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 97,
+          "text": "| | 说法 | 判 |",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 98,
+          "text": "|---|---|---|",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 99,
+          "text": "| **A** | **标错级别** —— 它确实是盘整，但那是**升级之后**那一级的盘整，被就地写在了当前级别上 | **采纳** |",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 100,
+          "text": "| B | 标错名字 —— 在当前级别上它压根不是盘整，须另起名 | 未取：**会跟 `017:44`／`018:28` 的「走势类型只有趋势与盘整」二分完全分类打架** |",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 101,
+          "text": "",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 102,
+          "text": "**推理链**：① 若判 B，则存在既非趋势（中枢≥2 但不同向）又非盘整（中枢≠1）的走势类型 ⟹ 违背二分完全分类；② 而 `033:196` 已给出「加多了就是级别大的盘整」这条出路 ⟹ 该对象在**上一级**上是合法盘整；③ 故病在**升级没做完**，不在叫它盘整。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 103,
+          "text": "",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 104,
+          "text": "**⚠️ 现在升不上去是结构性缺件**：[#812](https://github.com/xy7365527-lang/NewChanlun/issues/812) 的 Z-8 已查出塔往上盖时丢了连接段、路径① 无实现——不是配置问题。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 105,
+          "text": "",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 106,
+          "text": "### 现场比 #815 票面更乱三处（落盘时逐条留痕）",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 107,
+          "text": "",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 108,
+          "text": "1. **票面说「3 处」，实为 4 处** —— 另有 `rust/src/moves.rs:18` 一个**同名不同物**的 `MoveKind`（`zs_count>=2 ? Trend : Consolidation`）。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 109,
+          "text": "2. **全仓没有任何代码执行「`Consolidation` ⟹ 中枢数 == 1」** —— 只是一句注释，冲突在编译期与运行期**都静默**。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 110,
+          "text": "3. **测试固化了错误** —— `rust/src/theta_v0/classifier/decompose.rs:302` 断言 `(MoveKind::Consolidation, None, 0, 1)`，即一个**跨 2 个中枢**的 `Consolidation` 块是正确输出。",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 111,
+          "text": "",
+          "before_body_end": false,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        }
+      ]
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/zhongshu.md",
+      "sha256": "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882",
+      "body_end": null,
+      "lines": [
+        {
+          "line": 24,
+          "text": "| **同级别分解**（在已造好的塔上「选一层去读」） | [#827](https://github.com/xy7365527-lang/NewChanlun/issues/827) 操作分解层 | S-6：构造只有一套（自底向上递归塔），读法可多。第 38 课「5 分钟延伸出 6 段就当成两个 30 分钟盘整的连接」（`038-第38课.md:22`）不是重新造中枢 |",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 25,
+          "text": "| **升级的跨层结构**（子中枢数减少导致上级凑不够 3 个单元） | [#827](https://github.com/xy7365527-lang/NewChanlun/issues/827) 要裁项 6 | 编排者 2026-07-31 定性「这又是一个架构问题」 |",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 26,
+          "text": "| **中枢形态**（收敛三角形 / 奔走型 / 平台型） | 不设——见 §8.1 | S-1 |",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 27,
+          "text": "| **PH-中枢** | 不是缠论中枢——见 §8.2 | Z-7 |",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 28,
+          "text": "",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 29,
+          "text": "**★ S-6 的三处张力消解**（构造唯一 / 读法可多，两句说的不是同一件事）：",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 30,
+          "text": "",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 31,
+          "text": "| 张力 | 消解 |",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 32,
+          "text": "|---|---|",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 33,
+          "text": "| `060-第60课`「当下分解的多样性……每种都符合理论」↔ 划分唯一 | 造唯一、读可多 |",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 34,
+          "text": "| `038-第38课.md:22`「同级别分解中**不需要中枢延伸或扩展的概念**」↔ 塔每级延伸窗口占 48%–55% | 读的时候不需要，造的时候需要 |",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 35,
+          "text": "| `038-第38课.md:18`「一个好的分解……必须保证分解的唯一性」↔ 多义性 | 唯一性落在**每一种读法内部** |",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 36,
+          "text": "",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 37,
+          "text": "实测背书（[#826](https://github.com/xy7365527-lang/NewChanlun/issues/826)，BTC 461 万根 1 分钟 K）：塔与第 38 课直译口径在 L0 只有 **21.5%** 窗口完全相同（12,060 vs 9,260）；塔**每一级**延伸窗口占 48.1%–55.3%，没有任何一级关掉延伸。⟹ 塔没有「固定操作级别」这个概念。**两条分解方式都合法，本仓选了「非同级别分解」那条却从未声明过——本条即该声明。**",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 132,
+          "text": "### 2.1 【S-5】递归基 `a₀` = 线段中枢",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 133,
+          "text": "",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 134,
+          "text": "> **`a₀` = 最小分析级别中枢，构件为线段。**（`057-第57课.md:26`：「对着图，首先要确定最小分析级别……三个线段重合部分就构成最小分析级别的中枢。」）",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 135,
+          "text": ">",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 136,
+          "text": "> **缠论笔不作递归基**——缠师明文否决，且给的是**工程理由**而非命名理由。",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 137,
+          "text": ">",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 138,
+          "text": "> **「三根该级别单位 K 线重叠」（`017-第17课.md:40`）与「连续三笔相同价位的交易」（`035-第35课.md:16`）保留为合法备选 `a₀`**，依第 84 课授权，本仓不选用。",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 139,
+          "text": ">",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 140,
+          "text": "> **`a₀` 之上的递归步 `f₂` 与 `a₀` 的取法无关**——这是缠师本人的分层。",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 141,
+          "text": "",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 142,
+          "text": "**① 底可以随便选，是缠师自己声明的分层** —— `084-第84课.md:54`：",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 143,
+          "text": "",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 144,
+          "text": "> 「本ID关于中枢等的定义，其实一直没有改变过……一般的递归定义，由两部分组成，一、f1(a0)=a1；二、f2(an)=an+1；关于第二条的中枢过程规则，是一直没有任何改变的，而关于第一条，其实，可以随意设置任何的，都不会改变中枢定义的递归性……f1、f2 可以是完全不同的两个函数。」",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 145,
+          "text": "",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 146,
+          "text": "⟹ 第 17 课「三根 K 线」与第 35 课「三笔成交」不是前后矛盾，是同一个 `f₂` 下的不同 `a₀`。**「原文口径改过」这个假设就此排除。**",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 147,
+          "text": "",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 148,
+          "text": "**② 笔被明文否决，理由是工程稳定性** —— `083-第83课.md:14`：",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 149,
+          "text": "",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 150,
+          "text": "> 「一个最简单的问题，为什么不能由笔构成最小中枢？……因为实质上，我们是可以设计这样的程序，也就是用笔当成构成最小中枢的零件，但这样构造出来的系统，其稳定性极差。」",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 151,
+          "text": "",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 152,
+          "text": "`083-第83课.md:16`：",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 153,
+          "text": "",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 154,
+          "text": "> 「众所周知，一笔的基础是顶和底分型，而一些瞬间的交易，就足以影响其结构。例如，突然有人打错单，或者有人给老鼠仓送货，那么全天走势的分析就大变样了。而由线段构成最小中枢，则不存在这个问题……线段受偶尔性的影响比较少。」",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 155,
+          "text": "",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 156,
+          "text": "**这条比 `064:34`（命名层）更硬**：它承认笔层可实现，但判其系统稳定性不合格。",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 157,
+          "text": "",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 158,
+          "text": "**③ 线段是后期操作正本** —— `057-第57课.md:26`；`063-第63课.md:22`「有了线段，就可以定义 1 分钟的中枢」，其后逐级递归。",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 159,
+          "text": "",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 160,
+          "text": "### 2.2 【S-2】类中枢：名分独立，且**不绑定构件**",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 161,
+          "text": "",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 162,
+          "text": "> **中枢只建在线段及以上的走势类型单元上。线段以下的三段重叠称「类中枢」，是独立概念，不共用「中枢」之名。**",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 163,
+          "text": "",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 164,
+          "text": "`064-第64课.md:34`：",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 165,
+          "text": "",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 166,
+          "text": "> 「（注意，站在严格意义上，**线段以下是没有中枢的**，所以说是**类中枢**）」",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 167,
+          "text": "",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 168,
+          "text": "缠师在解盘中一贯守此用词（`069`/`075`/`087`/`094`/`098`/`099` 等课：类中枢、类背驰、类第三类买点，从不称中枢）。",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 169,
+          "text": "",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        },
+        {
+          "line": 170,
+          "text": "**理由**：中枢的定义要件是「三个次级别**走势类型**重叠」，而笔不是走势类型（笔无内部结构，只是一上或一下）。三笔重叠形态相似但成分不同，缠师为此另立专名。",
+          "before_body_end": null,
+          "editor_note_flag": false,
+          "adoption": "author prose only; flagged editor text is excluded from Report arguments"
+        }
+      ]
+    }
+  ],
+  "cached_original_comments": [
+    {
+      "cache_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/issue865.json",
+      "sha256": "fa9aa8e7aed8e742927b75e236432a7cc6df70876059228b07f745b2a1c4d4d4",
+      "issue": 865,
+      "live": false,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/865#issuecomment-5169396438",
+      "comment": {
+        "id": "IC_kwDORJC4uM8AAAABNB661g",
+        "author": {
+          "login": "xy7365527-lang"
+        },
+        "authorAssociation": "OWNER",
+        "body": "## D-1 第 1 问裁定：力度量的是集合，值是一个数，定义域是「围绕同一中枢的段」\n\n**编排者裁定（2026-08-03，`/grill-with-docs`）**，三条：\n\n1. **力度量的对象是集合** —— 那段走势覆盖的东西。**（编排者原话：「背驰肯定是一个走势类型里面进行比较，就是一个中枢的进入和离开段，本身就是一个集合的问题，而递归的性质导致没有在集合之外的东西」）**\n2. **力度的值是一个数** —— 两段永远能比大小，**没有「判不出来」这个第三态**。（编排者原话：「要么背驰要么不背驰」）\n3. **`L` 的定义域是「围绕同一中枢的段」**，不是任意走势段。\n\n### 关键澄清：1 与 2 不冲突\n\n集合是**被量的对象**，数是**量出来的结果**。若 `L(段) = μ(该段覆盖的集合)`，算出来就是一个数，两个数永远能比。**被否掉的是「不可比」这个第三态，不是集合框架。**\n\n### ⚠️ 主控两处自我订正\n\n**主控原推荐「保留偏序 + 不可比第三态」，被编排者当场推翻，理由成立：**\n\n1. **「不可比」不是力度自带的性质，是特定构造的副作用。** 它只在**不把值压成一个数**时才出现（比如比两条分布曲线、曲线交叉）。[#856](https://github.com/xy7365527-lang/NewChanlun/issues/856) 实测的 56 条「不可比」正是这么来的——**而那套构造（一阶随机占优 on 中枢停留级别分布）已被同一张票证伪**。主控把某个具体构造的毛病当成了定义的性质。\n2. **主控原「理由二」不成立**：主控称「若定义也是一个数，则『代理』二字没有内容」。**错**——代理与定义的区别可以是**算的东西不一样**，不必是**类型不一样**。同理，MACD 那几个百分点的缺口，更简单的解释是「MACD 算的东西本来就不对（它是代理）」，用不着请出「不可比」。\n\n### 第 3 条的原文依据\n\n> `061-第61课.md:26`【正文】「要比较力度，发现背驰，首先要搞清楚是哪两段比较，其实，**只要是围绕一中枢的两段走势都可以比较力度**。」\n\n**「围绕一中枢」= 编排者说的那个共同的父。** 仓内已按此裁过（`beichi.md`「力度是什么·第一层・结构层」的 #814 D-3 裁定：盘整背驰比的是「冲出中枢的那段」与「往回最近的同方向跨界段」）。\n\n加上递归穷尽（父被子完全覆盖、无漏网），得：**父 = 进入段 + 中枢 + 离开段，没有剩余。**\n\n**⚠️ 但要诚实**：`a + b + c = 父` **仍推不出 a 与 c 谁大**。这条约束比「两段互不相交」强得多，**但没有消掉横向比较那道坎——只是把问题变小了**。\n\n### 这一裁砍掉了什么\n\n**力度不能是「一条分布」「一个未压缩的集合」这类不落成数的东西**——那正是两轮推导「分位数下图集」构造与 ED 那套东西的地基。**它们在此裁之下全部出局。**\n\n### 名分\n\n`[新缠论:推论]`。推理链 = `061:26`（比较的定义域）+ 缠师全篇的二值用法（他从未说过两段力度「比不出来」）+ 递归穷尽。\n",
+        "createdAt": "2026-08-03T17:04:16Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/xy7365527-lang/NewChanlun/issues/865#issuecomment-5169396438",
+        "viewerDidAuthor": true
+      }
+    },
+    {
+      "cache_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/issue865.json",
+      "sha256": "fa9aa8e7aed8e742927b75e236432a7cc6df70876059228b07f745b2a1c4d4d4",
+      "issue": 865,
+      "live": false,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/865#issuecomment-5169594298",
+      "comment": {
+        "id": "IC_kwDORJC4uM8AAAABNCG_ug",
+        "author": {
+          "login": "xy7365527-lang"
+        },
+        "authorAssociation": "OWNER",
+        "body": "## D-1 第 2 问裁定：背驰即完成；力度是进行中的、无量纲的比重\n\n**编排者裁定（2026-08-03，`/grill-with-docs`）。本条含三段，第三段是本图今天最实的一步。**\n\n---\n\n### 一、「背驰了就算完成了」——完成由背驰定义，归动力学\n\n**编排者原话：「背驰了就算完成了吧？」**\n\n**成因（编排者上一轮指出的真循环）**：主控原推荐「力度定义在**已完成的段**上」（依 `024-第24课.md:24`「C 段的走势类型**完成时**……这时候就构成标准的背弛」），但——\n\n> 要算背驰 → 先得知道段完成了 → 「完成」= 不再延续 = **不再产生同向新中枢** → **而这正是背驰要推出的结论**（今天裁的主命题 `NE_q`）\n\n**转回来了。这就是 `079-第79课.md:52` 那个循环的根**（「延伸了就证明这地方没出现背驰」）。\n\n**裁定把箭头方向定死**：**不是先由形状判出完成、再喂给背驰；而是背驰判出来了，就叫完成。**\n\n**⚠️ 自查（图上「前件有没有在出力」条款）已跑**：\n- **主命题 `NE_q`（`Div_q ⟹ ¬Ext_q`）没塌** ✓——左边是力度比较，右边是「后面不再冒出同向新中枢」，两回事。\n- **但 `TU_q`（`Div_q ⟹ 完成 ∧ 让位`）塌了一半**：完成既然就是背驰，「背驰⟹完成」成同义反复，只剩原文白送的「让位」。**⟹ 反过来印证 [#869](https://github.com/xy7365527-lang/NewChanlun/issues/869) 第 3 问选 `NE_q` 当主命题是对的。**\n\n**代价明写**：「走势类型完成」从此**不再是纯形态学**（看图可判）的东西，它要靠力度 ⟹ **归动力学那一半**（`072-第72课.md:40`）。这是真取舍。\n\n**连带订正**：主控今天早些时候称「基本原理二给了完成一个独立结构判据」——**不成立**。[#866](https://github.com/xy7365527-lang/NewChanlun/issues/866) 已判：`017:52` 的方向是「**完成 ⟹ 含中枢**」，是必要条件**不是判据**。\n\n---\n\n### 二、力度定义在**进行中的段**上，是随时间演化的量\n\n这是上一条的直接后果：不依赖「完成」，循环才断得掉。\n\n- 段一开始就有值，一直在长；\n- 背驰 = 拿**当下的 `L(c)`** 跟**已完成的 `L(b)`** 比，**不需要等 c 完成**；\n- 与 [#869](https://github.com/xy7365527-lang/NewChanlun/issues/869) 第 1 问「背驰当下可判定」正好接上；\n- **`024:24` 的「完成时」读作「标准背驰**（数走完了、最硬）**的确认时刻」，不是 `L` 的定义域限制**——注意原文那三个字是「**标准的**背弛」。\n\n**⟹ [#869](https://github.com/xy7365527-lang/NewChanlun/issues/869) 第 3 问定的规格「`L` 必须能在每个时刻给出值」维持不削。** 第五轮判符号测度「非必需」时指出它多出来的能力是「**同一嵌套累计过程中净值可以下降**」——那正是一个随时间演化的量该有的性质，**这条线索与本裁定对上**。\n\n---\n\n### 三、★力度是**无量纲的比重**（编排者提出，主控核实）\n\n**编排者原话：「按照这个任意的参照……是不是甚至可以归一化？我怀疑它甚至可以是无量纲的……假设 a 和 D 的测度和 c 与 D 的测度相比，这不是同时消掉了吗？」**\n\n**成立，而且「参照任意」本身就是结论**：\n\n- `μ(a)/μ(D)` 与 `μ(c)/μ(D)` 相比，**D 在两边约掉**；换成中枢当分母，一样约掉。\n- **⟹ 比较与整体大小无关 ⟹ 力度只需定到「相差一个正倍数」的程度。** 分子分母同量纲，一除**无量纲**。\n\n**⚠️ 主控前一条「拿中枢当共同参照可破横向不可比」——撤回。** 参照可任意替换即说明它不干活。**并且顺带订正主控贯穿今天的一个说法**：那道坎**不是「a 与 c 不可比」**（两个数当然能比），**而是「μ 本身不唯一」**——换参照救不了它。\n\n**消掉了什么，没消掉什么**：消掉**整体大小**这一个自由度（最没意义的那个）；**没消掉「形状」**——两个测度整体大小相同、内部分配不同，都满足公理却给出相反比较。**μ 仍不唯一。**\n\n**但无量纲顺带解决了跨级别怎么比**：若力度是绝对量，大级别的段天然数值大，没法跨级比；**若是「占父亲多少比重」，每级都落在 [0,1]，天然同一把尺子**。而这正好让 `018-第18课.md:52`「**往往**相连走势类型的**级别越低**，表示其**力度越大**」讲得通——绝对量看这句是荒谬的，**比重看就通了：小级别的段能占掉父亲一大块，那才叫有力**。\n\n### ★由此得到的自由度缩减（本裁定的主产物）\n\n- 一切都在 D 里、无漏出 ⟹ **分母确定**；\n- 每一级同样往下分 ⟹ **每层一组比重**；\n- 比较与整体大小无关 ⟹ **只有比重起作用**。\n\n> **⟹ 整个力度被一组「每次分叉时各部分占多少」的比重完全定死。这是有限个参数，而原来是「任意一个测度」（无穷）。**\n>\n> **问题形态由此改变：不再是「去找一个测度」，而是「在一棵已经存在的树上定一组比重」——后者可在本仓 `theta_v0` 塔上直接算、直接测。**\n\n**一处已记的未查实**：归一化的常见毛病是抹平大小，但缠论的力度比较**永远在同一个 D 内部**（分母相同，抹不平任何东西），故本用法安全。**跨 D 比较另说**——区间套似乎是在每级各自判背驰、不互比力度值，**但这条主控未查实，先记着**。\n\n---\n\n### 名分\n\n`[新缠论:推论]`。推理链 = 循环的存在（`079:52` + `NE_q`）⟹ 完成须由背驰定义 ⟹ 力度须定义在进行中的段；以及 `μ(a)/μ(D)` vs `μ(c)/μ(D)` 的约分 ⟹ 无量纲比重。\n",
+        "createdAt": "2026-08-03T17:24:45Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/xy7365527-lang/NewChanlun/issues/865#issuecomment-5169594298",
+        "viewerDidAuthor": true
+      }
+    },
+    {
+      "cache_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/issue873.json",
+      "sha256": "760dad7ccc94d7679517c9b893c738103f1a4c93fe9f3875c15d0ded1c0cfd67",
+      "issue": 873,
+      "live": false,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/873#issuecomment-5171403143",
+      "comment": {
+        "id": "IC_kwDORJC4uM8AAAABND1Zhw",
+        "author": {
+          "login": "xy7365527-lang"
+        },
+        "authorAssociation": "OWNER",
+        "body": "## 裁定：力度 = 速度的净增量（冲量）；[#859](https://github.com/xy7365527-lang/NewChanlun/issues/859) D-2 的名分结论**整体改判**为 `[新缠论:推论]`\n\n**已落 `.chanlun/definitions/beichi.md`（commit `789d01f844`，v1.3→v1.4）。**\n\n---\n\n### 定义\n\n> **`L(段) = v(段末) − v(段初)`**——该段的**速度净增量**；速度在结构给定的最小单元（**笔**）上量，即「这一笔涨了多少 ÷ 这一笔用了几根 K 线」。\n>\n> 物理上即**单位质量的冲量**（`F·Δt = m·Δv`）。**缠师管它叫「力度」，字面就是「力」。**\n\n**背驰** = `037:16-22` 结构前提全部满足 ∧ `L(c) < L(b)`。\n\n### 推理链（起点是原文，中间全是数学，终点是定义）\n\n| 步 | 内容 | 性质 |\n|---|---|---|\n| 1 | 缠师**钦定 MACD 同色柱面积**当力度的代理 | **原文** `024:24`【正文】／`046:44`【答疑】／`049:184`【答疑】 |\n| 2 | `柱面积 = 8 × ( DEA(段末) − DEA(段初) )` | **精确恒等式**（`DEA=EMA₉(DIF)` 的递推 ⟹ 望远镜求和只剩头尾）。**⟹「面积」这个词有误导性：它不是累积量，是端点差** |\n| 3 | 同色柱区间两端 `H≈0` ⟹ `DIF≈DEA` ⟹ `柱面积 = 8×ΔDIF` | **近似**（全链唯一一处，且只用在「MACD 为何能当代理」，不进定义） |\n| 4 | 匀速下 `EMA₁₂` 滞后 `5.5v`、`EMA₂₆` 滞后 `12.5v` ⟹ **`DIF = 7v`** | **精确计算** |\n| 5 | ⟹ `柱面积 = 56 × ( v(段末) − v(段初) )` | 推出 |\n| 6 | ⟹ **力度 = 速度净增量 = 冲量** | 推出 |\n\n### D-2 错在哪\n\nD-2 判「原文空白、链的起点不存在」时这样处置 MACD：\n\n> 唯一一处缠师直接比同级别两段谁强是 `046:44`……**用的是 MACD 面积，而 MACD 已由他本人定为代理、不是定义**\n\n**它把「这不是定义」读成了「这不能用来推定义」。而这两件事完全不同——代理测的是什么，恰恰暴露了定义是什么。**\n\n**⟹「链的起点不存在」是错的。起点一直在那儿：缠师钦定了一个代理。**\n\n**D-2 其余部分维持**：`027:20` 堵死「走势类型排序」仍成立；三处讲级别的原文确实是跨级别的、拿它们顶同级别的缺确实是错的（**本票会话中主控又犯两次**——第二问用 `019:510`、第四问用 `018:52`，均被编排者当场驳回）。**改判的只是名分结论那一句。**\n\n### ★零参数（这条同时解释了「MACD 只能是辅助」）\n\nMACD 的三个参数干两件事，**缠论自己都已办掉**：\n\n| MACD 用参数办的事 | 缠论怎么办的 |\n|---|---|\n| 12/26：速度在多长窗口上量 | **笔**——窗口不是选的，是**结构给的** |\n| 9：平滑压噪声 | **不需要**——分型与笔的构造本身就吃掉噪声，**缠论的结构就是那个滤波器，且无参数** |\n\n**⟹ MACD 需要参数是因为它没有结构，只能拿参数化的平滑去凑；缠论有结构，不用凑。这才是「MACD 只能是辅助」的真正原因**——不是算得不准，是拿一个**要调参的近似**去逼近一个**结构已给死的量**。\n\n**⟹ 第 4 步的系数 7 依赖 12/26/9，但它只出现在「为何能当代理」的论证里，不进定义。定义本身零参数。**\n\n### ★与测度论的接口（`029:328` 那句话的落点）\n\n第 2 步那个「DEA 每走一步的增量正好等于当时柱子的固定比例、加起来只剩头尾」的结构，**与「父 = 子₁+子₂+… 拼完不剩、父的量 = 各子的量之和」是同一个东西**——只是索引集不同（那边是缠论结构树，这边是时间轴上相邻的小段）。**而缠论的结构树本身就是时间轴上的一个嵌套切分**，故两者不是「像」，是同构。\n\n给定累积函数 `F`，`μ((a,b]) = F(b) − F(a)` 即教科书的 **Lebesgue–Stieltjes 测度**。\n\n> **⟹ 力度就是由「速度」这个函数 `F = v` 导出的 Lebesgue–Stieltjes 测度。这很可能是 `029:328`「背驰也是有精确定义的……需要用到测度论里很多的知识」的落点。**\n>\n> **前六轮推导一直在找「走势覆盖的那个集合上的测度」，找不到——因为测度不是从集合上长出来的，是从一个累积函数上导出来的。方向反了。**\n\n**两条附带收益**：\n\n1. **可加性不必额外假设**——该构造自带。\n2. **★卡了六轮的「横向不可比」自动消解**：map Notes 的诊断是「同级别不相交的兄弟段之间测度公理零约束，任何一组大小关系都能构造出 μ 实现」；**而此处 μ 由一个定义在整条时间轴上的函数导出——F 一定，所有段的值全定死，相不相交都直接可比。「μ 不唯一」整个转化成「F 是什么」，而 F 已定为速度。**\n\n### 「新高」在这套定义里干什么（编排者点破的入口）\n\n结构前提要求 c 创新高。**它锁的是终点位置，不是段内位移**（b 100→120 后回撤 110、c 110→125：c 创了新高但走得比 b 少）。缠师讲过反面把这点钉死——`038:192`【答疑】「如果连新高都创不出，那力度就最弱……**根本连 MACD 的辅助都没必要**」。\n\n**⟹ 没创新高，位置这一维直接判死、不必比；创了新高，才轮到力度出场。⟹ 创新高却背驰 = 位置是上去了，但推上去的力气比上一段小。**\n\n### 三个检查点（定义定完之后回代，全过）\n\n| 原文 | 用本定义看 |\n|---|---|\n| `037:18`「力度最大的就是连续的缺口」 | 瞬间跳过，速度突变极大 ⟹ 冲量极大 ✓ |\n| 创新高却背驰 | 位移大而冲量小 ✓ |\n| **末端钝化**（实盘认背驰最常用的形态） | 冲到头时已在减速，本波加速的净增量就小 ✓ **「峰值速度」「平均速度」两种读法都读不出它，只有净增量读得出** |\n\n---\n\n## 票面三问的裁定\n\n1. **分母是时间还是结构量** → **时间**（速度 = 价格差 ÷ K 线根数），但**时间的分格由结构给**（笔），不由参数给。\n2. **分子是净位移还是路程** → **问题作废**。力度根本不是「走多远 ÷ 耗多少」——票面那个形状从第一步就偏了（见下）。\n3. **比当下值还是累计** → **`F(当下) − F(段初)`**，随时间演化，与 D-1 第 3 条一致。\n\n## 票面原推导的存废\n\n**整条作废**，三步各有病：\n\n- **步骤一**（约束 1 把候选压到只剩价格与时间）——**不成立**。约束 1 排除的是**外加的数学处理**（`025:14` 缠师亲口把均线/MACD 与「中枢等概念」划到两边），**不排除任何形态学结构**。（编排者第一问裁定）\n- **步骤二 / 三**（约束 6 定形状是比值、约束 4 定分子分母同步）——**用的是跨级别材料**（`018:52` 带「往往」、`019:510`、`037:18`），而 D-2 已判它们对同级别比较零信息量。本会话中主控又两次踩此坑。\n- **四个原文检查点**——三个是上述跨级别材料，第四个（`015:42`「面积除以时间」）虽形状相近但**引入理由完全不同**（原文动机明写是「因为这个概念是**即时的**」，为解决「必须等再次接吻才能判断」的**时效**问题，不是为跨级别可比）。\n\n**票面推导的方法论病因，与 map Notes 记载的一致：先造构造、后找支撑。**本票的正确路径是编排者给的——**反过来问「为什么 MACD 能当代理」，从已有的代理反推被代理的东西。**\n\n## 名分\n\n| 内容 | 名分 |\n|---|---|\n| **`L(段) = 速度净增量`，速度在笔上量** | **`[新缠论:推论]`**（链见上，每步可复核） |\n| 递归的底 `a₀` = 1 分钟 K 线构成的笔 | `[新缠论:选择]`——但**不是力度特有的选择**（换底则笔/段/中枢/级别全变），故标在体系层，不标在本定义上 |\n\n## ⚠️ 限定与代价（照实）\n\n- **本定义未在数据上验证过**：第 3 步的近似、以及「本定义与 MACD 代理在真实行情上判定是否一致」，**都没测**。引用时须带此限定。\n- **Lebesgue–Stieltjes 这个对应是推的**，缠师原文没说到这一步。\n- **三处实装细节未定**（`v(段初)` 取零还是取第一笔 / 段末取当下那一笔还是最后完成的那一笔 / 与现有五套实现对接），**归 [力度构造的工程选型 #872](https://github.com/xy7365527-lang/NewChanlun/issues/872)**。\n\n## 连带订正（已随文档落盘）\n\n1. **D-1 第 5 条「力度是无量纲的比重」→ 有量纲（价格÷时间）。** 跨级别同尺度改由「速度是同一把尺子」给出，比重的动机被消解。原条唯一存活的一句是「那道坎是 **μ 本身不唯一**」——**该诊断正确，且已由本票解决**（转化为「F 是什么」）。\n2. **「力度是什么」节开头**加订正框：「原文未给可计算定义」为真，但 ≠「推不出来」。**本仓两次（`#862`、D-2）把「这不是定义」读成「这不能用来推定义」。**\n3. **「主命题与转折」节**第一条标题与正文更新（空位已填、代理读法订正、`029:328` 落点具体化）；第五条 `L_q` 三条规格加兑现自查（三条全过，一处实装细节归 #872）。\n4. **簿记补记**：v1.3→v1.4 之间 [#869](https://github.com/xy7365527-lang/NewChanlun/issues/869)/[#865](https://github.com/xy7365527-lang/NewChanlun/issues/865)/[#859](https://github.com/xy7365527-lang/NewChanlun/issues/859) 三次落盘均未更新 Changelog 与版本头，本次一并补上。\n\n## 两条自查（本图纪律）\n\n- **缺口只是改名吗？** —— 不是。前六轮的缺口是「`Div_q ⟹ ¬Ext_q` 的桥不存在」，那是**定理**那一格；本票填的是**定义**那一格的 `L`。**两格不同，本票不碰定理，`NE_q` 仍不可执行。**\n- **把前件删掉结论还成立吗？** —— 不成立。删掉「缠师钦定 MACD 当代理」这个前件，第 2–6 步全部无的放矢：那时 MACD 只是一个任意指标，拆它的数学不指向任何东西。**前件在真出力。**\n",
+        "createdAt": "2026-08-03T20:33:39Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/xy7365527-lang/NewChanlun/issues/873#issuecomment-5171403143",
+        "viewerDidAuthor": true
+      }
+    },
+    {
+      "cache_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/completion-author/issue873.json",
+      "sha256": "760dad7ccc94d7679517c9b893c738103f1a4c93fe9f3875c15d0ded1c0cfd67",
+      "issue": 873,
+      "live": false,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/873#issuecomment-5171515876",
+      "comment": {
+        "id": "IC_kwDORJC4uM8AAAABND8R5A",
+        "author": {
+          "login": "xy7365527-lang"
+        },
+        "authorAssociation": "OWNER",
+        "body": "## 关票后追加：两组承重裁定（同一会话，编排者当场给出）\n\n**定义本身不变。**补的是它的两条承重说明——关票 resolution 里都缺，缺了以后读者看不出这个定义凭什么叫「精确」，也不知道两段该怎么比。\n\n**已落 `.chanlun/definitions/beichi.md`（commit `a20f00e9a5`，v1.4→v1.5）。**\n\n---\n\n### ①「精确」二字的来源 = 形态学钉死四个端点\n\n> 编排者原话：**「这个东西必须跟形态学结合，这个是最关键的，我想也是最精确定义的意思。」**\n\n**依据**：力度属动力学（`072-第72课.md:40`【正文】「任何涉及背驰的，都是动力学的范围」），**而动力学本质上是几何**（`072-第72课.md:34`【正文】「本ID理论里的动力学部分，**本质上也是几何**……需要把……前提**转化为某些几何结构**」）。\n\n**⟹ 力度必须能写成纯形态学的表达式，写不成就不叫「精确定义」。**\n\n**落点**：`L = F(末) − F(初)` 里的**四个端点 `b初`/`b末`/`c初`/`c末` 全部由形态学钉死**（`037:16-22` 五条结构前提 + `061:26`「围绕一中枢的两段走势」），而笔、线段、中枢的构造本身**确定、无参数**。\n\n> **⟹ 端点一钉死，`F(末) − F(初)` 就是精确的。这就是「精确」两个字的来源。**\n> **⟹ 与关票 resolution 里的「零参数」是同一件事的两个面**：MACD 要调参不是因为算得糙，是因为**它没有形态学、没有端点，只能拿 12/26/9 去凑一个近似的窗口**。\n\n**⚠️ 连带记下主控在本轮的两次跑偏（均被编排者当场驳回）**：\n\n1. **提议「把时间换成结构量、一路递归到底」——错。** 时间轴是**所有级别共享的坐标系**，读坐标与「递归到底」是两回事。**形态学管的是边界**（关键的那一半），边界之间多长去时间轴上读即可。**⟹ 原定义里「÷ K 线根数」不用改。**\n2. **「不需要递归到最底下」**（编排者原话）：背驰在每一级都是同一个形状的问题——**同级别两段比**；下钻一级面对的还是它，故**下钻不解决问题，只是推给下一级**。**⟹ 定义必须在单一级别内自足。**本定义满足：`b`、`c` 各算一个数直接比，不下钻。\n\n---\n\n### ② 怎么比 = 直接比 `L(c)` 与 `L(b)`，**不绕父**\n\n> 编排者原问：**「根据集合，他到底是 b 跟走势类型 D 算一个、c 跟走势类型 D 算一个然后再比较，还是直接比较呢？」**\n\n**裁定：直接比。**\n\n**为什么不需要绕父**：L–S 构造里 `F` 定义在**整条时间轴**上，`b` 与 `c` 虽不相交，**但量的是同一根尺子上的刻度**。「绕父才能比两个不相交的子集」在**没有全局尺子**时是必需的、是对的；有了全局尺子即不需要中介——**这正是 L–S 构造优于「给每个集合单独赋值」的地方**。\n\n**为什么绕父不只是白做、而是有害**（**这两条是判据，不是解释**）：\n\n1. **分母会炸**：`μ(D) = v(D末) − v(D初)`，而一个完整趋势的起点与终点速度**都在零附近**（从中枢出来 / 到背驰点后停下）⟹ **`μ(D) ≈ 0`，除法爆掉**。\n2. **分母可能为负**：速度可增可减 ⟹ 这是**符号测度**，`μ(D) < 0` 完全可能 ⟹ **除以负数不等号翻转**，本该判背驰的变成不背驰。\n\n> **⟹ 绕父引入两个新故障点。**（主控首轮否掉此构造时给的理由是「分母约掉了没出力」——**那句是软话，站不住**；硬理由是上面这两条。）\n\n**「常态 = 前一段」这条裁定没丢，它落在初值上**：`μ(c) = v(c末) − v(c初)`，而 **`v(c初)` 正是 `b` 段与中枢 `B` 走完之后留下的状态**——`c` 是从 `b` 交给它的速度水平上往上推的。\n\n**⟹「相对于前一段」体现在起跑线上，不体现在比较方式上。这也正是 MACD 的实际做法：各算各的面积，然后直接比。**\n\n---\n\n### ⚠️ 追加的未验证项\n\n**「绕父会炸分母 / 会翻不等号」两条是数学推断，`μ(D)` 在真实行情上的分布没量过。**已写进 `beichi.md` 头部「未验证」行。\n\n### 流程说明\n\n本轮在**同一会话**内完成，未另开票——两条都是本票那条定义的承重说明（关票时漏写），按本仓 wayfinder 正本「把已裁定的东西落成文本是 grilling 票 resolution 的后半程，不是独立票」处理。**本票不重开、定义未改判**，故以追加 comment 记账。\n",
+        "createdAt": "2026-08-03T20:45:11Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/xy7365527-lang/NewChanlun/issues/873#issuecomment-5171515876",
+        "viewerDidAuthor": true
+      }
+    }
+  ],
+  "cautions": [
+    "original cached comments contain superseded dimensionless claims; current adopted beichi clauses prevail",
+    "source provenance is repository canonical text, no new web historical authentication",
+    "RootArm68 and Outer0=core are new candidate choices, not quotations"
+  ]
+}

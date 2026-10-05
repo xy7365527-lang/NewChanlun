@@ -1,0 +1,412 @@
+{
+  "phase": "after initial read-only inspection, before adoption artifact checks and report writing",
+  "captured_utc": "2026-10-05T21:16:44.389643+00:00",
+  "entries": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/adoption-inputs-v1.json",
+      "bytes": 2332,
+      "sha256": "3dac5940f48089a4e0616af15e3e29cf6e7514015fef1f732288e2dc5917d682"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage68PenTransitionsAndJointCuts.md",
+      "bytes": 6747,
+      "sha256": "9367973e4230f5eb947e10c75e84f68b7da296bd73e8ffb6f6a54d68a81e095d"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage68/DeliveryStatus-v1.md",
+      "bytes": 1678,
+      "sha256": "656c2673494cece15b82290ab6cd35e66f8b5db4224d080ec353375184fb27de"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage68/pen-author-v2/Report.md",
+      "bytes": 8994,
+      "sha256": "393fb7a561f89dcf75450b3f4cbe219ecfb701076c6552b94e804e840e5a7e5f"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage68/pen-v2-review/review.md",
+      "bytes": 7389,
+      "sha256": "a35de1a085221b241bd2d3060ffc8baae3b63b92c2c9cec8088c0d0c1176fa0c"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage68/joint-author/Report.md",
+      "bytes": 15265,
+      "sha256": "e67550836f37fca13fb7255c10d10dac639d476aecddb89bce3c395261cb2de3"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage68/joint-author/ScopeCorrections.md",
+      "bytes": 2541,
+      "sha256": "cc0547731d403abe567db7a05185f6731218508763cb6de1014a8c79a8521dad"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage68/joint-author/PathScopeCorrections.json",
+      "bytes": 2559,
+      "sha256": "b87517ec8dc9a09fa833ac4ac8b60028626ec3e17309619d818fb347e7fa96c8"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage68/joint-review/review.md",
+      "bytes": 12277,
+      "sha256": "37a5a606f4bd928f3d57917d69d0868e1ba4ee269c062ea4ea7d0a6cea6b1b3e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/progress-addition-v1.md",
+      "bytes": 593,
+      "sha256": "0fdef5d033727086ea0b720978e5de8b44f1d7b8efe50b0e933a586de2195d4f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/check_pen.py",
+      "bytes": 32481,
+      "sha256": "2e33a1101e511f8122ae255ca4c21e775d325409efbe2c7f03b25084e40cf905"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/FINAL.json",
+      "bytes": 1298,
+      "sha256": "07394ba791fec2413c83a46ff8aa0cd718572b498f3ff1a97b3d0539980d39aa"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/manifest.json",
+      "bytes": 4654,
+      "sha256": "50e04c6534fdbd805d2a590c0544730c1331d688958985e6b8a3b294c357543f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/machine-readback.json",
+      "bytes": 1875,
+      "sha256": "4d4c0de13bc5e96d81135ceb95ed82c4dca050d3e129f0003660f921f38d7dcf"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/run/machine-status.json",
+      "bytes": 2248,
+      "sha256": "3fa04afa369be2713410210f68bde53d4c1c51699cdf81939ec3f1beb6f443d7"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/run/weighted-lemma.json",
+      "bytes": 274,
+      "sha256": "400f01f6f9a45098ca04571417bec5e1e533fb47399b1d472aa69d8df67b1753"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/run/online-seal.json",
+      "bytes": 1131,
+      "sha256": "c923949efbd5a01061d6d7783a163f9c21e4538ae303bbcec5a05942c8b08e23"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/run/reading-order.json",
+      "bytes": 6283,
+      "sha256": "01b3d58d10e21ce090aa5fbefca5a708fa42cc5d9b711fcd0d31ed3820ec0042"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/source-evidence.json",
+      "bytes": 22625,
+      "sha256": "fdb44dc201d2a8f5357979b856d5af807bea5af0c2e693d1e7a86f17b5c5d9c2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-v2-review/FINAL.json",
+      "bytes": 1685,
+      "sha256": "fce88eb286d44e5a6a94b9eef4c3fbd74d41c48337e95e187d76ca0728a8e038"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-v2-review/manifest.json",
+      "bytes": 3780,
+      "sha256": "f473712d75429a390e16dc959add06e6775f2523bd323214e3a8ee3ee132087b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-v2-review/independent-results.json",
+      "bytes": 548,
+      "sha256": "0665f69b4a8c240c16be96b94e59c3874f781e0ce322175361f304589b4ce2ef"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-v2-review/independent-control-results.json",
+      "bytes": 32675,
+      "sha256": "1126e8959775f769c4dec04625108bbb12aa11e9fac7d0145b11379f9ba85dd9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-v2-review/independent_review.py",
+      "bytes": 16231,
+      "sha256": "039f4f962dee1a7d818285e30155d051979bfe85dcc779a4466e05bd6e7a13e9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-v2-review/replay-equality.json",
+      "bytes": 3342,
+      "sha256": "b139aace4944fe02bc0d0a7fa9d9bed7ce869d8d565993eab224ddafef33900a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-v2-review/command-receipt.json",
+      "bytes": 440,
+      "sha256": "25e86df7bf869fbfbb00adefdf5331ba594902dadd6243196774366a6bedba02"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author/check_joint.py",
+      "bytes": 16612,
+      "sha256": "3424a6b7d21ed496fd452e17375f560a8d02f01fbab8d2c0495a99303c28de87"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author/complete_path_scope.py",
+      "bytes": 2985,
+      "sha256": "bc0cb98e94f44438b2912bf2ebecc24c0dff992fae56218f558b850899e214ed"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author/FINAL.json",
+      "bytes": 1479,
+      "sha256": "778ffffb4a3cb89c23083242fe497d2eb99867d3a9b979b51e474b727346d02e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author/manifest.json",
+      "bytes": 5094,
+      "sha256": "5b364164b5356880135262e150195b7f03044fe2e8d7d779f31d044d6315a1e3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author/result.json",
+      "bytes": 1297,
+      "sha256": "2bd94e133f385e48b080e3ec0143c035f88234bcc3bff69ab5523d0b0100f99a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author/finite-obstruction.json",
+      "bytes": 9108,
+      "sha256": "bffaaced54c9aa71df75d588b277971c818cf9ac073c89cee6731767876fd2dd"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author/all-delta-paths.json",
+      "bytes": 535404,
+      "sha256": "a46f1c0eaff9e72f511d03fd62899ce53515c0239c3cd2206a3b23e7a8f16201"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author/path-classes.json",
+      "bytes": 906770,
+      "sha256": "b16593761188f21ec607e06941e2149093267702998c69e199b9132c3574a4b5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author/all-windows.json",
+      "bytes": 99549,
+      "sha256": "ffdc613784a795e06b6a075c5015fa6b074dfb074d937e9b5d2bd1cdfc8663e0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author/InvocationCorrections.json",
+      "bytes": 986,
+      "sha256": "6a04ea38a265c7174b018022b21cef533cb4c156394921e189ae55bac148aac4"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-review/FINAL.json",
+      "bytes": 2244,
+      "sha256": "7772f07b39fb48a2c5e3097d648c51828e72a7577ed08cb3edb7d5c657123209"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-review/manifest.json",
+      "bytes": 3269,
+      "sha256": "73438974a790ca85225229890c65e2ca2ed8d1cdfe07cf5c0f8041be9a52a941"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-review/independent-results.json",
+      "bytes": 14510,
+      "sha256": "edc3e44b68e91d3e729c07b21a718cc6543adf7cb850f4d48eab2b8d75caf289"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-review/receipt.json",
+      "bytes": 508,
+      "sha256": "bb168023067897660b786934728929772a76f0ce7249b00aa3244120fa5309b0"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.agents/skills/rigorous-open-math-research/SKILL.md",
+      "bytes": 3921,
+      "sha256": "2cf200984572271b8689ab93e2069cc2e31b85e2824e06a9467352350b4591ed"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+      "bytes": 108519,
+      "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/084-第84课.md",
+      "bytes": 70833,
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/018-第18课.md",
+      "bytes": 11695,
+      "sha256": "4a661fc843d0d9fcfdf32861b7dc903ee09d824d0075dd0ea7b2c19542bb2f92"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/037-第37课.md",
+      "bytes": 47970,
+      "sha256": "f360d985b3f3b1fa567ca13e15f2ffaf9eae39dbb418519f75d1f6175ac70753"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/043-第43课.md",
+      "bytes": 25182,
+      "sha256": "f28824c26843e5799ad8f07db6bb9b02956d0fc7ac97d9d3d2fc70a7c3004909"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/020-第20课.md",
+      "bytes": 26838,
+      "sha256": "25f8f0bbe9ffbab48a27b552a081ff3925b6c01bfe1cae30c2616fe9b99b49ef"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/Report.md",
+      "bytes": 15005,
+      "sha256": "2e002057e6d2ea38d1520708cf0b8227533794f1374ba7aff0f5c72d749d145f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-review/review.md",
+      "bytes": 7175,
+      "sha256": "4b4eca718e18db1b3307f697e657d583bbaa19e1f8c919da1018232d52600c03"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/all-prefixes.jsonl",
+      "bytes": 1484918,
+      "sha256": "97503b14f781080cd3c41d640d5b6bb6f81aeed6adfc6309b1a2932c40aca07e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/run/all-prefixes.jsonl",
+      "bytes": 1484918,
+      "sha256": "97503b14f781080cd3c41d640d5b6bb6f81aeed6adfc6309b1a2932c40aca07e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-v2-review/replay/all-prefixes.jsonl",
+      "bytes": 1484918,
+      "sha256": "97503b14f781080cd3c41d640d5b6bb6f81aeed6adfc6309b1a2932c40aca07e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/events.json",
+      "bytes": 151577,
+      "sha256": "0f08624ad54da0618329cf394a0e3638d6a26e5eec62bf64d158695688caf32b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/run/events.json",
+      "bytes": 151577,
+      "sha256": "0f08624ad54da0618329cf394a0e3638d6a26e5eec62bf64d158695688caf32b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-v2-review/replay/events.json",
+      "bytes": 151577,
+      "sha256": "0f08624ad54da0618329cf394a0e3638d6a26e5eec62bf64d158695688caf32b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/versions.json",
+      "bytes": 274457,
+      "sha256": "e41ef3aa849508b58241ad696fd7cacd1b5dabf1a924c7250fced5195f710dc4"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/run/versions.json",
+      "bytes": 274457,
+      "sha256": "e41ef3aa849508b58241ad696fd7cacd1b5dabf1a924c7250fced5195f710dc4"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-v2-review/replay/versions.json",
+      "bytes": 274457,
+      "sha256": "e41ef3aa849508b58241ad696fd7cacd1b5dabf1a924c7250fced5195f710dc4"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/completion-candidates.json",
+      "bytes": 8041,
+      "sha256": "fe1de9113a8372d9094d1932ff3973e84254d9020bfedc54fb0dbc4c7cf8adec"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/run/completion-candidates.json",
+      "bytes": 8041,
+      "sha256": "fe1de9113a8372d9094d1932ff3973e84254d9020bfedc54fb0dbc4c7cf8adec"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-v2-review/replay/completion-candidates.json",
+      "bytes": 8041,
+      "sha256": "fe1de9113a8372d9094d1932ff3973e84254d9020bfedc54fb0dbc4c7cf8adec"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/pointbar-geometry.json",
+      "bytes": 79789,
+      "sha256": "7715fb2f20901038551c55b57bbe37d7c0c64ae8824af84027b2388bc2324ad0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/run/pointbar-geometry.json",
+      "bytes": 79789,
+      "sha256": "7715fb2f20901038551c55b57bbe37d7c0c64ae8824af84027b2388bc2324ad0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-v2-review/replay/pointbar-geometry.json",
+      "bytes": 79789,
+      "sha256": "7715fb2f20901038551c55b57bbe37d7c0c64ae8824af84027b2388bc2324ad0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/initialization.json",
+      "bytes": 22813,
+      "sha256": "0ad23747f54d9f01ff0962a1973f5a25e53e5ef13011084ce0f78b83011b7247"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/run/initialization.json",
+      "bytes": 22813,
+      "sha256": "0ad23747f54d9f01ff0962a1973f5a25e53e5ef13011084ce0f78b83011b7247"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-v2-review/replay/initialization.json",
+      "bytes": 22813,
+      "sha256": "0ad23747f54d9f01ff0962a1973f5a25e53e5ef13011084ce0f78b83011b7247"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/raw-spans.json",
+      "bytes": 6463,
+      "sha256": "cdbcaa182e5a48224502d56935afd5b5dd95f95130956c6ed7dbf57f15142d5e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/run/raw-spans.json",
+      "bytes": 6463,
+      "sha256": "cdbcaa182e5a48224502d56935afd5b5dd95f95130956c6ed7dbf57f15142d5e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-v2-review/replay/raw-spans.json",
+      "bytes": 6463,
+      "sha256": "cdbcaa182e5a48224502d56935afd5b5dd95f95130956c6ed7dbf57f15142d5e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/whole-spans.json",
+      "bytes": 2018,
+      "sha256": "4fd30d62edf61b0317a277dfd0bf4d59b411b19a601028ba64b3904421e143ea"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/run/whole-spans.json",
+      "bytes": 2018,
+      "sha256": "4fd30d62edf61b0317a277dfd0bf4d59b411b19a601028ba64b3904421e143ea"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-v2-review/replay/whole-spans.json",
+      "bytes": 2018,
+      "sha256": "4fd30d62edf61b0317a277dfd0bf4d59b411b19a601028ba64b3904421e143ea"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/key-trajectories.json",
+      "bytes": 164385,
+      "sha256": "8459c737d754ada878611571faae28904df10db601f2d48be5811ef1d852cf4f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/run/key-trajectories.json",
+      "bytes": 164385,
+      "sha256": "8459c737d754ada878611571faae28904df10db601f2d48be5811ef1d852cf4f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-v2-review/replay/key-trajectories.json",
+      "bytes": 164385,
+      "sha256": "8459c737d754ada878611571faae28904df10db601f2d48be5811ef1d852cf4f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/post-seal-comparison.json",
+      "bytes": 1052,
+      "sha256": "bc155d4aedc824a0ce800def6b2dba1b133219aa6aadab8b7a4fa84f9fd76ce2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author-v2/run/post-seal-comparison.json",
+      "bytes": 1052,
+      "sha256": "bc155d4aedc824a0ce800def6b2dba1b133219aa6aadab8b7a4fa84f9fd76ce2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-v2-review/replay/post-seal-comparison.json",
+      "bytes": 1052,
+      "sha256": "bc155d4aedc824a0ce800def6b2dba1b133219aa6aadab8b7a4fa84f9fd76ce2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-author/run/weighted-lemma.json",
+      "bytes": 274,
+      "sha256": "400f01f6f9a45098ca04571417bec5e1e533fb47399b1d472aa69d8df67b1753"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/pen-v2-review/replay/weighted-lemma.json",
+      "bytes": 274,
+      "sha256": "400f01f6f9a45098ca04571417bec5e1e533fb47399b1d472aa69d8df67b1753"
+    }
+  ],
+  "late_added_read_only_supports_note": "v1 report/review and core artifacts are tracked before the following artifact-only field checks; no author code is imported or run"
+}
