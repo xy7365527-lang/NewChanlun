@@ -144,3 +144,18 @@ S7 新增私有证书源成本为 `43 + 32 × (Public 根数 + Template 根数)`
 来源预算和上一版相同，旧池与 workspace 合计分别为 425,279,813／425,483,331 B，均在 536,870,912 B 内。完整响应字节、持久 oracle 和终态与前版一致；源库与新库封存 stat/SHA 再核通过，服务 Popen 回收、controller 关闭、socket 移除。整请求耗时 21.117401416／20.086794334 秒，上一版 23.112771583／22.044895291 秒，单次减少约 8.63%／8.88%。这是一组独立窗口的实测，不能外推完整 9011 或任意历史规模。
 
 源码聚合 SHA `b2608e9d2b3b83fc50fa18bf40fe32a1f55247454350e5b1ec329a70f83ef9df`，服务 SHA `e6e63bca8cc2eee21fbb60839e86e7e783cd27834586286528268c48576b5f0e`。结果和逐文件原件见 [PUBLICATION-MATERIAL-OWNER-20261005.json](inputs/PUBLICATION-MATERIAL-OWNER-20261005.json) 与 [原始材料 ZIP](inputs/PUBLICATION-MATERIAL-OWNER-20261005-RAW.zip)。严格 heap/RSS/I/O 峰值、正式 9011 双跑及 goal 仍未完成；未合入 main，前端 #1460 独立。
+## 2026-10-05 资源门溯源澄清
+
+已逐项复核签署 C §5.6.1、§5.9.6、原 S7 资源说明和 Q 保留容量登记，见 [当前资源验收口径](RESOURCE-GATE-MAP-20261005.md)。S7 是保留来源字节；job 的 node、staged、store 各有明确量纲。RSS 的实际记录义务保留，但“整个 S 服务所有 heap 分配必须逐项计量”不能由既有诊断的未测声明推导为新增正常验收前置。此前各段 `whole_resources_qualified=false` 和严格峰值未测的历史事实不修改；它们不自动增加合同门。后续按原声明的 S／Q／job／reader 门逐项验收，生产启用和完整9011／整图完成边界保持。
+
+## 2026-10-05 Native 原件扫描分配复用
+
+隔离提交 `a7bdcc4c7fa14595df9a313e3a70556ded4315ce` 将三个 Native 扫描入口的有效 BLOB digest 直接复制到栈上32字节，并在请求内复用完整原件扫描的去重集合容量。每次扫描先清空集合，仍逐行读取到末尾，保留类型、重复、遗漏、正文逐字比较和错误传播。两个 fresh 捕获仍各自持有正文；集合在请求结束释放，不进入跨请求 Keeper。
+
+固定补丁静态独评通过，格式化后与 staged 格式化结果逐字一致。三项新增正常测试及一项 Driver 追加／重复请求／重启测试通过。1845行正常材料的三个入口共5535次 digest 借用、0次 Vec 解码；首扫集合容量增长11次，后续三次完整扫描增长0。它们是执行路径和容量计数，不是malloc或全heap证明。Native 非test服务构建及关闭 Native 的检查通过；首次关闭特性检查因命令漏必需的 `s_session` 特性而退出101，错误记录保留，修正命令后退出0，源码未变。
+
+真实 CopyQualified149→150／151 两请求均完整 Received，耗时20.694808083／19.839043791秒，前版21.117401416／20.086794334秒，单次下降2.00%／1.23%。完整 request/reply wire、持久 oracle、终态逐项相同；原件和新库封存身份、源码及产物绑定再核通过，服务Popen回收、controller关闭、socket移除。启动至成功Ready实测24.682828459秒。独立事实复核通过。非test进程未记录本次scan scratch计数，不以单测计数冒充实窗计数，也不以这一组结果声称稳定提速。
+
+两请求旧池加workspace来源费用仍为425279813／425483331 B，低于同一536870912 B S7。源码聚合SHA `c8ead0d4167da9f6af7629cf916371b950e6f5d41f2a8611f012079a11628aa6`；服务SHA `98e4e61d707f98c0f25a80934f1bf654cc9b5dd4db754ef3edaf768fd5b16726`。结果、绑定、补丁和运行原件见 [NATIVE-SCAN-20261005.json](inputs/NATIVE-SCAN-20261005.json) 与 [原件包](inputs/NATIVE-SCAN-20261005-RAW.zip)。准备文件的pending是运行前快照，未覆盖它们。代码提交与Rust树登记在scan产物ROOT-RESULT，窗口ROOT-RESULT仅登记运行事实。
+
+未新增或执行故障注入、坏数据测试，未恢复取消的birth-only／candidate／wire重构。此增量没有消除跨请求重复核旧历史的增长成本，未重新启动完整9011；既有165 Received、166 DeliveryUnknown失败域保持。完整双跑、其余验收及整图goal仍未完成，前端#1460独立，未合入main或push。
