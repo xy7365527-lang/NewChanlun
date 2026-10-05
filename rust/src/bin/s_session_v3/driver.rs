@@ -6,6 +6,10 @@ use super::*;
 use newchan_rust::session_protocol::{required, validate_envelope};
 use std::fs::File;
 
+#[cfg(feature = "s_capture_native_testonly")]
+#[path = "sqlite_pager_probe.rs"]
+mod sqlite_pager_probe;
+
 /// CLI 预检与运行中 handler 共用的唯一 typed 请求判据。
 pub(super) fn validate_request(envelope: Value) -> Result<Value, String> {
     let envelope = validate_envelope(envelope, PROTOCOL_REVISION)?;
@@ -88,6 +92,9 @@ pub(super) struct Driver {
     /// 只在显式Native模式启用；无AuditedState、完整历史结果或验证memo。
     #[cfg(feature = "s_capture_native_testonly")]
     source_keeper: Option<super::cross_request_source_cache::Keeper>,
+    /// #1394：Native私有诊断开关在首次事务前冻结。
+    #[cfg(feature = "s_capture_native_testonly")]
+    sqlite_pager_probe: bool,
     _lock: File,
     #[cfg(test)]
     stop_after: Option<&'static str>,
@@ -291,6 +298,13 @@ impl Driver {
         }
         let lock = session_transport::process_lock(db, "S")?;
         let mut conn = open_db(db)?;
+        #[cfg(feature = "s_capture_native_testonly")]
+        let sqlite_pager_probe =
+            matches!(mode, s_allocation::Mode::CapturedNative) && sqlite_pager_probe::enabled();
+        #[cfg(feature = "s_capture_native_testonly")]
+        if sqlite_pager_probe {
+            sqlite_pager_probe::configure_and_log(&conn)?;
+        }
         let tx = conn.transaction().map_err(err)?;
         if let Some(context) = startup_context.as_deref_mut() {
             if !matches!(mode, s_allocation::Mode::CapturedNative) {
@@ -333,6 +347,8 @@ impl Driver {
             audit_cache_source_bytes: None,
             #[cfg(feature = "s_capture_native_testonly")]
             source_keeper: None,
+            #[cfg(feature = "s_capture_native_testonly")]
+            sqlite_pager_probe,
             _lock: lock,
             #[cfg(test)]
             stop_after: None,
@@ -342,6 +358,23 @@ impl Driver {
     }
 
     pub(super) fn handle(&mut self, envelope: Value) -> Result<Value, String> {
+        #[cfg(feature = "s_capture_native_testonly")]
+        let pager_before = self.sqlite_pager_probe.then(|| {
+            (
+                sqlite_pager_probe::snapshot(&self.conn),
+                envelope.get("message_id").cloned(),
+            )
+        });
+        let result = self.handle_with_request_audit(envelope);
+        #[cfg(feature = "s_capture_native_testonly")]
+        if let Some((before, message_id)) = pager_before {
+            let after = sqlite_pager_probe::snapshot(&self.conn);
+            sqlite_pager_probe::log_handle(before, after, message_id, result.is_ok());
+        }
+        result
+    }
+
+    fn handle_with_request_audit(&mut self, envelope: Value) -> Result<Value, String> {
         #[cfg(not(feature = "s_capture_native_testonly"))]
         let mut request_audit = request_audit::RequestAuditContext::default();
         #[cfg(feature = "s_capture_native_testonly")]
