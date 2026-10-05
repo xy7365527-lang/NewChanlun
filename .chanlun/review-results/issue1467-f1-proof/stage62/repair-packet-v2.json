@@ -1,0 +1,25 @@
+{
+  "scope": "editorial and provenance corrections; unchanged numerical/proof inputs",
+  "files": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage62JointInterpretationAndSourceAdjacency-v2.md",
+      "sha256": "2ab0609b287b4f50fb8b870b897ed6fa3d6f16edb48fbb13cda93b225847537f"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage62/ScopeCorrections-v2.md",
+      "sha256": "9a6cf3d50f1abbe83aef2d66394152eaa13f9fe85a0d4f32832e237f2249dd30"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage62/independent-integration-review.md",
+      "sha256": "3f402598db97cd3cf12d08e055a48a7e6bdf7add3d426e924c650107bdacf19b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage62/independent-integration/output-manifest.json",
+      "sha256": "a20b11f81cf5e643cbc9da99d79a99ce5a7577ec8ecdcb9015367b2af3b65b3d"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage62/review-packet-v1.json",
+      "sha256": "8367ae27c13ff3223a611e6bafa5d336254d55929b7c918d2c7c228e65f2997a"
+    }
+  ]
+}

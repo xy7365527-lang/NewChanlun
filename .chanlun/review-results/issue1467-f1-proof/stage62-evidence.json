@@ -1,0 +1,118 @@
+{
+  "stage": 62,
+  "issue": 1467,
+  "goal": "active",
+  "status": "limited claims independently reviewed; full F1/F2 not certified",
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage62JointInterpretationAndSourceAdjacency-v2.md",
+      "bytes": 8614,
+      "sha256": "2ab0609b287b4f50fb8b870b897ed6fa3d6f16edb48fbb13cda93b225847537f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage62JointInterpretationAndSourceAdjacency.md",
+      "bytes": 7726,
+      "sha256": "f1b081e2b8bcde690b6ade473d9c20e5529eec67f757cbfa71d9826f1550a24d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage62/DeliveryStatus-v1.md",
+      "bytes": 1190,
+      "sha256": "b5cefefc500c05adcc5b3a1e1818dcffadc9132240cbc8c8f04ca3b7782203f4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage62/ScopeCorrections-v1.md",
+      "bytes": 3005,
+      "sha256": "d836a69c3f4892b95b64765a0ed26fa32efa638b3097f156b616f8843febc204"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage62/ScopeCorrections-v2.md",
+      "bytes": 2208,
+      "sha256": "9a6cf3d50f1abbe83aef2d66394152eaa13f9fe85a0d4f32832e237f2249dd30"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage62/author-evidence-v1.json",
+      "bytes": 3717,
+      "sha256": "dc46d45a24fce6f6bfceef0504d53851ab075acec6184bd8117bc2d840691e85"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage62/decomposition-scope.md",
+      "bytes": 18805,
+      "sha256": "b34a5987bf419459b6477ae5fd7a20117220c3e38178e38211e1c4e28478604d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage62/independent-integration-review.md",
+      "bytes": 11292,
+      "sha256": "3f402598db97cd3cf12d08e055a48a7e6bdf7add3d426e924c650107bdacf19b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage62/independent-repair-review.md",
+      "bytes": 5172,
+      "sha256": "1cf4f36841d04a5413e4fbe3df7349322a185e5fca58654aac4923a909e36595"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage62/independent-scope-review.md",
+      "bytes": 7342,
+      "sha256": "5d13cbc73d541b335d68b1825b293b1934288db78722089d480b13c02d914756"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage62/model-evidence/build_check.mjs",
+      "bytes": 11563,
+      "sha256": "d6537078f1825118dd35f57894982a9e185704c509cbf56b1b6b6b98ba120702"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage62/model-evidence/joint_assignment.mjs",
+      "bytes": 4172,
+      "sha256": "af298288fa18770f364361d70879c644fc51a91e99e55b6a0ad7c9e61c3135dc"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage62/model-evidence/reference_probe.rs",
+      "bytes": 1617,
+      "sha256": "2e15aae202b8be9f509a5f7306d4df1e797ff24a3433d7f0f87d3a21e8b94a0d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage62/model-evidence/template-v1.md",
+      "bytes": 2629,
+      "sha256": "0ed9c4bee79262ad088312980477ee7adbe5b3b7d20d39c0e91e84f2256ba2bc"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage62/model-evidence/template-v2.md",
+      "bytes": 1179,
+      "sha256": "e60e858f251cb4a8ca36e6040d84bc822589a7f20b3717a59847c698d938baef"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage62/repair-packet-v2.json",
+      "bytes": 1399,
+      "sha256": "a547aed89f6982bc3b8c2530dd8f13c663494583e61ef06c9014374e66d45286"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage62/review-packet-v1.json",
+      "bytes": 9707,
+      "sha256": "8367ae27c13ff3223a611e6bafa5d336254d55929b7c918d2c7c228e65f2997a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage62/scope-artifact-status.json",
+      "bytes": 322,
+      "sha256": "d6a437174c52231b8173f5153f791ba268347c6812dbd6c97f70a46e90581be6"
+    }
+  ],
+  "external": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage62/run-v1/run-manifest.json",
+      "sha256": "961cdf09e032545c1ce19247ac275564fa6b061e88e41c59463474bf55a660e9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage62/joint-assignment-v1.json",
+      "sha256": "fa2228327ef2ccd939df9ff50e09c12be62d6103df39f9540280ee2bd5f728f8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage62/independent-integration/output-manifest.json",
+      "sha256": "a20b11f81cf5e643cbc9da99d79a99ce5a7577ec8ecdcb9015367b2af3b65b3d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage62/independent-repair/output-manifest.json",
+      "sha256": "22b28bec1b74d9c614a110e53534c9b1d9892a7d2fb874017c49c7b4af9e5c21"
+    }
+  ],
+  "formal_changed": false,
+  "production_changed": false
+}

@@ -1,0 +1,154 @@
+{
+  "stage": 62,
+  "issue": 1467,
+  "map": 1465,
+  "interpretation": "Omega62-explicit-direct-v1",
+  "raw_root": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage62",
+  "run_manifest": "run-v1/run-manifest.json",
+  "finite_summary": {
+    "status": "finite-source-local-comparisons-and-no-return-geometry-verified",
+    "counts": {
+      "observations": 343,
+      "events": 342,
+      "template_legs": 85,
+      "actual_reference_strokes": 84,
+      "stable_at_eof": 83,
+      "certified_segments": 16,
+      "checked_prefixes": 343
+    },
+    "periods": [
+      {
+        "id": "X0",
+        "range": [
+          20000,
+          36000
+        ],
+        "core": [
+          25000,
+          30000
+        ],
+        "Lb": 500,
+        "Lc": -250,
+        "event_end": 101,
+        "local_known": 118,
+        "no_return_known": 138
+      },
+      {
+        "id": "X1",
+        "range": [
+          31000,
+          36000
+        ],
+        "core": [
+          33000,
+          34400
+        ],
+        "Lb": -550,
+        "Lc": -600,
+        "event_end": 201,
+        "local_known": 218,
+        "no_return_known": 238
+      },
+      {
+        "id": "X2",
+        "range": [
+          30000,
+          36400
+        ],
+        "core": [
+          30400,
+          32000
+        ],
+        "Lb": 50,
+        "Lc": -100,
+        "event_end": 301,
+        "local_known": 318,
+        "no_return_known": 338
+      }
+    ],
+    "conditional_parent_core": [
+      31000,
+      36000
+    ],
+    "completed_original_P": 0,
+    "completed_parent": 0,
+    "full_joint_model": false,
+    "known_obligations": [
+      "GeneralDiv and whole identity",
+      "true sublevel roles for S-3",
+      "core catalogue and lifecycle beyond named window",
+      "full decomposition and NoPP scope",
+      "fixed F2 semantic input eligibility"
+    ],
+    "boundary": {
+      "external_left_support": [
+        0,
+        1
+      ],
+      "candidate_owned_events": [
+        2,
+        301
+      ],
+      "active_tail_events": [
+        302,
+        342
+      ]
+    }
+  },
+  "joint_claim": {
+    "failed_clauses": [
+      {
+        "clause": "C6-NoPP on declared construction expression",
+        "pair": [
+          "X0",
+          "X1"
+        ],
+        "earliest_joint_completion_known": 218,
+        "source_seam": 101,
+        "cannot_insert_nonempty_item": true
+      },
+      {
+        "clause": "C6-NoPP on declared construction expression",
+        "pair": [
+          "X1",
+          "X2"
+        ],
+        "earliest_joint_completion_known": 318,
+        "source_seam": 201,
+        "cannot_insert_nonempty_item": true
+      }
+    ],
+    "delayed_publication_still_fails": [
+      {
+        "pair": [
+          "X0",
+          "X1"
+        ],
+        "known_at": 238
+      },
+      {
+        "pair": [
+          "X1",
+          "X2"
+        ],
+        "known_at": 338
+      }
+    ],
+    "conclusion": "This exact direct construction interpretation cannot satisfy NoPP. Different expressions or object mappings require a new explicit interpretation; three F2 members alone do not imply NoPP adjacency."
+  },
+  "status": "author evidence; adoption requires final integration review",
+  "process": {
+    "old_agents": [
+      "stage62_joint_model",
+      "stage62_decomposition_scope"
+    ],
+    "old_handles": "not_found at continuation",
+    "original_scope_artifact_claim": "not produced",
+    "new_scope_review": "completed with background-memory exposure",
+    "first_finite_review": "partial evidence and progress messages; no final report; background-memory exposure",
+    "strict_integration_review": "running"
+  },
+  "formal_changed": false,
+  "production_changed": false,
+  "goal_status": "active"
+}
