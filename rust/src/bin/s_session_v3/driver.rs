@@ -1300,6 +1300,131 @@ mod tests {
 
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
+    fn counts_subset_driver_normal_rows_append_repost_restart_and_shared_s7() {
+        use super::super::prepared::tests::{
+            runtime_root_compare_reachable_bytes, runtime_root_tables,
+        };
+        const S7: usize = 536_870_912;
+        let warm_fixture = Fixture::new();
+        let cold_fixture = Fixture::new();
+        let ordinary_fixture = Fixture::new();
+        let mut warm = Driver::open_for_serve_with_mode(
+            &warm_fixture.db,
+            &warm_fixture.profile,
+            "1",
+            warm_fixture.clock.clone(),
+            S7,
+            s_allocation::Mode::CapturedNative,
+        )
+        .unwrap();
+        // 原冷核不启用source Keeper，仍使用相同的Native完整capture。
+        let mut cold = native_driver(&cold_fixture);
+        let mut ordinary = ordinary_fixture.open("1").unwrap();
+        for n in 1..=3 {
+            let legacy = crate::cache::retained_bytes();
+            let old_pool = warm
+                .source_keeper
+                .as_ref()
+                .map_or(0, |k| k.retained_source_bytes());
+            let actual = warm.handle(Fixture::ingest(n)).unwrap();
+            assert_eq!(actual, cold.handle(Fixture::ingest(n)).unwrap());
+            assert_eq!(actual, ordinary.handle(Fixture::ingest(n)).unwrap());
+            let workspace =
+                content_manifest::manifest_workspace_stats().last_workspace_source_cost as usize;
+            assert!(
+                legacy
+                    .checked_add(old_pool)
+                    .and_then(|v| v.checked_add(workspace))
+                    .unwrap()
+                    <= S7
+            );
+            let keeper = warm.source_keeper.as_ref().unwrap();
+            let report = keeper.report();
+            // 写前审核只封存n-1个cut；post-COMMIT不为新head凭空生成资格。
+            assert_eq!(report["retained_counts_proofs"], n - 1);
+            if n == 1 {
+                assert_eq!(keeper.retained_source_bytes(), 0);
+                assert!(report["counts_subset_selection"].is_null());
+                assert!(report["retained_capture"].is_null());
+            } else {
+                assert_eq!(report["counts_subset_selection"]["accepted_groups"], n - 1);
+                assert_eq!(
+                    report["retained_capture"]["native_codec_root_certificates"]["public_roots"],
+                    0
+                );
+                assert_eq!(
+                    report["retained_capture"]["native_codec_root_certificates"]["template_roots"],
+                    0
+                );
+            }
+            assert!(
+                crate::cache::retained_bytes()
+                    .checked_add(keeper.retained_source_bytes())
+                    .unwrap()
+                    <= S7
+            );
+            assert_eq!(
+                runtime_root_tables(&warm.conn, true),
+                runtime_root_tables(&cold.conn, true)
+            );
+            assert_eq!(
+                runtime_root_tables(&warm.conn, true),
+                runtime_root_tables(&ordinary.conn, true)
+            );
+            runtime_root_compare_reachable_bytes(&warm.conn, &cold.conn);
+            runtime_root_compare_reachable_bytes(&warm.conn, &ordinary.conn);
+        }
+        let hits = warm.source_keeper.as_ref().unwrap().hits;
+        // 首次repost只命中旧池cut1/2；其后已核cut3才可供第二次repost命中。
+        for _ in 0..2 {
+            let actual = warm.handle(Fixture::ingest(3)).unwrap();
+            assert_eq!(actual, cold.handle(Fixture::ingest(3)).unwrap());
+            assert_eq!(actual, ordinary.handle(Fixture::ingest(3)).unwrap());
+            assert_eq!(
+                runtime_root_tables(&warm.conn, true),
+                runtime_root_tables(&cold.conn, true)
+            );
+            assert_eq!(
+                runtime_root_tables(&warm.conn, true),
+                runtime_root_tables(&ordinary.conn, true)
+            );
+        }
+        assert_eq!(warm.source_keeper.as_ref().unwrap().hits - hits, 5);
+        drop(warm);
+        let mut restarted = Driver::open_for_serve_with_mode(
+            &warm_fixture.db,
+            &warm_fixture.profile,
+            "1",
+            warm_fixture.clock.clone(),
+            S7,
+            s_allocation::Mode::CapturedNative,
+        )
+        .unwrap();
+        assert!(restarted.source_keeper.is_none());
+        assert_eq!(
+            restarted.handle(Fixture::ingest(3)).unwrap(),
+            cold.handle(Fixture::ingest(3)).unwrap()
+        );
+        assert_eq!(
+            (
+                restarted.source_keeper.as_ref().unwrap().hits,
+                restarted.source_keeper.as_ref().unwrap().cold
+            ),
+            (0, 3)
+        );
+        assert_eq!(
+            runtime_root_tables(&restarted.conn, true),
+            runtime_root_tables(&cold.conn, true)
+        );
+        assert_eq!(
+            runtime_root_tables(&restarted.conn, true),
+            runtime_root_tables(&ordinary.conn, true)
+        );
+        runtime_root_compare_reachable_bytes(&restarted.conn, &cold.conn);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
     fn source_keeper_driver_append_repost_restart_preserves_results_and_request_reuse() {
         let reference = Fixture::new();
         let mut ordinary = reference.open("1").unwrap();
@@ -1343,19 +1468,26 @@ mod tests {
                 1
             );
             let keeper = driver.source_keeper.as_ref().unwrap();
-            assert!(keeper.retained_source_bytes() > 0 && keeper.retained_source_bytes() <= cap);
+            assert!(keeper.retained_source_bytes() <= cap);
             let report = keeper.report();
-            for mode in ["public", "template"] {
-                assert!(report["retained_capture"][mode]
-                    .as_object()
-                    .unwrap()
-                    .values()
-                    .all(|v| v.as_u64() == Some(0)));
+            if n == 1 {
+                // 初次写前历史没有cut，不保留空证明池。
+                assert_eq!(keeper.retained_source_bytes(), 0);
+                assert!(report["retained_capture"].is_null());
+            } else {
+                assert!(keeper.retained_source_bytes() > 0);
+                for mode in ["public", "template"] {
+                    assert!(report["retained_capture"][mode]
+                        .as_object()
+                        .unwrap()
+                        .values()
+                        .all(|v| v.as_u64() == Some(0)));
+                }
+                assert_eq!(
+                    report["retained_capture"]["native_frame_reuse"]["retained_entries"],
+                    0
+                );
             }
-            assert_eq!(
-                report["retained_capture"]["native_frame_reuse"]["retained_entries"],
-                0
-            );
         }
         assert!(
             driver.source_keeper.as_ref().unwrap().hits > 0,
@@ -1385,7 +1517,7 @@ mod tests {
         assert_eq!((keeper.cold, keeper.hits), (3, 0));
     }
 
-    /// Three real append requests, each with a nonempty previous pool after the first.
+    /// 三次真实追加，仅第3次入口拥有前次写前审核留下的非空池。
     /// All actual rows and reachable originals must match cold Native and ordinary.
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
@@ -1447,7 +1579,11 @@ mod tests {
             runtime_root_compare_reachable_bytes(&warm.conn, &cold.conn);
             runtime_root_compare_reachable_bytes(&warm.conn, &ordinary.conn);
             let keeper = warm.source_keeper.as_ref().unwrap();
-            assert!(keeper.retained_source_bytes() > 0);
+            if n == 1 {
+                assert_eq!(keeper.retained_source_bytes(), 0);
+            } else {
+                assert!(keeper.retained_source_bytes() > 0);
+            }
             assert_eq!(
                 keeper.report()["cap"].as_u64().unwrap() as usize,
                 total.checked_sub(legacy).unwrap()
@@ -1461,7 +1597,7 @@ mod tests {
             eprintln!("shared workspace gen{n}: legacy={legacy} old_pool={old_pool} workspace={cost} S7={total}");
         }
         let after = content_manifest::manifest_workspace_stats();
-        assert_eq!(nonempty_shared, 2);
+        assert_eq!(nonempty_shared, 1);
         assert_eq!(after.issued - before.issued, 3);
         assert_eq!(after.rebound - before.rebound, 3);
         assert_eq!(after.overflow - before.overflow, 0);

@@ -2129,6 +2129,243 @@ impl Default for NativeCodecRootCertificates {
         }
     }
 }
+/// #1394 私有构造：同次全新核验器完成导航与三个完整Public闭包后才生成。
+/// 此证书只描述Counts依据；不进入codec seen播种，不授予来源业务资格。
+#[cfg(feature = "s_capture_native_testonly")]
+pub struct NativeCountsSubsetCertificate {
+    state: ContentRef,
+    codec_revision: u32,
+    dependency_revision: u32,
+    roots: [ContentRef; 3],
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl NativeCountsSubsetCertificate {
+    #[doc(hidden)]
+    pub fn source_bytes(&self) -> Result<usize, CodecError> {
+        std::iter::once(&self.state)
+            .chain(&self.roots)
+            .try_fold(8usize, |sum, root| {
+                sum.checked_add(8 + root.format.len() + 8 + root.root.len() + 1 + 9)
+                    .ok_or_else(|| CodecError::new(code::SOURCE, "Counts闭包证书费用溢出"))
+            })
+    }
+    #[doc(hidden)]
+    pub fn string_capacity_bytes(&self) -> usize {
+        std::iter::once(&self.state)
+            .chain(&self.roots)
+            .map(|r| r.format.capacity() + r.root.capacity())
+            .sum()
+    }
+    #[doc(hidden)]
+    pub fn matches_state(&self, state: &ContentRef) -> bool {
+        self.codec_revision == NativeCodecRootCertificates::default().predicate_revision
+            && self.dependency_revision == 1
+            && state == &self.state
+    }
+}
+/// 诊断计数不充当单组依赖列表；实际持有的闭包证书另逐字计费。
+#[cfg(feature = "s_capture_native_testonly")]
+#[derive(Default, serde::Serialize)]
+pub struct NativeCountsSubsetReport {
+    pub attempted_groups: usize,
+    pub accepted_groups: usize,
+    pub budget_stopped: bool,
+    pub rolled_back_nodes: usize,
+    pub first_admitted_source_bytes: usize,
+    pub last_attempted_source_bytes: usize,
+    pub retained_source_bytes: usize,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+#[derive(Default)]
+struct NativeCountsSubsetLedger {
+    digests: std::collections::HashSet<NodeDigest>,
+    order: Vec<NodeDigest>,
+    source_bytes: usize,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl NativeCountsSubsetLedger {
+    fn record(&mut self, digest: &NodeDigest, capture: &AuditCapture) -> Result<(), CodecError> {
+        if self.digests.contains(digest) {
+            return Ok(());
+        }
+        let (_, body) = capture
+            .original(digest)
+            .ok_or_else(|| CodecError::new(code::SOURCE, "Counts依赖必须来自完整capture原件"))?;
+        let bytes = self
+            .source_bytes
+            .checked_add(body.len())
+            .and_then(|v| v.checked_add(32 + 1 + 64))
+            .ok_or_else(|| CodecError::new(code::SOURCE, "Counts原件费用溢出"))?;
+        self.digests
+            .try_reserve(1)
+            .map_err(|e| CodecError::new(code::SOURCE, e.to_string()))?;
+        self.order
+            .try_reserve(1)
+            .map_err(|e| CodecError::new(code::SOURCE, e.to_string()))?;
+        self.digests.insert(*digest);
+        self.order.push(*digest);
+        self.source_bytes = bytes;
+        Ok(())
+    }
+    fn rollback(&mut self, checkpoint: (usize, usize)) -> usize {
+        let removed = self.order.len() - checkpoint.0;
+        for digest in self.order.drain(checkpoint.0..) {
+            self.digests.remove(&digest);
+        }
+        self.source_bytes = checkpoint.1;
+        removed
+    }
+}
+#[cfg(feature = "s_capture_native_testonly")]
+struct NativeCountsSubsetReader<'a> {
+    capture: &'a AuditCapture,
+    ledger: &'a std::cell::RefCell<NativeCountsSubsetLedger>,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl NodeSource for NativeCountsSubsetReader<'_> {
+    fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+        let got = CaptureReader(self.capture).read(digest)?;
+        if matches!(&got, NodeRead::Found { .. }) {
+            self.ledger.borrow_mut().record(digest, self.capture)?;
+        }
+        Ok(got)
+    }
+    fn checked_read(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<Option<job::CheckedFrame>, CodecError> {
+        let got = CaptureReader(self.capture).checked_read(digest)?;
+        if got.is_some() {
+            self.ledger.borrow_mut().record(digest, self.capture)?;
+        }
+        Ok(got)
+    }
+    fn audit_full_array_scan(&self) -> bool {
+        true
+    }
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl AuditCapture {
+    /// 按调用方给出的新到旧顺序，仅接纳整组导航+三完整闭包。
+    /// fixed/group费用是SQL/Key/Counts原件费用，不是调用方提供的验证资格。
+    /// 全新Verifier只建一次；跨组memo仅引用此前已接纳D。首次超额回滚新增D并终止，
+    /// 核验器与半组资格立即丢弃。最终裁剪按值移交正文，清空全部跨请求codec根。
+    #[doc(hidden)]
+    pub fn into_counts_original_subset_for_testonly(
+        mut self,
+        groups: impl IntoIterator<Item = (ContentRef, usize)>,
+        fixed_source_bytes: usize,
+        cap: usize,
+    ) -> Result<
+        (
+            Self,
+            Vec<NativeCountsSubsetCertificate>,
+            NativeCountsSubsetReport,
+        ),
+        CodecError,
+    > {
+        if !matches!(&self.nodes, CaptureNodes::Native(_)) {
+            return Err(CodecError::new(
+                code::SOURCE,
+                "Counts稀疏原件只接受Native捕获",
+            ));
+        }
+        self = self.into_originals_only_for_testonly()?;
+        let ledger = std::cell::RefCell::new(NativeCountsSubsetLedger::default());
+        let mut certificates = Vec::new();
+        let mut report = NativeCountsSubsetReport::default();
+        let mut accepted_metadata_bytes = 0usize;
+        {
+            let mut reader = NativeCountsSubsetReader {
+                capture: &self,
+                ledger: &ledger,
+            };
+            let mut verifier = Verifier::new(&mut reader, Mode::Public);
+            for (state, group_source_bytes) in groups {
+                report.attempted_groups += 1;
+                let checkpoint = {
+                    let material = ledger.borrow();
+                    (material.order.len(), material.source_bytes)
+                };
+                let names = ["objects", "witnesses", "observations"];
+                let fields: CodecFields = path::object_fields_output(
+                    &mut verifier.source,
+                    RefView::from(&state),
+                    &names,
+                    false,
+                )?;
+                let roots = [
+                    fields
+                        .get("objects")
+                        .ok_or_else(|| CodecError::new(code::SOURCE, "Counts缺objects"))?
+                        .clone(),
+                    fields
+                        .get("witnesses")
+                        .ok_or_else(|| CodecError::new(code::SOURCE, "Counts缺witnesses"))?
+                        .clone(),
+                    fields
+                        .get("observations")
+                        .ok_or_else(|| CodecError::new(code::SOURCE, "Counts缺observations"))?
+                        .clone(),
+                ];
+                for root in &roots {
+                    verifier.verify_refview(RefView::from(root))?;
+                }
+                // 完整核验成功后才允许私有构造；未核半组不会得到可携带证书。
+                let certificate = NativeCountsSubsetCertificate {
+                    state,
+                    codec_revision: NativeCodecRootCertificates::default().predicate_revision,
+                    dependency_revision: 1,
+                    roots,
+                };
+                let certificate_bytes = certificate.source_bytes()?;
+                let metadata_bytes = accepted_metadata_bytes
+                    .checked_add(group_source_bytes)
+                    .and_then(|v| v.checked_add(certificate_bytes))
+                    .ok_or_else(|| CodecError::new(code::SOURCE, "Counts整组费用溢出"))?;
+                let required = fixed_source_bytes
+                    .checked_add(metadata_bytes)
+                    .and_then(|v| v.checked_add(ledger.borrow().source_bytes))
+                    .ok_or_else(|| CodecError::new(code::SOURCE, "Counts整池费用溢出"))?;
+                report.last_attempted_source_bytes = required;
+                if required > cap {
+                    report.budget_stopped = true;
+                    report.rolled_back_nodes = ledger.borrow_mut().rollback(checkpoint);
+                    // 不继续使用已含失败组seen的Verifier，也不接受该组证书。
+                    break;
+                }
+                certificates
+                    .try_reserve(1)
+                    .map_err(|e| CodecError::new(code::SOURCE, e.to_string()))?;
+                certificates.push(certificate);
+                accepted_metadata_bytes = metadata_bytes;
+                report.accepted_groups += 1;
+                if report.accepted_groups == 1 {
+                    report.first_admitted_source_bytes = required;
+                }
+                report.retained_source_bytes = required;
+            }
+        }
+        let material = ledger.into_inner();
+        let mut kept = std::collections::HashMap::new();
+        kept.try_reserve(material.digests.len())
+            .map_err(|e| CodecError::new(code::SOURCE, e.to_string()))?;
+        let CaptureNodes::Native(native) = &mut self.nodes else {
+            unreachable!()
+        };
+        for (digest, node) in native.nodes.drain() {
+            if material.digests.contains(&digest) {
+                kept.insert(digest, node);
+            }
+            // 不保留的NativeNode在本轮drop；body Vec不复制、不留在旧HashMap或proof中。
+        }
+        native.nodes = kept;
+        // collector产生的F proof及全请求memo都不得跟随稀疏owner保留。
+        self = self.into_originals_only_for_testonly()?;
+        Ok((self, certificates, report))
+    }
+}
+
 pub struct AuditCapture {
     nodes: CaptureNodes,
     public: std::cell::RefCell<AuditMemo>,

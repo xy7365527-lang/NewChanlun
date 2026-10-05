@@ -1,5 +1,5 @@
-//! #1394 显式Native模式的来源Counts和纯codec成功根复用；保留量受唯一S7预算约束。
-//! 完整当前audit只跳过绑定成功旧cut的source业务核；节点依赖采用成功audit原件超集。
+//! #1394 显式Native模式的来源Counts完整闭包复用；保留量受唯一S7预算约束。
+//! 完整当前audit只跳过绑定成功旧cut的source业务核；仅整组保留Counts导航及三个完整闭包。
 use super::{
     history::PublishedCut,
     request_audit::{ExactRows, SqlCell},
@@ -63,6 +63,7 @@ impl Key {
 struct Proof {
     key: Key,
     counts: Counts,
+    dependency: Option<sc::NativeCountsSubsetCertificate>,
 }
 pub(super) struct Pool {
     pub(super) originals: sc::AuditCapture,
@@ -71,6 +72,7 @@ pub(super) struct Pool {
     proofs: Vec<Proof>,
     source_cost: SourceCost,
     capacity: RetainedCapacity,
+    subset_selection: Option<sc::NativeCountsSubsetReport>,
 }
 
 #[derive(Default, Clone, Debug, Serialize)]
@@ -80,6 +82,7 @@ pub(super) struct SourceCost {
     exact_rows_bytes: usize,
     cut_key_counts_certificate_bytes: usize,
     codec_root_certificate_bytes: usize,
+    counts_dependency_certificate_bytes: usize,
     pub(super) total: usize,
 }
 #[derive(Default, Clone, Debug, Serialize)]
@@ -91,6 +94,7 @@ pub(super) struct RetainedCapacity {
     proof_vec_capacity_payload_bytes: usize,
     key_string_capacity_bytes: usize,
     codec_root_set_capacity_payload_bytes: usize,
+    counts_dependency_string_capacity_bytes: usize,
     pub(super) total_payload_bytes: usize,
 }
 fn add(a: usize, b: usize) -> Result<usize, String> {
@@ -130,7 +134,89 @@ fn cells_capacity(cells: &Vec<SqlCell>) -> Result<usize, String> {
         },
     )
 }
+fn binding_source_bytes(binding: &Binding) -> Result<usize, String> {
+    binding.rows.iter().try_fold(0, |sum, row| {
+        let mut cost = add(8, row.sql.len())?;
+        cost = add(cost, cells_cost(&row.scope)?)?;
+        cost = add(cost, 8)?;
+        for column in &row.columns {
+            cost = add(cost, add(8, column.len())?)?;
+        }
+        cost = add(cost, 8)?;
+        for cells in &row.rows {
+            cost = add(cost, cells_cost(cells)?)?;
+        }
+        add(sum, cost)
+    })
+}
+fn proof_source_bytes(proof: &Proof) -> Result<usize, String> {
+    [
+        &proof.key.state.format,
+        &proof.key.state.root,
+        &proof.key.profile,
+        &proof.key.rule,
+    ]
+    .into_iter()
+    .try_fold(
+        16 + 1 + 9 + 64 + 6 * std::mem::size_of::<usize>(),
+        |sum, text| add(sum, add(8, text.len())?),
+    )
+}
+fn codec_root_source_bytes(roots: usize) -> Result<usize, String> {
+    add(
+        add(add(8, sc::CONTENT_FORMAT.len())?, 4)?,
+        add(mul(2, 1 + 1 + 8)?, mul(roots, 32)?)?,
+    )
+}
 impl Pool {
+    fn build_bounded_counts(
+        originals: sc::AuditCapture,
+        binding: Binding,
+        mut proofs: Vec<Proof>,
+        cap: usize,
+    ) -> Result<Self, String> {
+        proofs.sort_by_key(|proof| proof.key.generation);
+        let fixed = add(
+            add(8, binding_source_bytes(&binding)?)?,
+            codec_root_source_bytes(0)?,
+        )?;
+        // history原严格升序；只反向尝试一次，接纳后仍恢复原binary_search代序。
+        let groups = proofs
+            .iter()
+            .rev()
+            .map(|proof| Ok((proof.key.state.clone(), proof_source_bytes(proof)?)))
+            .collect::<Result<Vec<_>, String>>()?;
+        let (originals, certificates, selection) = originals
+            .into_counts_original_subset_for_testonly(groups, fixed, cap)
+            .map_err(|e| e.to_string())?;
+        let remove = proofs
+            .len()
+            .checked_sub(certificates.len())
+            .ok_or("CountsSubsetProofCountInvalid")?;
+        proofs.drain(..remove);
+        for (proof, certificate) in proofs.iter_mut().rev().zip(certificates) {
+            if !certificate.matches_state(&proof.key.state) {
+                return Err("CountsSubsetStateCertificateInvalid".into());
+            }
+            proof.dependency = Some(certificate);
+        }
+        proofs.shrink_to_fit();
+        let nodes = usize::try_from(
+            originals.retention()["captured_nodes"]
+                .as_u64()
+                .ok_or("CountsSubsetNodeCountInvalid")?,
+        )
+        .map_err(|e| e.to_string())?;
+        let mut pool = Self::build(originals, nodes, binding, proofs)?;
+        if !pool.proofs.is_empty()
+            && (pool.source_cost.total != selection.retained_source_bytes
+                || pool.source_cost.total > cap)
+        {
+            return Err("CountsSubsetExactFeeMismatch".into());
+        }
+        pool.subset_selection = Some(selection);
+        Ok(pool)
+    }
     fn build(
         originals: sc::AuditCapture,
         nodes: usize,
@@ -172,10 +258,7 @@ impl Pool {
         )?;
         // #1394本原型新增源成本配方，非SPEC原有配方：format长度前缀+字节，
         // 判据版本u32；两个集合各含Mode/Flavor字节和u64长度前缀；每个根32字节。
-        source_cost.codec_root_certificate_bytes = add(
-            add(add(8, sc::CONTENT_FORMAT.len())?, 4)?,
-            add(mul(2, 1 + 1 + 8)?, mul(root_count, 32)?)?,
-        )?;
+        source_cost.codec_root_certificate_bytes = codec_root_source_bytes(root_count)?;
         capacity.codec_root_set_capacity_payload_bytes = mul(
             add(
                 number(&roots["public_capacity"])?,
@@ -228,6 +311,16 @@ impl Pool {
             }
             source_cost.cut_key_counts_certificate_bytes =
                 add(source_cost.cut_key_counts_certificate_bytes, bytes)?;
+            if let Some(certificate) = &proof.dependency {
+                source_cost.counts_dependency_certificate_bytes = add(
+                    source_cost.counts_dependency_certificate_bytes,
+                    certificate.source_bytes().map_err(|e| e.to_string())?,
+                )?;
+                capacity.counts_dependency_string_capacity_bytes = add(
+                    capacity.counts_dependency_string_capacity_bytes,
+                    certificate.string_capacity_bytes(),
+                )?;
+            }
         }
         source_cost.total = [
             source_cost.node_body_bytes,
@@ -235,6 +328,7 @@ impl Pool {
             source_cost.exact_rows_bytes,
             source_cost.cut_key_counts_certificate_bytes,
             source_cost.codec_root_certificate_bytes,
+            source_cost.counts_dependency_certificate_bytes,
         ]
         .into_iter()
         .try_fold(8, add)?;
@@ -246,6 +340,7 @@ impl Pool {
             capacity.proof_vec_capacity_payload_bytes,
             capacity.key_string_capacity_bytes,
             capacity.codec_root_set_capacity_payload_bytes,
+            capacity.counts_dependency_string_capacity_bytes,
         ]
         .into_iter()
         .try_fold(std::mem::size_of::<Self>(), add)?;
@@ -256,6 +351,7 @@ impl Pool {
             proofs,
             source_cost,
             capacity,
+            subset_selection: None,
         })
     }
 }
@@ -301,6 +397,9 @@ impl Keeper {
     pub(super) fn take(&mut self) -> Option<Pool> {
         self.pool.take()
     }
+    pub(super) fn retention_cap(&self) -> usize {
+        self.cap
+    }
     pub(super) fn retained_source_bytes(&self) -> usize {
         self.pool.as_ref().map_or(0, |pool| pool.source_cost.total)
     }
@@ -311,7 +410,14 @@ impl Keeper {
         hits: usize,
         cold: usize,
     ) -> Result<(), String> {
-        self.last_required = next.source_cost.total;
+        self.last_required =
+            next.subset_selection
+                .as_ref()
+                .map_or(next.source_cost.total, |selection| {
+                    selection
+                        .last_attempted_source_bytes
+                        .max(next.source_cost.total)
+                });
         self.peak_two_pool_source_cost = self.peak_two_pool_source_cost.max(add(
             prior.as_ref().map_or(0, |p| p.source_cost.total),
             next.source_cost.total,
@@ -322,17 +428,25 @@ impl Keeper {
         )?);
         self.hits += hits;
         self.cold += cold;
-        // 原型是一个共享全原件池；过预算整池驱逐，不缩小依赖证书求放行。
-        if next.source_cost.total <= self.cap {
+        // 新到旧完整组接纳；超额只舍弃最后尝试的整组，先前完整组继续保留。
+        if next
+            .subset_selection
+            .as_ref()
+            .is_some_and(|selection| selection.budget_stopped)
+        {
+            self.rejected = self.rejected.saturating_add(1);
+        }
+        if !next.proofs.is_empty() && next.source_cost.total <= self.cap {
             self.pool = Some(next);
-        } else {
-            self.rejected += 1;
+        } else if next.subset_selection.is_none() {
+            self.rejected = self.rejected.saturating_add(1);
         }
         drop(prior);
         Ok(())
     }
     /// 请求已成功提交后的可丢弃缓存收尾，不得把缓存失败变成业务失败。
-    /// 这里只消费同次审计的原件和已封存证书；不读取SQL、不生成新的审计资格。
+    /// 只消费同次审计的原件和已封存Counts；导航及三闭包按原codec核重走一次。
+    /// 不读取SQL、不生成新的业务审计资格；构造失败只丢弃可选缓存。
     pub(super) fn retain_completed(
         &mut self,
         capture: sc::AuditCapture,
@@ -340,7 +454,9 @@ impl Keeper {
         pending: PendingPool,
     ) {
         self.clear();
-        match Pool::build(capture, nodes, pending.binding, pending.proofs) {
+        // slot.node_count仍为全capture数；稀疏池nodes由裁剪后的owner单独计数。
+        let _ = nodes;
+        match Pool::build_bounded_counts(capture, pending.binding, pending.proofs, self.cap) {
             Ok(next) => {
                 if self.finish(None, next, pending.hits, pending.cold).is_err() {
                     self.clear();
@@ -358,6 +474,8 @@ impl Keeper {
             "source_cost_breakdown":self.pool.as_ref().map(|p|&p.source_cost),
             "retained_capacity_breakdown":self.pool.as_ref().map(|p|&p.capacity),
             "retained_capture":self.pool.as_ref().map(|p|p.originals.retention()),
+            "counts_subset_selection":self.pool.as_ref().and_then(|p|p.subset_selection.as_ref()),
+            "retained_counts_proofs":self.pool.as_ref().map_or(0,|p|p.proofs.len()),
             "peak_two_pool_source_cost":self.peak_two_pool_source_cost,"peak_two_pool_capacity_payload":self.peak_two_pool_capacity_payload,
             "whole_resource_qualified":false,"uncovered":["HashMap control bytes","allocator overhead","transient verifier/overlay","process heap/RSS/IO peak"]})
     }
@@ -404,6 +522,12 @@ impl<'a> Trial<'a> {
                 .ok()
                 .and_then(|index| pool.proofs.get(index))
                 .filter(|proof| proof.key == key)
+                .filter(|proof| {
+                    proof
+                        .dependency
+                        .as_ref()
+                        .is_some_and(|certificate| certificate.matches_state(&key.state))
+                })
         });
         if let Some(proof) = found {
             self.hits += 1;
@@ -417,6 +541,7 @@ impl<'a> Trial<'a> {
         self.proofs.push(Proof {
             key: Key::of(cut),
             counts: counts.clone(),
+            dependency: None,
         });
     }
     pub(super) fn complete(
@@ -425,9 +550,11 @@ impl<'a> Trial<'a> {
         capture: sc::AuditCapture,
         nodes: usize,
         frontier: i64,
+        cap: usize,
     ) -> Result<(Pool, usize, usize), String> {
+        let _ = nodes; // 全capture计数不得变成稀疏原件计数。
         Ok((
-            Pool::build(capture, nodes, Binding::read(tx, frontier)?, self.proofs)?,
+            Pool::build_bounded_counts(capture, Binding::read(tx, frontier)?, self.proofs, cap)?,
             self.hits,
             self.cold,
         ))
@@ -478,6 +605,215 @@ mod tests {
         let mut keeper = Keeper::new(usize::MAX);
         audit(&mut f, &mut keeper).unwrap();
         (f, keeper)
+    }
+
+    #[test]
+    fn counts_subset_normal_multicut_bounded_groups_match_complete_cold() {
+        let mut f = Fixture::new();
+        for n in 1..=3 {
+            let start = (n - 1) * 10;
+            let identity = match n {
+                1 => "a",
+                2 => "b",
+                _ => "c",
+            };
+            publish(&mut f, n, (identity, start, 6 + n, 12 + n, 3 + n, 7 + n), 1);
+        }
+        let mut measured = Keeper::new(usize::MAX);
+        audit(&mut f, &mut measured).unwrap();
+        let full = measured.pool.as_ref().unwrap();
+        assert_eq!(full.proofs.len(), 3);
+        let selection = full.subset_selection.as_ref().unwrap();
+        let one_group_cap = selection.first_admitted_source_bytes;
+        assert!(
+            one_group_cap < full.source_cost.total,
+            "正常多个cut须具有正边际原件/Key费用"
+        );
+        assert!(full.proofs.iter().all(|p| p
+            .dependency
+            .as_ref()
+            .unwrap()
+            .matches_state(&p.key.state)));
+        for pair in full.proofs.windows(2) {
+            assert_ne!(pair[0].key.state, pair[1].key.state);
+            assert!(!pair[0]
+                .dependency
+                .as_ref()
+                .unwrap()
+                .matches_state(&pair[1].key.state));
+            assert!(!pair[1]
+                .dependency
+                .as_ref()
+                .unwrap()
+                .matches_state(&pair[0].key.state));
+        }
+        let mut bounded = Keeper::new(one_group_cap);
+        let baseline = audit(&mut f, &mut bounded).unwrap();
+        let pool = bounded.pool.as_ref().expect("整组接纳不应被后续超额组驱逐");
+        assert_eq!(pool.proofs.len(), 1);
+        assert_eq!(pool.proofs[0].key.generation, 3);
+        let selection = pool.subset_selection.as_ref().unwrap();
+        assert!(selection.budget_stopped);
+        assert_eq!(selection.attempted_groups, 2);
+        assert_eq!(selection.accepted_groups, 1);
+        assert!(selection.rolled_back_nodes > 0);
+        assert!(pool.source_cost.total <= one_group_cap);
+        assert!(pool.source_cost.counts_dependency_certificate_bytes > 0);
+        assert_eq!(
+            pool.originals.retention()["native_codec_root_certificates"]["public_roots"],
+            0
+        );
+        assert_eq!(
+            pool.originals.retention()["native_codec_root_certificates"]["template_roots"],
+            0
+        );
+        let (hits, cold) = (bounded.hits, bounded.cold);
+        assert_eq!(audit(&mut f, &mut bounded).unwrap(), baseline);
+        assert_eq!((bounded.hits - hits, bounded.cold - cold), (1, 2));
+        // 合法append仍调用当前完整原source核，先前未接纳cut不具有资格。
+        publish(&mut f, 4, ("d", 30, 10, 16, 7, 11), 1);
+        audit(&mut f, &mut bounded).unwrap();
+        assert!(bounded.retained_source_bytes() <= one_group_cap);
+        bounded.clear();
+        let mut restarted = Keeper::new(one_group_cap);
+        audit(&mut f, &mut restarted).unwrap();
+        assert_eq!((restarted.hits, restarted.cold), (0, 4));
+    }
+
+    #[test]
+    fn counts_subset_normal_unrelated_legal_append_keeps_complete_counts() {
+        let (mut f, mut keeper) = seeded();
+        let baseline = audit(&mut f, &mut keeper).unwrap();
+        let (hits, cold) = (keeper.hits, keeper.cold);
+        // 合法完整F原件通过原写入口追加，但不在任何Counts依赖三子图中。
+        let digest = {
+            let tx = f.conn.transaction().unwrap();
+            let value = sc::write_value(
+                &mut super::super::content_store::TxStore::new(&tx).unwrap(),
+                &sc::Value::String("unrelated-normal-original".repeat(400)),
+            )
+            .unwrap();
+            tx.commit().unwrap();
+            value.digest
+        };
+        assert_eq!(audit(&mut f, &mut keeper).unwrap(), baseline);
+        assert_eq!((keeper.hits - hits, keeper.cold - cold), (1, 0));
+        let pool = keeper.pool.as_ref().unwrap();
+        assert!(pool.originals.original(&digest).is_none());
+        assert_eq!(pool.proofs.len(), 1);
+        assert!(pool.proofs[0]
+            .dependency
+            .as_ref()
+            .unwrap()
+            .matches_state(&pool.proofs[0].key.state));
+        assert!(pool.source_cost.total <= keeper.retention_cap());
+    }
+
+    #[test]
+    fn counts_subset_normal_owner_releases_unselected_originals_and_keeps_exact_tuples() {
+        let mut f = Fixture::new();
+        for n in 1..=3 {
+            let identity = match n {
+                1 => "a",
+                2 => "b",
+                _ => "c",
+            };
+            publish(
+                &mut f,
+                n,
+                (identity, (n - 1) * 10, 6 + n, 12 + n, 3 + n, 7 + n),
+                1,
+            );
+        }
+        let tx = f.conn.transaction().unwrap();
+        let mut context = super::super::request_audit::RequestAuditContext::with_source_keeper(
+            Keeper::new(usize::MAX),
+        );
+        let warm = state::audit_native_in_request(&tx, &mut context).unwrap();
+        let cold = state::audit_native_current(&tx).unwrap();
+        assert_eq!(complete(&warm), complete(&cold));
+        let slot = context.take().unwrap();
+        let pending = slot.source_pending.unwrap();
+        let all_nodes = slot.node_count;
+        let all_body = slot.capture.retention()["body_len_bytes"].as_u64().unwrap();
+        // 对原导航+三完整子图独立展开，只取正常原件的直接只读见证。
+        let mut expected = std::collections::HashMap::new();
+        struct ExactRecorder<'a> {
+            capture: &'a sc::AuditCapture,
+            tuples: &'a mut std::collections::HashMap<sc::NodeDigest, (u8, Vec<u8>, usize)>,
+        }
+        impl sc::NodeSource for ExactRecorder<'_> {
+            fn read(&mut self, d: &sc::NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+                let got = sc::NodeSource::read(&mut self.capture.reader(), d)?;
+                if let sc::NodeRead::Found { tag, body } = &got {
+                    self.tuples.entry(*d).or_insert_with(|| {
+                        (
+                            *tag,
+                            body.clone(),
+                            self.capture.original(d).unwrap().1.as_ptr() as usize,
+                        )
+                    });
+                }
+                Ok(got)
+            }
+        }
+        for proof in &pending.proofs {
+            let mut recorder = ExactRecorder {
+                capture: &slot.capture,
+                tuples: &mut expected,
+            };
+            let fields = sc::path::lookup_fields_refview(
+                &mut recorder,
+                sc::RefView::from(&proof.key.state),
+                &["objects", "witnesses", "observations"],
+                true,
+            )
+            .unwrap();
+            sc::audit_verify_many_refview(
+                &mut recorder,
+                ["objects", "witnesses", "observations"]
+                    .iter()
+                    .map(|name| sc::RefView::from(fields.get(name).unwrap())),
+                sc::Mode::Public,
+            )
+            .unwrap();
+        }
+        let excluded = warm
+            .cuts
+            .iter()
+            .map(|cut| cut.roots.publication_template.view())
+            .map(|r| r.digest().unwrap())
+            .find(|d| !expected.contains_key(d));
+        let pool =
+            Pool::build_bounded_counts(slot.capture, pending.binding, pending.proofs, usize::MAX)
+                .unwrap();
+        assert_eq!(pool.nodes, expected.len());
+        assert!(pool.nodes < all_nodes);
+        assert!(pool.source_cost.node_body_bytes < all_body as usize);
+        for (digest, (tag, bytes, pointer)) in expected {
+            let kept = pool.originals.original(&digest).unwrap();
+            assert_eq!((kept.0, kept.1), (tag, bytes.as_slice()));
+            assert_eq!(kept.1.as_ptr() as usize, pointer, "正文必须原Vec按值移动");
+        }
+        let digest = excluded.expect("正常模板根应不在Counts三子图闭包中");
+        assert!(pool.originals.original(&digest).is_none());
+        let retained = pool.originals.retention();
+        assert_eq!(retained["captured_nodes"], pool.nodes);
+        assert_eq!(
+            retained["native_frame_reuse"]["retained_body_vec_capacity_bytes"],
+            0
+        );
+        assert_eq!(
+            pool.source_cost.node_digest_tag_certificate_bytes,
+            97 * pool.nodes
+        );
+        assert_eq!(
+            pool.source_cost.total,
+            pool.subset_selection
+                .as_ref()
+                .unwrap()
+                .retained_source_bytes
+        );
     }
 
     #[test]

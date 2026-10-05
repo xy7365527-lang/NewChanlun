@@ -344,7 +344,8 @@ pub(super) fn audit_native_with_source_keeper_for_testonly(
             .cuts
             .last()
             .map_or(-1, |cut| cut.metadata.input_frontier);
-        let (next, hits, cold) = trial.complete(tx, capture, nodes, frontier)?;
+        let (next, hits, cold) =
+            trial.complete(tx, capture, nodes, frontier, keeper.retention_cap())?;
         Ok::<_, String>((audited, next, hits, cold))
     })();
     match result {
