@@ -1,0 +1,61 @@
+{
+  "scope": "issue1467 Stage67 frozen live-author independent review",
+  "completed_at_utc": "2026-10-05T19:19:33.418665+00:00",
+  "author_final_sha256": "8b3c94b16c3aae2968fa361568c4c221ac9653ef6a23a469193fa4a9c3589c54",
+  "author_manifest_sha256": "e0dc6fd6b6f4221bac4d9b6e187d75ab0c54f48a88ac8d84f64bc6ff75a87581",
+  "source_files_unchanged": 52,
+  "hashes_unchanged": true,
+  "commands": [
+    {
+      "argv": [
+        "python3",
+        "independent_check.py"
+      ],
+      "exit_code": 0,
+      "peak_rss_bytes": 31408128,
+      "rows": 2215
+    },
+    {
+      "argv": [
+        "python3",
+        "replay_author.py",
+        "baseline"
+      ],
+      "exit_code": 0,
+      "peak_rss_bytes": 77938688,
+      "rows": 2215
+    },
+    {
+      "argv": [
+        "python3",
+        "replay_author.py",
+        "prefix-only"
+      ],
+      "exit_code": 0,
+      "peak_rss_bytes": 65503232,
+      "rows": 2215
+    },
+    {
+      "argv": [
+        "python3",
+        "capture_evidence.py"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "each_run_resource_ceiling": {
+    "prefixes": 443,
+    "objects": 5,
+    "rss_bytes": 100663296
+  },
+  "RW_rerun": false,
+  "new_history": false,
+  "parallel_replays": false,
+  "author_functions_used_as_independent_oracle": false,
+  "independence_note": "No author conversation, MEMORY, ResearchProgress or peer review files read. Own findings and report existed before an unsolicited implementation coordination message; that message was not used as review evidence.",
+  "script_hashes": {
+    "independent_check.py": "4dd393d351c1d63e8b2e0cd5e446956ea7a4fe0cae2334ba9ab13187fee35041",
+    "replay_author.py": "7d9df7a6c5489eeba5cfa7bde8aca3a750fe08ef2c05fc6eb9a098f44c805f36",
+    "capture_evidence.py": "cd11d9cdbdf4c68891f32217f174e0e4b5aabc3357112945c7c386292f9bd21b"
+  }
+}

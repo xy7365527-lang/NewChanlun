@@ -1,0 +1,17 @@
+{
+  "status": "machine_closed_semantic_review_pending",
+  "source_sha256": "e1c96a05d4f2f5450f9056cafe54254e8a97413083927ba2949ae4d27794c6c4",
+  "primary_declaration": "Stage67.no_closed_if_all_need_earlier_closed",
+  "actual_type": "∀ (α : Type) (rank : α → Nat) (closed : α → Prop) (h : Stage67.NeedsEarlierClosed α rank closed) (x : α), Not (closed x)",
+  "exact_root_passed": true,
+  "primary_axioms": [],
+  "semantic_sha256": "3e08e1a29c0cad6ba177dfafa96330465a026b161a5040fceb0e5bd007889a21",
+  "environment_sha256": "91900355fecfb9b95efe60d4e842536ee784f9ed503b932764c095020573c4a8",
+  "raw_boundary_model": "direct compiler checked; axioms propext; separate exact expected-type run not requested",
+  "scope": "Conditional natural-rank lemma only; no assertion that source doctrine satisfies its premise",
+  "development": {
+    "failed_first_compilation": "attempt1-receipt.json; original failed source retained",
+    "missing_verifier_path": "skills/lean-verify/scripts path absent; no Lean executed at that invocation",
+    "bootstrap": "Initial unpinned lean --version tried v4.34.1 download; own process18621 terminated. All accepted Lean runs used explicit installed4.31.0. A slow own rg18744 was also terminated."
+  }
+}

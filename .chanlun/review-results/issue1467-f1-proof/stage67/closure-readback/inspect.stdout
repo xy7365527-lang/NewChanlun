@@ -1,0 +1,36 @@
+theorem Stage67.no_closed_if_all_need_earlier_closed : ∀ (α : Type) (rank : α → Nat) (closed : α → Prop),
+  Stage67.NeedsEarlierClosed α rank closed → ∀ (x : α), ¬closed x :=
+fun α rank closed h =>
+  have step := fun n =>
+    Nat.strongRecOn (motive := fun x => ∀ (x_1 : α), rank x_1 = x → ¬closed x_1) n fun n ih x hx hc =>
+      Exists.casesOn (h x hc) fun b h =>
+        And.casesOn h fun hb hlt => ih (rank b) (Eq.mp (congrArg (LT.lt (rank b)) hx) hlt) b rfl hb;
+  fun x => step (rank x) x rfl
+'Stage67.no_closed_if_all_need_earlier_closed' does not depend on any axioms
+theorem Stage67.raw_root_boundary_model : Stage67.MovementClosed 1 ∧
+  ∀ (x : Nat), Stage67.MovementClosed x → ∃ b, Stage67.RawClosed b ∧ b < x ∧ ¬Stage67.MovementClosed b :=
+⟨Eq.refl 1, fun x hx =>
+  have hx' := hx;
+  Eq.ndrec (motive := fun x => x = 1 → ∃ b, Stage67.RawClosed b ∧ b < x ∧ ¬Stage67.MovementClosed b)
+    (fun hx' =>
+      Exists.intro 0
+        ⟨rfl,
+          ⟨of_decide_eq_true (id (Eq.refl true)),
+            of_eq_true (Eq.trans (congrArg Not Nat.zero_ne_one._simp_1) not_false_eq_true)⟩⟩)
+    (Eq.symm hx) hx'⟩
+'Stage67.raw_root_boundary_model' depends on axioms: [propext]
+def Stage67.NeedsEarlierClosed : (α : Type) → (α → Nat) → (α → Prop) → Prop :=
+fun α rank closed =>
+  ∀ (x : α), closed x → @Exists.{1} α fun b => And (closed b) (@LT.lt.{0} Nat instLTNat (rank b) (rank x))
+def Stage67.RawClosed : Nat → Prop :=
+fun n => @Eq.{1} Nat n (@OfNat.ofNat.{0} Nat (nat_lit 0) (instOfNatNat (nat_lit 0)))
+def Stage67.MovementClosed : Nat → Prop :=
+fun n => @Eq.{1} Nat n (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1)))
+Stage67.no_closed_if_all_need_earlier_closed : ∀ (α : Type) (rank : α → Nat) (closed : α → Prop),
+  Stage67.NeedsEarlierClosed α rank closed → ∀ (x : α), Not (closed x)
+Stage67.raw_root_boundary_model : And
+  (Stage67.MovementClosed (@OfNat.ofNat.{0} Nat (nat_lit 1) (instOfNatNat (nat_lit 1))))
+  (∀ (x : Nat),
+    Stage67.MovementClosed x →
+      @Exists.{1} Nat fun b =>
+        And (Stage67.RawClosed b) (And (@LT.lt.{0} Nat instLTNat b x) (Not (Stage67.MovementClosed b))))

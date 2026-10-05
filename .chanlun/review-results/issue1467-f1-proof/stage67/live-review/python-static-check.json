@@ -1,0 +1,27 @@
+{
+  "script": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/live-author/check_live.py",
+  "script_sha256": "834ef28a5230a4a328321204205019dd5cccb03826b76c5b8a0f7c59b6bd7441",
+  "ast_parse": "pass",
+  "compile_without_write": "pass",
+  "tools": {
+    "ruff": {
+      "on_path": null,
+      "python_module": false
+    },
+    "mypy": {
+      "on_path": null,
+      "python_module": false
+    },
+    "pylint": {
+      "on_path": null,
+      "python_module": false
+    },
+    "black": {
+      "on_path": null,
+      "python_module": false
+    }
+  },
+  "git_diff_py": "empty at review start in R",
+  "lint_or_type_pass_claimed": false,
+  "scope": "独立审阅冻结研究脚本；未将缺失类型标注或紧凑排版扩为生产改码任务"
+}

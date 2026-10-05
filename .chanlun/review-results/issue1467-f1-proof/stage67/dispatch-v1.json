@@ -1,0 +1,41 @@
+{
+  "stage": 67,
+  "issue": 1467,
+  "branch": "codex/research-1467-f1-proof",
+  "baseCommit": "8e6e56fbba4a7b9ec3dec10996a06d2e871343f9",
+  "previous_goal_turn": "progress",
+  "previous_evidence": "Stage66 finite reconstruction, corrected source application, independent scope/adoption review; committed and tracker read back",
+  "objective": "Realize or refute explicit base-arm role and causal in-progress force interpretation on the existing Stage66 candidate, preserving full P1-P4 and fixed F2 obligations",
+  "authors": [
+    {
+      "task": "/root/stage67_live_dynamics",
+      "directory": "live-author",
+      "new_histories": 0,
+      "max_prefixes": 443,
+      "max_bytes": 100663296
+    },
+    {
+      "task": "/root/stage67_base_arm_role",
+      "directory": "base-role-author",
+      "new_histories": 0,
+      "max_models": 1,
+      "max_bytes": 100663296
+    }
+  ],
+  "limits": "No R_W rerun, no new histories, no production/formal/doctrine/main mutation, no purchase. Actor self-check not independent review.",
+  "frozen": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage66NestedExpressionAndConsumerScope.md",
+      "sha256": "98c5de34e8ecaa8116bcea3f407f76a6f1248251bf791f108061d5ac3256126d"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage66/adoption/ScopeCorrections-v2.md",
+      "sha256": "859b6160177cddeec890b9db17a30b8da0fdf92c9bf4d7421761adbffd726c14"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage66/adoption-review/v2/FINAL.json",
+      "sha256": "b81b4f63d13fad70d99b4bd0fdd76b7e5c4a8dc14bbeb5006ba4f56ce85407d4"
+    }
+  ],
+  "createdAt": "2026-10-05T18:46:08.614Z"
+}

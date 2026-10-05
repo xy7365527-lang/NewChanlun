@@ -1,0 +1,16 @@
+{
+  "status": "author_complete_pending_independent_review",
+  "candidate": "Omega67-closed-external",
+  "result": "concrete noncircular raw-closed external-arm mapping checked; original completed-entry role remains unestablished at RootArm67",
+  "semantic_admission_pass": false,
+  "semantic_nonexistence_proven": false,
+  "original_Completed_b": null,
+  "independent_review": false,
+  "history_count": 1,
+  "new_history_count": 0,
+  "report": "Report.md",
+  "relation": "relation/model-or-obstruction.json",
+  "receipt": "receipt.json",
+  "manifest_sha256": "678f261effaf7f23b45e97ccbb1fe5944b368f28993261dff39536ceda980ffd",
+  "total_manifested_bytes": 223656
+}

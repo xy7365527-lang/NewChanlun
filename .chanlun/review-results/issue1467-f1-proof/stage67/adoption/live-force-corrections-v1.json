@@ -1,0 +1,352 @@
+{
+  "version": "v1",
+  "date": "2026-10-06",
+  "issue": 1467,
+  "status": "M1-corrected-in-adoption-layer-awaiting-review",
+  "writes": [
+    "LiveForceCorrections-v1.md",
+    "live-force-corrections-v1.json"
+  ],
+  "history_rerun": false,
+  "author_script_changed": false,
+  "original_online_seal_changed": false,
+  "review_required_findings": [
+    {
+      "id": "M1",
+      "severity": "HIGH",
+      "only_required_finding": true,
+      "original_locations": [
+        "live-author/check_live.py:31",
+        "live-author/check_live.py:38",
+        "live-author/check_live.py:40",
+        "live-author/check_live.py:212",
+        "live-author/Report.md:23",
+        "live-author/online-seal.json.final_pens_read"
+      ],
+      "rejected_claim": "No final pen information was read or loaded before online-seal.",
+      "original_field": {
+        "final_pens_read": false
+      },
+      "original_field_adoption_status": "rejected-as-read-isolation-evidence-not-retroactively-renamed-correct",
+      "replacement": {
+        "reference_final_strokes_deserialized_before_seal": true,
+        "reference_final_groups_deserialized_before_seal": true,
+        "source_and_all_prefixes_preloaded": true,
+        "dedicated_independent_pens_json_deserialized_after_seal": true,
+        "dedicated_independent_objects_and_parent_json_deserialized_after_seal": true,
+        "dedicated_final_files_bytes_hashed_before_seal": true,
+        "physical_no_future_information_boundary_established": false
+      }
+    }
+  ],
+  "actual_read_sequence": [
+    {
+      "order": 1,
+      "line": 38,
+      "operation": "hash INPUTS bytes, including final files; not JSON semantic use"
+    },
+    {
+      "order": 2,
+      "line": 39,
+      "operation": "deserialize complete source and prefix arrays"
+    },
+    {
+      "order": 3,
+      "line": 40,
+      "read_helper_line": 31,
+      "operation": "json.loads full reference.stdout including groups,prefixes,final strokes"
+    },
+    {
+      "order": 4,
+      "line": 41,
+      "operation": "explicitly compare prefixes and count; does not undo other field loading"
+    },
+    {
+      "order": 5,
+      "line": 43,
+      "operation": "delete reference variable; previous read remains historical fact"
+    },
+    {
+      "order": 6,
+      "line": "47-197",
+      "operation": "compute per-prefix outputs under frozen finite template"
+    },
+    {
+      "order": 7,
+      "line": "208-212",
+      "operation": "write results and online seal with rejected static read-isolation flag"
+    },
+    {
+      "order": 8,
+      "line": 214,
+      "operation": "deserialize dedicated independent objects,parent,pens files"
+    }
+  ],
+  "accepted_dependency_scope": {
+    "prefixes": 443,
+    "objects": "four local candidates plus parent",
+    "template": "bootstrap plus four selected 5x5 groups",
+    "independent_rows": 2215,
+    "row_mismatches": 0,
+    "eight_core_outputs_identical_in_baseline_and_prefix_only_control": true,
+    "output_dependency_statement": "For the supplied finite template and accepted prefix inputs, observed outputs do not depend on reference top-level final strokes/groups.",
+    "not_claimed": [
+      "general original-semantic causality",
+      "all-history RW correctness",
+      "physical future-information exclusion",
+      "automatic canonical role selection",
+      "Residual as certified structural pen"
+    ]
+  },
+  "limited_field_interpretations": {
+    "final_objects_read_false": "Only dedicated independent object JSON parsing occurred after seal; not a global future-object information isolation guarantee.",
+    "no_endpoint_backfill": "Checked computational dependence does not select c start by subtracting from final object end; not a no-preload claim."
+  },
+  "preserved": {
+    "A_endpoint_L": [
+      -900,
+      50,
+      -350,
+      175,
+      875
+    ],
+    "R_endpoint_L": [
+      -500,
+      -1200,
+      -200,
+      -4200,
+      -3500
+    ],
+    "raw_b_L": -1000,
+    "full_c0_L": -3500,
+    "local_role_gate": [
+      118,
+      218,
+      318,
+      418,
+      338
+    ],
+    "A_first_joint": [
+      118,
+      null,
+      318,
+      null,
+      422
+    ],
+    "R_first_joint": [
+      118,
+      220,
+      318,
+      420,
+      421
+    ],
+    "downward_signed_comparison": true,
+    "clock": "event end-start",
+    "source_role": null,
+    "StructuralPenNow": null,
+    "GeneralDiv": null,
+    "Completed": null,
+    "Owner": null,
+    "Next": null,
+    "fixed_F2": null,
+    "P1_P4": "unchanged",
+    "routes": [
+      "R_W",
+      "R_D"
+    ]
+  },
+  "review_evidence": [
+    {
+      "path": "live-review/review.md",
+      "sha256": "f97626c56d7e61b2d0bbaa2fff5347062ae637d4f0d97a932c220c248f0a1a0a"
+    },
+    {
+      "path": "live-review/causality-audit.json",
+      "sha256": "8031abc318582f486f40df1f94bbafbffe3736e3bfae136877dbb71b3bd2928e"
+    },
+    {
+      "path": "live-review/independent-result.json",
+      "sha256": "ac2a1eee76b8e9675213ad26dee3ea5b2036493b92ee72baabbcfe783c3bf467"
+    },
+    {
+      "path": "live-review/replay-comparison.json",
+      "sha256": "18552d7c3906827a08488d4dbbf9d88816f1d9f1ffeed5992f87d05b61b997fa"
+    },
+    {
+      "path": "live-review/replay-baseline-receipt.json",
+      "sha256": "a9cd9ce3e5d98ceb017c21cedf2b302617981348aec4cfde6be0856373a9ef16"
+    },
+    {
+      "path": "live-review/replay-prefix-only-receipt.json",
+      "sha256": "46697d168b1c7c9a66fe066f7fdc42184635ba778b44bd261bc546a5dfc1ce22"
+    },
+    {
+      "path": "live-review/python-static-check.json",
+      "sha256": "3196623909210974ec3251d10b135a400298f05313626fe20a9cb82e22772582"
+    },
+    {
+      "path": "live-review/manifest.json",
+      "sha256": "950de1eb07baa239b4b93f786686725fd7e079edc673464db4abe33b8558db54"
+    },
+    {
+      "path": "live-review/FINAL.json",
+      "sha256": "e1edb1ff270c8df2f82c01f72febf3e56cceb0d3ccc4117ed330f710f4ac4ba8"
+    }
+  ],
+  "replay_comparison": [
+    {
+      "file": "prefix-results.json",
+      "sha256": [
+        "c4aeb2ee924a6663cf27eef051b0eeebb54ef4da8341b81d9286e2715a17b117",
+        "c4aeb2ee924a6663cf27eef051b0eeebb54ef4da8341b81d9286e2715a17b117",
+        "c4aeb2ee924a6663cf27eef051b0eeebb54ef4da8341b81d9286e2715a17b117"
+      ],
+      "all_equal": true
+    },
+    {
+      "file": "role-first-known.json",
+      "sha256": [
+        "f9bb8298e6f8606ec58686d065b3dc6381fb37ac5bcd032b4ab83dd852293e6d",
+        "f9bb8298e6f8606ec58686d065b3dc6381fb37ac5bcd032b4ab83dd852293e6d",
+        "f9bb8298e6f8606ec58686d065b3dc6381fb37ac5bcd032b4ab83dd852293e6d"
+      ],
+      "all_equal": true
+    },
+    {
+      "file": "first-triggers.json",
+      "sha256": [
+        "9ca12ce9cf4c6b586e13a7928f805b47d259bcb5210edaed7971a73669a240c1",
+        "9ca12ce9cf4c6b586e13a7928f805b47d259bcb5210edaed7971a73669a240c1",
+        "9ca12ce9cf4c6b586e13a7928f805b47d259bcb5210edaed7971a73669a240c1"
+      ],
+      "all_equal": true
+    },
+    {
+      "file": "online-raw-certificates.json",
+      "sha256": [
+        "00a3c77d0e97254acc7419d0041f2d9bc1845b58237819753ded44788de7ce7a",
+        "00a3c77d0e97254acc7419d0041f2d9bc1845b58237819753ded44788de7ce7a",
+        "00a3c77d0e97254acc7419d0041f2d9bc1845b58237819753ded44788de7ce7a"
+      ],
+      "all_equal": true
+    },
+    {
+      "file": "active-reanchoring.json",
+      "sha256": [
+        "64fa6d3b656a734d96e08727df50152d1dd40dd8f1dea067010c78f71cba5564",
+        "64fa6d3b656a734d96e08727df50152d1dd40dd8f1dea067010c78f71cba5564",
+        "64fa6d3b656a734d96e08727df50152d1dd40dd8f1dea067010c78f71cba5564"
+      ],
+      "all_equal": true
+    },
+    {
+      "file": "endpoint-comparison.json",
+      "sha256": [
+        "d0a7bd0713f8fe6742eb4df22023a97d40c0aee82fdf71e80557a835c180b423",
+        "d0a7bd0713f8fe6742eb4df22023a97d40c0aee82fdf71e80557a835c180b423",
+        "d0a7bd0713f8fe6742eb4df22023a97d40c0aee82fdf71e80557a835c180b423"
+      ],
+      "all_equal": true
+    },
+    {
+      "file": "S15-narrow-status.json",
+      "sha256": [
+        "08bd3fd8a06998f9e9f47eb49aeeed9cbe57facb95fad85a052b9e4cdb7bd6e2",
+        "08bd3fd8a06998f9e9f47eb49aeeed9cbe57facb95fad85a052b9e4cdb7bd6e2",
+        "08bd3fd8a06998f9e9f47eb49aeeed9cbe57facb95fad85a052b9e4cdb7bd6e2"
+      ],
+      "all_equal": true
+    },
+    {
+      "file": "whole-certificates.json",
+      "sha256": [
+        "0b1226a774037a80676298da8b94e2046cdf9e4f3d6912fd951e3351ebc371ef",
+        "0b1226a774037a80676298da8b94e2046cdf9e4f3d6912fd951e3351ebc371ef",
+        "0b1226a774037a80676298da8b94e2046cdf9e4f3d6912fd951e3351ebc371ef"
+      ],
+      "all_equal": true
+    }
+  ],
+  "author_hash_verification": {
+    "file_count": 36,
+    "before": {
+      "FINAL.json": "8b3c94b16c3aae2968fa361568c4c221ac9653ef6a23a469193fa4a9c3589c54",
+      "Report.md": "24f8ffcb2c4618189a8c0df0b67d694a4adf7747b3e712568757e3015d4c0870",
+      "S15-narrow-status.json": "08bd3fd8a06998f9e9f47eb49aeeed9cbe57facb95fad85a052b9e4cdb7bd6e2",
+      "WorkCard.md": "d97ef7f9c358e32974e146dabecf021d5ac4c43b58a42565e9b3a69c23cb6396",
+      "active-reanchoring.json": "64fa6d3b656a734d96e08727df50152d1dd40dd8f1dea067010c78f71cba5564",
+      "check_live.py": "834ef28a5230a4a328321204205019dd5cccb03826b76c5b8a0f7c59b6bd7441",
+      "command-receipt.json": "5ce4ba5d2404020cf716d41d1ef2e0ec85656cae83cc598699a9da90872c7403",
+      "development-notes.json": "e606fc168fcd610e34abacd9eb01dc751cb893684f1c56bbe5fa05ed21eed870",
+      "endpoint-comparison.json": "d0a7bd0713f8fe6742eb4df22023a97d40c0aee82fdf71e80557a835c180b423",
+      "first-triggers.json": "9ca12ce9cf4c6b586e13a7928f805b47d259bcb5210edaed7971a73669a240c1",
+      "inputhash-after.json": "09185e54af6d4d681109b888a7252a9e8097b55127d9dea03b5ee811f28702e8",
+      "inputhash-before.json": "09185e54af6d4d681109b888a7252a9e8097b55127d9dea03b5ee811f28702e8",
+      "issue-872.json": "02ced7e5cda0d46fea35d30886728f9c803aed23ab727d6a9619a942c38c77f9",
+      "issue-974.json": "34edaf0fc53cf25de457e716df765ecee2bfc2aa355abbd4dc9dec71715d0b74",
+      "issue-975.json": "31a3ce6e5c3e4267ccffbbcaa227e2a47b888dab05c8ea7c51c0592c9a026f12",
+      "issue-978.json": "2f627ffb938ab1f7723b7612b8936a6677b86337939645bf682bc6ef9ecef04b",
+      "issue-979.json": "81d90c7ec381920046f4952e477e7fb694d5aaf8cce01e8d1486203026921fd4",
+      "issue-987.json": "fb6912648e1385feafe33e8e4ac2ea267c1d7910473c86e4de4aa2f007196590",
+      "issue-989.json": "548cd2de8d1fb88a3ca8a9e6f30c53bc32df4178910c7f7674966c499b3030e5",
+      "issue-990.json": "5bc54fbc242f6898d49e9372dcd53f3dc61aac75bb533dee9c667e789f614812",
+      "manifest.json": "e0dc6fd6b6f4221bac4d9b6e187d75ab0c54f48a88ac8d84f64bc6ff75a87581",
+      "online-raw-certificates.json": "00a3c77d0e97254acc7419d0041f2d9bc1845b58237819753ded44788de7ce7a",
+      "online-seal.json": "f92de5890607cf6e9ffcf1461464882329dacabf2cc12596b71fc6ca16776f3d",
+      "parent-whole-closure.json": "520ba1f816c16aacc7de6dea25156def78b00517001d566ba71156299bba38c4",
+      "prefix-results.json": "c4aeb2ee924a6663cf27eef051b0eeebb54ef4da8341b81d9286e2715a17b117",
+      "production-pointer-audit.json": "2bff1204b7c92a3b0ef184ca923cd1f6ab70255396da7b5011ed22ccb39cf554",
+      "raw-b-endpoint-check.json": "b984faf4e9881f0715a6ff83a9893989459d6b7baf8b9ef560598e8822958382",
+      "result.json": "10d4851960fcdf1fcf8f93e35a4fcae96739e9d082a4c0eef707e8b97d4dc2ce",
+      "role-first-known.json": "f9bb8298e6f8606ec58686d065b3dc6381fb37ac5bcd032b4ab83dd852293e6d",
+      "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "run.stdout": "46b80316c30ab7ba93617299e19d2febfc1598e0b3810b76d5a1528354eafb01",
+      "self-check.json": "f6731c160b1ac84931f5e521b7fcab99c004ab8118e76e45eef9eb45b2063ba3",
+      "semantic-obligations.json": "f23c64841a0974c0c2ac4b704fd96513dcb81d7a8e0ba5bc16cb4530cee7e3f1",
+      "source-audit.json": "e27fa565e6f128599bdfa1edd03c42e0328906a48fc8bc884282ea85281ae7bc",
+      "tracker-audit.json": "2783f7bcad27beb59ed95a18e519dcc13cdfc0041546b1c5159659906cbf5516",
+      "whole-certificates.json": "0b1226a774037a80676298da8b94e2046cdf9e4f3d6912fd951e3351ebc371ef"
+    },
+    "after": {
+      "FINAL.json": "8b3c94b16c3aae2968fa361568c4c221ac9653ef6a23a469193fa4a9c3589c54",
+      "Report.md": "24f8ffcb2c4618189a8c0df0b67d694a4adf7747b3e712568757e3015d4c0870",
+      "S15-narrow-status.json": "08bd3fd8a06998f9e9f47eb49aeeed9cbe57facb95fad85a052b9e4cdb7bd6e2",
+      "WorkCard.md": "d97ef7f9c358e32974e146dabecf021d5ac4c43b58a42565e9b3a69c23cb6396",
+      "active-reanchoring.json": "64fa6d3b656a734d96e08727df50152d1dd40dd8f1dea067010c78f71cba5564",
+      "check_live.py": "834ef28a5230a4a328321204205019dd5cccb03826b76c5b8a0f7c59b6bd7441",
+      "command-receipt.json": "5ce4ba5d2404020cf716d41d1ef2e0ec85656cae83cc598699a9da90872c7403",
+      "development-notes.json": "e606fc168fcd610e34abacd9eb01dc751cb893684f1c56bbe5fa05ed21eed870",
+      "endpoint-comparison.json": "d0a7bd0713f8fe6742eb4df22023a97d40c0aee82fdf71e80557a835c180b423",
+      "first-triggers.json": "9ca12ce9cf4c6b586e13a7928f805b47d259bcb5210edaed7971a73669a240c1",
+      "inputhash-after.json": "09185e54af6d4d681109b888a7252a9e8097b55127d9dea03b5ee811f28702e8",
+      "inputhash-before.json": "09185e54af6d4d681109b888a7252a9e8097b55127d9dea03b5ee811f28702e8",
+      "issue-872.json": "02ced7e5cda0d46fea35d30886728f9c803aed23ab727d6a9619a942c38c77f9",
+      "issue-974.json": "34edaf0fc53cf25de457e716df765ecee2bfc2aa355abbd4dc9dec71715d0b74",
+      "issue-975.json": "31a3ce6e5c3e4267ccffbbcaa227e2a47b888dab05c8ea7c51c0592c9a026f12",
+      "issue-978.json": "2f627ffb938ab1f7723b7612b8936a6677b86337939645bf682bc6ef9ecef04b",
+      "issue-979.json": "81d90c7ec381920046f4952e477e7fb694d5aaf8cce01e8d1486203026921fd4",
+      "issue-987.json": "fb6912648e1385feafe33e8e4ac2ea267c1d7910473c86e4de4aa2f007196590",
+      "issue-989.json": "548cd2de8d1fb88a3ca8a9e6f30c53bc32df4178910c7f7674966c499b3030e5",
+      "issue-990.json": "5bc54fbc242f6898d49e9372dcd53f3dc61aac75bb533dee9c667e789f614812",
+      "manifest.json": "e0dc6fd6b6f4221bac4d9b6e187d75ab0c54f48a88ac8d84f64bc6ff75a87581",
+      "online-raw-certificates.json": "00a3c77d0e97254acc7419d0041f2d9bc1845b58237819753ded44788de7ce7a",
+      "online-seal.json": "f92de5890607cf6e9ffcf1461464882329dacabf2cc12596b71fc6ca16776f3d",
+      "parent-whole-closure.json": "520ba1f816c16aacc7de6dea25156def78b00517001d566ba71156299bba38c4",
+      "prefix-results.json": "c4aeb2ee924a6663cf27eef051b0eeebb54ef4da8341b81d9286e2715a17b117",
+      "production-pointer-audit.json": "2bff1204b7c92a3b0ef184ca923cd1f6ab70255396da7b5011ed22ccb39cf554",
+      "raw-b-endpoint-check.json": "b984faf4e9881f0715a6ff83a9893989459d6b7baf8b9ef560598e8822958382",
+      "result.json": "10d4851960fcdf1fcf8f93e35a4fcae96739e9d082a4c0eef707e8b97d4dc2ce",
+      "role-first-known.json": "f9bb8298e6f8606ec58686d065b3dc6381fb37ac5bcd032b4ab83dd852293e6d",
+      "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "run.stdout": "46b80316c30ab7ba93617299e19d2febfc1598e0b3810b76d5a1528354eafb01",
+      "self-check.json": "f6731c160b1ac84931f5e521b7fcab99c004ab8118e76e45eef9eb45b2063ba3",
+      "semantic-obligations.json": "f23c64841a0974c0c2ac4b704fd96513dcb81d7a8e0ba5bc16cb4530cee7e3f1",
+      "source-audit.json": "e27fa565e6f128599bdfa1edd03c42e0328906a48fc8bc884282ea85281ae7bc",
+      "tracker-audit.json": "2783f7bcad27beb59ed95a18e519dcc13cdfc0041546b1c5159659906cbf5516",
+      "whole-certificates.json": "0b1226a774037a80676298da8b94e2046cdf9e4f3d6912fd951e3351ebc371ef"
+    }
+  },
+  "adoption_markdown_sha256": "ed80e9a8c5728b623dac1555d7f130be23d9532171aa60f36c4ab4959fc7f842",
+  "new_independent_adoption_review": "pending",
+  "review_final_status": "requires-revision-on-read-isolation-claim"
+}

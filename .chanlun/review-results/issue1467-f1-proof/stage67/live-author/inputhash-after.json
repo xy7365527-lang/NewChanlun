@@ -1,0 +1,82 @@
+[
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/source.json",
+    "bytes": 1079239,
+    "sha256": "8c8b0e442195c76f25eb60462272aa5718e77f470d4981a4092720301a628883"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/reference.stdout",
+    "bytes": 6549311,
+    "sha256": "c2c10a13535a6da668653b6acd843c50d30201fef17824a602dbb8bf9da5f311"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent-prefixes.json",
+    "bytes": 5897126,
+    "sha256": "c6c53c27554a65f0a1c5520760f4d9fd9a7fd4124ffdf9bdf0f08e6a36ac3aba"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent-pens.json",
+    "bytes": 11884,
+    "sha256": "305f747678d93c877a6a0c7da502cb7da63bdb29697b58e0ccd34415c0c965a4"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent-objects.json",
+    "bytes": 3447,
+    "sha256": "789ea728db62d245ef30d9e801cb25897838547737e81225323057b9922f2a3c"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent-parent.json",
+    "bytes": 1774,
+    "sha256": "a3a9091e3ad43f37eaa3e7f95f6121e7932a89aec3572af874d748c676bd8a5a"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent-narrow-segments.json",
+    "bytes": 13494,
+    "sha256": "8a1f96cb06d58e4a2076d051f14f7587fad7a58578b2fc4462b65c9633612e0c"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/independent-S15.json",
+    "bytes": 682,
+    "sha256": "ceb810600171b901b3dde1cbf461adda5db279fad9308ad35916a569814e8384"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/source-line-audit.json",
+    "bytes": 53891,
+    "sha256": "8d427024bf0d97e4ad2ef38d98e6d0cfd916963bde75995a8e42cf5a2a0c70a8"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-review/review.md",
+    "bytes": 11574,
+    "sha256": "81a97eb5d978c2c300fc5d288d3501a243d0c94ee2d316e59ac0533283d0c295"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/adoption/ScopeCorrections-v2.md",
+    "bytes": 10104,
+    "sha256": "859b6160177cddeec890b9db17a30b8da0fdf92c9bf4d7421761adbffd726c14"
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+    "bytes": 108519,
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6"
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/061-第61课.md",
+    "bytes": 21387,
+    "sha256": "2451e6d514b37aa5da00ca608a88fb46c8e31fe8859226534be7deb6c1007573"
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/033-第33课.md",
+    "bytes": 40962,
+    "sha256": "51be1fe8461dc36ceadb879f7a47ccad780f8898c7311429dbf06eb7cc240ab7"
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/079-第79课.md",
+    "bytes": 17570,
+    "sha256": "7e4713c074fb710701079fe6f9b47798a0178d5959673311424d9a75698caf8f"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/live-author/WorkCard.md",
+    "bytes": 4755,
+    "sha256": "d97ef7f9c358e32974e146dabecf021d5ac4c43b58a42565e9b3a69c23cb6396"
+  }
+]

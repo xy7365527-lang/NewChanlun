@@ -1,0 +1,78 @@
+{
+  "P0": {
+    "id": "P0",
+    "start": 21,
+    "end": 121,
+    "whole": [
+      40000,
+      72000
+    ],
+    "known_at": 138,
+    "b_L": {
+      "num": 1000,
+      "den": 1
+    },
+    "c_L": {
+      "num": -500,
+      "den": 1
+    },
+    "endpoint_local": true
+  },
+  "P1": {
+    "id": "P1",
+    "start": 121,
+    "end": 221,
+    "whole": [
+      62000,
+      72000
+    ],
+    "known_at": 238,
+    "b_L": {
+      "num": -1100,
+      "den": 1
+    },
+    "c_L": {
+      "num": -1200,
+      "den": 1
+    },
+    "endpoint_local": true
+  },
+  "P2": {
+    "id": "P2",
+    "start": 221,
+    "end": 321,
+    "whole": [
+      60000,
+      72800
+    ],
+    "known_at": 338,
+    "b_L": {
+      "num": 100,
+      "den": 1
+    },
+    "c_L": {
+      "num": -200,
+      "den": 1
+    },
+    "endpoint_local": true
+  },
+  "c0": {
+    "id": "c0",
+    "start": 321,
+    "end": 421,
+    "whole": [
+      37800,
+      72800
+    ],
+    "known_at": 438,
+    "b_L": {
+      "num": -3850,
+      "den": 1
+    },
+    "c_L": {
+      "num": -4200,
+      "den": 1
+    },
+    "endpoint_local": true
+  }
+}

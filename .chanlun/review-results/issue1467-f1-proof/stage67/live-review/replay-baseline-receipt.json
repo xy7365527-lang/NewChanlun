@@ -1,0 +1,19 @@
+{
+  "mode": "baseline",
+  "source_script_unchanged": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/live-author/check_live.py",
+  "output": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/live-review/replay-baseline",
+  "reference_reads": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/reference.stdout",
+      "mode": "baseline",
+      "top_level_keys": [
+        "groups",
+        "prefixes",
+        "strokes"
+      ],
+      "online_seal_already_exists": false,
+      "delivered_text_sha256": "c2c10a13535a6da668653b6acd843c50d30201fef17824a602dbb8bf9da5f311"
+    }
+  ],
+  "elapsed_seconds": 0.17534145899116993
+}

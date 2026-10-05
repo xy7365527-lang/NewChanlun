@@ -1,0 +1,16 @@
+{
+  "started_at": "2026-10-05T18:55:06.135Z",
+  "finished_at": "2026-10-05T18:55:06.146Z",
+  "command": "node check.mjs",
+  "check_count": 29,
+  "passed": true,
+  "input_files": 29,
+  "inputhash_unchanged": true,
+  "new_histories": 0,
+  "candidate_mappings": 1,
+  "lean_environments_created": 0,
+  "external_network_requests": 0,
+  "scope": "author finite arithmetic/source extraction checks only; not original semantic proof or independent review",
+  "max_rss_bytes": 57163776,
+  "output_budget_bytes": 100663296
+}

@@ -1,0 +1,11 @@
+{
+  "exit": 1,
+  "observed_errors": [
+    "Unknown constant Nat.strong_induction_on",
+    "Decidable not synthesized for ¬MovementClosed 0"
+  ],
+  "observed_axioms": [
+    "sorryAx"
+  ],
+  "scope": "Failed development compilation; original source retained; tool stdout was observed but not captured as an external raw log."
+}

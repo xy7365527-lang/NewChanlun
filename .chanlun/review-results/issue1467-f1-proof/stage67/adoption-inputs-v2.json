@@ -1,0 +1,33 @@
+{
+  "reason": "A1: compiled Type0 and full universal predecessor premise; final review links",
+  "inputs": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage67LiveForceAndInitialRoots.md",
+      "sha256": "331a788f2f58c1886b277e629533f0a4d135cdd2dfe69057416bdd467fee5a98"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage67/DeliveryStatus-v1.md",
+      "sha256": "26c0556578aff18c049790bfc0d7f72bcccbecd25c4cfeaa83362a727399fb12"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/progress-addition-v1.md",
+      "sha256": "7572d25550dcbf4bf54adc5936fb87ae02ac6129e2e50193d80c341a46d2571b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/adoption/Summary-before-A1.md",
+      "sha256": "9b633a4a2a12559fa3655b6ee906ee712bc5c493de5e0921e8912e71e5329f73"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/adoption/Progress-before-A1.md",
+      "sha256": "5c2adf4a510cc7b5f262f5c7e2969ad9da9ef15b9f2925cf89c5e34075edfaf9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/adoption/Delivery-before-A1.md",
+      "sha256": "51613fb40f55c25ebc494d05fb6bac47efb7d16951e3edc3e4f0e5c4ee8dc20d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/adoption-review/review.md",
+      "sha256": "4a5d400f97829131287f275769b7c0382b14654b9ec86305df77233d932bb201"
+    }
+  ]
+}

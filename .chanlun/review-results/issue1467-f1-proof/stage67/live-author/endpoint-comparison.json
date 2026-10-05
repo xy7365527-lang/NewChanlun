@@ -1,0 +1,402 @@
+[
+  {
+    "id": "P0",
+    "frozen_endpoint": 121,
+    "frozen_local_known_at": 138,
+    "frozen_L_c": -500,
+    "A_at_frozen_endpoint": {
+      "L": {
+        "num": -900,
+        "den": 1
+      },
+      "v": {
+        "num": 100,
+        "den": 1
+      },
+      "first_v": {
+        "num": 1000,
+        "den": 1
+      },
+      "first_pen": {
+        "up": true,
+        "start": 101,
+        "end": 105,
+        "start_price": 50000,
+        "end_price": 54000
+      },
+      "anchor": 113,
+      "anchor_price": 71200,
+      "duration": 8,
+      "kind": "real-active-start",
+      "signed": true,
+      "weak": true,
+      "complete_candidate": true
+    },
+    "R_at_frozen_endpoint": {
+      "L": {
+        "num": -500,
+        "den": 1
+      },
+      "v": {
+        "num": 500,
+        "den": 1
+      },
+      "first_v": {
+        "num": 1000,
+        "den": 1
+      },
+      "first_pen": {
+        "up": true,
+        "start": 101,
+        "end": 105,
+        "start_price": 50000,
+        "end_price": 54000
+      },
+      "anchor": 117,
+      "anchor_price": 70000,
+      "duration": 4,
+      "kind": "unconfirmed-residual",
+      "signed": true,
+      "weak": true,
+      "complete_candidate": true
+    },
+    "A_equal_endpoint": false,
+    "R_equal_endpoint": true,
+    "current_L_at_certificate_time": {
+      "A": null,
+      "R": null
+    },
+    "first_triggers": {
+      "A": {
+        "weak": 118,
+        "extreme": 118,
+        "complete_candidate": 118
+      },
+      "R": {
+        "weak": 118,
+        "extreme": 118,
+        "complete_candidate": 118
+      }
+    }
+  },
+  {
+    "id": "P1",
+    "frozen_endpoint": 221,
+    "frozen_local_known_at": 238,
+    "frozen_L_c": -1200,
+    "A_at_frozen_endpoint": {
+      "L": {
+        "num": 50,
+        "den": 1
+      },
+      "v": {
+        "num": -150,
+        "den": 1
+      },
+      "first_v": {
+        "num": -200,
+        "den": 1
+      },
+      "first_pen": {
+        "up": false,
+        "start": 201,
+        "end": 205,
+        "start_price": 68800,
+        "end_price": 68000
+      },
+      "anchor": 213,
+      "anchor_price": 63200,
+      "duration": 8,
+      "kind": "real-active-start",
+      "signed": true,
+      "weak": false,
+      "complete_candidate": false
+    },
+    "R_at_frozen_endpoint": {
+      "L": {
+        "num": -1200,
+        "den": 1
+      },
+      "v": {
+        "num": -1400,
+        "den": 1
+      },
+      "first_v": {
+        "num": -200,
+        "den": 1
+      },
+      "first_pen": {
+        "up": false,
+        "start": 201,
+        "end": 205,
+        "start_price": 68800,
+        "end_price": 68000
+      },
+      "anchor": 217,
+      "anchor_price": 67600,
+      "duration": 4,
+      "kind": "unconfirmed-residual",
+      "signed": true,
+      "weak": true,
+      "complete_candidate": true
+    },
+    "A_equal_endpoint": false,
+    "R_equal_endpoint": true,
+    "current_L_at_certificate_time": {
+      "A": null,
+      "R": null
+    },
+    "first_triggers": {
+      "A": {
+        "weak": null,
+        "extreme": 220,
+        "complete_candidate": null
+      },
+      "R": {
+        "weak": 218,
+        "extreme": 220,
+        "complete_candidate": 220
+      }
+    }
+  },
+  {
+    "id": "P2",
+    "frozen_endpoint": 321,
+    "frozen_local_known_at": 338,
+    "frozen_L_c": -200,
+    "A_at_frozen_endpoint": {
+      "L": {
+        "num": -350,
+        "den": 1
+      },
+      "v": {
+        "num": 50,
+        "den": 1
+      },
+      "first_v": {
+        "num": 400,
+        "den": 1
+      },
+      "first_pen": {
+        "up": true,
+        "start": 301,
+        "end": 305,
+        "start_price": 60800,
+        "end_price": 62400
+      },
+      "anchor": 313,
+      "anchor_price": 72400,
+      "duration": 8,
+      "kind": "real-active-start",
+      "signed": true,
+      "weak": true,
+      "complete_candidate": true
+    },
+    "R_at_frozen_endpoint": {
+      "L": {
+        "num": -200,
+        "den": 1
+      },
+      "v": {
+        "num": 200,
+        "den": 1
+      },
+      "first_v": {
+        "num": 400,
+        "den": 1
+      },
+      "first_pen": {
+        "up": true,
+        "start": 301,
+        "end": 305,
+        "start_price": 60800,
+        "end_price": 62400
+      },
+      "anchor": 317,
+      "anchor_price": 72000,
+      "duration": 4,
+      "kind": "unconfirmed-residual",
+      "signed": true,
+      "weak": true,
+      "complete_candidate": true
+    },
+    "A_equal_endpoint": false,
+    "R_equal_endpoint": true,
+    "current_L_at_certificate_time": {
+      "A": null,
+      "R": null
+    },
+    "first_triggers": {
+      "A": {
+        "weak": 318,
+        "extreme": 318,
+        "complete_candidate": 318
+      },
+      "R": {
+        "weak": 318,
+        "extreme": 318,
+        "complete_candidate": 318
+      }
+    }
+  },
+  {
+    "id": "c0",
+    "frozen_endpoint": 421,
+    "frozen_local_known_at": 438,
+    "frozen_L_c": -4200,
+    "A_at_frozen_endpoint": {
+      "L": {
+        "num": 175,
+        "den": 1
+      },
+      "v": {
+        "num": -525,
+        "den": 1
+      },
+      "first_v": {
+        "num": -700,
+        "den": 1
+      },
+      "first_pen": {
+        "up": false,
+        "start": 401,
+        "end": 405,
+        "start_price": 61600,
+        "end_price": 58800
+      },
+      "anchor": 413,
+      "anchor_price": 42000,
+      "duration": 8,
+      "kind": "real-active-start",
+      "signed": true,
+      "weak": false,
+      "complete_candidate": false
+    },
+    "R_at_frozen_endpoint": {
+      "L": {
+        "num": -4200,
+        "den": 1
+      },
+      "v": {
+        "num": -4900,
+        "den": 1
+      },
+      "first_v": {
+        "num": -700,
+        "den": 1
+      },
+      "first_pen": {
+        "up": false,
+        "start": 401,
+        "end": 405,
+        "start_price": 61600,
+        "end_price": 58800
+      },
+      "anchor": 417,
+      "anchor_price": 57400,
+      "duration": 4,
+      "kind": "unconfirmed-residual",
+      "signed": true,
+      "weak": true,
+      "complete_candidate": true
+    },
+    "A_equal_endpoint": false,
+    "R_equal_endpoint": true,
+    "current_L_at_certificate_time": {
+      "A": null,
+      "R": null
+    },
+    "first_triggers": {
+      "A": {
+        "weak": null,
+        "extreme": 420,
+        "complete_candidate": null
+      },
+      "R": {
+        "weak": 418,
+        "extreme": 420,
+        "complete_candidate": 420
+      }
+    }
+  },
+  {
+    "id": "parent",
+    "frozen_endpoint": 421,
+    "frozen_local_known_at": 438,
+    "frozen_L_c": -3500,
+    "A_at_frozen_endpoint": {
+      "L": {
+        "num": 875,
+        "den": 1
+      },
+      "v": {
+        "num": -525,
+        "den": 1
+      },
+      "first_v": {
+        "num": -1400,
+        "den": 1
+      },
+      "first_pen": {
+        "up": false,
+        "start": 321,
+        "end": 325,
+        "start_price": 72800,
+        "end_price": 67200
+      },
+      "anchor": 413,
+      "anchor_price": 42000,
+      "duration": 8,
+      "kind": "real-active-start",
+      "signed": true,
+      "weak": false,
+      "complete_candidate": false
+    },
+    "R_at_frozen_endpoint": {
+      "L": {
+        "num": -3500,
+        "den": 1
+      },
+      "v": {
+        "num": -4900,
+        "den": 1
+      },
+      "first_v": {
+        "num": -1400,
+        "den": 1
+      },
+      "first_pen": {
+        "up": false,
+        "start": 321,
+        "end": 325,
+        "start_price": 72800,
+        "end_price": 67200
+      },
+      "anchor": 417,
+      "anchor_price": 57400,
+      "duration": 4,
+      "kind": "unconfirmed-residual",
+      "signed": true,
+      "weak": true,
+      "complete_candidate": true
+    },
+    "A_equal_endpoint": false,
+    "R_equal_endpoint": true,
+    "current_L_at_certificate_time": {
+      "A": null,
+      "R": null
+    },
+    "first_triggers": {
+      "A": {
+        "weak": 342,
+        "extreme": 421,
+        "complete_candidate": 422
+      },
+      "R": {
+        "weak": 338,
+        "extreme": 421,
+        "complete_candidate": 421
+      }
+    }
+  }
+]

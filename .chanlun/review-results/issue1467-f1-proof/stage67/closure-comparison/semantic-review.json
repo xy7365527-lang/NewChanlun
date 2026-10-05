@@ -1,0 +1,25 @@
+{
+  "result": "faithful",
+  "reviewer": "/root/stage67_closure_comparison",
+  "independence": "全新独立比较代理；未参与作者证明或独立盲读回。只读取冻结形式包、普通 Proof、契约、独立读回与其回执，未读取作者会话、MEMORY、ResearchProgress 或市场作者报告。此为比较审阅，不自称盲读回。",
+  "notes": "独立盲读回、Proof.md:5–11 的条件数学意图与契约一致：在 Type 0 对象域上，若同一个 closed 一元谓词的每个满足者都有严格更低 Nat 秩的同谓词满足者，则该谓词为空。无隐藏非空性或有限性假设；空域/空谓词允许。严格性、Nat 良基性和同谓词量词闭合不可省略。固定 RawClosed={0}、MovementClosed={1} 模型有非空见证且不满足同谓词前提。初始化标签不会豁免仍被 H 覆盖的对象。本审阅不证明应用域满足 H，不建立结束索引与确认时钟/级别映射，不判断订单 F1 不可能，也不认证 Proof:13 的领域来源。机器证据复用并另核哈希，未新增完整环境重查。",
+  "binding": {
+    "declaration": "Stage67.no_closed_if_all_need_earlier_closed",
+    "semantic_sha256": "3e08e1a29c0cad6ba177dfafa96330465a026b161a5040fceb0e5bd007889a21",
+    "environment_sha256": "91900355fecfb9b95efe60d4e842536ee784f9ed503b932764c095020573c4a8",
+    "semantic_environment_sha256": "e8646e699f4256eb1eaf4cba20432334c70f9bcad4b33f1965621098765a1c37",
+    "type_sha256": "04cdc2ef9156939461b09fd38187fc4eaee7a827e5d3c23214d5818801320eab"
+  },
+  "source_hashes": {
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/ClosureRoots.lean": "e1c96a05d4f2f5450f9056cafe54254e8a97413083927ba2949ae4d27794c6c4",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/Proof.md": "5ddfb5a55dd6ee428a20ee5dcf9e24386cd146fa4129341f18e3c163b5a4653c",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/contract.json": "0dea39f7392e0524d0da70346b201945ea4094af405c266f83b4c0761e8032a6",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-readback/Readback.md": "db9eeeb3b907af953e2f4058af1608e066669f8fab5240504bd906b14cd9257d"
+  },
+  "scope": "主条件引理的普通数学意图与实际/expected 声明对应；非完整 Proof 全文领域主张认证。",
+  "expected_statement_semantic_sha256": "bb87da86b34b6856b1b9d33a1054b3ff05bc0972d9bc84518b3221718949abbe",
+  "boundary_machine_status": "直接编译及 #print axioms，传递公理 propext；未请求 exact expected-type 根，不授予该状态。",
+  "report": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-comparison/review.md",
+  "report_sha256": "8f840c3af73d4bfe04a248ed65b48eac46d8455f24a5789633084e66f78dfe35",
+  "machine_manifest_unchanged": true
+}

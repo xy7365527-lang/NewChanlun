@@ -1,0 +1,58 @@
+{
+  "verdict": "requires_revision",
+  "accepted": false,
+  "accepted_components": [
+    "Live M1 adoption correction",
+    "Base M1 adoption correction",
+    "finite arithmetic and trigger scope",
+    "delayed-publication boundary",
+    "conditional lemma substance and boundary-model evidence status",
+    "production denominator separation",
+    "delivery evidence and unchanged research boundaries"
+  ],
+  "must_revise": [
+    {
+      "id": "A1",
+      "severity": "MEDIUM",
+      "title": "条件引理摘要保留 Type 0 与完整全称同C前提",
+      "locations": [
+        {
+          "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage67LiveForceAndInitialRoots.md",
+          "line": 41,
+          "required_change": "在已编译/exact声明的说明中显式保留 α : Type 0；未编译宇宙多态推广。"
+        },
+        {
+          "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/progress-addition-v1.md",
+          "line": 1,
+          "required_change": "将 同类完成严格Nat下降则为空 改为 Type 0 中每个C对象均存在严格更低Nat秩的同C对象则C为空；保留条件性与非领域归责。"
+        }
+      ],
+      "source_locations": [
+        "closure-author/ClosureRoots.lean:5–10",
+        "closure-author/contract.json:4–5",
+        "closure-readback/Readback.md:16/37–39",
+        "closure-comparison/review.md:91"
+      ],
+      "requires_history_rerun": false,
+      "requires_lean_rerun": false,
+      "requires_frozen_author_changes": false
+    }
+  ],
+  "review_complete": true,
+  "research_complete": false,
+  "goal_status": "active",
+  "new_histories": 0,
+  "unresolved": [
+    "P1–P4",
+    "R_W/R_D",
+    "StructuralPenNow",
+    "RootArm67/H_b",
+    "original Completed/Owner/Next",
+    "full F1/F2"
+  ],
+  "artifacts": {
+    "review.md": "4a5d400f97829131287f275769b7c0382b14654b9ec86305df77233d932bb201",
+    "inputhash.json": "9c1225f40bcd8deeec615fe77e60648027b9b3cdba87a5fa8f0e211e56bb81b9",
+    "receipt.json": "b7de10e1ae51364d488536da8a6bf6da243310190e533fa4a634d2d3140fc2a5"
+  }
+}

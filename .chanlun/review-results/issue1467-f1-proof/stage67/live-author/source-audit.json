@@ -1,0 +1,225 @@
+[
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/061-第61课.md",
+    "sha256": "2451e6d514b37aa5da00ca608a88fb46c8e31fe8859226534be7deb6c1007573",
+    "line": 26,
+    "body_boundary": 56,
+    "author_line": 12,
+    "author": "作者：缠中说禅(2007-06-21 08:13:21)",
+    "within_body": true,
+    "line_starts_note": false,
+    "contains_inline_note": false,
+    "used_excerpt": "要比较力度，发现背驰，首先要搞清楚是哪两段比较，其实，只要是围绕一中枢的两段走势都可以比较力度。显然，对于60-65这个1分钟中枢，55-60与65开始的一段之间就可以比较。在实际操作中，65开始的走势，由于没实际走出来，所以在和55-60比较时，都可以先假设是进入背驰段。而当走势实际走出来，一旦力度大于前者，那么就可以断定背驰段不成立，也就不会出现背驰。在没有证据否定背驰之前，就要观察从65开始的一段其内部结构中的背驰情况，这种方法可以逐次下去，这就是区间套的定位方法，这种方法，可以在当下精确地定位走势的转折点。",
+    "excluded_inline_note": null
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/061-第61课.md",
+    "sha256": "2451e6d514b37aa5da00ca608a88fb46c8e31fe8859226534be7deb6c1007573",
+    "line": 28,
+    "body_boundary": 56,
+    "author_line": 12,
+    "author": "作者：缠中说禅(2007-06-21 08:13:21)",
+    "within_body": true,
+    "line_starts_note": false,
+    "contains_inline_note": true,
+    "used_excerpt": "对于65开始背驰段的内部走势，当下走到69时，并不构成任何背驰，为什么？因为背驰如果没有创新高，是不存在的。所以，只有等70点出现时，大盘才进入真正的背驰危险区。由于69-70段与67-68段比并没有盘整背驰，所以70点并没有走的理由，除非你是按线段以下级别操作的。而71点，构成对66-69这1分钟中枢的第三类买点。按照本ID的理论，其后无非只有两种情况，中枢级别扩展或者走出新的中枢上移。对后者（走出新的中枢上移），一个最基本的要求就是，从71点这第三类买点开始的向上段不能出现盘整背驰；而在实际中，不难发现，71点开始的走势力度明显比不上69-70段，而对于65-66段，69开始的走势力度也明显比不上，这从两者下面对应的MACD红柱子面积之和可以辅助判断。",
+    "excluded_inline_note": "(娇注：盘背比较先最近同向一段再中枢两头）"
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/033-第33课.md",
+    "sha256": "51be1fe8461dc36ceadb879f7a47ccad780f8898c7311429dbf06eb7cc240ab7",
+    "line": 24,
+    "body_boundary": 52,
+    "author_line": 12,
+    "author": "作者：缠中说禅(2007-03-02 15:20:37)",
+    "within_body": true,
+    "line_starts_note": false,
+    "contains_inline_note": false,
+    "used_excerpt": "例如，对a+A+b+B+c，a完全可以有另一种释义，就是把a看成是围绕A这个中枢的一个波动，虽然A其实是后出现的，但不影响这种看法的意义。同样c也可以看成是针对B的一个波动，这样整个走势其实就简化为两个中枢与连接两者的一个走势。在最极端的情况下，在a+A+b+B+c的走势系列类型里，a和c并不是必然存在的，而b完全可以是一个跳空缺口，这样，整个走势就可以简化为两个孤零零的中枢。把这种看法推广到所有的走势中，那么任何的走势图，其实就是一些级别大小不同的中枢，把这些看成不同的星球，在当下位置上的星球对当下位置产生向上的力，当下位置下的产生向下的力，而这些所有力的合力构成一个总的力量，而市场当下的力，也就是当下买卖产生的力，买的是向上的力，卖的是向下的力，这也构成一个合力，前一个合力是市场已有走势构成的一个当下的力，后者是当下的交易产生的力，而研究这两种力之间的关系，就构成了市场研究的另一个角度，也就是另一种释义的过程。这是一个复杂的问题，以后会陆续说到，算是高中的课程了。",
+    "excluded_inline_note": null
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/033-第33课.md",
+    "sha256": "51be1fe8461dc36ceadb879f7a47ccad780f8898c7311429dbf06eb7cc240ab7",
+    "line": 26,
+    "body_boundary": 52,
+    "author_line": 12,
+    "author": "作者：缠中说禅(2007-03-02 15:20:37)",
+    "within_body": true,
+    "line_starts_note": false,
+    "contains_inline_note": false,
+    "used_excerpt": "现在先别管什么力不力的，可以从纯粹中枢的角度对背驰给出另外的释义。对a+A+b+B+c，背驰的大概意思就是c段的力度比b的小了。那么，站在B这个中枢的角度，不妨先假设b+B+c是一个向上的过程，那么b可以看成是向下离开中枢B，而c可以看成是向上离开中枢B。所谓顶背驰，就是最后这个中枢，向上离开比向下离开要弱，而中枢有这样的特性，就是对无论向上或向下离开的，都有相同的回拉作用，既然向上离开比向下离开要弱，而向下离开都能拉回中枢，那向上的离开当然也能拉回中枢里，对于b+B+c向上的走势，这就构成顶背驰，而对于b+B+c向下的走势，就构成底背驰。对于盘整背驰，这种分析也一样有效。其实，站在中枢的角度，盘整背驰与背驰，本质上是一样的，只是力度、级别以及发生的中枢位置不同而已。",
+    "excluded_inline_note": null
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/079-第79课.md",
+    "sha256": "7e4713c074fb710701079fe6f9b47798a0178d5959673311424d9a75698caf8f",
+    "line": 52,
+    "body_boundary": 130,
+    "author_line": 12,
+    "author": "作者：缠中说禅(2007-09-10 22:37:13)",
+    "within_body": true,
+    "line_starts_note": false,
+    "contains_inline_note": false,
+    "used_excerpt": "本ID的理论，适用于各种层次的游戏，当然，在越高的层次，技术面的因素就越来越不重要，因为技术面不过是合力的结果，而如果你有高超的调节各种分力的能力，那么一切的技术面都可以制造出来的。但必须注意，任何制造出来的技术面，都无一例外，不能违反本ID技术理论中的最基本结论。有人可能会提这样无聊的问题，在背驰的地方让他不背驰继续上涨难道不可以吗？这是一句废话，没有任何地方是该背驰的，背驰是一个合力的结果，如果合力最终的结果把可能的背驰给破坏了，就证明这地方没出现背驰，这也是合力的结果。",
+    "excluded_inline_note": null
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/079-第79课.md",
+    "sha256": "7e4713c074fb710701079fe6f9b47798a0178d5959673311424d9a75698caf8f",
+    "line": 58,
+    "body_boundary": 130,
+    "author_line": 12,
+    "author": "作者：缠中说禅(2007-09-10 22:37:13)",
+    "within_body": true,
+    "line_starts_note": false,
+    "contains_inline_note": false,
+    "used_excerpt": "其实，明白了上几节课，这两个图一定都不难分辨，首先，前提是这两个的前面都没有其他走势了，否则这种分析没意义，前面有其他走势，就有这很多不同的可能变化。",
+    "excluded_inline_note": null
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/079-第79课.md",
+    "sha256": "7e4713c074fb710701079fe6f9b47798a0178d5959673311424d9a75698caf8f",
+    "line": 60,
+    "body_boundary": 130,
+    "author_line": 12,
+    "author": "作者：缠中说禅(2007-09-10 22:37:13)",
+    "within_body": true,
+    "line_starts_note": false,
+    "contains_inline_note": false,
+    "used_excerpt": "这些图形好象很复杂，其实，只要找到其特征序列就可以。由于34都有第一种类型的笔突破，所以后面的特征序列就很清楚了，34、56、78，其中前两者可以进行包含关系处理，因此可以合并为36，所以78显然和12、36构成底分型，第一种类型笔破坏后延伸出标准的特征序列分型，那显然满足线段破坏的标准。上面的分析，对两个图都是成立的，因此，两者都至少有两个线段。",
+    "excluded_inline_note": null
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/079-第79课.md",
+    "sha256": "7e4713c074fb710701079fe6f9b47798a0178d5959673311424d9a75698caf8f",
+    "line": 64,
+    "body_boundary": 130,
+    "author_line": 12,
+    "author": "作者：缠中说禅(2007-09-10 22:37:13)",
+    "within_body": true,
+    "line_starts_note": false,
+    "contains_inline_note": false,
+    "used_excerpt": "下图，由于9-10是78的包含关系，所以可以认为线段二延伸到了10，而后面的10-11，只有一笔，因此必须再看两笔才知道是否满足第一种类型后继续延伸出特征序列分型的基本线段破坏要求，所以该图属于未完成的图。如果9跌破7，而10的位置不变，那么就显然是三线段了。",
+    "excluded_inline_note": null
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+    "line": 263,
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+    "text": "**第一层・结构层**：先定比哪两段。",
+    "attribution": "project-doctrine-not-original-author"
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+    "line": 265,
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+    "text": "- 盘整背驰的比较对象（#814 D-3 裁定）：**拿这次冲出中枢的那一段，跟往回最近的一次同方向跨界段比——首次离开时 = 进入段；反复震荡时 = 上一次冲出去的那段。** 只算**跨过中枢边界**的段（进入段、离开段）；中枢内部的震荡段是中枢的构造材料，不参与力度比较。`[新缠论:推论]`——061:26 与 049:38 不是两条规则，是同一条规则的两种情况：「往回最近的同方向跨界段」在首次离开时恰好是进入段，反复震荡时恰好是上次离开段；趋势背驰的 c vs b（031:881【答疑】，见上）也是这条规则（b 是进入最后那个中枢的段），这正解释了缠师为何说盘整背驰是趋势背驰方法的「推广用法」（053:24【正文】）。",
+    "attribution": "project-doctrine-not-original-author"
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+    "line": 309,
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+    "text": "### 力度的类型（map #854 / [#865](https://github.com/xy7365527-lang/NewChanlun/issues/865) D-1 裁定，2026-08-03）",
+    "attribution": "project-doctrine-not-original-author"
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+    "line": 315,
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+    "text": "2. **定义域 = 围绕同一中枢的段**，不是任意走势段。依据 `061-第61课.md:26`【正文】「**只要是围绕一中枢的两段走势都可以比较力度**」。加递归穷尽 ⟹ 父 = 进入段 + 中枢 + 离开段，无剩余。",
+    "attribution": "project-doctrine-not-original-author"
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+    "line": 317,
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+    "text": "3. **定义在「进行中的段」上，是随时间演化的量**——段一开始就有值、一直在长；背驰 = 当下的 `L(c)` 比已完成的 `L(b)`，**不需等 c 完成**。",
+    "attribution": "project-doctrine-not-original-author"
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+    "line": 319,
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+    "text": "4. **★「完成」由背驰定义，归动力学。**",
+    "attribution": "project-doctrine-not-original-author"
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+    "line": 321,
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+    "text": "   **裁定把箭头定死**：不是先由形状判出完成再喂给背驰，而是**背驰判出来了就叫完成**。",
+    "attribution": "project-doctrine-not-original-author"
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+    "line": 338,
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+    "text": "> **定义：`L(段) = 该段的速度净增量 = v(段末) − v(段初)`；速度在结构给定的最小单元（笔）上量，即「这一笔涨了多少 ÷ 这一笔用了几根 K 线」。**",
+    "attribution": "project-doctrine-not-original-author"
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+    "line": 342,
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+    "text": "> **名分：`[新缠论:推论]`**（推理链见下，每一步可复核）。",
+    "attribution": "project-doctrine-not-original-author"
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+    "line": 356,
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+    "text": "1. **不要把时间换成结构量、不要一路递归到底。** 时间轴是所有级别**共享的坐标系**，读坐标与「递归到底」是两回事。形态学管的是**边界**（关键的那一半），边界之间多长去时间轴上读即可。",
+    "attribution": "project-doctrine-not-original-author"
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+    "line": 465,
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+    "text": "- `v(段初)` 取值：转折点上速度理论为零，实装时取第一笔还是取零，须定；",
+    "attribution": "project-doctrine-not-original-author"
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+    "line": 466,
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+    "text": "- 段末速度取「当下那一笔」还是「最后完成的那一笔」——涉及当下可判定性（见本文件「主命题与转折」节第四条）；",
+    "attribution": "project-doctrine-not-original-author"
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+    "line": 510,
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+    "text": "> **`Div_q(T, τ)` ⟺ `037:16-22` 的结构前提全部满足 ∧ `L_q(c) < L_q(b)`**",
+    "attribution": "project-doctrine-not-original-author"
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+    "line": 563,
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+    "text": "1. **必须当下可算**——只用判定时刻之前的信息，不得偷看未来（第 1 问）；",
+    "attribution": "project-doctrine-not-original-author"
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+    "line": 565,
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+    "text": "3. **必须能在每个时刻给出值**——主命题带时间指标，不能只有事后一个总数（第 3 问）。",
+    "attribution": "project-doctrine-not-original-author"
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+    "line": 568,
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+    "text": "> ① **过**——`v(段末)` 取当下那一笔的速度，只用已发生的 K 线；② **过**——本定义只给一个数，不碰 `Turn_q`；③ **过**——段一开始就有值，随时间演化（与 D-1 第 3 条一致）。",
+    "attribution": "project-doctrine-not-original-author"
+  },
+  {
+    "file": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+    "line": 569,
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+    "text": "> **⚠️ 但第 ① 条有一个待定实装细节**：「当下那一笔」在笔未完成时如何取值，归工程选型 [#872](https://github.com/xy7365527-lang/NewChanlun/issues/872)。",
+    "attribution": "project-doctrine-not-original-author"
+  }
+]

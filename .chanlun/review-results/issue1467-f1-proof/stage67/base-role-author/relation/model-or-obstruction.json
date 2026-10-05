@@ -1,0 +1,489 @@
+{
+  "name": "Omega67-closed-external",
+  "status": "finite partial role interpretation; source semantic admission unresolved",
+  "history": "N66-low-prefix-nested-v1",
+  "history_count": 1,
+  "new_history_count": 0,
+  "candidate_mapping_count": 1,
+  "distinction": {
+    "raw_a0": "R_W pens and End067 raw segments; no original Movement completion assigned",
+    "lowest_a1": "P0/P1/P2/c0 are local lowest-whole candidates built from segments; original qualification remains null",
+    "project_a0": "the #812 smallest center, corresponding to a1 center in 084 notation, not raw input a0",
+    "below_minimum_view": "view-relative compression only; not a rank assignment",
+    "closed_observation": "fixed raw support and endpoint with source certificate",
+    "completed_original": "dynamic Movement completion under #865; not equated to closed observation"
+  },
+  "objects": {
+    "b_low": {
+      "raw_type": "Raw067Segment",
+      "raw_rank": -1,
+      "original_rank": null,
+      "own": [
+        2,
+        21
+      ],
+      "start_price": 76000,
+      "end_price": 40000,
+      "whole": [
+        40000,
+        76000
+      ],
+      "raw_end": 21,
+      "raw_known": 38,
+      "closed_observation": true,
+      "owns_original_minimum_core": null,
+      "GeneralDiv_original": null,
+      "Completed_original": null,
+      "original_qualified_known_at": null,
+      "original_published_at": null,
+      "L": -1000
+    },
+    "K1": {
+      "selected_members": [
+        "P0",
+        "P1",
+        "P2"
+      ],
+      "core": [
+        62000,
+        72000
+      ],
+      "formation_direction": "Up",
+      "member_local_evidence_by": 338,
+      "original_center_qualified": null
+    },
+    "parent": {
+      "expression": "Seq(b_low,Core1([P0,P1,P2]),c0)",
+      "own": [
+        2,
+        421
+      ],
+      "selected_entry": "b_low",
+      "selected_exit": "c0",
+      "GeneralDiv_original": null,
+      "Completed_original": null,
+      "original_known_at": null,
+      "original_published_at": null
+    }
+  },
+  "relations": {
+    "raw_entry_root": true,
+    "finite_raw_closed_root": true,
+    "same_class_completed_root": null,
+    "raw_before_core": true,
+    "source_disjoint_from_members": true,
+    "crosses_core_down": true,
+    "same_actual_direction_as_exit": true,
+    "selected_geometry_entry": true,
+    "nearest_prior_down_external_among_named_outer_factors": true,
+    "nearest_prior_original_arm": null,
+    "Member_q0_b_K1": false,
+    "Member_q0_b_K1_scope": "chosen raw mapping only; not universal source exclusion",
+    "is_original_completed_entry_arm": null
+  },
+  "minimal_missing_bridge": {
+    "id": "RootArm67",
+    "statement": "For this declared below-minimum Raw067Segment, End067 plus external entry relation suffices for the already-completed b role in #865/#814, while it is not a Completed_original Movement and not a K1 q0 center member.",
+    "independent_geometry_and_closure_premises": true,
+    "source_proven": false,
+    "not_allowed_as_silent_axiom": true,
+    "why_not_derived": "067 supplies raw endpoint; 035/061 allow low entry/comparison roles; 057 supplies a viewpoint but not this typed closure bridge; #865 does not explicitly exempt or identify a raw closed root."
+  },
+  "exact_obstruction": {
+    "target": "RawEnd067(b,21;38) -> OriginalCompletedEntryArm(b,K1,c0)",
+    "result": "not established for the named model",
+    "if_role_requires_completed_movement": "no GeneralDiv certificate or original own center assigned; setting Completed_original=true from raw end changes #865 arrow",
+    "if_role_means_only_closed_observation": "finite mapping exists but identification with source completed-entry role remains RootArm67; replacing semantic target by closure is not proof",
+    "not_proven": "No universal nonexistence of F1, low arms, root interpretation, or full source model"
+  },
+  "uniform_view_conditional": {
+    "is_second_candidate": false,
+    "purpose": "same candidate stress test under alternate justification",
+    "if_b_and_P0_P1_are_same_view_constructive_members": true,
+    "earlier_triple": [
+      "b_low",
+      "P0",
+      "P1"
+    ],
+    "core": [
+      62000,
+      72000
+    ],
+    "geometry_end": 221,
+    "planned_geometry_end": 321,
+    "old_local_certificate_aggregate": 238,
+    "original_qualification_known_at": null,
+    "first_global_core_proven": false,
+    "required_action": "recompute candidate kernel/member allocation consistently; cannot use uniform view to admit b then exclude b merely to preserve K1"
+  },
+  "obligation_domain": {
+    "movement_completion": "only objects actually asserted as original Movement inherit #865 dynamic completion; not every raw input",
+    "raw_root": "closed observation root exists at 21/38 independently of original MotionCompleted",
+    "for_all_completed_requires_earlier_completed_same_class_b": "not asserted and not inferred from #865",
+    "policy827": "unchanged; MemberNext is not normalized Adj; no NoPP pass assigned"
+  },
+  "finite_checks": [
+    {
+      "name": "one existing history",
+      "actual": "N66-low-prefix-nested-v1",
+      "expected": "N66-low-prefix-nested-v1",
+      "passed": true
+    },
+    {
+      "name": "observation and event counts",
+      "actual": [
+        443,
+        442
+      ],
+      "expected": [
+        443,
+        442
+      ],
+      "passed": true
+    },
+    {
+      "name": "b actual boundary",
+      "actual": [
+        76000,
+        40000
+      ],
+      "expected": [
+        76000,
+        40000
+      ],
+      "passed": true
+    },
+    {
+      "name": "b whole from observations",
+      "actual": [
+        40000,
+        76000
+      ],
+      "expected": [
+        40000,
+        76000
+      ],
+      "passed": true
+    },
+    {
+      "name": "b certificate fields",
+      "actual": [
+        1,
+        21,
+        38,
+        [
+          0,
+          5
+        ],
+        [
+          2,
+          21
+        ]
+      ],
+      "expected": [
+        1,
+        21,
+        38,
+        [
+          0,
+          5
+        ],
+        [
+          2,
+          21
+        ]
+      ],
+      "passed": true
+    },
+    {
+      "name": "b five pen directions",
+      "actual": [
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "expected": [
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "passed": true
+    },
+    {
+      "name": "b force from actual pens",
+      "actual": [
+        -4000,
+        -5000,
+        -1000
+      ],
+      "expected": [
+        -4000,
+        -5000,
+        -1000
+      ],
+      "passed": true
+    },
+    {
+      "name": "b selected evidence intervals",
+      "actual": [
+        [
+          46000,
+          60000
+        ],
+        [
+          40000,
+          48000
+        ],
+        [
+          44000,
+          60000
+        ]
+      ],
+      "expected": [
+        [
+          46000,
+          60000
+        ],
+        [
+          40000,
+          48000
+        ],
+        [
+          44000,
+          60000
+        ]
+      ],
+      "passed": true
+    },
+    {
+      "name": "067 no gap",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "067 bottom feature both coordinates",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "b initial three pen overlap only a raw/class-like geometry",
+      "actual": [
+        60000,
+        68000
+      ],
+      "expected": [
+        60000,
+        68000
+      ],
+      "passed": true
+    },
+    {
+      "name": "selected K1 core",
+      "actual": [
+        62000,
+        72000
+      ],
+      "expected": [
+        62000,
+        72000
+      ],
+      "passed": true
+    },
+    {
+      "name": "K1 formation directions",
+      "actual": [
+        "Up",
+        "Down",
+        "Up"
+      ],
+      "expected": [
+        "Up",
+        "Down",
+        "Up"
+      ],
+      "passed": true
+    },
+    {
+      "name": "local source-contiguity",
+      "actual": [
+        21,
+        21,
+        121,
+        121,
+        221,
+        221,
+        321,
+        321
+      ],
+      "expected": [
+        21,
+        21,
+        121,
+        121,
+        221,
+        221,
+        321,
+        321
+      ],
+      "passed": true
+    },
+    {
+      "name": "b outside selected member list",
+      "actual": false,
+      "expected": false,
+      "passed": true
+    },
+    {
+      "name": "b own disjoint K1 own",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "b same actual direction as c",
+      "actual": [
+        false,
+        "Down"
+      ],
+      "expected": [
+        false,
+        "Down"
+      ],
+      "passed": true
+    },
+    {
+      "name": "b traverses both core boundaries",
+      "actual": [
+        true,
+        true
+      ],
+      "expected": [
+        true,
+        true
+      ],
+      "passed": true
+    },
+    {
+      "name": "c traverses both core boundaries",
+      "actual": [
+        true,
+        true
+      ],
+      "expected": [
+        true,
+        true
+      ],
+      "passed": true
+    },
+    {
+      "name": "parent force comparison",
+      "actual": [
+        -3500,
+        -1000
+      ],
+      "expected": [
+        -3500,
+        -1000
+      ],
+      "passed": true
+    },
+    {
+      "name": "parent strict numerical inequality",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "parent new low",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "source-own decomposition sizes",
+      "actual": [
+        20,
+        300,
+        100
+      ],
+      "expected": [
+        20,
+        300,
+        100
+      ],
+      "passed": true
+    },
+    {
+      "name": "earlier b P0 P1 triple",
+      "actual": [
+        62000,
+        72000
+      ],
+      "expected": [
+        62000,
+        72000
+      ],
+      "passed": true
+    },
+    {
+      "name": "earlier geometry end",
+      "actual": [
+        221,
+        321
+      ],
+      "expected": [
+        221,
+        321
+      ],
+      "passed": true
+    },
+    {
+      "name": "old local times only",
+      "actual": [
+        238,
+        338
+      ],
+      "expected": [
+        238,
+        338
+      ],
+      "passed": true
+    },
+    {
+      "name": "no c as same-direction Zn",
+      "actual": false,
+      "expected": false,
+      "passed": true
+    },
+    {
+      "name": "source original null preserved",
+      "actual": [
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "expected": [
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "passed": true
+    },
+    {
+      "name": "all requested decisive cached comments found",
+      "actual": 5,
+      "expected": 5,
+      "passed": true
+    }
+  ]
+}

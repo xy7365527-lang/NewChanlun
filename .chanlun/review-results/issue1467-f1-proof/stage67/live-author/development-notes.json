@@ -1,0 +1,16 @@
+{
+  "workcard_unchanged": true,
+  "no_candidate_parameter_revisions": true,
+  "implementation_repairs_before_delivery": [
+    {
+      "issue": "initial collection continued diagnostics after local closed certificate and could find P1 A at 334 in unrelated later material",
+      "fix": "stop live domain upon fifth raw certificate verified at current prefix; all true triggers require open lifecycle",
+      "final_result": "P1 A none before local close238"
+    },
+    {
+      "issue": "first shell wrapper used zsh read-only variable status after successful Python run",
+      "fix": "final receipt uses subprocess returncode; exit0 with stdout/stderr retained"
+    }
+  ],
+  "semantic_source_correction": "old beichi unresolved engineering wording superseded in part by #975/#978/#989; report narrows unresolved issue to current unconfirmed-pen mapping"
+}

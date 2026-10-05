@@ -1,0 +1,14 @@
+{
+  "mode": "官方工具纯语义绑定检查，不运行 Lean 或完整环境重查",
+  "result": {
+    "status": "reviewed",
+    "reused": true,
+    "semantic_sha256": "3e08e1a29c0cad6ba177dfafa96330465a026b161a5040fceb0e5bd007889a21",
+    "binding_mismatches": [],
+    "audit_file": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-comparison/semantic-review.json",
+    "audit_sha256": "5bac3f24b088f2cecd376987844912a2661e1b7460d161d1a11281773544caec",
+    "reviewer": "/root/stage67_closure_comparison",
+    "independence": "全新独立比较代理；未参与作者证明或独立盲读回。只读取冻结形式包、普通 Proof、契约、独立读回与其回执，未读取作者会话、MEMORY、ResearchProgress 或市场作者报告。此为比较审阅，不自称盲读回。",
+    "result": "faithful"
+  }
+}

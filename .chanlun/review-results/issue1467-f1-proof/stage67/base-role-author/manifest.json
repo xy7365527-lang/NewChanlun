@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "task": "issue1467 Stage67 base-role-author",
+  "files": [
+    {
+      "path": "Report.md",
+      "bytes": 12768,
+      "sha256": "5d20adb2beb4cef4ae24608a1a2590e8720ffdb38d6e818d4e047b65fe583141"
+    },
+    {
+      "path": "check.mjs",
+      "bytes": 13587,
+      "sha256": "df25e6778ccf3810526c15b192f3bb2c410078a5ea4d577f7ebec1e77f7f60e2"
+    },
+    {
+      "path": "inputhash-after.json",
+      "bytes": 7792,
+      "sha256": "4f218340b4792ab17c3bc7a8d8dc5e5232aec27a3264388206307080dc541772"
+    },
+    {
+      "path": "inputhash-before.json",
+      "bytes": 7841,
+      "sha256": "564778c020a96b6983183336cc0758ce1ec1df64d17cc577a38f65f3f4f6b66a"
+    },
+    {
+      "path": "receipt.json",
+      "bytes": 516,
+      "sha256": "3fc68653350dc11c537c515808a3ad270c8dabe4607215fbf65f26cb116f2fc7"
+    },
+    {
+      "path": "relation/model-or-obstruction.json",
+      "bytes": 10817,
+      "sha256": "9a69ba488f060bd9131881eee34d1e96a0fa797d3087d4ccdf07012ec667a10b"
+    },
+    {
+      "path": "seal.mjs",
+      "bytes": 1839,
+      "sha256": "29e2e5f56efc351737552266dfffe9c4308a62d839021a955b45d8a9cbe0ff66"
+    },
+    {
+      "path": "source-evidence.json",
+      "bytes": 97552,
+      "sha256": "d99e741efc84299916fc0a978d959901877740048f28fbbd525d6f519b61a885"
+    },
+    {
+      "path": "source-excerpts.md",
+      "bytes": 70944,
+      "sha256": "344c2c52ca925b3a73f4b4f055297b60df4f9f93ea75d9979dfab605cbdc9a7d"
+    }
+  ],
+  "total_manifested_bytes": 223656,
+  "budget_bytes": 100663296,
+  "input_files_unchanged_at_seal": true
+}

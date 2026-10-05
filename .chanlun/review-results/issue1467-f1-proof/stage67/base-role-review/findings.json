@@ -1,0 +1,54 @@
+{
+  "verdict": "accept finite raw/geometry mapping; require one machine-representation correction; source semantic role remains unresolved",
+  "accepted": [
+    "Frozen package identity and all 29 bounded checks",
+    "ClosedRaw(b,21;38) with inherited Stage66 certificate scope",
+    "b whole [40000,76000], own E2..21, L=-1000",
+    "c0 whole force -3500 and selected external comparison geometry",
+    "Earlier conditional b/P0/P1 triple ending 221; 238 only old local aggregate",
+    "Original semantic roles and times stay null",
+    "Movement-only completion obligation is not universally imposed on raw roots"
+  ],
+  "must_revise": [
+    {
+      "id": "M1",
+      "severity": "representation/scope",
+      "locations": [
+        "base-role-author/relation/model-or-obstruction.json:86",
+        "base-role-author/relation/model-or-obstruction.json:93"
+      ],
+      "details": [
+        "Replace is not a Completed_original Movement with explicitly unasserted/null wording consistent with Report.md.",
+        "Include candidate-scoped external-entry geometry in the obstruction antecedent, not RawEnd067 alone."
+      ],
+      "not_required": [
+        "new history",
+        "new doctrine",
+        "user approval gate",
+        "infinite recursive completion"
+      ]
+    }
+  ],
+  "unresolved": [
+    "RootArm67 source-compatible completed-entry role",
+    "Original source qualification of K1 and members",
+    "Full F1/source model existence or nonexistence"
+  ],
+  "novelty": {
+    "new_semantic_bridge_evidence": false,
+    "reused_raw_evidence": true,
+    "contribution": "explicit partial role map, typed gap and source/viewpoint scope analysis; does not fill prior H_b semantic gap"
+  },
+  "source_status": {
+    "live": false,
+    "cached_original_issues": [
+      812,
+      865,
+      873
+    ],
+    "canonical_blog_read_directly": true
+  },
+  "semantic_admission_pass": false,
+  "semantic_nonexistence_proven": false,
+  "original_completed_b": null
+}

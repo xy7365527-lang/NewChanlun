@@ -1,0 +1,12 @@
+{
+  "status": "author-self-check-only",
+  "json_parse": true,
+  "prefix_rows": 2215,
+  "all_source_gates_null": true,
+  "closed_domains_have_no_live_value": true,
+  "triggers_require_open_local_gate": true,
+  "workcard_frozen": true,
+  "input_hash_unchanged": true,
+  "online_seal_matches": true,
+  "independent_review": "pending"
+}

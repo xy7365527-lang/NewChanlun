@@ -1,0 +1,27 @@
+{
+  "status": "author-frozen-awaiting-independent-review",
+  "report": "Report.md",
+  "manifest_sha256": "e0dc6fd6b6f4221bac4d9b6e187d75ab0c54f48a88ac8d84f64bc6ff75a87581",
+  "source_history": "N66-low-prefix-nested-v1",
+  "prefix_count": 443,
+  "objects": 4,
+  "parents": 1,
+  "main_candidate": "L67-live-A",
+  "only_control": "L67-live-R",
+  "main_endpoint_compatibility": "refuted-on-five-selected-closing-endpoints",
+  "control_endpoint_compatibility": "five-of-five-finite-pass-not-structure-pen-certification",
+  "original_generaldiv": null,
+  "original_completed": null,
+  "fixed_F2": null,
+  "P1_P4": "unchanged",
+  "routes": [
+    "R_W",
+    "R_D"
+  ],
+  "command_exit": 0,
+  "peak_rss_bytes": 77381632,
+  "input_hash_unchanged": true,
+  "review_pending": true,
+  "raw_b_L": -1000,
+  "full_c0_L": -3500
+}

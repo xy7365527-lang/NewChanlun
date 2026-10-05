@@ -1,0 +1,24 @@
+{
+  "id": "b_low",
+  "cut": 21,
+  "real_active": {
+    "up": true,
+    "start": 13,
+    "end": 17,
+    "start_price": 46000,
+    "end_price": 60000
+  },
+  "first_v": -4000,
+  "old_closed_L": -1000,
+  "A": {
+    "anchor": 13,
+    "v": "-750",
+    "L": "3250"
+  },
+  "R": {
+    "anchor": 17,
+    "v": "-5000",
+    "L": "-1000",
+    "kind": "unconfirmed-residual"
+  }
+}

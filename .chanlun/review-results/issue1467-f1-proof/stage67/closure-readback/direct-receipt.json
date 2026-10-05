@@ -1,0 +1,18 @@
+{
+  "command": [
+    "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+    "ClosureRoots.lean"
+  ],
+  "cwd": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author",
+  "exit": 0,
+  "started_utc": "2026-10-05T18:56:24.742200+00:00",
+  "finished_utc": "2026-10-05T18:56:25.000830+00:00",
+  "LEAN_PATH": "",
+  "lean_version_stdout": "Lean (version 4.31.0, arm64-apple-darwin24.6.0, commit 68218e876d2a38b1985b8590fff244a83c321783, Release)\n",
+  "lean_version_exit": 0,
+  "lean_sha256": "1b370cfcbf44e80d1b004ab1b1ab9a4c73951f9f7c242140bcff9bc577576554",
+  "source_sha256": "e1c96a05d4f2f5450f9056cafe54254e8a97413083927ba2949ae4d27794c6c4",
+  "input_sha256": "e1c96a05d4f2f5450f9056cafe54254e8a97413083927ba2949ae4d27794c6c4",
+  "stdout_sha256": "32e94bab6a2b61519c3fb2675f99f75181a095087644d1bbb2c0a108f26cbc64",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

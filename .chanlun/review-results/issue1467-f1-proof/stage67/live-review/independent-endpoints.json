@@ -1,0 +1,77 @@
+[
+  {
+    "id": "P0",
+    "cut": 121,
+    "old_L": -500,
+    "A_L": {
+      "num": -900,
+      "den": 1
+    },
+    "R_L": {
+      "num": -500,
+      "den": 1
+    },
+    "A_equal": false,
+    "R_equal": true
+  },
+  {
+    "id": "P1",
+    "cut": 221,
+    "old_L": -1200,
+    "A_L": {
+      "num": 50,
+      "den": 1
+    },
+    "R_L": {
+      "num": -1200,
+      "den": 1
+    },
+    "A_equal": false,
+    "R_equal": true
+  },
+  {
+    "id": "P2",
+    "cut": 321,
+    "old_L": -200,
+    "A_L": {
+      "num": -350,
+      "den": 1
+    },
+    "R_L": {
+      "num": -200,
+      "den": 1
+    },
+    "A_equal": false,
+    "R_equal": true
+  },
+  {
+    "id": "c0",
+    "cut": 421,
+    "old_L": -4200,
+    "A_L": {
+      "num": 175,
+      "den": 1
+    },
+    "R_L": {
+      "num": -4200,
+      "den": 1
+    },
+    "A_equal": false,
+    "R_equal": true
+  },
+  {
+    "id": "parent",
+    "cut": 421,
+    "old_L": -3500,
+    "A_L": {
+      "num": 875,
+      "den": 1
+    },
+    "R_L": {
+      "num": -3500,
+      "den": 1
+    },
+    "A_equal": false,
+    "R_equal": true
+  }
+]

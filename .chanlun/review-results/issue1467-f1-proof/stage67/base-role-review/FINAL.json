@@ -1,0 +1,22 @@
+{
+  "status": "independent_review_complete_with_required_representation_fix",
+  "verdict": "accept finite raw/geometry mapping; require one machine-representation correction; source semantic role remains unresolved",
+  "independent_review": true,
+  "author_self_checks_recomputed": 29,
+  "checks_passed": 29,
+  "required_revision_count": 1,
+  "semantic_admission_pass": false,
+  "semantic_nonexistence_proven": false,
+  "original_completed_b": null,
+  "RootArm67_source_proven": false,
+  "history_count": 1,
+  "new_history_count": 0,
+  "candidate_mapping_count": 1,
+  "report": "review.md",
+  "findings": "findings.json",
+  "receipt": "receipt.json",
+  "manifest_sha256": "5cb069258c633f773e8d07714553c3b9e3aa1d8b380c369fbfe52c5f5da48c8f",
+  "report_sha256": "36070abad6a7c179d9b1632f9c733a4e7644b8288ce6317daf9672457b057f63",
+  "independent_checks_sha256": "2a890469bb3d963091b3140a979879f1a22398c9ef91a31c90ad9348e0925584",
+  "total_manifested_bytes": 195091
+}

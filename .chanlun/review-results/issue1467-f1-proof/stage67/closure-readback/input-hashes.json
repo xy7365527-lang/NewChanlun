@@ -1,0 +1,26 @@
+[
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/ClosureRoots.lean",
+    "expected_sha256": "e1c96a05d4f2f5450f9056cafe54254e8a97413083927ba2949ae4d27794c6c4",
+    "actual_sha256": "e1c96a05d4f2f5450f9056cafe54254e8a97413083927ba2949ae4d27794c6c4",
+    "matches": true
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/direct.stdout",
+    "expected_sha256": "32e94bab6a2b61519c3fb2675f99f75181a095087644d1bbb2c0a108f26cbc64",
+    "actual_sha256": "32e94bab6a2b61519c3fb2675f99f75181a095087644d1bbb2c0a108f26cbc64",
+    "matches": true
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/direct-receipt.json",
+    "expected_sha256": "15a4f12951cfbf3f3681dc3ac7277f33c52ebd7adc86e9b42c7f9fc548724ed2",
+    "actual_sha256": "15a4f12951cfbf3f3681dc3ac7277f33c52ebd7adc86e9b42c7f9fc548724ed2",
+    "matches": true
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/lean-toolchain",
+    "expected_sha256": "efac0b94923b2d8b6840cd35be9177ad0fc5ab2332f4f4311c98712cee92fdee",
+    "actual_sha256": "efac0b94923b2d8b6840cd35be9177ad0fc5ab2332f4f4311c98712cee92fdee",
+    "matches": true
+  }
+]

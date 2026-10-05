@@ -1,0 +1,144 @@
+{
+  "live_query_performed": false,
+  "scope": "审查提供的冻结 issue 快照，不声称实时 tracker 状态",
+  "issues": [
+    {
+      "issue": 872,
+      "snapshot_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/live-author/issue-872.json",
+      "sha256": "02ced7e5cda0d46fea35d30886728f9c803aed23ab727d6a9619a942c38c77f9",
+      "state_in_frozen_snapshot": "CLOSED",
+      "title": "[task] 把已定的力度定义接到生产塔上：段→笔映射在生产链上不存在 + 五套实现收编 + 盘整背驰度量层（map #854 下游）",
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/872",
+      "selected_evidence": [
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/872#issuecomment-5170435746",
+          "exact_lines": [
+            "## 追加承接：模块化装进架构的接口形态（map #854 关图时毕业的第 4 片雾）"
+          ]
+        },
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/872#issuecomment-5301269330",
+          "exact_lines": [
+            "**关闭裁定：毕业成新图（graduated）——2026-08-16 编排者拍板 A（纯决策图）。**",
+            "本票三件事已由 [🗺️ 力度接生产塔（map #974）](https://github.com/xy7365527-lang/NewChanlun/issues/974) 承接，落点逐条核实："
+          ]
+        }
+      ]
+    },
+    {
+      "issue": 974,
+      "snapshot_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/live-author/issue-974.json",
+      "sha256": "34edaf0fc53cf25de457e716df765ecee2bfc2aa355abbd4dc9dec71715d0b74",
+      "state_in_frozen_snapshot": "CLOSED",
+      "title": "🗺️ 力度接生产塔：段→笔载体重建 → 五套收编 → 盘整背驰度量层",
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/974",
+      "selected_evidence": [
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/974#issuecomment-5301531084",
+          "exact_lines": [
+            "**Destination 达成判据逐条**：① 段→笔载体 → [G1](https://github.com/xy7365527-lang/NewChanlun/issues/975)✅；② 五套收编与口径 → [G2](https://github.com/xy7365527-lang/NewChanlun/issues/978)✅；③ 盘整背驰度量层 → [G3](https://github.com/xy7365527-lang/NewChanlun/issues/979)✅；探针读数在案 → [T1](https://github.com/xy7365527-lang/NewChanlun/issues/976)✅ [T2](https://github.com/xy7365527-lang/NewChanlun/issues/977)✅ + [G4](https://github.com/xy7365527-lang/NewChanlun/issues/985)✅（含 TV 挂起补案）。**spec 已出**：[SPEC 力度接生产塔实施总单 #987](https://github.com/xy7365527-lang/NewChanlun/issues/987)——**实施依赖图随 spec 正文**（编排者硬约束兑现：I-0∥I-1 → I-2 → {I-3, I-4}），实施票 #988–#992 已开、blocking 已接。",
+            "**残雾去向**：雾区清空（三片残雾全部当场处置——B 一致性归 spec 验证面 I-4；退役影响面归 G2 终局清单即 I-3；spec 切法即 SPEC #987 本身）。**移交核实**：SPEC #987 与五张实施票存在性已逐张验过（创建回执 + blocking 回执在案）。"
+          ]
+        }
+      ]
+    },
+    {
+      "issue": 975,
+      "snapshot_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/live-author/issue-975.json",
+      "sha256": "31a3ce6e5c3e4267ccffbbcaa227e2a47b888dab05c8ea7c51c0592c9a026f12",
+      "state_in_frozen_snapshot": "CLOSED",
+      "title": "[grilling] G1 段→笔载体重建：make_segment 丢映射后生产怎么拿到 Stroke 列（#872 ①）",
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/975",
+      "selected_evidence": [
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/975#issuecomment-5301504463",
+          "exact_lines": [
+            "1. **载体 = 按需反查函数**（新增纯函数，零新增状态）：输入段的 `(start_index, end_index)` bar 闭区间 + strokes 切片，二分定位该段覆盖的笔区间 `[first_stroke, last_stroke]`。力度原语按此取首/末笔算 `L(段) = v(末笔) − v(首笔)`。"
+          ]
+        }
+      ]
+    },
+    {
+      "issue": 978,
+      "snapshot_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/live-author/issue-978.json",
+      "sha256": "2f627ffb938ab1f7723b7612b8936a6677b86337939645bf682bc6ef9ecef04b",
+      "state_in_frozen_snapshot": "CLOSED",
+      "title": "[grilling] G2 五套收编目标形态 + 「生产判定路径」口径（#872 ②）",
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/978",
+      "selected_evidence": [
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/978#issuecomment-5301515537",
+          "exact_lines": [
+            "- **判据**：`diverged ⟺ L(c) < L(b)`，`L(段) = v(末笔) − v(首笔)`（beichi.md v1.6 正本），经 G1 反查函数取笔；"
+          ]
+        }
+      ]
+    },
+    {
+      "issue": 979,
+      "snapshot_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/live-author/issue-979.json",
+      "sha256": "81d90c7ec381920046f4952e477e7fb694d5aaf8cce01e8d1486203026921fd4",
+      "state_in_frozen_snapshot": "CLOSED",
+      "title": "[grilling] G3 盘整背驰度量层：形态/挂载点/与 S4-b 入口衔接（#872 ③）",
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/979",
+      "selected_evidence": [
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/979#issuecomment-5301522419",
+          "exact_lines": [
+            "**依据**：#814 D-3 已裁——盘整背驰与趋势背驰的比较对象是**同一条规则**（「往回最近的同方向跨界段」；趋势的 c vs b 是它在首次离开时的特例，053:24「推广用法」）。既然比较对象规则同一、力度定义同一（`L(段)=v(末笔)−v(首笔)`，#873），**度量层没有第二个东西可建**："
+          ]
+        }
+      ]
+    },
+    {
+      "issue": 987,
+      "snapshot_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/live-author/issue-987.json",
+      "sha256": "fb6912648e1385feafe33e8e4ac2ea267c1d7910473c86e4de4aa2f007196590",
+      "state_in_frozen_snapshot": "CLOSED",
+      "title": "📋 SPEC：力度接生产塔实施总单（map #974 交棒）——同色化 + 反查载体 + 收编切换 + 退役 + 基线",
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/987",
+      "selected_evidence": [
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/987#issuecomment-5303237780",
+          "exact_lines": [
+            "| [I-1 #989](https://github.com/xy7365527-lang/NewChanlun/issues/989) 反查载体+对拍锁 | `1f2177e768` | ✅ 关 |",
+            "| [I-2 #990](https://github.com/xy7365527-lang/NewChanlun/issues/990) 收编切换 ForceL | `2cfa5511a6` | ✅ 关 |"
+          ]
+        }
+      ]
+    },
+    {
+      "issue": 989,
+      "snapshot_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/live-author/issue-989.json",
+      "sha256": "548cd2de8d1fb88a3ca8a9e6f30c53bc32df4178910c7f7674966c499b3030e5",
+      "state_in_frozen_snapshot": "CLOSED",
+      "title": "[impl] I-1：段→笔反查函数 + 对拍锁进 CI（SPEC #987 拆出，#975 Q3a）",
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/989",
+      "selected_evidence": []
+    },
+    {
+      "issue": 990,
+      "snapshot_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/live-author/issue-990.json",
+      "sha256": "5bc54fbc242f6898d49e9372dcd53f3dc61aac75bb533dee9c667e789f614812",
+      "state_in_frozen_snapshot": "CLOSED",
+      "title": "[impl] I-2：收编切换——默认判据换 L(c)<L(b)，MACD 降辅助观测（SPEC #987 拆出，#978 裁定二/三）",
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/990",
+      "selected_evidence": [
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/990#issuecomment-5303209443",
+          "exact_lines": [
+            "- **默认判据切 ForceL**（`L(C) < L(B)`，#873 教义，经 #989 反查原语），MacdArea 等四档降为显式对照档（ADR-0005）；消费方零签名变更（judge_first_cached 内部算 L，seg_a/seg_c source_index 区间 ⟹ strokes 反查，跨级同坐标系）。",
+            "- strokes 全链接线（classify_impl → extract_first_third_for_level / resume / level_cand_delta → judge 链），无 strokes ⟹ ForceL 不判不降级（收敛通则禁宽松接管）。"
+          ]
+        },
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/990#issuecomment-5309143340",
+          "exact_lines": [
+            "**联动更新（2026-08-16，#994 TV 处决终态）**：本票 resolution 裁定二中「3b 保留为非默认对照档 + TV 相关 proxy（segment_total_variation）标注 v1.6 挂起态」——挂起已由 [#994](https://github.com/xy7365527-lang/NewChanlun/issues/994) 终裁为**处决**（commit `40ae89b865`）：原语与 tv 字段全删，ForceStateA5 支配序回 4-proxy。3b 对照档本身（ThetaDom/Conjunction/ThetaLex 显式档）维持 #978 裁定不变。"
+          ]
+        }
+      ]
+    }
+  ],
+  "conclusion": "冻结链已裁首末笔差并记录989/990实施。给定Stroke切片的首末反查未定义本次R_W未确认残段的StructuralPenNow资格。"
+}

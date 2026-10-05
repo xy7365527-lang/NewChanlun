@@ -1,0 +1,52 @@
+{
+  "created_at_utc": "2026-10-05T19:31:54.063186+00:00",
+  "role": "fresh_independent_adoption_reviewer",
+  "scope": "采用文本/字段覆盖及摘要边界；既有证据复用",
+  "verdict": "requires_revision",
+  "frozen_input_count": 10,
+  "frozen_input_hashes_match": true,
+  "supplementary_hash_comparisons": 138,
+  "supplementary_unique_paths": 83,
+  "supplementary_all_match": true,
+  "independent_new_history_runs": 0,
+  "history_rows_rerun": 0,
+  "base_relation_checks_rerun": 0,
+  "lean_executed": false,
+  "RW_executed": false,
+  "full_inventory_recheck_executed": false,
+  "memory_read": false,
+  "ResearchProgress_read": false,
+  "author_conversation_read": false,
+  "writes_scope": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/adoption-review",
+  "frozen_author_bytes_changed": false,
+  "inputhash_sha256": "9c1225f40bcd8deeec615fe77e60648027b9b3cdba87a5fa8f0e211e56bb81b9",
+  "review_sha256": "4a5d400f97829131287f275769b7c0382b14654b9ec86305df77233d932bb201",
+  "must_revise": [
+    {
+      "id": "A1",
+      "severity": "MEDIUM",
+      "title": "条件引理摘要保留 Type 0 与完整全称同C前提",
+      "locations": [
+        {
+          "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage67LiveForceAndInitialRoots.md",
+          "line": 41,
+          "required_change": "在已编译/exact声明的说明中显式保留 α : Type 0；未编译宇宙多态推广。"
+        },
+        {
+          "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/progress-addition-v1.md",
+          "line": 1,
+          "required_change": "将 同类完成严格Nat下降则为空 改为 Type 0 中每个C对象均存在严格更低Nat秩的同C对象则C为空；保留条件性与非领域归责。"
+        }
+      ],
+      "source_locations": [
+        "closure-author/ClosureRoots.lean:5–10",
+        "closure-author/contract.json:4–5",
+        "closure-readback/Readback.md:16/37–39",
+        "closure-comparison/review.md:91"
+      ],
+      "requires_history_rerun": false,
+      "requires_lean_rerun": false,
+      "requires_frozen_author_changes": false
+    }
+  ]
+}

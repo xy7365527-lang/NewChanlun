@@ -1,0 +1,44 @@
+{
+  "inputs": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage67LiveForceAndInitialRoots.md",
+      "sha256": "9b633a4a2a12559fa3655b6ee906ee712bc5c493de5e0921e8912e71e5329f73"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage67/DeliveryStatus-v1.md",
+      "sha256": "51613fb40f55c25ebc494d05fb6bac47efb7d16951e3edc3e4f0e5c4ee8dc20d"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage67/adoption/LiveForceCorrections-v1.md",
+      "sha256": "ed80e9a8c5728b623dac1555d7f130be23d9532171aa60f36c4ab4959fc7f842"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage67/adoption/live-force-corrections-v1.json",
+      "sha256": "b9aab8f6b98cd85b2719924030de11733dfddc71a27e8f79e170ed2b6d53ee10"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage67/adoption/BaseRoleCorrections-v1.md",
+      "sha256": "c3275e5f4bdd786b7c2ac1257b0a7d3d778ccc270b7798827702a12b4a51795e"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage67/adoption/base-role-corrections-v1.json",
+      "sha256": "0da8f492fb71ea64fa67cdbc533703ad905a5f3c5fd9728e80b5b3ce97598dac"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage67/live-review/review.md",
+      "sha256": "f97626c56d7e61b2d0bbaa2fff5347062ae637d4f0d97a932c220c248f0a1a0a"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage67/base-role-review/review.md",
+      "sha256": "36070abad6a7c179d9b1632f9c733a4e7644b8288ce6317daf9672457b057f63"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage67/closure-comparison/review.md",
+      "sha256": "8f840c3af73d4bfe04a248ed65b48eac46d8455f24a5789633084e66f78dfe35"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/progress-addition-v1.md",
+      "sha256": "5c2adf4a510cc7b5f262f5c7e2969ad9da9ef15b9f2925cf89c5e34075edfaf9"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "file": "ClosureRoots.lean",
+  "declaration": "Stage67.no_closed_if_all_need_earlier_closed",
+  "expected_type": "∀ (α : Type) (rank : α → Nat) (closed : α → Prop), (∀ x, closed x → ∃ b, closed b ∧ rank b < rank x) → ∀ x, ¬ closed x",
+  "universes": []
+}

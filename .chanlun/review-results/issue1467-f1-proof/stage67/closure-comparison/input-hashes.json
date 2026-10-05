@@ -1,0 +1,97 @@
+[
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/ClosureRoots.lean",
+    "sha256": "e1c96a05d4f2f5450f9056cafe54254e8a97413083927ba2949ae4d27794c6c4",
+    "bytes": 1201
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/Proof.md",
+    "sha256": "5ddfb5a55dd6ee428a20ee5dcf9e24386cd146fa4129341f18e3c163b5a4653c",
+    "bytes": 2210
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/contract.json",
+    "sha256": "0dea39f7392e0524d0da70346b201945ea4094af405c266f83b4c0761e8032a6",
+    "bytes": 281
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/direct.stdout",
+    "sha256": "32e94bab6a2b61519c3fb2675f99f75181a095087644d1bbb2c0a108f26cbc64",
+    "bytes": 1230
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/direct.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/direct-receipt.json",
+    "sha256": "15a4f12951cfbf3f3681dc3ac7277f33c52ebd7adc86e9b42c7f9fc548724ed2",
+    "bytes": 365
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/author-receipt.json",
+    "sha256": "6bb59f11aa1d40b75db70f51608ccbfff5edb6afd26e9a8bfd299d21d456557f",
+    "bytes": 1245
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/lean-toolchain",
+    "sha256": "efac0b94923b2d8b6840cd35be9177ad0fc5ab2332f4f4311c98712cee92fdee",
+    "bytes": 25
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/exact/run-manifest.json",
+    "sha256": "1fa4451c798db587a9c6711755d458ef369a307631ac71fc95986753ead02e17",
+    "bytes": 2470960
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-readback/Readback.md",
+    "sha256": "db9eeeb3b907af953e2f4058af1608e066669f8fab5240504bd906b14cd9257d",
+    "bytes": 8858
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-readback/FINAL.json",
+    "sha256": "b0a7f1f0d34779907f6fc169d56a0652d298691deb2bfe0cc42a28a1b666f399",
+    "bytes": 2305
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-readback/input-hashes.json",
+    "sha256": "496b57ced0a4e6de10c3bc62ee9d6d0bb5835e863939bf38eda354bb87f6c5e6",
+    "bytes": 1306
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-readback/direct.stdout",
+    "sha256": "32e94bab6a2b61519c3fb2675f99f75181a095087644d1bbb2c0a108f26cbc64",
+    "bytes": 1230
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-readback/direct.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-readback/direct-receipt.json",
+    "sha256": "bcb5ece4593787b57a28e2673178c84038e48641962239861b24bf397cdef92b",
+    "bytes": 956
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-readback/InspectDeclarations.lean",
+    "sha256": "a187a215b6866f8364d559b51688d94097c30da6222ecbd462e2c4fa3791fb18",
+    "bytes": 1441
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-readback/inspect.stdout",
+    "sha256": "2921e353ea7a6ae20ec8a49e02352f098957c28e7362102ca120c668c0e0b825",
+    "bytes": 2210
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-readback/inspect.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-readback/inspect-receipt.json",
+    "sha256": "06097b0fd2d93a53db9f35cb0a8b66c30b139c746026c515ffd8a644fb8aeea9",
+    "bytes": 1052
+  }
+]

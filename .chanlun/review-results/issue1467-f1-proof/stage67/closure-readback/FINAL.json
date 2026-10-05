@@ -1,0 +1,43 @@
+{
+  "status": "complete",
+  "role": "independent_blind_readback",
+  "intent_comparison_performed": false,
+  "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/ClosureRoots.lean",
+  "source_sha256": "e1c96a05d4f2f5450f9056cafe54254e8a97413083927ba2949ae4d27794c6c4",
+  "all_frozen_input_hashes_match": true,
+  "direct_exit": 0,
+  "inspection_exit": 0,
+  "core_root": "Stage67.no_closed_if_all_need_earlier_closed",
+  "core_axioms": [],
+  "boundary_root": "Stage67.raw_root_boundary_model",
+  "boundary_axioms": [
+    "propext"
+  ],
+  "findings": {
+    "universe": "Type 0; no universe-polymorphic parameter",
+    "hidden_hypotheses": "none beyond explicit NeedsEarlierClosed premise on core theorem",
+    "core_conclusion": "all objects fail the same unary closed predicate, conditional on strict Nat-rank predecessor closure",
+    "empty_domain": "allowed; core premise and conclusion are then vacuous",
+    "empty_predicate": "allowed; core premise conditionally vacuous",
+    "boundary_nonempty_witness": "MovementClosed 1",
+    "boundary_definitions": {
+      "RawClosed": "n = 0",
+      "MovementClosed": "n = 1"
+    },
+    "boundary_witness": "b = 0 for x = 1; other x have false antecedent",
+    "boundary_scope": "fixed Nat model with distinct predicates; does not instantiate same-predicate descent premise"
+  },
+  "report": "Readback.md",
+  "completed_utc": "2026-10-05T18:58:15.984935+00:00",
+  "artifact_sha256": {
+    "inspect.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "input-hashes.json": "496b57ced0a4e6de10c3bc62ee9d6d0bb5835e863939bf38eda354bb87f6c5e6",
+    "direct.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "InspectDeclarations.lean": "a187a215b6866f8364d559b51688d94097c30da6222ecbd462e2c4fa3791fb18",
+    "direct.stdout": "32e94bab6a2b61519c3fb2675f99f75181a095087644d1bbb2c0a108f26cbc64",
+    "Readback.md": "db9eeeb3b907af953e2f4058af1608e066669f8fab5240504bd906b14cd9257d",
+    "inspect.stdout": "2921e353ea7a6ae20ec8a49e02352f098957c28e7362102ca120c668c0e0b825",
+    "inspect-receipt.json": "06097b0fd2d93a53db9f35cb0a8b66c30b139c746026c515ffd8a644fb8aeea9",
+    "direct-receipt.json": "bcb5ece4593787b57a28e2673178c84038e48641962239861b24bf397cdef92b"
+  }
+}

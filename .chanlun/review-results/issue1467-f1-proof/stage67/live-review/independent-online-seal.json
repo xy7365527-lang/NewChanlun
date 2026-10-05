@@ -1,0 +1,11 @@
+{
+  "rows": 2215,
+  "prefixes": 443,
+  "prefix_results_sha256": "a5715386ec1ba0ddc396fe95afe0b62b7bb2425d39f85d288af64315d2f7674c",
+  "reference_stdout_read": false,
+  "final_objects_read": false,
+  "final_pens_read": false,
+  "final_parent_read": false,
+  "author_calculation_or_outputs_read": false,
+  "input_driver_scope": "source observation/event list; prefix array streamed; Auditor.step receives only one observed row and current prefix"
+}

@@ -1,0 +1,220 @@
+{
+  "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/rust/src/theta_v0/parser/segment.rs",
+  "sha256": "0463207e8f21646fe9eacff5ae23a101e3ecb4856cdf8990ef6473d0b03e193a",
+  "lines": [
+    {
+      "line": 789,
+      "text": "// ═══════════════════════════════════════════════════════════════════════════"
+    },
+    {
+      "line": 790,
+      "text": "// § I-1（#989 / G1 #975）：段→笔区间反查（按需重建载体，零新增状态）+ 笔速度力度"
+    },
+    {
+      "line": 791,
+      "text": "//"
+    },
+    {
+      "line": 792,
+      "text": "// 教义（#873，beichi.md v1.6）：L(段) = v(末笔) − v(首笔)；v(笔) = ±(笔端价差)/(笔 bar 数)。"
+    },
+    {
+      "line": 793,
+      "text": "// `make_segment` 构造完即丢 `(s0,s1)` 笔区间——本节提供按需反查：段的 bar 闭区间 +"
+    },
+    {
+      "line": 794,
+      "text": "// strokes 切片，二分定位覆盖笔区间 [first, last]。对拍锁（构造现场 == 反查结果）见 tests。"
+    },
+    {
+      "line": 795,
+      "text": "// ═══════════════════════════════════════════════════════════════════════════"
+    },
+    {
+      "line": 796,
+      "text": ""
+    },
+    {
+      "line": 797,
+      "text": "/// 段 bar 闭区间 `(start, end)`（inclusive）覆盖的笔区间 `[first_stroke, last_stroke]`（inclusive）。"
+    },
+    {
+      "line": 798,
+      "text": "///"
+    },
+    {
+      "line": 799,
+      "text": "/// 定位语义（与 `make_segment` 端点口径对齐——首笔 start / 末笔 end）："
+    },
+    {
+      "line": 800,
+      "text": "/// - `first` = 第一个 `end_index >= seg_start` 的笔（笔与段首 bar 相交或在其后开始）；"
+    },
+    {
+      "line": 801,
+      "text": "/// - `last` = 最后一个 `start_index <= seg_end` 的笔。"
+    },
+    {
+      "line": 802,
+      "text": "/// strokes 按 `start_index` 严格升序（分型交替构造保证）；两趟 `partition_point` 各 O(log n)。"
+    },
+    {
+      "line": 803,
+      "text": "/// 段区间完全落在笔间隙（不与任何笔相交）⟹ `None`（不冒充）。"
+    },
+    {
+      "line": 804,
+      "text": "pub fn stroke_span_of_segment("
+    },
+    {
+      "line": 805,
+      "text": "    strokes: &[Stroke],"
+    },
+    {
+      "line": 806,
+      "text": "    seg_start: usize,"
+    },
+    {
+      "line": 807,
+      "text": "    seg_end: usize,"
+    },
+    {
+      "line": 808,
+      "text": ") -> Option<(usize, usize)> {"
+    },
+    {
+      "line": 809,
+      "text": "    if strokes.is_empty() || seg_start > seg_end {"
+    },
+    {
+      "line": 810,
+      "text": "        return None;"
+    },
+    {
+      "line": 811,
+      "text": "    }"
+    },
+    {
+      "line": 812,
+      "text": "    // first：笔区间按 [start,end] 排列，首个 end >= seg_start 的笔。"
+    },
+    {
+      "line": 813,
+      "text": "    let first = strokes.partition_point(|s| s.end_index < seg_start);"
+    },
+    {
+      "line": 814,
+      "text": "    // last：最后一个 start <= seg_end。"
+    },
+    {
+      "line": 815,
+      "text": "    let last = strokes.partition_point(|s| s.start_index <= seg_end);"
+    },
+    {
+      "line": 816,
+      "text": "    if first >= last {"
+    },
+    {
+      "line": 817,
+      "text": "        return None; // 空间隙：段区间不与任何笔相交。"
+    },
+    {
+      "line": 818,
+      "text": "    }"
+    },
+    {
+      "line": 819,
+      "text": "    Some((first, last - 1))"
+    },
+    {
+      "line": 820,
+      "text": "}"
+    },
+    {
+      "line": 821,
+      "text": ""
+    },
+    {
+      "line": 822,
+      "text": "/// 笔速度（#873 教义）：方向符号 ×（笔端价差 ÷ 笔 bar 数）。Tick/bar 量纲。"
+    },
+    {
+      "line": 823,
+      "text": "///"
+    },
+    {
+      "line": 824,
+      "text": "/// 向上笔速度为正（(end−start)/bars）、向下为负——`L(段)=v(末笔)−v(首笔)` 沿用带号速度"
+    },
+    {
+      "line": 825,
+      "text": "/// （beichi.md v1.6「速度是同一把尺子」）。"
+    },
+    {
+      "line": 826,
+      "text": "pub fn stroke_velocity(stroke: &Stroke) -> f64 {"
+    },
+    {
+      "line": 827,
+      "text": "    let bars = (stroke.end_index - stroke.start_index + 1) as f64;"
+    },
+    {
+      "line": 828,
+      "text": "    let sign = match stroke.direction {"
+    },
+    {
+      "line": 829,
+      "text": "        Direction::Up => 1.0,"
+    },
+    {
+      "line": 830,
+      "text": "        Direction::Down => -1.0,"
+    },
+    {
+      "line": 831,
+      "text": "    };"
+    },
+    {
+      "line": 832,
+      "text": "    sign * (stroke.end_price - stroke.start_price) as f64 / bars"
+    },
+    {
+      "line": 833,
+      "text": "}"
+    },
+    {
+      "line": 834,
+      "text": ""
+    },
+    {
+      "line": 835,
+      "text": "/// 力度 `L(段) = v(末笔) − v(首笔)`（#873 教义正本；段→笔经反查）。"
+    },
+    {
+      "line": 836,
+      "text": "///"
+    },
+    {
+      "line": 837,
+      "text": "/// 段区间不含任何笔 ⟹ `None`（取不到数据不冒充，与度量层「无数据判非」纪律同向）。"
+    },
+    {
+      "line": 838,
+      "text": "pub fn segment_force_l(strokes: &[Stroke], seg_start: usize, seg_end: usize) -> Option<f64> {"
+    },
+    {
+      "line": 839,
+      "text": "    let (first, last) = stroke_span_of_segment(strokes, seg_start, seg_end)?;"
+    },
+    {
+      "line": 840,
+      "text": "    Some(stroke_velocity(&strokes[last]) - stroke_velocity(&strokes[first]))"
+    },
+    {
+      "line": 841,
+      "text": "}"
+    }
+  ],
+  "scope": "read-only existence/signature check; no production equivalence or complete pipeline audit",
+  "graph_fallback": "search_graph reported project not indexed; narrow rg then explicit lines"
+}

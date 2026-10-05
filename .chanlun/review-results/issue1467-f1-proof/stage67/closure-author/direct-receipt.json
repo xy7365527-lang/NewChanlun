@@ -1,0 +1,12 @@
+{
+  "command": [
+    "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/bin/lean",
+    "ClosureRoots.lean"
+  ],
+  "exit": 0,
+  "signal": null,
+  "error": null,
+  "source_sha256": "e1c96a05d4f2f5450f9056cafe54254e8a97413083927ba2949ae4d27794c6c4",
+  "lean_sha256": "1b370cfcbf44e80d1b004ab1b1ab9a4c73951f9f7c242140bcff9bc577576554",
+  "LEAN_PATH": ""
+}

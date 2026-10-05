@@ -1,0 +1,57 @@
+{
+  "status": "accepted_conditional_lemma_only",
+  "complete": true,
+  "role": "fresh_independent_semantic_comparer",
+  "primary_declaration": "Stage67.no_closed_if_all_need_earlier_closed",
+  "source_sha256": "e1c96a05d4f2f5450f9056cafe54254e8a97413083927ba2949ae4d27794c6c4",
+  "semantic_sha256": "3e08e1a29c0cad6ba177dfafa96330465a026b161a5040fceb0e5bd007889a21",
+  "environment_sha256": "91900355fecfb9b95efe60d4e842536ee784f9ed503b932764c095020573c4a8",
+  "semantic_result": "faithful_with_explicit_scope",
+  "machine": {
+    "basis": "复用现有 exact 根及独立盲读回复跑；本次 62 项输入/回执哈希与绑定检查通过",
+    "recorded_run_id": "774a11b12601459285ed008759b64c2d",
+    "recorded_exact_root_passed": true,
+    "primary_axioms": [],
+    "comparer_recompiled": false,
+    "full_environment_rechecked": false,
+    "machine_manifest_modified": false,
+    "semantic_binding_check": "reviewed; no binding mismatches"
+  },
+  "boundary": {
+    "declaration": "Stage67.raw_root_boundary_model",
+    "machine_scope": "direct compiler + print axioms only",
+    "axioms": [
+      "propext"
+    ],
+    "exact_expected_type_root_claimed": false,
+    "semantic_acceptance": "具体 Nat 双单点非空模型；无普遍异类依赖或市场桥接授证"
+  },
+  "required_revisions_to_formal_source_or_contract": [],
+  "acceptance_conditions": [
+    "只接受 H -> C为空；完整保留同一 α、同一 C、所有 C 对象和严格 Nat 秩下降。",
+    "形式目标固定 Type 0；不冒充已经编译宇宙多态或任意良基序推广。",
+    "机器证据复用、本次数学对应比较与领域适用范围分账。",
+    "初始化根/外部证书仅在使 H 不成立或明确改动对象域、谓词、量词范围时才不受该根直接排除。",
+    "对象结束 rank 与确认时钟/级别的对应需要独立证明。"
+  ],
+  "wording_recommendation": {
+    "location": "Proof.md:9",
+    "severity": "传播时澄清，不阻塞当前条件引理验收",
+    "replacement": "本结论只排除 C 非空且 H 对全部 C 对象成立的联合合同。原始根、导入证书、其他完成方式或异类依赖只有在使 H 不成立，或明确改动对象域、谓词、量词范围时，才不受本引理直接排除；这些标签本身不构成例外，本引理也未证明相应方案可实现。"
+  },
+  "not_certified": [
+    "所有缠论完成满足 H",
+    "订单 F1 不可能",
+    "Proof.md:13 的 Stage66 / 第84课 / #865 来源主张",
+    "市场 sourcebridge、核生命周期、固定 F2 闭合、唯一分解或价值"
+  ],
+  "completed_at_utc": "2026-10-05T19:06:25.155268+00:00",
+  "artifacts": {
+    "review.md": "8f840c3af73d4bfe04a248ed65b48eac46d8455f24a5789633084e66f78dfe35",
+    "input-hashes.json": "77f02694de4702902cf093e4aaac69f70420be09d2eaf335b7504d360a5c97b6",
+    "receipt.json": "0f8f9fdf1b1080fa50c4520e8c817d00ad3f1c5c838ce5990ba9812b573e277b",
+    "check_inputs.py": "59b5e26abfbdd3282fe3d7b54931723417c5636fadd595b96232b2a108aa454a",
+    "semantic-review.json": "5bac3f24b088f2cecd376987844912a2661e1b7460d161d1a11281773544caec",
+    "semantic-binding-check.json": "f8e79a3276ebe3cd388ca1b2ccebb19295852092e67dbb667e80e34db66c9b55"
+  }
+}

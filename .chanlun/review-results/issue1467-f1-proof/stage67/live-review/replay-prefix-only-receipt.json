@@ -1,0 +1,17 @@
+{
+  "mode": "prefix-only",
+  "source_script_unchanged": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/live-author/check_live.py",
+  "output": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/live-review/replay-prefix-only",
+  "reference_reads": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage66/nested-author/run/reference.stdout",
+      "mode": "prefix-only",
+      "top_level_keys": [
+        "prefixes"
+      ],
+      "online_seal_already_exists": false,
+      "delivered_text_sha256": "a3c7ed58a7c1b2ec23f3324515637aef946ba5d2eb2aa9f54387d1c85fe90949"
+    }
+  ],
+  "elapsed_seconds": 0.17443629074841738
+}

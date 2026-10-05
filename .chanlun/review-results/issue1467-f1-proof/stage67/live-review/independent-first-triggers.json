@@ -1,0 +1,62 @@
+{
+  "P0": {
+    "A": {
+      "weak": 118,
+      "extreme": 118,
+      "complete_candidate": 118
+    },
+    "R": {
+      "weak": 118,
+      "extreme": 118,
+      "complete_candidate": 118
+    }
+  },
+  "P1": {
+    "A": {
+      "weak": null,
+      "extreme": 220,
+      "complete_candidate": null
+    },
+    "R": {
+      "weak": 218,
+      "extreme": 220,
+      "complete_candidate": 220
+    }
+  },
+  "P2": {
+    "A": {
+      "weak": 318,
+      "extreme": 318,
+      "complete_candidate": 318
+    },
+    "R": {
+      "weak": 318,
+      "extreme": 318,
+      "complete_candidate": 318
+    }
+  },
+  "c0": {
+    "A": {
+      "weak": null,
+      "extreme": 420,
+      "complete_candidate": null
+    },
+    "R": {
+      "weak": 418,
+      "extreme": 420,
+      "complete_candidate": 420
+    }
+  },
+  "parent": {
+    "A": {
+      "weak": 342,
+      "extreme": 421,
+      "complete_candidate": 422
+    },
+    "R": {
+      "weak": 338,
+      "extreme": 421,
+      "complete_candidate": 421
+    }
+  }
+}

@@ -1,0 +1,201 @@
+{
+  "version": 1,
+  "status": "author_adoption_correction_pending_review",
+  "review": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/base-role-review/review.md",
+    "sha256": "36070abad6a7c179d9b1632f9c733a4e7644b8288ce6317daf9672457b057f63",
+    "finding": "M1"
+  },
+  "frozen_author_manifest_sha256": "678f261effaf7f23b45e97ccbb1fe5944b368f28993261dff39536ceda980ffd",
+  "frozen_author_model_sha256": "9a69ba488f060bd9131881eee34d1e96a0fa797d3087d4ccdf07012ec667a10b",
+  "replacements": [
+    {
+      "path": "relation/model-or-obstruction.json",
+      "line": 86,
+      "json_pointer": "/minimal_missing_bridge/statement",
+      "old_value": "For this declared below-minimum Raw067Segment, End067 plus external entry relation suffices for the already-completed b role in #865/#814, while it is not a Completed_original Movement and not a K1 q0 center member.",
+      "adopted_value": "For the same fixed Omega67 and its explicitly declared raw-root/external-arm type context, retaining the original Raw067Segment identity, End067/ClosedRaw plus the actual selected external-entry geometry are the raw premises of the proposed bridge to the already-completed b role in #865/#814. This proposal does not assert Completed_original(b) or assign b the original Movement role; both that completion status and source compatibility of the role typing remain unestablished. b is excluded only from the selected K1 q0 member list of Omega67, not from every possible source interpretation."
+    },
+    {
+      "path": "relation/model-or-obstruction.json",
+      "line": 93,
+      "json_pointer": "/exact_obstruction/target",
+      "old_value": "RawEnd067(b,21;38) -> OriginalCompletedEntryArm(b,K1,c0)",
+      "adopted_value": "A_Omega67(b,K1,c0) -> OriginalCompletedEntryArm(b,K1,c0), evaluated in the same fixed declared raw-root/external-arm type context; the source compatibility of that type context remains a proof obligation."
+    }
+  ],
+  "A_Omega67": {
+    "connective": "and",
+    "premises": [
+      {
+        "id": "FixedOmega67",
+        "value": true,
+        "scope": "same frozen Omega67-closed-external mapping, history, support, K1 and c0; no new candidate"
+      },
+      {
+        "id": "RetainsRaw067Identity",
+        "value": true,
+        "scope": "b remains Raw067Segment with raw rank -1, Own E2..21, state1=76000 to state21=40000; no q0 promotion or original Movement assignment"
+      },
+      {
+        "id": "End067_and_ClosedRaw",
+        "value": true,
+        "scope": "End067(b,21;38) and ClosedRaw(b,21;38), using the already reviewed local certificate; no rerun or original-clock promotion"
+      },
+      {
+        "id": "ExternalEntryGeometryOmega67",
+        "value": true,
+        "scope": "b precedes selected K1 Own E22..321, disjoint Own, 76000>72000 and 40000<62000, Down like whole c0; nearest external factor only within the named table"
+      },
+      {
+        "id": "DeclaredRawRootRoleContextOmega67",
+        "value": true,
+        "scope": "candidate type declaration only: raw closure and original Movement completion are separate; b is an external slot and not a selected K1 q0 member. This true declaration is not a proof that source semantics licenses the assignment"
+      }
+    ],
+    "raw_geometry_and_candidate_declaration_premises_established": true,
+    "source_compatible_type_applicability": null,
+    "source_compatible_type_applicability_status": "not established; proof obligation, not silently assumed true"
+  },
+  "preserved": {
+    "Completed_original_b": null,
+    "GeneralDiv_original_b": null,
+    "same_class_completed_root": null,
+    "is_original_completed_entry_arm": null,
+    "source_proven": false,
+    "semantic_admission_pass": false
+  },
+  "result_boundaries": {
+    "RootArm67_resolved": false,
+    "H_b_semantic_bridge_resolved": false,
+    "original_completed_entry_arm_proven": false,
+    "original_completed_entry_arm_disproven": false,
+    "source_model_existence_proven": false
+  },
+  "frozen_author_files": {
+    "before": [
+      {
+        "path": "FINAL.json",
+        "bytes": 664,
+        "sha256": "44afd7a93b43334b5ec2708fe1bd48e6ee5d67793ec98d6104c4cb22b13a1944"
+      },
+      {
+        "path": "Report.md",
+        "bytes": 12768,
+        "sha256": "5d20adb2beb4cef4ae24608a1a2590e8720ffdb38d6e818d4e047b65fe583141"
+      },
+      {
+        "path": "check.mjs",
+        "bytes": 13587,
+        "sha256": "df25e6778ccf3810526c15b192f3bb2c410078a5ea4d577f7ebec1e77f7f60e2"
+      },
+      {
+        "path": "inputhash-after.json",
+        "bytes": 7792,
+        "sha256": "4f218340b4792ab17c3bc7a8d8dc5e5232aec27a3264388206307080dc541772"
+      },
+      {
+        "path": "inputhash-before.json",
+        "bytes": 7841,
+        "sha256": "564778c020a96b6983183336cc0758ce1ec1df64d17cc577a38f65f3f4f6b66a"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 1559,
+        "sha256": "678f261effaf7f23b45e97ccbb1fe5944b368f28993261dff39536ceda980ffd"
+      },
+      {
+        "path": "receipt.json",
+        "bytes": 516,
+        "sha256": "3fc68653350dc11c537c515808a3ad270c8dabe4607215fbf65f26cb116f2fc7"
+      },
+      {
+        "path": "relation/model-or-obstruction.json",
+        "bytes": 10817,
+        "sha256": "9a69ba488f060bd9131881eee34d1e96a0fa797d3087d4ccdf07012ec667a10b"
+      },
+      {
+        "path": "seal.mjs",
+        "bytes": 1839,
+        "sha256": "29e2e5f56efc351737552266dfffe9c4308a62d839021a955b45d8a9cbe0ff66"
+      },
+      {
+        "path": "source-evidence.json",
+        "bytes": 97552,
+        "sha256": "d99e741efc84299916fc0a978d959901877740048f28fbbd525d6f519b61a885"
+      },
+      {
+        "path": "source-excerpts.md",
+        "bytes": 70944,
+        "sha256": "344c2c52ca925b3a73f4b4f055297b60df4f9f93ea75d9979dfab605cbdc9a7d"
+      }
+    ],
+    "after": [
+      {
+        "path": "FINAL.json",
+        "bytes": 664,
+        "sha256": "44afd7a93b43334b5ec2708fe1bd48e6ee5d67793ec98d6104c4cb22b13a1944"
+      },
+      {
+        "path": "Report.md",
+        "bytes": 12768,
+        "sha256": "5d20adb2beb4cef4ae24608a1a2590e8720ffdb38d6e818d4e047b65fe583141"
+      },
+      {
+        "path": "check.mjs",
+        "bytes": 13587,
+        "sha256": "df25e6778ccf3810526c15b192f3bb2c410078a5ea4d577f7ebec1e77f7f60e2"
+      },
+      {
+        "path": "inputhash-after.json",
+        "bytes": 7792,
+        "sha256": "4f218340b4792ab17c3bc7a8d8dc5e5232aec27a3264388206307080dc541772"
+      },
+      {
+        "path": "inputhash-before.json",
+        "bytes": 7841,
+        "sha256": "564778c020a96b6983183336cc0758ce1ec1df64d17cc577a38f65f3f4f6b66a"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 1559,
+        "sha256": "678f261effaf7f23b45e97ccbb1fe5944b368f28993261dff39536ceda980ffd"
+      },
+      {
+        "path": "receipt.json",
+        "bytes": 516,
+        "sha256": "3fc68653350dc11c537c515808a3ad270c8dabe4607215fbf65f26cb116f2fc7"
+      },
+      {
+        "path": "relation/model-or-obstruction.json",
+        "bytes": 10817,
+        "sha256": "9a69ba488f060bd9131881eee34d1e96a0fa797d3087d4ccdf07012ec667a10b"
+      },
+      {
+        "path": "seal.mjs",
+        "bytes": 1839,
+        "sha256": "29e2e5f56efc351737552266dfffe9c4308a62d839021a955b45d8a9cbe0ff66"
+      },
+      {
+        "path": "source-evidence.json",
+        "bytes": 97552,
+        "sha256": "d99e741efc84299916fc0a978d959901877740048f28fbbd525d6f519b61a885"
+      },
+      {
+        "path": "source-excerpts.md",
+        "bytes": 70944,
+        "sha256": "344c2c52ca925b3a73f4b4f055297b60df4f9f93ea75d9979dfab605cbdc9a7d"
+      }
+    ],
+    "unchanged": true
+  },
+  "verification": {
+    "kind": "hash and field consistency only",
+    "replayed_29_checks": false,
+    "replayed_old_data": false,
+    "new_histories": 0,
+    "new_candidates": 0,
+    "original_author_bytes_changed": false
+  },
+  "adoption_markdown_sha256": "c3275e5f4bdd786b7c2ac1257b0a7d3d778ccc270b7798827702a12b4a51795e"
+}

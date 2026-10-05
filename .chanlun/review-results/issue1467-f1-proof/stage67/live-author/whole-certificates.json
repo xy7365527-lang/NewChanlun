@@ -1,0 +1,286 @@
+[
+  {
+    "id": "P0",
+    "start": 21,
+    "end": 121,
+    "whole": [
+      40000,
+      72000
+    ],
+    "known_at": 138,
+    "core": [
+      50000,
+      60000
+    ],
+    "b_force": {
+      "first": {
+        "up": true,
+        "start": 21,
+        "end": 25,
+        "start_price": 40000,
+        "end_price": 48000
+      },
+      "last": {
+        "up": true,
+        "start": 37,
+        "end": 41,
+        "start_price": 52000,
+        "end_price": 64000
+      },
+      "first_v": {
+        "num": 2000,
+        "den": 1
+      },
+      "last_v": {
+        "num": 3000,
+        "den": 1
+      },
+      "L": {
+        "num": 1000,
+        "den": 1
+      }
+    },
+    "c_force": {
+      "first": {
+        "up": true,
+        "start": 101,
+        "end": 105,
+        "start_price": 50000,
+        "end_price": 54000
+      },
+      "last": {
+        "up": true,
+        "start": 117,
+        "end": 121,
+        "start_price": 70000,
+        "end_price": 72000
+      },
+      "first_v": {
+        "num": 1000,
+        "den": 1
+      },
+      "last_v": {
+        "num": 500,
+        "den": 1
+      },
+      "L": {
+        "num": -500,
+        "den": 1
+      }
+    },
+    "endpoint_local": true
+  },
+  {
+    "id": "P1",
+    "start": 121,
+    "end": 221,
+    "whole": [
+      62000,
+      72000
+    ],
+    "known_at": 238,
+    "core": [
+      66000,
+      68800
+    ],
+    "b_force": {
+      "first": {
+        "up": false,
+        "start": 121,
+        "end": 125,
+        "start_price": 72000,
+        "end_price": 70400
+      },
+      "last": {
+        "up": false,
+        "start": 137,
+        "end": 141,
+        "start_price": 70000,
+        "end_price": 64000
+      },
+      "first_v": {
+        "num": -400,
+        "den": 1
+      },
+      "last_v": {
+        "num": -1500,
+        "den": 1
+      },
+      "L": {
+        "num": -1100,
+        "den": 1
+      }
+    },
+    "c_force": {
+      "first": {
+        "up": false,
+        "start": 201,
+        "end": 205,
+        "start_price": 68800,
+        "end_price": 68000
+      },
+      "last": {
+        "up": false,
+        "start": 217,
+        "end": 221,
+        "start_price": 67600,
+        "end_price": 62000
+      },
+      "first_v": {
+        "num": -200,
+        "den": 1
+      },
+      "last_v": {
+        "num": -1400,
+        "den": 1
+      },
+      "L": {
+        "num": -1200,
+        "den": 1
+      }
+    },
+    "endpoint_local": true
+  },
+  {
+    "id": "P2",
+    "start": 221,
+    "end": 321,
+    "whole": [
+      60000,
+      72800
+    ],
+    "known_at": 338,
+    "core": [
+      60800,
+      64000
+    ],
+    "b_force": {
+      "first": {
+        "up": true,
+        "start": 221,
+        "end": 225,
+        "start_price": 62000,
+        "end_price": 63600
+      },
+      "last": {
+        "up": true,
+        "start": 237,
+        "end": 241,
+        "start_price": 63600,
+        "end_price": 65600
+      },
+      "first_v": {
+        "num": 400,
+        "den": 1
+      },
+      "last_v": {
+        "num": 500,
+        "den": 1
+      },
+      "L": {
+        "num": 100,
+        "den": 1
+      }
+    },
+    "c_force": {
+      "first": {
+        "up": true,
+        "start": 301,
+        "end": 305,
+        "start_price": 60800,
+        "end_price": 62400
+      },
+      "last": {
+        "up": true,
+        "start": 317,
+        "end": 321,
+        "start_price": 72000,
+        "end_price": 72800
+      },
+      "first_v": {
+        "num": 400,
+        "den": 1
+      },
+      "last_v": {
+        "num": 200,
+        "den": 1
+      },
+      "L": {
+        "num": -200,
+        "den": 1
+      }
+    },
+    "endpoint_local": true
+  },
+  {
+    "id": "c0",
+    "start": 321,
+    "end": 421,
+    "whole": [
+      37800,
+      72800
+    ],
+    "known_at": 438,
+    "core": [
+      51800,
+      61600
+    ],
+    "b_force": {
+      "first": {
+        "up": false,
+        "start": 321,
+        "end": 325,
+        "start_price": 72800,
+        "end_price": 67200
+      },
+      "last": {
+        "up": false,
+        "start": 337,
+        "end": 341,
+        "start_price": 65800,
+        "end_price": 44800
+      },
+      "first_v": {
+        "num": -1400,
+        "den": 1
+      },
+      "last_v": {
+        "num": -5250,
+        "den": 1
+      },
+      "L": {
+        "num": -3850,
+        "den": 1
+      }
+    },
+    "c_force": {
+      "first": {
+        "up": false,
+        "start": 401,
+        "end": 405,
+        "start_price": 61600,
+        "end_price": 58800
+      },
+      "last": {
+        "up": false,
+        "start": 417,
+        "end": 421,
+        "start_price": 57400,
+        "end_price": 37800
+      },
+      "first_v": {
+        "num": -700,
+        "den": 1
+      },
+      "last_v": {
+        "num": -4900,
+        "den": 1
+      },
+      "L": {
+        "num": -4200,
+        "den": 1
+      }
+    },
+    "endpoint_local": true
+  }
+]

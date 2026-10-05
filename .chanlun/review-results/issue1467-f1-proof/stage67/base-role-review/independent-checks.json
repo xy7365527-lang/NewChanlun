@@ -1,0 +1,557 @@
+{
+  "status": "passed",
+  "check_count": 29,
+  "rows": [
+    {
+      "id": 1,
+      "label": "既有历史身份",
+      "actual": "N66-low-prefix-nested-v1",
+      "expected": "N66-low-prefix-nested-v1",
+      "passed": true,
+      "method": "Source identity additionally pinned to its Stage66 SHA-256.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 2,
+      "label": "观测及事件数",
+      "actual": [
+        443,
+        442
+      ],
+      "expected": [
+        443,
+        442
+      ],
+      "passed": true,
+      "method": "Count keyed observations and event IDs; verify contiguous source clocks.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 3,
+      "label": "b实际边界",
+      "actual": [
+        76000,
+        40000
+      ],
+      "expected": [
+        76000,
+        40000
+      ],
+      "passed": true,
+      "method": "Look up raw observations at the frozen S0 endpoints.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 4,
+      "label": "b整片价格区间",
+      "actual": [
+        40000,
+        76000
+      ],
+      "expected": [
+        40000,
+        76000
+      ],
+      "passed": true,
+      "method": "Scan every observation from index 1 through 21 inclusive.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 5,
+      "label": "b局部证书字段",
+      "actual": [
+        1,
+        21,
+        38,
+        [
+          0,
+          5
+        ],
+        [
+          2,
+          21
+        ]
+      ],
+      "expected": [
+        1,
+        21,
+        38,
+        [
+          0,
+          5
+        ],
+        [
+          2,
+          21
+        ]
+      ],
+      "passed": true,
+      "method": "Read the previously audited S0 certificate; independently verify its pen support. 38 is inherited raw knowledge, not freshly re-proved minimal time.",
+      "scope": "audited certificate identity plus support check"
+    },
+    {
+      "id": 6,
+      "label": "b五笔方向",
+      "actual": [
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "expected": [
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "passed": true,
+      "method": "Derive sign from observation endpoints, not stored up flags.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 7,
+      "label": "b力度",
+      "actual": [
+        -4000,
+        -5000,
+        -1000
+      ],
+      "expected": [
+        -4000,
+        -5000,
+        -1000
+      ],
+      "passed": true,
+      "method": "Exact integer quotient of raw price differences by the common observation time; subtract last minus first.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 8,
+      "label": "b所选特征区间",
+      "actual": [
+        [
+          46000,
+          60000
+        ],
+        [
+          40000,
+          48000
+        ],
+        [
+          44000,
+          60000
+        ]
+      ],
+      "expected": [
+        [
+          46000,
+          60000
+        ],
+        [
+          40000,
+          48000
+        ],
+        [
+          44000,
+          60000
+        ]
+      ],
+      "passed": true,
+      "method": "Rebuild each selected frozen pen interval from raw observation prices.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 9,
+      "label": "067第一二特征无缺口",
+      "actual": [
+        46000,
+        48000
+      ],
+      "expected": [
+        46000,
+        48000
+      ],
+      "passed": true,
+      "method": "Actual intersection is nonempty, stronger than checking the cached gap flag.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 10,
+      "label": "067底分型双坐标",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "method": "Check lower low and lower high against both neighbors.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 11,
+      "label": "首三笔几何交集",
+      "actual": [
+        60000,
+        68000
+      ],
+      "expected": [
+        60000,
+        68000
+      ],
+      "passed": true,
+      "method": "Intersect three raw pen ranges; no original center role is inferred.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 12,
+      "label": "所选K1三交",
+      "actual": [
+        62000,
+        72000
+      ],
+      "expected": [
+        62000,
+        72000
+      ],
+      "passed": true,
+      "method": "Recompute P0/P1/P2 wholes from observations, then intersect.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 13,
+      "label": "K1所选成员方向",
+      "actual": [
+        "Up",
+        "Down",
+        "Up"
+      ],
+      "expected": [
+        "Up",
+        "Down",
+        "Up"
+      ],
+      "passed": true,
+      "method": "Derive member directions independently from raw start/end prices.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 14,
+      "label": "来源接续",
+      "actual": [
+        21,
+        21,
+        121,
+        121,
+        221,
+        221,
+        321,
+        321
+      ],
+      "expected": [
+        21,
+        21,
+        121,
+        121,
+        221,
+        221,
+        321,
+        321
+      ],
+      "passed": true,
+      "method": "Use frozen object support endpoints; does not identify expression Adj with MemberNext.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 15,
+      "label": "b不在所选成员名单",
+      "actual": false,
+      "expected": false,
+      "passed": true,
+      "method": "Directly inspect this explicit finite mapping; exclusion is chosen, not a theorem about every source view.",
+      "scope": "candidate choice only"
+    },
+    {
+      "id": 16,
+      "label": "b与K1 Own不重计",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "method": "Explicit event-ID sets, independent of interval inequality shortcut.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 17,
+      "label": "b与c0实际方向",
+      "actual": [
+        "Down",
+        "Down"
+      ],
+      "expected": [
+        "Down",
+        "Down"
+      ],
+      "passed": true,
+      "method": "Derive both signs from observations.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 18,
+      "label": "b跨K1双边界",
+      "actual": [
+        true,
+        true
+      ],
+      "expected": [
+        true,
+        true
+      ],
+      "passed": true,
+      "method": "76000 > 72000 and 40000 < 62000.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 19,
+      "label": "c0跨K1双边界",
+      "actual": [
+        true,
+        true
+      ],
+      "expected": [
+        true,
+        true
+      ],
+      "passed": true,
+      "method": "72800 > 72000 and 37800 < 62000.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 20,
+      "label": "父比较臂力度",
+      "actual": [
+        -3500,
+        -1000
+      ],
+      "expected": [
+        -3500,
+        -1000
+      ],
+      "passed": true,
+      "method": "Identify first/last pens by whole support: c0 indices 80/104, b indices 0/4; do not reuse parent stored force.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 21,
+      "label": "严格数值不等式",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "method": "Independent exact arithmetic: -3500 < -1000; no semantic divergence inference.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 22,
+      "label": "父比较末端新低",
+      "actual": [
+        37800,
+        40000,
+        true
+      ],
+      "expected": [
+        37800,
+        40000,
+        true
+      ],
+      "passed": true,
+      "method": "Scan all raw prices before c0 starts; compare final price.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 23,
+      "label": "Own分配计数",
+      "actual": [
+        20,
+        300,
+        100
+      ],
+      "expected": [
+        20,
+        300,
+        100
+      ],
+      "passed": true,
+      "method": "Enumerate all 420 event IDs, prove no duplicates and no holes within chosen parent support.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 24,
+      "label": "较早b/P0/P1三交",
+      "actual": [
+        62000,
+        72000
+      ],
+      "expected": [
+        62000,
+        72000
+      ],
+      "passed": true,
+      "method": "Intersect independently reconstructed raw wholes; eligibility remains conditional.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 25,
+      "label": "较早三元组与旧K1末端",
+      "actual": [
+        221,
+        321
+      ],
+      "expected": [
+        221,
+        321
+      ],
+      "passed": true,
+      "method": "Read supports of P1 and P2; makes no claim of global first kernel.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 26,
+      "label": "旧局部证齐聚合",
+      "actual": [
+        238,
+        338
+      ],
+      "expected": [
+        238,
+        338
+      ],
+      "passed": true,
+      "method": "Max of frozen local clocks only. Does not grant transformed-role qualification or publication time.",
+      "scope": "inherited local certificates, not semantic clocks"
+    },
+    {
+      "id": 27,
+      "label": "c0非同向Zn",
+      "actual": false,
+      "expected": false,
+      "passed": true,
+      "method": "Down differs from selected K1 formation Up; intersection alone cannot restore old extension reasoning.",
+      "scope": "finite arithmetic / chosen mapping only"
+    },
+    {
+      "id": 28,
+      "label": "原义完成空值保持",
+      "actual": [
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "expected": [
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "passed": true,
+      "method": "Read Stage66 audited object nulls; separately verify Stage67 b GeneralDiv/Completed/role and parent semantic clocks below.",
+      "scope": "semantic status preservation, not falsehood"
+    },
+    {
+      "id": 29,
+      "label": "五条决定性原票缓存",
+      "actual": 5,
+      "expected": 5,
+      "passed": true,
+      "method": "Read original comment objects from frozen caches and compare exact bodies; source conclusions are assessed in review.md, not inferred from comment count.",
+      "scope": "cached original rulings, not live tracker status"
+    }
+  ],
+  "supplementary": {
+    "all_pen_endpoints_match_raw": true,
+    "all_source_prices_reused": true,
+    "b_force": {
+      "first_pen": 0,
+      "last_pen": 4,
+      "first": -4000,
+      "last": -5000,
+      "L": -1000
+    },
+    "c0_whole_force": {
+      "first_pen": 80,
+      "last_pen": 104,
+      "first": -1400,
+      "last": -4900,
+      "L": -3500
+    },
+    "source_own_spans": [
+      {
+        "id": "S0",
+        "own": [
+          2,
+          21
+        ]
+      },
+      {
+        "id": "P0",
+        "own": [
+          22,
+          121
+        ]
+      },
+      {
+        "id": "P1",
+        "own": [
+          122,
+          221
+        ]
+      },
+      {
+        "id": "P2",
+        "own": [
+          222,
+          321
+        ]
+      },
+      {
+        "id": "c0",
+        "own": [
+          322,
+          421
+        ]
+      }
+    ],
+    "chosen_wholes": [
+      [
+        40000,
+        76000
+      ],
+      [
+        40000,
+        72000
+      ],
+      [
+        62000,
+        72000
+      ],
+      [
+        60000,
+        72800
+      ],
+      [
+        37800,
+        72800
+      ]
+    ],
+    "old_local_known_c0": 438,
+    "original_semantic_nulls_preserved": true,
+    "author_excerpt_fidelity_comparisons": 43
+  },
+  "scope": {
+    "history_count": 1,
+    "new_history_count": 0,
+    "candidate_mapping_count": 1,
+    "R_W_parser_reexecuted": false,
+    "source_model_proved": false,
+    "RootArm67_proved": false
+  }
+}

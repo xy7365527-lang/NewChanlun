@@ -1,0 +1,134 @@
+{
+  "source_role_gate": null,
+  "completed_original": null,
+  "fixed_F2_qualification": null,
+  "missing": [
+    {
+      "variable": "StructuralPenNow(c,t)",
+      "minimal_witness": {
+        "object": "P0",
+        "cut": 121,
+        "real_active": {
+          "up": false,
+          "start": 113,
+          "end": 117,
+          "start_price": 71200,
+          "end_price": 70000
+        },
+        "latest_known_anchor": {
+          "top": false,
+          "raw": 117,
+          "price": 70000,
+          "known_at": 118
+        },
+        "A": {
+          "L": {
+            "num": -900,
+            "den": 1
+          },
+          "v": {
+            "num": 100,
+            "den": 1
+          },
+          "first_v": {
+            "num": 1000,
+            "den": 1
+          },
+          "first_pen": {
+            "up": true,
+            "start": 101,
+            "end": 105,
+            "start_price": 50000,
+            "end_price": 54000
+          },
+          "anchor": 113,
+          "anchor_price": 71200,
+          "duration": 8,
+          "kind": "real-active-start",
+          "signed": true,
+          "weak": true,
+          "complete_candidate": true
+        },
+        "R": {
+          "L": {
+            "num": -500,
+            "den": 1
+          },
+          "v": {
+            "num": 500,
+            "den": 1
+          },
+          "first_v": {
+            "num": 1000,
+            "den": 1
+          },
+          "first_pen": {
+            "up": true,
+            "start": 101,
+            "end": 105,
+            "start_price": 50000,
+            "end_price": 54000
+          },
+          "anchor": 117,
+          "anchor_price": 70000,
+          "duration": 4,
+          "kind": "unconfirmed-residual",
+          "signed": true,
+          "weak": true,
+          "complete_candidate": true
+        }
+      },
+      "obligation": "prove whether current unconfirmed residual is the structure-given pen for #873; not supplied"
+    },
+    {
+      "variable": "Owner/Next/OriginalCrossingRole(b,K,c,t)",
+      "minimal_witness": {
+        "object": "P0",
+        "cut": 118,
+        "local_role": {
+          "first_known_at": 118,
+          "c_start": 101,
+          "K": [
+            50000,
+            60000
+          ],
+          "basis": "three current-prefix raw certificates, finite template"
+        },
+        "primitive_children": "Raw067Segment selected certificates, not original completed Movement"
+      },
+      "obligation": "finite five-block template and three interval overlap do not prove original same-center most-recent same-direction crossing roles"
+    },
+    {
+      "variable": "OriginalLowRankBRole(parent,t)",
+      "minimal_witness": {
+        "cut": 338,
+        "b_start": 1,
+        "b_end": 21,
+        "raw_certificate_known": 38,
+        "local_parent_K": {
+          "first_known_at": 338,
+          "c_start": 321,
+          "K": [
+            62000,
+            72000
+          ],
+          "basis": "three whole local endpoint certificates; original qualification unknown"
+        }
+      },
+      "obligation": "raw b_low original comparison qualification remains unestablished; no interface false interpreted as semantics false"
+    },
+    {
+      "variable": "v_first(c,t) at start before stable first pen",
+      "minimal_witness": {
+        "P0_c_start": 101,
+        "anchor_known": 102,
+        "first_pen_stable": 110
+      },
+      "obligation": "chosen fixed closed first-pen initialization cannot supply numeric L at every t from start; null is missing initialization, not incomparable force"
+    }
+  ],
+  "candidate_is_not_original_generaldiv": true,
+  "no_endpoint_backfill": true,
+  "no_RW_rerun": true,
+  "no_new_history": true
+}

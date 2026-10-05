@@ -1,0 +1,138 @@
+{
+  "read_only": true,
+  "issues": [
+    {
+      "issue": 872,
+      "title": "[task] 把已定的力度定义接到生产塔上：段→笔映射在生产链上不存在 + 五套实现收编 + 盘整背驰度量层（map #854 下游）",
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/872",
+      "state": "CLOSED",
+      "closedAt": "2026-08-15T07:59:11Z",
+      "snapshot_sha256": "02ced7e5cda0d46fea35d30886728f9c803aed23ab727d6a9619a942c38c77f9",
+      "comments": [
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/872#issuecomment-5170435746",
+          "createdAt": "2026-08-03T18:49:38Z"
+        },
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/872#issuecomment-5171643222",
+          "createdAt": "2026-08-03T20:58:30Z"
+        },
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/872#issuecomment-5299941265",
+          "createdAt": "2026-08-15T01:57:40Z"
+        },
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/872#issuecomment-5299943402",
+          "createdAt": "2026-08-15T01:58:07Z"
+        },
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/872#issuecomment-5301269330",
+          "createdAt": "2026-08-15T07:59:08Z"
+        }
+      ]
+    },
+    {
+      "issue": 974,
+      "title": "🗺️ 力度接生产塔：段→笔载体重建 → 五套收编 → 盘整背驰度量层",
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/974",
+      "state": "CLOSED",
+      "closedAt": "2026-08-15T09:08:58Z",
+      "snapshot_sha256": "34edaf0fc53cf25de457e716df765ecee2bfc2aa355abbd4dc9dec71715d0b74",
+      "comments": [
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/974#issuecomment-5301531084",
+          "createdAt": "2026-08-15T09:08:56Z"
+        }
+      ]
+    },
+    {
+      "issue": 975,
+      "title": "[grilling] G1 段→笔载体重建：make_segment 丢映射后生产怎么拿到 Stroke 列（#872 ①）",
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/975",
+      "state": "CLOSED",
+      "closedAt": "2026-08-15T09:02:16Z",
+      "snapshot_sha256": "31a3ce6e5c3e4267ccffbbcaa227e2a47b888dab05c8ea7c51c0592c9a026f12",
+      "comments": [
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/975#issuecomment-5301504463",
+          "createdAt": "2026-08-15T09:02:14Z"
+        }
+      ]
+    },
+    {
+      "issue": 978,
+      "title": "[grilling] G2 五套收编目标形态 + 「生产判定路径」口径（#872 ②）",
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/978",
+      "state": "CLOSED",
+      "closedAt": "2026-08-15T09:05:08Z",
+      "snapshot_sha256": "2f627ffb938ab1f7723b7612b8936a6677b86337939645bf682bc6ef9ecef04b",
+      "comments": [
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/978#issuecomment-5301515537",
+          "createdAt": "2026-08-15T09:05:05Z"
+        }
+      ]
+    },
+    {
+      "issue": 979,
+      "title": "[grilling] G3 盘整背驰度量层：形态/挂载点/与 S4-b 入口衔接（#872 ③）",
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/979",
+      "state": "CLOSED",
+      "closedAt": "2026-08-15T09:06:58Z",
+      "snapshot_sha256": "81d90c7ec381920046f4952e477e7fb694d5aaf8cce01e8d1486203026921fd4",
+      "comments": [
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/979#issuecomment-5301522419",
+          "createdAt": "2026-08-15T09:06:56Z"
+        }
+      ]
+    },
+    {
+      "issue": 987,
+      "title": "📋 SPEC：力度接生产塔实施总单（map #974 交棒）——同色化 + 反查载体 + 收编切换 + 退役 + 基线",
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/987",
+      "state": "CLOSED",
+      "closedAt": "2026-08-15T16:48:26Z",
+      "snapshot_sha256": "fb6912648e1385feafe33e8e4ac2ea267c1d7910473c86e4de4aa2f007196590",
+      "comments": [
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/987#issuecomment-5303237780",
+          "createdAt": "2026-08-15T16:48:25Z"
+        }
+      ]
+    },
+    {
+      "issue": 989,
+      "title": "[impl] I-1：段→笔反查函数 + 对拍锁进 CI（SPEC #987 拆出，#975 Q3a）",
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/989",
+      "state": "CLOSED",
+      "closedAt": "2026-08-15T15:58:20Z",
+      "snapshot_sha256": "548cd2de8d1fb88a3ca8a9e6f30c53bc32df4178910c7f7674966c499b3030e5",
+      "comments": [
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/989#issuecomment-5303031248",
+          "createdAt": "2026-08-15T15:58:19Z"
+        }
+      ]
+    },
+    {
+      "issue": 990,
+      "title": "[impl] I-2：收编切换——默认判据换 L(c)<L(b)，MACD 降辅助观测（SPEC #987 拆出，#978 裁定二/三）",
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/990",
+      "state": "CLOSED",
+      "closedAt": "2026-08-15T16:41:25Z",
+      "snapshot_sha256": "5bc54fbc242f6898d49e9372dcd53f3dc61aac75bb533dee9c667e789f614812",
+      "comments": [
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/990#issuecomment-5303209443",
+          "createdAt": "2026-08-15T16:41:24Z"
+        },
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/990#issuecomment-5309143340",
+          "createdAt": "2026-08-16T19:01:13Z"
+        }
+      ]
+    }
+  ],
+  "conclusion": "#872 graduated through #974; #975/#978 select first/last pen delta; #989/#990 implemented. Reviewed chain does not specify R_W unconfirmed residual membership. No global absence claim."
+}

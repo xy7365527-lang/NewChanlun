@@ -1,0 +1,28 @@
+{
+  "created_at_utc": "2026-10-05T19:35:48.985494+00:00",
+  "role": "same_independent_adoption_reviewer_followup_on_A1",
+  "scope": "seven frozen hashes and exact three-document diff only",
+  "verdict": "accepted_adoption_layer_v2",
+  "must_revise": [],
+  "resolved": [
+    "A1"
+  ],
+  "frozen_input_count": 7,
+  "all_hashes_match": true,
+  "exact_diff_checks": {
+    "summary_only_Type0_sentence_and_review_link": true,
+    "progress_only_full_H_and_Type0": true,
+    "delivery_only_review_link": true
+  },
+  "prior_138_hash_set_rechecked": false,
+  "history_rerun": false,
+  "lean_executed": false,
+  "full_inventory_recheck_executed": false,
+  "writes_scope": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/adoption-review/v2",
+  "new_histories": 0,
+  "goal_status": "active",
+  "artifacts": {
+    "review.md": "6345dbc9d7e750283e536d200f44d480163ace4f7dd1a20a699c37428b3c460b",
+    "inputhash.json": "ef6cfaf4346c5c614f46ebf24cbc2b058afe28991dcc469e8faefe06a212e947"
+  }
+}

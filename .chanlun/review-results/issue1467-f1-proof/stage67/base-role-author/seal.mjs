@@ -1,0 +1,18 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
+const root=path.dirname(fileURLToPath(import.meta.url));
+const hash=p=>crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
+const before=JSON.parse(fs.readFileSync(path.join(root,'inputhash-before.json'),'utf8'));
+for(const f of before.files) assert.equal(hash(f.path),f.sha256,`input still frozen: ${f.path}`);
+const walk=d=>fs.readdirSync(d,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(d,e.name)):[path.join(d,e.name)]);
+const entries=walk(root).filter(p=>!['manifest.json','FINAL.json'].includes(path.basename(p))).sort().map(p=>({path:path.relative(root,p),bytes:fs.statSync(p).size,sha256:hash(p)}));
+const total=entries.reduce((n,x)=>n+x.bytes,0);
+assert(total<96*1024*1024);
+const manifest={format:1,task:'issue1467 Stage67 base-role-author',files:entries,total_manifested_bytes:total,budget_bytes:96*1024*1024,input_files_unchanged_at_seal:true};
+fs.writeFileSync(path.join(root,'manifest.json'),JSON.stringify(manifest,null,2)+'\n');
+const final={status:'author_complete_pending_independent_review',candidate:'Omega67-closed-external',result:'concrete noncircular raw-closed external-arm mapping checked; original completed-entry role remains unestablished at RootArm67',semantic_admission_pass:false,semantic_nonexistence_proven:false,original_Completed_b:null,independent_review:false,history_count:1,new_history_count:0,report:'Report.md',relation:'relation/model-or-obstruction.json',receipt:'receipt.json',manifest_sha256:hash(path.join(root,'manifest.json')),total_manifested_bytes:total};
+fs.writeFileSync(path.join(root,'FINAL.json'),JSON.stringify(final,null,2)+'\n');
+console.log(JSON.stringify(final,null,2));

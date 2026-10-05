@@ -1,0 +1,39 @@
+{
+  "status": "requires-revision-on-read-isolation-claim",
+  "review": "review.md",
+  "required_revisions": [
+    "M1"
+  ],
+  "severity": "HIGH",
+  "mathematical_finite_results": "accepted",
+  "conditional_prefix_data_dependency": "accepted-for-fixed-template-and-audited-prefixes",
+  "strong_author_read_isolation": "refuted",
+  "independent_rows": 2215,
+  "row_mismatches": 0,
+  "A_endpoint_equal": [
+    false,
+    false,
+    false,
+    false,
+    false
+  ],
+  "R_endpoint_equal": [
+    true,
+    true,
+    true,
+    true,
+    true
+  ],
+  "generaldiv": null,
+  "completed": null,
+  "StructuralPenNow": null,
+  "Owner": null,
+  "Next": null,
+  "fixed_F2": null,
+  "input_hashes_unchanged": true,
+  "new_history": false,
+  "RW_rerun": false,
+  "manifest_sha256": "950de1eb07baa239b4b93f786686725fd7e079edc673464db4abe33b8558db54",
+  "report_sha256": "f97626c56d7e61b2d0bbaa2fff5347062ae637d4f0d97a932c220c248f0a1a0a",
+  "receipt_sha256": "45b083902bfbd28440e397c032a30de9123fe79194dd9579032be6c5743fa26a"
+}

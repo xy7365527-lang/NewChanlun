@@ -1,0 +1,1254 @@
+[
+  {
+    "id": "P0",
+    "cut": 109,
+    "price": 52000,
+    "c_start": null,
+    "local_role_gate": false,
+    "source_role_gate": null,
+    "source_complete": null,
+    "extreme": null,
+    "lifecycle": "candidate-open",
+    "eligible_now": false,
+    "A": {
+      "L": null,
+      "reason": "c-role-start-not-known",
+      "weak": null,
+      "complete_candidate": false
+    },
+    "R": {
+      "L": null,
+      "reason": "c-role-start-not-known",
+      "weak": null,
+      "complete_candidate": false
+    }
+  },
+  {
+    "id": "P0",
+    "cut": 118,
+    "price": 70500,
+    "c_start": 101,
+    "local_role_gate": true,
+    "source_role_gate": null,
+    "source_complete": null,
+    "extreme": true,
+    "lifecycle": "candidate-open",
+    "eligible_now": true,
+    "K": [
+      50000,
+      60000
+    ],
+    "b_L": {
+      "num": 1000,
+      "den": 1
+    },
+    "prior_extreme": 64000,
+    "object_start": 21,
+    "direction": "Up",
+    "A": {
+      "L": {
+        "num": -1140,
+        "den": 1
+      },
+      "v": {
+        "num": -140,
+        "den": 1
+      },
+      "first_v": {
+        "num": 1000,
+        "den": 1
+      },
+      "anchor": 113,
+      "kind": "real-active-start",
+      "duration": 5,
+      "anchor_price": 71200,
+      "first_pen": {
+        "up": true,
+        "start": 101,
+        "end": 105,
+        "start_price": 50000,
+        "end_price": 54000
+      },
+      "signed": true,
+      "weak": true,
+      "complete_candidate": true
+    },
+    "R": {
+      "L": {
+        "num": -500,
+        "den": 1
+      },
+      "v": {
+        "num": 500,
+        "den": 1
+      },
+      "first_v": {
+        "num": 1000,
+        "den": 1
+      },
+      "anchor": 117,
+      "kind": "unconfirmed-residual",
+      "duration": 1,
+      "anchor_price": 70000,
+      "first_pen": {
+        "up": true,
+        "start": 101,
+        "end": 105,
+        "start_price": 50000,
+        "end_price": 54000
+      },
+      "signed": true,
+      "weak": true,
+      "complete_candidate": true
+    }
+  },
+  {
+    "id": "P0",
+    "cut": 121,
+    "price": 72000,
+    "c_start": 101,
+    "local_role_gate": true,
+    "source_role_gate": null,
+    "source_complete": null,
+    "extreme": true,
+    "lifecycle": "candidate-open",
+    "eligible_now": true,
+    "K": [
+      50000,
+      60000
+    ],
+    "b_L": {
+      "num": 1000,
+      "den": 1
+    },
+    "prior_extreme": 64000,
+    "object_start": 21,
+    "direction": "Up",
+    "A": {
+      "L": {
+        "num": -900,
+        "den": 1
+      },
+      "v": {
+        "num": 100,
+        "den": 1
+      },
+      "first_v": {
+        "num": 1000,
+        "den": 1
+      },
+      "anchor": 113,
+      "kind": "real-active-start",
+      "duration": 8,
+      "anchor_price": 71200,
+      "first_pen": {
+        "up": true,
+        "start": 101,
+        "end": 105,
+        "start_price": 50000,
+        "end_price": 54000
+      },
+      "signed": true,
+      "weak": true,
+      "complete_candidate": true
+    },
+    "R": {
+      "L": {
+        "num": -500,
+        "den": 1
+      },
+      "v": {
+        "num": 500,
+        "den": 1
+      },
+      "first_v": {
+        "num": 1000,
+        "den": 1
+      },
+      "anchor": 117,
+      "kind": "unconfirmed-residual",
+      "duration": 4,
+      "anchor_price": 70000,
+      "first_pen": {
+        "up": true,
+        "start": 101,
+        "end": 105,
+        "start_price": 50000,
+        "end_price": 54000
+      },
+      "signed": true,
+      "weak": true,
+      "complete_candidate": true
+    }
+  },
+  {
+    "id": "P0",
+    "cut": 122,
+    "price": 71600,
+    "c_start": 101,
+    "local_role_gate": true,
+    "source_role_gate": null,
+    "source_complete": null,
+    "extreme": true,
+    "lifecycle": "candidate-open",
+    "eligible_now": true,
+    "K": [
+      50000,
+      60000
+    ],
+    "b_L": {
+      "num": 1000,
+      "den": 1
+    },
+    "prior_extreme": 64000,
+    "object_start": 21,
+    "direction": "Up",
+    "A": {
+      "L": {
+        "num": -680,
+        "den": 1
+      },
+      "v": {
+        "num": 320,
+        "den": 1
+      },
+      "first_v": {
+        "num": 1000,
+        "den": 1
+      },
+      "anchor": 117,
+      "kind": "real-active-start",
+      "duration": 5,
+      "anchor_price": 70000,
+      "first_pen": {
+        "up": true,
+        "start": 101,
+        "end": 105,
+        "start_price": 50000,
+        "end_price": 54000
+      },
+      "signed": true,
+      "weak": true,
+      "complete_candidate": true
+    },
+    "R": {
+      "L": {
+        "num": -1400,
+        "den": 1
+      },
+      "v": {
+        "num": -400,
+        "den": 1
+      },
+      "first_v": {
+        "num": 1000,
+        "den": 1
+      },
+      "anchor": 121,
+      "kind": "unconfirmed-residual",
+      "duration": 1,
+      "anchor_price": 72000,
+      "first_pen": {
+        "up": true,
+        "start": 101,
+        "end": 105,
+        "start_price": 50000,
+        "end_price": 54000
+      },
+      "signed": true,
+      "weak": true,
+      "complete_candidate": true
+    }
+  },
+  {
+    "id": "P0",
+    "cut": 126,
+    "price": 70700,
+    "c_start": 101,
+    "local_role_gate": true,
+    "source_role_gate": null,
+    "source_complete": null,
+    "extreme": true,
+    "lifecycle": "candidate-open",
+    "eligible_now": true,
+    "K": [
+      50000,
+      60000
+    ],
+    "b_L": {
+      "num": 1000,
+      "den": 1
+    },
+    "prior_extreme": 64000,
+    "object_start": 21,
+    "direction": "Up",
+    "A": {
+      "L": {
+        "num": -1260,
+        "den": 1
+      },
+      "v": {
+        "num": -260,
+        "den": 1
+      },
+      "first_v": {
+        "num": 1000,
+        "den": 1
+      },
+      "anchor": 121,
+      "kind": "real-active-start",
+      "duration": 5,
+      "anchor_price": 72000,
+      "first_pen": {
+        "up": true,
+        "start": 101,
+        "end": 105,
+        "start_price": 50000,
+        "end_price": 54000
+      },
+      "signed": true,
+      "weak": true,
+      "complete_candidate": true
+    },
+    "R": {
+      "L": {
+        "num": -700,
+        "den": 1
+      },
+      "v": {
+        "num": 300,
+        "den": 1
+      },
+      "first_v": {
+        "num": 1000,
+        "den": 1
+      },
+      "anchor": 125,
+      "kind": "unconfirmed-residual",
+      "duration": 1,
+      "anchor_price": 70400,
+      "first_pen": {
+        "up": true,
+        "start": 101,
+        "end": 105,
+        "start_price": 50000,
+        "end_price": 54000
+      },
+      "signed": true,
+      "weak": true,
+      "complete_candidate": true
+    }
+  },
+  {
+    "id": "P1",
+    "cut": 218,
+    "price": 66200,
+    "c_start": 201,
+    "local_role_gate": true,
+    "source_role_gate": null,
+    "source_complete": null,
+    "extreme": false,
+    "lifecycle": "candidate-open",
+    "eligible_now": true,
+    "K": [
+      66000,
+      68800
+    ],
+    "b_L": {
+      "num": -1100,
+      "den": 1
+    },
+    "prior_extreme": 64000,
+    "object_start": 121,
+    "direction": "Down",
+    "A": {
+      "L": {
+        "num": 800,
+        "den": 1
+      },
+      "v": {
+        "num": 600,
+        "den": 1
+      },
+      "first_v": {
+        "num": -200,
+        "den": 1
+      },
+      "anchor": 213,
+      "kind": "real-active-start",
+      "duration": 5,
+      "anchor_price": 63200,
+      "first_pen": {
+        "up": false,
+        "start": 201,
+        "end": 205,
+        "start_price": 68800,
+        "end_price": 68000
+      },
+      "signed": true,
+      "weak": false,
+      "complete_candidate": false
+    },
+    "R": {
+      "L": {
+        "num": -1200,
+        "den": 1
+      },
+      "v": {
+        "num": -1400,
+        "den": 1
+      },
+      "first_v": {
+        "num": -200,
+        "den": 1
+      },
+      "anchor": 217,
+      "kind": "unconfirmed-residual",
+      "duration": 1,
+      "anchor_price": 67600,
+      "first_pen": {
+        "up": false,
+        "start": 201,
+        "end": 205,
+        "start_price": 68800,
+        "end_price": 68000
+      },
+      "signed": true,
+      "weak": true,
+      "complete_candidate": false
+    }
+  },
+  {
+    "id": "P1",
+    "cut": 220,
+    "price": 63400,
+    "c_start": 201,
+    "local_role_gate": true,
+    "source_role_gate": null,
+    "source_complete": null,
+    "extreme": true,
+    "lifecycle": "candidate-open",
+    "eligible_now": true,
+    "K": [
+      66000,
+      68800
+    ],
+    "b_L": {
+      "num": -1100,
+      "den": 1
+    },
+    "prior_extreme": 64000,
+    "object_start": 121,
+    "direction": "Down",
+    "A": {
+      "L": {
+        "num": 1600,
+        "den": 7
+      },
+      "v": {
+        "num": 200,
+        "den": 7
+      },
+      "first_v": {
+        "num": -200,
+        "den": 1
+      },
+      "anchor": 213,
+      "kind": "real-active-start",
+      "duration": 7,
+      "anchor_price": 63200,
+      "first_pen": {
+        "up": false,
+        "start": 201,
+        "end": 205,
+        "start_price": 68800,
+        "end_price": 68000
+      },
+      "signed": true,
+      "weak": false,
+      "complete_candidate": false
+    },
+    "R": {
+      "L": {
+        "num": -1200,
+        "den": 1
+      },
+      "v": {
+        "num": -1400,
+        "den": 1
+      },
+      "first_v": {
+        "num": -200,
+        "den": 1
+      },
+      "anchor": 217,
+      "kind": "unconfirmed-residual",
+      "duration": 3,
+      "anchor_price": 67600,
+      "first_pen": {
+        "up": false,
+        "start": 201,
+        "end": 205,
+        "start_price": 68800,
+        "end_price": 68000
+      },
+      "signed": true,
+      "weak": true,
+      "complete_candidate": true
+    }
+  },
+  {
+    "id": "P1",
+    "cut": 222,
+    "price": 62400,
+    "c_start": 201,
+    "local_role_gate": true,
+    "source_role_gate": null,
+    "source_complete": null,
+    "extreme": true,
+    "lifecycle": "candidate-open",
+    "eligible_now": true,
+    "K": [
+      66000,
+      68800
+    ],
+    "b_L": {
+      "num": -1100,
+      "den": 1
+    },
+    "prior_extreme": 64000,
+    "object_start": 121,
+    "direction": "Down",
+    "A": {
+      "L": {
+        "num": -840,
+        "den": 1
+      },
+      "v": {
+        "num": -1040,
+        "den": 1
+      },
+      "first_v": {
+        "num": -200,
+        "den": 1
+      },
+      "anchor": 217,
+      "kind": "real-active-start",
+      "duration": 5,
+      "anchor_price": 67600,
+      "first_pen": {
+        "up": false,
+        "start": 201,
+        "end": 205,
+        "start_price": 68800,
+        "end_price": 68000
+      },
+      "signed": true,
+      "weak": false,
+      "complete_candidate": false
+    },
+    "R": {
+      "L": {
+        "num": 600,
+        "den": 1
+      },
+      "v": {
+        "num": 400,
+        "den": 1
+      },
+      "first_v": {
+        "num": -200,
+        "den": 1
+      },
+      "anchor": 221,
+      "kind": "unconfirmed-residual",
+      "duration": 1,
+      "anchor_price": 62000,
+      "first_pen": {
+        "up": false,
+        "start": 201,
+        "end": 205,
+        "start_price": 68800,
+        "end_price": 68000
+      },
+      "signed": true,
+      "weak": false,
+      "complete_candidate": false,
+      "candidate_withdrawn_at_this_prefix": true,
+      "withdrawal_reason": "predicate-no-longer-true"
+    }
+  },
+  {
+    "id": "c0",
+    "cut": 418,
+    "price": 52500,
+    "c_start": 401,
+    "local_role_gate": true,
+    "source_role_gate": null,
+    "source_complete": null,
+    "extreme": false,
+    "lifecycle": "candidate-open",
+    "eligible_now": true,
+    "K": [
+      51800,
+      61600
+    ],
+    "b_L": {
+      "num": -3850,
+      "den": 1
+    },
+    "prior_extreme": 44800,
+    "object_start": 321,
+    "direction": "Down",
+    "A": {
+      "L": {
+        "num": 2800,
+        "den": 1
+      },
+      "v": {
+        "num": 2100,
+        "den": 1
+      },
+      "first_v": {
+        "num": -700,
+        "den": 1
+      },
+      "anchor": 413,
+      "kind": "real-active-start",
+      "duration": 5,
+      "anchor_price": 42000,
+      "first_pen": {
+        "up": false,
+        "start": 401,
+        "end": 405,
+        "start_price": 61600,
+        "end_price": 58800
+      },
+      "signed": true,
+      "weak": false,
+      "complete_candidate": false
+    },
+    "R": {
+      "L": {
+        "num": -4200,
+        "den": 1
+      },
+      "v": {
+        "num": -4900,
+        "den": 1
+      },
+      "first_v": {
+        "num": -700,
+        "den": 1
+      },
+      "anchor": 417,
+      "kind": "unconfirmed-residual",
+      "duration": 1,
+      "anchor_price": 57400,
+      "first_pen": {
+        "up": false,
+        "start": 401,
+        "end": 405,
+        "start_price": 61600,
+        "end_price": 58800
+      },
+      "signed": true,
+      "weak": true,
+      "complete_candidate": false
+    }
+  },
+  {
+    "id": "c0",
+    "cut": 420,
+    "price": 42700,
+    "c_start": 401,
+    "local_role_gate": true,
+    "source_role_gate": null,
+    "source_complete": null,
+    "extreme": true,
+    "lifecycle": "candidate-open",
+    "eligible_now": true,
+    "K": [
+      51800,
+      61600
+    ],
+    "b_L": {
+      "num": -3850,
+      "den": 1
+    },
+    "prior_extreme": 44800,
+    "object_start": 321,
+    "direction": "Down",
+    "A": {
+      "L": {
+        "num": 800,
+        "den": 1
+      },
+      "v": {
+        "num": 100,
+        "den": 1
+      },
+      "first_v": {
+        "num": -700,
+        "den": 1
+      },
+      "anchor": 413,
+      "kind": "real-active-start",
+      "duration": 7,
+      "anchor_price": 42000,
+      "first_pen": {
+        "up": false,
+        "start": 401,
+        "end": 405,
+        "start_price": 61600,
+        "end_price": 58800
+      },
+      "signed": true,
+      "weak": false,
+      "complete_candidate": false
+    },
+    "R": {
+      "L": {
+        "num": -4200,
+        "den": 1
+      },
+      "v": {
+        "num": -4900,
+        "den": 1
+      },
+      "first_v": {
+        "num": -700,
+        "den": 1
+      },
+      "anchor": 417,
+      "kind": "unconfirmed-residual",
+      "duration": 3,
+      "anchor_price": 57400,
+      "first_pen": {
+        "up": false,
+        "start": 401,
+        "end": 405,
+        "start_price": 61600,
+        "end_price": 58800
+      },
+      "signed": true,
+      "weak": true,
+      "complete_candidate": true
+    }
+  },
+  {
+    "id": "c0",
+    "cut": 422,
+    "price": 39200,
+    "c_start": 401,
+    "local_role_gate": true,
+    "source_role_gate": null,
+    "source_complete": null,
+    "extreme": true,
+    "lifecycle": "candidate-open",
+    "eligible_now": true,
+    "K": [
+      51800,
+      61600
+    ],
+    "b_L": {
+      "num": -3850,
+      "den": 1
+    },
+    "prior_extreme": 44800,
+    "object_start": 321,
+    "direction": "Down",
+    "A": {
+      "L": {
+        "num": -2940,
+        "den": 1
+      },
+      "v": {
+        "num": -3640,
+        "den": 1
+      },
+      "first_v": {
+        "num": -700,
+        "den": 1
+      },
+      "anchor": 417,
+      "kind": "real-active-start",
+      "duration": 5,
+      "anchor_price": 57400,
+      "first_pen": {
+        "up": false,
+        "start": 401,
+        "end": 405,
+        "start_price": 61600,
+        "end_price": 58800
+      },
+      "signed": true,
+      "weak": false,
+      "complete_candidate": false
+    },
+    "R": {
+      "L": {
+        "num": 2100,
+        "den": 1
+      },
+      "v": {
+        "num": 1400,
+        "den": 1
+      },
+      "first_v": {
+        "num": -700,
+        "den": 1
+      },
+      "anchor": 421,
+      "kind": "unconfirmed-residual",
+      "duration": 1,
+      "anchor_price": 37800,
+      "first_pen": {
+        "up": false,
+        "start": 401,
+        "end": 405,
+        "start_price": 61600,
+        "end_price": 58800
+      },
+      "signed": true,
+      "weak": false,
+      "complete_candidate": false,
+      "candidate_withdrawn_at_this_prefix": true,
+      "withdrawal_reason": "predicate-no-longer-true"
+    }
+  },
+  {
+    "id": "parent",
+    "cut": 338,
+    "price": 60550,
+    "c_start": 321,
+    "local_role_gate": true,
+    "source_role_gate": null,
+    "source_complete": null,
+    "extreme": false,
+    "lifecycle": "candidate-open",
+    "eligible_now": true,
+    "K": [
+      62000,
+      72000
+    ],
+    "b_L": {
+      "num": -1000,
+      "den": 1
+    },
+    "prior_extreme": 40000,
+    "object_start": 1,
+    "direction": "Down",
+    "A": {
+      "L": {
+        "num": 1750,
+        "den": 1
+      },
+      "v": {
+        "num": 350,
+        "den": 1
+      },
+      "first_v": {
+        "num": -1400,
+        "den": 1
+      },
+      "anchor": 333,
+      "kind": "real-active-start",
+      "duration": 5,
+      "anchor_price": 58800,
+      "first_pen": {
+        "up": false,
+        "start": 321,
+        "end": 325,
+        "start_price": 72800,
+        "end_price": 67200
+      },
+      "signed": true,
+      "weak": false,
+      "complete_candidate": false
+    },
+    "R": {
+      "L": {
+        "num": -3850,
+        "den": 1
+      },
+      "v": {
+        "num": -5250,
+        "den": 1
+      },
+      "first_v": {
+        "num": -1400,
+        "den": 1
+      },
+      "anchor": 337,
+      "kind": "unconfirmed-residual",
+      "duration": 1,
+      "anchor_price": 65800,
+      "first_pen": {
+        "up": false,
+        "start": 321,
+        "end": 325,
+        "start_price": 72800,
+        "end_price": 67200
+      },
+      "signed": true,
+      "weak": true,
+      "complete_candidate": false
+    }
+  },
+  {
+    "id": "parent",
+    "cut": 342,
+    "price": 49000,
+    "c_start": 321,
+    "local_role_gate": true,
+    "source_role_gate": null,
+    "source_complete": null,
+    "extreme": false,
+    "lifecycle": "candidate-open",
+    "eligible_now": true,
+    "K": [
+      62000,
+      72000
+    ],
+    "b_L": {
+      "num": -1000,
+      "den": 1
+    },
+    "prior_extreme": 40000,
+    "object_start": 1,
+    "direction": "Down",
+    "A": {
+      "L": {
+        "num": -1960,
+        "den": 1
+      },
+      "v": {
+        "num": -3360,
+        "den": 1
+      },
+      "first_v": {
+        "num": -1400,
+        "den": 1
+      },
+      "anchor": 337,
+      "kind": "real-active-start",
+      "duration": 5,
+      "anchor_price": 65800,
+      "first_pen": {
+        "up": false,
+        "start": 321,
+        "end": 325,
+        "start_price": 72800,
+        "end_price": 67200
+      },
+      "signed": true,
+      "weak": true,
+      "complete_candidate": false
+    },
+    "R": {
+      "L": {
+        "num": 5600,
+        "den": 1
+      },
+      "v": {
+        "num": 4200,
+        "den": 1
+      },
+      "first_v": {
+        "num": -1400,
+        "den": 1
+      },
+      "anchor": 341,
+      "kind": "unconfirmed-residual",
+      "duration": 1,
+      "anchor_price": 44800,
+      "first_pen": {
+        "up": false,
+        "start": 321,
+        "end": 325,
+        "start_price": 72800,
+        "end_price": 67200
+      },
+      "signed": true,
+      "weak": false,
+      "complete_candidate": false
+    }
+  },
+  {
+    "id": "parent",
+    "cut": 421,
+    "price": 37800,
+    "c_start": 321,
+    "local_role_gate": true,
+    "source_role_gate": null,
+    "source_complete": null,
+    "extreme": true,
+    "lifecycle": "candidate-open",
+    "eligible_now": true,
+    "K": [
+      62000,
+      72000
+    ],
+    "b_L": {
+      "num": -1000,
+      "den": 1
+    },
+    "prior_extreme": 40000,
+    "object_start": 1,
+    "direction": "Down",
+    "A": {
+      "L": {
+        "num": 875,
+        "den": 1
+      },
+      "v": {
+        "num": -525,
+        "den": 1
+      },
+      "first_v": {
+        "num": -1400,
+        "den": 1
+      },
+      "anchor": 413,
+      "kind": "real-active-start",
+      "duration": 8,
+      "anchor_price": 42000,
+      "first_pen": {
+        "up": false,
+        "start": 321,
+        "end": 325,
+        "start_price": 72800,
+        "end_price": 67200
+      },
+      "signed": true,
+      "weak": false,
+      "complete_candidate": false
+    },
+    "R": {
+      "L": {
+        "num": -3500,
+        "den": 1
+      },
+      "v": {
+        "num": -4900,
+        "den": 1
+      },
+      "first_v": {
+        "num": -1400,
+        "den": 1
+      },
+      "anchor": 417,
+      "kind": "unconfirmed-residual",
+      "duration": 4,
+      "anchor_price": 57400,
+      "first_pen": {
+        "up": false,
+        "start": 321,
+        "end": 325,
+        "start_price": 72800,
+        "end_price": 67200
+      },
+      "signed": true,
+      "weak": true,
+      "complete_candidate": true
+    }
+  },
+  {
+    "id": "parent",
+    "cut": 422,
+    "price": 39200,
+    "c_start": 321,
+    "local_role_gate": true,
+    "source_role_gate": null,
+    "source_complete": null,
+    "extreme": true,
+    "lifecycle": "candidate-open",
+    "eligible_now": true,
+    "K": [
+      62000,
+      72000
+    ],
+    "b_L": {
+      "num": -1000,
+      "den": 1
+    },
+    "prior_extreme": 40000,
+    "object_start": 1,
+    "direction": "Down",
+    "A": {
+      "L": {
+        "num": -2240,
+        "den": 1
+      },
+      "v": {
+        "num": -3640,
+        "den": 1
+      },
+      "first_v": {
+        "num": -1400,
+        "den": 1
+      },
+      "anchor": 417,
+      "kind": "real-active-start",
+      "duration": 5,
+      "anchor_price": 57400,
+      "first_pen": {
+        "up": false,
+        "start": 321,
+        "end": 325,
+        "start_price": 72800,
+        "end_price": 67200
+      },
+      "signed": true,
+      "weak": true,
+      "complete_candidate": true
+    },
+    "R": {
+      "L": {
+        "num": 2800,
+        "den": 1
+      },
+      "v": {
+        "num": 1400,
+        "den": 1
+      },
+      "first_v": {
+        "num": -1400,
+        "den": 1
+      },
+      "anchor": 421,
+      "kind": "unconfirmed-residual",
+      "duration": 1,
+      "anchor_price": 37800,
+      "first_pen": {
+        "up": false,
+        "start": 321,
+        "end": 325,
+        "start_price": 72800,
+        "end_price": 67200
+      },
+      "signed": true,
+      "weak": false,
+      "complete_candidate": false,
+      "candidate_withdrawn_at_this_prefix": true,
+      "withdrawal_reason": "predicate-no-longer-true"
+    }
+  },
+  {
+    "id": "parent",
+    "cut": 423,
+    "price": 40600,
+    "c_start": 321,
+    "local_role_gate": true,
+    "source_role_gate": null,
+    "source_complete": null,
+    "extreme": false,
+    "lifecycle": "candidate-open",
+    "eligible_now": true,
+    "K": [
+      62000,
+      72000
+    ],
+    "b_L": {
+      "num": -1000,
+      "den": 1
+    },
+    "prior_extreme": 40000,
+    "object_start": 1,
+    "direction": "Down",
+    "A": {
+      "L": {
+        "num": -1400,
+        "den": 1
+      },
+      "v": {
+        "num": -2800,
+        "den": 1
+      },
+      "first_v": {
+        "num": -1400,
+        "den": 1
+      },
+      "anchor": 417,
+      "kind": "real-active-start",
+      "duration": 6,
+      "anchor_price": 57400,
+      "first_pen": {
+        "up": false,
+        "start": 321,
+        "end": 325,
+        "start_price": 72800,
+        "end_price": 67200
+      },
+      "signed": true,
+      "weak": true,
+      "complete_candidate": false,
+      "candidate_withdrawn_at_this_prefix": true,
+      "withdrawal_reason": "predicate-no-longer-true"
+    },
+    "R": {
+      "L": {
+        "num": 2800,
+        "den": 1
+      },
+      "v": {
+        "num": 1400,
+        "den": 1
+      },
+      "first_v": {
+        "num": -1400,
+        "den": 1
+      },
+      "anchor": 421,
+      "kind": "unconfirmed-residual",
+      "duration": 2,
+      "anchor_price": 37800,
+      "first_pen": {
+        "up": false,
+        "start": 321,
+        "end": 325,
+        "start_price": 72800,
+        "end_price": 67200
+      },
+      "signed": true,
+      "weak": false,
+      "complete_candidate": false
+    }
+  },
+  {
+    "id": "parent",
+    "cut": 438,
+    "price": 45150,
+    "c_start": 321,
+    "local_role_gate": true,
+    "source_role_gate": null,
+    "source_complete": null,
+    "extreme": false,
+    "lifecycle": "closed-local-certificate",
+    "eligible_now": false,
+    "K": [
+      62000,
+      72000
+    ],
+    "b_L": {
+      "num": -1000,
+      "den": 1
+    },
+    "prior_extreme": 40000,
+    "object_start": 1,
+    "direction": "Down",
+    "A": {
+      "L": null,
+      "reason": "local-closed-certificate-no-live-domain",
+      "weak": null,
+      "complete_candidate": false
+    },
+    "R": {
+      "L": null,
+      "reason": "local-closed-certificate-no-live-domain",
+      "weak": null,
+      "complete_candidate": false
+    }
+  }
+]

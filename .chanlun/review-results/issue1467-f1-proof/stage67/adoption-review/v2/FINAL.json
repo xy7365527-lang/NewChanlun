@@ -1,0 +1,26 @@
+{
+  "verdict": "accepted_adoption_layer_v2",
+  "accepted": true,
+  "must_revise": [],
+  "resolved": [
+    "A1"
+  ],
+  "scope": "A1有限差异复审；与首轮已接受的采用订正合并采用",
+  "review_complete": true,
+  "research_complete": false,
+  "new_histories": 0,
+  "goal_status": "active",
+  "unresolved": [
+    "P1–P4",
+    "R_W/R_D",
+    "StructuralPenNow",
+    "RootArm67/H_b",
+    "original Completed/Owner/Next",
+    "full F1/F2"
+  ],
+  "artifacts": {
+    "review.md": "6345dbc9d7e750283e536d200f44d480163ace4f7dd1a20a699c37428b3c460b",
+    "inputhash.json": "ef6cfaf4346c5c614f46ebf24cbc2b058afe28991dcc469e8faefe06a212e947",
+    "receipt.json": "6d1b0face981dd8f43a33a7395f68eb88bc9f2eea1d8687bfeaffba31a15e2ab"
+  }
+}

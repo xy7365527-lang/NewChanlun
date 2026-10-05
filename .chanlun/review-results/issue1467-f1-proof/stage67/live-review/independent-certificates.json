@@ -1,0 +1,364 @@
+[
+  {
+    "block": 0,
+    "start": 1,
+    "end": 21,
+    "up": false,
+    "range": [
+      40000,
+      76000
+    ],
+    "evidence": "narrow",
+    "witness_pen_slots": [
+      3,
+      5,
+      7
+    ],
+    "known_at": 38
+  },
+  {
+    "block": 1,
+    "start": 21,
+    "end": 41,
+    "up": true,
+    "range": [
+      40000,
+      64000
+    ],
+    "evidence": "narrow",
+    "witness_pen_slots": [
+      8,
+      10,
+      12
+    ],
+    "known_at": 58
+  },
+  {
+    "block": 2,
+    "start": 41,
+    "end": 61,
+    "up": false,
+    "range": [
+      48000,
+      64000
+    ],
+    "evidence": "narrow",
+    "witness_pen_slots": [
+      13,
+      15,
+      17
+    ],
+    "known_at": 78
+  },
+  {
+    "block": 3,
+    "start": 61,
+    "end": 81,
+    "up": true,
+    "range": [
+      48000,
+      60000
+    ],
+    "evidence": "narrow",
+    "witness_pen_slots": [
+      18,
+      20,
+      22
+    ],
+    "known_at": 98
+  },
+  {
+    "block": 4,
+    "start": 81,
+    "end": 101,
+    "up": false,
+    "range": [
+      50000,
+      60000
+    ],
+    "evidence": "narrow",
+    "witness_pen_slots": [
+      23,
+      25,
+      27
+    ],
+    "known_at": 118
+  },
+  {
+    "block": 5,
+    "start": 101,
+    "end": 121,
+    "up": true,
+    "range": [
+      50000,
+      72000
+    ],
+    "evidence": "narrow",
+    "witness_pen_slots": [
+      28,
+      30,
+      32
+    ],
+    "known_at": 138
+  },
+  {
+    "block": 6,
+    "start": 121,
+    "end": 141,
+    "up": false,
+    "range": [
+      64000,
+      72000
+    ],
+    "evidence": "narrow",
+    "witness_pen_slots": [
+      33,
+      35,
+      37
+    ],
+    "known_at": 158
+  },
+  {
+    "block": 7,
+    "start": 141,
+    "end": 161,
+    "up": true,
+    "range": [
+      64000,
+      70000
+    ],
+    "evidence": "narrow",
+    "witness_pen_slots": [
+      38,
+      40,
+      42
+    ],
+    "known_at": 178
+  },
+  {
+    "block": 8,
+    "start": 161,
+    "end": 181,
+    "up": false,
+    "range": [
+      66000,
+      70000
+    ],
+    "evidence": "narrow",
+    "witness_pen_slots": [
+      43,
+      45,
+      47
+    ],
+    "known_at": 198
+  },
+  {
+    "block": 9,
+    "start": 181,
+    "end": 201,
+    "up": true,
+    "range": [
+      66000,
+      68800
+    ],
+    "evidence": "narrow",
+    "witness_pen_slots": [
+      48,
+      50,
+      52
+    ],
+    "known_at": 218
+  },
+  {
+    "block": 10,
+    "start": 201,
+    "end": 221,
+    "up": false,
+    "range": [
+      62000,
+      68800
+    ],
+    "evidence": "narrow",
+    "witness_pen_slots": [
+      53,
+      55,
+      57
+    ],
+    "known_at": 238
+  },
+  {
+    "block": 11,
+    "start": 221,
+    "end": 241,
+    "up": true,
+    "range": [
+      62000,
+      65600
+    ],
+    "evidence": "narrow",
+    "witness_pen_slots": [
+      58,
+      60,
+      62
+    ],
+    "known_at": 258
+  },
+  {
+    "block": 12,
+    "start": 241,
+    "end": 261,
+    "up": false,
+    "range": [
+      60000,
+      65600
+    ],
+    "evidence": "narrow",
+    "witness_pen_slots": [
+      63,
+      65,
+      67
+    ],
+    "known_at": 278
+  },
+  {
+    "block": 13,
+    "start": 261,
+    "end": 281,
+    "up": true,
+    "range": [
+      60000,
+      64000
+    ],
+    "evidence": "narrow",
+    "witness_pen_slots": [
+      68,
+      70,
+      72
+    ],
+    "known_at": 298
+  },
+  {
+    "block": 14,
+    "start": 281,
+    "end": 301,
+    "up": false,
+    "range": [
+      60800,
+      64000
+    ],
+    "evidence": "narrow",
+    "witness_pen_slots": [
+      73,
+      75,
+      77
+    ],
+    "known_at": 318
+  },
+  {
+    "block": 15,
+    "start": 301,
+    "end": 321,
+    "up": true,
+    "range": [
+      60800,
+      72800
+    ],
+    "evidence": "selected-source071",
+    "witness_pen_slots": [
+      75,
+      76,
+      77,
+      78,
+      79,
+      80,
+      81,
+      82
+    ],
+    "known_at": 338
+  },
+  {
+    "block": 16,
+    "start": 321,
+    "end": 341,
+    "up": false,
+    "range": [
+      44800,
+      72800
+    ],
+    "evidence": "narrow",
+    "witness_pen_slots": [
+      83,
+      85,
+      87
+    ],
+    "known_at": 358
+  },
+  {
+    "block": 17,
+    "start": 341,
+    "end": 361,
+    "up": true,
+    "range": [
+      44800,
+      65800
+    ],
+    "evidence": "narrow",
+    "witness_pen_slots": [
+      88,
+      90,
+      92
+    ],
+    "known_at": 378
+  },
+  {
+    "block": 18,
+    "start": 361,
+    "end": 381,
+    "up": false,
+    "range": [
+      51800,
+      65800
+    ],
+    "evidence": "narrow",
+    "witness_pen_slots": [
+      93,
+      95,
+      97
+    ],
+    "known_at": 398
+  },
+  {
+    "block": 19,
+    "start": 381,
+    "end": 401,
+    "up": true,
+    "range": [
+      51800,
+      61600
+    ],
+    "evidence": "narrow",
+    "witness_pen_slots": [
+      98,
+      100,
+      102
+    ],
+    "known_at": 418
+  },
+  {
+    "block": 20,
+    "start": 401,
+    "end": 421,
+    "up": false,
+    "range": [
+      37800,
+      61600
+    ],
+    "evidence": "narrow",
+    "witness_pen_slots": [
+      103,
+      105,
+      107
+    ],
+    "known_at": 438
+  }
+]

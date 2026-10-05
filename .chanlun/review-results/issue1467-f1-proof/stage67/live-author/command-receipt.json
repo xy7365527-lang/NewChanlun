@@ -1,0 +1,11 @@
+{
+  "command": [
+    "python3",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/live-author/check_live.py"
+  ],
+  "started_at_utc": "2026-10-05T19:06:16.143431+00:00",
+  "finished_at_utc": "2026-10-05T19:06:16.326343+00:00",
+  "exit_code": 0,
+  "script_sha256": "834ef28a5230a4a328321204205019dd5cccb03826b76c5b8a0f7c59b6bd7441",
+  "workcard_sha256": "d97ef7f9c358e32974e146dabecf021d5ac4c43b58a42565e9b3a69c23cb6396"
+}

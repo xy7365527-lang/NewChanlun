@@ -1,0 +1,34 @@
+{
+  "b_L": -1000,
+  "c_full_force": {
+    "first": {
+      "up": false,
+      "start": 321,
+      "end": 325,
+      "start_price": 72800,
+      "end_price": 67200
+    },
+    "last": {
+      "up": false,
+      "start": 417,
+      "end": 421,
+      "start_price": 57400,
+      "end_price": 37800
+    },
+    "first_v": {
+      "num": -1400,
+      "den": 1
+    },
+    "last_v": {
+      "num": -4900,
+      "den": 1
+    },
+    "L": {
+      "num": -3500,
+      "den": 1
+    }
+  },
+  "c_last_subsegment_L": -4200,
+  "different": true,
+  "original_completed": null
+}

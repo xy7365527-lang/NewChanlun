@@ -1,0 +1,25 @@
+{
+  "read_isolation": "fail-for-frozen-author-package",
+  "read_isolation_witness": {
+    "code_line": 40,
+    "reference_top_level": [
+      "groups",
+      "prefixes",
+      "strokes"
+    ],
+    "online_seal_line": 212,
+    "false_field": "final_pens_read:false"
+  },
+  "hashing_final_files_before_seal": "also occurs at line38 via INPUTS; hash streaming is not semantic use and must be labelled separately",
+  "online_output_data_dependency": "accepted conditionally on frozen finite template and accepted per-prefix inputs",
+  "argument": [
+    "At step t, prices/times are appended from observation t only; every pen endpoint and anchor raw index is <=t.",
+    "New raw certificates use current stable pens plus observed prices; stored certificates were first validated at earlier or current steps.",
+    "Local c start is third K certificate end. Parent c start is third whole certificate end. No final_end-minus-length operation exists.",
+    "L uses current selected anchor, current price, fixed first stable pen, and event time differences. Joint trigger uses all conditions at the same t.",
+    "Independent function reproduces every row without reference.stdout or final object/pens/parent until its online seal.",
+    "Prefix-only replay deletes groups/strokes from delivered reference text and preserves eight key output hashes. This is a finite control, not a theorem for every parser/history."
+  ],
+  "general_algorithm_claim": "not accepted; bootstrap and four 5x5 groups are supplied template choices",
+  "source_role_and_completed": null
+}

@@ -1,0 +1,266 @@
+{
+  "checked_at_utc": "2026-10-05T19:02:46.449538+00:00",
+  "status": "passed",
+  "script": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-comparison/check_inputs.py",
+  "script_sha256": "59b5e26abfbdd3282fe3d7b54931723417c5636fadd595b96232b2a108aa454a",
+  "verification_mode": "existing_evidence_reuse_with_current_packet_and_receipt_hash_checks",
+  "compiler_executed_by_comparer": false,
+  "full_inventory_recheck_executed": false,
+  "module_resolution_rechecked": false,
+  "limitation": "未新跑 lean_evidence.py 的完整重查，未重新解析全部导入；该命令会在作者目录写 rechecks，超出本比较者写入职责。复用现有 exact 根及独立盲读回复跑，未修改 machine manifest。",
+  "recorded_run_id": "774a11b12601459285ed008759b64c2d",
+  "recorded_exact_root_passed": true,
+  "source_sha256": "e1c96a05d4f2f5450f9056cafe54254e8a97413083927ba2949ae4d27794c6c4",
+  "semantic_sha256": "3e08e1a29c0cad6ba177dfafa96330465a026b161a5040fceb0e5bd007889a21",
+  "environment_sha256": "91900355fecfb9b95efe60d4e842536ee784f9ed503b932764c095020573c4a8",
+  "checks": [
+    {
+      "name": "frozen_formal_source",
+      "passed": true
+    },
+    {
+      "name": "recorded_semantic_identity",
+      "passed": true
+    },
+    {
+      "name": "recorded_environment_identity",
+      "passed": true
+    },
+    {
+      "name": "manifest_payload_digest",
+      "passed": true
+    },
+    {
+      "name": "immutable_per_run_manifest_equal",
+      "passed": true
+    },
+    {
+      "name": "contract_equal_to_recorded_contract",
+      "passed": true
+    },
+    {
+      "name": "core_recorded_exact_root_and_closed",
+      "passed": true
+    },
+    {
+      "name": "core_expected_type_match",
+      "passed": true
+    },
+    {
+      "name": "core_no_open_dependencies",
+      "passed": true
+    },
+    {
+      "name": "readback_frozen_input:/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/ClosureRoots.lean",
+      "passed": true
+    },
+    {
+      "name": "readback_frozen_input:/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/direct.stdout",
+      "passed": true
+    },
+    {
+      "name": "readback_frozen_input:/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/direct-receipt.json",
+      "passed": true
+    },
+    {
+      "name": "readback_frozen_input:/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/lean-toolchain",
+      "passed": true
+    },
+    {
+      "name": "readback_artifact:inspect.stderr",
+      "passed": true
+    },
+    {
+      "name": "readback_artifact:input-hashes.json",
+      "passed": true
+    },
+    {
+      "name": "readback_artifact:direct.stderr",
+      "passed": true
+    },
+    {
+      "name": "readback_artifact:InspectDeclarations.lean",
+      "passed": true
+    },
+    {
+      "name": "readback_artifact:direct.stdout",
+      "passed": true
+    },
+    {
+      "name": "readback_artifact:Readback.md",
+      "passed": true
+    },
+    {
+      "name": "readback_artifact:inspect.stdout",
+      "passed": true
+    },
+    {
+      "name": "readback_artifact:inspect-receipt.json",
+      "passed": true
+    },
+    {
+      "name": "readback_artifact:direct-receipt.json",
+      "passed": true
+    },
+    {
+      "name": "readback_exit:direct",
+      "passed": true
+    },
+    {
+      "name": "readback_runtime:direct",
+      "passed": true
+    },
+    {
+      "name": "readback_log:direct.stdout",
+      "passed": true
+    },
+    {
+      "name": "readback_log:direct.stderr",
+      "passed": true
+    },
+    {
+      "name": "readback_exit:inspect",
+      "passed": true
+    },
+    {
+      "name": "readback_runtime:inspect",
+      "passed": true
+    },
+    {
+      "name": "readback_log:inspect.stdout",
+      "passed": true
+    },
+    {
+      "name": "readback_log:inspect.stderr",
+      "passed": true
+    },
+    {
+      "name": "independent_direct_output_equal",
+      "passed": true
+    },
+    {
+      "name": "inspection_contains_exact_frozen_source",
+      "passed": true
+    },
+    {
+      "name": "recorded_compiled_artifact:/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/exact/lean-verification-runs/774a11b12601459285ed008759b64c2d/lib/ClosureRoots.olean",
+      "passed": true
+    },
+    {
+      "name": "recorded_compiled_artifact:/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage67/closure-author/exact/lean-verification-runs/774a11b12601459285ed008759b64c2d/lib/LeanVerifyProbe.olean",
+      "passed": true
+    },
+    {
+      "name": "recorded_extraction_file",
+      "passed": true
+    },
+    {
+      "name": "recorded_generated_source:LeanVerifyProbe.lean",
+      "passed": true
+    },
+    {
+      "name": "recorded_generated_source:InspectRoot.lean",
+      "passed": true
+    },
+    {
+      "name": "recorded_generated_source:DiscoverImports.lean",
+      "passed": true
+    },
+    {
+      "name": "recorded_verifier_tool:verify_lean_project.py",
+      "passed": true
+    },
+    {
+      "name": "recorded_verifier_tool:lean_runtime.py",
+      "passed": true
+    },
+    {
+      "name": "recorded_verifier_tool:lean_evidence.py",
+      "passed": true
+    },
+    {
+      "name": "recorded_verifier_tool:LeanVerifyProbe.lean.template",
+      "passed": true
+    },
+    {
+      "name": "recorded_verifier_tool:lake_build_guard.py",
+      "passed": true
+    },
+    {
+      "name": "recorded_verifier_tool:run_manifest.schema.json",
+      "passed": true
+    },
+    {
+      "name": "recorded_runtime_binary:bin/lean",
+      "passed": true
+    },
+    {
+      "name": "recorded_runtime_binary:bin/lake",
+      "passed": true
+    },
+    {
+      "name": "recorded_runtime_binary:lib/lean/libleanshared.dylib",
+      "passed": true
+    },
+    {
+      "name": "recorded_job_exit:3cd05456de1e472c85731bf42a4ee1c6",
+      "passed": true
+    },
+    {
+      "name": "recorded_job_log:3cd05456de1e472c85731bf42a4ee1c6.stdout",
+      "passed": true
+    },
+    {
+      "name": "recorded_job_log:3cd05456de1e472c85731bf42a4ee1c6.stderr",
+      "passed": true
+    },
+    {
+      "name": "recorded_job_exit:085f696a18d14bbfb3c7773e460aa661",
+      "passed": true
+    },
+    {
+      "name": "recorded_job_log:085f696a18d14bbfb3c7773e460aa661.stdout",
+      "passed": true
+    },
+    {
+      "name": "recorded_job_log:085f696a18d14bbfb3c7773e460aa661.stderr",
+      "passed": true
+    },
+    {
+      "name": "recorded_job_exit:db1bcff98d4c4892bf76eaee5aa14e84",
+      "passed": true
+    },
+    {
+      "name": "recorded_job_log:db1bcff98d4c4892bf76eaee5aa14e84.stdout",
+      "passed": true
+    },
+    {
+      "name": "recorded_job_log:db1bcff98d4c4892bf76eaee5aa14e84.stderr",
+      "passed": true
+    },
+    {
+      "name": "recorded_job_exit:c5b249f8ab3444cebd07c4a8ad2af7c8",
+      "passed": true
+    },
+    {
+      "name": "recorded_job_log:c5b249f8ab3444cebd07c4a8ad2af7c8.stdout",
+      "passed": true
+    },
+    {
+      "name": "recorded_job_log:c5b249f8ab3444cebd07c4a8ad2af7c8.stderr",
+      "passed": true
+    },
+    {
+      "name": "recorded_job_exit:762db2fde4ef47ffbb0392331530baed",
+      "passed": true
+    },
+    {
+      "name": "recorded_job_log:762db2fde4ef47ffbb0392331530baed.stdout",
+      "passed": true
+    },
+    {
+      "name": "recorded_job_log:762db2fde4ef47ffbb0392331530baed.stderr",
+      "passed": true
+    }
+  ]
+}

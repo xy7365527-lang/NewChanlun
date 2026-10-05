@@ -1,0 +1,62 @@
+[
+  {
+    "id": "P0",
+    "mode": "A",
+    "cut": 138,
+    "reason": "local-certificate-closes-domain"
+  },
+  {
+    "id": "P0",
+    "mode": "R",
+    "cut": 138,
+    "reason": "local-certificate-closes-domain"
+  },
+  {
+    "id": "P1",
+    "mode": "R",
+    "cut": 222,
+    "reason": "predicate-no-longer-true"
+  },
+  {
+    "id": "P2",
+    "mode": "R",
+    "cut": 326,
+    "reason": "predicate-no-longer-true"
+  },
+  {
+    "id": "P2",
+    "mode": "A",
+    "cut": 331,
+    "reason": "predicate-no-longer-true"
+  },
+  {
+    "id": "P2",
+    "mode": "R",
+    "cut": 331,
+    "reason": "predicate-no-longer-true"
+  },
+  {
+    "id": "P2",
+    "mode": "A",
+    "cut": 338,
+    "reason": "local-certificate-closes-domain"
+  },
+  {
+    "id": "c0",
+    "mode": "R",
+    "cut": 422,
+    "reason": "predicate-no-longer-true"
+  },
+  {
+    "id": "parent",
+    "mode": "R",
+    "cut": 422,
+    "reason": "predicate-no-longer-true"
+  },
+  {
+    "id": "parent",
+    "mode": "A",
+    "cut": 423,
+    "reason": "predicate-no-longer-true"
+  }
+]
