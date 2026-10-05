@@ -1,0 +1,221 @@
+{
+  "frozen_at": "2026-10-05T03:11:52.994Z",
+  "author_status": "finite source construction and specific candidate failure; independent review pending",
+  "ownership": [
+    "stage61/trend-completion.md",
+    "stage61/trend-evidence/",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend"
+  ],
+  "templates": [
+    "T61-lift",
+    "N61-equal-force"
+  ],
+  "adopted_run": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v3",
+  "new_lean_root": null,
+  "old_roots_rerun": false,
+  "total_artifact_bytes": 38590934,
+  "budget_bytes": 134217728,
+  "meaningful_negative": "P1 designated entry/exit strict inequality is false; this does not prove semantic noncompletion",
+  "artifacts": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/trend-completion.md",
+      "bytes": 13876,
+      "sha256": "abfb823f635bcffe917e625f00fc505402166a782da8003d954f6268c16f33c1"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/trend-evidence/build_check.mjs",
+      "bytes": 14034,
+      "sha256": "a83cc453925a22114fd831641719a0b6f9565f03b129a929ec57050a6382b826"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/trend-evidence/capture_sources.mjs",
+      "bytes": 2233,
+      "sha256": "cd7d5ca3315a6d39c43198239c9c774a65ea6c09305c50dc0f317a3d01b24ffa"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/trend-evidence/freeze.mjs",
+      "bytes": 4154,
+      "sha256": "4986a61be4f20044822071ec619e62641017c7f1dfcdc7e518f15ad2040a8e92"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/trend-evidence/reference_probe.rs",
+      "bytes": 1789,
+      "sha256": "0a1d0efcba43be0e8af52a08da2b8efa134c8aa9b3af8d3f8a9e00bbdb372ca4"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/trend-evidence/template-v1.md",
+      "bytes": 5224,
+      "sha256": "5d603f4de8f9aba3843802e8e0b3b4bb0f716fde538b6646283e118ef7ce999a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/postcheck-v1.json",
+      "bytes": 1261,
+      "sha256": "122dbec5cd24f80b90e4ab75f2b1dabd89760f717129ba1db92a83d71777b43a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v1/T61-lift.reference.receipt.json",
+      "bytes": 308,
+      "sha256": "6ae65745ab74d1ecaf7c22153f1d3b57f250953b2767b0ce8891b39dd7a131f3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v1/T61-lift.reference.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v1/T61-lift.reference.stdout",
+      "bytes": 876065,
+      "sha256": "65060e43bc7156d6444c49d44d7af21ca949e8c588d9d61ed3ae817d98987144"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v1/T61-lift.source.json",
+      "bytes": 7976922,
+      "sha256": "b8cc5b86b2374f41fdde702d137ba5b4cce2cbb1dc56c65d05485ae1228cdf89"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v1/compile.receipt.json",
+      "bytes": 890,
+      "sha256": "74f229877950e1aea52e9ae483bca091f4ffcd0c485ca03aab5d7f1314d3d9ac"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v1/compile.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v1/compile.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v1/reference-probe",
+      "bytes": 952832,
+      "sha256": "aa660fc3e02cb298fe15684a27abaf14c8b33f2e40735336eb128d42bd91c9fc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v2/T61-lift.reference.receipt.json",
+      "bytes": 307,
+      "sha256": "34fecf1abd12ca3058ed31223c7a53dc9b67057378a7825f6a4777628fb0efe6"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v2/T61-lift.reference.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v2/T61-lift.reference.stdout",
+      "bytes": 876065,
+      "sha256": "65060e43bc7156d6444c49d44d7af21ca949e8c588d9d61ed3ae817d98987144"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v2/T61-lift.source.json",
+      "bytes": 7976922,
+      "sha256": "b8cc5b86b2374f41fdde702d137ba5b4cce2cbb1dc56c65d05485ae1228cdf89"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v2/compile.receipt.json",
+      "bytes": 889,
+      "sha256": "84dd541bb08ae6d20c972e2fdb206f686f48555e50ed3ab16b2fb9faa38c41ed"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v2/compile.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v2/compile.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v2/reference-probe",
+      "bytes": 952832,
+      "sha256": "aa660fc3e02cb298fe15684a27abaf14c8b33f2e40735336eb128d42bd91c9fc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v3/N61-equal-force.certificate.json",
+      "bytes": 110987,
+      "sha256": "b054901bde4bb6563fe87efcfc58b9b72839949ec0e976621b02ff1dcbe16d7c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v3/N61-equal-force.reference.receipt.json",
+      "bytes": 314,
+      "sha256": "39e5e58d588cd9062020fa8afb726f2483c2c37c7252f3d82d790f4dec638773"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v3/N61-equal-force.reference.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v3/N61-equal-force.reference.stdout",
+      "bytes": 876065,
+      "sha256": "8e9bd31c054779c52c0a181f540f715059cf74b9553a3be110897a6e7b78ff0f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v3/N61-equal-force.source.json",
+      "bytes": 7976937,
+      "sha256": "4310ffe0c3a16d355bc4a4dbb1cf5137f1765a64330ae0a2783f0bed7e9a6f4d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v3/T61-lift.certificate.json",
+      "bytes": 110975,
+      "sha256": "dc7ba3370acf2b58911ce2aace34e10cb25a3cebbcd2f8a932451dc881dbaaa6"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v3/T61-lift.reference.receipt.json",
+      "bytes": 307,
+      "sha256": "f617b30a249173704d62ed0a2899ebfaf7c11317e305fe8569729cdc73e49258"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v3/T61-lift.reference.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v3/T61-lift.reference.stdout",
+      "bytes": 876065,
+      "sha256": "65060e43bc7156d6444c49d44d7af21ca949e8c588d9d61ed3ae817d98987144"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v3/T61-lift.source.json",
+      "bytes": 7976922,
+      "sha256": "b8cc5b86b2374f41fdde702d137ba5b4cce2cbb1dc56c65d05485ae1228cdf89"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v3/compile.receipt.json",
+      "bytes": 889,
+      "sha256": "60db69112c7138b50aa0f02b01379bd5a1d2dfb995343c632173185823dcdf65"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v3/compile.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v3/compile.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v3/reference-probe",
+      "bytes": 952832,
+      "sha256": "aa660fc3e02cb298fe15684a27abaf14c8b33f2e40735336eb128d42bd91c9fc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v3/run-manifest.json",
+      "bytes": 6442,
+      "sha256": "83004183b348dcf4cbb9092c2e5a74ef957e2716e2c56023b087ed24e6672352"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/run-v3/summary.json",
+      "bytes": 1222,
+      "sha256": "4ad26fe2cdfe8ada87d916520949d189c06a13ef611f5904f83372365b5949cc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend/source-evidence-v1.json",
+      "bytes": 44374,
+      "sha256": "cb8c343e67252576d7e8873990b4a32a0cffbf0f124810b2040d18008054a621"
+    }
+  ]
+}

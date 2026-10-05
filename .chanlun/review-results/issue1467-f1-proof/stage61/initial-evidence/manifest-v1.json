@@ -1,0 +1,284 @@
+{
+  "stage": 61,
+  "issue": 1467,
+  "map": 1465,
+  "author": "/root/stage61_initial_boundary",
+  "status": "AUTHOR_FROZEN_AWAITING_INDEPENDENT_REVIEW",
+  "created_utc": "2026-10-05T03:14:26.528Z",
+  "report": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/initial-completion-model.md",
+  "review_inputs": [
+    "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/initial-completion-model.md",
+    "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/initial-evidence/source-excerpts.json",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/initial/run-v1/initial-mapping.json",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/initial/pb-run-v2/pb-initial-model.json",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/initial/stage60-input-identity.json",
+    "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/initial-evidence/review-request.md"
+  ],
+  "adopted_outputs": [
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/initial/run-v1/initial-mapping.json",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/initial/pb-run-v2/pb-initial-model.json"
+  ],
+  "source_records": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/017-第17课.md",
+      "bytes": 55792,
+      "sha256": "bce847aaacac3b3a79e56b3c49aca6f0c454a0917977bdbb1e0f1f553ddff026"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/018-第18课.md",
+      "bytes": 11695,
+      "sha256": "4a661fc843d0d9fcfdf32861b7dc903ee09d824d0075dd0ea7b2c19542bb2f92"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/020-第20课.md",
+      "bytes": 26838,
+      "sha256": "25f8f0bbe9ffbab48a27b552a081ff3925b6c01bfe1cae30c2616fe9b99b49ef"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/031-第31课.md",
+      "bytes": 80982,
+      "sha256": "c784ee15c21cef965b6e073a89224e56b29bad03a9ecd1dc9e130c54083d47d5"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/035-第35课.md",
+      "bytes": 19125,
+      "sha256": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/038-第38课.md",
+      "bytes": 24251,
+      "sha256": "983ce94575d61ed645fcc753eb59f9a28e8e749826a30d7bf87f19721baedc7b"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/053-第53课.md",
+      "bytes": 21708,
+      "sha256": "004a77af0349566b2673cfdc0b5c5cef43d57617cfc2e5eab174414c28c794e1"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/057-第57课.md",
+      "bytes": 21854,
+      "sha256": "ddf81002acbebfa198320e44d63093e915cce8e73dcc102bdba93b3ca164973f"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/061-第61课.md",
+      "bytes": 21387,
+      "sha256": "2451e6d514b37aa5da00ca608a88fb46c8e31fe8859226534be7deb6c1007573"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/064-第64课.md",
+      "bytes": 112809,
+      "sha256": "bc13f8d3d4d2903c4b0a989eb5d92d6471259323ba1c277e9006fc42dd365e66"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/067-第67课.md",
+      "bytes": 42042,
+      "sha256": "257521bf636734a6d71d724674aac093976e5f505c8ff156619fe7d3b1af459a"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/069-第69课.md",
+      "bytes": 43301,
+      "sha256": "d4cc03baacf2c17deb80ff1c02c398e69dceb40a5416ee699a6ca532370d8767"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/083-第83课.md",
+      "bytes": 12402,
+      "sha256": "52652ad410d1c393b46359e406df2133e6630ba5ae940b328c0c7845018bf634"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/084-第84课.md",
+      "bytes": 70833,
+      "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/zhongshu.md",
+      "bytes": 53981,
+      "sha256": "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/level_recursion.md",
+      "bytes": 26523,
+      "sha256": "06ac7aee96b089536766ac172b52ff0f8d702f2e4ec01ca2b47b1f3a590e1637"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/qushi.md",
+      "bytes": 33811,
+      "sha256": "ce48f8cda6a3f02afd9fddbc0f93cb43431524b66472e579a927af5ce4bc3c46"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+      "bytes": 108519,
+      "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/adr/0011-operation-decomposition-layer.md",
+      "bytes": 14485,
+      "sha256": "30098873c67878af850e8ff9502fdf69e332343e3576e551bab6768d6eb59860"
+    }
+  ],
+  "inherited_inputs": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/T60-main.source.json",
+      "bytes": 132539,
+      "sha256": "b7b24b9986ccf87a189d05f4ba516f9c289c5b2a56e4bdf04dfa2e4580b582bb",
+      "matched_stage60_freeze": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/T60-main.reference.stdout",
+      "bytes": 498755,
+      "sha256": "d2818b935e14623895fef3bb0d4006edb9f8dfa723341964c19cfa925e9493d7",
+      "matched_stage60_freeze": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/T60-main.certificate.json",
+      "bytes": 9541,
+      "sha256": "72e5faa06822a874a94e110daf97bbc2d04ce5655d77bc85a111ea4fa17c263a",
+      "matched_stage60_freeze": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/N60-equal-force.source.json",
+      "bytes": 132537,
+      "sha256": "c77af27fc969c2a036152eaf778c8cac08f5dc197ed7491c6eac185f158e7169",
+      "matched_stage60_freeze": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/N60-equal-force.reference.stdout",
+      "bytes": 498755,
+      "sha256": "2fa57339f495b9684fd6b00beb28e06ea59e44559ecb73604cbab173e7ef08a9",
+      "matched_stage60_freeze": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/N60-equal-force.certificate.json",
+      "bytes": 9602,
+      "sha256": "7eb79f142a591b478c83040a1d97ce5cc19275ab1d1cfa4d313826eda0ca402d",
+      "matched_stage60_freeze": true
+    }
+  ],
+  "dependencies": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/dynamic-construction.md",
+      "bytes": 15208,
+      "sha256": "9dbf1077f566dbf26a3e2d20d7fb698031f68078d3e4ea7f500b3d9efd54ecea"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/independent-dynamic-comparison.md",
+      "bytes": 21155,
+      "sha256": "56099b0c9c5bda7bf201de0b38b9ba8ab68ebd4e6aa99264efb3223e7b7f85d3"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/independent-exact-readback.md",
+      "bytes": 10706,
+      "sha256": "b72d53241409d24a6c84c650961314a41d2e47fe5d7163a0298913026360053d"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage60SourceAndDynamics.md",
+      "bytes": 3563,
+      "sha256": "5e1b5999f1e181307f14abe694600bb513249ec2196b40a34b0f57f7d7798d58"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/manifest-v1.json",
+      "bytes": 153273,
+      "sha256": "0b5dd2fce2655fdf7ad752a2050dd4aa2540dcba588ffe24187fc2f81db2d2e8"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage58/independent-admissibility-review.md",
+      "bytes": 20851,
+      "sha256": "9037ef7623b625881171c2d2afa8af98a50d3cc7ec3f02826eb8d60bc8a51c4b"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage58/admissibility-audit.md",
+      "bytes": 26881,
+      "sha256": "bc10877560995661968633dacb69fc37ebd551ab35f23e54c5adb9df0869526b"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage54/initial-contract-audit.md",
+      "bytes": 21024,
+      "sha256": "7c5f9993530c16a8de959e0115db2eb7869d87b8acba9b030ebf97f7e7bb55c4"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/common-model.md",
+      "bytes": 16078,
+      "sha256": "e2f0d95f4d0a434be76f7905fcac8b8ab519463215717f5969c83445d06796b6"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage59/independent-common-model-review.md",
+      "bytes": 16419,
+      "sha256": "2678050e6619131d3b544f8fcf92c1b030eb21f4d04b8c745ee7f4aab83e3dd5"
+    }
+  ],
+  "new_evidence_bytes": 399281,
+  "new_evidence_limit_bytes": 67108864,
+  "files": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/initial-completion-model.md",
+      "bytes": 27048,
+      "sha256": "a8ff18c25bfbda81d691d556d7e9014f77414d0dffa50474589f2d1319414730"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/initial-evidence/capture-sources.mjs",
+      "bytes": 4144,
+      "sha256": "e3b45b05a6547006039e8e3df57be9d617043a1c91c239ee6b1850a0917c80f1"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/initial-evidence/inspect-initial.mjs",
+      "bytes": 6132,
+      "sha256": "59e6c193e2a8ac53aa2d5f832b7f5e0c23b8accdadb624c9a00f8261c97d6db2"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/initial-evidence/inspect-pb-initial.mjs",
+      "bytes": 4359,
+      "sha256": "0db60b49a5dcf753f6c7c07be8aa1b4edaf5b8c91b7db1558072311d20911f22"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/initial-evidence/review-request.md",
+      "bytes": 1802,
+      "sha256": "fe2212c2ddf3af757c707dc94ceb0f568067b77c6feb7c5aeffbdf2c8b2aa9af"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/initial-evidence/source-excerpts.json",
+      "bytes": 111610,
+      "sha256": "ea493e983f8a3aceb6e111ee16663d50b82784bef03fc163d27983c7b4571d43"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/initial/execution-receipts.json",
+      "bytes": 2101,
+      "sha256": "bc0d63f84a9e1e3c9012c5fb3aa1c206c5a222be3b5cd55dd188d8f0ef723070"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/initial/pb-run-v1/pb-initial-model.json",
+      "bytes": 83010,
+      "sha256": "45d5ad11c9e98c732d97a0bb369691f73f69a18477930d6ea6045ab4e2cd080f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/initial/pb-run-v2/pb-initial-model.json",
+      "bytes": 83810,
+      "sha256": "befc959b6b7e30c4f9ac60b12d8a841fde2948b72a3e0342e69c83ca55dda51d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/initial/pb-run-v2.stdout",
+      "bytes": 648,
+      "sha256": "7bde7a4fdbac05c7f739e603b6d01760eeee09641c267d2fd7da4676beb66482"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/initial/run-v1/initial-mapping.json",
+      "bytes": 72762,
+      "sha256": "822c5ec7310843238f1df9055d49f7d3cf0579c0e51582557ba0a1787e9ef41c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/initial/source-capture.stdout",
+      "bytes": 25,
+      "sha256": "5c60b01345e1b449f88aaa204a670f30566a9509662a9768895139ad0e523bdd"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/initial/stage60-input-identity.json",
+      "bytes": 1830,
+      "sha256": "d7bfe70762b6cfbd48040fb98270a9ec1daee0fd249ed698fc19ddd123930078"
+    }
+  ],
+  "scope_exclusions": [
+    "no new market data",
+    "no old parser/Lean/control reruns",
+    "no production/formal/doctrine/Progress/goal changes",
+    "no external submission",
+    "no original Completed or F2 qualification"
+  ]
+}

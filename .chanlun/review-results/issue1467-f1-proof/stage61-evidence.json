@@ -1,0 +1,164 @@
+{
+  "schema": "stage61-integrated-evidence-v1",
+  "utc": "2026-10-05T03:48:11.761209+00:00",
+  "files": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/Intent-v1.md",
+      "bytes": 1675,
+      "sha256": "aab1f32a46379f3cb5b48aa5aee9889cdb01a6e312709a8a5cf357f5413205e1"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/ScopeCorrections-v1.md",
+      "bytes": 3653,
+      "sha256": "93f0cec0e740a072b4f80d9ed9a66cb1e3d6cca69972699d0e6cf1a639916a27"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/c-third-child-obligation.md",
+      "bytes": 2341,
+      "sha256": "72aab750f12222d32b29e76511153f0926eda20d39e7c7bd003ff80a486edd5a"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/independent-initial-review.md",
+      "bytes": 17202,
+      "sha256": "a2d8923de98a58cada92e0e1eb03cf5f81bf7d160abd69e29418fa9ac056ac3e"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/independent-trend-review.md",
+      "bytes": 10998,
+      "sha256": "2704956e4a23524afcc10a05b9c3ca6fa323bb63a4b7e491fc28d9a1c315c912"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/initial-completion-model.md",
+      "bytes": 27048,
+      "sha256": "a8ff18c25bfbda81d691d556d7e9014f77414d0dffa50474589f2d1319414730"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/initial-evidence/capture-sources.mjs",
+      "bytes": 4144,
+      "sha256": "e3b45b05a6547006039e8e3df57be9d617043a1c91c239ee6b1850a0917c80f1"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/initial-evidence/inspect-initial.mjs",
+      "bytes": 6132,
+      "sha256": "59e6c193e2a8ac53aa2d5f832b7f5e0c23b8accdadb624c9a00f8261c97d6db2"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/initial-evidence/inspect-pb-initial.mjs",
+      "bytes": 4359,
+      "sha256": "0db60b49a5dcf753f6c7c07be8aa1b4edaf5b8c91b7db1558072311d20911f22"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/initial-evidence/manifest-v1.json",
+      "bytes": 14579,
+      "sha256": "78877fb4d36cc33f0a76342ec46afc8d522f1109271d46dd391b7b41071673e1"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/initial-evidence/review-request.md",
+      "bytes": 1802,
+      "sha256": "fe2212c2ddf3af757c707dc94ceb0f568067b77c6feb7c5aeffbdf2c8b2aa9af"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/initial-evidence/source-excerpts.json",
+      "bytes": 111610,
+      "sha256": "ea493e983f8a3aceb6e111ee16663d50b82784bef03fc163d27983c7b4571d43"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/trend-completion.md",
+      "bytes": 13876,
+      "sha256": "abfb823f635bcffe917e625f00fc505402166a782da8003d954f6268c16f33c1"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/trend-evidence/build_check.mjs",
+      "bytes": 14034,
+      "sha256": "a83cc453925a22114fd831641719a0b6f9565f03b129a929ec57050a6382b826"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/trend-evidence/capture_sources.mjs",
+      "bytes": 2233,
+      "sha256": "cd7d5ca3315a6d39c43198239c9c774a65ea6c09305c50dc0f317a3d01b24ffa"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/trend-evidence/freeze.mjs",
+      "bytes": 4154,
+      "sha256": "4986a61be4f20044822071ec619e62641017c7f1dfcdc7e518f15ad2040a8e92"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/trend-evidence/manifest-v1.json",
+      "bytes": 10609,
+      "sha256": "6f067bb043d35b5650f9a281cfba8efd3abf77e73ac2d8e082b8e1c7155bace7"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/trend-evidence/reference_probe.rs",
+      "bytes": 1789,
+      "sha256": "0a1d0efcba43be0e8af52a08da2b8efa134c8aa9b3af8d3f8a9e00bbdb372ca4"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage61/trend-evidence/template-v1.md",
+      "bytes": 5224,
+      "sha256": "5d603f4de8f9aba3843802e8e0b3b4bb0f716fde538b6646283e118ef7ce999a"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage61CompletionAndRankContracts.md",
+      "bytes": 4103,
+      "sha256": "74f706554ac9d5e81dc9e19f9496c281e7372e49ed7c73a80fd479e648828b24"
+    }
+  ],
+  "external": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/c-three-child-geometry-v1.json",
+      "bytes": 3668,
+      "sha256": "c20488f5d88617be0ac488ca338f71798c7e8753579e65b2e7556dca9b10f1e2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/initial-review/completion-receipt.json",
+      "bytes": 3444,
+      "sha256": "198bf20b7ef027d49f6310c4173a6287f0959130abcd0f5c562d4c647a733e65"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/initial-review/checks.json",
+      "bytes": 32763,
+      "sha256": "c164c60fd3dd0397b8fb30e26a895007203ae224d46435d003610cc8adecbed3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend-review/completion-receipt-v1.json",
+      "bytes": 2048,
+      "sha256": "30b4128bfc17af470aad41dbbe78a245b8b415186518cd4c09de14c5a10b1ff0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/trend-review/independent-check-receipt-v1.json",
+      "bytes": 25662,
+      "sha256": "d070fd47deae36e47e2dff61a17a36d89a003764463c8f4deee9cf95862eab57"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/delegation-v1.json",
+      "bytes": 895,
+      "sha256": "a7d4c7bbdca5139968f0ee0a946b2de5ca9d1466aa13216cd4c3ce8a08204400"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/issue865-comments-readonly.json",
+      "bytes": 17432,
+      "sha256": "c4d0a9661ed71b6593f727d60f67277ec920ba065f7ef5e37f7cf2cef500a2a0"
+    }
+  ],
+  "findings": {
+    "initial-review:F1": "negative return wording corrected; PENDING repair review",
+    "initial-review:F2": "HAdj explicit; no generic P-only exclusion; PENDING repair review",
+    "F61-T1": "completed-comparator H_b explicit, original sufficient-list not adopted; PENDING repair review"
+  },
+  "scope": {
+    "initial_stroke_kernel": "specific #812 identity conflict, not all f1",
+    "PB_init": "finite partially assigned interpretation, no original whole completion",
+    "NoPP": "conditional on actual NoPP adjacency preservation, not child-table adjacency alone",
+    "trend_first_failure": "selected P1 strict comparison false, not semantic not-completed",
+    "c_three_child": "conditional q kernel obligation under extra H3, no current high kernel or automatic rank claim"
+  },
+  "new_market_samples": 0,
+  "new_Lean_roots": 0,
+  "original_P_F1_F2_qualified": false,
+  "goal_mutated": false,
+  "own_progress_patch": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage61/progress-own.patch",
+    "bytes": 2037,
+    "sha256": "3cda65d593f3993bfa404075682daa79f95f4bc724ab14e37ecc2d63d5e4a168"
+  }
+}
