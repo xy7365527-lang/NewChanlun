@@ -827,3 +827,299 @@ mod tests {
         std::fs::write(report, serde_json::to_vec_pretty(&out).unwrap()).unwrap();
     }
 }
+
+/// 正常副本的离线来源体积测量；不接入业务、Keeper接纳或旧codec根播种。
+#[cfg(all(test, feature = "s_capture_native_testonly", unix))]
+mod counts_footprint_tests {
+    use super::super::{request_audit::RequestAuditContext, state};
+    use super::*;
+    use std::collections::HashSet;
+    use std::os::unix::fs::MetadataExt;
+    use std::path::PathBuf;
+    use std::time::Instant;
+
+    const OWNED_DIR: &str = "/Volumes/AgentStorage/issue1394-counts-footprint-owned-20261005-r1";
+    const S7: usize = 512 * 1024 * 1024;
+
+    struct Recorder<'a, S> {
+        inner: S,
+        digests: &'a mut HashSet<sc::NodeDigest>,
+    }
+    impl<S: sc::NodeSource> sc::NodeSource for Recorder<'_, S> {
+        fn read(&mut self, digest: &sc::NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+            let result = self.inner.read(digest)?;
+            if matches!(&result, sc::NodeRead::Found { .. }) {
+                self.digests.insert(*digest);
+            }
+            Ok(result)
+        }
+        fn checked_read(
+            &mut self,
+            digest: &sc::NodeDigest,
+        ) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
+            let result = self.inner.checked_read(digest)?;
+            if result.is_some() {
+                self.digests.insert(*digest);
+            }
+            Ok(result)
+        }
+    }
+
+    fn measured(
+        pool: &Pool,
+        digests: &HashSet<sc::NodeDigest>,
+    ) -> Result<serde_json::Value, String> {
+        // 97N沿用现Pool::build的实测原配方，避免另写费用常数。
+        if pool.nodes == 0 {
+            return Err("CountsFootprintEmptyOriginalCapture".into());
+        }
+        let unit = pool.source_cost.node_digest_tag_certificate_bytes / pool.nodes;
+        if mul(unit, pool.nodes)? != pool.source_cost.node_digest_tag_certificate_bytes {
+            return Err("CountsFootprintOriginalFeeInvalid".into());
+        }
+        let body = digests.iter().try_fold(0, |sum, digest| {
+            let (_tag, body) = pool.originals.original(digest).ok_or(
+                "CountsFootprintScopeError: dependency is not a full capture original; no overlay synthesis",
+            )?;
+            add(sum, body.len())
+        })?;
+        let certificate = mul(digests.len(), unit)?;
+        Ok(serde_json::json!({
+            "unique_nodes":digests.len(),"node_body_bytes":body,
+            "node_digest_tag_certificate_bytes":certificate,
+            "source_bytes":add(body,certificate)?,
+            "diagnostic_digest_set_capacity_payload_bytes":mul(digests.capacity(),std::mem::size_of::<sc::NodeDigest>())?,
+            "scope":"full capture original tag/body; shared unique digest union; source fee excludes diagnostic containers and heap overhead"
+        }))
+    }
+
+    fn existing_owned_db() -> (PathBuf, Vec<u8>) {
+        let owner = PathBuf::from(std::env::var("COUNTS_FOOTPRINT_OWNER_DIR").unwrap());
+        assert!(owner.is_absolute());
+        assert_eq!(owner, PathBuf::from(OWNED_DIR), "仅接受本轮新owner目录");
+        assert_eq!(owner.canonicalize().unwrap(), owner, "owner不得经symlink");
+        let db = PathBuf::from(std::env::var("COUNTS_FOOTPRINT_DB").unwrap());
+        assert!(db.is_absolute());
+        assert_eq!(db.canonicalize().unwrap(), db, "DB不得经symlink");
+        assert_eq!(db.parent(), Some(owner.as_path()));
+        let metadata = std::fs::symlink_metadata(&db).unwrap();
+        assert!(metadata.is_file());
+        assert_eq!(metadata.nlink(), 1, "DB不得硬链到封存原件");
+        for suffix in ["-wal", "-shm"] {
+            let sidecar = PathBuf::from(format!("{}{suffix}", db.to_str().unwrap()));
+            if sidecar.exists() {
+                assert_eq!(sidecar.canonicalize().unwrap(), sidecar);
+                let metadata = std::fs::symlink_metadata(&sidecar).unwrap();
+                assert!(metadata.is_file());
+                assert_eq!(metadata.nlink(), 1, "sidecar不得硬链到封存原件");
+            }
+        }
+        // 根runner在开库前核stat/hash/来源链；本测试保留其证书摘要，不冒称复核整链。
+        let certificate = std::fs::read(owner.join("OWNER-CERTIFICATE.json")).unwrap();
+        let _: serde_json::Value = serde_json::from_slice(&certificate).unwrap();
+        (db, certificate)
+    }
+
+    #[test]
+    #[ignore]
+    fn counts_footprint_actual_owned_normal_diagnostic() {
+        let started = Instant::now();
+        let (db, certificate) = existing_owned_db();
+        let report = PathBuf::from(std::env::var("COUNTS_FOOTPRINT_REPORT").unwrap());
+        assert!(report.is_absolute());
+        assert!(!report.exists(), "不得覆盖既有报告或原料");
+        assert_ne!(report, db);
+        let legacy: usize = std::env::var("COUNTS_FOOTPRINT_LEGACY_BYTES")
+            .unwrap()
+            .parse()
+            .unwrap();
+        let measured_legacy = crate::cache::retained_bytes();
+        assert_eq!(legacy, measured_legacy, "必须等于当前进程原legacy来源计量");
+        let expected_cuts: usize = std::env::var("COUNTS_FOOTPRINT_EXPECTED_CUTS")
+            .unwrap()
+            .parse()
+            .unwrap();
+        let remainder = S7.checked_sub(legacy).expect("legacy已超过S7");
+        let mut conn =
+            rusqlite::Connection::open_with_flags(&db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+                .unwrap();
+        conn.pragma_update(None, "query_only", true).unwrap();
+        // 不设immutable：本轮合法最新提交仍依赖WAL；只读主DB/WAL，SHM允许读者锁。
+        let tx = conn.transaction().unwrap();
+        assert_eq!(
+            tx.pragma_query_value(None, "query_only", |r| r.get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+        // 空Keeper只让既有完整Native原核记录真实Key/Counts/Binding，不接纳/播种旧证明。
+        let mut context = RequestAuditContext::with_source_keeper(Keeper::new(S7));
+        let audit_started = Instant::now();
+        let audited = state::audit_native_in_request(&tx, &mut context).unwrap();
+        let audit_ns = audit_started.elapsed().as_nanos().to_string();
+        assert_eq!((context.cold, context.hits), (1, 0));
+        assert!(audited.budget.is_none());
+        assert_eq!(
+            audited.cuts.len(),
+            expected_cuts,
+            "完整审核cut数量必须等于根绑定的正常副本"
+        );
+        let slot = context.take().expect("正常完整审计必须留下capture");
+        let pending = slot.source_pending.expect("原核必须封存真实Counts");
+        assert_eq!(pending.hits, 0);
+        assert_eq!(pending.cold, audited.cuts.len());
+        assert_eq!(pending.proofs.len(), audited.cuts.len());
+        assert!(!pending.proofs.is_empty());
+        // 原件owner保持活着；费用直接用当前原Pool配方，移出旧AuditMemo后不恢复任何旧memo。
+        let pool = Pool::build(
+            slot.capture,
+            slot.node_count,
+            pending.binding,
+            pending.proofs,
+        )
+        .unwrap();
+        assert!(pool.originals.native_frame_reuse_active_for_testonly());
+        let full_retention = pool.originals.retention();
+        assert_eq!(
+            full_retention["captured_nodes"].as_u64().unwrap() as usize,
+            pool.nodes
+        );
+        let measure_started = Instant::now();
+        let names = ["objects", "witnesses", "observations"];
+        let mut roots: [Vec<sc::ContentRef>; 3] = std::array::from_fn(|_| Vec::new());
+        let mut navigation = HashSet::new();
+        let navigation_started = Instant::now();
+        {
+            let mut recorder = Recorder {
+                inner: pool.originals.reader(),
+                digests: &mut navigation,
+            };
+            for (cut, proof) in audited.cuts.iter().zip(&pool.proofs) {
+                assert_eq!(proof.key, Key::of(cut));
+                // 现path原核只枚举顶层骨架/完整键及选中值header，不递归verify生成态。
+                let fields = sc::path::lookup_fields_refview(
+                    &mut recorder,
+                    cut.roots.generated_state.view(),
+                    &names,
+                    true,
+                )
+                .unwrap();
+                for (i, name) in names.iter().enumerate() {
+                    roots[i].push(fields.get(name).expect("三字段必须存在").clone());
+                }
+            }
+        }
+        let navigation_ns = navigation_started.elapsed().as_nanos().to_string();
+        let mut categories = Vec::new();
+        let mut union = navigation.clone();
+        for (name, refs) in names.iter().zip(&roots) {
+            let category_started = Instant::now();
+            let mut digests = HashSet::new();
+            {
+                let mut recorder = Recorder {
+                    inner: pool.originals.reader(),
+                    digests: &mut digests,
+                };
+                // 每类别调用各自创建Verifier::new与全新AuditMemo；跨cut在本类别内共享展开。
+                sc::audit_verify_many_refview(
+                    &mut recorder,
+                    refs.iter().map(sc::RefView::from),
+                    sc::Mode::Public,
+                )
+                .unwrap();
+            }
+            let root_count = refs
+                .iter()
+                .map(|r| r.digest().unwrap())
+                .collect::<HashSet<_>>()
+                .len();
+            let cost = measured(&pool, &digests).unwrap();
+            union.extend(digests);
+            categories.push(
+                serde_json::json!({"category":name,"root_occurrences":refs.len(),
+                "unique_roots":root_count,"fresh_verifier":true,"closure":cost,
+                "elapsed_ns":category_started.elapsed().as_nanos().to_string()}),
+            );
+        }
+        let navigation_cost = measured(&pool, &navigation).unwrap();
+        let union_cost = measured(&pool, &union).unwrap();
+        let union_nodes_bytes =
+            usize::try_from(union_cost["source_bytes"].as_u64().unwrap()).unwrap();
+        let fixed = pool
+            .source_cost
+            .total
+            .checked_sub(pool.source_cost.node_body_bytes)
+            .unwrap()
+            .checked_sub(pool.source_cost.node_digest_tag_certificate_bytes)
+            .unwrap()
+            .checked_sub(pool.source_cost.codec_root_certificate_bytes)
+            .unwrap();
+        let candidate_material = add(fixed, union_nodes_bytes).unwrap();
+        let fits_material = candidate_material <= remainder;
+        let exact_rows = pool.binding.rows.iter().map(|r|serde_json::json!({
+            "sql":r.sql,"row_count":r.rows.len(),"column_count":r.columns.len(),
+            "scope_cells":r.scope.len(),"fee_status":"原Pool配方逐storage-class及完整字节计费；不导出原行正文"
+        })).collect::<Vec<_>>();
+        let mut out = serde_json::Map::new();
+        for part in [
+            serde_json::json!({
+            "diagnostic_only":true,"normal_complete_audit_success":true,
+            "formal_S_9011_started":false,"whole_resource_qualified":false,
+            "scope":"one new owned normal read-only transaction; original capture retained; navigation plus three independent fresh-verifier category closures; no per-cut independent proof measurement",
+            "database":db,"owner_certificate_sha256":crate::sha256_hex(&certificate),
+            "owner_source_identity_hash_validation":"root runner before open; test checks exclusive owner path and preserves certificate hash",
+            "sqlite_read_mode":"READ_ONLY + query_only; WAL retained; normal owned SHM reader changes allowed; no immutable/checkpoint",
+            "cut_count":audited.cuts.len(),"source_calls":pending.cold,"source_hits":pending.hits,
+            "expected_cut_count":expected_cuts,"actual_cut_count":audited.cuts.len(),
+            "audited_generation":audited.cuts.last().unwrap().metadata.generation,
+            "raw_row_count":audited.raw.view().len(),"full_capture_unique_nodes":pool.nodes,
+            }),
+            serde_json::json!({
+            "full_capture_source_cost":pool.source_cost,"full_capture_retention":full_retention,
+            "navigation":navigation_cost,"navigation_elapsed_ns":navigation_ns,
+            "navigation_scope":"top-level OBJECT/SEQ/FIELD_PAIR and complete key comparisons, selected value headers; no full generated_state verify",
+            "categories":categories,"deduplicated_union":union_cost,
+            "sql_binding":exact_rows,"counts_proof_count":pool.proofs.len(),
+            "frontier_certificate_bytes":8,"sql_and_keys_fee_status":"actual original Binding/Key/Counts from successful Native audit; original Pool::build accounting unchanged",
+            "codec_root_certificate_bytes_separate":pool.source_cost.codec_root_certificate_bytes,
+            "codec_root_scope":"current full capture certificates only; not included in Counts material candidate; no cross-request seeding",
+            "candidate_material_source_bytes_without_codec_roots":candidate_material,
+            "persistent_dependency_metadata_bytes":null,
+            "dependency_metadata_status":"not implemented/qualified; diagnostic digest set capacity is disclosed separately and cannot stand for candidate retained metadata",
+            }),
+            serde_json::json!({
+            "s7_bytes":S7,"legacy_retained_source_bytes":legacy,"s7_remainder_bytes":remainder,
+            "legacy_environment_bytes":legacy,"legacy_measured_bytes":measured_legacy,
+            "all_recorded_digests_are_capture_originals":true,"overlay_dependencies":0,
+            "original_fee_accounting_success":true,
+            "all_measured_materials_fit_remainder":fits_material,
+            "material_only_all_proof_count_if_fit":if fits_material {Some(pool.proofs.len())} else {None},
+            "admissible_complete_proof_count":null,
+            "budget_conclusion":if fits_material {"本副本全部测得来源原料低于原S7余量；依赖元数据及运行资源尚未资格化，不能据此宣布整份proof可接纳或9011可容纳"} else {"本副本全部来源原料已超过原S7余量；本轮无逐cut独立proof闭包，不能猜测可接纳数量"},
+            "audit_elapsed_ns":audit_ns,"measurement_elapsed_ns":measure_started.elapsed().as_nanos().to_string(),
+            "total_elapsed_ns":started.elapsed().as_nanos().to_string(),
+            "elapsed_scope":"offline diagnostic audit and extra traversal; not service request time or complete 9011 estimate",
+            "s7_scope":"declared original normal-domain source allowance; measurement issues no budget writes"
+            }),
+        ] {
+            let serde_json::Value::Object(fields) = part else {
+                unreachable!();
+            };
+            out.extend(fields);
+        }
+        let out = serde_json::Value::Object(out);
+        drop(tx); // 只读事务rollback；不调用COMMIT、写表或业务handler。
+        use std::io::Write;
+        let bytes = serde_json::to_vec_pretty(&out).unwrap();
+        let mut output = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&report)
+            .unwrap();
+        output.write_all(&bytes).unwrap();
+        eprintln!(
+            "counts_footprint_report={} sha256={}",
+            report.display(),
+            crate::sha256_hex(&bytes)
+        );
+    }
+}
