@@ -180,10 +180,11 @@ pub(super) fn audit_native_in_request(
         };
         let (capture, node_count, prior, same_nodes, source_same) = match prior {
             Some(prior) => {
-                let same_nodes = content_store::current_originals_equal_for_request(
+                let same_nodes = content_store::current_originals_equal_for_request_with_scratch(
                     tx,
                     &prior.capture,
                     prior.node_count,
+                    context.original_scan_scratch(),
                 )
                 .map_err(err)?;
                 let (capture, count, source_same) = if same_nodes {

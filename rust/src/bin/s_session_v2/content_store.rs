@@ -2001,6 +2001,78 @@ pub(crate) fn capture_for_prototype(
     capture_for_request_prototype(tx).map(|(capture, _)| capture)
 }
 
+/// #1394 Native：digest只复制到栈上32字节；非BLOB仍调用原Vec解码取得原类型错误。
+/// 不提前读取tag/body，摘要长度仍先于标签域与正文错误。
+#[cfg(any(test, feature = "s_capture_native_testonly"))]
+fn request_capture_digest(row: &rusqlite::Row<'_>) -> Result<NodeDigest, CodecError> {
+    #[cfg(feature = "s_capture_native_testonly")]
+    {
+        match row.get_ref(0).map_err(storage_error)? {
+            rusqlite::types::ValueRef::Blob(bytes) => {
+                let digest = bytes
+                    .try_into()
+                    .map_err(|_| storage_error("捕获摘要长度"))?;
+                #[cfg(test)]
+                PROTOTYPE_CAPTURE_WORK.with(|work| {
+                    work.borrow_mut().digest_blob_borrows += 1;
+                });
+                Ok(digest)
+            }
+            _ => {
+                // 保持rusqlite的列索引、列名、storage class和原InvalidColumnType。
+                #[cfg(test)]
+                PROTOTYPE_CAPTURE_WORK.with(|work| {
+                    work.borrow_mut().digest_vec_decode_calls += 1;
+                });
+                let digest: Vec<u8> = row.get(0).map_err(storage_error)?;
+                digest.try_into().map_err(|_| storage_error("捕获摘要长度"))
+            }
+        }
+    }
+    #[cfg(not(feature = "s_capture_native_testonly"))]
+    {
+        #[cfg(test)]
+        PROTOTYPE_CAPTURE_WORK.with(|work| {
+            work.borrow_mut().digest_vec_decode_calls += 1;
+        });
+        let digest: Vec<u8> = row.get(0).map_err(storage_error)?;
+        digest.try_into().map_err(|_| storage_error("捕获摘要长度"))
+    }
+}
+
+/// 请求独占的去重容器；容量不是额度，也不是可跨请求复用的审计结论。
+#[cfg(feature = "s_capture_native_testonly")]
+#[derive(Default)]
+pub(crate) struct OriginalScanScratch {
+    seen: std::collections::HashSet<NodeDigest>,
+    #[cfg(test)]
+    capacity_growths: u64,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl OriginalScanScratch {
+    pub(crate) fn capacity_nodes(&self) -> usize {
+        self.seen.capacity()
+    }
+    #[cfg(test)]
+    pub(crate) fn capacity_growths(&self) -> u64 {
+        self.capacity_growths
+    }
+    fn begin(&mut self) {
+        // 即使上次扫描在读错处返回，下一次也从空集合重读全部当前SQL行。
+        self.seen.clear();
+    }
+    fn insert(&mut self, digest: NodeDigest) -> bool {
+        #[cfg(test)]
+        let before = self.seen.capacity();
+        let first = self.seen.insert(digest);
+        #[cfg(test)]
+        if self.seen.capacity() > before {
+            self.capacity_growths += 1;
+        }
+        first
+    }
+}
+
 /// 计数取自刚构建的完整原件集合，只供私有Native请求slot核对覆盖；不增加capture字段。
 #[cfg(any(test, feature = "s_capture_native_testonly"))]
 pub(crate) fn capture_for_request_prototype(
@@ -2019,8 +2091,7 @@ pub(crate) fn capture_for_request_prototype(
         .map_err(storage_error)?;
     let mut rows = stmt.query([]).map_err(storage_error)?;
     while let Some(r) = rows.next().map_err(storage_error)? {
-        let d: Vec<u8> = r.get(0).map_err(storage_error)?;
-        let d: NodeDigest = d.try_into().map_err(|_| storage_error("捕获摘要长度"))?;
+        let d = request_capture_digest(r)?;
         let t: i64 = r.get(1).map_err(storage_error)?;
         let t: u8 = t.try_into().map_err(|_| storage_error("捕获标签域"))?;
         let body: Vec<u8> = r.get(2).map_err(storage_error)?;
@@ -2040,6 +2111,19 @@ pub(crate) fn current_originals_equal_for_request(
     capture: &s_content::AuditCapture,
     expected_nodes: usize,
 ) -> Result<bool, CodecError> {
+    // 既有测试/独立调用者保留兼容入口；请求主路径使用独占scratch入口。
+    let mut scratch = OriginalScanScratch::default();
+    current_originals_equal_for_request_with_scratch(tx, capture, expected_nodes, &mut scratch)
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn current_originals_equal_for_request_with_scratch(
+    tx: &Transaction<'_>,
+    capture: &s_content::AuditCapture,
+    expected_nodes: usize,
+    scratch: &mut OriginalScanScratch,
+) -> Result<bool, CodecError> {
+    scratch.begin();
     ensure_format(tx)?;
     #[cfg(test)]
     PROTOTYPE_CAPTURE_WORK.with(|work| {
@@ -2051,11 +2135,9 @@ pub(crate) fn current_originals_equal_for_request(
         .prepare("SELECT digest,tag,body FROM s_content_nodes")
         .map_err(storage_error)?;
     let mut rows = stmt.query([]).map_err(storage_error)?;
-    let mut seen = std::collections::HashSet::new();
     let mut equal = true;
     while let Some(r) = rows.next().map_err(storage_error)? {
-        let d: Vec<u8> = r.get(0).map_err(storage_error)?;
-        let d: NodeDigest = d.try_into().map_err(|_| storage_error("捕获摘要长度"))?;
+        let d = request_capture_digest(r)?;
         let t: i64 = r.get(1).map_err(storage_error)?;
         let t: u8 = t.try_into().map_err(|_| storage_error("捕获标签域"))?;
         let body = match r.get_ref(2).map_err(storage_error)? {
@@ -2069,13 +2151,13 @@ pub(crate) fn current_originals_equal_for_request(
         #[cfg(test)]
         record_prototype_row(body.len());
         // 必须去重；仅count+lookup会接受重复旧digest替代遗漏旧digest的坏schema。
-        let first = seen.insert(d);
+        let first = scratch.insert(d);
         let same = capture
             .original(&d)
             .is_some_and(|(tag, original)| tag == t && original == body);
         equal &= first && same;
     }
-    Ok(equal && seen.len() == expected_nodes)
+    Ok(equal && scratch.seen.len() == expected_nodes)
 }
 
 /// #1394 隔离测试：本次完整捕获同时逐tuple绑定旧原件超集，允许正常新增节点。
@@ -2102,10 +2184,7 @@ pub(crate) fn capture_with_original_subset_for_source_cache(
         .map_err(storage_error)?;
     let mut rows = stmt.query([]).map_err(storage_error)?;
     while let Some(row) = rows.next().map_err(storage_error)? {
-        let digest: Vec<u8> = row.get(0).map_err(storage_error)?;
-        let digest: NodeDigest = digest
-            .try_into()
-            .map_err(|_| storage_error("捕获摘要长度"))?;
+        let digest = request_capture_digest(row)?;
         let tag: i64 = row.get(1).map_err(storage_error)?;
         let tag: u8 = tag.try_into().map_err(|_| storage_error("捕获标签域"))?;
         let body: Vec<u8> = row.get(2).map_err(storage_error)?;
@@ -2136,6 +2215,8 @@ pub(crate) struct PrototypeCaptureWork {
     pub rebind_scans: u64,
     pub decoded_rows: u64,
     pub body_bytes: u64,
+    pub digest_blob_borrows: u64,
+    pub digest_vec_decode_calls: u64,
 }
 #[cfg(test)]
 thread_local! {

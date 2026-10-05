@@ -28,6 +28,8 @@ impl ManifestWorkspaceBudget {
 pub(super) struct RequestAuditContext {
     slot: Option<VerifiedHistoricalSlot>,
     #[cfg(feature = "s_capture_native_testonly")]
+    original_scan_scratch: super::content_store::OriginalScanScratch,
+    #[cfg(feature = "s_capture_native_testonly")]
     source_keeper: Option<super::cross_request_source_cache::Keeper>,
     #[cfg(feature = "s_capture_native_testonly")]
     workspace_budget: Option<ManifestWorkspaceBudget>,
@@ -42,6 +44,8 @@ impl Drop for RequestAuditContext {
     fn drop(&mut self) {
         // handler及Native bootstrap的正常/错误出口都在此释放slot原件，返回Driver前已释放。
         drop(self.slot.take());
+        #[cfg(feature = "s_capture_native_testonly")]
+        drop(std::mem::take(&mut self.original_scan_scratch));
         #[cfg(test)]
         super::state::trace_event("request_history_context_released", None);
     }
@@ -56,6 +60,16 @@ pub(super) struct VerifiedHistoricalSlot {
     pub(super) source_pending: Option<super::cross_request_source_cache::PendingPool>,
 }
 impl RequestAuditContext {
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn original_scan_scratch(
+        &mut self,
+    ) -> &mut super::content_store::OriginalScanScratch {
+        &mut self.original_scan_scratch
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn original_scan_scratch_capacity_nodes(&self) -> usize {
+        self.original_scan_scratch.capacity_nodes()
+    }
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn with_source_keeper(keeper: super::cross_request_source_cache::Keeper) -> Self {
         let mut context = Self::default();
@@ -332,6 +346,230 @@ impl HistoricalDependencyBinding {
 mod tests {
     use super::super::{prepared::tests::Fixture, s_allocation, state};
     use super::*;
+
+    // 正常发布材料的完整输出；与已有离线diagnostic的complete字段逐项一致。
+    fn complete_native_output(tx: &Transaction<'_>, audited: &state::AuditedState) -> String {
+        use super::super::{canonical_json, v2};
+        let cuts = audited
+            .cuts
+            .iter()
+            .map(|c| {
+                format!(
+                    "{:?}|{:?}|{:?}|{:?}|{:?}",
+                    c.metadata, c.roots, c.batch_id, c.snapshot, c.delta
+                )
+            })
+            .collect::<Vec<_>>();
+        canonical_json(&serde_json::json!({
+            "raw":audited.raw,"cuts":cuts,
+            "objects":format!("{:?}",audited.objects),
+            "auxiliary":format!("{:?}",audited.auxiliary),
+            "clock":v2::stored_clock(tx).unwrap().value
+        }))
+    }
+
+    #[test]
+    fn request_native_three_capture_entries_borrow_digest_and_match_owned_sql_baseline() {
+        use super::super::content_store;
+        use newchan_rust::s_content::NodeDigest;
+        let mut f = Fixture::new();
+        publish_one(&mut f);
+        let tx = f.conn.transaction().unwrap();
+        // 执行原SELECT与原digest/tag/body顺序，实际构建原32字节Vec owner作计数对照。
+        // 计的是成功构建的digest Vec owner，不冒称全局malloc事件或完整heap分配。
+        let mut baseline = Vec::new();
+        let mut digest_vec_owners = 0u64;
+        let mut stmt = tx
+            .prepare("SELECT digest,tag,body FROM s_content_nodes")
+            .unwrap();
+        let mut rows = stmt.query([]).unwrap();
+        while let Some(row) = rows.next().unwrap() {
+            let digest: Vec<u8> = row.get(0).unwrap();
+            assert_eq!(digest.len(), 32);
+            assert!(digest.capacity() >= 32);
+            digest_vec_owners += 1;
+            let digest: NodeDigest = digest.try_into().unwrap();
+            let tag: i64 = row.get(1).unwrap();
+            let tag: u8 = tag.try_into().unwrap();
+            let body: Vec<u8> = row.get(2).unwrap();
+            baseline.push((digest, tag, body));
+        }
+        drop(rows);
+        drop(stmt);
+        assert!(!baseline.is_empty());
+        assert_eq!(digest_vec_owners, baseline.len() as u64);
+        let before = content_store::prototype_capture_work_on_thread();
+        let (capture, count) = content_store::capture_for_request_prototype(&tx).unwrap();
+        assert_eq!(count, baseline.len());
+        let mut scratch = content_store::OriginalScanScratch::default();
+        assert!(
+            content_store::current_originals_equal_for_request_with_scratch(
+                &tx,
+                &capture,
+                count,
+                &mut scratch
+            )
+            .unwrap()
+        );
+        let (fresh, fresh_count, subset) =
+            content_store::capture_with_original_subset_for_source_cache(
+                &tx,
+                Some((&capture, count)),
+            )
+            .unwrap();
+        assert!(subset);
+        assert_eq!(fresh_count, count);
+        for (digest, tag, body) in &baseline {
+            assert_eq!(capture.original(digest), Some((*tag, body.as_slice())));
+            assert_eq!(fresh.original(digest), Some((*tag, body.as_slice())));
+            if !body.is_empty() {
+                assert_ne!(
+                    capture.original(digest).unwrap().1.as_ptr(),
+                    fresh.original(digest).unwrap().1.as_ptr(),
+                    "两个fresh捕获各自持有正文owner"
+                );
+            }
+        }
+        let after = content_store::prototype_capture_work_on_thread();
+        assert_eq!(after.capture_builds - before.capture_builds, 2);
+        assert_eq!(after.node_scans - before.node_scans, 3);
+        assert_eq!(after.decoded_rows - before.decoded_rows, 3 * count as u64);
+        assert_eq!(
+            after.digest_blob_borrows - before.digest_blob_borrows,
+            3 * count as u64
+        );
+        assert_eq!(
+            after.digest_vec_decode_calls - before.digest_vec_decode_calls,
+            0
+        );
+        println!(
+            "{}",
+            serde_json::json!({
+                "scope":"three_full_native_sql_scans_digest_vec_owner_calls_not_global_heap",
+                "rows_per_scan":count,"owned_baseline_digest_vec_owners":digest_vec_owners,
+                "native_digest_blob_borrows":after.digest_blob_borrows-before.digest_blob_borrows,
+                "native_digest_vec_decode_calls":after.digest_vec_decode_calls-before.digest_vec_decode_calls,
+                "scratch_capacity_nodes":scratch.capacity_nodes()
+            })
+        );
+    }
+
+    #[test]
+    fn request_native_scan_scratch_reuses_capacity_across_complete_transactions() {
+        use super::super::content_store;
+        let mut f = Fixture::new();
+        publish_one(&mut f);
+        let mut context = RequestAuditContext::default();
+        assert_eq!(context.original_scan_scratch_capacity_nodes(), 0);
+        audit(&mut f, &mut context).unwrap();
+        let nodes = context.slot.as_ref().unwrap().node_count;
+        let before = content_store::prototype_capture_work_on_thread();
+        audit(&mut f, &mut context).unwrap();
+        let capacity = context.original_scan_scratch_capacity_nodes();
+        let growths = context.original_scan_scratch.capacity_growths();
+        assert!(capacity >= nodes && growths > 0);
+        let expected = Rc::downgrade(&context.slot.as_ref().unwrap().result);
+        for _ in 0..3 {
+            audit(&mut f, &mut context).unwrap();
+            assert_eq!(context.original_scan_scratch_capacity_nodes(), capacity);
+            assert_eq!(context.original_scan_scratch.capacity_growths(), growths);
+        }
+        let after = content_store::prototype_capture_work_on_thread();
+        assert_eq!(after.node_scans - before.node_scans, 4);
+        assert_eq!(after.decoded_rows - before.decoded_rows, 4 * nodes as u64);
+        assert_eq!(
+            after.digest_blob_borrows - before.digest_blob_borrows,
+            4 * nodes as u64
+        );
+        assert_eq!(
+            after.digest_vec_decode_calls - before.digest_vec_decode_calls,
+            0
+        );
+        assert_eq!((context.cold, context.hits), (1, 4));
+        println!(
+            "{}",
+            serde_json::json!({
+                "scope":"request_only_hashset_capacity_not_heap_bytes_or_new_allowance",
+                "nodes":nodes,"capacity_nodes":capacity,
+                "first_scan_capacity_growths":growths,"later_scan_capacity_growths":0
+            })
+        );
+        drop(context);
+        assert!(expected.upgrade().is_none());
+        let mut next = RequestAuditContext::default();
+        assert_eq!(next.original_scan_scratch_capacity_nodes(), 0);
+        audit(&mut f, &mut next).unwrap();
+        assert_eq!((next.cold, next.hits), (1, 0));
+    }
+
+    #[test]
+    fn request_native_scan_scratch_cold_warm_and_legal_append_full_output_equal() {
+        use super::super::content_store;
+        use newchan_rust::s_content as sc;
+        let mut f = Fixture::new();
+        publish_one(&mut f);
+        let mut context = RequestAuditContext::default();
+        let mut old_nodes = 0usize;
+        // 第一次cold及之后warm都和独立完整Native当前事务输出逐字对拍。
+        for phase in 0..4 {
+            if phase == 2 {
+                let tx = f.conn.transaction().unwrap();
+                sc::write_value(
+                    &mut content_store::TxStore::new(&tx).unwrap(),
+                    &sc::Value::String("native-scan-scratch-valid-append".into()),
+                )
+                .unwrap();
+                let old = context.slot.as_ref().unwrap();
+                let (appended, count, old_subset) =
+                    content_store::capture_with_original_subset_for_source_cache(
+                        &tx,
+                        Some((&old.capture, old.node_count)),
+                    )
+                    .unwrap();
+                assert!(
+                    old_subset && count > old.node_count,
+                    "来源cache绑定允许合法新增，但仍逐tuple覆盖全部旧原件"
+                );
+                drop(appended);
+                tx.commit().unwrap();
+            }
+            let before = content_store::prototype_capture_work_on_thread();
+            let tx = f.conn.transaction().unwrap();
+            let cold = state::audit_native_current(&tx).unwrap();
+            let current = state::audit_native_in_request(&tx, &mut context).unwrap();
+            assert_eq!(
+                complete_native_output(&tx, &current),
+                complete_native_output(&tx, &cold),
+                "完整cold/warm输出phase {phase}"
+            );
+            drop(current);
+            drop(cold);
+            drop(tx);
+            let nodes = context.slot.as_ref().unwrap().node_count;
+            let after = content_store::prototype_capture_work_on_thread();
+            let scans = if phase == 2 { 3 } else { 2 };
+            assert_eq!(after.node_scans - before.node_scans, scans);
+            assert_eq!(
+                after.decoded_rows - before.decoded_rows,
+                scans * nodes as u64
+            );
+            assert_eq!(
+                after.digest_blob_borrows - before.digest_blob_borrows,
+                scans * nodes as u64
+            );
+            assert_eq!(
+                after.digest_vec_decode_calls - before.digest_vec_decode_calls,
+                0
+            );
+            if phase == 0 {
+                old_nodes = nodes;
+            }
+            if phase >= 2 {
+                assert!(nodes > old_nodes);
+            }
+        }
+        assert_eq!((context.cold, context.hits), (2, 2));
+    }
 
     fn publish_one(f: &mut Fixture) {
         let (envelope, token) = f.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
@@ -779,6 +1017,8 @@ mod tests {
                     "f_calls":sc::frame_calls_on_thread()-f,"sql_node_reads":content_store::sql_reads_on_thread()-sql,
                     "events":events,"work":work,"complete_sha256":digest,
                     "context_cold":context.cold,"context_hits":context.hits,
+                    "original_scan_scratch_capacity_nodes":context.original_scan_scratch_capacity_nodes(),
+                    "original_scan_scratch_capacity_scope":"request_only_hashset_entries_not_heap_bytes_or_new_allowance",
                     "exact_equal_to_frozen_baseline":exact_baseline.as_ref().map(|_|true),
                     "retained_capture":context.slot.as_ref().map(|slot|slot.capture.retention()),
                     "system_heap":system_heap_snapshot()}));
