@@ -1,0 +1,47 @@
+{
+  "run_id": "45b4e8f81efc4e71847f52ab2a17e0e6",
+  "declaration": "Stage60.exact_root",
+  "expected_type": "Stage60.ATOMS ∧ Stage60.FEATURES ∧ Stage60.CORE ∧ Stage60.FORCE",
+  "actual_type": "And Stage60.ATOMS (And Stage60.FEATURES (And Stage60.CORE Stage60.FORCE))",
+  "exact_root_passed": true,
+  "root_closure": {
+    "status": "closed",
+    "exact_root_passed": true,
+    "declaration_closed": true,
+    "scope": "expected Lean type in the recorded environment; semantic review is separate"
+  },
+  "axioms": [
+    "propext",
+    "Classical.choice",
+    "Quot.sound"
+  ],
+  "unexpected_axioms": [],
+  "unknown_dependencies": [],
+  "unsafe_dependencies": [],
+  "semantic": {
+    "status": "not_reviewed",
+    "reused": false,
+    "semantic_sha256": "932e61ec9caff506bc743a71a53e9a7db979a2f163002abeea2b82927906485a"
+  },
+  "machine_manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/run-manifest.json",
+  "freshness": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-freshness-v3.json",
+  "compiled_sources": [
+    "Origin/SourceAxioms.lean",
+    "Origin/CompleteClassification.lean",
+    "Origin/ChanlunElements.lean",
+    "Origin/SegmentFeatureSeq.lean",
+    "Origin/SegmentConstruction.lean",
+    "Origin/SegmentFeatureComplete.lean",
+    "Origin/SegmentAutoConstruct.lean",
+    "Origin/CenterStates.lean",
+    "Origin/CenterFull.lean",
+    "Origin/CenterConstruction.lean",
+    "Origin/CenterComplete.lean",
+    "Origin/Divergence.lean",
+    "Origin/ForceInterface.lean",
+    "Origin/ForceVelocity.lean",
+    "Stage60Fixture.lean",
+    "Stage60Proof.lean",
+    null
+  ]
+}

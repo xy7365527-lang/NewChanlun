@@ -1,0 +1,2402 @@
+{
+  "stage": 60,
+  "issue": 1467,
+  "map": 1465,
+  "name": "Omega60-PB-v1 author freeze",
+  "status": "author checks passed; independent new-object review pending",
+  "scope": "two finite quantity histories, their actual reference prefixes, five segment certificates per history, declared local grouping, precise force and exploratory causal candidate evaluation; no CompletedMove or F2 theorem",
+  "limits": {
+    "templates": 2,
+    "max_observations_per_template": 123,
+    "max_strokes_per_template": 30,
+    "max_proposed_segments_per_template": 6,
+    "bytes": 50233531,
+    "budget_bytes": 134217728
+  },
+  "primary": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/dynamic-construction.md",
+  "raw_root": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction",
+  "readback_inputs": [
+    "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/Stage60Fixture.lean",
+    "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/Stage60Proof.lean",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v3",
+    "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/lean-summary.json"
+  ],
+  "comparison_inputs": [
+    "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/dynamic-construction.md",
+    "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/template-v1.md",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/source-evidence-v1.json",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/T60-main.source.json",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/N60-equal-force.source.json",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/T60-main.certificate.json",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/N60-equal-force.certificate.json",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/development-v1.json",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/roles-v1.json"
+  ],
+  "files": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/Stage60Fixture.lean",
+      "bytes": 9447,
+      "sha256": "5c569612d5e18fee5924d5a0e1aa9a112b5b631ffbc1a5c2d7cc9cb0e1878084"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/Stage60Proof.lean",
+      "bytes": 2980,
+      "sha256": "f024c8f5665abab18e0c9f0b29ca6e643de8ee0c3b84743f1cb5dc56a203fb85"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/build_check.mjs",
+      "bytes": 12100,
+      "sha256": "f789823aacee7f1065679227e90ff6fcda07b866dbc416a4f24c91200d9a33f4"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/capture_sources.mjs",
+      "bytes": 2074,
+      "sha256": "795aa85fafee77fe5e1a6f59b0fa6fab7fe87956fedc5b398b47b8f8a68ceb2a"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/development_check.mjs",
+      "bytes": 3586,
+      "sha256": "473b2cda179990f654895a32d93e5b4957aba0364d1562cd5ac750950add7473"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/lean-summary.json",
+      "bytes": 1683,
+      "sha256": "bde7ea140415366f1ef07d40fd215f91439f4c67b3f901ad4121fc7299081328"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/prepare_lean.mjs",
+      "bytes": 6442,
+      "sha256": "a3ae90b5e1d30fb9dbb78207d019eb6fd904da1ee0bd3e14db392bbfaf4a63af"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/reference_probe.rs",
+      "bytes": 1617,
+      "sha256": "2e15aae202b8be9f509a5f7306d4df1e797ff24a3433d7f0f87d3a21e8b94a0d"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/role_check.mjs",
+      "bytes": 1853,
+      "sha256": "457a3c2b5748ab1fa1823ecb69e34e56a62e866b98b6181f3f72300a1b90a4ac"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/run_all.sh",
+      "bytes": 1383,
+      "sha256": "099523b5a68ecc889552b344a69bdeda2078cd45f893719fb1b563f59b4e4b62"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/template-v1.md",
+      "bytes": 3671,
+      "sha256": "d973f9012f3810bece79bd4a275ef6f4a8e9ef44c6324270451d6667ab1aa9b2"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/dynamic-construction.md",
+      "bytes": 15208,
+      "sha256": "9dbf1077f566dbf26a3e2d20d7fb698031f68078d3e4ea7f500b3d9efd54ecea"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/development-v1.json",
+      "bytes": 60894,
+      "sha256": "8f6a13d033fc15c7fb091433e9acb11dc6a94b1237960f6bc13503ddc0327659"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1.stdout",
+      "bytes": 480,
+      "sha256": "17cdd0528ede3214fd1f336eaf53d46ee768a1737853d63605a5c3bb664dbe5e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/DiscoverImports.lean",
+      "bytes": 673,
+      "sha256": "f6780f5da81a97d42910cbb6d1187e90f28583639dfdd74eccae48ad3b2d2c1a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/input-snapshot.json",
+      "bytes": 1119,
+      "sha256": "a5f743a8b972f39ec99f94d7b3a332c54209356824b4ead967e1c65eb900dd2b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/0b6a56917f454bcd85391217ba21bd87.job.json",
+      "bytes": 2157,
+      "sha256": "dae325f98751a001f32dc749e18ef9544950336fce06cb9e9ea87667677fcfd4"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/0b6a56917f454bcd85391217ba21bd87.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/0b6a56917f454bcd85391217ba21bd87.stdout.log",
+      "bytes": 412,
+      "sha256": "76bd59314943543b6c28407541302311725b26fa9da2e36f295f7b0d31a7ba03"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/13d9559cfb564cd5a65c780716a34fee.job.json",
+      "bytes": 1496,
+      "sha256": "035163c5b28407ae36deaee4befa9d152d3d29a93b8446fdf207e80bf791893f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/13d9559cfb564cd5a65c780716a34fee.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/13d9559cfb564cd5a65c780716a34fee.stdout.log",
+      "bytes": 106,
+      "sha256": "3736756da8bde35bd0454e07bb977d28449cd4128a9c1b7aed35f45fc8bfe602"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/3c66e9aefb5f498d8468f14c9ac098b6.job.json",
+      "bytes": 1812,
+      "sha256": "24cec14ede12dbc682a16576495aa2392af3cba6c709cb75a150f7c58110d213"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/3c66e9aefb5f498d8468f14c9ac098b6.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/3c66e9aefb5f498d8468f14c9ac098b6.stdout.log",
+      "bytes": 293,
+      "sha256": "a0099c562d71249c33f166f5b2622f1dfdf1c2f9bdb09e99c4633a248856b307"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/58f29d23b11b4ae18afadda2c56bb810.job.json",
+      "bytes": 1853,
+      "sha256": "d912395592d030c59c1ec45e18e9b613afeaff9b435a31b4c4e888b3791625bc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/58f29d23b11b4ae18afadda2c56bb810.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/58f29d23b11b4ae18afadda2c56bb810.stdout.log",
+      "bytes": 142,
+      "sha256": "1b222dcce6b0bb07f7a0e1414a51b3e275dd7e6dccbaafa8d24cb3e394fb4188"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/6a06327624804b8c9528e5a38f0e80a0.job.json",
+      "bytes": 1457,
+      "sha256": "88fdee917ab9c2851a3cd2888ea504fcfb60bcb72d5792a76b944fd204f2405f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/6a06327624804b8c9528e5a38f0e80a0.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/6a06327624804b8c9528e5a38f0e80a0.stdout.log",
+      "bytes": 63,
+      "sha256": "cde1002652c4494277aab927f11af2868ecd3b021e0fd1d63aee1c7914ab317a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/71627aadc14c4794965ede2bd9f46cd2.job.json",
+      "bytes": 1879,
+      "sha256": "a76f414cac976284f9415807188791a9191f4ecb110f8b480349a534cf4bf78f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/71627aadc14c4794965ede2bd9f46cd2.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/71627aadc14c4794965ede2bd9f46cd2.stdout.log",
+      "bytes": 158,
+      "sha256": "a8d59756925e59a276a00377e1428964fc55db5e1de16c7eaaf87ec6d97e6953"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/7a82f1a6732e46cabf647acb08714e1b.job.json",
+      "bytes": 2198,
+      "sha256": "3b912c08fa44a37369b9254695ac076d029628d418ca64cef2c358381cef9ef5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/7a82f1a6732e46cabf647acb08714e1b.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/7a82f1a6732e46cabf647acb08714e1b.stdout.log",
+      "bytes": 384,
+      "sha256": "40a13fa86b4f3ccbeaa490e44171b31dd363dd126386731456c22fa28b8c19ea"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/bc08db5dc1214281bd5976564af3ddb4.job.json",
+      "bytes": 1440,
+      "sha256": "82c492140991050bd4fc8ec16282f04d49dded0261460cc2c891d1e2b28d5394"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/bc08db5dc1214281bd5976564af3ddb4.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/logs/bc08db5dc1214281bd5976564af3ddb4.stdout.log",
+      "bytes": 53,
+      "sha256": "505c28438dd7c4f3782bcf74a5be56648cb3b682ca60cfaeac71b569a2b89985"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/lean-verification-runs/731709eb4676477ebc9006040745fb5d/run-manifest.json",
+      "bytes": 15088,
+      "sha256": "63fb42a548dc4334bf7cf7bee220dd893081fa62ba3379389a8d1b6c940f3ec0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v1/run-manifest.json",
+      "bytes": 15088,
+      "sha256": "63fb42a548dc4334bf7cf7bee220dd893081fa62ba3379389a8d1b6c940f3ec0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2.stdout",
+      "bytes": 481,
+      "sha256": "bc11abab4fdcc3b1d187c34d92060f1508e51554f8834a746d7a66078e342bd0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/DiscoverImports.lean",
+      "bytes": 673,
+      "sha256": "f6780f5da81a97d42910cbb6d1187e90f28583639dfdd74eccae48ad3b2d2c1a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/input-snapshot.json",
+      "bytes": 2442,
+      "sha256": "71b00757609ec7ee5a5f9c0b28569ef8643991cd578cc7eab02de152d1e781ec"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/lib/Origin/CenterComplete.olean",
+      "bytes": 425024,
+      "sha256": "b5813e0477506a3fe748c4f7f9dada97790d17bb3a8f35e8b4bb5a08eacd4c5a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/lib/Origin/CenterConstruction.olean",
+      "bytes": 330104,
+      "sha256": "d99752b1554d4455382e632aaff7eb03bbb57cc3514ad1f0b9bcf6259f0404d8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/lib/Origin/CenterFull.olean",
+      "bytes": 172400,
+      "sha256": "e0448606327f6735a01d73a717de85c0dac316ea08533ece6f93768c6582f11f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/lib/Origin/CenterStates.olean",
+      "bytes": 537136,
+      "sha256": "3d2c5eb1ebe8ff953782cab786e63e8b894c1aa9cab5cd754dd88e0d485f4cd8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/lib/Origin/ChanlunElements.olean",
+      "bytes": 988480,
+      "sha256": "98b790efd826ea9613f6822081d8fc9ed2a6fdbeaf1d3c5ac469fa40291a278e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/lib/Origin/CompleteClassification.olean",
+      "bytes": 135728,
+      "sha256": "2228f091fe5eae15bcfaccfd4adff2fc25b0bcd9eae90d55f9fd7e25303d6438"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/lib/Origin/Divergence.olean",
+      "bytes": 255736,
+      "sha256": "1a3c8f173b70483235e813cdca13cf17975102d024900734d9c5d10aa863c805"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/lib/Origin/ForceInterface.olean",
+      "bytes": 225656,
+      "sha256": "7696fb7a9639c463c79428393bdb1000bf42b40a55a06b41074af1ab9e300564"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/lib/Origin/ForceVelocity.olean",
+      "bytes": 174920,
+      "sha256": "10cef4f7d1302a19d011bc1b61cd904922afa9db7d9c70795b387169db8102c8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/lib/Origin/SegmentAutoConstruct.olean",
+      "bytes": 719776,
+      "sha256": "1c09fc6ad1800a28b4cf9a7bc661af3af072422aa2ee3e3b5de48f4fab939b91"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/lib/Origin/SegmentConstruction.olean",
+      "bytes": 308152,
+      "sha256": "c383be53f6942a0c821748e9ab0c6c4f14f466b5f8ed0b923106385d279adee5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/lib/Origin/SegmentFeatureComplete.olean",
+      "bytes": 324040,
+      "sha256": "7c542f55dc75f164e8ff45c5f026a1655eac5f915c8d765b28a6f2d2c793adf1"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/lib/Origin/SegmentFeatureSeq.olean",
+      "bytes": 528656,
+      "sha256": "37ff9145afcc9872a5f872a4af822661aae286cb61443319cddc2be12ff1f5d3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/lib/Origin/SourceAxioms.olean",
+      "bytes": 309728,
+      "sha256": "06d541e138fc57fb9d34fabf569daddc75fc0af74003ae86f9e7e0d001a07542"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/lib/Stage60Fixture.olean",
+      "bytes": 679624,
+      "sha256": "e1f876effeb37fc82a4264cc40e56a6d3031e475ab6186df3f94544d8dfe65fb"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/005e9b27c08f45218764f233181b7fbe.job.json",
+      "bytes": 4776,
+      "sha256": "68db79176e05ebaa6bd959531094c733870f21f58d4c720116971d62fab72b7a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/005e9b27c08f45218764f233181b7fbe.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/005e9b27c08f45218764f233181b7fbe.stdout.log",
+      "bytes": 2927,
+      "sha256": "860d73298cb06eac90f9d3b01085d4f04ad5055244074afc395ec90eb1efff39"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/00bb9c39b22b4768978fce3fb8a64b4c.job.json",
+      "bytes": 1897,
+      "sha256": "9bd3c773b73469f04265d6243c89f1ca5bd156345e68259789e9abd9ce2a3194"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/00bb9c39b22b4768978fce3fb8a64b4c.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/00bb9c39b22b4768978fce3fb8a64b4c.stdout.log",
+      "bytes": 174,
+      "sha256": "f577317c464bde9944b54d7c70474d56012cb4ecb5636ef22da49b1fae836033"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/07f3c37137414f5a84a06ebb501fa79d.job.json",
+      "bytes": 1870,
+      "sha256": "cdd7b2eb37c233a388aa6bdeb71416ae525a898ee810e04aab94debdc792d95c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/07f3c37137414f5a84a06ebb501fa79d.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/07f3c37137414f5a84a06ebb501fa79d.stdout.log",
+      "bytes": 352,
+      "sha256": "5e11c05a3e973a0a1ca95a367b4b471216ae483ec5bcc2a4caa10661108096fb"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/0a08cb64c32c4468ba87fe127e4a1966.job.json",
+      "bytes": 1877,
+      "sha256": "f96ca67701ce84bdbb42bf8da617f1e1ffc01703a822d2c29834d32459ce47f4"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/0a08cb64c32c4468ba87fe127e4a1966.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/0a08cb64c32c4468ba87fe127e4a1966.stdout.log",
+      "bytes": 349,
+      "sha256": "a1d897bf86a2d30076f25c590a783a1805be8cb4b26117f823e98897cb70341c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/0d4707c34bbf4ad68157316877e78735.job.json",
+      "bytes": 1880,
+      "sha256": "da6a9be17e4a9e010826b6d90afc95a23792b2d5a2b657bdb9782298f474466b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/0d4707c34bbf4ad68157316877e78735.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/0d4707c34bbf4ad68157316877e78735.stdout.log",
+      "bytes": 160,
+      "sha256": "be0df60d6536fb7cf020b286c3355a3a86dde31380c71dd1f39cb60881386083"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/104cbed083b64c3cb7e438cd969f17e5.job.json",
+      "bytes": 1871,
+      "sha256": "a68fe209ccb15404dec16b09902d8939a5b5056ccbad4ef55ceb47c0c5180408"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/104cbed083b64c3cb7e438cd969f17e5.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/104cbed083b64c3cb7e438cd969f17e5.stdout.log",
+      "bytes": 150,
+      "sha256": "ff57d7c7ded081eb2f7a4f0869e4ad00652ced4509e7eba2c57134fe67576000"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/123075169c284c82b6b9543d8b353b3b.job.json",
+      "bytes": 1682,
+      "sha256": "a405c851644325da2310925c0e586e79c31ee4b12f508da135906a97d87f839e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/123075169c284c82b6b9543d8b353b3b.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/123075169c284c82b6b9543d8b353b3b.stdout.log",
+      "bytes": 166,
+      "sha256": "9c08204a5a18f042208db79c1292796aa0f1584bd0b37d9d28d06a18a01031e6"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/13fa0fd1633744e493bca5f41b735668.job.json",
+      "bytes": 1809,
+      "sha256": "b31e64413cc6098dfa27855798a5cf82efaa0b02222392784c3c25f3e758edc0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/13fa0fd1633744e493bca5f41b735668.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/13fa0fd1633744e493bca5f41b735668.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/149abf29eedb4ba99e6bf4cdadafb3d8.job.json",
+      "bytes": 2046,
+      "sha256": "9d40f595dce1dba582973b3a0fb36c11285fc139761c51d9c20b187c9686b69a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/149abf29eedb4ba99e6bf4cdadafb3d8.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/149abf29eedb4ba99e6bf4cdadafb3d8.stdout.log",
+      "bytes": 300,
+      "sha256": "862c4472c4dc46994bdfb4a2785801a0255016a0c8f976a0c9264cf6508bcf9e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/184819df0e814922a713df82e0102920.job.json",
+      "bytes": 1979,
+      "sha256": "1c54385202244d91d02b8ba22f6ac0b08205fea1fdd10a6d66bece1bf28bd348"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/184819df0e814922a713df82e0102920.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/184819df0e814922a713df82e0102920.stdout.log",
+      "bytes": 242,
+      "sha256": "c3ea6512c7e94904231facf1f8311472fdc2889c1eebfaff1fa50794f59be437"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/1d90cf80579b4af38c04c86386b1c350.job.json",
+      "bytes": 1805,
+      "sha256": "e7fb14d372536c85a19b32f6fb2d24f433048652fc7030ff094877e984f256c1"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/1d90cf80579b4af38c04c86386b1c350.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/1d90cf80579b4af38c04c86386b1c350.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/22c02a6e1778410ab4a01ccdbed39083.job.json",
+      "bytes": 1819,
+      "sha256": "7630d6fe2a9c105475e56de58aadb03cae9f08d5964c5ff6406aec7d3f959347"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/22c02a6e1778410ab4a01ccdbed39083.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/22c02a6e1778410ab4a01ccdbed39083.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/26461c309300461b83316e25dd6b80e9.job.json",
+      "bytes": 1496,
+      "sha256": "a5bfec6424a41a1fbef9bb9693744f175c4dcbe494a2067ecdd61be9ad76569e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/26461c309300461b83316e25dd6b80e9.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/26461c309300461b83316e25dd6b80e9.stdout.log",
+      "bytes": 106,
+      "sha256": "3736756da8bde35bd0454e07bb977d28449cd4128a9c1b7aed35f45fc8bfe602"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/31378566f7934de38fdb5af26b2384f4.job.json",
+      "bytes": 1855,
+      "sha256": "1deffd90ca3b60c74d9d6cb92d4d7f1614ddea42a368ae6f19e106d8bdfb7131"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/31378566f7934de38fdb5af26b2384f4.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/31378566f7934de38fdb5af26b2384f4.stdout.log",
+      "bytes": 344,
+      "sha256": "3b6d5d65a86e940ad36998c97f2dc247c94cd71e66ad0217da1858687a5d16cb"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/38341e53aff84238be791b441add9c85.job.json",
+      "bytes": 1853,
+      "sha256": "70c6b5b6181abf1d35ba2e662c1abee7ed4331d0e92776bb33e8c0315280065d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/38341e53aff84238be791b441add9c85.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/38341e53aff84238be791b441add9c85.stdout.log",
+      "bytes": 142,
+      "sha256": "1b222dcce6b0bb07f7a0e1414a51b3e275dd7e6dccbaafa8d24cb3e394fb4188"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/3a85244275f34524ab35093f33744f26.job.json",
+      "bytes": 1821,
+      "sha256": "4ddac83d1a8839a2e31904ab0df2ba52345d497d98d77a5059a0a7d79a0836a3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/3a85244275f34524ab35093f33744f26.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/3a85244275f34524ab35093f33744f26.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/3ff4c00d0cef445fa62c819647b4e895.job.json",
+      "bytes": 1960,
+      "sha256": "e355e45405f8b177cd1f8b65fac44d490e6f987fbc1479aba4eed2d0ffdd7bbd"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/3ff4c00d0cef445fa62c819647b4e895.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/3ff4c00d0cef445fa62c819647b4e895.stdout.log",
+      "bytes": 232,
+      "sha256": "79ed7bfdd027c655ef39ecb6ad8ec954c55ea591e8d8c15ab54058fa0489af1d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/504b2503e263439a860dbb8ce2c07f9f.job.json",
+      "bytes": 1867,
+      "sha256": "20815ddcb821dfccad69a50cd9b3af48d9934d9b3da28a2a29175b5a9305659c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/504b2503e263439a860dbb8ce2c07f9f.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/504b2503e263439a860dbb8ce2c07f9f.stdout.log",
+      "bytes": 347,
+      "sha256": "210f436f9b53945dbe763564d1dfbbb1f091ad204da57aeca61babddf6778385"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/5ebd419b291c4f19a758ee88bea3f2d6.job.json",
+      "bytes": 1884,
+      "sha256": "d8588a277d416be72df596382e49f2af9364df6550a313dab4039fe3e6ceb64b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/5ebd419b291c4f19a758ee88bea3f2d6.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/5ebd419b291c4f19a758ee88bea3f2d6.stdout.log",
+      "bytes": 154,
+      "sha256": "56d91beb8a12f9b401a44a479dc9fc71ddfbda173d769fa6a29f29e2895753c8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/5efeda2297b945d1b444710ee5e74beb.job.json",
+      "bytes": 2082,
+      "sha256": "5d7672e70be15141d8f1d27d6db2f0bb5d91c4a5d0af86d0c1e607cfe3374d23"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/5efeda2297b945d1b444710ee5e74beb.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/5efeda2297b945d1b444710ee5e74beb.stdout.log",
+      "bytes": 334,
+      "sha256": "923c55354f46c79517bd4a7e92f7acdc456a2ee2523cb15db6e9bff4602ae107"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/6b3d0a5aaac1431aa4fc24c2574271a9.job.json",
+      "bytes": 1457,
+      "sha256": "f00379990621151bcf41777603f52a2b5b0b9fcbc7cb4e2bcf12a04688a214be"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/6b3d0a5aaac1431aa4fc24c2574271a9.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/6b3d0a5aaac1431aa4fc24c2574271a9.stdout.log",
+      "bytes": 63,
+      "sha256": "cde1002652c4494277aab927f11af2868ecd3b021e0fd1d63aee1c7914ab317a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/6ebdb6a0582348a28cbf48e3d79f52f9.job.json",
+      "bytes": 1870,
+      "sha256": "2489b09b91df762494f9c29dd1510b63ec3d6d57495e4d3edb4e511d047defa8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/6ebdb6a0582348a28cbf48e3d79f52f9.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/6ebdb6a0582348a28cbf48e3d79f52f9.stdout.log",
+      "bytes": 351,
+      "sha256": "14ca5bca12bdb0baecff3d305749fabf772e801fdc3a7e869d374fceb4ea1f5f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/739017b8e4c24d0092df95c3f717bfad.job.json",
+      "bytes": 1823,
+      "sha256": "600b4515403171277d4adc43933db92039a739e48d42752670fd3b9706300533"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/739017b8e4c24d0092df95c3f717bfad.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/739017b8e4c24d0092df95c3f717bfad.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/74a0f5f654f940c3a1f27e90d8bc0424.job.json",
+      "bytes": 2435,
+      "sha256": "99ccebb04d7bb09f403577116544f7908e9c5044903e81f7eba1d710022964ee"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/74a0f5f654f940c3a1f27e90d8bc0424.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/74a0f5f654f940c3a1f27e90d8bc0424.stdout.log",
+      "bytes": 919,
+      "sha256": "5c94df67f37062cd99fc60a57783518dedb4716745a7f74990227e336339abc1"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/770c7d420f3c42fc9f4a8a7a30bfe85e.job.json",
+      "bytes": 1829,
+      "sha256": "8cd5c403f5b5350037443d5fe1d0adbfc2217be14dcffd376221ea59e3666f5c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/770c7d420f3c42fc9f4a8a7a30bfe85e.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/770c7d420f3c42fc9f4a8a7a30bfe85e.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/857e72be632b48439d7b19e4e3bb5bd4.job.json",
+      "bytes": 2077,
+      "sha256": "d95c49c8a0c9e7972e9057acb6d79566383baff734d081047b5217bfe80f3fd6"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/857e72be632b48439d7b19e4e3bb5bd4.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/857e72be632b48439d7b19e4e3bb5bd4.stdout.log",
+      "bytes": 328,
+      "sha256": "e1d2f49b347b652ca93c1d2fe3edbbdea2eea349573f086f7560bc6f638eb59a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/8782248280104ac5b05f5ea200e1f627.job.json",
+      "bytes": 1813,
+      "sha256": "bceaa684c1aaf05d404d7cdeee8992df3396fd7eee251adb434dc0a431f49240"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/8782248280104ac5b05f5ea200e1f627.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/8782248280104ac5b05f5ea200e1f627.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/8b21e73d399746d6bd5d283d77525e1b.job.json",
+      "bytes": 2261,
+      "sha256": "6ae950560d408dc177a753c087adf09531215fa9b8c72f26bdf8421a9d8a5a4d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/8b21e73d399746d6bd5d283d77525e1b.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/8b21e73d399746d6bd5d283d77525e1b.stdout.log",
+      "bytes": 733,
+      "sha256": "69271f55805a6a0e8ed00a645394d63e199cd714924c07ceefe705dd169bd372"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/944326edbe6748848ad7486e38093bd2.job.json",
+      "bytes": 1442,
+      "sha256": "56c8bdbac4642637604a3de3d760bda1e50a952147fbd8a1556d88d50282ef4a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/944326edbe6748848ad7486e38093bd2.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/944326edbe6748848ad7486e38093bd2.stdout.log",
+      "bytes": 53,
+      "sha256": "505c28438dd7c4f3782bcf74a5be56648cb3b682ca60cfaeac71b569a2b89985"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/94cc22a86a4240b892bc2398d4ee7539.job.json",
+      "bytes": 1868,
+      "sha256": "b448af6bbd8f3d9d603889205e0e4e5b3c2978a4b59383ebf523d66adc7bc8ff"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/94cc22a86a4240b892bc2398d4ee7539.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/94cc22a86a4240b892bc2398d4ee7539.stdout.log",
+      "bytes": 352,
+      "sha256": "5e11c05a3e973a0a1ca95a367b4b471216ae483ec5bcc2a4caa10661108096fb"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/9ecb69ff1ccf45bfa969aca0e4f45213.job.json",
+      "bytes": 1813,
+      "sha256": "3d19fb59d666a51650694c4085ba58c8339d6482d6979a09bdcd2740cc6cfd82"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/9ecb69ff1ccf45bfa969aca0e4f45213.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/9ecb69ff1ccf45bfa969aca0e4f45213.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/9efd1a22061b4c76bdbc5a4c67a09afb.job.json",
+      "bytes": 1805,
+      "sha256": "342fde49c680897d9e661ebdda503e4a526e7a9044a050365beeff8424b4d304"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/9efd1a22061b4c76bdbc5a4c67a09afb.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/9efd1a22061b4c76bdbc5a4c67a09afb.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/a2db36f6325c47818536fc8bc09707dd.job.json",
+      "bytes": 1878,
+      "sha256": "7cc1fa81e7590363c24be03e6a51c6aebf3945497cf48f3d0706512fd3b88596"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/a2db36f6325c47818536fc8bc09707dd.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/a2db36f6325c47818536fc8bc09707dd.stdout.log",
+      "bytes": 158,
+      "sha256": "a8d59756925e59a276a00377e1428964fc55db5e1de16c7eaaf87ec6d97e6953"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/a6f0321695e0472aaf526128ff37861b.job.json",
+      "bytes": 1815,
+      "sha256": "58559c0412ad6eb31343cf7eeca66a9b2c71cdd4ad872c45b409b3bc76077d60"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/a6f0321695e0472aaf526128ff37861b.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/a6f0321695e0472aaf526128ff37861b.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/ad505df0515446d2a1eafd37e7b965e4.job.json",
+      "bytes": 2260,
+      "sha256": "f927b2b289c97662e0566c1005b6f0c9679207b7d304dc5dd667c0982caffc2d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/ad505df0515446d2a1eafd37e7b965e4.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/ad505df0515446d2a1eafd37e7b965e4.stdout.log",
+      "bytes": 730,
+      "sha256": "7cc6ecac5c6149def6c14083f07cd08ad2b7bcd2ebb93206ad1cbf7b28244f67"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/ae8bd93028b84e4f90f54e7dbbd1c781.job.json",
+      "bytes": 1825,
+      "sha256": "7651eb2940eca2f167335ae88ab64785291b6dd43ee4a0294dbf615a8d607d6d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/ae8bd93028b84e4f90f54e7dbbd1c781.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/ae8bd93028b84e4f90f54e7dbbd1c781.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/badbb7960ef64415af3621447bb607b6.job.json",
+      "bytes": 2242,
+      "sha256": "14abc80f0d76fd7e7ca3fc3c6044f86ca7514dea04e7d03e31a059e2ca30c167"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/badbb7960ef64415af3621447bb607b6.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/badbb7960ef64415af3621447bb607b6.stdout.log",
+      "bytes": 716,
+      "sha256": "9fa5c7ce7f2a619a1a64efa4d3147ca0c3bcbffe8aab8dc1925a42f946f95476"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/c0c6723fbe604680b6d7b72717a29225.job.json",
+      "bytes": 2052,
+      "sha256": "24e4441aa78e666581f396b9e54c7eed047b4c6d3c1d79eada10d6fbfdaa2e33"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/c0c6723fbe604680b6d7b72717a29225.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/c0c6723fbe604680b6d7b72717a29225.stdout.log",
+      "bytes": 535,
+      "sha256": "81e46b3a086a43adf9225ced8526ae1d333ae1b1a54b575b76513293bc1924d9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/c7dc7b4213224ea9b6bf6a2a9674a24b.job.json",
+      "bytes": 1799,
+      "sha256": "349c5d8e31fd8bb77a13201d636073f3324e959907640adcf979880a6c3f7631"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/c7dc7b4213224ea9b6bf6a2a9674a24b.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/c7dc7b4213224ea9b6bf6a2a9674a24b.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/cb818c1149a141e3918fba993e0c484f.job.json",
+      "bytes": 1811,
+      "sha256": "482df933dd7f664623ccf573281b55bb42f3728685a5226369771c084485be62"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/cb818c1149a141e3918fba993e0c484f.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/cb818c1149a141e3918fba993e0c484f.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/e3a6870a06374ee7b023860503d6c0e8.job.json",
+      "bytes": 2066,
+      "sha256": "c990ae2887370f535f4ece186eca3a6e1871e9aa03d58335545ea668bde4fe42"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/e3a6870a06374ee7b023860503d6c0e8.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/e3a6870a06374ee7b023860503d6c0e8.stdout.log",
+      "bytes": 540,
+      "sha256": "109eeea096cab035374b5d8e0f786808b759ae9f172356f6af87a5a73e418e04"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/e4e5a6de63ed4c1dbc51da954b9e4065.job.json",
+      "bytes": 1875,
+      "sha256": "c063063254a4bcb1e5e0180b8e53c58b1c73d2a514d63a4b076978231b59f8ab"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/e4e5a6de63ed4c1dbc51da954b9e4065.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/e4e5a6de63ed4c1dbc51da954b9e4065.stdout.log",
+      "bytes": 352,
+      "sha256": "5e11c05a3e973a0a1ca95a367b4b471216ae483ec5bcc2a4caa10661108096fb"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/e515729faac841e6a36d478ea625594c.job.json",
+      "bytes": 2136,
+      "sha256": "9db9bfe08e1187550b31ee9bb0d3847ef9fc09c9b5fbef107c0dad99c104e4e3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/e515729faac841e6a36d478ea625594c.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/e515729faac841e6a36d478ea625594c.stdout.log",
+      "bytes": 384,
+      "sha256": "87b6ddc20b8dede2da42cc897144ea5eaffca6c1a35ba8b04581e386e3846d21"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/e6de6991ea344c71bf6daed2b02c0a91.job.json",
+      "bytes": 1809,
+      "sha256": "4dd801a058c3a7312bf8eede03f55504ad155c86d8818d9678a2390d4002d529"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/e6de6991ea344c71bf6daed2b02c0a91.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/e6de6991ea344c71bf6daed2b02c0a91.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/ebe9adc0481a4f03b1c074af773bc00c.job.json",
+      "bytes": 1880,
+      "sha256": "a702804c2816b84ca4a204d9d853e0f2069e3b9426bb6b8cc70eb02ed85707d2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/ebe9adc0481a4f03b1c074af773bc00c.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/ebe9adc0481a4f03b1c074af773bc00c.stdout.log",
+      "bytes": 359,
+      "sha256": "daf8cfcf5776001b31d3cf3fa09ef785542d6d15744b3415bcbfa1a3348ee948"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/ed1a76336ce04dae9678345d4c57d387.job.json",
+      "bytes": 1829,
+      "sha256": "d4210624445c0807a032dce5e171e62fbb3261d5ec497a642739a93a4282fc8b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/ed1a76336ce04dae9678345d4c57d387.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/ed1a76336ce04dae9678345d4c57d387.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/f191bc8bf57b42f28dbbd4200560150a.job.json",
+      "bytes": 1791,
+      "sha256": "01819c6e98bb6e4da79eeb2a89f171eefec3d6d45e4ff24488386ac0517abfe0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/f191bc8bf57b42f28dbbd4200560150a.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/f191bc8bf57b42f28dbbd4200560150a.stdout.log",
+      "bytes": 82,
+      "sha256": "c62232adcfee25e721eac13413f457e13d8da70c14886876b9db69a7de70c5aa"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/f25b460ab9784855b75f1e5aa139442f.job.json",
+      "bytes": 2428,
+      "sha256": "fae2e087ba6051be5c5d9bf69839f3037588c3b1578548abcbe28824de2c10ac"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/f25b460ab9784855b75f1e5aa139442f.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/f25b460ab9784855b75f1e5aa139442f.stdout.log",
+      "bytes": 905,
+      "sha256": "e5084e9cdc8dee13c82680177efa8545c67678c1aa656f8bcbef4a7190e5cdf0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/f3e33513740b43eeae8ae04312104bb3.job.json",
+      "bytes": 1878,
+      "sha256": "d91761545e570b3d12e3d0be96142b701a1c45c77a5adcf564b187ae5c0885bd"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/f3e33513740b43eeae8ae04312104bb3.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/f3e33513740b43eeae8ae04312104bb3.stdout.log",
+      "bytes": 160,
+      "sha256": "be0df60d6536fb7cf020b286c3355a3a86dde31380c71dd1f39cb60881386083"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/f991a6523e3c4cfc9f60775fa0fdc4d6.job.json",
+      "bytes": 2157,
+      "sha256": "20da63f7d1074df150a1be05cfbb16c4dfb2d240301fa958d9706885e173734b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/f991a6523e3c4cfc9f60775fa0fdc4d6.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/f991a6523e3c4cfc9f60775fa0fdc4d6.stdout.log",
+      "bytes": 412,
+      "sha256": "76bd59314943543b6c28407541302311725b26fa9da2e36f295f7b0d31a7ba03"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/fed99e4943194cd1969d85ec890c7345.job.json",
+      "bytes": 1885,
+      "sha256": "4ddef73516fa0538cfe3b5dc9ca0371e038cedc3e509be61c48ff30e6a885881"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/fed99e4943194cd1969d85ec890c7345.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/logs/fed99e4943194cd1969d85ec890c7345.stdout.log",
+      "bytes": 160,
+      "sha256": "be0df60d6536fb7cf020b286c3355a3a86dde31380c71dd1f39cb60881386083"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/lean-verification-runs/46ff20f9024a43c9aa0dbab764f92b39/run-manifest.json",
+      "bytes": 117004,
+      "sha256": "ae1de3eee3a0f1f69019128170196303ab37dfe5f570913e0d7f3bc90869ff87"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v2/run-manifest.json",
+      "bytes": 117004,
+      "sha256": "ae1de3eee3a0f1f69019128170196303ab37dfe5f570913e0d7f3bc90869ff87"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3.stdout",
+      "bytes": 605,
+      "sha256": "9c87011df629dc04def6f54e954fb99ffe1db3b42d81600d48239fc3d2932e3e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/DiscoverImports.lean",
+      "bytes": 673,
+      "sha256": "f6780f5da81a97d42910cbb6d1187e90f28583639dfdd74eccae48ad3b2d2c1a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/InspectRoot.lean",
+      "bytes": 465,
+      "sha256": "5eff79db79c832c20d252526ab647ae50236e1d6e9be76b1d717d33d644ede3b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/LeanVerifyProbe.lean",
+      "bytes": 8621,
+      "sha256": "bee3acf730ea92509103b5c283da92501ae9db690608c525e2da5f4d02389011"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/declaration.json",
+      "bytes": 3989644,
+      "sha256": "91a5881519653ecdc3887c1a0754a7d4e927524fbb0804dcbeb97555eaa7e584"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/input-snapshot.json",
+      "bytes": 2442,
+      "sha256": "ef1ff6f2d4159983162d6989814af9e26b0648a3587f6adf453fa4cd939ed28d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/lib/LeanVerifyProbe.olean",
+      "bytes": 777448,
+      "sha256": "e74a50722efc72afc8df8acf90be2bfd0af686ff452c5b9ee09b876517e3b9ce"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/lib/Origin/CenterComplete.olean",
+      "bytes": 425024,
+      "sha256": "b5813e0477506a3fe748c4f7f9dada97790d17bb3a8f35e8b4bb5a08eacd4c5a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/lib/Origin/CenterConstruction.olean",
+      "bytes": 330104,
+      "sha256": "d99752b1554d4455382e632aaff7eb03bbb57cc3514ad1f0b9bcf6259f0404d8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/lib/Origin/CenterFull.olean",
+      "bytes": 172400,
+      "sha256": "e0448606327f6735a01d73a717de85c0dac316ea08533ece6f93768c6582f11f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/lib/Origin/CenterStates.olean",
+      "bytes": 537136,
+      "sha256": "3d2c5eb1ebe8ff953782cab786e63e8b894c1aa9cab5cd754dd88e0d485f4cd8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/lib/Origin/ChanlunElements.olean",
+      "bytes": 988480,
+      "sha256": "98b790efd826ea9613f6822081d8fc9ed2a6fdbeaf1d3c5ac469fa40291a278e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/lib/Origin/CompleteClassification.olean",
+      "bytes": 135728,
+      "sha256": "2228f091fe5eae15bcfaccfd4adff2fc25b0bcd9eae90d55f9fd7e25303d6438"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/lib/Origin/Divergence.olean",
+      "bytes": 255736,
+      "sha256": "1a3c8f173b70483235e813cdca13cf17975102d024900734d9c5d10aa863c805"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/lib/Origin/ForceInterface.olean",
+      "bytes": 225656,
+      "sha256": "7696fb7a9639c463c79428393bdb1000bf42b40a55a06b41074af1ab9e300564"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/lib/Origin/ForceVelocity.olean",
+      "bytes": 174920,
+      "sha256": "10cef4f7d1302a19d011bc1b61cd904922afa9db7d9c70795b387169db8102c8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/lib/Origin/SegmentAutoConstruct.olean",
+      "bytes": 719776,
+      "sha256": "1c09fc6ad1800a28b4cf9a7bc661af3af072422aa2ee3e3b5de48f4fab939b91"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/lib/Origin/SegmentConstruction.olean",
+      "bytes": 308152,
+      "sha256": "c383be53f6942a0c821748e9ab0c6c4f14f466b5f8ed0b923106385d279adee5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/lib/Origin/SegmentFeatureComplete.olean",
+      "bytes": 324040,
+      "sha256": "7c542f55dc75f164e8ff45c5f026a1655eac5f915c8d765b28a6f2d2c793adf1"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/lib/Origin/SegmentFeatureSeq.olean",
+      "bytes": 528656,
+      "sha256": "37ff9145afcc9872a5f872a4af822661aae286cb61443319cddc2be12ff1f5d3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/lib/Origin/SourceAxioms.olean",
+      "bytes": 309728,
+      "sha256": "06d541e138fc57fb9d34fabf569daddc75fc0af74003ae86f9e7e0d001a07542"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/lib/Stage60Fixture.olean",
+      "bytes": 679624,
+      "sha256": "e1f876effeb37fc82a4264cc40e56a6d3031e475ab6186df3f94544d8dfe65fb"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/lib/Stage60Proof.olean",
+      "bytes": 345840,
+      "sha256": "ff44903edd4b04c047cdc83b730d8132af1c7b1118774b79c23bdead2b7c5bd3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/087d383f05404c3f92c8dca72627d9cb.job.json",
+      "bytes": 1799,
+      "sha256": "3fa7fe39c8f71947bfb738e47b4794c79df1380a4594f83fbe05b53cb0ad4a7f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/087d383f05404c3f92c8dca72627d9cb.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/087d383f05404c3f92c8dca72627d9cb.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/0a1c65be08514cee9a133de08f323d99.job.json",
+      "bytes": 1809,
+      "sha256": "017e5917d1605cab2c8e2ebd48f5b852c2b380e7a08d0c505e1a6825aafd72f4"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/0a1c65be08514cee9a133de08f323d99.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/0a1c65be08514cee9a133de08f323d99.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/0bcfe7a29faa40eca62387ba179fce84.job.json",
+      "bytes": 1879,
+      "sha256": "5f3e5ac43ba1d548e15d2b5eec19d261bcb79e7e0d87e8482c2c74a8ab8859d8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/0bcfe7a29faa40eca62387ba179fce84.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/0bcfe7a29faa40eca62387ba179fce84.stdout.log",
+      "bytes": 158,
+      "sha256": "a8d59756925e59a276a00377e1428964fc55db5e1de16c7eaaf87ec6d97e6953"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/0f8e097609014bf5b2d770aaa3100976.job.json",
+      "bytes": 1829,
+      "sha256": "53f3d176986bc7e2bd91dc82faaaa2a440290d4eb64acaa26ba1049e9c03de97"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/0f8e097609014bf5b2d770aaa3100976.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/0f8e097609014bf5b2d770aaa3100976.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/1214012d465b49f4a132efc34bbea95d.job.json",
+      "bytes": 1867,
+      "sha256": "5032f883c8a19d0ac2f867dada6da8da2546076e1573f13ddb87831985f00cd2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/1214012d465b49f4a132efc34bbea95d.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/1214012d465b49f4a132efc34bbea95d.stdout.log",
+      "bytes": 347,
+      "sha256": "bf7b60e39b0080c3a2fd4a8dfb454e9faa3e069e6ff260e94db4015c4f37f600"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/131d474a2ab843989b3775543dec9500.job.json",
+      "bytes": 1811,
+      "sha256": "fc222c25a10729451c69b379bd73ba6817210ee3da42d375f63c2d696b8360c8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/131d474a2ab843989b3775543dec9500.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/131d474a2ab843989b3775543dec9500.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/13b0e2576db44f82b6698dc4ecc20c88.job.json",
+      "bytes": 1880,
+      "sha256": "15d14bca27210a2c515d00c66a5f2dfaef0a87746dc76ae61d2a650824f1c6ce"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/13b0e2576db44f82b6698dc4ecc20c88.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/13b0e2576db44f82b6698dc4ecc20c88.stdout.log",
+      "bytes": 359,
+      "sha256": "89d0a33f6de5954e74340c12b9ae90613f9b472da3b4d2a82e85048a2061bfd6"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/157ecba036464668bd9ad6800ae6b802.job.json",
+      "bytes": 1979,
+      "sha256": "27e9bfd3813dfbb5516764e7e031f388cae15380bce8550cd89dc0688b6f89d2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/157ecba036464668bd9ad6800ae6b802.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/157ecba036464668bd9ad6800ae6b802.stdout.log",
+      "bytes": 242,
+      "sha256": "c3ea6512c7e94904231facf1f8311472fdc2889c1eebfaff1fa50794f59be437"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/1d6c4cd82ddc478682b52554d70d4570.job.json",
+      "bytes": 1547,
+      "sha256": "07183b31b9d51b60c48b6a746e9b04fc09f0b888c5ffaa5ee7644165a7c4aa94"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/1d6c4cd82ddc478682b52554d70d4570.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/1d6c4cd82ddc478682b52554d70d4570.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/22572652fe194d0394ef6902c53fde39.job.json",
+      "bytes": 2261,
+      "sha256": "ccdfd9811ee8e484b8739fd8b95066b54b94ffeb774fa82b3c4a3ad2ef9672c2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/22572652fe194d0394ef6902c53fde39.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/22572652fe194d0394ef6902c53fde39.stdout.log",
+      "bytes": 733,
+      "sha256": "03c50265da8ad3d72c7bdfba7d5e2ce75aece4e01e11292d03c7130e9c658fc5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/232ca25b074b4e50b51d0cbaa41b4dc0.job.json",
+      "bytes": 2242,
+      "sha256": "83808ed35695ae6887b66a73556e48ff123d91937a46b3bcb62bdecd02eb4e28"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/232ca25b074b4e50b51d0cbaa41b4dc0.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/232ca25b074b4e50b51d0cbaa41b4dc0.stdout.log",
+      "bytes": 716,
+      "sha256": "c35f45c42b783d552d0ec4c2e5c97aa53228545348e75aa05a3a6ba626056718"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/2c480830ad4f4d96a362b28901f63a2c.job.json",
+      "bytes": 1791,
+      "sha256": "45badcabe61b6b59b08b1a63b6eaba74034eaf769c26bdeaaa6247ca68c78d4f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/2c480830ad4f4d96a362b28901f63a2c.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/2c480830ad4f4d96a362b28901f63a2c.stdout.log",
+      "bytes": 82,
+      "sha256": "c62232adcfee25e721eac13413f457e13d8da70c14886876b9db69a7de70c5aa"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/2d76631a961646c792e0e9297da03be9.job.json",
+      "bytes": 1496,
+      "sha256": "f1b910b34d65464cee330bb5bbaaf18b86dd05272edf216f1cdcd90329276488"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/2d76631a961646c792e0e9297da03be9.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/2d76631a961646c792e0e9297da03be9.stdout.log",
+      "bytes": 106,
+      "sha256": "3736756da8bde35bd0454e07bb977d28449cd4128a9c1b7aed35f45fc8bfe602"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/2da548d87c7f402d8f66acc2ed0e7b9c.job.json",
+      "bytes": 1683,
+      "sha256": "63ddd0c581e072e151ec24a3a9da81c236e9bf95d6e6a926bce4fc9e54182d66"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/2da548d87c7f402d8f66acc2ed0e7b9c.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/2da548d87c7f402d8f66acc2ed0e7b9c.stdout.log",
+      "bytes": 166,
+      "sha256": "9c08204a5a18f042208db79c1292796aa0f1584bd0b37d9d28d06a18a01031e6"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/3a0d8c19db8f4a85a063764ccbbd3298.job.json",
+      "bytes": 1805,
+      "sha256": "d27eb71e54b1bbf1daf564bffc9902b867bde0768384cfcf6a59cccb872d8d74"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/3a0d8c19db8f4a85a063764ccbbd3298.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/3a0d8c19db8f4a85a063764ccbbd3298.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/3acc93ea1a36425b9605c99c0bcbd008.job.json",
+      "bytes": 1872,
+      "sha256": "56a83f111defdf15c5d6077f0590ae70f81680273b9ff6eebbaade8113bc7db8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/3acc93ea1a36425b9605c99c0bcbd008.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/3acc93ea1a36425b9605c99c0bcbd008.stdout.log",
+      "bytes": 150,
+      "sha256": "ff57d7c7ded081eb2f7a4f0869e4ad00652ced4509e7eba2c57134fe67576000"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/3cac6ba6aea147e4bb4ba5ee85fd2feb.job.json",
+      "bytes": 1813,
+      "sha256": "03107a6f31e9537e3c5cf5d5f14698ebf6c80dd2610fec0d5a50e7638ee2ab58"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/3cac6ba6aea147e4bb4ba5ee85fd2feb.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/3cac6ba6aea147e4bb4ba5ee85fd2feb.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/444dc59d2e124ec3aec43e9119495f49.job.json",
+      "bytes": 1884,
+      "sha256": "52bc2b585cf4418da7042afeb00e705fa4b3a41c2b8491a67c0c7623285506a4"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/444dc59d2e124ec3aec43e9119495f49.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/444dc59d2e124ec3aec43e9119495f49.stdout.log",
+      "bytes": 154,
+      "sha256": "56d91beb8a12f9b401a44a479dc9fc71ddfbda173d769fa6a29f29e2895753c8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/44b819f302d94f15ac12e91c8a8aec78.job.json",
+      "bytes": 2260,
+      "sha256": "6130bbdfa8cf7a21bc2f6791fa81d9a404315564e7e3bc1e3f9b9eaf49c066fd"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/44b819f302d94f15ac12e91c8a8aec78.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/44b819f302d94f15ac12e91c8a8aec78.stdout.log",
+      "bytes": 730,
+      "sha256": "8816dbf18ea474c2c8a5cbd4086b8730016e51e0f9d01a2b56fb46ca68f1284c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/45a5b57696ce4cce8dea4f9444077728.job.json",
+      "bytes": 1870,
+      "sha256": "f098e0742ba6a861da823d5626c4aa9d955e2931bc0b858a96e9817794944899"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/45a5b57696ce4cce8dea4f9444077728.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/45a5b57696ce4cce8dea4f9444077728.stdout.log",
+      "bytes": 352,
+      "sha256": "e9f1e7f1b12510213f7ce85e3d2d0488fa4917a5555d43f37a3b1dba653401b2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/4e482566a675433e822057f3469022d8.job.json",
+      "bytes": 2428,
+      "sha256": "c05f208a865330377b7b8001d2cb700caf61abcdcf0a0a247252548534044ac5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/4e482566a675433e822057f3469022d8.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/4e482566a675433e822057f3469022d8.stdout.log",
+      "bytes": 905,
+      "sha256": "b1025a7be1c2fa0232f9fbcf5256e75a71841a2ca0ce9171ee2dfa0e15336404"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/4f18e5b239b646f9b5365c1de31fa5e8.job.json",
+      "bytes": 2136,
+      "sha256": "1cf602c308ffbd203bc1f7e908d122528bd1327da305a1986211af484ab00a58"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/4f18e5b239b646f9b5365c1de31fa5e8.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/4f18e5b239b646f9b5365c1de31fa5e8.stdout.log",
+      "bytes": 384,
+      "sha256": "87b6ddc20b8dede2da42cc897144ea5eaffca6c1a35ba8b04581e386e3846d21"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/536ec9474c9f44f0815e82ebb0904fb1.job.json",
+      "bytes": 1457,
+      "sha256": "2a39924ec0ced7db7cbe769ff57e9758e0b5a80a5a7d481eb602e15e7e3aeb18"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/536ec9474c9f44f0815e82ebb0904fb1.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/536ec9474c9f44f0815e82ebb0904fb1.stdout.log",
+      "bytes": 63,
+      "sha256": "cde1002652c4494277aab927f11af2868ecd3b021e0fd1d63aee1c7914ab317a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/5df6c1115c0a479ba5b8adcd2da36d0e.job.json",
+      "bytes": 2064,
+      "sha256": "b6205fc90039b5bcb5e7ae835b13fccf7abb71b3854d6137274c9c3a52b5fd60"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/5df6c1115c0a479ba5b8adcd2da36d0e.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/5df6c1115c0a479ba5b8adcd2da36d0e.stdout.log",
+      "bytes": 540,
+      "sha256": "8604bc0d2547f36d96226a89537576e2e1c684fd92f15186d4dbea6f6ed55697"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/6b675bc2ff474264a2754b84b453baf4.job.json",
+      "bytes": 1878,
+      "sha256": "81d94856c6b2fdc0f60ecafd5ca1926baaa64b5c5a004e840fe14fffa06c4a0b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/6b675bc2ff474264a2754b84b453baf4.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/6b675bc2ff474264a2754b84b453baf4.stdout.log",
+      "bytes": 160,
+      "sha256": "be0df60d6536fb7cf020b286c3355a3a86dde31380c71dd1f39cb60881386083"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/6d61d9bb2dba4383845518408c82789c.job.json",
+      "bytes": 2052,
+      "sha256": "f5f3b82053d2801452f490c0e62db535fac07b594314e15b80681bc90df88ead"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/6d61d9bb2dba4383845518408c82789c.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/6d61d9bb2dba4383845518408c82789c.stdout.log",
+      "bytes": 535,
+      "sha256": "3dd2fe686fceed74d4cf4ad2aed9676b9fc870303b58e14fbfb5d82072ecbac9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/755bc2834c7f49c3af819f6d3134c308.job.json",
+      "bytes": 1442,
+      "sha256": "a36c9b06882393d60289d110dc8e7db1810dd20972ed76f65ca1c255e8fc53a1"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/755bc2834c7f49c3af819f6d3134c308.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/755bc2834c7f49c3af819f6d3134c308.stdout.log",
+      "bytes": 53,
+      "sha256": "505c28438dd7c4f3782bcf74a5be56648cb3b682ca60cfaeac71b569a2b89985"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/7564ed06bc14466c80f520384af56d2e.job.json",
+      "bytes": 2157,
+      "sha256": "c7b4e6d50daaec4e4bf51a499a9f4f6977023b2586c32a8f5be4914a69c8f173"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/7564ed06bc14466c80f520384af56d2e.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/7564ed06bc14466c80f520384af56d2e.stdout.log",
+      "bytes": 412,
+      "sha256": "76bd59314943543b6c28407541302311725b26fa9da2e36f295f7b0d31a7ba03"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/75ebf51508f447ac8c98701133baf126.job.json",
+      "bytes": 1897,
+      "sha256": "397a57a592f2273f5954caa13e2042202c74fbe6f3b4aef3320d99b6682d7ecd"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/75ebf51508f447ac8c98701133baf126.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/75ebf51508f447ac8c98701133baf126.stdout.log",
+      "bytes": 174,
+      "sha256": "f577317c464bde9944b54d7c70474d56012cb4ecb5636ef22da49b1fae836033"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/7a2a9cab7a2844dd94db3c6ac58bb7fe.job.json",
+      "bytes": 1867,
+      "sha256": "d33d65120784f8c1af350877509fd0368d415b2574992935afc4f9bdf1217dfb"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/7a2a9cab7a2844dd94db3c6ac58bb7fe.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/7a2a9cab7a2844dd94db3c6ac58bb7fe.stdout.log",
+      "bytes": 352,
+      "sha256": "e9f1e7f1b12510213f7ce85e3d2d0488fa4917a5555d43f37a3b1dba653401b2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/7acd48ea8f064e62870aa83bcfde7c09.job.json",
+      "bytes": 1853,
+      "sha256": "625d680f816f7091a92cec2b5f02d722ac8fec2737a1c37e4dc8e2db3d8fce24"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/7acd48ea8f064e62870aa83bcfde7c09.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/7acd48ea8f064e62870aa83bcfde7c09.stdout.log",
+      "bytes": 142,
+      "sha256": "1b222dcce6b0bb07f7a0e1414a51b3e275dd7e6dccbaafa8d24cb3e394fb4188"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/7d8c276ff2f748b7833f9946518652fb.job.json",
+      "bytes": 1819,
+      "sha256": "510c3f110ba7a5c24bb806ae33cbfb7f7aef3adec0defb7bf05014826b4c4ec5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/7d8c276ff2f748b7833f9946518652fb.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/7d8c276ff2f748b7833f9946518652fb.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/82446d82cfac4584a16f074f948de08b.job.json",
+      "bytes": 1829,
+      "sha256": "45325bb780379fb1c56126696ad89410178bdc578e1b6d126d13cd91073a2c76"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/82446d82cfac4584a16f074f948de08b.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/82446d82cfac4584a16f074f948de08b.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/854f818393b7410eae0706f72b4632db.job.json",
+      "bytes": 2435,
+      "sha256": "347b350bd3547e99305c4f50ddc6dc973a1788d03ff1b2edba30176351c307b1"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/854f818393b7410eae0706f72b4632db.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/854f818393b7410eae0706f72b4632db.stdout.log",
+      "bytes": 919,
+      "sha256": "73994bcc651c6bb08be0ca47d4e8aa9194e916969053669ebae72ea3d2947786"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/8fa1b07a468947c3aac52999140b906e.job.json",
+      "bytes": 1855,
+      "sha256": "b97a8be32ad3f9daaa8eeab1bdbf3a238de6548461d8e13de11ef6494f53ecd9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/8fa1b07a468947c3aac52999140b906e.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/8fa1b07a468947c3aac52999140b906e.stdout.log",
+      "bytes": 344,
+      "sha256": "d6d34a7300d1e2297ee58bcf68cac25342313b09f034c5b02cf363f2d9996a41"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/920ce3605b924c8c926bee6cd6dc61b2.job.json",
+      "bytes": 1815,
+      "sha256": "ea686e32ce9fa75623c9ce139e1339b444a9ece1d877094a3c77d2bda7fcb573"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/920ce3605b924c8c926bee6cd6dc61b2.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/920ce3605b924c8c926bee6cd6dc61b2.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/a6f4261916924679b54934f821262faf.job.json",
+      "bytes": 1821,
+      "sha256": "7ceb90538fb3c36902993d437245f80cd4548d150e842b98bc6c9e5be2519954"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/a6f4261916924679b54934f821262faf.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/a6f4261916924679b54934f821262faf.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/b007a4e891fb47e09a266a8b3d2d4c43.job.json",
+      "bytes": 1795,
+      "sha256": "630472f43eb4f6ac98290a40646687db324ec8c91df77f3c7800314e76bd6429"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/b007a4e891fb47e09a266a8b3d2d4c43.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/b007a4e891fb47e09a266a8b3d2d4c43.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/c6c7bbcbd1664f20ac18f2d3c19da640.job.json",
+      "bytes": 1825,
+      "sha256": "7ca4dda0cd31977fee19ea7a11aa58b75b23e576b40da344743acf5344c6696c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/c6c7bbcbd1664f20ac18f2d3c19da640.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/c6c7bbcbd1664f20ac18f2d3c19da640.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/ced51fa0a50249df83c45b937c00440d.job.json",
+      "bytes": 1823,
+      "sha256": "527ebb978240a525a9de23034b9dc7649964bc6e32b19529e30018b1d609aed6"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/ced51fa0a50249df83c45b937c00440d.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/ced51fa0a50249df83c45b937c00440d.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/cee575cf17404835bc1a34291a113385.job.json",
+      "bytes": 1875,
+      "sha256": "0e3d14777dcb926f41cdfb7d51da8cfe82413d4a1a7c6abc7fb91a8865c9cfa6"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/cee575cf17404835bc1a34291a113385.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/cee575cf17404835bc1a34291a113385.stdout.log",
+      "bytes": 352,
+      "sha256": "e9f1e7f1b12510213f7ce85e3d2d0488fa4917a5555d43f37a3b1dba653401b2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/d276cdf5ce4046139058ef71b443deb3.job.json",
+      "bytes": 1870,
+      "sha256": "5bc67503bb03257f34ed541db81d1ac8e9aea0adc63cf5341b765d6b1ee83623"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/d276cdf5ce4046139058ef71b443deb3.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/d276cdf5ce4046139058ef71b443deb3.stdout.log",
+      "bytes": 351,
+      "sha256": "71b8641c731cbdc9f4e2cee234b2a897b8cecda5df780ddf862ae85d566f4160"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/d7d9c315d9e34b2a89c06c6853f28b7d.job.json",
+      "bytes": 2046,
+      "sha256": "221c2612dd4f1d77513eb635fe8e05fdea2074dfffdff28f6e9aa5559d4eadaa"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/d7d9c315d9e34b2a89c06c6853f28b7d.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/d7d9c315d9e34b2a89c06c6853f28b7d.stdout.log",
+      "bytes": 300,
+      "sha256": "862c4472c4dc46994bdfb4a2785801a0255016a0c8f976a0c9264cf6508bcf9e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/e0e42edfe0364ee781b1f6b4feca723c.job.json",
+      "bytes": 1813,
+      "sha256": "95624a3fe1e0d80427f923bf4b4e5ecc59ddb654f877d118fa64e0c343eca3d3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/e0e42edfe0364ee781b1f6b4feca723c.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/e0e42edfe0364ee781b1f6b4feca723c.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/e80fd329ee494791812521ef97774227.job.json",
+      "bytes": 1880,
+      "sha256": "1099e62ecd86c1ca41e47f72b4b0eb72ed757c5fcab775698ec2b5af8911bace"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/e80fd329ee494791812521ef97774227.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/e80fd329ee494791812521ef97774227.stdout.log",
+      "bytes": 160,
+      "sha256": "be0df60d6536fb7cf020b286c3355a3a86dde31380c71dd1f39cb60881386083"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/ea97bfb38276421bb336a76931f01535.job.json",
+      "bytes": 2082,
+      "sha256": "b32557d9c5814542b1f9e08d351f1b0415804f54a001b8aa8f525c000ee7e7ab"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/ea97bfb38276421bb336a76931f01535.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/ea97bfb38276421bb336a76931f01535.stdout.log",
+      "bytes": 334,
+      "sha256": "923c55354f46c79517bd4a7e92f7acdc456a2ee2523cb15db6e9bff4602ae107"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/eb6bde7fce2849de80f5bb592829bfcd.job.json",
+      "bytes": 1809,
+      "sha256": "577e6b09766e2b6fefede1d78bb52c7f071c209e195410d5a6bd10cdb7c3d3ed"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/eb6bde7fce2849de80f5bb592829bfcd.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/eb6bde7fce2849de80f5bb592829bfcd.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/ebd849b156de4f6a8f470f45a4a20591.job.json",
+      "bytes": 1960,
+      "sha256": "36dc92c62ff20df21b38971213359931f97864148e9558b61839c4071a9bc8c9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/ebd849b156de4f6a8f470f45a4a20591.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/ebd849b156de4f6a8f470f45a4a20591.stdout.log",
+      "bytes": 232,
+      "sha256": "79ed7bfdd027c655ef39ecb6ad8ec954c55ea591e8d8c15ab54058fa0489af1d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/f0bc9ed6b9744e9886b580d10acbf667.job.json",
+      "bytes": 1877,
+      "sha256": "c052952957761260d7621377293a7cfa5fd04ef088b8d08276571d20811d80d2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/f0bc9ed6b9744e9886b580d10acbf667.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/f0bc9ed6b9744e9886b580d10acbf667.stdout.log",
+      "bytes": 349,
+      "sha256": "8e80e353fca2a70bd9cbf30ae1d9d20acd8773e13d9765a07546099e07425448"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/f32a929e9a6c4fdaaf461d7533abfb09.job.json",
+      "bytes": 1909,
+      "sha256": "79b877f0e53ced90af2af24d6bc16294e24c0f2c389f50377dd70ac38964f617"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/f32a929e9a6c4fdaaf461d7533abfb09.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/f32a929e9a6c4fdaaf461d7533abfb09.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/f4a6adac4ce44120a923ebdcd124089d.job.json",
+      "bytes": 1885,
+      "sha256": "369ac244e7c98f1a43682b7ff4fdde368b38f0f359c7a16bef2b3258ad56e02e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/f4a6adac4ce44120a923ebdcd124089d.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/f4a6adac4ce44120a923ebdcd124089d.stdout.log",
+      "bytes": 160,
+      "sha256": "be0df60d6536fb7cf020b286c3355a3a86dde31380c71dd1f39cb60881386083"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/f5ea111daf274521b367cca23ecb3dbb.job.json",
+      "bytes": 1805,
+      "sha256": "420b74db9bf04012ab20de4b605d90bd8c23877280afc2f6a8c04b56858f65fd"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/f5ea111daf274521b367cca23ecb3dbb.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/f5ea111daf274521b367cca23ecb3dbb.stdout.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/fe6be16496994e11a6a8d78098da4f7e.job.json",
+      "bytes": 2078,
+      "sha256": "b8835bf7c2fb266280f77d3d74fcb29fc08ebd1b0b40f94df3b45581623975d9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/fe6be16496994e11a6a8d78098da4f7e.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/logs/fe6be16496994e11a6a8d78098da4f7e.stdout.log",
+      "bytes": 328,
+      "sha256": "e1d2f49b347b652ca93c1d2fe3edbbdea2eea349573f086f7560bc6f638eb59a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/45b4e8f81efc4e71847f52ab2a17e0e6/run-manifest.json",
+      "bytes": 14376870,
+      "sha256": "7c3bd80b63dfe7e7830846d00536d195ae5feb54b0e5d7f630905901d3df0025"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/rechecks/f218004018654fe8b0fb01aaa91f6dcb/ResolveImports.lean",
+      "bytes": 80717,
+      "sha256": "faddc8a36fea346bcc94a488ef4120a8bccbb6cb86e4b3869edbe57e38d22f3b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/rechecks/f218004018654fe8b0fb01aaa91f6dcb/logs/ffa8c29de39c40479d97b8832bb719c4.job.json",
+      "bytes": 9660,
+      "sha256": "619df456c3f014e388a39844305b3b7fd3f3cec27ff0b220951838c27a2fa0ae"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/rechecks/f218004018654fe8b0fb01aaa91f6dcb/logs/ffa8c29de39c40479d97b8832bb719c4.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/lean-verification-runs/rechecks/f218004018654fe8b0fb01aaa91f6dcb/logs/ffa8c29de39c40479d97b8832bb719c4.stdout.log",
+      "bytes": 243679,
+      "sha256": "3d82fb0492e9e5f2c9ff96e3fc72af8b790a0002c85548f69bb2213fd8c12b08"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-check-v3/run-manifest.json",
+      "bytes": 14376870,
+      "sha256": "7c3bd80b63dfe7e7830846d00536d195ae5feb54b0e5d7f630905901d3df0025"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-freshness-v3.json",
+      "bytes": 409,
+      "sha256": "15b2af3262c537c8093f41cbe045b4f93dd538d867ce530fd60458c0cf36fc09"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v1/Origin/ForceVelocity.lean",
+      "bytes": 8790,
+      "sha256": "9690245077a125451c97f3ab1ca67cfc3cd43553c671009a3eba682ace6a0773"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v1/Stage60Fixture.lean",
+      "bytes": 9310,
+      "sha256": "bc8007d4043f14336989d81620cf2fea0ad9497ba767869c922c92d82d25ced3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v1/Stage60Proof.lean",
+      "bytes": 2952,
+      "sha256": "95d9904f95693688f5bbf3eafac869a9d3eccc63cb2cd2c5294a145924f0b79c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v1/prepare_lean.failed-import.mjs",
+      "bytes": 5808,
+      "sha256": "31ddb9aca148c4980a3e51e161816faa9c2242746ecdf97fd17241f31f061e8a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v2/Origin/CenterComplete.lean",
+      "bytes": 38751,
+      "sha256": "478e34e703801742e6808c834488b7fe009d94bb0d896eb65e7d6a20105d64c2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v2/Origin/CenterConstruction.lean",
+      "bytes": 21312,
+      "sha256": "478a00a239e77b6ac66554c8428efaff7f1af69f9edbf73f2f4250aaa895bc3c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v2/Origin/CenterFull.lean",
+      "bytes": 10018,
+      "sha256": "00b40dd9f75756edb1a3155c04f301de9c8986bb148f753b56e7707686d73959"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v2/Origin/CenterStates.lean",
+      "bytes": 26194,
+      "sha256": "8355eaba2ca8b0f1ef50b8167802ce2f5c6abdab188dd3f49ea25859936a1a0a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v2/Origin/ChanlunElements.lean",
+      "bytes": 6035,
+      "sha256": "19c33e884e6949cdd56a51ff7c44dc086354994b7f54431f57bec4a0849fa201"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v2/Origin/CompleteClassification.lean",
+      "bytes": 3920,
+      "sha256": "066f1feaec8f6e8a93a4f3c4a516bff51af31689e382d20964e06526fa831b26"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v2/Origin/Divergence.lean",
+      "bytes": 17872,
+      "sha256": "1940997ceca2f26bdfd82fb8e20bf1ab9b41d6a4a9ec926bbc64c502888bffcc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v2/Origin/ForceInterface.lean",
+      "bytes": 39154,
+      "sha256": "8760de19451bf2c2254e36e9abf32bd4df43db26dc978bda5ae29b623009c5cb"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v2/Origin/ForceVelocity.lean",
+      "bytes": 8790,
+      "sha256": "9690245077a125451c97f3ab1ca67cfc3cd43553c671009a3eba682ace6a0773"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v2/Origin/SegmentAutoConstruct.lean",
+      "bytes": 26131,
+      "sha256": "3ffd1f05eb003e812c4c6a68327bec3897e5f432bdc39cf80f498e7245df026c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v2/Origin/SegmentConstruction.lean",
+      "bytes": 18073,
+      "sha256": "b945d45b5e6466631a34559a5feab87594d7461118dea36e61094b6d6925c374"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v2/Origin/SegmentFeatureComplete.lean",
+      "bytes": 37409,
+      "sha256": "c740b9a77bbda167f6ef3d08f2ad3d24dbe0ba0f617d5eedc0f88ab1bd07ef7e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v2/Origin/SegmentFeatureSeq.lean",
+      "bytes": 24663,
+      "sha256": "4f727a53f24ee548abd340ab6894be5f976d21ef4bd1d12bde18f5e3973429dc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v2/Origin/SourceAxioms.lean",
+      "bytes": 2773,
+      "sha256": "2154cb85c1ac80685e8d2091259818e3543ad76dfeeb08640df0ae236d39ff6f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v2/Stage60Fixture.lean",
+      "bytes": 9447,
+      "sha256": "5c569612d5e18fee5924d5a0e1aa9a112b5b631ffbc1a5c2d7cc9cb0e1878084"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v2/Stage60Proof.lean",
+      "bytes": 2952,
+      "sha256": "95d9904f95693688f5bbf3eafac869a9d3eccc63cb2cd2c5294a145924f0b79c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v2/prepare_lean.failed-decidable.mjs",
+      "bytes": 6460,
+      "sha256": "78ac6dadb487908a16db55ab23487a2f838962d13dc8f4288120a09b29cd9641"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v3/Origin/CenterComplete.lean",
+      "bytes": 38751,
+      "sha256": "478e34e703801742e6808c834488b7fe009d94bb0d896eb65e7d6a20105d64c2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v3/Origin/CenterConstruction.lean",
+      "bytes": 21312,
+      "sha256": "478a00a239e77b6ac66554c8428efaff7f1af69f9edbf73f2f4250aaa895bc3c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v3/Origin/CenterFull.lean",
+      "bytes": 10018,
+      "sha256": "00b40dd9f75756edb1a3155c04f301de9c8986bb148f753b56e7707686d73959"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v3/Origin/CenterStates.lean",
+      "bytes": 26194,
+      "sha256": "8355eaba2ca8b0f1ef50b8167802ce2f5c6abdab188dd3f49ea25859936a1a0a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v3/Origin/ChanlunElements.lean",
+      "bytes": 6035,
+      "sha256": "19c33e884e6949cdd56a51ff7c44dc086354994b7f54431f57bec4a0849fa201"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v3/Origin/CompleteClassification.lean",
+      "bytes": 3920,
+      "sha256": "066f1feaec8f6e8a93a4f3c4a516bff51af31689e382d20964e06526fa831b26"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v3/Origin/Divergence.lean",
+      "bytes": 17872,
+      "sha256": "1940997ceca2f26bdfd82fb8e20bf1ab9b41d6a4a9ec926bbc64c502888bffcc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v3/Origin/ForceInterface.lean",
+      "bytes": 39154,
+      "sha256": "8760de19451bf2c2254e36e9abf32bd4df43db26dc978bda5ae29b623009c5cb"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v3/Origin/ForceVelocity.lean",
+      "bytes": 8790,
+      "sha256": "9690245077a125451c97f3ab1ca67cfc3cd43553c671009a3eba682ace6a0773"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v3/Origin/SegmentAutoConstruct.lean",
+      "bytes": 26131,
+      "sha256": "3ffd1f05eb003e812c4c6a68327bec3897e5f432bdc39cf80f498e7245df026c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v3/Origin/SegmentConstruction.lean",
+      "bytes": 18073,
+      "sha256": "b945d45b5e6466631a34559a5feab87594d7461118dea36e61094b6d6925c374"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v3/Origin/SegmentFeatureComplete.lean",
+      "bytes": 37409,
+      "sha256": "c740b9a77bbda167f6ef3d08f2ad3d24dbe0ba0f617d5eedc0f88ab1bd07ef7e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v3/Origin/SegmentFeatureSeq.lean",
+      "bytes": 24663,
+      "sha256": "4f727a53f24ee548abd340ab6894be5f976d21ef4bd1d12bde18f5e3973429dc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v3/Origin/SourceAxioms.lean",
+      "bytes": 2773,
+      "sha256": "2154cb85c1ac80685e8d2091259818e3543ad76dfeeb08640df0ae236d39ff6f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v3/Stage60Fixture.lean",
+      "bytes": 9447,
+      "sha256": "5c569612d5e18fee5924d5a0e1aa9a112b5b631ffbc1a5c2d7cc9cb0e1878084"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/lean-project-v3/Stage60Proof.lean",
+      "bytes": 2980,
+      "sha256": "f024c8f5665abab18e0c9f0b29ca6e643de8ee0c3b84743f1cb5dc56a203fb85"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/roles-v1.json",
+      "bytes": 4009,
+      "sha256": "78dc46cfeebf86990f0730cade9b0c4ddd9b66716dd9bd4ab2f440235671c997"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v1/build_check.failed-link.mjs",
+      "bytes": 11934,
+      "sha256": "6b29e1cffbbc1140c795fd9a858b6875632ca9c3a1d4e2c940f22e0604d13a74"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v1/compile.receipt.json",
+      "bytes": 664,
+      "sha256": "36f9c1f071174cd32da3b010fc42e3f32d82cf440c1ef9e7b6ddb025d1d00f5b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v1/compile.stderr",
+      "bytes": 1546,
+      "sha256": "96bcdc07000016362f081e944be9cabe28457391ae97a1b1a93dd28e6a439681"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v1/compile.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v1/reference-probe.0nmdmsxa993u26y9sd62a0cy9.rcgu.o",
+      "bytes": 1280,
+      "sha256": "6eb1f56cd4f9df69945feebd4f8d6bf14a0904af07fecae8e33de051b3e1e3c0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v1/reference-probe.reference_probe.4e98e1c7e087f27d-cgu.0.rcgu.o",
+      "bytes": 106824,
+      "sha256": "9f4d0da755e1717c04e0f9bfdb8e1dabfdfd9ff74ecdcb18fcd0a2c5899834df"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v1/reference-probe.reference_probe.4e98e1c7e087f27d-cgu.1.rcgu.o",
+      "bytes": 133784,
+      "sha256": "096ee8c05cad18ea67028252c033e196dde6abc7ecbfb0270f652dab0ae0d680"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v1/runtime-identities.json",
+      "bytes": 489,
+      "sha256": "2ae24635eca2023a99f289637b403cc4203afd1376b741132f3b2bc0771fb59f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v1/source-identities.json",
+      "bytes": 2164,
+      "sha256": "daf6b18cdd7e8ba1f55846502c31a0ebaf23f50eab5499957c221e582eb14d67"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/N60-equal-force.certificate.json",
+      "bytes": 9602,
+      "sha256": "7eb79f142a591b478c83040a1d97ce5cc19275ab1d1cfa4d313826eda0ca402d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/N60-equal-force.reference.receipt.json",
+      "bytes": 310,
+      "sha256": "a979ff9717bce5c6b8d08695c9b1dea1f8be53855e377a9c3c699c188a61d6b6"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/N60-equal-force.reference.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/N60-equal-force.reference.stdout",
+      "bytes": 498755,
+      "sha256": "2fa57339f495b9684fd6b00beb28e06ea59e44559ecb73604cbab173e7ef08a9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/N60-equal-force.source.json",
+      "bytes": 132537,
+      "sha256": "c77af27fc969c2a036152eaf778c8cac08f5dc197ed7491c6eac185f158e7169"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/T60-main.certificate.json",
+      "bytes": 9541,
+      "sha256": "72e5faa06822a874a94e110daf97bbc2d04ce5655d77bc85a111ea4fa17c263a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/T60-main.reference.receipt.json",
+      "bytes": 303,
+      "sha256": "608f43a6a5834828afe896c1220ebbf3ce3974619821b9afd6ce222b2fd8b60e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/T60-main.reference.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/T60-main.reference.stdout",
+      "bytes": 498755,
+      "sha256": "d2818b935e14623895fef3bb0d4006edb9f8dfa723341964c19cfa925e9493d7"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/T60-main.source.json",
+      "bytes": 132539,
+      "sha256": "b7b24b9986ccf87a189d05f4ba516f9c289c5b2a56e4bdf04dfa2e4580b582bb"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/compile.receipt.json",
+      "bytes": 885,
+      "sha256": "d62516ce64d0b90d0d18bfa9ab98f952fe68d77a5c695d27e04d26a3e715a42f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/compile.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/compile.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/reference-probe",
+      "bytes": 942352,
+      "sha256": "552e95cf610eeccbb0d2244d34ce54bd8f922814f344961429d6633bc2ee202a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/run-manifest.json",
+      "bytes": 5917,
+      "sha256": "353a0915dccfb0705df936121b722029d857d8bd0dcf10210bef8f958ae31512"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/runtime-identities.json",
+      "bytes": 489,
+      "sha256": "2ae24635eca2023a99f289637b403cc4203afd1376b741132f3b2bc0771fb59f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/source-identities.json",
+      "bytes": 2164,
+      "sha256": "daf6b18cdd7e8ba1f55846502c31a0ebaf23f50eab5499957c221e582eb14d67"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/run-v2/summary.json",
+      "bytes": 2153,
+      "sha256": "c254efba254b708c8ed08694e3524ff1bd380eb95197fb2f37a968911a4f0a80"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/construction/source-evidence-v1.json",
+      "bytes": 33876,
+      "sha256": "bad43a0d4481991641d0d15840c5a2803b11cf7f42e32066681366f2ce3aa0b6"
+    }
+  ]
+}

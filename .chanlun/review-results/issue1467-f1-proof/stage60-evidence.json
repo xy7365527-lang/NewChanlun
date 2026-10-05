@@ -1,0 +1,217 @@
+{
+  "schema": "stage60-integrated-evidence-v1",
+  "utc": "2026-10-05T02:41:30.764468+00:00",
+  "adoption": "ACCEPT_SCOPED_FINITE_LOCAL_COMPARISON",
+  "files": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/Intent-v1.md",
+      "bytes": 1695,
+      "sha256": "e11332e7c97989a936fb779d1a9ce0a866ce39e50c1878a3f48ff0eac5fc0274"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/Stage60Fixture.lean",
+      "bytes": 9447,
+      "sha256": "5c569612d5e18fee5924d5a0e1aa9a112b5b631ffbc1a5c2d7cc9cb0e1878084"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/Stage60Proof.lean",
+      "bytes": 2980,
+      "sha256": "f024c8f5665abab18e0c9f0b29ca6e643de8ee0c3b84743f1cb5dc56a203fb85"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/build_check.mjs",
+      "bytes": 12100,
+      "sha256": "f789823aacee7f1065679227e90ff6fcda07b866dbc416a4f24c91200d9a33f4"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/capture_sources.mjs",
+      "bytes": 2074,
+      "sha256": "795aa85fafee77fe5e1a6f59b0fa6fab7fe87956fedc5b398b47b8f8a68ceb2a"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/development_check.mjs",
+      "bytes": 3586,
+      "sha256": "473b2cda179990f654895a32d93e5b4957aba0364d1562cd5ac750950add7473"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/lean-summary.json",
+      "bytes": 1683,
+      "sha256": "bde7ea140415366f1ef07d40fd215f91439f4c67b3f901ad4121fc7299081328"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/manifest-v1.json",
+      "bytes": 153273,
+      "sha256": "0b5dd2fce2655fdf7ad752a2050dd4aa2540dcba588ffe24187fc2f81db2d2e8"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/prepare_lean.mjs",
+      "bytes": 6442,
+      "sha256": "a3ae90b5e1d30fb9dbb78207d019eb6fd904da1ee0bd3e14db392bbfaf4a63af"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/reference_probe.rs",
+      "bytes": 1617,
+      "sha256": "2e15aae202b8be9f509a5f7306d4df1e797ff24a3433d7f0f87d3a21e8b94a0d"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/role_check.mjs",
+      "bytes": 1853,
+      "sha256": "457a3c2b5748ab1fa1823ecb69e34e56a62e866b98b6181f3f72300a1b90a4ac"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/run_all.sh",
+      "bytes": 1383,
+      "sha256": "099523b5a68ecc889552b344a69bdeda2078cd45f893719fb1b563f59b4e4b62"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/construction-evidence/template-v1.md",
+      "bytes": 3671,
+      "sha256": "d973f9012f3810bece79bd4a275ef6f4a8e9ef44c6324270451d6667ab1aa9b2"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/dynamic-construction.md",
+      "bytes": 15208,
+      "sha256": "9dbf1077f566dbf26a3e2d20d7fb698031f68078d3e4ea7f500b3d9efd54ecea"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/independent-dynamic-comparison.md",
+      "bytes": 21155,
+      "sha256": "56099b0c9c5bda7bf201de0b38b9ba8ab68ebd4e6aa99264efb3223e7b7f85d3"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/independent-exact-readback.md",
+      "bytes": 10706,
+      "sha256": "b72d53241409d24a6c84c650961314a41d2e47fe5d7163a0298913026360053d"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage60/reference-source-semantics-review.md",
+      "bytes": 12590,
+      "sha256": "5748ed992484b6bc7aca45b2b678669be367c1224e3bb186374f8c58fd2300d4"
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage60SourceAndDynamics.md",
+      "bytes": 3563,
+      "sha256": "5e1b5999f1e181307f14abe694600bb513249ec2196b40a34b0f57f7d7798d58"
+    }
+  ],
+  "external": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/reference-source-input-v1.json",
+      "bytes": 5531,
+      "sha256": "461e6bfcdb52451efa4cf591b77ea274b1ada87b626a3180e7442777db3bb6f3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/reference-source-review/output-manifest.json",
+      "bytes": 1288,
+      "sha256": "0a1bbb8e0a0c98508451a9f757ce90552db22fff2a5e958ba6e442cfe8c189fb"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/reference-source-review/check.py",
+      "bytes": 5876,
+      "sha256": "6ac8a82430f9e0883256a75744e58c8fffa0d53242ef99b44d22d882c17943ac"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/reference-source-review/result.json",
+      "bytes": 3168,
+      "sha256": "727ecfade3d082ce3a08e963409a000e442aef29a9dc3fd71cc66c8c01d878bc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/reference-source-review/command.json",
+      "bytes": 2244,
+      "sha256": "4fb16afdcc7466884a55cfad9a137b4fe989e088aa8a5c47afe7753666cdd18a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/reference-source-completion-v1.json",
+      "bytes": 627,
+      "sha256": "bca8cb0d04b15c9878c22abd819c023df94be1d35b35318f5f5f86a4e1b1cc5a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/dynamic-comparison/final-receipt.json",
+      "bytes": 4208,
+      "sha256": "84fc0528dbc21ea2260f23a0bb1337e5c0d927c8d9ecec11bc3561fc4a16759d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/dynamic-comparison/check-summary.json",
+      "bytes": 1149,
+      "sha256": "ec91384c6f7df8099e21c60a3af07d82a53d876ea4760e2751fcc4fc90bbe8b7"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/dynamic-comparison/fixture-bridge-check.json",
+      "bytes": 5478,
+      "sha256": "08e08283f6c77d2d3a963d4f62bd1859366df69eedeac67f886e48bb2f3b558a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/exact-readback/run-20261005-102423/source-manifest.json",
+      "bytes": 5626,
+      "sha256": "2113ee177d9bf060a2de7f783aceb86b3144d4bc326eccc7eefa226f86ea320a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/exact-readback/run-20261005-102423/commands.json",
+      "bytes": 10497,
+      "sha256": "a5947ceeb7b0a37d0072f6a1fc314301a5985eae751b2ca27be59bee301ece87"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/exact-readback/run-20261005-102423/readback.log",
+      "bytes": 20927,
+      "sha256": "e0894c238039a81919a4b5d9ab19688c4a9913c9beb3878a2df249498e41e88d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/exact-readback/run-20261005-102423/environment-check.json",
+      "bytes": 714,
+      "sha256": "7a10ac17ad0f781d0049f5b4660aa07a6e1de1e18945f4ce9a50176c6a2fa47f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/delegation-record-v1.json",
+      "bytes": 772,
+      "sha256": "60d41ebc49c544e9df7958a93abb874cebd530d4a61281f6919ddafe484eed96"
+    }
+  ],
+  "own_progress_patch": {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage60/progress-own.patch",
+    "bytes": 2018,
+    "sha256": "b8fe9a7692575ff8a6fc838127d09d4d7a23777a9b876024673e1354e4811486"
+  },
+  "proof_boundary": {
+    "root": "Stage60.exact_root",
+    "quantifiers": "fixed constants only",
+    "new_readback_local_modules": 16,
+    "probe_additional": true,
+    "axioms": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ],
+    "event_replay_and_source_bridges": "independent finite external checks, not in root",
+    "not_v2_expected_type_acceptance_for_readback": true
+  },
+  "controls": {
+    "histories": 2,
+    "states_each": 123,
+    "events_each": 122,
+    "strokes_each": 30,
+    "prefix_checks": 246,
+    "atoms_fixture_connections": 60,
+    "segment_source_connections": 10,
+    "force": [
+      250,
+      -125,
+      250
+    ],
+    "development_strict_candidate_at": 106,
+    "segment_end_occurs_at": 101,
+    "segment_end_known_at": 118,
+    "realized_core_return_at": 120
+  },
+  "mandatory_limits": [
+    "delta=1 is chosen local analysis, not unique F1 or fixed F2 identity",
+    "S2 excluded by core-member role, not absence of crossing",
+    "old certificate enumerates upper crossings only; consume roles and report jointly",
+    "development program includes fixed instance constants; independent reconstruction supports these histories only",
+    "106 is revisable candidate, not irreversible original divergence or completion",
+    "B60 original whole completion unproved"
+  ],
+  "goal_mutated": false,
+  "market_samples": 0,
+  "production_or_main_changes": false,
+  "next": "construct a named whole-move completion/end-successor derivation with actual source roles; no conversion of PanDiv/SegmentEnd into P by a field"
+}
