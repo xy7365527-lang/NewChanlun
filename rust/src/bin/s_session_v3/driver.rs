@@ -1348,9 +1348,19 @@ mod tests {
                 assert!(report["retained_capture"].is_null());
             } else {
                 assert_eq!(report["counts_subset_selection"]["accepted_groups"], n - 1);
+                let public_roots = report["retained_capture"]["native_codec_root_certificates"]
+                    ["public_roots"]
+                    .as_u64()
+                    .unwrap();
+                // 只保存n-1个已接纳组的三个完整根；共享根去重后只计费一次。
+                assert!((1..=3 * u64::try_from(n - 1).unwrap()).contains(&public_roots));
                 assert_eq!(
-                    report["retained_capture"]["native_codec_root_certificates"]["public_roots"],
-                    0
+                    report["source_cost_breakdown"]["codec_root_certificate_bytes"],
+                    43 + 32 * public_roots
+                );
+                assert_eq!(
+                    report["retained_source_cost"],
+                    report["counts_subset_selection"]["retained_source_bytes"]
                 );
                 assert_eq!(
                     report["retained_capture"]["native_codec_root_certificates"]["template_roots"],

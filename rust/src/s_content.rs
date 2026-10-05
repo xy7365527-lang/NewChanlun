@@ -2130,7 +2130,7 @@ impl Default for NativeCodecRootCertificates {
     }
 }
 /// #1394 私有构造：同次全新核验器完成导航与三个完整Public闭包后才生成。
-/// 此证书只描述Counts依据；不进入codec seen播种，不授予来源业务资格。
+/// 此证书只描述Counts依据；仅整组接纳的三个Value根可封存codec资格，不授予来源业务资格。
 #[cfg(feature = "s_capture_native_testonly")]
 pub struct NativeCountsSubsetCertificate {
     state: ContentRef,
@@ -2247,9 +2247,9 @@ impl NodeSource for NativeCountsSubsetReader<'_> {
 #[cfg(feature = "s_capture_native_testonly")]
 impl AuditCapture {
     /// 按调用方给出的新到旧顺序，仅接纳整组导航+三完整闭包。
-    /// fixed/group费用是SQL/Key/Counts原件费用，不是调用方提供的验证资格。
+    /// fixed费用含SQL及一次codec固定费，group费用含Key/Counts；不提供验证资格。
     /// 全新Verifier只建一次；跨组memo仅引用此前已接纳D。首次超额回滚新增D并终止，
-    /// 核验器与半组资格立即丢弃。最终裁剪按值移交正文，清空全部跨请求codec根。
+    /// 核验器与半组资格立即丢弃。最终裁剪按值移交正文，仅封存已接纳三闭包的根。
     #[doc(hidden)]
     pub fn into_counts_original_subset_for_testonly(
         mut self,
@@ -2275,6 +2275,7 @@ impl AuditCapture {
         let mut certificates = Vec::new();
         let mut report = NativeCountsSubsetReport::default();
         let mut accepted_metadata_bytes = 0usize;
+        let mut admitted_public_roots = std::collections::HashSet::new();
         {
             let mut reader = NativeCountsSubsetReader {
                 capture: &self,
@@ -2319,6 +2320,23 @@ impl AuditCapture {
                     roots,
                 };
                 let certificate_bytes = certificate.source_bytes()?;
+                // 只计算候选；组内及跨组去重，超额组不能写入或删除既有共享根。
+                let mut new_public_roots = [None; 3];
+                let mut new_public_root_count = 0usize;
+                for root in &certificate.roots {
+                    let digest = root.digest()?;
+                    if !admitted_public_roots.contains(&digest)
+                        && !new_public_roots.contains(&Some(digest))
+                    {
+                        new_public_roots[new_public_root_count] = Some(digest);
+                        new_public_root_count += 1;
+                    }
+                }
+                let codec_root_bytes = admitted_public_roots
+                    .len()
+                    .checked_add(new_public_root_count)
+                    .and_then(|v| v.checked_mul(32))
+                    .ok_or_else(|| CodecError::new(code::SOURCE, "Counts codec根费用溢出"))?;
                 let metadata_bytes = accepted_metadata_bytes
                     .checked_add(group_source_bytes)
                     .and_then(|v| v.checked_add(certificate_bytes))
@@ -2326,6 +2344,7 @@ impl AuditCapture {
                 let required = fixed_source_bytes
                     .checked_add(metadata_bytes)
                     .and_then(|v| v.checked_add(ledger.borrow().source_bytes))
+                    .and_then(|v| v.checked_add(codec_root_bytes))
                     .ok_or_else(|| CodecError::new(code::SOURCE, "Counts整池费用溢出"))?;
                 report.last_attempted_source_bytes = required;
                 if required > cap {
@@ -2337,7 +2356,12 @@ impl AuditCapture {
                 certificates
                     .try_reserve(1)
                     .map_err(|e| CodecError::new(code::SOURCE, e.to_string()))?;
+                // 分配失败交由post-COMMIT调用方丢弃可选缓存，不改变成功业务回复。
+                admitted_public_roots
+                    .try_reserve(new_public_root_count)
+                    .map_err(|e| CodecError::new(code::SOURCE, e.to_string()))?;
                 certificates.push(certificate);
+                admitted_public_roots.extend(new_public_roots.into_iter().flatten());
                 accepted_metadata_bytes = metadata_bytes;
                 report.accepted_groups += 1;
                 if report.accepted_groups == 1 {
@@ -2362,6 +2386,8 @@ impl AuditCapture {
         native.nodes = kept;
         // collector产生的F proof及全请求memo都不得跟随稀疏owner保留。
         self = self.into_originals_only_for_testonly()?;
+        // generated_state仅导航，不授予完整根资格；Template保持Default空集合。
+        self.codec_roots.get_mut().public = admitted_public_roots;
         Ok((self, certificates, report))
     }
 }
@@ -2947,6 +2973,204 @@ mod codec_root_success_tests {
             warm.reads.get(),
             cold.reads.get(),
             "Public证书不得跨入Template"
+        );
+    }
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+mod counts_subset_codec_root_tests {
+    use super::*;
+
+    fn fixture() -> (MemoryNodes, [ContentRef; 2], [ContentRef; 3]) {
+        let mut nodes = MemoryNodes::new();
+        let roots = ["shared", "first", "second"].map(|name| {
+            write_value(
+                &mut nodes,
+                &Value::Array(vec![Value::String(name.repeat(1600)), Value::Bool(true)]),
+            )
+            .unwrap()
+            .content_ref()
+        });
+        let states = [[0, 0, 1], [0, 2, 2]].map(|indices| {
+            write_value(
+                &mut nodes,
+                &Value::Object(
+                    ["objects", "witnesses", "observations"]
+                        .into_iter()
+                        .zip(indices)
+                        .map(|(name, index)| {
+                            (name.into(), Value::edge_of_ref(&roots[index]).unwrap())
+                        })
+                        .collect(),
+                ),
+            )
+            .unwrap()
+            .content_ref()
+        });
+        (nodes, states, roots)
+    }
+    fn native(nodes: &MemoryNodes) -> AuditCapture {
+        AuditCapture::new(nodes.clone())
+            .enable_native_frame_reuse_for_testonly()
+            .unwrap()
+    }
+    fn assert_cold_workspaces(capture: &AuditCapture) {
+        for mode in ["public", "template"] {
+            assert!(capture.retention()[mode]
+                .as_object()
+                .unwrap()
+                .values()
+                .all(|v| v.as_u64() == Some(0)));
+        }
+        assert_eq!(
+            capture.retention()["native_frame_reuse"]["retained_entries"],
+            0
+        );
+        assert_eq!(
+            capture.retention()["native_frame_reuse"]["retained_body_vec_capacity_bytes"],
+            0
+        );
+        assert_eq!(capture.retention()["capture_reads"], 0);
+        assert!(capture.codec_roots.borrow().template.is_empty());
+    }
+
+    #[test]
+    fn counts_subset_codec_normal_exact_roots_dedup_fees_and_success_seed() {
+        let (nodes, states, roots) = fixture();
+        let capture = native(&nodes);
+        // 旧collector的完整state及Template成功根必须全部清除。
+        for state in &states {
+            capture.verify(state, Mode::Public).unwrap();
+            capture.verify(state, Mode::Template).unwrap();
+        }
+        let (subset, certificates, report) = capture
+            .into_counts_original_subset_for_testonly(
+                [(states[0].clone(), 19), (states[1].clone(), 23)],
+                43,
+                usize::MAX,
+            )
+            .unwrap();
+        assert_eq!(report.accepted_groups, 2);
+        assert!(certificates
+            .iter()
+            .all(|c| c.source_bytes().unwrap() == 428));
+        let expected: std::collections::HashSet<_> =
+            roots.iter().map(|r| r.digest().unwrap()).collect();
+        assert_eq!(subset.codec_roots.borrow().public, expected);
+        for state in &states {
+            assert!(!subset
+                .codec_roots
+                .borrow()
+                .public
+                .contains(&state.digest().unwrap()));
+        }
+        assert_cold_workspaces(&subset);
+        let retained = subset.retention();
+        assert_eq!(
+            retained["native_codec_root_certificates"]["public_roots"],
+            3
+        );
+        assert!(
+            retained["native_codec_root_certificates"]["public_capacity"]
+                .as_u64()
+                .unwrap()
+                >= 3
+        );
+        assert_eq!(
+            report.retained_source_bytes,
+            43 + 19
+                + 23
+                + 2 * 428
+                + retained["body_len_bytes"].as_u64().unwrap() as usize
+                + 97 * retained["captured_nodes"].as_u64().unwrap() as usize
+                + 32 * 3
+        );
+        let warm = native(&nodes);
+        let cold = native(&nodes);
+        assert_eq!(
+            warm.seed_codec_roots_from_native_capture_for_testonly(&subset)
+                .unwrap(),
+            3
+        );
+        assert_eq!(warm.public.borrow().seen.len(), 3);
+        assert!(warm.template.borrow().seen.is_empty());
+        for root in &roots {
+            warm.verify(root, Mode::Public).unwrap();
+            cold.verify(root, Mode::Public).unwrap();
+        }
+        assert_eq!(warm.reads.get(), 3, "成功种子仍逐根严格读取当前header");
+        assert!(
+            cold.reads.get() > warm.reads.get(),
+            "完整闭包应得到实际codec复用"
+        );
+    }
+
+    #[test]
+    fn counts_subset_codec_normal_low_cap_keeps_admitted_shared_roots_only() {
+        let (nodes, states, roots) = fixture();
+        let groups = || [(states[0].clone(), 19), (states[1].clone(), 23)];
+        let (_, _, measured) = native(&nodes)
+            .into_counts_original_subset_for_testonly(groups(), 43, usize::MAX)
+            .unwrap();
+        let cap = measured.first_admitted_source_bytes;
+        let (subset, certificates, report) = native(&nodes)
+            .into_counts_original_subset_for_testonly(groups(), 43, cap)
+            .unwrap();
+        assert_eq!(certificates.len(), 1);
+        assert!(certificates[0].matches_state(&states[0]));
+        assert_eq!((report.attempted_groups, report.accepted_groups), (2, 1));
+        assert!(report.budget_stopped && report.rolled_back_nodes > 0);
+        assert_eq!(report.retained_source_bytes, cap);
+        let expected: std::collections::HashSet<_> =
+            roots[..2].iter().map(|r| r.digest().unwrap()).collect();
+        assert_eq!(subset.codec_roots.borrow().public, expected);
+        assert!(!subset
+            .codec_roots
+            .borrow()
+            .public
+            .contains(&roots[2].digest().unwrap()));
+        assert_cold_workspaces(&subset);
+        let current = native(&nodes);
+        assert_eq!(
+            current
+                .seed_codec_roots_from_native_capture_for_testonly(&subset)
+                .unwrap(),
+            2
+        );
+        assert!(!current
+            .public
+            .borrow()
+            .seen
+            .contains(&(roots[2].digest().unwrap(), Flavor::Value)));
+    }
+
+    #[test]
+    fn counts_subset_codec_normal_first_group_cap_includes_unique_root_fee() {
+        let (nodes, states, _) = fixture();
+        let groups = || [(states[0].clone(), 19)];
+        let (_, _, measured) = native(&nodes)
+            .into_counts_original_subset_for_testonly(groups(), 43, usize::MAX)
+            .unwrap();
+        // 正常低cap能装下原件与Counts证书，但装不下两个唯一codec根。
+        let cap = measured.first_admitted_source_bytes - 32 * 2;
+        let (subset, certificates, report) = native(&nodes)
+            .into_counts_original_subset_for_testonly(groups(), 43, cap)
+            .unwrap();
+        assert!(certificates.is_empty());
+        assert_eq!(report.accepted_groups, 0);
+        assert!(report.budget_stopped && report.rolled_back_nodes > 0);
+        assert_eq!(
+            report.last_attempted_source_bytes,
+            measured.first_admitted_source_bytes
+        );
+        assert!(subset.codec_roots.borrow().public.is_empty());
+        assert_eq!(subset.retention()["captured_nodes"], 0);
+        assert_cold_workspaces(&subset);
+        assert_eq!(
+            native(&nodes)
+                .seed_codec_roots_from_native_capture_for_testonly(&subset)
+                .unwrap(),
+            0
         );
     }
 }

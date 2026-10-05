@@ -659,10 +659,17 @@ mod tests {
         assert!(selection.rolled_back_nodes > 0);
         assert!(pool.source_cost.total <= one_group_cap);
         assert!(pool.source_cost.counts_dependency_certificate_bytes > 0);
+        let public_roots = pool.originals.retention()["native_codec_root_certificates"]
+            ["public_roots"]
+            .as_u64()
+            .unwrap() as usize;
+        assert!((1..=3).contains(&public_roots));
         assert_eq!(
-            pool.originals.retention()["native_codec_root_certificates"]["public_roots"],
-            0
+            pool.source_cost.codec_root_certificate_bytes,
+            43 + 32 * public_roots
         );
+        assert_eq!(pool.source_cost.counts_dependency_certificate_bytes, 428);
+        assert_eq!(pool.source_cost.total, selection.retained_source_bytes);
         assert_eq!(
             pool.originals.retention()["native_codec_root_certificates"]["template_roots"],
             0
@@ -806,6 +813,29 @@ mod tests {
         assert_eq!(
             pool.source_cost.node_digest_tag_certificate_bytes,
             97 * pool.nodes
+        );
+        let public_roots = retained["native_codec_root_certificates"]["public_roots"]
+            .as_u64()
+            .unwrap() as usize;
+        assert!(public_roots > 0 && public_roots <= 3 * pool.proofs.len());
+        assert_eq!(
+            retained["native_codec_root_certificates"]["template_roots"],
+            0
+        );
+        assert_eq!(
+            pool.source_cost.codec_root_certificate_bytes,
+            43 + 32 * public_roots
+        );
+        assert_eq!(
+            pool.source_cost.counts_dependency_certificate_bytes,
+            428 * pool.proofs.len()
+        );
+        assert_eq!(
+            pool.capacity.codec_root_set_capacity_payload_bytes,
+            retained["native_codec_root_certificates"]["public_capacity"]
+                .as_u64()
+                .unwrap() as usize
+                * std::mem::size_of::<sc::NodeDigest>()
         );
         assert_eq!(
             pool.source_cost.total,
