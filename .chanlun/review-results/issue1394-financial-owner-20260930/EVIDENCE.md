@@ -133,3 +133,14 @@ S7 新增私有证书源成本为 `43 + 32 × (Public 根数 + Template 根数)`
 完整响应、持久 oracle 和终态与前版一致，封存文件 stat/SHA 及进程、controller、socket 清理均再核通过。整请求 23.112771583／22.044895291 秒，前版 23.759416459／22.815395542 秒，单次减少约 2.72%／3.38%。复用真实生效，但整请求改善仍小，不据此启动或宣称完整 9011 已可通过。
 
 源码聚合 SHA `047825708159e6c671390807f9c7a88ffda2f5037577560ea66c2ed10cd21f08`，服务 SHA `4881f0f8845405f2e205e5a0a043c73561e2791ee1f4365cee645659eb585c69`。结果、资格日志及未发行初版见 [MANIFEST-WORKSPACE-20261005.json](inputs/MANIFEST-WORKSPACE-20261005.json) 和 [原始材料 ZIP](inputs/MANIFEST-WORKSPACE-20261005-RAW.zip)。未执行故障注入，未改期限，未合入 main。全资源资格、完整双跑及 goal 仍未完成。
+## 2026-10-05 发布期间保留已重绑原件 owner
+
+隔离提交 `5d2f19e393369d4375c1adc08580740fc65cff25` 将已实际重绑的原件 map 按值移入私有发布作用域，持续到固定 resolver 和最终两根 Public fresh 核验结束。入口自行核真实 Begin、scope 和 SQL 前沿，借用可变事务且不暴露 SQL、hook 或 callback。原件读取命中仅省 SQL 取材，F 与 codec 核验仍执行；每次真实 put 的原摘要、SELECT、原件比较及 INSERT 保留，目标后续读取保持 cold。受控效果只保留未变原件，未知效果使 base 失效；owner 在后续 Commit SQL 和新 keeper 保留前释放。
+
+独评通过，5 项精确正常测试、Native 非 test release 构建和 feature-off 检查通过。四提交正常对拍实际复用原件读取 73,003 次、4 个 owner 全部释放，完整回复、类型化持久行、所有节点与可达原件对照一致。没有故障注入，也没有调整 wire/candidate 构造。
+
+真实 CopyQualified149→150／151 窗口完整 Received。150 实际复用 1,273,104 次原件读取，fallback SQL 为 308,129 次，其中重绑读取为 280,452 次，put SQL 检查 1,382 次；151 对应为 1,283,045、310,686、283,028 和 1,381 次。命中次数不是唯一节点数。两次未知写入失效计数均为 0，各观测到一次 owner drop；实际保留正文 capacity 为 15,650,293／15,793,507 B，没有第二份完整材料池。
+
+来源预算和上一版相同，旧池与 workspace 合计分别为 425,279,813／425,483,331 B，均在 536,870,912 B 内。完整响应字节、持久 oracle 和终态与前版一致；源库与新库封存 stat/SHA 再核通过，服务 Popen 回收、controller 关闭、socket 移除。整请求耗时 21.117401416／20.086794334 秒，上一版 23.112771583／22.044895291 秒，单次减少约 8.63%／8.88%。这是一组独立窗口的实测，不能外推完整 9011 或任意历史规模。
+
+源码聚合 SHA `b2608e9d2b3b83fc50fa18bf40fe32a1f55247454350e5b1ec329a70f83ef9df`，服务 SHA `e6e63bca8cc2eee21fbb60839e86e7e783cd27834586286528268c48576b5f0e`。结果和逐文件原件见 [PUBLICATION-MATERIAL-OWNER-20261005.json](inputs/PUBLICATION-MATERIAL-OWNER-20261005.json) 与 [原始材料 ZIP](inputs/PUBLICATION-MATERIAL-OWNER-20261005-RAW.zip)。严格 heap/RSS/I/O 峰值、正式 9011 双跑及 goal 仍未完成；未合入 main，前端 #1460 独立。
