@@ -209,3 +209,9 @@ SQLite记录的pager当前近似用量在采样点最多为默认2116736 B、实
 新 CopyQualified149→150／151 窗口完整 request／reply／持久 oracle 与终态同前版，耗时 17.839879584／16.758944375 秒，单次减少 10.97%／11.33%。old_pool 均为 88782841 B，来源合计 131657372／132050458 B，同享 536870912 B S7；pager 256 MiB 仍为私有建议值。RSS 是截至采样的进程生命周期高水位 2491465728 B。源封条、原件和副本 stat/SHA、同 Popen／controller／socket 回收经根事实复核通过。实窗没有单列 codec 根身份、数量或逐组 metadata 费；精确根资格属于单测与代码证据。跨请求历史读取成本仍存在，单次窗口不证明稳定收益、完整 9011 或全资源资格，整图未完成，产品前端仍归独立工作线。
 
 源码聚合 SHA `f5e596ab408531dac56de7142b323b4ee5ac1d24bcf8a9348d0ea218e682c194`，服务 SHA `0da858872deb645a6a3c305803de429e4c5f73e94e1ba32e8c234ccfa771eac1`。摘要及逐文件清单见 [COUNTS-SUBSET-CODEC-20261005.json](inputs/COUNTS-SUBSET-CODEC-20261005.json)，[原件包](inputs/COUNTS-SUBSET-CODEC-20261005-RAW.zip) 含 1338 项、9099437 B，SHA `a2cd01f53324b237dac8d9b4d922829796f1d5714317a0e87ae17895058d1e00`。只收一份 643 项 service r3 完整冻结源码，旧 manifest、补丁与旧 Driver 足以重构；失败日志、绑定及外部 s.log 字节保留。逐文件 bytes/SHA 与 ZIP 全项回读通过，DB、编译可执行文件和 pycache 不入包；未打开 SQLite 或重跑 Cargo／测试，未 push／merge。
+
+## 2026-10-05 冷启动166 Ready超时诊断
+
+两个新CopyQualified166副本都在30秒启动期限内未收到完整Ready回复，保留DeliveryUnknown；第一域167未发送，采样域调用耗时30.002661秒。两域均为0业务输入，166终态仍为idle、166 Committed、166 published、498 clocks，下一ordinal为167。原件与两个新owner封条逐项stat/SHA再核通过，两域service及采样域sample均由各自创建的同一Popen回收，controller关闭；第一域在原Ready清理守卫缺口后由额外身份守卫移除socket，该缺口与原失败记录保留，采样域socket也已清理。
+
+被动sample记录open分支1172个、Ready服务分支942个包含样本，可确认两段重复历史核验，不能换算成耗时百分比、严格峰值或某函数独占耗时。CODE-PATH提出bootstrap Keeper移交候选，归档时尚未实施或验证。摘要及逐文件bytes/SHA见 [COLD166-DIAG-20261005.json](inputs/COLD166-DIAG-20261005.json)，[原件包](inputs/COLD166-DIAG-20261005-RAW.zip)共1753项、880201 B，SHA `86998deca012e32154850fbcc4aeb64ed93969a4ad94956d5cb8f7635487c91d`，ZIP全项回读通过；service和源码沿已归档COUNTS-SUBSET-CODEC的SHA引用，不重复整份源码，DB、可执行文件和pycache不入包。本轮非故障注入，未改旧166 DeliveryUnknown，未拼接为9011，完整双跑与整图goal仍未完成。
