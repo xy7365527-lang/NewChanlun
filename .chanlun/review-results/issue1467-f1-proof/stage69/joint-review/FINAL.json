@@ -1,0 +1,77 @@
+{
+  "status": "independent_review_complete_finite_H2_root_obstruction_accepted",
+  "review": "review.md",
+  "report_sha256": "be1bf5e35561783f369879ea280cce8e0b57188389ce6ef7ee257ce8c6e20cb2",
+  "manifest_sha256": "017a8aa1e43f54f3007332d22312824b99db57594e77ef022bc2b780d207794d",
+  "frozen_author_final_sha256": "dec23bf756965dd7ec395853b8d17327516cad49ad484d05d3f1c47e4c5b47a8",
+  "frozen_author_manifest_sha256": "4ceb2a71d4d3fe690a3a5db4bc2ab72ec315b78c7791727067fea7342c03e915",
+  "frozen_author_report_sha256": "065d72a26e93a55b721e481fb08be1d2811ff64146305ca8aa21e31284a30e98",
+  "finite_evidence_approval": "Accept",
+  "finite_python_script_approval": "Approve",
+  "required_author_repairs": [],
+  "accept_original_F1_F2_qualification": false,
+  "layers": [
+    78,
+    23,
+    7,
+    7,
+    5
+  ],
+  "windows_all_fields_equal": 78,
+  "prefix_paths_classes_consumers_counts_all_fields_equal": 583,
+  "old_control": {
+    "raws": 21,
+    "windows": 40,
+    "all_path_and_class_prefixes": 443
+  },
+  "root": "S1 after fixed S0 prelude",
+  "root_k_coverage": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "rooted_nonempty_paths": 0,
+  "rooted_three_factor_paths": 0,
+  "internal_numerical_triples": 1,
+  "original_admitted_triples": 0,
+  "internal_chain": [
+    4,
+    9,
+    18,
+    27
+  ],
+  "internal_core": [
+    50000,
+    80000
+  ],
+  "internal_known_at": 558,
+  "root_gap_events": [
+    22,
+    81
+  ],
+  "NoPP_length_types": 13,
+  "new_histories": 0,
+  "R_W_runs": 0,
+  "independent_H2_candidate_runs": 1,
+  "max_rss_bytes": 86523904,
+  "artifact_bytes_before_manifest": 2900747,
+  "inputs_unchanged": true,
+  "old_sealed_evidence_preserved": true,
+  "remaining_obligations": [
+    "source compatibility",
+    "GeneralDiv and original Complete",
+    "RootArm roles",
+    "Outer0 interpretation",
+    "Owner and Next",
+    "coverage and uniqueness",
+    "NE over all legal extensions"
+  ],
+  "A64_global_incompatibility_revived": false,
+  "original_H2_legality_revoked": false,
+  "physical_future_read_isolation_claimed": false,
+  "author_self_checks_counted_independent": false,
+  "outside_review_files_modified": false
+}

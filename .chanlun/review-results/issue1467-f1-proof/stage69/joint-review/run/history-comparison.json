@@ -1,0 +1,11 @@
+{
+  "observations_compared": 443,
+  "different_prices": 442,
+  "first_difference": {
+    "index": 0,
+    "stage68": 75800,
+    "H2": 40200
+  },
+  "prefix_extension": false,
+  "length_only_causal_attribution": false
+}

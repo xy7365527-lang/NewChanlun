@@ -1,0 +1,109 @@
+{
+  "stage": 69,
+  "base_manifest": "copy-manifest-v1.json",
+  "additional_copied": [
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/adoption-review/FINAL.json",
+      "path": "adoption-review/FINAL.json",
+      "bytes": 2162,
+      "sha256": "4c8c74f751a2a045e775a678edd7b15f91b2b6cf5ff99ccd3352a2fd94d76224"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/adoption-review/inputs-after-sha256.json",
+      "path": "adoption-review/inputs-after-sha256.json",
+      "bytes": 3540,
+      "sha256": "8f10af69ee0de745ea71b67b75139b297febdc902c8522325e1a7ba8935a69e1"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/adoption-review/inputs-before-sha256.json",
+      "path": "adoption-review/inputs-before-sha256.json",
+      "bytes": 3244,
+      "sha256": "9301017c9b94a2070f8bc075da74f3e10cf3d0f87c6d00b0f71d497bdf7bf427"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/adoption-review/manifest.json",
+      "path": "adoption-review/manifest.json",
+      "bytes": 1165,
+      "sha256": "2a05bd108f0e90eed22e5a78b4c86cdfb45c054db196de3bf7c343aa87a69d74"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/adoption-review/manifest.sha256",
+      "path": "adoption-review/manifest.sha256",
+      "bytes": 80,
+      "sha256": "98faa7e1db9d0f342e8a33662f6a62d6bc8e9538a1423a3c6996f67a12c70dac"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/adoption-review/originals-after-sha256.json",
+      "path": "adoption-review/originals-after-sha256.json",
+      "bytes": 7787,
+      "sha256": "7d58aa61e467911d5413df77a49ca434c076607572c8bdce1295bed74176674c"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/adoption-review/originals-audit.json",
+      "path": "adoption-review/originals-audit.json",
+      "bytes": 11962,
+      "sha256": "5d1f124567a182c6242a4d354cfaaa02c34fe1b183cdc632ddfe17aad4ef0e69"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/adoption-review/review.md",
+      "path": "adoption-review/review.md",
+      "bytes": 9085,
+      "sha256": "332d3a626bd1df2995dce1dd9a8376bc2325a79ec741d7698eae0d737a2a5a60"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/adoption-review-v2/FINAL.json",
+      "path": "adoption-review-v2/FINAL.json",
+      "bytes": 1686,
+      "sha256": "bf29af46585e4bbc734585752de2cc358eaa4de1cc58dec546ec9f7d61febad4"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/adoption-review-v2/diff-audit.json",
+      "path": "adoption-review-v2/diff-audit.json",
+      "bytes": 3690,
+      "sha256": "d0cd0f05aa6903e82f11e39c9adef3215e8dff4886b8fbf39e1a80626cbd19ee"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/adoption-review-v2/inputs-after-sha256.json",
+      "path": "adoption-review-v2/inputs-after-sha256.json",
+      "bytes": 3842,
+      "sha256": "0402c250baabfe04358b86e25639250ace674cd9cf675c83a1e2a0f276e376a5"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/adoption-review-v2/inputs-before-sha256.json",
+      "path": "adoption-review-v2/inputs-before-sha256.json",
+      "bytes": 3509,
+      "sha256": "0b461392e0f1413a892cd741dde347bb4ed974bd17f5eed5511fc5d1867eed82"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/adoption-review-v2/manifest.json",
+      "path": "adoption-review-v2/manifest.json",
+      "bytes": 1015,
+      "sha256": "68e3aa1feb9525c2672aaea79cb71a5f35ed2ec594851353bdfd019d7e448217"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/adoption-review-v2/manifest.sha256",
+      "path": "adoption-review-v2/manifest.sha256",
+      "bytes": 80,
+      "sha256": "026208855d02b6e59ae66a29c6a2a69fe864646750d2ff7e6864726a3be1343a"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/adoption-review-v2/review.md",
+      "path": "adoption-review-v2/review.md",
+      "bytes": 5260,
+      "sha256": "ec8fc9d2b0ec478b50217410f265c8d7e7bbccbc421d5d103e0db75c0936143c"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/adoption-inputs-v2.json",
+      "path": "adoption-inputs-v2.json",
+      "bytes": 2059,
+      "sha256": "bf2d0acc460542eca81704f7e3806f30ae9b1a2585d41194825b07816d3cf6db"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/publication-draft.json",
+      "path": "publication-draft.json",
+      "bytes": 6809,
+      "sha256": "f3496a1a37c9d49d9f7b41c3c7fab4fed7257d18136afdcf0f006c50227be89a"
+    }
+  ],
+  "omitted": []
+}

@@ -1,0 +1,20 @@
+{
+  "stage": 69,
+  "adoption_review": {
+    "task": "/root/stage69_adoption_review",
+    "context": "fork_turns:none",
+    "v1": "two required wording revisions",
+    "v2": "Accept",
+    "must_revise": [],
+    "new_window_runs": 0,
+    "new_fits": 0,
+    "new_inferences": 0
+  },
+  "publication_draft": {
+    "task": "/root/stage69_publication_draft",
+    "context": "fork_turns:none",
+    "scope": "four draft fields only; no posting"
+  },
+  "child_status": "completed and interrupted",
+  "parent": "integrates evidence, preserves existing edits, performs scoped commit and publication"
+}

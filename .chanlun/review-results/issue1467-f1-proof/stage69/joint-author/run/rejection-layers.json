@@ -1,0 +1,108 @@
+{
+  "layers": [
+    {
+      "stage": "structural",
+      "rejected_here": [
+        "W68:S1-S9",
+        "W68:S1-S13",
+        "W68:S1-S17",
+        "W68:S1-S21",
+        "W68:S1-S25",
+        "W68:S2-S6",
+        "W68:S2-S10",
+        "W68:S2-S14",
+        "W68:S2-S18",
+        "W68:S2-S22",
+        "W68:S2-S26",
+        "W68:S3-S11",
+        "W68:S3-S15",
+        "W68:S3-S19",
+        "W68:S3-S23",
+        "W68:S3-S27",
+        "W68:S4-S16",
+        "W68:S4-S20",
+        "W68:S4-S24",
+        "W68:S5-S13",
+        "W68:S5-S17",
+        "W68:S5-S21",
+        "W68:S5-S25",
+        "W68:S6-S10",
+        "W68:S6-S14",
+        "W68:S6-S18",
+        "W68:S6-S22",
+        "W68:S6-S26",
+        "W68:S7-S15",
+        "W68:S7-S19",
+        "W68:S7-S23",
+        "W68:S7-S27",
+        "W68:S8-S16",
+        "W68:S8-S20",
+        "W68:S8-S24",
+        "W68:S9-S25",
+        "W68:S10-S18",
+        "W68:S10-S22",
+        "W68:S10-S26",
+        "W68:S11-S15",
+        "W68:S11-S19",
+        "W68:S11-S23",
+        "W68:S11-S27",
+        "W68:S12-S20",
+        "W68:S12-S24",
+        "W68:S13-S25",
+        "W68:S14-S22",
+        "W68:S14-S26",
+        "W68:S15-S19",
+        "W68:S15-S23",
+        "W68:S15-S27",
+        "W68:S16-S24",
+        "W68:S17-S25",
+        "W68:S19-S27",
+        "W68:S20-S24"
+      ],
+      "remaining_count": 23
+    },
+    {
+      "stage": "roles",
+      "rejected_here": [
+        "W68:S1-S5",
+        "W68:S3-S7",
+        "W68:S4-S12",
+        "W68:S5-S9",
+        "W68:S7-S11",
+        "W68:S8-S12",
+        "W68:S9-S21",
+        "W68:S10-S14",
+        "W68:S12-S16",
+        "W68:S13-S21",
+        "W68:S14-S18",
+        "W68:S16-S20",
+        "W68:S17-S21",
+        "W68:S19-S23",
+        "W68:S21-S25",
+        "W68:S23-S27"
+      ],
+      "remaining_count": 7
+    },
+    {
+      "stage": "whole_extreme",
+      "rejected_here": [],
+      "remaining_count": 7
+    },
+    {
+      "stage": "signed_force",
+      "rejected_here": [
+        "W68:S9-S13",
+        "W68:S18-S22"
+      ],
+      "remaining_count": 5
+    }
+  ],
+  "overlapping_reason_counts": {
+    "exit_cross": 59,
+    "whole_extreme": 63,
+    "signed_force_weakening": 64,
+    "coherent_type": 40,
+    "entry_cross": 31,
+    "strict_cores": 31
+  }
+}

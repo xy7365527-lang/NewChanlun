@@ -1,0 +1,18 @@
+{
+  "profile": "stage69-author-saved-evidence-check/1",
+  "status": "passed",
+  "checked_at": "2026-10-05T22:12:03.385Z",
+  "checks": [
+    "all frozen run-v1 manifest bytes verified",
+    "workcard and executed source unchanged",
+    "five input hashes verified again against current bytes",
+    "A: accepted protocol whitelist, ordered one-at-time log, 169 eligible labels, preprocessing, 400 predictions, 101 inference controls, frozen model",
+    "B: accepted protocol whitelist, ordered one-at-time log, 169 eligible labels, preprocessing, 400 predictions, 101 inference controls, frozen model",
+    "host metrics joined after both processes finished and recomputed without fitting"
+  ],
+  "actual_successful_fits_in_logs": 2,
+  "primary_predictions": 800,
+  "additional_readonly_inference_controls": 202,
+  "new_fits_in_this_check": 0,
+  "independent_review": false
+}

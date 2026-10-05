@@ -1,0 +1,45 @@
+{
+  "profile": "stage69-adoption-review/2",
+  "verdict": "Accept",
+  "must_revise": [],
+  "status": "有限差异复审完成，R1与R2关闭，发布草稿文字可采用",
+  "review": "review.md",
+  "review_sha256": "ec8fc9d2b0ec478b50217410f265c8d7e7bbccbc421d5d103e0db75c0936143c",
+  "input_manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/adoption-inputs-v2.json",
+  "input_manifest_sha256": "bf2d0acc460542eca81704f7e3806f30ae9b1a2585d41194825b07816d3cf6db",
+  "input_count": 8,
+  "inputs_match_expected": true,
+  "inputs_unchanged": true,
+  "closed_findings": [
+    "R1",
+    "R2"
+  ],
+  "author_and_independent_review_inputs_unchanged": true,
+  "v1_documents_and_review_preserved": true,
+  "main_summary_changed_only_two_links": true,
+  "publication_draft": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/publication-draft.json",
+  "publication_draft_sha256": "f3496a1a37c9d49d9f7b41c3c7fab4fed7257d18136afdcf0f006c50227be89a",
+  "publication_fields_accepted": [
+    "research",
+    "experiment",
+    "arch",
+    "mapNote"
+  ],
+  "accepted_scope": "仅文档采用及冻结发布草稿口径",
+  "publication_executed": false,
+  "final_evidence_table_reviewed": false,
+  "packaging_followup": [
+    "以实际提交和评论URL替换三类待填标记",
+    "生成并核验最终stage69-evidence.json",
+    "复制v2采用复审到仓内并核验引用和SHA"
+  ],
+  "new_window_evaluations": 0,
+  "new_R_W_runs": 0,
+  "new_model_fits": 0,
+  "new_inferences": 0,
+  "repository_modified": false,
+  "tracker_modified": false,
+  "committed": false,
+  "pushed": false,
+  "research_overall_goal_completion_assessed": false
+}

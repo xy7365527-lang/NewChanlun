@@ -1,0 +1,57 @@
+{
+  "status": "independent_finite_result_accept",
+  "h2_hashes": {
+    "source.json": "ce7ba6ab38666b59b978dc942913e6a2b0c38c26409e9c14b70114a69b3260c6",
+    "segments.json": "89cf6da6cd2174c13d5c3786cfd8cb28a059a125836c86abe5d8cf09fd9e0a3e",
+    "reference.stdout": "7491058def0984a3b3ea5eb6b387f8b65b5484beb3cd203860e07c88afd66792"
+  },
+  "observations": 583,
+  "events": 582,
+  "pens": 144,
+  "audited_raws": 28,
+  "quantity_reconstructed_observations": 583,
+  "stable_identity_checks": 7700,
+  "windows_all_fields_equal": 78,
+  "layers": [
+    78,
+    23,
+    7,
+    7,
+    5
+  ],
+  "edges": [
+    [
+      4,
+      9
+    ],
+    [
+      9,
+      18
+    ],
+    [
+      13,
+      18
+    ],
+    [
+      18,
+      27
+    ],
+    [
+      22,
+      27
+    ]
+  ],
+  "prefixes_all_fields_equal": 583,
+  "rooted_nonempty": 0,
+  "rooted_three": 0,
+  "internal_numerical_three": 1,
+  "original_admitted_three": 0,
+  "NoPP_length_types": 13,
+  "new_histories": 0,
+  "R_W_runs": 0,
+  "independent_H2_window_passes": 1,
+  "author_candidate_functions_executed": 0,
+  "input_hashes_unchanged": true,
+  "max_rss_bytes": 86523904,
+  "original_F1_F2_qualified": false
+}

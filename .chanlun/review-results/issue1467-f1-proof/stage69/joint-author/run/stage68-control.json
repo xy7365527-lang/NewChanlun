@@ -1,0 +1,11 @@
+{
+  "all_pass": true,
+  "windows_full_field_equality": 40,
+  "raw_force_equality": 21,
+  "all_path_full_field_equality_prefixes": 443,
+  "path_classes_full_field_equality_prefixes": 443,
+  "maximal_count_at_final": 1,
+  "candidate_R_W_executions": 0,
+  "original_script_imported_or_executed": false,
+  "scope": "known Stage68 sealed outputs and function/field equivalence, not new history"
+}

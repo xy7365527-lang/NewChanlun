@@ -1,0 +1,21 @@
+{
+  "frozen_at": "2026-10-05T22:10:41.025Z",
+  "files": [
+    {
+      "name": "WorkCard.md",
+      "sha256": "9100f5a15e9d5fa390db2c5db61a66943eb0595d8e9d484ac6d12fa00a60486e"
+    },
+    {
+      "name": "learner-core.mjs",
+      "sha256": "dfe3a2fdb0d883d38456dbe2600cea3995cb26cd991256b8fc08cc12b1165e88"
+    },
+    {
+      "name": "learner-stdin.mjs",
+      "sha256": "53868f6f3ca528f5a904bc49fc29f8ba635b1bae86a098684ce5ed6d004b6b53"
+    },
+    {
+      "name": "run-author.mjs",
+      "sha256": "3e0774ebe2c67606ba964cc1815b490b923fbeca1a552b653e75c2a2200cf17e"
+    }
+  ]
+}

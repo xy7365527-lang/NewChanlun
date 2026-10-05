@@ -1,0 +1,37 @@
+{
+  "stage": 69,
+  "map": 1465,
+  "tickets": [
+    1467,
+    1468
+  ],
+  "previous_turn": "progress",
+  "baseCommit": "8957c086177d1022d4682a6c60c9e06dde48fca5",
+  "objective": "Test unchanged JointCut on previously recorded H2; connect actual fixed A/B fit-predict to existing causal features without treating exploration as confirmation",
+  "authors": [
+    {
+      "task": "/root/stage69_joint_longer",
+      "out": "joint-author",
+      "histories": "existing H2 only; no new history or RW rerun",
+      "max_prefixes": 600,
+      "max_bytes": 100663296
+    },
+    {
+      "task": "/root/stage69_actual_learner",
+      "out": "learning-author",
+      "histories": "existing explored 2021-01-01 minute only",
+      "max_rows": 572,
+      "max_models": 2,
+      "max_bytes": 134217728,
+      "model_family": "one fixed softmax configuration; no tuning or C/B_seed"
+    }
+  ],
+  "context_lookup": {
+    "task": "/root/stage69_consumer_context",
+    "status": "complete; author development assistance not independent review",
+    "finding": "Trade A and book B already present; no recollection required; actual learner and training boundary absent",
+    "hash_claim_scope": "context explorer cited saved identities; authors must verify current bytes"
+  },
+  "limits": "No production/main merge, procurement, trades, data acquisition, formal edits or final P3 claims; proof scope unchanged",
+  "createdAt": "2026-10-05T22:13:22.447Z"
+}

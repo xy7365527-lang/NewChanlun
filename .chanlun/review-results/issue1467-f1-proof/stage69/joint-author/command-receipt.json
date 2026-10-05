@@ -1,0 +1,23 @@
+{
+  "main_command": [
+    "python3",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-author/check_joint.py",
+    "--out",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-author/run"
+  ],
+  "redirected_stdout": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-author/run.stdout",
+  "redirected_stderr": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-author/run.stderr",
+  "cwd": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun",
+  "exit_code": 0,
+  "tool_chunk_id": "2dd199",
+  "scope": "author record of the tool invocation; true process cwd and argv are independently recorded inside run/receipt.json",
+  "main_runs": 1,
+  "stage68_equivalence_control_executions": 1,
+  "candidate_window_reruns_after_main": 0,
+  "preparation_read_stalls": "read-only calls eventually completed; no input mutation or system repair",
+  "assembly": {
+    "script": "assemble.py",
+    "exit_code": 0,
+    "candidate_window_evaluations": 0
+  }
+}

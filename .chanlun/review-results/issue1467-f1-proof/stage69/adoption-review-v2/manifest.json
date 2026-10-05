@@ -1,0 +1,36 @@
+{
+  "profile": "stage69-adoption-review-manifest/2",
+  "created_at": "2026-10-05T23:37:05.470747+00:00",
+  "scope": "R1/R2关闭及发布草稿文字的有限差异复审",
+  "entries": [
+    {
+      "path": "FINAL.json",
+      "bytes": 1686,
+      "sha256": "bf29af46585e4bbc734585752de2cc358eaa4de1cc58dec546ec9f7d61febad4"
+    },
+    {
+      "path": "diff-audit.json",
+      "bytes": 3690,
+      "sha256": "d0cd0f05aa6903e82f11e39c9adef3215e8dff4886b8fbf39e1a80626cbd19ee"
+    },
+    {
+      "path": "inputs-after-sha256.json",
+      "bytes": 3842,
+      "sha256": "0402c250baabfe04358b86e25639250ace674cd9cf675c83a1e2a0f276e376a5"
+    },
+    {
+      "path": "inputs-before-sha256.json",
+      "bytes": 3509,
+      "sha256": "0b461392e0f1413a892cd741dde347bb4ed974bd17f5eed5511fc5d1867eed82"
+    },
+    {
+      "path": "review.md",
+      "bytes": 5260,
+      "sha256": "ec8fc9d2b0ec478b50217410f265c8d7e7bbccbc421d5d103e0db75c0936143c"
+    }
+  ],
+  "excludes": [
+    "manifest.json",
+    "manifest.sha256"
+  ]
+}

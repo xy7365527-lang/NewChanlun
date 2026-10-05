@@ -1,0 +1,180 @@
+{
+  "recorded_at": "2026-10-05T23:32:40.439050+00:00",
+  "all_unchanged": true,
+  "files": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-author/Report.md",
+      "sha256": "065d72a26e93a55b721e481fb08be1d2811ff64146305ca8aa21e31284a30e98",
+      "bytes": 13611,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-author/manifest.json",
+      "sha256": "4ceb2a71d4d3fe690a3a5db4bc2ab72ec315b78c7791727067fea7342c03e915",
+      "bytes": 5988,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-author/FINAL.json",
+      "sha256": "dec23bf756965dd7ec395853b8d17327516cad49ad484d05d3f1c47e4c5b47a8",
+      "bytes": 1832,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-author/stage68-comparison.json",
+      "sha256": "b74994aadbc9f06f8a05f272a5a704827d97e42c3bd4a41e1caf3172846b5791",
+      "bytes": 5258,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-author/internal-chain.json",
+      "sha256": "ff10760fa73058967027139c101b3cc1086b06f6b0118030709afc819d8e7315",
+      "bytes": 10078,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-review/review.md",
+      "sha256": "be1bf5e35561783f369879ea280cce8e0b57188389ce6ef7ee257ce8c6e20cb2",
+      "bytes": 13063,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-review/manifest.json",
+      "sha256": "017a8aa1e43f54f3007332d22312824b99db57594e77ef022bc2b780d207794d",
+      "bytes": 3796,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-review/FINAL.json",
+      "sha256": "a984223c68975d8e2092130724b4fea5a848cbcbbf4e96a7f445da1103e6c2f6",
+      "bytes": 2140,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-review/run/history-comparison.json",
+      "sha256": "08f55a300393bbe82dea3633d8fa6974d9c4cf4f25d220b5e01d199999f258c6",
+      "bytes": 217,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-review/run/result.json",
+      "sha256": "422b8f3dd9b1d64717394b132aeb73685121b859d708161c0660a1104d531491",
+      "bytes": 1153,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-author/FINAL.md",
+      "sha256": "2b304dcf42f295507b5c26918a520af592d522341ce23b01146ef3172fefe15a",
+      "bytes": 6567,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-author/manifest.json",
+      "sha256": "903a7e367e4e55c16ecb6709b17e41316b5edf237308eb2eb2ea3fc237b4ed7c",
+      "bytes": 6277,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-author/saved-evidence-check.json",
+      "sha256": "19abadffe758d07ff711503a0d62004fe10c7b1adab0f15c49be5e4b1ad63f40",
+      "bytes": 874,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-author/run-v1/manifest.json",
+      "sha256": "47a1695753ecf34bec906d5f1b97a8d028d305a1be88c38c9997f4adb69f04db",
+      "bytes": 4418,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-author/run-v1/receipt.json",
+      "sha256": "4c71cd11d4b7acc2d84399f61c9ba8412ff6f0fcbbbe3f574e8cc13d428dd43d",
+      "bytes": 2260,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-author/run-v1/process-receipts.json",
+      "sha256": "2f73a848c0edba8dbe7fe33dbc0ef10d06a351ed6dbba6228fd9b9d05ccd7ae9",
+      "bytes": 1333,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-author/run-v1/A-predictions.jsonl",
+      "sha256": "a58ff80c9cbf890ce686206590934a117e97bd0e7f3adb5d7d9441866c1eb03d",
+      "bytes": 159195,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-author/run-v1/B-predictions.jsonl",
+      "sha256": "af4bcb3b6005b21ea7c8d921d2435fb00ee33cb0eec2b1073c70d565827ac0d0",
+      "bytes": 159454,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-author/run-v1/A-stdin.jsonl",
+      "sha256": "ec5de8a47f1ad5bdb251492bdf9dff1d477e2af865fc254d45d4247b80d269cf",
+      "bytes": 404934,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-author/run-v1/B-stdin.jsonl",
+      "sha256": "80a8d51b200c861f2194be362a2e0c87b4dc1ab2461424bd642491c19c10fe93",
+      "bytes": 807985,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-author/run-v1/A-stdout.jsonl",
+      "sha256": "1006e0f4278e142bfc98a2dca740fece9a4ab9018e5acaa6317bdd4fdb74ef0e",
+      "bytes": 178740,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-author/run-v1/B-stdout.jsonl",
+      "sha256": "bc7b6aedc66a3b87dd1a48747be35ebf4f03c7351192a89d995c557e1917d653",
+      "bytes": 183153,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-author/run-v1/A-events.jsonl",
+      "sha256": "99fb4207b1c0ac89174f0668238b873a1daa21a3161dcaf841e65e743436a61e",
+      "bytes": 195375,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-author/run-v1/B-events.jsonl",
+      "sha256": "eb45107c36303d414604238aac4cc5e5c0cb3d022a001b8c54b2b802b69c187c",
+      "bytes": 195000,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-review/REVIEW.md",
+      "sha256": "0f96ff4e0e408d9b003b55a3c573f950d3bb886aaf18d36ba96914f005d02727",
+      "bytes": 12246,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-review/manifest.json",
+      "sha256": "e9647b7df482e88df04fc2aa639870577ab26f21d2914faab99f9a6252d1fe79",
+      "bytes": 4259,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-review/independent-results.json",
+      "sha256": "7dccc8d6c69c3993cb5b47925cd8b339ab456b37cd8ea94b93b505ea685e5e06",
+      "bytes": 9633,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-review/supplementary-results.json",
+      "sha256": "76641679236bcbb5775d5962cbbafd03d55993c69e61e9f06b9566e486727e24",
+      "bytes": 991,
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage69/copy-manifest-v1.json",
+      "sha256": "c9a956f2914d35677709681fce2b189ae975490e84e84fea6c5a8712a719b37b",
+      "bytes": 38552,
+      "unchanged": true
+    }
+  ]
+}

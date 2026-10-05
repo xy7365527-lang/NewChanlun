@@ -1,0 +1,66 @@
+{
+  "cwd": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun",
+  "argv": [
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-author/seal.py"
+  ],
+  "sealed_utc": "2026-10-05T22:02:34.876436+00:00",
+  "input_files_unchanged": 31,
+  "python_static_compile": "pass",
+  "local_links_checked": [
+    {
+      "from": "Report.md",
+      "target": "rule-extraction.diff"
+    },
+    {
+      "from": "Report.md",
+      "target": "run/rule-binding.json"
+    },
+    {
+      "from": "Report.md",
+      "target": "run/stage68-control.json"
+    },
+    {
+      "from": "Report.md",
+      "target": "stage68-seal-audit.json"
+    },
+    {
+      "from": "Report.md",
+      "target": "run/all-windows.json"
+    },
+    {
+      "from": "Report.md",
+      "target": "run/rejection-layers.json"
+    },
+    {
+      "from": "Report.md",
+      "target": "run/budget-obstruction.json"
+    },
+    {
+      "from": "Report.md",
+      "target": "finite-obstruction.json"
+    },
+    {
+      "from": "Report.md",
+      "target": "internal-chain.json"
+    },
+    {
+      "from": "Report.md",
+      "target": "run/all-delta-paths.json"
+    },
+    {
+      "from": "Report.md",
+      "target": "run/path-classes.json"
+    },
+    {
+      "from": "Report.md",
+      "target": "run/prefix-results.json"
+    }
+  ],
+  "run_counts_checked_from_sealed_outputs": true,
+  "candidate_window_evaluations": 0,
+  "R_W_runs": 0,
+  "main_script_sha256": "fe23b6a3712807bf0aeaee73993ef00c6296775471e1635332b9c5a5312fdb95",
+  "python_review": "finite-domain Approve; not mathematics review",
+  "independent_mathematics_review": "pending",
+  "exit_code": 0
+}

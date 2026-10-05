@@ -1,0 +1,194 @@
+{
+  "candidate": "Omega68-JointCut-v1 on existing H2",
+  "created_at": "2026-10-05T22:02:34.879392+00:00",
+  "entries": [
+    {
+      "path": "Report.md",
+      "sha256": "065d72a26e93a55b721e481fb08be1d2811ff64146305ca8aa21e31284a30e98",
+      "bytes": 13611
+    },
+    {
+      "path": "WorkCard.freeze.json",
+      "sha256": "07bb25f5887d63a990f42efd19173f38c758eaa91e3cb7914a4298eef82e8b8d",
+      "bytes": 424
+    },
+    {
+      "path": "WorkCard.md",
+      "sha256": "70894471ec53fc72fbc5fd38b74b995fb47699bb2552fab5bbbeb71c62b2dcef",
+      "bytes": 4565
+    },
+    {
+      "path": "assemble.py",
+      "sha256": "8cb75211879a69369fdb1d26b0174a48179d707fc069a0b104908e8a9a6f7aa3",
+      "bytes": 5760
+    },
+    {
+      "path": "assembly-receipt.json",
+      "sha256": "331796fe6e6928fdae7b2fb4e0a351f24c55c529914a853a06226c52fb30d980",
+      "bytes": 440
+    },
+    {
+      "path": "assembly.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "assembly.stdout",
+      "sha256": "8d082f56ef18ab096abaad1d0719078809841bc9de55596a7ff82c416f855ca5",
+      "bytes": 244
+    },
+    {
+      "path": "check_joint.py",
+      "sha256": "fe23b6a3712807bf0aeaee73993ef00c6296775471e1635332b9c5a5312fdb95",
+      "bytes": 25049
+    },
+    {
+      "path": "command-receipt.json",
+      "sha256": "15a244b61341cfd13fdc32a94c9d8190fc0633bbdff2e66446bbab1fa1ca66c8",
+      "bytes": 1075
+    },
+    {
+      "path": "finite-obstruction.json",
+      "sha256": "a8f2e9a68234fec0109db3feeec169ea09e1b8ec3c09f373f129f499adb240f8",
+      "bytes": 58696
+    },
+    {
+      "path": "inputhash-final.json",
+      "sha256": "b2f367136a0e057fc699ac8a6d4cf0714f88e4dffa41a4758ef777192e60d94a",
+      "bytes": 7121
+    },
+    {
+      "path": "internal-chain.json",
+      "sha256": "ff10760fa73058967027139c101b3cc1086b06f6b0118030709afc819d8e7315",
+      "bytes": 10078
+    },
+    {
+      "path": "original-rule-extract.py",
+      "sha256": "22c2b21b63180ecb11bbbd8a2347835cffe1435e186f05dd03d98fbbf233c3fd",
+      "bytes": 6282
+    },
+    {
+      "path": "python-review.md",
+      "sha256": "333750e8a62d8d2c567689536907f2c405d570d7b733251a499927b6e9bd35f4",
+      "bytes": 1981
+    },
+    {
+      "path": "rule-extraction.diff",
+      "sha256": "3df6977d602743541e1cb1f14a398d25eb7f22a6b2d459dfea7c8fafb857565a",
+      "bytes": 312
+    },
+    {
+      "path": "run/all-delta-paths.json",
+      "sha256": "991553f89917f3d218e022371767686c59a8f229924ef9ab55cfc5ed02724059",
+      "bytes": 311489
+    },
+    {
+      "path": "run/all-windows.json",
+      "sha256": "fbc6fa00e6fe23adf8d5d811f9ceb9a9cbdfceb8ab07310f82502a81be153756",
+      "bytes": 220482
+    },
+    {
+      "path": "run/budget-obstruction.json",
+      "sha256": "508175935150366f783561b75555b85c1b1d5278ad47ea3f33381074eee9dc56",
+      "bytes": 32791
+    },
+    {
+      "path": "run/graph.json",
+      "sha256": "680abebfc2dddf65db082861cdd214b1bb58f4664113ff4cf4c27c07c7b5b6c5",
+      "bytes": 34471
+    },
+    {
+      "path": "run/h2-input-binding.json",
+      "sha256": "1a32682e34cb5fe7b6ea9b2db8277565d0e76a325ee1149afbf275ae3dae5ac5",
+      "bytes": 844
+    },
+    {
+      "path": "run/inputhash-after.json",
+      "sha256": "b2f367136a0e057fc699ac8a6d4cf0714f88e4dffa41a4758ef777192e60d94a",
+      "bytes": 7121
+    },
+    {
+      "path": "run/inputhash-before.json",
+      "sha256": "b2f367136a0e057fc699ac8a6d4cf0714f88e4dffa41a4758ef777192e60d94a",
+      "bytes": 7121
+    },
+    {
+      "path": "run/path-classes.json",
+      "sha256": "e8c09964766dba37d9d4bdf5d2419c149abea515a369b3704f35c48b1a2ea614",
+      "bytes": 583660
+    },
+    {
+      "path": "run/prefix-results.json",
+      "sha256": "65ffbbfc654a19dda3c159f386e70a73ac74463caf400133d2671f56d2b4c730",
+      "bytes": 1572018
+    },
+    {
+      "path": "run/raw-roots.json",
+      "sha256": "cdfe5ca79cb427ba423ab9db7127d7690a34a920e58796495c598e33388ff5d2",
+      "bytes": 23786
+    },
+    {
+      "path": "run/receipt.json",
+      "sha256": "482822434af4dca5d4ffa63db98d8ad31181885cc714f56750015561e0fb4861",
+      "bytes": 920
+    },
+    {
+      "path": "run/rejection-layers.json",
+      "sha256": "57cbce3f9dfec07687dcea5d9b8d78e86ed346c689e1286303ac7262dd30ca66",
+      "bytes": 2244
+    },
+    {
+      "path": "run/result.json",
+      "sha256": "1e24e55a389e272b915dce43ed7e9782987848598c34eec093e5473159420ec6",
+      "bytes": 1378
+    },
+    {
+      "path": "run/rule-binding.json",
+      "sha256": "9c646858938d4166aa83cb3db48d521000c326de70837d3bdfc616d56f57e6a2",
+      "bytes": 1019
+    },
+    {
+      "path": "run/selected-prefixes.json",
+      "sha256": "85ff8a81996574e1d304d696df048b595e1cc0841898fdeba93cc6c4f6934067",
+      "bytes": 80031
+    },
+    {
+      "path": "run/stage68-control.json",
+      "sha256": "edd35796e0ee53544b7ce7fb97faf381c0a08e417453cbfd986f43195a98fa72",
+      "bytes": 392
+    },
+    {
+      "path": "run.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "run.stdout",
+      "sha256": "1e24e55a389e272b915dce43ed7e9782987848598c34eec093e5473159420ec6",
+      "bytes": 1378
+    },
+    {
+      "path": "seal-receipt.json",
+      "sha256": "a5f539a8925a60141343cfc2c6e7d908d98b92567ee03ed69a529dfd489091c1",
+      "bytes": 1657
+    },
+    {
+      "path": "seal.py",
+      "sha256": "3ef9b96a58cfb50c241a9ab3a49ea1f9a3f3e3d00bd2f420743204a6a4c06ffa",
+      "bytes": 5207
+    },
+    {
+      "path": "stage68-comparison.json",
+      "sha256": "b74994aadbc9f06f8a05f272a5a704827d97e42c3bd4a41e1caf3172846b5791",
+      "bytes": 5258
+    },
+    {
+      "path": "stage68-seal-audit.json",
+      "sha256": "15ca24b8614bb5b4b75c6aede5eb138e2a898eb1382f9a823c50568f5b213fa5",
+      "bytes": 7956
+    }
+  ],
+  "artifact_bytes_before_manifest": 3036861,
+  "output_root": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-author",
+  "main_runs": 1
+}

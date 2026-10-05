@@ -1,0 +1,85 @@
+[
+  {
+    "name": "label-known strict cutoff including equality",
+    "passed": true,
+    "evidence": {
+      "cases": 4
+    }
+  },
+  {
+    "name": "strict A/B scalar schema and finite conversion",
+    "passed": true,
+    "evidence": {
+      "rejections": 6,
+      "mid2_200000000_dollars": 1
+    }
+  },
+  {
+    "name": "all-missing and constant preprocessing retain dimensions",
+    "passed": true,
+    "evidence": [
+      {
+        "name": "empty",
+        "observed": 0,
+        "missing": 2,
+        "mean": 0,
+        "variance": 0,
+        "raw_std": 0,
+        "scale": 1
+      },
+      {
+        "name": "constant",
+        "observed": 2,
+        "missing": 0,
+        "mean": 2,
+        "variance": 0,
+        "raw_std": 0,
+        "scale": 1
+      }
+    ]
+  },
+  {
+    "name": "missing class gradient keeps all three heads",
+    "passed": true,
+    "evidence": {
+      "gradient": [
+        [
+          -0.6666666666666667,
+          0
+        ],
+        [
+          0.3333333333333333,
+          0
+        ],
+        [
+          0.3333333333333333,
+          0
+        ]
+      ],
+      "probabilities": [
+        0.34453546183576156,
+        0.3277322690821192,
+        0.3277322690821192
+      ],
+      "synthetic_control_only": true,
+      "full_fit": false
+    }
+  },
+  {
+    "name": "future feature/label mutations leave fit request byte-identical",
+    "passed": true,
+    "evidence": {
+      "changed_saved_future_rows": 400,
+      "original_request_sha256": {
+        "A": "c777eaf3d14510c45f1179eceb4023c678f6f352c4ed72d1079670a97fe5b95a",
+        "B": "89d5a019df2d4a7adb93ad90afc36475eafd27fef3c2c5aed58e3df8f46b6ec9"
+      },
+      "mutated_request_sha256": {
+        "A": "c777eaf3d14510c45f1179eceb4023c678f6f352c4ed72d1079670a97fe5b95a",
+        "B": "89d5a019df2d4a7adb93ad90afc36475eafd27fef3c2c5aed58e3df8f46b6ec9"
+      },
+      "extra_fit_count": 0,
+      "not_new_market_history": true
+    }
+  }
+]

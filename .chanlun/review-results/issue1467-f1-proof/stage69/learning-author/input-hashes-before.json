@@ -1,0 +1,30 @@
+{
+  "verified_at": "2026-10-05T22:06:41.472Z",
+  "inputs": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/trade-grid-a-v1/features.jsonl",
+      "bytes": 154557,
+      "sha256": "030d090b4303542f4c7cc9961abd3419692f2684ef75dfb410ddc9c30f6cfed2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/book-grid-b-v1/features.jsonl",
+      "bytes": 304870,
+      "sha256": "be957271f54b1b912e537bd6a2802ab0646d6e77b13d623ed070dd0ad3659adc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/label-grid-v2/labels.jsonl",
+      "bytes": 207360,
+      "sha256": "b945b5c6e0148b67ee6b1dda958b9200b91e16db4fff3c25f55622f6e83805fa"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage56/consumer-author/run-v4/evaluation-only.json",
+      "bytes": 197418,
+      "sha256": "47a31359087fd73c5dc7fc3d33903b12e3b967b5eaefede5c7c8f2ee87661467"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage56/consumer-author/run-v4/receipt.json",
+      "bytes": 8481,
+      "sha256": "ce69b5eb1c026eb4cce8dfd316845d9381a753615d1b2fbd7d799db69f0dc07c"
+    }
+  ]
+}

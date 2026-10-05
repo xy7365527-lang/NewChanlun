@@ -1,0 +1,23 @@
+{
+  "old_script": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage68/joint-author/check_joint.py",
+  "old_sha256": "3424a6b7d21ed496fd452e17375f560a8d02f01fbab8d2c0495a99303c28de87",
+  "new_script": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-author/check_joint.py",
+  "new_sha256": "fe23b6a3712807bf0aeaee73993ef00c6296775471e1635332b9c5a5312fdb95",
+  "functions_verbatim_equal": {
+    "force": true,
+    "meet": true,
+    "f2_contract": true
+  },
+  "window_block_equal_after_only_upper_bound_substitutions": true,
+  "substitutions": {
+    "range(1,21)": "range(1,len(segments))",
+    "while s+4*k<21:": "while s+4*k<len(segments):"
+  },
+  "semantic_changes": [],
+  "implementation_repairs": [
+    "direct all paths including empty; derived maximal/NoPP/three classes",
+    "Path.cwd and sys.argv recorded",
+    "main guard and exclusive output directory"
+  ],
+  "identifiers": "W68 and IC68 retain original rule-family names also on H2; not old-window identity"
+}

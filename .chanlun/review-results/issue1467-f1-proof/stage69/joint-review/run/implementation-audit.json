@@ -1,0 +1,25 @@
+{
+  "functions_verbatim": {
+    "force": true,
+    "meet": true,
+    "f2_contract": true
+  },
+  "window_block_only_two_upper_bound_changes": true,
+  "ordinary_import_only": "import_only_ok",
+  "author_functions_executed": 0,
+  "compiled_scripts": [
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-author/check_joint.py",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-author/assemble.py",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-author/seal.py",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-review/independent_check.py"
+  ],
+  "static_tools": {
+    "ruff": false,
+    "mypy": false,
+    "pylint": false,
+    "black": false
+  },
+  "out_mkdir_exclusive": true,
+  "cwd_recorded": true,
+  "argv_recorded": true
+}

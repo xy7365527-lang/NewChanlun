@@ -1,0 +1,43 @@
+{
+  "synthetic_interface_control": true,
+  "request": {
+    "op": "predict",
+    "version": "stage69-softmax-finite-features/1",
+    "product_id": "BTC-USD",
+    "decision_ns": "1609459220000000000",
+    "features": {
+      "last_trade_price": null,
+      "seen_trade_count": null,
+      "since_last_trade_ns": null,
+      "observed_trade_count_1s": null,
+      "observed_trade_quantity_1s": null,
+      "bid_price": null,
+      "ask_price": null,
+      "bid_quantity": null,
+      "ask_quantity": null,
+      "spread": null,
+      "queue_imbalance": null,
+      "published_l1_changes_1s": null,
+      "published_mid2_delta_1s": null
+    }
+  },
+  "response": {
+    "status": "predicted",
+    "version": "stage69-softmax-finite-features/1",
+    "arm": "B",
+    "product_id": "BTC-USD",
+    "decision_ns": "1609459220000000000",
+    "model_sha256": "b4cb4be8462d13c6841feca2af2fd9d3180ddddb958acad086761b2aa05c8f0c",
+    "classes": [
+      "up",
+      "down",
+      "none"
+    ],
+    "probabilities": [
+      0.6564405399702511,
+      0.2901105924209803,
+      0.05344886760876868
+    ],
+    "prediction": "up"
+  }
+}

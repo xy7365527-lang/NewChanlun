@@ -1,0 +1,82 @@
+{
+  "recorded_at": "2026-10-05T23:37:05.469682+00:00",
+  "input_manifest": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/adoption-inputs-v2.json",
+  "input_manifest_sha256": "bf2d0acc460542eca81704f7e3806f30ae9b1a2585d41194825b07816d3cf6db",
+  "input_count": 8,
+  "all_match": true,
+  "inputs": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage69LongerHistoryAndActualLearner.md",
+      "expected_sha256": "b32511313e32baaf0c25988ff8daf9d5cac3dededbd945584338b413021b254a",
+      "actual_sha256": "b32511313e32baaf0c25988ff8daf9d5cac3dededbd945584338b413021b254a",
+      "matches": true,
+      "bytes": 6668,
+      "lines": 64,
+      "unchanged_from_before": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage69/DeliveryStatus-v2.md",
+      "expected_sha256": "902e7621dfd0f70f36ef9b19e821dc7356b87d5bde4e6f497b0c130872831331",
+      "actual_sha256": "902e7621dfd0f70f36ef9b19e821dc7356b87d5bde4e6f497b0c130872831331",
+      "matches": true,
+      "bytes": 1626,
+      "lines": 11,
+      "unchanged_from_before": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/progress-addition-v2.md",
+      "expected_sha256": "43f19eb140f989ddb7d50137e15eb15d613c3d5d29a493e4e8be1e1791b0db46",
+      "actual_sha256": "43f19eb140f989ddb7d50137e15eb15d613c3d5d29a493e4e8be1e1791b0db46",
+      "matches": true,
+      "bytes": 562,
+      "lines": 1,
+      "unchanged_from_before": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/publication-draft.json",
+      "expected_sha256": "f3496a1a37c9d49d9f7b41c3c7fab4fed7257d18136afdcf0f006c50227be89a",
+      "actual_sha256": "f3496a1a37c9d49d9f7b41c3c7fab4fed7257d18136afdcf0f006c50227be89a",
+      "matches": true,
+      "bytes": 6809,
+      "lines": 6,
+      "unchanged_from_before": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/adoption-review/FINAL.json",
+      "expected_sha256": "4c8c74f751a2a045e775a678edd7b15f91b2b6cf5ff99ccd3352a2fd94d76224",
+      "actual_sha256": "4c8c74f751a2a045e775a678edd7b15f91b2b6cf5ff99ccd3352a2fd94d76224",
+      "matches": true,
+      "bytes": 2162,
+      "lines": 51,
+      "unchanged_from_before": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/adoption-review/review.md",
+      "expected_sha256": "332d3a626bd1df2995dce1dd9a8376bc2325a79ec741d7698eae0d737a2a5a60",
+      "actual_sha256": "332d3a626bd1df2995dce1dd9a8376bc2325a79ec741d7698eae0d737a2a5a60",
+      "matches": true,
+      "bytes": 9085,
+      "lines": 54,
+      "unchanged_from_before": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage69/joint-review/review.md",
+      "expected_sha256": "be1bf5e35561783f369879ea280cce8e0b57188389ce6ef7ee257ce8c6e20cb2",
+      "actual_sha256": "be1bf5e35561783f369879ea280cce8e0b57188389ce6ef7ee257ce8c6e20cb2",
+      "matches": true,
+      "bytes": 13063,
+      "lines": 116,
+      "unchanged_from_before": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage69/learning-review/REVIEW.md",
+      "expected_sha256": "0f96ff4e0e408d9b003b55a3c573f950d3bb886aaf18d36ba96914f005d02727",
+      "actual_sha256": "0f96ff4e0e408d9b003b55a3c573f950d3bb886aaf18d36ba96914f005d02727",
+      "matches": true,
+      "bytes": 12246,
+      "lines": 86,
+      "unchanged_from_before": true
+    }
+  ],
+  "all_unchanged_from_before": true
+}

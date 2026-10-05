@@ -1,0 +1,94 @@
+{
+  "profile": "stage69-actual-learner-author/1",
+  "started_at": "2026-10-05T22:10:41.023Z",
+  "finished_at": "2026-10-05T22:10:41.274Z",
+  "status": "author-checks-passed",
+  "independent_review": "pending",
+  "version": "stage69-softmax-finite-features/1",
+  "settings": {
+    "steps": 200,
+    "learning_rate": 0.05,
+    "l2": 0.001
+  },
+  "source_freeze_unchanged": true,
+  "fit_count": 2,
+  "fit_rows_per_arm": 169,
+  "common_decisions": 572,
+  "predicted_per_arm": 400,
+  "not_yet_fitted_per_arm": 172,
+  "loss_rows": {
+    "early": 169,
+    "middle": 200,
+    "late": 200
+  },
+  "parameter_counts": {
+    "A": 33,
+    "B": 81
+  },
+  "classes": [
+    "up",
+    "down",
+    "none"
+  ],
+  "class_counts": {
+    "A": [
+      127,
+      42,
+      0
+    ],
+    "B": [
+      127,
+      42,
+      0
+    ]
+  },
+  "model_sha256": {
+    "A": "2543111c543e1e44ee1701732f7ac90a08796f41c8612844891086c3075211c5",
+    "B": "b4cb4be8462d13c6841feca2af2fd9d3180ddddb958acad086761b2aa05c8f0c"
+  },
+  "checks": {
+    "pure_controls": 5,
+    "process_rejections": 33,
+    "prefix_extensions": 2,
+    "frozen_model_inspections": 2,
+    "all_missing_inferences": 2,
+    "input_hashes_unchanged": 5
+  },
+  "memory": {
+    "host_sampled_peak_rss_bytes": 68583424,
+    "child_sampled_peak_rss_bytes": 59588608,
+    "conservative_sum_of_sampled_peaks": 128172032,
+    "not_os_enforced": true
+  },
+  "diagnostics": {
+    "A": {
+      "middle": {
+        "rows": 200,
+        "accuracy": 0.67,
+        "mean_logloss": 1.1164966636269695,
+        "multiclass_brier": 0.584533470638932
+      },
+      "late": {
+        "rows": 200,
+        "accuracy": 0.675,
+        "mean_logloss": 1.727737235775098,
+        "multiclass_brier": 0.6276239134773912
+      }
+    },
+    "B": {
+      "middle": {
+        "rows": 200,
+        "accuracy": 0.47,
+        "mean_logloss": 1.3963221657653309,
+        "multiclass_brier": 0.7711545287084914
+      },
+      "late": {
+        "rows": 200,
+        "accuracy": 0.205,
+        "mean_logloss": 3.262462917502342,
+        "multiclass_brier": 1.3027074956822384
+      }
+    }
+  },
+  "scope": "fixed finite-feature named trusted-code protocol; same seen minute; no OS sandbox, full-history strong B, recursive C, statistical or profit confirmation"
+}

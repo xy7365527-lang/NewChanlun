@@ -1,0 +1,41 @@
+{
+  "status": "passed",
+  "new_fits": 0,
+  "inputs_unchanged": true,
+  "python_executable": "/opt/homebrew/opt/python@3.14/bin/python3.14",
+  "python_version": "3.14.6",
+  "node_executable": "/Users/silencehan/.hermes/node/bin/node",
+  "node_version": "v22.23.1",
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "all_missing_constant_preprocessing": [
+    {
+      "name": "empty",
+      "observed": 0,
+      "missing": 2,
+      "mean": 0.0,
+      "variance": 0.0,
+      "raw_std": 0.0,
+      "scale": 1.0
+    },
+    {
+      "name": "constant",
+      "observed": 2,
+      "missing": 0,
+      "mean": 2.0,
+      "variance": 0.0,
+      "raw_std": 0.0,
+      "scale": 1.0
+    }
+  ],
+  "cross_partition_shared_groups": {
+    "early-middle": [],
+    "middle-late": [],
+    "early-late": []
+  },
+  "unique_event_groups_all_eligible": 309,
+  "saved_market_decisions_per_arm": {
+    "A": 572,
+    "B": 572
+  },
+  "note": "Unique witness groups are not an effective independent sample size."
+}

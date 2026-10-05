@@ -1,0 +1,18 @@
+[
+  {
+    "arm": "A",
+    "prefix_decisions": 100,
+    "extended_by_decisions": 300,
+    "original_prefix_sha256": "54b41a33288e4a309e1ded4811eaaff2621d72baf762db608f2db3bf70431121",
+    "after_extension_sha256": "54b41a33288e4a309e1ded4811eaaff2621d72baf762db608f2db3bf70431121",
+    "extra_fit_count": 0
+  },
+  {
+    "arm": "B",
+    "prefix_decisions": 100,
+    "extended_by_decisions": 300,
+    "original_prefix_sha256": "b59096ab3b82b7905b73832bcb3f4d91b85eb77da3abedd64fd32a016946c1c0",
+    "after_extension_sha256": "b59096ab3b82b7905b73832bcb3f4d91b85eb77da3abedd64fd32a016946c1c0",
+    "extra_fit_count": 0
+  }
+]

@@ -1,0 +1,1644 @@
+{
+  "root_raw_index": 1,
+  "raw_prelude": "S0",
+  "root_end": 21,
+  "edges": [
+    {
+      "id": "W68:S4-S8",
+      "raw_start": 4,
+      "raw_stop": 9,
+      "k": 1,
+      "grade": 0,
+      "kind": "P",
+      "conceptual_direction": null,
+      "technical_up": true,
+      "raws": [
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8"
+      ],
+      "cores": [
+        {
+          "id": "IC68:4:0",
+          "members": [
+            "S5",
+            "S6",
+            "S7"
+          ],
+          "core": [
+            68800,
+            71200
+          ],
+          "Outer0": [
+            68800,
+            71200
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            102,
+            161
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 161,
+          "raw_known": 178
+        }
+      ],
+      "start": 81,
+      "end": 181,
+      "own": [
+        82,
+        181
+      ],
+      "whole": [
+        50000,
+        80000
+      ],
+      "b_ref": "S4",
+      "c": "S8",
+      "b_force": {
+        "first_pen": 20,
+        "last_pen": 24,
+        "first_v": 100.0,
+        "last_v": 300.0,
+        "L": 200.0
+      },
+      "c_force": {
+        "first_pen": 40,
+        "last_pen": 44,
+        "first_v": 100.0,
+        "last_v": 150.0,
+        "L": 50.0
+      },
+      "prior_whole_extreme": 72000,
+      "end_price": 80000,
+      "candidate_happened": 181,
+      "candidate_known": 198,
+      "structural_pass": true,
+      "role_pass": true,
+      "CycleDiv68": true,
+      "RawEnd68": true,
+      "JEnd68": true,
+      "OriginalGeneralDiv": null,
+      "OriginalMovementCompleted": null,
+      "original_happened": null,
+      "original_known": null,
+      "original_published": null,
+      "checks": {
+        "strict_cores": true,
+        "member_direction_alternates": true,
+        "coherent_type": true,
+        "same_direction_comparison_arms": true,
+        "entry_cross": true,
+        "exit_cross": true,
+        "whole_extreme": true,
+        "signed_force_weakening": true
+      },
+      "rejections": [],
+      "owns_each_event_once": true
+    },
+    {
+      "id": "W68:S9-S17",
+      "raw_start": 9,
+      "raw_stop": 18,
+      "k": 2,
+      "grade": 0,
+      "kind": "D",
+      "conceptual_direction": "D",
+      "technical_up": false,
+      "raws": [
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17"
+      ],
+      "cores": [
+        {
+          "id": "IC68:9:0",
+          "members": [
+            "S10",
+            "S11",
+            "S12"
+          ],
+          "core": [
+            76800,
+            78800
+          ],
+          "Outer0": [
+            76800,
+            78800
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            202,
+            261
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 261,
+          "raw_known": 278
+        },
+        {
+          "id": "IC68:9:1",
+          "members": [
+            "S14",
+            "S15",
+            "S16"
+          ],
+          "core": [
+            59200,
+            61200
+          ],
+          "Outer0": [
+            59200,
+            61200
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            282,
+            341
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 341,
+          "raw_known": 358
+        }
+      ],
+      "start": 181,
+      "end": 361,
+      "own": [
+        182,
+        361
+      ],
+      "whole": [
+        38000,
+        80000
+      ],
+      "b_ref": "S13",
+      "c": "S17",
+      "b_force": {
+        "first_pen": 65,
+        "last_pen": 69,
+        "first_v": -300.0,
+        "last_v": -150.0,
+        "L": 150.0
+      },
+      "c_force": {
+        "first_pen": 85,
+        "last_pen": 89,
+        "first_v": -100.0,
+        "last_v": -400.0,
+        "L": -300.0
+      },
+      "prior_whole_extreme": 58000,
+      "end_price": 38000,
+      "candidate_happened": 361,
+      "candidate_known": 378,
+      "structural_pass": true,
+      "role_pass": true,
+      "CycleDiv68": true,
+      "RawEnd68": true,
+      "JEnd68": true,
+      "OriginalGeneralDiv": null,
+      "OriginalMovementCompleted": null,
+      "original_happened": null,
+      "original_known": null,
+      "original_published": null,
+      "checks": {
+        "strict_cores": true,
+        "member_direction_alternates": true,
+        "coherent_type": true,
+        "same_direction_comparison_arms": true,
+        "entry_cross": true,
+        "exit_cross": true,
+        "whole_extreme": true,
+        "signed_force_weakening": true
+      },
+      "rejections": [],
+      "owns_each_event_once": true
+    },
+    {
+      "id": "W68:S13-S17",
+      "raw_start": 13,
+      "raw_stop": 18,
+      "k": 1,
+      "grade": 0,
+      "kind": "P",
+      "conceptual_direction": null,
+      "technical_up": false,
+      "raws": [
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17"
+      ],
+      "cores": [
+        {
+          "id": "IC68:13:0",
+          "members": [
+            "S14",
+            "S15",
+            "S16"
+          ],
+          "core": [
+            59200,
+            61200
+          ],
+          "Outer0": [
+            59200,
+            61200
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            282,
+            341
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 341,
+          "raw_known": 358
+        }
+      ],
+      "start": 261,
+      "end": 361,
+      "own": [
+        262,
+        361
+      ],
+      "whole": [
+        38000,
+        78800
+      ],
+      "b_ref": "S13",
+      "c": "S17",
+      "b_force": {
+        "first_pen": 65,
+        "last_pen": 69,
+        "first_v": -300.0,
+        "last_v": -150.0,
+        "L": 150.0
+      },
+      "c_force": {
+        "first_pen": 85,
+        "last_pen": 89,
+        "first_v": -100.0,
+        "last_v": -400.0,
+        "L": -300.0
+      },
+      "prior_whole_extreme": 58000,
+      "end_price": 38000,
+      "candidate_happened": 361,
+      "candidate_known": 378,
+      "structural_pass": true,
+      "role_pass": true,
+      "CycleDiv68": true,
+      "RawEnd68": true,
+      "JEnd68": true,
+      "OriginalGeneralDiv": null,
+      "OriginalMovementCompleted": null,
+      "original_happened": null,
+      "original_known": null,
+      "original_published": null,
+      "checks": {
+        "strict_cores": true,
+        "member_direction_alternates": true,
+        "coherent_type": true,
+        "same_direction_comparison_arms": true,
+        "entry_cross": true,
+        "exit_cross": true,
+        "whole_extreme": true,
+        "signed_force_weakening": true
+      },
+      "rejections": [],
+      "owns_each_event_once": true
+    },
+    {
+      "id": "W68:S18-S26",
+      "raw_start": 18,
+      "raw_stop": 27,
+      "k": 2,
+      "grade": 0,
+      "kind": "U",
+      "conceptual_direction": "U",
+      "technical_up": true,
+      "raws": [
+        "S18",
+        "S19",
+        "S20",
+        "S21",
+        "S22",
+        "S23",
+        "S24",
+        "S25",
+        "S26"
+      ],
+      "cores": [
+        {
+          "id": "IC68:18:0",
+          "members": [
+            "S19",
+            "S20",
+            "S21"
+          ],
+          "core": [
+            40800,
+            44000
+          ],
+          "Outer0": [
+            40800,
+            44000
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            382,
+            441
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 441,
+          "raw_known": 458
+        },
+        {
+          "id": "IC68:18:1",
+          "members": [
+            "S23",
+            "S24",
+            "S25"
+          ],
+          "core": [
+            64800,
+            67200
+          ],
+          "Outer0": [
+            64800,
+            67200
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            462,
+            521
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 521,
+          "raw_known": 538
+        }
+      ],
+      "start": 361,
+      "end": 541,
+      "own": [
+        362,
+        541
+      ],
+      "whole": [
+        38000,
+        82000
+      ],
+      "b_ref": "S22",
+      "c": "S26",
+      "b_force": {
+        "first_pen": 110,
+        "last_pen": 114,
+        "first_v": 100.0,
+        "last_v": 300.0,
+        "L": 200.0
+      },
+      "c_force": {
+        "first_pen": 130,
+        "last_pen": 134,
+        "first_v": 100.0,
+        "last_v": 150.0,
+        "L": 50.0
+      },
+      "prior_whole_extreme": 68000,
+      "end_price": 82000,
+      "candidate_happened": 541,
+      "candidate_known": 558,
+      "structural_pass": true,
+      "role_pass": true,
+      "CycleDiv68": true,
+      "RawEnd68": true,
+      "JEnd68": true,
+      "OriginalGeneralDiv": null,
+      "OriginalMovementCompleted": null,
+      "original_happened": null,
+      "original_known": null,
+      "original_published": null,
+      "checks": {
+        "strict_cores": true,
+        "member_direction_alternates": true,
+        "coherent_type": true,
+        "same_direction_comparison_arms": true,
+        "entry_cross": true,
+        "exit_cross": true,
+        "whole_extreme": true,
+        "signed_force_weakening": true
+      },
+      "rejections": [],
+      "owns_each_event_once": true
+    },
+    {
+      "id": "W68:S22-S26",
+      "raw_start": 22,
+      "raw_stop": 27,
+      "k": 1,
+      "grade": 0,
+      "kind": "P",
+      "conceptual_direction": null,
+      "technical_up": true,
+      "raws": [
+        "S22",
+        "S23",
+        "S24",
+        "S25",
+        "S26"
+      ],
+      "cores": [
+        {
+          "id": "IC68:22:0",
+          "members": [
+            "S23",
+            "S24",
+            "S25"
+          ],
+          "core": [
+            64800,
+            67200
+          ],
+          "Outer0": [
+            64800,
+            67200
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            462,
+            521
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 521,
+          "raw_known": 538
+        }
+      ],
+      "start": 441,
+      "end": 541,
+      "own": [
+        442,
+        541
+      ],
+      "whole": [
+        40800,
+        82000
+      ],
+      "b_ref": "S22",
+      "c": "S26",
+      "b_force": {
+        "first_pen": 110,
+        "last_pen": 114,
+        "first_v": 100.0,
+        "last_v": 300.0,
+        "L": 200.0
+      },
+      "c_force": {
+        "first_pen": 130,
+        "last_pen": 134,
+        "first_v": 100.0,
+        "last_v": 150.0,
+        "L": 50.0
+      },
+      "prior_whole_extreme": 68000,
+      "end_price": 82000,
+      "candidate_happened": 541,
+      "candidate_known": 558,
+      "structural_pass": true,
+      "role_pass": true,
+      "CycleDiv68": true,
+      "RawEnd68": true,
+      "JEnd68": true,
+      "OriginalGeneralDiv": null,
+      "OriginalMovementCompleted": null,
+      "original_happened": null,
+      "original_known": null,
+      "original_published": null,
+      "checks": {
+        "strict_cores": true,
+        "member_direction_alternates": true,
+        "coherent_type": true,
+        "same_direction_comparison_arms": true,
+        "entry_cross": true,
+        "exit_cross": true,
+        "whole_extreme": true,
+        "signed_force_weakening": true
+      },
+      "rejections": [],
+      "owns_each_event_once": true
+    }
+  ],
+  "root_attempts": [
+    {
+      "id": "W68:S1-S5",
+      "raw_start": 1,
+      "raw_stop": 6,
+      "k": 1,
+      "grade": 0,
+      "kind": "P",
+      "conceptual_direction": null,
+      "technical_up": false,
+      "raws": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5"
+      ],
+      "cores": [
+        {
+          "id": "IC68:1:0",
+          "members": [
+            "S2",
+            "S3",
+            "S4"
+          ],
+          "core": [
+            50000,
+            60000
+          ],
+          "Outer0": [
+            50000,
+            60000
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            42,
+            101
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 101,
+          "raw_known": 118
+        }
+      ],
+      "start": 21,
+      "end": 121,
+      "own": [
+        22,
+        121
+      ],
+      "whole": [
+        48000,
+        72000
+      ],
+      "b_ref": "S1",
+      "c": "S5",
+      "b_force": {
+        "first_pen": 5,
+        "last_pen": 9,
+        "first_v": -100.0,
+        "last_v": -200.0,
+        "L": -100.0
+      },
+      "c_force": {
+        "first_pen": 25,
+        "last_pen": 29,
+        "first_v": -100.0,
+        "last_v": -200.0,
+        "L": -100.0
+      },
+      "prior_whole_extreme": 48000,
+      "end_price": 68000,
+      "candidate_happened": 121,
+      "candidate_known": 138,
+      "structural_pass": true,
+      "role_pass": false,
+      "CycleDiv68": false,
+      "RawEnd68": true,
+      "JEnd68": false,
+      "OriginalGeneralDiv": null,
+      "OriginalMovementCompleted": null,
+      "original_happened": null,
+      "original_known": null,
+      "original_published": null,
+      "checks": {
+        "strict_cores": true,
+        "member_direction_alternates": true,
+        "coherent_type": true,
+        "same_direction_comparison_arms": true,
+        "entry_cross": true,
+        "exit_cross": false,
+        "whole_extreme": false,
+        "signed_force_weakening": false
+      },
+      "rejections": [
+        "exit_cross",
+        "whole_extreme",
+        "signed_force_weakening"
+      ],
+      "owns_each_event_once": true
+    },
+    {
+      "id": "W68:S1-S9",
+      "raw_start": 1,
+      "raw_stop": 10,
+      "k": 2,
+      "grade": 0,
+      "kind": "U",
+      "conceptual_direction": "U",
+      "technical_up": false,
+      "raws": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9"
+      ],
+      "cores": [
+        {
+          "id": "IC68:1:0",
+          "members": [
+            "S2",
+            "S3",
+            "S4"
+          ],
+          "core": [
+            50000,
+            60000
+          ],
+          "Outer0": [
+            50000,
+            60000
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            42,
+            101
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 101,
+          "raw_known": 118
+        },
+        {
+          "id": "IC68:1:1",
+          "members": [
+            "S6",
+            "S7",
+            "S8"
+          ],
+          "core": [
+            68800,
+            71200
+          ],
+          "Outer0": [
+            68800,
+            71200
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            122,
+            181
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 181,
+          "raw_known": 198
+        }
+      ],
+      "start": 21,
+      "end": 201,
+      "own": [
+        22,
+        201
+      ],
+      "whole": [
+        48000,
+        80000
+      ],
+      "b_ref": "S5",
+      "c": "S9",
+      "b_force": {
+        "first_pen": 25,
+        "last_pen": 29,
+        "first_v": -100.0,
+        "last_v": -200.0,
+        "L": -100.0
+      },
+      "c_force": {
+        "first_pen": 45,
+        "last_pen": 49,
+        "first_v": -100.0,
+        "last_v": -200.0,
+        "L": -100.0
+      },
+      "prior_whole_extreme": 48000,
+      "end_price": 76000,
+      "candidate_happened": 201,
+      "candidate_known": 218,
+      "structural_pass": false,
+      "role_pass": false,
+      "CycleDiv68": false,
+      "RawEnd68": true,
+      "JEnd68": false,
+      "OriginalGeneralDiv": null,
+      "OriginalMovementCompleted": null,
+      "original_happened": null,
+      "original_known": null,
+      "original_published": null,
+      "checks": {
+        "strict_cores": true,
+        "member_direction_alternates": true,
+        "coherent_type": false,
+        "same_direction_comparison_arms": true,
+        "entry_cross": true,
+        "exit_cross": false,
+        "whole_extreme": false,
+        "signed_force_weakening": false
+      },
+      "rejections": [
+        "coherent_type",
+        "exit_cross",
+        "whole_extreme",
+        "signed_force_weakening"
+      ],
+      "owns_each_event_once": true
+    },
+    {
+      "id": "W68:S1-S13",
+      "raw_start": 1,
+      "raw_stop": 14,
+      "k": 3,
+      "grade": 0,
+      "kind": "U",
+      "conceptual_direction": "U",
+      "technical_up": false,
+      "raws": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13"
+      ],
+      "cores": [
+        {
+          "id": "IC68:1:0",
+          "members": [
+            "S2",
+            "S3",
+            "S4"
+          ],
+          "core": [
+            50000,
+            60000
+          ],
+          "Outer0": [
+            50000,
+            60000
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            42,
+            101
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 101,
+          "raw_known": 118
+        },
+        {
+          "id": "IC68:1:1",
+          "members": [
+            "S6",
+            "S7",
+            "S8"
+          ],
+          "core": [
+            68800,
+            71200
+          ],
+          "Outer0": [
+            68800,
+            71200
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            122,
+            181
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 181,
+          "raw_known": 198
+        },
+        {
+          "id": "IC68:1:2",
+          "members": [
+            "S10",
+            "S11",
+            "S12"
+          ],
+          "core": [
+            76800,
+            78800
+          ],
+          "Outer0": [
+            76800,
+            78800
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            202,
+            261
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 261,
+          "raw_known": 278
+        }
+      ],
+      "start": 21,
+      "end": 281,
+      "own": [
+        22,
+        281
+      ],
+      "whole": [
+        48000,
+        80000
+      ],
+      "b_ref": "S9",
+      "c": "S13",
+      "b_force": {
+        "first_pen": 45,
+        "last_pen": 49,
+        "first_v": -100.0,
+        "last_v": -200.0,
+        "L": -100.0
+      },
+      "c_force": {
+        "first_pen": 65,
+        "last_pen": 69,
+        "first_v": -300.0,
+        "last_v": -150.0,
+        "L": 150.0
+      },
+      "prior_whole_extreme": 48000,
+      "end_price": 58000,
+      "candidate_happened": 281,
+      "candidate_known": 298,
+      "structural_pass": false,
+      "role_pass": true,
+      "CycleDiv68": false,
+      "RawEnd68": true,
+      "JEnd68": false,
+      "OriginalGeneralDiv": null,
+      "OriginalMovementCompleted": null,
+      "original_happened": null,
+      "original_known": null,
+      "original_published": null,
+      "checks": {
+        "strict_cores": true,
+        "member_direction_alternates": true,
+        "coherent_type": false,
+        "same_direction_comparison_arms": true,
+        "entry_cross": true,
+        "exit_cross": true,
+        "whole_extreme": false,
+        "signed_force_weakening": false
+      },
+      "rejections": [
+        "coherent_type",
+        "whole_extreme",
+        "signed_force_weakening"
+      ],
+      "owns_each_event_once": true
+    },
+    {
+      "id": "W68:S1-S17",
+      "raw_start": 1,
+      "raw_stop": 18,
+      "k": 4,
+      "grade": 0,
+      "kind": null,
+      "conceptual_direction": null,
+      "technical_up": false,
+      "raws": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17"
+      ],
+      "cores": [
+        {
+          "id": "IC68:1:0",
+          "members": [
+            "S2",
+            "S3",
+            "S4"
+          ],
+          "core": [
+            50000,
+            60000
+          ],
+          "Outer0": [
+            50000,
+            60000
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            42,
+            101
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 101,
+          "raw_known": 118
+        },
+        {
+          "id": "IC68:1:1",
+          "members": [
+            "S6",
+            "S7",
+            "S8"
+          ],
+          "core": [
+            68800,
+            71200
+          ],
+          "Outer0": [
+            68800,
+            71200
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            122,
+            181
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 181,
+          "raw_known": 198
+        },
+        {
+          "id": "IC68:1:2",
+          "members": [
+            "S10",
+            "S11",
+            "S12"
+          ],
+          "core": [
+            76800,
+            78800
+          ],
+          "Outer0": [
+            76800,
+            78800
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            202,
+            261
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 261,
+          "raw_known": 278
+        },
+        {
+          "id": "IC68:1:3",
+          "members": [
+            "S14",
+            "S15",
+            "S16"
+          ],
+          "core": [
+            59200,
+            61200
+          ],
+          "Outer0": [
+            59200,
+            61200
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            282,
+            341
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 341,
+          "raw_known": 358
+        }
+      ],
+      "start": 21,
+      "end": 361,
+      "own": [
+        22,
+        361
+      ],
+      "whole": [
+        38000,
+        80000
+      ],
+      "b_ref": "S13",
+      "c": "S17",
+      "b_force": {
+        "first_pen": 65,
+        "last_pen": 69,
+        "first_v": -300.0,
+        "last_v": -150.0,
+        "L": 150.0
+      },
+      "c_force": {
+        "first_pen": 85,
+        "last_pen": 89,
+        "first_v": -100.0,
+        "last_v": -400.0,
+        "L": -300.0
+      },
+      "prior_whole_extreme": 48000,
+      "end_price": 38000,
+      "candidate_happened": 361,
+      "candidate_known": 378,
+      "structural_pass": false,
+      "role_pass": true,
+      "CycleDiv68": false,
+      "RawEnd68": true,
+      "JEnd68": false,
+      "OriginalGeneralDiv": null,
+      "OriginalMovementCompleted": null,
+      "original_happened": null,
+      "original_known": null,
+      "original_published": null,
+      "checks": {
+        "strict_cores": true,
+        "member_direction_alternates": true,
+        "coherent_type": false,
+        "same_direction_comparison_arms": true,
+        "entry_cross": true,
+        "exit_cross": true,
+        "whole_extreme": true,
+        "signed_force_weakening": true
+      },
+      "rejections": [
+        "coherent_type"
+      ],
+      "owns_each_event_once": true
+    },
+    {
+      "id": "W68:S1-S21",
+      "raw_start": 1,
+      "raw_stop": 22,
+      "k": 5,
+      "grade": 0,
+      "kind": null,
+      "conceptual_direction": null,
+      "technical_up": false,
+      "raws": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19",
+        "S20",
+        "S21"
+      ],
+      "cores": [
+        {
+          "id": "IC68:1:0",
+          "members": [
+            "S2",
+            "S3",
+            "S4"
+          ],
+          "core": [
+            50000,
+            60000
+          ],
+          "Outer0": [
+            50000,
+            60000
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            42,
+            101
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 101,
+          "raw_known": 118
+        },
+        {
+          "id": "IC68:1:1",
+          "members": [
+            "S6",
+            "S7",
+            "S8"
+          ],
+          "core": [
+            68800,
+            71200
+          ],
+          "Outer0": [
+            68800,
+            71200
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            122,
+            181
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 181,
+          "raw_known": 198
+        },
+        {
+          "id": "IC68:1:2",
+          "members": [
+            "S10",
+            "S11",
+            "S12"
+          ],
+          "core": [
+            76800,
+            78800
+          ],
+          "Outer0": [
+            76800,
+            78800
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            202,
+            261
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 261,
+          "raw_known": 278
+        },
+        {
+          "id": "IC68:1:3",
+          "members": [
+            "S14",
+            "S15",
+            "S16"
+          ],
+          "core": [
+            59200,
+            61200
+          ],
+          "Outer0": [
+            59200,
+            61200
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            282,
+            341
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 341,
+          "raw_known": 358
+        },
+        {
+          "id": "IC68:1:4",
+          "members": [
+            "S18",
+            "S19",
+            "S20"
+          ],
+          "core": [
+            40000,
+            44000
+          ],
+          "Outer0": [
+            40000,
+            44000
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            362,
+            421
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 421,
+          "raw_known": 438
+        }
+      ],
+      "start": 21,
+      "end": 441,
+      "own": [
+        22,
+        441
+      ],
+      "whole": [
+        38000,
+        80000
+      ],
+      "b_ref": "S17",
+      "c": "S21",
+      "b_force": {
+        "first_pen": 85,
+        "last_pen": 89,
+        "first_v": -100.0,
+        "last_v": -400.0,
+        "L": -300.0
+      },
+      "c_force": {
+        "first_pen": 105,
+        "last_pen": 109,
+        "first_v": -100.0,
+        "last_v": -200.0,
+        "L": -100.0
+      },
+      "prior_whole_extreme": 38000,
+      "end_price": 40800,
+      "candidate_happened": 441,
+      "candidate_known": 458,
+      "structural_pass": false,
+      "role_pass": false,
+      "CycleDiv68": false,
+      "RawEnd68": true,
+      "JEnd68": false,
+      "OriginalGeneralDiv": null,
+      "OriginalMovementCompleted": null,
+      "original_happened": null,
+      "original_known": null,
+      "original_published": null,
+      "checks": {
+        "strict_cores": true,
+        "member_direction_alternates": true,
+        "coherent_type": false,
+        "same_direction_comparison_arms": true,
+        "entry_cross": true,
+        "exit_cross": false,
+        "whole_extreme": false,
+        "signed_force_weakening": false
+      },
+      "rejections": [
+        "coherent_type",
+        "exit_cross",
+        "whole_extreme",
+        "signed_force_weakening"
+      ],
+      "owns_each_event_once": true
+    },
+    {
+      "id": "W68:S1-S25",
+      "raw_start": 1,
+      "raw_stop": 26,
+      "k": 6,
+      "grade": 0,
+      "kind": null,
+      "conceptual_direction": null,
+      "technical_up": false,
+      "raws": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19",
+        "S20",
+        "S21",
+        "S22",
+        "S23",
+        "S24",
+        "S25"
+      ],
+      "cores": [
+        {
+          "id": "IC68:1:0",
+          "members": [
+            "S2",
+            "S3",
+            "S4"
+          ],
+          "core": [
+            50000,
+            60000
+          ],
+          "Outer0": [
+            50000,
+            60000
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            42,
+            101
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 101,
+          "raw_known": 118
+        },
+        {
+          "id": "IC68:1:1",
+          "members": [
+            "S6",
+            "S7",
+            "S8"
+          ],
+          "core": [
+            68800,
+            71200
+          ],
+          "Outer0": [
+            68800,
+            71200
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            122,
+            181
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 181,
+          "raw_known": 198
+        },
+        {
+          "id": "IC68:1:2",
+          "members": [
+            "S10",
+            "S11",
+            "S12"
+          ],
+          "core": [
+            76800,
+            78800
+          ],
+          "Outer0": [
+            76800,
+            78800
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            202,
+            261
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 261,
+          "raw_known": 278
+        },
+        {
+          "id": "IC68:1:3",
+          "members": [
+            "S14",
+            "S15",
+            "S16"
+          ],
+          "core": [
+            59200,
+            61200
+          ],
+          "Outer0": [
+            59200,
+            61200
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            282,
+            341
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 341,
+          "raw_known": 358
+        },
+        {
+          "id": "IC68:1:4",
+          "members": [
+            "S18",
+            "S19",
+            "S20"
+          ],
+          "core": [
+            40000,
+            44000
+          ],
+          "Outer0": [
+            40000,
+            44000
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            362,
+            421
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 421,
+          "raw_known": 438
+        },
+        {
+          "id": "IC68:1:5",
+          "members": [
+            "S22",
+            "S23",
+            "S24"
+          ],
+          "core": [
+            64000,
+            67200
+          ],
+          "Outer0": [
+            64000,
+            67200
+          ],
+          "Outer0_original_DD_GG": null,
+          "own": [
+            442,
+            501
+          ],
+          "strict": true,
+          "direction_alternates": true,
+          "happened": 501,
+          "raw_known": 518
+        }
+      ],
+      "start": 21,
+      "end": 521,
+      "own": [
+        22,
+        521
+      ],
+      "whole": [
+        38000,
+        80000
+      ],
+      "b_ref": "S21",
+      "c": "S25",
+      "b_force": {
+        "first_pen": 105,
+        "last_pen": 109,
+        "first_v": -100.0,
+        "last_v": -200.0,
+        "L": -100.0
+      },
+      "c_force": {
+        "first_pen": 125,
+        "last_pen": 129,
+        "first_v": -100.0,
+        "last_v": -200.0,
+        "L": -100.0
+      },
+      "prior_whole_extreme": 38000,
+      "end_price": 64800,
+      "candidate_happened": 521,
+      "candidate_known": 538,
+      "structural_pass": false,
+      "role_pass": false,
+      "CycleDiv68": false,
+      "RawEnd68": true,
+      "JEnd68": false,
+      "OriginalGeneralDiv": null,
+      "OriginalMovementCompleted": null,
+      "original_happened": null,
+      "original_known": null,
+      "original_published": null,
+      "checks": {
+        "strict_cores": true,
+        "member_direction_alternates": true,
+        "coherent_type": false,
+        "same_direction_comparison_arms": true,
+        "entry_cross": false,
+        "exit_cross": false,
+        "whole_extreme": false,
+        "signed_force_weakening": false
+      },
+      "rejections": [
+        "coherent_type",
+        "entry_cross",
+        "exit_cross",
+        "whole_extreme",
+        "signed_force_weakening"
+      ],
+      "owns_each_event_once": true
+    }
+  ],
+  "all_nodes": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28
+  ],
+  "maximal_final_paths": [
+    {
+      "delta": [],
+      "kinds": [],
+      "is_maximal": true,
+      "no_pp": true,
+      "pp_violations": [],
+      "has_three": false,
+      "candidate_F2_pass": false,
+      "original_F2_pass": false,
+      "factor_owns": [],
+      "active_tail": [
+        22,
+        582
+      ],
+      "original_completed": [],
+      "extendable_now": false,
+      "candidate_windows_inside_tail": [
+        "W68:S4-S8",
+        "W68:S9-S17",
+        "W68:S13-S17",
+        "W68:S18-S26",
+        "W68:S22-S26"
+      ],
+      "complete_original_decomposition": null,
+      "source_partition_only": "raw root + factor intervals + unresolved tail; coverage is not source-certified completeness"
+    }
+  ],
+  "original_Owner_Next": "unproved",
+  "LocalDyn64_or_A64_global_imported": false
+}

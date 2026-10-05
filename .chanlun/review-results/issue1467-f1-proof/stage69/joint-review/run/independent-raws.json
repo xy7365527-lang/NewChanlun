@@ -1,0 +1,1570 @@
+[
+  {
+    "id": "S0",
+    "up": true,
+    "start": 1,
+    "end": 21,
+    "own": [
+      2,
+      21
+    ],
+    "members": [
+      0,
+      5
+    ],
+    "range": [
+      40000,
+      64000
+    ],
+    "known_at": 38,
+    "first_selected": [
+      3,
+      5,
+      7
+    ],
+    "selected_ranges": [
+      [
+        63200,
+        63800
+      ],
+      [
+        63600,
+        64000
+      ],
+      [
+        48200,
+        63800
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      40200,
+      40400
+    ],
+    "force": {
+      "first_pen": 0,
+      "last_pen": 4,
+      "first_v": 100,
+      "last_v": 200,
+      "L": 100
+    },
+    "start_price": 40000,
+    "end_price": 64000,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S1",
+    "up": false,
+    "start": 21,
+    "end": 41,
+    "own": [
+      22,
+      41
+    ],
+    "members": [
+      5,
+      10
+    ],
+    "range": [
+      48000,
+      64000
+    ],
+    "known_at": 58,
+    "first_selected": [
+      8,
+      10,
+      12
+    ],
+    "selected_ranges": [
+      [
+        48200,
+        48800
+      ],
+      [
+        48000,
+        48400
+      ],
+      [
+        48200,
+        59800
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      63600,
+      63800
+    ],
+    "force": {
+      "first_pen": 5,
+      "last_pen": 9,
+      "first_v": -100,
+      "last_v": -200,
+      "L": -100
+    },
+    "start_price": 64000,
+    "end_price": 48000,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S2",
+    "up": true,
+    "start": 41,
+    "end": 61,
+    "own": [
+      42,
+      61
+    ],
+    "members": [
+      10,
+      15
+    ],
+    "range": [
+      48000,
+      60000
+    ],
+    "known_at": 78,
+    "first_selected": [
+      13,
+      15,
+      17
+    ],
+    "selected_ranges": [
+      [
+        59200,
+        59800
+      ],
+      [
+        59600,
+        60000
+      ],
+      [
+        50200,
+        59800
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      48200,
+      48400
+    ],
+    "force": {
+      "first_pen": 10,
+      "last_pen": 14,
+      "first_v": 100,
+      "last_v": 200,
+      "L": 100
+    },
+    "start_price": 48000,
+    "end_price": 60000,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S3",
+    "up": false,
+    "start": 61,
+    "end": 81,
+    "own": [
+      62,
+      81
+    ],
+    "members": [
+      15,
+      20
+    ],
+    "range": [
+      50000,
+      60000
+    ],
+    "known_at": 98,
+    "first_selected": [
+      18,
+      20,
+      22
+    ],
+    "selected_ranges": [
+      [
+        50200,
+        50800
+      ],
+      [
+        50000,
+        50400
+      ],
+      [
+        50200,
+        71800
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      59600,
+      59800
+    ],
+    "force": {
+      "first_pen": 15,
+      "last_pen": 19,
+      "first_v": -100,
+      "last_v": -200,
+      "L": -100
+    },
+    "start_price": 60000,
+    "end_price": 50000,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S4",
+    "up": true,
+    "start": 81,
+    "end": 101,
+    "own": [
+      82,
+      101
+    ],
+    "members": [
+      20,
+      25
+    ],
+    "range": [
+      50000,
+      72000
+    ],
+    "known_at": 118,
+    "first_selected": [
+      23,
+      25,
+      27
+    ],
+    "selected_ranges": [
+      [
+        70800,
+        71800
+      ],
+      [
+        71600,
+        72000
+      ],
+      [
+        68200,
+        71800
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      50200,
+      50400
+    ],
+    "force": {
+      "first_pen": 20,
+      "last_pen": 24,
+      "first_v": 100,
+      "last_v": 300,
+      "L": 200
+    },
+    "start_price": 50000,
+    "end_price": 72000,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S5",
+    "up": false,
+    "start": 101,
+    "end": 121,
+    "own": [
+      102,
+      121
+    ],
+    "members": [
+      25,
+      30
+    ],
+    "range": [
+      68000,
+      72000
+    ],
+    "known_at": 138,
+    "first_selected": [
+      28,
+      30,
+      32
+    ],
+    "selected_ranges": [
+      [
+        68200,
+        68800
+      ],
+      [
+        68000,
+        68400
+      ],
+      [
+        68200,
+        71000
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      71600,
+      71800
+    ],
+    "force": {
+      "first_pen": 25,
+      "last_pen": 29,
+      "first_v": -100,
+      "last_v": -200,
+      "L": -100
+    },
+    "start_price": 72000,
+    "end_price": 68000,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S6",
+    "up": true,
+    "start": 121,
+    "end": 141,
+    "own": [
+      122,
+      141
+    ],
+    "members": [
+      30,
+      35
+    ],
+    "range": [
+      68000,
+      71200
+    ],
+    "known_at": 158,
+    "first_selected": [
+      33,
+      35,
+      37
+    ],
+    "selected_ranges": [
+      [
+        70400,
+        71000
+      ],
+      [
+        70800,
+        71200
+      ],
+      [
+        69000,
+        71000
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      68200,
+      68400
+    ],
+    "force": {
+      "first_pen": 30,
+      "last_pen": 34,
+      "first_v": 100,
+      "last_v": 200,
+      "L": 100
+    },
+    "start_price": 68000,
+    "end_price": 71200,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S7",
+    "up": false,
+    "start": 141,
+    "end": 161,
+    "own": [
+      142,
+      161
+    ],
+    "members": [
+      35,
+      40
+    ],
+    "range": [
+      68800,
+      71200
+    ],
+    "known_at": 178,
+    "first_selected": [
+      38,
+      40,
+      42
+    ],
+    "selected_ranges": [
+      [
+        69000,
+        69600
+      ],
+      [
+        68800,
+        69200
+      ],
+      [
+        69000,
+        79800
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      70800,
+      71000
+    ],
+    "force": {
+      "first_pen": 35,
+      "last_pen": 39,
+      "first_v": -100,
+      "last_v": -200,
+      "L": -100
+    },
+    "start_price": 71200,
+    "end_price": 68800,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S8",
+    "up": true,
+    "start": 161,
+    "end": 181,
+    "own": [
+      162,
+      181
+    ],
+    "members": [
+      40,
+      45
+    ],
+    "range": [
+      68800,
+      80000
+    ],
+    "known_at": 198,
+    "first_selected": [
+      43,
+      45,
+      47
+    ],
+    "selected_ranges": [
+      [
+        79400,
+        79800
+      ],
+      [
+        79600,
+        80000
+      ],
+      [
+        76200,
+        79800
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      69000,
+      69200
+    ],
+    "force": {
+      "first_pen": 40,
+      "last_pen": 44,
+      "first_v": 100,
+      "last_v": 150,
+      "L": 50
+    },
+    "start_price": 68800,
+    "end_price": 80000,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S9",
+    "up": false,
+    "start": 181,
+    "end": 201,
+    "own": [
+      182,
+      201
+    ],
+    "members": [
+      45,
+      50
+    ],
+    "range": [
+      76000,
+      80000
+    ],
+    "known_at": 218,
+    "first_selected": [
+      48,
+      50,
+      52
+    ],
+    "selected_ranges": [
+      [
+        76200,
+        76800
+      ],
+      [
+        76000,
+        76400
+      ],
+      [
+        76200,
+        79000
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      79600,
+      79800
+    ],
+    "force": {
+      "first_pen": 45,
+      "last_pen": 49,
+      "first_v": -100,
+      "last_v": -200,
+      "L": -100
+    },
+    "start_price": 80000,
+    "end_price": 76000,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S10",
+    "up": true,
+    "start": 201,
+    "end": 221,
+    "own": [
+      202,
+      221
+    ],
+    "members": [
+      50,
+      55
+    ],
+    "range": [
+      76000,
+      79200
+    ],
+    "known_at": 238,
+    "first_selected": [
+      53,
+      55,
+      57
+    ],
+    "selected_ranges": [
+      [
+        78400,
+        79000
+      ],
+      [
+        78800,
+        79200
+      ],
+      [
+        77000,
+        79000
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      76200,
+      76400
+    ],
+    "force": {
+      "first_pen": 50,
+      "last_pen": 54,
+      "first_v": 100,
+      "last_v": 200,
+      "L": 100
+    },
+    "start_price": 76000,
+    "end_price": 79200,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S11",
+    "up": false,
+    "start": 221,
+    "end": 241,
+    "own": [
+      222,
+      241
+    ],
+    "members": [
+      55,
+      60
+    ],
+    "range": [
+      76800,
+      79200
+    ],
+    "known_at": 258,
+    "first_selected": [
+      58,
+      60,
+      62
+    ],
+    "selected_ranges": [
+      [
+        77000,
+        77600
+      ],
+      [
+        76800,
+        77200
+      ],
+      [
+        77000,
+        78600
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      78800,
+      79000
+    ],
+    "force": {
+      "first_pen": 55,
+      "last_pen": 59,
+      "first_v": -100,
+      "last_v": -200,
+      "L": -100
+    },
+    "start_price": 79200,
+    "end_price": 76800,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S12",
+    "up": true,
+    "start": 241,
+    "end": 261,
+    "own": [
+      242,
+      261
+    ],
+    "members": [
+      60,
+      65
+    ],
+    "range": [
+      76800,
+      78800
+    ],
+    "known_at": 278,
+    "first_selected": [
+      63,
+      65,
+      67
+    ],
+    "selected_ranges": [
+      [
+        77200,
+        78600
+      ],
+      [
+        77600,
+        78800
+      ],
+      [
+        58200,
+        78200
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      77000,
+      77200
+    ],
+    "force": {
+      "first_pen": 60,
+      "last_pen": 64,
+      "first_v": 100,
+      "last_v": 400,
+      "L": 300
+    },
+    "start_price": 76800,
+    "end_price": 78800,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S13",
+    "up": false,
+    "start": 261,
+    "end": 281,
+    "own": [
+      262,
+      281
+    ],
+    "members": [
+      65,
+      70
+    ],
+    "range": [
+      58000,
+      78800
+    ],
+    "known_at": 298,
+    "first_selected": [
+      68,
+      70,
+      72
+    ],
+    "selected_ranges": [
+      [
+        58200,
+        58600
+      ],
+      [
+        58000,
+        58400
+      ],
+      [
+        58200,
+        61800
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      77600,
+      78200
+    ],
+    "force": {
+      "first_pen": 65,
+      "last_pen": 69,
+      "first_v": -300,
+      "last_v": -150,
+      "L": 150
+    },
+    "start_price": 78800,
+    "end_price": 58000,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S14",
+    "up": true,
+    "start": 281,
+    "end": 301,
+    "own": [
+      282,
+      301
+    ],
+    "members": [
+      70,
+      75
+    ],
+    "range": [
+      58000,
+      62000
+    ],
+    "known_at": 318,
+    "first_selected": [
+      73,
+      75,
+      77
+    ],
+    "selected_ranges": [
+      [
+        61200,
+        61800
+      ],
+      [
+        61600,
+        62000
+      ],
+      [
+        59400,
+        61800
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      58200,
+      58400
+    ],
+    "force": {
+      "first_pen": 70,
+      "last_pen": 74,
+      "first_v": 100,
+      "last_v": 200,
+      "L": 100
+    },
+    "start_price": 58000,
+    "end_price": 62000,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S15",
+    "up": false,
+    "start": 301,
+    "end": 321,
+    "own": [
+      302,
+      321
+    ],
+    "members": [
+      75,
+      80
+    ],
+    "range": [
+      59200,
+      62000
+    ],
+    "known_at": 338,
+    "first_selected": [
+      78,
+      80,
+      82
+    ],
+    "selected_ranges": [
+      [
+        59400,
+        60000
+      ],
+      [
+        59200,
+        59600
+      ],
+      [
+        59400,
+        61000
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      61600,
+      61800
+    ],
+    "force": {
+      "first_pen": 75,
+      "last_pen": 79,
+      "first_v": -100,
+      "last_v": -200,
+      "L": -100
+    },
+    "start_price": 62000,
+    "end_price": 59200,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S16",
+    "up": true,
+    "start": 321,
+    "end": 341,
+    "own": [
+      322,
+      341
+    ],
+    "members": [
+      80,
+      85
+    ],
+    "range": [
+      59200,
+      61200
+    ],
+    "known_at": 358,
+    "first_selected": [
+      83,
+      85,
+      87
+    ],
+    "selected_ranges": [
+      [
+        60400,
+        61000
+      ],
+      [
+        60800,
+        61200
+      ],
+      [
+        38200,
+        61000
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      59400,
+      59600
+    ],
+    "force": {
+      "first_pen": 80,
+      "last_pen": 84,
+      "first_v": 100,
+      "last_v": 200,
+      "L": 100
+    },
+    "start_price": 59200,
+    "end_price": 61200,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S17",
+    "up": false,
+    "start": 341,
+    "end": 361,
+    "own": [
+      342,
+      361
+    ],
+    "members": [
+      85,
+      90
+    ],
+    "range": [
+      38000,
+      61200
+    ],
+    "known_at": 378,
+    "first_selected": [
+      88,
+      90,
+      92
+    ],
+    "selected_ranges": [
+      [
+        38200,
+        39600
+      ],
+      [
+        38000,
+        38400
+      ],
+      [
+        38200,
+        45800
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      60800,
+      61000
+    ],
+    "force": {
+      "first_pen": 85,
+      "last_pen": 89,
+      "first_v": -100,
+      "last_v": -400,
+      "L": -300
+    },
+    "start_price": 61200,
+    "end_price": 38000,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S18",
+    "up": true,
+    "start": 361,
+    "end": 381,
+    "own": [
+      362,
+      381
+    ],
+    "members": [
+      90,
+      95
+    ],
+    "range": [
+      38000,
+      46000
+    ],
+    "known_at": 398,
+    "first_selected": [
+      93,
+      95,
+      97
+    ],
+    "selected_ranges": [
+      [
+        45200,
+        45800
+      ],
+      [
+        45600,
+        46000
+      ],
+      [
+        40200,
+        45800
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      38200,
+      38400
+    ],
+    "force": {
+      "first_pen": 90,
+      "last_pen": 94,
+      "first_v": 100,
+      "last_v": 200,
+      "L": 100
+    },
+    "start_price": 38000,
+    "end_price": 46000,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S19",
+    "up": false,
+    "start": 381,
+    "end": 401,
+    "own": [
+      382,
+      401
+    ],
+    "members": [
+      95,
+      100
+    ],
+    "range": [
+      40000,
+      46000
+    ],
+    "known_at": 418,
+    "first_selected": [
+      98,
+      100,
+      102
+    ],
+    "selected_ranges": [
+      [
+        40200,
+        40800
+      ],
+      [
+        40000,
+        40400
+      ],
+      [
+        40200,
+        43800
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      45600,
+      45800
+    ],
+    "force": {
+      "first_pen": 95,
+      "last_pen": 99,
+      "first_v": -100,
+      "last_v": -200,
+      "L": -100
+    },
+    "start_price": 46000,
+    "end_price": 40000,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S20",
+    "up": true,
+    "start": 401,
+    "end": 421,
+    "own": [
+      402,
+      421
+    ],
+    "members": [
+      100,
+      105
+    ],
+    "range": [
+      40000,
+      44000
+    ],
+    "known_at": 438,
+    "first_selected": [
+      103,
+      105,
+      107
+    ],
+    "selected_ranges": [
+      [
+        43200,
+        43800
+      ],
+      [
+        43600,
+        44000
+      ],
+      [
+        41000,
+        43800
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      40200,
+      40400
+    ],
+    "force": {
+      "first_pen": 100,
+      "last_pen": 104,
+      "first_v": 100,
+      "last_v": 200,
+      "L": 100
+    },
+    "start_price": 40000,
+    "end_price": 44000,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S21",
+    "up": false,
+    "start": 421,
+    "end": 441,
+    "own": [
+      422,
+      441
+    ],
+    "members": [
+      105,
+      110
+    ],
+    "range": [
+      40800,
+      44000
+    ],
+    "known_at": 458,
+    "first_selected": [
+      108,
+      110,
+      112
+    ],
+    "selected_ranges": [
+      [
+        41000,
+        41600
+      ],
+      [
+        40800,
+        41200
+      ],
+      [
+        41000,
+        67800
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      43600,
+      43800
+    ],
+    "force": {
+      "first_pen": 105,
+      "last_pen": 109,
+      "first_v": -100,
+      "last_v": -200,
+      "L": -100
+    },
+    "start_price": 44000,
+    "end_price": 40800,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S22",
+    "up": true,
+    "start": 441,
+    "end": 461,
+    "own": [
+      442,
+      461
+    ],
+    "members": [
+      110,
+      115
+    ],
+    "range": [
+      40800,
+      68000
+    ],
+    "known_at": 478,
+    "first_selected": [
+      113,
+      115,
+      117
+    ],
+    "selected_ranges": [
+      [
+        66800,
+        67800
+      ],
+      [
+        67600,
+        68000
+      ],
+      [
+        64200,
+        67800
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      41000,
+      41200
+    ],
+    "force": {
+      "first_pen": 110,
+      "last_pen": 114,
+      "first_v": 100,
+      "last_v": 300,
+      "L": 200
+    },
+    "start_price": 40800,
+    "end_price": 68000,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S23",
+    "up": false,
+    "start": 461,
+    "end": 481,
+    "own": [
+      462,
+      481
+    ],
+    "members": [
+      115,
+      120
+    ],
+    "range": [
+      64000,
+      68000
+    ],
+    "known_at": 498,
+    "first_selected": [
+      118,
+      120,
+      122
+    ],
+    "selected_ranges": [
+      [
+        64200,
+        64800
+      ],
+      [
+        64000,
+        64400
+      ],
+      [
+        64200,
+        67000
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      67600,
+      67800
+    ],
+    "force": {
+      "first_pen": 115,
+      "last_pen": 119,
+      "first_v": -100,
+      "last_v": -200,
+      "L": -100
+    },
+    "start_price": 68000,
+    "end_price": 64000,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S24",
+    "up": true,
+    "start": 481,
+    "end": 501,
+    "own": [
+      482,
+      501
+    ],
+    "members": [
+      120,
+      125
+    ],
+    "range": [
+      64000,
+      67200
+    ],
+    "known_at": 518,
+    "first_selected": [
+      123,
+      125,
+      127
+    ],
+    "selected_ranges": [
+      [
+        66400,
+        67000
+      ],
+      [
+        66800,
+        67200
+      ],
+      [
+        65000,
+        67000
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      64200,
+      64400
+    ],
+    "force": {
+      "first_pen": 120,
+      "last_pen": 124,
+      "first_v": 100,
+      "last_v": 200,
+      "L": 100
+    },
+    "start_price": 64000,
+    "end_price": 67200,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S25",
+    "up": false,
+    "start": 501,
+    "end": 521,
+    "own": [
+      502,
+      521
+    ],
+    "members": [
+      125,
+      130
+    ],
+    "range": [
+      64800,
+      67200
+    ],
+    "known_at": 538,
+    "first_selected": [
+      128,
+      130,
+      132
+    ],
+    "selected_ranges": [
+      [
+        65000,
+        65600
+      ],
+      [
+        64800,
+        65200
+      ],
+      [
+        65000,
+        81800
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      66800,
+      67000
+    ],
+    "force": {
+      "first_pen": 125,
+      "last_pen": 129,
+      "first_v": -100,
+      "last_v": -200,
+      "L": -100
+    },
+    "start_price": 67200,
+    "end_price": 64800,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S26",
+    "up": true,
+    "start": 521,
+    "end": 541,
+    "own": [
+      522,
+      541
+    ],
+    "members": [
+      130,
+      135
+    ],
+    "range": [
+      64800,
+      82000
+    ],
+    "known_at": 558,
+    "first_selected": [
+      133,
+      135,
+      137
+    ],
+    "selected_ranges": [
+      [
+        81400,
+        81800
+      ],
+      [
+        81600,
+        82000
+      ],
+      [
+        74200,
+        81800
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      65000,
+      65200
+    ],
+    "force": {
+      "first_pen": 130,
+      "last_pen": 134,
+      "first_v": 100,
+      "last_v": 150,
+      "L": 50
+    },
+    "start_price": 64800,
+    "end_price": 82000,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  },
+  {
+    "id": "S27",
+    "up": false,
+    "start": 541,
+    "end": 561,
+    "own": [
+      542,
+      561
+    ],
+    "members": [
+      135,
+      140
+    ],
+    "range": [
+      74000,
+      82000
+    ],
+    "known_at": 578,
+    "first_selected": [
+      138,
+      140,
+      142
+    ],
+    "selected_ranges": [
+      [
+        74200,
+        74800
+      ],
+      [
+        74000,
+        74400
+      ],
+      [
+        74200,
+        79800
+      ]
+    ],
+    "gap": false,
+    "initial_three_core": [
+      81600,
+      81800
+    ],
+    "force": {
+      "first_pen": 135,
+      "last_pen": 139,
+      "first_v": -100,
+      "last_v": -200,
+      "L": -100
+    },
+    "start_price": 82000,
+    "end_price": 74000,
+    "RawClosed": true,
+    "ComparisonReady68": true,
+    "ComparisonReady_original": null,
+    "MovementCompleted_original": null
+  }
+]

@@ -1,0 +1,2645 @@
+[
+  {
+    "trace": {
+      "t": 0,
+      "counts": {
+        "available_grammar_windows": 0,
+        "structural_pass": 0,
+        "roles_pass_after_structure": 0,
+        "whole_extreme_after_structure_roles": 0,
+        "candidate_completion_edges": 0,
+        "all_paths": 1,
+        "maximal_paths": 1,
+        "maximal_nonempty_paths": 0,
+        "maximal_no_pp_nonempty_paths": 0,
+        "no_pp_nonempty_paths": 0,
+        "three_child_paths": 0,
+        "candidate_F2_pass": 0,
+        "NoPP_removed_candidate_F2_pass": 0,
+        "max_factor_count": 0,
+        "original_F2_admitted": 0
+      },
+      "consumer_checks": [
+        {
+          "delta": [],
+          "fixed_F2_necessary_conditions": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": false,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "NoPP_removed_same_graph": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": true,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "candidate_clock": [],
+          "ledger_coverage_once": false,
+          "original_F2_status": "unproved, false flag means not admitted, not disproof"
+        }
+      ],
+      "raw_known": []
+    },
+    "paths": {
+      "t": 0,
+      "all_edge_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": true,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [],
+          "original_completed": [],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [],
+          "complete_original_decomposition": null,
+          "source_partition_only": "raw root + factor intervals + unresolved tail; coverage is not source-certified completeness"
+        }
+      ],
+      "no_pp_paths_including_empty": [
+        []
+      ],
+      "no_pp_nonempty_paths": [],
+      "three_child_paths": [],
+      "no_pp_and_three_child_paths": [],
+      "counts": {
+        "all": 1,
+        "nonempty": 0,
+        "no_pp_nonempty": 0,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      }
+    }
+  },
+  {
+    "trace": {
+      "t": 21,
+      "counts": {
+        "available_grammar_windows": 0,
+        "structural_pass": 0,
+        "roles_pass_after_structure": 0,
+        "whole_extreme_after_structure_roles": 0,
+        "candidate_completion_edges": 0,
+        "all_paths": 1,
+        "maximal_paths": 1,
+        "maximal_nonempty_paths": 0,
+        "maximal_no_pp_nonempty_paths": 0,
+        "no_pp_nonempty_paths": 0,
+        "three_child_paths": 0,
+        "candidate_F2_pass": 0,
+        "NoPP_removed_candidate_F2_pass": 0,
+        "max_factor_count": 0,
+        "original_F2_admitted": 0
+      },
+      "consumer_checks": [
+        {
+          "delta": [],
+          "fixed_F2_necessary_conditions": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": false,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "NoPP_removed_same_graph": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": true,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "candidate_clock": [],
+          "ledger_coverage_once": true,
+          "original_F2_status": "unproved, false flag means not admitted, not disproof"
+        }
+      ],
+      "raw_known": []
+    },
+    "paths": {
+      "t": 21,
+      "all_edge_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": true,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [],
+          "original_completed": [],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [],
+          "complete_original_decomposition": null,
+          "source_partition_only": "raw root + factor intervals + unresolved tail; coverage is not source-certified completeness"
+        }
+      ],
+      "no_pp_paths_including_empty": [
+        []
+      ],
+      "no_pp_nonempty_paths": [],
+      "three_child_paths": [],
+      "no_pp_and_three_child_paths": [],
+      "counts": {
+        "all": 1,
+        "nonempty": 0,
+        "no_pp_nonempty": 0,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      }
+    }
+  },
+  {
+    "trace": {
+      "t": 38,
+      "counts": {
+        "available_grammar_windows": 0,
+        "structural_pass": 0,
+        "roles_pass_after_structure": 0,
+        "whole_extreme_after_structure_roles": 0,
+        "candidate_completion_edges": 0,
+        "all_paths": 1,
+        "maximal_paths": 1,
+        "maximal_nonempty_paths": 0,
+        "maximal_no_pp_nonempty_paths": 0,
+        "no_pp_nonempty_paths": 0,
+        "three_child_paths": 0,
+        "candidate_F2_pass": 0,
+        "NoPP_removed_candidate_F2_pass": 0,
+        "max_factor_count": 0,
+        "original_F2_admitted": 0
+      },
+      "consumer_checks": [
+        {
+          "delta": [],
+          "fixed_F2_necessary_conditions": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": false,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "NoPP_removed_same_graph": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": true,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "candidate_clock": [],
+          "ledger_coverage_once": true,
+          "original_F2_status": "unproved, false flag means not admitted, not disproof"
+        }
+      ],
+      "raw_known": [
+        "S0"
+      ]
+    },
+    "paths": {
+      "t": 38,
+      "all_edge_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": true,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            38
+          ],
+          "original_completed": [],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [],
+          "complete_original_decomposition": null,
+          "source_partition_only": "raw root + factor intervals + unresolved tail; coverage is not source-certified completeness"
+        }
+      ],
+      "no_pp_paths_including_empty": [
+        []
+      ],
+      "no_pp_nonempty_paths": [],
+      "three_child_paths": [],
+      "no_pp_and_three_child_paths": [],
+      "counts": {
+        "all": 1,
+        "nonempty": 0,
+        "no_pp_nonempty": 0,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      }
+    }
+  },
+  {
+    "trace": {
+      "t": 58,
+      "counts": {
+        "available_grammar_windows": 0,
+        "structural_pass": 0,
+        "roles_pass_after_structure": 0,
+        "whole_extreme_after_structure_roles": 0,
+        "candidate_completion_edges": 0,
+        "all_paths": 1,
+        "maximal_paths": 1,
+        "maximal_nonempty_paths": 0,
+        "maximal_no_pp_nonempty_paths": 0,
+        "no_pp_nonempty_paths": 0,
+        "three_child_paths": 0,
+        "candidate_F2_pass": 0,
+        "NoPP_removed_candidate_F2_pass": 0,
+        "max_factor_count": 0,
+        "original_F2_admitted": 0
+      },
+      "consumer_checks": [
+        {
+          "delta": [],
+          "fixed_F2_necessary_conditions": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": false,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "NoPP_removed_same_graph": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": true,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "candidate_clock": [],
+          "ledger_coverage_once": true,
+          "original_F2_status": "unproved, false flag means not admitted, not disproof"
+        }
+      ],
+      "raw_known": [
+        "S0",
+        "S1"
+      ]
+    },
+    "paths": {
+      "t": 58,
+      "all_edge_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": true,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            58
+          ],
+          "original_completed": [],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [],
+          "complete_original_decomposition": null,
+          "source_partition_only": "raw root + factor intervals + unresolved tail; coverage is not source-certified completeness"
+        }
+      ],
+      "no_pp_paths_including_empty": [
+        []
+      ],
+      "no_pp_nonempty_paths": [],
+      "three_child_paths": [],
+      "no_pp_and_three_child_paths": [],
+      "counts": {
+        "all": 1,
+        "nonempty": 0,
+        "no_pp_nonempty": 0,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      }
+    }
+  },
+  {
+    "trace": {
+      "t": 118,
+      "counts": {
+        "available_grammar_windows": 0,
+        "structural_pass": 0,
+        "roles_pass_after_structure": 0,
+        "whole_extreme_after_structure_roles": 0,
+        "candidate_completion_edges": 0,
+        "all_paths": 1,
+        "maximal_paths": 1,
+        "maximal_nonempty_paths": 0,
+        "maximal_no_pp_nonempty_paths": 0,
+        "no_pp_nonempty_paths": 0,
+        "three_child_paths": 0,
+        "candidate_F2_pass": 0,
+        "NoPP_removed_candidate_F2_pass": 0,
+        "max_factor_count": 0,
+        "original_F2_admitted": 0
+      },
+      "consumer_checks": [
+        {
+          "delta": [],
+          "fixed_F2_necessary_conditions": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": false,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "NoPP_removed_same_graph": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": true,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "candidate_clock": [],
+          "ledger_coverage_once": true,
+          "original_F2_status": "unproved, false flag means not admitted, not disproof"
+        }
+      ],
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4"
+      ]
+    },
+    "paths": {
+      "t": 118,
+      "all_edge_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": true,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            118
+          ],
+          "original_completed": [],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [],
+          "complete_original_decomposition": null,
+          "source_partition_only": "raw root + factor intervals + unresolved tail; coverage is not source-certified completeness"
+        }
+      ],
+      "no_pp_paths_including_empty": [
+        []
+      ],
+      "no_pp_nonempty_paths": [],
+      "three_child_paths": [],
+      "no_pp_and_three_child_paths": [],
+      "counts": {
+        "all": 1,
+        "nonempty": 0,
+        "no_pp_nonempty": 0,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      }
+    }
+  },
+  {
+    "trace": {
+      "t": 138,
+      "counts": {
+        "available_grammar_windows": 1,
+        "structural_pass": 1,
+        "roles_pass_after_structure": 0,
+        "whole_extreme_after_structure_roles": 0,
+        "candidate_completion_edges": 0,
+        "all_paths": 1,
+        "maximal_paths": 1,
+        "maximal_nonempty_paths": 0,
+        "maximal_no_pp_nonempty_paths": 0,
+        "no_pp_nonempty_paths": 0,
+        "three_child_paths": 0,
+        "candidate_F2_pass": 0,
+        "NoPP_removed_candidate_F2_pass": 0,
+        "max_factor_count": 0,
+        "original_F2_admitted": 0
+      },
+      "consumer_checks": [
+        {
+          "delta": [],
+          "fixed_F2_necessary_conditions": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": false,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "NoPP_removed_same_graph": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": true,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "candidate_clock": [],
+          "ledger_coverage_once": true,
+          "original_F2_status": "unproved, false flag means not admitted, not disproof"
+        }
+      ],
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5"
+      ]
+    },
+    "paths": {
+      "t": 138,
+      "all_edge_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": true,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            138
+          ],
+          "original_completed": [],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [],
+          "complete_original_decomposition": null,
+          "source_partition_only": "raw root + factor intervals + unresolved tail; coverage is not source-certified completeness"
+        }
+      ],
+      "no_pp_paths_including_empty": [
+        []
+      ],
+      "no_pp_nonempty_paths": [],
+      "three_child_paths": [],
+      "no_pp_and_three_child_paths": [],
+      "counts": {
+        "all": 1,
+        "nonempty": 0,
+        "no_pp_nonempty": 0,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      }
+    }
+  },
+  {
+    "trace": {
+      "t": 198,
+      "counts": {
+        "available_grammar_windows": 4,
+        "structural_pass": 3,
+        "roles_pass_after_structure": 1,
+        "whole_extreme_after_structure_roles": 1,
+        "candidate_completion_edges": 1,
+        "all_paths": 1,
+        "maximal_paths": 1,
+        "maximal_nonempty_paths": 0,
+        "maximal_no_pp_nonempty_paths": 0,
+        "no_pp_nonempty_paths": 0,
+        "three_child_paths": 0,
+        "candidate_F2_pass": 0,
+        "NoPP_removed_candidate_F2_pass": 0,
+        "max_factor_count": 0,
+        "original_F2_admitted": 0
+      },
+      "consumer_checks": [
+        {
+          "delta": [],
+          "fixed_F2_necessary_conditions": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": false,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "NoPP_removed_same_graph": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": true,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "candidate_clock": [],
+          "ledger_coverage_once": true,
+          "original_F2_status": "unproved, false flag means not admitted, not disproof"
+        }
+      ],
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8"
+      ]
+    },
+    "paths": {
+      "t": 198,
+      "all_edge_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": true,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            198
+          ],
+          "original_completed": [],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [
+            "W68:S4-S8"
+          ],
+          "complete_original_decomposition": null,
+          "source_partition_only": "raw root + factor intervals + unresolved tail; coverage is not source-certified completeness"
+        }
+      ],
+      "no_pp_paths_including_empty": [
+        []
+      ],
+      "no_pp_nonempty_paths": [],
+      "three_child_paths": [],
+      "no_pp_and_three_child_paths": [],
+      "counts": {
+        "all": 1,
+        "nonempty": 0,
+        "no_pp_nonempty": 0,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      }
+    }
+  },
+  {
+    "trace": {
+      "t": 218,
+      "counts": {
+        "available_grammar_windows": 6,
+        "structural_pass": 4,
+        "roles_pass_after_structure": 1,
+        "whole_extreme_after_structure_roles": 1,
+        "candidate_completion_edges": 1,
+        "all_paths": 1,
+        "maximal_paths": 1,
+        "maximal_nonempty_paths": 0,
+        "maximal_no_pp_nonempty_paths": 0,
+        "no_pp_nonempty_paths": 0,
+        "three_child_paths": 0,
+        "candidate_F2_pass": 0,
+        "NoPP_removed_candidate_F2_pass": 0,
+        "max_factor_count": 0,
+        "original_F2_admitted": 0
+      },
+      "consumer_checks": [
+        {
+          "delta": [],
+          "fixed_F2_necessary_conditions": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": false,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "NoPP_removed_same_graph": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": true,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "candidate_clock": [],
+          "ledger_coverage_once": true,
+          "original_F2_status": "unproved, false flag means not admitted, not disproof"
+        }
+      ],
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9"
+      ]
+    },
+    "paths": {
+      "t": 218,
+      "all_edge_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": true,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            218
+          ],
+          "original_completed": [],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [
+            "W68:S4-S8"
+          ],
+          "complete_original_decomposition": null,
+          "source_partition_only": "raw root + factor intervals + unresolved tail; coverage is not source-certified completeness"
+        }
+      ],
+      "no_pp_paths_including_empty": [
+        []
+      ],
+      "no_pp_nonempty_paths": [],
+      "three_child_paths": [],
+      "no_pp_and_three_child_paths": [],
+      "counts": {
+        "all": 1,
+        "nonempty": 0,
+        "no_pp_nonempty": 0,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      }
+    }
+  },
+  {
+    "trace": {
+      "t": 238,
+      "counts": {
+        "available_grammar_windows": 8,
+        "structural_pass": 4,
+        "roles_pass_after_structure": 1,
+        "whole_extreme_after_structure_roles": 1,
+        "candidate_completion_edges": 1,
+        "all_paths": 1,
+        "maximal_paths": 1,
+        "maximal_nonempty_paths": 0,
+        "maximal_no_pp_nonempty_paths": 0,
+        "no_pp_nonempty_paths": 0,
+        "three_child_paths": 0,
+        "candidate_F2_pass": 0,
+        "NoPP_removed_candidate_F2_pass": 0,
+        "max_factor_count": 0,
+        "original_F2_admitted": 0
+      },
+      "consumer_checks": [
+        {
+          "delta": [],
+          "fixed_F2_necessary_conditions": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": false,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "NoPP_removed_same_graph": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": true,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "candidate_clock": [],
+          "ledger_coverage_once": true,
+          "original_F2_status": "unproved, false flag means not admitted, not disproof"
+        }
+      ],
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10"
+      ]
+    },
+    "paths": {
+      "t": 238,
+      "all_edge_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": true,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            238
+          ],
+          "original_completed": [],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [
+            "W68:S4-S8"
+          ],
+          "complete_original_decomposition": null,
+          "source_partition_only": "raw root + factor intervals + unresolved tail; coverage is not source-certified completeness"
+        }
+      ],
+      "no_pp_paths_including_empty": [
+        []
+      ],
+      "no_pp_nonempty_paths": [],
+      "three_child_paths": [],
+      "no_pp_and_three_child_paths": [],
+      "counts": {
+        "all": 1,
+        "nonempty": 0,
+        "no_pp_nonempty": 0,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      }
+    }
+  },
+  {
+    "trace": {
+      "t": 278,
+      "counts": {
+        "available_grammar_windows": 12,
+        "structural_pass": 7,
+        "roles_pass_after_structure": 1,
+        "whole_extreme_after_structure_roles": 1,
+        "candidate_completion_edges": 1,
+        "all_paths": 1,
+        "maximal_paths": 1,
+        "maximal_nonempty_paths": 0,
+        "maximal_no_pp_nonempty_paths": 0,
+        "no_pp_nonempty_paths": 0,
+        "three_child_paths": 0,
+        "candidate_F2_pass": 0,
+        "NoPP_removed_candidate_F2_pass": 0,
+        "max_factor_count": 0,
+        "original_F2_admitted": 0
+      },
+      "consumer_checks": [
+        {
+          "delta": [],
+          "fixed_F2_necessary_conditions": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": false,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "NoPP_removed_same_graph": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": true,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "candidate_clock": [],
+          "ledger_coverage_once": true,
+          "original_F2_status": "unproved, false flag means not admitted, not disproof"
+        }
+      ],
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12"
+      ]
+    },
+    "paths": {
+      "t": 278,
+      "all_edge_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": true,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            278
+          ],
+          "original_completed": [],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [
+            "W68:S4-S8"
+          ],
+          "complete_original_decomposition": null,
+          "source_partition_only": "raw root + factor intervals + unresolved tail; coverage is not source-certified completeness"
+        }
+      ],
+      "no_pp_paths_including_empty": [
+        []
+      ],
+      "no_pp_nonempty_paths": [],
+      "three_child_paths": [],
+      "no_pp_and_three_child_paths": [],
+      "counts": {
+        "all": 1,
+        "nonempty": 0,
+        "no_pp_nonempty": 0,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      }
+    }
+  },
+  {
+    "trace": {
+      "t": 318,
+      "counts": {
+        "available_grammar_windows": 18,
+        "structural_pass": 9,
+        "roles_pass_after_structure": 2,
+        "whole_extreme_after_structure_roles": 2,
+        "candidate_completion_edges": 1,
+        "all_paths": 1,
+        "maximal_paths": 1,
+        "maximal_nonempty_paths": 0,
+        "maximal_no_pp_nonempty_paths": 0,
+        "no_pp_nonempty_paths": 0,
+        "three_child_paths": 0,
+        "candidate_F2_pass": 0,
+        "NoPP_removed_candidate_F2_pass": 0,
+        "max_factor_count": 0,
+        "original_F2_admitted": 0
+      },
+      "consumer_checks": [
+        {
+          "delta": [],
+          "fixed_F2_necessary_conditions": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": false,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "NoPP_removed_same_graph": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": true,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "candidate_clock": [],
+          "ledger_coverage_once": true,
+          "original_F2_status": "unproved, false flag means not admitted, not disproof"
+        }
+      ],
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14"
+      ]
+    },
+    "paths": {
+      "t": 318,
+      "all_edge_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": true,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            318
+          ],
+          "original_completed": [],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [
+            "W68:S4-S8"
+          ],
+          "complete_original_decomposition": null,
+          "source_partition_only": "raw root + factor intervals + unresolved tail; coverage is not source-certified completeness"
+        }
+      ],
+      "no_pp_paths_including_empty": [
+        []
+      ],
+      "no_pp_nonempty_paths": [],
+      "three_child_paths": [],
+      "no_pp_and_three_child_paths": [],
+      "counts": {
+        "all": 1,
+        "nonempty": 0,
+        "no_pp_nonempty": 0,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      }
+    }
+  },
+  {
+    "trace": {
+      "t": 338,
+      "counts": {
+        "available_grammar_windows": 21,
+        "structural_pass": 9,
+        "roles_pass_after_structure": 2,
+        "whole_extreme_after_structure_roles": 2,
+        "candidate_completion_edges": 1,
+        "all_paths": 1,
+        "maximal_paths": 1,
+        "maximal_nonempty_paths": 0,
+        "maximal_no_pp_nonempty_paths": 0,
+        "no_pp_nonempty_paths": 0,
+        "three_child_paths": 0,
+        "candidate_F2_pass": 0,
+        "NoPP_removed_candidate_F2_pass": 0,
+        "max_factor_count": 0,
+        "original_F2_admitted": 0
+      },
+      "consumer_checks": [
+        {
+          "delta": [],
+          "fixed_F2_necessary_conditions": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": false,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "NoPP_removed_same_graph": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": true,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "candidate_clock": [],
+          "ledger_coverage_once": true,
+          "original_F2_status": "unproved, false flag means not admitted, not disproof"
+        }
+      ],
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15"
+      ]
+    },
+    "paths": {
+      "t": 338,
+      "all_edge_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": true,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            338
+          ],
+          "original_completed": [],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [
+            "W68:S4-S8"
+          ],
+          "complete_original_decomposition": null,
+          "source_partition_only": "raw root + factor intervals + unresolved tail; coverage is not source-certified completeness"
+        }
+      ],
+      "no_pp_paths_including_empty": [
+        []
+      ],
+      "no_pp_nonempty_paths": [],
+      "three_child_paths": [],
+      "no_pp_and_three_child_paths": [],
+      "counts": {
+        "all": 1,
+        "nonempty": 0,
+        "no_pp_nonempty": 0,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      }
+    }
+  },
+  {
+    "trace": {
+      "t": 378,
+      "counts": {
+        "available_grammar_windows": 28,
+        "structural_pass": 12,
+        "roles_pass_after_structure": 4,
+        "whole_extreme_after_structure_roles": 4,
+        "candidate_completion_edges": 3,
+        "all_paths": 1,
+        "maximal_paths": 1,
+        "maximal_nonempty_paths": 0,
+        "maximal_no_pp_nonempty_paths": 0,
+        "no_pp_nonempty_paths": 0,
+        "three_child_paths": 0,
+        "candidate_F2_pass": 0,
+        "NoPP_removed_candidate_F2_pass": 0,
+        "max_factor_count": 0,
+        "original_F2_admitted": 0
+      },
+      "consumer_checks": [
+        {
+          "delta": [],
+          "fixed_F2_necessary_conditions": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": false,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "NoPP_removed_same_graph": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": true,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "candidate_clock": [],
+          "ledger_coverage_once": true,
+          "original_F2_status": "unproved, false flag means not admitted, not disproof"
+        }
+      ],
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17"
+      ]
+    },
+    "paths": {
+      "t": 378,
+      "all_edge_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": true,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            378
+          ],
+          "original_completed": [],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [
+            "W68:S4-S8",
+            "W68:S9-S17",
+            "W68:S13-S17"
+          ],
+          "complete_original_decomposition": null,
+          "source_partition_only": "raw root + factor intervals + unresolved tail; coverage is not source-certified completeness"
+        }
+      ],
+      "no_pp_paths_including_empty": [
+        []
+      ],
+      "no_pp_nonempty_paths": [],
+      "three_child_paths": [],
+      "no_pp_and_three_child_paths": [],
+      "counts": {
+        "all": 1,
+        "nonempty": 0,
+        "no_pp_nonempty": 0,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      }
+    }
+  },
+  {
+    "trace": {
+      "t": 438,
+      "counts": {
+        "available_grammar_windows": 40,
+        "structural_pass": 14,
+        "roles_pass_after_structure": 4,
+        "whole_extreme_after_structure_roles": 4,
+        "candidate_completion_edges": 3,
+        "all_paths": 1,
+        "maximal_paths": 1,
+        "maximal_nonempty_paths": 0,
+        "maximal_no_pp_nonempty_paths": 0,
+        "no_pp_nonempty_paths": 0,
+        "three_child_paths": 0,
+        "candidate_F2_pass": 0,
+        "NoPP_removed_candidate_F2_pass": 0,
+        "max_factor_count": 0,
+        "original_F2_admitted": 0
+      },
+      "consumer_checks": [
+        {
+          "delta": [],
+          "fixed_F2_necessary_conditions": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": false,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "NoPP_removed_same_graph": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": true,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "candidate_clock": [],
+          "ledger_coverage_once": true,
+          "original_F2_status": "unproved, false flag means not admitted, not disproof"
+        }
+      ],
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19",
+        "S20"
+      ]
+    },
+    "paths": {
+      "t": 438,
+      "all_edge_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": true,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            438
+          ],
+          "original_completed": [],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [
+            "W68:S4-S8",
+            "W68:S9-S17",
+            "W68:S13-S17"
+          ],
+          "complete_original_decomposition": null,
+          "source_partition_only": "raw root + factor intervals + unresolved tail; coverage is not source-certified completeness"
+        }
+      ],
+      "no_pp_paths_including_empty": [
+        []
+      ],
+      "no_pp_nonempty_paths": [],
+      "three_child_paths": [],
+      "no_pp_and_three_child_paths": [],
+      "counts": {
+        "all": 1,
+        "nonempty": 0,
+        "no_pp_nonempty": 0,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      }
+    }
+  },
+  {
+    "trace": {
+      "t": 458,
+      "counts": {
+        "available_grammar_windows": 45,
+        "structural_pass": 17,
+        "roles_pass_after_structure": 4,
+        "whole_extreme_after_structure_roles": 4,
+        "candidate_completion_edges": 3,
+        "all_paths": 1,
+        "maximal_paths": 1,
+        "maximal_nonempty_paths": 0,
+        "maximal_no_pp_nonempty_paths": 0,
+        "no_pp_nonempty_paths": 0,
+        "three_child_paths": 0,
+        "candidate_F2_pass": 0,
+        "NoPP_removed_candidate_F2_pass": 0,
+        "max_factor_count": 0,
+        "original_F2_admitted": 0
+      },
+      "consumer_checks": [
+        {
+          "delta": [],
+          "fixed_F2_necessary_conditions": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": false,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "NoPP_removed_same_graph": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": true,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "candidate_clock": [],
+          "ledger_coverage_once": true,
+          "original_F2_status": "unproved, false flag means not admitted, not disproof"
+        }
+      ],
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19",
+        "S20",
+        "S21"
+      ]
+    },
+    "paths": {
+      "t": 458,
+      "all_edge_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": true,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            458
+          ],
+          "original_completed": [],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [
+            "W68:S4-S8",
+            "W68:S9-S17",
+            "W68:S13-S17"
+          ],
+          "complete_original_decomposition": null,
+          "source_partition_only": "raw root + factor intervals + unresolved tail; coverage is not source-certified completeness"
+        }
+      ],
+      "no_pp_paths_including_empty": [
+        []
+      ],
+      "no_pp_nonempty_paths": [],
+      "three_child_paths": [],
+      "no_pp_and_three_child_paths": [],
+      "counts": {
+        "all": 1,
+        "nonempty": 0,
+        "no_pp_nonempty": 0,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      }
+    }
+  },
+  {
+    "trace": {
+      "t": 478,
+      "counts": {
+        "available_grammar_windows": 50,
+        "structural_pass": 18,
+        "roles_pass_after_structure": 5,
+        "whole_extreme_after_structure_roles": 5,
+        "candidate_completion_edges": 3,
+        "all_paths": 1,
+        "maximal_paths": 1,
+        "maximal_nonempty_paths": 0,
+        "maximal_no_pp_nonempty_paths": 0,
+        "no_pp_nonempty_paths": 0,
+        "three_child_paths": 0,
+        "candidate_F2_pass": 0,
+        "NoPP_removed_candidate_F2_pass": 0,
+        "max_factor_count": 0,
+        "original_F2_admitted": 0
+      },
+      "consumer_checks": [
+        {
+          "delta": [],
+          "fixed_F2_necessary_conditions": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": false,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "NoPP_removed_same_graph": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": true,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "candidate_clock": [],
+          "ledger_coverage_once": true,
+          "original_F2_status": "unproved, false flag means not admitted, not disproof"
+        }
+      ],
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19",
+        "S20",
+        "S21",
+        "S22"
+      ]
+    },
+    "paths": {
+      "t": 478,
+      "all_edge_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": true,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            478
+          ],
+          "original_completed": [],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [
+            "W68:S4-S8",
+            "W68:S9-S17",
+            "W68:S13-S17"
+          ],
+          "complete_original_decomposition": null,
+          "source_partition_only": "raw root + factor intervals + unresolved tail; coverage is not source-certified completeness"
+        }
+      ],
+      "no_pp_paths_including_empty": [
+        []
+      ],
+      "no_pp_nonempty_paths": [],
+      "three_child_paths": [],
+      "no_pp_and_three_child_paths": [],
+      "counts": {
+        "all": 1,
+        "nonempty": 0,
+        "no_pp_nonempty": 0,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      }
+    }
+  },
+  {
+    "trace": {
+      "t": 538,
+      "counts": {
+        "available_grammar_windows": 66,
+        "structural_pass": 20,
+        "roles_pass_after_structure": 5,
+        "whole_extreme_after_structure_roles": 5,
+        "candidate_completion_edges": 3,
+        "all_paths": 1,
+        "maximal_paths": 1,
+        "maximal_nonempty_paths": 0,
+        "maximal_no_pp_nonempty_paths": 0,
+        "no_pp_nonempty_paths": 0,
+        "three_child_paths": 0,
+        "candidate_F2_pass": 0,
+        "NoPP_removed_candidate_F2_pass": 0,
+        "max_factor_count": 0,
+        "original_F2_admitted": 0
+      },
+      "consumer_checks": [
+        {
+          "delta": [],
+          "fixed_F2_necessary_conditions": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": false,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "NoPP_removed_same_graph": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": true,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "candidate_clock": [],
+          "ledger_coverage_once": true,
+          "original_F2_status": "unproved, false flag means not admitted, not disproof"
+        }
+      ],
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19",
+        "S20",
+        "S21",
+        "S22",
+        "S23",
+        "S24",
+        "S25"
+      ]
+    },
+    "paths": {
+      "t": 538,
+      "all_edge_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": true,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            538
+          ],
+          "original_completed": [],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [
+            "W68:S4-S8",
+            "W68:S9-S17",
+            "W68:S13-S17"
+          ],
+          "complete_original_decomposition": null,
+          "source_partition_only": "raw root + factor intervals + unresolved tail; coverage is not source-certified completeness"
+        }
+      ],
+      "no_pp_paths_including_empty": [
+        []
+      ],
+      "no_pp_nonempty_paths": [],
+      "three_child_paths": [],
+      "no_pp_and_three_child_paths": [],
+      "counts": {
+        "all": 1,
+        "nonempty": 0,
+        "no_pp_nonempty": 0,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      }
+    }
+  },
+  {
+    "trace": {
+      "t": 558,
+      "counts": {
+        "available_grammar_windows": 72,
+        "structural_pass": 22,
+        "roles_pass_after_structure": 7,
+        "whole_extreme_after_structure_roles": 7,
+        "candidate_completion_edges": 5,
+        "all_paths": 1,
+        "maximal_paths": 1,
+        "maximal_nonempty_paths": 0,
+        "maximal_no_pp_nonempty_paths": 0,
+        "no_pp_nonempty_paths": 0,
+        "three_child_paths": 0,
+        "candidate_F2_pass": 0,
+        "NoPP_removed_candidate_F2_pass": 0,
+        "max_factor_count": 0,
+        "original_F2_admitted": 0
+      },
+      "consumer_checks": [
+        {
+          "delta": [],
+          "fixed_F2_necessary_conditions": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": false,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "NoPP_removed_same_graph": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": true,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "candidate_clock": [],
+          "ledger_coverage_once": true,
+          "original_F2_status": "unproved, false flag means not admitted, not disproof"
+        }
+      ],
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19",
+        "S20",
+        "S21",
+        "S22",
+        "S23",
+        "S24",
+        "S25",
+        "S26"
+      ]
+    },
+    "paths": {
+      "t": 558,
+      "all_edge_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": true,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            558
+          ],
+          "original_completed": [],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [
+            "W68:S4-S8",
+            "W68:S9-S17",
+            "W68:S13-S17",
+            "W68:S18-S26",
+            "W68:S22-S26"
+          ],
+          "complete_original_decomposition": null,
+          "source_partition_only": "raw root + factor intervals + unresolved tail; coverage is not source-certified completeness"
+        }
+      ],
+      "no_pp_paths_including_empty": [
+        []
+      ],
+      "no_pp_nonempty_paths": [],
+      "three_child_paths": [],
+      "no_pp_and_three_child_paths": [],
+      "counts": {
+        "all": 1,
+        "nonempty": 0,
+        "no_pp_nonempty": 0,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      }
+    }
+  },
+  {
+    "trace": {
+      "t": 578,
+      "counts": {
+        "available_grammar_windows": 78,
+        "structural_pass": 23,
+        "roles_pass_after_structure": 7,
+        "whole_extreme_after_structure_roles": 7,
+        "candidate_completion_edges": 5,
+        "all_paths": 1,
+        "maximal_paths": 1,
+        "maximal_nonempty_paths": 0,
+        "maximal_no_pp_nonempty_paths": 0,
+        "no_pp_nonempty_paths": 0,
+        "three_child_paths": 0,
+        "candidate_F2_pass": 0,
+        "NoPP_removed_candidate_F2_pass": 0,
+        "max_factor_count": 0,
+        "original_F2_admitted": 0
+      },
+      "consumer_checks": [
+        {
+          "delta": [],
+          "fixed_F2_necessary_conditions": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": false,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "NoPP_removed_same_graph": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": true,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "candidate_clock": [],
+          "ledger_coverage_once": true,
+          "original_F2_status": "unproved, false flag means not admitted, not disproof"
+        }
+      ],
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19",
+        "S20",
+        "S21",
+        "S22",
+        "S23",
+        "S24",
+        "S25",
+        "S26",
+        "S27"
+      ]
+    },
+    "paths": {
+      "t": 578,
+      "all_edge_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": true,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            578
+          ],
+          "original_completed": [],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [
+            "W68:S4-S8",
+            "W68:S9-S17",
+            "W68:S13-S17",
+            "W68:S18-S26",
+            "W68:S22-S26"
+          ],
+          "complete_original_decomposition": null,
+          "source_partition_only": "raw root + factor intervals + unresolved tail; coverage is not source-certified completeness"
+        }
+      ],
+      "no_pp_paths_including_empty": [
+        []
+      ],
+      "no_pp_nonempty_paths": [],
+      "three_child_paths": [],
+      "no_pp_and_three_child_paths": [],
+      "counts": {
+        "all": 1,
+        "nonempty": 0,
+        "no_pp_nonempty": 0,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      }
+    }
+  },
+  {
+    "trace": {
+      "t": 582,
+      "counts": {
+        "available_grammar_windows": 78,
+        "structural_pass": 23,
+        "roles_pass_after_structure": 7,
+        "whole_extreme_after_structure_roles": 7,
+        "candidate_completion_edges": 5,
+        "all_paths": 1,
+        "maximal_paths": 1,
+        "maximal_nonempty_paths": 0,
+        "maximal_no_pp_nonempty_paths": 0,
+        "no_pp_nonempty_paths": 0,
+        "three_child_paths": 0,
+        "candidate_F2_pass": 0,
+        "NoPP_removed_candidate_F2_pass": 0,
+        "max_factor_count": 0,
+        "original_F2_admitted": 0
+      },
+      "consumer_checks": [
+        {
+          "delta": [],
+          "fixed_F2_necessary_conditions": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": false,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "NoPP_removed_same_graph": {
+            "delta": [],
+            "kinds": [],
+            "no_pp": true,
+            "pp_violations": [],
+            "has_three": false,
+            "counterfactual_no_pp_removed": true,
+            "candidate_member_table": [],
+            "candidate_center": null,
+            "candidate_interface_pass": false,
+            "original_interface_pass": false,
+            "original_completion_status": "unknown",
+            "reasons": [
+              "no_nonempty_candidate_delta",
+              "fewer_than_three_completed_candidate_children"
+            ],
+            "original_reasons": [
+              "OriginalCompleted(child) is unknown",
+              "RootArm68 source compatibility unknown",
+              "Outer0=core interpretation as original outer unknown",
+              "JEnd68 => whole MovementCompleted not proved"
+            ]
+          },
+          "candidate_clock": [],
+          "ledger_coverage_once": true,
+          "original_F2_status": "unproved, false flag means not admitted, not disproof"
+        }
+      ],
+      "raw_known": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18",
+        "S19",
+        "S20",
+        "S21",
+        "S22",
+        "S23",
+        "S24",
+        "S25",
+        "S26",
+        "S27"
+      ]
+    },
+    "paths": {
+      "t": 582,
+      "all_edge_paths": [
+        {
+          "delta": [],
+          "kinds": [],
+          "is_maximal": true,
+          "no_pp": true,
+          "pp_violations": [],
+          "has_three": false,
+          "candidate_F2_pass": false,
+          "original_F2_pass": false,
+          "factor_owns": [],
+          "active_tail": [
+            22,
+            582
+          ],
+          "original_completed": [],
+          "extendable_now": false,
+          "candidate_windows_inside_tail": [
+            "W68:S4-S8",
+            "W68:S9-S17",
+            "W68:S13-S17",
+            "W68:S18-S26",
+            "W68:S22-S26"
+          ],
+          "complete_original_decomposition": null,
+          "source_partition_only": "raw root + factor intervals + unresolved tail; coverage is not source-certified completeness"
+        }
+      ],
+      "no_pp_paths_including_empty": [
+        []
+      ],
+      "no_pp_nonempty_paths": [],
+      "three_child_paths": [],
+      "no_pp_and_three_child_paths": [],
+      "counts": {
+        "all": 1,
+        "nonempty": 0,
+        "no_pp_nonempty": 0,
+        "three_children": 0,
+        "NoPP_and_three": 0
+      }
+    }
+  }
+]

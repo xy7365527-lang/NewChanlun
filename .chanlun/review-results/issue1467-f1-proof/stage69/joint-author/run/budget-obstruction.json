@@ -1,0 +1,1647 @@
+{
+  "raw_budget": 27,
+  "no_pp_length_bound": "5*n+4*floor(n/2)",
+  "four_factors_minimum": 28,
+  "plans_with_at_least_three_and_structural_NoPP": [
+    {
+      "ks": [
+        1,
+        2,
+        1
+      ],
+      "lengths": [
+        5,
+        9,
+        5
+      ],
+      "raw_used": 19,
+      "windows": [
+        "W68:S1-S5",
+        "W68:S6-S14",
+        "W68:S15-S19"
+      ],
+      "all_JEnd68": false,
+      "factor_failures": [
+        {
+          "id": "W68:S1-S5",
+          "rejections": [
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "P",
+          "own": [
+            22,
+            121
+          ],
+          "whole": [
+            48000,
+            72000
+          ],
+          "cores": [
+            [
+              50000,
+              60000
+            ]
+          ],
+          "b_ref": "S1",
+          "c": "S5",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 48000,
+          "end_price": 68000,
+          "happened": 121,
+          "known": 138
+        },
+        {
+          "id": "W68:S6-S14",
+          "rejections": [
+            "strict_cores",
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "U",
+          "own": [
+            122,
+            301
+          ],
+          "whole": [
+            58000,
+            80000
+          ],
+          "cores": [
+            [
+              76000,
+              71200
+            ],
+            [
+              76800,
+              78800
+            ]
+          ],
+          "b_ref": "S10",
+          "c": "S14",
+          "L_b": 100.0,
+          "L_c": 100.0,
+          "prior_extreme": 80000,
+          "end_price": 62000,
+          "happened": 301,
+          "known": 318
+        },
+        {
+          "id": "W68:S15-S19",
+          "rejections": [
+            "strict_cores",
+            "entry_cross",
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "P",
+          "own": [
+            302,
+            401
+          ],
+          "whole": [
+            38000,
+            62000
+          ],
+          "cores": [
+            [
+              59200,
+              46000
+            ]
+          ],
+          "b_ref": "S15",
+          "c": "S19",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 38000,
+          "end_price": 40000,
+          "happened": 401,
+          "known": 418
+        }
+      ]
+    },
+    {
+      "ks": [
+        1,
+        2,
+        2
+      ],
+      "lengths": [
+        5,
+        9,
+        9
+      ],
+      "raw_used": 23,
+      "windows": [
+        "W68:S1-S5",
+        "W68:S6-S14",
+        "W68:S15-S23"
+      ],
+      "all_JEnd68": false,
+      "factor_failures": [
+        {
+          "id": "W68:S1-S5",
+          "rejections": [
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "P",
+          "own": [
+            22,
+            121
+          ],
+          "whole": [
+            48000,
+            72000
+          ],
+          "cores": [
+            [
+              50000,
+              60000
+            ]
+          ],
+          "b_ref": "S1",
+          "c": "S5",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 48000,
+          "end_price": 68000,
+          "happened": 121,
+          "known": 138
+        },
+        {
+          "id": "W68:S6-S14",
+          "rejections": [
+            "strict_cores",
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "U",
+          "own": [
+            122,
+            301
+          ],
+          "whole": [
+            58000,
+            80000
+          ],
+          "cores": [
+            [
+              76000,
+              71200
+            ],
+            [
+              76800,
+              78800
+            ]
+          ],
+          "b_ref": "S10",
+          "c": "S14",
+          "L_b": 100.0,
+          "L_c": 100.0,
+          "prior_extreme": 80000,
+          "end_price": 62000,
+          "happened": 301,
+          "known": 318
+        },
+        {
+          "id": "W68:S15-S23",
+          "rejections": [
+            "strict_cores",
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "D",
+          "own": [
+            302,
+            481
+          ],
+          "whole": [
+            38000,
+            68000
+          ],
+          "cores": [
+            [
+              59200,
+              46000
+            ],
+            [
+              40800,
+              44000
+            ]
+          ],
+          "b_ref": "S19",
+          "c": "S23",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 38000,
+          "end_price": 64000,
+          "happened": 481,
+          "known": 498
+        }
+      ]
+    },
+    {
+      "ks": [
+        1,
+        2,
+        3
+      ],
+      "lengths": [
+        5,
+        9,
+        13
+      ],
+      "raw_used": 27,
+      "windows": [
+        "W68:S1-S5",
+        "W68:S6-S14",
+        "W68:S15-S27"
+      ],
+      "all_JEnd68": false,
+      "factor_failures": [
+        {
+          "id": "W68:S1-S5",
+          "rejections": [
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "P",
+          "own": [
+            22,
+            121
+          ],
+          "whole": [
+            48000,
+            72000
+          ],
+          "cores": [
+            [
+              50000,
+              60000
+            ]
+          ],
+          "b_ref": "S1",
+          "c": "S5",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 48000,
+          "end_price": 68000,
+          "happened": 121,
+          "known": 138
+        },
+        {
+          "id": "W68:S6-S14",
+          "rejections": [
+            "strict_cores",
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "U",
+          "own": [
+            122,
+            301
+          ],
+          "whole": [
+            58000,
+            80000
+          ],
+          "cores": [
+            [
+              76000,
+              71200
+            ],
+            [
+              76800,
+              78800
+            ]
+          ],
+          "b_ref": "S10",
+          "c": "S14",
+          "L_b": 100.0,
+          "L_c": 100.0,
+          "prior_extreme": 80000,
+          "end_price": 62000,
+          "happened": 301,
+          "known": 318
+        },
+        {
+          "id": "W68:S15-S27",
+          "rejections": [
+            "strict_cores",
+            "coherent_type",
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": null,
+          "own": [
+            302,
+            561
+          ],
+          "whole": [
+            38000,
+            82000
+          ],
+          "cores": [
+            [
+              59200,
+              46000
+            ],
+            [
+              40800,
+              44000
+            ],
+            [
+              64800,
+              67200
+            ]
+          ],
+          "b_ref": "S23",
+          "c": "S27",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 38000,
+          "end_price": 74000,
+          "happened": 561,
+          "known": 578
+        }
+      ]
+    },
+    {
+      "ks": [
+        1,
+        3,
+        1
+      ],
+      "lengths": [
+        5,
+        13,
+        5
+      ],
+      "raw_used": 23,
+      "windows": [
+        "W68:S1-S5",
+        "W68:S6-S18",
+        "W68:S19-S23"
+      ],
+      "all_JEnd68": false,
+      "factor_failures": [
+        {
+          "id": "W68:S1-S5",
+          "rejections": [
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "P",
+          "own": [
+            22,
+            121
+          ],
+          "whole": [
+            48000,
+            72000
+          ],
+          "cores": [
+            [
+              50000,
+              60000
+            ]
+          ],
+          "b_ref": "S1",
+          "c": "S5",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 48000,
+          "end_price": 68000,
+          "happened": 121,
+          "known": 138
+        },
+        {
+          "id": "W68:S6-S18",
+          "rejections": [
+            "strict_cores",
+            "coherent_type",
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": null,
+          "own": [
+            122,
+            381
+          ],
+          "whole": [
+            38000,
+            80000
+          ],
+          "cores": [
+            [
+              76000,
+              71200
+            ],
+            [
+              76800,
+              78800
+            ],
+            [
+              59200,
+              61200
+            ]
+          ],
+          "b_ref": "S14",
+          "c": "S18",
+          "L_b": 100.0,
+          "L_c": 100.0,
+          "prior_extreme": 80000,
+          "end_price": 46000,
+          "happened": 381,
+          "known": 398
+        },
+        {
+          "id": "W68:S19-S23",
+          "rejections": [
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "P",
+          "own": [
+            382,
+            481
+          ],
+          "whole": [
+            40000,
+            68000
+          ],
+          "cores": [
+            [
+              40800,
+              44000
+            ]
+          ],
+          "b_ref": "S19",
+          "c": "S23",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 40000,
+          "end_price": 64000,
+          "happened": 481,
+          "known": 498
+        }
+      ]
+    },
+    {
+      "ks": [
+        1,
+        3,
+        2
+      ],
+      "lengths": [
+        5,
+        13,
+        9
+      ],
+      "raw_used": 27,
+      "windows": [
+        "W68:S1-S5",
+        "W68:S6-S18",
+        "W68:S19-S27"
+      ],
+      "all_JEnd68": false,
+      "factor_failures": [
+        {
+          "id": "W68:S1-S5",
+          "rejections": [
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "P",
+          "own": [
+            22,
+            121
+          ],
+          "whole": [
+            48000,
+            72000
+          ],
+          "cores": [
+            [
+              50000,
+              60000
+            ]
+          ],
+          "b_ref": "S1",
+          "c": "S5",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 48000,
+          "end_price": 68000,
+          "happened": 121,
+          "known": 138
+        },
+        {
+          "id": "W68:S6-S18",
+          "rejections": [
+            "strict_cores",
+            "coherent_type",
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": null,
+          "own": [
+            122,
+            381
+          ],
+          "whole": [
+            38000,
+            80000
+          ],
+          "cores": [
+            [
+              76000,
+              71200
+            ],
+            [
+              76800,
+              78800
+            ],
+            [
+              59200,
+              61200
+            ]
+          ],
+          "b_ref": "S14",
+          "c": "S18",
+          "L_b": 100.0,
+          "L_c": 100.0,
+          "prior_extreme": 80000,
+          "end_price": 46000,
+          "happened": 381,
+          "known": 398
+        },
+        {
+          "id": "W68:S19-S27",
+          "rejections": [
+            "coherent_type",
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "U",
+          "own": [
+            382,
+            561
+          ],
+          "whole": [
+            40000,
+            82000
+          ],
+          "cores": [
+            [
+              40800,
+              44000
+            ],
+            [
+              64800,
+              67200
+            ]
+          ],
+          "b_ref": "S23",
+          "c": "S27",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 40000,
+          "end_price": 74000,
+          "happened": 561,
+          "known": 578
+        }
+      ]
+    },
+    {
+      "ks": [
+        1,
+        4,
+        1
+      ],
+      "lengths": [
+        5,
+        17,
+        5
+      ],
+      "raw_used": 27,
+      "windows": [
+        "W68:S1-S5",
+        "W68:S6-S22",
+        "W68:S23-S27"
+      ],
+      "all_JEnd68": false,
+      "factor_failures": [
+        {
+          "id": "W68:S1-S5",
+          "rejections": [
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "P",
+          "own": [
+            22,
+            121
+          ],
+          "whole": [
+            48000,
+            72000
+          ],
+          "cores": [
+            [
+              50000,
+              60000
+            ]
+          ],
+          "b_ref": "S1",
+          "c": "S5",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 48000,
+          "end_price": 68000,
+          "happened": 121,
+          "known": 138
+        },
+        {
+          "id": "W68:S6-S22",
+          "rejections": [
+            "strict_cores",
+            "coherent_type",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": null,
+          "own": [
+            122,
+            461
+          ],
+          "whole": [
+            38000,
+            80000
+          ],
+          "cores": [
+            [
+              76000,
+              71200
+            ],
+            [
+              76800,
+              78800
+            ],
+            [
+              59200,
+              61200
+            ],
+            [
+              40800,
+              44000
+            ]
+          ],
+          "b_ref": "S18",
+          "c": "S22",
+          "L_b": 100.0,
+          "L_c": 200.0,
+          "prior_extreme": 80000,
+          "end_price": 68000,
+          "happened": 461,
+          "known": 478
+        },
+        {
+          "id": "W68:S23-S27",
+          "rejections": [
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "P",
+          "own": [
+            462,
+            561
+          ],
+          "whole": [
+            64000,
+            82000
+          ],
+          "cores": [
+            [
+              64800,
+              67200
+            ]
+          ],
+          "b_ref": "S23",
+          "c": "S27",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 64000,
+          "end_price": 74000,
+          "happened": 561,
+          "known": 578
+        }
+      ]
+    },
+    {
+      "ks": [
+        2,
+        1,
+        2
+      ],
+      "lengths": [
+        9,
+        5,
+        9
+      ],
+      "raw_used": 23,
+      "windows": [
+        "W68:S1-S9",
+        "W68:S10-S14",
+        "W68:S15-S23"
+      ],
+      "all_JEnd68": false,
+      "factor_failures": [
+        {
+          "id": "W68:S1-S9",
+          "rejections": [
+            "coherent_type",
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "U",
+          "own": [
+            22,
+            201
+          ],
+          "whole": [
+            48000,
+            80000
+          ],
+          "cores": [
+            [
+              50000,
+              60000
+            ],
+            [
+              68800,
+              71200
+            ]
+          ],
+          "b_ref": "S5",
+          "c": "S9",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 48000,
+          "end_price": 76000,
+          "happened": 201,
+          "known": 218
+        },
+        {
+          "id": "W68:S10-S14",
+          "rejections": [
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "P",
+          "own": [
+            202,
+            301
+          ],
+          "whole": [
+            58000,
+            79200
+          ],
+          "cores": [
+            [
+              76800,
+              78800
+            ]
+          ],
+          "b_ref": "S10",
+          "c": "S14",
+          "L_b": 100.0,
+          "L_c": 100.0,
+          "prior_extreme": 79200,
+          "end_price": 62000,
+          "happened": 301,
+          "known": 318
+        },
+        {
+          "id": "W68:S15-S23",
+          "rejections": [
+            "strict_cores",
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "D",
+          "own": [
+            302,
+            481
+          ],
+          "whole": [
+            38000,
+            68000
+          ],
+          "cores": [
+            [
+              59200,
+              46000
+            ],
+            [
+              40800,
+              44000
+            ]
+          ],
+          "b_ref": "S19",
+          "c": "S23",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 38000,
+          "end_price": 64000,
+          "happened": 481,
+          "known": 498
+        }
+      ]
+    },
+    {
+      "ks": [
+        2,
+        1,
+        3
+      ],
+      "lengths": [
+        9,
+        5,
+        13
+      ],
+      "raw_used": 27,
+      "windows": [
+        "W68:S1-S9",
+        "W68:S10-S14",
+        "W68:S15-S27"
+      ],
+      "all_JEnd68": false,
+      "factor_failures": [
+        {
+          "id": "W68:S1-S9",
+          "rejections": [
+            "coherent_type",
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "U",
+          "own": [
+            22,
+            201
+          ],
+          "whole": [
+            48000,
+            80000
+          ],
+          "cores": [
+            [
+              50000,
+              60000
+            ],
+            [
+              68800,
+              71200
+            ]
+          ],
+          "b_ref": "S5",
+          "c": "S9",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 48000,
+          "end_price": 76000,
+          "happened": 201,
+          "known": 218
+        },
+        {
+          "id": "W68:S10-S14",
+          "rejections": [
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "P",
+          "own": [
+            202,
+            301
+          ],
+          "whole": [
+            58000,
+            79200
+          ],
+          "cores": [
+            [
+              76800,
+              78800
+            ]
+          ],
+          "b_ref": "S10",
+          "c": "S14",
+          "L_b": 100.0,
+          "L_c": 100.0,
+          "prior_extreme": 79200,
+          "end_price": 62000,
+          "happened": 301,
+          "known": 318
+        },
+        {
+          "id": "W68:S15-S27",
+          "rejections": [
+            "strict_cores",
+            "coherent_type",
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": null,
+          "own": [
+            302,
+            561
+          ],
+          "whole": [
+            38000,
+            82000
+          ],
+          "cores": [
+            [
+              59200,
+              46000
+            ],
+            [
+              40800,
+              44000
+            ],
+            [
+              64800,
+              67200
+            ]
+          ],
+          "b_ref": "S23",
+          "c": "S27",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 38000,
+          "end_price": 74000,
+          "happened": 561,
+          "known": 578
+        }
+      ]
+    },
+    {
+      "ks": [
+        2,
+        2,
+        1
+      ],
+      "lengths": [
+        9,
+        9,
+        5
+      ],
+      "raw_used": 23,
+      "windows": [
+        "W68:S1-S9",
+        "W68:S10-S18",
+        "W68:S19-S23"
+      ],
+      "all_JEnd68": false,
+      "factor_failures": [
+        {
+          "id": "W68:S1-S9",
+          "rejections": [
+            "coherent_type",
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "U",
+          "own": [
+            22,
+            201
+          ],
+          "whole": [
+            48000,
+            80000
+          ],
+          "cores": [
+            [
+              50000,
+              60000
+            ],
+            [
+              68800,
+              71200
+            ]
+          ],
+          "b_ref": "S5",
+          "c": "S9",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 48000,
+          "end_price": 76000,
+          "happened": 201,
+          "known": 218
+        },
+        {
+          "id": "W68:S10-S18",
+          "rejections": [
+            "coherent_type",
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "D",
+          "own": [
+            202,
+            381
+          ],
+          "whole": [
+            38000,
+            79200
+          ],
+          "cores": [
+            [
+              76800,
+              78800
+            ],
+            [
+              59200,
+              61200
+            ]
+          ],
+          "b_ref": "S14",
+          "c": "S18",
+          "L_b": 100.0,
+          "L_c": 100.0,
+          "prior_extreme": 79200,
+          "end_price": 46000,
+          "happened": 381,
+          "known": 398
+        },
+        {
+          "id": "W68:S19-S23",
+          "rejections": [
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "P",
+          "own": [
+            382,
+            481
+          ],
+          "whole": [
+            40000,
+            68000
+          ],
+          "cores": [
+            [
+              40800,
+              44000
+            ]
+          ],
+          "b_ref": "S19",
+          "c": "S23",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 40000,
+          "end_price": 64000,
+          "happened": 481,
+          "known": 498
+        }
+      ]
+    },
+    {
+      "ks": [
+        2,
+        2,
+        2
+      ],
+      "lengths": [
+        9,
+        9,
+        9
+      ],
+      "raw_used": 27,
+      "windows": [
+        "W68:S1-S9",
+        "W68:S10-S18",
+        "W68:S19-S27"
+      ],
+      "all_JEnd68": false,
+      "factor_failures": [
+        {
+          "id": "W68:S1-S9",
+          "rejections": [
+            "coherent_type",
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "U",
+          "own": [
+            22,
+            201
+          ],
+          "whole": [
+            48000,
+            80000
+          ],
+          "cores": [
+            [
+              50000,
+              60000
+            ],
+            [
+              68800,
+              71200
+            ]
+          ],
+          "b_ref": "S5",
+          "c": "S9",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 48000,
+          "end_price": 76000,
+          "happened": 201,
+          "known": 218
+        },
+        {
+          "id": "W68:S10-S18",
+          "rejections": [
+            "coherent_type",
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "D",
+          "own": [
+            202,
+            381
+          ],
+          "whole": [
+            38000,
+            79200
+          ],
+          "cores": [
+            [
+              76800,
+              78800
+            ],
+            [
+              59200,
+              61200
+            ]
+          ],
+          "b_ref": "S14",
+          "c": "S18",
+          "L_b": 100.0,
+          "L_c": 100.0,
+          "prior_extreme": 79200,
+          "end_price": 46000,
+          "happened": 381,
+          "known": 398
+        },
+        {
+          "id": "W68:S19-S27",
+          "rejections": [
+            "coherent_type",
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "U",
+          "own": [
+            382,
+            561
+          ],
+          "whole": [
+            40000,
+            82000
+          ],
+          "cores": [
+            [
+              40800,
+              44000
+            ],
+            [
+              64800,
+              67200
+            ]
+          ],
+          "b_ref": "S23",
+          "c": "S27",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 40000,
+          "end_price": 74000,
+          "happened": 561,
+          "known": 578
+        }
+      ]
+    },
+    {
+      "ks": [
+        2,
+        3,
+        1
+      ],
+      "lengths": [
+        9,
+        13,
+        5
+      ],
+      "raw_used": 27,
+      "windows": [
+        "W68:S1-S9",
+        "W68:S10-S22",
+        "W68:S23-S27"
+      ],
+      "all_JEnd68": false,
+      "factor_failures": [
+        {
+          "id": "W68:S1-S9",
+          "rejections": [
+            "coherent_type",
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "U",
+          "own": [
+            22,
+            201
+          ],
+          "whole": [
+            48000,
+            80000
+          ],
+          "cores": [
+            [
+              50000,
+              60000
+            ],
+            [
+              68800,
+              71200
+            ]
+          ],
+          "b_ref": "S5",
+          "c": "S9",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 48000,
+          "end_price": 76000,
+          "happened": 201,
+          "known": 218
+        },
+        {
+          "id": "W68:S10-S22",
+          "rejections": [
+            "coherent_type",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "D",
+          "own": [
+            202,
+            461
+          ],
+          "whole": [
+            38000,
+            79200
+          ],
+          "cores": [
+            [
+              76800,
+              78800
+            ],
+            [
+              59200,
+              61200
+            ],
+            [
+              40800,
+              44000
+            ]
+          ],
+          "b_ref": "S18",
+          "c": "S22",
+          "L_b": 100.0,
+          "L_c": 200.0,
+          "prior_extreme": 79200,
+          "end_price": 68000,
+          "happened": 461,
+          "known": 478
+        },
+        {
+          "id": "W68:S23-S27",
+          "rejections": [
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "P",
+          "own": [
+            462,
+            561
+          ],
+          "whole": [
+            64000,
+            82000
+          ],
+          "cores": [
+            [
+              64800,
+              67200
+            ]
+          ],
+          "b_ref": "S23",
+          "c": "S27",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 64000,
+          "end_price": 74000,
+          "happened": 561,
+          "known": 578
+        }
+      ]
+    },
+    {
+      "ks": [
+        3,
+        1,
+        2
+      ],
+      "lengths": [
+        13,
+        5,
+        9
+      ],
+      "raw_used": 27,
+      "windows": [
+        "W68:S1-S13",
+        "W68:S14-S18",
+        "W68:S19-S27"
+      ],
+      "all_JEnd68": false,
+      "factor_failures": [
+        {
+          "id": "W68:S1-S13",
+          "rejections": [
+            "coherent_type",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "U",
+          "own": [
+            22,
+            281
+          ],
+          "whole": [
+            48000,
+            80000
+          ],
+          "cores": [
+            [
+              50000,
+              60000
+            ],
+            [
+              68800,
+              71200
+            ],
+            [
+              76800,
+              78800
+            ]
+          ],
+          "b_ref": "S9",
+          "c": "S13",
+          "L_b": -100.0,
+          "L_c": 150.0,
+          "prior_extreme": 48000,
+          "end_price": 58000,
+          "happened": 281,
+          "known": 298
+        },
+        {
+          "id": "W68:S14-S18",
+          "rejections": [
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "P",
+          "own": [
+            282,
+            381
+          ],
+          "whole": [
+            38000,
+            62000
+          ],
+          "cores": [
+            [
+              59200,
+              61200
+            ]
+          ],
+          "b_ref": "S14",
+          "c": "S18",
+          "L_b": 100.0,
+          "L_c": 100.0,
+          "prior_extreme": 62000,
+          "end_price": 46000,
+          "happened": 381,
+          "known": 398
+        },
+        {
+          "id": "W68:S19-S27",
+          "rejections": [
+            "coherent_type",
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "U",
+          "own": [
+            382,
+            561
+          ],
+          "whole": [
+            40000,
+            82000
+          ],
+          "cores": [
+            [
+              40800,
+              44000
+            ],
+            [
+              64800,
+              67200
+            ]
+          ],
+          "b_ref": "S23",
+          "c": "S27",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 40000,
+          "end_price": 74000,
+          "happened": 561,
+          "known": 578
+        }
+      ]
+    },
+    {
+      "ks": [
+        3,
+        2,
+        1
+      ],
+      "lengths": [
+        13,
+        9,
+        5
+      ],
+      "raw_used": 27,
+      "windows": [
+        "W68:S1-S13",
+        "W68:S14-S22",
+        "W68:S23-S27"
+      ],
+      "all_JEnd68": false,
+      "factor_failures": [
+        {
+          "id": "W68:S1-S13",
+          "rejections": [
+            "coherent_type",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "U",
+          "own": [
+            22,
+            281
+          ],
+          "whole": [
+            48000,
+            80000
+          ],
+          "cores": [
+            [
+              50000,
+              60000
+            ],
+            [
+              68800,
+              71200
+            ],
+            [
+              76800,
+              78800
+            ]
+          ],
+          "b_ref": "S9",
+          "c": "S13",
+          "L_b": -100.0,
+          "L_c": 150.0,
+          "prior_extreme": 48000,
+          "end_price": 58000,
+          "happened": 281,
+          "known": 298
+        },
+        {
+          "id": "W68:S14-S22",
+          "rejections": [
+            "coherent_type",
+            "signed_force_weakening"
+          ],
+          "kind": "D",
+          "own": [
+            282,
+            461
+          ],
+          "whole": [
+            38000,
+            68000
+          ],
+          "cores": [
+            [
+              59200,
+              61200
+            ],
+            [
+              40800,
+              44000
+            ]
+          ],
+          "b_ref": "S18",
+          "c": "S22",
+          "L_b": 100.0,
+          "L_c": 200.0,
+          "prior_extreme": 62000,
+          "end_price": 68000,
+          "happened": 461,
+          "known": 478
+        },
+        {
+          "id": "W68:S23-S27",
+          "rejections": [
+            "exit_cross",
+            "whole_extreme",
+            "signed_force_weakening"
+          ],
+          "kind": "P",
+          "own": [
+            462,
+            561
+          ],
+          "whole": [
+            64000,
+            82000
+          ],
+          "cores": [
+            [
+              64800,
+              67200
+            ]
+          ],
+          "b_ref": "S23",
+          "c": "S27",
+          "L_b": -100.0,
+          "L_c": -100.0,
+          "prior_extreme": 64000,
+          "end_price": 74000,
+          "happened": 561,
+          "known": 578
+        }
+      ]
+    }
+  ],
+  "scope": "length admissibility only; candidate type and all dynamic checks are still required"
+}

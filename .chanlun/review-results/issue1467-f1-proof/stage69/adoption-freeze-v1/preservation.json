@@ -1,0 +1,16 @@
+{
+  "inputs_manifest_sha256": "9fb81b5a3e8b6ed6a69eb4dc99f4491fae42e9cb8def2fc3dc2113953ffcbfc1",
+  "files": [
+    {
+      "original_path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage69LongerHistoryAndActualLearner.md",
+      "preserved_path": "stage69/adoption-freeze-v1/Stage69LongerHistoryAndActualLearner.md",
+      "sha256": "8b3851ba8234b8fdebe226985ac966d925dabcf96610e41533103cb06a6dc2c7"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/progress-addition-v1.md",
+      "preserved_path": "stage69/adoption-freeze-v1/progress-addition-v1.md",
+      "sha256": "b6f1749b695ae4a1c149b4012a4f9d9f7a13f3eea7b6ffd3f8218a5b1b79cee5"
+    }
+  ],
+  "notice": "原字节历史冻结；原相对链接保留，不作当前文档入口。DeliveryStatus-v1与四份作者/独评文件保留原路径。"
+}

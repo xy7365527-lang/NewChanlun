@@ -1,0 +1,41 @@
+{
+  "profile": "stage69-adoption-review-manifest/1",
+  "created_at": "2026-10-05T23:32:40.439695+00:00",
+  "scope": "冻结v1文档采用一致性复审",
+  "entries": [
+    {
+      "path": "FINAL.json",
+      "bytes": 2162,
+      "sha256": "4c8c74f751a2a045e775a678edd7b15f91b2b6cf5ff99ccd3352a2fd94d76224"
+    },
+    {
+      "path": "inputs-after-sha256.json",
+      "bytes": 3540,
+      "sha256": "8f10af69ee0de745ea71b67b75139b297febdc902c8522325e1a7ba8935a69e1"
+    },
+    {
+      "path": "inputs-before-sha256.json",
+      "bytes": 3244,
+      "sha256": "9301017c9b94a2070f8bc075da74f3e10cf3d0f87c6d00b0f71d497bdf7bf427"
+    },
+    {
+      "path": "originals-after-sha256.json",
+      "bytes": 7787,
+      "sha256": "7d58aa61e467911d5413df77a49ca434c076607572c8bdce1295bed74176674c"
+    },
+    {
+      "path": "originals-audit.json",
+      "bytes": 11962,
+      "sha256": "5d1f124567a182c6242a4d354cfaaa02c34fe1b183cdc632ddfe17aad4ef0e69"
+    },
+    {
+      "path": "review.md",
+      "bytes": 9085,
+      "sha256": "332d3a626bd1df2995dce1dd9a8376bc2325a79ec741d7698eae0d737a2a5a60"
+    }
+  ],
+  "excludes": [
+    "manifest.json",
+    "manifest.sha256"
+  ]
+}

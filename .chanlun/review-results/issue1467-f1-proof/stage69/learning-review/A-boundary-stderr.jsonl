@@ -1,0 +1,8 @@
+{"pid":98126,"operation":"rejected","wall_at":"2026-10-05T22:24:10.958Z","compute_ns":"806250","rss_bytes":46841856}
+{"pid":98126,"operation":"rejected","wall_at":"2026-10-05T22:24:10.959Z","compute_ns":"179625","rss_bytes":46940160}
+{"pid":98126,"operation":"rejected","wall_at":"2026-10-05T22:24:10.959Z","compute_ns":"101917","rss_bytes":46989312}
+{"pid":98126,"operation":"rejected","wall_at":"2026-10-05T22:24:10.959Z","compute_ns":"28166","rss_bytes":47022080}
+{"pid":98126,"operation":"rejected","wall_at":"2026-10-05T22:24:10.959Z","compute_ns":"162250","rss_bytes":47071232}
+{"pid":98126,"operation":"rejected","wall_at":"2026-10-05T22:24:10.960Z","compute_ns":"189334","rss_bytes":47710208}
+{"pid":98126,"operation":"rejected","wall_at":"2026-10-05T22:24:10.960Z","compute_ns":"31959","rss_bytes":47759360}
+{"pid":98126,"operation":"rejected","wall_at":"2026-10-05T22:24:10.960Z","compute_ns":"17458","rss_bytes":47775744}

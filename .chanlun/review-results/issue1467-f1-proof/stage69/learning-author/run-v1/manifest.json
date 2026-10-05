@@ -1,0 +1,145 @@
+{
+  "files": [
+    {
+      "name": "A-all-missing-control.json",
+      "bytes": 878,
+      "sha256": "d674e8ef596c8ca8bfa525169f453e069d6a1878a7877d9cdcab1a2fc02bad41"
+    },
+    {
+      "name": "A-events.jsonl",
+      "bytes": 195375,
+      "sha256": "99fb4207b1c0ac89174f0668238b873a1daa21a3161dcaf841e65e743436a61e"
+    },
+    {
+      "name": "A-fit-receipt.json",
+      "bytes": 3161,
+      "sha256": "546252cccf3c7aa3dbc98dc237fdfcb655bfb783387616239e4139d654f2036c"
+    },
+    {
+      "name": "A-frozen-after-inference.json",
+      "bytes": 2981,
+      "sha256": "be7aa05909a4e25046fa36346383e00dfe29662979507034117a639fcb12c351"
+    },
+    {
+      "name": "A-model.json",
+      "bytes": 2576,
+      "sha256": "52b8ef4809d845af2ff657380a9473c64d37a627c1878b4e9bde064c3bf037c4"
+    },
+    {
+      "name": "A-predictions.jsonl",
+      "bytes": 159195,
+      "sha256": "a58ff80c9cbf890ce686206590934a117e97bd0e7f3adb5d7d9441866c1eb03d"
+    },
+    {
+      "name": "A-stderr.jsonl",
+      "bytes": 60941,
+      "sha256": "295a3c6836d93b5885949d901220496529a41fdcff9f7adab9ffe43eb0c9b545"
+    },
+    {
+      "name": "A-stdin.jsonl",
+      "bytes": 404934,
+      "sha256": "ec5de8a47f1ad5bdb251492bdf9dff1d477e2af865fc254d45d4247b80d269cf"
+    },
+    {
+      "name": "A-stdout.jsonl",
+      "bytes": 178740,
+      "sha256": "1006e0f4278e142bfc98a2dca740fece9a4ab9018e5acaa6317bdd4fdb74ef0e"
+    },
+    {
+      "name": "B-all-missing-control.json",
+      "bytes": 1115,
+      "sha256": "3c49e12de246e106b703b7ae5c68046deb5161a0b562c8d09071fbf048207c77"
+    },
+    {
+      "name": "B-events.jsonl",
+      "bytes": 195000,
+      "sha256": "eb45107c36303d414604238aac4cc5e5c0cb3d022a001b8c54b2b802b69c187c"
+    },
+    {
+      "name": "B-fit-receipt.json",
+      "bytes": 6437,
+      "sha256": "a868f3f2290f4ac22050869174280d4f137ff7b369edb21a58b730205a697cc8"
+    },
+    {
+      "name": "B-frozen-after-inference.json",
+      "bytes": 6257,
+      "sha256": "6c83ab7033bf25a81e4b57df1f951dec5ef63a6c54c0f9c1cfd64b80aeedb1cc"
+    },
+    {
+      "name": "B-model.json",
+      "bytes": 5596,
+      "sha256": "c13340a804c28e9a95f7ad7aa7f76b0334626be140ae1bd71cd8133747ad4244"
+    },
+    {
+      "name": "B-predictions.jsonl",
+      "bytes": 159454,
+      "sha256": "af4bcb3b6005b21ea7c8d921d2435fb00ee33cb0eec2b1073c70d565827ac0d0"
+    },
+    {
+      "name": "B-stderr.jsonl",
+      "bytes": 60827,
+      "sha256": "d3877ecd2c41e989e5f90a505a1359c69ad516360b4e3e14e3a15a66b8a47580"
+    },
+    {
+      "name": "B-stdin.jsonl",
+      "bytes": 807985,
+      "sha256": "80a8d51b200c861f2194be362a2e0c87b4dc1ab2461424bd642491c19c10fe93"
+    },
+    {
+      "name": "B-stdout.jsonl",
+      "bytes": 183153,
+      "sha256": "bc7b6aedc66a3b87dd1a48747be35ebf4f03c7351192a89d995c557e1917d653"
+    },
+    {
+      "name": "author-controls-before-fit.json",
+      "bytes": 1929,
+      "sha256": "143df9613f89ab86b6a24d92810a9d0143f62fcbf0308c8556fb22915aa6429e"
+    },
+    {
+      "name": "diagnostics.json",
+      "bytes": 888,
+      "sha256": "e6c451ca7430697c4ae1dcea39619dd6eb9045ac112fcd8e757617fabd561f38"
+    },
+    {
+      "name": "host-evaluation-after-predictions.jsonl",
+      "bytes": 511805,
+      "sha256": "8708df982a0ab33bec00830e12e8fe9dfebb6becbfb20732af4b26a74f8aa1e2"
+    },
+    {
+      "name": "host-training-eligibility.jsonl",
+      "bytes": 176955,
+      "sha256": "61f97c54f3ddab8239657d62074ce974757de51d39ff39a75464feb3f1184666"
+    },
+    {
+      "name": "input-hashes-after.json",
+      "bytes": 1238,
+      "sha256": "4eda0addefec321f709dc330a6b5d766f39b8a39d058cdfaa795ac5a6b102844"
+    },
+    {
+      "name": "prefix-extension-controls.json",
+      "bytes": 621,
+      "sha256": "2049ad57d4f1d321d108ad987af953756f656479623586e67fb3a87de7f9b128"
+    },
+    {
+      "name": "process-receipts.json",
+      "bytes": 1333,
+      "sha256": "2f73a848c0edba8dbe7fe33dbc0ef10d06a351ed6dbba6228fd9b9d05ccd7ae9"
+    },
+    {
+      "name": "receipt.json",
+      "bytes": 2260,
+      "sha256": "4c71cd11d4b7acc2d84399f61c9ba8412ff6f0fcbbbe3f574e8cc13d428dd43d"
+    },
+    {
+      "name": "rejected-examples.json",
+      "bytes": 1044808,
+      "sha256": "1fa6fb44eaf520275a33ad16e3bc8a61217e71f9bfe3a0d952e108f8e07246f1"
+    },
+    {
+      "name": "source-freeze.json",
+      "bytes": 577,
+      "sha256": "224814c3dcb1867250b074a4b05aee3c196c28c704f4002ac63bf9ae8e2db0e4"
+    }
+  ],
+  "bytes_before_manifest": 4177019
+}

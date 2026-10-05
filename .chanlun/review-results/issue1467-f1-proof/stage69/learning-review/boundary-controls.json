@@ -1,0 +1,550 @@
+[
+  {
+    "arm": "A",
+    "pid": 98126,
+    "command": [
+      "/Users/silencehan/.hermes/node/bin/node",
+      "--max-old-space-size=64",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-author/learner-stdin.mjs"
+    ],
+    "cwd": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-review",
+    "started_at": "2026-10-05T22:24:10.922911+00:00",
+    "finished_at": "2026-10-05T22:24:10.965567+00:00",
+    "exit_code": 0,
+    "successful_fits": 0,
+    "predictions": 0,
+    "scope": "negative protocol controls only; no fitted-state controls or sandbox claim",
+    "controls": [
+      {
+        "name": "unfitted-prediction",
+        "request": {
+          "op": "predict",
+          "version": "stage69-softmax-finite-features/1",
+          "product_id": "BTC-USD",
+          "decision_ns": "1609459220000000000",
+          "features": {
+            "last_trade_price": null,
+            "seen_trade_count": null,
+            "since_last_trade_ns": null,
+            "observed_trade_count_1s": null,
+            "observed_trade_quantity_1s": null
+          }
+        },
+        "response": {
+          "status": "rejected",
+          "error": "predict:not-fitted"
+        },
+        "sent_at": "2026-10-05T22:24:10.924909+00:00",
+        "received_at": "2026-10-05T22:24:10.958425+00:00",
+        "input_sha256": "9d6bf1236114104b6f667b3125422cf62d8e0f229dafed3c0e07f8f6db3f25e8",
+        "output_sha256": "fd36e38ab64772f32813927233e717c22d494b7e3321fbed791b18701eb89f80"
+      },
+      {
+        "name": "fit-decision-equality",
+        "request": {
+          "op": "fit",
+          "version": "stage69-softmax-finite-features/1",
+          "arm": "A",
+          "fit_cutoff_ns": "1609459220000000000",
+          "rows": [
+            {
+              "product_id": "BTC-USD",
+              "decision_ns": "1609459220000000000",
+              "features": {
+                "last_trade_price": null,
+                "seen_trade_count": null,
+                "since_last_trade_ns": null,
+                "observed_trade_count_1s": null,
+                "observed_trade_quantity_1s": null
+              },
+              "label": "up"
+            }
+          ]
+        },
+        "response": {
+          "status": "rejected",
+          "error": "fit:decision-before-cutoff-and-ordered"
+        },
+        "sent_at": "2026-10-05T22:24:10.958506+00:00",
+        "received_at": "2026-10-05T22:24:10.959365+00:00",
+        "input_sha256": "2c0405898f5bbf0078a263b228d83815dcdee7fbbece6a2d0b2731b28d1deec1",
+        "output_sha256": "fd9981ccbe56a87de68c38047270214b44195e7c9c634ab51ef32a053579cceb"
+      },
+      {
+        "name": "fit-decision-after-one-ns",
+        "request": {
+          "op": "fit",
+          "version": "stage69-softmax-finite-features/1",
+          "arm": "A",
+          "fit_cutoff_ns": "1609459220000000000",
+          "rows": [
+            {
+              "product_id": "BTC-USD",
+              "decision_ns": "1609459220000000001",
+              "features": {
+                "last_trade_price": null,
+                "seen_trade_count": null,
+                "since_last_trade_ns": null,
+                "observed_trade_count_1s": null,
+                "observed_trade_quantity_1s": null
+              },
+              "label": "up"
+            }
+          ]
+        },
+        "response": {
+          "status": "rejected",
+          "error": "fit:decision-before-cutoff-and-ordered"
+        },
+        "sent_at": "2026-10-05T22:24:10.959394+00:00",
+        "received_at": "2026-10-05T22:24:10.959538+00:00",
+        "input_sha256": "5ab46aaa2c19ba341fc4b95163207e7170ea7ac9a0c29044a2fb16df8b809a45",
+        "output_sha256": "fd9981ccbe56a87de68c38047270214b44195e7c9c634ab51ef32a053579cceb"
+      },
+      {
+        "name": "fit-forbidden-known",
+        "request": {
+          "op": "fit",
+          "version": "stage69-softmax-finite-features/1",
+          "arm": "A",
+          "fit_cutoff_ns": "1609459220000000000",
+          "rows": [
+            {
+              "product_id": "BTC-USD",
+              "decision_ns": "1609459219999999999",
+              "features": {
+                "last_trade_price": null,
+                "seen_trade_count": null,
+                "since_last_trade_ns": null,
+                "observed_trade_count_1s": null,
+                "observed_trade_quantity_1s": null
+              },
+              "label": "up",
+              "label_known_ns": "1609459219999999999"
+            }
+          ]
+        },
+        "response": {
+          "status": "rejected",
+          "error": "training-row:keys"
+        },
+        "sent_at": "2026-10-05T22:24:10.959559+00:00",
+        "received_at": "2026-10-05T22:24:10.959748+00:00",
+        "input_sha256": "bb2d0c9768392c5dec3a0551b04024306c36e8990c52af7c34bed00177f0014b",
+        "output_sha256": "669bd301f36770f2a1b1af8eece6fe340ada738b09ccf76b71c988cef14f3888"
+      },
+      {
+        "name": "fit-forbidden-path",
+        "request": {
+          "op": "fit",
+          "version": "stage69-softmax-finite-features/1",
+          "arm": "A",
+          "fit_cutoff_ns": "1609459220000000000",
+          "rows": [
+            {
+              "product_id": "BTC-USD",
+              "decision_ns": "1609459220000000000",
+              "features": {
+                "last_trade_price": null,
+                "seen_trade_count": null,
+                "since_last_trade_ns": null,
+                "observed_trade_count_1s": null,
+                "observed_trade_quantity_1s": null
+              },
+              "label": "up"
+            }
+          ],
+          "label_path": "/forbidden/reviewer-control"
+        },
+        "response": {
+          "status": "rejected",
+          "error": "fit:keys"
+        },
+        "sent_at": "2026-10-05T22:24:10.959763+00:00",
+        "received_at": "2026-10-05T22:24:10.959827+00:00",
+        "input_sha256": "76902df6c7055bdd1971e06212fe272d87cd8a7a423ab7c26d7187691b4407a9",
+        "output_sha256": "42235a5f6f88d2335f9758d5324ea545c66a3563ccd8510eb4edfb357782e397"
+      },
+      {
+        "name": "fit-forbidden-feature",
+        "request": {
+          "op": "fit",
+          "version": "stage69-softmax-finite-features/1",
+          "arm": "A",
+          "fit_cutoff_ns": "1609459220000000000",
+          "rows": [
+            {
+              "product_id": "BTC-USD",
+              "decision_ns": "1609459219999999999",
+              "features": {
+                "last_trade_price": null,
+                "seen_trade_count": null,
+                "since_last_trade_ns": null,
+                "observed_trade_count_1s": null,
+                "observed_trade_quantity_1s": null,
+                "bid_price": "1"
+              },
+              "label": "up"
+            }
+          ]
+        },
+        "response": {
+          "status": "rejected",
+          "error": "features:keys"
+        },
+        "sent_at": "2026-10-05T22:24:10.959838+00:00",
+        "received_at": "2026-10-05T22:24:10.960480+00:00",
+        "input_sha256": "9544d9c5fac79cc0fabfb1a617ab2a7a68e2c42961f6b65ac8a4c3f52f2e28c3",
+        "output_sha256": "5a21208aedab388def858ae2e1a86064b12d8e17081951c64b2941ff71e2a0f7"
+      },
+      {
+        "name": "integer-no-float-string",
+        "request": {
+          "op": "fit",
+          "version": "stage69-softmax-finite-features/1",
+          "arm": "A",
+          "fit_cutoff_ns": "1609459220000000000",
+          "rows": [
+            {
+              "product_id": "BTC-USD",
+              "decision_ns": "1609459220000000000.0",
+              "features": {
+                "last_trade_price": null,
+                "seen_trade_count": null,
+                "since_last_trade_ns": null,
+                "observed_trade_count_1s": null,
+                "observed_trade_quantity_1s": null
+              },
+              "label": "up"
+            }
+          ]
+        },
+        "response": {
+          "status": "rejected",
+          "error": "integer:string"
+        },
+        "sent_at": "2026-10-05T22:24:10.960503+00:00",
+        "received_at": "2026-10-05T22:24:10.960697+00:00",
+        "input_sha256": "1cf636fabcf5c39f27d41f84d9a1d6023b84cbbc25ffc52e421effa615c3b464",
+        "output_sha256": "4b7262cf47bf03ebf76ac0bb07fe1f3ddb59dd8e7e51324ed736164487e7ee46"
+      },
+      {
+        "name": "inspect-unfitted",
+        "request": {
+          "op": "inspect",
+          "version": "stage69-softmax-finite-features/1"
+        },
+        "response": {
+          "status": "rejected",
+          "error": "inspect:state"
+        },
+        "sent_at": "2026-10-05T22:24:10.960707+00:00",
+        "received_at": "2026-10-05T22:24:10.960806+00:00",
+        "input_sha256": "36774ea628f3afd1646e879e029fd9c2f7e3d14c452d82d09c11d2113d4b810f",
+        "output_sha256": "f169fbe8776cba00466e854b463a04d8f577d0b4ca95565e5cfe680d9d8c32c9"
+      }
+    ]
+  },
+  {
+    "arm": "B",
+    "pid": 98127,
+    "command": [
+      "/Users/silencehan/.hermes/node/bin/node",
+      "--max-old-space-size=64",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-author/learner-stdin.mjs"
+    ],
+    "cwd": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-review",
+    "started_at": "2026-10-05T22:24:10.965722+00:00",
+    "finished_at": "2026-10-05T22:24:11.007302+00:00",
+    "exit_code": 0,
+    "successful_fits": 0,
+    "predictions": 0,
+    "scope": "negative protocol controls only; no fitted-state controls or sandbox claim",
+    "controls": [
+      {
+        "name": "unfitted-prediction",
+        "request": {
+          "op": "predict",
+          "version": "stage69-softmax-finite-features/1",
+          "product_id": "BTC-USD",
+          "decision_ns": "1609459220000000000",
+          "features": {
+            "last_trade_price": null,
+            "seen_trade_count": null,
+            "since_last_trade_ns": null,
+            "observed_trade_count_1s": null,
+            "observed_trade_quantity_1s": null,
+            "bid_price": null,
+            "ask_price": null,
+            "bid_quantity": null,
+            "ask_quantity": null,
+            "spread": null,
+            "queue_imbalance": null,
+            "published_l1_changes_1s": null,
+            "published_mid2_delta_1s": null
+          }
+        },
+        "response": {
+          "status": "rejected",
+          "error": "predict:not-fitted"
+        },
+        "sent_at": "2026-10-05T22:24:10.967149+00:00",
+        "received_at": "2026-10-05T22:24:11.000112+00:00",
+        "input_sha256": "786e5294d54951665140cb0ca26990ded56ccbcdba44a361a9479b0ebd3becad",
+        "output_sha256": "fd36e38ab64772f32813927233e717c22d494b7e3321fbed791b18701eb89f80"
+      },
+      {
+        "name": "fit-decision-equality",
+        "request": {
+          "op": "fit",
+          "version": "stage69-softmax-finite-features/1",
+          "arm": "B",
+          "fit_cutoff_ns": "1609459220000000000",
+          "rows": [
+            {
+              "product_id": "BTC-USD",
+              "decision_ns": "1609459220000000000",
+              "features": {
+                "last_trade_price": null,
+                "seen_trade_count": null,
+                "since_last_trade_ns": null,
+                "observed_trade_count_1s": null,
+                "observed_trade_quantity_1s": null,
+                "bid_price": null,
+                "ask_price": null,
+                "bid_quantity": null,
+                "ask_quantity": null,
+                "spread": null,
+                "queue_imbalance": null,
+                "published_l1_changes_1s": null,
+                "published_mid2_delta_1s": null
+              },
+              "label": "up"
+            }
+          ]
+        },
+        "response": {
+          "status": "rejected",
+          "error": "fit:decision-before-cutoff-and-ordered"
+        },
+        "sent_at": "2026-10-05T22:24:11.000148+00:00",
+        "received_at": "2026-10-05T22:24:11.001032+00:00",
+        "input_sha256": "6f2858235277784274ee344d405f3bf5cfb104a891cffa69453652881edd0434",
+        "output_sha256": "fd9981ccbe56a87de68c38047270214b44195e7c9c634ab51ef32a053579cceb"
+      },
+      {
+        "name": "fit-decision-after-one-ns",
+        "request": {
+          "op": "fit",
+          "version": "stage69-softmax-finite-features/1",
+          "arm": "B",
+          "fit_cutoff_ns": "1609459220000000000",
+          "rows": [
+            {
+              "product_id": "BTC-USD",
+              "decision_ns": "1609459220000000001",
+              "features": {
+                "last_trade_price": null,
+                "seen_trade_count": null,
+                "since_last_trade_ns": null,
+                "observed_trade_count_1s": null,
+                "observed_trade_quantity_1s": null,
+                "bid_price": null,
+                "ask_price": null,
+                "bid_quantity": null,
+                "ask_quantity": null,
+                "spread": null,
+                "queue_imbalance": null,
+                "published_l1_changes_1s": null,
+                "published_mid2_delta_1s": null
+              },
+              "label": "up"
+            }
+          ]
+        },
+        "response": {
+          "status": "rejected",
+          "error": "fit:decision-before-cutoff-and-ordered"
+        },
+        "sent_at": "2026-10-05T22:24:11.001050+00:00",
+        "received_at": "2026-10-05T22:24:11.001228+00:00",
+        "input_sha256": "537fa5cce6fab15c0e13f4977dbe98fd3746c28b342f92bea85021033e9288e3",
+        "output_sha256": "fd9981ccbe56a87de68c38047270214b44195e7c9c634ab51ef32a053579cceb"
+      },
+      {
+        "name": "fit-forbidden-known",
+        "request": {
+          "op": "fit",
+          "version": "stage69-softmax-finite-features/1",
+          "arm": "B",
+          "fit_cutoff_ns": "1609459220000000000",
+          "rows": [
+            {
+              "product_id": "BTC-USD",
+              "decision_ns": "1609459219999999999",
+              "features": {
+                "last_trade_price": null,
+                "seen_trade_count": null,
+                "since_last_trade_ns": null,
+                "observed_trade_count_1s": null,
+                "observed_trade_quantity_1s": null,
+                "bid_price": null,
+                "ask_price": null,
+                "bid_quantity": null,
+                "ask_quantity": null,
+                "spread": null,
+                "queue_imbalance": null,
+                "published_l1_changes_1s": null,
+                "published_mid2_delta_1s": null
+              },
+              "label": "up",
+              "label_known_ns": "1609459219999999999"
+            }
+          ]
+        },
+        "response": {
+          "status": "rejected",
+          "error": "training-row:keys"
+        },
+        "sent_at": "2026-10-05T22:24:11.001241+00:00",
+        "received_at": "2026-10-05T22:24:11.001491+00:00",
+        "input_sha256": "a8752b264e4a894263b7e8268f8c5304a06dd51f50bba3aa5b062e22886602c4",
+        "output_sha256": "669bd301f36770f2a1b1af8eece6fe340ada738b09ccf76b71c988cef14f3888"
+      },
+      {
+        "name": "fit-forbidden-path",
+        "request": {
+          "op": "fit",
+          "version": "stage69-softmax-finite-features/1",
+          "arm": "B",
+          "fit_cutoff_ns": "1609459220000000000",
+          "rows": [
+            {
+              "product_id": "BTC-USD",
+              "decision_ns": "1609459220000000000",
+              "features": {
+                "last_trade_price": null,
+                "seen_trade_count": null,
+                "since_last_trade_ns": null,
+                "observed_trade_count_1s": null,
+                "observed_trade_quantity_1s": null,
+                "bid_price": null,
+                "ask_price": null,
+                "bid_quantity": null,
+                "ask_quantity": null,
+                "spread": null,
+                "queue_imbalance": null,
+                "published_l1_changes_1s": null,
+                "published_mid2_delta_1s": null
+              },
+              "label": "up"
+            }
+          ],
+          "label_path": "/forbidden/reviewer-control"
+        },
+        "response": {
+          "status": "rejected",
+          "error": "fit:keys"
+        },
+        "sent_at": "2026-10-05T22:24:11.001547+00:00",
+        "received_at": "2026-10-05T22:24:11.001654+00:00",
+        "input_sha256": "67f504a3aa92783c0490d9e3af70e52bfa1c7f17e3ccef376c122f801159de9f",
+        "output_sha256": "42235a5f6f88d2335f9758d5324ea545c66a3563ccd8510eb4edfb357782e397"
+      },
+      {
+        "name": "fit-forbidden-feature",
+        "request": {
+          "op": "fit",
+          "version": "stage69-softmax-finite-features/1",
+          "arm": "B",
+          "fit_cutoff_ns": "1609459220000000000",
+          "rows": [
+            {
+              "product_id": "BTC-USD",
+              "decision_ns": "1609459219999999999",
+              "features": {
+                "last_trade_price": null,
+                "seen_trade_count": null,
+                "since_last_trade_ns": null,
+                "observed_trade_count_1s": null,
+                "observed_trade_quantity_1s": null,
+                "bid_price": null,
+                "ask_price": null,
+                "bid_quantity": null,
+                "ask_quantity": null,
+                "spread": null,
+                "queue_imbalance": null,
+                "published_l1_changes_1s": null,
+                "published_mid2_delta_1s": null,
+                "order_seq": "1"
+              },
+              "label": "up"
+            }
+          ]
+        },
+        "response": {
+          "status": "rejected",
+          "error": "features:keys"
+        },
+        "sent_at": "2026-10-05T22:24:11.001684+00:00",
+        "received_at": "2026-10-05T22:24:11.002286+00:00",
+        "input_sha256": "b5d347ca40035f4e28522f13b992a1637fc35d14bfcf627f6d49c11241202390",
+        "output_sha256": "5a21208aedab388def858ae2e1a86064b12d8e17081951c64b2941ff71e2a0f7"
+      },
+      {
+        "name": "integer-no-float-string",
+        "request": {
+          "op": "fit",
+          "version": "stage69-softmax-finite-features/1",
+          "arm": "B",
+          "fit_cutoff_ns": "1609459220000000000",
+          "rows": [
+            {
+              "product_id": "BTC-USD",
+              "decision_ns": "1609459220000000000.0",
+              "features": {
+                "last_trade_price": null,
+                "seen_trade_count": null,
+                "since_last_trade_ns": null,
+                "observed_trade_count_1s": null,
+                "observed_trade_quantity_1s": null,
+                "bid_price": null,
+                "ask_price": null,
+                "bid_quantity": null,
+                "ask_quantity": null,
+                "spread": null,
+                "queue_imbalance": null,
+                "published_l1_changes_1s": null,
+                "published_mid2_delta_1s": null
+              },
+              "label": "up"
+            }
+          ]
+        },
+        "response": {
+          "status": "rejected",
+          "error": "integer:string"
+        },
+        "sent_at": "2026-10-05T22:24:11.002302+00:00",
+        "received_at": "2026-10-05T22:24:11.002462+00:00",
+        "input_sha256": "79be6503af30e379ccaf8400f988e90c1a853b99272e3d8009bbc19878d546ab",
+        "output_sha256": "4b7262cf47bf03ebf76ac0bb07fe1f3ddb59dd8e7e51324ed736164487e7ee46"
+      },
+      {
+        "name": "inspect-unfitted",
+        "request": {
+          "op": "inspect",
+          "version": "stage69-softmax-finite-features/1"
+        },
+        "response": {
+          "status": "rejected",
+          "error": "inspect:state"
+        },
+        "sent_at": "2026-10-05T22:24:11.002472+00:00",
+        "received_at": "2026-10-05T22:24:11.002580+00:00",
+        "input_sha256": "36774ea628f3afd1646e879e029fd9c2f7e3d14c452d82d09c11d2113d4b810f",
+        "output_sha256": "f169fbe8776cba00466e854b463a04d8f577d0b4ca95565e5cfe680d9d8c32c9"
+      }
+    ]
+  }
+]

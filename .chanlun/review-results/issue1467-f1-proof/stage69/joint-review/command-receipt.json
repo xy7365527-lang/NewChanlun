@@ -1,0 +1,31 @@
+{
+  "main_command": [
+    "python3",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-review/independent_check.py",
+    "--out",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-review/run"
+  ],
+  "main_actual_cwd": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun",
+  "main_exec_tool_chunk_id": "c260e6",
+  "main_exit_code": 0,
+  "main_H2_candidate_executions": 1,
+  "main_old_control_executions": 1,
+  "preexecution_AST_compile": {
+    "tool_chunk_id": "419e04",
+    "exit_code": 0,
+    "candidate_executions": 0
+  },
+  "supplementary_evidence_audit": {
+    "command": [
+      "python3",
+      "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-review/audit_evidence.py"
+    ],
+    "tool_chunk_id": "2c4ce3",
+    "exit_code": 0,
+    "candidate_executions": 0
+  },
+  "new_histories": 0,
+  "R_W_runs": 0,
+  "io_stalls_in_independent_execution": 0,
+  "limitation": "Author historic global run count remains a package process statement; no author session was read."
+}

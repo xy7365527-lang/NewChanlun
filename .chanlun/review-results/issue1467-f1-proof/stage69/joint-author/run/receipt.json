@@ -1,0 +1,21 @@
+{
+  "cwd": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun",
+  "argv": [
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-author/check_joint.py",
+    "--out",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-author/run"
+  ],
+  "python_executable": "/opt/homebrew/opt/python@3.14/bin/python3.14",
+  "started_at": "2026-10-05T21:56:15.832833+00:00",
+  "elapsed_seconds": 0.13210320798680186,
+  "max_rss_bytes": 87523328,
+  "rss_limit_bytes": 100663296,
+  "artifact_bytes_at_receipt": 2915479,
+  "input_hashes_unchanged": true,
+  "exit_code": 0,
+  "Stage68_field_equivalence_control": true,
+  "H2_main_runs": 1,
+  "full_reference_arrays_loaded": true,
+  "physical_future_read_isolation": false,
+  "dependency_scope": "raw known_at gates, known-time stable input identities, price support ends at candidate end; no raw parser rerun"
+}

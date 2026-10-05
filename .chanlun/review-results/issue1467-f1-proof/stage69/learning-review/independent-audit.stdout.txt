@@ -1,0 +1,123 @@
+{
+  "status": "passed",
+  "refits": 2,
+  "inputs_unchanged": true,
+  "comparison": {
+    "A": {
+      "weight_max_abs_diff": 1.972959122464868e-12,
+      "preprocessing_max_abs_diff": 1.4551915228366852e-11,
+      "preprocessing_diffs": {
+        "last_trade_price.mean": 1.4551915228366852e-11,
+        "last_trade_price.variance": 4.263256414560601e-14,
+        "last_trade_price.raw_std": 5.329070518200751e-15,
+        "last_trade_price.scale": 5.329070518200751e-15,
+        "seen_trade_count.mean": 0.0,
+        "seen_trade_count.variance": 2.8421709430404007e-13,
+        "seen_trade_count.raw_std": 1.2434497875801753e-14,
+        "seen_trade_count.scale": 1.2434497875801753e-14,
+        "since_last_trade_ns.mean": 1.1102230246251565e-16,
+        "since_last_trade_ns.variance": 0.0,
+        "since_last_trade_ns.raw_std": 0.0,
+        "since_last_trade_ns.scale": 0.0,
+        "observed_trade_count_1s.mean": 0.0,
+        "observed_trade_count_1s.variance": 2.6645352591003757e-15,
+        "observed_trade_count_1s.raw_std": 8.881784197001252e-16,
+        "observed_trade_count_1s.scale": 8.881784197001252e-16,
+        "observed_trade_quantity_1s.mean": 5.551115123125783e-17,
+        "observed_trade_quantity_1s.variance": 1.0408340855860843e-17,
+        "observed_trade_quantity_1s.raw_std": 2.7755575615628914e-17,
+        "observed_trade_quantity_1s.scale": 2.7755575615628914e-17
+      },
+      "refit_probability_max_abs_diff": 2.5960344984810035e-12,
+      "saved_weight_probability_max_abs_diff": 2.220446049250313e-16,
+      "metrics": {
+        "middle": {
+          "rows": 200,
+          "accuracy": 0.67,
+          "mean_logloss": 1.116496663626698,
+          "multiclass_brier": 0.5845334706387302
+        },
+        "late": {
+          "rows": 200,
+          "accuracy": 0.675,
+          "mean_logloss": 1.7277372357701128,
+          "multiclass_brier": 0.6276239134768622
+        }
+      }
+    },
+    "B": {
+      "weight_max_abs_diff": 1.2299964866069324e-11,
+      "preprocessing_max_abs_diff": 3.637978807091713e-11,
+      "preprocessing_diffs": {
+        "last_trade_price.mean": 1.4551915228366852e-11,
+        "last_trade_price.variance": 4.263256414560601e-14,
+        "last_trade_price.raw_std": 5.329070518200751e-15,
+        "last_trade_price.scale": 5.329070518200751e-15,
+        "seen_trade_count.mean": 0.0,
+        "seen_trade_count.variance": 2.8421709430404007e-13,
+        "seen_trade_count.raw_std": 1.2434497875801753e-14,
+        "seen_trade_count.scale": 1.2434497875801753e-14,
+        "since_last_trade_ns.mean": 1.1102230246251565e-16,
+        "since_last_trade_ns.variance": 0.0,
+        "since_last_trade_ns.raw_std": 0.0,
+        "since_last_trade_ns.scale": 0.0,
+        "observed_trade_count_1s.mean": 0.0,
+        "observed_trade_count_1s.variance": 2.6645352591003757e-15,
+        "observed_trade_count_1s.raw_std": 8.881784197001252e-16,
+        "observed_trade_count_1s.scale": 8.881784197001252e-16,
+        "observed_trade_quantity_1s.mean": 5.551115123125783e-17,
+        "observed_trade_quantity_1s.variance": 1.0408340855860843e-17,
+        "observed_trade_quantity_1s.raw_std": 2.7755575615628914e-17,
+        "observed_trade_quantity_1s.scale": 2.7755575615628914e-17,
+        "bid_price.mean": 1.0913936421275139e-11,
+        "bid_price.variance": 1.5987211554602254e-14,
+        "bid_price.raw_std": 2.220446049250313e-15,
+        "bid_price.scale": 2.220446049250313e-15,
+        "ask_price.mean": 3.637978807091713e-11,
+        "ask_price.variance": 1.1546319456101628e-14,
+        "ask_price.raw_std": 2.220446049250313e-15,
+        "ask_price.scale": 2.220446049250313e-15,
+        "bid_quantity.mean": 1.887379141862766e-15,
+        "bid_quantity.variance": 1.199040866595169e-14,
+        "bid_quantity.raw_std": 3.9968028886505635e-15,
+        "bid_quantity.scale": 3.9968028886505635e-15,
+        "ask_quantity.mean": 5.551115123125783e-16,
+        "ask_quantity.variance": 3.3306690738754696e-16,
+        "ask_quantity.raw_std": 3.3306690738754696e-16,
+        "ask_quantity.scale": 3.3306690738754696e-16,
+        "spread.mean": 4.440892098500626e-15,
+        "spread.variance": 1.9539925233402755e-14,
+        "spread.raw_std": 3.1086244689504383e-15,
+        "spread.scale": 3.1086244689504383e-15,
+        "queue_imbalance.mean": 3.3306690738754696e-16,
+        "queue_imbalance.variance": 1.1102230246251565e-16,
+        "queue_imbalance.raw_std": 1.1102230246251565e-16,
+        "queue_imbalance.scale": 1.1102230246251565e-16,
+        "published_l1_changes_1s.mean": 0.0,
+        "published_l1_changes_1s.variance": 0.0,
+        "published_l1_changes_1s.raw_std": 0.0,
+        "published_l1_changes_1s.scale": 0.0,
+        "published_mid2_delta_1s.mean": 5.551115123125783e-16,
+        "published_mid2_delta_1s.variance": 6.217248937900877e-15,
+        "published_mid2_delta_1s.raw_std": 8.881784197001252e-16,
+        "published_mid2_delta_1s.scale": 8.881784197001252e-16
+      },
+      "refit_probability_max_abs_diff": 2.6256941065838646e-11,
+      "saved_weight_probability_max_abs_diff": 2.220446049250313e-16,
+      "metrics": {
+        "middle": {
+          "rows": 200,
+          "accuracy": 0.47,
+          "mean_logloss": 1.396322165749675,
+          "multiclass_brier": 0.7711545287039918
+        },
+        "late": {
+          "rows": 200,
+          "accuracy": 0.205,
+          "mean_logloss": 3.2624629174445277,
+          "multiclass_brier": 1.3027074956751914
+        }
+      }
+    }
+  }
+}

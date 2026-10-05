@@ -1,0 +1,20 @@
+[
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/v2/run/source.json",
+    "sha256": "ce7ba6ab38666b59b978dc942913e6a2b0c38c26409e9c14b70114a69b3260c6",
+    "author_manifest_match": true,
+    "review_capture_match": true
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/v2/run/segments.json",
+    "sha256": "89cf6da6cd2174c13d5c3786cfd8cb28a059a125836c86abe5d8cf09fd9e0a3e",
+    "author_manifest_match": true,
+    "review_capture_match": true
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/v2/run/reference.stdout",
+    "sha256": "7491058def0984a3b3ea5eb6b387f8b65b5484beb3cd203860e07c88afd66792",
+    "author_manifest_match": true,
+    "review_capture_match": true
+  }
+]

@@ -1,0 +1,38 @@
+{
+  "reason": "Null event_group is not a witness; exclude it from group identities.",
+  "before": {
+    "early": {
+      "decisions": 169,
+      "unique_event_groups": 89
+    },
+    "middle": {
+      "decisions": 200,
+      "unique_event_groups": 109
+    },
+    "late": {
+      "decisions": 200,
+      "unique_event_groups": 113
+    }
+  },
+  "after": {
+    "early": {
+      "decisions": 169,
+      "unique_nonnull_event_groups": 89,
+      "null_event_group_rows": 0
+    },
+    "middle": {
+      "decisions": 200,
+      "unique_nonnull_event_groups": 108,
+      "null_event_group_rows": 3
+    },
+    "late": {
+      "decisions": 200,
+      "unique_nonnull_event_groups": 112,
+      "null_event_group_rows": 24
+    }
+  },
+  "initial_result_sha256": "055599d83d81ac156c8db3a36a9af928bec5e8ea0a0ef3c1f1f511b288bdfb3b",
+  "corrected_result_sha256": "7dccc8d6c69c3993cb5b47925cd8b339ab456b37cd8ea94b93b505ea685e5e06",
+  "new_fits": 0,
+  "numeric_fit_predictions_and_metrics_unchanged": true
+}

@@ -1,0 +1,20 @@
+{
+  "cwd": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun",
+  "argv": [
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-review/independent_check.py",
+    "--out",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-review/run"
+  ],
+  "python": "/opt/homebrew/opt/python@3.14/bin/python3.14",
+  "started_at": "2026-10-05T22:23:46.222328+00:00",
+  "elapsed_seconds": 0.2323745838366449,
+  "script_sha256": "443628db7b24f419cd92c445c8766ea260751efde54a5b1443e6e2a1fd38133c",
+  "max_rss_bytes": 86523904,
+  "rss_limit_bytes": 100663296,
+  "exit_code": 0,
+  "artifact_bytes": 2840364,
+  "ordinary_author_import_only": true,
+  "author_functions_executed": 0,
+  "H2_window_passes": 1,
+  "stage68_control_window_passes": 1
+}

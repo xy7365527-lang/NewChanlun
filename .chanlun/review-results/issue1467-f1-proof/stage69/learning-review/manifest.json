@@ -1,0 +1,130 @@
+{
+  "profile": "stage69-independent-learning-review/1",
+  "created_at": "2026-10-05T22:28:59.409455+00:00",
+  "verdict": "accepted-with-explicit-boundaries",
+  "author_manifest_sha256": "903a7e367e4e55c16ecb6709b17e41316b5edf237308eb2eb2ea3fc237b4ed7c",
+  "author_final_sha256": "2b304dcf42f295507b5c26918a520af592d522341ce23b01146ef3172fefe15a",
+  "independent_full_refits": 2,
+  "additional_successful_author_fits": 0,
+  "market_decisions": 572,
+  "negative_process_controls": 16,
+  "input_files_verified_unchanged": 44,
+  "bytes_excluding_manifest_and_checksum": 276326,
+  "files": [
+    {
+      "name": "A-boundary-stderr.jsonl",
+      "bytes": 933,
+      "sha256": "bf91a81dc0f922283cecd2f6e230e3ec75984945d707f34c570f47c6fb6322e1"
+    },
+    {
+      "name": "A-independent-model.json",
+      "bytes": 2602,
+      "sha256": "24d8862de3306bb5a4e9895e9e885974324282f6e7038bf0985e0a8e7043ee20"
+    },
+    {
+      "name": "A-independent-predictions.json",
+      "bytes": 73673,
+      "sha256": "8b27cdb71e31b70ec5807fc24ad52fdaa15128ec9769e94fbb1969b6a3e787f9"
+    },
+    {
+      "name": "B-boundary-stderr.jsonl",
+      "bytes": 933,
+      "sha256": "10d2c9b4ec781ff5c741986aa31dc89479c9bc48d9aa3e0380837f1bad78a5b1"
+    },
+    {
+      "name": "B-independent-model.json",
+      "bytes": 5648,
+      "sha256": "e5d212e6851bb544cac14737e092de79fc4e3321e81bfdb7d2af0267dcd19160"
+    },
+    {
+      "name": "B-independent-predictions.json",
+      "bytes": 73960,
+      "sha256": "c0cc4d14d8fc9a55e3f9f37dcb66c59f74b0bd76cb8dc98da9c1280672c76656"
+    },
+    {
+      "name": "COMMANDS.md",
+      "bytes": 2419,
+      "sha256": "7d7bfdbfd33cea32d5798ad015630eb14907565fed976a1caac43b1788896860"
+    },
+    {
+      "name": "FINAL.md",
+      "bytes": 1882,
+      "sha256": "fdb4d451bea935ffaa06410fe27f1510fa9d7261bad766dc8fc3d608487b2911"
+    },
+    {
+      "name": "REVIEW.md",
+      "bytes": 12246,
+      "sha256": "0f96ff4e0e408d9b003b55a3c573f950d3bb886aaf18d36ba96914f005d02727"
+    },
+    {
+      "name": "boundary-controls.json",
+      "bytes": 19958,
+      "sha256": "3ba0ca40ee403bca39a8dfe148fd87021ecc184857a31eadbc5cb576e23b1e32"
+    },
+    {
+      "name": "boundary-controls.stdout.txt",
+      "bytes": 93,
+      "sha256": "518d4ea43f73bdfebe80b68d3ca223d359e6665e1d1cf48c5893b01eb56b283f"
+    },
+    {
+      "name": "finalise_review.py",
+      "bytes": 2181,
+      "sha256": "d6e110656f896dbec872eed1da01733d5e2aff54d1c187d6c42b2f0787fa6166"
+    },
+    {
+      "name": "independent-audit.stdout.txt",
+      "bytes": 5493,
+      "sha256": "eb5337026158ce4162fe20ac53840194cd63305accbf5b2a5548152bb12b0c1f"
+    },
+    {
+      "name": "independent-results-before-null-group-correction.json",
+      "bytes": 9506,
+      "sha256": "055599d83d81ac156c8db3a36a9af928bec5e8ea0a0ef3c1f1f511b288bdfb3b"
+    },
+    {
+      "name": "independent-results.json",
+      "bytes": 9633,
+      "sha256": "7dccc8d6c69c3993cb5b47925cd8b339ab456b37cd8ea94b93b505ea685e5e06"
+    },
+    {
+      "name": "independent_audit.py",
+      "bytes": 23613,
+      "sha256": "8bd473fae315dde39c9c9d21956cc0259e9416e90cf9b308d098f65d6ca0f07d"
+    },
+    {
+      "name": "input-hashes-after.json",
+      "bytes": 10320,
+      "sha256": "d845a0aa948109e0233085098ea3b64f09ef54dde49a7337e276b6fc6a66fa76"
+    },
+    {
+      "name": "input-hashes-before.json",
+      "bytes": 10320,
+      "sha256": "d845a0aa948109e0233085098ea3b64f09ef54dde49a7337e276b6fc6a66fa76"
+    },
+    {
+      "name": "null-group-count-correction.json",
+      "bytes": 987,
+      "sha256": "5b887a83823598d6801e1186c74405285ff368455bb415237c8dff82f3a94410"
+    },
+    {
+      "name": "process_boundary_controls.py",
+      "bytes": 4690,
+      "sha256": "77232b680b3bedf52a7ef4c978f5a739cd4b2bd2b592e7819cd3fe83e0e9d6d4"
+    },
+    {
+      "name": "supplementary-checks.stdout.txt",
+      "bytes": 991,
+      "sha256": "76641679236bcbb5775d5962cbbafd03d55993c69e61e9f06b9566e486727e24"
+    },
+    {
+      "name": "supplementary-results.json",
+      "bytes": 991,
+      "sha256": "76641679236bcbb5775d5962cbbafd03d55993c69e61e9f06b9566e486727e24"
+    },
+    {
+      "name": "supplementary_checks.py",
+      "bytes": 3254,
+      "sha256": "a4ee3b6eea069d203330dea251cedae4f98780a8ee6e12a0c4f5b816bbc4bf36"
+    }
+  ]
+}

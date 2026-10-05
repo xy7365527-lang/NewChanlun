@@ -1,0 +1,89 @@
+{
+  "recorded_at": "2026-10-05T23:36:02.560019+00:00",
+  "main_change_is_exactly_two_link_versions": true,
+  "v1_preserved_documents": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage69/adoption-freeze-v1/Stage69LongerHistoryAndActualLearner.md",
+      "sha256": "8b3851ba8234b8fdebe226985ac966d925dabcf96610e41533103cb06a6dc2c7",
+      "matches_frozen_v1": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage69/adoption-freeze-v1/progress-addition-v1.md",
+      "sha256": "b6f1749b695ae4a1c149b4012a4f9d9f7a13f3eea7b6ffd3f8218a5b1b79cee5",
+      "matches_frozen_v1": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage69/DeliveryStatus-v1.md",
+      "sha256": "8241bc7829eea707af4f2b47f6a36c08af4867e84c181176ba74e9b66cf8f21e",
+      "matches_frozen_v1": true
+    }
+  ],
+  "author_and_review_copies_unchanged": [
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage69/joint-author/Report.md",
+      "sha256": "065d72a26e93a55b721e481fb08be1d2811ff64146305ca8aa21e31284a30e98",
+      "matches_v1": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-author/Report.md",
+      "sha256": "065d72a26e93a55b721e481fb08be1d2811ff64146305ca8aa21e31284a30e98",
+      "matches_v1": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage69/joint-review/review.md",
+      "sha256": "be1bf5e35561783f369879ea280cce8e0b57188389ce6ef7ee257ce8c6e20cb2",
+      "matches_v1": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/joint-review/review.md",
+      "sha256": "be1bf5e35561783f369879ea280cce8e0b57188389ce6ef7ee257ce8c6e20cb2",
+      "matches_v1": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage69/learning-author/FINAL.md",
+      "sha256": "2b304dcf42f295507b5c26918a520af592d522341ce23b01146ef3172fefe15a",
+      "matches_v1": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-author/FINAL.md",
+      "sha256": "2b304dcf42f295507b5c26918a520af592d522341ce23b01146ef3172fefe15a",
+      "matches_v1": true
+    },
+    {
+      "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage69/learning-review/REVIEW.md",
+      "sha256": "0f96ff4e0e408d9b003b55a3c573f950d3bb886aaf18d36ba96914f005d02727",
+      "matches_v1": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage69/learning-review/REVIEW.md",
+      "sha256": "0f96ff4e0e408d9b003b55a3c573f950d3bb886aaf18d36ba96914f005d02727",
+      "matches_v1": true
+    }
+  ],
+  "v1_review_manifest_entries_unchanged": 6,
+  "publication_fields": [
+    "research",
+    "experiment",
+    "arch",
+    "mapNote"
+  ],
+  "publication_placeholders": {
+    "research": [
+      "__COMMIT__"
+    ],
+    "experiment": [
+      "__COMMIT__"
+    ],
+    "arch": [
+      "__COMMIT__"
+    ],
+    "mapNote": [
+      "__COMMENT_URL__",
+      "__EXPERIMENT_URL__"
+    ]
+  },
+  "final_evidence_table_not_reviewed": true,
+  "new_window_evaluations": 0,
+  "new_fits": 0,
+  "new_inferences": 0
+}

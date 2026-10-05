@@ -1,0 +1,389 @@
+[
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/084-第84课.md",
+    "sha256": "36978e2c0ee0d49fc316611af94a228f7e5d6bfa0e0a05bcd3ad66ad41879c26",
+    "body_boundary": 68,
+    "lines": [
+      {
+        "line": 52,
+        "text": "其次，分型只是中枢与走势级别递归定义的一个启始程序，甚至可以说，并不是本ID理论中必然需要的东西，其目的，不过是为了中枢等的递归性定义中给出其最开始的部分，完全可以用别的定义去取代。例如，我们可以用收盘的价位去定义顶分型、低分型结构，也可以用成交量给出相应的递归开始部分，只要能保证分解的唯一性，就可以。",
+        "within_body": true,
+        "annotation_present": false
+      },
+      {
+        "line": 54,
+        "text": "本ID关于中枢等的定义，其实一直没有改变过，因为中枢定义的关键，在于定义的递归性。一般的递归定义，由两部分组成，一、f1(a0)=a1；二、f2(an)=an+1；关于第二条的中枢过程规则，是一直没有任何改变的，而关于第一条，其实，可以随意设置任何的，都不会改变中枢定义的递归性。而且，任何有点数学常识的都知道，f1(a0)=a1之前是不需要再有什么递归性的，也就是，一和二之间的f1、f2可以是完全不同的两个函数。",
+        "within_body": true,
+        "annotation_present": false
+      },
+      {
+        "line": 56,
+        "text": "有些人一直还搞不清楚中枢，就是一直都搞不清楚这点。例如，可以用分型、线段这样的函数关系去构造最低级别的中枢、走势类型，也就是一中的a1，而在二中，也就是最低级别以上，可以用另一套规则去定义，也就是有着和f1完全不同的f2。这个问题其实太简单了，有点数学常识都不会有疑问，所以这问题，以后就不再说了。",
+        "within_body": true,
+        "annotation_present": false
+      }
+    ]
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/037-第37课.md",
+    "sha256": "f360d985b3f3b1fa567ca13e15f2ffaf9eae39dbb418519f75d1f6175ac70753",
+    "body_boundary": 40,
+    "lines": [
+      {
+        "line": 16,
+        "text": "没有趋势，没有背驰，不是任何a+A+b+B+c形式的都有背驰的。当说a+A+b+B+c中有背驰时，首先要a+A+b+B+c是一个趋势。而一个趋势，就意味着A、B是同级别的中枢，否则，就只能看成是其中较大中枢的一个震荡。例如，如果A的级别比B大，就有a+A+b+B+c=a+A+（b+B+c），a与（b+B+c）就是围绕中枢A的一些小级别波动。这样，是不存在背驰的，最多就是盘整背驰。当然，对于最后一个中枢B，背驰与盘整背驰有很多类似的地方，用多义性，可以把b、c当成B的次级波动。但多义性只是多角度，不能有了把b、c当成B的次级波动这一个角度，就忘了a+A+b+B+c是趋势且A、B级别相同的角度。多义性不是含糊性，不是怎么干怎么分都可以，这是必须不断反复强调的。",
+        "within_body": true,
+        "annotation_present": false
+      },
+      {
+        "line": 18,
+        "text": "其次，c必然是次级别的，也就是说，c至少包含对B的一个第三类买卖点，否则，就可以看成是B中枢的小级别波动，完全可以用盘整背驰来处理。而b是有可能小于次级别的，力度最大的就是连续的缺口，也就是说，b在级别上是不能大于c的。例如，如果b是次级别，而c出现连续缺口，即使c没完成，最终也延续成次级别，但c是背驰的可能性就很小了，就算是，最终也要特别留意，出现最弱走势的可能性极大（扩展后续涨续跌）。",
+        "within_body": true,
+        "annotation_present": false
+      },
+      {
+        "line": 20,
+        "text": "还有，如果a+A+b+B+c是上涨，c一定要创出新高；a+A+b+B+c是下跌，c一定要创出新低。否则，就算c包含B的第三类买卖点，也可以对围绕B的次级别震荡用盘整背驰的方式进行判断。",
+        "within_body": true,
+        "annotation_present": false
+      },
+      {
+        "line": 22,
+        "text": "对c的内部进行分析，由于c包含B的第三类买卖点，则c至少包含两个次级别中枢，否则满足不了次级别离开后次级别回拉不重回中枢的条件。这两个中枢构成次级别趋势的关系，是最标准最常见的情况，这种情况下，就可以继续套用a+A+b+B+c的形式进行次级别分析确定c中内部结构里次级别趋势的背驰问题，形成类似区间套的状态，这样对其后的背驰就可以更精确地进行定位了。",
+        "within_body": true,
+        "annotation_present": false
+      }
+    ]
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/018-第18课.md",
+    "sha256": "4a661fc843d0d9fcfdf32861b7dc903ee09d824d0075dd0ea7b2c19542bb2f92",
+    "body_boundary": 68,
+    "lines": [
+      {
+        "line": 24,
+        "text": "缠中说禅走势中枢：某级别走势类型中，被至少三个连续次级别走势类型所重叠的部分。具体的计算以前三个连续次级别的重叠为准，严格的公式可以这样表示：次级别的连续三个走势类型A、B、C，分别的高、低点是a1\\a2,b1\\b2,c1\\c2。则，中枢的区间就是（max（a2,b2,c2），min（a1,b1,c1））而实际上用目测就可以，不用这么复杂。注意，次级别的前三个走势类型都是完成的才构成该级别的缠中说禅走势中枢，完成的走势类型(娇：盘整和趋势），在次级别图上是很明显的，根本就不用着再看次级别下面级别的图了。",
+        "within_body": true,
+        "annotation_present": true
+      },
+      {
+        "line": 26,
+        "text": "缠中说禅盘整：在任何级别的任何走势中，某完成的走势类型只包含一个缠中说禅走势中枢，就称为该级别的缠中说禅盘整。",
+        "within_body": true,
+        "annotation_present": false
+      },
+      {
+        "line": 28,
+        "text": "缠中说禅趋势：在任何级别的任何走势中，某完成的走势类型至少包含两个以上依次同向的缠中说禅走势中枢，就称为该级别的缠中说禅趋势。该方向向上就称为上涨，向下就称为下跌。注意，趋势中的缠中说禅走势中枢之间必须绝对不存在重叠。",
+        "within_body": true,
+        "annotation_present": false
+      }
+    ]
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/020-第20课.md",
+    "sha256": "25f8f0bbe9ffbab48a27b552a081ff3925b6c01bfe1cae30c2616fe9b99b49ef",
+    "body_boundary": 94,
+    "lines": [
+      {
+        "line": 52,
+        "text": "对于第一种有a1=b1,b2=c2；对第二种有a2=b2,b1=c1。但无论是哪种情况，中枢的公式都可以简化为[max（a2,c2），min（a1,c1）]。显然，A、C段，其方向与中枢形成的方向是一致的，由此可见，在中枢的形成与延伸中，由与中枢形成方向一致的次级别走势类型的区间重叠确定。例如，回升形成的中枢，由向上的次级别走势类型的区间重叠确定，反之依然。为方便起见，以后都把这些与中枢方向一致的次级别走势类型称为Z走势段，按中枢中的时间顺序，分别记为Zn等，而相应的高、低点分别记为gn、dn,定义四个指标：GG=max(gn),G=min(gn),D=max(dn),DD=min(dn)，n遍历中枢中所有Zn。",
+        "within_body": true,
+        "annotation_present": false
+      },
+      {
+        "line": 54,
+        "text": "特别地，再定义ZG= min(g1、g2),ZD=max(d1、d2)，显然，[ZD，ZG]就是缠中说禅走势中枢的区间，由此有了如下定理：",
+        "within_body": true,
+        "annotation_present": false
+      },
+      {
+        "line": 56,
+        "text": "缠中说禅走势中枢中心定理一：走势中枢的延伸等价于任意区间[dn，gn]与[ZD，ZG]有重叠。换言之，若有Zn，使得dn>ZG或gn<ZD，则必然产生高级别的走势中枢或趋势及延续。（注：3买卖点后中枢移动趋势延续或者3买卖点后中枢扩展成高级别中枢）",
+        "within_body": true,
+        "annotation_present": true
+      },
+      {
+        "line": 58,
+        "text": "缠中说禅走势中枢中心定理二：前后同级别的两个缠中说禅走势中枢，后GG<前DD，等价于下跌及其延续；后DD>前GG等价于上涨及其延续。后ZG<前ZD且后GG>=前DD，或后ZD>前ZG且后DD=<前GG，则等价于形成高级别的走势中枢。",
+        "within_body": true,
+        "annotation_present": false
+      }
+    ]
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/043-第43课.md",
+    "sha256": "f28824c26843e5799ad8f07db6bb9b02956d0fc7ac97d9d3d2fc70a7c3004909",
+    "body_boundary": 52,
+    "lines": [
+      {
+        "line": 14,
+        "text": "（注：小转大的情况在29课已经表达清楚，此处再细化）",
+        "within_body": true,
+        "annotation_present": true
+      },
+      {
+        "line": 34,
+        "text": "这种情况下，是走势已经明显没有相应级别的背驰，例如，一个30分钟的走势类型，明确显示没有出现30分钟的背驰，也就是背驰段最终不成立，但却出现一个1分钟级别的背驰，用一个最简单的形式向上的a+A+b+B+c，A、B是30分钟中枢，在c中出现1分钟背驰，而c对b在30分钟级别并没有出现背驰，这时候并不必然保证c的1分钟转折的最终走势就一定不跌回B里，但即使这个回跌出现，其形式也和第一种情况不同。这第二种情况，必然要先形成一个比1分钟级别要大的中枢，然后向下突破，最终形成回跌到B中的走势。",
+        "within_body": true,
+        "annotation_present": false
+      },
+      {
+        "line": 38,
+        "text": "有人可能要问，第一种情况中如果是5分钟级别的回跌，也会形成一个比1分钟级别大的中枢，那和第二种情况有什么区别？这区别太大了，在第一种情况中，其回跌是必然的，而第二种情况，在形成一个比1分钟大的中枢后，并不必然回跌，可以往上突破，使得a+A+b+B+c继续延伸。(娇：上下中枢的区别）.",
+        "within_body": true,
+        "annotation_present": true
+      },
+      {
+        "line": 48,
+        "text": "不妨还是以上面向上30分钟级别的a+A+b+B+c为例子，在c中出现一个1分钟级别背驰，不妨假设后面演化出一个30分钟中枢C，如果C和B没有任何重叠，那就意味着原来的a+A+b+B+c并不是一个完成了的30分钟走势类型，该走势类型将延伸为a+A+b+B+c+C，相应的分解要等到该走势类型完成了才可以进行；如果C和B有重合，那么a+A+b+B+c+C=a+A+b+（B+c+C），其中（B+c+C）必然演化成(注：纯中枢分解）一个日线中枢，那么a+A+b+B+c只是一个日线级别走势类型的一部分，如果一定要按30分钟级别来进行同级别分解，那么该分解点就是那1分钟的背驰点，a+A+b+B+c+C=（a+A+b+B+c）+C。（注：同级别分解）",
+        "within_body": true,
+        "annotation_present": true
+      }
+    ]
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/061-第61课.md",
+    "sha256": "2451e6d514b37aa5da00ca608a88fb46c8e31fe8859226534be7deb6c1007573",
+    "body_boundary": 56,
+    "lines": [
+      {
+        "line": 26,
+        "text": "要比较力度，发现背驰，首先要搞清楚是哪两段比较，其实，只要是围绕一中枢的两段走势都可以比较力度。显然，对于60-65这个1分钟中枢，55-60与65开始的一段之间就可以比较。在实际操作中，65开始的走势，由于没实际走出来，所以在和55-60比较时，都可以先假设是进入背驰段。而当走势实际走出来，一旦力度大于前者，那么就可以断定背驰段不成立，也就不会出现背驰。在没有证据否定背驰之前，就要观察从65开始的一段其内部结构中的背驰情况，这种方法可以逐次下去，这就是区间套的定位方法，这种方法，可以在当下精确地定位走势的转折点。",
+        "within_body": true,
+        "annotation_present": false
+      },
+      {
+        "line": 28,
+        "text": "对于65开始背驰段的内部走势，当下走到69时，并不构成任何背驰，为什么？因为背驰如果没有创新高，是不存在的。所以，只有等70点出现时，大盘才进入真正的背驰危险区。由于69-70段与67-68段比并没有盘整背驰，所以70点并没有走的理由，除非你是按线段以下级别操作的。而71点，构成对66-69这1分钟中枢的第三类买点。按照本ID的理论，其后无非只有两种情况，中枢级别扩展或者走出新的中枢上移。对后者（走出新的中枢上移），一个最基本的要求就是，从71点这第三类买点开始的向上段不能出现盘整背驰；而在实际中，不难发现，71点开始的走势力度明显比不上69-70段，而对于65-66段，69开始的走势力度也明显比不上，这从两者下面对应的MACD红柱子面积之和可以辅助判断。(娇注：盘背比较先最近同向一段再中枢两头）",
+        "within_body": true,
+        "annotation_present": true
+      }
+    ]
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/chanlun/text/blog/038-第38课.md",
+    "sha256": "983ce94575d61ed645fcc753eb59f9a28e8e749826a30d7bf87f19721baedc7b",
+    "body_boundary": 44,
+    "lines": [
+      {
+        "line": 22,
+        "text": "对于这种同级别分解视角下的操作，永远只针对一个正在完成着的同级别中枢，一旦该中枢完成，就继续关注下一个同级别中枢。注意，在这种同级别的分解中，是不需要中枢延伸或扩展的概念的，对30分钟来说，只要5分钟级别的三段上下上或下上下类型有价格区间的重合就构成中枢。如果这5分钟次级别延伸出（延伸成）6段，那么就当成两个30分钟盘整类型的连接，在这种分解中，是允许盘整+盘整情况的。注意，以前说不允许“盘整+盘整”是在非同级别分解方式下的，这在下面的课中会讲到，所以不要搞混了。",
+        "within_body": true,
+        "annotation_present": false
+      },
+      {
+        "line": 24,
+        "text": "有人可能马上要问，同级别分解的次级别分解是否也是同级别分解的。答案是，不需要。这里在思维上可能很难转过弯，因为一般人都喜欢把一个原则在各级别中统一运用，但实际上，你完全可以采取这样的分解形式，就是只要某级别中进行同级别分解，而继续用中枢扩展、延伸等确定其次级别，这里只涉及一个组合规则的问题，而组合的规则，是为了方便操作以及判断，只要不违反连接的结合律以及分解的唯一性，就是允许的，而问题的关键在于是否明晰且易于操作。",
+        "within_body": true,
+        "annotation_present": false
+      },
+      {
+        "line": 26,
+        "text": "说得深入一点，走势分解、组合的难点在于走势有级别，而高级别的走势是由低级别构成的，处理走势有两种最基本的方法，一种是纯粹按中枢来，一种是纯粹按走势类型来，但更有效的是在不同级别中组合运用。因此，完全合理、不违反任何理论原则的，可以制定出这样的同级别分解规则：在某级别中，不定义中枢延伸，允许该级别上的盘整+盘整连接；与此同时，规定该级别以下的所有级别，都允许中枢延伸，不允许盘整+盘整连接；至于该级别以上级别，根本不考虑，因为所有走势都按该级别给分解了。",
+        "within_body": true,
+        "annotation_present": false
+      }
+    ]
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/adr/0011-operation-decomposition-layer.md",
+    "sha256": "30098873c67878af850e8ff9502fdf69e332343e3576e551bab6768d6eb59860",
+    "body_boundary": null,
+    "lines": [
+      {
+        "line": 55,
+        "text": "### 六、（A）规则不按级别分，按角色分 —— 推断，非原文明文（★本次最承重一条）",
+        "within_body": null,
+        "annotation_present": false
+      },
+      {
+        "line": 56,
+        "text": "",
+        "within_body": null,
+        "annotation_present": false
+      },
+      {
+        "line": 57,
+        "text": "第 38 课的表述是单操作级别视角下的：",
+        "within_body": null,
+        "annotation_present": false
+      },
+      {
+        "line": 58,
+        "text": "",
+        "within_body": null,
+        "annotation_present": false
+      },
+      {
+        "line": 59,
+        "text": "> `038-第38课.md:26`【正文】「可以制定出这样的同级别分解规则：在某级别中，不定义中枢延伸，允许该级别上的盘整+盘整连接；与此同时，规定该级别以下的所有级别，都允许中枢延伸，不允许盘整+盘整连接；至于该级别以上级别，根本不考虑，因为所有走势都按该级别给分解了。」",
+        "within_body": null,
+        "annotation_present": false
+      },
+      {
+        "line": 60,
+        "text": "",
+        "within_body": null,
+        "annotation_present": false
+      },
+      {
+        "line": 61,
+        "text": "多重赋格下同一层会同时既是某个重的天花板、又是更高那个重脚下的中间层，于是露出真正承重的维度：",
+        "within_body": null,
+        "annotation_present": false
+      },
+      {
+        "line": 62,
+        "text": "",
+        "within_body": null,
+        "annotation_present": false
+      },
+      {
+        "line": 63,
+        "text": "- **中间产物**（要拿去往上造）→ **延伸**（把连续震荡吸收成\"一个\"中枢，因为高一级的走势段需要一整块完整震荡区间当构件）",
+        "within_body": null,
+        "annotation_present": false
+      },
+      {
+        "line": 64,
+        "text": "- **最终产物**（要拿去下单）→ **不延伸**（摊成\"好几个\"并排的中枢，因为每一个都是一次买卖机会）",
+        "within_body": null,
+        "annotation_present": false
+      },
+      {
+        "line": 65,
+        "text": "",
+        "within_body": null,
+        "annotation_present": false
+      },
+      {
+        "line": 66,
+        "text": "在只有一个操作级别的世界里，「是不是顶层」与「拿去干什么」重合，所以缠师能用「某级别／以下级别」表述；多重赋格打破这个重合，但底层规则没变，变的是\"谁在消费它\"。",
+        "within_body": null,
+        "annotation_present": false
+      },
+      {
+        "line": 67,
+        "text": "",
+        "within_body": null,
+        "annotation_present": false
+      },
+      {
+        "line": 68,
+        "text": "这条同时保住了总缝规则 [#804](https://github.com/xy7365527-lang/NewChanlun/issues/804)（同一判定每级必须是同一个）：判定没有按级别分叉，是按角色分叉，而角色是数据（这个中枢被谁消费），不是分支。反过来说——若把同级别分解塞进构造层，就必然写出 `if level == operating_level` 这种分支，正踩总缝规则；分成两层是唯一不违规的划法。",
+        "within_body": null,
+        "annotation_present": false
+      },
+      {
+        "line": 69,
+        "text": "",
+        "within_body": null,
+        "annotation_present": false
+      },
+      {
+        "line": 70,
+        "text": "**溯源标注**：「按角色分而非按级别分」是**推断**，不是原文明文，推自 `038:26` 的规则形态 + `038:30` 的多级别并行许可。原文对多区之间的协调是空白（[#832](https://github.com/xy7365527-lang/NewChanlun/issues/832) 已查出「多区之间除两句宣示外，分配规则／协调／仲裁／资金全空白」）。map [#787](https://github.com/xy7365527-lang/NewChanlun/issues/787) 的方法论裁定是「填空靠推断，不靠设计」，本条按推断入账。",
+        "within_body": null,
+        "annotation_present": false
+      }
+    ]
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/beichi.md",
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+    "body_boundary": 204,
+    "lines": [
+      {
+        "line": 263,
+        "text": "**第一层・结构层**：先定比哪两段。",
+        "within_body": false,
+        "annotation_present": false
+      },
+      {
+        "line": 264,
+        "text": "- 趋势背驰 = c 段 vs b 段（031:881【答疑】缠师亲口；第24课的 A 段即此处 b 段，同一对段两种读法）；须满足 037:16-22【正文】五条结构前提（见上「原文谱系·第37课」）。",
+        "within_body": false,
+        "annotation_present": false
+      },
+      {
+        "line": 265,
+        "text": "- 盘整背驰的比较对象（#814 D-3 裁定）：**拿这次冲出中枢的那一段，跟往回最近的一次同方向跨界段比——首次离开时 = 进入段；反复震荡时 = 上一次冲出去的那段。** 只算**跨过中枢边界**的段（进入段、离开段）；中枢内部的震荡段是中枢的构造材料，不参与力度比较。`[新缠论:推论]`——061:26 与 049:38 不是两条规则，是同一条规则的两种情况：「往回最近的同方向跨界段」在首次离开时恰好是进入段，反复震荡时恰好是上次离开段；趋势背驰的 c vs b（031:881【答疑】，见上）也是这条规则（b 是进入最后那个中枢的段），这正解释了缠师为何说盘整背驰是趋势背驰方法的「推广用法」（053:24【正文】）。",
+        "within_body": false,
+        "annotation_present": false
+      },
+      {
+        "line": 266,
+        "text": "  - `061-第61课.md:26`【正文】「要比较力度，发现背驰，首先要搞清楚是哪两段比较，其实，只要是围绕一中枢的两段走势都可以比较力度。显然，对于60-65这个1分钟中枢，55-60与65开始的一段之间就可以比较。」（55-60=进入段，65开始=离开段，两段都在中枢外）",
+        "within_body": false,
+        "annotation_present": false
+      },
+      {
+        "line": 267,
+        "text": "  - `049-第49课.md:38`【正文】「注意，用来比较的某段，最标准的情况，当然是前面最近向下的，一般情况下，中枢震荡都是逐步收敛的，这样，如果继续是中枢震荡，后面的向下离开力度一定比前一个小。」",
+        "within_body": false,
+        "annotation_present": false
+      },
+      {
+        "line": 268,
+        "text": "  - `053-第53课.md:24`【正文】「a+B+c中，a和c的盘整背驰，其实都可以看成是B的中枢震荡」",
+        "within_body": false,
+        "annotation_present": false
+      },
+      {
+        "line": 313,
+        "text": "1. **量的对象是集合**（该段走势覆盖的东西）；**值是一个数**；**没有「不可比」第三态**——要么背驰要么不背驰。",
+        "within_body": false,
+        "annotation_present": false
+      },
+      {
+        "line": 315,
+        "text": "2. **定义域 = 围绕同一中枢的段**，不是任意走势段。依据 `061-第61课.md:26`【正文】「**只要是围绕一中枢的两段走势都可以比较力度**」。加递归穷尽 ⟹ 父 = 进入段 + 中枢 + 离开段，无剩余。",
+        "within_body": false,
+        "annotation_present": false
+      },
+      {
+        "line": 317,
+        "text": "3. **定义在「进行中的段」上，是随时间演化的量**——段一开始就有值、一直在长；背驰 = 当下的 `L(c)` 比已完成的 `L(b)`，**不需等 c 完成**。",
+        "within_body": false,
+        "annotation_present": false
+      },
+      {
+        "line": 318,
+        "text": "   `024-第24课.md:24`「C 段的走势类型**完成时**……构成**标准的**背弛」读作**标准背驰的确认时刻**（数走完最硬），**不是 `L` 的定义域限制**。",
+        "within_body": false,
+        "annotation_present": false
+      },
+      {
+        "line": 319,
+        "text": "4. **★「完成」由背驰定义，归动力学。**",
+        "within_body": false,
+        "annotation_present": false
+      },
+      {
+        "line": 320,
+        "text": "   **成因是一个真循环**：要算背驰须先知段完成 → 「完成」= 不再延续 = 不再产生同向新中枢 → **而这正是背驰要推出的结论**（`NE_q`）。此即 `079-第79课.md:52`（「延伸了就证明这地方没出现背驰」）那个循环的根。",
+        "within_body": false,
+        "annotation_present": false
+      },
+      {
+        "line": 321,
+        "text": "   **裁定把箭头定死**：不是先由形状判出完成再喂给背驰，而是**背驰判出来了就叫完成**。",
+        "within_body": false,
+        "annotation_present": false
+      },
+      {
+        "line": 323,
+        "text": "   **连带订正**：`017-第17课.md:52` 基本原理二方向是「完成 ⟹ 含中枢」，是**必要条件不是判据**（[#866](https://github.com/xy7365527-lang/NewChanlun/issues/866) 已判）——不得当作「完成」的独立判据用。",
+        "within_body": false,
+        "annotation_present": false
+      },
+      {
+        "line": 338,
+        "text": "> **定义：`L(段) = 该段的速度净增量 = v(段末) − v(段初)`；速度在结构给定的最小单元（笔）上量，即「这一笔涨了多少 ÷ 这一笔用了几根 K 线」。**",
+        "within_body": false,
+        "annotation_present": false
+      }
+    ]
+  }
+]

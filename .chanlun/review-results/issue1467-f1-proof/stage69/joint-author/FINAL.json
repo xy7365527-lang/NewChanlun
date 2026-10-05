@@ -1,0 +1,74 @@
+{
+  "status": "author_complete_finite_root_obstruction_independent_math_review_pending",
+  "report": "Report.md",
+  "report_sha256": "065d72a26e93a55b721e481fb08be1d2811ff64146305ca8aa21e31284a30e98",
+  "manifest_sha256": "4ceb2a71d4d3fe690a3a5db4bc2ab72ec315b78c7791727067fea7342c03e915",
+  "workcard_sha256": "70894471ec53fc72fbc5fd38b74b995fb47699bb2552fab5bbbeb71c62b2dcef",
+  "main_script_sha256": "fe23b6a3712807bf0aeaee73993ef00c6296775471e1635332b9c5a5312fdb95",
+  "history": "existing Stage64 H2",
+  "observations": 583,
+  "events": 582,
+  "pens": 144,
+  "raws": 28,
+  "grammar_windows": 78,
+  "filtered_counts": [
+    78,
+    23,
+    7,
+    7,
+    5
+  ],
+  "root": "S1 after fixed S0 prelude",
+  "rooted_nonempty_paths": 0,
+  "rooted_three_child_paths": 0,
+  "internal_numerical_triple": {
+    "path": [
+      4,
+      9,
+      18,
+      27
+    ],
+    "types": [
+      "P",
+      "D",
+      "U"
+    ],
+    "core": [
+      50000,
+      80000
+    ],
+    "known_at": 558,
+    "rooted_admission": false,
+    "missing_root_events": [
+      22,
+      81
+    ],
+    "original_admission": false
+  },
+  "counterfactual_remove_NoPP_rooted_max_factors": 0,
+  "all_prefixes_checked": 583,
+  "stage68_control": {
+    "windows_full_field_equal": 40,
+    "all_path_and_classes_prefixes_equal": 443
+  },
+  "new_histories": 0,
+  "R_W_runs": 0,
+  "main_candidate_runs": 1,
+  "source_semantic_qualification": "unproved",
+  "P1_P4_complete": false,
+  "independent_math_review": "pending",
+  "python_code_review": "finite-domain Approve",
+  "max_rss_bytes": 87523328,
+  "artifact_bytes_before_manifest": 3036861,
+  "input_hashes_unchanged": true,
+  "old_sealed_evidence_preserved": true,
+  "no_changes_to": [
+    "other authors",
+    "old frozen evidence",
+    "repository",
+    "production",
+    "formal",
+    "doctrine",
+    "tracker"
+  ]
+}
