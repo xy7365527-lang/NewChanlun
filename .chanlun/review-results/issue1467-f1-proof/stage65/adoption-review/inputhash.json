@@ -1,0 +1,99 @@
+{
+  "reviewer": "/root/stage65_adoption_review",
+  "scope": "冻结采用修订的聚焦文字合同与事实比较；不重新跑前缀或R_W",
+  "recorded_at": "2026-10-05T16:49:56.415312+00:00",
+  "inputs": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/adoption/ScopeCorrections-v1.md",
+      "sha256": "838213de5bb5ca10d5c3d865cf06ec7e46bc3cb7b2f5e9539e3995a355f576b0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-review/review.md",
+      "sha256": "c0ca97fe579c255392d6dfec57a08d9414b01ade3f710e3ef0c44643037215e9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/lifecycle-review/review.md",
+      "sha256": "9deca0b943039c7089cf9de5365731f18759660f3f1cd28328dcf81a1ba0788f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/Report.md",
+      "sha256": "6818337bf2adcc02f7bf5843ddeeac5b79afd585d6f60077aba5ab79d2bdcf85"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/lifecycle-author/Report.md",
+      "sha256": "ea106629a150fa3957bb87d994485a916ed5b7ff66e7746437db6ad9c4a4fb6d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/lifecycle-author/LiftControl.md",
+      "sha256": "576d158499a4de31f82d58337fc07d4929fbde9499f99d726e244dae0065ee54"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/extraction.json",
+      "sha256": "6c78dbaf4e24291ebd43652686930b6f810da2b2393f0884efd4f76f254309b4"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/extracted.mjs",
+      "sha256": "aacb747a4f6cbd81ccbab4dd04150f1eda073ebb22ff059b9351c1f2d24e8c46"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/original-selected-blocks.mjs",
+      "sha256": "5cfa93ffd1eab34f9553c668b3974f34d7f49e265171239d80a8beb5b257d620"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/extract.mjs",
+      "sha256": "81221bcbe806469d12e75695518b0b5c61bcdcd1f36593edd4f895e66c819c5e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/run/result.json",
+      "sha256": "fc84d1b4083b5c0338afe3c19cddb546c08eb0d00d0614b320983ce4879892c0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/run/timeline.json",
+      "sha256": "fbedca292fe7ff2c288c690a504892d4d57f913eec37c5e6bd5b36f030acf515"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/lifecycle-author/run/result.json",
+      "sha256": "065f92de965a9d5ea5095bcfde06ded1b43e02f19d6dbd4be73eda8aa6287347"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/lifecycle-author/run/polarity-timeline.json",
+      "sha256": "b55adc68cd3a0ff847d48f2777a9ac7a5d33f4823cb9f908d751fda5764bc150"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/lifecycle-author/lift-control/result.json",
+      "sha256": "0e3a1e1adc6c60cc2f6fb93c6fc34cc9100b4450d4713eb886180bbc77390142"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/lifecycle-author/lift-control/timeline.json",
+      "sha256": "871cb82d90b93d5af27541b921d9fcf48bb43e0be7b89be12b9b5cdbf056444e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/lifecycle-author/lift-control.mjs",
+      "sha256": "28c5836bde24c394bd229908f241e5c4fba07f23977a8edf6fc5f3ca8722556f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/lifecycle-author/check.mjs",
+      "sha256": "0ddf4155bbec55c18296d1f0820d0df9868270b0b54b36027f23dd5f2af38b7e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/lifecycle-author/source-bindings.json",
+      "sha256": "4265106b0515724f634b54686a3e887def3b99c071cf8b4f036b4205290506f7"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/v2/check.mjs",
+      "sha256": "eecb3ddbf9c586da989031814535f899d909f22ff2e3d433f78a6b2d61504e5f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/lifecycle-author/lift-control/function-binding.json",
+      "sha256": "50946c519c7d00fd0f5ce52af00856db5ba661c38aa613cbf96ef125eeaf1b72"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/run/scan.json",
+      "sha256": "404f17fb3c5a714f5124886c08d883d8af4ba0377a1b3919d287cddb081bafe9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/lifecycle-author/run/mapping.json",
+      "sha256": "b2f33a047394db317254036c4b4f61c435f79fd186e0d69721640698487f0b01"
+    }
+  ]
+}

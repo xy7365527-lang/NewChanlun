@@ -1,0 +1,52 @@
+[
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/ResearchContract-v1.md",
+    "sha256": "18a55763c6f8fdd08322beec01af37ee89a004789806fa1bf3f533ff61ec5f04",
+    "role": "read-only context; hash captured after reading"
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1470-order-recursion-research-protocol-20261003.md",
+    "sha256": "8ee3e3371fe4757e20b756192db93af03b6550943d8526b9210c55226bbc16d2",
+    "role": "read-only context; hash captured after reading"
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage64DynamicCandidatesAndCausalFrontier.md",
+    "sha256": "3b7a73e44b8562ce471f378cbd5ea8c8abb98185d9948a1ad733aff86758015e",
+    "role": "read-only context; hash captured after reading"
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/Stage62JointInterpretationAndSourceAdjacency-v2.md",
+    "sha256": "2ab0609b287b4f50fb8b870b897ed6fa3d6f16edb48fbb13cda93b225847537f",
+    "role": "read-only context; hash captured after reading"
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/review-results/issue1467-f1-proof/stage64/adoption/ScopeCorrections-v1.md",
+    "sha256": "b5da8a8d96522f0d3c3255aaea6df30e3ef51dfc084dc2c6399b3cd5f2a472e9",
+    "role": "read-only context; hash captured after reading"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-review/review.md",
+    "sha256": "44261d7f58cce104a5f82c19d70ac936237b192f6bab2919c4d28d36ae9ad3b4",
+    "role": "read-only context; hash captured after reading"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/WorkCard.md",
+    "sha256": "3f8511ba0df0daaf059b58aa70b244d9f3b4fdd6e812f6b194f342732ec5defa",
+    "role": "read-only context; hash captured after reading"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/v2/WorkCard.md",
+    "sha256": "de465d69a9a622f56721e8fd2260a43c2c7071fbc21f468f0f59c29e96064132",
+    "role": "read-only context; hash captured after reading"
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/.chanlun/definitions/fenjie.md",
+    "sha256": "a09645ca57627e4dfe1197a9c1872c01e3326ba9387475f9b5378b509b4a9db0",
+    "role": "read-only context; hash captured after reading"
+  },
+  {
+    "path": "/Users/silencehan/.codex/worktrees/order-event-base-research/NewChanlun/docs/adr/0011-operation-decomposition-layer.md",
+    "sha256": "30098873c67878af850e8ff9502fdf69e332343e3576e551bab6768d6eb59860",
+    "role": "read-only context; hash captured after reading"
+  }
+]

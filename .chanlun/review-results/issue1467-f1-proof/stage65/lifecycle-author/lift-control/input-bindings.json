@@ -1,0 +1,18 @@
+[
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/run/source.json",
+    "sha256": "0d0573cc7cf43ec8aeb6e65f7b34070e169bb8ca96ad894ed23a089f3165c0fa"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/run/segments.json",
+    "sha256": "c369f5debc4b31e9f001df0c2339075d507f1dfda9da06128c3afa7c3505ddc3"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/run/scan.json",
+    "sha256": "404f17fb3c5a714f5124886c08d883d8af4ba0377a1b3919d287cddb081bafe9"
+  },
+  {
+    "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/run/reference.stdout",
+    "sha256": "0e410ea2785b60e7d372e9529617a985e8d784fe189c232b83f34cf7e646acb2"
+  }
+]

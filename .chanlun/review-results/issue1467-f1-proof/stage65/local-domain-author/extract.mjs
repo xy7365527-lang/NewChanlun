@@ -1,0 +1,14 @@
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+const O=path.dirname(fileURLToPath(import.meta.url));
+const src='/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/v2/check.mjs';
+const t=fs.readFileSync(src,'utf8');
+const take=(a,b)=>t.slice(t.indexOf(a),t.indexOf(b,t.indexOf(a)));
+const helpers=take('const range=p=>','function certAt');
+const cert=take('function certAt','const segments=[]');
+const scan=take('const force=s=>','assert.deepEqual(objects.map');
+fs.writeFileSync(path.join(O,'extracted.mjs'),`// Exact source blocks extracted by extract.mjs; scoped finite probe only.\nimport assert from 'node:assert/strict';\n${helpers}\nexport function segmentCertificate(ref,prices,s,cut){\n${cert}\nreturn certAt(s,cut);\n}\nexport function localDynScan(segments,ref,prices,observations){\nconst failures=[]; const put=(name,value)=>failures.push({name,value});\n${scan}\nreturn {cores,objects,attempts,failures,cursor};\n}\n`,{flag:'wx'});
+const h=x=>crypto.createHash('sha256').update(x).digest('hex');
+fs.writeFileSync(path.join(O,'extraction.json'),JSON.stringify({source:src,source_sha256:h(t),blocks:[helpers,cert,scan].map((b,i)=>({name:['helpers','certAt','force+scan'][i],start_line:t.slice(0,t.indexOf(b)).split('\n').length,lines:b.split('\n').length-1,sha256:h(b),byte_exact:true})),adapter_changes:['wrap certAt and scan in parameterized exported functions','capture put(scan-failure.json) into returned failures; scan body unchanged','return scan results including cursor','omit all code outside extracted blocks, including H2 construction, cardinality and U/D/U sample assertions, A64-global and fixed F2 diagnosis'],semantic_changes_inside_blocks:[]},null,2)+'\n',{flag:'wx'});

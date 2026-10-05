@@ -1,0 +1,32 @@
+--- /Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/original-selected-blocks.mjs	2026-10-06 00:19:12
++++ /Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/extracted.mjs	2026-10-06 00:14:11
+@@ -1,8 +1,11 @@
++// Exact source blocks extracted by extract.mjs; scoped finite probe only.
++import assert from 'node:assert/strict';
+ const range=p=>[Math.min(p.start_price,p.end_price),Math.max(p.start_price,p.end_price)];
+ const ix=xs=>[Math.max(...xs.map(x=>x[0])),Math.min(...xs.map(x=>x[1]))];
+ const hull=xs=>[Math.min(...xs.map(x=>x[0])),Math.max(...xs.map(x=>x[1]))];
+ const contains=(a,b)=>a[0]<=b[0]&&b[1]<=a[1];
+ 
++export function segmentCertificate(ref,prices,s,cut){
+ function certAt(s,cut){
+  const st=ref.prefixes[cut].stable,begin=5*s,up=s%2===0,mem=st.slice(begin,begin+5);if(mem.length!==5)return null;
+  const feats=st.slice(begin).map((p,j)=>({...p,pen:begin+j,range:range(p)})).filter(p=>p.up!==up);let tri=null;
+@@ -13,6 +16,10 @@
+  return {id:`S${s}`,up,start,end,own:[start+1,end],members:[begin,begin+5],range:whole,known_at:cut,first_selected:tri.map(p=>p.pen),selected_ranges:tri.map(p=>p.range),gap:false,initial_three_core:ic};
+ }
+ 
++return certAt(s,cut);
++}
++export function localDynScan(segments,ref,prices,observations){
++const failures=[]; const put=(name,value)=>failures.push({name,value});
+ const force=s=>{let first=ref.strokes[s.members[0]],last=ref.strokes[s.members[1]-1];let v=p=>(p.end_price-p.start_price)/(observations[p.end].time-observations[p.start].time);return{first_pen:s.members[0],last_pen:s.members[1]-1,first_v:v(first),last_v:v(last),L:v(last)-v(first)};};
+ const cores=[],objects=[],attempts=[];let cursor=0;
+ while(cursor+4<segments.length){const startSeg=cursor,up=segments[cursor].up,ownedCores=[];let cidx=cursor+4,bidx=cursor,localFailure=null;
+@@ -25,3 +32,6 @@
+  }
+  if(localFailure){put('scan-failure.json',localFailure);break;}if(cidx>=segments.length)break;
+ }
++
++return {cores,objects,attempts,failures,cursor};
++}

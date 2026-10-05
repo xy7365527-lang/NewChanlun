@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "diff",
+    "-u",
+    "original-selected-blocks.mjs",
+    "extracted.mjs"
+  ],
+  "exit_code": 1,
+  "meaning": "wrapper differences expected; all selected original blocks preserved byte-for-byte"
+}

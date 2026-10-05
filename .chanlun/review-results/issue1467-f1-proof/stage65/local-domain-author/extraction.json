@@ -1,0 +1,34 @@
+{
+  "source": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage64/dynamic-author/v2/check.mjs",
+  "source_sha256": "eecb3ddbf9c586da989031814535f899d909f22ff2e3d433f78a6b2d61504e5f",
+  "blocks": [
+    {
+      "name": "helpers",
+      "start_line": 31,
+      "lines": 4,
+      "sha256": "c51029ac64882703f5b1fc25665fb5f3f0607073a2484166e02fc69072a4e426",
+      "byte_exact": true
+    },
+    {
+      "name": "certAt",
+      "start_line": 35,
+      "lines": 9,
+      "sha256": "481cae91af45c6c09564d8f090989355b55fc0d13608e4af4ad741b8bd81067e",
+      "byte_exact": true
+    },
+    {
+      "name": "force+scan",
+      "start_line": 48,
+      "lines": 12,
+      "sha256": "ed6ea2879e52ae26d3955f9f067844a548a8db8bece543b95a186b68ea140ff0",
+      "byte_exact": true
+    }
+  ],
+  "adapter_changes": [
+    "wrap certAt and scan in parameterized exported functions",
+    "capture put(scan-failure.json) into returned failures; scan body unchanged",
+    "return scan results including cursor",
+    "omit all code outside extracted blocks, including H2 construction, cardinality and U/D/U sample assertions, A64-global and fixed F2 diagnosis"
+  ],
+  "semantic_changes_inside_blocks": []
+}

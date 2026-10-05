@@ -1,0 +1,26 @@
+{
+  "reviewer": "/root/stage65_adoption_review",
+  "status": "accepted-scoped-adoption",
+  "must_revise": [],
+  "completed_at": "2026-10-05T16:52:07.496498+00:00",
+  "input_hashes_unchanged": true,
+  "input_count": 23,
+  "direct_checks": 21,
+  "additional_check": "lift function-binding 文本逐字及源hash匹配",
+  "execution": "仅Python读文件、SHA256、既存timeline邻界与源码直接比较；未执行作者脚本、R_W、全前缀复算或新生成历史",
+  "write_scope": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/adoption-review",
+  "artifacts": [
+    {
+      "path": "inputhash.json",
+      "sha256": "f5cb84e59edb262c3eca69c6bfc9f745a5f26ce4e689f736d59f557f253a8376"
+    },
+    {
+      "path": "direct-checks.json",
+      "sha256": "786be3a09ce9e4bee4e27de029a4f245898aeb0c2480971c93e50f4cbed5ab12"
+    },
+    {
+      "path": "review.md",
+      "sha256": "00ee7f7c610697415b84bd1bd904febc72bff13f317ebe9410e998fda10afdef"
+    }
+  ]
+}

@@ -1,0 +1,110 @@
+{
+  "scope": "Stage65 lifecycle author, H2 plus parent-authorized frozen lift control",
+  "files": [
+    {
+      "path": "capture-sources.mjs",
+      "bytes": 3206,
+      "sha256": "adb38f85d3cc75683239ad21cdbf8359148ba884571a2e8e976c1fdf426edf82"
+    },
+    {
+      "path": "check.mjs",
+      "bytes": 11964,
+      "sha256": "0ddf4155bbec55c18296d1f0820d0df9868270b0b54b36027f23dd5f2af38b7e"
+    },
+    {
+      "path": "lift-control.mjs",
+      "bytes": 5039,
+      "sha256": "28c5836bde24c394bd229908f241e5c4fba07f23977a8edf6fc5f3ca8722556f"
+    },
+    {
+      "path": "lift-control.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "lift-control.stdout",
+      "bytes": 119,
+      "sha256": "7c0edf047bdd2192c39aab6e0ab3194a4d5e4bba6b89d8430f1ee80ef3a106f3"
+    },
+    {
+      "path": "lift-control/function-binding.json",
+      "bytes": 2311,
+      "sha256": "50946c519c7d00fd0f5ce52af00856db5ba661c38aa613cbf96ef125eeaf1b72"
+    },
+    {
+      "path": "lift-control/input-bindings.json",
+      "bytes": 852,
+      "sha256": "f8e846433784fa30daf4b4e514e914ff3d2e93a1a5913bb4d8da70fcbd2d4304"
+    },
+    {
+      "path": "lift-control/result.json",
+      "bytes": 4264,
+      "sha256": "0e3a1e1adc6c60cc2f6fb93c6fc34cc9100b4450d4713eb886180bbc77390142"
+    },
+    {
+      "path": "lift-control/timeline.json",
+      "bytes": 281219,
+      "sha256": "871cb82d90b93d5af27541b921d9fcf48bb43e0be7b89be12b9b5cdbf056444e"
+    },
+    {
+      "path": "LiftControl.md",
+      "bytes": 4314,
+      "sha256": "576d158499a4de31f82d58337fc07d4929fbde9499f99d726e244dae0065ee54"
+    },
+    {
+      "path": "Report.md",
+      "bytes": 15289,
+      "sha256": "ea106629a150fa3957bb87d994485a916ed5b7ff66e7746437db6ad9c4a4fb6d"
+    },
+    {
+      "path": "run-check.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "run-check.stdout",
+      "bytes": 207,
+      "sha256": "6bb97cffb96f81de2445c2913ea5e1de7cce653e246ad063410dffa2ae485754"
+    },
+    {
+      "path": "run/first-failures.json",
+      "bytes": 1749,
+      "sha256": "eeb177ca0f2dd9e2181be3741e881b5937862ee5a725d052901ac2fbc43580ff"
+    },
+    {
+      "path": "run/input-bindings.json",
+      "bytes": 846,
+      "sha256": "42bdc265081277802cc56a27769eeed9e7cfef82c9122c56e17fc719994bc36a"
+    },
+    {
+      "path": "run/mapping.json",
+      "bytes": 10278,
+      "sha256": "b2f33a047394db317254036c4b4f61c435f79fd186e0d69721640698487f0b01"
+    },
+    {
+      "path": "run/polarity-timeline.json",
+      "bytes": 693014,
+      "sha256": "b55adc68cd3a0ff847d48f2777a9ac7a5d33f4823cb9f908d751fda5764bc150"
+    },
+    {
+      "path": "run/result.json",
+      "bytes": 2044,
+      "sha256": "065f92de965a9d5ea5095bcfde06ded1b43e02f19d6dbd4be73eda8aa6287347"
+    },
+    {
+      "path": "source-bindings.json",
+      "bytes": 1562,
+      "sha256": "4265106b0515724f634b54686a3e887def3b99c071cf8b4f036b4205290506f7"
+    },
+    {
+      "path": "source-evidence.json",
+      "bytes": 83420,
+      "sha256": "61332c1e9773b39db0b709b04433058caf4c19f1e0751a79fa851b239d32ae7c"
+    },
+    {
+      "path": "WorkCard.md",
+      "bytes": 1406,
+      "sha256": "10b86ee903ac0ad325ad7bcaa52cf918799b7929d7db821699f56c0c81ae686f"
+    }
+  ]
+}

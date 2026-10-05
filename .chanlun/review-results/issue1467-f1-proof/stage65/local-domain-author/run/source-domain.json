@@ -1,0 +1,25 @@
+{
+  "pass": true,
+  "observations": 343,
+  "events": 342,
+  "old_price_bounds": [
+    20000,
+    36400
+  ],
+  "new_price_bounds": [
+    40000,
+    72800
+  ],
+  "denominator_bounds": [
+    224,
+    880
+  ],
+  "ask_lcm_matches_H2": true,
+  "initial_support_matches_H2": true,
+  "adds": 173,
+  "cancels": 169,
+  "all_positive_exact_integers": true,
+  "all_cancels_strictly_less_than_queue": true,
+  "all_times_and_indices_preserved": true,
+  "venue_quantity_limit_assumed": false
+}

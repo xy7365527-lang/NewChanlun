@@ -1,0 +1,125 @@
+{
+  "candidate": "LocalDyn64-minus-A64",
+  "result": "declared-NoPP-contract-refuted",
+  "counts": {
+    "observations": 343,
+    "events": 342,
+    "strokes": 84,
+    "segments": 16,
+    "pending_segments": 1,
+    "local_candidates": 3,
+    "local_P": 3,
+    "original_completed_certified": 0
+  },
+  "objects": [
+    {
+      "id": "X0",
+      "type": "P",
+      "own": [
+        2,
+        101
+      ],
+      "whole": [
+        40000,
+        72000
+      ],
+      "cores": [
+        "K0"
+      ],
+      "Lb": 1000,
+      "Lc": -500,
+      "happened": 101,
+      "known": 118
+    },
+    {
+      "id": "X1",
+      "type": "P",
+      "own": [
+        102,
+        201
+      ],
+      "whole": [
+        62000,
+        72000
+      ],
+      "cores": [
+        "K1"
+      ],
+      "Lb": -1100,
+      "Lc": -1200,
+      "happened": 201,
+      "known": 218
+    },
+    {
+      "id": "X2",
+      "type": "P",
+      "own": [
+        202,
+        301
+      ],
+      "whole": [
+        60000,
+        72800
+      ],
+      "cores": [
+        "K2"
+      ],
+      "Lb": 100,
+      "Lc": -200,
+      "happened": 301,
+      "known": 318
+    }
+  ],
+  "expression": {
+    "id": "delta-c0-LocalDyn64-direct",
+    "items": [
+      "X0",
+      "X1",
+      "X2"
+    ],
+    "preserves_own_and_independent_identity": true,
+    "adjacent": [
+      {
+        "left": "X0",
+        "right": "X1",
+        "own_contiguous": true,
+        "independent_items_in_declared_expression": true,
+        "both_P": true,
+        "first_known_at": 218
+      },
+      {
+        "left": "X1",
+        "right": "X2",
+        "own_contiguous": true,
+        "independent_items_in_declared_expression": true,
+        "both_P": true,
+        "first_known_at": 318
+      }
+    ],
+    "noPP": false
+  },
+  "first_failure": {
+    "left": "X0",
+    "right": "X1",
+    "own_contiguous": true,
+    "independent_items_in_declared_expression": true,
+    "both_P": true,
+    "first_known_at": 218
+  },
+  "ownership": {
+    "left_support": [
+      1,
+      1
+    ],
+    "candidate_window": [
+      2,
+      301
+    ],
+    "active_tail": [
+      302,
+      342
+    ],
+    "confirmation_support_owned_by_successor": true
+  },
+  "scope": "Only this fixed-domain LocalDyn64 direct-expression NoPP contract; no original Completed/F2/all-F1 impossibility assertion"
+}

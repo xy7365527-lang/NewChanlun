@@ -1,0 +1,23 @@
+[
+  {
+    "id": "X0",
+    "happened_at": 101,
+    "known_at": 118,
+    "b_c_stable": true,
+    "owned_cores_known": true
+  },
+  {
+    "id": "X1",
+    "happened_at": 201,
+    "known_at": 218,
+    "b_c_stable": true,
+    "owned_cores_known": true
+  },
+  {
+    "id": "X2",
+    "happened_at": 301,
+    "known_at": 318,
+    "b_c_stable": true,
+    "owned_cores_known": true
+  }
+]

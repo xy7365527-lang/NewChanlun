@@ -1,0 +1,22 @@
+{
+  "status": "ACCEPT_BOUNDED_RESULTS_WITH_R1_WORDING_CORRECTION",
+  "author_manifest_sha256": "549d4f1f3ffbe816cdfedbf447a80a325d1a4f8b836ac32ee023f924552aec18",
+  "report_sha256": "ea106629a150fa3957bb87d994485a916ed5b7ff66e7746437db6ad9c4a4fb6d",
+  "lift_control_sha256": "576d158499a4de31f82d58337fc07d4929fbde9499f99d726e244dae0065ee54",
+  "review_sha256": "9deca0b943039c7089cf9de5365731f18759660f3f1cd28328dcf81a1ba0788f",
+  "independent_script_sha256": "48a0f0fb88be961eddad16359202028d034e8aec761ff6512e37e101ce93fc38",
+  "independent_results_sha256": "8a21ec6793c6b3f51655a2ec111f67af80c0a7ed416a30f9a96d76b8687f7eda",
+  "inputhash_sha256": "dbf6fbdec60e4c5964955c7458e083a8fbe77c30853fd13d60f3332af12fb642",
+  "author_inputs_unchanged": true,
+  "author_replay_assertions": [
+    4292,
+    2085
+  ],
+  "independent_assertions": 7320,
+  "independent_timeline_records": 926,
+  "histories": 2,
+  "new_histories": 0,
+  "parser_invocations": 0,
+  "mandatory_revision": "R1: domain guard failure throws instead of returning not-applicable",
+  "source_semantics_certified": false
+}

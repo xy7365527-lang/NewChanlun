@@ -1,0 +1,89 @@
+{
+  "method": "源码与冻结结果的直接检查；未执行作者脚本、R_W或全前缀重算",
+  "checks": [
+    {
+      "check": "Stage64抽取源hash",
+      "pass": true
+    },
+    {
+      "check": "helpers逐字抽取",
+      "pass": true
+    },
+    {
+      "check": "certAt逐字抽取",
+      "pass": true
+    },
+    {
+      "check": "force+scan逐字抽取",
+      "pass": true
+    },
+    {
+      "check": "外围NoPP断言未抽取",
+      "pass": true
+    },
+    {
+      "check": "check失败抛异常",
+      "pass": true
+    },
+    {
+      "check": "M65-pol的四项域守卫走check",
+      "pass": true
+    },
+    {
+      "check": "M65-pol原函数hash",
+      "pass": true
+    },
+    {
+      "check": "X0于118首发布",
+      "pass": true
+    },
+    {
+      "check": "218首次均已发布",
+      "pass": true
+    },
+    {
+      "check": "318第二对均已发布",
+      "pass": true
+    },
+    {
+      "check": "H2首关闭邻界",
+      "pass": true
+    },
+    {
+      "check": "H2次关闭邻界",
+      "pass": true
+    },
+    {
+      "check": "H2第三组开放",
+      "pass": true
+    },
+    {
+      "check": "lift首关闭邻界",
+      "pass": true
+    },
+    {
+      "check": "lift次关闭邻界",
+      "pass": true
+    },
+    {
+      "check": "lift第三组开放",
+      "pass": true
+    },
+    {
+      "check": "K2材料越界",
+      "pass": true
+    },
+    {
+      "check": "共享窗口仅K2/K4双计",
+      "pass": true
+    },
+    {
+      "check": "目录由旧扫描结果继承",
+      "pass": true
+    },
+    {
+      "check": "冻结输入结束时未变",
+      "pass": true
+    }
+  ]
+}

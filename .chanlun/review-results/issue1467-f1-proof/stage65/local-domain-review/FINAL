@@ -1,0 +1,18 @@
+{
+  "status": "ACCEPT_SCOPED_WITH_NONBLOCKING_TEXT_CORRECTION",
+  "review_sha256": "c0ca97fe579c255392d6dfec57a08d9414b01ade3f710e3ef0c44643037215e9",
+  "manifest_sha256": "5f9eb44b6f5c796be05346128901facc82ee5adbe4a1ccf92c8a4cbd2c0da147",
+  "sha256sums_sha256": "57052c9cb87cb6bd698fb0f4e14fa1ca7dfdd73644fa782ae0ba01aa95ae7f90",
+  "first_noPP_conflict": 218,
+  "publication_times": [
+    118,
+    218,
+    318
+  ],
+  "original_completed": 0,
+  "correction": "Report.md:39 同时发布 → 首次均已发布",
+  "checks_exit_codes": [
+    0,
+    0
+  ]
+}

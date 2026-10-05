@@ -1,0 +1,20 @@
+{
+  "pass": true,
+  "mode": "post-parse frozen objects only; no old R_W rerun",
+  "cores": 6,
+  "objects": 3,
+  "attempts": 6,
+  "compared_fields": [
+    "all cores fields",
+    "all objects fields",
+    "all attempts fields",
+    "no scan failures"
+  ],
+  "not_compared": [
+    "old source generation",
+    "old parser execution",
+    "old A64-global",
+    "old parent diagnostic",
+    "arbitrary inputs"
+  ]
+}

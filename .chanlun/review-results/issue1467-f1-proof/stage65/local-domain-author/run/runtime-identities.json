@@ -1,0 +1,13 @@
+{
+  "node": "v22.23.1",
+  "dependencies": [
+    {
+      "path": "/tmp/nc1467-cargo-target/debug/deps/libnewchan_rust.rlib",
+      "sha256": "663835a8e945d621428ef4fe0fb4198eb865a431dc89d7517996aa61ed197a39"
+    },
+    {
+      "path": "/tmp/nc1467-cargo-target/debug/deps/libserde_json-d8aa09aa6d50fe2e.rlib",
+      "sha256": "749252887bad46820322854e23d159bdbee8952f932ea4f696f352617ea71394"
+    }
+  ]
+}

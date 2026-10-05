@@ -1,0 +1,302 @@
+{
+  "stage": 65,
+  "issue": 1467,
+  "map": 1465,
+  "status": "scoped finite claims reviewed; full F1/F2 not certified",
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/Stage65DomainAndLifecycleObstructions.md",
+      "bytes": 5069,
+      "sha256": "761fa6ec06fe9a25ca64e080e45663f50a0afe0c19ee1017281de41b28b6df3e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/DeliveryStatus-v1.md",
+      "bytes": 570,
+      "sha256": "4295687c923364bf53a4ade3724bda312f284ab5b174cbafc3180b0088be2b63"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/adoption-review/direct-checks.json",
+      "bytes": 1636,
+      "sha256": "786be3a09ce9e4bee4e27de029a4f245898aeb0c2480971c93e50f4cbed5ab12"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/adoption-review/inputhash.json",
+      "bytes": 5239,
+      "sha256": "f5cb84e59edb262c3eca69c6bfc9f745a5f26ce4e689f736d59f557f253a8376"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/adoption-review/receipt.json",
+      "bytes": 985,
+      "sha256": "22ffd718679b1d5a75f4603468f21545460f062354b12f1eb4de639873424445"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/adoption-review/review.md",
+      "bytes": 4957,
+      "sha256": "00ee7f7c610697415b84bd1bd904febc72bff13f317ebe9410e998fda10afdef"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/adoption/ScopeCorrections-v1.md",
+      "bytes": 2648,
+      "sha256": "838213de5bb5ca10d5c3d865cf06ec7e46bc3cb7b2f5e9539e3995a355f576b0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/copy-manifest-v1.json",
+      "bytes": 15046,
+      "sha256": "6ab4ff6ef55f24f2538044f0368de9e26633ad745aae2574a196c40649759177"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/lifecycle-author/FINAL.json",
+      "bytes": 452,
+      "sha256": "2189412d2b4c52cfbf1301e9aec6ea2a9d97028188eca0a4ca55a4693c3cd02b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/lifecycle-author/LiftControl.md",
+      "bytes": 4314,
+      "sha256": "576d158499a4de31f82d58337fc07d4929fbde9499f99d726e244dae0065ee54"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/lifecycle-author/Report.md",
+      "bytes": 15289,
+      "sha256": "ea106629a150fa3957bb87d994485a916ed5b7ff66e7746437db6ad9c4a4fb6d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/lifecycle-author/WorkCard.md",
+      "bytes": 1406,
+      "sha256": "10b86ee903ac0ad325ad7bcaa52cf918799b7929d7db821699f56c0c81ae686f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/lifecycle-author/capture-sources.mjs",
+      "bytes": 3206,
+      "sha256": "adb38f85d3cc75683239ad21cdbf8359148ba884571a2e8e976c1fdf426edf82"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/lifecycle-author/check.mjs",
+      "bytes": 11964,
+      "sha256": "0ddf4155bbec55c18296d1f0820d0df9868270b0b54b36027f23dd5f2af38b7e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/lifecycle-author/lift-control.mjs",
+      "bytes": 5039,
+      "sha256": "28c5836bde24c394bd229908f241e5c4fba07f23977a8edf6fc5f3ca8722556f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/lifecycle-author/lift-control/function-binding.json",
+      "bytes": 2311,
+      "sha256": "50946c519c7d00fd0f5ce52af00856db5ba661c38aa613cbf96ef125eeaf1b72"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/lifecycle-author/lift-control/input-bindings.json",
+      "bytes": 852,
+      "sha256": "f8e846433784fa30daf4b4e514e914ff3d2e93a1a5913bb4d8da70fcbd2d4304"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/lifecycle-author/lift-control/result.json",
+      "bytes": 4264,
+      "sha256": "0e3a1e1adc6c60cc2f6fb93c6fc34cc9100b4450d4713eb886180bbc77390142"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/lifecycle-author/manifest.json",
+      "bytes": 3346,
+      "sha256": "549d4f1f3ffbe816cdfedbf447a80a325d1a4f8b836ac32ee023f924552aec18"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/lifecycle-author/run/first-failures.json",
+      "bytes": 1749,
+      "sha256": "eeb177ca0f2dd9e2181be3741e881b5937862ee5a725d052901ac2fbc43580ff"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/lifecycle-author/run/input-bindings.json",
+      "bytes": 846,
+      "sha256": "42bdc265081277802cc56a27769eeed9e7cfef82c9122c56e17fc719994bc36a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/lifecycle-author/run/mapping.json",
+      "bytes": 10278,
+      "sha256": "b2f33a047394db317254036c4b4f61c435f79fd186e0d69721640698487f0b01"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/lifecycle-author/run/result.json",
+      "bytes": 2044,
+      "sha256": "065f92de965a9d5ea5095bcfde06ded1b43e02f19d6dbd4be73eda8aa6287347"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/lifecycle-author/source-bindings.json",
+      "bytes": 1562,
+      "sha256": "4265106b0515724f634b54686a3e887def3b99c071cf8b4f036b4205290506f7"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/lifecycle-author/source-evidence.json",
+      "bytes": 83420,
+      "sha256": "61332c1e9773b39db0b709b04433058caf4c19f1e0751a79fa851b239d32ae7c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/lifecycle-review/receipt.json",
+      "bytes": 1085,
+      "sha256": "e75c254a2e6633e482194027efe58eb0811e6808105324ae00750719ea23f98f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/lifecycle-review/review.md",
+      "bytes": 9086,
+      "sha256": "9deca0b943039c7089cf9de5365731f18759660f3f1cd28328dcf81a1ba0788f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/FINAL",
+      "bytes": 342,
+      "sha256": "8231f397c0eebf34f3f9c9a967dbf30a4ad7f7b05a545ae1daa1298e949f0631"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/Report.md",
+      "bytes": 8992,
+      "sha256": "6818337bf2adcc02f7bf5843ddeeac5b79afd585d6f60077aba5ab79d2bdcf85"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/SHA256SUMS",
+      "bytes": 3105,
+      "sha256": "963bd55080952ee54ea79bbede03b7dcde34f0e8f775ad8927c3f05c914ecff8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/WorkCard.md",
+      "bytes": 2310,
+      "sha256": "f8457411643bf837f26fe50c495cd0181983ab4641756125e279114584eef45d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/author-check.receipt.json",
+      "bytes": 543,
+      "sha256": "5d0f86dfe947a7285b42dbed6bfdfc14cac246a453b13176c992a61ab32264a3"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/check.mjs",
+      "bytes": 10847,
+      "sha256": "c252eadf433d054a166fa65c324c6143ca8559b850bd944737c4fec771828270"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/context-input-hashes.json",
+      "bytes": 2958,
+      "sha256": "61a934074d55433f6da6abf4272a437abc29ceba3a6a48dc1b72bd571130b137"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/diff.receipt.json",
+      "bytes": 215,
+      "sha256": "e6c3071eeb28a391f8da01882f6e12be5e0ec189b6ed6f0aec8ce5d90e5207ad"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/extract.mjs",
+      "bytes": 1815,
+      "sha256": "81221bcbe806469d12e75695518b0b5c61bcdcd1f36593edd4f895e66c819c5e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/extracted.mjs",
+      "bytes": 4238,
+      "sha256": "aacb747a4f6cbd81ccbab4dd04150f1eda073ebb22ff059b9351c1f2d24e8c46"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/extraction.diff",
+      "bytes": 2055,
+      "sha256": "08e91eeb6a7dddb524441f069e251cb860592c7bf943c57b3e8f4106b9665f77"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/extraction.json",
+      "bytes": 1197,
+      "sha256": "6c78dbaf4e24291ebd43652686930b6f810da2b2393f0884efd4f76f254309b4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/manifest.json",
+      "bytes": 5490,
+      "sha256": "3a8b909f0f75b0d8e116b020751c97e59c013429101b6fa08cafe93da13de4ff"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/original-selected-blocks.mjs",
+      "bytes": 3856,
+      "sha256": "5cfa93ffd1eab34f9553c668b3974f34d7f49e265171239d80a8beb5b257d620"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/reference_probe.rs",
+      "bytes": 1726,
+      "sha256": "b56671fbc4e3cbb463698196575f7bab3a4d74278a66febeaae1179e06639a38"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/run/affine-reference-control.json",
+      "bytes": 197,
+      "sha256": "84d5027cc947b09fce7c625eed6d61371c94058ecda50884510b1deabf6615ff"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/run/compile.receipt.json",
+      "bytes": 852,
+      "sha256": "763b4ea92845089ce9c523ee1e31ace2186ff296449b4175ffee21be27dd68b9"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/run/h2-extraction-control.json",
+      "bytes": 412,
+      "sha256": "a3281e1388fe775d4c8a5a5b39874f365ec4cce1d8f2570df71a0d95857976de"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/run/publication-causality.json",
+      "bytes": 375,
+      "sha256": "3f43e0552367e6a18f001410edb745e16c1ebaabec3e4c36afb7d988118a81bd"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/run/reference.receipt.json",
+      "bytes": 320,
+      "sha256": "b0d369576924a8bb8d03f4e9f58e704712599b9f499e9ce3a291f1a3f516df78"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/run/result.json",
+      "bytes": 2306,
+      "sha256": "fc84d1b4083b5c0338afe3c19cddb546c08eb0d00d0614b320983ce4879892c0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/run/runtime-identities.json",
+      "bytes": 404,
+      "sha256": "54133fe5905a62903c3b5712183fa88314dc58d0f6f9606827cbc30f1b2205ab"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/run/scan.json",
+      "bytes": 6757,
+      "sha256": "404f17fb3c5a714f5124886c08d883d8af4ba0377a1b3919d287cddb081bafe9"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-author/run/source-domain.json",
+      "bytes": 479,
+      "sha256": "1373d5ea4cb83cc2c308135467e5a71d47c8169482b4b1c346931aa20f3fb744"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-review/FINAL",
+      "bytes": 556,
+      "sha256": "9f3c46630aed983003db2c0a62d735e0d5787feabd10de166ec6fb0bd5d7b8a0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1467-f1-proof/stage65/local-domain-review/review.md",
+      "bytes": 9743,
+      "sha256": "c0ca97fe579c255392d6dfec57a08d9414b01ade3f710e3ef0c44643037215e9"
+    }
+  ],
+  "external": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/manifest.json",
+      "sha256": "3a8b909f0f75b0d8e116b020751c97e59c013429101b6fa08cafe93da13de4ff"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/SHA256SUMS",
+      "sha256": "963bd55080952ee54ea79bbede03b7dcde34f0e8f775ad8927c3f05c914ecff8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-review/FINAL",
+      "sha256": "9f3c46630aed983003db2c0a62d735e0d5787feabd10de166ec6fb0bd5d7b8a0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/lifecycle-author/manifest.json",
+      "sha256": "549d4f1f3ffbe816cdfedbf447a80a325d1a4f8b836ac32ee023f924552aec18"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/lifecycle-review/receipt.json",
+      "sha256": "e75c254a2e6633e482194027efe58eb0811e6808105324ae00750719ea23f98f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/adoption-review/receipt.json",
+      "sha256": "22ffd718679b1d5a75f4603468f21545460f062354b12f1eb4de639873424445"
+    }
+  ],
+  "formal_changed": false,
+  "production_changed": false,
+  "goal_status": "active"
+}

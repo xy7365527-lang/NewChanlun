@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "node",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/check.mjs",
+    "/Users/silencehan/Documents/Codex/research-evidence/issue1467/stage65/local-domain-author/run"
+  ],
+  "tool_session_id": 74047,
+  "observed_exit_code": 0,
+  "recorded_after_execution_at": "2026-10-05T16:19:12.221Z",
+  "provenance": "author transcription of host exec/write_stdin result; not independent timestamp witness",
+  "unique_lift_histories_executed": 1,
+  "old_history_reference_invocations": 0
+}

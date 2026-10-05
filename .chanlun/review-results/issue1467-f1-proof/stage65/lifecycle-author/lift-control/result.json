@@ -1,0 +1,258 @@
+{
+  "observations": 343,
+  "prefixes": 343,
+  "segments": 16,
+  "kernels": 3,
+  "assertions": 2085,
+  "ruleChanged": false,
+  "newHistoryGenerated": false,
+  "parserExecuted": false,
+  "kernelInputs": [
+    {
+      "id": "K0",
+      "members": [
+        "S1",
+        "S2",
+        "S3"
+      ],
+      "memberOwn": [
+        22,
+        81
+      ],
+      "core": [
+        50000,
+        60000
+      ],
+      "outer": [
+        48000,
+        64000
+      ],
+      "seedHappenedAt": 81,
+      "knownAt": 98,
+      "polarity": "U",
+      "pattern": "DUD"
+    },
+    {
+      "id": "K1",
+      "members": [
+        "S6",
+        "S7",
+        "S8"
+      ],
+      "memberOwn": [
+        122,
+        181
+      ],
+      "core": [
+        66000,
+        68800
+      ],
+      "outer": [
+        64000,
+        70000
+      ],
+      "seedHappenedAt": 181,
+      "knownAt": 198,
+      "polarity": "D",
+      "pattern": "UDU"
+    },
+    {
+      "id": "K2",
+      "members": [
+        "S11",
+        "S12",
+        "S13"
+      ],
+      "memberOwn": [
+        222,
+        281
+      ],
+      "core": [
+        60800,
+        64000
+      ],
+      "outer": [
+        60000,
+        65600
+      ],
+      "seedHappenedAt": 281,
+      "knownAt": 298,
+      "polarity": "U",
+      "pattern": "DUD"
+    }
+  ],
+  "final": {
+    "cut": 342,
+    "blocks": [
+      {
+        "id": "Y0",
+        "polarity": "U",
+        "cores": [
+          "K0"
+        ],
+        "start": 1,
+        "withinMoveNext": [],
+        "type": "P",
+        "end": 101,
+        "own": [
+          2,
+          101
+        ],
+        "closedKnownAt": 198,
+        "bridge": [
+          "S4",
+          "S5"
+        ]
+      },
+      {
+        "id": "Y1",
+        "polarity": "D",
+        "cores": [
+          "K1"
+        ],
+        "start": 101,
+        "withinMoveNext": [],
+        "type": "P",
+        "end": 201,
+        "own": [
+          102,
+          201
+        ],
+        "closedKnownAt": 298,
+        "bridge": [
+          "S9",
+          "S10"
+        ]
+      },
+      {
+        "id": "Y2",
+        "polarity": "U",
+        "cores": [
+          "K2"
+        ],
+        "start": 201,
+        "withinMoveNext": [],
+        "type": "P",
+        "end": null,
+        "buffer": [
+          202,
+          342
+        ]
+      }
+    ],
+    "closed": [
+      {
+        "id": "Y0",
+        "start": 1,
+        "end": 101,
+        "own": [
+          2,
+          101
+        ],
+        "cores": [
+          "K0"
+        ],
+        "type": "P",
+        "knownAt": 198,
+        "bridge": [
+          "S4",
+          "S5"
+        ]
+      },
+      {
+        "id": "Y1",
+        "start": 101,
+        "end": 201,
+        "own": [
+          102,
+          201
+        ],
+        "cores": [
+          "K1"
+        ],
+        "type": "P",
+        "knownAt": 298,
+        "bridge": [
+          "S9",
+          "S10"
+        ]
+      }
+    ],
+    "owner": [
+      {
+        "kernel": "K0",
+        "owner": "Y0"
+      },
+      {
+        "kernel": "K1",
+        "owner": "Y1"
+      },
+      {
+        "kernel": "K2",
+        "owner": "Y2"
+      }
+    ],
+    "sourceNext": [
+      {
+        "from": "Y0",
+        "to": "Y1",
+        "cut": 101,
+        "knownAt": 198
+      },
+      {
+        "from": "Y1",
+        "to": "Y2",
+        "cut": 201,
+        "knownAt": 298
+      }
+    ],
+    "buffer": [
+      202,
+      342
+    ]
+  },
+  "sourceBindingsAreConditional": true,
+  "firstNoPPFailure": {
+    "knownAt": 298,
+    "left": {
+      "id": "Y0",
+      "start": 1,
+      "end": 101,
+      "own": [
+        2,
+        101
+      ],
+      "cores": [
+        "K0"
+      ],
+      "type": "P",
+      "knownAt": 198,
+      "bridge": [
+        "S4",
+        "S5"
+      ]
+    },
+    "right": {
+      "id": "Y1",
+      "start": 101,
+      "end": 201,
+      "own": [
+        102,
+        201
+      ],
+      "cores": [
+        "K1"
+      ],
+      "type": "P",
+      "knownAt": 298,
+      "bridge": [
+        "S9",
+        "S10"
+      ]
+    },
+    "ownContiguous": true,
+    "expression": "delta-pol-independent-closed=[Y0,Y1,...]",
+    "preserveIndependentItems": true
+  },
+  "scope": "NoPP refutes this unchanged M65-pol rule plus independent closed-item expression on the already frozen lift; not all F1 or all P/P combinations"
+}

@@ -1,0 +1,626 @@
+{
+  "method": "M65-pol-v1",
+  "kernels": [
+    {
+      "id": "K0",
+      "members": [
+        "S1",
+        "S2",
+        "S3"
+      ],
+      "memberOwn": [
+        22,
+        81
+      ],
+      "core": [
+        50000,
+        60000
+      ],
+      "outer": [
+        48000,
+        64000
+      ],
+      "seedHappenedAt": 81,
+      "knownAt": 98,
+      "polarity": "U",
+      "pattern": "DUD"
+    },
+    {
+      "id": "K1",
+      "members": [
+        "S5",
+        "S6",
+        "S7"
+      ],
+      "memberOwn": [
+        102,
+        161
+      ],
+      "core": [
+        68800,
+        71200
+      ],
+      "outer": [
+        68000,
+        72000
+      ],
+      "seedHappenedAt": 161,
+      "knownAt": 178,
+      "polarity": "U",
+      "pattern": "DUD"
+    },
+    {
+      "id": "K2",
+      "members": [
+        "S10",
+        "S11",
+        "S12"
+      ],
+      "memberOwn": [
+        202,
+        261
+      ],
+      "core": [
+        76800,
+        78800
+      ],
+      "outer": [
+        76000,
+        79200
+      ],
+      "seedHappenedAt": 261,
+      "knownAt": 278,
+      "polarity": "D",
+      "pattern": "UDU"
+    },
+    {
+      "id": "K3",
+      "members": [
+        "S14",
+        "S15",
+        "S16"
+      ],
+      "memberOwn": [
+        282,
+        341
+      ],
+      "core": [
+        59200,
+        61200
+      ],
+      "outer": [
+        58000,
+        62000
+      ],
+      "seedHappenedAt": 341,
+      "knownAt": 358,
+      "polarity": "D",
+      "pattern": "UDU"
+    },
+    {
+      "id": "K4",
+      "members": [
+        "S19",
+        "S20",
+        "S21"
+      ],
+      "memberOwn": [
+        382,
+        441
+      ],
+      "core": [
+        40800,
+        44000
+      ],
+      "outer": [
+        40000,
+        46000
+      ],
+      "seedHappenedAt": 441,
+      "knownAt": 458,
+      "polarity": "U",
+      "pattern": "DUD"
+    },
+    {
+      "id": "K5",
+      "members": [
+        "S23",
+        "S24",
+        "S25"
+      ],
+      "memberOwn": [
+        462,
+        521
+      ],
+      "core": [
+        64800,
+        67200
+      ],
+      "outer": [
+        64000,
+        68000
+      ],
+      "seedHappenedAt": 521,
+      "knownAt": 538,
+      "polarity": "U",
+      "pattern": "DUD"
+    }
+  ],
+  "catalog": [
+    {
+      "from": "K0",
+      "to": "K1",
+      "direction": "U",
+      "knownAt": 178
+    },
+    {
+      "from": "K1",
+      "to": "K2",
+      "direction": "U",
+      "knownAt": 278
+    },
+    {
+      "from": "K2",
+      "to": "K3",
+      "direction": "D",
+      "knownAt": 358
+    },
+    {
+      "from": "K3",
+      "to": "K4",
+      "direction": "D",
+      "knownAt": 458
+    },
+    {
+      "from": "K4",
+      "to": "K5",
+      "direction": "U",
+      "knownAt": 538
+    }
+  ],
+  "polarity": {
+    "cut": 582,
+    "blocks": [
+      {
+        "id": "Y0",
+        "polarity": "U",
+        "cores": [
+          "K0",
+          "K1"
+        ],
+        "start": 1,
+        "withinMoveNext": [
+          [
+            "K0",
+            "K1"
+          ]
+        ],
+        "type": "U",
+        "end": 181,
+        "own": [
+          2,
+          181
+        ],
+        "closedKnownAt": 278,
+        "bridge": [
+          "S8",
+          "S9"
+        ]
+      },
+      {
+        "id": "Y1",
+        "polarity": "D",
+        "cores": [
+          "K2",
+          "K3"
+        ],
+        "start": 181,
+        "withinMoveNext": [
+          [
+            "K2",
+            "K3"
+          ]
+        ],
+        "type": "D",
+        "end": 361,
+        "own": [
+          182,
+          361
+        ],
+        "closedKnownAt": 458,
+        "bridge": [
+          "S17",
+          "S18"
+        ]
+      },
+      {
+        "id": "Y2",
+        "polarity": "U",
+        "cores": [
+          "K4",
+          "K5"
+        ],
+        "start": 361,
+        "withinMoveNext": [
+          [
+            "K4",
+            "K5"
+          ]
+        ],
+        "type": "U",
+        "end": null,
+        "buffer": [
+          362,
+          582
+        ]
+      }
+    ],
+    "closed": [
+      {
+        "id": "Y0",
+        "start": 1,
+        "end": 181,
+        "own": [
+          2,
+          181
+        ],
+        "cores": [
+          "K0",
+          "K1"
+        ],
+        "type": "U",
+        "knownAt": 278,
+        "bridge": [
+          "S8",
+          "S9"
+        ]
+      },
+      {
+        "id": "Y1",
+        "start": 181,
+        "end": 361,
+        "own": [
+          182,
+          361
+        ],
+        "cores": [
+          "K2",
+          "K3"
+        ],
+        "type": "D",
+        "knownAt": 458,
+        "bridge": [
+          "S17",
+          "S18"
+        ]
+      }
+    ],
+    "owner": [
+      {
+        "kernel": "K0",
+        "owner": "Y0"
+      },
+      {
+        "kernel": "K1",
+        "owner": "Y0"
+      },
+      {
+        "kernel": "K2",
+        "owner": "Y1"
+      },
+      {
+        "kernel": "K3",
+        "owner": "Y1"
+      },
+      {
+        "kernel": "K4",
+        "owner": "Y2"
+      },
+      {
+        "kernel": "K5",
+        "owner": "Y2"
+      }
+    ],
+    "sourceNext": [
+      {
+        "from": "Y0",
+        "to": "Y1",
+        "cut": 181,
+        "knownAt": 278
+      },
+      {
+        "from": "Y1",
+        "to": "Y2",
+        "cut": 361,
+        "knownAt": 458
+      }
+    ],
+    "buffer": [
+      362,
+      582
+    ]
+  },
+  "forceResets": [
+    {
+      "start": 1,
+      "b": "S4",
+      "c": "S8",
+      "cores": [
+        "K0",
+        "K1"
+      ],
+      "Lb": 200,
+      "Lc": 50,
+      "weak": true,
+      "extreme": true,
+      "end": 181,
+      "knownAt": 198,
+      "accept": true,
+      "semanticDivCertified": false,
+      "id": "X0",
+      "own": [
+        2,
+        181
+      ]
+    },
+    {
+      "start": 181,
+      "b": "S13",
+      "c": "S17",
+      "cores": [
+        "K2",
+        "K3"
+      ],
+      "Lb": 150,
+      "Lc": -300,
+      "weak": true,
+      "extreme": true,
+      "end": 361,
+      "knownAt": 378,
+      "accept": true,
+      "semanticDivCertified": false,
+      "id": "X1",
+      "own": [
+        182,
+        361
+      ]
+    },
+    {
+      "start": 361,
+      "b": "S22",
+      "c": "S26",
+      "cores": [
+        "K4",
+        "K5"
+      ],
+      "Lb": 200,
+      "Lc": 50,
+      "weak": true,
+      "extreme": true,
+      "end": 541,
+      "knownAt": 558,
+      "accept": true,
+      "semanticDivCertified": false,
+      "id": "X2",
+      "own": [
+        362,
+        541
+      ]
+    }
+  ],
+  "forceComparisons": [
+    {
+      "start": 1,
+      "b": "S0",
+      "c": "S4",
+      "cores": [
+        "K0"
+      ],
+      "Lb": 100,
+      "Lc": 200,
+      "weak": false,
+      "extreme": true,
+      "end": 101,
+      "knownAt": 118,
+      "accept": false,
+      "semanticDivCertified": false
+    },
+    {
+      "start": 1,
+      "b": "S4",
+      "c": "S8",
+      "cores": [
+        "K0",
+        "K1"
+      ],
+      "Lb": 200,
+      "Lc": 50,
+      "weak": true,
+      "extreme": true,
+      "end": 181,
+      "knownAt": 198,
+      "accept": true,
+      "semanticDivCertified": false
+    },
+    {
+      "start": 181,
+      "b": "S9",
+      "c": "S13",
+      "cores": [
+        "K2"
+      ],
+      "Lb": -100,
+      "Lc": 150,
+      "weak": false,
+      "extreme": true,
+      "end": 281,
+      "knownAt": 298,
+      "accept": false,
+      "semanticDivCertified": false
+    },
+    {
+      "start": 181,
+      "b": "S13",
+      "c": "S17",
+      "cores": [
+        "K2",
+        "K3"
+      ],
+      "Lb": 150,
+      "Lc": -300,
+      "weak": true,
+      "extreme": true,
+      "end": 361,
+      "knownAt": 378,
+      "accept": true,
+      "semanticDivCertified": false
+    },
+    {
+      "start": 361,
+      "b": "S18",
+      "c": "S22",
+      "cores": [
+        "K4"
+      ],
+      "Lb": 100,
+      "Lc": 200,
+      "weak": false,
+      "extreme": true,
+      "end": 461,
+      "knownAt": 478,
+      "accept": false,
+      "semanticDivCertified": false
+    },
+    {
+      "start": 361,
+      "b": "S22",
+      "c": "S26",
+      "cores": [
+        "K4",
+        "K5"
+      ],
+      "Lb": 200,
+      "Lc": 50,
+      "weak": true,
+      "extreme": true,
+      "end": 541,
+      "knownAt": 558,
+      "accept": true,
+      "semanticDivCertified": false
+    }
+  ],
+  "finiteNE": [
+    {
+      "candidate": "X0",
+      "polarityOwner": "Y0",
+      "tau": 181,
+      "observedThrough": 582,
+      "ownedFutureKernels": [],
+      "completeFutureQuantification": false,
+      "semanticOwnerCertified": false,
+      "sourceBoundaryAvailableAtForcePublication": false,
+      "sourceClosureAt": 278
+    },
+    {
+      "candidate": "X1",
+      "polarityOwner": "Y1",
+      "tau": 361,
+      "observedThrough": 582,
+      "ownedFutureKernels": [],
+      "completeFutureQuantification": false,
+      "semanticOwnerCertified": false,
+      "sourceBoundaryAvailableAtForcePublication": false,
+      "sourceClosureAt": 458
+    },
+    {
+      "candidate": "X2",
+      "polarityOwner": "Y2",
+      "tau": 541,
+      "observedThrough": 582,
+      "ownedFutureKernels": [],
+      "completeFutureQuantification": false,
+      "semanticOwnerCertified": false,
+      "sourceBoundaryAvailableAtForcePublication": false,
+      "sourceClosureAt": null
+    }
+  ],
+  "monotone": [
+    {
+      "id": "M0",
+      "direction": "U",
+      "cores": [
+        "K0",
+        "K1",
+        "K2"
+      ]
+    },
+    {
+      "id": "M1",
+      "direction": "D",
+      "cores": [
+        "K3",
+        "K4"
+      ]
+    },
+    {
+      "id": "M2",
+      "direction": null,
+      "cores": [
+        "K5"
+      ]
+    }
+  ],
+  "sharedTurn": {
+    "runs": [
+      {
+        "id": "O0",
+        "cores": [
+          "K0",
+          "K1",
+          "K2"
+        ]
+      },
+      {
+        "id": "O1",
+        "cores": [
+          "K2",
+          "K3",
+          "K4"
+        ]
+      },
+      {
+        "id": "O2",
+        "cores": [
+          "K4",
+          "K5"
+        ]
+      }
+    ],
+    "doubleOwnership": [
+      {
+        "kernel": "K2",
+        "owners": [
+          "O0",
+          "O1"
+        ],
+        "material": [
+          202,
+          261
+        ]
+      },
+      {
+        "kernel": "K4",
+        "owners": [
+          "O1",
+          "O2"
+        ],
+        "material": [
+          382,
+          441
+        ]
+      }
+    ]
+  },
+  "noOriginalCompletionCertified": true,
+  "noOriginalF2TripleCertified": true
+}

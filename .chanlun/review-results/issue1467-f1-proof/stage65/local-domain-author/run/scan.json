@@ -1,0 +1,346 @@
+{
+  "cores": [
+    {
+      "id": "K0",
+      "grade": 0,
+      "members": [
+        "S1",
+        "S2",
+        "S3"
+      ],
+      "member_own": [
+        22,
+        81
+      ],
+      "core": [
+        50000,
+        60000
+      ],
+      "initial_outer": [
+        48000,
+        64000
+      ],
+      "seed_happened_at": 81,
+      "known_at": 98,
+      "lifecycle": "seed_frozen; successor relation checked separately"
+    },
+    {
+      "id": "K1",
+      "grade": 0,
+      "members": [
+        "S6",
+        "S7",
+        "S8"
+      ],
+      "member_own": [
+        122,
+        181
+      ],
+      "core": [
+        66000,
+        68800
+      ],
+      "initial_outer": [
+        64000,
+        70000
+      ],
+      "seed_happened_at": 181,
+      "known_at": 198,
+      "lifecycle": "seed_frozen; successor relation checked separately"
+    },
+    {
+      "id": "K2",
+      "grade": 0,
+      "members": [
+        "S11",
+        "S12",
+        "S13"
+      ],
+      "member_own": [
+        222,
+        281
+      ],
+      "core": [
+        60800,
+        64000
+      ],
+      "initial_outer": [
+        60000,
+        65600
+      ],
+      "seed_happened_at": 281,
+      "known_at": 298,
+      "lifecycle": "seed_frozen; successor relation checked separately"
+    }
+  ],
+  "objects": [
+    {
+      "id": "X0",
+      "grade": 0,
+      "type": "P",
+      "technical_direction": "Up",
+      "start": 1,
+      "end": 101,
+      "own": [
+        2,
+        101
+      ],
+      "whole_range": [
+        40000,
+        72000
+      ],
+      "members": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4"
+      ],
+      "cores": [
+        "K0"
+      ],
+      "general_div": {
+        "object_index": 0,
+        "cores": [
+          "K0"
+        ],
+        "b": "S0",
+        "c": "S4",
+        "b_force": {
+          "first_pen": 0,
+          "last_pen": 4,
+          "first_v": 2000,
+          "last_v": 3000,
+          "L": 1000
+        },
+        "c_force": {
+          "first_pen": 20,
+          "last_pen": 24,
+          "first_v": 1000,
+          "last_v": 500,
+          "L": -500
+        },
+        "strict_weakening": true,
+        "strict_extreme": true,
+        "prior_extreme": 64000,
+        "endpoint": 72000,
+        "GeneralDiv64": true,
+        "happened_at": 101,
+        "known_at": 118
+      },
+      "completed": true,
+      "completion_status": "candidate interpretation only",
+      "original_completed_certified": false,
+      "source_next_start": 101
+    },
+    {
+      "id": "X1",
+      "grade": 0,
+      "type": "P",
+      "technical_direction": "Down",
+      "start": 101,
+      "end": 201,
+      "own": [
+        102,
+        201
+      ],
+      "whole_range": [
+        62000,
+        72000
+      ],
+      "members": [
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9"
+      ],
+      "cores": [
+        "K1"
+      ],
+      "general_div": {
+        "object_index": 1,
+        "cores": [
+          "K1"
+        ],
+        "b": "S5",
+        "c": "S9",
+        "b_force": {
+          "first_pen": 25,
+          "last_pen": 29,
+          "first_v": -400,
+          "last_v": -1500,
+          "L": -1100
+        },
+        "c_force": {
+          "first_pen": 45,
+          "last_pen": 49,
+          "first_v": -200,
+          "last_v": -1400,
+          "L": -1200
+        },
+        "strict_weakening": true,
+        "strict_extreme": true,
+        "prior_extreme": 64000,
+        "endpoint": 62000,
+        "GeneralDiv64": true,
+        "happened_at": 201,
+        "known_at": 218
+      },
+      "completed": true,
+      "completion_status": "candidate interpretation only",
+      "original_completed_certified": false,
+      "source_next_start": 201
+    },
+    {
+      "id": "X2",
+      "grade": 0,
+      "type": "P",
+      "technical_direction": "Up",
+      "start": 201,
+      "end": 301,
+      "own": [
+        202,
+        301
+      ],
+      "whole_range": [
+        60000,
+        72800
+      ],
+      "members": [
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14"
+      ],
+      "cores": [
+        "K2"
+      ],
+      "general_div": {
+        "object_index": 2,
+        "cores": [
+          "K2"
+        ],
+        "b": "S10",
+        "c": "S14",
+        "b_force": {
+          "first_pen": 50,
+          "last_pen": 54,
+          "first_v": 400,
+          "last_v": 500,
+          "L": 100
+        },
+        "c_force": {
+          "first_pen": 70,
+          "last_pen": 74,
+          "first_v": 400,
+          "last_v": 200,
+          "L": -200
+        },
+        "strict_weakening": true,
+        "strict_extreme": true,
+        "prior_extreme": 65600,
+        "endpoint": 72800,
+        "GeneralDiv64": true,
+        "happened_at": 301,
+        "known_at": 318
+      },
+      "completed": true,
+      "completion_status": "candidate interpretation only",
+      "original_completed_certified": false,
+      "source_next_start": 301
+    }
+  ],
+  "attempts": [
+    {
+      "object_index": 0,
+      "cores": [
+        "K0"
+      ],
+      "b": "S0",
+      "c": "S4",
+      "b_force": {
+        "first_pen": 0,
+        "last_pen": 4,
+        "first_v": 2000,
+        "last_v": 3000,
+        "L": 1000
+      },
+      "c_force": {
+        "first_pen": 20,
+        "last_pen": 24,
+        "first_v": 1000,
+        "last_v": 500,
+        "L": -500
+      },
+      "strict_weakening": true,
+      "strict_extreme": true,
+      "prior_extreme": 64000,
+      "endpoint": 72000,
+      "GeneralDiv64": true,
+      "happened_at": 101,
+      "known_at": 118
+    },
+    {
+      "object_index": 1,
+      "cores": [
+        "K1"
+      ],
+      "b": "S5",
+      "c": "S9",
+      "b_force": {
+        "first_pen": 25,
+        "last_pen": 29,
+        "first_v": -400,
+        "last_v": -1500,
+        "L": -1100
+      },
+      "c_force": {
+        "first_pen": 45,
+        "last_pen": 49,
+        "first_v": -200,
+        "last_v": -1400,
+        "L": -1200
+      },
+      "strict_weakening": true,
+      "strict_extreme": true,
+      "prior_extreme": 64000,
+      "endpoint": 62000,
+      "GeneralDiv64": true,
+      "happened_at": 201,
+      "known_at": 218
+    },
+    {
+      "object_index": 2,
+      "cores": [
+        "K2"
+      ],
+      "b": "S10",
+      "c": "S14",
+      "b_force": {
+        "first_pen": 50,
+        "last_pen": 54,
+        "first_v": 400,
+        "last_v": 500,
+        "L": 100
+      },
+      "c_force": {
+        "first_pen": 70,
+        "last_pen": 74,
+        "first_v": 400,
+        "last_v": 200,
+        "L": -200
+      },
+      "strict_weakening": true,
+      "strict_extreme": true,
+      "prior_extreme": 65600,
+      "endpoint": 72800,
+      "GeneralDiv64": true,
+      "happened_at": 301,
+      "known_at": 318
+    }
+  ],
+  "failures": [],
+  "cursor": 15
+}

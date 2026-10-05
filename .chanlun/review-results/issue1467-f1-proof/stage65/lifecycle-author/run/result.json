@@ -1,0 +1,92 @@
+{
+  "observations": 583,
+  "segments": 28,
+  "kernels": 6,
+  "prefixesChecked": 583,
+  "assertions": 4292,
+  "rawParserExecuted": false,
+  "newHistories": 0,
+  "forceResetEnds": [
+    [
+      181,
+      198
+    ],
+    [
+      361,
+      378
+    ],
+    [
+      541,
+      558
+    ]
+  ],
+  "polarityClosed": [
+    [
+      181,
+      278
+    ],
+    [
+      361,
+      458
+    ]
+  ],
+  "polarityOpen": "Y2",
+  "finiteSameOwnerNEChecks": 3,
+  "semanticNECertified": false,
+  "semanticF1Certified": false,
+  "semanticF2Triples": 0,
+  "primaryCounterexample": {
+    "id": "M65-mono-certificate-transport",
+    "firstKnownAt": 278,
+    "contract": "Transport X0 completed record unchanged to M0, with every owned nucleus member event contained in its Whole Own",
+    "owner": {
+      "id": "M0",
+      "direction": "U",
+      "cores": [
+        "K0",
+        "K1",
+        "K2"
+      ]
+    },
+    "transportedEnd": 181,
+    "transportedOwn": [
+      2,
+      181
+    ],
+    "escapingKernel": "K2",
+    "escapingMaterial": [
+      202,
+      261
+    ],
+    "firstEscapingEvent": 202,
+    "impossibleInequality": "261 <= 181",
+    "minimumMaterialCoveringEnd": 261,
+    "inheritedCertificateC": "S8",
+    "inheritedCertificateEndpoint": 181,
+    "endpointsBeforeFirstUnownedKernel": [
+      {
+        "u": 261,
+        "price": 78800,
+        "priorObservedHigh": 80000,
+        "certCMatches": false
+      },
+      {
+        "u": 281,
+        "price": 58000,
+        "priorObservedHigh": 80000,
+        "certCMatches": false
+      }
+    ],
+    "scope": "Refutes this certificate-preserving transport, not all monotone lifecycle models or all F1"
+  },
+  "timingCounterexample": {
+    "id": "M65-pol-early-publication",
+    "firstKnownAt": 198,
+    "contract": "M65-pol closure certificate exists when the first force-reset is published",
+    "claimedCandidate": "X0",
+    "forcePublishedAt": 198,
+    "polarityClosureAt": 278,
+    "closedAt198": [],
+    "scope": "False for this concrete closure algorithm; does not disprove a semantic end at 181"
+  }
+}
