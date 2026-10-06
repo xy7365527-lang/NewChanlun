@@ -1,0 +1,35 @@
+{
+  "schema": "manual-json-recovery/1",
+  "original_wrapper_status": "failed",
+  "reason": "final_message_invalid_json",
+  "original_raw_sha256": "3b288630881a973e1b085733d666c8e0f3e8cb9615b28a2fe748e7f96e73572d",
+  "format_only_replacement": {
+    "before": "]|\",\"validation\":",
+    "after": "],\"validation\":",
+    "occurrences": 1
+  },
+  "review": {
+    "status": "completed",
+    "summary": "独立只读复核完成（HEAD 5eeaba4ae1，工作树干净；origin/main=6f99b36c64）。产品 diff 实范围 24 个路径：parser 四文件（stroke.rs 重写 + mod/inclusion/profile）、S 侧 tb02b 持久投影与 s_structure_session 接线、Python/JS 公共合同与浏览器，其余为进仓的测试夹具与三个验收驱动；.chanlun/agent-roster 一行名分。\n\n结论：CHANGES_REQUIRED。算法侧在既定无同价竞争域内未发现新业务偏离（端点坐标/组锚与实际极值根分工、同型 EQ 不择早、异型失败不回退旧笔、确认证书与 confirms 关系、历史插入换代、浏览器合同等逐项看代码与证据均自洽）；但产品差异里带回一处真实运行面回归（逐 bar 增量入口整段重建，见 F1），且关票手续缺两份可复现工具与报告实体入仓。\n\n票面五项验收在既定域内均有实际证据支撑（见 findings 第 1 条逐项），唯一未覆盖位是本域结构性不可达的第三位假象（不是缺口）。",
+    "findings": [
+      "【验收逐项】①无同价竞争域的成功限：R/independent-suite-r2/INDEPENDENT-COMPARISON.json 状态 PASS_BOUNDED_17_TRACES_82_PREFIXES（17 轨迹 / 164 arm-prefix / 476 公开候选，errors 空），两 arm 全 17 条 core_sha256 逐条相等；support 路径为独立 oracle sha 0450031d…（驱动内固定，ORACLE_SHA256=tb02b_independent_harness.py:42 与 oracle_sha256 一致），非空输入来自 orbundle 声明的 TestOnly 具名 OHLC。②merged/raw 分列取证：ORACLE.md 与 hand-oracle.json 在各案分别给出 merged_gap 与 raw_between（gap2_raw3=[f,t,t]、gap3_raw2=[t,f,t]），比较器独立核算三条件与全部失败位（compare-independent-suite.cjs 内声明不导入产品 reducer）。③同型身份与不回退：extend_top/keep_top/tie_top 覆盖 REPLACE/KEEP/UNDETERMINED，raw_root_tie + 镜像覆盖“同一极值两根”保留两候选并拒成笔；strict-higher/weaker 轨迹在 prefix9 出现 constructible_not_candidate [[6,7]] 且 selected_bis 保持未构造。④正式会话与浏览器：tb02b_runtime.py 走正式 launcher/HTTP，tb02b_browser.cjs 断言 pageerror 空 + 逐轴对象文本 + Viewport 截图 + HAR，AsKnown/Current 双态有 initial-as-known.json 与生命周期断言。⑤独立 oracle + 双新进程重放 + 持久边界恢复：34 次正常采集、8 次真实 SIGKILL（release-r3-faults-20260914/RESULT.json：4 个事务点各两 arm，core_sha256 逐点相等、difference 全为 null）。唯一未覆盖位是本域结构性不可达的第三位假象（不是缺口）。",
+      "【F1 · 必须处置 · 逐 bar 增量入口整段重建，写入 #93 性能护栏】位置 rust/src/theta_v0/parser/mod.rs:197-211（append_incr_layer 只保留 incr_strokes.raw.push(bar) 后 process_inclusion_with_facts(&incr_strokes.raw) 全量重算）+ stroke.rs:372-380（IncrStrokes::append 同样每次 raw.to_vec() 全量 build_strokes）+ 调用面 classifier/streaming.rs:101-112（OwnedIncrementalClassifier 生产流式路径）。影响：原 #93 把 inclusion 增量到 O(1)/bar、fractal/stroke 增量到 O(尾部)；此 diff 把包含、分型、成笔、段划分、尾构造全部按整前缀重跑，每 bar O(i) ⟹ n bar O(n²)（含 always-run 的 bit_exact_parse_layer_incr_per_bar_synthetic 1500 bar，逐 bar 期望成笔的用例已异型化 1500 次全量 parse）；incr_inclusion/incr_fractals/incr_segments 仍被旧调用合同保存并被 let _ 丢弃，成为死增量机制。最小修法（二选一，必须留证）：(a) 让增量入口真正增量——包含/分型/成笔各步保留前缀证书并把“双坐标 + 实际极值根”作为续算输入（本票已产出 StrokeFacts，可作证书载体）；(b) 若不打算本叶内解决，则把 #93 复杂度声明与旧 cache 合同显式下线并留下具名性能门（大样本 append_bar 的 scaling 实测或上限阈值），不能只靠 profile_rs 的 eprintln 观测（它不带断言，无门即无锁，照 #799 裁定十一）。注意本项是性能/契约回归，不是算法正确性缺陷：功能对拍 34 次与故障 8 次均通过。",
+      "【F2 · 应入仓 · 独立对拍/故障可复现工具缺两份】仓内已有 tb02b_independent_harness.py（负责采集）与各 runtime 驱动，但实际产生“17 轨迹逐字节对拍结论”的 compare-independent-suite.cjs 与产生“4 事务点 SIGKILL 结论”的 run-faults-r2.py 只在 R 下（bundle 的 artifacts_sha256 有它们的哈希），git ls-tree HEAD 无此二文件（本复核实测 TRACKED/MISSING）。影响：关票后他人无法在仓内复现该二结论，与 delivery-discipline.md 第 6 子句（报告实体须入 git、仅写路径不算入仓）冲突。最小修法：按独立产物的既有命名（.chanlun/review-results/issue1392-…/{reports|tools}/）把两份工具 + 一份绑定 sha 的 RESULT/MANIFEST 入仓，并在 harness 文档串里注明对应关系；不要把 R 下大 JSONL/截图/HAR 塞进仓（EVIDENCE 体积不受此条约束）。",
+      "【F3 · 关票手续 · 缺项清单（阻断项非算法缺陷）】按 docs/agents/delivery-discipline.md 关票门逐条对：② 未并入 main（HEAD 5eeaba4ae1 在 codex/1392-tb02b，HEAD 落后 origin/main 且无合并路径；bundle 自载 main_merged=false）；⑥ 本票验收报告实体（R/TB02B-VERIFIED-BUNDLE.json、TB02B-ACCEPTANCE-NOTES.md、independent-suite-r2/INDEPENDENT-COMPARISON.json、release-r3-faults-20260914/RESULT.json）未入仓、仍在绝对路径外；改 CI 把关目录须附 origin/main SHA + 一条对应 CI run 链接（暂无）；⑤ 工位（含 codex/1392-controller 与 /Users/silencehan/Projects/NewChanlun-1392-controller）尚未见清理登记；⑦ 评审面未覆盖整 diff：现有 independent_reviews 三项为组件级（confirmation_control_flow PBB、python_runtime_cleanup、original_writer_fencing_vs_receipt），不等于 origin/main..HEAD 整 diff 的独立评审，本条正是本报告回答的问题——在本轮（组件级 + 本工位只读复核）之外，整 diff 的独立评审结论仍不存在，不得据历史审查直接断言整 diff 合格。",
+      "【已核无偏离项（避免重复探索，随报告交付边界一起声明）】端点实际根/组锚与下游坐标：Stroke 现在用 group_anchor，与 ParseLayer.fractals 及 anchor_resolver(fractal_at_source+merged_group_anchor) 同域，实际极值根只供 raw_position/raw_between 与追溯；stroke.rs:599 起的测试锁定 D 案例（顶组锚 5、根 6，resolve(6) 必须为 None）。候选与同型选择：pair() 三位条件全部计算、formed() 要求三位为真且无 waiting；EQ→UNDETERMINED 两候选保留，CHANGES 路径无“取更早”旧口径。确认前缀/纠错代际：tb02b.rs 只在缺证时贴当前 witness、已作证书沿用首次获知；withdrawn/换代由 fact_basis + raw:identity@revision 计数。公开对象关系/浏览器合同：新增 7 类 kind 双侧白名单、slot 逐类核型、relation 查询按 object_id ∪ entity_id 过滤；test_tb01c_browser.cjs 新增覆盖“s-new-bi/1 slot 例外不放宽其他整数”。旧 writer 协议：恢复后先 fence、按原消息四元身份查 Committed，属现役协议，本报告不要求改写原消息。"
+    ],
+    "validation": [
+      "固定基线核对：git rev-parse HEAD=5eeaba4ae19ee6cfe038ee4e25eb61fa41779a0f，git status --porcelain 为空；git merge-base origin/main HEAD=6f99b36c64e0560febdb08e5d1f8e781d2af9299（== origin/main），diff 为 24 路径 / +4629-628（含 4 个补丁 commit 范围）。",
+      "证据复核（脚本提取，不打印大 JSONL）：INDEPENDENT-COMPARISON.json status/counts 字段与 17×2 core_sha256 逐字比对各 trace 集合大小为 1（无失配），errors=[]，vector 计数 {111:44,101:4,011:4,001:36}，same_kind 条目 26，constructible_not_candidate 出现于 strict 系列 prefix9；release-r3-faults/RESULT.json 4 case×2 arm 全 exit=0、difference=null、哈希逐点相等。",
+      "产品代码定点阅读（每处只读必要段）：parser/stroke.rs（build_stroke_facts/pair/BiFact::stroke 及新增测试）、parser/mod.rs:149-230、parser/profile.rs:196-285（含 always-run bit-exact 测试仍逐 bar 全量 parse）、classifier/projection.rs:34-42、bin/s_session_v2/tb02b.rs 全文、tb02a_facts.rs catalog_axes 变更、s_tb02_contract.py validate_bi_payload、s_query_integrity.py 两处 axis 分支、browser/index.html+tb01c-client.js 新笔合同、tests/tb02b_verify.py/tb02b_browser.cjs/test_tb02b_contract.py。",
+      "入仓清单核对：git cat-file -e HEAD:<path> 于 tb02b_verify.py / tb02b_runtime.py / tb02b_harness.py / tb02b_independent_harness.py / tb02b_browser.cjs / test_tb02b_contract.py / fixtures/tb02b/{ORACLE.md,hand-oracle.json,raw-ledger.json} 全部 TRACKED；compare-independent-suite.cjs、run-faults-r2.py、R 下 bundle/ACCEPTANCE-NOTES/INDEPENDENT-COMPARISON/release-r3 RESULT 未入仓。",
+      "未执行项（如实声明）：本轮 read-only 沙箱不允许写文件/编译（写入 ${TMPDIR} 实测 operation not permitted），故未运行 cargo test / release binary / 真实 S-Q-Chromium 重放，也未做性能实测；F1 的量级结论来自代码路径与既有 always-run 测试形状的静态判定，落地前需在可写工位补一次大样本 append_bar scaling 实测或显式性能门。其余未验面沿用证据自带 not_covered：同价未定域及全部市场输入、S-4 跨实现等价、完整 #1392 关票与 #1323 总图（本叶按边界不解决 #1405 与整图）。",
+      "验收/交付边界声明：本结论只在“TB02-A 已定方向且无端点/极值同价竞争、原始次序追加、无历史插入（除另开事实代际的修订路径）”的既定域内成立；不把 001/011/101/111 之外的同型/异型对扩成产品发布义务，不要求 prefix13 不确认或 14 为唯一确认点，不涉及同价竞争 #1405、跨族 S-4 与整图 #1323。F2/F3 是交付手续问题，已按“报告未入仓/未合 main”如实表述，不冒充算法缺陷；封包与整 diff 独立评审由根统一执行，本报告不新增尾部小报告。"
+    ]
+  },
+  "root_qualifications": [
+    "原文关于第三位false不可达未附证明，根不采用；有限Oracle明确不作全域不可达声明。",
+    "git实测origin/main为HEAD祖先，不能采用原文HEAD落后origin/main这一句；当前是4个未合入提交，25个差异路径。",
+    "F1性能问题待量测/真增量修复；F2/F3由根统一封包，尚未合main。"
+  ]
+}

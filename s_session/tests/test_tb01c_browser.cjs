@@ -165,6 +165,13 @@ async function run() {
     const client = new API.Client({fetch: server.fetch, hooks: makeHooks(), limits: {pageSize: TEST_PAGE_SIZE}, onCommit: (c, e) => commits.push({c, e})});
     await client.load(discovery); return {client, server, commits};
   }
+  await test('新笔逻辑slot与见证整数slot分别核型且不放宽其他整数', async () => {
+    const {context} = htmlContext({TB01C: API});
+    context.validateExactRecords([{slot:'0'}, {payload:{schema_revision:'s-new-bi/1',slot:'TB-02-B'}}]);
+    for (const slot of ['TB-02-B', '01', 0, -1])
+      assert.throws(() => context.validateExactRecords([{slot}]), /精确整数/);
+    assert.throws(() => context.validateExactRecords([{payload:{schema_revision:'s-new-bi/1',slot:'TB-02-B',data:{merged_index:0}}}]), /精确整数/);
+  });
   await test('完整多页只原子安装一次，记录与精确cursor同提交', async () => {
     const {client, commits, server} = await setup(); assert(client.committed.pages > 1); assert.equal(commits.length, 1);
     assert.deepEqual(copy(client.committed.projection), projection(f.a3, 'RecomputedWithRevision'));

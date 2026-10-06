@@ -1,0 +1,59 @@
+{
+  "ticket": 1392,
+  "items": [
+    {
+      "path": "incremental/VERIFICATION.json",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/INCREMENTAL-REPAIR-VERIFICATION.json",
+      "sha256": "0e4553593d9a606de865a802b4b59ec4fb6aad965bff071045232fa17ff214c6",
+      "bytes": 5396
+    },
+    {
+      "path": "incremental/SCALING.json",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/append-scaling-incremental/RESULT.json",
+      "sha256": "58bff055a324b24ad60d3986e59a62d7163bc7e5d2792f7a6bb9b47ef0b33e33",
+      "bytes": 3022
+    },
+    {
+      "path": "incremental/FULL-COMPARISON.json",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/append-scaling-incremental/FULL-COMPARISON.json",
+      "sha256": "6d75998c5f167515d0790f8dc1c5c537f59631d2b84c00d9bdded9e60b50e0b1",
+      "bytes": 318
+    },
+    {
+      "path": "incremental/PARSER-REGRESSION.log",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/incremental-parser-regression.log",
+      "sha256": "fa9b2a29328aa59e30886b50b391a8c02c273d9147a378cc003a8b477efdd62f",
+      "bytes": 31622
+    },
+    {
+      "path": "incremental/APPEND-PROBE.rs",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/append-scaling-incremental/src/main.rs",
+      "sha256": "e125046703c18be448b5d887e454293d85861f0c9adf60e4e7300e03286da7ec",
+      "bytes": 1183
+    },
+    {
+      "path": "incremental/CLASSIFICATION-COMPARE.rs",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/append-scaling-incremental/src/bin/compare.rs",
+      "sha256": "46c67146f329946cf4272d73c569adf8a52748412c828cfbe7ef2af443bd9bf1",
+      "bytes": 1702
+    },
+    {
+      "path": "current/INDEPENDENT-COMPARISON.json",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/delivery-independent-suite/INDEPENDENT-COMPARISON.json",
+      "sha256": "601d9cd5b0c9991de6e09a649dd06895decb4d935842a237488e1660e7ff7b94",
+      "bytes": 51182
+    },
+    {
+      "path": "current/NORMAL-CAPTURE-RESULT.json",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/delivery-independent-suite/RESULT.json",
+      "sha256": "f6572bb0aaf93c39384967477d2d36427e77aee9547629a9c71f2b8e3b6db10c",
+      "bytes": 13441
+    },
+    {
+      "path": "current/FAULT-RESULT.json",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/delivery-faults/RESULT.json",
+      "sha256": "b0645ff430ce25f7fc593ff4943849f86ddcde52a682de603f0875251664c282",
+      "bytes": 2216
+    }
+  ]
+}

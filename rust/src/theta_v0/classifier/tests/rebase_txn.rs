@@ -3,6 +3,21 @@
 use super::super::*;
 use super::fixtures::*;
 
+// #1392：构造证书的测试需要实际产出笔/段；显式细化合成价格，消除同价身份未定。
+// 原严格价序保留、原同价被细化；不改生产判据，不用于真实成交数据。
+fn seam_bars() -> Vec<super::super::super::types::Bar> {
+    let vals: Vec<i64> = (0..600)
+        .map(|i| {
+            let f = i as f64;
+            let price = 1000
+                + (40.0 * (f * 0.35).sin() + 15.0 * (f * 0.11).cos() + 6.0 * (f * 1.7).sin())
+                    as i64;
+            price * 601 + i as i64
+        })
+        .collect();
+    bars_from_closes(&vals)
+}
+
 /// ★#543 D1a：构造证书 seam 的**生产放置点**端到端见证（不是纯函数单测——真走
 /// `classify_incremental` 逐 bar 增量路径）。
 ///
@@ -17,15 +32,7 @@ use super::fixtures::*;
 #[test]
 fn rebase_txn_seam_emits_certificates_at_production_placement_points() {
     let cfg = super::super::super::config::ThetaConfig::default();
-    // 合成 closes：多频叠加锯齿（保证足够多分型/笔/线段 ⟹ L1 中枢 + frontier 每 bar 重算）。
-    let vals: Vec<i64> = (0..600)
-        .map(|i| {
-            let f = i as f64;
-            1000 + (40.0 * (f * 0.35).sin() + 15.0 * (f * 0.11).cos() + 6.0 * (f * 1.7).sin())
-                as i64
-        })
-        .collect();
-    let bars = bars_from_closes(&vals);
+    let bars = seam_bars();
 
     rebase_txn::test_capture_start();
     let mut cache = TowerCache::new();
@@ -111,14 +118,7 @@ fn rebase_txn_seam_emits_certificates_at_production_placement_points() {
 #[test]
 fn rebase_txn_seam_does_not_change_classification_output() {
     let cfg = super::super::super::config::ThetaConfig::default();
-    let vals: Vec<i64> = (0..600)
-        .map(|i| {
-            let f = i as f64;
-            1000 + (40.0 * (f * 0.35).sin() + 15.0 * (f * 0.11).cos() + 6.0 * (f * 1.7).sin())
-                as i64
-        })
-        .collect();
-    let bars = bars_from_closes(&vals);
+    let bars = seam_bars();
 
     let run = |capture: bool| {
         // ★#679 D1b：seam 在生产判径默认常开，故关臂须显式按下反证开关，否则本负控

@@ -1,0 +1,86 @@
+{
+  "status": "PASS_BOUNDED_FOUR_FAULT_BOUNDARIES",
+  "runs": [
+    {
+      "case_id": "revision_after_begin",
+      "arm": "a",
+      "exit": 0
+    },
+    {
+      "case_id": "revision_after_begin",
+      "arm": "b",
+      "exit": 0
+    },
+    {
+      "case_id": "revision_after_batch",
+      "arm": "a",
+      "exit": 0
+    },
+    {
+      "case_id": "revision_after_batch",
+      "arm": "b",
+      "exit": 0
+    },
+    {
+      "case_id": "revision_before_commit",
+      "arm": "a",
+      "exit": 0
+    },
+    {
+      "case_id": "revision_before_commit",
+      "arm": "b",
+      "exit": 0
+    },
+    {
+      "case_id": "revision_after_commit",
+      "arm": "a",
+      "exit": 0
+    },
+    {
+      "case_id": "revision_after_commit",
+      "arm": "b",
+      "exit": 0
+    }
+  ],
+  "comparisons": [
+    {
+      "case_id": "revision_after_begin",
+      "difference": null,
+      "records": 84,
+      "core_sha256": [
+        "ddea10a4957f4ca9b58bc60e775288fbbc780040a2bf9c66209664d3ca2bd401",
+        "ddea10a4957f4ca9b58bc60e775288fbbc780040a2bf9c66209664d3ca2bd401"
+      ]
+    },
+    {
+      "case_id": "revision_after_batch",
+      "difference": null,
+      "records": 84,
+      "core_sha256": [
+        "f11c4b1914d21f964626e0184db2e8ec48756a75af0d9fc2dd3db80dfa1c1123",
+        "f11c4b1914d21f964626e0184db2e8ec48756a75af0d9fc2dd3db80dfa1c1123"
+      ]
+    },
+    {
+      "case_id": "revision_before_commit",
+      "difference": null,
+      "records": 84,
+      "core_sha256": [
+        "554974e752855d5b254465f224f09ee14727db664e80dad56c0118ecfa2c3b1a",
+        "554974e752855d5b254465f224f09ee14727db664e80dad56c0118ecfa2c3b1a"
+      ]
+    },
+    {
+      "case_id": "revision_after_commit",
+      "difference": null,
+      "records": 84,
+      "core_sha256": [
+        "961a90a09f598bf3cf11c5779cba92491107ac10409051d2a48c8ff1da393e67",
+        "961a90a09f598bf3cf11c5779cba92491107ac10409051d2a48c8ff1da393e67"
+      ]
+    }
+  ],
+  "binary_sha256": "bd50f6521264d4fdf3cf15ca73a14530e45bc1e5d6045795b1a3882acc25d549",
+  "scope": "四个具名事务点实际SIGKILL/独立恢复/重投幂等/Q存活/公开旧cut与当前GUI；每点两新进程语义核心全字段相等。",
+  "parent_goal_complete": false
+}

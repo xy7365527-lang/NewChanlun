@@ -1,0 +1,447 @@
+{
+  "schema": "tb02b-independent-run-result/1",
+  "ticket": 1392,
+  "status": "COLLECTED_REQUIRES_INDEPENDENT_COMPARISON",
+  "runs": [
+    {
+      "trace": "A",
+      "arm": "b",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "A",
+      "arm": "a",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "A_REFLECTED",
+      "arm": "b",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "A_REFLECTED",
+      "arm": "a",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "B",
+      "arm": "a",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "B",
+      "arm": "b",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "B_REFLECTED",
+      "arm": "a",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "B_REFLECTED",
+      "arm": "b",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "C",
+      "arm": "b",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "C",
+      "arm": "a",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "C_REFLECTED",
+      "arm": "a",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "C_REFLECTED",
+      "arm": "b",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "D",
+      "arm": "a",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "D",
+      "arm": "b",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "b",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "a",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "A_STRICT_HIGHER_TOP",
+      "arm": "a",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "A_STRICT_HIGHER_TOP",
+      "arm": "b",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "A_STRICT_WEAKER_TOP",
+      "arm": "a",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "A_STRICT_WEAKER_TOP",
+      "arm": "b",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "A_STRICT_LOWER_BOTTOM_REFLECTED",
+      "arm": "a",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "A_STRICT_LOWER_BOTTOM_REFLECTED",
+      "arm": "b",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "A_STRICT_WEAKER_BOTTOM_REFLECTED",
+      "arm": "a",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "A_STRICT_WEAKER_BOTTOM_REFLECTED",
+      "arm": "b",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "OPPOSITE_FORMATION_COMPONENT",
+      "arm": "a",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "OPPOSITE_FORMATION_COMPONENT",
+      "arm": "b",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "RIGHT_GROUP_SEALED_COMPONENT",
+      "arm": "a",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "RIGHT_GROUP_SEALED_COMPONENT",
+      "arm": "b",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "APPEND_ABOVE_OLD_TOP",
+      "arm": "b",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "APPEND_ABOVE_OLD_TOP",
+      "arm": "a",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "CORRECTION_WITHDRAW_TOP",
+      "arm": "a",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "CORRECTION_WITHDRAW_TOP",
+      "arm": "b",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "CORRECTION_CONFIRMED_COMPONENT",
+      "arm": "a",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    },
+    {
+      "trace": "CORRECTION_CONFIRMED_COMPONENT",
+      "arm": "b",
+      "exit": 0,
+      "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e"
+    }
+  ],
+  "failed": [],
+  "not_run": [],
+  "arm_replay": [
+    {
+      "trace": "A",
+      "status": "equal",
+      "semantic_core_sha256": [
+        "27f18152a30dc089ee31f392c93da58c138d0bd173d111f98e9e283111416377",
+        "27f18152a30dc089ee31f392c93da58c138d0bd173d111f98e9e283111416377"
+      ],
+      "records": [
+        56,
+        56
+      ],
+      "scope": "两 arm 全新进程重放一致性（采集完整性），不是业务验收"
+    },
+    {
+      "trace": "APPEND_ABOVE_OLD_TOP",
+      "status": "equal",
+      "semantic_core_sha256": [
+        "9573a6c0bd17eac1915bca296e20b493dba8a87c2e357f77ee377d909ff749ff",
+        "9573a6c0bd17eac1915bca296e20b493dba8a87c2e357f77ee377d909ff749ff"
+      ],
+      "records": [
+        106,
+        106
+      ],
+      "scope": "两 arm 全新进程重放一致性（采集完整性），不是业务验收"
+    },
+    {
+      "trace": "A_REFLECTED",
+      "status": "equal",
+      "semantic_core_sha256": [
+        "67aa497aebab7e1f0dd04cbcefe58b004567129c1e8cb507439c0c5638277a4d",
+        "67aa497aebab7e1f0dd04cbcefe58b004567129c1e8cb507439c0c5638277a4d"
+      ],
+      "records": [
+        56,
+        56
+      ],
+      "scope": "两 arm 全新进程重放一致性（采集完整性），不是业务验收"
+    },
+    {
+      "trace": "A_STRICT_HIGHER_TOP",
+      "status": "equal",
+      "semantic_core_sha256": [
+        "0182fbe01d944cfdf9b525b98f47f6951cbab6f49db5d683bd72cf31e237358d",
+        "0182fbe01d944cfdf9b525b98f47f6951cbab6f49db5d683bd72cf31e237358d"
+      ],
+      "records": [
+        66,
+        66
+      ],
+      "scope": "两 arm 全新进程重放一致性（采集完整性），不是业务验收"
+    },
+    {
+      "trace": "A_STRICT_LOWER_BOTTOM_REFLECTED",
+      "status": "equal",
+      "semantic_core_sha256": [
+        "8e5c202a836e1aaef084af76027b1430895e5b470417a12c609a3db076293011",
+        "8e5c202a836e1aaef084af76027b1430895e5b470417a12c609a3db076293011"
+      ],
+      "records": [
+        66,
+        66
+      ],
+      "scope": "两 arm 全新进程重放一致性（采集完整性），不是业务验收"
+    },
+    {
+      "trace": "A_STRICT_WEAKER_BOTTOM_REFLECTED",
+      "status": "equal",
+      "semantic_core_sha256": [
+        "9cfa8d85b4246bf3fd270c4d08151af0a46c5b80e9f77ab18cae5e6bba84707f",
+        "9cfa8d85b4246bf3fd270c4d08151af0a46c5b80e9f77ab18cae5e6bba84707f"
+      ],
+      "records": [
+        66,
+        66
+      ],
+      "scope": "两 arm 全新进程重放一致性（采集完整性），不是业务验收"
+    },
+    {
+      "trace": "A_STRICT_WEAKER_TOP",
+      "status": "equal",
+      "semantic_core_sha256": [
+        "0cd5d3301a8c04a9c12951b2a2dd8d52dc41544281e233744d0bcd3fc93aacaf",
+        "0cd5d3301a8c04a9c12951b2a2dd8d52dc41544281e233744d0bcd3fc93aacaf"
+      ],
+      "records": [
+        66,
+        66
+      ],
+      "scope": "两 arm 全新进程重放一致性（采集完整性），不是业务验收"
+    },
+    {
+      "trace": "B",
+      "status": "equal",
+      "semantic_core_sha256": [
+        "a353376f592be1dbfbe0d3067613803f3bfe2516053f67e97f4db331dc1832ed",
+        "a353376f592be1dbfbe0d3067613803f3bfe2516053f67e97f4db331dc1832ed"
+      ],
+      "records": [
+        51,
+        51
+      ],
+      "scope": "两 arm 全新进程重放一致性（采集完整性），不是业务验收"
+    },
+    {
+      "trace": "B_REFLECTED",
+      "status": "equal",
+      "semantic_core_sha256": [
+        "4a2b14a876470c545d929f2b5b71046bfb26195322924569d99426871963ac0f",
+        "4a2b14a876470c545d929f2b5b71046bfb26195322924569d99426871963ac0f"
+      ],
+      "records": [
+        51,
+        51
+      ],
+      "scope": "两 arm 全新进程重放一致性（采集完整性），不是业务验收"
+    },
+    {
+      "trace": "C",
+      "status": "equal",
+      "semantic_core_sha256": [
+        "ee9e4983eb6276ff7a045abc61bf509b473dcc95d222f23b19225e40967ce126",
+        "ee9e4983eb6276ff7a045abc61bf509b473dcc95d222f23b19225e40967ce126"
+      ],
+      "records": [
+        56,
+        56
+      ],
+      "scope": "两 arm 全新进程重放一致性（采集完整性），不是业务验收"
+    },
+    {
+      "trace": "CORRECTION_CONFIRMED_COMPONENT",
+      "status": "equal",
+      "semantic_core_sha256": [
+        "ef268fbbae280c344dd6c93fbd03d32c8e187370789f43afaee7be3a6124e48c",
+        "ef268fbbae280c344dd6c93fbd03d32c8e187370789f43afaee7be3a6124e48c"
+      ],
+      "records": [
+        96,
+        96
+      ],
+      "scope": "两 arm 全新进程重放一致性（采集完整性），不是业务验收"
+    },
+    {
+      "trace": "CORRECTION_WITHDRAW_TOP",
+      "status": "equal",
+      "semantic_core_sha256": [
+        "6c51bf5ca7c57367112cc6bddb0545d124c99cb322cf86875146a297899a08ea",
+        "6c51bf5ca7c57367112cc6bddb0545d124c99cb322cf86875146a297899a08ea"
+      ],
+      "records": [
+        71,
+        71
+      ],
+      "scope": "两 arm 全新进程重放一致性（采集完整性），不是业务验收"
+    },
+    {
+      "trace": "C_REFLECTED",
+      "status": "equal",
+      "semantic_core_sha256": [
+        "8b01909d30ba9f7d5289192df166e5aaa82803c40ecce6447ffb5bc7623480f0",
+        "8b01909d30ba9f7d5289192df166e5aaa82803c40ecce6447ffb5bc7623480f0"
+      ],
+      "records": [
+        56,
+        56
+      ],
+      "scope": "两 arm 全新进程重放一致性（采集完整性），不是业务验收"
+    },
+    {
+      "trace": "D",
+      "status": "equal",
+      "semantic_core_sha256": [
+        "8360c10c79a4e6d14cb47231a52b0f66ce4f6765c421258badaab837fd2158fd",
+        "8360c10c79a4e6d14cb47231a52b0f66ce4f6765c421258badaab837fd2158fd"
+      ],
+      "records": [
+        61,
+        61
+      ],
+      "scope": "两 arm 全新进程重放一致性（采集完整性），不是业务验收"
+    },
+    {
+      "trace": "D_REFLECTED",
+      "status": "equal",
+      "semantic_core_sha256": [
+        "89efec649695dc208e53908cef3f0919cff2c8591901e2833999879be65eefb5",
+        "89efec649695dc208e53908cef3f0919cff2c8591901e2833999879be65eefb5"
+      ],
+      "records": [
+        61,
+        61
+      ],
+      "scope": "两 arm 全新进程重放一致性（采集完整性），不是业务验收"
+    },
+    {
+      "trace": "OPPOSITE_FORMATION_COMPONENT",
+      "status": "equal",
+      "semantic_core_sha256": [
+        "a9d41d532ce2838c521abfd5b4c2252528b81d06894e390d2f470e90a939b23c",
+        "a9d41d532ce2838c521abfd5b4c2252528b81d06894e390d2f470e90a939b23c"
+      ],
+      "records": [
+        86,
+        86
+      ],
+      "scope": "两 arm 全新进程重放一致性（采集完整性），不是业务验收"
+    },
+    {
+      "trace": "RIGHT_GROUP_SEALED_COMPONENT",
+      "status": "equal",
+      "semantic_core_sha256": [
+        "5160272f3c7bb4c9657e3f5af3fdcdd6ce7146447ce884d6a5852d84bf635932",
+        "5160272f3c7bb4c9657e3f5af3fdcdd6ce7146447ce884d6a5852d84bf635932"
+      ],
+      "records": [
+        91,
+        91
+      ],
+      "scope": "两 arm 全新进程重放一致性（采集完整性），不是业务验收"
+    }
+  ],
+  "missing_required_prefixes": [],
+  "port_check_unverifiable": [],
+  "counts": {
+    "runs": 34,
+    "passed": 34,
+    "failed": 0,
+    "selected_traces": 17,
+    "selected_declared_prefixes": 82
+  },
+  "independent_comparison": "未执行：公共事实与 oracle prefix 投影的逐条独立对照由父级会话完成。",
+  "note": "本结果只说明采集与重放一致性；任何一条失败都不计为通过。"
+}

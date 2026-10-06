@@ -1,0 +1,63 @@
+{
+  "ticket": 1392,
+  "status": "BOUNDED_IMPLEMENTATION_EVIDENCE_COMPLETE_REQUIRES_TICKET_REVIEW",
+  "created_utc": "2026-09-14T12:38:50.836117+00:00",
+  "worktree": "/Users/silencehan/Projects/NewChanlun-1392-tb02b",
+  "commit": "5eeaba4ae19ee6cfe038ee4e25eb61fa41779a0f",
+  "clean": true,
+  "binary_sha256": "2c74b446c70a3ff0c3eafdc3a390a17c9b836954e79bbb337f8aed92284180dc",
+  "artifacts_sha256": {
+    "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/TB02B-ACCEPTANCE-NOTES.md": "3792f8510774b2d25def43163fd9e488f093976616972bf73f97af79dd1f1426",
+    "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/independent-suite-r2/INDEPENDENT-COMPARISON.json": "e51fb2df9bb9cdd37eb7581e0586ed2752a2c0283d3033ceadc935f29ff7bed2",
+    "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/independent-suite-r2/RESULT.json": "daf283eea4f9fb965d70eedda14b5289281bd174e4d7d269e7bed7cc45330517",
+    "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/compare-independent-suite.cjs": "6c0eb72779dcd51477d391eb6644136e3237eb40d294fbf18626789fd6c1e0cb",
+    "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/run-faults-r2.py": "702d26dcfabae71a4d3f0ca5782b3d80c2e17b6231d4094758db486e21ec7106",
+    "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1392-tb02b/runtime/release-r3-faults-20260914/RESULT.json": "9b6636194528b359abd89e26d18db677edc45eab335b8897964edd1e23da55b1",
+    "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1392-release-build-r2.json": "02c753c7b86517ed9406f46476ef4f6658040e44cea60085744880300183b4fe",
+    "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/confirmation-tail-red-rebuild.log": "1d568feb3c5f3a882fd33d3e8f46403ea3c923b338e8a1c8908be0632b424ffb",
+    "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/confirmation-tail-lib-green.log": "2dde551c04311253efda603e1fd54bb55326ba9d4a3b51849769a7b755ad9a31",
+    "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/confirmation-tail-session-recheck.log": "02c57394f755a183cfbd08ba13260fe2a9fdd2198e0de7e54bdf33336cd14b63",
+    "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/issue1392-verified-implementation.patch": "8c3df451dda578b46cdca259b72a483bc9787bea36d3ba86b46e7f581551aa94",
+    "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/long-third-capture/OBSERVATION.json": "285fe3feac462bf886920b21b190483ec2c98e2a507f419d30aec405fdfcbac5"
+  },
+  "normal_runtime_runs": 34,
+  "traces": 17,
+  "declared_prefixes": 82,
+  "public_candidates": 476,
+  "actual_candidate_vectors": [
+    "001",
+    "011",
+    "101",
+    "111"
+  ],
+  "fault_runtime_runs": 8,
+  "fault_boundaries": [
+    "after_begin",
+    "after_batch",
+    "before_commit",
+    "after_commit"
+  ],
+  "unit_checks": {
+    "parser_passed": 4,
+    "session_unique_tests_passed": 7,
+    "session_note": "six unaffected tests passed in full batch; added test passed after matching AsKnown query mode"
+  },
+  "independent_reviews": {
+    "confirmation_control_flow": "PASS_BOUNDED",
+    "python_runtime_cleanup": "PASS",
+    "original_writer_fencing_vs_receipt": "PASS",
+    "comparator_findings_closed": 2,
+    "comparator_mutation_negatives_rejected": 8
+  },
+  "failed_attempts_retained": [
+    "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/independent-suite-r1",
+    "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1392-tb02b/runtime/release-r2-faults-20260914"
+  ],
+  "main_merged": false,
+  "parent_goal_complete": false,
+  "remaining": [
+    "#1392整体结果包/适用合入批准",
+    "#1394真实Long来源与最高会话故障链",
+    "#1323其余Destination"
+  ]
+}

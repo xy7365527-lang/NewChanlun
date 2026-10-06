@@ -184,6 +184,8 @@ mod tests {
             })
             .collect();
 
+        // #1392：本测试覆盖持有方式的非空结构对拍，使用已消除跨根同价歧义的夹具。
+        let bars = without_cross_bar_price_ties(bars);
         let config = ThetaConfig::default();
         let mut owned = OwnedIncrementalClassifier::new(config.clone());
         let mut final_strokes: usize = 0;
@@ -833,6 +835,23 @@ mod tests {
         }
     }
 
+    // #1392：合成夹具验证非空结构与塔的缓存分支，须先处于端点身份已定的输入域。
+    // 对每根全部 OHLC 作同一整数细化；跨根原有严格价序不变，原同价被显式细化。
+    // 生产同价判据不变，原始同价夹具的拒绝/等待由 parser 测试保留。
+    fn without_cross_bar_price_ties(mut bars: Vec<Bar>) -> Vec<Bar> {
+        let scale = i64::try_from(bars.len()).unwrap() + 1;
+        for (i, bar) in bars.iter_mut().enumerate() {
+            for value in [&mut bar.open, &mut bar.high, &mut bar.low, &mut bar.close] {
+                *value = value
+                    .checked_mul(scale)
+                    .unwrap()
+                    .checked_add(i as i64)
+                    .unwrap();
+            }
+        }
+        bars
+    }
+
     /// fixture1：伪随机游走——每 bar 塔在某级经 `units.len() < min_parts` 早停终止，执行
     /// `cache.levels.truncate(level_idx)`（§2.6 路径1 代码路径）。断言该早停 break 确实触发
     /// （truncate 语句每终止 bar 执行）。**注**：其 removal 子例（depth 下降、truncate 删掉已建级）
@@ -842,7 +861,8 @@ mod tests {
     /// 重建等价论证保证，非测试覆盖）。
     #[test]
     fn a3_oracle_minparts_reentry() {
-        let bars = pseudo_walk(9000, 0x9E37_79B9_7F4A_7C15, 34, 700, 3300);
+        let bars =
+            without_cross_bar_price_ties(pseudo_walk(9000, 0x9E37_79B9_7F4A_7C15, 34, 700, 3300));
         let p = run_oracle(&bars, "minparts_reentry");
         assert!(
             p.minparts_break > 0,
@@ -854,7 +874,15 @@ mod tests {
     /// 产 T>1；同时高级 units 偶尔归零触发 units.is_empty 早停（§2.6 路径2 + 第6条 pop 覆盖）。
     #[test]
     fn a3_oracle_pop_rescan_empty() {
-        let bars = pseudo_walk(9000, 0xD1B5_4A32_D192_ED03, 46, 500, 3500);
+        let mut bars = pseudo_walk(9000, 0xD1B5_4A32_D192_ED03, 46, 500, 3500);
+        // #1392：显式加入每根一 tick 的趋势，使已成中枢的外缘能分离，
+        // 覆盖“本级至少三单元但无上级中枢”的空投影；仍走原始 K 线完整解析。
+        for (i, bar) in bars.iter_mut().enumerate() {
+            for value in [&mut bar.open, &mut bar.high, &mut bar.low, &mut bar.close] {
+                *value += i as i64;
+            }
+        }
+        let bars = without_cross_bar_price_ties(bars);
         let p = run_oracle(&bars, "pop_rescan_empty");
         // ★核心覆盖（第6条 refuted 根修）：pop-and-rescan 两分支都命中——T==1（重扫仅复现被 pop
         // 窗口，did_extend 恒 false 而尾部改写，did_extend 证伪正向锁）+ T>1（frontier 值改写，

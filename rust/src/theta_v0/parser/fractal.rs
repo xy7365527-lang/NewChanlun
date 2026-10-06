@@ -33,41 +33,33 @@ use std::rc::Rc;
 /// - `merged.len() < 3` ⟹ 无分型（无完整三元组）。
 /// - 中 K 既非严格全高也非严格全低 ⟹ 非分型（跳过；含包含处理残留的非严格情形）。
 pub fn detect_fractals(merged: &[Bar]) -> Vec<Fractal> {
-    let mut out = Vec::new();
-    if merged.len() < 3 {
-        return out;
-    }
-    for i in 1..merged.len() - 1 {
-        let left = &merged[i - 1];
-        let mid = &merged[i];
-        let right = &merged[i + 1];
+    (1..merged.len().saturating_sub(1))
+        .filter_map(|mid| detect_fractal_at(merged, mid))
+        .collect()
+}
 
-        let is_top = mid.high > left.high
-            && mid.high > right.high
-            && mid.low > left.low
-            && mid.low > right.low;
-        let is_bottom = mid.high < left.high
-            && mid.high < right.high
-            && mid.low < left.low
-            && mid.low < right.low;
-
-        if is_top {
-            out.push(Fractal {
-                kind: FractalKind::Top,
-                source_index: mid.source_index,
-                timestamp: mid.timestamp,
-                price: mid.high,
-            });
-        } else if is_bottom {
-            out.push(Fractal {
-                kind: FractalKind::Bottom,
-                source_index: mid.source_index,
-                timestamp: mid.timestamp,
-                price: mid.low,
-            });
-        }
-    }
-    out
+/// #1392：全量、分型缓存和新笔端点共用这一三元组判据，不分配临时 Vec。
+pub(crate) fn detect_fractal_at(merged: &[Bar], index: usize) -> Option<Fractal> {
+    let left = merged.get(index.checked_sub(1)?)?;
+    let mid = merged.get(index)?;
+    let right = merged.get(index.checked_add(1)?)?;
+    let is_top =
+        mid.high > left.high && mid.high > right.high && mid.low > left.low && mid.low > right.low;
+    let is_bottom =
+        mid.high < left.high && mid.high < right.high && mid.low < left.low && mid.low < right.low;
+    let (kind, price) = if is_top {
+        (FractalKind::Top, mid.high)
+    } else if is_bottom {
+        (FractalKind::Bottom, mid.low)
+    } else {
+        return None;
+    };
+    Some(Fractal {
+        kind,
+        source_index: mid.source_index,
+        timestamp: mid.timestamp,
+        price,
+    })
 }
 
 /// 分型供给口（T1 键域重锚 #170）：源序号 → 该处 confirmed 分型（分型管单一来源）。
@@ -197,37 +189,8 @@ impl IncrFractals {
         // 严格：只扫 mid ≥ confirmed_mid_bound（前缀已覆盖 mid < confirmed_mid_bound）。
         let scan_start = confirmed_mid_bound.max(1);
         for i in scan_start..n - 1 {
-            if i == 0 {
-                continue;
-            }
-            let left = &merged[i - 1];
-            let mid = &merged[i];
-            let right = &merged[i + 1];
-
-            let is_top = mid.high > left.high
-                && mid.high > right.high
-                && mid.low > left.low
-                && mid.low > right.low;
-            let is_bottom = mid.high < left.high
-                && mid.high < right.high
-                && mid.low < left.low
-                && mid.low < right.low;
-
-            if is_top {
-                new_fractals.push(Fractal {
-                    kind: FractalKind::Top,
-                    source_index: mid.source_index,
-                    timestamp: mid.timestamp,
-                    price: mid.high,
-                });
-                mid_indices.push(i);
-            } else if is_bottom {
-                new_fractals.push(Fractal {
-                    kind: FractalKind::Bottom,
-                    source_index: mid.source_index,
-                    timestamp: mid.timestamp,
-                    price: mid.low,
-                });
+            if let Some(fractal) = detect_fractal_at(merged, i) {
+                new_fractals.push(fractal);
                 mid_indices.push(i);
             }
         }

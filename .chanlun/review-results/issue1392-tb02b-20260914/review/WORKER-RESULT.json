@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "run_id": "b7e39af6-1395-4c04-8500-564a4efea57f",
+  "ticket": 1392,
+  "parent_thread_id": "01a07fb3-9da9-7ca0-9be2-e15de6eac7b3",
+  "manager_agent_id": "/root/tb02b_leaf_sandcastle_manager",
+  "manager_kind": "codex_native_subagent",
+  "worker_kind": "sandcastle_external_codex",
+  "native_subagent": false,
+  "status": "failed",
+  "mode": "review",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "effort": "max",
+  "sandbox_backend": "no-sandbox",
+  "codex_sandbox": "read-only",
+  "approval_policy": "never",
+  "automatic_claim": false,
+  "automatic_push": false,
+  "automatic_merge": false,
+  "checkout_preserved": true,
+  "expected_head": "5eeaba4ae19ee6cfe038ee4e25eb61fa41779a0f",
+  "checkout_before": {
+    "root": "/Users/silencehan/Projects/NewChanlun-1392-tb02b",
+    "branch": "codex/1392-tb02b",
+    "head": "5eeaba4ae19ee6cfe038ee4e25eb61fa41779a0f",
+    "status": ""
+  },
+  "checkout_after": {
+    "root": "/Users/silencehan/Projects/NewChanlun-1392-tb02b",
+    "branch": "codex/1392-tb02b",
+    "head": "5eeaba4ae19ee6cfe038ee4e25eb61fa41779a0f",
+    "status": ""
+  },
+  "started_at": "2026-09-14T12:41:26.650Z",
+  "ended_at": "2026-09-14T12:45:31.453Z",
+  "process_pid": 15629,
+  "process_exit": {
+    "code": 0,
+    "signal": null
+  },
+  "external_session_id": "01a09fef-caf9-7731-92ae-adbcc72f6b87",
+  "external_session_log": "/Users/silencehan/.codex/sessions/2026/09/14/rollout-2026-09-14T20-41-27-01a09fef-caf9-7731-92ae-adbcc72f6b87.jsonl",
+  "output_dir": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1392-leaf-final-review",
+  "stdout_log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1392-leaf-final-review/codex.stdout.jsonl",
+  "stderr_log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1392-leaf-final-review/codex.stderr.log",
+  "events_log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1392-leaf-final-review/events.jsonl",
+  "prompt_sha256": "72081bcd286d1732487f27565652f032bb86ba3fde285317b6dbb4b86a1d0f56",
+  "result": null,
+  "failure_reason": "Codex 最终结果不是有效 JSON"
+}

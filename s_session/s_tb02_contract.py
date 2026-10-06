@@ -7,6 +7,11 @@ PROFILE = "ohlc_integer_tb02a_v1"
 RAW_SCHEMA = "s-ohlc/1"
 KINDS = ("CC-004.inclusion_step", "CC-005.inclusion_group", "CC-007.fractal_description", "CC-054.knowledge_state")
 AXES = ("CC-001", "CC-002", "CC-003", "CC-004", "CC-005", "CC-006", "CC-007", "CC-054", "CC-056")
+LEGACY_AXES = AXES
+BI_KINDS = ("CC-008.endpoint", "CC-008.new_bi_pair", "CC-009.same_kind", "CC-010.bi", "CC-055.relation", "CC-055.change_event", "CC-056.version")
+KINDS += BI_KINDS
+AXES += ("CC-008", "CC-009", "CC-010", "CC-055")
+
 FACT_COLUMNS = ("object_id", "object_revision", "kind", "batch_id", "fact_key", "payload_json", "input_refs_json", "source_coords_json", "first_known_generation", "first_known_cut", "published_generation", "withdrawn_generation", "withdrawal_reason", "superseded_by")
 FACT_FIELDS = ("object_id", "object_revision", "kind", "batch_id", "fact_key", "payload", "input_refs", "source_coords", "first_known_generation", "first_known_cut", "published_generation", "withdrawn_generation", "withdrawal_reason", "superseded_by", "lifecycle")
 REF_FIELDS = ("identity_key", "payload_hash", "receipt_id", "event_id", "input_revision", "revision", "seq", "source_coord")
@@ -112,7 +117,9 @@ def direction_evidence(value):
 
 def validate_payload(kind, p):
     wire_tree(p)
-    if kind == KINDS[0]:
+    if kind in BI_KINDS:
+        validate_bi_payload(kind, p)
+    elif kind == KINDS[0]:
         keys(p, ("action", "incoming", "acc_before", "acc_after", "direction", "direction_evidence", "comparisons", "endpoint_order", "contains", "high_sources", "low_sources", "waiting_reasons"), kind)
         if p["action"] not in ("seed", "establish_direction", "merge", "new_group", "waiting"):
             raise ValueError("包含步骤 action 未声明")
@@ -284,7 +291,7 @@ def validate_fact(value, meta=None, raw=None):
     if source_coords != [ref["source_coord"] for ref in references]:
         raise ValueError("事实源坐标与扁平输入引用不一一对应")
     p, kind = value["payload"], value["kind"]
-    slot = p["incoming"]["source_coord"] if kind == KINDS[0] else p["group_anchor"] if kind == KINDS[1] else p["window"] if kind == KINDS[2] else "TB-02-A"
+    slot = p["slot"] if kind in BI_KINDS else p["incoming"]["source_coord"] if kind == KINDS[0] else p["group_anchor"] if kind == KINDS[1] else p["window"] if kind == KINDS[2] else "TB-02-A"
     if value["fact_key"] != canonical([kind, slot]).decode():
         raise ValueError("fact_key 与真实语义槽不符")
     if meta is not None:
@@ -330,7 +337,7 @@ def validate_sources(value, effective):
 
 
 def validate_axes(axes, object_ids=None):
-    keys(axes, AXES, "catalog.axes")
+    keys(axes, AXES if "CC-008" in axes else LEGACY_AXES, "catalog.axes")
     for cid, value in axes.items():
         keys(value, ("impl_status", "proof_status", "run_status", "evidence"), cid)
         if value["impl_status"] not in ("implemented", "not_implemented") or value["proof_status"] != "not_proved" or value["run_status"] not in ("run", "waiting", "not_run"):
@@ -405,3 +412,116 @@ def validate_shape_refs(shape, effective=None, groups=None):
                 raise ValueError("CC006 构造/分组边界依据与同 cut 原始依赖不同")
     if coords(shape["source_coords"], "shape.source_coords") != sorted(union, key=int):
         raise ValueError("CC006 source_coords 不等于成员与构造/边界依据并集")
+
+
+def validate_bi_payload(kind, p):
+    """#1392：仅验证 S 发布的完整形状和来源引用，不代算成笔。"""
+    keys(p, ("schema_revision", "semantic_version", "policy_version", "view_role", "object_generation", "slot", "data"), kind)
+    if (p["schema_revision"], p["semantic_version"], p["policy_version"], p["view_role"]) != ("s-new-bi/1", "new-bi-dual-coordinate/1", "standard_raw_gap_3", "main"):
+        raise ValueError("新笔合同/规则/政策版本不符")
+    integer(p["object_generation"], "object_generation", 1)
+    data = p["data"]
+
+    def endpoint(e):
+        keys(e, ("kind", "merged_index", "group_anchor", "price", "extreme_roots", "raw_position", "source_coords", "sealed_at", "waiting_reasons"), "endpoint")
+        if e["kind"] not in ("TOP", "BOTTOM"):
+            raise ValueError("端点类型未声明")
+        for k in ("merged_index", "group_anchor"):
+            integer(e[k], k, 0)
+        integer(e["price"], "price")
+        coords(e["extreme_roots"], "extreme_roots")
+        coords(e["source_coords"], "source_coords")
+        if not set(e["extreme_roots"]) <= set(e["source_coords"]):
+            raise ValueError("实际根无原始来源")
+        for k in ("raw_position", "sealed_at"):
+            if e[k] is not None:
+                integer(e[k], k, 0)
+        strings(e["waiting_reasons"], "waiting_reasons")
+
+    def conditions(c):
+        keys(c, ("merged_gap", "raw_between_actual_extrema", "top_price", "bottom_price", "vector", "failed_conditions", "waiting_reasons"), "conditions")
+        integer(c["merged_gap"], "merged_gap", 0)
+        if c["raw_between_actual_extrema"] is not None:
+            integer(c["raw_between_actual_extrema"], "raw_between", 0)
+        for k in ("top_price", "bottom_price"):
+            integer(c[k], k)
+        if len(array(c["vector"], "vector")) != 3 or any(v is not None and type(v) is not bool for v in c["vector"]):
+            raise ValueError("完整条件向量缺位/错型")
+        strings(c["failed_conditions"], "failed_conditions")
+        strings(c["waiting_reasons"], "waiting_reasons")
+
+    def known(k):
+        keys(k, ("generation", "input_frontier", "receipt_id", "received_at", "semantic_commit_ns"), "known_at")
+        integer(k["generation"], "known_generation", 1)
+        integer(k["input_frontier"], "known_frontier", 0)
+        text(k["receipt_id"], "known_receipt")
+        text(k["received_at"], "received_at")
+        if k["semantic_commit_ns"] is not None:
+            integer(k["semantic_commit_ns"], "semantic_commit_ns", 0)
+
+    if kind == BI_KINDS[0]:
+        endpoint(data)
+    elif kind in BI_KINDS[1:3]:
+        keys(data, ("old", "new", "endpoint_kind_pair", "conditions", "comparison", "selection", "retained_anchors", "waiting_reasons"), kind)
+        endpoint(data["old"])
+        endpoint(data["new"])
+        if data["endpoint_kind_pair"] != data["old"]["kind"] + "/" + data["new"]["kind"]:
+            raise ValueError("端点分域标签不闭合")
+        if kind == BI_KINDS[1]:
+            if data["old"]["kind"] == data["new"]["kind"]:
+                raise ValueError("异型请求的端点实际同型")
+            conditions(data["conditions"])
+            if data["comparison"] is not None or data["selection"] is not None:
+                raise ValueError("异型域混入同型选择")
+        elif data["old"]["kind"] != data["new"]["kind"] or data["conditions"] is not None or data["comparison"] not in ("LT", "EQ", "GT") or data["selection"] not in ("KEEP", "REPLACE", "UNDETERMINED"):
+            raise ValueError("同型域混入异型假位或选择缺失")
+        coords(data["retained_anchors"], "retained_anchors")
+        strings(data["waiting_reasons"], "waiting_reasons")
+    elif kind == BI_KINDS[3]:
+        keys(data, ("identity_anchor", "start", "end", "formation", "confirmation", "entity_id", "entity_revision", "state", "formed_known_at", "confirmed_known_at", "formed_evidence", "version_causes"), kind)
+        integer(data["identity_anchor"], "identity_anchor", 0)
+        integer(data["entity_revision"], "entity_revision", 1)
+        text(data["entity_id"], "entity_id")
+        if data["entity_id"] != "bi:" + p["object_generation"] + ":" + data["identity_anchor"]:
+            raise ValueError("笔身份未绑定输入代际与形成起点")
+        endpoint(data["start"])
+        endpoint(data["end"])
+        conditions(data["formation"])
+        conditions(data["formed_evidence"])
+        known(data["formed_known_at"])
+        if data["state"] != ("FORMED_UNCONFIRMED" if data["confirmation"] is None else "CONFIRMED"):
+            raise ValueError("未声明笔生命周期")
+        if data["confirmation"] is not None:
+            c = data["confirmation"]
+            keys(c, ("successor_start", "successor_end", "successor_conditions", "right_group_sealed_at", "source_coords"), "confirmation")
+            for k in ("successor_start", "successor_end", "right_group_sealed_at"):
+                integer(c[k], k, 0)
+            conditions(c["successor_conditions"])
+            coords(c["source_coords"], "confirmation.sources")
+            known(data["confirmed_known_at"])
+        elif data["confirmed_known_at"] is not None:
+            raise ValueError("无见证却有确认获知时间")
+        strings(data["version_causes"], "version_causes")
+    elif kind == BI_KINDS[4]:
+        keys(data, ("source_id", "relation_kind", "target_id", "version", "witness_object_id"), kind)
+        for value in data.values():
+            text(value, "relation")
+        if data["relation_kind"] not in ("member_of", "derived_from", "successor_of", "leaves", "retests", "returns_to", "extends", "newborn_after", "expands_with", "caused_turn_at", "confirms", "selected_from"):
+            raise ValueError("未声明关系种类")
+    elif kind == BI_KINDS[5]:
+        keys(data, ("entity_id", "change", "before", "after", "known_at", "event_at", "causes", "object_id"), kind)
+        text(data["entity_id"], "entity_id")
+        if data["change"] not in ("formed", "extended", "endpoint_replaced", "confirmed", "source_or_boundary_updated", "withdrawn"):
+            raise ValueError("未声明变化种类")
+        known(data["known_at"])
+        integer(data["event_at"], "event_at")
+        strings(data["causes"], "causes")
+        for k in ("before", "after"):
+            if data[k] is not None:
+                validate_bi_payload(BI_KINDS[3], {**p, "object_generation": data[k]["entity_id"].split(":")[1], "data": data[k]})
+    else:
+        keys(data, ("input_frontier", "version_causes", "identity_basis", "classification_obligation", "waiting_reasons", "known_at"), kind)
+        integer(data["input_frontier"], "input_frontier", -1)
+        strings(data["version_causes"], "version_causes")
+        strings(data["waiting_reasons"], "waiting_reasons")
+        known(data["known_at"])

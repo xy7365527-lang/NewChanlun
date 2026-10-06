@@ -1,0 +1,51 @@
+{
+  "schema": "issue1392-ci-repair/1",
+  "timestamp_utc": "2026-09-15T10:05:40.092398+00:00",
+  "status": "TARGETED_SIX_FAILURES_REPAIRED_THREE_UNDECIDED_DOMAIN_FAILURES_RETAINED",
+  "worktree": "/Users/silencehan/Projects/NewChanlun-1392-parse-layer-cost",
+  "source_sha256": {
+    "rust/src/theta_v0/parser/mod.rs": "f28e8d6d73e514cc672bcc559102b9a724aae3281f2ddf0afec704b8896a9845",
+    "rust/src/theta_v0/backtest/incremental.rs": "9f8569623404517e12ecbecdaf16be7ba5321c0cd0640fac360c3aac62f8d722",
+    "rust/src/theta_v0/classifier/tests/rebase_txn.rs": "3f725a87e0b81e9d1b7902e0ac1ac79e8b40b20a3529f5dc7d30179e5e7b0a32",
+    "rust/src/theta_v0/classifier/bsp.rs": "748b954396916aaf8fea03e9986493d1c0572c929530d055438807d09d4700aa"
+  },
+  "targeted_runs": [
+    {
+      "log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1392-a3-refined-fixtures-r2.log",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 1,
+      "scope": "9000+9000 every-prefix raw-input full/incremental Classification and tower equality; A3 then helper-only rename/format, actual fixture values unchanged"
+    },
+    {
+      "log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1392-owned-fixture-repair.log",
+      "passed": 1,
+      "failed": 0,
+      "scope": "2000 every-prefix owned/full equality and73strokes8segments"
+    },
+    {
+      "log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1392-rebase-fixture-repair.log",
+      "passed": 2,
+      "failed": 0,
+      "scope": "real emit18/frontier_pop10/cascade4 + on/off outputs identical"
+    },
+    {
+      "log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1392-bsp-line-drift-repair.log",
+      "passed": 1,
+      "failed": 0,
+      "scope": "all scan hits and original whitelist entries exactly match;4line numbers refreshed"
+    }
+  ],
+  "format_and_diff_check": {
+    "exit_code": 0,
+    "scope": "rustfmt3 changed fixture/scanner files, git diff--check"
+  },
+  "remaining": [
+    "BTC original20000 ticks nonvacuity2 tests",
+    "martingale original3000 bars nonemptyledger1 test"
+  ],
+  "remaining_reason": "Exact raw-extreme identity ties; #1343/G002 and #1405 remain open. #1392 explicitly no-tie domain and must not reverse-wait on V. Existing same-price tests retained, no predicate changed or check deleted.",
+  "independent_review": "native Flash scanner/A3 pending; original parse-cost patch root independently reviewed with109 parser tests from prior evidence",
+  "main_merged": false,
+  "full_suite_rerun": false
+}

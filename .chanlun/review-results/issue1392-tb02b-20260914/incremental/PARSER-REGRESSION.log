@@ -1,0 +1,637 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling newchan_rust v0.1.0 (/Users/silencehan/Projects/NewChanlun-1392-incremental/rust)
+warning: the usage of Script Group `Greek` in this crate consists solely of mixed script confusables
+    --> src/recursive_t/rec_engine.rs:3495:8
+     |
+3495 |     fn add_short_τ镜像_父空卖回对称() {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: the usage includes 'τ' (U+03C4)
+     = note: please recheck to make sure their usages are indeed what you want
+     = note: `#[warn(mixed_script_confusables)]` on by default
+
+warning: cannot test inner items
+    --> src/theta_v0/classifier/divergence.rs:1592:9
+     |
+1592 |         #[test]
+     |         ^^^^^^^
+     |
+     = note: `#[warn(unnameable_test_items)]` on by default
+
+warning: unused import: `CandidateState`
+  --> src/theta_v0/classifier/bsp_bridge/tests.rs:13:76
+   |
+13 |     CandidateEventBook, CandidateKey, CandidateKind, CandidateObservation, CandidateState,
+   |                                                                            ^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `PanDivShortRetraceObservation`
+   --> src/theta_v0/classifier/signal.rs:128:46
+    |
+128 |     t3_in_c_grade_reason_to_pan_div_subtype, PanDivShortRetraceObservation,
+    |                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `super::fixtures::*`
+ --> src/theta_v0/classifier/tests/third_class_anchor.rs:5:5
+  |
+5 | use super::fixtures::*;
+  |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `super::super::closed_loop::state::AssemblyState`
+   --> src/theta_v0/backtest/fill.rs:328:5
+    |
+328 | use super::super::closed_loop::state::AssemblyState;
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `AssemblyEvent` and `hybrid_step`
+   --> src/theta_v0/backtest/fill.rs:329:45
+    |
+329 | use super::super::closed_loop::transition::{hybrid_step, AssemblyEvent};
+    |                                             ^^^^^^^^^^^  ^^^^^^^^^^^^^
+
+warning: unused import: `super::super::parser`
+   --> src/theta_v0/backtest/fill.rs:330:5
+    |
+330 | use super::super::parser;
+    |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `TwEvent`
+   --> src/theta_v0/backtest/fill.rs:332:38
+    |
+332 | use super::super::strategy::ledger::{TwEvent, TwState};
+    |                                      ^^^^^^^
+
+warning: unused import: `voice_exec_gate`
+   --> src/theta_v0/backtest/fill.rs:336:5
+    |
+336 |     voice_exec_gate, NestChainGate, NestGateStats,
+    |     ^^^^^^^^^^^^^^^
+
+warning: unused imports: `NEST_CERT_GATE_OVERRIDE` and `VOICE_EXEC_OVERRIDE`
+   --> src/theta_v0/backtest/fill.rs:339:24
+    |
+339 | use super::admission::{NEST_CERT_GATE_OVERRIDE, VOICE_EXEC_OVERRIDE};
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `super::data::Dataset`
+   --> src/theta_v0/backtest/fill.rs:340:5
+    |
+340 | use super::data::Dataset;
+    |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `TYPED_TRADE_SCHEMA_VERSION`
+   --> src/theta_v0/backtest/fill.rs:343:22
+    |
+343 |     VoiceVerdictRec, TYPED_TRADE_SCHEMA_VERSION,
+    |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Metrics`
+   --> src/theta_v0/backtest/fill.rs:345:28
+    |
+345 | use super::metrics::{self, Metrics};
+    |                            ^^^^^^^
+
+warning: unused imports: `StrictNestSidecarCollector`, `strict_nest_sidecar_enabled`, and `summarize_strict_nest_certificates`
+   --> src/theta_v0/backtest/fill.rs:348:5
+    |
+348 |     strict_nest_sidecar_enabled, summarize_strict_nest_certificates, t_stage_str, voice_side_str,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+349 |     OpsemDump, RebaseObservationInput, StrictNestSidecarCollector,
+    |                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `TwState`
+  --> src/theta_v0/backtest/runner.rs:32:50
+   |
+32 | use super::super::strategy::ledger::{RiskPolicy, TwState};
+   |                                                  ^^^^^^^
+
+warning: unused import: `FillOutcome`
+  --> src/theta_v0/backtest/runner.rs:36:43
+   |
+36 | pub(crate) use super::fill::{apply_order, FillOutcome};
+   |                                           ^^^^^^^^^^^
+
+warning: unused import: `bar_returns`
+  --> src/theta_v0/backtest/runner.rs:37:19
+   |
+37 | use super::fill::{bar_returns, simulate_fills};
+   |                   ^^^^^^^^^^^
+
+warning: unused import: `super::ledger::TwLedgerThread`
+  --> src/theta_v0/backtest/runner.rs:38:16
+   |
+38 | pub(super) use super::ledger::TwLedgerThread;
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `entry_structural_stop` and `newly_confirmed_step`
+  --> src/theta_v0/backtest/runner.rs:43:21
+   |
+43 | use super::signal::{entry_structural_stop, newly_confirmed_step};
+   |                     ^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `eta_bucket_str`, `force_state_str`, `operation_role_str`, `risk_mode_str`, `t_stage_str`, and `voice_side_str`
+  --> src/theta_v0/backtest/runner.rs:55:5
+   |
+55 |     eta_bucket_str, force_state_str, operation_role_str, risk_mode_str,
+   |     ^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^
+56 |     strict_nest_sidecar_enabled, summarize_strict_nest_certificates, t_stage_str, voice_side_str,
+   |                                                                      ^^^^^^^^^^^  ^^^^^^^^^^^^^^
+
+warning: unused imports: `LevelFingerprint`, `NestGateObs`, `kappa_policy_resolved`, and `nest_cert_gate_enabled`
+  --> src/theta_v0/backtest/runner.rs:66:24
+   |
+66 |     k_theta_risk_gate, kappa_policy_resolved, kappa_priority_resolve, nest_cert_gate_enabled,
+   |                        ^^^^^^^^^^^^^^^^^^^^^                          ^^^^^^^^^^^^^^^^^^^^^^
+67 |     nest_gate_admit, voice_exec_gate, LevelFingerprint, NestChainGate, NestGateObs, NestGateStats,
+   |                                       ^^^^^^^^^^^^^^^^                 ^^^^^^^^^^^
+
+warning: value assigned to `price` is never read
+   --> src/recursive_t/rec_stream.rs:840:29
+    |
+840 |             let mut price = 100.0_f64;
+    |                             ^^^^^^^^^ this value is reassigned later and never used
+...
+846 |                 price = 100.0 + big + mid + small + ((i % 11) as f64) * 0.07;
+    |                 ------------------------------------------------------------ `price` is overwritten here before the previous value is read
+    |
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: value assigned to `price` is never read
+   --> src/recursive_t/rec_stream.rs:956:29
+    |
+956 |             let mut price = 100.0_f64;
+    |                             ^^^^^^^^^ this value is reassigned later and never used
+...
+961 |                 price = 100.0 + big + mid + small + ((i % 11) as f64) * 0.07;
+    |                 ------------------------------------------------------------ `price` is overwritten here before the previous value is read
+
+warning: value assigned to `price` is never read
+    --> src/recursive_t/rec_stream.rs:1025:29
+     |
+1025 |             let mut price = 100.0_f64;
+     |                             ^^^^^^^^^ this value is reassigned later and never used
+...
+1030 |                 price = 100.0 + big + mid + small + ((i % 11) as f64) * 0.07;
+     |                 ------------------------------------------------------------ `price` is overwritten here before the previous value is read
+
+warning: value assigned to `price` is never read
+    --> src/recursive_t/rec_stream.rs:1064:29
+     |
+1064 |             let mut price = 100.0_f64;
+     |                             ^^^^^^^^^ this value is reassigned later and never used
+...
+1069 |                 price = 100.0 + big + mid + small + ((i % 11) as f64) * 0.07;
+     |                 ------------------------------------------------------------ `price` is overwritten here before the previous value is read
+
+warning: value assigned to `price` is never read
+    --> src/recursive_t/rec_stream.rs:1157:29
+     |
+1157 |             let mut price = 100.0_f64;
+     |                             ^^^^^^^^^ this value is reassigned later and never used
+...
+1162 |                 price = 100.0 + big + mid + small + ((i % 11) as f64) * 0.07;
+     |                 ------------------------------------------------------------ `price` is overwritten here before the previous value is read
+
+warning: unused variable: `c`
+   --> src/theta_v0/classifier/recursive_tower.rs:409:20
+    |
+409 |         .map(|(i, (c, win))| {
+    |                    ^ help: if this is intentional, prefix it with an underscore: `_c`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `c`
+   --> src/theta_v0/classifier/recursive_tower.rs:676:24
+    |
+676 |             .map(|(i, (c, win))| {
+    |                        ^ help: if this is intentional, prefix it with an underscore: `_c`
+
+warning: variable does not need to be mutable
+    --> src/theta_v0/classifier/signal.rs:1246:9
+     |
+1246 |     let mut judge_range = |from: usize,
+     |         ----^^^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unreachable pattern
+    --> src/theta_v0/classifier/signal.rs:1588:13
+     |
+1587 |             (Some(Direction::Down), Direction::Down) => end.price < c.zd,
+     |             ---------------------------------------- matches all the relevant values
+1588 |             (Some(Direction::Down), Direction::Down) => c.zg < end.price,
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no value can reach this
+     |
+     = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `src`
+    --> src/theta_v0/classifier/signal.rs:4784:13
+     |
+4784 |         let src: Vec<usize> = (0..prices.len()).collect();
+     |             ^^^ help: if this is intentional, prefix it with an underscore: `_src`
+
+warning: unused variable: `fractals`
+   --> src/theta_v0/parser/profile.rs:123:13
+    |
+123 |         let fractals = fractal::detect_fractals(&incl.merged);
+    |             ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_fractals`
+
+warning: unused variable: `fractals`
+   --> src/theta_v0/parser/profile.rs:233:13
+    |
+233 |         let fractals = fractal::detect_fractals(&incl.merged);
+    |             ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_fractals`
+
+warning: unused variable: `fractals_all`
+   --> src/theta_v0/parser/profile.rs:366:13
+    |
+366 |         let fractals_all = fractal::detect_fractals(merged);
+    |             ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_fractals_all`
+
+warning: unused variable: `reg`
+   --> src/theta_v0/strategy/coverage/ancok_tests.rs:179:9
+    |
+179 |     let reg = super::super::super::persistent::PersistentRegistry::new();
+    |         ^^^ help: if this is intentional, prefix it with an underscore: `_reg`
+
+warning: unused variable: `t_i`
+   --> src/theta_v0/strategy/coverage/element_tests.rs:116:9
+    |
+116 |     let t_i = extract_elements(&tower); // T_i：只展开最高非空级（L1）根 → 2 根 + 6 子 = 8
+    |         ^^^ help: if this is intentional, prefix it with an underscore: `_t_i`
+
+warning: unused variable: `reg`
+   --> src/theta_v0/strategy/coverage/step_tests.rs:144:9
+    |
+144 |     let reg = super::super::super::persistent::PersistentRegistry::new();
+    |         ^^^ help: if this is intentional, prefix it with an underscore: `_reg`
+
+warning: unused variable: `c`
+    --> src/theta_v0/backtest/wverify_run.rs:3119:24
+     |
+3119 |             .map(|(i, (c, win))| {
+     |                        ^ help: if this is intentional, prefix it with an underscore: `_c`
+
+warning: variable does not need to be mutable
+    --> src/theta_v0/backtest/fill.rs:5594:49
+     |
+5594 |             let (next_active, standard_p_star, (mut order, _protocol_event), step_trace) =
+     |                                                 ----^^^^^
+     |                                                 |
+     |                                                 help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> src/trading/axiom_voice.rs:367:17
+    |
+367 |             let mut restore = |reason: &'static str,
+    |                 ----^^^^^^^
+    |                 |
+    |                 help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/trading/positional_fusion.rs:1506:25
+     |
+1506 |                     let mut cover =
+     |                         ----^^^^^
+     |                         |
+     |                         help: remove this `mut`
+
+warning: field `dbg_sink_ok` is never read
+   --> src/fugue_v3/operate.rs:101:5
+    |
+ 70 | pub struct OperateEngine {
+    |            ------------- field in this struct
+...
+101 |     dbg_sink_ok: [u64; MAX_LADDER],
+    |     ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `total_long_at_entry` is never used
+   --> src/fugue_v3/operate.rs:267:19
+    |
+105 | impl OperateEngine {
+    | ------------------ method in this implementation
+...
+267 |     pub(crate) fn total_long_at_entry(&self) -> f64 {
+    |                   ^^^^^^^^^^^^^^^^^^^
+
+warning: field `reading_b_diverge` is never read
+   --> src/recursive_t/rec_engine.rs:996:5
+    |
+960 | pub struct TRoot {
+    |            ----- field in this struct
+...
+996 |     reading_b_diverge: bool,
+    |     ^^^^^^^^^^^^^^^^^
+
+warning: field `n` is never read
+    --> src/recursive_t/rec_stream.rs:2404:13
+     |
+2401 |         struct Row {
+     |                --- field in this struct
+...
+2404 |             n: usize,
+     |             ^
+
+warning: function `confirm_divergence_forcel_semantics` is never used
+    --> src/theta_v0/classifier/divergence.rs:1593:12
+     |
+1593 |         fn confirm_divergence_forcel_semantics() {
+     |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `position` and `iter` are never used
+   --> src/theta_v0/strategy/coverage/element.rs:146:19
+    |
+ 67 | impl<'a> ElementView<'a> {
+    | ------------------------ methods in this implementation
+...
+146 |     pub(crate) fn position(&self, mut pred: impl FnMut(&CoverageElement) -> bool) -> Option<usize> {
+    |                   ^^^^^^^^
+...
+156 |     pub(crate) fn iter(&self) -> impl Iterator<Item = &CoverageElement> {
+    |                   ^^^^
+
+warning: function `held_leg_tree_index` is never used
+  --> src/theta_v0/strategy/coverage/held.rs:34:4
+   |
+34 | fn held_leg_tree_index(
+   |    ^^^^^^^^^^^^^^^^^^^
+
+warning: method `clamp_position` is never used
+   --> src/theta_v0/strategy/coverage/sizing.rs:398:19
+    |
+338 | impl KThetaRiskGate {
+    | ------------------- method in this implementation
+...
+398 |     pub(crate) fn clamp_position(&self, cap: f64, position: f64) -> f64 {
+    |                   ^^^^^^^^^^^^^^
+
+warning: function `voice_side` is never used
+   --> src/theta_v0/strategy/persistent.rs:578:8
+    |
+578 |     fn voice_side(up: bool) -> VoiceSide {
+    |        ^^^^^^^^^^
+
+warning: fields `ucb` and `cv` are never read
+   --> src/theta_v0/backtest/wverify_run.rs:727:5
+    |
+722 | struct BucketStat {
+    |        ---------- fields in this struct
+...
+727 |     ucb: f64,
+    |     ^^^
+728 |     cv: f64,
+    |     ^^
+
+warning: field `old_channel` is never read
+   --> src/theta_v0/backtest/admission.rs:368:16
+    |
+363 | pub(super) struct NestGateObs {
+    |                   ----------- field in this struct
+...
+368 |     pub(super) old_channel: &'static str,
+    |                ^^^^^^^^^^^
+    |
+    = note: `NestGateObs` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: field `frozen_runs` is never read
+   --> src/theta_v0/backtest/admission.rs:618:16
+    |
+566 | pub(super) struct NestChainGate {
+    |                   ------------- field in this struct
+...
+618 |     pub(super) frozen_runs: std::collections::HashSet<(usize, usize, usize)>,
+    |                ^^^^^^^^^^^
+
+warning: fields `chi_filter_active`, `b1_sizing_available`, `voice_tree_depth`, and `w_depth_at_entry` are never read
+   --> src/theta_v0/backtest/ledger.rs:193:16
+    |
+159 | pub(super) struct OpsemEntrySnapshot {
+    |                   ------------------ fields in this struct
+...
+193 |     pub(super) chi_filter_active: bool,
+    |                ^^^^^^^^^^^^^^^^^
+194 |     /// ★L2-P4：B1 sizing 是否成功从 sep_legs 取得（false ⟹ units=0.0 是兜底）。
+195 |     pub(super) b1_sizing_available: bool,
+    |                ^^^^^^^^^^^^^^^^^^^
+196 |     /// ★L2-P5/P6：真嵌套深度（根=0，沿 parent_id 链；`element_depth` 同口径）。
+197 |     pub(super) voice_tree_depth: u8,
+    |                ^^^^^^^^^^^^^^^^
+198 |     /// ★L2-P6：该深度实际消费的 w_depth（[0.60,0.30,0.10] 按深度索引，越界 0.0）。
+199 |     pub(super) w_depth_at_entry: f64,
+    |                ^^^^^^^^^^^^^^^^
+    |
+    = note: `OpsemEntrySnapshot` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: trait `LiveOpenView` is never used
+   --> src/theta_v0/backtest/open_ledger.rs:140:18
+    |
+140 | pub(super) trait LiveOpenView {
+    |                  ^^^^^^^^^^^^
+
+warning: method `shortdiff_carriers` is never used
+   --> src/theta_v0/backtest/open_ledger.rs:270:19
+    |
+205 | impl OpenTable<LedgerOpen> {
+    | -------------------------- method in this implementation
+...
+270 |     pub(super) fn shortdiff_carriers(&self) -> HashSet<ElementId> {
+    |                   ^^^^^^^^^^^^^^^^^^
+
+warning: field `sum_rho` is never read
+    --> src/theta_v0/backtest/econ_positive/tests.rs:3994:9
+     |
+3981 |     struct HighLevelResult {
+     |            --------------- field in this struct
+...
+3994 |         sum_rho: f64,
+     |         ^^^^^^^
+
+warning: method `open_keys` is never used
+   --> src/trading/ledger.rs:426:12
+    |
+407 | impl ShortBook {
+    | -------------- method in this implementation
+...
+426 |     pub fn open_keys(&self) -> Vec<SlotKey> {
+    |            ^^^^^^^^^
+
+warning: enum `DirectionalBook` is never used
+   --> src/trading/ledger.rs:498:10
+    |
+498 | pub enum DirectionalBook {
+    |          ^^^^^^^^^^^^^^^
+
+warning: function `faceb_多级别叠加_杠杆来源A涌现_liq0` should have a snake case name
+   --> src/recursive_t/rec_driver.rs:423:8
+    |
+423 |     fn faceb_多级别叠加_杠杆来源A涌现_liq0() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `faceb_多级别叠加_杠杆来源_a涌现_liq0`
+    |
+    = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: function `二B三B同端点可重合` should have a snake case name
+   --> src/recursive_t/types.rs:447:8
+    |
+447 |     fn 二B三B同端点可重合() {
+    |        ^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `二_b三_b同端点可重合`
+
+warning: function `一B与二B同端点违反互斥律` should have a snake case name
+   --> src/recursive_t/types.rs:470:8
+    |
+470 |     fn 一B与二B同端点违反互斥律() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `一_b与二_b同端点违反互斥律`
+
+warning: comparison is useless due to type limits
+    --> src/theta_v0/parser/segment.rs:1310:25
+     |
+1310 |                 assert!(st.end_index >= 0 && st.start_index <= 21);
+     |                         ^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(unused_comparisons)]` on by default
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> src/theta_v0/strategy/coverage/test_support.rs:239:36
+    |
+239 | pub(crate) fn view_split(elements: &[CoverageElement], cstart: usize) -> ElementView {
+    |                                    ^^^^^^^^^^^^^^^^^^                    ^^^^^^^^^^^ the same lifetime is hidden here
+    |                                    |
+    |                                    the lifetime is elided here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+    = note: `#[warn(mismatched_lifetime_syntaxes)]` on by default
+help: use `'_` for type paths
+    |
+239 | pub(crate) fn view_split(elements: &[CoverageElement], cstart: usize) -> ElementView<'_> {
+    |                                                                                     ++++
+
+warning: `newchan_rust` (lib test) generated 65 warnings (run `cargo fix --lib -p newchan_rust --tests` to apply 35 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.31s
+     Running unittests src/lib.rs (/Users/silencehan/Projects/NewChanlun-1392-incremental/.scratch/issue1392-incremental/target/debug/deps/newchan_rust-1dfbf63805c220e7)
+
+running 116 tests
+test theta_v0::parser::canonical::tests::gauge_key_breaks_tie_by_recursion_level ... ok
+test theta_v0::parser::canonical::tests::gauge_key_orders_confirm_time_first ... ok
+test theta_v0::parser::canonical::tests::min_gauge_keeps_left_on_full_tie ... ok
+test theta_v0::parser::canonical::tests::gauge_key_breaks_tie_by_source_index ... ok
+test theta_v0::parser::canonical::tests::gauge_fix_empty_none ... ok
+test theta_v0::parser::feature_seq::tests::has_any_fractal_detects_top_and_bottom ... ok
+test theta_v0::parser::canonical::tests::gauge_fix_selects_minimal_candidate ... ok
+test theta_v0::parser::feature_seq::tests::append_empty_pushes_first ... ok
+test theta_v0::parser::feature_seq::tests::second_seq_window_unlimited_vs_bounded ... ok
+test theta_v0::parser::feature_seq::tests::scan_trigger_too_few_none ... ok
+test theta_v0::parser::feature_seq::tests::apply_inclusion_no_inclusion_appends ... ok
+test theta_v0::parser::feature_seq::tests::apply_inclusion_directional_up ... ok
+test theta_v0::parser::feature_seq::tests::is_fractal_and_gap_down_bottom ... ok
+test theta_v0::parser::feature_seq::tests::is_fractal_and_gap_tangent_up_no_gap ... ok
+test theta_v0::parser::feature_seq::tests::is_fractal_and_gap_tangent_down_no_gap ... ok
+test theta_v0::parser::feature_seq::tests::apply_inclusion_directional_down ... ok
+test theta_v0::parser::feature_seq::tests::is_fractal_and_gap_up_top_with_gap ... ok
+test theta_v0::parser::feature_seq::tests::is_fractal_and_gap_up_top_no_gap ... ok
+test theta_v0::parser::fractal::tests::fewer_than_three_bars_no_fractal ... ok
+test theta_v0::parser::fractal::tests::equality_does_not_form_fractal ... ok
+test theta_v0::parser::inclusion::tests::contains_detects_full_containment ... ok
+test theta_v0::parser::fractal::tests::property_fractal_price_is_mid_extreme ... ok
+test theta_v0::parser::canonical::tests::canonical_endpoints_empty_segments ... ok
+test theta_v0::parser::inclusion::tests::merge_up_takes_higher_high_and_higher_low ... ok
+test theta_v0::parser::inclusion::tests::merge_down_takes_lower_low_and_lower_high ... ok
+test theta_v0::parser::inclusion::tests::golden_simple_up_then_inclusion_merge ... ok
+test theta_v0::parser::canonical::tests::canonical_endpoints_l0_identity_scan ... ok
+test theta_v0::parser::fractal::tests::detects_bottom_fractal_strict ... ok
+test theta_v0::parser::fractal::tests::detects_top_fractal_strict ... ok
+test theta_v0::parser::feature_seq::tests::scan_trigger_finds_top_no_gap ... ok
+test theta_v0::parser::inclusion::tests::no_direction_yields_only_open_tail ... ok
+test theta_v0::parser::inclusion::tests::property_merged_bars_pairwise_non_containing ... ok
+test theta_v0::parser::fractal::tests::golden_alternating_top_then_bottom ... ok
+test theta_v0::parser::fractal::tests::fractal_at_source_hit_miss_and_order ... ok
+test theta_v0::parser::inclusion::tests::strict_dir_only_when_both_extremes_move ... ok
+test theta_v0::parser::profile::bit_exact_inclusion_only_es ... ignored, 隔离 inclusion bit-exact：需 ES 数据
+test theta_v0::parser::profile::bit_exact_parse_layer_incr_per_bar_es ... ignored, bit-exact 验证：需 ES 数据；--release（O(n²) 全量对照）
+test theta_v0::parser::profile::diag_incr_strokes_scaling ... ignored, IncrStrokes 标度诊断：需 ES 数据；--release
+test theta_v0::parser::profile::diag_segment_window_effect ... ignored
+test theta_v0::parser::profile::profile_incr_same_input_early_return ... ignored, E1 早退计时对照：需 ES 数据；--release
+test theta_v0::parser::profile::profile_parse_layer_incr_scaling ... ignored
+test theta_v0::parser::profile::profile_parse_layer_scaling ... ignored
+test theta_v0::parser::inclusion::tests::incr_empty_chain_matches_full ... ok
+test theta_v0::parser::inclusion::tests::incr_all_contained_matches_full ... ok
+test theta_v0::parser::inclusion::tests::incr_alternating_dirs_matches_full ... ok
+test theta_v0::parser::inclusion::tests::incr_direction_flip_after_delay_matches_full ... ok
+test theta_v0::parser::canonical::tests::property_canonical_endpoint_matches_segment_end ... ok
+test theta_v0::parser::second_kind::tests::golden_second_kind_pending_when_no_fractal ... ok
+test theta_v0::parser::second_kind::tests::has_any_fractal_fewer_than_three_none ... ok
+test theta_v0::parser::second_kind::tests::golden_second_kind_confirmed_when_second_seq_has_fractal ... ok
+test theta_v0::parser::inclusion::tests::incr_simple_up_then_merge_matches_full ... ok
+test theta_v0::parser::second_kind::tests::has_any_fractal_detects_top ... ok
+test theta_v0::parser::second_kind::tests::property_no_fractal_never_confirms ... ok
+test theta_v0::parser::second_kind::tests::second_kind_empty_strokes_false ... ok
+test theta_v0::parser::second_kind::tests::has_any_fractal_detects_bottom ... ok
+test theta_v0::parser::second_kind::tests::has_any_fractal_none_when_monotone ... ok
+test theta_v0::parser::feature_seq::tests::property_second_seq_early_terminate_equals_full_scan ... ok
+test theta_v0::parser::inclusion::tests::dense_annotation_open_tail_all_tentative ... ok
+test theta_v0::parser::inclusion::tests::dense_annotation_group_and_confirmed_semantics ... ok
+test theta_v0::parser::segment::tests::contains_bit_exact_claim10 ... ok
+test theta_v0::parser::inclusion::tests::merged_group_index_matches_anchor ... ok
+test theta_v0::parser::segment::tests::analyze_termination_empty_no_fractal ... ok
+test theta_v0::parser::inclusion::tests::group_anchor_is_first_bar_of_merged_group ... ok
+test theta_v0::parser::segment::tests::classify_termination_gap_to_secondkind ... ok
+test theta_v0::parser::segment::tests::fewer_than_three_strokes_no_segment ... ok
+test theta_v0::parser::segment::tests::i1_segment_force_l_manual ... ok
+test theta_v0::parser::segment::tests::overlaps_and_gap_bit_exact_claim10 ... ok
+test theta_v0::parser::segment::tests::three_stroke_overlap_distinct_triple_tangent ... ok
+test theta_v0::parser::segment::tests::feature_inclusion_merges_contained_elements ... ok
+test theta_v0::parser::second_kind::tests::resolve_pending_when_apex_not_locatable ... ok
+test theta_v0::parser::segment::tests::three_stroke_overlap_strict_cases_unchanged ... ok
+test theta_v0::parser::segment::tests::three_stroke_overlap_tangent_counts_as_overlap ... ok
+test theta_v0::parser::segment::tests::analyze_termination_firstkind_confirms_end ... ok
+test theta_v0::parser::segment::tests::feature_elements_takes_reverse_strokes ... ok
+test theta_v0::parser::second_kind::tests::apex_extreme_reads_directional_extreme ... ok
+test theta_v0::parser::segment::tests::i1_stroke_span_roundtrip_synthetic ... ok
+test theta_v0::parser::inclusion::tests::incr_from_result_resumes ... ok
+test theta_v0::parser::inclusion::tests::tb02a_direction_is_from_actual_accumulator_not_previous_raw ... ok
+test theta_v0::parser::segment::tests::property_feature_elements_exclude_same_direction ... ok
+test theta_v0::parser::inclusion::tests::tb02a_initial_inclusion_does_not_borrow_future_direction ... ok
+test theta_v0::parser::gap_overlap_fixture::tests::fixture_truths_are_complementary ... ok
+test theta_v0::parser::gap_overlap_fixture::tests::fixture_endpoints_are_valid_intervals ... ok
+test theta_v0::parser::inclusion::tests::tb02a_equal_role_roots_wait_but_cross_axis_equality_does_not ... ok
+test theta_v0::parser::feature_seq::tests::is_fractal_and_gap_lean_fixture_bit_exact ... ok
+test theta_v0::parser::gap_overlap_fixture::tests::fixture_endpoints_match_kind ... ok
+test theta_v0::parser::segment::tests::three_stroke_overlap_lean_fixture_bit_exact ... ok
+test theta_v0::parser::tail::tests::pending_segment_empty_rest_none ... ok
+test theta_v0::parser::tail::tests::build_tail_empty_when_all_closed ... ok
+test theta_v0::parser::tail::tests::pending_fractal_no_extension_none ... ok
+test theta_v0::parser::tail::tests::pending_segment_from_leftover_strokes ... ok
+test theta_v0::parser::tail::tests::pending_stroke_no_hanging_fractal_none ... ok
+test theta_v0::parser::tail::tests::pending_stroke_after_last_confirmed ... ok
+test theta_v0::parser::tail::tests::property_tail_carries_only_current_state ... ok
+test theta_v0::parser::tests::tmp_export_oklo_strokes_segments_for_xcheck ... ignored
+test theta_v0::parser::tail::tests::build_tail_collects_pending_layers ... ok
+test theta_v0::parser::tail::tests::pending_fractal_after_last_confirmed ... ok
+test theta_v0::parser::inclusion::tests::tb02a_trace_matches_existing_kernel_and_preserves_actual_roots ... ok
+test theta_v0::parser::fractal::tests::bit_exact_incr_fractals_per_bar ... ok
+test theta_v0::parser::stroke::tests::tb02b_checkpoint_restores_popped_tail_before_extension ... ok
+test theta_v0::parser::tests::parse_empty_bars_yields_empty_layer ... ok
+test theta_v0::parser::segment::tests::i1_stroke_span_closure_on_oklo ... ok
+test theta_v0::parser::inclusion::tests::dense_annotation_roundtrip_bit_exact ... ok
+test theta_v0::parser::segment::tests::idempotent_repeat_append_same_input ... ok
+test theta_v0::parser::stroke::tests::tb02b_d_fixture_production_endpoints_close_through_anchor_resolver ... ok
+test theta_v0::parser::stroke::tests::tb02b_checkpoint_rolls_back_blocked_when_active_root_becomes_unique ... ok
+test theta_v0::parser::inclusion::tests::incr_long_synthetic_matches_full ... ok
+test theta_v0::parser::stroke::tests::tb02b_confirmed_prefix_survives_successor_tail_extension ... ok
+test theta_v0::parser::stroke::tests::tb02b_raw_prefix_formation_confirmation_and_parser_parity ... ok
+test theta_v0::parser::stroke::tests::tb02b_checkpoint_sealing_ties_and_tail_retraction ... ok
+test theta_v0::parser::stroke::tests::tb02b_frozen_raw_ledger_and_sparse_source_coordinates ... ok
+test theta_v0::parser::stroke::tests::tb02b_checkpoint_frozen_ledger_every_prefix_and_sparse_coordinates ... ok
+test theta_v0::parser::segment::tests::bit_exact_incr_segments_per_bar ... ok
+test theta_v0::parser::segment::tests::cascade_revival_bit_exact_incr_vs_full ... ok
+test theta_v0::parser::segment::tests::advancing_euf_resolves_and_reflags ... ok
+test theta_v0::parser::stroke::tests::tb02b_checkpoint_many_prefixes_linear_endpoint_work ... ok
+test theta_v0::parser::profile::bit_exact_parse_layer_incr_per_bar_synthetic ... ok
+
+test result: ok. 108 passed; 0 failed; 8 ignored; 0 measured; 3007 filtered out; finished in 19.39s
+

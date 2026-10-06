@@ -63,17 +63,17 @@ fn profile_parse_layer_scaling() {
         });
 
         // 子步分解（复用 parse_layer 内部顺序）。
-        let incl = inclusion::process_inclusion(bars);
+        let incl = inclusion::process_inclusion_with_facts(bars);
         let t_incl = bench(iters, || {
-            let _ = inclusion::process_inclusion(bars);
+            let _ = inclusion::process_inclusion_with_facts(bars);
         });
         let fractals = fractal::detect_fractals(&incl.merged);
         let t_fractal = bench(iters, || {
             let _ = fractal::detect_fractals(&incl.merged);
         });
-        let strokes = stroke::build_strokes(&fractals, &cfg.parse);
+        let strokes = stroke::build_strokes(&incl, &cfg.parse);
         let t_stroke = bench(iters, || {
-            let _ = stroke::build_strokes(&fractals, &cfg.parse);
+            let _ = stroke::build_strokes(&incl, &cfg.parse);
         });
         let t_segment = bench(iters, || {
             let _ = segment::divide_segments(&strokes, &cfg.parse);
@@ -119,9 +119,9 @@ fn diag_segment_window_effect() {
             break;
         }
         let bars = &ds.bars[..n];
-        let incl = inclusion::process_inclusion(bars);
+        let incl = inclusion::process_inclusion_with_facts(bars);
         let fractals = fractal::detect_fractals(&incl.merged);
-        let strokes = stroke::build_strokes(&fractals, &cfg.parse);
+        let strokes = stroke::build_strokes(&incl, &cfg.parse);
         let iters = if n <= 16000 { 10 } else { 3 };
 
         let mut times = [0.0f64; 3];
@@ -198,7 +198,7 @@ fn profile_parse_layer_incr_scaling() {
             let _ = parse_layer(bars, &cfg);
         });
 
-        let incl = inclusion::process_inclusion(bars);
+        let incl = inclusion::process_inclusion_with_facts(bars);
         let n_merged = incl.merged.len();
 
         let (ie, fe) = match prev {
@@ -229,14 +229,14 @@ fn profile_parse_layer_incr_scaling() {
                 s = s.append(*b);
             }
         });
-        let incl = inclusion::process_inclusion(bars);
+        let incl = inclusion::process_inclusion_with_facts(bars);
         let fractals = fractal::detect_fractals(&incl.merged);
-        let strokes = stroke::build_strokes(&fractals, &cfg.parse);
+        let strokes = stroke::build_strokes(&incl, &cfg.parse);
         let t_fractal = bench(5, || {
             let _ = fractal::detect_fractals(&incl.merged);
         });
         let t_stroke = bench(5, || {
-            let _ = stroke::build_strokes(&fractals, &cfg.parse);
+            let _ = stroke::build_strokes(&incl, &cfg.parse);
         });
         let t_segment = bench(5, || {
             let _ = segment::divide_segments_with_tail(&strokes, &cfg.parse);
@@ -361,15 +361,15 @@ fn diag_incr_strokes_scaling() {
             break;
         }
         let bars = &ds.bars[..n];
-        let incl = inclusion::process_inclusion(bars);
+        let incl = inclusion::process_inclusion_with_facts(bars);
         let merged = &incl.merged;
         let fractals_all = fractal::detect_fractals(merged);
 
         // 逐 fractals 长度 append，测总耗时。
         let t = bench(1, || {
             let mut incr = stroke::IncrStrokes::empty();
-            for end in 1..=fractals_all.len() {
-                incr = incr.append(&fractals_all[..end], &cfg.parse);
+            for end in 1..=bars.len() {
+                incr = incr.append(&bars[..end], &cfg.parse);
             }
         });
 
@@ -399,9 +399,9 @@ fn profile_incr_same_input_early_return() {
     };
     let n = ds.bars.len().min(200_000);
     let bars = &ds.bars[..n];
-    let incl = inclusion::process_inclusion(bars);
+    let incl = inclusion::process_inclusion_with_facts(bars);
     let fractals = fractal::detect_fractals(&incl.merged);
-    let strokes = stroke::build_strokes(&fractals, &cfg.parse);
+    let strokes = stroke::build_strokes(&incl, &cfg.parse);
     eprintln!(
         "ES prefix bars={n} merged={} fractals={} strokes={}",
         incl.merged.len(),
@@ -440,21 +440,21 @@ fn profile_incr_same_input_early_return() {
     );
 
     // ---- IncrStrokes：末分型 price 微扰 → last_fractal 逐字段不等 → never 早退。
-    let mut frac_alt = fractals.clone();
+    let mut frac_alt = bars.to_vec();
     if let Some(last) = frac_alt.last_mut() {
-        last.price += 1;
+        last.high += 1;
     }
     let t_str_early = bench(iters, || {
-        let mut s = stroke::IncrStrokes::empty().append(&fractals, &cfg.parse);
+        let mut s = stroke::IncrStrokes::empty().append(bars, &cfg.parse);
         for _ in 0..reps {
-            s = s.append(&fractals, &cfg.parse);
+            s = s.append(bars, &cfg.parse);
         }
         std::hint::black_box(&s);
     });
     let t_str_recompute = bench(iters, || {
-        let mut s = stroke::IncrStrokes::empty().append(&fractals, &cfg.parse);
+        let mut s = stroke::IncrStrokes::empty().append(bars, &cfg.parse);
         for k in 0..reps {
-            let inp = if k % 2 == 0 { &frac_alt } else { &fractals };
+            let inp = if k % 2 == 0 { &frac_alt } else { bars };
             s = s.append(inp, &cfg.parse);
         }
         std::hint::black_box(&s);

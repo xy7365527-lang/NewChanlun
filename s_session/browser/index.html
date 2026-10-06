@@ -237,7 +237,7 @@ function renderMeta(snap, cat) {
   document.getElementById("meta-kv").innerHTML = kv.map(([k, v]) =>
     `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
 }
-const typedKinds = ["CC-004.inclusion_step", "CC-005.inclusion_group", "CC-007.fractal_description", "CC-054.knowledge_state"];
+const typedKinds = ["CC-008.endpoint", "CC-008.new_bi_pair", "CC-009.same_kind", "CC-010.bi", "CC-055.relation", "CC-055.change_event", "CC-056.version"].concat(["CC-004.inclusion_step", "CC-005.inclusion_group", "CC-007.fractal_description", "CC-054.knowledge_state"]);
 function rawPriceText(row) {
   return row.schema_revision === "s-ohlc/1" ? ["open", "high", "low", "close"].map(k => `${k}=${esc(row[k])}`).join(" · ") : `price=${esc(row.price)}`;
 }
@@ -248,11 +248,13 @@ function renderFactValue(value) {
   return esc(String(value));
 }
 function renderTypedCard(object, snapshot, cls) {
-  const relations = snapshot.relations.filter(row => row.subject === object.object_id || row.object === object.object_id);
+  const entity = object.payload?.data?.entity_id;
+  const relations = snapshot.relations.filter(row => row.subject === object.object_id || row.object === object.object_id || row.subject === entity || row.object === entity);
   const labels = {"CC-004.inclusion_step":"包含步骤与逐价关系", "CC-005.inclusion_group":"完整组成员、组首与极值来源", "CC-007.fractal_description":"已发生的顶/底关系与后续事实", "CC-054.knowledge_state":"逐请求四轴与等待边界"};
-  return `<details open id="${escAttr(object.object_id)}"><summary class="${escAttr(cls || "")}">${esc(labels[object.kind])} · ${esc(object.object_id)} · first_known=${esc(object.first_known_generation)} · published=${esc(object.published_generation)} · ${esc(object.lifecycle)}</summary>` +
+  return `<details open id="${escAttr(object.object_id)}"><summary class="${escAttr(cls || "")}">${esc(labels[object.kind] || object.kind)} · ${esc(object.object_id)} · first_known=${esc(object.first_known_generation)} · published=${esc(object.published_generation)} · ${esc(object.lifecycle)}</summary>` +
     `<p>固定语义槽 ${esc(object.fact_key)} · 首次 cut ${esc(object.first_known_cut)} · 批次 ${esc(object.batch_id)}</p>` +
     (object.lifecycle === "withdrawn" ? `<p>撤回代 ${esc(object.withdrawn_generation)} · ${esc(object.withdrawal_reason)} · 替代 ${esc(object.superseded_by)}</p>` : "") +
+    (object.kind === "CC-010.bi" ? `<p>新笔 ${esc(object.payload.data.entity_id)} · ${esc(object.payload.data.state)} · 端点 ${esc(object.payload.data.start.extreme_roots.join(","))} → ${esc(object.payload.data.end.extreme_roots.join(","))}</p>` : "") +
     renderFactValue(object.payload) + `<details><summary>完整来源引用与原始坐标（只读 S 已封存值）</summary>${renderFactValue({source_coords:object.source_coords,input_refs:object.input_refs})}</details>` +
     `<details><summary>同 cut 关系</summary>${renderFactValue(relations)}</details></details>`;
 }
@@ -407,7 +409,8 @@ function validateExactRecords(records) {
   function walk(v) {
     if (!v || typeof v !== "object") return;
     for (const [k, x] of Object.entries(v)) {
-      if (integerKeys.has(k) && x !== null) decimal(x);
+      // #1392：新笔 payload.slot 是逻辑身份；见证 slot 才是整数，身份由新笔合同逐类核对。
+      if (integerKeys.has(k) && x !== null && !(k === "slot" && v.schema_revision === "s-new-bi/1")) decimal(x);
       walk(x);
     }
   }
