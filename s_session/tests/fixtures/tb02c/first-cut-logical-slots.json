@@ -1,0 +1,62 @@
+{
+  "source": "正式first_up-a cut1 HTTP响应；未改动原件",
+  "response_sha256": "5142abe3b779a3026a7629f5a069f6afc1355fe9c5c811a777b89be61591337b",
+  "objects": [
+    {
+      "kind": "CC-011.seed_candidate",
+      "payload": {
+        "data": {
+          "construction": {
+            "direction": null,
+            "failed_conditions": [
+              "fewer_than_three_strokes"
+            ],
+            "length": "n=0",
+            "overlap": null,
+            "overlap_relation": null,
+            "start_stroke": "0",
+            "stroke_indices": [],
+            "vector": null
+          },
+          "entity_id": "seed:1:empty",
+          "stroke_refs": []
+        },
+        "object_generation": "1",
+        "policy_version": "seed_closed_first_no_gap",
+        "schema_revision": "s-segment/1",
+        "semantic_version": "segment-seed-first/1",
+        "slot": "seed:1:empty",
+        "view_role": "main"
+      }
+    },
+    {
+      "kind": "CC-056.segment_version",
+      "payload": {
+        "data": {
+          "deferred_scope": [
+            "second_kind",
+            "general_equal_identity"
+          ],
+          "delivered_scope": "seed_and_no_gap_first_kind",
+          "input_frontier": "0",
+          "known_at": {
+            "generation": "1",
+            "input_frontier": "0",
+            "receipt_id": "rcpt-692c5f015dadbc36",
+            "received_at": "2000-01-01T00:00:00Z",
+            "semantic_commit_ns": "946684800200000000"
+          },
+          "waiting_reasons": [
+            "fewer_than_three_strokes"
+          ]
+        },
+        "object_generation": "1",
+        "policy_version": "seed_closed_first_no_gap",
+        "schema_revision": "s-segment/1",
+        "semantic_version": "segment-seed-first/1",
+        "slot": "TB-02-C",
+        "view_role": "main"
+      }
+    }
+  ]
+}

@@ -110,6 +110,10 @@
   const BI_KINDS = ["CC-008.endpoint", "CC-008.new_bi_pair", "CC-009.same_kind", "CC-010.bi", "CC-055.relation", "CC-055.change_event", "CC-056.version"];
   TB02_KINDS.push(...BI_KINDS);
   TB02_AXES.push("CC-008", "CC-009", "CC-010", "CC-055");
+  const BI_AXES = [...TB02_AXES];
+  const SEGMENT_KINDS = ["CC-011.segment_seed", "CC-012.feature_sequence", "CC-013.segment", "CC-055.segment_relation", "CC-055.segment_change", "CC-056.segment_version", "CC-011.seed_candidate"];
+  TB02_KINDS.push(...SEGMENT_KINDS);
+  TB02_AXES.push("CC-011", "CC-012", "CC-013");
   // 由 signed-catalog.json 的全部公共静态列生成；对应漂移锁逐值重算，不是新分类语义。
   const TB02_CATALOG = Object.freeze({"catalog_revision":"s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)","source_sha256":"76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c","ids":["CC-001","CC-002","CC-003","CC-004","CC-005","CC-006","CC-007","CC-008","CC-009","CC-010","CC-011","CC-012","CC-013","CC-014","CC-015","CC-016","CC-017","CC-018","CC-019","CC-020","CC-021","CC-022","CC-023","CC-024","CC-025","CC-026","CC-027","CC-028","CC-029","CC-030","CC-031","CC-032","CC-033","CC-034","CC-035","CC-036","CC-037","CC-038","CC-039","CC-040","CC-041","CC-042","CC-043","CC-044","CC-045","CC-046","CC-047","CC-048","CC-049","CC-050","CC-051","CC-052","CC-053","CC-054","CC-055","CC-056","CC-057","CC-058","CC-059","CC-060","CC-061","CC-062","LC-01","LC-02","LC-03","LC-04","LC-05","LC-06","LC-07","LC-08","LC-09","LC-10","ST-001","ST-002","ST-003","ST-004","ST-005","ST-006","ST-007","ST-008","ST-009","ST-010","ST-011","ST-012","ST-013","ST-014","ST-015","ST-016","ST-017","ST-018","ST-019","ST-020","ST-021","ST-022","ST-023","ST-024","ST-025","ST-026","ST-027","ST-028","ST-029","ST-030","ST-031","ST-032","ST-033","ST-034","ST-035","ST-036","ST-037","ST-038","ST-043","ST-044","ST-045","ST-046","ST-047","ST-048"],"public_static_sha256":"974299745db38c9b83de3ccbd1e5fc8aab93d58037fd6ef5c1667509d6da8de2"});
   function signed(value) {
@@ -154,7 +158,8 @@
     }
     need(equal(record.source_coords, record.input_refs.map(r => r.source_coord)), "typed 源引用/坐标不一一对应");
     const p = record.payload, kind = record.kind;
-    if (BI_KINDS.includes(kind)) { validateBiPayload(kind, p);
+    if (SEGMENT_KINDS.includes(kind)) { validateSegmentPayload(kind, p);
+    } else if (BI_KINDS.includes(kind)) { validateBiPayload(kind, p);
     } else if (kind === TB02_KINDS[0]) {
       keys(p, ["action", "incoming", "acc_before", "acc_after", "direction", "direction_evidence", "comparisons", "endpoint_order", "contains", "high_sources", "low_sources", "waiting_reasons"], "包含步骤");
       need(["seed", "establish_direction", "merge", "new_group", "waiting"].includes(p.action), "步骤动作不符"); barRef(p.incoming);
@@ -199,8 +204,112 @@
         for (const k of Object.keys(enums)) need(enums[k].includes(r.axes[k]), "请求四轴枚举不符"); texts(r.reasons); coordinates(r.source_coords);
       }
     }
-    const slot = BI_KINDS.includes(kind) ? p.slot : kind === TB02_KINDS[0] ? p.incoming.source_coord : kind === TB02_KINDS[1] ? p.group_anchor : kind === TB02_KINDS[2] ? p.window : "TB-02-A";
+    const slot = [...BI_KINDS, ...SEGMENT_KINDS].includes(kind) ? p.slot : kind === TB02_KINDS[0] ? p.incoming.source_coord : kind === TB02_KINDS[1] ? p.group_anchor : kind === TB02_KINDS[2] ? p.window : "TB-02-A";
     need(record.fact_key === canonical([kind, slot]), "事实语义槽未绑定 payload");
+  }
+  function validateSegmentPayload(kind, p) {
+    keys(p, ["schema_revision", "semantic_version", "policy_version", "view_role", "object_generation", "slot", "data"], "段合同");
+    need(p.schema_revision === "s-segment/1" && p.semantic_version === "segment-seed-first/1" && p.policy_version === "seed_closed_first_no_gap" && p.view_role === "main", "段规则/范围版本不符");
+    integer(p.object_generation, true);
+    const d = p.data, refs = new Map();
+    function known(k) {
+      keys(k, ["generation", "input_frontier", "receipt_id", "received_at", "semantic_commit_ns"], "段获知时点");
+      integer(k.generation, true); integer(k.input_frontier, false, true);
+      for (const name of ["receipt_id", "received_at"]) if (k[name] !== null) text(k[name]);
+      if (k.semantic_commit_ns !== null) integer(k.semantic_commit_ns);
+    }
+    for (const r of d.stroke_refs || []) {
+      keys(r, ["stroke_index", "entity_id", "start_anchor", "end_anchor", "start_price", "end_price", "start_roots", "end_roots"], "段笔引用");
+      for (const name of ["stroke_index", "start_anchor", "end_anchor"]) integer(r[name]);
+      signed(r.start_price); signed(r.end_price);
+      need(coordinates(r.start_roots).length > 0 && coordinates(r.end_roots).length > 0, "段笔缺实际根");
+      need(r.entity_id === `bi:${p.object_generation}:${r.start_anchor}` && !refs.has(r.stroke_index), "段笔身份不符/重复");
+      refs.set(r.stroke_index, r);
+    }
+    function indices(xs) { coordinates(xs); need(xs.every(i => refs.has(i)), "段事实引用未绑定笔"); }
+    function construction(v) {
+      keys(v, ["start_stroke", "stroke_indices", "length", "vector", "overlap", "overlap_relation", "direction", "failed_conditions"], "段完整条件");
+      integer(v.start_stroke); indices(v.stroke_indices);
+      const n = v.stroke_indices.length, length = n < 3 ? `n=${n}` : n % 2 === 0 ? "even_ge3" : "odd_ge3";
+      need(v.length === length, "段长度分域不符");
+      need(v.stroke_indices.every((x,i) => BigInt(x) === BigInt(v.start_stroke) + BigInt(i)), "候选笔片段不连续");
+      need(length === "odd_ge3" ? Array.isArray(v.vector) && v.vector.length === 4 && v.vector.every(x => typeof x === "boolean") : v.vector === null, "段四条件缺位/不适用虚填");
+      if (n >= 3) { need(Array.isArray(v.overlap) && v.overlap.length === 2 && ["OVERLAP", "TOUCH", "DISJOINT"].includes(v.overlap_relation), "缺闭区间见证"); v.overlap.forEach(signed); }
+      else need(v.overlap === null && v.overlap_relation === null, "不足三笔虚填公共区间");
+      texts(v.failed_conditions);
+      need(equal(v.vector, [true,true,true,true]) ? ["UP", "DOWN"].includes(v.direction) && !v.failed_conditions.length : v.direction === null, "段方向与适用性不符");
+    }
+    function element(e) {
+      keys(e, ["high", "low", "stroke_idx", "stroke_indices"], "FIRST元素"); signed(e.high); signed(e.low); indices(e.stroke_indices);
+      need(e.stroke_indices.includes(e.stroke_idx), "元素代表笔不属于来源");
+    }
+    if ([SEGMENT_KINDS[0], SEGMENT_KINDS[6]].includes(kind)) {
+      keys(d, ["entity_id", "construction", "stroke_refs"], kind); construction(d.construction);
+      need((kind === SEGMENT_KINDS[0]) === equal(d.construction.vector,[true,true,true,true]), "未满足完整条件的候选冒充seed");
+    } else if (kind === SEGMENT_KINDS[1]) {
+      keys(d, ["entity_id", "segment_id", "role", "direction", "member_direction", "facts", "stroke_refs", "scan", "second_sequence_status"], kind);
+      need(d.role === "FIRST_SEQUENCE" && ["UP", "DOWN"].includes(d.member_direction) && ["NOT_APPLICABLE", "WAITING_FOLLOWUP"].includes(d.second_sequence_status), "FIRST角色/后续片边界不符"); direction(d.direction);
+      keys(d.scan, ["from_stroke", "through_stroke", "input_stroke_count", "resource_truncated", "tail_cache_window"], "扫描范围");
+      for (const [k,v] of Object.entries(d.scan)) if (k !== "resource_truncated") integer(v);
+      need(typeof d.scan.resource_truncated === "boolean", "截断状态错型");
+      const f = d.facts; keys(f, ["raw_elements", "standard", "steps", "checks"], "FIRST事实");
+      for (const v of Object.values(f)) need(Array.isArray(v), "FIRST事实集合错型");
+      [...f.raw_elements, ...f.standard].forEach(element);
+      for (const s of f.steps) {
+        keys(s, ["incoming", "before", "after", "action", "merge_direction", "scope"], "包含步骤"); element(s.incoming); element(s.after); if (s.before !== null) element(s.before);
+        need(["append", "merge", "turn_boundary"].includes(s.action) && s.scope === (s.action === "turn_boundary" ? "TURN_HYPOTHESIS" : "SAME_SEQUENCE"), "包含跨作用域/动作未声明");
+        need(s.action === "merge" ? ["UP", "DOWN"].includes(s.merge_direction) : s.merge_direction === null, "方向性包含缺见证");
+      }
+      for (const c of f.checks) {
+        keys(c, ["elements", "first_fractal", "gap", "gap_closed_by_c", "provisional", "turn_hypothesis_pair"], "分型见证");
+        need(Array.isArray(c.elements) && c.elements.length === 3, "分型窗口缺元素"); c.elements.forEach(element);
+        need(equal(c.turn_hypothesis_pair, c.first_fractal ? c.elements.slice(0,2).map(e => e.stroke_idx) : null), "假设转折点两侧未绑定a/b元素");
+        need(typeof c.first_fractal === "boolean" && typeof c.provisional === "boolean", "分型事实错型");
+        for (const k of ["gap", "gap_closed_by_c"]) need(c[k] === null || typeof c[k] === "boolean", "gap见证错型");
+        need((c.first_fractal || c.gap === null) && (c.gap === true || c.gap_closed_by_c === null), "不适用条件虚填布尔");
+      }
+    } else if (kind === SEGMENT_KINDS[2]) {
+      keys(d, ["entity_id", "entity_revision", "seed_id", "sequence_id", "sequence_object_id", "construction", "result", "waiting_reasons", "termination_attempts", "geometric_end", "trigger_stroke", "formed_known_at", "terminated_known_at", "stroke_refs"], kind);
+      integer(d.entity_revision, true); construction(d.construction); texts(d.waiting_reasons); known(d.formed_known_at);
+      need(Array.isArray(d.termination_attempts), "终结准入见证错型");
+      for (const a of d.termination_attempts) {
+        keys(a, ["end_stroke", "trigger_stroke", "minimum_count_met", "construction"], "终结准入见证");
+        indices([a.end_stroke]); indices([a.trigger_stroke]); need(typeof a.minimum_count_met === "boolean", "最小笔数条件错型"); construction(a.construction);
+      }
+      need(["NO_FIRST", "CASE_ONE", "PENDING_CASE_TWO", "FAILED_GEOMETRY"].includes(d.result), "冒称交付第二种终结");
+      if (d.result === "CASE_ONE") {
+        known(d.terminated_known_at); const e = d.geometric_end;
+        keys(e, ["stroke_index", "group_anchor", "extreme_roots", "price"], "几何段端"); indices([e.stroke_index]); indices([d.trigger_stroke]); coordinates(e.extreme_roots); integer(e.group_anchor); signed(e.price);
+      } else need(d.geometric_end === null && d.trigger_stroke === null && d.terminated_known_at === null, "发展态虚填终结");
+    } else if (kind === SEGMENT_KINDS[3]) {
+      keys(d, ["source_id", "relation_kind", "target_id", "version", "witness_object_id"], kind); Object.values(d).forEach(text); need(["member_of", "derived_from"].includes(d.relation_kind), "段关系未声明");
+    } else if (kind === SEGMENT_KINDS[4]) {
+      keys(d, ["entity_id", "change", "before", "after", "known_at", "object_id"], kind); known(d.known_at);
+      need(["formed", "updated", "terminated", "withdrawn"].includes(d.change), "段变化未声明");
+      for (const k of ["before", "after"]) if (d[k] !== null) validateSegmentPayload(SEGMENT_KINDS[2], {...p, slot:d[k].entity_id, object_generation:d[k].entity_id.split(":")[1], data:d[k]});
+    } else {
+      keys(d, ["input_frontier", "waiting_reasons", "known_at", "delivered_scope", "deferred_scope"], kind); integer(d.input_frontier, false, true); known(d.known_at); texts(d.waiting_reasons);
+      need(d.delivered_scope === "seed_and_no_gap_first_kind" && equal(d.deferred_scope, ["second_kind", "general_equal_identity"]), "段交付范围不符");
+    }
+    if ([...SEGMENT_KINDS.slice(0,3), SEGMENT_KINDS[6]].includes(kind)) {
+      if (kind === SEGMENT_KINDS[1]) {
+        const expected = `segment:${p.object_generation}:${refs.get(d.scan.from_stroke).start_anchor}`;
+        need(d.segment_id === expected && d.entity_id === "first:" + expected && d.direction !== d.member_direction, "FIRST身份/反向成员不符");
+      } else {
+        const anchor = refs.size ? refs.get(d.construction.start_stroke).start_anchor : "empty";
+        const expected = `${[SEGMENT_KINDS[0], SEGMENT_KINDS[6]].includes(kind) ? "seed" : "segment"}:${p.object_generation}:${anchor}`;
+        need(d.entity_id === expected, "段身份未绑定代际/起笔");
+        if (kind === SEGMENT_KINDS[2]) {
+          need(d.seed_id === `seed:${p.object_generation}:${anchor}` && d.sequence_id === "first:" + expected, "段缺同源seed/FIRST身份"); text(d.sequence_object_id);
+          if (d.geometric_end !== null) {
+            const e = d.geometric_end, r = refs.get(e.stroke_index);
+            need(e.group_anchor === r.end_anchor && e.price === r.end_price && equal(e.extreme_roots,r.end_roots), "几何段端与实际笔端不符");
+          }
+        }
+      }
+    }
+    const slot = kind === SEGMENT_KINDS[3] ? [d.source_id, d.relation_kind, d.target_id] : kind === SEGMENT_KINDS[4] ? [d.known_at.generation, d.entity_id, d.change] : kind === SEGMENT_KINDS[5] ? "TB-02-C" : d.entity_id;
+    need(equal(p.slot, slot), "段语义槽身份不符");
   }
   function validateBiPayload(kind, p) {
     keys(p, ["schema_revision", "semantic_version", "policy_version", "view_role", "object_generation", "slot", "data"], "新笔合同");
@@ -366,7 +475,7 @@
     }
   }
   function validateTB02Axes(axes, records = null) {
-    keys(axes, Object.hasOwn(axes, "CC-008") ? TB02_AXES : LEGACY_TB02_AXES, "逐 cut 类型目录");
+    keys(axes, Object.hasOwn(axes, "CC-011") ? TB02_AXES : Object.hasOwn(axes, "CC-008") ? BI_AXES : LEGACY_TB02_AXES, "逐 cut 类型目录");
     const ids = records === null ? null : new Set(records.map(r => r.object_id));
     for (const [cid, axis] of Object.entries(axes)) {
       keys(axis, ["impl_status", "proof_status", "run_status", "evidence"], "目录轴");
@@ -375,7 +484,7 @@
       if (cid === "CC-056") {
         for (const name of ["raw_revisions", "withdrawals", "replaces"]) need(Array.isArray(axis.evidence[name]), "修订轴缺完整原件");
         need(axis.run_status === (["raw_revisions", "withdrawals", "replaces"].some(k => axis.evidence[k].length > 0) ? "run" : "not_run"), "修订轴状态与事实不符");
-      } need(axis.evidence.scope === "TB-02-A", "目录轴范围不符");
+      } need(axis.evidence.scope === (["CC-011", "CC-012", "CC-013"].includes(cid) ? "TB-02-C" : "TB-02-A"), "目录轴范围不符");
       texts(axis.evidence.object_ids); texts(axis.evidence.waiting_reasons);
       need(new Set(axis.evidence.object_ids).size === axis.evidence.object_ids.length && (!ids || axis.evidence.object_ids.every(id => ids.has(id))), "目录引用缺失/重复");
     }
@@ -654,5 +763,5 @@
       return this.#commit(candidate, budget, {kind: "watch", batches: page.deltas.length, hasMore: page.has_more});
     }
   }
-  return Object.freeze({Client, DEFAULTS, FAMILIES, ORDER, orderFor, validateTyped, validateTB02ShapeRefs, validateTB02Axes, validateTB02Raw, validateTB02Catalog, validateTB02CutSources, TB02_CATALOG, canonical, parse, sha256, rowsOf, cursorOf});
+  return Object.freeze({TB02_KINDS: Object.freeze(TB02_KINDS), validateSegmentPayload, Client, DEFAULTS, FAMILIES, ORDER, orderFor, validateTyped, validateTB02ShapeRefs, validateTB02Axes, validateTB02Raw, validateTB02Catalog, validateTB02CutSources, TB02_CATALOG, canonical, parse, sha256, rowsOf, cursorOf});
 });

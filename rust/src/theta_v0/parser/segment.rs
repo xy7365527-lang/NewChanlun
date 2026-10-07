@@ -76,7 +76,7 @@ pub fn overlap_tangent_probe_snapshot() -> OverlapTangentProbe {
 /// ★L2 实测（OKLO 2000 笔，analysis/segment_refsem_cert.py）：窗口从 7 扩到 ∞ 输出不变
 /// （237→237），证 7 在目标数据域非约束性（第二特征序列分型若有效必在窗口内）。保留 7 以
 /// bit-exact 对齐参考默认；改值 = 改 Θ。这是单数据集 L2 观察，**非** L0 结构证明（不裸剥）。
-const TAIL_WINDOW: u32 = 7;
+pub const TAIL_WINDOW: u32 = 7;
 
 /// 价格区间 [lo, hi]（特征序列元素 / 笔的几何投影，`lo <= hi` 不变量）。
 /// 契约锚 `Origin.SegmentFeatureSeq.FeatureElem`（`low <= high` valid 不变量）。
@@ -154,6 +154,209 @@ fn find_overlap_start(strokes: &[Stroke], from: usize) -> Option<usize> {
         j += 1;
     }
     None
+}
+
+pub const CONSTRUCTION_RULE: &str = "segment-seed-first/1";
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ConstructionFact {
+    pub start_stroke: usize,
+    pub stroke_indices: Vec<usize>,
+    pub length: &'static str,
+    /// 仅奇数且至少三笔适用；交替、前三闭重叠、顶>底、首尾同向。
+    pub vector: Option<[bool; 4]>,
+    pub overlap: Option<[Tick; 2]>,
+    pub overlap_relation: Option<&'static str>,
+    pub direction: Option<&'static str>,
+    pub failed_conditions: Vec<&'static str>,
+}
+impl ConstructionFact {
+    fn valid(&self) -> bool {
+        self.vector == Some([true; 4])
+    }
+}
+
+/// #1404 CC-011：seed 与段端门使用相同完整条件，非观察器另算宽档。
+pub fn construction(strokes: &[Stroke], start: usize, end: usize) -> ConstructionFact {
+    let ss = &strokes[start..end];
+    let n = ss.len();
+    let length = match n {
+        0 => "n=0",
+        1 => "n=1",
+        2 => "n=2",
+        n if n % 2 == 0 => "even_ge3",
+        _ => "odd_ge3",
+    };
+    let overlap = (n >= 3).then(|| {
+        let xs = [
+            stroke_interval(&ss[0]),
+            stroke_interval(&ss[1]),
+            stroke_interval(&ss[2]),
+        ];
+        [
+            xs.iter().map(|x| x.lo).max().unwrap(),
+            xs.iter().map(|x| x.hi).min().unwrap(),
+        ]
+    });
+    let vector = (n >= 3 && n % 2 == 1).then(|| {
+        [
+            ss.windows(2).all(|w| w[0].direction != w[1].direction),
+            three_stroke_overlap(&ss[0], &ss[1], &ss[2]),
+            match ss[0].direction {
+                Direction::Up => ss[n - 1].end_price > ss[0].start_price,
+                Direction::Down => ss[n - 1].end_price < ss[0].start_price,
+            },
+            ss[0].direction == ss[n - 1].direction,
+        ]
+    });
+    let failed_conditions = vector
+        .map(|v| {
+            [
+                "direction_alternation",
+                "closed_seed_overlap",
+                "top_gt_bottom",
+                "same_end_direction",
+            ]
+            .into_iter()
+            .zip(v)
+            .filter_map(|(name, ok)| (!ok).then_some(name))
+            .collect()
+        })
+        .unwrap_or_else(|| {
+            vec![if n < 3 {
+                "fewer_than_three_strokes"
+            } else {
+                "even_stroke_count"
+            }]
+        });
+    ConstructionFact {
+        start_stroke: start,
+        stroke_indices: (start..end).collect(),
+        length,
+        vector,
+        overlap,
+        overlap_relation: overlap.map(|[lo, hi]| {
+            if lo < hi {
+                "OVERLAP"
+            } else if lo == hi {
+                "TOUCH"
+            } else {
+                "DISJOINT"
+            }
+        }),
+        direction: (vector == Some([true; 4])).then(|| {
+            if ss[0].direction == Direction::Up {
+                "UP"
+            } else {
+                "DOWN"
+            }
+        }),
+        failed_conditions,
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct SegmentCandidateFact {
+    pub start_stroke: usize,
+    pub seed: ConstructionFact,
+    pub construction: ConstructionFact,
+    pub first: super::feature_seq::FeatureSequenceFacts,
+    pub observed_through: usize,
+    pub result: &'static str,
+    pub waiting_reasons: Vec<&'static str>,
+    pub end_stroke: Option<usize>,
+    pub trigger_stroke: Option<usize>,
+    pub termination_attempts: Vec<SegmentEndCheck>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct SegmentEndCheck {
+    pub end_stroke: usize,
+    pub trigger_stroke: usize,
+    pub minimum_count_met: bool,
+    pub construction: ConstructionFact,
+}
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize)]
+pub struct SegmentFacts {
+    pub seeds: Vec<ConstructionFact>,
+    pub candidates: Vec<SegmentCandidateFact>,
+    pub waiting_reasons: Vec<&'static str>,
+}
+
+fn record_candidate(
+    facts: &mut SegmentFacts,
+    strokes: &[Stroke],
+    start: usize,
+    cursor: usize,
+    feat: &FeatureSeqState,
+    end: Option<usize>,
+    mut attempts: Vec<SegmentEndCheck>,
+    min_seg: usize,
+) {
+    let first = feat.facts();
+    let active_check = first
+        .checks
+        .iter()
+        .rev()
+        .find(|c| !c.provisional && c.first_fractal);
+    // 即使有 gap、尚未触发终结，当前第一分型的几何条件仍然可判。
+    // CC-013 的 FAILED_GEOMETRY 优先于第二种等待，不能用等待掩盖已知失败。
+    if let Some(check) = active_check {
+        let apex = check.elements[1].stroke_idx;
+        if apex > start && attempts.last().is_none_or(|a| a.end_stroke != apex - 1) {
+            attempts.push(SegmentEndCheck {
+                end_stroke: apex - 1,
+                trigger_stroke: cursor,
+                minimum_count_met: apex - start >= min_seg,
+                construction: construction(strokes, start, apex),
+            });
+        }
+    }
+    // #1404 只交付无gap第一种。保留原始gap，不能把旧 strict 封闭改写成无gap。
+    let deferred = active_check.is_some_and(|c| c.gap == Some(true));
+    let invalid = attempts
+        .last()
+        .is_some_and(|a| !a.construction.valid() || !a.minimum_count_met);
+    let result = if invalid {
+        "FAILED_GEOMETRY"
+    } else if deferred {
+        "PENDING_CASE_TWO"
+    } else if end.is_some() {
+        "CASE_ONE"
+    } else {
+        "NO_FIRST"
+    };
+    let end = end.filter(|_| !deferred && !invalid);
+    // 等待/失败事实只能引用同次实际扫描到的笔，不能借未来输入扩张见证。
+    let built = construction(strokes, start, end.map_or(cursor + 1, |e| e + 1));
+    let mut waiting_reasons = if invalid || end.is_some() {
+        vec![]
+    } else if deferred {
+        vec!["second_kind_out_of_scope"]
+    } else if first.standard.len() < 3 {
+        vec!["fewer_than_three_standard_elements"]
+    } else {
+        vec!["no_admissible_first_fractal"]
+    };
+    if end.is_none() {
+        if let Some(a) = attempts.last() {
+            waiting_reasons.extend(&a.construction.failed_conditions);
+            if !a.minimum_count_met {
+                waiting_reasons.push("minimum_segment_length_not_met");
+            }
+        }
+    }
+    facts.candidates.push(SegmentCandidateFact {
+        start_stroke: start,
+        seed: construction(strokes, start, (start + 3).min(strokes.len())),
+        construction: built,
+        first,
+        observed_through: cursor,
+        result,
+        waiting_reasons,
+        end_stroke: end,
+        trigger_stroke: end.map(|_| cursor),
+        termination_attempts: attempts,
+    });
 }
 
 /// 从笔序列抽取特征序列元素区间：取与线段方向**相反**的笔（第67课:16-18）。
@@ -392,14 +595,45 @@ pub fn divide_segments_with_tail(
     strokes: &[Stroke],
     config: &ParseConfig,
 ) -> (Vec<Segment>, Option<usize>) {
+    let (segments, tail, _) = divide_segments_core(strokes, config, false);
+    (segments, tail)
+}
+
+/// 同次生产划分附事实；不是从最终 Segment 反推过程。
+pub fn divide_segments_with_facts(
+    strokes: &[Stroke],
+    config: &ParseConfig,
+) -> (Vec<Segment>, Option<usize>, SegmentFacts) {
+    divide_segments_core(strokes, config, true)
+}
+
+fn divide_segments_core(
+    strokes: &[Stroke],
+    config: &ParseConfig,
+    observe: bool,
+) -> (Vec<Segment>, Option<usize>, SegmentFacts) {
+    let mut facts = SegmentFacts::default();
     let mut segments = Vec::new();
     let n = strokes.len();
     if n < 3 {
-        return (segments, if n > 0 { Some(0) } else { None });
+        if observe {
+            facts.seeds.push(construction(strokes, 0, n));
+            facts.waiting_reasons.push("fewer_than_three_strokes");
+        }
+        return (segments, if n > 0 { Some(0) } else { None }, facts);
     }
     // 第77课 H4：起点必须满足前三笔重叠（对齐 Python `_find_overlap_start`）。
-    let Some(mut seg_start) = find_overlap_start(strokes, 0) else {
-        return (segments, Some(0));
+    let start = find_overlap_start(strokes, 0);
+    if observe {
+        for i in 0..=start.unwrap_or(n - 3) {
+            facts.seeds.push(construction(strokes, i, i + 3));
+        }
+    }
+    let Some(mut seg_start) = start else {
+        if observe {
+            facts.waiting_reasons.push("no_valid_three_stroke_seed");
+        }
+        return (segments, Some(0), facts);
     };
     let min_seg = config.seg_min_strokes as usize;
     let mut seg_dir = strokes[seg_start].direction;
@@ -409,7 +643,11 @@ pub fn divide_segments_with_tail(
         TAIL_WINDOW,
         config.second_seq_scan_window,
     );
+    if observe {
+        feat.observe();
+    }
     let mut cursor = seg_start;
+    let mut attempts = Vec::new();
 
     // 主循环（bit-exact Python `segments_from_strokes_v1` :591-610 + `_try_trigger_segment`）。
     while cursor < n {
@@ -432,11 +670,34 @@ pub fn divide_segments_with_tail(
         };
         let k = hit.k;
         let end_stroke = k - 1;
+        if observe && end_stroke >= seg_start {
+            attempts.push(SegmentEndCheck {
+                end_stroke,
+                trigger_stroke: cursor,
+                minimum_count_met: end_stroke - seg_start >= min_seg.saturating_sub(1),
+                construction: construction(strokes, seg_start, end_stroke + 1),
+            });
+        }
         // min_seg 门控（Python :457）：段端-起点 < min-1 ⟹ 拒绝该触发，skip 后继续延伸。
-        if end_stroke < seg_start || end_stroke - seg_start < min_seg.saturating_sub(1) {
+        if end_stroke < seg_start
+            || end_stroke - seg_start < min_seg.saturating_sub(1)
+            || !construction(strokes, seg_start, end_stroke + 1).valid()
+        {
             feat.skip_trigger(k);
             cursor += 1;
             continue;
+        }
+        if observe {
+            record_candidate(
+                &mut facts,
+                strokes,
+                seg_start,
+                cursor,
+                &feat,
+                Some(end_stroke),
+                std::mem::take(&mut attempts),
+                min_seg,
+            );
         }
         // 发射旧段（Python `_emit_segment`：end_stroke = k-1）。
         segments.push(make_segment(strokes, seg_start, end_stroke, seg_dir));
@@ -449,7 +710,19 @@ pub fn divide_segments_with_tail(
 
     // 末段（未触发终结）= active 尾部。pending_start = seg_start（若剩余笔非空）。
     let pending_start = if seg_start < n { Some(seg_start) } else { None };
-    (segments, pending_start)
+    if observe && seg_start < n {
+        record_candidate(
+            &mut facts,
+            strokes,
+            seg_start,
+            n - 1,
+            &feat,
+            None,
+            attempts,
+            min_seg,
+        );
+    }
+    (segments, pending_start, facts)
 }
 
 /// 线段划分（reference-theta-v0.md:22）——只取确认段（薄封装 `divide_segments_with_tail`）。
@@ -729,7 +1002,10 @@ impl IncrSegments {
             };
             let k = hit.k;
             let end_stroke = k - 1;
-            if end_stroke < seg_start || end_stroke - seg_start < min_seg.saturating_sub(1) {
+            if end_stroke < seg_start
+                || end_stroke - seg_start < min_seg.saturating_sub(1)
+                || !construction(strokes, seg_start, end_stroke + 1).valid()
+            {
                 feat.skip_trigger(k);
                 cursor += 1;
                 continue;

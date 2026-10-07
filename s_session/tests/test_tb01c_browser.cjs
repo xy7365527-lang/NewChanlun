@@ -25,7 +25,7 @@ function htmlContext(extra = {}) {
   const document = {getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
     querySelector(q) { return this.getElementById(q); }, createElement() { const e = element();
       Object.defineProperty(e, 'innerHTML', {get() { return this.textContent; }}); return e; }};
-  const context = vm.createContext({document, structuredClone, console, setTimeout, clearTimeout, performance, ...extra});
+  const context = vm.createContext({document, TB01C: API, structuredClone, console, setTimeout, clearTimeout, performance, ...extra});
   const source = fs.readFileSync(htmlPath, 'utf8').match(/<script>([\s\S]*?)<\/script>/)[1].replace(/load\("current"\);\s*$/, '');
   vm.runInContext(source, context);
   return {context, elements};

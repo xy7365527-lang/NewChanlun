@@ -237,7 +237,7 @@ function renderMeta(snap, cat) {
   document.getElementById("meta-kv").innerHTML = kv.map(([k, v]) =>
     `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
 }
-const typedKinds = ["CC-008.endpoint", "CC-008.new_bi_pair", "CC-009.same_kind", "CC-010.bi", "CC-055.relation", "CC-055.change_event", "CC-056.version"].concat(["CC-004.inclusion_step", "CC-005.inclusion_group", "CC-007.fractal_description", "CC-054.knowledge_state"]);
+const typedKinds = TB01C.TB02_KINDS;
 function rawPriceText(row) {
   return row.schema_revision === "s-ohlc/1" ? ["open", "high", "low", "close"].map(k => `${k}=${esc(row[k])}`).join(" · ") : `price=${esc(row.price)}`;
 }
@@ -309,7 +309,7 @@ function renderObjects(snap, catalogId = selectedCatalogId) {
     ` · 活动实例 ${objects.length} / 撤回 ${(snap.withdrawn_objects || []).length}`;
   const evidence = currentState?.catalog?.items?.find(item => item.id === catalogId)?.evidence;
   const cards = objects.map(o => renderObjectCard(o, snap, "")).join("") || `<div class="muted">该目录项在当前 cut 无活动实例；请查看目录证据与等待原因。</div>`;
-  document.getElementById("objects").innerHTML = cards + (evidence?.scope === "TB-02-A" ? `<details><summary>${esc(catalogId)} 本 cut 完整证据与等待原因</summary>${renderFactValue(evidence)}</details>` : "");
+  document.getElementById("objects").innerHTML = cards + (["TB-02-A", "TB-02-C"].includes(evidence?.scope) ? `<details><summary>${esc(catalogId)} 本 cut 完整证据与等待原因</summary>${renderFactValue(evidence)}</details>` : "");
 }
 function renderWithdrawn(snap) {
   const withdrawn = snap.withdrawn_objects;
@@ -357,7 +357,7 @@ function renderCatalog(cat) {
     const impl = r.implementation_status === "implemented"
       ? `<span class="pill impl">implemented</span>` : `<span class="pill notimpl">not_implemented</span>`;
     const run = r.run_status === "run" ? `<span class="pill run">run</span>` : `<span class="pill notimpl">${esc(r.run_status)}</span>`;
-    const entry = (r.id === "CC-006" || (r.evidence?.scope === "TB-02-A" && Array.isArray(r.evidence.object_ids)))
+    const entry = (r.id === "CC-006" || (["TB-02-A", "TB-02-C"].includes(r.evidence?.scope) && Array.isArray(r.evidence.object_ids)))
       ? `<button type="button" data-catalog-id="${escAttr(r.id)}">查看 ${esc(r.id)} 实例（结构）</button>`
       : esc(r.id);
     return `<tr><td>${entry}</td><td>${esc(r.kind)}</td><td>${esc(r.title)}</td>` +
@@ -409,8 +409,9 @@ function validateExactRecords(records) {
   function walk(v) {
     if (!v || typeof v !== "object") return;
     for (const [k, x] of Object.entries(v)) {
-      // #1392：新笔 payload.slot 是逻辑身份；见证 slot 才是整数，身份由新笔合同逐类核对。
-      if (integerKeys.has(k) && x !== null && !(k === "slot" && v.schema_revision === "s-new-bi/1")) decimal(x);
+      // #1392/#1404：新笔/段 payload.slot 是逻辑身份；见证 slot 仍按整数核对。
+      const logicalSlot = k === "slot" && (v.schema_revision === "s-new-bi/1" || v.schema_revision === "s-segment/1");
+      if (integerKeys.has(k) && x !== null && !logicalSlot) decimal(x);
       walk(x);
     }
   }

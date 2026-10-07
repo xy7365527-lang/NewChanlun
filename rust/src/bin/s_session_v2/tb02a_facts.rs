@@ -375,7 +375,7 @@ pub(super) fn catalog_axes(
         .map(|o| serde_json::from_str::<Value>(o["payload_json"].as_str().unwrap()).unwrap());
     for axis in [
         "CC-001", "CC-002", "CC-003", "CC-004", "CC-005", "CC-006", "CC-007", "CC-008", "CC-009",
-        "CC-010", "CC-054", "CC-055", "CC-056",
+        "CC-010", "CC-011", "CC-012", "CC-013", "CC-054", "CC-055", "CC-056",
     ] {
         let kind = match axis {
             "CC-001" | "CC-002" | "CC-003" | "CC-004" => "CC-004.inclusion_step",
@@ -386,8 +386,11 @@ pub(super) fn catalog_axes(
             "CC-008" => "CC-008.",
             "CC-009" => "CC-009.same_kind",
             "CC-010" => "CC-010.bi",
+            "CC-011" => "CC-011.",
+            "CC-012" => "CC-012.feature_sequence",
+            "CC-013" => "CC-013.segment",
             "CC-055" => "CC-055.",
-            "CC-056" => "CC-056.version",
+            "CC-056" => "CC-056.",
             _ => "",
         };
         let ids: Vec<Value> = objects
@@ -432,9 +435,24 @@ pub(super) fn catalog_axes(
                 waiting.extend(p["data"]["waiting_reasons"].as_array().unwrap().clone());
             }
         }
+        if matches!(axis, "CC-011" | "CC-012" | "CC-013") {
+            for o in objects
+                .iter()
+                .filter(|o| o["kind"] == "CC-056.segment_version")
+            {
+                let p: Value = serde_json::from_str(o["payload_json"].as_str().unwrap()).unwrap();
+                waiting.extend(p["data"]["waiting_reasons"].as_array().unwrap().clone());
+            }
+        }
+        if matches!(axis, "CC-012" | "CC-013") {
+            waiting.push(json!("second_kind_out_of_scope"));
+        }
         waiting.sort_by_key(canonical_json);
         waiting.dedup();
         let mut evidence = json!({"scope":"TB-02-A","object_ids":ids,"waiting_reasons":waiting});
+        if matches!(axis, "CC-011" | "CC-012" | "CC-013") {
+            evidence["scope"] = json!("TB-02-C");
+        }
         let mut run = if ids.is_empty() {
             if waiting.is_empty() {
                 "not_run"
@@ -466,7 +484,7 @@ pub(super) fn catalog_axes(
                 .unwrap());
             evidence["replaces"] = json!(replaces);
         }
-        axes.insert(axis.into(),json!({"impl_status":"implemented","proof_status":"not_proved","run_status":run,"evidence":evidence}));
+        axes.insert(axis.into(),json!({"impl_status":if matches!(axis,"CC-012"|"CC-013"){"not_implemented"}else{"implemented"},"proof_status":"not_proved","run_status":run,"evidence":evidence}));
     }
     Value::Object(axes)
 }
