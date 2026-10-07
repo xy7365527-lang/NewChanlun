@@ -176,15 +176,15 @@ fn endpoint_at(
                 sources.extend(&e.source_coords);
             }
         }
-        if group.high_sources.len() != 1 || group.low_sources.len() != 1 {
-            waiting.push("raw_extreme_identity_tie");
-        }
     }
     if initial_direction_unsettled {
         waiting.push("initial_direction_unsettled");
     }
     if roots.is_empty() {
         waiting.push("actual_extreme_mapping_missing");
+    } else if roots.len() > 1 {
+        // #1343：raw 间隔只依赖中心组的实际顶/底根；其他根的身份不改变分型几何。
+        waiting.push("raw_extreme_identity_tie");
     }
     waiting.sort_unstable();
     waiting.dedup();
@@ -236,6 +236,15 @@ fn pair(a: &Endpoint, b: &Endpoint, config: &ParseConfig) -> PairFact {
     } else {
         "KEEP"
     };
+    if same && comparison != "EQ" {
+        // #1343：严格价格比较已决定取舍，被舍弃端点的 raw 身份不参与后续判断。
+        // 两个端点自身的完整未知仍保留在 old/new 证据里，不挑选任何同价根。
+        waiting = if stronger {
+            b.waiting_reasons.clone()
+        } else {
+            a.waiting_reasons.clone()
+        };
+    }
     if same && comparison == "EQ" {
         waiting.push("same_kind_endpoint_identity_tie");
     }
@@ -396,7 +405,13 @@ impl ScanState {
                     self.out.strokes.pop();
                 }
             } else if p.selection == Some("REPLACE") {
-                if p.waiting_reasons.is_empty() {
+                // #1343：尚无笔时，严格价格比较可以替换活动分型并保留全部根。
+                // 内部 raw 身份只在后续异型成笔条件中消费；这里不需要挑根。
+                let only_unselected_roots = self.out.strokes.is_empty()
+                    && p.waiting_reasons
+                        .iter()
+                        .all(|reason| *reason == "raw_extreme_identity_tie");
+                if p.waiting_reasons.is_empty() || only_unselected_roots {
                     if let Some(last) = self.out.strokes.last_mut() {
                         if last.end.group_anchor == a.group_anchor {
                             let extended = pair(&last.start, f, config);
@@ -434,7 +449,12 @@ impl ScanState {
                 confirmation: None,
             });
             self.current = Some(f.clone());
-        } else if !p.waiting_reasons.is_empty() {
+        } else if !p.waiting_reasons.is_empty()
+            && p.conditions
+                .as_ref()
+                .is_some_and(|c| !c.vector.contains(&Some(false)))
+        {
+            // #1343：合取已有 false 则确定不成笔；另一条件未知不冻结后续候选。
             self.blocked = true;
             self.out.waiting_reasons.extend(&p.waiting_reasons);
         }
@@ -739,6 +759,157 @@ mod tests {
     }
 
     #[test]
+    fn tb02b_irrelevant_low_roots_do_not_block_unique_top() {
+        // #1343：顶组 high 根唯一，low 同价不参与该端点的 raw 间隔。
+        let hl = [
+            (3, 1),
+            (6, 4),
+            (10, 5),
+            (9, 7),
+            (8, 7),
+            (8, 5),
+            (6, 3),
+            (4, 1),
+            (5, 2),
+            (6, 3),
+        ];
+        for stride in [1, 7] {
+            let raw = hl_bars(&hl, stride);
+            let inclusion = process_inclusion_with_facts(&raw);
+            assert_eq!(inclusion.groups[2].high_sources, vec![2 * stride]);
+            assert_eq!(
+                inclusion.groups[2].low_sources,
+                vec![3 * stride, 4 * stride]
+            );
+            let facts = build_stroke_facts(&inclusion, &ParseConfig::default());
+            assert_eq!(facts.strokes.len(), 1);
+            let stroke = &facts.strokes[0];
+            assert_eq!(stroke.start.group_anchor, 2 * stride);
+            assert_eq!(stroke.end.group_anchor, 7 * stride);
+            assert_eq!(stroke.formation.vector, [Some(true); 3]);
+            assert_eq!(stroke.formation.raw_between_actual_extrema, Some(4));
+            check_incremental_prefixes(&raw, "irrelevant_low_roots");
+        }
+    }
+
+    #[test]
+    fn tb02b_false_pair_allows_later_unique_stronger_endpoint() {
+        // #1343：早期 pair 的 merged 条件必假；后来的严格更高顶无需选择旧同价根。
+        let hl = [
+            (3, 1),
+            (6, 4),
+            (10, 5),
+            (9, 6),
+            (10, 7),
+            (8, 5),
+            (9, 6),
+            (11, 8),
+            (14, 10),
+            (12, 8),
+            (10, 6),
+            (8, 4),
+            (6, 2),
+            (7, 3),
+            (8, 4),
+        ];
+        for stride in [1, 11] {
+            let raw = hl_bars(&hl, stride);
+            let facts =
+                build_stroke_facts(&process_inclusion_with_facts(&raw), &ParseConfig::default());
+            assert_eq!(
+                facts.pairs[0].conditions.as_ref().unwrap().vector,
+                [Some(false), None, Some(true)]
+            );
+            assert!(facts.pairs[0].old.raw_position.is_none());
+            assert_eq!(facts.pairs[1].selection, Some("REPLACE"));
+            assert!(facts.pairs[1].waiting_reasons.is_empty());
+            assert_eq!(facts.strokes.len(), 1);
+            assert_eq!(facts.strokes[0].start.group_anchor, 8 * stride);
+            assert_eq!(facts.strokes[0].end.group_anchor, 12 * stride);
+            assert_eq!(
+                facts.strokes[0].formation.raw_between_actual_extrema,
+                Some(3)
+            );
+            check_incremental_prefixes(&raw, "false_pair_then_unique_extreme");
+        }
+    }
+
+    #[test]
+    fn tb02b_threshold_crossing_roots_remain_unsettled() {
+        // #1343 未裁：raw1 / raw2 到 raw5 分别隔3 / 2根，禁止挑根放行。
+        let raw = hl_bars(
+            &[
+                (3, 1),
+                (8, 4),
+                (8, 5),
+                (6, 3),
+                (5, 2),
+                (4, 1),
+                (5, 2),
+                (6, 3),
+            ],
+            7,
+        );
+        let facts =
+            build_stroke_facts(&process_inclusion_with_facts(&raw), &ParseConfig::default());
+        assert!(facts.strokes.is_empty());
+        assert_eq!(facts.pairs[0].old.extreme_roots, vec![7, 14]);
+        assert_eq!(
+            facts.pairs[0].conditions.as_ref().unwrap().vector,
+            [Some(true), None, Some(true)]
+        );
+        assert!(facts.waiting_reasons.contains(&"raw_extreme_identity_tie"));
+        check_incremental_prefixes(&raw, "threshold_crossing_roots");
+    }
+
+    #[test]
+    fn tb02b_strict_replacement_before_first_stroke_keeps_all_roots() {
+        // #1343：更强同型替换只确定组锚，不要求给新组的多个实际根任选其一。
+        let hl = [
+            (3, 1),
+            (6, 4),
+            (10, 5),
+            (9, 6),
+            (10, 7),
+            (8, 5),
+            (9, 6),
+            (11, 8),
+            (14, 10),
+            (13, 11),
+            (14, 12),
+            (12, 8),
+            (13, 9),
+            (15, 11),
+            (18, 14),
+            (16, 12),
+            (14, 10),
+            (12, 8),
+            (10, 6),
+            (11, 7),
+            (12, 8),
+        ];
+        for reflected in [false, true] {
+            let hl: Vec<_> = hl
+                .iter()
+                .map(|&(h, l)| if reflected { (40 - l, 40 - h) } else { (h, l) })
+                .collect();
+            let raw = hl_bars(&hl, 7);
+            let facts =
+                build_stroke_facts(&process_inclusion_with_facts(&raw), &ParseConfig::default());
+            assert_eq!(facts.pairs[1].new.extreme_roots, vec![56, 70]);
+            assert!(facts.pairs[1].new.raw_position.is_none());
+            assert_eq!(facts.pairs[2].old.group_anchor, 56);
+            assert!(!facts.pairs[2]
+                .waiting_reasons
+                .contains(&"earlier_endpoint_identity_unsettled"));
+            assert_eq!(facts.strokes.len(), 1);
+            assert_eq!(facts.strokes[0].start.group_anchor, 98);
+            assert_eq!(facts.strokes[0].end.group_anchor, 126);
+            check_incremental_prefixes(&raw, "strict_replacement_keeps_all_roots");
+        }
+    }
+
+    #[test]
     fn tb02b_checkpoint_frozen_ledger_every_prefix_and_sparse_coordinates() {
         for stride in [1, 7] {
             for c in ledger()["cases"].as_array().unwrap() {
@@ -821,7 +992,7 @@ mod tests {
     }
 
     #[test]
-    fn tb02b_checkpoint_rolls_back_blocked_when_active_root_becomes_unique() {
+    fn tb02b_checkpoint_preserves_stroke_across_irrelevant_right_group_tie() {
         let hl = [
             (10, 7),
             (8, 5),
@@ -844,16 +1015,19 @@ mod tests {
                 assert!(!incr.scan.blocked);
             }
             if i == 7 {
-                assert!(incr.scan.blocked);
-                assert!(incr.to_result().is_empty());
+                let inclusion = process_inclusion_with_facts(&raw[..=i]);
+                assert_eq!(inclusion.groups.last().unwrap().high_sources, vec![42, 49]);
+                assert!(!incr.scan.blocked, "右组同价根不是顶端点根");
+                assert_eq!(incr.to_result().len(), 1);
+                assert_eq!(incr.scan.out.strokes[0].end.extreme_roots, vec![35]);
             }
         }
         assert!(
             !incr.scan.blocked,
-            "活动右组 high 根 tie 消失必须撤回 blocked"
+            "活动右组 high 根 tie 出现及消失均不阻断实际顶根唯一的笔"
         );
         assert_eq!(incr.to_result().len(), 1);
-        check_incremental_prefixes(&raw, "observed_tie_to_unique");
+        check_incremental_prefixes(&raw, "irrelevant_right_group_tie_to_unique");
     }
 
     #[test]
