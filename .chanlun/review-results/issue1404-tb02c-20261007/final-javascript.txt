@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: 段 seed 四条件与来源完整进入既有观察器
+ok 1 - 段 seed 四条件与来源完整进入既有观察器
+  ---
+  duration_ms: 1.254291
+  type: 'test'
+  ...
+# Subtest: 缺条件、未知笔与无效方向拒绝
+ok 2 - 缺条件、未知笔与无效方向拒绝
+  ---
+  duration_ms: 0.3145
+  type: 'test'
+  ...
+# Subtest: 不足三笔只发布等待候选，不能冒充seed
+ok 3 - 不足三笔只发布等待候选，不能冒充seed
+  ---
+  duration_ms: 0.146666
+  type: 'test'
+  ...
+# Subtest: 既有目录可打开C轴并显示未完整交付的证据
+ok 4 - 既有目录可打开C轴并显示未完整交付的证据
+  ---
+  duration_ms: 3.648208
+  type: 'test'
+  ...
+# Subtest: 真实cut1段逻辑slot不被页面当成见证整数
+ok 5 - 真实cut1段逻辑slot不被页面当成见证整数
+  ---
+  duration_ms: 0.797834
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 43.893917

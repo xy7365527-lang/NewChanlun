@@ -1,0 +1,602 @@
+   Compiling newchan_rust v0.1.0 (/Users/silencehan/.codex/worktrees/issue1404-seed-first/NewChanlun/rust)
+warning: the usage of Script Group `Greek` in this crate consists solely of mixed script confusables
+    --> src/recursive_t/rec_engine.rs:3495:8
+     |
+3495 |     fn add_short_τ镜像_父空卖回对称() {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: the usage includes 'τ' (U+03C4)
+     = note: please recheck to make sure their usages are indeed what you want
+     = note: `#[warn(mixed_script_confusables)]` on by default
+
+warning: unused imports: `PanDivShortRetraceObservation`, `drain_pan_div_short_retrace_observations`, `pan_div_subtype_channel_reason`, and `t3_in_c_grade_reason_to_pan_div_subtype`
+   --> src/theta_v0/classifier/signal.rs:127:5
+    |
+127 |     drain_pan_div_short_retrace_observations, pan_div_subtype_channel_reason,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+128 |     t3_in_c_grade_reason_to_pan_div_subtype, PanDivShortRetraceObservation,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `step::coverage_step_from_buckets_sep`
+   --> src/theta_v0/strategy/coverage/mod.rs:129:5
+    |
+129 | use step::coverage_step_from_buckets_sep;
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `c`
+   --> src/theta_v0/classifier/recursive_tower.rs:409:20
+    |
+409 |         .map(|(i, (c, win))| {
+    |                    ^ help: if this is intentional, prefix it with an underscore: `_c`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `c`
+   --> src/theta_v0/classifier/recursive_tower.rs:676:24
+    |
+676 |             .map(|(i, (c, win))| {
+    |                        ^ help: if this is intentional, prefix it with an underscore: `_c`
+
+warning: variable does not need to be mutable
+    --> src/theta_v0/classifier/signal.rs:1246:9
+     |
+1246 |     let mut judge_range = |from: usize,
+     |         ----^^^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> src/theta_v0/classifier/pipeline.rs:850:17
+    |
+850 |             let mut p = lc.win_meta.partition_point(|w| w.read_end_src < dirty_e);
+    |                 ----^
+    |                 |
+    |                 help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> src/trading/axiom_voice.rs:367:17
+    |
+367 |             let mut restore = |reason: &'static str,
+    |                 ----^^^^^^^
+    |                 |
+    |                 help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/trading/positional_fusion.rs:1506:25
+     |
+1506 |                     let mut cover =
+     |                         ----^^^^^
+     |                         |
+     |                         help: remove this `mut`
+
+warning: field `dbg_sink_ok` is never read
+   --> src/fugue_v3/operate.rs:101:5
+    |
+ 70 | pub struct OperateEngine {
+    |            ------------- field in this struct
+...
+101 |     dbg_sink_ok: [u64; MAX_LADDER],
+    |     ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `buysellpoints` is never read
+   --> src/orchestrator.rs:473:9
+    |
+466 | pub struct LevelSnapshot {
+    |            ------------- field in this struct
+...
+473 |     pub buysellpoints: Vec<BuySellPoint>,
+    |         ^^^^^^^^^^^^^
+    |
+    = note: `LevelSnapshot` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: field `reading_b_diverge` is never read
+   --> src/recursive_t/rec_engine.rs:996:5
+    |
+960 | pub struct TRoot {
+    |            ----- field in this struct
+...
+996 |     reading_b_diverge: bool,
+    |     ^^^^^^^^^^^^^^^^^
+
+warning: method `sink` is never used
+    --> src/recursive_t/rec_engine.rs:1687:8
+     |
+1169 | impl TRoot {
+     | ---------- method in this implementation
+...
+1687 |     fn sink(&mut self, parent: usize, sub: usize, sub_node: TrendNode, c: f64) {
+     |        ^^^^
+
+warning: method `cost_basis` is never used
+   --> src/recursive_t/t_engine.rs:340:8
+    |
+276 | impl TPositionEngine {
+    | -------------------- method in this implementation
+...
+340 |     fn cost_basis(&self) -> f64 {
+    |        ^^^^^^^^^^
+
+warning: associated function `new` is never used
+   --> src/theta_v0/classifier/nest.rs:174:19
+    |
+170 | impl NestRung {
+    | ------------- associated function in this implementation
+...
+174 |     pub(crate) fn new(interval: NestInterval, cand: bool) -> Self {
+    |                   ^^^
+
+warning: associated function `from_parts` is never used
+   --> src/theta_v0/classifier/nest.rs:268:19
+    |
+257 | impl NestCertificate {
+    | -------------------- associated function in this implementation
+...
+268 |     pub(crate) fn from_parts(
+    |                   ^^^^^^^^^^
+
+warning: function `detect_centers_windowed` is never used
+   --> src/theta_v0/classifier/recursive_tower.rs:341:4
+    |
+341 | fn detect_centers_windowed(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `trend_confirm_time` is never used
+   --> src/theta_v0/classifier/level_view/confirm.rs:379:15
+    |
+379 | pub(super) fn trend_confirm_time(
+    |               ^^^^^^^^^^^^^^^^^^
+
+warning: function `nearest_confirmed_center` is never used
+   --> src/theta_v0/classifier/signal.rs:211:4
+    |
+211 | fn nearest_confirmed_center(centers: &[Center], seg_start: usize) -> Option<&Center> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `t3_in_c_fixed_first_pair` is never used
+   --> src/theta_v0/classifier/signal.rs:447:15
+    |
+447 | pub(crate) fn t3_in_c_fixed_first_pair(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `otherwise_domain_sidecar_begin` is never used
+   --> src/theta_v0/classifier/signal.rs:574:15
+    |
+574 | pub(crate) fn otherwise_domain_sidecar_begin() {
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `otherwise_domain_sidecar_take` is never used
+   --> src/theta_v0/classifier/signal.rs:580:15
+    |
+580 | pub(crate) fn otherwise_domain_sidecar_take() -> Vec<FirstClassGradeRecord> {
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `t3_in_c_grade_reason_to_pan_div_subtype` is never used
+  --> src/theta_v0/classifier/signal/pan_div_short.rs:38:15
+   |
+38 | pub(crate) fn t3_in_c_grade_reason_to_pan_div_subtype(
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `pan_div_subtype_channel_reason` is never used
+  --> src/theta_v0/classifier/signal/pan_div_short.rs:54:15
+   |
+54 | pub(crate) fn pan_div_subtype_channel_reason(subtype: PanDivSubtype) -> T3InCGradeReason {
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `PanDivShortRetraceObservation` is never constructed
+  --> src/theta_v0/classifier/signal/pan_div_short.rs:66:19
+   |
+66 | pub(crate) struct PanDivShortRetraceObservation {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `from_record` is never used
+  --> src/theta_v0/classifier/signal/pan_div_short.rs:77:8
+   |
+76 | impl PanDivShortRetraceObservation {
+   | ---------------------------------- associated function in this implementation
+77 |     fn from_record(record: &ShortRetraceRecord) -> Self {
+   |        ^^^^^^^^^^^
+
+warning: function `drain_pan_div_short_retrace_observations` is never used
+   --> src/theta_v0/classifier/signal/pan_div_short.rs:124:15
+    |
+124 | pub(crate) fn drain_pan_div_short_retrace_observations(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `historical_bound_third_cert` is never used
+   --> src/theta_v0/classifier/pipeline.rs:194:15
+    |
+194 | pub(crate) fn historical_bound_third_cert(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `historical_bound_segment` is never used
+   --> src/theta_v0/classifier/pipeline.rs:215:4
+    |
+215 | fn historical_bound_segment(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `has_any_fractal` is never used
+   --> src/theta_v0/parser/feature_seq.rs:201:4
+    |
+201 | fn has_any_fractal(elements: &[(Tick, Tick)]) -> bool {
+    |    ^^^^^^^^^^^^^^^
+
+warning: multiple fields are never read
+   --> src/theta_v0/strategy/coverage/compose.rs:107:9
+    |
+ 98 | pub(crate) struct StepTrace {
+    |                   --------- fields in this struct
+...
+107 |     pub closed: Vec<(ActiveLeg, Candidate, interp::ExitType)>,
+    |         ^^^^^^
+108 |     pub silent_drops: Vec<ActiveLeg>,
+    |         ^^^^^^^^^^^^
+109 |     pub opened: Vec<(Candidate, ActiveLeg)>,
+    |         ^^^^^^
+...
+117 |     pub risk_exits: Vec<ActiveLeg>,
+    |         ^^^^^^^^^^
+...
+121 |     pub overlay_closes: Vec<ActiveLeg>,
+    |         ^^^^^^^^^^^^^^
+...
+125 |     pub tw_event: Option<TwEvent>,
+    |         ^^^^^^^^
+...
+136 |     pub verdicts: Vec<VoiceVerdict>,
+    |         ^^^^^^^^
+...
+142 |     pub lex_top3: Vec<(JThetaKey, f64)>,
+    |         ^^^^^^^^
+    |
+    = note: `StepTrace` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: function `pi_theta_step_traced` is never used
+   --> src/theta_v0/strategy/coverage/compose.rs:202:15
+    |
+202 | pub(crate) fn pi_theta_step_traced(
+    |               ^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `overlay`, `position`, `iter`, and `as_contiguous` are never used
+   --> src/theta_v0/strategy/coverage/element.rs:112:19
+    |
+ 67 | impl<'a> ElementView<'a> {
+    | ------------------------ methods in this implementation
+...
+112 |     pub(crate) fn overlay(&self) -> &[CoverageElement] {
+    |                   ^^^^^^^
+...
+146 |     pub(crate) fn position(&self, mut pred: impl FnMut(&CoverageElement) -> bool) -> Option<usize> {
+    |                   ^^^^^^^^
+...
+156 |     pub(crate) fn iter(&self) -> impl Iterator<Item = &CoverageElement> {
+    |                   ^^^^
+...
+167 |     pub(crate) fn as_contiguous(&self) -> std::borrow::Cow<'_, [CoverageElement]> {
+    |                   ^^^^^^^^^^^^^
+
+warning: function `held_leg_tree_index` is never used
+  --> src/theta_v0/strategy/coverage/held.rs:34:4
+   |
+34 | fn held_leg_tree_index(
+   |    ^^^^^^^^^^^^^^^^^^^
+
+warning: function `operation_role_indexed` is never used
+   --> src/theta_v0/strategy/coverage/role.rs:212:4
+    |
+212 | fn operation_role_indexed(
+    |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `position_bounds`, `delta_capacity_units`, and `clamp_position` are never used
+   --> src/theta_v0/strategy/coverage/sizing.rs:382:19
+    |
+338 | impl KThetaRiskGate {
+    | ------------------- methods in this implementation
+...
+382 |     pub(crate) fn position_bounds(&self, cap: f64) -> (f64, f64) {
+    |                   ^^^^^^^^^^^^^^^
+...
+388 |     pub(crate) fn delta_capacity_units(&self, cap: f64, anchor: f64, side: VoiceSide) -> u64 {
+    |                   ^^^^^^^^^^^^^^^^^^^^
+...
+398 |     pub(crate) fn clamp_position(&self, cap: f64, position: f64) -> f64 {
+    |                   ^^^^^^^^^^^^^^
+
+warning: function `pi_theta_step_prebuilt` is never used
+   --> src/theta_v0/strategy/coverage/sizing.rs:675:15
+    |
+675 | pub(super) fn pi_theta_step_prebuilt(
+    |               ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated items `fp_len` and `of` are never used
+   --> src/theta_v0/strategy/interp.rs:452:19
+    |
+450 | impl TreeKey {
+    | ------------ associated items in this implementation
+451 |     /// 指纹长度（诊断用：≈tree 节点数，量化 `of` 的 O(tree) 工作量标度）。
+452 |     pub(crate) fn fp_len(&self) -> usize {
+    |                   ^^^^^^
+...
+456 |     pub(crate) fn of(tower: &[Rc<Vec<LeveledMove>>]) -> TreeKey {
+    |                   ^^
+
+warning: struct `VoiceKey` is never constructed
+  --> src/theta_v0/strategy/shadow.rs:64:8
+   |
+64 | struct VoiceKey {
+   |        ^^^^^^^^
+
+warning: enum `ProductionFact` is never used
+  --> src/theta_v0/strategy/shadow.rs:72:17
+   |
+72 | pub(crate) enum ProductionFact {
+   |                 ^^^^^^^^^^^^^^
+
+warning: enum `DivergenceKind` is never used
+  --> src/theta_v0/strategy/shadow.rs:91:17
+   |
+91 | pub(crate) enum DivergenceKind {
+   |                 ^^^^^^^^^^^^^^
+
+warning: struct `ShadowStepRecord` is never constructed
+   --> src/theta_v0/strategy/shadow.rs:117:19
+    |
+117 | pub(crate) struct ShadowStepRecord {
+    |                   ^^^^^^^^^^^^^^^^
+
+warning: struct `ShadowStats` is never constructed
+   --> src/theta_v0/strategy/shadow.rs:136:19
+    |
+136 | pub(crate) struct ShadowStats {
+    |                   ^^^^^^^^^^^
+
+warning: methods `bump` and `divergences` are never used
+   --> src/theta_v0/strategy/shadow.rs:151:8
+    |
+150 | impl ShadowStats {
+    | ---------------- methods in this implementation
+151 |     fn bump(&mut self, kind: DivergenceKind) {
+    |        ^^^^
+...
+166 |     pub fn divergences(&self) -> u64 {
+    |            ^^^^^^^^^^^
+
+warning: struct `ShadowVoiceBook` is never constructed
+   --> src/theta_v0/strategy/shadow.rs:174:19
+    |
+174 | pub(crate) struct ShadowVoiceBook {
+    |                   ^^^^^^^^^^^^^^^
+
+warning: methods `observe_and_compare`, `records`, `stats`, and `render_report` are never used
+   --> src/theta_v0/strategy/shadow.rs:184:19
+    |
+180 | impl ShadowVoiceBook {
+    | -------------------- methods in this implementation
+...
+184 |     pub(crate) fn observe_and_compare(
+    |                   ^^^^^^^^^^^^^^^^^^^
+...
+297 |     pub(crate) fn records(&self) -> &[ShadowStepRecord] {
+    |                   ^^^^^^^
+...
+302 |     pub(crate) fn stats(&self) -> &ShadowStats {
+    |                   ^^^^^
+...
+307 |     pub(crate) fn render_report(&self) -> String {
+    |                   ^^^^^^^^^^^^^
+
+warning: function `production_fact` is never used
+   --> src/theta_v0/strategy/shadow.rs:371:4
+    |
+371 | fn production_fact(
+    |    ^^^^^^^^^^^^^^^
+
+warning: function `classify` is never used
+   --> src/theta_v0/strategy/shadow.rs:399:4
+    |
+399 | fn classify(dec: ChannelDecision, fact: ProductionFact) -> DivergenceKind {
+    |    ^^^^^^^^
+
+warning: struct `ShortBook` is never constructed
+   --> src/trading/ledger.rs:393:12
+    |
+393 | pub struct ShortBook {
+    |            ^^^^^^^^^
+
+warning: associated items `new`, `open_slot`, `open_keys`, `open_sub`, and `close_diff` are never used
+   --> src/trading/ledger.rs:408:12
+    |
+407 | impl ShortBook {
+    | -------------- associated items in this implementation
+408 |     pub fn new(open_price: f64, units: f64) -> Self {
+    |            ^^^
+...
+419 |     pub fn open_slot(&self, key: SlotKey) -> Option<&OpenLeg> {
+    |            ^^^^^^^^^
+...
+426 |     pub fn open_keys(&self) -> Vec<SlotKey> {
+    |            ^^^^^^^^^
+...
+433 |     pub fn open_sub(
+    |            ^^^^^^^^
+...
+464 |     pub fn close_diff(&mut self, key: SlotKey, sell_price: f64) {
+    |            ^^^^^^^^^^
+
+warning: enum `DirectionalBook` is never used
+   --> src/trading/ledger.rs:498:10
+    |
+498 | pub enum DirectionalBook {
+    |          ^^^^^^^^^^^^^^^
+
+warning: enum `ThirdPointRegistration` is never used
+   --> src/trading/third_point_book.rs:161:10
+    |
+161 | pub enum ThirdPointRegistration {
+    |          ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: enum `ThirdPointConflict` is never used
+   --> src/trading/third_point_book.rs:170:10
+    |
+170 | pub enum ThirdPointConflict {
+    |          ^^^^^^^^^^^^^^^^^^
+
+warning: struct `ThirdPointBook` is never constructed
+   --> src/trading/third_point_book.rs:181:12
+    |
+181 | pub struct ThirdPointBook {
+    |            ^^^^^^^^^^^^^^
+
+warning: multiple associated items are never used
+   --> src/trading/third_point_book.rs:192:12
+    |
+191 | impl ThirdPointBook {
+    | ------------------- associated items in this implementation
+192 |     pub fn new() -> Self {
+    |            ^^^
+...
+212 |     pub fn register<S>(&mut self, signal: S) -> Result<ThirdPointRegistration, ThirdPointConflict>
+    |            ^^^^^^^^
+...
+248 |     pub fn sync_from_ledger(
+    |            ^^^^^^^^^^^^^^^^
+...
+265 |     pub fn register_from_ledger(
+    |            ^^^^^^^^^^^^^^^^^^^^
+...
+279 |     pub fn established(&self) -> Vec<ThirdPointPack> {
+    |            ^^^^^^^^^^^
+...
+284 |     pub fn pack(&self, key: &RetraceKey) -> Option<ThirdPointPack> {
+    |            ^^^^
+...
+288 |     pub fn contains(&self, key: &RetraceKey) -> bool {
+    |            ^^^^^^^^
+...
+292 |     pub fn len(&self) -> usize {
+    |            ^^^
+...
+296 |     pub fn is_empty(&self) -> bool {
+    |            ^^^^^^^^
+
+warning: multiple fields are never read
+   --> src/trading/types.rs:725:9
+    |
+724 | pub struct RevOpenLog {
+    |            ---------- fields in this struct
+725 |     pub ladder: u8,
+    |         ^^^^^^
+726 |     pub bar: i64,
+    |         ^^^
+727 |     /// 0 = 震荡型（Oscillation），1 = 逃逸型（Escape）。
+728 |     pub kind: u8,
+    |         ^^^^
+...
+732 |     pub trigger: u8,
+    |         ^^^^^^^
+733 |     /// 锚中枢 seg_start（震荡型=存活中枢快照；逃逸型=被终结中枢）。
+734 |     pub anchor_cs: Option<i64>,
+    |         ^^^^^^^^^
+...
+737 |     pub zd: Option<f64>,
+    |         ^^
+738 |     pub zg: Option<f64>,
+    |         ^^
+739 |     pub price: f64,
+    |         ^^^^^
+    |
+    = note: `RevOpenLog` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: fields `ladder`, `open_bar`, `bar`, `reason`, and `price` are never read
+   --> src/trading/types.rs:750:9
+    |
+749 | pub struct RevCloseLog {
+    |            ----------- fields in this struct
+750 |     pub ladder: u8,
+    |         ^^^^^^
+751 |     pub open_bar: i64,
+    |         ^^^^^^^^
+752 |     pub bar: i64,
+    |         ^^^
+753 |     pub reason: u8,
+    |         ^^^^^^
+754 |     pub price: f64,
+    |         ^^^^^
+    |
+    = note: `RevCloseLog` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: `newchan_rust` (lib) generated 57 warnings (run `cargo fix --lib -p newchan_rust` to apply 8 suggestions)
+    Finished `test` profile [unoptimized] target(s) in 7.84s
+     Running unittests src/bin/s_structure_session.rs (/private/tmp/issue1404-check/debug/deps/s_structure_session-bcf99f4a90da33ad)
+
+running 1 test
+{"catalog_items":116,"journal_mode":"wal","ok":true,"platform":"macos","session_id":"s-session-testonly-001","sqlite_version":"3.53.2","synchronous":2,"writer_epoch":"1"}
+{"batch_byte_len":12588,"batch_id":"batch-299670161e204baae6bc68da0b2bf4c46d3eb5d1db3fddd3ab84d101e088ea5a","effective_source_positions":1,"generation":"1","merged_bars":1,"objects_published":6,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":1,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-1","windows_total":0}
+{"batch_byte_len":21260,"batch_id":"batch-ea639d1138a7599cc1201c9747abb49cd179e44454f32c5a9723e8dd2f2c61a9","effective_source_positions":2,"generation":"2","merged_bars":2,"objects_published":8,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":2,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-2","windows_total":0}
+{"batch_byte_len":40776,"batch_id":"batch-14d2dd03cf942f2480b44e6751a925dc4db73a4ce9cc5ddc086e28482d28afc7","effective_source_positions":3,"generation":"3","merged_bars":3,"objects_published":13,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":3,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-3","windows_total":1}
+{"batch_byte_len":60710,"batch_id":"batch-8d8ec1aa271110976e6660fdcc70811caf9ef51178015c948d57cd5b19e46c11","effective_source_positions":4,"generation":"4","merged_bars":4,"objects_published":16,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":4,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-4","windows_total":2}
+{"batch_byte_len":80490,"batch_id":"batch-91183be88b18718bcecaf46a1e694f0bd581bffe7237ff427a6f8756eec58492","effective_source_positions":5,"generation":"5","merged_bars":5,"objects_published":19,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":5,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-5","windows_total":3}
+{"batch_byte_len":102128,"batch_id":"batch-6139fd478ce3bb186617fa188875b3251e507c63b3b8fd2ff88954a57f506fdc","effective_source_positions":6,"generation":"6","merged_bars":6,"objects_published":22,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":6,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-6","windows_total":4}
+{"batch_byte_len":168357,"batch_id":"batch-ac5fa2efc40de66fb78dca047624c019aa2af05c229b191c1653e22ce7a9404a","effective_source_positions":7,"generation":"7","merged_bars":7,"objects_published":37,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":7,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-7","windows_total":5}
+{"batch_byte_len":205792,"batch_id":"batch-76dcccf2dae92b1a1f1283cf5aa7af5479a0ce7dbdc2a041edb87af6102dab19","effective_source_positions":8,"generation":"8","merged_bars":8,"objects_published":40,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":8,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-8","windows_total":6}
+{"batch_byte_len":223861,"batch_id":"batch-7449c26bf6a05f0e27511fe4b8ed81142257d79e5fc5a1929419917166ae38e1","effective_source_positions":9,"generation":"9","merged_bars":9,"objects_published":42,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":9,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-9","windows_total":7}
+{"batch_byte_len":254221,"batch_id":"batch-1cb575c887860f16be35f88b80bf3694360ca4aa275381300e86056745dd8379","effective_source_positions":10,"generation":"10","merged_bars":10,"objects_published":45,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":10,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-10","windows_total":8}
+{"batch_byte_len":342572,"batch_id":"batch-5a154e71ac674942bc00178ab415e17073e336267c95a178d51712629a5f84b7","effective_source_positions":11,"generation":"11","merged_bars":11,"objects_published":60,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":11,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-11","windows_total":9}
+{"batch_byte_len":414200,"batch_id":"batch-44ca05d105f546a64015b52cd8386410991dfdc790337c9ecbe27792dddc623e","effective_source_positions":12,"generation":"12","merged_bars":12,"objects_published":65,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":12,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-12","windows_total":10}
+{"batch_byte_len":428872,"batch_id":"batch-84fe3a039b7d2703bb99e7fe6b98b0e97e6a47966a65d82d5e57aa2e5fe74417","effective_source_positions":13,"generation":"13","merged_bars":13,"objects_published":66,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":13,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-13","windows_total":11}
+{"batch_byte_len":467888,"batch_id":"batch-0f7f455322a2ee6da976a8399d5d15578527c6971216ba329ace3d754564ef29","effective_source_positions":14,"generation":"14","merged_bars":14,"objects_published":69,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":14,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-14","windows_total":12}
+{"batch_byte_len":609346,"batch_id":"batch-6031ac2a5aca62e090de9a549236735dadbf4ba664047d4f67826b303c9417df","effective_source_positions":15,"generation":"15","merged_bars":15,"objects_published":89,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":15,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-15","windows_total":13}
+{"batch_byte_len":697682,"batch_id":"batch-a51d896e635653ace07bef382789b56c5f41cca67b0c2a68ca3501351e70af55","effective_source_positions":16,"generation":"16","merged_bars":16,"objects_published":94,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":16,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-16","windows_total":14}
+{"batch_byte_len":708427,"batch_id":"batch-f1d1a0b712893c1d76ddca68d00b9ea85b18d555646cb633a723deba99a30363","effective_source_positions":17,"generation":"17","merged_bars":17,"objects_published":94,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":17,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-17","windows_total":15}
+{"batch_byte_len":756159,"batch_id":"batch-3c310699be7223a08694f252ebf2642f5a7d69875a656a5ebb1ba2ea5068d6d1","effective_source_positions":18,"generation":"18","merged_bars":18,"objects_published":97,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":18,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-18","windows_total":16}
+{"batch_byte_len":911654,"batch_id":"batch-0c4e8f7441709967ecf6eb4c255fd80c188e89a8ca30742739cfb8231db8fb4b","effective_source_positions":19,"generation":"19","merged_bars":19,"objects_published":114,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":19,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-19","windows_total":17}
+{"batch_byte_len":1008628,"batch_id":"batch-a154105e6f59428d13cfa45353f2941ceca6ae06d236b0f5d52051895e7c09a1","effective_source_positions":20,"generation":"20","merged_bars":20,"objects_published":119,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":20,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-20","windows_total":18}
+{"batch_byte_len":1024035,"batch_id":"batch-b900b176e526d07cc373496266ceb592467ee76a38ee64333cdc8d68a49469eb","effective_source_positions":21,"generation":"21","merged_bars":21,"objects_published":119,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":21,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-21","windows_total":19}
+test tests::tb02c_persistent_first_kind_and_normal_recovery has been running for over 60 seconds
+{"batch_byte_len":1080653,"batch_id":"batch-3093e78cf6ebbc9e21b0ac21738898773ae6f29cd6a4b24c5782294e29ddf43e","effective_source_positions":22,"generation":"22","merged_bars":22,"objects_published":122,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":22,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-22","windows_total":20}
+{"batch_byte_len":1255204,"batch_id":"batch-4bf35e6a5b9a8ef86a07cb3472be15bd1150c6d93d9639c8969aac9238c6210e","effective_source_positions":23,"generation":"23","merged_bars":23,"objects_published":138,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":23,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-23","windows_total":21}
+{"batch_byte_len":1363183,"batch_id":"batch-9eabb502e33c87acbb1ac12a6d9e9e6a0932f90d9d95107713aa5fc04605b75b","effective_source_positions":24,"generation":"24","merged_bars":24,"objects_published":143,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":24,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-24","windows_total":22}
+{"batch_byte_len":1383359,"batch_id":"batch-bc6aceac316f89b00f270548ec6838b3c5ad0b59da28781c10f6b425f53be913","effective_source_positions":25,"generation":"25","merged_bars":25,"objects_published":143,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":25,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-25","windows_total":23}
+{"batch_byte_len":1448901,"batch_id":"batch-132751819e5bb498f72607ccbb9921f9bd51ba64f9560f96a4a50dae70752042","effective_source_positions":26,"generation":"26","merged_bars":26,"objects_published":146,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":26,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-26","windows_total":24}
+{"batch_byte_len":1715804,"batch_id":"batch-ec297dadf66b1cb1c5ead10381025d723b2a78db92cbd10dee68bb763d97e1e5","effective_source_positions":27,"generation":"27","merged_bars":27,"objects_published":169,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":27,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-27","windows_total":25}
+{"batch_byte_len":1842130,"batch_id":"batch-ff1dc1aab34d573245e23e5e21610f17a17c11b6a4d235be2f22127446f59df4","effective_source_positions":28,"generation":"28","merged_bars":28,"objects_published":174,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":28,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-28","windows_total":26}
+{"epoch_transitioned":true,"new_epoch":"2","ok":true,"previous_epoch":"1","reachable_root":{"generation":"28","index_frontier":"batch-ff1dc1aab34d573245e23e5e21610f17a17c11b6a4d235be2f22127446f59df4","structure_cut":"cut-28"},"recovered_begin":null}
+{"catalog_items":116,"journal_mode":"wal","ok":true,"platform":"macos","session_id":"s-session-testonly-001","sqlite_version":"3.53.2","synchronous":2,"writer_epoch":"1"}
+{"batch_byte_len":12614,"batch_id":"batch-9a0dd2752e3e0ac52a9b65667f83d8a451f2be143a433b6177ae891532f5a579","effective_source_positions":1,"generation":"1","merged_bars":1,"objects_published":6,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":1,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-1","windows_total":0}
+{"batch_byte_len":21334,"batch_id":"batch-ee39cdb8f197ac1b849bc4fbec9a6f685d2577212af0152a114e62bfd5fbf786","effective_source_positions":2,"generation":"2","merged_bars":2,"objects_published":8,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":2,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-2","windows_total":0}
+{"batch_byte_len":40969,"batch_id":"batch-905daa9be15c6577c7c722c0f3b22e16ab308f9095f5e3c3de85f8caa6579d75","effective_source_positions":3,"generation":"3","merged_bars":3,"objects_published":13,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":3,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-3","windows_total":1}
+{"batch_byte_len":61073,"batch_id":"batch-78375a676a9d4e3dcb5f8d19e494f5b6caa2c0d58eae13f141bb3a234e93fc96","effective_source_positions":4,"generation":"4","merged_bars":4,"objects_published":16,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":4,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-4","windows_total":2}
+{"batch_byte_len":81023,"batch_id":"batch-984bd95becc55c2e8e521731335d24b9a79d312e1c03844662d4c44ac326fdc0","effective_source_positions":5,"generation":"5","merged_bars":5,"objects_published":19,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":5,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-5","windows_total":3}
+{"batch_byte_len":102831,"batch_id":"batch-40edf0979a7f25630181fb1b9e9695446f821ac2b5d65332a207333c209f4b00","effective_source_positions":6,"generation":"6","merged_bars":6,"objects_published":22,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":6,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-6","windows_total":4}
+{"batch_byte_len":169247,"batch_id":"batch-de0848dad0280bb95dc3f16484bba53205898a8db4ba033947f7ac3b12c7d4d8","effective_source_positions":7,"generation":"7","merged_bars":7,"objects_published":37,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":7,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-7","windows_total":5}
+{"batch_byte_len":206872,"batch_id":"batch-19e0f82c3af39fc51486135f76572f325971b6783b9cf4c85b8b6f875cd37575","effective_source_positions":8,"generation":"8","merged_bars":8,"objects_published":40,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":8,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-8","windows_total":6}
+{"batch_byte_len":225113,"batch_id":"batch-2d4c8bc8e58c6cf45fd135ecda4521a9c620f64b01605584def3c377091467b9","effective_source_positions":9,"generation":"9","merged_bars":9,"objects_published":42,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":9,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-9","windows_total":7}
+{"batch_byte_len":255657,"batch_id":"batch-ad53b29951eb890a4a2f4a3da55b8d990b6c6064c368eb9813144b9dace1f3b1","effective_source_positions":10,"generation":"10","merged_bars":10,"objects_published":45,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":10,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-10","windows_total":8}
+{"batch_byte_len":344249,"batch_id":"batch-25d56cb97d6bf59f010c8244af9504fc8665122bfa95eb7fc8930baee3465b6e","effective_source_positions":11,"generation":"11","merged_bars":11,"objects_published":60,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":11,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-11","windows_total":9}
+{"batch_byte_len":416173,"batch_id":"batch-544e94549085672f3766eb2a1fdffe57831e618c3a2096e305528d21bbb26922","effective_source_positions":12,"generation":"12","merged_bars":12,"objects_published":65,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":12,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-12","windows_total":10}
+{"batch_byte_len":431093,"batch_id":"batch-2f626c4e2d93da36a03b76f347af70400116a8f724cd31a004c9a929adc556aa","effective_source_positions":13,"generation":"13","merged_bars":13,"objects_published":66,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":13,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-13","windows_total":11}
+{"batch_byte_len":470383,"batch_id":"batch-df99fa0f6a3ee0a9b1b50325053a5475260f3fab22fde276062895860fba21df","effective_source_positions":14,"generation":"14","merged_bars":14,"objects_published":69,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":14,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-14","windows_total":12}
+{"batch_byte_len":612170,"batch_id":"batch-f90ce832eea9b4196cd7c6a4d32e78fcf0f67ce15d0ef0c8902798a254785edb","effective_source_positions":15,"generation":"15","merged_bars":15,"objects_published":89,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":15,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-15","windows_total":13}
+{"batch_byte_len":700826,"batch_id":"batch-200eb3b142ce6f641f3f8b89f75721654cf22468772a3cc1a4727e33206fd61c","effective_source_positions":16,"generation":"16","merged_bars":16,"objects_published":94,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":16,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-16","windows_total":14}
+{"batch_byte_len":711813,"batch_id":"batch-ad5d61ab4b05489c91a64f8a4a7375555e7ca633d9cb784bf2a60f78e0fc62d3","effective_source_positions":17,"generation":"17","merged_bars":17,"objects_published":94,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":17,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-17","windows_total":15}
+{"batch_byte_len":759833,"batch_id":"batch-5a47f8c4838e1350239c5e3a1e75005600c590f239bc58023f98f61fbe2d4219","effective_source_positions":18,"generation":"18","merged_bars":18,"objects_published":97,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":18,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-18","windows_total":16}
+{"batch_byte_len":915703,"batch_id":"batch-1bf49b81ed21e0c7a67be50e03b47602eba88fe2df09d54f200aa70c3b1c9e4f","effective_source_positions":19,"generation":"19","merged_bars":19,"objects_published":114,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":19,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-19","windows_total":17}
+{"batch_byte_len":1013077,"batch_id":"batch-cf70cd09caca3c941893fe6c1069ef5f7dccbf16379d7685be8c01057cf4397d","effective_source_positions":20,"generation":"20","merged_bars":20,"objects_published":119,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":20,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-20","windows_total":18}
+{"batch_byte_len":1028816,"batch_id":"batch-83fb9a914d4c6641dabfa70a4a7398318bea0387192d81dcc82cfd93b133e26f","effective_source_positions":21,"generation":"21","merged_bars":21,"objects_published":119,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":21,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-21","windows_total":19}
+{"batch_byte_len":1085812,"batch_id":"batch-95026b1eb52863f82b9361fc15c5d84d483677501abcd492bc4f4acd6830026e","effective_source_positions":22,"generation":"22","merged_bars":22,"objects_published":122,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":22,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-22","windows_total":20}
+{"batch_byte_len":1260786,"batch_id":"batch-6258f4221804b49e324af06739860b76852d94ee72ad0b053eb1c84ca904492e","effective_source_positions":23,"generation":"23","merged_bars":23,"objects_published":138,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":23,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-23","windows_total":21}
+{"batch_byte_len":1369183,"batch_id":"batch-6d816a02ad1d00acb37ad139036c8745f2bd10b4cd380ee44b10d8002deb600e","effective_source_positions":24,"generation":"24","merged_bars":24,"objects_published":143,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":24,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-24","windows_total":22}
+{"batch_byte_len":1389697,"batch_id":"batch-8d10146fd217c217f24af303a636324adafd65249062d6a828209bc3eec2ead7","effective_source_positions":25,"generation":"25","merged_bars":25,"objects_published":143,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":25,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-25","windows_total":23}
+{"batch_byte_len":1455631,"batch_id":"batch-6b41c0ce4b530d986719b680596d9f278b8d0bbb89bfacc2622c4750ebd3d1e7","effective_source_positions":26,"generation":"26","merged_bars":26,"objects_published":146,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":26,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-26","windows_total":24}
+{"batch_byte_len":1723073,"batch_id":"batch-3af71bb4fb2a90610f42f21751ca9d266b471126c33674d4a6ce5c414357a6ab","effective_source_positions":27,"generation":"27","merged_bars":27,"objects_published":169,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":27,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-27","windows_total":25}
+{"batch_byte_len":1849916,"batch_id":"batch-05fda57e0bb16b35637907ff585694972cb888a6704412527083f95c9528e532","effective_source_positions":28,"generation":"28","merged_bars":28,"objects_published":174,"observations":{"domain_not_satisfied":0,"insufficient_knowledge":0},"ok":true,"raw_events":28,"scope":{"economic":"not_started","structure":"CompleteCut"},"structure_cut":"cut-28","windows_total":26}
+{"epoch_transitioned":true,"new_epoch":"2","ok":true,"previous_epoch":"1","reachable_root":{"generation":"28","index_frontier":"batch-05fda57e0bb16b35637907ff585694972cb888a6704412527083f95c9528e532","structure_cut":"cut-28"},"recovered_begin":null}
+test tests::tb02c_persistent_first_kind_and_normal_recovery ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 79 filtered out; finished in 357.22s
+

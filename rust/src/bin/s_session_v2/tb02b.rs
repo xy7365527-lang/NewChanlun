@@ -65,7 +65,7 @@ fn union(a: &[usize], b: &[usize]) -> Vec<usize> {
 /// #1392：从已校验、按接纳 seq 排序的完整日志计算事实代际。
 /// 每条修订或落在此前最大源坐标内的历史插入只计一次；普通尾部追加不计。
 /// 保留每次历史插入和后续修订，代际因此不依赖 advance 的分批方式或最后一条输入。
-fn fact_basis(all_events: &[Value]) -> i64 {
+pub(super) fn fact_basis(all_events: &[Value]) -> i64 {
     let mut max_coord = i64::MIN;
     let mut generation = 1;
     for event in all_events {

@@ -43,6 +43,8 @@ mod tb02a;
 mod tb02a_facts;
 #[path = "s_session_v2/tb02b.rs"]
 mod tb02b;
+#[path = "s_session_v2/tb02c.rs"]
+mod tb02c;
 use std::path::{Path, PathBuf};
 
 #[cfg(test)]
@@ -58,7 +60,7 @@ use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde_json::{json, Value};
 
 /// CC-006 验收合同修订（SPEC-COVERAGE-INPUT.json `/classification_axes/5`）。
-const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/1";
+const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/1+segment-first/1";
 
 /// S 唯一结构写者的默认 writer_epoch（可经 `--writer-epoch` / `recover` 换代）。
 const DEFAULT_WRITER_EPOCH: &str = "1";
@@ -2369,6 +2371,22 @@ fn advance_core(
         );
         objects.extend(new_bi);
         relations.extend(edges);
+        let (segments, edges) = tb02c::build(
+            facts
+                .segment_facts
+                .as_ref()
+                .expect("同次 parser 必须携段构造事实"),
+            facts.stroke_facts.as_ref().unwrap(),
+            &raw_by_coord,
+            &all_events,
+            &read_active_objects(&conn)?,
+            gen,
+            &structure_cut,
+            frontier,
+            v2::commit_time(&conn, context)?,
+        );
+        objects.extend(segments);
+        relations.extend(edges);
     }
 
     // 去重：同一 (kind, window, reason) 只发布一次。
@@ -4278,6 +4296,68 @@ mod tests {
             ("b12", 120, 11, 13, 9, 11),
             ("b13", 130, 13, 15, 11, 13),
         ]
+    }
+
+    #[test]
+    fn tb02c_persistent_first_kind_and_normal_recovery() {
+        let ledger: Value = serde_json::from_slice(
+            &std::fs::read(fixture("tests/fixtures/tb02c/raw-ledger.json")).unwrap(),
+        )
+        .unwrap();
+        for case in ["first_up", "first_down"] {
+            let files = TestFiles::new();
+            init_test_db(&files);
+            let rows = ledger["cases"][case].as_array().unwrap();
+            for count in 1..=rows.len() {
+                let prices: Vec<_> = rows[..count]
+                    .iter()
+                    .map(|r| (r["low"].as_i64().unwrap(), r["high"].as_i64().unwrap()))
+                    .collect();
+                let mut input = ohlc_input(&prices, false);
+                for (i, row) in rows[..count].iter().enumerate() {
+                    for key in ["open", "close"] {
+                        input["events"][i][key] = json!(row[key].as_i64().unwrap().to_string());
+                    }
+                }
+                accept_ohlc(&files, &input);
+                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            }
+            let current = snapshot_of(&files, None);
+            let old = snapshot_of(&files, Some(16));
+            let data = |snapshot: &Value| {
+                snapshot["objects"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|o| {
+                        o["kind"] == "CC-013.segment"
+                            && o["payload"]["data"]["entity_id"] == "segment:1:1"
+                    })
+                    .unwrap()["payload"]["data"]
+                    .clone()
+            };
+            assert_eq!(data(&old)["result"], "NO_FIRST");
+            assert_eq!(data(&current)["result"], "CASE_ONE");
+            assert_eq!(data(&current)["geometric_end"]["group_anchor"], "13");
+            cmd_recover(&files.db(), "2").unwrap();
+            assert_eq!(snapshot_of(&files, Some(16)), old);
+            assert_eq!(snapshot_of(&files, None), current);
+            let out = std::process::Command::new("python3")
+                .arg(fixture("tests/tb02c_verify.py"))
+                .arg("--database")
+                .arg(files.db())
+                .arg("--case")
+                .arg(case)
+                .arg("--node")
+                .arg("node")
+                .output()
+                .unwrap();
+            assert!(
+                out.status.success(),
+                "{case}: {}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+        }
     }
 
     /// 显式 (event_id, source_coord, open, high, low, close) 的 OHLC 输入；业务身份由 event_id

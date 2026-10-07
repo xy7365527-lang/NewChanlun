@@ -1,0 +1,36 @@
+{
+  "status": "passed",
+  "comparisons": [
+    {
+      "case": "first_up",
+      "status": "PASS",
+      "expected_records": 161,
+      "compared_records": 161,
+      "compared_bytes": 470987732,
+      "method": "exact_bytes_and_strict_jsonl",
+      "excluded_fields": [],
+      "identity_renaming": [],
+      "sha256": [
+        "ff64572b212727b7b044f577e35fcf309126f02998031794d42ab3625b464f1e",
+        "ff64572b212727b7b044f577e35fcf309126f02998031794d42ab3625b464f1e"
+      ]
+    },
+    {
+      "case": "first_down",
+      "status": "PASS",
+      "expected_records": 161,
+      "compared_records": 161,
+      "compared_bytes": 475548429,
+      "method": "exact_bytes_and_strict_jsonl",
+      "excluded_fields": [],
+      "identity_renaming": [],
+      "sha256": [
+        "12b5742ddd8ca6f807df9c2af6de8c9f245f5efd595cbcf4aa60c69d88086d8d",
+        "12b5742ddd8ca6f807df9c2af6de8c9f245f5efd595cbcf4aa60c69d88086d8d"
+      ]
+    }
+  ],
+  "scope": "TB-02-C，非整图完成",
+  "services_reexecuted": false,
+  "source_plan": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/RUN-PLAN.json"
+}

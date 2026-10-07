@@ -1,0 +1,385 @@
+{
+  "schema": "issue1404-validation/2",
+  "base_commit": "8619a20f2800095e6bb9ec20ba2607a744740f91",
+  "scope": "#1404 TB-02-C 第一种终结子义务；待PR合入，不关闭父TB/SPEC/整图",
+  "build": {
+    "checks": [
+      {
+        "name": "01-lib-tb02c",
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "--lib",
+          "tb02c_",
+          "--jobs",
+          "1"
+        ],
+        "exit_code": 0,
+        "duration_seconds": 51.93,
+        "log": "/Users/silencehan/Projects/NewChanlun/.scratch/issue1404-seed-first-20261007/root-checks-r2/01-lib-tb02c.log",
+        "test_results": [
+          {
+            "passed": 8,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 3102
+          }
+        ]
+      },
+      {
+        "name": "02-member-relations",
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "--features",
+          "s_session",
+          "--bin",
+          "s_structure_session",
+          "tb02c_member_relations_bind_only_the_member_sources",
+          "--jobs",
+          "1"
+        ],
+        "exit_code": 0,
+        "duration_seconds": 17.965,
+        "log": "/Users/silencehan/Projects/NewChanlun/.scratch/issue1404-seed-first-20261007/root-checks-r2/02-member-relations.log",
+        "test_results": [
+          {
+            "passed": 1,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 80
+          }
+        ]
+      },
+      {
+        "name": "03-release-build",
+        "command": [
+          "cargo",
+          "build",
+          "--locked",
+          "--offline",
+          "--release",
+          "--features",
+          "s_session",
+          "--bin",
+          "s_structure_session",
+          "--jobs",
+          "1"
+        ],
+        "exit_code": 0,
+        "duration_seconds": 110.9,
+        "log": "/Users/silencehan/Projects/NewChanlun/.scratch/issue1404-seed-first-20261007/root-checks-r2/03-release-build.log",
+        "test_results": []
+      }
+    ],
+    "source_aggregate_sha256": "fcb51c7a74484740994b1e778d0eaf6a862e46d8a9db87e5bcc544105c0c4758",
+    "binary": {
+      "path": "/Volumes/AgentStorage/NewChanlun-Build/issue1404-seed-first-20261007/target/release/s_structure_session",
+      "sha256": "b2b4b9d2843f3e5ba7dea694f3c5870c0d95e48fe1a2d2265cf2e2d9b6640167",
+      "size_bytes": 4205584
+    },
+    "source_unchanged": true
+  },
+  "runtime": {
+    "archive": "/Volumes/AgentStorage/issue1404-formal-r3-20261007",
+    "source_manifest": "RUNTIME-SOURCE-R3.json",
+    "source_aggregate_sha256": "a4d4814f4f3d5a1370d8999fc4f632500c5e7e3f4fc78d65126e3c50d27b7ee5",
+    "arms": [
+      {
+        "run": "first_up-a",
+        "exit": 0,
+        "capture_status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+        "input_count": 28,
+        "core_records": 161,
+        "cleanup_errors": [],
+        "oracle": {
+          "status": "passed",
+          "cuts": 28,
+          "case": "first_up",
+          "scope": "真实持久库公共Q/观察器合同，不替代HTTP与GUI"
+        },
+        "browser": {
+          "status": "passed",
+          "cuts": [
+            "16",
+            "28"
+          ],
+          "page_errors": [],
+          "browser_version": "153.0.8010.12"
+        },
+        "recovery": {
+          "cuts": [
+            16,
+            28
+          ],
+          "equal": true,
+          "stop": "stopped",
+          "recover": "recovered",
+          "start": "ready"
+        },
+        "receipts_sha256": {
+          "EXIT.json": "3e42a2ad3dbeab9d1167d20261ad6305bdea31103ffc09c30f25558345966de2",
+          "evidence/RESULT.json": "c8d84d2b255d958f3ed48b758773af4804fef8eea2cb2c40b35118ec979e02f4",
+          "evidence/query-oracle.json": "91813138742c040e06b116787ee7202541dd792c1f434bc4e5af6cb9ac5e8308",
+          "evidence/browser/RESULT.json": "e1831e460e44375eaa11ba30abb595937a20cb3ff1ab1ee87241c8f732e57f4f",
+          "evidence/normal-recovery.json": "b49a4422633be51a99b59d2da9fab652c6c689648a8bc6cee3be9eaf773ebdc9"
+        }
+      },
+      {
+        "run": "first_up-b",
+        "exit": 0,
+        "capture_status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+        "input_count": 28,
+        "core_records": 161,
+        "cleanup_errors": [],
+        "oracle": {
+          "status": "passed",
+          "cuts": 28,
+          "case": "first_up",
+          "scope": "真实持久库公共Q/观察器合同，不替代HTTP与GUI"
+        },
+        "browser": {
+          "status": "passed",
+          "cuts": [
+            "16",
+            "28"
+          ],
+          "page_errors": [],
+          "browser_version": "153.0.8010.12"
+        },
+        "recovery": {
+          "cuts": [
+            16,
+            28
+          ],
+          "equal": true,
+          "stop": "stopped",
+          "recover": "recovered",
+          "start": "ready"
+        },
+        "receipts_sha256": {
+          "EXIT.json": "3e42a2ad3dbeab9d1167d20261ad6305bdea31103ffc09c30f25558345966de2",
+          "evidence/RESULT.json": "ebffe8c29e13f97e984a88a7d044011a4d2a53e46326eff1bb5bda1900a93ab8",
+          "evidence/query-oracle.json": "91813138742c040e06b116787ee7202541dd792c1f434bc4e5af6cb9ac5e8308",
+          "evidence/browser/RESULT.json": "e1831e460e44375eaa11ba30abb595937a20cb3ff1ab1ee87241c8f732e57f4f",
+          "evidence/normal-recovery.json": "ee480d698f3e13472f77b418ff1d246915f3123fe100dedb475716294f5f984d"
+        }
+      },
+      {
+        "run": "first_down-a",
+        "exit": 0,
+        "capture_status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+        "input_count": 28,
+        "core_records": 161,
+        "cleanup_errors": [],
+        "oracle": {
+          "status": "passed",
+          "cuts": 28,
+          "case": "first_down",
+          "scope": "真实持久库公共Q/观察器合同，不替代HTTP与GUI"
+        },
+        "browser": {
+          "status": "passed",
+          "cuts": [
+            "16",
+            "28"
+          ],
+          "page_errors": [],
+          "browser_version": "153.0.8010.12"
+        },
+        "recovery": {
+          "cuts": [
+            16,
+            28
+          ],
+          "equal": true,
+          "stop": "stopped",
+          "recover": "recovered",
+          "start": "ready"
+        },
+        "receipts_sha256": {
+          "EXIT.json": "3e42a2ad3dbeab9d1167d20261ad6305bdea31103ffc09c30f25558345966de2",
+          "evidence/RESULT.json": "b2c84dc1db1e524fd2c256c6225cf8a71a182a871fa4bfce8a84842527ae628e",
+          "evidence/query-oracle.json": "6f2791df6c97f25d6a49af2318a067a78bf1e853146507a7c572b4b4ba7ffd59",
+          "evidence/browser/RESULT.json": "e1831e460e44375eaa11ba30abb595937a20cb3ff1ab1ee87241c8f732e57f4f",
+          "evidence/normal-recovery.json": "62d625f038c297dc69772378837ce29dbd44ee583ba2e3e1c8e390567f3088b9"
+        }
+      },
+      {
+        "run": "first_down-b",
+        "exit": 0,
+        "capture_status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+        "input_count": 28,
+        "core_records": 161,
+        "cleanup_errors": [],
+        "oracle": {
+          "status": "passed",
+          "cuts": 28,
+          "case": "first_down",
+          "scope": "真实持久库公共Q/观察器合同，不替代HTTP与GUI"
+        },
+        "browser": {
+          "status": "passed",
+          "cuts": [
+            "16",
+            "28"
+          ],
+          "page_errors": [],
+          "browser_version": "153.0.8010.12"
+        },
+        "recovery": {
+          "cuts": [
+            16,
+            28
+          ],
+          "equal": true,
+          "stop": "stopped",
+          "recover": "recovered",
+          "start": "ready"
+        },
+        "receipts_sha256": {
+          "EXIT.json": "3e42a2ad3dbeab9d1167d20261ad6305bdea31103ffc09c30f25558345966de2",
+          "evidence/RESULT.json": "1bfc4cd800fcf8776d4f4ca7e6d4e1cd454d3366436559f900c5d0681cdf2510",
+          "evidence/query-oracle.json": "6f2791df6c97f25d6a49af2318a067a78bf1e853146507a7c572b4b4ba7ffd59",
+          "evidence/browser/RESULT.json": "e1831e460e44375eaa11ba30abb595937a20cb3ff1ab1ee87241c8f732e57f4f",
+          "evidence/normal-recovery.json": "2589f2a4411a9f751e26881e3437261019c618b80bff1c360d9747b9944b1bf1"
+        }
+      }
+    ],
+    "comparison": "COMPARISON-RESULT.json",
+    "comparison_sha256": "3ebe437148cce5728eebd0738300b634bfda0d1c14e8aaa51591e6b9bca39db9",
+    "original_harness_exit": 1,
+    "original_harness_failure": "旧比较器16MiB记录上限；四arm均0；后续仅重做离线比较成功，保留原失败收据",
+    "post_runtime_changes": [
+      "s_session/tests/tb02c_harness.py",
+      "新增流式比较器及回归、requirements、CI接线；不改变采集服务或二进制"
+    ],
+    "services_reexecuted_for_comparison": false
+  },
+  "final_checks": [
+    {
+      "command": "python -B -m unittest discover -s s_session/tests -p test_tb02c_*.py -v",
+      "passed": 13,
+      "exit": 0,
+      "log": "final-python.txt"
+    },
+    {
+      "command": "node --test s_session/tests/test_tb02c_contract.cjs",
+      "passed": 5,
+      "exit": 0,
+      "log": "final-javascript.txt"
+    },
+    {
+      "command": "tb02c_harness.py --compare-existing <R3>",
+      "status": "passed",
+      "log": "COMPARISON-RESULT.json"
+    }
+  ],
+  "worker_initial": {
+    "source_snapshot_sha256": "45016056d3e20b320ac3a16c9bb38116bc35bea027ef0c4873d55f3eaac0dc86",
+    "checks": [
+      {
+        "command": "CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline --manifest-path rust/Cargo.toml --lib tb02c_ --target-dir /private/tmp/issue1404-check -- --nocapture",
+        "status": "通过",
+        "exit_code": 0,
+        "passed": 7,
+        "filtered_out": 3102,
+        "seconds": 0.01,
+        "scope": "本片7项：两方向各28自然raw前缀全量/增量对拍，包含、转折假设、适用性、相切、几何失败与gap等待",
+        "log": "rust-parser.txt"
+      },
+      {
+        "command": "CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline --manifest-path rust/Cargo.toml --lib theta_v0::parser::segment::tests --target-dir /private/tmp/issue1404-check -- --nocapture",
+        "status": "通过",
+        "exit_code": 0,
+        "passed": 20,
+        "filtered_out": 3089,
+        "seconds": 0.51,
+        "scope": "所改段模块既有回归；含既有级联/第二种相关测试，不计为本片第二种交付",
+        "log": "rust-segment-regression.txt"
+      },
+      {
+        "command": "CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline --manifest-path rust/Cargo.toml --lib theta_v0::parser::feature_seq::tests --target-dir /private/tmp/issue1404-check -- --nocapture",
+        "status": "通过",
+        "exit_code": 0,
+        "passed": 15,
+        "filtered_out": 3094,
+        "seconds": 0.0,
+        "scope": "所改FIRST状态机模块既有回归；含既有第二序列原语，不计为本片第二种验收",
+        "log": "rust-feature-regression.txt"
+      },
+      {
+        "command": "CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 cargo test --offline --manifest-path rust/Cargo.toml --features s_session --bin s_structure_session tb02c_ --target-dir /private/tmp/issue1404-check -- --nocapture",
+        "status": "通过",
+        "exit_code": 0,
+        "passed": 1,
+        "filtered_out": 79,
+        "seconds": 357.22,
+        "scope": "两方向各28次正式S发布；正常recover换epoch后当前/历史cut不变；真实持久库经公共Q与客户端JS合同读回",
+        "log": "rust-persistence.txt"
+      },
+      {
+        "command": "python3 -m unittest s_session.tests.test_tb02b_contract s_session.tests.test_tb02c_contract",
+        "status": "通过",
+        "exit_code": 0,
+        "scope": "Python新笔/段公共合同8项；不是raw语义oracle",
+        "log": "python-contract.txt"
+      },
+      {
+        "command": "node --test s_session/tests/test_tb01c_browser.cjs s_session/tests/test_tb02c_contract.cjs",
+        "status": "通过",
+        "exit_code": 0,
+        "scope": "Node TAP 5项：原浏览器替身34条断言与本票4项；包括真实HTML目录接线函数，不替代Chromium",
+        "log": "javascript-observer.txt"
+      },
+      {
+        "command": "node --test s_session/tests/test_tb02c_contract.cjs（目录接线修复前）",
+        "status": "预期失败：C轴目录缺按钮已复现，修复后见javascript-observer.txt",
+        "exit_code": 1,
+        "log": "ui-red.txt"
+      },
+      {
+        "command": "tb02c_harness.py / tb02c_runtime.py / tb02c_verify.py：ast.parse 与 --help",
+        "status": "通过",
+        "exit_code": 0,
+        "scope": "最终验收入口静态/参数检查；未执行跨进程正式驱动"
+      },
+      {
+        "command": "node --check s_session/tests/tb02c_browser.cjs",
+        "status": "通过",
+        "exit_code": 0,
+        "scope": "语法检查，未启动Chromium"
+      },
+      {
+        "command": "git diff --check",
+        "status": "通过",
+        "exit_code": 0
+      },
+      {
+        "command": "raw-ledger.json独立OHLC域检查",
+        "status": "通过",
+        "scope": "两方向各28根OHLC合法；每组27个相邻对高低严格同向，无包含；正式落域另由S集成测试验证"
+      }
+    ],
+    "note": "此组是工蜂初版的历史检查，不能替代最终源码的构建/修复回归/正式R3证据。初版完整报告已保存在控制目录worker-run-r1/original-reports。"
+  },
+  "not_verified": [
+    "第二种终结及第二序列扫描",
+    "一般同价竞争域",
+    "本票资源规模外推和S7资格",
+    "旧库写入升级/迁移",
+    "真实交易、产品前端#1460",
+    "整图#1323与完整9011双跑"
+  ],
+  "reviews": [
+    "REVIEW.md",
+    "COMPARATOR-REVIEW.md",
+    "R3-COMPLETENESS-REVIEW.md"
+  ]
+}

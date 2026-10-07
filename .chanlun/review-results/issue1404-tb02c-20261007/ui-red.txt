@@ -1,0 +1,54 @@
+TAP version 13
+# Subtest: 段 seed 四条件与来源完整进入既有观察器
+ok 1 - 段 seed 四条件与来源完整进入既有观察器
+  ---
+  duration_ms: 0.7445
+  type: 'test'
+  ...
+# Subtest: 缺条件、未知笔与无效方向拒绝
+ok 2 - 缺条件、未知笔与无效方向拒绝
+  ---
+  duration_ms: 0.434792
+  type: 'test'
+  ...
+# Subtest: 不足三笔只发布等待候选，不能冒充seed
+ok 3 - 不足三笔只发布等待候选，不能冒充seed
+  ---
+  duration_ms: 0.158917
+  type: 'test'
+  ...
+# Subtest: 既有目录可打开C轴并显示未完整交付的证据
+not ok 4 - 既有目录可打开C轴并显示未完整交付的证据
+  ---
+  duration_ms: 5.520792
+  type: 'test'
+  location: '/Users/silencehan/.codex/worktrees/issue1404-seed-first/NewChanlun/s_session/tests/test_tb02c_contract.cjs:24:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The expression evaluated to a falsy value:
+    
+      assert.ok(elements.get('#catalog-table tbody').innerHTML.includes(`data-catalog-id="${id}"`))
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/Users/silencehan/.codex/worktrees/issue1404-seed-first/NewChanlun/s_session/tests/test_tb02c_contract.cjs:36:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 3
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 45.070125

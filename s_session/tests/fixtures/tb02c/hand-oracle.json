@@ -1,0 +1,89 @@
+{
+  "schema": "tb02c-hand-oracle/1",
+  "cuts": {
+    "15": {
+      "stroke_anchors": [
+        1,
+        5,
+        9,
+        13
+      ],
+      "prices": [
+        120,
+        384,
+        192,
+        528
+      ],
+      "seed_overlap": [
+        192,
+        384
+      ],
+      "seed_vector": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "first_members": [
+        1
+      ],
+      "result": "NO_FIRST",
+      "reason": "fewer_than_three_standard_elements"
+    },
+    "27": {
+      "stroke_anchors": [
+        1,
+        5,
+        9,
+        13,
+        17,
+        21,
+        25
+      ],
+      "prices": [
+        120,
+        384,
+        192,
+        528,
+        240,
+        432,
+        216
+      ],
+      "seed_overlap": [
+        192,
+        384
+      ],
+      "seed_vector": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "first_members": [
+        1,
+        3,
+        5
+      ],
+      "standard_intervals": [
+        [
+          192,
+          384
+        ],
+        [
+          240,
+          528
+        ],
+        [
+          216,
+          432
+        ]
+      ],
+      "result": "CASE_ONE",
+      "gap": false,
+      "end_stroke": 2,
+      "geometric_end": 13,
+      "trigger_stroke": 5,
+      "next_start_stroke": 3
+    }
+  }
+}

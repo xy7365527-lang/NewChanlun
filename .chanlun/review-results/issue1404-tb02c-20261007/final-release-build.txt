@@ -1,0 +1,582 @@
+   Compiling target-lexicon v0.12.16
+   Compiling pyo3-build-config v0.23.5
+   Compiling once_cell v1.21.4
+   Compiling proc-macro2 v1.0.106
+   Compiling quote v1.0.45
+   Compiling unicode-ident v1.0.24
+   Compiling version_check v0.9.5
+   Compiling generic-array v0.14.7
+   Compiling libc v0.2.189
+   Compiling shlex v2.0.1
+   Compiling typenum v1.20.1
+   Compiling find-msvc-tools v0.1.9
+   Compiling cc v1.2.65
+   Compiling pyo3-ffi v0.23.5
+   Compiling pyo3-macros-backend v0.23.5
+   Compiling serde_core v1.0.229
+   Compiling vcpkg v0.2.15
+   Compiling autocfg v1.5.1
+   Compiling pkg-config v0.3.34
+   Compiling libsqlite3-sys v0.38.2
+   Compiling memoffset v0.9.1
+   Compiling syn v2.0.117
+   Compiling zmij v1.0.21
+   Compiling heck v0.5.0
+   Compiling foldhash v0.2.0
+   Compiling hashbrown v0.17.1
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling syn v3.0.4
+   Compiling pyo3 v0.23.5
+   Compiling cfg-if v1.0.4
+   Compiling serde_json v1.0.151
+   Compiling serde v1.0.229
+   Compiling serde_derive v1.0.229
+   Compiling digest v0.10.7
+   Compiling pyo3-macros v0.23.5
+   Compiling hashlink v0.12.2
+   Compiling cpufeatures v0.2.17
+   Compiling unindent v0.2.4
+   Compiling memchr v2.8.2
+   Compiling itoa v1.0.18
+   Compiling indoc v2.0.7
+   Compiling fallible-streaming-iterator v0.1.9
+   Compiling smallvec v1.15.2
+   Compiling fallible-iterator v0.3.0
+   Compiling bitflags v2.13.0
+   Compiling rusqlite v0.40.2
+   Compiling sha2 v0.10.9
+   Compiling newchan_rust v0.1.0 (/Users/silencehan/.codex/worktrees/issue1404-seed-first/NewChanlun/rust)
+warning: the usage of Script Group `Greek` in this crate consists solely of mixed script confusables
+    --> src/recursive_t/rec_engine.rs:3495:8
+     |
+3495 |     fn add_short_τ镜像_父空卖回对称() {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: the usage includes 'τ' (U+03C4)
+     = note: please recheck to make sure their usages are indeed what you want
+     = note: `#[warn(mixed_script_confusables)]` on by default
+
+warning: unused imports: `PanDivShortRetraceObservation`, `drain_pan_div_short_retrace_observations`, `pan_div_subtype_channel_reason`, and `t3_in_c_grade_reason_to_pan_div_subtype`
+   --> src/theta_v0/classifier/signal.rs:127:5
+    |
+127 |     drain_pan_div_short_retrace_observations, pan_div_subtype_channel_reason,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+128 |     t3_in_c_grade_reason_to_pan_div_subtype, PanDivShortRetraceObservation,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `step::coverage_step_from_buckets_sep`
+   --> src/theta_v0/strategy/coverage/mod.rs:129:5
+    |
+129 | use step::coverage_step_from_buckets_sep;
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `c`
+   --> src/theta_v0/classifier/recursive_tower.rs:409:20
+    |
+409 |         .map(|(i, (c, win))| {
+    |                    ^ help: if this is intentional, prefix it with an underscore: `_c`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `c`
+   --> src/theta_v0/classifier/recursive_tower.rs:676:24
+    |
+676 |             .map(|(i, (c, win))| {
+    |                        ^ help: if this is intentional, prefix it with an underscore: `_c`
+
+warning: variable does not need to be mutable
+    --> src/theta_v0/classifier/signal.rs:1246:9
+     |
+1246 |     let mut judge_range = |from: usize,
+     |         ----^^^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> src/theta_v0/classifier/pipeline.rs:850:17
+    |
+850 |             let mut p = lc.win_meta.partition_point(|w| w.read_end_src < dirty_e);
+    |                 ----^
+    |                 |
+    |                 help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> src/trading/axiom_voice.rs:367:17
+    |
+367 |             let mut restore = |reason: &'static str,
+    |                 ----^^^^^^^
+    |                 |
+    |                 help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/trading/positional_fusion.rs:1506:25
+     |
+1506 |                     let mut cover =
+     |                         ----^^^^^
+     |                         |
+     |                         help: remove this `mut`
+
+warning: field `dbg_sink_ok` is never read
+   --> src/fugue_v3/operate.rs:101:5
+    |
+ 70 | pub struct OperateEngine {
+    |            ------------- field in this struct
+...
+101 |     dbg_sink_ok: [u64; MAX_LADDER],
+    |     ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `buysellpoints` is never read
+   --> src/orchestrator.rs:473:9
+    |
+466 | pub struct LevelSnapshot {
+    |            ------------- field in this struct
+...
+473 |     pub buysellpoints: Vec<BuySellPoint>,
+    |         ^^^^^^^^^^^^^
+    |
+    = note: `LevelSnapshot` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: field `reading_b_diverge` is never read
+   --> src/recursive_t/rec_engine.rs:996:5
+    |
+960 | pub struct TRoot {
+    |            ----- field in this struct
+...
+996 |     reading_b_diverge: bool,
+    |     ^^^^^^^^^^^^^^^^^
+
+warning: method `sink` is never used
+    --> src/recursive_t/rec_engine.rs:1687:8
+     |
+1169 | impl TRoot {
+     | ---------- method in this implementation
+...
+1687 |     fn sink(&mut self, parent: usize, sub: usize, sub_node: TrendNode, c: f64) {
+     |        ^^^^
+
+warning: method `cost_basis` is never used
+   --> src/recursive_t/t_engine.rs:340:8
+    |
+276 | impl TPositionEngine {
+    | -------------------- method in this implementation
+...
+340 |     fn cost_basis(&self) -> f64 {
+    |        ^^^^^^^^^^
+
+warning: associated function `new` is never used
+   --> src/theta_v0/classifier/nest.rs:174:19
+    |
+170 | impl NestRung {
+    | ------------- associated function in this implementation
+...
+174 |     pub(crate) fn new(interval: NestInterval, cand: bool) -> Self {
+    |                   ^^^
+
+warning: associated function `from_parts` is never used
+   --> src/theta_v0/classifier/nest.rs:268:19
+    |
+257 | impl NestCertificate {
+    | -------------------- associated function in this implementation
+...
+268 |     pub(crate) fn from_parts(
+    |                   ^^^^^^^^^^
+
+warning: function `detect_centers_windowed` is never used
+   --> src/theta_v0/classifier/recursive_tower.rs:341:4
+    |
+341 | fn detect_centers_windowed(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `trend_confirm_time` is never used
+   --> src/theta_v0/classifier/level_view/confirm.rs:379:15
+    |
+379 | pub(super) fn trend_confirm_time(
+    |               ^^^^^^^^^^^^^^^^^^
+
+warning: function `nearest_confirmed_center` is never used
+   --> src/theta_v0/classifier/signal.rs:211:4
+    |
+211 | fn nearest_confirmed_center(centers: &[Center], seg_start: usize) -> Option<&Center> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `t3_in_c_fixed_first_pair` is never used
+   --> src/theta_v0/classifier/signal.rs:447:15
+    |
+447 | pub(crate) fn t3_in_c_fixed_first_pair(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `otherwise_domain_sidecar_begin` is never used
+   --> src/theta_v0/classifier/signal.rs:574:15
+    |
+574 | pub(crate) fn otherwise_domain_sidecar_begin() {
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `otherwise_domain_sidecar_take` is never used
+   --> src/theta_v0/classifier/signal.rs:580:15
+    |
+580 | pub(crate) fn otherwise_domain_sidecar_take() -> Vec<FirstClassGradeRecord> {
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `t3_in_c_grade_reason_to_pan_div_subtype` is never used
+  --> src/theta_v0/classifier/signal/pan_div_short.rs:38:15
+   |
+38 | pub(crate) fn t3_in_c_grade_reason_to_pan_div_subtype(
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `pan_div_subtype_channel_reason` is never used
+  --> src/theta_v0/classifier/signal/pan_div_short.rs:54:15
+   |
+54 | pub(crate) fn pan_div_subtype_channel_reason(subtype: PanDivSubtype) -> T3InCGradeReason {
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `PanDivShortRetraceObservation` is never constructed
+  --> src/theta_v0/classifier/signal/pan_div_short.rs:66:19
+   |
+66 | pub(crate) struct PanDivShortRetraceObservation {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `from_record` is never used
+  --> src/theta_v0/classifier/signal/pan_div_short.rs:77:8
+   |
+76 | impl PanDivShortRetraceObservation {
+   | ---------------------------------- associated function in this implementation
+77 |     fn from_record(record: &ShortRetraceRecord) -> Self {
+   |        ^^^^^^^^^^^
+
+warning: function `drain_pan_div_short_retrace_observations` is never used
+   --> src/theta_v0/classifier/signal/pan_div_short.rs:124:15
+    |
+124 | pub(crate) fn drain_pan_div_short_retrace_observations(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `historical_bound_third_cert` is never used
+   --> src/theta_v0/classifier/pipeline.rs:194:15
+    |
+194 | pub(crate) fn historical_bound_third_cert(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `historical_bound_segment` is never used
+   --> src/theta_v0/classifier/pipeline.rs:215:4
+    |
+215 | fn historical_bound_segment(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `has_any_fractal` is never used
+   --> src/theta_v0/parser/feature_seq.rs:201:4
+    |
+201 | fn has_any_fractal(elements: &[(Tick, Tick)]) -> bool {
+    |    ^^^^^^^^^^^^^^^
+
+warning: multiple fields are never read
+   --> src/theta_v0/strategy/coverage/compose.rs:107:9
+    |
+ 98 | pub(crate) struct StepTrace {
+    |                   --------- fields in this struct
+...
+107 |     pub closed: Vec<(ActiveLeg, Candidate, interp::ExitType)>,
+    |         ^^^^^^
+108 |     pub silent_drops: Vec<ActiveLeg>,
+    |         ^^^^^^^^^^^^
+109 |     pub opened: Vec<(Candidate, ActiveLeg)>,
+    |         ^^^^^^
+...
+117 |     pub risk_exits: Vec<ActiveLeg>,
+    |         ^^^^^^^^^^
+...
+121 |     pub overlay_closes: Vec<ActiveLeg>,
+    |         ^^^^^^^^^^^^^^
+...
+125 |     pub tw_event: Option<TwEvent>,
+    |         ^^^^^^^^
+...
+136 |     pub verdicts: Vec<VoiceVerdict>,
+    |         ^^^^^^^^
+...
+142 |     pub lex_top3: Vec<(JThetaKey, f64)>,
+    |         ^^^^^^^^
+    |
+    = note: `StepTrace` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: function `pi_theta_step_traced` is never used
+   --> src/theta_v0/strategy/coverage/compose.rs:202:15
+    |
+202 | pub(crate) fn pi_theta_step_traced(
+    |               ^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `overlay`, `position`, `iter`, and `as_contiguous` are never used
+   --> src/theta_v0/strategy/coverage/element.rs:112:19
+    |
+ 67 | impl<'a> ElementView<'a> {
+    | ------------------------ methods in this implementation
+...
+112 |     pub(crate) fn overlay(&self) -> &[CoverageElement] {
+    |                   ^^^^^^^
+...
+146 |     pub(crate) fn position(&self, mut pred: impl FnMut(&CoverageElement) -> bool) -> Option<usize> {
+    |                   ^^^^^^^^
+...
+156 |     pub(crate) fn iter(&self) -> impl Iterator<Item = &CoverageElement> {
+    |                   ^^^^
+...
+167 |     pub(crate) fn as_contiguous(&self) -> std::borrow::Cow<'_, [CoverageElement]> {
+    |                   ^^^^^^^^^^^^^
+
+warning: function `held_leg_tree_index` is never used
+  --> src/theta_v0/strategy/coverage/held.rs:34:4
+   |
+34 | fn held_leg_tree_index(
+   |    ^^^^^^^^^^^^^^^^^^^
+
+warning: function `operation_role_indexed` is never used
+   --> src/theta_v0/strategy/coverage/role.rs:212:4
+    |
+212 | fn operation_role_indexed(
+    |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `position_bounds`, `delta_capacity_units`, and `clamp_position` are never used
+   --> src/theta_v0/strategy/coverage/sizing.rs:382:19
+    |
+338 | impl KThetaRiskGate {
+    | ------------------- methods in this implementation
+...
+382 |     pub(crate) fn position_bounds(&self, cap: f64) -> (f64, f64) {
+    |                   ^^^^^^^^^^^^^^^
+...
+388 |     pub(crate) fn delta_capacity_units(&self, cap: f64, anchor: f64, side: VoiceSide) -> u64 {
+    |                   ^^^^^^^^^^^^^^^^^^^^
+...
+398 |     pub(crate) fn clamp_position(&self, cap: f64, position: f64) -> f64 {
+    |                   ^^^^^^^^^^^^^^
+
+warning: function `pi_theta_step_prebuilt` is never used
+   --> src/theta_v0/strategy/coverage/sizing.rs:675:15
+    |
+675 | pub(super) fn pi_theta_step_prebuilt(
+    |               ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated items `fp_len` and `of` are never used
+   --> src/theta_v0/strategy/interp.rs:452:19
+    |
+450 | impl TreeKey {
+    | ------------ associated items in this implementation
+451 |     /// 指纹长度（诊断用：≈tree 节点数，量化 `of` 的 O(tree) 工作量标度）。
+452 |     pub(crate) fn fp_len(&self) -> usize {
+    |                   ^^^^^^
+...
+456 |     pub(crate) fn of(tower: &[Rc<Vec<LeveledMove>>]) -> TreeKey {
+    |                   ^^
+
+warning: struct `VoiceKey` is never constructed
+  --> src/theta_v0/strategy/shadow.rs:64:8
+   |
+64 | struct VoiceKey {
+   |        ^^^^^^^^
+
+warning: enum `ProductionFact` is never used
+  --> src/theta_v0/strategy/shadow.rs:72:17
+   |
+72 | pub(crate) enum ProductionFact {
+   |                 ^^^^^^^^^^^^^^
+
+warning: enum `DivergenceKind` is never used
+  --> src/theta_v0/strategy/shadow.rs:91:17
+   |
+91 | pub(crate) enum DivergenceKind {
+   |                 ^^^^^^^^^^^^^^
+
+warning: struct `ShadowStepRecord` is never constructed
+   --> src/theta_v0/strategy/shadow.rs:117:19
+    |
+117 | pub(crate) struct ShadowStepRecord {
+    |                   ^^^^^^^^^^^^^^^^
+
+warning: struct `ShadowStats` is never constructed
+   --> src/theta_v0/strategy/shadow.rs:136:19
+    |
+136 | pub(crate) struct ShadowStats {
+    |                   ^^^^^^^^^^^
+
+warning: methods `bump` and `divergences` are never used
+   --> src/theta_v0/strategy/shadow.rs:151:8
+    |
+150 | impl ShadowStats {
+    | ---------------- methods in this implementation
+151 |     fn bump(&mut self, kind: DivergenceKind) {
+    |        ^^^^
+...
+166 |     pub fn divergences(&self) -> u64 {
+    |            ^^^^^^^^^^^
+
+warning: struct `ShadowVoiceBook` is never constructed
+   --> src/theta_v0/strategy/shadow.rs:174:19
+    |
+174 | pub(crate) struct ShadowVoiceBook {
+    |                   ^^^^^^^^^^^^^^^
+
+warning: methods `observe_and_compare`, `records`, `stats`, and `render_report` are never used
+   --> src/theta_v0/strategy/shadow.rs:184:19
+    |
+180 | impl ShadowVoiceBook {
+    | -------------------- methods in this implementation
+...
+184 |     pub(crate) fn observe_and_compare(
+    |                   ^^^^^^^^^^^^^^^^^^^
+...
+297 |     pub(crate) fn records(&self) -> &[ShadowStepRecord] {
+    |                   ^^^^^^^
+...
+302 |     pub(crate) fn stats(&self) -> &ShadowStats {
+    |                   ^^^^^
+...
+307 |     pub(crate) fn render_report(&self) -> String {
+    |                   ^^^^^^^^^^^^^
+
+warning: function `production_fact` is never used
+   --> src/theta_v0/strategy/shadow.rs:371:4
+    |
+371 | fn production_fact(
+    |    ^^^^^^^^^^^^^^^
+
+warning: function `classify` is never used
+   --> src/theta_v0/strategy/shadow.rs:399:4
+    |
+399 | fn classify(dec: ChannelDecision, fact: ProductionFact) -> DivergenceKind {
+    |    ^^^^^^^^
+
+warning: struct `ShortBook` is never constructed
+   --> src/trading/ledger.rs:393:12
+    |
+393 | pub struct ShortBook {
+    |            ^^^^^^^^^
+
+warning: associated items `new`, `open_slot`, `open_keys`, `open_sub`, and `close_diff` are never used
+   --> src/trading/ledger.rs:408:12
+    |
+407 | impl ShortBook {
+    | -------------- associated items in this implementation
+408 |     pub fn new(open_price: f64, units: f64) -> Self {
+    |            ^^^
+...
+419 |     pub fn open_slot(&self, key: SlotKey) -> Option<&OpenLeg> {
+    |            ^^^^^^^^^
+...
+426 |     pub fn open_keys(&self) -> Vec<SlotKey> {
+    |            ^^^^^^^^^
+...
+433 |     pub fn open_sub(
+    |            ^^^^^^^^
+...
+464 |     pub fn close_diff(&mut self, key: SlotKey, sell_price: f64) {
+    |            ^^^^^^^^^^
+
+warning: enum `DirectionalBook` is never used
+   --> src/trading/ledger.rs:498:10
+    |
+498 | pub enum DirectionalBook {
+    |          ^^^^^^^^^^^^^^^
+
+warning: enum `ThirdPointRegistration` is never used
+   --> src/trading/third_point_book.rs:161:10
+    |
+161 | pub enum ThirdPointRegistration {
+    |          ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: enum `ThirdPointConflict` is never used
+   --> src/trading/third_point_book.rs:170:10
+    |
+170 | pub enum ThirdPointConflict {
+    |          ^^^^^^^^^^^^^^^^^^
+
+warning: struct `ThirdPointBook` is never constructed
+   --> src/trading/third_point_book.rs:181:12
+    |
+181 | pub struct ThirdPointBook {
+    |            ^^^^^^^^^^^^^^
+
+warning: multiple associated items are never used
+   --> src/trading/third_point_book.rs:192:12
+    |
+191 | impl ThirdPointBook {
+    | ------------------- associated items in this implementation
+192 |     pub fn new() -> Self {
+    |            ^^^
+...
+212 |     pub fn register<S>(&mut self, signal: S) -> Result<ThirdPointRegistration, ThirdPointConflict>
+    |            ^^^^^^^^
+...
+248 |     pub fn sync_from_ledger(
+    |            ^^^^^^^^^^^^^^^^
+...
+265 |     pub fn register_from_ledger(
+    |            ^^^^^^^^^^^^^^^^^^^^
+...
+279 |     pub fn established(&self) -> Vec<ThirdPointPack> {
+    |            ^^^^^^^^^^^
+...
+284 |     pub fn pack(&self, key: &RetraceKey) -> Option<ThirdPointPack> {
+    |            ^^^^
+...
+288 |     pub fn contains(&self, key: &RetraceKey) -> bool {
+    |            ^^^^^^^^
+...
+292 |     pub fn len(&self) -> usize {
+    |            ^^^
+...
+296 |     pub fn is_empty(&self) -> bool {
+    |            ^^^^^^^^
+
+warning: multiple fields are never read
+   --> src/trading/types.rs:725:9
+    |
+724 | pub struct RevOpenLog {
+    |            ---------- fields in this struct
+725 |     pub ladder: u8,
+    |         ^^^^^^
+726 |     pub bar: i64,
+    |         ^^^
+727 |     /// 0 = 震荡型（Oscillation），1 = 逃逸型（Escape）。
+728 |     pub kind: u8,
+    |         ^^^^
+...
+732 |     pub trigger: u8,
+    |         ^^^^^^^
+733 |     /// 锚中枢 seg_start（震荡型=存活中枢快照；逃逸型=被终结中枢）。
+734 |     pub anchor_cs: Option<i64>,
+    |         ^^^^^^^^^
+...
+737 |     pub zd: Option<f64>,
+    |         ^^
+738 |     pub zg: Option<f64>,
+    |         ^^
+739 |     pub price: f64,
+    |         ^^^^^
+    |
+    = note: `RevOpenLog` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: fields `ladder`, `open_bar`, `bar`, `reason`, and `price` are never read
+   --> src/trading/types.rs:750:9
+    |
+749 | pub struct RevCloseLog {
+    |            ----------- fields in this struct
+750 |     pub ladder: u8,
+    |         ^^^^^^
+751 |     pub open_bar: i64,
+    |         ^^^^^^^^
+752 |     pub bar: i64,
+    |         ^^^
+753 |     pub reason: u8,
+    |         ^^^^^^
+754 |     pub price: f64,
+    |         ^^^^^
+    |
+    = note: `RevCloseLog` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: `newchan_rust` (lib) generated 57 warnings (run `cargo fix --lib -p newchan_rust` to apply 8 suggestions)
+    Finished `release` profile [optimized] target(s) in 1m 50s

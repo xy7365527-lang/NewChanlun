@@ -1,0 +1,125 @@
+{
+  "worktree": "/Users/silencehan/.codex/worktrees/issue1404-seed-first/NewChanlun",
+  "files": [
+    {
+      "path": "rust/Cargo.lock",
+      "sha256": "c591858344c1ff7c62335e10c0e2f1f5cf9e7447a8caf81cd92e556bac248b62"
+    },
+    {
+      "path": "rust/Cargo.toml",
+      "sha256": "db8af9ea30e1840b87759aedd67a556fa506d152be1b01d3e068d8be610c1bdf"
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/tb02a.rs",
+      "sha256": "401eb014bdb95b2e95979e5cc879bfc0f1efc296cff8e66ccbc69901dc032fd4"
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/tb02a_facts.rs",
+      "sha256": "7f380710679182677ef65c1f95e0e172e54a391def38dc850aed588dca667153"
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/tb02b.rs",
+      "sha256": "72ce470b8744f8582a1b32603100c34bd26f8e234dfc089d2a363251f05f2d92"
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/tb02c.rs",
+      "sha256": "3c7a134287dbf047ab3b1cc8ae94040a6338cf43cc7e7f6bbe7ea2e9dd4f9f3b"
+    },
+    {
+      "path": "rust/src/bin/s_structure_session.rs",
+      "sha256": "84a36ad8c725a7395df9d3c6eafd22d8795c9501b73fd1496ca6285d48fa3d4c"
+    },
+    {
+      "path": "rust/src/theta_v0/parser/feature_seq.rs",
+      "sha256": "ef8cdca9920345d2798c56d2e02e9ccc699678fcc4d6b131b206b942b69ce86a"
+    },
+    {
+      "path": "rust/src/theta_v0/parser/inclusion.rs",
+      "sha256": "df9baee07a8e94bfae8dc956f61757df559bda4fe7ae55ecd52c8638fef2768f"
+    },
+    {
+      "path": "rust/src/theta_v0/parser/mod.rs",
+      "sha256": "f87a6ad56a886514f1520a252ab16050053bbf86648bed298189510d706f41c1"
+    },
+    {
+      "path": "rust/src/theta_v0/parser/segment.rs",
+      "sha256": "2bec4918869614dd2c0ef0fdf6bbef39e32a2ab2c98e9f1f73d17e77405b1a7a"
+    },
+    {
+      "path": "rust/src/theta_v0/parser/tb02c_tests.rs",
+      "sha256": "6fb678cf9f320b700c5ce2dba515f792b9bbe638c8df9f993df7d92bcd365378"
+    },
+    {
+      "path": "s_session/browser/index.html",
+      "sha256": "d58004c37ef758d0f45248b751b79395f5f48ee3cbe67dbd5337166d8918fa0f"
+    },
+    {
+      "path": "s_session/browser/tb01c-client.js",
+      "sha256": "ccfbe677f3a87fac9d2efd9bcc150ceabf14853a087601c023b21388f2d43331"
+    },
+    {
+      "path": "s_session/s_query_integrity.py",
+      "sha256": "c59986a97fb0d3702bc198da5e7ee6215490769149e7934eac4f2f78be548df3"
+    },
+    {
+      "path": "s_session/s_tb02_contract.py",
+      "sha256": "6d6bf0dc5b6cd66180ea5bd10b85bfd94a9d6e559377032d38d95d52e83b692f"
+    },
+    {
+      "path": "s_session/tests/fixtures/tb02c/ORACLE.md",
+      "sha256": "2e68be25a816f48d4b8251f57a54e05cfb1e98f45126564ebfc9085691ba4146"
+    },
+    {
+      "path": "s_session/tests/fixtures/tb02c/contract-seed.json",
+      "sha256": "7d2bb7a2939cb49aff5b722c0a131e6ec715763309510f02cec012f46ce21cd9"
+    },
+    {
+      "path": "s_session/tests/fixtures/tb02c/first-cut-logical-slots.json",
+      "sha256": "e924233c77661f4cd8eade8695276fd351b74269d4221b9bbc54b6faa8dc03f7"
+    },
+    {
+      "path": "s_session/tests/fixtures/tb02c/hand-oracle.json",
+      "sha256": "0be95af141b6b4d42de4e5c84f6cab165af67eb859928f096be51381fd90b332"
+    },
+    {
+      "path": "s_session/tests/fixtures/tb02c/raw-ledger.json",
+      "sha256": "32d00df0b3e349411b79e34e284242bce5b63dce97a03b6cb2eb17a8dec27aa4"
+    },
+    {
+      "path": "s_session/tests/tb02c_browser.cjs",
+      "sha256": "e930716486963f7a0a03a1302fec4242801ea0f948c9eba502fd64b7f750f1cd"
+    },
+    {
+      "path": "s_session/tests/tb02c_harness.py",
+      "sha256": "21b00caa086745457cfa2886bff3dd24755daa969c048aaf774772e3d714feb1"
+    },
+    {
+      "path": "s_session/tests/tb02c_runtime.py",
+      "sha256": "dadd765d5cfd29a837720ab15850c6a24183a2707479a62988f4f203b278a501"
+    },
+    {
+      "path": "s_session/tests/tb02c_verify.py",
+      "sha256": "77cb10b27d9c981c442b27c73ac2abc32b22fad1daf53721e8c393b0243e8c45"
+    },
+    {
+      "path": "s_session/tests/test_tb01c_browser.cjs",
+      "sha256": "8233afd5ee4527de2c84f2f51b6108b10421ac22179df90f98927a16bef39bab"
+    },
+    {
+      "path": "s_session/tests/test_tb02c_contract.cjs",
+      "sha256": "938a6e126b9e92f1a45e97e2cac9149a21a9789c9fc6571cf35927ce3eb617fd"
+    },
+    {
+      "path": "s_session/tests/test_tb02c_contract.py",
+      "sha256": "8c85ec87749d554cdd52f03489a81b7cc424d94047465ef0b8c77036aac3cb93"
+    },
+    {
+      "path": "s_session/tests/test_tb02c_verifier.py",
+      "sha256": "06dee7e0a8bfd30a5faf724207f966037808e78fe88ff384b2b3a096a975ecbd"
+    }
+  ],
+  "aggregate_sha256": "a4d4814f4f3d5a1370d8999fc4f632500c5e7e3f4fc78d65126e3c50d27b7ee5",
+  "aggregate_algorithm": "SHA256 of UTF8 canonical compact JSON files array with sorted object keys",
+  "binary_sha256": "b2b4b9d2843f3e5ba7dea694f3c5870c0d95e48fe1a2d2265cf2e2d9b6640167",
+  "post_build_changes": "browser path adapter and exact-record schema slot recognition; Rust unchanged"
+}
