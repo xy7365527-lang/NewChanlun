@@ -84,7 +84,8 @@
       "sha256": "b2b4b9d2843f3e5ba7dea694f3c5870c0d95e48fe1a2d2265cf2e2d9b6640167",
       "size_bytes": 4205584
     },
-    "source_unchanged": true
+    "source_unchanged": true,
+    "scope": "R3正式运行前的release构建，保留原源码和二进制摘要；后续P2修复使用下方post_pr_checks，不声称同一release字节"
   },
   "runtime": {
     "archive": "/Volumes/AgentStorage/issue1404-formal-r3-20261007",
@@ -257,15 +258,17 @@
     "original_harness_exit": 1,
     "original_harness_failure": "旧比较器16MiB记录上限；四arm均0；后续仅重做离线比较成功，保留原失败收据",
     "post_runtime_changes": [
-      "s_session/tests/tb02c_harness.py",
-      "新增流式比较器及回归、requirements、CI接线；不改变采集服务或二进制"
+      "rust/src/theta_v0/parser/segment.rs：几何失败优先实际失败原因，移除矛盾第二种等待",
+      "rust/src/theta_v0/parser/tb02c_tests.rs：锁定失败原因和R3非失败域",
+      "s_session/tests/tb02c_harness.py：流式离线比较及重复复验收据",
+      "新增比较器及回归、requirements和CI接线"
     ],
     "services_reexecuted_for_comparison": false
   },
   "final_checks": [
     {
       "command": "python -B -m unittest discover -s s_session/tests -p test_tb02c_*.py -v",
-      "passed": 13,
+      "passed": 14,
       "exit": 0,
       "log": "final-python.txt"
     },
@@ -381,5 +384,113 @@
     "REVIEW.md",
     "COMPARATOR-REVIEW.md",
     "R3-COMPLETENESS-REVIEW.md"
-  ]
+  ],
+  "post_pr_checks": {
+    "rust": [
+      {
+        "name": "rust-parser",
+        "command": [
+          "cargo",
+          "test",
+          "--manifest-path",
+          "rust/Cargo.toml",
+          "--locked",
+          "--offline",
+          "--lib",
+          "tb02c_",
+          "--jobs",
+          "1"
+        ],
+        "exit": 0,
+        "seconds": 31.4,
+        "log_sha256": "0a6b375c878f78b1be9a17f5adca618e7f35f4ae090bf3644a653d13545d2bf0"
+      },
+      {
+        "name": "rust-session",
+        "command": [
+          "cargo",
+          "test",
+          "--manifest-path",
+          "rust/Cargo.toml",
+          "--locked",
+          "--offline",
+          "--features",
+          "s_session",
+          "--bin",
+          "s_structure_session",
+          "tb02c_member_relations_bind_only_the_member_sources",
+          "--jobs",
+          "1"
+        ],
+        "exit": 0,
+        "seconds": 14.12,
+        "log_sha256": "a143caeec8e25fdeeb8f2b884229c2f8fa2c5a368194d1210545186f9cdb37e6"
+      }
+    ],
+    "python_and_reverification": {
+      "checks": [
+        {
+          "name": "python",
+          "exit": 0,
+          "log_sha256": "5dc3a6fa0695f525a243e109e06bc3242c52f4eed2e1b025c5062478792a7292"
+        },
+        {
+          "name": "repeat-comparison",
+          "exit": 0,
+          "log_sha256": "a4977812a906bc56e4c020d77d9d03ebf2b0aa9f1de12bf05e2db1d867777a25"
+        }
+      ],
+      "original_receipt_unchanged": true,
+      "receipt_sha256": "3ebe437148cce5728eebd0738300b634bfda0d1c14e8aaa51591e6b9bca39db9"
+    },
+    "reviews": [
+      "POST-PR-RUST-REVIEW.md",
+      "POST-PR-PYTHON-REVIEW.md"
+    ],
+    "runtime_reuse": "R3两方向各28前缀不进入FAILED_GEOMETRY分支，由最终parser回归确认。复用R3非失败域正式证据；本次失败域理由修复由公共parser定向测试验收，未宣称最终release重复跑过四arm。",
+    "oracle_coverage": {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--locked",
+        "--offline",
+        "--lib",
+        "a3_oracle_pop_rescan_empty",
+        "--jobs",
+        "1",
+        "--",
+        "--nocapture"
+      ],
+      "exit": 0,
+      "seconds": 31.65,
+      "log_sha256": "a616cf01a7a697abb26842624c5f725a73ed0b61b94dcea558aecbf4680c4ae5"
+    },
+    "oracle_observation": {
+      "raw_count": 267,
+      "max_depth": 2,
+      "t_eq1": 190,
+      "t_gt1": 2,
+      "minparts_break": 480,
+      "empty_break": 2,
+      "test_seconds": 0.05,
+      "log": "final-oracle.txt"
+    },
+    "rust_total_tests": 10
+  },
+  "ci_observation": {
+    "head": "ce1ec9d283b05b5939e44f977a30848bd499d6f5",
+    "run": 37558930095,
+    "passed": [
+      "test",
+      "s-observer",
+      "fixture-drift"
+    ],
+    "rust_passed": 2945,
+    "rust_failed": 4,
+    "new_failure": "a3_oracle_pop_rescan_empty",
+    "resolution": "保留全部对拍与覆盖断言，换为267raw有效夹具，定向通过；最终head的CI在PR核对，不在此预写",
+    "devskim_delta": "CI-DELTA.md"
+  }
 }

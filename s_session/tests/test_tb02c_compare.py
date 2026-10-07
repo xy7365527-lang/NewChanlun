@@ -5,9 +5,24 @@ import tempfile
 import unittest
 
 from tb02c_compare import CHUNK_BYTES, compare_exact_traces, expected_layout
+from tb02c_harness import save_comparison
 
 
 class TraceComparisonTests(unittest.TestCase):
+    def test_reverification_preserves_existing_receipt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'COMPARISON-RESULT.json'
+            receipt = {'status': 'passed', 'comparisons': [{'case': 'first_up', 'status': 'PASS'}]}
+            save_comparison(path, receipt)
+            original = path.read_bytes()
+            stamp = path.stat().st_mtime_ns
+            save_comparison(path, receipt)
+            self.assertEqual(path.read_bytes(), original)
+            self.assertEqual(path.stat().st_mtime_ns, stamp)
+            with self.assertRaisesRegex(ValueError, '原收据保留'):
+                save_comparison(path, {'status': 'NOT_VERIFIED'})
+            self.assertEqual(path.read_bytes(), original)
+
     def compare(self, left, right=None, layout=None):
         with tempfile.TemporaryDirectory() as directory:
             a, b = [Path(directory) / name for name in ('a.jsonl', 'b.jsonl')]

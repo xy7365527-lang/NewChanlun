@@ -19,6 +19,15 @@ def dump(path, value):
         f.write('\n')
 
 
+def save_comparison(path, value):
+    """重复复验核对既有收据；结果变化时保全原证据并明确失败。"""
+    if path.exists():
+        if json.loads(path.read_text()) != value:
+            raise ValueError('本次复验与已有比较收据不同，原收据保留：' + str(path))
+    else:
+        dump(path, value)
+
+
 def prepare(output, binary, python, node, playwright_module, port_base):
     output.mkdir(parents=True, exist_ok=False)
     fixture = ROOT / 'tests/fixtures/tb02c/raw-ledger.json'
@@ -129,7 +138,7 @@ def compare_completed(plan, output):
     result = {'status': 'passed' if all(c['status'] == 'PASS' for c in comparisons) else 'NOT_VERIFIED',
               'comparisons': comparisons, 'scope': 'TB-02-C，非整图完成',
               'services_reexecuted': False, 'source_plan': str(output / 'RUN-PLAN.json')}
-    dump(output / 'COMPARISON-RESULT.json', result)
+    save_comparison(output / 'COMPARISON-RESULT.json', result)
     if result['status'] != 'passed':
         raise ValueError('完整双跑尚未验真，见 COMPARISON-RESULT.json')
     return result

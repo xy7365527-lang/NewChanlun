@@ -11,6 +11,8 @@
 | tb02c_runtime_preflight | 正式S/Q/Chromium四轮、清理和独立完整布局 | 每轮28输入、恢复cut16/28、oracle、GUI通过；原总入口旧比较器超限按失败保留。事前推导161条见R3-COMPLETENESS-REVIEW。 |
 | tb02c_python_review，尾部补审 | 新比较器、harness、测试、固定依赖和CI接线；最终PASS | live-0必须load和顶层完整字段检查均已修复。精确所审文件SHA、实际6项测试及161条身份壳拒绝，见COMPARATOR-REVIEW。 |
 
-根任务用修复后的比较器在原R3文件上完成两方向全量对拍。每份161条、完整字节相同；JSON合法、无重复键/浮点、身份/顺序/顶层字段/尾部均核对。正式S/Q源码及二进制沿R3复用，只改离线比较入口，不重复运行服务。
+根任务用修复后的比较器在原R3文件上完成两方向全量对拍。每份161条、完整字节相同；JSON合法、无重复键/浮点、身份/顺序/顶层字段/尾部均核对。R3之后的几何失败理由修复与重复复验修复见POST-PR-RUST-REVIEW.md、POST-PR-PYTHON-REVIEW.md，均PASS。最终Rust10项、Python14项通过；R3的两方向28前缀未进入该失败分支，复用其原源码/二进制的非失败域证据，不重复运行服务。
 
-最终产品文件SHA见FINAL-SOURCE.json。其相对R3清单的既有文件差异只有tb02c_harness.py；新增比较器、依赖、测试和CI接线均在尾部补审范围。文档更新只整理已发生事实。未把局部PASS提升为第二种终结、S7、完整9011、旧库写入迁移或整图完成。
+最终产品文件SHA见FINAL-SOURCE.json。其相对R3清单的既有文件差异为segment.rs、tb02c_tests.rs及tb02c_harness.py；新增比较器、依赖、测试和CI接线均在尾部补审范围。文档更新只整理已发生事实。未把局部PASS提升为第二种终结、S7、完整9011、旧库写入迁移或整图完成。
+
+新增CI覆盖失败已由独立explorer定位到旧随机输入失去覆盖。POST-PR-RUST-REVIEW.md覆盖新的267raw测试输入，原run_oracle和三个覆盖断言保留，根任务实际计数为T==1:190、T>1:2、empty:2；无新增生产判据。

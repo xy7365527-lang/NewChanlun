@@ -509,17 +509,11 @@ help: use `'_` for type paths
     |                                                                                     ++++
 
 warning: `newchan_rust` (lib test) generated 65 warnings (run `cargo fix --lib -p newchan_rust --tests` to apply 35 suggestions)
-    Finished `test` profile [unoptimized] target(s) in 30.41s
+    Finished `test` profile [unoptimized] target(s) in 30.62s
      Running unittests src/lib.rs (/Volumes/AgentStorage/NewChanlun-Build/issue1404-seed-first-20261007/target/debug/deps/newchan_rust-a436cf70d5cee19b)
 
-running 8 tests
-test theta_v0::parser::tb02c_tests::tb02c_length_axes_do_not_fill_inapplicable_conditions ... ok
-test theta_v0::parser::tb02c_tests::tb02c_geometry_failure_keeps_witness_and_does_not_emit ... ok
-test theta_v0::parser::tb02c_tests::tb02c_gap_does_not_hide_failed_geometry ... ok
-test theta_v0::parser::tb02c_tests::tb02c_directional_inclusion_and_no_fractal_witnesses ... ok
-test theta_v0::parser::tb02c_tests::tb02c_closed_seed_touch_and_gap_remain_distinct ... ok
-test theta_v0::parser::tb02c_tests::tb02c_turn_boundary_is_not_merged ... ok
-test theta_v0::parser::tb02c_tests::tb02c_waiting_witness_stops_at_its_scan_frontier ... ok
-test theta_v0::parser::tb02c_tests::tb02c_raw_seed_first_and_incremental_agree ... ok
+running 1 test
+[oracle:pop_rescan_empty] n=267 max_depth=2 T==1=190 T>1=2 minparts_break=480 empty_break=2 reentry_minparts=0 reentry_empty=0
+test theta_v0::backtest::incremental::tests::a3_oracle_pop_rescan_empty ... ok
 
-test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 3102 filtered out; finished in 0.01s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3109 filtered out; finished in 0.05s

@@ -328,10 +328,10 @@ fn record_candidate(
     let end = end.filter(|_| !deferred && !invalid);
     // 等待/失败事实只能引用同次实际扫描到的笔，不能借未来输入扩张见证。
     let built = construction(strokes, start, end.map_or(cursor + 1, |e| e + 1));
-    let mut waiting_reasons = if deferred {
-        vec!["second_kind_out_of_scope"]
-    } else if end.is_some() {
+    let mut waiting_reasons = if invalid || end.is_some() {
         vec![]
+    } else if deferred {
+        vec!["second_kind_out_of_scope"]
     } else if first.standard.len() < 3 {
         vec!["fewer_than_three_standard_elements"]
     } else {

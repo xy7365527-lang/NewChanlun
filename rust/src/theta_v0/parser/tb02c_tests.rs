@@ -109,6 +109,8 @@ fn tb02c_gap_does_not_hide_failed_geometry() {
             Some([true, true, false, true])
         );
         assert!(c.waiting_reasons.contains(&"top_gt_bottom"));
+        assert!(!c.waiting_reasons.contains(&"second_kind_out_of_scope"));
+        assert!(!c.waiting_reasons.contains(&"no_admissible_first_fractal"));
     }
 }
 
@@ -194,6 +196,11 @@ fn tb02c_raw_seed_first_and_incremental_agree() {
             assert_eq!(inc.strokes, full.strokes, "{name} raw{i}");
             assert_eq!(inc.segments, full.segments, "{name} raw{i}");
             let facts = facts.segment_facts.unwrap();
+            // R3 的两方向28前缀不进入本轮修正的几何失败提示分支。
+            assert!(facts
+                .candidates
+                .iter()
+                .all(|c| c.result != "FAILED_GEOMETRY"));
             if i == 15 || i == 27 {
                 let c = &facts.candidates[0];
                 assert_eq!(c.seed.vector, Some([true; 4]));

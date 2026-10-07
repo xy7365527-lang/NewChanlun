@@ -1,7 +1,7 @@
 {
   "schema": "issue1404-final-source/1",
   "base": "8619a20f2800095e6bb9ec20ba2607a744740f91",
-  "aggregate_sha256": "7a7a01d345eb229c080bcd561df45e5780aa1d19992b717943efa788d8521bb4",
+  "aggregate_sha256": "074fe938d0fdbe32440f4f5f0770c113ab6f90ebbf43249c3ffd3dfcad94424e",
   "files": [
     {
       "path": ".github/workflows/ci.yml",
@@ -28,6 +28,10 @@
       "sha256": "84a36ad8c725a7395df9d3c6eafd22d8795c9501b73fd1496ca6285d48fa3d4c"
     },
     {
+      "path": "rust/src/theta_v0/backtest/incremental.rs",
+      "sha256": "61d24d4424deb58cf48bea6206cdd874ce0579fa5dbd7a569113c1e9aa86dce9"
+    },
+    {
       "path": "rust/src/theta_v0/parser/feature_seq.rs",
       "sha256": "ef8cdca9920345d2798c56d2e02e9ccc699678fcc4d6b131b206b942b69ce86a"
     },
@@ -41,11 +45,11 @@
     },
     {
       "path": "rust/src/theta_v0/parser/segment.rs",
-      "sha256": "2bec4918869614dd2c0ef0fdf6bbef39e32a2ab2c98e9f1f73d17e77405b1a7a"
+      "sha256": "c9ebbab5ab168400bdbf80426e6b6cf222157ae7637d23090ad902c15c87ee44"
     },
     {
       "path": "rust/src/theta_v0/parser/tb02c_tests.rs",
-      "sha256": "6fb678cf9f320b700c5ce2dba515f792b9bbe638c8df9f993df7d92bcd365378"
+      "sha256": "1d6fe23744705a0f84f3f8fc6548f49fbc48ba2f741d3af407c6f515f1d5e5c7"
     },
     {
       "path": "s_session/browser/index.html",
@@ -97,7 +101,7 @@
     },
     {
       "path": "s_session/tests/tb02c_harness.py",
-      "sha256": "d81001cf46b2e4d9199d8386aa07ff15aee8e79e3421429d1ca94a86deb3bf1d"
+      "sha256": "407443a557093fa492fac2551ab41fed0a9eca72c05213d7d6ddc0f8d7d69596"
     },
     {
       "path": "s_session/tests/tb02c_runtime.py",
@@ -113,7 +117,7 @@
     },
     {
       "path": "s_session/tests/test_tb02c_compare.py",
-      "sha256": "83de9b5a19a25a08465ab6ea4083c35903f6c9469a7ee7fee456eb2a285068f3"
+      "sha256": "f542f97cf8855a3925dc86cde308f77385fc38a3f0efcbf355f34cddc2656543"
     },
     {
       "path": "s_session/tests/test_tb02c_contract.cjs",
@@ -129,10 +133,13 @@
     }
   ],
   "changed_since_r3": [
+    "rust/src/theta_v0/parser/segment.rs",
+    "rust/src/theta_v0/parser/tb02c_tests.rs",
     "s_session/tests/tb02c_harness.py"
   ],
   "added_since_r3": [
     ".github/workflows/ci.yml",
+    "rust/src/theta_v0/backtest/incremental.rs",
     "s_session/tests/requirements-tb02c.txt",
     "s_session/tests/tb02c_compare.py",
     "s_session/tests/test_tb02c_compare.py"

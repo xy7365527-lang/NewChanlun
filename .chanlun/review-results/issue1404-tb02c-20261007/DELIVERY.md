@@ -33,11 +33,13 @@
 
 原 R3 总入口因旧比较器 16 MiB 单记录上限退出1；四个运行的退出码均0。随后只对已有原件做流式 JSONL 验真和完整字节比较，未重跑服务，原失败收据仍保留。事前布局从28输入、采集控制流和17张权威表推导，重复键、浮点、共同截断、缺顶层字段、错误身份/次序和额外尾部均不放行。字节不同只报告尚未证实语义相同。解析使用固定 ijson 3.5.1，内存随最大标量及当前对象键集合增长；不据此声明S7资格。
 
-最终 Rust 定向9项、release 构建、Python13项、Node5项通过。工蜂初版的段模块20项、特征序列15项等记录保留，但其通过不冒充根任务修复后的新测试。准确指纹、检查范围、原始日志和正式收据见 VALIDATION.json；完整性推导与独立评审分别见 R3-COMPLETENESS-REVIEW.md、REVIEW.md、COMPARATOR-REVIEW.md。
+最终 Rust 定向10项、Python14项、Node5项通过；R3运行前的release构建已通过，原二进制摘要保留。工蜂初版的段模块20项、特征序列15项等记录保留，但其通过不冒充根任务修复后的新测试。准确指纹、检查范围、原始日志和正式收据见 VALIDATION.json；完整性推导与独立评审分别见 R3-COMPLETENESS-REVIEW.md、REVIEW.md、COMPARATOR-REVIEW.md。
 
-本次修复包括：发展态来源止于实际扫描前沿、成员边只绑定该成员两端来源、Python优化模式仍执行oracle校验、旧B规则回读兼容、浏览器正确识别段逻辑槽，以及大记录离线对拍。最终Rust二进制与R3一致；R3之后只修改离线比较入口、测试及CI接线。
+本次修复包括：发展态来源止于实际扫描前沿、成员边只绑定该成员两端来源、Python优化模式仍执行oracle校验、旧B规则回读兼容、浏览器正确识别段逻辑槽，以及大记录离线对拍。R3后另修几何已失败仍带第二种等待提示，并允许已有收据重复复验。最终两方向28前缀回归确认不进入该几何失败分支，因此复用原R3非失败域正式证据；失败域理由变更由定向parser测试验收，未声称最终release重新运行四arm。新Rust库与正式S bin定向测试均已编译通过。
 
 ![正式既有观察器的cut16发展态](developing.png)
+
+旧9K随机oracle在严格段构造下失去多窗口/空投影覆盖，已换成267根有效raw。原逐前缀位精确对拍和三个覆盖断言全部保留；实测T==1为190、T>1为2、空投影2，测试体0.05秒。此项只修测试输入，未调整生产准入，见ORACLE-FRONTIER-DIAG.md和final-oracle.txt。
 
 ## 复现
 
@@ -49,7 +51,7 @@ node --test s_session/tests/test_tb02c_contract.cjs
 python s_session/tests/tb02c_harness.py --compare-existing "$TB02C_COMPLETED_RUN"
 ```
 
-已有正式原件目录为 `/Volumes/AgentStorage/issue1404-formal-r3-20261007`。比较命令保留原件并以新建方式写 COMPARISON-RESULT.json；该收据已存在时不会覆盖。新机器要重跑时，使用 `tb02c_harness.py --help` 所列参数指定新OUTPUT、构建binary、现成Python/Node/Playwright；加 `--execute` 执行。浏览器可用 `TB02C_CHROMIUM_EXECUTABLE` 指定现成程序。正式输入与手算账簿在 `s_session/tests/fixtures/tb02c/`。
+已有正式原件目录为 `/Volumes/AgentStorage/issue1404-formal-r3-20261007`。比较命令保留原件。COMPARISON-RESULT.json不存在时新建；存在时重新完整比较，并核对收据一致，保持原字节和时间戳；结果不同则报错并保全原收据。新机器要重跑时，使用 `tb02c_harness.py --help` 所列参数指定新OUTPUT、构建binary、现成Python/Node/Playwright；加 `--execute` 执行。浏览器可用 `TB02C_CHROMIUM_EXECUTABLE` 指定现成程序。正式输入与手算账簿在 `s_session/tests/fixtures/tb02c/`。
 
 ## 边界
 
