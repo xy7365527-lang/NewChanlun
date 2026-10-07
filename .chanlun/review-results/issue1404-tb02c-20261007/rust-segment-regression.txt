@@ -535,4 +535,3 @@ test theta_v0::parser::segment::tests::advancing_euf_resolves_and_reflags ... ok
 test theta_v0::parser::segment::tests::cascade_revival_bit_exact_incr_vs_full ... ok
 
 test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 3089 filtered out; finished in 0.51s
-

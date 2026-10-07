@@ -529,4 +529,3 @@ test theta_v0::parser::feature_seq::tests::property_second_seq_early_terminate_e
 test theta_v0::parser::feature_seq::tests::is_fractal_and_gap_lean_fixture_bit_exact ... ok
 
 test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 3094 filtered out; finished in 0.00s
-

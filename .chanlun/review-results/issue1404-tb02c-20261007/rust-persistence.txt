@@ -599,4 +599,3 @@ test tests::tb02c_persistent_first_kind_and_normal_recovery has been running for
 test tests::tb02c_persistent_first_kind_and_normal_recovery ... ok
 
 test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 79 filtered out; finished in 357.22s
-

@@ -26,9 +26,9 @@ not ok 4 - 既有目录可打开C轴并显示未完整交付的证据
   failureType: 'testCodeFailure'
   error: |-
     The expression evaluated to a falsy value:
-    
+
       assert.ok(elements.get('#catalog-table tbody').innerHTML.includes(`data-catalog-id="${id}"`))
-    
+
   code: 'ERR_ASSERTION'
   name: 'AssertionError'
   expected: true
