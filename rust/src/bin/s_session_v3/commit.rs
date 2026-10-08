@@ -45,8 +45,21 @@ pub(super) struct CommitReceipt {
 }
 
 /// `tx` 按值接管。包括调用者已经暂写的节点/独立索引在内，失败全部回滚。
+#[cfg(test)]
 pub(super) fn publish_prepared(
-    tx: Transaction<'_>,
+    mut tx: Transaction<'_>,
+    begin_token: &str,
+    metadata: &ManifestMetadata,
+    roots: &ManifestRoots,
+    manifest: &UnpublishedManifest,
+) -> Result<CommitReceipt, String> {
+    let receipt = publish_borrowed(&mut tx, begin_token, metadata, roots, manifest)?;
+    tx.commit().map_err(err)?;
+    Ok(receipt)
+}
+
+pub(super) fn publish_borrowed(
+    tx: &mut Transaction<'_>,
     begin_token: &str,
     metadata: &ManifestMetadata,
     roots: &ManifestRoots,
@@ -67,8 +80,8 @@ pub(super) fn publish_prepared(
     )
 }
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
-pub(super) fn publish_prepared_staged(
-    tx: Transaction<'_>,
+pub(super) fn publish_borrowed_staged(
+    tx: &mut Transaction<'_>,
     token: &str,
     m: &ManifestMetadata,
     roots: &ManifestRoots,
@@ -79,8 +92,8 @@ pub(super) fn publish_prepared_staged(
     publish_prepared_inner(tx, token, m, roots, manifest, Some(stage), runtime, None)
 }
 #[cfg(feature = "s_capture_native_testonly")]
-pub(super) fn publish_prepared_with_workspace(
-    tx: Transaction<'_>,
+pub(super) fn publish_borrowed_with_workspace(
+    tx: &mut Transaction<'_>,
     token: &str,
     m: &ManifestMetadata,
     roots: &ManifestRoots,
@@ -101,7 +114,7 @@ pub(super) fn publish_prepared_with_workspace(
     )
 }
 fn publish_prepared_inner(
-    mut tx: Transaction<'_>,
+    tx: &mut Transaction<'_>,
     begin_token: &str,
     metadata: &ManifestMetadata,
     roots: &ManifestRoots,
@@ -136,7 +149,7 @@ fn publish_prepared_inner(
             stage,
         )?,
         None => content_publication::resolve_current_births_with_workspace(
-            &mut tx,
+            tx,
             begin_token,
             m,
             roots,
@@ -146,7 +159,7 @@ fn publish_prepared_inner(
     };
     #[cfg(all(not(test), feature = "s_capture_native_testonly"))]
     let resolved = content_publication::resolve_current_births_with_workspace(
-        &mut tx,
+        tx,
         begin_token,
         m,
         roots,
@@ -233,7 +246,6 @@ fn publish_prepared_inner(
     if let Some(stage) = stage {
         stage.flush(&tx, runtime)?;
     }
-    tx.commit().map_err(err)?;
     Ok(CommitReceipt {
         generation: m.generation,
         structure_cut: m.structure_cut.clone(),

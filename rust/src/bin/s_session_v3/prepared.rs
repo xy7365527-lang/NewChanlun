@@ -137,7 +137,7 @@ impl Runtime {
         self.last_stage_report.as_ref()
     }
 
-    fn discard(&mut self) {
+    pub(super) fn discard(&mut self) {
         if let Some(generator) = &mut self.generator {
             generator.discard_runtime_state();
         }
@@ -145,26 +145,55 @@ impl Runtime {
     }
 
     /// 按值接管事务；包括准备阶段节点、独立索引和目录在内，同成同败。
+    #[cfg(test)]
     pub(super) fn commit(
         &mut self,
-        tx: Transaction<'_>,
+        mut tx: Transaction<'_>,
         token: &str,
         envelope: &Value,
     ) -> Result<commit::CommitReceipt, String> {
-        self.commit_impl(tx, token, envelope, None)
+        let result = (|| {
+            let receipt = self.publish_impl(&mut tx, token, envelope, None)?;
+            tx.commit()
+                .map_err(|e| format!("PublicationInvalid：{e}"))?;
+            Ok(receipt)
+        })();
+        if result.is_err() {
+            self.discard();
+        }
+        result
     }
+    #[cfg(test)]
     pub(super) fn commit_in_request(
         &mut self,
-        tx: Transaction<'_>,
+        mut tx: Transaction<'_>,
         token: &str,
         envelope: &Value,
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<commit::CommitReceipt, String> {
-        self.commit_impl(tx, token, envelope, Some(context))
+        let result = (|| {
+            let receipt = self.publish_impl(&mut tx, token, envelope, Some(context))?;
+            tx.commit()
+                .map_err(|e| format!("PublicationInvalid：{e}"))?;
+            Ok(receipt)
+        })();
+        if result.is_err() {
+            self.discard();
+        }
+        result
     }
-    fn commit_impl(
+    pub(super) fn publish_in_owner(
         &mut self,
-        mut tx: Transaction<'_>,
+        phase: super::audit_owner::PublishPhase<'_, '_>,
+        token: &str,
+        envelope: &Value,
+        context: &mut request_audit::RequestAuditContext,
+    ) -> Result<commit::CommitReceipt, String> {
+        phase.publish(self, token, envelope, context)
+    }
+    pub(super) fn publish_impl(
+        &mut self,
+        tx: &mut Transaction<'_>,
         token: &str,
         envelope: &Value,
         context: Option<&mut request_audit::RequestAuditContext>,
@@ -180,7 +209,7 @@ impl Runtime {
         };
         let result = (|| {
             let prepared = self.prepare(
-                &mut tx,
+                tx,
                 token,
                 envelope,
                 context,
@@ -198,7 +227,7 @@ impl Runtime {
                     .into_iter()
                     .map(|(_, d)| d)
                     .collect::<Vec<_>>();
-                return commit::publish_prepared_staged(
+                return commit::publish_borrowed_staged(
                     tx,
                     token,
                     &prepared.metadata,
@@ -209,7 +238,7 @@ impl Runtime {
                 );
             }
             #[cfg(feature = "s_capture_native_testonly")]
-            return commit::publish_prepared_with_workspace(
+            return commit::publish_borrowed_with_workspace(
                 tx,
                 token,
                 &prepared.metadata,
@@ -218,7 +247,7 @@ impl Runtime {
                 prepared.workspace,
             );
             #[cfg(not(feature = "s_capture_native_testonly"))]
-            commit::publish_prepared(
+            commit::publish_borrowed(
                 tx,
                 token,
                 &prepared.metadata,
@@ -1407,8 +1436,18 @@ pub(crate) mod tests {
                     .unwrap()
                     <= total
             );
-            keeper = context.finish_source_keeper();
-            assert!(keeper.as_ref().unwrap().retained_source_bytes() > 0);
+            keeper = super::super::audit_owner::finish_fixture_source_keeper(&warm.conn, context);
+            eprintln!(
+                "manifest workspace owner handoff gen{n}: {}",
+                keeper.as_ref().unwrap().report()
+            );
+            let retained = keeper.as_ref().unwrap().retained_source_bytes();
+            if n == 1 {
+                // 第一次 prepare 审计的是 generation0；没有旧 cut 的来源证书可保留。
+                assert_eq!(retained, 0, "首代不得凭新生成产品签发旧历史资格");
+            } else {
+                assert!(retained > 0, "已有旧 cut 的后续代须真实保留来源池");
+            }
             assert!(
                 crate::cache::retained_bytes()
                     .checked_add(keeper.as_ref().unwrap().retained_source_bytes())

@@ -136,6 +136,7 @@ impl RequestAuditContext {
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn finish_source_keeper(
         mut self,
+        _ended: super::audit_owner::Ended,
     ) -> Option<super::cross_request_source_cache::Keeper> {
         let mut keeper = self.source_keeper.take()?;
         if let Some(budget) = self.workspace_budget {

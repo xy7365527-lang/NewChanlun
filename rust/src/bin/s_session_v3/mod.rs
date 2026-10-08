@@ -37,6 +37,7 @@ use std::collections::BTreeSet;
 
 mod audit_budget;
 mod audit_header;
+mod audit_owner;
 pub(crate) mod audit_store;
 pub(super) mod aux_index;
 pub(super) mod business_json;
