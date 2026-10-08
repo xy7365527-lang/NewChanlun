@@ -79,6 +79,7 @@ struct Key {
     rule: String,
 }
 impl Key {
+    #[cfg(test)]
     fn of(cut: &PublishedCut) -> Self {
         let r = cut.roots.generated_state.view();
         Self {
@@ -93,6 +94,33 @@ impl Key {
             profile: cut.metadata.profile_id.as_str().into(),
             rule: cut.metadata.rule_revision.as_str().into(),
         }
+    }
+    fn of_admitted(cut: &PublishedCut, work: Option<&WorkScope>) -> Result<Self, String> {
+        let admission = NativeAdmission(work);
+        Ok(Self {
+            generation: cut.metadata.generation,
+            frontier: cut.metadata.input_frontier,
+            state: admission
+                .native_plain_ref(cut.roots.generated_state.view())
+                .map_err(|e| e.to_string())?,
+            profile: admission
+                .native_string(cut.metadata.profile_id.as_str())
+                .map_err(|e| e.to_string())?,
+            rule: admission
+                .native_string(cut.metadata.rule_revision.as_str())
+                .map_err(|e| e.to_string())?,
+        })
+    }
+    fn matches_cut(&self, cut: &PublishedCut) -> bool {
+        let state = cut.roots.generated_state.view();
+        self.generation == cut.metadata.generation
+            && self.frontier == cut.metadata.input_frontier
+            && self.state.format == state.format()
+            && self.state.root == state.root()
+            && self.state.kind == state.kind()
+            && self.state.extent == state.extent()
+            && self.profile == cut.metadata.profile_id.as_str()
+            && self.rule == cut.metadata.rule_revision.as_str()
     }
 }
 struct Proof {
@@ -560,19 +588,18 @@ impl<'a> Trial<'a> {
         })
     }
     pub(super) fn lookup(&mut self, cut: &PublishedCut) -> Option<Counts> {
-        let key = Key::of(cut);
         // proofs由成功history的严格代序构造；避免每cut线扫造成新的平方成本。
         let found = self.prior.filter(|_| self.bound).and_then(|pool| {
             pool.proofs
-                .binary_search_by_key(&key.generation, |proof| proof.key.generation)
+                .binary_search_by_key(&cut.metadata.generation, |proof| proof.key.generation)
                 .ok()
                 .and_then(|index| pool.proofs.get(index))
-                .filter(|proof| proof.key == key)
+                .filter(|proof| proof.key.matches_cut(cut))
                 .filter(|proof| {
                     proof
                         .dependency
                         .as_ref()
-                        .is_some_and(|certificate| certificate.matches_state(&key.state))
+                        .is_some_and(|certificate| certificate.matches_state(&proof.key.state))
                 })
         });
         if let Some(proof) = found {
@@ -583,12 +610,25 @@ impl<'a> Trial<'a> {
             None
         }
     }
-    pub(super) fn record(&mut self, cut: &PublishedCut, counts: &Counts) {
+    pub(super) fn record(&mut self, cut: &PublishedCut, counts: &Counts) -> Result<(), String> {
+        self.record_admitted(cut, counts, None)
+    }
+    pub(super) fn record_admitted(
+        &mut self,
+        cut: &PublishedCut,
+        counts: &Counts,
+        work: Option<&WorkScope>,
+    ) -> Result<(), String> {
+        let key = Key::of_admitted(cut, work)?;
+        NativeAdmission(work)
+            .native_vec_room(&mut self.proofs, 1)
+            .map_err(|e| e.to_string())?;
         self.proofs.push(Proof {
-            key: Key::of(cut),
+            key,
             counts: counts.clone(),
             dependency: None,
         });
+        Ok(())
     }
     pub(super) fn complete(
         self,
@@ -706,6 +746,135 @@ mod tests {
                 "new_and_seal_same_scope":true,"binding_equal":true,"whole_heap_qualified":false
             })
         );
+    }
+
+    #[test]
+    fn r13_source_trial_cold_hit_miss_record_and_seal_use_shared_scope() {
+        use super::super::audit_owner::native::Budget;
+        let (mut fixture, keeper) = seeded();
+        publish(&mut fixture, 2, ("b", 10, 8, 14, 5, 9), 1);
+        let tx = fixture.conn.transaction().unwrap();
+        // 正常追加后的完整原核提供真实 Key/Counts；准备 oracle 不占待测子域。
+        let mut oracle_keeper = Keeper::new(usize::MAX);
+        let oracle =
+            state::audit_native_with_source_keeper_for_testonly(&tx, &mut oracle_keeper).unwrap();
+        let cold = state::audit_native_current(&tx).unwrap();
+        assert_eq!(complete(&oracle), complete(&cold));
+        let expected_pool = oracle_keeper.pool.as_ref().unwrap();
+        assert_eq!(oracle.cuts.len(), 2);
+        assert_eq!(expected_pool.proofs.len(), oracle.cuts.len());
+        let retained = keeper.pool.as_ref().unwrap();
+        assert_eq!(retained.proofs.len(), 1);
+        assert!(retained.proofs[0]
+            .dependency
+            .as_ref()
+            .unwrap()
+            .matches_state(&retained.proofs[0].key.state));
+        for prior in [None, Some(retained)] {
+            let expected_hits = usize::from(prior.is_some());
+            let expected_cold = oracle.cuts.len() - expected_hits;
+            let mut plain = Trial::new(&tx, prior, true).unwrap();
+            for (index, (cut, proof)) in oracle.cuts.iter().zip(&expected_pool.proofs).enumerate() {
+                assert_eq!(proof.key, Key::of(cut));
+                let hit = plain.lookup(cut);
+                if index < expected_hits {
+                    assert_eq!(hit.as_ref(), Some(&proof.counts));
+                } else {
+                    assert!(hit.is_none());
+                }
+                plain.record(cut, &proof.counts).unwrap();
+            }
+            let plain = plain.seal(&tx, expected_pool.binding.frontier).unwrap();
+            assert_eq!(plain.binding, expected_pool.binding);
+            assert_eq!((plain.hits, plain.cold), (expected_hits, expected_cold));
+
+            let budget = Budget::new(2 * 1024 * 1024, 0).unwrap();
+            let before = budget.live();
+            let mut native_retained = 0;
+            let pending = budget
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let scope_before = budget.live();
+                    let mut trial = Trial::new_admitted(&tx, prior, true, Some(work))?;
+                    assert_eq!(trial.bound, prior.is_some());
+                    if prior.is_some() {
+                        assert!(budget.live() > scope_before, "完整绑定须消费同父域");
+                    } else {
+                        assert_eq!(budget.live(), scope_before, "cold 无 prior 绑定分配");
+                    }
+                    for (index, (cut, expected)) in
+                        oracle.cuts.iter().zip(&expected_pool.proofs).enumerate()
+                    {
+                        let before_lookup = budget.live();
+                        let before_work = work.snapshot();
+                        let hit = trial.lookup(cut);
+                        if index < expected_hits {
+                            assert_eq!(hit.as_ref(), Some(&expected.counts));
+                        } else {
+                            assert!(hit.is_none());
+                        }
+                        assert_eq!(budget.live(), before_lookup, "借用 Key 查询不复制文本");
+                        assert_eq!(work.snapshot().attempts, before_work.attempts);
+                        assert_eq!(work.snapshot().live, before_work.live);
+
+                        let old_capacity = trial.proofs.capacity();
+                        trial.record_admitted(cut, &expected.counts, Some(work))?;
+                        let proof = trial.proofs.last().unwrap();
+                        assert_eq!(proof.key, expected.key);
+                        assert_eq!(proof.counts, expected.counts);
+                        assert!(proof.dependency.is_none());
+                        let text_bytes = proof.key.state.format.len()
+                            + proof.key.state.root.len()
+                            + proof.key.profile.len()
+                            + proof.key.rule.len();
+                        let proof_bytes = if trial.proofs.capacity() > old_capacity {
+                            trial.proofs.capacity() * std::mem::size_of::<Proof>()
+                        } else {
+                            0
+                        };
+                        assert!(
+                            budget.live() - before_lookup >= text_bytes + proof_bytes,
+                            "Key 全部 Plain 文本及 Proof Vec 新块须先计入同父域"
+                        );
+                    }
+                    assert_eq!((trial.hits, trial.cold), (expected_hits, expected_cold));
+                    let before_seal = budget.live();
+                    let pending =
+                        trial.seal_admitted(&tx, expected_pool.binding.frontier, Some(work))?;
+                    assert!(budget.live() > before_seal, "seal 完整绑定消费同父域");
+                    native_retained = budget.live() - scope_before;
+                    Ok::<_, String>(pending)
+                })
+                .unwrap();
+            assert_eq!(pending.binding, plain.binding);
+            assert_eq!((pending.hits, pending.cold), (plain.hits, plain.cold));
+            assert_eq!(pending.proofs.len(), plain.proofs.len());
+            for (actual, expected) in pending.proofs.iter().zip(&plain.proofs) {
+                assert_eq!(actual.key, expected.key);
+                assert_eq!(actual.counts, expected.counts);
+                assert!(actual.dependency.is_none());
+                assert!(expected.dependency.is_none());
+            }
+            assert!(native_retained > 0);
+            assert_eq!(budget.live(), before + native_retained);
+            assert_eq!(budget.scratch_observation().0, 0);
+            assert_eq!(budget.scratch_observation().2, 0);
+            drop(pending);
+            assert_eq!(
+                budget.live(),
+                before + native_retained,
+                "保守费用保留在父账"
+            );
+            println!(
+                "R13_SOURCE_TRIAL {}",
+                serde_json::json!({
+                    "limit_bytes":2*1024*1024,"peak_bytes":budget.peak(),
+                    "native_retained_bytes":native_retained,"hits":expected_hits,"cold":expected_cold,
+                    "binding_key_counts_equal":true,"whole_heap_qualified":false
+                })
+            );
+        }
     }
 
     #[test]

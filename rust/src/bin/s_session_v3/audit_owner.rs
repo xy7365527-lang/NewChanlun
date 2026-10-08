@@ -895,12 +895,8 @@ impl AuditTxn<'_> {
                 // 外部提交或未知操作在核验前决定冷分派并真释放；不是校验错误后的回退。
                 drop(candidate);
             }
-            let audited = s_allocation::audit_in_request(
-                self.tx(),
-                mode,
-                s_allocation::Phase::Handle,
-                context,
-            )?;
+            let audited = self.audit_required_in_parent(mode, context)?;
+            let parent = context.cold_parent_budget();
             if known {
                 if let Some(slot) = context.take() {
                     match CompleteCandidate::capture(
@@ -910,6 +906,7 @@ impl AuditTxn<'_> {
                         audited,
                         context.complete_workspace_limit(),
                         context.complete_entry_reserved_bytes(),
+                        parent.as_ref(),
                     )? {
                         Ok(candidate) => {
                             context.note_complete_source_work(
@@ -926,8 +923,38 @@ impl AuditTxn<'_> {
             }
             return Ok(());
         }
-        s_allocation::audit_in_request(self.tx(), mode, s_allocation::Phase::Handle, context)?;
+        self.audit_required_in_parent(mode, context)?;
         Ok(())
+    }
+
+    fn audit_required_in_parent(
+        &self,
+        mode: &s_allocation::Mode,
+        context: &mut request_audit::RequestAuditContext,
+    ) -> Result<state::AuditedState, String> {
+        #[cfg(feature = "s_capture_native_testonly")]
+        if let Some(parent) = context.cold_parent_budget() {
+            let failure = |e: native::Failure| match e {
+                native::Failure::BudgetExceeded => {
+                    "S3WriterResourcesInvalid：冷审计父预算不足".to_owned()
+                }
+                native::Failure::Invalid(e) => e,
+            };
+            return parent
+                .codec_work()
+                .map_err(failure)?
+                .run(|work| {
+                    s_allocation::audit_in_request_admitted(
+                        self.tx(),
+                        mode,
+                        s_allocation::Phase::Handle,
+                        context,
+                        Some(work),
+                    )
+                })
+                .map_err(|e| failure(native::Failure::from(e)));
+        }
+        s_allocation::audit_in_request(self.tx(), mode, s_allocation::Phase::Handle, context)
     }
 
     #[cfg(feature = "s_capture_native_testonly")]
@@ -961,16 +988,23 @@ impl AuditTxn<'_> {
         .enumerate()
         {
             if i == 5 {
-                let encoding: String = self
-                    .tx()
-                    .query_row(sql, [], |r| r.get(0))
-                    .map_err(invalid)?;
-                out[i] = match encoding.as_str() {
+                let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
+                    self.tx(),
+                    c"PRAGMA main.encoding",
+                )
+                .map_err(invalid)?;
+                let mut row = stmt
+                    .next()
+                    .map_err(invalid)?
+                    .ok_or_else(|| invalid("编码域缺行"))?;
+                out[i] = match row.text(0).map_err(invalid)? {
                     "UTF-8" => 1,
                     "UTF-16le" => 2,
                     "UTF-16be" => 3,
                     _ => return Err(invalid("未知编码域")),
                 };
+                drop(row);
+                stmt.finalize().map_err(invalid)?;
             } else {
                 out[i] = self
                     .tx()
@@ -1046,6 +1080,7 @@ impl CompleteCandidate {
         audited: state::AuditedState,
         limit: usize,
         entry_reserved_bytes: usize,
+        parent: Option<&native::Budget>,
     ) -> Result<Result<Self, request_audit::VerifiedHistoricalSlot>, String> {
         use super::audit_retention::{sum, Retained};
         // 丢掉事务 memo，仅原件和纯 codec 成功证书移动到候选；不复制节点正文。
@@ -1101,13 +1136,20 @@ impl CompleteCandidate {
         if charge.total >= limit {
             return Ok(Err(slot));
         }
+        if let Some(parent) = parent {
+            let Ok(permit) = parent.reserve(std::mem::size_of::<Self>()) else {
+                return Ok(Err(slot));
+            };
+            permit.commit(0, std::mem::size_of::<Self>());
+        }
         let mut originals: Vec<request_audit::ExactRows> = Vec::new();
         let mut candidate_peak = charge.total;
         // 表名同样经有界原件读取；不先 collect 一份未登记的 String 列表。
-        let Some((tables, tables_peak)) = request_audit::ExactRows::read_optional_bounded(
+        let Some((tables, tables_peak)) = request_audit::ExactRows::read_optional_bounded_in_parent(
             tx,
             "SELECT name FROM main.sqlite_schema WHERE type='table' AND name!='s_content_nodes' ORDER BY name",
             limit - charge.total,
+            parent,
         )? else { return Ok(Err(slot)); };
         candidate_peak = candidate_peak.max(sum([charge.total, tables_peak]));
         let table_capacity = tables.rows.len().saturating_add(4);
@@ -1116,8 +1158,28 @@ impl CompleteCandidate {
             tables.heap_bytes(),
             super::audit_retention::vec_bytes::<request_audit::ExactRows>(table_capacity),
         ]);
-        if before_reserve >= limit || originals.try_reserve_exact(table_capacity).is_err() {
+        if before_reserve >= limit {
             return Ok(Err(slot));
+        }
+        let outer_permit = match parent
+            .map(|b| {
+                b.reserve(
+                    super::audit_retention::vec_bytes::<request_audit::ExactRows>(table_capacity),
+                )
+            })
+            .transpose()
+        {
+            Ok(permit) => permit,
+            Err(_) => return Ok(Err(slot)),
+        };
+        if originals.try_reserve_exact(table_capacity).is_err() {
+            return Ok(Err(slot));
+        }
+        if let Some(permit) = outer_permit {
+            permit.commit(
+                0,
+                super::audit_retention::vec_bytes::<request_audit::ExactRows>(originals.capacity()),
+            );
         }
         candidate_peak = candidate_peak.max(before_reserve);
         let mut read_original = |sql: &str, sql_heap: usize| -> Result<bool, String> {
@@ -1125,8 +1187,9 @@ impl CompleteCandidate {
             let Some(remaining) = limit.checked_sub(charge.total.saturating_add(extra)) else {
                 return Ok(false);
             };
-            let Some((rows, row_peak)) =
-                request_audit::ExactRows::read_optional_bounded(tx, sql, remaining)?
+            let Some((rows, row_peak)) = request_audit::ExactRows::read_optional_bounded_in_parent(
+                tx, sql, remaining, parent,
+            )?
             else {
                 return Ok(false);
             };
@@ -1168,6 +1231,10 @@ impl CompleteCandidate {
             if before_sql >= limit {
                 return Ok(Err(slot));
             }
+            let sql_permit = match parent.map(|b| b.reserve(requested)).transpose() {
+                Ok(permit) => permit,
+                Err(_) => return Ok(Err(slot)),
+            };
             let mut sql = String::new();
             if sql.try_reserve_exact(requested).is_err() {
                 return Ok(Err(slot));
@@ -1180,12 +1247,16 @@ impl CompleteCandidate {
                 sql.push(c);
             }
             sql.push_str(SUFFIX);
+            if let Some(permit) = sql_permit {
+                permit.commit(0, sql.capacity());
+            }
             let extra = sum([originals.heap_bytes(), tables.heap_bytes(), sql.capacity()]);
             let Some(remaining) = limit.checked_sub(charge.total.saturating_add(extra)) else {
                 return Ok(Err(slot));
             };
-            let Some((rows, row_peak)) =
-                request_audit::ExactRows::read_optional_bounded(tx, &sql, remaining)?
+            let Some((rows, row_peak)) = request_audit::ExactRows::read_optional_bounded_in_parent(
+                tx, &sql, remaining, parent,
+            )?
             else {
                 return Ok(Err(slot));
             };
@@ -1210,9 +1281,12 @@ impl CompleteCandidate {
         if charge.total >= limit {
             return Ok(Err(slot));
         }
-        let budget = match native::Budget::new(limit, charge.total) {
-            Ok(budget) => budget,
-            Err(_) => return Ok(Err(slot)),
+        let budget = match parent {
+            Some(parent) => parent.clone(),
+            None => match native::Budget::new(limit, charge.total) {
+                Ok(budget) => budget,
+                Err(_) => return Ok(Err(slot)),
+            },
         };
         let q = match q::Facts::cold(tx, &originals, &audited, &budget) {
             Ok(q) => q,
@@ -1936,4 +2010,138 @@ fn audit_owner_q_itemized_normal_cold_growth_and_typed_limit() {
         "{}",
         json!({"scenario":"r5-complete-cold-itemized-budget","candidate_cap":candidate_cap,"old_gate_required":old_candidate_gate,"retention":owner.complete_report()})
     );
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[test]
+fn r13_cold_candidate_and_q_share_parent_and_preserve_complete_output() {
+    use super::audit_retention::Retained;
+    let mut f = prepared::tests::Fixture::new();
+    let (envelope, token) = f.accept_begin(1, ("r13-parent", 0, 6, 12, 3, 7), 1);
+    f.publish(&envelope, &token).unwrap();
+    let mut owner = AuditConnection::open(&f.db_path()).unwrap();
+    let total = 64 * 1024 * 1024;
+    let mut context = request_audit::RequestAuditContext::with_source_keeper(
+        cross_request_source_cache::Keeper::new(total),
+    );
+    context
+        .freeze_manifest_workspace_budget(total, 0, 0)
+        .unwrap();
+    assert!(
+        context.cold_parent_budget().is_none(),
+        "冻结来源额度本身不启用强制cold准入"
+    );
+    context.enable_cold_admission_for_testonly().unwrap();
+    let parent = context.cold_parent_budget().unwrap();
+    let start = parent.live();
+    let active = owner.begin(TransactionBehavior::Deferred).unwrap();
+    active
+        .audit_admission(
+            &json!({"payload":{"op":"ready"}}),
+            &s_allocation::Mode::CapturedNative,
+            &mut context,
+        )
+        .unwrap();
+    let complete = active.complete.borrow();
+    let candidate = complete.as_ref().expect("正常额度应持有完整候选");
+    assert!(candidate.q.heap_bytes() > 0);
+    assert!(
+        parent.native_observation().0 > 0,
+        "最早cold实际消费同父scope"
+    );
+    assert!(
+        parent.live() > start + parent.native_observation().0,
+        "cold后SQL及Q直接许可仍留同账"
+    );
+    assert_eq!(candidate.charge.handoff_peak, parent.peak());
+    assert!(parent.peak() < total);
+    for rows in &candidate.originals {
+        assert_eq!(
+            *rows,
+            request_audit::ExactRows::read(active.tx(), &rows.sql, [], vec![]).unwrap()
+        );
+    }
+    let q_bytes = candidate.q.heap_bytes();
+    let source_counts = candidate
+        .slot
+        .as_ref()
+        .unwrap()
+        .source_pending
+        .as_ref()
+        .unwrap()
+        .work_counts();
+    assert_eq!(source_counts, (0, 1));
+    drop(complete);
+    let before_end = parent.live();
+    let ended = active.read_end().unwrap();
+    owner.finish_source_keeper(context, ended);
+    assert!(owner.complete_retained_bytes() > 0);
+    assert_eq!(
+        parent.live(),
+        before_end,
+        "测试观察句柄仍持父账；context退场不归还Native保守费"
+    );
+    owner.assert_complete_matches_cold();
+    let old_pool = owner.complete_retained_bytes();
+    let mut next = request_audit::RequestAuditContext::with_source_keeper(
+        cross_request_source_cache::Keeper::new(total),
+    );
+    next.freeze_manifest_workspace_budget(total, 0, old_pool)
+        .unwrap();
+    next.enable_cold_admission_for_testonly().unwrap();
+    let next_parent = next.cold_parent_budget().unwrap();
+    let next_start = next_parent.live();
+    assert_eq!(
+        next_start, start,
+        "已从allowance扣除旧池，不在新父账再次seed"
+    );
+    let hit = owner.begin(TransactionBehavior::Deferred).unwrap();
+    hit.audit_admission(
+        &json!({"payload":{"op":"ready"}}),
+        &s_allocation::Mode::CapturedNative,
+        &mut next,
+    )
+    .unwrap();
+    assert!(hit.complete.borrow().is_some());
+    assert_eq!(
+        next_parent.native_observation().0,
+        0,
+        "同owner快照命中无需重建cold"
+    );
+    assert_eq!(next_parent.live(), next_start);
+    let ended = hit.read_end().unwrap();
+    owner.finish_source_keeper(next, ended);
+    owner.assert_complete_matches_cold();
+    eprintln!(
+        "R13_COLD_PARENT {}",
+        json!({"limit_bytes":total,"peak_bytes":parent.peak(),"cold_native_retained_bytes":parent.native_observation().0,"q_bytes":q_bytes,"complete_output_equal":true,"same_snapshot_hit":true,"old_pool_bytes":old_pool,"whole_heap_qualified":false})
+    );
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[test]
+fn r13_optional_sql_rows_share_parent_without_changing_cells() {
+    let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+    conn.execute_batch("CREATE TABLE exact(a,b); INSERT INTO exact VALUES(NULL,1),(1.5,'abc'),(x'00ff','中'),('01',NULL),(7,x'')").unwrap();
+    let tx = conn.transaction().unwrap();
+    let sql = "SELECT rowid,a,b FROM exact ORDER BY rowid";
+    let expected = request_audit::ExactRows::read_optional_bounded(&tx, sql, 1024 * 1024)
+        .unwrap()
+        .unwrap();
+    let parent = native::Budget::new(1024 * 1024, 0).unwrap();
+    let before = parent.live();
+    let actual = request_audit::ExactRows::read_optional_bounded_in_parent(
+        &tx,
+        sql,
+        1024 * 1024,
+        Some(&parent),
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(actual, expected);
+    assert!(parent.live() > before);
+    assert!(parent.peak() < 1024 * 1024);
+    let retained = parent.live();
+    drop(actual);
+    assert_eq!(parent.live(), retained);
 }

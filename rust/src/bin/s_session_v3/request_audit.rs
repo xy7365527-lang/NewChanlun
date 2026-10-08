@@ -41,6 +41,9 @@ pub(super) struct RequestAuditContext {
     source_keeper: Option<super::cross_request_source_cache::Keeper>,
     #[cfg(feature = "s_capture_native_testonly")]
     workspace_budget: Option<ManifestWorkspaceBudget>,
+    // #1394 显式接线域；普通预算冻结不自动启用强制cold准入。
+    #[cfg(feature = "s_capture_native_testonly")]
+    cold_parent: Option<super::audit_owner::native::Budget>,
     #[cfg(test)]
     binding_hook: Option<fn(&Transaction<'_>)>,
     #[cfg(test)]
@@ -1561,6 +1564,23 @@ impl RequestAuditContext {
             keeper.cold += cold;
         }
     }
+    /// 仅显式调用才将冻结额度用于强制cold审计；缺省context没有零预算合同。
+    pub(super) fn enable_cold_admission_for_testonly(&mut self) -> Result<(), String> {
+        let contract = self
+            .workspace_budget
+            .ok_or("S3WriterResourcesInvalid：未冻结cold父预算")?;
+        if self.cold_parent.is_some() || self.slot.is_some() {
+            return Err("S3WriterResourcesInvalid：cold父预算必须在首次审计前启用一次".into());
+        }
+        self.cold_parent = Some(
+            super::audit_owner::native::Budget::new(contract.allowance, 0)
+                .map_err(|_| "S3WriterResourcesInvalid：cold父预算不足")?,
+        );
+        Ok(())
+    }
+    pub(super) fn cold_parent_budget(&self) -> Option<super::audit_owner::native::Budget> {
+        self.cold_parent.clone()
+    }
     pub(super) fn complete_workspace_limit(&self) -> usize {
         self.workspace_budget.map_or(0, |b| b.allowance)
     }
@@ -1586,13 +1606,30 @@ impl ExactRows {
         sql: &str,
         cap: usize,
     ) -> Result<Option<(Self, usize)>, String> {
-        Self::read_optional_bounded_params(tx, sql, [], cap)
+        Self::read_optional_bounded_in_parent(tx, sql, cap, None)
+    }
+    pub(super) fn read_optional_bounded_in_parent(
+        tx: &Transaction<'_>,
+        sql: &str,
+        cap: usize,
+        parent: Option<&super::audit_owner::native::Budget>,
+    ) -> Result<Option<(Self, usize)>, String> {
+        Self::read_optional_bounded_params_in_parent(tx, sql, [], cap, parent)
     }
     pub(super) fn read_optional_bounded_params(
         tx: &Transaction<'_>,
         sql: &str,
         params: impl Params,
         cap: usize,
+    ) -> Result<Option<(Self, usize)>, String> {
+        Self::read_optional_bounded_params_in_parent(tx, sql, params, cap, None)
+    }
+    fn read_optional_bounded_params_in_parent(
+        tx: &Transaction<'_>,
+        sql: &str,
+        params: impl Params,
+        cap: usize,
+        parent: Option<&super::audit_owner::native::Budget>,
     ) -> Result<Option<(Self, usize)>, String> {
         use super::audit_retention::{sum, vec_bytes, Retained};
         let mut stmt = tx.prepare(sql).map_err(storage)?;
@@ -1606,6 +1643,13 @@ impl ExactRows {
             stmt.finalize().map_err(storage)?;
             return Ok(None);
         }
+        let header_permit = match parent.map(|b| b.reserve(fixed)).transpose() {
+            Ok(permit) => permit,
+            Err(_) => {
+                stmt.finalize().map_err(storage)?;
+                return Ok(None);
+            }
+        };
         let mut columns = Vec::new();
         let mut owned_sql = String::new();
         if columns.try_reserve_exact(count).is_err()
@@ -1635,6 +1679,9 @@ impl ExactRows {
         if fixed > cap {
             stmt.finalize().map_err(storage)?;
             return Ok(None);
+        }
+        if let Some(permit) = header_permit {
+            permit.commit(0, fixed);
         }
         let mut payload = 0usize;
         let mut peak = fixed;
@@ -1672,6 +1719,20 @@ impl ExactRows {
                 fits = false;
                 break;
             }
+            let grow_permit = if grows {
+                match parent
+                    .map(|b| b.reserve(vec_bytes::<Vec<SqlCell>>(new_capacity)))
+                    .transpose()
+                {
+                    Ok(permit) => permit,
+                    Err(_) => {
+                        fits = false;
+                        break;
+                    }
+                }
+            } else {
+                None
+            };
             if grows
                 && result
                     .rows
@@ -1681,6 +1742,19 @@ impl ExactRows {
                 fits = false;
                 break;
             }
+            if let Some(permit) = grow_permit {
+                permit.commit(
+                    vec_bytes::<Vec<SqlCell>>(old_capacity),
+                    vec_bytes::<Vec<SqlCell>>(result.rows.capacity()),
+                );
+            }
+            let row_permit = match parent.map(|b| b.reserve(row_bytes)).transpose() {
+                Ok(permit) => permit,
+                Err(_) => {
+                    fits = false;
+                    break;
+                }
+            };
             let mut cells = Vec::with_capacity(count);
             for i in 0..count {
                 cells.push(match row.get_ref(i).map_err(storage)? {
@@ -1690,6 +1764,9 @@ impl ExactRows {
                     ValueRef::Text(v) => SqlCell::Text(v.to_vec()),
                     ValueRef::Blob(v) => SqlCell::Blob(v.to_vec()),
                 });
+            }
+            if let Some(permit) = row_permit {
+                permit.commit(0, cells.heap_bytes());
             }
             payload = payload.saturating_add(cells.heap_bytes());
             result.rows.push(cells);

@@ -409,13 +409,30 @@ struct BatchControlHeader {
 }
 impl BatchControlHeader {
     fn from_verified_batch(batch: &Value) -> Self {
-        let string = |key| batch.get(key).and_then(Value::as_str).map(str::to_owned);
-        Self {
-            protocol_revision: string("protocol_revision"),
-            session_generation: string("session_generation"),
-            clock_plan_hash: string("clock_plan_hash"),
-            semantic_commit_ns: string("semantic_commit_ns"),
-        }
+        Self::from_verified_batch_admitted(batch, None).expect("None admission cannot fail")
+    }
+    fn from_verified_batch_admitted(
+        batch: &Value,
+        work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+    ) -> Result<Self, String> {
+        use v3::audit_store::{CodecRead, NativeAdmission};
+        let string = |key| {
+            batch
+                .get(key)
+                .and_then(Value::as_str)
+                .map(|text| {
+                    NativeAdmission(work)
+                        .native_string(text)
+                        .map_err(|e| e.to_string())
+                })
+                .transpose()
+        };
+        Ok(Self {
+            protocol_revision: string("protocol_revision")?,
+            session_generation: string("session_generation")?,
+            clock_plan_hash: string("clock_plan_hash")?,
+            semantic_commit_ns: string("semantic_commit_ns")?,
+        })
     }
     fn source_bytes(&self) -> usize {
         [
@@ -450,6 +467,15 @@ fn read_batch_row_with_owner(
     batch_id: &str,
     owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
 ) -> Result<(newchan_rust::s_content::CodecVec<u8>, usize), String> {
+    read_batch_row_admitted(conn, batch_id, owner, None)
+}
+fn read_batch_row_admitted(
+    conn: &Connection,
+    batch_id: &str,
+    owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<(newchan_rust::s_content::CodecVec<u8>, usize), String> {
+    use v3::audit_store::{CodecRead, NativeAdmission};
     let err = |e| {
         format!(
             "读 batch {batch_id} 失败：{}",
@@ -466,8 +492,11 @@ fn read_batch_row_with_owner(
         format!("StorageUnavailable：可达 batch `{batch_id}` 不存在（引用不完整，拒绝写入）")
     })?;
     let mut blob = v3::business_json::new_work(owner);
-    blob.try_extend_bytes(row.blob(0).map_err(err)?)
+    let source = row.blob(0).map_err(err)?;
+    NativeAdmission(work)
+        .native_codec_room(&mut blob, source.len())
         .map_err(|e| e.to_string())?;
+    blob.try_extend_bytes(source).map_err(|e| e.to_string())?;
     let byte_len = row.integer(1).map_err(err)?;
     drop(row);
     stmt.finalize().map_err(err)?;
@@ -482,11 +511,19 @@ fn read_batch_storage(
     batch_id: &str,
     owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
 ) -> Result<(newchan_rust::s_content::CodecVec<u8>, usize, bool), String> {
-    let (blob, byte_len) = read_batch_row_with_owner(conn, batch_id, owner)?;
+    read_batch_storage_admitted(conn, batch_id, owner, None)
+}
+fn read_batch_storage_admitted(
+    conn: &Connection,
+    batch_id: &str,
+    owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<(newchan_rust::s_content::CodecVec<u8>, usize, bool), String> {
+    let (blob, byte_len) = read_batch_row_admitted(conn, batch_id, owner, work)?;
     let expect_hash = batch_content_hash(batch_id)?;
     let graph = match owner {
-        Some(_) => evidence_store::read_format_with_owner(conn, owner)?,
-        None => evidence_store::format(conn)?,
+        Some(_) => evidence_store::read_format_admitted(conn, owner, work)?,
+        None => evidence_store::format_admitted(conn, work)?,
     }
     .graph();
     if !graph {
@@ -618,33 +655,41 @@ fn load_batch_with(
     ),
     String,
 > {
+    let work = reader.work();
     #[cfg(test)]
     cache::counter(|c| c.batch_full_reads += 1);
-    let (blob, byte_len, graph) = read_batch_storage(conn, batch_id, None)?;
+    let (blob, byte_len, graph) = read_batch_storage_admitted(conn, batch_id, None, work)?;
     let blob = blob.try_into_plain().map_err(|e| e.to_string())?;
     if !graph {
         // 旧整块域：完整规范字节就在这一行。
+        evidence_store::admit_byte_arc(blob.len(), work)?;
         let bytes: std::sync::Arc<[u8]> = std::sync::Arc::from(blob.as_slice());
         let digest = blob_digest(&blob);
         // 整块域也走同一句柄缓存：命中要求当前行内字节与此前核过的完全一致。
-        let key = evidence_store::batch_root_key(batch_id);
+        let key = evidence_store::batch_root_key_admitted(batch_id, None, work)?;
         let value = if with_value {
             match cache::handle_get_blob(&key, &blob, &digest).and_then(|(_, v)| v) {
                 Some(value) => Some(value),
                 None => {
-                    let parsed = parse_batch_value(&bytes, batch_id)?;
-                    cache::handle_put_blob(&key, digest, bytes.clone(), Some(parsed.clone()));
+                    let parsed = parse_batch_value_admitted(&bytes, batch_id, work)?;
+                    cache::handle_put_blob_admitted(
+                        &key,
+                        digest,
+                        bytes.clone(),
+                        Some(parsed.clone()),
+                        work,
+                    )?;
                     Some(parsed)
                 }
             }
         } else {
-            cache::handle_put_blob(&key, digest, bytes.clone(), None);
+            cache::handle_put_blob_admitted(&key, digest, bytes.clone(), None, work)?;
             None
         };
         return Ok((bytes, value, None));
     }
     // 图域：共用物理域门已拒绝整块混写。
-    let root_key = evidence_store::batch_root_key(batch_id);
+    let root_key = evidence_store::batch_root_key_admitted(batch_id, None, work)?;
     let root = reader.read_root(&root_key, with_value)?;
     #[cfg(test)]
     cache::counter(|c| {
@@ -661,26 +706,54 @@ fn load_batch_with(
         &root.content_sha256,
     )?;
     if let (Some(value), Some(cert)) = (&root.value, &root.root_cert) {
-        cache::batch_header_put(
+        cache::batch_header_put_admitted(
             &root_key,
             batch_id,
             byte_len,
             cert,
             root.closure,
-            BatchControlHeader::from_verified_batch(value),
-        );
+            BatchControlHeader::from_verified_batch_admitted(value, work)?,
+            work,
+        )?;
     }
     Ok((root.bytes, root.value, root.root_cert))
 }
 
 fn parse_batch_value(bytes: &[u8], batch_id: &str) -> Result<std::sync::Arc<Value>, String> {
-    let parsed = v2::strict_json(bytes)
-        .map_err(|e| format!("StorageUnavailable：batch {batch_id} 规范字节非严格 JSON：{e}"))?;
+    parse_batch_value_admitted(bytes, batch_id, None)
+}
+fn parse_batch_value_admitted(
+    bytes: &[u8],
+    batch_id: &str,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<std::sync::Arc<Value>, String> {
+    use v3::audit_store::{CodecRead, NativeAdmission};
+    let parsed = v3::business_json::strict_json_owner_admitted(bytes, None, work)
+        .map(|parsed| match parsed {
+            v3::business_json::JsonOwner::Plain(value) => value,
+            #[cfg(feature = "s_allocation_json_testonly")]
+            v3::business_json::JsonOwner::Owned(_) => {
+                unreachable!("ordinary batch keeps plain JSON")
+            }
+        })
+        .map_err(|e| match e {
+            v3::business_json::StrictOwnerError::Syntax(cause) => {
+                format!("StorageUnavailable：batch {batch_id} 规范字节非严格 JSON：{cause}")
+            }
+            #[cfg(feature = "s_allocation_json_testonly")]
+            v3::business_json::StrictOwnerError::OwnedSyntax(cause) => {
+                format!("StorageUnavailable：batch {batch_id} 规范字节非严格 JSON：{cause}")
+            }
+            v3::business_json::StrictOwnerError::Allocation(cause) => cause.to_string(),
+        })?;
     if !parsed.is_object() {
         return Err(format!(
             "StorageUnavailable：batch {batch_id} 规范字节非 JSON 对象"
         ));
     }
+    NativeAdmission(work)
+        .native_admit(std::mem::size_of::<Value>() + 2 * std::mem::size_of::<usize>())
+        .map_err(|e| e.to_string())?;
     Ok(std::sync::Arc::new(parsed))
 }
 
@@ -1169,11 +1242,11 @@ fn verify_profile_binding_admitted(
         let mut sealed_found = false;
         let mut reader = match owner {
             Some(b) => evidence_store::Reader::with_owner(conn, b),
-            None => evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET),
+            None => evidence_store::Reader::new_admitted(conn, EVIDENCE_READ_BUDGET, work)?,
         };
         for batch_id in &sealed_ids {
             let bytes = load_profile_batch_bytes(conn, &mut reader, batch_id, owner)?;
-            // #1394：旧sealed来源reader的图展开尚未取得Native分配资格；保持原源核。
+            // #1394：同一 Reader 显式携带 Native 工作域；旧 blob / 图源核仍走各自原判据。
             let batch = v3::business_json::legacy_json_owner_admitted(&bytes, owner, work)?;
             let batch = batch.view();
             if batch
@@ -10574,6 +10647,143 @@ mod legacy_profile_owner_regressions {
         )
         .unwrap();
     }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn r13_native_legacy_profile_blob_matches_none_on_parent_scope() {
+        use v3::audit_store::{CodecRead, NativeAdmission};
+        cache::configure(0);
+        // 既有旧版本存档夹具从建库起就没有 profile_definition；没有删改元数据造分支。
+        let (conn, hash) = old_profile_fixture();
+        let value = json!({"profile_id":"fixed","profile_hash":hash,"detail":{"text":"完整旧批次","values":[1,2,3]}});
+        let expected = canonical_bytes_of_value(&value);
+        let id = seal_blob(&conn, &expected);
+        let plain_binding = verify_profile_binding(&conn).unwrap();
+        let mut plain_reader = evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET);
+        let plain = load_profile_batch_bytes(&conn, &mut plain_reader, &id, None).unwrap();
+        assert_eq!(&plain[..], &expected);
+        drop(plain_reader);
+        let budget = v3::audit_owner::native::Budget::new(8 * 1024 * 1024, 0).unwrap();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                NativeAdmission(Some(scope))
+                    .native_admit(137)
+                    .map_err(|e| e.to_string())?;
+                let before = budget.live();
+                let mut reader =
+                    evidence_store::Reader::new_admitted(&conn, EVIDENCE_READ_BUDGET, Some(scope))?;
+                let bytes = load_profile_batch_bytes(&conn, &mut reader, &id, None)?;
+                assert!(matches!(&bytes, ProfileBatchBytes::Plain(_)));
+                assert_eq!(&bytes[..], &plain[..]);
+                assert!(evidence_store::hash_matches(
+                    &bytes,
+                    batch_content_hash(&id)?
+                ));
+                assert_eq!(bytes.len(), expected.len());
+                drop(reader);
+                let binding = verify_profile_binding_admitted(&conn, None, Some(scope))?;
+                assert!(matches!(&binding.0, v3::business_json::TextValue::Plain(_)));
+                assert_eq!(binding.0.as_str(), plain_binding.0);
+                assert_eq!(binding.1.as_str(), plain_binding.1);
+                assert!(budget.live() > before);
+                Ok::<_, String>(())
+            })
+            .unwrap();
+        assert!(budget.live() > 137, "Native许可留在调用方原父域");
+        assert_eq!(budget.scratch_observation().2, 0);
+        assert_eq!(cache::retained_bytes(), 0);
+        cache::configure(0);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn r13_native_legacy_profile_graph_roots_match_none_and_keep_cache_gates() {
+        use v3::audit_store::{CodecRead, NativeAdmission};
+        for graph_format in [
+            evidence_store::GRAPH_FORMAT,
+            evidence_store::GRAPH_FORMAT_V2,
+        ] {
+            for cache_limit in [0, 1024 * 1024] {
+                cache::configure(cache_limit);
+                let (conn, hash) = old_profile_fixture();
+                evidence_store::declare_new(&conn).unwrap();
+                seal_graph(&conn, 1, &json!({"profile_id":"","v":9}));
+                let repeated = json!({"v":9,"text":"正常封存证据".repeat(40)});
+                let value = json!({"profile_id":"fixed","profile_hash":hash,"a":repeated,"b":repeated,
+                    "protocol_revision":"s-session/2","session_generation":"2","clock_plan_hash":"clock","semantic_commit_ns":"9"});
+                seal_graph(&conn, 2, &value);
+                // 这份存档只含 batch 根，符合 graph/2 的已发布布局；声明变体不改变任何原件或元数据。
+                if graph_format == evidence_store::GRAPH_FORMAT_V2 {
+                    conn.execute(
+                        "UPDATE s_evidence_format SET graph_format=?1",
+                        params![graph_format],
+                    )
+                    .unwrap();
+                }
+                let expected = canonical_bytes_of_value(&value);
+                let id = format!("batch-{}", sha256_hex(&expected));
+                let key = evidence_store::batch_root_key(&id);
+                let plain_binding = verify_profile_binding(&conn).unwrap();
+                let mut plain_reader = evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET);
+                let plain = plain_reader.read_root(&key, true).unwrap();
+                assert_eq!(plain.bytes.as_ref(), &expected);
+                assert_eq!(plain.declared_length as usize, expected.len());
+                assert_eq!(plain.content_sha256, batch_content_hash(&id).unwrap());
+                assert_eq!(plain.value.as_deref(), Some(&value));
+                drop(plain_reader);
+                cache::configure(cache_limit);
+                let budget = v3::audit_owner::native::Budget::new(16 * 1024 * 1024, 0).unwrap();
+                let tx = conn.unchecked_transaction().unwrap();
+                budget
+                    .codec_work()
+                    .unwrap()
+                    .run(|scope| {
+                        NativeAdmission(Some(scope))
+                            .native_admit(137)
+                            .map_err(|e| e.to_string())?;
+                        let before = budget.live();
+                        let mut reader = evidence_store::Reader::new_admitted(
+                            &tx,
+                            EVIDENCE_READ_BUDGET,
+                            Some(scope),
+                        )?;
+                        for pass in 0..2 {
+                            let root = reader.read_root(&key, true)?;
+                            assert_eq!(root.bytes.as_ref(), plain.bytes.as_ref());
+                            assert_eq!(root.declared_length, plain.declared_length);
+                            assert_eq!(root.content_sha256, plain.content_sha256);
+                            assert_eq!(root.closure, plain.closure);
+                            assert_eq!(root.value.as_deref(), Some(&value));
+                            assert_eq!(root.reused, cache_limit > 0 && pass == 1);
+                        }
+                        // 第二次命中含已解析Value，仍会真实投影控制头并走其缓存准入。
+                        let bytes = load_profile_batch_bytes(&tx, &mut reader, &id, None)?;
+                        assert!(matches!(&bytes, ProfileBatchBytes::Plain(_)));
+                        assert_eq!(&bytes[..], &expected);
+                        drop(reader);
+                        let binding = verify_profile_binding_admitted(&tx, None, Some(scope))?;
+                        assert_eq!(binding.0.as_str(), plain_binding.0);
+                        assert_eq!(binding.1.as_str(), plain_binding.1);
+                        assert!(budget.live() > before);
+                        Ok::<_, String>(())
+                    })
+                    .unwrap();
+                assert!(budget.live() > 137);
+                assert_eq!(budget.scratch_observation().2, 0);
+                if cache_limit == 0 {
+                    assert_eq!(cache::retained_bytes(), 0);
+                    assert_eq!(cache::capture_bytes_now(), 0);
+                } else {
+                    assert!(cache::retained_bytes() > 0);
+                    assert!(cache::retained_bytes() <= cache_limit);
+                }
+                drop(tx);
+                cache::configure(0);
+            }
+        }
+    }
+
     #[test]
     fn owned_legacy_profile_fallback_blob_keeps_duplicate_policy_and_bytes_decode_peak() {
         let (conn, hash) = old_profile_fixture();

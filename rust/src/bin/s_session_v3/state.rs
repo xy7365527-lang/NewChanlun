@@ -155,7 +155,7 @@ pub(super) fn audit_native_in_request(
     audit_native_in_request_admitted(tx, context, None)
 }
 
-/// #1394 显式父域原型：当前只覆盖捕获及完整SQL绑定，未赋予完整cold资源资格。
+/// #1394 显式父域：已接捕获、控制/raw、history/source及索引；整体资源资格仍需独立验收。
 pub(super) fn audit_native_in_request_admitted(
     tx: &Transaction<'_>,
     context: &mut super::request_audit::RequestAuditContext,
@@ -896,7 +896,7 @@ fn audit_one_cut_sources(
     };
     #[cfg(feature = "s_capture_native_testonly")]
     if let Some(cache) = source_cache.as_deref_mut() {
-        cache.record(cut, &counts);
+        cache.record_admitted(cut, &counts, store.native_work_scope())?;
     }
     let allocation = super::audit_store::CodecRead::allocation_budget(store);
     let (withdrawals, replaces) = match &object_sweep {

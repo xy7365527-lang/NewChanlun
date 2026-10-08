@@ -16,6 +16,8 @@
 //! 该上限是规范源字节记账（原字节 + 等额解码规范源字节 + 唯一原件证书 + id + root rows/walk/identity），
 //! 不是 allocator/RSS 上限，也不声称 RSS 受其限制。
 use super::*;
+use crate::v3::audit_store::{CodecRead, NativeAdmission};
+use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
 use std::collections::{BTreeSet, HashMap};
 use std::{
     cell::RefCell,
@@ -198,6 +200,7 @@ struct Memo {
 }
 impl Default for Memo {
     fn default() -> Self {
+        MEMO_INITIALIZED.with(|ready| ready.set(true));
         #[cfg(test)]
         let limit = std::env::var("S_TEST_AUDIT_CACHE_SOURCE_BYTES")
             .ok()
@@ -247,15 +250,29 @@ impl Memo {
     }
     /// 按开销从大到小驱逐句柄，直到句柄总量不超过给定预算（不整块清空）。
     fn trim_handles(&mut self, budget: usize) {
+        self.trim_handles_admitted(budget, None)
+            .expect("None admission cannot fail")
+    }
+    fn trim_handles_admitted(
+        &mut self,
+        budget: usize,
+        work: Option<&WorkScope>,
+    ) -> Result<(), String> {
+        let admission = NativeAdmission(work);
         if self.handles_bytes <= budget {
-            return;
+            return Ok(());
         }
-        let mut order = self
-            .handles
-            .iter()
-            .map(|(k, h)| (h.cost, k.clone()))
-            .collect::<Vec<_>>();
-        order.sort_by(|a, b| b.cmp(a));
+        let mut order = Vec::new();
+        admission
+            .native_vec_room(&mut order, self.handles.len())
+            .map_err(|e| e.to_string())?;
+        for (key, entry) in &self.handles {
+            order.push((
+                entry.cost,
+                admission.native_string(key).map_err(|e| e.to_string())?,
+            ));
+        }
+        order.sort_unstable_by(|a, b| b.cmp(a));
         let mut over = self.handles_bytes - budget;
         for (cost, key) in order {
             if over == 0 {
@@ -270,6 +287,7 @@ impl Memo {
             });
             over = over.saturating_sub(cost);
         }
+        Ok(())
     }
     fn remove_batch_header(&mut self, root_key: &str) {
         if let Some(old) = self.batch_headers.remove(root_key) {
@@ -277,15 +295,29 @@ impl Memo {
         }
     }
     fn trim_batch_headers(&mut self, budget: usize) {
+        self.trim_batch_headers_admitted(budget, None)
+            .expect("None admission cannot fail")
+    }
+    fn trim_batch_headers_admitted(
+        &mut self,
+        budget: usize,
+        work: Option<&WorkScope>,
+    ) -> Result<(), String> {
+        let admission = NativeAdmission(work);
         if self.batch_headers_bytes <= budget {
-            return;
+            return Ok(());
         }
-        let mut order = self
-            .batch_headers
-            .iter()
-            .map(|(key, entry)| (entry.cost, key.clone()))
-            .collect::<Vec<_>>();
-        order.sort_by(|a, b| b.cmp(a));
+        let mut order = Vec::new();
+        admission
+            .native_vec_room(&mut order, self.batch_headers.len())
+            .map_err(|e| e.to_string())?;
+        for (key, entry) in &self.batch_headers {
+            order.push((
+                entry.cost,
+                admission.native_string(key).map_err(|e| e.to_string())?,
+            ));
+        }
+        order.sort_unstable_by(|a, b| b.cmp(a));
         for (_, key) in order {
             if self.batch_headers_bytes <= budget {
                 break;
@@ -294,9 +326,18 @@ impl Memo {
             #[cfg(test)]
             counter(|c| c.batch_header_capacity_evictions += 1);
         }
+        Ok(())
     }
     /// 单一预算下先丢大句柄、再丢小控制头；不为准入旋转原件池。
     fn make_room(&mut self, cost: usize) -> bool {
+        self.make_room_admitted(cost, None)
+            .expect("None admission cannot fail")
+    }
+    fn make_room_admitted(
+        &mut self,
+        cost: usize,
+        work: Option<&WorkScope>,
+    ) -> Result<bool, String> {
         // 先判这一项在**没有句柄/控制头**时能否装下：装不下就不该为它驱逐其他仍可复用项
         // （单条过大只跳过自己，不牵连别人）。
         let floor = self
@@ -304,29 +345,58 @@ impl Memo {
             .saturating_add(self.certs_bytes)
             .saturating_add(self.capture_bytes());
         if floor.saturating_add(cost) > self.limit {
-            return false;
+            return Ok(false);
         }
         let used = self.retained_bytes().saturating_add(self.capture_bytes());
         if used.saturating_add(cost) <= self.limit {
-            return true;
+            return Ok(true);
         }
         let need = used.saturating_add(cost).saturating_sub(self.limit);
-        self.trim_handles(self.handles_bytes.saturating_sub(need));
+        self.trim_handles_admitted(self.handles_bytes.saturating_sub(need), work)?;
         let need = self
             .retained_bytes()
             .saturating_add(self.capture_bytes())
             .saturating_add(cost)
             .saturating_sub(self.limit);
-        self.trim_batch_headers(self.batch_headers_bytes.saturating_sub(need));
-        self.retained_bytes()
+        self.trim_batch_headers_admitted(self.batch_headers_bytes.saturating_sub(need), work)?;
+        Ok(self
+            .retained_bytes()
             .saturating_add(self.capture_bytes())
             .saturating_add(cost)
-            <= self.limit
+            <= self.limit)
     }
     /// 移除索引后，捕获若仍持有原件，把唯一 payload 费用转给其中一个读集条目。
     fn remove_cert(&mut self, key: &[u8; 32]) {
+        self.remove_cert_admitted(key, None)
+            .expect("None admission cannot fail")
+    }
+    fn remove_cert_admitted(
+        &mut self,
+        key: &[u8; 32],
+        work: Option<&WorkScope>,
+    ) -> Result<(), String> {
+        let admission = NativeAdmission(work);
+        if self.certs.contains_key(key) {
+            admission
+                .native_admit(2 * std::mem::size_of::<usize>())
+                .map_err(|e| e.to_string())?;
+        }
+        if let (Some(cert), Some(c)) = (self.certs.get(key), self.capture.as_ref()) {
+            if let Some(owner) = c
+                .nodes
+                .iter()
+                .find(|(_, held)| Arc::ptr_eq(held, cert))
+                .map(|(key, _)| *key)
+            {
+                if !c.owned.contains(&owner) {
+                    admission
+                        .native_tree_room::<(usize, [u8; 32]), ()>(c.owned.len())
+                        .map_err(|e| e.to_string())?;
+                }
+            }
+        }
         let Some(cert) = self.certs.remove(key) else {
-            return;
+            return Ok(());
         };
         self.certs_bytes = self.certs_bytes.saturating_sub(cert.payload_cost());
         self.cert_lineage = Arc::new(());
@@ -346,6 +416,7 @@ impl Memo {
                 c.bytes = c.bytes.saturating_add(cert.payload_cost());
             }
         }
+        Ok(())
     }
     /// 驱逐独有节点证书（单条最大者优先）与根证书，直到证书总量不超过给定预算。
     /// 证书只影响复用、不影响任何判据；根证书被驱逐时其句柄一并作废（不留永远命不中的死句柄）。
@@ -452,8 +523,17 @@ impl Memo {
 }
 /// 保留一份根原件证书（指针稳定：内容相同则复用既有 Arc，不换原件）。
 fn put_root_cert(memo: &mut Memo, root_key: &str, mut cert: RootCert) -> Option<Arc<RootCert>> {
+    put_root_cert_admitted(memo, root_key, cert, None).expect("None admission cannot fail")
+}
+fn put_root_cert_admitted(
+    memo: &mut Memo,
+    root_key: &str,
+    mut cert: RootCert,
+    work: Option<&WorkScope>,
+) -> Result<Option<Arc<RootCert>>, String> {
+    let admission = NativeAdmission(work);
     if memo.limit == 0 {
-        return None;
+        return Ok(None);
     }
     if let Some(old) = memo.root_certs.get(root_key) {
         if Weak::ptr_eq(&old.lineage, &Arc::downgrade(&memo.cert_lineage))
@@ -464,7 +544,7 @@ fn put_root_cert(memo: &mut Memo, root_key: &str, mut cert: RootCert) -> Option<
                 &cert.content_sha256,
             )
         {
-            return Some(old.clone());
+            return Ok(Some(old.clone()));
         }
     }
     let cost = cert.cost().saturating_add(root_key.len());
@@ -474,18 +554,27 @@ fn put_root_cert(memo: &mut Memo, root_key: &str, mut cert: RootCert) -> Option<
             .certs_bytes
             .saturating_sub(old.cost().saturating_add(root_key.len()));
     }
-    if !memo.make_room(cost) {
-        return None;
+    if !memo.make_room_admitted(cost, work)? {
+        return Ok(None);
     }
     cert.lineage = Arc::downgrade(&memo.cert_lineage);
-    let old = memo.root_certs.insert(root_key.to_string(), Arc::new(cert));
+    admission
+        .native_std_map_room(&mut memo.root_certs)
+        .map_err(|e| e.to_string())?;
+    let key = admission
+        .native_string(root_key)
+        .map_err(|e| e.to_string())?;
+    admission
+        .native_admit(std::mem::size_of::<RootCert>() + 2 * std::mem::size_of::<usize>())
+        .map_err(|e| e.to_string())?;
+    let old = memo.root_certs.insert(key, Arc::new(cert));
     if let Some(old) = old {
         memo.certs_bytes = memo
             .certs_bytes
             .saturating_sub(old.cost().saturating_add(root_key.len()));
     }
     memo.certs_bytes = memo.certs_bytes.saturating_add(cost);
-    memo.root_certs.get(root_key).cloned()
+    Ok(memo.root_certs.get(root_key).cloned())
 }
 #[cfg(test)]
 thread_local! {static LAST_RESUMED: std::cell::Cell<usize> = const {std::cell::Cell::new(0)};}
@@ -493,6 +582,7 @@ thread_local! {static LAST_RESUMED: std::cell::Cell<usize> = const {std::cell::C
 pub(super) fn last_resumed() -> usize {
     LAST_RESUMED.with(|v| v.get())
 }
+thread_local! { static MEMO_INITIALIZED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
 thread_local! { static MEMO: RefCell<Memo> = RefCell::new(Memo::default()); }
 
 /// #1394 阶段计数（只在测试构建里累加，供成本/复用证据；生产构建不含这些计数）。
@@ -694,6 +784,20 @@ impl Drop for CaptureGuard {
 /// 持久预算，也不是保留量上限——保留量由 `configure` 的单一预算唯一决定。两条约束同时生效。
 /// 装不下只失去同次复用（当次读仍照常返回该节点）。
 pub(super) fn begin_capture(node_budget: usize) -> CaptureGuard {
+    begin_capture_admitted(node_budget, None).expect("None admission cannot fail")
+}
+pub(super) fn begin_capture_admitted(
+    node_budget: usize,
+    work: Option<&WorkScope>,
+) -> Result<CaptureGuard, String> {
+    if !MEMO_INITIALIZED.with(|ready| ready.get()) {
+        NativeAdmission(work)
+            .native_admit(2 * std::mem::size_of::<usize>())
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(begin_capture_inner(node_budget))
+}
+fn begin_capture_inner(node_budget: usize) -> CaptureGuard {
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
         if m.capture.is_some() {
@@ -726,16 +830,25 @@ pub(super) fn node_get(conn_id: usize, id: &[u8; 32]) -> Option<Arc<Cert>> {
 ///
 /// 单一预算下超限先驱逐可丢弃句柄；仍装不下只失去这次复用（当次读照常返回该节点）。
 pub(super) fn node_put(conn_id: usize, cert: Arc<Cert>, owned: bool) {
+    node_put_admitted(conn_id, cert, owned, None).expect("None admission cannot fail")
+}
+pub(super) fn node_put_admitted(
+    conn_id: usize,
+    cert: Arc<Cert>,
+    owned: bool,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    let admission = NativeAdmission(work);
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
         if m.capture.is_none() {
-            return;
+            return Ok(());
         }
         if m.capture
             .as_ref()
             .is_some_and(|c| c.nodes.contains_key(&(conn_id, cert.id)))
         {
-            return;
+            return Ok(());
         }
         // 独占则连 payload 字节一起记账；共享（已由持久证书计费）只记读集条目本身。
         let cost = if owned {
@@ -750,21 +863,30 @@ pub(super) fn node_put(conn_id: usize, cert: Arc<Cert>, owned: bool) {
         {
             #[cfg(test)]
             counter(|c| c.capture_node_admission_rejected += 1);
-            return;
+            return Ok(());
         }
-        if !m.make_room(cost) {
+        if !m.make_room_admitted(cost, work)? {
             #[cfg(test)]
             counter(|c| c.capture_node_admission_rejected += 1);
-            return;
+            return Ok(());
         }
         let id = cert.id;
-        let Some(c) = m.capture.as_mut() else { return };
-        c.bytes = c.bytes.saturating_add(cost);
+        let Some(c) = m.capture.as_mut() else {
+            return Ok(());
+        };
+        admission
+            .native_std_map_room(&mut c.nodes)
+            .map_err(|e| e.to_string())?;
         if owned {
+            admission
+                .native_tree_room::<(usize, [u8; 32]), ()>(c.owned.len())
+                .map_err(|e| e.to_string())?;
             c.owned.insert((conn_id, id));
         }
+        c.bytes = c.bytes.saturating_add(cost);
         c.nodes.insert((conn_id, id), cert);
-    });
+        Ok(())
+    })
 }
 /// 本次捕获已读入的节点数（供「同次捕获只读一次」的行为证据）。
 #[cfg(test)]
@@ -774,11 +896,32 @@ pub(super) fn capture_len() -> usize {
 
 /// 本捕获已算出的节点派生量（同一连接、同一次捕获内复用；跨捕获必然重算）。
 pub(super) fn derived_get(conn_id: usize, id: &[u8; 32]) -> Option<NodeDerived> {
+    derived_get_admitted(conn_id, id, None).expect("None admission cannot fail")
+}
+pub(super) fn derived_get_admitted(
+    conn_id: usize,
+    id: &[u8; 32],
+    work: Option<&WorkScope>,
+) -> Result<Option<NodeDerived>, String> {
+    let admission = NativeAdmission(work);
     MEMO.with(|m| {
-        m.borrow()
+        let m = m.borrow();
+        let Some(v) = m
             .capture
             .as_ref()
-            .and_then(|c| c.derived.get(&(conn_id, *id)).cloned())
+            .and_then(|c| c.derived.get(&(conn_id, *id)))
+        else {
+            return Ok(None);
+        };
+        admission
+            .native_admit(
+                v.slot_counts
+                    .len()
+                    .checked_mul(std::mem::size_of::<u64>())
+                    .ok_or_else(|| admission.native_overflow().to_string())?,
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(Some(v.clone()))
     })
 }
 /// 本次捕获是否已结算该节点的派生量（**不克隆**——热路径只问存在性，克隆会为每个节点多分配一次）。
@@ -791,20 +934,49 @@ pub(super) fn derived_has(conn_id: usize, id: &[u8; 32]) -> bool {
     })
 }
 pub(super) fn derived_put(conn_id: usize, id: [u8; 32], derived: NodeDerived) {
+    derived_put_admitted(conn_id, id, derived, None).expect("None admission cannot fail")
+}
+pub(super) fn derived_put_admitted(
+    conn_id: usize,
+    id: [u8; 32],
+    derived: NodeDerived,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    let admission = NativeAdmission(work);
     MEMO.with(|m| {
         if let Some(c) = m.borrow_mut().capture.as_mut() {
+            if !c.derived.contains_key(&(conn_id, id)) {
+                admission
+                    .native_std_map_room(&mut c.derived)
+                    .map_err(|e| e.to_string())?;
+            }
             c.derived.insert((conn_id, id), derived);
         }
-    });
+        Ok(())
+    })
 }
 
 /// 记下「本捕获从 SQLite 读入过该节点」——跨同一次捕获里的全部读取器合并。
 pub(super) fn mark_reachable(conn_id: usize, id: [u8; 32]) {
+    mark_reachable_admitted(conn_id, id, None).expect("None admission cannot fail")
+}
+pub(super) fn mark_reachable_admitted(
+    conn_id: usize,
+    id: [u8; 32],
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    let admission = NativeAdmission(work);
     MEMO.with(|m| {
         if let Some(c) = m.borrow_mut().capture.as_mut() {
+            if !c.reachable.contains(&(conn_id, id)) {
+                admission
+                    .native_tree_room::<(usize, [u8; 32]), ()>(c.reachable.len())
+                    .map_err(|e| e.to_string())?;
+            }
             c.reachable.insert((conn_id, id));
         }
-    });
+        Ok(())
+    })
 }
 /// 本捕获在该连接上读入过的可达节点数（与节点表行数比对即等价于「无不可达残留」）。
 pub(super) fn capture_reachable_len(conn_id: usize) -> usize {
@@ -839,11 +1011,25 @@ pub(super) fn cert_get(id: &[u8; 32]) -> Option<Arc<Cert>> {
 }
 /// 记下「本次捕获已把该节点的当前原行与保留证书逐字节比较且相同」。
 pub(super) fn cert_matched_mark(conn_id: usize, id: [u8; 32]) {
+    cert_matched_mark_admitted(conn_id, id, None).expect("None admission cannot fail")
+}
+pub(super) fn cert_matched_mark_admitted(
+    conn_id: usize,
+    id: [u8; 32],
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    let admission = NativeAdmission(work);
     MEMO.with(|m| {
         if let Some(c) = m.borrow_mut().capture.as_mut() {
+            if !c.matched.contains(&(conn_id, id)) {
+                admission
+                    .native_tree_room::<(usize, [u8; 32]), ()>(c.matched.len())
+                    .map_err(|e| e.to_string())?;
+            }
             c.matched.insert((conn_id, id));
         }
-    });
+        Ok(())
+    })
 }
 /// 该根闭包内每个唯一节点都在**本次捕获**逐字节命中原件证书（复用门的闭包那一半）。
 pub(super) fn certs_all_matched(conn_id: usize, ids: &BTreeSet<[u8; 32]>) -> bool {
@@ -874,11 +1060,25 @@ pub(super) fn cert_marked(conn_id: usize, id: [u8; 32]) -> bool {
 /// 记下「该节点的整棵子树本次都逐字节命中原件证书」。认证**搭在既有后序遍历上**，
 /// 不另开一次遍历：调用方在子节点全部结算完之后才调用（故成本为零）。
 pub(super) fn cert_certify(conn_id: usize, id: [u8; 32]) {
+    cert_certify_admitted(conn_id, id, None).expect("None admission cannot fail")
+}
+pub(super) fn cert_certify_admitted(
+    conn_id: usize,
+    id: [u8; 32],
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    let admission = NativeAdmission(work);
     MEMO.with(|m| {
         if let Some(c) = m.borrow_mut().capture.as_mut() {
+            if !c.certified.contains(&(conn_id, id)) {
+                admission
+                    .native_tree_room::<(usize, [u8; 32]), ()>(c.certified.len())
+                    .map_err(|e| e.to_string())?;
+            }
             c.certified.insert((conn_id, id));
         }
-    });
+        Ok(())
+    })
 }
 /// 该节点的整棵子树本次是否已认证（复用门的闭包那一半）。
 pub(super) fn cert_is_certified(conn_id: usize, id: [u8; 32]) -> bool {
@@ -894,10 +1094,18 @@ pub(super) fn cert_is_certified(conn_id: usize, id: [u8; 32]) -> bool {
 /// 只允许在该根**已完整展开并核过公开长度/摘要**（或本次已逐字节命中原证书）之后调用：
 /// 保留证书的内容必须来自一次成功核验的原件，绝不能来自未核验的读。
 pub(super) fn cert_commit(conn_id: usize, ids: &BTreeSet<[u8; 32]>) {
+    cert_commit_admitted(conn_id, ids, None).expect("None admission cannot fail")
+}
+pub(super) fn cert_commit_admitted(
+    conn_id: usize,
+    ids: &BTreeSet<[u8; 32]>,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    let admission = NativeAdmission(work);
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
         if m.limit == 0 {
-            return;
+            return Ok(());
         }
         for id in ids {
             let key = (conn_id, *id);
@@ -907,7 +1115,7 @@ pub(super) fn cert_commit(conn_id: usize, ids: &BTreeSet<[u8; 32]>) {
             if m.certs.get(id).is_some_and(|old| Arc::ptr_eq(old, &cert)) {
                 continue;
             }
-            m.remove_cert(id);
+            m.remove_cert_admitted(id, work)?;
             let owner = m.capture.as_ref().and_then(|c| {
                 if c.owned.contains(&key) {
                     return Some(key);
@@ -922,11 +1130,14 @@ pub(super) fn cert_commit(conn_id: usize, ids: &BTreeSet<[u8; 32]>) {
                     .copied()
             });
             let owned = owner.is_some();
-            if !owned && !m.make_room(cert.payload_cost()) {
+            if !owned && !m.make_room_admitted(cert.payload_cost(), work)? {
                 #[cfg(test)]
                 counter(|c| c.shared_node_cert_admission_rejected += 1);
                 continue;
             }
+            admission
+                .native_std_map_room(&mut m.certs)
+                .map_err(|e| e.to_string())?;
             if owned {
                 // 独占：字节已由读集持有，只把它从瞬时读集**转记**为持久证书（总量不变）。
                 if let Some(c) = m.capture.as_mut() {
@@ -939,13 +1150,24 @@ pub(super) fn cert_commit(conn_id: usize, ids: &BTreeSet<[u8; 32]>) {
             #[cfg(test)]
             counter(|c| c.cert_committed += 1);
         }
-    });
+        Ok(())
+    })
 }
 /// 冷展开后，只有全部当前原件仍在池里且与本次读集为同一不可变原件，才能建立新根证明。
 pub(super) fn certify_retained_originals(conn_id: usize, ids: &BTreeSet<[u8; 32]>) -> bool {
+    certify_retained_originals_admitted(conn_id, ids, None).expect("None admission cannot fail")
+}
+pub(super) fn certify_retained_originals_admitted(
+    conn_id: usize,
+    ids: &BTreeSet<[u8; 32]>,
+    work: Option<&WorkScope>,
+) -> Result<bool, String> {
+    let admission = NativeAdmission(work);
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
-        let Some(c) = &m.capture else { return false };
+        let Some(c) = &m.capture else {
+            return Ok(false);
+        };
         let complete = ids
             .iter()
             .all(|id| match (m.certs.get(id), c.nodes.get(&(conn_id, *id))) {
@@ -956,11 +1178,21 @@ pub(super) fn certify_retained_originals(conn_id: usize, ids: &BTreeSet<[u8; 32]
         if complete {
             let c = m.capture.as_mut().unwrap();
             for id in ids {
+                if !c.matched.contains(&(conn_id, *id)) {
+                    admission
+                        .native_tree_room::<(usize, [u8; 32]), ()>(c.matched.len())
+                        .map_err(|e| e.to_string())?;
+                }
                 c.matched.insert((conn_id, *id));
+                if !c.certified.contains(&(conn_id, *id)) {
+                    admission
+                        .native_tree_room::<(usize, [u8; 32]), ()>(c.certified.len())
+                        .map_err(|e| e.to_string())?;
+                }
                 c.certified.insert((conn_id, *id));
             }
         }
-        complete
+        Ok(complete)
     })
 }
 /// 旧依赖未被逐字节确认时撤销该根的旧证明，即便根行/摘要本身未变。
@@ -1065,6 +1297,21 @@ pub(super) fn batch_header_put(
     closure: [u8; 32],
     header: BatchControlHeader,
 ) {
+    batch_header_put_admitted(
+        root_key, batch_id, byte_len, root_cert, closure, header, None,
+    )
+    .expect("None admission cannot fail")
+}
+pub(super) fn batch_header_put_admitted(
+    root_key: &str,
+    batch_id: &str,
+    byte_len: usize,
+    root_cert: &Arc<RootCert>,
+    closure: [u8; 32],
+    header: BatchControlHeader,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    let admission = NativeAdmission(work);
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
         if m.limit == 0
@@ -1076,7 +1323,7 @@ pub(super) fn batch_header_put(
         {
             #[cfg(test)]
             counter(|c| c.batch_header_admission_rejected += 1);
-            return;
+            return Ok(());
         }
         let cost = root_key
             .len()
@@ -1084,16 +1331,25 @@ pub(super) fn batch_header_put(
             .saturating_add(header.source_bytes())
             .saturating_add(128);
         m.remove_batch_header(root_key);
-        if !m.make_room(cost) {
+        if !m.make_room_admitted(cost, work)? {
             #[cfg(test)]
             counter(|c| c.batch_header_admission_rejected += 1);
-            return;
+            return Ok(());
         }
+        admission
+            .native_tree_room::<String, BatchHeaderEntry>(m.batch_headers.len())
+            .map_err(|e| e.to_string())?;
+        let key = admission
+            .native_string(root_key)
+            .map_err(|e| e.to_string())?;
+        let batch_id = admission
+            .native_string(batch_id)
+            .map_err(|e| e.to_string())?;
         m.batch_headers_bytes = m.batch_headers_bytes.saturating_add(cost);
         m.batch_headers.insert(
-            root_key.to_owned(),
+            key,
             BatchHeaderEntry {
-                batch_id: batch_id.to_owned(),
+                batch_id,
                 byte_len,
                 root_cert: Arc::downgrade(root_cert),
                 closure,
@@ -1101,7 +1357,8 @@ pub(super) fn batch_header_put(
                 cost,
             },
         );
-    });
+        Ok(())
+    })
 }
 
 /// 取**图域**已核根句柄：要求 (a) 该句柄绑定的根原件证书与当前保留证书是同一个原件
@@ -1167,41 +1424,72 @@ pub(super) fn handle_put_certified(
     bytes: Arc<[u8]>,
     value: Option<Arc<Value>>,
 ) -> Option<Arc<RootCert>> {
+    handle_put_certified_admitted(root_key, root_cert, closure, bytes, value, None)
+        .expect("None admission cannot fail")
+}
+pub(super) fn handle_put_certified_admitted(
+    root_key: &str,
+    root_cert: &RootCert,
+    closure: [u8; 32],
+    bytes: Arc<[u8]>,
+    value: Option<Arc<Value>>,
+    work: Option<&WorkScope>,
+) -> Result<Option<Arc<RootCert>>, String> {
+    let admission = NativeAdmission(work);
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
         if m.limit == 0 {
             #[cfg(test)]
             counter(|c| c.handle_admission_rejected += 1);
-            return None;
+            return Ok(None);
         }
         // 根证书先保留（小，且是审计前缀与逐字节比较的原件证据）。
-        let retained = put_root_cert(
+        admission
+            .native_admit(
+                root_cert
+                    .slots
+                    .len()
+                    .checked_mul(32)
+                    .ok_or_else(|| admission.native_overflow().to_string())?,
+            )
+            .map_err(|e| e.to_string())?;
+        let hash = admission
+            .native_string(&root_cert.content_sha256)
+            .map_err(|e| e.to_string())?;
+        let retained = put_root_cert_admitted(
             &mut m,
             root_key,
             RootCert::new(
                 root_cert.node,
                 root_cert.slots.clone(),
                 root_cert.expanded_length,
-                root_cert.content_sha256.clone(),
+                hash,
             ),
-        );
+            work,
+        )?;
         let Some(retained) = retained else {
             #[cfg(test)]
             counter(|c| c.handle_admission_rejected += 1);
-            return None;
+            return Ok(None);
         };
         let cost = handle_cost(root_key.len(), bytes.len(), value.is_some());
         if let Some(old) = m.handles.remove(root_key) {
             m.handles_bytes = m.handles_bytes.saturating_sub(old.cost);
         }
-        if !m.make_room(cost) {
+        if !m.make_room_admitted(cost, work)? {
             #[cfg(test)]
             counter(|c| c.handle_admission_rejected += 1);
-            return Some(retained);
+            return Ok(Some(retained));
         }
+        admission
+            .native_tree_room::<String, Handle>(m.handles.len())
+            .map_err(|e| e.to_string())?;
+        let key = admission
+            .native_string(root_key)
+            .map_err(|e| e.to_string())?;
         m.handles_bytes = m.handles_bytes.saturating_add(cost);
         m.handles.insert(
-            root_key.to_string(),
+            key,
             Handle {
                 closure,
                 root_cert: Some(Arc::downgrade(&retained)),
@@ -1210,7 +1498,7 @@ pub(super) fn handle_put_certified(
                 cost,
             },
         );
-        Some(retained)
+        Ok(Some(retained))
     })
 }
 /// 记入整块域已核句柄（原件就是行内字节，无需根证书）。
@@ -1220,25 +1508,42 @@ pub(super) fn handle_put_blob(
     bytes: Arc<[u8]>,
     value: Option<Arc<Value>>,
 ) {
+    handle_put_blob_admitted(root_key, closure, bytes, value, None)
+        .expect("None admission cannot fail")
+}
+pub(super) fn handle_put_blob_admitted(
+    root_key: &str,
+    closure: [u8; 32],
+    bytes: Arc<[u8]>,
+    value: Option<Arc<Value>>,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    let admission = NativeAdmission(work);
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
         if m.limit == 0 {
             #[cfg(test)]
             counter(|c| c.handle_admission_rejected += 1);
-            return;
+            return Ok(());
         }
         let cost = handle_cost(root_key.len(), bytes.len(), value.is_some());
         if let Some(old) = m.handles.remove(root_key) {
             m.handles_bytes = m.handles_bytes.saturating_sub(old.cost);
         }
-        if !m.make_room(cost) {
+        if !m.make_room_admitted(cost, work)? {
             #[cfg(test)]
             counter(|c| c.handle_admission_rejected += 1);
-            return;
+            return Ok(());
         }
+        admission
+            .native_tree_room::<String, Handle>(m.handles.len())
+            .map_err(|e| e.to_string())?;
+        let key = admission
+            .native_string(root_key)
+            .map_err(|e| e.to_string())?;
         m.handles_bytes = m.handles_bytes.saturating_add(cost);
         m.handles.insert(
-            root_key.to_string(),
+            key,
             Handle {
                 closure,
                 root_cert: None,
@@ -1247,7 +1552,8 @@ pub(super) fn handle_put_blob(
                 cost,
             },
         );
-    });
+        Ok(())
+    })
 }
 /// 句柄记账：原字节 +（有解码值时）等额解码规范源字节 + 根键与固定开销。
 fn handle_cost(key_len: usize, bytes_len: usize, decoded: bool) -> usize {

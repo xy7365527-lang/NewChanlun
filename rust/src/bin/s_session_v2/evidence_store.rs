@@ -23,7 +23,9 @@
 //!   根行或参数槽任一变化都会改变指纹，从而撤销复用并严格重核。缓存超预算只失去复用。
 
 use super::*;
+use crate::v3::audit_store::{CodecRead, NativeAdmission};
 use crate::v3::business_json::{new_map, new_work, BusinessMap, TextValue};
+use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
 use newchan_rust::s_content::{capture_allocation::OwnedBudget, CodecVec};
 use newchan_rust::sqlite_checked::CheckedStatement;
 
@@ -39,7 +41,18 @@ pub(super) fn sql_columns(error: rusqlite::Error, names: &[&str]) -> rusqlite::E
     }
 }
 fn work_copy<T: Copy>(bytes: &[T], owner: Option<&OwnedBudget>) -> Result<CodecVec<T>, String> {
+    work_copy_admitted(bytes, owner, None)
+}
+fn work_copy_admitted<T: Copy>(
+    bytes: &[T],
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<CodecVec<T>, String> {
+    let admission = NativeAdmission(work);
     let mut out = new_work(owner);
+    admission
+        .native_codec_room(&mut out, bytes.len())
+        .map_err(|e| e.to_string())?;
     out.try_reserve_exact(bytes.len())
         .map_err(|e| e.to_string())?;
     for byte in bytes {
@@ -48,7 +61,19 @@ fn work_copy<T: Copy>(bytes: &[T], owner: Option<&OwnedBudget>) -> Result<CodecV
     Ok(out)
 }
 fn work_resize<T: Copy>(v: &mut CodecVec<T>, len: usize, value: T) -> Result<(), String> {
+    work_resize_admitted(v, len, value, None)
+}
+fn work_resize_admitted<T: Copy>(
+    v: &mut CodecVec<T>,
+    len: usize,
+    value: T,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    let admission = NativeAdmission(work);
     if len > v.len() {
+        admission
+            .native_codec_room(v, len - v.len())
+            .map_err(|e| e.to_string())?;
         v.try_reserve_exact(len - v.len())
             .map_err(|e| e.to_string())?;
     }
@@ -64,6 +89,25 @@ pub(super) fn hash_matches(bytes: &[u8], expected: &str) -> bool {
     expected.bytes().eq(digest
         .iter()
         .flat_map(|b| [hex[(b >> 4) as usize], hex[(b & 15) as usize]]))
+}
+
+/// Arc<[u8]> 的动态布局包含两个引用计数及尾部对齐；许可在 Arc 构造前取得。
+/// 不扫描或再次收费已保留池；只覆盖本次新建 Arc 的请求布局。
+pub(super) fn admit_byte_arc(len: usize, work: Option<&WorkScope>) -> Result<(), String> {
+    if work.is_none() {
+        return Ok(());
+    }
+    let admission = NativeAdmission(work);
+    let payload = std::alloc::Layout::array::<u8>(len)
+        .map_err(|_| admission.native_overflow().to_string())?;
+    let layout = std::alloc::Layout::new::<[usize; 2]>()
+        .extend(payload)
+        .map_err(|_| admission.native_overflow().to_string())?
+        .0
+        .pad_to_align();
+    admission
+        .native_admit(layout.size())
+        .map_err(|e| e.to_string())
 }
 
 /// 私有格式登记表（不在公共协议里，也不参与公开对象/批次身份）。
@@ -157,6 +201,14 @@ pub(super) fn read_format_with_owner(
     conn: &Connection,
     owner: Option<&OwnedBudget>,
 ) -> Result<Format, String> {
+    read_format_admitted(conn, owner, None)
+}
+pub(super) fn read_format_admitted(
+    conn: &Connection,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<Format, String> {
+    let admission = NativeAdmission(work);
     let read_err = |e| {
         format!(
             "StorageUnavailable：读私有图格式登记失败：{}",
@@ -197,7 +249,7 @@ pub(super) fn read_format_with_owner(
                 sql_columns(e, &["singleton", "graph_format"])
             )
         })?;
-        let format = TextValue::from_str(
+        let format = TextValue::from_str_admitted(
             row.text(1).map_err(|e| {
                 format!(
                     "StorageUnavailable：私有图格式登记行损坏：{}",
@@ -205,7 +257,11 @@ pub(super) fn read_format_with_owner(
                 )
             })?,
             owner,
+            work,
         )?;
+        admission
+            .native_codec_room(&mut rows, 1)
+            .map_err(|e| e.to_string())?;
         rows.try_push((singleton, format))
             .map_err(|e| e.to_string())?;
     }
@@ -238,11 +294,17 @@ pub(super) fn read_format_with_owner(
 ///
 /// 这是全部读写路径的**唯一**格式入口——不提供「严格失败再试宽松」的降级通道。
 pub(super) fn format(conn: &Connection) -> Result<Format, String> {
+    format_admitted(conn, None)
+}
+pub(super) fn format_admitted(
+    conn: &Connection,
+    work: Option<&WorkScope>,
+) -> Result<Format, String> {
     let conn_id = conn as *const Connection as usize;
     if let Some(cached) = cache::capture_format(conn_id) {
         return Ok(cached);
     }
-    let format = read_format(conn)?;
+    let format = read_format_admitted(conn, None, work)?;
     cache::capture_format_set(conn_id, format);
     Ok(format)
 }
@@ -306,7 +368,25 @@ pub(super) fn batch_root_key_with_owner(
     batch_id: &str,
     owner: Option<&OwnedBudget>,
 ) -> Result<TextValue, String> {
+    batch_root_key_admitted(batch_id, owner, None)
+}
+pub(super) fn batch_root_key_admitted(
+    batch_id: &str,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<TextValue, String> {
+    let admission = NativeAdmission(work);
     let mut bytes = new_work(owner);
+    admission
+        .native_codec_room(
+            &mut bytes,
+            RootKind::Batch
+                .prefix()
+                .len()
+                .checked_add(batch_id.len())
+                .ok_or_else(|| admission.native_overflow().to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
     bytes
         .try_extend_bytes(RootKind::Batch.prefix().as_bytes())
         .map_err(|e| e.to_string())?;
@@ -798,9 +878,20 @@ fn split_seq_work<'a>(
     payload: &'a [u8],
     owner: Option<&OwnedBudget>,
 ) -> Result<CodecVec<Part<'a>>, String> {
+    split_seq_work_admitted(payload, owner, None)
+}
+fn split_seq_work_admitted<'a>(
+    payload: &'a [u8],
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<CodecVec<Part<'a>>, String> {
+    let admission = NativeAdmission(work);
     let mut parts = new_work(owner);
     let mut i = 0usize;
     while i < payload.len() {
+        admission
+            .native_codec_room(&mut parts, 1)
+            .map_err(|e| e.to_string())?;
         match payload[i] {
             TAG_LIT => {
                 if i + 5 > payload.len() {
@@ -853,23 +944,45 @@ fn split_seq_work<'a>(
 }
 
 fn decode_into(kind: i64, payload: &[u8], stack: &mut CodecVec<Frame>) -> Result<(), String> {
+    decode_into_admitted(kind, payload, stack, None)
+}
+fn decode_into_admitted(
+    kind: i64,
+    payload: &[u8],
+    stack: &mut CodecVec<Frame>,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    let admission = NativeAdmission(work);
     let owner = stack.allocation_budget().cloned();
     if kind == KIND_LEAF {
+        admission
+            .native_codec_room(stack, 1)
+            .map_err(|e| e.to_string())?;
         stack
-            .try_push(Frame::Lit(work_copy(payload, owner.as_ref())?))
+            .try_push(Frame::Lit(work_copy_admitted(
+                payload,
+                owner.as_ref(),
+                work,
+            )?))
             .map_err(|e| e.to_string())?;
         return Ok(());
     }
     let mut frames = new_work(owner.as_ref());
-    for part in split_seq_work(payload, owner.as_ref())? {
+    for part in split_seq_work_admitted(payload, owner.as_ref(), work)? {
         let frame = match part {
-            Part::Lit(bytes) => Frame::Lit(work_copy(bytes, owner.as_ref())?),
+            Part::Lit(bytes) => Frame::Lit(work_copy_admitted(bytes, owner.as_ref(), work)?),
             Part::Ref(id) => Frame::Open(id),
             Part::Slot(idx) => Frame::Slot(idx),
         };
+        admission
+            .native_codec_room(&mut frames, 1)
+            .map_err(|e| e.to_string())?;
         frames.try_push(frame).map_err(|e| e.to_string())?;
     }
     for f in frames.into_iter().rev() {
+        admission
+            .native_codec_room(stack, 1)
+            .map_err(|e| e.to_string())?;
         stack.try_push(f).map_err(|e| e.to_string())?;
     }
     Ok(())
@@ -1181,10 +1294,14 @@ struct ReadDerived {
     digest: [u8; 32],
 }
 impl ReadDerived {
-    fn try_clone(&self, owner: Option<&OwnedBudget>) -> Result<Self, String> {
+    fn try_clone(
+        &self,
+        owner: Option<&OwnedBudget>,
+        work: Option<&WorkScope>,
+    ) -> Result<Self, String> {
         Ok(Self {
             length: self.length,
-            slot_counts: work_copy(&self.slot_counts, owner)?,
+            slot_counts: work_copy_admitted(&self.slot_counts, owner, work)?,
             digest: self.digest,
         })
     }
@@ -1205,6 +1322,7 @@ pub(super) struct OwnedVerifiedRoot {
 pub(super) struct Reader<'a> {
     conn: &'a Connection,
     conn_id: usize,
+    work: Option<&'a WorkScope>,
     /// 本次捕获的临时读集守卫：析构即作废本次读入的节点行。
     _capture: Option<cache::CaptureGuard>,
     owned: Option<OwnedReadState>,
@@ -1216,19 +1334,28 @@ impl<'a> Reader<'a> {
     /// `budget_bytes` = 本次捕获**临时读集**的保留上限（同次捕获每个唯一节点原行只读一次所用）。
     /// 跨请求的持久复用由 `cache::configure` 的单一预算决定。
     pub(super) fn new(conn: &'a Connection, budget_bytes: usize) -> Self {
-        Reader {
+        Self::new_admitted(conn, budget_bytes, None).expect("None admission cannot fail")
+    }
+    pub(super) fn new_admitted(
+        conn: &'a Connection,
+        budget_bytes: usize,
+        work: Option<&'a WorkScope>,
+    ) -> Result<Self, String> {
+        Ok(Reader {
             conn,
             conn_id: conn as *const Connection as usize,
-            _capture: Some(cache::begin_capture(budget_bytes)),
+            work,
+            _capture: Some(cache::begin_capture_admitted(budget_bytes, work)?),
             owned: None,
             touched: std::collections::BTreeSet::new(),
-        }
+        })
     }
 
     pub(super) fn with_owner(conn: &'a Connection, budget: &OwnedBudget) -> Self {
         Self {
             conn,
             conn_id: conn as *const Connection as usize,
+            work: None,
             _capture: None,
             touched: std::collections::BTreeSet::new(),
             owned: Some(OwnedReadState {
@@ -1238,13 +1365,20 @@ impl<'a> Reader<'a> {
             }),
         }
     }
+    pub(super) fn work(&self) -> Option<&'a WorkScope> {
+        self.work
+    }
     fn owner(&self) -> Option<&OwnedBudget> {
         self.owned.as_ref().map(|o| &o.budget)
     }
-    fn mark_touched(&mut self, id: [u8; 32]) {
-        if self.owned.is_none() {
+    fn mark_touched(&mut self, id: [u8; 32]) -> Result<(), String> {
+        if self.owned.is_none() && !self.touched.contains(&id) {
+            NativeAdmission(self.work)
+                .native_tree_room::<[u8; 32], ()>(self.touched.len())
+                .map_err(|e| e.to_string())?;
             self.touched.insert(id);
         }
+        Ok(())
     }
     fn derived_has(&self, id: &[u8; 32]) -> bool {
         match &self.owned {
@@ -1257,13 +1391,15 @@ impl<'a> Reader<'a> {
             Some(o) => o
                 .derived
                 .get(id)
-                .map(|v| v.try_clone(Some(&o.budget)))
+                .map(|v| v.try_clone(Some(&o.budget), None))
                 .transpose(),
-            None => Ok(cache::derived_get(self.conn_id, id).map(|v| ReadDerived {
-                length: v.length,
-                slot_counts: CodecVec::from_plain(v.slot_counts),
-                digest: v.digest,
-            })),
+            None => Ok(
+                cache::derived_get_admitted(self.conn_id, id, self.work)?.map(|v| ReadDerived {
+                    length: v.length,
+                    slot_counts: CodecVec::from_plain(v.slot_counts),
+                    digest: v.digest,
+                }),
+            ),
         }
     }
     fn derived_put(&mut self, id: [u8; 32], v: ReadDerived) -> Result<(), String> {
@@ -1271,7 +1407,7 @@ impl<'a> Reader<'a> {
             Some(o) => {
                 o.derived.insert(id, v).map_err(|e| e.to_string())?;
             }
-            None => cache::derived_put(
+            None => cache::derived_put_admitted(
                 self.conn_id,
                 id,
                 cache::NodeDerived {
@@ -1279,7 +1415,8 @@ impl<'a> Reader<'a> {
                     slot_counts: v.slot_counts.try_into_plain().map_err(|e| e.to_string())?,
                     digest: v.digest,
                 },
-            ),
+                self.work,
+            )?,
         }
         Ok(())
     }
@@ -1290,60 +1427,8 @@ impl<'a> Reader<'a> {
         if let Some(node) = state.nodes.get(id) {
             return node.try_clone(&state.budget).map(ReadNode::Owned);
         }
-        let mut stmt = CheckedStatement::prepare(
-            self.conn,
-            c"SELECT node_kind,payload,expanded_length FROM s_evidence_nodes WHERE node_id=?1",
-        )
-        .map_err(|e| {
-            format!(
-                "StorageUnavailable：读私有节点失败：{}",
-                sql_columns(e, &["node_kind", "payload", "expanded_length"])
-            )
-        })?;
-        stmt.bind_blob(1, id).map_err(|e| {
-            format!(
-                "StorageUnavailable：读私有节点失败：{}",
-                sql_columns(e, &["node_kind", "payload", "expanded_length"])
-            )
-        })?;
-        let mut row = stmt
-            .next()
-            .map_err(|e| {
-                format!(
-                    "StorageUnavailable：读私有节点失败：{}",
-                    sql_columns(e, &["node_kind", "payload", "expanded_length"])
-                )
-            })?
-            .ok_or_else(|| format!("StorageUnavailable：私有节点 {} 缺失", hex(id)))?;
-        let kind = row.integer(0).map_err(|e| {
-            format!(
-                "StorageUnavailable：读私有节点失败：{}",
-                sql_columns(e, &["node_kind", "payload", "expanded_length"])
-            )
-        })?;
-        let payload = work_copy(
-            row.blob(1).map_err(|e| {
-                format!(
-                    "StorageUnavailable：读私有节点失败：{}",
-                    sql_columns(e, &["node_kind", "payload", "expanded_length"])
-                )
-            })?,
-            Some(&state.budget),
-        )?;
-        let len = row.integer(2).map_err(|e| {
-            format!(
-                "StorageUnavailable：读私有节点失败：{}",
-                sql_columns(e, &["node_kind", "payload", "expanded_length"])
-            )
-        })?;
-        drop(row);
-        stmt.finalize().map_err(|e| {
-            format!(
-                "StorageUnavailable：读私有节点失败：{}",
-                sql_columns(e, &["node_kind", "payload", "expanded_length"])
-            )
-        })?;
-        let declared = verify_node_row(id, kind, &payload, len)?;
+        let (kind, payload, declared) =
+            read_node_row_admitted(self.conn, id, Some(&state.budget), None)?;
         let children = node_children(kind, &payload, Some(&state.budget))?;
         #[cfg(test)]
         cache::counter(|c| {
@@ -1406,7 +1491,7 @@ impl<'a> Reader<'a> {
     ///
     /// 指纹由当前内容计算，只作附加校验；复用另须根行、全部节点与参数槽原件逐字节匹配。
     fn closure(&mut self, root_key: &str) -> Result<ClosureCheck, String> {
-        let row = read_root_row(self.conn, root_key, self.owner())?
+        let row = read_root_row_admitted(self.conn, root_key, self.owner(), self.work)?
             .ok_or_else(|| format!("StorageUnavailable：私有根 `{root_key}` 缺失"))?;
         let RootRow {
             node: root,
@@ -1415,9 +1500,10 @@ impl<'a> Reader<'a> {
             content_sha256: hash,
         } = row;
         let owner = self.owner().cloned();
+        let work = self.work;
         // 声明槽未必都被模板引用：只核每个槽叶自身可寻址；实际占用的槽字节在遍历时累计。
         let mut slot_len = new_work(owner.as_ref());
-        work_resize(&mut slot_len, slots.len(), 0u64)?;
+        work_resize_admitted(&mut slot_len, slots.len(), 0u64, work)?;
         for id in &slots {
             let node = self.load_work(id)?;
             if node.kind() != KIND_LEAF {
@@ -1492,9 +1578,11 @@ impl<'a> Reader<'a> {
     /// 后序迭代 + 捕获内 memo；`on_path` 只含当前路径——闭包成环一律拒绝（不得用无限遍历替代判据）。
     fn derived_of(&mut self, root: [u8; 32]) -> Result<ReadDerived, String> {
         let owner = self.owner().cloned();
+        let work = self.work;
+        let admission = NativeAdmission(work);
         if let Some(found) = self.derived_get(&root)? {
             // 本次捕获已按新鲜行结算过该节点：仍要记账（可达集必须覆盖它），但不重复读行。
-            self.mark_touched(root);
+            self.mark_touched(root)?;
             return Ok(found);
         }
         let mut on_path = new_map::<[u8; 32], ()>(owner.as_ref());
@@ -1502,11 +1590,14 @@ impl<'a> Reader<'a> {
         // 绝不把「限额不足」判成 StorageUnavailable。
         let mut local = new_map::<[u8; 32], ReadDerived>(owner.as_ref());
         let mut stack = new_work(owner.as_ref());
+        admission
+            .native_codec_room(&mut stack, 1)
+            .map_err(|e| e.to_string())?;
         stack.try_push((root, false)).map_err(|e| e.to_string())?;
         while let Some((id, closing)) = stack.pop() {
             // 热路径只问存在性（不克隆派生量：`slot_counts` 是 Vec，克隆会为每个节点多一次分配）。
             if local.contains_key(&id) || self.derived_has(&id) {
-                self.mark_touched(id);
+                self.mark_touched(id)?;
                 continue;
             }
             let node = self.load_work(&id)?;
@@ -1516,26 +1607,38 @@ impl<'a> Reader<'a> {
                     slot_counts: new_work(owner.as_ref()),
                     digest: node_subtree_digest(KIND_LEAF, &id, node.length(), &[]),
                 };
+                admission
+                    .native_map_room(&mut local)
+                    .map_err(|e| e.to_string())?;
                 local
-                    .insert(id, derived.try_clone(owner.as_ref())?)
+                    .insert(id, derived.try_clone(owner.as_ref(), work)?)
                     .map_err(|e| e.to_string())?;
                 self.derived_put(id, derived)?;
                 // 叶子没有子依赖：本次逐字节命中即可认证（认证搭在既有后序遍历上，零额外遍历）。
                 if self.owned.is_none() && cache::cert_marked(self.conn_id, id) {
-                    cache::cert_certify(self.conn_id, id);
+                    cache::cert_certify_admitted(self.conn_id, id, self.work)?;
                 }
                 continue;
             }
-            let parts = split_seq_work(node.payload(), owner.as_ref())?;
+            let parts = split_seq_work_admitted(node.payload(), owner.as_ref(), work)?;
             if !closing {
+                admission
+                    .native_map_room(&mut on_path)
+                    .map_err(|e| e.to_string())?;
                 if on_path.insert(id, ()).map_err(|e| e.to_string())?.is_some() {
                     return Err(format!(
                         "StorageUnavailable：私有图闭包出现环（节点 {} 自引用）",
                         hex(&id)
                     ));
                 }
+                admission
+                    .native_codec_room(&mut stack, 1)
+                    .map_err(|e| e.to_string())?;
                 stack.try_push((id, true)).map_err(|e| e.to_string())?;
                 for child in node.children().iter().rev() {
+                    admission
+                        .native_codec_room(&mut stack, 1)
+                        .map_err(|e| e.to_string())?;
                     stack.try_push((*child, false)).map_err(|e| e.to_string())?;
                 }
                 continue;
@@ -1551,7 +1654,13 @@ impl<'a> Reader<'a> {
                 }
             }
             if let Some(child) = missing {
+                admission
+                    .native_codec_room(&mut stack, 1)
+                    .map_err(|e| e.to_string())?;
                 stack.try_push((id, true)).map_err(|e| e.to_string())?;
+                admission
+                    .native_codec_room(&mut stack, 1)
+                    .map_err(|e| e.to_string())?;
                 stack.try_push((child, false)).map_err(|e| e.to_string())?;
                 continue;
             }
@@ -1564,13 +1673,13 @@ impl<'a> Reader<'a> {
                     Part::Slot(index) => {
                         let index = index as usize;
                         if counts.len() <= index {
-                            work_resize(&mut counts, index + 1, 0)?;
+                            work_resize_admitted(&mut counts, index + 1, 0, work)?;
                         }
                         counts[index] = counts[index].saturating_add(1);
                     }
                     Part::Ref(child) => {
                         let entry = match local.get(&child) {
-                            Some(v) => Some(v.try_clone(owner.as_ref())?),
+                            Some(v) => Some(v.try_clone(owner.as_ref(), work)?),
                             None => self.derived_get(&child)?,
                         }
                         .ok_or_else(|| {
@@ -1582,11 +1691,14 @@ impl<'a> Reader<'a> {
                         })?;
                         length = length.saturating_add(entry.length);
                         if counts.len() < entry.slot_counts.len() {
-                            work_resize(&mut counts, entry.slot_counts.len(), 0)?;
+                            work_resize_admitted(&mut counts, entry.slot_counts.len(), 0, work)?;
                         }
                         for (index, count) in entry.slot_counts.iter().enumerate() {
                             counts[index] = counts[index].saturating_add(*count);
                         }
+                        admission
+                            .native_codec_room(&mut children, 1)
+                            .map_err(|e| e.to_string())?;
                         children.try_push(child).map_err(|e| e.to_string())?;
                     }
                 }
@@ -1604,8 +1716,11 @@ impl<'a> Reader<'a> {
                 slot_counts: counts,
                 digest: node_subtree_digest(KIND_SEQ, &id, length, &children),
             };
+            admission
+                .native_map_room(&mut local)
+                .map_err(|e| e.to_string())?;
             local
-                .insert(id, derived.try_clone(owner.as_ref())?)
+                .insert(id, derived.try_clone(owner.as_ref(), work)?)
                 .map_err(|e| e.to_string())?;
             self.derived_put(id, derived)?;
             // 子节点（本帧的后序先决条件）已全部结算：只要每个直接子节点都已认证，本节点也认证。
@@ -1615,11 +1730,11 @@ impl<'a> Reader<'a> {
                     .iter()
                     .all(|child| cache::cert_is_certified(self.conn_id, *child))
             {
-                cache::cert_certify(self.conn_id, id);
+                cache::cert_certify_admitted(self.conn_id, id, self.work)?;
             }
         }
         match local.get(&root) {
-            Some(v) => Some(v.try_clone(owner.as_ref())?),
+            Some(v) => Some(v.try_clone(owner.as_ref(), work)?),
             None => self.derived_get(&root)?,
         }
         .ok_or_else(|| "StorageUnavailable：私有节点派生量缺失（实现缺陷）".to_string())
@@ -1652,7 +1767,9 @@ impl<'a> Reader<'a> {
         cache::counter(|c| c.root_proof_hits += 1);
         Ok(Some(VerifiedRootProof {
             declared_length: check.row.expanded_length,
-            content_sha256: check.row.content_sha256.as_str().to_owned(),
+            content_sha256: NativeAdmission(self.work)
+                .native_string(check.row.content_sha256.as_str())
+                .map_err(|e| e.to_string())?,
             closure: check.digest,
             root_cert,
         }))
@@ -1665,6 +1782,7 @@ impl<'a> Reader<'a> {
         root_key: &str,
         with_value: bool,
     ) -> Result<VerifiedRoot, String> {
+        let admission = NativeAdmission(self.work);
         let check = self.closure(root_key).map_err(|error| {
             #[cfg(test)]
             cache::counter(|c| c.reuse_gate_not_reached += 1);
@@ -1709,36 +1827,67 @@ impl<'a> Reader<'a> {
             Some((bytes, value)) => (bytes, value),
             None => {
                 let expanded = self.expand(root_key, &check.row)?;
+                admit_byte_arc(expanded.len(), self.work)?;
                 let bytes: std::sync::Arc<[u8]> = std::sync::Arc::from(expanded.as_slice());
                 if cache::retention_enabled() {
                     // 已核闭包：把本次读到的**原件证书**保留下来（共享同一份原节点，按唯一保留量
                     // 记账），供后续捕获逐字节比较。只在成功核过长度/摘要之后才保留。
                     let mut ids: std::collections::BTreeSet<[u8; 32]> =
                         std::collections::BTreeSet::new();
-                    let mut frontier: Vec<[u8; 32]> = check.row.slots.to_vec();
+                    let mut frontier = Vec::new();
+                    admission
+                        .native_vec_room(&mut frontier, check.row.slots.len() + 1)
+                        .map_err(|e| e.to_string())?;
+                    frontier.extend_from_slice(&check.row.slots);
                     frontier.push(check.row.node);
                     while let Some(id) = frontier.pop() {
+                        if !ids.contains(&id) {
+                            admission
+                                .native_tree_room::<[u8; 32], ()>(ids.len())
+                                .map_err(|e| e.to_string())?;
+                        }
                         if !ids.insert(id) {
                             continue;
                         }
                         // 命中本捕获读集时不再读 SQLite；读集被逐出时按新鲜行重读。
-                        frontier.extend(self.load(&id)?.children.iter().copied());
+                        let node = self.load(&id)?;
+                        admission
+                            .native_vec_room(&mut frontier, node.children.len())
+                            .map_err(|e| e.to_string())?;
+                        frontier.extend(node.children.iter().copied());
                     }
-                    cache::cert_commit(self.conn_id, &ids);
+                    cache::cert_commit_admitted(self.conn_id, &ids, self.work)?;
+                    admission
+                        .native_admit(
+                            check
+                                .row
+                                .slots
+                                .len()
+                                .checked_mul(32)
+                                .ok_or_else(|| admission.native_overflow().to_string())?,
+                        )
+                        .map_err(|e| e.to_string())?;
                     let cert = cache::RootCert::new(
                         check.row.node,
                         check.row.slots.to_vec(),
                         check.row.expanded_length,
-                        check.row.content_sha256.as_str().to_owned(),
+                        admission
+                            .native_string(check.row.content_sha256.as_str())
+                            .map_err(|e| e.to_string())?,
                     );
-                    retained = if cache::certify_retained_originals(self.conn_id, &ids) {
-                        cache::handle_put_certified(
+                    retained = if cache::certify_retained_originals_admitted(
+                        self.conn_id,
+                        &ids,
+                        self.work,
+                    )? {
+                        cache::handle_put_certified_admitted(
                             root_key,
                             &cert,
                             check.digest,
                             bytes.clone(),
                             None,
-                        )
+                            self.work,
+                        )?
                     } else {
                         #[cfg(test)]
                         cache::counter(|c| c.root_proof_rebuild_incomplete += 1);
@@ -1749,22 +1898,45 @@ impl<'a> Reader<'a> {
             }
         };
         if with_value && value.is_none() {
-            let parsed = v2::strict_json(&bytes)
-                .map_err(|e| format!("StorageUnavailable：私有根 `{root_key}` 非严格 JSON：{e}"))?;
+            let parsed =
+                crate::v3::business_json::strict_json_owner_admitted(&bytes, None, self.work)
+                    .map(|parsed| match parsed {
+                        crate::v3::business_json::JsonOwner::Plain(value) => value,
+                        #[cfg(feature = "s_allocation_json_testonly")]
+                        crate::v3::business_json::JsonOwner::Owned(_) => {
+                            unreachable!("Native Reader uses plain JSON")
+                        }
+                    })
+                    .map_err(|e| match e {
+                        crate::v3::business_json::StrictOwnerError::Syntax(cause) => {
+                            format!("StorageUnavailable：私有根 `{root_key}` 非严格 JSON：{cause}")
+                        }
+                        #[cfg(feature = "s_allocation_json_testonly")]
+                        crate::v3::business_json::StrictOwnerError::OwnedSyntax(cause) => {
+                            format!("StorageUnavailable：私有根 `{root_key}` 非严格 JSON：{cause}")
+                        }
+                        crate::v3::business_json::StrictOwnerError::Allocation(cause) => {
+                            cause.to_string()
+                        }
+                    })?;
             if !parsed.is_object() {
                 return Err(format!(
                     "StorageUnavailable：私有根 `{root_key}` 非 JSON 对象"
                 ));
             }
+            admission
+                .native_admit(std::mem::size_of::<Value>() + 2 * std::mem::size_of::<usize>())
+                .map_err(|e| e.to_string())?;
             let parsed = std::sync::Arc::new(parsed);
             if let Some(cert) = retained.clone() {
-                retained = cache::handle_put_certified(
+                retained = cache::handle_put_certified_admitted(
                     root_key,
                     &cert,
                     check.digest,
                     bytes.clone(),
                     Some(parsed.clone()),
-                );
+                    self.work,
+                )?;
             }
             value = Some(parsed);
             #[cfg(test)]
@@ -1773,7 +1945,9 @@ impl<'a> Reader<'a> {
         Ok(VerifiedRoot {
             bytes,
             declared_length: check.row.expanded_length,
-            content_sha256: check.row.content_sha256.as_str().to_owned(),
+            content_sha256: NativeAdmission(self.work)
+                .native_string(check.row.content_sha256.as_str())
+                .map_err(|e| e.to_string())?,
             value,
             closure: check.digest,
             reused,
@@ -1810,10 +1984,15 @@ impl<'a> Reader<'a> {
     }
     fn expand_work(&mut self, root_key: &str, row: &RootRow) -> Result<CodecVec<u8>, String> {
         let owner = self.owner().cloned();
+        let work = self.work;
+        let admission = NativeAdmission(work);
         let expanded_len = row.expanded_length;
         let hash = row.content_sha256.as_str();
         let root = row.node;
         let mut param_bytes = new_work(owner.as_ref());
+        admission
+            .native_codec_room(&mut param_bytes, row.slots.len())
+            .map_err(|e| e.to_string())?;
         param_bytes
             .try_reserve_exact(row.slots.len())
             .map_err(|e| e.to_string())?;
@@ -1825,12 +2004,15 @@ impl<'a> Reader<'a> {
                 ));
             }
             param_bytes
-                .try_push(work_copy(node.payload(), owner.as_ref())?)
+                .try_push(work_copy_admitted(node.payload(), owner.as_ref(), work)?)
                 .map_err(|e| e.to_string())?;
         }
         // 声明长度来自数据库，不能用它直接请求任意大的分配；实际输出逐段增长。
         let mut out = new_work(owner.as_ref());
         let mut stack = new_work(owner.as_ref());
+        admission
+            .native_codec_room(&mut stack, 1)
+            .map_err(|e| e.to_string())?;
         stack
             .try_push(Frame::Open(root))
             .map_err(|e| e.to_string())?;
@@ -1841,12 +2023,12 @@ impl<'a> Reader<'a> {
             .then(|| new_map::<[u8; 32], (usize, usize, u64)>(owner.as_ref()));
         while let Some(item) = stack.pop() {
             match item {
-                Frame::Lit(bytes) => append_checked(&mut out, &bytes, expanded_len)?,
+                Frame::Lit(bytes) => append_checked_admitted(&mut out, &bytes, expanded_len, work)?,
                 Frame::Slot(i) => {
                     let bytes = param_bytes.get(i as usize).ok_or_else(|| {
                         format!("StorageUnavailable：私有根 `{root_key}` 参数槽 {i} 越界")
                     })?;
-                    append_checked(&mut out, bytes, expanded_len)?;
+                    append_checked_admitted(&mut out, bytes, expanded_len, work)?;
                     slot_bytes += bytes.len() as u64;
                 }
                 Frame::Open(id) => {
@@ -1861,6 +2043,9 @@ impl<'a> Reader<'a> {
                         if next as u64 > expanded_len {
                             return Err("StorageUnavailable：证据图实际展开超过根声明长度".into());
                         }
+                        admission
+                            .native_codec_room(&mut out, len)
+                            .map_err(|e| e.to_string())?;
                         out.try_reserve_exact(len).map_err(|e| e.to_string())?;
                         for offset in start..end {
                             let byte = out[offset];
@@ -1870,6 +2055,9 @@ impl<'a> Reader<'a> {
                         continue;
                     }
                     let node = self.load_work(&id)?;
+                    admission
+                        .native_codec_room(&mut stack, 1)
+                        .map_err(|e| e.to_string())?;
                     stack
                         .try_push(Frame::Close {
                             id,
@@ -1878,7 +2066,7 @@ impl<'a> Reader<'a> {
                             slot_bytes_at_open: slot_bytes,
                         })
                         .map_err(|e| e.to_string())?;
-                    decode_into(node.kind(), node.payload(), &mut stack)?;
+                    decode_into_admitted(node.kind(), node.payload(), &mut stack, work)?;
                 }
                 Frame::Close {
                     id,
@@ -1897,6 +2085,11 @@ impl<'a> Reader<'a> {
                         ));
                     }
                     if let Some(spans) = completed.as_mut() {
+                        if !spans.contains_key(&id) {
+                            admission
+                                .native_map_room(spans)
+                                .map_err(|e| e.to_string())?;
+                        }
                         spans
                             .insert(id, (start, out.len(), slots))
                             .map_err(|e| e.to_string())?;
@@ -1922,29 +2115,35 @@ impl<'a> Reader<'a> {
     /// 长度自洽，再与保留证书**逐字节**比较（命中才打上原件门标记），最后记入本次捕获的临时读集
     /// （超预算只失去复用，当次读照常返回）。
     fn load(&mut self, id: &[u8; 32]) -> Result<std::sync::Arc<cache::Cert>, String> {
-        self.touched.insert(*id);
-        cache::mark_reachable(self.conn_id, *id);
+        let admission = NativeAdmission(self.work);
+        self.mark_touched(*id)?;
+        cache::mark_reachable_admitted(self.conn_id, *id, self.work)?;
         if let Some(node) = cache::node_get(self.conn_id, id) {
             #[cfg(test)]
             cache::counter(|c| c.node_reused_in_capture += 1);
             return Ok(node);
         }
-        // #1394：只复用固定 SQL 的执行计划；每次仍重新绑定 id、执行查询并核当前原行。
-        // 不保存查询结果或原件，不改变零预算下的原件禁留与新鲜读集判据。
-        let mut statement = self
-            .conn
-            .prepare_cached(
-                "SELECT node_kind,payload,expanded_length FROM s_evidence_nodes WHERE node_id=?1",
+        let (kind, payload, declared) = if self.work.is_some() {
+            let (kind, payload, declared) = read_node_row_admitted(self.conn, id, None, self.work)?;
+            (
+                kind,
+                payload.try_into_plain().map_err(|e| e.to_string())?,
+                declared,
             )
-            .map_err(|e| format!("StorageUnavailable：读私有节点失败：{e}"))?;
-        let (kind, payload, len): (i64, Vec<u8>, i64) = statement
-            .query_row(params![&id[..]], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
-            .optional()
-            .map_err(|e| format!("StorageUnavailable：读私有节点失败：{e}"))?
-            .ok_or_else(|| format!("StorageUnavailable：私有节点 {} 缺失", hex(id)))?;
-        drop(statement);
-        let declared = verify_node_row(id, kind, &payload, len)?;
-        let children = node_children(kind, &payload, None)?
+        } else {
+            // None 保留普通读取适配器作为独立对照；Native 借 SQL 原件后才许可复制。
+            let mut statement = self.conn.prepare_cached("SELECT node_kind,payload,expanded_length FROM s_evidence_nodes WHERE node_id=?1")
+                .map_err(|e| format!("StorageUnavailable：读私有节点失败：{e}"))?;
+            let (kind, payload, len): (i64, Vec<u8>, i64) = statement
+                .query_row(params![&id[..]], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+                .optional()
+                .map_err(|e| format!("StorageUnavailable：读私有节点失败：{e}"))?
+                .ok_or_else(|| format!("StorageUnavailable：私有节点 {} 缺失", hex(id)))?;
+            drop(statement);
+            let declared = verify_node_row(id, kind, &payload, len)?;
+            (kind, payload, declared)
+        };
+        let children = node_children_admitted(kind, &payload, None, self.work)?
             .try_into_plain()
             .map_err(|e| e.to_string())?;
         #[cfg(test)]
@@ -1958,7 +2157,7 @@ impl<'a> Reader<'a> {
             Some(retained) if retained.same_originals(kind, &payload, declared) => {
                 #[cfg(test)]
                 cache::counter(|c| c.cert_compared += 1);
-                cache::cert_matched_mark(self.conn_id, *id);
+                cache::cert_matched_mark_admitted(self.conn_id, *id, self.work)?;
                 (retained, false)
             }
             candidate => {
@@ -1970,6 +2169,12 @@ impl<'a> Reader<'a> {
                         c.cert_mismatched += 1;
                     }
                 });
+                admit_byte_arc(payload.len(), self.work)?;
+                admission
+                    .native_admit(
+                        std::mem::size_of::<cache::Cert>() + 2 * std::mem::size_of::<usize>(),
+                    )
+                    .map_err(|e| e.to_string())?;
                 (
                     std::sync::Arc::new(cache::Cert {
                         id: *id,
@@ -1982,9 +2187,40 @@ impl<'a> Reader<'a> {
                 )
             }
         };
-        cache::node_put(self.conn_id, cert.clone(), owned);
+        cache::node_put_admitted(self.conn_id, cert.clone(), owned, self.work)?;
         Ok(cert)
     }
+}
+
+fn read_node_row_admitted(
+    conn: &Connection,
+    id: &[u8; 32],
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<(i64, CodecVec<u8>, u64), String> {
+    let err = |e| {
+        format!(
+            "StorageUnavailable：读私有节点失败：{}",
+            sql_columns(e, &["node_kind", "payload", "expanded_length"])
+        )
+    };
+    let mut stmt = CheckedStatement::prepare(
+        conn,
+        c"SELECT node_kind,payload,expanded_length FROM s_evidence_nodes WHERE node_id=?1",
+    )
+    .map_err(err)?;
+    stmt.bind_blob(1, id).map_err(err)?;
+    let mut row = stmt
+        .next()
+        .map_err(err)?
+        .ok_or_else(|| format!("StorageUnavailable：私有节点 {} 缺失", hex(id)))?;
+    let kind = row.integer(0).map_err(err)?;
+    let payload = work_copy_admitted(row.blob(1).map_err(err)?, owner, work)?;
+    let len = row.integer(2).map_err(err)?;
+    drop(row);
+    stmt.finalize().map_err(err)?;
+    let declared = verify_node_row(id, kind, &payload, len)?;
+    Ok((kind, payload, declared))
 }
 
 fn verify_node_row(id: &[u8; 32], kind: i64, payload: &[u8], len: i64) -> Result<u64, String> {
@@ -2017,10 +2253,22 @@ fn node_children(
     payload: &[u8],
     owner: Option<&OwnedBudget>,
 ) -> Result<CodecVec<[u8; 32]>, String> {
+    node_children_admitted(kind, payload, owner, None)
+}
+fn node_children_admitted(
+    kind: i64,
+    payload: &[u8],
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<CodecVec<[u8; 32]>, String> {
+    let admission = NativeAdmission(work);
     let mut children = new_work(owner);
     if kind != KIND_LEAF {
-        for part in split_seq_work(payload, owner)? {
+        for part in split_seq_work_admitted(payload, owner, work)? {
             if let Part::Ref(child) = part {
+                admission
+                    .native_codec_room(&mut children, 1)
+                    .map_err(|e| e.to_string())?;
                 children.try_push(child).map_err(|e| e.to_string())?;
             }
         }
@@ -2032,6 +2280,15 @@ fn read_root_row(
     root_key: &str,
     owner: Option<&OwnedBudget>,
 ) -> Result<Option<RootRow>, String> {
+    read_root_row_admitted(conn, root_key, owner, None)
+}
+fn read_root_row_admitted(
+    conn: &Connection,
+    root_key: &str,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<Option<RootRow>, String> {
+    let admission = NativeAdmission(work);
     let err = |e| {
         format!(
             "StorageUnavailable：读私有根失败：{}",
@@ -2047,10 +2304,10 @@ fn read_root_row(
         stmt.finalize().map_err(err)?;
         return Ok(None);
     };
-    let node = work_copy(row.blob(0).map_err(err)?, owner)?;
-    let slots = work_copy(row.blob(1).map_err(err)?, owner)?;
+    let node = work_copy_admitted(row.blob(0).map_err(err)?, owner, work)?;
+    let slots = work_copy_admitted(row.blob(1).map_err(err)?, owner, work)?;
     let len = row.integer(2).map_err(err)?;
-    let hash = TextValue::from_str(row.text(3).map_err(err)?, owner)?;
+    let hash = TextValue::from_str_admitted(row.text(3).map_err(err)?, owner, work)?;
     drop(row);
     stmt.finalize().map_err(err)?;
     let root = decode_id(&node)
@@ -2061,6 +2318,9 @@ fn read_root_row(
         ));
     }
     let mut params = new_work(owner);
+    admission
+        .native_codec_room(&mut params, slots.len() / 32)
+        .map_err(|e| e.to_string())?;
     params
         .try_reserve_exact(slots.len() / 32)
         .map_err(|e| e.to_string())?;
@@ -2085,6 +2345,15 @@ fn read_root_row(
 }
 
 fn append_checked(out: &mut CodecVec<u8>, bytes: &[u8], declared: u64) -> Result<(), String> {
+    append_checked_admitted(out, bytes, declared, None)
+}
+fn append_checked_admitted(
+    out: &mut CodecVec<u8>,
+    bytes: &[u8],
+    declared: u64,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    let admission = NativeAdmission(work);
     let next = out
         .len()
         .checked_add(bytes.len())
@@ -2092,6 +2361,9 @@ fn append_checked(out: &mut CodecVec<u8>, bytes: &[u8], declared: u64) -> Result
     if next as u64 > declared {
         return Err("StorageUnavailable：证据图实际展开超过根声明长度".into());
     }
+    admission
+        .native_codec_room(out, bytes.len())
+        .map_err(|e| e.to_string())?;
     out.try_reserve_exact(bytes.len())
         .map_err(|e| e.to_string())?;
     out.try_extend_bytes(bytes).map_err(|e| e.to_string())?;
