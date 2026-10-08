@@ -163,7 +163,28 @@ impl RequestAuditContext {
             drop(slot.result);
             drop(slot.binding);
             if let Some(pending) = slot.source_pending {
-                keeper.retain_completed(slot.capture, slot.node_count, pending);
+                if let Some(parent) = self.cold_parent_budget() {
+                    // 可选封存使用同一父账的独立工作域；只在域结束后处理拒绝。
+                    // 强制cold已完成，不能将这里的失败重判为cold成功或重跑None。
+                    let retained = match parent.codec_work() {
+                        Ok(work) => work
+                            .run(|scope| {
+                                keeper.retain_completed_admitted(
+                                    slot.capture,
+                                    slot.node_count,
+                                    pending,
+                                    Some(scope),
+                                )
+                            })
+                            .is_ok(),
+                        Err(_) => false,
+                    };
+                    if !retained {
+                        keeper.reject_completed();
+                    }
+                } else {
+                    keeper.retain_completed(slot.capture, slot.node_count, pending);
+                }
             }
         }
         Some(keeper)

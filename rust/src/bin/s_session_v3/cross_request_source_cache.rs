@@ -235,22 +235,58 @@ impl Pool {
     fn build_bounded_counts(
         originals: sc::AuditCapture,
         binding: Binding,
-        mut proofs: Vec<Proof>,
+        proofs: Vec<Proof>,
         cap: usize,
     ) -> Result<Self, String> {
-        proofs.sort_by_key(|proof| proof.key.generation);
+        Self::build_bounded_counts_admitted(originals, binding, proofs, cap, None)
+    }
+    fn build_bounded_counts_admitted(
+        originals: sc::AuditCapture,
+        binding: Binding,
+        mut proofs: Vec<Proof>,
+        cap: usize,
+        work: Option<&WorkScope>,
+    ) -> Result<Self, String> {
+        if !proofs.is_sorted_by_key(|proof| proof.key.generation) {
+            // 保留原stable sort及同代顺序。Rust 1.98.0 stable/mod.rs:113-116的
+            // alloc_len=max(max(n-n/2,min(n,8MB/size)),48)，故max(n,48)是元素上界；
+            // 仅真需排序时许可临时完整块，sort返回后释放，不用平方级替代算法。
+            let sort_permit = work
+                .map(|work| {
+                    let bytes = proofs
+                        .len()
+                        .max(48)
+                        .checked_mul(std::mem::size_of::<Proof>())
+                        .ok_or_else(|| {
+                            work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget)
+                        })?;
+                    work.reserve_native(bytes)
+                })
+                .transpose()
+                .map_err(|e| e.to_string())?;
+            proofs.sort_by_key(|proof| proof.key.generation);
+            drop(sort_permit);
+        }
+        let admission = NativeAdmission(work);
         let fixed = add(
             add(8, binding_source_bytes(&binding)?)?,
             codec_root_source_bytes(0)?,
         )?;
         // history原严格升序；只反向尝试一次，接纳后仍恢复原binary_search代序。
-        let groups = proofs
-            .iter()
-            .rev()
-            .map(|proof| Ok((proof.key.state.clone(), proof_source_bytes(proof)?)))
-            .collect::<Result<Vec<_>, String>>()?;
+        let mut groups = Vec::new();
+        admission
+            .native_vec_room(&mut groups, proofs.len())
+            .map_err(|e| e.to_string())?;
+        for proof in proofs.iter().rev() {
+            groups.push((
+                admission
+                    .native_plain_ref((&proof.key.state).into())
+                    .map_err(|e| e.to_string())?,
+                proof_source_bytes(proof)?,
+            ));
+        }
         let (originals, certificates, selection) = originals
-            .into_counts_original_subset_for_testonly(groups, fixed, cap)
+            .into_counts_original_subset_admitted_for_testonly(groups, fixed, cap, work)
             .map_err(|e| e.to_string())?;
         let remove = proofs
             .len()
@@ -263,13 +299,33 @@ impl Pool {
             }
             proof.dependency = Some(certificate);
         }
-        proofs.shrink_to_fit();
-        let nodes = usize::try_from(
-            originals.retention()["captured_nodes"]
-                .as_u64()
-                .ok_or("CountsSubsetNodeCountInvalid")?,
-        )
-        .map_err(|e| e.to_string())?;
+        if let Some(work) = work {
+            if proofs.len() < proofs.capacity() {
+                // 缩容也可能分配：旧块仍在时先许可完整新块，再只移动Proof。
+                let bytes = proofs
+                    .len()
+                    .checked_mul(std::mem::size_of::<Proof>())
+                    .ok_or_else(|| {
+                        work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget)
+                            .to_string()
+                    })?;
+                let permit = work.reserve_native(bytes).map_err(|e| e.to_string())?;
+                let mut compact = Vec::new();
+                compact.try_reserve_exact(proofs.len()).map_err(|_| {
+                    work.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
+                        .to_string()
+                })?;
+                compact.append(&mut proofs);
+                proofs = compact;
+                permit.retain();
+            }
+        } else {
+            proofs.shrink_to_fit();
+        }
+        let nodes = originals
+            .native_retention_numbers_for_testonly()
+            .ok_or("CountsSubsetNodeCountInvalid")?
+            .nodes;
         let mut pool = Self::build(originals, nodes, binding, proofs)?;
         if !pool.proofs.is_empty()
             && (pool.source_cost.total != selection.retained_source_bytes
@@ -290,23 +346,19 @@ impl Pool {
         let originals = originals
             .into_originals_and_codec_roots_for_testonly()
             .map_err(|e| e.to_string())?;
-        let retained = originals.retention();
-        let number = |v: &serde_json::Value| -> Result<usize, String> {
-            usize::try_from(v.as_u64().ok_or("SourceCachePrototypeRetentionInvalid")?)
-                .map_err(|e| e.to_string())
-        };
+        let retained = originals
+            .native_retention_numbers_for_testonly()
+            .ok_or("SourceCachePrototypeRetentionInvalid")?;
         let mut source_cost = SourceCost {
-            node_body_bytes: number(&retained["body_len_bytes"])?,
+            node_body_bytes: retained.body_len,
             // 原tuple digest/tag和唯一原件证书；无独立children/slots，不虚加收费。
             node_digest_tag_certificate_bytes: mul(nodes, 32 + 1 + 64)?,
             ..Default::default()
         };
         let mut capacity = RetainedCapacity {
             capture_owner_bytes: std::mem::size_of::<sc::AuditCapture>(),
-            node_body_vec_capacity_bytes: number(&retained["body_vec_capacity_bytes"])?,
-            native_index_capacity_payload_bytes: number(
-                &retained["native_frame_reuse"]["source_index_capacity_payload_bytes"],
-            )?,
+            node_body_vec_capacity_bytes: retained.body_capacity,
+            native_index_capacity_payload_bytes: retained.index_payload,
             exact_rows_capacity_payload_bytes: mul(
                 binding.rows.capacity(),
                 std::mem::size_of::<ExactRows>(),
@@ -314,19 +366,12 @@ impl Pool {
             proof_vec_capacity_payload_bytes: mul(proofs.capacity(), std::mem::size_of::<Proof>())?,
             ..Default::default()
         };
-        let roots = &retained["native_codec_root_certificates"];
-        let root_count = add(
-            number(&roots["public_roots"])?,
-            number(&roots["template_roots"])?,
-        )?;
+        let root_count = add(retained.public_roots, retained.template_roots)?;
         // #1394本原型新增源成本配方，非SPEC原有配方：format长度前缀+字节，
         // 判据版本u32；两个集合各含Mode/Flavor字节和u64长度前缀；每个根32字节。
         source_cost.codec_root_certificate_bytes = codec_root_source_bytes(root_count)?;
         capacity.codec_root_set_capacity_payload_bytes = mul(
-            add(
-                number(&roots["public_capacity"])?,
-                number(&roots["template_capacity"])?,
-            )?,
+            add(retained.public_capacity, retained.template_capacity)?,
             std::mem::size_of::<sc::NodeDigest>(),
         )?;
         for row in &binding.rows {
@@ -516,20 +561,36 @@ impl Keeper {
         nodes: usize,
         pending: PendingPool,
     ) {
+        if self
+            .retain_completed_admitted(capture, nodes, pending, None)
+            .is_err()
+        {
+            self.reject_completed();
+        }
+    }
+    /// 与调用方独立CodecWork共核；内层错误必须离开run后才能按可选缓存失败处理。
+    pub(super) fn retain_completed_admitted(
+        &mut self,
+        capture: sc::AuditCapture,
+        nodes: usize,
+        pending: PendingPool,
+        work: Option<&WorkScope>,
+    ) -> Result<(), String> {
         self.clear();
         // slot.node_count仍为全capture数；稀疏池nodes由裁剪后的owner单独计数。
         let _ = nodes;
-        match Pool::build_bounded_counts(capture, pending.binding, pending.proofs, self.cap) {
-            Ok(next) => {
-                if self.finish(None, next, pending.hits, pending.cold).is_err() {
-                    self.clear();
-                    self.rejected = self.rejected.saturating_add(1);
-                }
-            }
-            Err(_) => {
-                self.rejected = self.rejected.saturating_add(1);
-            }
-        }
+        let next = Pool::build_bounded_counts_admitted(
+            capture,
+            pending.binding,
+            pending.proofs,
+            self.cap,
+            work,
+        )?;
+        self.finish(None, next, pending.hits, pending.cold)
+    }
+    pub(super) fn reject_completed(&mut self) {
+        self.clear();
+        self.rejected = self.rejected.saturating_add(1);
     }
     pub(super) fn report(&self) -> serde_json::Value {
         serde_json::json!({"cap":self.cap,"hits":self.hits,"cold":self.cold,"rejected":self.rejected,"last_required":self.last_required,
@@ -638,9 +699,26 @@ impl<'a> Trial<'a> {
         frontier: i64,
         cap: usize,
     ) -> Result<(Pool, usize, usize), String> {
+        self.complete_admitted(tx, capture, nodes, frontier, cap, None)
+    }
+    pub(super) fn complete_admitted(
+        self,
+        tx: &Transaction<'_>,
+        capture: sc::AuditCapture,
+        nodes: usize,
+        frontier: i64,
+        cap: usize,
+        work: Option<&WorkScope>,
+    ) -> Result<(Pool, usize, usize), String> {
         let _ = nodes; // 全capture计数不得变成稀疏原件计数。
         Ok((
-            Pool::build_bounded_counts(capture, Binding::read(tx, frontier)?, self.proofs, cap)?,
+            Pool::build_bounded_counts_admitted(
+                capture,
+                Binding::read_admitted(tx, frontier, work)?,
+                self.proofs,
+                cap,
+                work,
+            )?,
             self.hits,
             self.cold,
         ))
@@ -746,6 +824,172 @@ mod tests {
                 "new_and_seal_same_scope":true,"binding_equal":true,"whole_heap_qualified":false
             })
         );
+    }
+
+    #[test]
+    fn r14_source_pool_normal_growth_and_sparse_cap_match_none() {
+        use super::super::audit_owner::native::Budget;
+        use super::super::request_audit::RequestAuditContext;
+        let mut fixture = Fixture::new();
+        // 原Fixture仅定义四个clock事件；沿driver正常with_clock夹具的初始化方式，
+        // 在任何输入之前为六组历史建立新库，不修改已建域的clock绑定。
+        let mut clock = super::super::v2::stored_clock(&fixture.conn).unwrap().value;
+        for n in 5..=6 {
+            clock["events"][format!("input-{n}")] = serde_json::json!({
+                "accept_ns":(n*10).to_string(),
+                "attempts":[{"begin_ns":(n*10+1).to_string(),"commit_ns":(n*10+2).to_string()}]
+            });
+        }
+        let clock_path = fixture.db_path().with_file_name("clock-six.json");
+        std::fs::write(&clock_path, crate::canonical_json(&clock)).unwrap();
+        let db = fixture.db_path().with_file_name("source-pool-six.sqlite");
+        let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("s_session");
+        super::super::init_v3(
+            &db,
+            "s-session-testonly-001",
+            &base.join("catalog/signed-catalog.json"),
+            &base.join("profiles/ohlc_integer_tb02a_v1.json"),
+            "1",
+            &clock_path,
+            6,
+        )
+        .unwrap();
+        fixture.conn = crate::open_db(&db).unwrap();
+        for (index, identity) in ["a", "b", "c", "d", "e", "f"].into_iter().enumerate() {
+            let n = index as i64 + 1;
+            publish(
+                &mut fixture,
+                n,
+                (identity, (n - 1) * 10, 6 + n, 12 + n, 3 + n, 7 + n),
+                1,
+            );
+        }
+        let tx = fixture.conn.transaction().unwrap();
+        let mut whole_keeper = Keeper::new(usize::MAX);
+        let baseline =
+            state::audit_native_with_source_keeper_for_testonly(&tx, &mut whole_keeper).unwrap();
+        let whole = whole_keeper.pool.as_ref().unwrap();
+        assert_eq!(whole.proofs.len(), 6);
+        let first_group_cap = whole
+            .subset_selection
+            .as_ref()
+            .unwrap()
+            .first_admitted_source_bytes;
+        for cap in [usize::MAX, first_group_cap] {
+            let prepare = || {
+                let mut context = RequestAuditContext::with_source_keeper(Keeper::new(usize::MAX));
+                let audited = state::audit_native_in_request(&tx, &mut context).unwrap();
+                assert_eq!(complete(&audited), complete(&baseline));
+                context.take().unwrap()
+            };
+            let oracle = prepare();
+            let pending = oracle.source_pending.unwrap();
+            let oracle =
+                Pool::build_bounded_counts(oracle.capture, pending.binding, pending.proofs, cap)
+                    .unwrap();
+            let actual = prepare();
+            let pending = actual.source_pending.unwrap();
+            let pointers = pending
+                .proofs
+                .iter()
+                .map(|proof| {
+                    let digest = proof.key.state.digest().unwrap();
+                    (
+                        digest,
+                        actual.capture.original(&digest).unwrap().1.as_ptr() as usize,
+                    )
+                })
+                .collect::<Vec<_>>();
+            let budget = Budget::new(32 * 1024 * 1024, 0).unwrap();
+            let before = budget.live();
+            let mut layout_peak = 0;
+            let actual = budget
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let pool = Pool::build_bounded_counts_admitted(
+                        actual.capture,
+                        pending.binding,
+                        pending.proofs,
+                        cap,
+                        Some(work),
+                    )?;
+                    let snapshot = work.snapshot();
+                    layout_peak = snapshot.peak;
+                    assert!(
+                        snapshot.attempts > 0 && snapshot.peak > 0,
+                        "导航与完整三闭包须使用同scope真实Layout"
+                    );
+                    assert_eq!(snapshot.live, 0, "封存后不带走codec临时工作集");
+                    assert!(budget.live() > before, "封存Plain容器许可须进入同父账");
+                    Ok::<_, String>(pool)
+                })
+                .unwrap();
+            assert_eq!(actual.binding, oracle.binding);
+            assert_eq!(actual.nodes, oracle.nodes);
+            assert!(actual
+                .originals
+                .exact_original_tuples_equal(&oracle.originals)
+                .unwrap());
+            assert_eq!(
+                serde_json::to_value(&actual.source_cost).unwrap(),
+                serde_json::to_value(&oracle.source_cost).unwrap()
+            );
+            assert_eq!(
+                serde_json::to_value(&actual.subset_selection).unwrap(),
+                serde_json::to_value(&oracle.subset_selection).unwrap()
+            );
+            assert_eq!(actual.proofs.len(), oracle.proofs.len());
+            assert_eq!(actual.proofs.len(), if cap == usize::MAX { 6 } else { 1 });
+            for (actual, expected) in actual.proofs.iter().zip(&oracle.proofs) {
+                assert_eq!(actual.key, expected.key);
+                assert_eq!(actual.counts, expected.counts);
+                let cert = actual.dependency.as_ref().unwrap();
+                assert!(cert.matches_state(&actual.key.state));
+                assert_eq!(
+                    cert.source_bytes().unwrap(),
+                    expected
+                        .dependency
+                        .as_ref()
+                        .unwrap()
+                        .source_bytes()
+                        .unwrap()
+                );
+            }
+            for (digest, pointer) in pointers {
+                if let Some((_, body)) = actual.originals.original(&digest) {
+                    assert_eq!(body.as_ptr() as usize, pointer, "稀疏owner只移动原件正文");
+                }
+            }
+            let actual_retention = actual
+                .originals
+                .native_retention_numbers_for_testonly()
+                .unwrap();
+            let expected_retention = oracle
+                .originals
+                .native_retention_numbers_for_testonly()
+                .unwrap();
+            assert_eq!(
+                actual_retention.public_roots,
+                expected_retention.public_roots
+            );
+            assert_eq!(actual_retention.template_roots, 0);
+            assert_eq!(budget.scratch_observation().0, 0);
+            assert_eq!(budget.scratch_observation().2, 0);
+            assert!(budget.peak() > before && budget.peak() <= 32 * 1024 * 1024);
+            println!(
+                "R14_SOURCE_POOL {}",
+                serde_json::json!({
+                    "groups":actual.proofs.len(),"limit_bytes":32*1024*1024,
+                    "parent_peak_bytes":budget.peak(),"codec_layout_peak_bytes":layout_peak,
+                    "source_cap":cap,"source_bytes":actual.source_cost.total,
+                    "all_original_tuples_binding_key_counts_equal":true,"whole_heap_qualified":false
+                })
+            );
+        }
     }
 
     #[test]

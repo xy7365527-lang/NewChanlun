@@ -2145,3 +2145,99 @@ fn r13_optional_sql_rows_share_parent_without_changing_cells() {
     drop(actual);
     assert_eq!(parent.live(), retained);
 }
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[test]
+fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
+    fn complete(a: &state::AuditedState) -> Value {
+        let cuts = a
+            .cuts
+            .iter()
+            .map(|cut| {
+                format!(
+                    "{:?}|{:?}|{:?}|{:?}|{:?}",
+                    cut.metadata, cut.roots, cut.batch_id, cut.snapshot, cut.delta
+                )
+            })
+            .collect::<Vec<_>>();
+        json!({"raw":a.raw,"cuts":cuts,"objects":format!("{:?}",a.objects),"auxiliary":format!("{:?}",a.auxiliary)})
+    }
+    let mut f = prepared::tests::Fixture::new();
+    let (envelope, token) = f.accept_begin(1, ("r14-source", 0, 6, 12, 3, 7), 1);
+    f.publish(&envelope, &token).unwrap();
+    let total = 64 * 1024 * 1024;
+    let mut ordinary_source_cost = 0;
+    for admitted in [false, true] {
+        let mut owner = AuditConnection::open(&f.db_path()).unwrap();
+        let mut keeper = cross_request_source_cache::Keeper::new(total);
+        for request in 0..2 {
+            let old_pool = keeper.retained_source_bytes();
+            let mut context = request_audit::RequestAuditContext::with_source_keeper(keeper);
+            context
+                .freeze_manifest_workspace_budget(total, 0, old_pool)
+                .unwrap();
+            if admitted {
+                context.enable_cold_admission_for_testonly().unwrap();
+            }
+            let parent = context.cold_parent_budget();
+            let active = owner.begin(TransactionBehavior::Deferred).unwrap();
+            let audited = if let Some(parent) = &parent {
+                parent
+                    .codec_work()
+                    .unwrap()
+                    .run(|scope| {
+                        state::audit_native_in_request_admitted(
+                            active.tx(),
+                            &mut context,
+                            Some(scope),
+                        )
+                    })
+                    .unwrap()
+            } else {
+                state::audit_native_in_request(active.tx(), &mut context).unwrap()
+            };
+            let cold = state::audit_native_current(active.tx()).unwrap();
+            assert_eq!(complete(&audited), complete(&cold));
+            let before_seal = parent.as_ref().map(|p| p.live());
+            drop(audited);
+            drop(cold);
+            let ended = active.read_end().unwrap();
+            owner.finish_source_keeper(context, ended);
+            keeper = owner.take_source_keeper().unwrap();
+            let report = keeper.report();
+            assert!(keeper.retained_source_bytes() > 0);
+            assert_eq!(report["retained_counts_proofs"], 1);
+            assert_eq!(report["rejected"], 0);
+            assert_eq!(report["cold"], 1);
+            assert_eq!(report["hits"], request);
+            assert_eq!(
+                owner.complete_retained_bytes(),
+                0,
+                "来源证书不签发完整候选资格"
+            );
+            if admitted {
+                assert_eq!(keeper.retained_source_bytes(), ordinary_source_cost);
+            } else {
+                ordinary_source_cost = keeper.retained_source_bytes();
+            }
+            if let Some(parent) = &parent {
+                assert!(
+                    parent.live() > before_seal.unwrap(),
+                    "封存新增许可必须留在冷核同父账"
+                );
+                assert!(parent.peak() < total - old_pool);
+                assert_eq!(parent.scratch_observation().0, 0);
+                assert_eq!(parent.scratch_observation().2, 0);
+                eprintln!(
+                    "R14_SOURCE_KEEPER {}",
+                    json!({
+                        "request":request,"limit_bytes":total-old_pool,"old_pool_bytes":old_pool,
+                        "before_seal_bytes":before_seal,"after_seal_bytes":parent.live(),
+                        "peak_bytes":parent.peak(),"source_cost_bytes":keeper.retained_source_bytes(),
+                        "full_output_equal":true,"whole_heap_qualified":false
+                    })
+                );
+            }
+        }
+    }
+}
