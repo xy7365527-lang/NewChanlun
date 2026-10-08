@@ -2274,6 +2274,35 @@ impl OriginalScanScratch {
         // 即使上次扫描在读错处返回，下一次也从空集合重读全部当前SQL行。
         self.seen.clear();
     }
+    fn insert_admitted(
+        &mut self,
+        digest: NodeDigest,
+        work: Option<&WorkScope>,
+    ) -> Result<bool, CodecError> {
+        let Some(work) = work else {
+            return Ok(self.insert(digest));
+        };
+        if self.seen.contains(&digest) {
+            return Ok(false);
+        }
+        #[cfg(test)]
+        let before = self.seen.capacity();
+        let bytes = NativeAdmission(Some(work))
+            .native_hash_bytes::<NodeDigest, ()>(self.seen.len(), self.seen.capacity())?;
+        if bytes > 0 {
+            let permit = work.reserve_native(bytes)?;
+            self.seen.try_reserve(1).map_err(|_| {
+                work.reject(s_content::capture_allocation::scratch::ScratchFailure::Allocation)
+            })?;
+            permit.retain();
+        }
+        let first = self.seen.insert(digest);
+        #[cfg(test)]
+        if self.seen.capacity() > before {
+            self.capacity_growths += 1;
+        }
+        Ok(first)
+    }
     fn insert(&mut self, digest: NodeDigest) -> bool {
         #[cfg(test)]
         let before = self.seen.capacity();
@@ -2284,6 +2313,139 @@ impl OriginalScanScratch {
         }
         first
     }
+}
+
+/// Native cold entry: checked borrowed SQL bodies are copied only after parent admission.
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn capture_for_request_prototype_admitted(
+    tx: &Transaction<'_>,
+    work: Option<&WorkScope>,
+) -> Result<(s_content::AuditCapture, usize), CodecError> {
+    if work.is_none() {
+        return capture_for_request_prototype(tx);
+    }
+    capture_originals_admitted(tx, None, work).map(|(capture, count, _)| (capture, count))
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn capture_with_original_subset_for_source_cache_admitted(
+    tx: &Transaction<'_>,
+    prior: Option<(&s_content::AuditCapture, usize)>,
+    work: Option<&WorkScope>,
+) -> Result<(s_content::AuditCapture, usize, bool), CodecError> {
+    if work.is_none() {
+        return capture_with_original_subset_for_source_cache(tx, prior);
+    }
+    capture_originals_admitted(tx, prior, work)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+fn scan_request_nodes_checked(
+    tx: &Transaction<'_>,
+    mut visit: impl FnMut(NodeDigest, u8, &[u8]) -> Result<(), CodecError>,
+) -> Result<(), CodecError> {
+    let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
+        tx,
+        c"SELECT digest,tag,body FROM s_content_nodes",
+    )
+    .map_err(storage_error)?;
+    while let Some(mut row) = stmt.next().map_err(storage_error)? {
+        let digest: NodeDigest = row
+            .blob(0)
+            .map_err(storage_error)?
+            .try_into()
+            .map_err(|_| storage_error("捕获摘要长度"))?;
+        #[cfg(test)]
+        PROTOTYPE_CAPTURE_WORK.with(|work| work.borrow_mut().digest_blob_borrows += 1);
+        let tag = u8::try_from(row.integer(1).map_err(storage_error)?)
+            .map_err(|_| storage_error("捕获标签域"))?;
+        let body = row.blob(2).map_err(storage_error)?;
+        #[cfg(test)]
+        record_prototype_row(body.len());
+        visit(digest, tag, body)?;
+    }
+    stmt.finalize().map_err(storage_error)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+fn capture_originals_admitted(
+    tx: &Transaction<'_>,
+    prior: Option<(&s_content::AuditCapture, usize)>,
+    work: Option<&WorkScope>,
+) -> Result<(s_content::AuditCapture, usize, bool), CodecError> {
+    ensure_format(tx)?;
+    #[cfg(test)]
+    PROTOTYPE_CAPTURE_WORK.with(|work| {
+        let mut work = work.borrow_mut();
+        work.capture_builds += 1;
+        work.node_scans += 1;
+        work.rebind_scans += u64::from(prior.is_some());
+    });
+    // Locals drop in reverse order: nodes first, whole-tree permit afterwards.
+    let mut tree_permit = None;
+    let mut nodes = s_content::MemoryNodes::new();
+    let mut scratch = OriginalScanScratch::default();
+    let mut matched = 0usize;
+    let mut same = prior.is_some();
+    scan_request_nodes_checked(tx, |digest, tag, bytes| {
+        let unique = scratch.insert_admitted(digest, work)?;
+        same &= unique;
+        if let Some((capture, _)) = prior {
+            if let Some((old_tag, old_body)) = capture.original(&digest) {
+                matched += usize::from(unique);
+                same &= old_tag == tag && old_body == bytes;
+            }
+        }
+        let next = nodes
+            .len()
+            .checked_add(usize::from(!nodes.contains(&digest)))
+            .ok_or_else(|| NativeAdmission(work).native_overflow())?;
+        let next_permit = native_tree_storage::<NodeDigest, (u8, Vec<u8>)>(work, next)?;
+        let body = native_body_copy(work, bytes)?;
+        nodes.insert_unchecked(digest, tag, body);
+        tree_permit = next_permit;
+        Ok(())
+    })?;
+    same &= prior.is_some_and(|(_, count)| matched == count);
+    let count = nodes.len();
+    let capture = s_content::AuditCapture::new(nodes);
+    // Return owns the tree; conservative retention until the caller's entire parent domain ends.
+    if let Some(permit) = tree_permit {
+        permit.retain();
+    }
+    Ok((capture, count, same))
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn current_originals_equal_for_request_with_scratch_admitted(
+    tx: &Transaction<'_>,
+    capture: &s_content::AuditCapture,
+    expected_nodes: usize,
+    scratch: &mut OriginalScanScratch,
+    work: Option<&WorkScope>,
+) -> Result<bool, CodecError> {
+    if work.is_none() {
+        return current_originals_equal_for_request_with_scratch(
+            tx,
+            capture,
+            expected_nodes,
+            scratch,
+        );
+    }
+    scratch.begin();
+    ensure_format(tx)?;
+    #[cfg(test)]
+    PROTOTYPE_CAPTURE_WORK.with(|work| {
+        let mut work = work.borrow_mut();
+        work.node_scans += 1;
+        work.rebind_scans += 1;
+    });
+    let mut equal = true;
+    scan_request_nodes_checked(tx, |digest, tag, body| {
+        let first = scratch.insert_admitted(digest, work)?;
+        equal &= first
+            && capture
+                .original(&digest)
+                .is_some_and(|(old_tag, old)| old_tag == tag && old == body);
+        Ok(())
+    })?;
+    Ok(equal && scratch.seen.len() == expected_nodes)
 }
 
 /// 计数取自刚构建的完整原件集合，只供私有Native请求slot核对覆盖；不增加capture字段。

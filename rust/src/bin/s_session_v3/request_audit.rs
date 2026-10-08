@@ -3,10 +3,17 @@
 //! 请求成功后仅移交原件、来源证书和纯codec成功根证书，完整历史与全部memo释放。
 //! owner可按实际无写终结接收完整slot；只有owner绑定同连接当前快照后才能免重核。
 //! 旧来源池本身仍不能授予完整history或提交许可。
+use super::audit_store::{CodecRead, NativeAdmission};
 use super::{audit_header::AuditSourceCommit, state::ImmutableHistoricalAudit};
-use newchan_rust::s_content::AuditCapture;
-use rusqlite::{params, types::ValueRef, Params, Transaction};
-use std::rc::Rc;
+use newchan_rust::{
+    s_content::{capture_allocation::scratch::WorkScope, AuditCapture},
+    sqlite_checked::CheckedStatement,
+};
+use rusqlite::{
+    types::{Type, ValueRef},
+    Params, Transaction,
+};
+use std::{ffi::CStr, rc::Rc};
 
 /// #1394 frozen entry allocation within the existing S7 source budget. Releasing the
 /// old pool later does not enlarge this request's workspace allowance.
@@ -212,6 +219,36 @@ pub(super) enum SqlCell {
     Text(Vec<u8>),
     Blob(Vec<u8>),
 }
+/// 参数与依赖 scope 在准入前只借用，不提前创建 Vec/String owner。
+#[derive(Clone, Copy)]
+pub(super) enum SqlCellView<'a> {
+    Null,
+    Integer(i64),
+    Real(u64),
+    Text(&'a [u8]),
+    Blob(&'a [u8]),
+}
+impl SqlCellView<'_> {
+    fn copy_admitted(self, store: &NativeAdmission<'_>) -> Result<SqlCell, String> {
+        Ok(match self {
+            Self::Null => SqlCell::Null,
+            Self::Integer(value) => SqlCell::Integer(value),
+            Self::Real(bits) => SqlCell::Real(bits),
+            Self::Text(value) | Self::Blob(value) => {
+                let mut bytes = Vec::new();
+                store
+                    .native_vec_room(&mut bytes, value.len())
+                    .map_err(|e| e.to_string())?;
+                bytes.extend_from_slice(value);
+                if matches!(self, Self::Text(_)) {
+                    SqlCell::Text(bytes)
+                } else {
+                    SqlCell::Blob(bytes)
+                }
+            }
+        })
+    }
+}
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct ExactRows {
     pub(super) sql: String,
@@ -220,6 +257,80 @@ pub(super) struct ExactRows {
     pub(super) rows: Vec<Vec<SqlCell>>,
 }
 impl ExactRows {
+    /// 原 SQL、原顺序与完整 storage class 绑定；唯一 Native 父域在复制前准入。
+    /// SQLite 自身转换先经 CheckedStatement/CheckedRow 的 NOMEM 门再开放借用。
+    pub(super) fn read_admitted(
+        tx: &Transaction<'_>,
+        sql: &CStr,
+        params: &[SqlCellView<'_>],
+        scope: &[SqlCellView<'_>],
+        work: Option<&WorkScope>,
+    ) -> Result<Self, String> {
+        let store = NativeAdmission(work);
+        let sql_text = sql.to_str().map_err(storage)?;
+        let owned_sql = store.native_string(sql_text).map_err(|e| e.to_string())?;
+        let mut owned_scope = Vec::new();
+        store
+            .native_vec_room(&mut owned_scope, scope.len())
+            .map_err(|e| e.to_string())?;
+        for cell in scope {
+            owned_scope.push(cell.copy_admitted(&store)?);
+        }
+        let mut stmt = CheckedStatement::prepare(tx, sql).map_err(storage)?;
+        for (index, param) in params.iter().enumerate() {
+            let index = index
+                .checked_add(1)
+                .and_then(|index| i32::try_from(index).ok())
+                .ok_or_else(|| store.native_overflow().to_string())?;
+            match param {
+                SqlCellView::Null => stmt.bind_null(index),
+                SqlCellView::Integer(value) => stmt.bind_integer(index, *value),
+                SqlCellView::Real(bits) => stmt.bind_real(index, f64::from_bits(*bits)),
+                SqlCellView::Text(value) => {
+                    stmt.bind_text(index, std::str::from_utf8(value).map_err(storage)?)
+                }
+                SqlCellView::Blob(value) => stmt.bind_blob(index, value),
+            }
+            .map_err(storage)?;
+        }
+        let count = stmt.column_count();
+        let mut columns = Vec::new();
+        store
+            .native_vec_room(&mut columns, count)
+            .map_err(|e| e.to_string())?;
+        for column in 0..count {
+            let name = stmt.column_name(column).map_err(storage)?;
+            columns.push(store.native_string(name).map_err(|e| e.to_string())?);
+        }
+        let mut rows = Vec::new();
+        while let Some(mut row) = stmt.next().map_err(storage)? {
+            store
+                .native_vec_room(&mut rows, 1)
+                .map_err(|e| e.to_string())?;
+            let mut cells = Vec::new();
+            store
+                .native_vec_room(&mut cells, count)
+                .map_err(|e| e.to_string())?;
+            for column in 0..count {
+                let cell = match row.column_type(column).map_err(storage)? {
+                    Type::Null => SqlCellView::Null,
+                    Type::Integer => SqlCellView::Integer(row.integer(column).map_err(storage)?),
+                    Type::Real => SqlCellView::Real(row.real(column).map_err(storage)?.to_bits()),
+                    Type::Text => SqlCellView::Text(row.text_bytes(column).map_err(storage)?),
+                    Type::Blob => SqlCellView::Blob(row.blob(column).map_err(storage)?),
+                };
+                cells.push(cell.copy_admitted(&store)?);
+            }
+            rows.push(cells);
+        }
+        stmt.finalize().map_err(storage)?;
+        Ok(Self {
+            sql: owned_sql,
+            scope: owned_scope,
+            columns,
+            rows,
+        })
+    }
     pub(super) fn read(
         tx: &Transaction<'_>,
         sql: &str,
@@ -274,55 +385,71 @@ impl HistoricalDependencyBinding {
         tx: &Transaction<'_>,
         history: &ImmutableHistoricalAudit,
     ) -> Result<Self, String> {
+        Self::read_admitted(tx, history, None)
+    }
+    pub(super) fn read_admitted(
+        tx: &Transaction<'_>,
+        history: &ImmutableHistoricalAudit,
+        work: Option<&WorkScope>,
+    ) -> Result<Self, String> {
         // 边界来自已成功完整审计的历史cuts；pub/delta全集也在绑定内，不信未核MAX。
         let frontier = history
             .cuts
             .last()
             .map_or(-1, |cut| cut.metadata.input_frontier);
+        let store = NativeAdmission(work);
         let mut material = Vec::new();
-        material.push(ExactRows::read(
+        store
+            .native_vec_room(&mut material, 14)
+            .map_err(|e| e.to_string())?;
+        material.push(ExactRows::read_admitted(
             tx,
-            "SELECT rowid,* FROM sqlite_schema ORDER BY rowid",
-            [],
-            vec![],
+            c"SELECT rowid,* FROM sqlite_schema ORDER BY rowid",
+            &[],
+            &[],
+            work,
         )?);
-        let mut meta = ExactRows::read(tx, "SELECT rowid,* FROM meta ORDER BY rowid", [], vec![])?;
+        let mut meta = ExactRows::read_admitted(
+            tx,
+            c"SELECT rowid,* FROM meta ORDER BY rowid",
+            &[],
+            &[],
+            work,
+        )?;
         // 只隔离四个正常Begin字段；非TEXT键及任何未知键仍完整进入历史绑定。
         meta.rows.retain(|row| !matches!(row.get(1), Some(SqlCell::Text(key))
             if [b"begin_generation".as_slice(),b"begin_input_frontier",b"begin_token",b"advance_state"].contains(&key.as_slice())));
         material.push(meta);
-        for table in [
-            "s_content_meta",
-            "s_content_publications",
-            "structure_deltas",
-            "s_content_objects",
-            "s_content_witnesses",
-            "s_content_relations",
-            "s_content_observations",
-            "writer_epoch_history",
-            "catalog",
+        // 静态原SQL免去 format! 临时副本；字节和旧表循环完全一致。
+        for sql in [
+            c"SELECT rowid,* FROM s_content_meta ORDER BY rowid",
+            c"SELECT rowid,* FROM s_content_publications ORDER BY rowid",
+            c"SELECT rowid,* FROM structure_deltas ORDER BY rowid",
+            c"SELECT rowid,* FROM s_content_objects ORDER BY rowid",
+            c"SELECT rowid,* FROM s_content_witnesses ORDER BY rowid",
+            c"SELECT rowid,* FROM s_content_relations ORDER BY rowid",
+            c"SELECT rowid,* FROM s_content_observations ORDER BY rowid",
+            c"SELECT rowid,* FROM writer_epoch_history ORDER BY rowid",
+            c"SELECT rowid,* FROM catalog ORDER BY rowid",
         ] {
-            material.push(ExactRows::read(
-                tx,
-                &format!("SELECT rowid,* FROM {table} ORDER BY rowid"),
-                [],
-                vec![],
-            )?);
+            material.push(ExactRows::read_admitted(tx, sql, &[], &[], work)?);
         }
-        material.push(ExactRows::read(tx,
-            "SELECT rowid,singleton,protocol_revision,session_generation,clock_plan_hash,clock_plan_json FROM s_protocol_meta ORDER BY rowid", [], vec![])?);
-        material.push(ExactRows::read(
+        material.push(ExactRows::read_admitted(tx,
+            c"SELECT rowid,singleton,protocol_revision,session_generation,clock_plan_hash,clock_plan_json FROM s_protocol_meta ORDER BY rowid", &[], &[], work)?);
+        let frontier_scope = [SqlCellView::Integer(frontier)];
+        material.push(ExactRows::read_admitted(
             tx,
-            "SELECT rowid,* FROM raw_events WHERE seq<=?1 ORDER BY seq,rowid",
-            [frontier],
-            vec![SqlCell::Integer(frontier)],
+            c"SELECT rowid,* FROM raw_events WHERE seq<=?1 ORDER BY seq,rowid",
+            &frontier_scope,
+            &frontier_scope,
+            work,
         )?);
         // 独立OHLC全集负依赖；只排除已通过fresh全账/enrich的正常尾部对应行。
-        material.push(ExactRows::read(tx,
-            "SELECT o.rowid,o.* FROM raw_ohlc o WHERE NOT EXISTS(SELECT 1 FROM raw_events r WHERE r.identity_key=o.identity_key AND r.revision=o.revision AND r.seq>?1) ORDER BY o.rowid",
-            [frontier], vec![SqlCell::Integer(frontier)])?);
+        material.push(ExactRows::read_admitted(tx,
+            c"SELECT o.rowid,o.* FROM raw_ohlc o WHERE NOT EXISTS(SELECT 1 FROM raw_events r WHERE r.identity_key=o.identity_key AND r.revision=o.revision AND r.seq>?1) ORDER BY o.rowid",
+            &frontier_scope, &frontier_scope, work)?);
         for cut in &history.cuts {
-            Self::read_source(tx, &cut.metadata.source_commit, &mut material)?;
+            Self::read_source(tx, &cut.metadata.source_commit, &mut material, work)?;
         }
         Ok(Self { frontier, material })
     }
@@ -330,16 +457,27 @@ impl HistoricalDependencyBinding {
         tx: &Transaction<'_>,
         source: &AuditSourceCommit,
         out: &mut Vec<ExactRows>,
+        work: Option<&WorkScope>,
     ) -> Result<(), String> {
-        let text = |v: &str| SqlCell::Text(v.as_bytes().to_vec());
-        out.push(ExactRows::read(tx,
-            "SELECT canonical_envelope FROM s_input_messages WHERE source_namespace=?1 AND source_epoch=?2 AND message_id=?3 ORDER BY rowid",
-            params![source.source_namespace.as_str(),source.source_epoch.as_str(),source.message_id.as_str()],
-            vec![text(&source.source_namespace),text(&source.source_epoch),text(&source.message_id)])?);
-        out.push(ExactRows::read(tx,
-            "SELECT generation,semantic_ns FROM s_clock_events WHERE clock_event_id=?1 AND phase='commit' AND attempt_index=?2 ORDER BY rowid",
-            params![source.clock_event_id.as_str(), source.attempt_index],
-            vec![text(&source.clock_event_id),text("commit"),SqlCell::Integer(source.attempt_index)])?);
+        NativeAdmission(work)
+            .native_vec_room(out, 2)
+            .map_err(|e| e.to_string())?;
+        let source_scope = [
+            SqlCellView::Text(source.source_namespace.as_bytes()),
+            SqlCellView::Text(source.source_epoch.as_bytes()),
+            SqlCellView::Text(source.message_id.as_bytes()),
+        ];
+        out.push(ExactRows::read_admitted(tx,
+            c"SELECT canonical_envelope FROM s_input_messages WHERE source_namespace=?1 AND source_epoch=?2 AND message_id=?3 ORDER BY rowid",
+            &source_scope, &source_scope, work)?);
+        let clock_scope = [
+            SqlCellView::Text(source.clock_event_id.as_bytes()),
+            SqlCellView::Text(b"commit"),
+            SqlCellView::Integer(source.attempt_index),
+        ];
+        out.push(ExactRows::read_admitted(tx,
+            c"SELECT generation,semantic_ns FROM s_clock_events WHERE clock_event_id=?1 AND phase='commit' AND attempt_index=?2 ORDER BY rowid",
+            &[clock_scope[0], clock_scope[2]], &clock_scope, work)?);
         Ok(())
     }
 }
@@ -348,6 +486,125 @@ impl HistoricalDependencyBinding {
 mod tests {
     use super::super::{prepared::tests::Fixture, s_allocation, state};
     use super::*;
+
+    #[test]
+    fn r11_exact_rows_admitted_preserves_all_sql_cells_scope_and_empty_columns() {
+        use super::super::audit_owner::native::Budget;
+        let mut connection = rusqlite::Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE exact_r11(i INTEGER, r REAL, t TEXT, b BLOB, n);
+             WITH RECURSIVE seq(i) AS (VALUES(1) UNION ALL SELECT i+1 FROM seq WHERE i<17)
+             INSERT INTO exact_r11 SELECT i, 0.5000000000000001,
+             CASE WHEN i=1 THEN CAST(X'80FF00' AS TEXT) ELSE '文字' || char(0) || 'tail' END,
+             CASE WHEN i=2 THEN X'' ELSE X'00FF80' END, NULL FROM seq;",
+            )
+            .unwrap();
+        let tx = connection.transaction().unwrap();
+        let sql = c"SELECT rowid,i,r,t,b,n FROM exact_r11 WHERE i>=?1 ORDER BY rowid DESC";
+        let bits = f64::from_bits(0x3fe0000000000001).to_bits();
+        let borrowed_scope = [
+            SqlCellView::Integer(1),
+            SqlCellView::Real(bits),
+            SqlCellView::Text(b"scope\0text"),
+            SqlCellView::Blob(&[0, 255, 128]),
+            SqlCellView::Null,
+        ];
+        let expected = ExactRows::read(
+            &tx,
+            sql.to_str().unwrap(),
+            [1i64],
+            vec![
+                SqlCell::Integer(1),
+                SqlCell::Real(bits),
+                SqlCell::Text(b"scope\0text".to_vec()),
+                SqlCell::Blob(vec![0, 255, 128]),
+                SqlCell::Null,
+            ],
+        )
+        .unwrap();
+        assert_eq!(expected.rows.len(), 17);
+        assert_eq!(expected.rows[0][2], SqlCell::Real(bits));
+        assert_eq!(expected.rows[16][3], SqlCell::Text(vec![128, 255, 0]));
+        assert_eq!(expected.rows[15][4], SqlCell::Blob(vec![]));
+        let empty_sql = c"SELECT i AS integer_value,r AS real_value,t AS text_value,b AS blob_value,n AS null_value FROM exact_r11 WHERE 0 ORDER BY rowid";
+        let empty = ExactRows::read(&tx, empty_sql.to_str().unwrap(), [], vec![]).unwrap();
+        assert!(empty.rows.is_empty());
+        assert_eq!(empty.columns.len(), 5);
+        let scalar_sql = c"SELECT ?1 AS integer_value,?2 AS real_value,?3 AS text_value,?4 AS blob_value,?5 AS null_value";
+        let negative_zero = (-0.0_f64).to_bits();
+        let scalar_params = [
+            SqlCellView::Integer(i64::MIN),
+            SqlCellView::Real(negative_zero),
+            SqlCellView::Text(b"param\0text"),
+            SqlCellView::Blob(&[0, 255]),
+            SqlCellView::Null,
+        ];
+        let scalar = ExactRows::read(
+            &tx,
+            scalar_sql.to_str().unwrap(),
+            rusqlite::params![
+                i64::MIN,
+                -0.0_f64,
+                "param\0text",
+                [0u8, 255].as_slice(),
+                rusqlite::types::Null
+            ],
+            vec![],
+        )
+        .unwrap();
+        assert_eq!(scalar.rows[0][1], SqlCell::Real(negative_zero));
+        let budget = Budget::new(1024 * 1024, 0).unwrap();
+        let before = budget.live();
+        let mut native_retained = 0;
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let scope_before = budget.live();
+                let got = ExactRows::read_admitted(
+                    &tx,
+                    sql,
+                    &[borrowed_scope[0]],
+                    &borrowed_scope,
+                    Some(work),
+                )?;
+                assert_eq!(
+                    got, expected,
+                    "SQL/行序/列名/非空scope/完整cell字节均须相同"
+                );
+                let got_empty = ExactRows::read_admitted(&tx, empty_sql, &[], &[], Some(work))?;
+                assert_eq!(got_empty, empty, "空结果仍绑定全部列名");
+                let got_scalar =
+                    ExactRows::read_admitted(&tx, scalar_sql, &scalar_params, &[], Some(work))?;
+                assert_eq!(got_scalar, scalar, "全部参数类型与负零REAL位模式均须相同");
+                assert!(budget.live() > scope_before);
+                drop((got, got_empty, got_scalar));
+                assert!(
+                    budget.live() > scope_before,
+                    "普通容器许可保守持到同父域结束"
+                );
+                native_retained = budget.live() - scope_before;
+                Ok::<_, String>(())
+            })
+            .unwrap();
+        assert!(budget.peak() > before);
+        assert!(native_retained > 0);
+        assert_eq!(
+            budget.live(),
+            before + native_retained,
+            "Native保守费用随父Budget存活，codec工作域仅归还自身元数据"
+        );
+        assert_eq!(budget.scratch_observation().0, 0);
+        assert_eq!(budget.scratch_observation().2, 0);
+        println!(
+            "R11_EXACT_ROWS {}",
+            serde_json::json!({
+                "limit_bytes":1024*1024,"peak_bytes":budget.peak(),"rows":17,
+                "complete_sql_cells_equal":true,"empty_columns_equal":true,"whole_heap_qualified":false
+            })
+        );
+    }
 
     // 正常发布材料的完整输出；与已有离线diagnostic的complete字段逐项一致。
     fn complete_native_output(tx: &Transaction<'_>, audited: &state::AuditedState) -> String {
@@ -506,71 +763,125 @@ mod tests {
 
     #[test]
     fn request_native_scan_scratch_cold_warm_and_legal_append_full_output_equal() {
-        use super::super::content_store;
+        scan_scratch_cold_warm_append_full_output_equal(false);
+    }
+
+    #[test]
+    fn r11_request_native_shared_scope_cold_warm_append_full_output_equal() {
+        scan_scratch_cold_warm_append_full_output_equal(true);
+    }
+
+    fn scan_scratch_cold_warm_append_full_output_equal(admitted: bool) {
+        use super::super::{audit_owner::native::Budget, content_store};
         use newchan_rust::s_content as sc;
         let mut f = Fixture::new();
         publish_one(&mut f);
-        let mut context = RequestAuditContext::default();
-        let mut old_nodes = 0usize;
-        // 第一次cold及之后warm都和独立完整Native当前事务输出逐字对拍。
-        for phase in 0..4 {
-            if phase == 2 {
-                let tx = f.conn.transaction().unwrap();
-                sc::write_value(
-                    &mut content_store::TxStore::new(&tx).unwrap(),
-                    &sc::Value::String("native-scan-scratch-valid-append".into()),
-                )
-                .unwrap();
-                let old = context.slot.as_ref().unwrap();
-                let (appended, count, old_subset) =
-                    content_store::capture_with_original_subset_for_source_cache(
-                        &tx,
-                        Some((&old.capture, old.node_count)),
+        let mut run = |work: Option<&WorkScope>| {
+            let mut context = RequestAuditContext::default();
+            let mut old_nodes = 0usize;
+            // 第一次cold及之后warm都和独立完整Native当前事务输出逐字对拍。
+            for phase in 0..4 {
+                if phase == 2 {
+                    let tx = f.conn.transaction().unwrap();
+                    sc::write_value(
+                        &mut content_store::TxStore::new(&tx).unwrap(),
+                        &sc::Value::String("native-scan-scratch-valid-append".into()),
                     )
                     .unwrap();
-                assert!(
-                    old_subset && count > old.node_count,
-                    "来源cache绑定允许合法新增，但仍逐tuple覆盖全部旧原件"
+                    let old = context.slot.as_ref().unwrap();
+                    let (appended, count, old_subset) =
+                        content_store::capture_with_original_subset_for_source_cache_admitted(
+                            &tx,
+                            Some((&old.capture, old.node_count)),
+                            work,
+                        )
+                        .unwrap();
+                    assert!(
+                        old_subset && count > old.node_count,
+                        "来源cache绑定允许合法新增，但仍逐tuple覆盖全部旧原件"
+                    );
+                    drop(appended);
+                    tx.commit().unwrap();
+                }
+                let before = content_store::prototype_capture_work_on_thread();
+                let tx = f.conn.transaction().unwrap();
+                let cold = state::audit_native_current(&tx).unwrap();
+                let current = super::super::s_allocation::audit_in_request_admitted(
+                    &tx,
+                    &super::super::s_allocation::Mode::CapturedNative,
+                    super::super::s_allocation::Phase::Handle,
+                    &mut context,
+                    work,
+                )
+                .unwrap();
+                assert_eq!(
+                    complete_native_output(&tx, &current),
+                    complete_native_output(&tx, &cold),
+                    "完整cold/warm输出phase {phase}"
                 );
-                drop(appended);
-                tx.commit().unwrap();
+                drop(current);
+                drop(cold);
+                drop(tx);
+                let nodes = context.slot.as_ref().unwrap().node_count;
+                let after = content_store::prototype_capture_work_on_thread();
+                let scans = if phase == 2 { 3 } else { 2 };
+                assert_eq!(after.node_scans - before.node_scans, scans);
+                assert_eq!(
+                    after.decoded_rows - before.decoded_rows,
+                    scans * nodes as u64
+                );
+                assert_eq!(
+                    after.digest_blob_borrows - before.digest_blob_borrows,
+                    scans * nodes as u64
+                );
+                assert_eq!(
+                    after.digest_vec_decode_calls - before.digest_vec_decode_calls,
+                    0
+                );
+                if phase == 0 {
+                    old_nodes = nodes;
+                }
+                if phase >= 2 {
+                    assert!(nodes > old_nodes);
+                }
             }
-            let before = content_store::prototype_capture_work_on_thread();
-            let tx = f.conn.transaction().unwrap();
-            let cold = state::audit_native_current(&tx).unwrap();
-            let current = state::audit_native_in_request(&tx, &mut context).unwrap();
+            assert_eq!((context.cold, context.hits), (2, 2));
+        };
+        if admitted {
+            let budget = Budget::new(64 * 1024 * 1024, 0).unwrap();
+            let before = budget.live();
+            let mut native_retained = 0;
+            budget
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let scope_before = budget.live();
+                    run(Some(work));
+                    assert!(budget.live() > scope_before);
+                    native_retained = budget.live() - scope_before;
+                    Ok::<_, String>(())
+                })
+                .unwrap();
+            assert!(budget.peak() > before);
+            assert!(native_retained > 0);
             assert_eq!(
-                complete_native_output(&tx, &current),
-                complete_native_output(&tx, &cold),
-                "完整cold/warm输出phase {phase}"
+                budget.live(),
+                before + native_retained,
+                "context已析构，Native保守费用仍随父Budget存活"
             );
-            drop(current);
-            drop(cold);
-            drop(tx);
-            let nodes = context.slot.as_ref().unwrap().node_count;
-            let after = content_store::prototype_capture_work_on_thread();
-            let scans = if phase == 2 { 3 } else { 2 };
-            assert_eq!(after.node_scans - before.node_scans, scans);
-            assert_eq!(
-                after.decoded_rows - before.decoded_rows,
-                scans * nodes as u64
+            assert_eq!(budget.scratch_observation().0, 0);
+            assert_eq!(budget.scratch_observation().2, 0);
+            println!(
+                "R11_REQUEST_NATIVE_SHARED_SCOPE {}",
+                serde_json::json!({
+                    "limit_bytes":64*1024*1024,"peak_bytes":budget.peak(),
+                    "phases":4,"cold":2,"hits":2,"complete_outputs_equal":true,
+                    "whole_heap_qualified":false
+                })
             );
-            assert_eq!(
-                after.digest_blob_borrows - before.digest_blob_borrows,
-                scans * nodes as u64
-            );
-            assert_eq!(
-                after.digest_vec_decode_calls - before.digest_vec_decode_calls,
-                0
-            );
-            if phase == 0 {
-                old_nodes = nodes;
-            }
-            if phase >= 2 {
-                assert!(nodes > old_nodes);
-            }
+        } else {
+            run(None);
         }
-        assert_eq!((context.cold, context.hits), (2, 2));
     }
 
     fn publish_one(f: &mut Fixture) {

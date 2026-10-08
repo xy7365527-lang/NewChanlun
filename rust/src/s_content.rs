@@ -2578,6 +2578,15 @@ impl AuditCapture {
         &self,
         prior: &Self,
     ) -> Result<usize, CodecError> {
+        self.seed_codec_roots_admitted_for_testonly(prior, None)
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn seed_codec_roots_admitted_for_testonly(
+        &self,
+        prior: &Self,
+        work: Option<&capture_allocation::scratch::WorkScope>,
+    ) -> Result<usize, CodecError> {
         let (CaptureNodes::Native(current), CaptureNodes::Native(previous)) =
             (&self.nodes, &prior.nodes)
         else {
@@ -2599,6 +2608,35 @@ impl AuditCapture {
         }
         let mut public = AuditMemo::default();
         let mut template = AuditMemo::default();
+        // StdSet即标准HashSet；先许可含装载率/桶舍入上界，再用fallible reserve建表。
+        for (set, len) in [
+            (&mut public.seen, old.public.len()),
+            (&mut template.seen, old.template.len()),
+        ] {
+            if let Some(work) = work {
+                let bytes = if len == 0 {
+                    0
+                } else {
+                    len.checked_next_power_of_two()
+                        .and_then(|n| n.checked_mul(4))
+                        .and_then(|n| n.checked_add(16))
+                        .and_then(|n| {
+                            n.checked_mul(std::mem::size_of::<(NodeDigest, Flavor)>() + 1)
+                        })
+                        .ok_or_else(|| {
+                            work.reject(capture_allocation::scratch::ScratchFailure::Budget)
+                        })?
+                };
+                let permit = work.reserve_native(bytes)?;
+                let WorkSet::Plain(values) = set else {
+                    unreachable!()
+                };
+                values.try_reserve(len).map_err(|_| {
+                    work.reject(capture_allocation::scratch::ScratchFailure::Allocation)
+                })?;
+                permit.retain();
+            }
+        }
         for digest in &old.public {
             public.seen.insert((*digest, Flavor::Value))?;
         }
@@ -2805,7 +2843,15 @@ impl AuditCapture {
     /// 不适用于 Owned/AllocationPrototype，不声明整 heap 或 S 资源准入。
     #[cfg(feature = "s_capture_native_testonly")]
     #[doc(hidden)]
-    pub fn enable_native_frame_reuse_for_testonly(mut self) -> Result<Self, CodecError> {
+    pub fn enable_native_frame_reuse_for_testonly(self) -> Result<Self, CodecError> {
+        self.enable_native_frame_reuse_admitted_for_testonly(None)
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn enable_native_frame_reuse_admitted_for_testonly(
+        mut self,
+        work: Option<&capture_allocation::scratch::WorkScope>,
+    ) -> Result<Self, CodecError> {
         if let CaptureNodes::Native(native) = &mut self.nodes {
             let body_capacity_limit = native.nodes.values().try_fold(0usize, |sum, node| {
                 sum.checked_add(node.body.len())
@@ -2833,9 +2879,31 @@ impl AuditCapture {
         })?;
         let entry_limit = nodes.len();
         let mut native_nodes = std::collections::HashMap::new();
-        native_nodes
-            .try_reserve(entry_limit)
-            .map_err(|_| CodecError::new(code::SOURCE, "Native捕获索引分配失败"))?;
+        let index_bytes = if entry_limit == 0 {
+            0
+        } else {
+            entry_limit
+                .checked_next_power_of_two()
+                .and_then(|n| n.checked_mul(4))
+                .and_then(|n| n.checked_add(16))
+                .and_then(|n| n.checked_mul(std::mem::size_of::<(NodeDigest, NativeNode)>() + 1))
+                .ok_or_else(|| {
+                    work.map_or_else(
+                        || CodecError::new(capture_allocation::LIMIT, "Native索引容量溢出"),
+                        |w| w.reject(capture_allocation::scratch::ScratchFailure::Budget),
+                    )
+                })?
+        };
+        let permit = work.map(|w| w.reserve_native(index_bytes)).transpose()?;
+        native_nodes.try_reserve(entry_limit).map_err(|_| {
+            work.map_or_else(
+                || CodecError::new(code::SOURCE, "Native捕获索引分配失败"),
+                |w| w.reject(capture_allocation::scratch::ScratchFailure::Allocation),
+            )
+        })?;
+        if let Some(permit) = permit {
+            permit.retain();
+        }
         let CaptureNodes::Legacy(nodes) =
             std::mem::replace(&mut self.nodes, CaptureNodes::Legacy(BTreeMap::new()))
         else {

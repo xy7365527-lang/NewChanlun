@@ -152,6 +152,15 @@ pub(super) fn audit_native_in_request(
     tx: &Transaction<'_>,
     context: &mut super::request_audit::RequestAuditContext,
 ) -> Result<AuditedState, String> {
+    audit_native_in_request_admitted(tx, context, None)
+}
+
+/// #1394 显式父域原型：当前只覆盖捕获及完整SQL绑定，未赋予完整cold资源资格。
+pub(super) fn audit_native_in_request_admitted(
+    tx: &Transaction<'_>,
+    context: &mut super::request_audit::RequestAuditContext,
+    work: Option<&sc::capture_allocation::scratch::WorkScope>,
+) -> Result<AuditedState, String> {
     #[cfg(feature = "s_capture_native_testonly")]
     {
         // take保证任何读取/校验错误都不留下可继续使用的旧slot。
@@ -160,26 +169,27 @@ pub(super) fn audit_native_in_request(
         let source_prior = context.take_source_pool();
         let capture_fresh = || {
             let (capture, count, source_same) = if source_enabled {
-                content_store::capture_with_original_subset_for_source_cache(
+                content_store::capture_with_original_subset_for_source_cache_admitted(
                     tx,
                     source_prior
                         .as_ref()
                         .map(|pool| (&pool.originals, pool.nodes)),
+                    work,
                 )
                 .map_err(err)?
             } else {
                 let (capture, count) =
-                    content_store::capture_for_request_prototype(tx).map_err(err)?;
+                    content_store::capture_for_request_prototype_admitted(tx, work).map_err(err)?;
                 (capture, count, false)
             };
             let capture = capture
-                .enable_native_frame_reuse_for_testonly()
+                .enable_native_frame_reuse_admitted_for_testonly(work)
                 .map_err(err)?;
             if source_same {
                 if let Some(pool) = source_prior.as_ref() {
                     // source_same只减少无谓尝试；封闭API仍自行逐tuple比较完整原件。
                     capture
-                        .seed_codec_roots_from_native_capture_for_testonly(&pool.originals)
+                        .seed_codec_roots_admitted_for_testonly(&pool.originals, work)
                         .map_err(err)?;
                 }
             }
@@ -187,13 +197,15 @@ pub(super) fn audit_native_in_request(
         };
         let (capture, node_count, prior, same_nodes, source_same) = match prior {
             Some(prior) => {
-                let same_nodes = content_store::current_originals_equal_for_request_with_scratch(
-                    tx,
-                    &prior.capture,
-                    prior.node_count,
-                    context.original_scan_scratch(),
-                )
-                .map_err(err)?;
+                let same_nodes =
+                    content_store::current_originals_equal_for_request_with_scratch_admitted(
+                        tx,
+                        &prior.capture,
+                        prior.node_count,
+                        context.original_scan_scratch(),
+                        work,
+                    )
+                    .map_err(err)?;
                 let (capture, count, source_same) = if same_nodes {
                     (prior.capture, prior.node_count, false)
                 } else {
@@ -201,7 +213,7 @@ pub(super) fn audit_native_in_request(
                     let (capture, count, source_same) = capture_fresh()?;
                     // 同handler合法追加也只复用纯codec根；完整history结果仍走fresh审计。
                     capture
-                        .seed_codec_roots_from_native_capture_for_testonly(&prior.capture)
+                        .seed_codec_roots_admitted_for_testonly(&prior.capture, work)
                         .map_err(err)?;
                     (capture, count, source_same)
                 };
@@ -223,8 +235,11 @@ pub(super) fn audit_native_in_request(
         if let Some((prior_binding, prior_result, source_pending)) = prior {
             #[cfg(test)]
             context.before_binding(tx);
-            let binding =
-                super::request_audit::HistoricalDependencyBinding::read(tx, &prior_result)?;
+            let binding = super::request_audit::HistoricalDependencyBinding::read_admitted(
+                tx,
+                &prior_result,
+                work,
+            )?;
             if binding == prior_binding && same_nodes {
                 history::revalidate_current_for_reuse(
                     tx,
@@ -254,10 +269,11 @@ pub(super) fn audit_native_in_request(
         #[cfg(test)]
         trace_event("request_history_cold", None);
         let mut source_trial = if source_enabled {
-            Some(super::cross_request_source_cache::Trial::new(
+            Some(super::cross_request_source_cache::Trial::new_admitted(
                 tx,
                 source_prior.as_ref(),
                 source_same,
+                work,
             )?)
         } else {
             None
@@ -277,14 +293,27 @@ pub(super) fn audit_native_in_request(
         let HistoricalOwner::Unique(result) = audited.historical else {
             unreachable!()
         };
+        if let Some(work) = work {
+            // Rc控制块的两个计数及内联值，对齐后一次准入；嵌套内容另按各自入口计。
+            let layout = std::alloc::Layout::new::<[usize; 2]>()
+                .extend(std::alloc::Layout::new::<ImmutableHistoricalAudit>())
+                .map_err(|_| {
+                    work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget)
+                        .to_string()
+                })?
+                .0
+                .pad_to_align();
+            work.reserve_native(layout.size()).map_err(err)?.retain();
+        }
         let result = std::rc::Rc::new(result);
-        let binding = super::request_audit::HistoricalDependencyBinding::read(tx, &result)?;
+        let binding =
+            super::request_audit::HistoricalDependencyBinding::read_admitted(tx, &result, work)?;
         let frontier = result
             .cuts
             .last()
             .map_or(-1, |cut| cut.metadata.input_frontier);
         let source_pending = source_trial
-            .map(|trial| trial.seal(tx, frontier))
+            .map(|trial| trial.seal_admitted(tx, frontier, work))
             .transpose()?;
         drop(source_prior);
         context.retain(
@@ -303,7 +332,7 @@ pub(super) fn audit_native_in_request(
     }
     #[cfg(not(feature = "s_capture_native_testonly"))]
     {
-        let _ = (tx, context);
+        let _ = (tx, context, work);
         Err("SNativeCaptureTestOnlyUnsupported：此构建不支持 S_CAPTURE_NATIVE_TESTONLY".into())
     }
 }

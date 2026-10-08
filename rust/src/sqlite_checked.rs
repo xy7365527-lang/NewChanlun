@@ -96,6 +96,27 @@ impl<'conn> CheckedStatement<'conn> {
         }
         Ok(out)
     }
+    /// 元数据借用也只属于本 statement；空结果仍保留完整列名。
+    pub fn column_count(&self) -> usize {
+        unsafe { ffi::sqlite3_column_count(self.statement.as_ptr()) as usize }
+    }
+    pub fn column_name(&mut self, column: usize) -> Result<&str> {
+        if column >= self.column_count() {
+            return Err(Error::InvalidColumnIndex(column));
+        }
+        let pointer = unsafe { ffi::sqlite3_column_name(self.statement.as_ptr(), column as i32) };
+        let code = unsafe { ffi::sqlite3_errcode(self._connection.handle()) };
+        // UTF-8列名转换可能分配；NOMEM检查先于指针借用。
+        if code & 255 == ffi::SQLITE_NOMEM {
+            return Err(sql_error(code));
+        }
+        if pointer.is_null() {
+            return Err(sql_error(ffi::SQLITE_MISUSE));
+        }
+        unsafe { CStr::from_ptr(pointer) }
+            .to_str()
+            .map_err(|cause| Error::Utf8Error(column, cause))
+    }
     /// 参数索引从 1 开始；TRANSIENT 副本由 SQLite 分配，不复制成 Rust 业务文本。
     pub fn bind_text(&mut self, index: i32, value: &str) -> Result<()> {
         let len = i32::try_from(value.len()).map_err(|_| sql_error(ffi::SQLITE_TOOBIG))?;
@@ -277,6 +298,17 @@ impl CheckedRow<'_> {
     pub fn integer(&mut self, column: usize) -> Result<i64> {
         self.require(column, Type::Integer)?;
         Ok(unsafe { ffi::sqlite3_column_int64(self.statement.as_ptr(), column as i32) })
+    }
+    /// 严格 REAL：先校验类型与 NOMEM，原 double 位由调用者保留。
+    pub fn real(&mut self, column: usize) -> Result<f64> {
+        self.require(column, Type::Real)?;
+        let value = unsafe { ffi::sqlite3_column_double(self.statement.as_ptr(), column as i32) };
+        let db = unsafe { ffi::sqlite3_db_handle(self.statement.as_ptr()) };
+        let code = unsafe { ffi::sqlite3_errcode(db) };
+        if code & 255 == ffi::SQLITE_NOMEM {
+            return Err(sql_error(code));
+        }
+        Ok(value)
     }
     pub fn optional_integer(&mut self, column: usize) -> Result<Option<i64>> {
         if self.kind(column)? == Type::Null {

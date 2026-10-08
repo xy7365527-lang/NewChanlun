@@ -1,11 +1,12 @@
 //! #1394 显式Native模式的来源Counts完整闭包复用；保留量受唯一S7预算约束。
 //! 完整当前audit只跳过绑定成功旧cut的source业务核；仅整组保留Counts导航及三个完整闭包。
 use super::{
+    audit_store::{CodecRead, NativeAdmission},
     history::PublishedCut,
-    request_audit::{ExactRows, SqlCell},
+    request_audit::{ExactRows, SqlCell, SqlCellView},
     source_audit::Counts,
 };
-use newchan_rust::s_content as sc;
+use newchan_rust::s_content::{self as sc, capture_allocation::scratch::WorkScope};
 use rusqlite::Transaction;
 use serde::Serialize;
 
@@ -16,21 +17,55 @@ struct Binding {
 }
 impl Binding {
     fn read(tx: &Transaction<'_>, frontier: i64) -> Result<Self, String> {
-        let mut meta = ExactRows::read(tx, "SELECT rowid,* FROM meta ORDER BY rowid", [], vec![])?;
+        Self::read_admitted(tx, frontier, None)
+    }
+    fn read_admitted(
+        tx: &Transaction<'_>,
+        frontier: i64,
+        work: Option<&WorkScope>,
+    ) -> Result<Self, String> {
+        let mut meta = ExactRows::read_admitted(
+            tx,
+            c"SELECT rowid,* FROM meta ORDER BY rowid",
+            &[],
+            &[],
+            work,
+        )?;
         // 已知动态控制字段只由本次完整control/history审计消费；未知字段不悄悄排除。
         meta.rows.retain(|row| !matches!(row.get(1), Some(SqlCell::Text(key)) if [
             b"generation".as_slice(), b"structure_cut", b"index_frontier", b"last_advance_frontier",
             b"writer_epoch", b"begin_generation", b"begin_input_frontier", b"begin_token", b"advance_state",
         ].contains(&key.as_slice())));
-        let rows = vec![
-            ExactRows::read(tx, "SELECT rowid,* FROM sqlite_schema ORDER BY rowid", [], vec![])?,
-            meta,
-            ExactRows::read(tx, "SELECT rowid,* FROM s_content_meta ORDER BY rowid", [], vec![])?,
-            ExactRows::read(tx, "SELECT rowid,singleton,protocol_revision,session_generation,clock_plan_hash,clock_plan_json FROM s_protocol_meta ORDER BY rowid", [], vec![])?,
-            ExactRows::read(tx, "SELECT rowid,* FROM raw_events WHERE seq<=?1 ORDER BY seq,rowid", [frontier], vec![SqlCell::Integer(frontier)])?,
-            // 保留独立OHLC负依赖；当前全账enrich/cardinality仍由原入口fresh核验。
-            ExactRows::read(tx, "SELECT o.rowid,o.* FROM raw_ohlc o WHERE NOT EXISTS(SELECT 1 FROM raw_events r WHERE r.identity_key=o.identity_key AND r.revision=o.revision AND r.seq>?1) ORDER BY o.rowid", [frontier], vec![SqlCell::Integer(frontier)])?,
-        ];
+        let mut rows = Vec::new();
+        NativeAdmission(work)
+            .native_vec_room(&mut rows, 6)
+            .map_err(|e| e.to_string())?;
+        rows.push(ExactRows::read_admitted(
+            tx,
+            c"SELECT rowid,* FROM sqlite_schema ORDER BY rowid",
+            &[],
+            &[],
+            work,
+        )?);
+        rows.push(meta);
+        rows.push(ExactRows::read_admitted(
+            tx,
+            c"SELECT rowid,* FROM s_content_meta ORDER BY rowid",
+            &[],
+            &[],
+            work,
+        )?);
+        rows.push(ExactRows::read_admitted(tx, c"SELECT rowid,singleton,protocol_revision,session_generation,clock_plan_hash,clock_plan_json FROM s_protocol_meta ORDER BY rowid", &[], &[], work)?);
+        let frontier_scope = [SqlCellView::Integer(frontier)];
+        rows.push(ExactRows::read_admitted(
+            tx,
+            c"SELECT rowid,* FROM raw_events WHERE seq<=?1 ORDER BY seq,rowid",
+            &frontier_scope,
+            &frontier_scope,
+            work,
+        )?);
+        // 保留独立OHLC负依赖；当前全账enrich/cardinality仍由原入口fresh核验。
+        rows.push(ExactRows::read_admitted(tx, c"SELECT o.rowid,o.* FROM raw_ohlc o WHERE NOT EXISTS(SELECT 1 FROM raw_events r WHERE r.identity_key=o.identity_key AND r.revision=o.revision AND r.seq>?1) ORDER BY o.rowid", &frontier_scope, &frontier_scope, work)?);
         Ok(Self { frontier, rows })
     }
 }
@@ -500,9 +535,20 @@ impl<'a> Trial<'a> {
         prior: Option<&'a Pool>,
         same_nodes: bool,
     ) -> Result<Self, String> {
-        // 仍完整读取原始绑定；node mismatch不能吞掉后续SQL读取错误。
+        Self::new_admitted(tx, prior, same_nodes, None)
+    }
+    pub(super) fn new_admitted(
+        tx: &Transaction<'_>,
+        prior: Option<&'a Pool>,
+        same_nodes: bool,
+        work: Option<&WorkScope>,
+    ) -> Result<Self, String> {
+        // 仍完整读取原始绑定；node mismatch不能吞掉后续SQL或资源读取错误。
         let bound = match prior {
-            Some(pool) => Binding::read(tx, pool.binding.frontier)? == pool.binding && same_nodes,
+            Some(pool) => {
+                Binding::read_admitted(tx, pool.binding.frontier, work)? == pool.binding
+                    && same_nodes
+            }
             None => false,
         };
         Ok(Self {
@@ -560,8 +606,16 @@ impl<'a> Trial<'a> {
         ))
     }
     pub(super) fn seal(self, tx: &Transaction<'_>, frontier: i64) -> Result<PendingPool, String> {
+        self.seal_admitted(tx, frontier, None)
+    }
+    pub(super) fn seal_admitted(
+        self,
+        tx: &Transaction<'_>,
+        frontier: i64,
+        work: Option<&WorkScope>,
+    ) -> Result<PendingPool, String> {
         Ok(PendingPool {
-            binding: Binding::read(tx, frontier)?,
+            binding: Binding::read_admitted(tx, frontier, work)?,
             proofs: self.proofs,
             hits: self.hits,
             cold: self.cold,
@@ -605,6 +659,53 @@ mod tests {
         let mut keeper = Keeper::new(usize::MAX);
         audit(&mut f, &mut keeper).unwrap();
         (f, keeper)
+    }
+
+    #[test]
+    fn r11_source_binding_new_and_seal_use_shared_scope() {
+        use super::super::audit_owner::native::Budget;
+        let (mut fixture, keeper) = seeded();
+        let prior = keeper.pool.as_ref().unwrap();
+        let tx = fixture.conn.transaction().unwrap();
+        let budget = Budget::new(1024 * 1024, 0).unwrap();
+        let before = budget.live();
+        let mut native_retained = 0;
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let scope_before = budget.live();
+                let trial = Trial::new_admitted(&tx, Some(prior), true, Some(work))?;
+                assert!(trial.bound);
+                let after_new = budget.live();
+                assert!(
+                    after_new > scope_before,
+                    "新trial完整原件绑定须消费父域许可"
+                );
+                let pending = trial.seal_admitted(&tx, prior.binding.frontier, Some(work))?;
+                assert_eq!(pending.binding, prior.binding);
+                assert!(budget.live() > after_new, "封存完整原件再次消费同一父域");
+                drop(pending);
+                native_retained = budget.live() - scope_before;
+                Ok::<_, String>(())
+            })
+            .unwrap();
+        assert!(budget.peak() > before);
+        assert!(native_retained > 0);
+        assert_eq!(
+            budget.live(),
+            before + native_retained,
+            "Native保守费用随父Budget存活"
+        );
+        assert_eq!(budget.scratch_observation().0, 0);
+        assert_eq!(budget.scratch_observation().2, 0);
+        println!(
+            "R11_SOURCE_BINDING {}",
+            serde_json::json!({
+                "limit_bytes":1024*1024,"peak_bytes":budget.peak(),
+                "new_and_seal_same_scope":true,"binding_equal":true,"whole_heap_qualified":false
+            })
+        );
     }
 
     #[test]

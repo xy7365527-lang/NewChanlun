@@ -64,7 +64,7 @@ pub(super) fn audit(
     mode: &Mode,
     phase: Phase,
 ) -> Result<state::AuditedState, String> {
-    audit_impl(tx, mode, phase, None)
+    audit_impl(tx, mode, phase, None, None)
 }
 pub(super) fn audit_in_request(
     tx: &Transaction<'_>,
@@ -72,7 +72,18 @@ pub(super) fn audit_in_request(
     phase: Phase,
     context: &mut super::request_audit::RequestAuditContext,
 ) -> Result<state::AuditedState, String> {
-    let result = audit_impl(tx, mode, phase, Some(&mut *context));
+    audit_in_request_admitted(tx, mode, phase, context, None)
+}
+
+/// 显式Native父域只贯通已接线的捕获/绑定子域；无scope入口保持原选择。
+pub(super) fn audit_in_request_admitted(
+    tx: &Transaction<'_>,
+    mode: &Mode,
+    phase: Phase,
+    context: &mut super::request_audit::RequestAuditContext,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<state::AuditedState, String> {
+    let result = audit_impl(tx, mode, phase, Some(&mut *context), work);
     if result.is_err() {
         drop(context.take());
     }
@@ -83,7 +94,11 @@ fn audit_impl(
     mode: &Mode,
     phase: Phase,
     context: Option<&mut super::request_audit::RequestAuditContext>,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
 ) -> Result<state::AuditedState, String> {
+    if work.is_some() && !matches!(mode, Mode::CapturedNative) {
+        return Err("SNativeAdmissionUnsupported：显式父域只适用于Native捕获臂".into());
+    }
     let profile = match mode {
         Mode::Ordinary => return state::audit(tx),
         Mode::Owned(profile) => Some(profile),
@@ -112,7 +127,7 @@ fn audit_impl(
             audited
         }
         Mode::CapturedNative => match context {
-            Some(context) => state::audit_native_in_request(tx, context)?,
+            Some(context) => state::audit_native_in_request_admitted(tx, context, work)?,
             None => state::audit_native_current(tx)?,
         },
         Mode::Ordinary => unreachable!(),
