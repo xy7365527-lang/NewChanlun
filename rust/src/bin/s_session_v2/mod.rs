@@ -1,7 +1,9 @@
 //! #1372：本地单写者传输、语义时钟和独立普通投递保留；结构判断仍由父模块唯一核心完成。
 use super::*;
+use crate::v3::audit_store::{CodecRead, NativeAdmission};
 use crate::v3::business_json::{self as control_json, BusinessMap, JsonOwner, TextValue};
 use newchan_rust::s_content::capture_allocation::audit_json::{self as control_aj, JsonView};
+use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
 use newchan_rust::s_content::{capture_allocation::OwnedBudget, CodecVec};
 pub use newchan_rust::session_protocol::strict_json;
 use newchan_rust::session_protocol::{nonnegative, positive, required, validate_envelope};
@@ -164,6 +166,66 @@ fn control_decode(
         strict_json(raw.as_bytes()).map(JsonOwner::Plain)
     }
 }
+fn control_native_owner(
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    if let Some(work) = work {
+        if owner.is_some() {
+            return Err(work
+                .reject(
+                    newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger,
+                )
+                .to_string());
+        }
+    }
+    Ok(())
+}
+// 每次实际增长前从同一个候选父域申请；None 保留原容器操作和错误类型。
+fn control_push<T>(
+    values: &mut CodecVec<T>,
+    value: T,
+    work: Option<&WorkScope>,
+) -> Result<(), newchan_rust::s_content::CodecError> {
+    NativeAdmission(work).native_codec_room(values, 1)?;
+    values.try_push(value)
+}
+fn control_extend(
+    values: &mut CodecVec<u8>,
+    bytes: &[u8],
+    work: Option<&WorkScope>,
+) -> Result<(), newchan_rust::s_content::CodecError> {
+    NativeAdmission(work).native_codec_room(values, bytes.len())?;
+    values.try_extend_bytes(bytes)
+}
+fn control_insert<K: Eq + std::hash::Hash, V>(
+    map: &mut BusinessMap<K, V>,
+    key: K,
+    value: V,
+    work: Option<&WorkScope>,
+) -> Result<Option<V>, newchan_rust::s_content::CodecError> {
+    NativeAdmission(work).native_map_room(map)?;
+    map.insert(key, value)
+}
+fn control_decode_admitted(
+    raw: &str,
+    owner: Option<&OwnedBudget>,
+    legacy: bool,
+    work: Option<&WorkScope>,
+) -> Result<JsonOwner, String> {
+    control_native_owner(owner, work)?;
+    if work.is_some() {
+        #[cfg(feature = "s_capture_native_testonly")]
+        NativeAdmission(work)
+            .native_admit(
+                crate::v3::audit_owner::native::JsonShape::scan(raw.as_bytes()).parse_peak(),
+            )
+            .map_err(err)?;
+        #[cfg(not(feature = "s_capture_native_testonly"))]
+        return Err("prototype_audit_allocation_incomplete：Native控制JSON未启用".into());
+    }
+    control_decode(raw, owner, legacy)
+}
 fn control_canonical_equal(
     value: JsonView<'_>,
     raw: &str,
@@ -208,6 +270,14 @@ fn stored_control_clock(
     conn: &Connection,
     owner: Option<&OwnedBudget>,
 ) -> Result<ControlClock, String> {
+    stored_control_clock_admitted(conn, owner, None)
+}
+fn stored_control_clock_admitted(
+    conn: &Connection,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<ControlClock, String> {
+    control_native_owner(owner, work)?;
     #[cfg(test)]
     let clock_start = std::time::Instant::now();
     #[cfg(not(feature = "s_allocation_json_testonly"))]
@@ -223,11 +293,11 @@ fn stored_control_clock(
         .next()
         .map_err(err)?
         .ok_or_else(|| err(rusqlite::Error::QueryReturnedNoRows))?;
-    let raw = TextValue::from_sql(&mut row, 0, owner).map_err(err)?;
-    let stored_hash = TextValue::from_sql(&mut row, 1, owner).map_err(err)?;
+    let raw = TextValue::from_sql_admitted(&mut row, 0, owner, work).map_err(err)?;
+    let stored_hash = TextValue::from_sql_admitted(&mut row, 1, owner, work).map_err(err)?;
     drop(row);
     stmt.finalize().map_err(err)?;
-    let value = control_decode(raw.as_str(), owner, false).map_err(err)?;
+    let value = control_decode_admitted(raw.as_str(), owner, false, work).map_err(err)?;
     let view = newchan_rust::session_protocol::ClockView::parse(value.view()).map_err(err)?;
     let hash = view.hash_fixed_with_owner(owner).map_err(err)?;
     if hash.as_str() != stored_hash.as_str()
@@ -235,7 +305,7 @@ fn stored_control_clock(
     {
         return Err(err("clock计划/hash不一致"));
     }
-    let hash = TextValue::from_str(hash.as_str(), owner)?;
+    let hash = TextValue::from_str_admitted(hash.as_str(), owner, work)?;
     #[cfg(test)]
     crate::v3::trace_request_clock(raw.as_str().len(), clock_start.elapsed());
     Ok(ControlClock { value, hash })
@@ -553,12 +623,22 @@ fn normalize_schema_chunks(
     Ok(())
 }
 fn control_normalized(s: &str, b: Option<&OwnedBudget>) -> Result<TextValue, String> {
+    control_normalized_admitted(s, b, None)
+}
+fn control_normalized_admitted(
+    s: &str,
+    b: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<TextValue, String> {
+    control_native_owner(b, work)?;
     #[cfg(not(feature = "s_allocation_json_testonly"))]
     if b.is_some() {
         return Err("prototype_audit_allocation_incomplete：owned控制文本未启用".into());
     }
     let mut bytes = control_json::new_work(b);
-    normalize_schema_chunks(s, |v| bytes.try_extend_bytes(v.as_bytes()).map_err(err))?;
+    normalize_schema_chunks(s, |v| {
+        control_extend(&mut bytes, v.as_bytes(), work).map_err(err)
+    })?;
     TextValue::from_bytes(bytes).map_err(err)
 }
 pub(super) fn control_meta_text(
@@ -566,6 +646,15 @@ pub(super) fn control_meta_text(
     key: &str,
     owner: Option<&OwnedBudget>,
 ) -> Result<Option<TextValue>, String> {
+    control_meta_text_admitted(conn, key, owner, None)
+}
+pub(super) fn control_meta_text_admitted(
+    conn: &Connection,
+    key: &str,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<Option<TextValue>, String> {
+    control_native_owner(owner, work)?;
     #[cfg(not(feature = "s_allocation_json_testonly"))]
     if owner.is_some() {
         return Err("prototype_audit_allocation_incomplete：owned控制文本未启用".into());
@@ -579,7 +668,7 @@ pub(super) fn control_meta_text(
         .map_err(|e| format!("读 meta.{key} 失败：{e}"))?
     {
         Some(mut row) => Some(
-            TextValue::from_sql(&mut row, 0, owner)
+            TextValue::from_sql_admitted(&mut row, 0, owner, work)
                 .map_err(|e| format!("读 meta.{key} 失败：{e}"))?,
         ),
         None => None,
@@ -593,11 +682,20 @@ pub(super) fn control_meta_i64(
     key: &str,
     owner: Option<&OwnedBudget>,
 ) -> Result<i64, String> {
-    let v = control_meta_text(conn, key, owner)?
+    control_meta_i64_admitted(conn, key, owner, None)
+}
+pub(super) fn control_meta_i64_admitted(
+    conn: &Connection,
+    key: &str,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<i64, String> {
+    control_native_owner(owner, work)?;
+    let v = control_meta_text_admitted(conn, key, owner, work)?
         .ok_or_else(|| format!("StorageUnavailable：meta.{key} 缺失"))?;
     let mut label = control_json::new_work(owner);
-    label.try_extend_bytes(b"meta.").map_err(err)?;
-    label.try_extend_bytes(key.as_bytes()).map_err(err)?;
+    control_extend(&mut label, b"meta.", work).map_err(err)?;
+    control_extend(&mut label, key.as_bytes(), work).map_err(err)?;
     let label = TextValue::from_bytes(label).map_err(err)?;
     parse_canonical_i64(v.as_str(), &label).map_err(|e| format!("StorageUnavailable：{e}"))
 }
@@ -613,10 +711,19 @@ impl ControlSchema {
         }
     }
     pub(super) fn add_ddl(&mut self, label: &str, ddl: &str) -> Result<(), String> {
+        self.add_ddl_admitted(label, ddl, None)
+    }
+    pub(super) fn add_ddl_admitted(
+        &mut self,
+        label: &str,
+        ddl: &str,
+        work: Option<&WorkScope>,
+    ) -> Result<(), String> {
+        control_native_owner(self.owner.as_ref(), work)?;
         ddl_table_entries(label, ddl, |name, stmt| {
-            let key = TextValue::from_str(name, self.owner.as_ref())?;
-            let value = control_normalized(stmt, self.owner.as_ref())?;
-            self.tables.insert(key, value).map_err(err)?;
+            let key = TextValue::from_str_admitted(name, self.owner.as_ref(), work)?;
+            let value = control_normalized_admitted(stmt, self.owner.as_ref(), work)?;
+            control_insert(&mut self.tables, key, value, work).map_err(err)?;
             Ok(())
         })
     }
@@ -674,16 +781,19 @@ impl SchemaRead<'_> {
         }
     }
     fn sorted_names(&self) -> Result<CodecVec<&str>, String> {
+        self.sorted_names_admitted(None)
+    }
+    fn sorted_names_admitted(&self, work: Option<&WorkScope>) -> Result<CodecVec<&str>, String> {
         let mut names = control_json::new_work(self.owner());
         match self {
             Self::Normal(s) => {
                 for k in s.keys() {
-                    names.try_push(k.as_str()).map_err(err)?;
+                    control_push(&mut names, k.as_str(), work).map_err(err)?;
                 }
             }
             Self::Owned(s) => {
                 for (k, _) in s.tables.iter() {
-                    names.try_push(k.as_str()).map_err(err)?;
+                    control_push(&mut names, k.as_str(), work).map_err(err)?;
                 }
             }
         }
@@ -701,10 +811,25 @@ pub(super) fn verify_control_schema(
     conn: &Connection,
     expected: &ControlSchema,
 ) -> Result<(), String> {
-    verify_schema_read(conn, SchemaRead::Owned(expected))
+    verify_control_schema_admitted(conn, expected, None)
+}
+pub(super) fn verify_control_schema_admitted(
+    conn: &Connection,
+    expected: &ControlSchema,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    verify_schema_read_admitted(conn, SchemaRead::Owned(expected), work)
 }
 fn verify_schema_read(conn: &Connection, expected: SchemaRead<'_>) -> Result<(), String> {
+    verify_schema_read_admitted(conn, expected, None)
+}
+fn verify_schema_read_admitted(
+    conn: &Connection,
+    expected: SchemaRead<'_>,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
     let owner = expected.owner();
+    control_native_owner(owner, work)?;
     let mut q = CheckedStatement::prepare(
         conn,
         c"SELECT type,name,sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY name",
@@ -712,23 +837,23 @@ fn verify_schema_read(conn: &Connection, expected: SchemaRead<'_>) -> Result<(),
     .map_err(err)?;
     let mut seen = control_json::new_map::<TextValue, bool>(owner);
     while let Some(mut r) = q.next().map_err(err)? {
-        let kind = TextValue::from_sql(&mut r, 0, owner).map_err(err)?;
-        let name = TextValue::from_sql(&mut r, 1, owner).map_err(err)?;
-        let sql = TextValue::from_sql(&mut r, 2, owner).map_err(err)?;
+        let kind = TextValue::from_sql_admitted(&mut r, 0, owner, work).map_err(err)?;
+        let name = TextValue::from_sql_admitted(&mut r, 1, owner, work).map_err(err)?;
+        let sql = TextValue::from_sql_admitted(&mut r, 2, owner, work).map_err(err)?;
         if kind != "table" {
             return Err(err(format!("模式/约束不匹配 {kind}/{name}")));
         }
-        let normalized = control_normalized(sql.as_str(), owner)?;
+        let normalized = control_normalized_admitted(sql.as_str(), owner, work)?;
         if expected.get(name.as_str()) != Some(normalized.as_str()) {
             return Err(err(format!("模式/约束不匹配 {kind}/{name}")));
         }
-        seen.insert(name, true).map_err(err)?;
+        control_insert(&mut seen, name, true, work).map_err(err)?;
     }
     q.finalize().map_err(err)?;
     if seen.len() != expected.len() {
         return Err(err("缺必需表/约束"));
     }
-    for table in &expected.sorted_names()? {
+    for table in &expected.sorted_names_admitted(work)? {
         let mut columns = CheckedStatement::prepare(
             conn,
             c"SELECT type,\"notnull\",pk FROM pragma_table_info(?1) ORDER BY cid",
@@ -737,20 +862,23 @@ fn verify_schema_read(conn: &Connection, expected: SchemaRead<'_>) -> Result<(),
         columns.bind_text(1, table).map_err(err)?;
         let mut declarations = control_json::new_work(owner);
         while let Some(mut r) = columns.next().map_err(err)? {
-            declarations
-                .try_push((
-                    TextValue::from_sql(&mut r, 0, owner).map_err(err)?,
+            control_push(
+                &mut declarations,
+                (
+                    TextValue::from_sql_admitted(&mut r, 0, owner, work).map_err(err)?,
                     r.integer(1).map_err(err)?,
                     r.integer(2).map_err(err)?,
-                ))
-                .map_err(err)?;
+                ),
+                work,
+            )
+            .map_err(err)?;
         }
         columns.finalize().map_err(err)?;
         let mut sql = control_json::new_work(owner);
-        sql.try_extend_bytes(b"SELECT * FROM ").map_err(err)?;
-        sql.try_extend_bytes(table.as_bytes()).map_err(err)?;
+        control_extend(&mut sql, b"SELECT * FROM ", work).map_err(err)?;
+        control_extend(&mut sql, table.as_bytes(), work).map_err(err)?;
         // Only the C ABI terminator is added; the SQL text and its bindings are unchanged.
-        sql.try_push(0).map_err(err)?;
+        control_push(&mut sql, 0, work).map_err(err)?;
         let sql = CStr::from_bytes_with_nul(&sql).map_err(err)?;
         let mut query = CheckedStatement::prepare(conn, sql).map_err(err)?;
         while let Some(mut row) = query.next().map_err(err)? {
@@ -867,9 +995,19 @@ pub(super) fn verify_epoch_history_with_owner(
     v2: bool,
     owner: Option<&OwnedBudget>,
 ) -> Result<CodecVec<(TextValue, i64)>, String> {
-    let generation = control_meta_i64(conn, "generation", owner)?;
+    verify_epoch_history_admitted(conn, v2, owner, None)
+}
+pub(super) fn verify_epoch_history_admitted(
+    conn: &Connection,
+    v2: bool,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<CodecVec<(TextValue, i64)>, String> {
+    control_native_owner(owner, work)?;
+    let generation = control_meta_i64_admitted(conn, "generation", owner, work)?;
     let current = parse_writer_epoch(
-        &control_meta_text(conn, "writer_epoch", owner)?.ok_or_else(|| err("缺writer_epoch"))?,
+        &control_meta_text_admitted(conn, "writer_epoch", owner, work)?
+            .ok_or_else(|| err("缺writer_epoch"))?,
         "meta.writer_epoch",
     )
     .map_err(err)?;
@@ -880,22 +1018,22 @@ pub(super) fn verify_epoch_history_with_owner(
         ordinal += 1;
         let actual: i64 = r.integer(0).map_err(err)?;
         let from = parse_writer_epoch(
-            &TextValue::from_sql(&mut r, 1, owner).map_err(err)?,
+            &TextValue::from_sql_admitted(&mut r, 1, owner, work).map_err(err)?,
             "epoch.from",
         )
         .map_err(err)?;
         let to = parse_writer_epoch(
-            &TextValue::from_sql(&mut r, 2, owner).map_err(err)?,
+            &TextValue::from_sql_admitted(&mut r, 2, owner, work).map_err(err)?,
             "epoch.to",
         )
         .map_err(err)?;
         let at = nonnegative(
-            &TextValue::from_sql(&mut r, 3, owner).map_err(err)?,
+            &TextValue::from_sql_admitted(&mut r, 3, owner, work).map_err(err)?,
             "epoch.generation",
         )
         .map_err(err)?;
-        let state = TextValue::from_sql(&mut r, 4, owner).map_err(err)?;
-        let ns = TextValue::from_sql(&mut r, 5, owner).map_err(err)?;
+        let state = TextValue::from_sql_admitted(&mut r, 4, owner, work).map_err(err)?;
+        let ns = TextValue::from_sql_admitted(&mut r, 5, owner, work).map_err(err)?;
         nonnegative(&ns, "epoch.transitioned_at").map_err(err)?;
         validate_epoch_step(
             actual,
@@ -911,7 +1049,7 @@ pub(super) fn verify_epoch_history_with_owner(
         )?;
         previous_epoch = Some(to);
         previous_generation = at;
-        facts.try_push((ns, at)).map_err(err)?;
+        control_push(&mut facts, (ns, at), work).map_err(err)?;
     }
     query.finalize().map_err(err)?;
     if previous_epoch.is_some_and(|last| last != current) {
@@ -1210,6 +1348,14 @@ fn control_canonical_text(
     v: JsonView<'_>,
     owner: Option<&OwnedBudget>,
 ) -> Result<TextValue, String> {
+    control_canonical_text_admitted(v, owner, None)
+}
+fn control_canonical_text_admitted(
+    v: JsonView<'_>,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<TextValue, String> {
+    control_native_owner(owner, work)?;
     #[cfg(feature = "s_allocation_json_testonly")]
     if let Some(owner) = owner {
         return TextValue::from_bytes(control_aj::canonical_bytes(v, owner).map_err(err)?);
@@ -1217,13 +1363,52 @@ fn control_canonical_text(
     if owner.is_some() {
         return Err("prototype_audit_allocation_incomplete：owned规范文本未启用".into());
     }
-    serde_json::to_string(&v).map(TextValue::Plain).map_err(err)
+    if work.is_none() {
+        return serde_json::to_string(&v).map(TextValue::Plain).map_err(err);
+    }
+    struct AdmittedWriter<'a> {
+        bytes: CodecVec<u8>,
+        work: Option<&'a WorkScope>,
+        failure: Option<String>,
+    }
+    impl std::io::Write for AdmittedWriter<'_> {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if let Err(error) = control_extend(&mut self.bytes, bytes, self.work) {
+                self.failure = Some(err(error));
+                return Err(std::io::Error::other("Native canonical text admission"));
+            }
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut writer = AdmittedWriter {
+        bytes: control_json::new_work(None),
+        work,
+        failure: None,
+    };
+    let result = serde_json::to_writer(&mut writer, &v);
+    if let Some(error) = writer.failure {
+        return Err(error);
+    }
+    result.map_err(err)?;
+    TextValue::from_bytes(writer.bytes).map_err(err)
 }
 fn control_identity(
     input: &tb02a::RawInputView<'_>,
     ev: tb02a::RawEventView<'_>,
     owner: Option<&OwnedBudget>,
 ) -> Result<TextValue, String> {
+    control_identity_admitted(input, ev, owner, None)
+}
+fn control_identity_admitted(
+    input: &tb02a::RawInputView<'_>,
+    ev: tb02a::RawEventView<'_>,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<TextValue, String> {
+    control_native_owner(owner, work)?;
     let mut bytes = control_json::new_work(owner);
     for (i, s) in [
         input.source_namespace,
@@ -1235,9 +1420,9 @@ fn control_identity(
     .enumerate()
     {
         if i > 0 {
-            bytes.try_push(b'|').map_err(err)?;
+            control_push(&mut bytes, b'|', work).map_err(err)?;
         }
-        bytes.try_extend_bytes(s.as_bytes()).map_err(err)?;
+        control_extend(&mut bytes, s.as_bytes(), work).map_err(err)?;
     }
     TextValue::from_bytes(bytes).map_err(err)
 }
@@ -1294,9 +1479,17 @@ fn control_sorted_keys<'a, K: Eq + std::hash::Hash + Ord, V>(
     map: &'a BusinessMap<K, V>,
     owner: Option<&OwnedBudget>,
 ) -> Result<CodecVec<&'a K>, String> {
+    control_sorted_keys_admitted(map, owner, None)
+}
+fn control_sorted_keys_admitted<'a, K: Eq + std::hash::Hash + Ord, V>(
+    map: &'a BusinessMap<K, V>,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<CodecVec<&'a K>, String> {
+    control_native_owner(owner, work)?;
     let mut keys = control_json::new_work(owner);
     for (key, _) in map.iter() {
-        keys.try_push(key).map_err(err)?;
+        control_push(&mut keys, key, work).map_err(err)?;
     }
     keys.sort_unstable();
     Ok(keys)
@@ -1319,16 +1512,24 @@ pub(super) fn read_audit_message(
     r: &mut CheckedRow<'_>,
     owner: Option<&OwnedBudget>,
 ) -> Result<AuditMessage, String> {
-    let ns = TextValue::from_sql(r, 0, owner).map_err(err)?;
-    let se = TextValue::from_sql(r, 1, owner).map_err(err)?;
-    let id = TextValue::from_sql(r, 2, owner).map_err(err)?;
-    let hash = TextValue::from_sql(r, 3, owner).map_err(err)?;
-    let raw = TextValue::from_sql(r, 4, owner).map_err(err)?;
-    let receipt = TextValue::from_sql(r, 5, owner).map_err(err)?;
+    read_audit_message_admitted(r, owner, None)
+}
+pub(super) fn read_audit_message_admitted(
+    r: &mut CheckedRow<'_>,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<AuditMessage, String> {
+    control_native_owner(owner, work)?;
+    let ns = TextValue::from_sql_admitted(r, 0, owner, work).map_err(err)?;
+    let se = TextValue::from_sql_admitted(r, 1, owner, work).map_err(err)?;
+    let id = TextValue::from_sql_admitted(r, 2, owner, work).map_err(err)?;
+    let hash = TextValue::from_sql_admitted(r, 3, owner, work).map_err(err)?;
+    let raw = TextValue::from_sql_admitted(r, 4, owner, work).map_err(err)?;
+    let receipt = TextValue::from_sql_admitted(r, 5, owner, work).map_err(err)?;
     let seq = r.integer(6).map_err(err)?;
-    let status = TextValue::from_sql(r, 7, owner).map_err(err)?;
+    let status = TextValue::from_sql_admitted(r, 7, owner, work).map_err(err)?;
     let published = r.optional_integer(8).map_err(err)?;
-    let event = TextValue::from_sql(r, 9, owner).map_err(err)?;
+    let event = TextValue::from_sql_admitted(r, 9, owner, work).map_err(err)?;
     let count = r.integer(10).map_err(err)?;
     Ok(AuditMessage {
         ns,
@@ -1354,6 +1555,30 @@ pub(super) fn validate_audit_message(
     first_pub: Option<i64>,
     owner: Option<&OwnedBudget>,
 ) -> Result<TextValue, String> {
+    validate_audit_message_admitted(
+        conn,
+        m,
+        protocol_revision,
+        sid,
+        inc,
+        clock,
+        first_pub,
+        owner,
+        None,
+    )
+}
+pub(super) fn validate_audit_message_admitted(
+    conn: &Connection,
+    m: &AuditMessage,
+    protocol_revision: &str,
+    sid: &str,
+    inc: &str,
+    clock: JsonView<'_>,
+    first_pub: Option<i64>,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<TextValue, String> {
+    control_native_owner(owner, work)?;
     use control_json::field;
     use newchan_rust::session_protocol::validate_envelope_view_with_owner;
     let AuditMessage {
@@ -1370,7 +1595,7 @@ pub(super) fn validate_audit_message(
         count,
     } = m;
     let (seq, count, published) = (*seq, *count, *published);
-    let envelope = control_decode(&raw, owner, false).map_err(err)?;
+    let envelope = control_decode_admitted(&raw, owner, false, work).map_err(err)?;
     let e = validate_envelope_view_with_owner(envelope.view(), protocol_revision, owner)
         .map_err(err)?;
     if !control_canonical_equal(e, &raw, owner)?
@@ -1392,16 +1617,16 @@ pub(super) fn validate_audit_message(
         return Err(err("持久输入消息非单事件"));
     }
     let ev = input.event(0).map_err(err)?;
-    let ik = control_identity(&input, ev, owner)?;
+    let ik = control_identity_admitted(&input, ev, owner, work)?;
     let actual = control_query_row(
         conn,
         c"SELECT receipt_id,payload_hash,identity_key,revision FROM raw_events WHERE seq=?1",
         &[ControlBind::Integer(seq)],
         |mut r| {
             Ok((
-                TextValue::from_sql(&mut r, 0, owner)?,
-                TextValue::from_sql(&mut r, 1, owner)?,
-                TextValue::from_sql(&mut r, 2, owner)?,
+                TextValue::from_sql_admitted(&mut r, 0, owner, work)?,
+                TextValue::from_sql_admitted(&mut r, 1, owner, work)?,
+                TextValue::from_sql_admitted(&mut r, 2, owner, work)?,
                 r.integer(3).map_err(|e| e.to_string())?,
             ))
         },
@@ -1429,7 +1654,7 @@ pub(super) fn validate_audit_message(
         JsonView::String(&se),
         JsonView::String(&id),
     ];
-    return control_canonical_text(JsonView::ArraySlice(&key_fields), owner);
+    return control_canonical_text_admitted(JsonView::ArraySlice(&key_fields), owner, work);
 }
 
 /// 单 phase 与实际消息/根/clock 的关系核；唯一性与连续性由各自完整索引闭合。
@@ -1536,9 +1761,19 @@ pub(super) fn validate_attempt_summary(
 pub(super) fn validate_control_history_with_owner(
     conn: &Connection,
     protocol_revision: &str,
-    mut epoch_facts: CodecVec<(TextValue, i64)>,
+    epoch_facts: CodecVec<(TextValue, i64)>,
     owner: Option<&OwnedBudget>,
 ) -> Result<ControlHistory, String> {
+    validate_control_history_admitted(conn, protocol_revision, epoch_facts, owner, None)
+}
+pub(super) fn validate_control_history_admitted(
+    conn: &Connection,
+    protocol_revision: &str,
+    mut epoch_facts: CodecVec<(TextValue, i64)>,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<ControlHistory, String> {
+    control_native_owner(owner, work)?;
     use control_json::field;
     use newchan_rust::session_protocol::{canonical_hash_view_with_owner, required_view};
     if !matches!(protocol_revision, "s-session/2" | "s-session/3") {
@@ -1577,28 +1812,30 @@ pub(super) fn validate_control_history_with_owner(
         "profile_definition",
         "input_profile",
     ] {
-        if control_meta_text(conn, key, owner)?.is_none_or(|s| s.is_empty()) {
+        if control_meta_text_admitted(conn, key, owner, work)?.is_none_or(|s| s.is_empty()) {
             return Err(err(format!("v2初始化缺完整{key}绑定")));
         }
     }
     positive(
-        &control_meta_text(conn, "writer_epoch", owner)?.ok_or_else(|| err("缺writer_epoch"))?,
+        &control_meta_text_admitted(conn, "writer_epoch", owner, work)?
+            .ok_or_else(|| err("缺writer_epoch"))?,
         "v2 writer_epoch",
     )
     .map_err(err)?;
-    let clock = stored_control_clock(conn, owner)?;
-    let (protocol, inc, next, frontier) = control_query_row(conn,c"SELECT protocol_revision,session_generation,next_attempt_ordinal,logical_phase_frontier FROM s_protocol_meta WHERE singleton=1", &[], |r| Ok((TextValue::from_sql(r,0,owner)?,TextValue::from_sql(r,1,owner)?,r.integer(2).map_err(|e|e.to_string())?,TextValue::from_sql(r,3,owner)?)))?;
+    let clock = stored_control_clock_admitted(conn, owner, work)?;
+    let (protocol, inc, next, frontier) = control_query_row(conn,c"SELECT protocol_revision,session_generation,next_attempt_ordinal,logical_phase_frontier FROM s_protocol_meta WHERE singleton=1", &[], |r| Ok((TextValue::from_sql_admitted(r,0,owner, work)?,TextValue::from_sql_admitted(r,1,owner, work)?,r.integer(2).map_err(|e|e.to_string())?,TextValue::from_sql_admitted(r,3,owner, work)?)))?;
     if protocol != protocol_revision || next < 1 {
         return Err(err("协议版本/attempt域错误"));
     }
     positive(&inc, "session_generation").map_err(err)?;
-    let root_g = control_meta_i64(conn, "generation", owner)?;
-    let sid = control_meta_text(conn, "session_id", owner)?.ok_or_else(|| err("缺session"))?;
-    let catalog_raw = control_meta_text(conn, "catalog_definition", owner)?
+    let root_g = control_meta_i64_admitted(conn, "generation", owner, work)?;
+    let sid = control_meta_text_admitted(conn, "session_id", owner, work)?
+        .ok_or_else(|| err("缺session"))?;
+    let catalog_raw = control_meta_text_admitted(conn, "catalog_definition", owner, work)?
         .ok_or_else(|| err("v2缺catalog来源"))?;
-    let catalog_hash =
-        control_meta_text(conn, "catalog_hash", owner)?.ok_or_else(|| err("v2缺catalog hash"))?;
-    let catalog = control_decode(&catalog_raw, owner, false).map_err(err)?;
+    let catalog_hash = control_meta_text_admitted(conn, "catalog_hash", owner, work)?
+        .ok_or_else(|| err("v2缺catalog hash"))?;
+    let catalog = control_decode_admitted(&catalog_raw, owner, false, work).map_err(err)?;
     let catalog_view = catalog.view();
     if !control_canonical_equal(catalog_view, &catalog_raw, owner)?
         || canonical_hash_view_with_owner(catalog_view, owner)
@@ -1606,7 +1843,7 @@ pub(super) fn validate_control_history_with_owner(
             .as_str()
             != catalog_hash.as_str()
         || field(catalog_view, "catalog_revision").as_str()
-            != control_meta_text(conn, "catalog_revision", owner)?.as_deref()
+            != control_meta_text_admitted(conn, "catalog_revision", owner, work)?.as_deref()
     {
         return Err(err("目录来源/hash/revision不一致"));
     }
@@ -1626,10 +1863,10 @@ pub(super) fn validate_control_history_with_owner(
             &[ControlBind::Text(required_view(item, "id").map_err(err)?)],
             |r| {
                 Ok((
-                    TextValue::from_sql(r, 0, owner)?,
-                    TextValue::from_sql(r, 1, owner)?,
-                    TextValue::from_sql(r, 2, owner)?,
-                    TextValue::from_sql(r, 3, owner)?,
+                    TextValue::from_sql_admitted(r, 0, owner, work)?,
+                    TextValue::from_sql_admitted(r, 1, owner, work)?,
+                    TextValue::from_sql_admitted(r, 2, owner, work)?,
+                    TextValue::from_sql_admitted(r, 3, owner, work)?,
                 ))
             },
         )?;
@@ -1637,12 +1874,14 @@ pub(super) fn validate_control_history_with_owner(
             || field(item, "title").as_str() != Some(actual.1.as_str())
             || field(item, "domain").as_str() != Some(actual.2.as_str())
             || field(item, "branches")
-                != control_decode(&actual.3, owner, false).map_err(err)?.view()
+                != control_decode_admitted(&actual.3, owner, false, work)
+                    .map_err(err)?
+                    .view()
         {
             return Err(err("目录静态内容与来源不同"));
         }
     }
-    let (ps,pi,pr,keep,first,head) = control_query_row(conn,c"SELECT session_id,session_generation,policy_revision,retain_generations,first_available_generation,head_generation FROM s_delivery_policy WHERE singleton=1", &[], |r| Ok((TextValue::from_sql(r,0,owner)?,TextValue::from_sql(r,1,owner)?,TextValue::from_sql(r,2,owner)?,r.integer(3).map_err(|e|e.to_string())?,r.integer(4).map_err(|e|e.to_string())?,r.integer(5).map_err(|e|e.to_string())?)))?;
+    let (ps,pi,pr,keep,first,head) = control_query_row(conn,c"SELECT session_id,session_generation,policy_revision,retain_generations,first_available_generation,head_generation FROM s_delivery_policy WHERE singleton=1", &[], |r| Ok((TextValue::from_sql_admitted(r,0,owner, work)?,TextValue::from_sql_admitted(r,1,owner, work)?,TextValue::from_sql_admitted(r,2,owner, work)?,r.integer(3).map_err(|e|e.to_string())?,r.integer(4).map_err(|e|e.to_string())?,r.integer(5).map_err(|e|e.to_string())?)))?;
     validate_delivery_policy(&ps, &pi, &pr, keep, first, head, &sid, &inc, root_g)?;
     let mut stmt = conn
         .prepare("SELECT generation FROM s_delivery_refs ORDER BY generation")
@@ -1650,8 +1889,7 @@ pub(super) fn validate_control_history_with_owner(
     let mut rows = stmt.query([]).map_err(err)?;
     let mut refs = control_json::new_work(owner);
     while let Some(r) = rows.next().map_err(err)? {
-        refs.try_push(r.get::<_, i64>(0).map_err(err)?)
-            .map_err(err)?;
+        control_push(&mut refs, r.get::<_, i64>(0).map_err(err)?, work).map_err(err)?;
     }
     if refs.len() as i128 != (head as i128 - first as i128 + 1).max(0)
         || refs
@@ -1668,12 +1906,15 @@ pub(super) fn validate_control_history_with_owner(
             .map_err(err)?;
         let mut rows = q.query([]).map_err(err)?;
         while let Some(r) = rows.next().map_err(err)? {
-            publication_frontiers
-                .try_push((
+            control_push(
+                &mut publication_frontiers,
+                (
                     r.get::<_, i64>(0).map_err(err)?,
                     r.get::<_, i64>(1).map_err(err)?,
-                ))
-                .map_err(err)?;
+                ),
+                work,
+            )
+            .map_err(err)?;
         }
     }
     if publication_frontiers.windows(2).any(|w| w[0].1 > w[1].1) {
@@ -1683,11 +1924,11 @@ pub(super) fn validate_control_history_with_owner(
     let mut messages = control_json::new_map(owner);
     let mut message_sequences = control_json::new_map::<i64, ()>(owner);
     while let Some(mut r) = stmt.next().map_err(err)? {
-        let m = read_audit_message(&mut r, owner)?;
+        let m = read_audit_message_admitted(&mut r, owner, work)?;
         let first_pub = publication_frontiers
             .get(publication_frontiers.partition_point(|(_, frontier)| *frontier < m.seq))
             .map(|(g, _)| *g);
-        let key = validate_audit_message(
+        let key = validate_audit_message_admitted(
             conn,
             &m,
             protocol_revision,
@@ -1696,6 +1937,7 @@ pub(super) fn validate_control_history_with_owner(
             clock.value.view(),
             first_pub,
             owner,
+            work,
         )?;
         let AuditMessage {
             seq,
@@ -1704,9 +1946,8 @@ pub(super) fn validate_control_history_with_owner(
             published,
             ..
         } = m;
-        message_sequences.insert(seq, ()).map_err(err)?;
-        if messages
-            .insert(event, (key, count, published))
+        control_insert(&mut message_sequences, seq, (), work).map_err(err)?;
+        if control_insert(&mut messages, event, (key, count, published), work)
             .map_err(err)?
             .is_some()
         {
@@ -1718,7 +1959,7 @@ pub(super) fn validate_control_history_with_owner(
         .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0))
         .map_err(err)?;
     if message_sequences.len() as i128 != raw_count as i128
-        || control_sorted_keys(&message_sequences, owner)?
+        || control_sorted_keys_admitted(&message_sequences, owner, work)?
             .iter()
             .enumerate()
             .any(|(i, seq)| **seq as i128 != i as i128)
@@ -1734,11 +1975,11 @@ pub(super) fn validate_control_history_with_owner(
     let mut recover_facts = control_json::new_work(owner);
     let mut max_ns = -1;
     while let Some(mut r) = stmt.next().map_err(err)? {
-        let id = TextValue::from_sql(&mut r, 0, owner).map_err(err)?;
-        let phase = TextValue::from_sql(&mut r, 1, owner).map_err(err)?;
+        let id = TextValue::from_sql_admitted(&mut r, 0, owner, work).map_err(err)?;
+        let phase = TextValue::from_sql_admitted(&mut r, 1, owner, work).map_err(err)?;
         let index = r.integer(2).map_err(err)?;
-        let ns = TextValue::from_sql(&mut r, 3, owner).map_err(err)?;
-        let key = TextValue::from_sql(&mut r, 4, owner).map_err(err)?;
+        let ns = TextValue::from_sql_admitted(&mut r, 3, owner, work).map_err(err)?;
+        let key = TextValue::from_sql_admitted(&mut r, 4, owner, work).map_err(err)?;
         let ord = r.optional_integer(5).map_err(err)?;
         let g = r.integer(6).map_err(err)?;
         validate_audit_phase(
@@ -1758,44 +1999,60 @@ pub(super) fn validate_control_history_with_owner(
         )?;
         max_ns = max_ns.max(nonnegative(&ns, "semantic_ns").map_err(err)?);
         if phase == "recover" {
-            recover_facts
-                .try_push((ns.try_clone().map_err(err)?, g))
-                .map_err(err)?;
+            control_push(
+                &mut recover_facts,
+                (ns.try_clone_admitted(work).map_err(err)?, g),
+                work,
+            )
+            .map_err(err)?;
         } else {
             let (expected_key, count, published) = messages
                 .get(id.as_str())
                 .ok_or_else(|| err("phase没有原消息"))?;
             if phase == "begin"
-                && ordinals
-                    .insert(ord.unwrap(), (id.try_clone().map_err(err)?, index))
-                    .map_err(err)?
-                    .is_some()
+                && control_insert(
+                    &mut ordinals,
+                    ord.unwrap(),
+                    (id.try_clone_admitted(work).map_err(err)?, index),
+                    work,
+                )
+                .map_err(err)?
+                .is_some()
             {
                 return Err(err("重复全局attempt"));
             }
             if phase == "begin" {
                 if !begins_by_message.contains_key(id.as_str()) {
-                    begins_by_message
-                        .insert(id.try_clone().map_err(err)?, control_json::new_map(owner))
-                        .map_err(err)?;
-                }
-                begins_by_message
-                    .get_mut(id.as_str())
-                    .unwrap()
-                    .insert(index, ())
+                    control_insert(
+                        &mut begins_by_message,
+                        id.try_clone_admitted(work).map_err(err)?,
+                        control_json::new_map(owner),
+                        work,
+                    )
                     .map_err(err)?;
+                }
+                control_insert(
+                    begins_by_message.get_mut(id.as_str()).unwrap(),
+                    index,
+                    (),
+                    work,
+                )
+                .map_err(err)?;
             }
         }
         if phase == "commit"
-            && commits_by_generation
-                .insert(g, (id.try_clone().map_err(err)?, index))
-                .map_err(err)?
-                .is_some()
+            && control_insert(
+                &mut commits_by_generation,
+                g,
+                (id.try_clone_admitted(work).map_err(err)?, index),
+                work,
+            )
+            .map_err(err)?
+            .is_some()
         {
             return Err(err("每代重复Commit phase"));
         }
-        if seen
-            .insert((id, phase, index), (ord, g))
+        if control_insert(&mut seen, (id, phase, index), (ord, g), work)
             .map_err(err)?
             .is_some()
         {
@@ -1805,20 +2062,20 @@ pub(super) fn validate_control_history_with_owner(
     stmt.finalize().map_err(err)?;
     if parse_canonical_i64(&frontier, "logical_phase_frontier").map_err(err)? != max_ns
         || next as i128 != ordinals.len() as i128 + 1
-        || control_sorted_keys(&ordinals, owner)?
+        || control_sorted_keys_admitted(&ordinals, owner, work)?
             .iter()
             .enumerate()
             .any(|(i, o)| **o as i128 != i as i128 + 1)
     {
         return Err(err("phase frontier/attempt序列断裂"));
     }
-    for id in &control_sorted_keys(&messages, owner)? {
+    for id in &control_sorted_keys_admitted(&messages, owner, work)? {
         let (_, count, published) = messages.get(id.as_str()).unwrap();
         let indexes = begins_by_message.get(id.as_str());
         let mut sorted_indexes = control_json::new_work(owner);
         if let Some(indexes) = indexes {
             for (i, _) in indexes.iter() {
-                sorted_indexes.try_push(*i).map_err(err)?;
+                control_push(&mut sorted_indexes, *i, work).map_err(err)?;
             }
         }
         sorted_indexes.sort_unstable();
@@ -1851,23 +2108,25 @@ pub(super) fn validate_control_history_with_owner(
     let mut remaining = control_json::new_map(owner);
     while let Some(mut r) = q.next().map_err(err)? {
         let g = r.integer(0).map_err(err)?;
-        let batch_id = TextValue::from_sql(&mut r, 1, owner).map_err(err)?;
+        let batch_id = TextValue::from_sql_admitted(&mut r, 1, owner, work).map_err(err)?;
         let (id, index) = commits_by_generation
             .get(&g)
             .ok_or_else(|| err("v2发布缺真实Commit phase"))?;
-        remaining
-            .insert(
-                (g, batch_id),
-                ControlHeader {
-                    commit_ns: TextValue::from_str(
-                        clock.phase(id, "commit", *index).map_err(err)?,
-                        owner,
-                    )
-                    .map_err(err)?,
-                    consumed: false,
-                },
-            )
-            .map_err(err)?;
+        control_insert(
+            &mut remaining,
+            (g, batch_id),
+            ControlHeader {
+                commit_ns: TextValue::from_str_admitted(
+                    clock.phase(id, "commit", *index).map_err(err)?,
+                    owner,
+                    work,
+                )
+                .map_err(err)?,
+                consumed: false,
+            },
+            work,
+        )
+        .map_err(err)?;
     }
     q.finalize().map_err(err)?;
     Ok(ControlHistory {

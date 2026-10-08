@@ -1208,11 +1208,15 @@ fn native_tables<T>(
     rows: &[T],
     id: fn(&T) -> &str,
     first: fn(&T) -> i64,
-) -> (
-    std::collections::HashMap<String, usize>,
-    std::collections::BTreeMap<i64, Vec<usize>>,
-    Option<i64>,
-) {
+    store: &(impl CodecRead + ?Sized),
+) -> Result<
+    (
+        std::collections::HashMap<String, usize>,
+        std::collections::BTreeMap<i64, Vec<usize>>,
+        Option<i64>,
+    ),
+    String,
+> {
     let mut map = std::collections::HashMap::<String, usize>::new();
     let mut born = std::collections::BTreeMap::<i64, Vec<usize>>::new();
     let mut duplicate = None;
@@ -1221,18 +1225,26 @@ fn native_tables<T>(
         audit_count(1);
         let name = id(row);
         let g = first(row);
-        born.entry(g).or_default().push(ordinal);
+        if !born.contains_key(&g) {
+            store
+                .native_tree_room::<i64, Vec<usize>>(born.len())
+                .map_err(err)?;
+        }
+        let bucket = born.entry(g).or_default();
+        store.native_vec_room(bucket, 1).map_err(err)?;
+        bucket.push(ordinal);
         if let Some(previous) = map.get(name).copied() {
             let from = g.max(first(&rows[previous]));
             duplicate = Some(duplicate.map_or(from, |old: i64| old.min(from)));
             if g < first(&rows[previous]) {
-                map.insert(name.to_owned(), ordinal);
+                map.insert(store.native_string(name).map_err(err)?, ordinal);
             }
         } else {
-            map.insert(name.to_owned(), ordinal);
+            store.native_std_map_room(&mut map).map_err(err)?;
+            map.insert(store.native_string(name).map_err(err)?, ordinal);
         }
     }
-    (map, born, duplicate)
+    Ok((map, born, duplicate))
 }
 /// 完整身份表按原 SQL 行序保存稳定 ordinal；首次观察桶不借用索引行或身份文本。
 pub(super) struct NativeAuxFacts {
@@ -1278,14 +1290,39 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
         index: &'index Index,
         raw: RawEventsView<'raw>,
     ) -> Option<Self> {
+        Self::from_loaded_in(s, index, raw, &super::audit_store::NativeAdmission(None))
+            .expect("无scope的Native辅助表构造")
+    }
+    pub(super) fn from_loaded_admitted(
+        s: &super::history::HashReader<'capture>,
+        index: &'index Index,
+        raw: RawEventsView<'raw>,
+    ) -> Result<Option<Self>, String> {
+        Self::from_loaded_in(s, index, raw, s)
+    }
+    fn from_loaded_in(
+        s: &super::history::HashReader<'capture>,
+        index: &'index Index,
+        raw: RawEventsView<'raw>,
+        admission: &(impl CodecRead + ?Sized),
+    ) -> Result<Option<Self>, String> {
         if index.budget.is_some() || raw.budget().is_some() {
-            return None;
+            return Ok(None);
         }
-        let capture = s.native_projection_capture()?;
-        let (w, bw, dw) = native_tables(&index.witnesses, |r| r.id.as_str(), |r| r.first);
-        let (r, br, dr) = native_tables(&index.relations, |r| r.id.as_str(), |r| r.first);
-        let (o, bo, do_) = native_tables(&index.observations, |r| r.id.as_str(), |r| r.first);
-        Some(Self {
+        let Some(capture) = s.native_projection_capture() else {
+            return Ok(None);
+        };
+        let (w, bw, dw) =
+            native_tables(&index.witnesses, |r| r.id.as_str(), |r| r.first, admission)?;
+        let (r, br, dr) =
+            native_tables(&index.relations, |r| r.id.as_str(), |r| r.first, admission)?;
+        let (o, bo, do_) = native_tables(
+            &index.observations,
+            |r| r.id.as_str(),
+            |r| r.first,
+            admission,
+        )?;
+        Ok(Some(Self {
             capture,
             index,
             raw,
@@ -1302,7 +1339,7 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
             retained_raw_capacity: 0,
             relation_memo: Default::default(),
             raw_memo: Default::default(),
-        })
+        }))
     }
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn restore(
@@ -1821,18 +1858,21 @@ pub(super) fn load(
     let mut stmt=CheckedStatement::prepare(tx,c"SELECT witness_id,object_id,slot,generated_root,wire_root,published_generation,merged_index FROM s_content_witnesses ORDER BY rowid").map_err(err)?;
     while let Some(mut row) = stmt.next().map_err(err)? {
         let entry = audit_persisted_witness(&mut row, s, latest, owned_budget.as_ref(), &mut rt)?;
+        s.native_codec_room(&mut out.witnesses, 1).map_err(err)?;
         out.witnesses.try_push(entry).map_err(err)?;
     }
     stmt.finalize().map_err(err)?;
     let mut stmt=CheckedStatement::prepare(tx,c"SELECT relation_id,subject,relation_type,object,generated_root,published_generation FROM s_content_relations ORDER BY rowid").map_err(err)?;
     while let Some(mut row) = stmt.next().map_err(err)? {
         let entry = audit_persisted_relation(&mut row, s, latest, owned_budget.as_ref())?;
+        s.native_codec_room(&mut out.relations, 1).map_err(err)?;
         out.relations.try_push(entry).map_err(err)?;
     }
     stmt.finalize().map_err(err)?;
     let mut stmt=CheckedStatement::prepare(tx,c"SELECT observation_id,kind,window_start,batch_id,generated_root,birth_wire_root,published_generation FROM s_content_observations ORDER BY rowid").map_err(err)?;
     while let Some(mut row) = stmt.next().map_err(err)? {
         let entry = audit_persisted_observation(&mut row, s, latest, owned_budget.as_ref())?;
+        s.native_codec_room(&mut out.observations, 1).map_err(err)?;
         out.observations.try_push(entry).map_err(err)?;
     }
     stmt.finalize().map_err(err)?;
@@ -2337,6 +2377,116 @@ mod tests {
         tests::{accept_ohlc, init_test_db, located_ohlc_input, tb02b_oracle_rows, TestFiles},
     };
     use rusqlite::Connection;
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn r12_cold_object_aux_shared_scope_matches_complete_plain_outputs() {
+        use super::super::{audit_owner::native::Budget, history::HashReader, object_index};
+        let mut fixture = super::super::prepared::tests::Fixture::new();
+        for (n, row, revision) in [
+            (1, ("a", 0, 6, 12, 3, 7), 1),
+            (2, ("b", 10, 8, 16, 6, 12), 1),
+            (3, ("c", 20, 8, 13, 4, 7), 1),
+            (4, ("b", 10, 8, 17, 6, 12), 2),
+        ] {
+            let (event, token) = fixture.accept_begin(n, row, revision);
+            fixture.publish(&event, &token).unwrap();
+        }
+        let tx = fixture.conn.transaction().unwrap();
+        let raw = read_raw_events(&tx).unwrap();
+        let raw = RawEventsView::plain(&raw);
+        let batch: String = tx
+            .query_row(
+                "SELECT batch_id FROM s_content_publications WHERE generation=4",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let capture = content_store::capture_for_prototype(&tx).unwrap();
+        let mut plain = HashReader::captured_for_audit(&capture, None).unwrap();
+        plain.enable_full_arrays_for_test();
+        let mut expected_objects = object_index::load_for_history(&tx, &mut plain, 4).unwrap();
+        let expected_entries = format!("{:?}", expected_objects.entries());
+        let expected_dual = expected_objects
+            .native_dual_at_cut(&mut plain, 4, &batch)
+            .unwrap();
+        let expected_aux = load(&tx, &mut plain, 4).unwrap();
+        let expected_rows = format!(
+            "{:?}",
+            (
+                &expected_aux.witnesses,
+                &expected_aux.relations,
+                &expected_aux.observations
+            )
+        );
+        let expected_sets = [false, true]
+            .map(|delta| native_cut_members(&expected_aux, &mut plain, 4, delta, &batch).unwrap());
+        let expected_facts = NativeAuxAudit::from_loaded(&plain, &expected_aux, raw)
+            .unwrap()
+            .into_facts();
+        let budget = Budget::new(64 * 1024 * 1024, 0).unwrap();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let before = budget.live();
+                // 与 state 冷入口一致：在当前父 scope 内独立捕获并启用 admitted 帧复用。
+                // 上面的普通 oracle 仍保留自己的无复用 capture。
+                let (scoped_capture, node_count) =
+                    content_store::capture_for_request_prototype_admitted(&tx, Some(scope))
+                        .map_err(err)?;
+                let scoped_capture = scoped_capture
+                    .enable_native_frame_reuse_admitted_for_testonly(Some(scope))
+                    .map_err(err)?;
+                let mut reader = HashReader::captured_for_audit(&scoped_capture, None)
+                    .unwrap()
+                    .with_codec_work(scope, &budget);
+                reader.enable_full_arrays_for_test();
+                let mut objects = object_index::load_for_history(&tx, &mut reader, 4)?;
+                assert_eq!(format!("{:?}", objects.entries()), expected_entries);
+                let sweep = objects.native_sweep_admitted(&reader)?.unwrap();
+                assert_eq!(
+                    objects.native_dual_at_cut(&mut reader, 4, &batch)?,
+                    expected_dual
+                );
+                drop(sweep);
+                let index = load(&tx, &mut reader, 4)?;
+                assert_eq!(
+                    format!(
+                        "{:?}",
+                        (&index.witnesses, &index.relations, &index.observations)
+                    ),
+                    expected_rows
+                );
+                let aux = NativeAuxAudit::from_loaded_admitted(&reader, &index, raw)?.unwrap();
+                assert_eq!(aux.witnesses, expected_facts.witnesses);
+                assert_eq!(aux.relations, expected_facts.relations);
+                assert_eq!(aux.observations, expected_facts.observations);
+                assert_eq!(aux.born, expected_facts.born);
+                assert_eq!(aux.duplicates, expected_facts.duplicates);
+                assert_eq!(aux.raw_scanned, expected_facts.raw_scanned);
+                assert_eq!(aux.raw_revisions, expected_facts.raw_revisions);
+                for (delta, expected) in [false, true].into_iter().zip(&expected_sets) {
+                    let (members, template) =
+                        native_cut_members(&index, &mut reader, 4, delta, &batch)?;
+                    for (actual, expected) in members.iter().zip(&expected.0) {
+                        assert_eq!(&actual[..], &expected[..]);
+                    }
+                    assert_eq!(template, expected.1);
+                }
+                assert!(budget.live() > before);
+                assert!(scope.snapshot().attempts > 0);
+                eprintln!(
+                    "R12_INIT complete nodes={} live={} peak={} scope={:?}",
+                    node_count,
+                    budget.live(),
+                    budget.peak(),
+                    scope.snapshot()
+                );
+                Ok::<_, String>(())
+            })
+            .unwrap();
+    }
 
     // 此夹具只验证真实生成器→辅助索引→SQLite，不声称完整 S3 控制/对象发布已接线。
     #[cfg(feature = "s_capture_native_testonly")]

@@ -328,6 +328,7 @@ pub(super) fn read_indexed_history(
         false,
         None,
         None,
+        None,
     )
 }
 
@@ -347,6 +348,7 @@ pub(super) fn read_indexed_history_for_audit(
         max_render_bytes,
         budget,
         budget.is_none(),
+        None,
         None,
         None,
     )
@@ -381,7 +383,31 @@ pub(super) fn read_indexed_history_for_audit_captured_with_records<'a>(
     max_render_bytes: Option<u64>,
     budget: Option<&dyn super::audit_budget::Budget>,
     capture: Option<&sc::AuditCapture>,
+    records: Option<&mut NativeRecordFields<'_>>,
+) -> Result<IndexedHistory, String> {
+    read_indexed_history_for_audit_captured_with_records_admitted(
+        tx,
+        raw,
+        control,
+        deadline,
+        max_render_bytes,
+        budget,
+        capture,
+        records,
+        None,
+    )
+}
+
+pub(super) fn read_indexed_history_for_audit_captured_with_records_admitted<'a>(
+    tx: &Transaction<'_>,
+    raw: impl Into<RawEventsView<'a>>,
+    control: v2::ControlHistory,
+    deadline: Option<std::time::Instant>,
+    max_render_bytes: Option<u64>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+    capture: Option<&sc::AuditCapture>,
     mut records: Option<&mut NativeRecordFields<'_>>,
+    work: Option<&sc::capture_allocation::scratch::WorkScope>,
 ) -> Result<IndexedHistory, String> {
     // 清除失败 history 的部分交接材料；不会交给后续 source 审计。
     let result = read_indexed_history_inner(
@@ -394,6 +420,7 @@ pub(super) fn read_indexed_history_for_audit_captured_with_records<'a>(
         budget.is_none(),
         capture,
         records.as_deref_mut(),
+        work,
     );
     if result.is_err() {
         if let Some(records) = records {
@@ -413,8 +440,16 @@ fn read_indexed_history_inner(
     audit_same_material: bool,
     capture: Option<&sc::AuditCapture>,
     mut records: Option<&mut NativeRecordFields<'_>>,
+    work: Option<&sc::capture_allocation::scratch::WorkScope>,
 ) -> Result<IndexedHistory, String> {
     check_deadline(deadline)?;
+    #[cfg(feature = "s_capture_native_testonly")]
+    if let Some(work) = work {
+        verify_required_meta_admitted(tx, work)?;
+    } else {
+        verify_required_meta(tx)?;
+    }
+    #[cfg(not(feature = "s_capture_native_testonly"))]
     verify_required_meta(tx)?;
     let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
     if audit_same_material {
@@ -428,6 +463,7 @@ fn read_indexed_history_inner(
             .with_audit_gate(budget, deadline),
         None => HashReader::metered(&mut reader, deadline, max_render_bytes, budget),
     };
+    store = store.with_native_scope(work).map_err(err)?;
     store.audit_full_arrays = audit_same_material && budget.is_none();
     let mut records = records.take().filter(|memo| {
         audit_same_material
@@ -439,18 +475,12 @@ fn read_indexed_history_inner(
     let allocation = history_allocation(&store)?;
     #[cfg(test)]
     super::state::trace_event("history_aux_index", None);
-    let auxiliary = aux_index::load(
-        tx,
-        &mut store,
-        v2::control_meta_i64(tx, "generation", allocation.as_ref())?,
-    )?;
+    let aux_generation = meta_i64_in_store(&store, tx, "generation", allocation.as_ref())?;
+    let auxiliary = aux_index::load(tx, &mut store, aux_generation)?;
     #[cfg(test)]
     super::state::trace_event("history_object_index", None);
-    let mut objects = object_index::load_for_history(
-        tx,
-        &mut store,
-        v2::control_meta_i64(tx, "generation", allocation.as_ref())?,
-    )?;
+    let object_generation = meta_i64_in_store(&store, tx, "generation", allocation.as_ref())?;
+    let mut objects = object_index::load_for_history(tx, &mut store, object_generation)?;
     #[cfg(test)]
     super::state::trace_event("history_raw_hashes", None);
     store.clear_overlay();
@@ -463,9 +493,11 @@ fn read_indexed_history_inner(
         let mut roots = bj::new_work(allocation.as_ref());
         while let Some(mut row) = stmt.next().map_err(err)? {
             check_deadline(deadline)?;
+            store.native_codec_room(&mut roots, 1).map_err(err)?;
             roots
                 .try_push(root_ref_bytes(&mut store, row.blob(0).map_err(err)?)?)
                 .map_err(err)?;
+            store.native_codec_room(&mut roots, 1).map_err(err)?;
             roots
                 .try_push(root_ref_bytes(&mut store, row.blob(1).map_err(err)?)?)
                 .map_err(err)?;
@@ -481,6 +513,7 @@ fn read_indexed_history_inner(
         let mut roots = bj::new_work(allocation.as_ref());
         while let Some(mut row) = stmt.next().map_err(err)? {
             check_deadline(deadline)?;
+            store.native_codec_room(&mut roots, 1).map_err(err)?;
             roots
                 .try_push(root_ref_bytes(&mut store, row.blob(0).map_err(err)?)?)
                 .map_err(err)?;
@@ -495,9 +528,9 @@ fn read_indexed_history_inner(
         )
         .map_err(err)?;
     // 原始当前capture闭包全核之后才创建；仅本次历史循环持有，跨请求/阶段重建。
-    let mut object_sweep = objects.native_sweep();
+    let mut object_sweep = objects.native_sweep_admitted(&store)?;
     let publication_memo = content_publication::NativePublicationMemo::new(&store);
-    let mut native_aux = aux_index::NativeAuxAudit::from_loaded(&store, &auxiliary, raw);
+    let mut native_aux = aux_index::NativeAuxAudit::from_loaded_admitted(&store, &auxiliary, raw)?;
     let mut native_prefix = NativeHistoryPrefixes::new(&store, raw, allocation.as_ref());
     let mut ordered_raw = native_prefix.as_ref().map(|_| bj::RawPrefixIndex::new(raw));
     let mut effective = bj::new_map::<i64, NodeDigest>(allocation.as_ref());
@@ -530,6 +563,7 @@ fn read_indexed_history_inner(
             allocation.as_ref(),
         )?;
         previous = cut.metadata.input_frontier;
+        store.native_codec_room(&mut output, 1).map_err(err)?;
         output.try_push(cut).map_err(err)?;
         // 保持原 Owned 工作集重叠：先登记结果，再释放本代派生节点。
         store.clear_overlay();
@@ -1070,6 +1104,7 @@ fn hash_current_raw(
     let allocation = history_allocation(store)?;
     let mut raw_nodes = bj::new_work(allocation.as_ref());
     for v in raw.iter() {
+        store.native_codec_room(&mut raw_nodes, 1).map_err(err)?;
         raw_nodes
             .try_push(hash_json_in_store(store, v, deadline, budget)?)
             .map_err(err)?;
@@ -1077,6 +1112,9 @@ fn hash_current_raw(
     let mut raw_wire_nodes = bj::new_work(allocation.as_ref());
     for event in raw.iter() {
         check_deadline(deadline)?;
+        store
+            .native_codec_room(&mut raw_wire_nodes, 1)
+            .map_err(err)?;
         raw_wire_nodes
             .try_push(hash_json_in_store(
                 store,
@@ -1111,12 +1149,31 @@ fn verify_current_frontiers(
 pub(super) fn revalidate_current_for_reuse(
     tx: &Transaction<'_>,
     raw: RawEventsView<'_>,
-    mut control: v2::ControlHistory,
+    control: v2::ControlHistory,
     capture: &sc::AuditCapture,
     cuts: &sc::CodecVec<PublishedCut>,
 ) -> Result<(), String> {
+    revalidate_current_for_reuse_admitted(tx, raw, control, capture, cuts, None)
+}
+
+pub(super) fn revalidate_current_for_reuse_admitted(
+    tx: &Transaction<'_>,
+    raw: RawEventsView<'_>,
+    mut control: v2::ControlHistory,
+    capture: &sc::AuditCapture,
+    cuts: &sc::CodecVec<PublishedCut>,
+    work: Option<&sc::capture_allocation::scratch::WorkScope>,
+) -> Result<(), String> {
+    #[cfg(feature = "s_capture_native_testonly")]
+    if let Some(work) = work {
+        verify_required_meta_admitted(tx, work)?;
+    } else {
+        verify_required_meta(tx)?;
+    }
+    #[cfg(not(feature = "s_capture_native_testonly"))]
     verify_required_meta(tx)?;
     let mut store = HashReader::captured_for_audit(capture, None).map_err(err)?;
+    store = store.with_native_scope(work).map_err(err)?;
     store.audit_full_arrays = true;
     hash_current_raw(&store, raw, None, None)?;
     for cut in cuts {
@@ -2003,6 +2060,20 @@ impl sc::ClosedReadObserver for AuditObserver<'_> {
     }
 }
 impl<'a> HashReader<'a> {
+    /// cold入口已有父work时直接承接；不得以Owned字段代替Native域。
+    pub(crate) fn with_native_scope(
+        mut self,
+        work: Option<&'a sc::capture_allocation::scratch::WorkScope>,
+    ) -> Result<Self, sc::CodecError> {
+        if let Some(work) = work {
+            if self.owned.is_some() {
+                return Err(work.reject(sc::capture_allocation::scratch::ScratchFailure::Ledger));
+            }
+        }
+        self.work = work;
+        Ok(self)
+    }
+
     pub(crate) fn native_work_scope(
         &self,
     ) -> Option<&'a sc::capture_allocation::scratch::WorkScope> {
@@ -2617,6 +2688,16 @@ impl CodecRead for HashReader<'_> {
             let value = newchan_rust::session_protocol::strict_json(bytes)?;
             // 业务输出仍 Plain。保守保留这笔载荷费到本次父账销毁；不计入 scratch。
             permit.commit(0, value.heap_bytes());
+            return Ok(value);
+        }
+        #[cfg(feature = "s_capture_native_testonly")]
+        if let Some(work) = self.work {
+            // 已有native::Budget专用口在上面精确结算；scope-only冷口保守留解析峰。
+            let permit = work
+                .reserve_native(super::audit_owner::native::JsonShape::scan(bytes).parse_peak())
+                .map_err(err)?;
+            let value = newchan_rust::session_protocol::strict_json(bytes)?;
+            permit.retain();
             return Ok(value);
         }
         newchan_rust::session_protocol::strict_json(bytes)

@@ -1308,6 +1308,15 @@ impl<'capture> NativeSourceAudit<'capture> {
         raw: RawEventsView<'capture>,
         records: Option<super::history::NativeRecordFields<'capture>>,
     ) -> Result<Self, String> {
+        Self::new_with_records_admitted(capture, raw, records, None)
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn new_with_records_admitted(
+        capture: &'capture sc::AuditCapture,
+        raw: RawEventsView<'capture>,
+        records: Option<super::history::NativeRecordFields<'capture>>,
+        work: Option<&'capture sc::capture_allocation::scratch::WorkScope>,
+    ) -> Result<Self, String> {
         if raw.budget().is_some() {
             return Err(err("Native来源memo不接收Owned原始账"));
         }
@@ -1319,12 +1328,15 @@ impl<'capture> NativeSourceAudit<'capture> {
         }
         let mut fields = NativeFieldMemo::new(capture);
         fields.records = records;
+        fields.work = work;
         Ok(Self {
             source_memo: NativeSourceMemo::new(capture, raw),
             ledger: NativeRawLedger::new(raw),
             fields,
             raw,
-            reader: super::history::HashReader::captured(capture, None),
+            reader: super::history::HashReader::captured(capture, None)
+                .with_native_scope(work)
+                .map_err(err)?,
             memo: NativeWitnessIdentityMemo::new(capture)?,
         })
     }

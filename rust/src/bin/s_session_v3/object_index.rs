@@ -560,13 +560,23 @@ impl NativeProjection<'_> {
 }
 impl HistoryObjects<'_> {
     pub(super) fn native_sweep(&mut self) -> Option<HistorySweep> {
-        let index = &self.entries;
-        self.native.as_mut().map(|native| {
-            let projection = native
-                .sweep
-                .get_or_insert_with(|| ProjectionSweep::new(index));
-            HistorySweep::from_events(std::sync::Arc::clone(&projection.events))
-        })
+        self.native_sweep_admitted(&super::audit_store::NativeAdmission(None))
+            .expect("无scope的Native事件构造")
+    }
+    pub(super) fn native_sweep_admitted(
+        &mut self,
+        store: &(impl CodecRead + ?Sized),
+    ) -> Result<Option<HistorySweep>, String> {
+        let Some(native) = self.native.as_mut() else {
+            return Ok(None);
+        };
+        if native.sweep.is_none() {
+            native.sweep = Some(ProjectionSweep::new_admitted(&self.entries, store)?);
+        }
+        let projection = native.sweep.as_ref().unwrap();
+        Ok(Some(HistorySweep::from_events(std::sync::Arc::clone(
+            &projection.events,
+        ))))
     }
     pub(super) fn entries(&self) -> &[Entry] {
         &self.entries
@@ -634,9 +644,10 @@ impl HistoryObjects<'_> {
         {
             return Err(err("双投影capture不符"));
         }
-        let sweep = native
-            .sweep
-            .get_or_insert_with(|| ProjectionSweep::new(&self.entries));
+        if native.sweep.is_none() {
+            native.sweep = Some(ProjectionSweep::new_admitted(&self.entries, s)?);
+        }
+        let sweep = native.sweep.as_mut().unwrap();
         sweep.seek_admitted(g, s)?;
         // #1394：先为真实 Vec 容量取得许可，避免 collect 的最小扩容超出元素数上界。
         let mut active = Vec::new();
@@ -1423,13 +1434,20 @@ pub(super) fn load_for_history<'capture>(
         capture,
         capture.map(|_| &mut events),
     )?;
-    let native = capture.map(|capture| NativeProjection {
-        capture,
-        wires: vec![[None, None]; entries.len()],
-        sweep: events.map(ProjectionSweep::from_events),
-        #[cfg(feature = "s_capture_native_testonly")]
-        retained: Default::default(),
-    });
+    let native = if let Some(capture) = capture {
+        let mut wires = Vec::new();
+        s.native_vec_room(&mut wires, entries.len()).map_err(err)?;
+        wires.resize_with(entries.len(), || [None, None]);
+        Some(NativeProjection {
+            capture,
+            wires,
+            sweep: events.map(ProjectionSweep::from_events),
+            #[cfg(feature = "s_capture_native_testonly")]
+            retained: Default::default(),
+        })
+    } else {
+        None
+    };
     Ok(HistoryObjects { entries, native })
 }
 /// 原始 SQL 行解码的唯一谓词；回读新增或死亡更新行仍须调用此处及原件绑定核。
@@ -1521,6 +1539,7 @@ fn load_in_store(
     let mut out = bj::new_work(allocation.as_ref());
     while let Some(mut row) = stmt.next().map_err(err)? {
         let e = decode_persisted_entry(&mut row, s, latest, allocation.as_ref())?;
+        s.native_codec_room(&mut out, 1).map_err(err)?;
         out.try_push(e).map_err(err)?;
     }
     stmt.finalize().map_err(err)?;
@@ -1529,6 +1548,8 @@ fn load_in_store(
     for (ordinal, e) in out.iter().enumerate() {
         #[cfg(test)]
         LOAD_ID_VISITS.with(|n| n.set(n.get() + 1));
+        s.native_map_room(&mut by_id).map_err(err)?;
+        s.native_admit(e.id.len()).map_err(err)?;
         if by_id
             .insert(e.id.try_clone()?, ordinal)
             .map_err(err)?
@@ -1546,9 +1567,12 @@ fn load_in_store(
     let mut refs = bj::new_work(allocation.as_ref());
     for e in &out {
         for b in [&e.generated, &e.internal, &e.immutable] {
+            s.native_codec_room(&mut refs, 1).map_err(err)?;
             refs.try_push(built_ref(s, b)?).map_err(err)?;
         }
-        refs.try_push(e.birth_wire.clone()).map_err(err)?;
+        s.native_codec_room(&mut refs, 1).map_err(err)?;
+        refs.try_push(s.native_ref_clone(&e.birth_wire).map_err(err)?)
+            .map_err(err)?;
     }
     s.verify_many_ref(refs.iter().map(RefValue::view), sc::Mode::Public)
         .map_err(err)?;
@@ -1569,7 +1593,8 @@ fn load_in_store(
     super::state::trace_event("object_index_done", None);
     if let Some(events) = events {
         // 仅 Native 无分配预算入口保有 std 有序事件表；失败不转普通路径。
-        *events = Some(std::sync::Arc::new(HistoryEvents::from_ids(&out, by_id)));
+        let value = HistoryEvents::from_ids_admitted(&out, by_id, s)?;
+        *events = Some(value.into_arc_admitted(s)?);
     }
     Ok(out)
 }
@@ -2000,29 +2025,62 @@ pub(super) fn load_id_capacity() -> usize {
     LOAD_ID_CAPACITY.with(|n| n.get())
 }
 impl HistoryEvents {
-    fn new(index: &[Entry]) -> Self {
+    fn new_admitted(index: &[Entry], store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
         let mut by_id = bj::new_map(None);
         for (i, e) in index.iter().enumerate() {
-            assert!(by_id
-                .insert(e.id.try_clone().expect("Native身份"), i)
-                .expect("Native索引")
-                .is_none());
+            store.native_map_room(&mut by_id).map_err(err)?;
+            store.native_admit(e.id.len()).map_err(err)?;
+            assert!(by_id.insert(e.id.try_clone()?, i).map_err(err)?.is_none());
         }
-        Self::from_ids(index, by_id)
+        Self::from_ids_admitted(index, by_id, store)
     }
-    fn from_ids(index: &[Entry], by_id: bj::BusinessMap<TextValue, usize>) -> Self {
+    fn into_arc_admitted(
+        self,
+        store: &(impl CodecRead + ?Sized),
+    ) -> Result<std::sync::Arc<Self>, String> {
+        // 与 Retained 的 Arc 账一致：两个引用计数及实际内联事件头；子容器已逐次准入。
+        store
+            .native_admit(2 * std::mem::size_of::<usize>() + std::mem::size_of::<Self>())
+            .map_err(err)?;
+        Ok(std::sync::Arc::new(self))
+    }
+    fn from_ids_admitted(
+        index: &[Entry],
+        by_id: bj::BusinessMap<TextValue, usize>,
+        store: &(impl CodecRead + ?Sized),
+    ) -> Result<Self, String> {
+        let mut ranks = Vec::new();
+        let mut withdrawn_ranks = Vec::new();
+        store
+            .native_vec_room(&mut ranks, index.len())
+            .map_err(err)?;
+        store
+            .native_vec_room(&mut withdrawn_ranks, index.len())
+            .map_err(err)?;
+        for e in index {
+            let rank = order_key(e, false);
+            rank.clone().admit(store)?;
+            ranks.push(rank.owned());
+            let rank = order_key(e, true);
+            rank.clone().admit(store)?;
+            withdrawn_ranks.push(rank.owned());
+        }
         let mut out = Self {
             by_id,
             births: Default::default(),
             deaths: Default::default(),
-            ranks: index.iter().map(|e| order_key(e, false).owned()).collect(),
-            withdrawn_ranks: index.iter().map(|e| order_key(e, true).owned()).collect(),
+            ranks,
+            withdrawn_ranks,
             #[cfg(test)]
             initial_entries: 0,
             #[cfg(test)]
             sort_passes: 0,
         };
-        let mut order: Vec<_> = (0..index.len()).collect();
+        let mut order = Vec::new();
+        store
+            .native_vec_room(&mut order, index.len())
+            .map_err(err)?;
+        order.extend(0..index.len());
         #[cfg(test)]
         {
             out.sort_passes += 1;
@@ -2033,15 +2091,27 @@ impl HistoryEvents {
             {
                 out.initial_entries += 1;
             }
-            out.births
-                .entry(e.life.first_known_generation)
-                .or_default()
-                .push(i);
+            let g = e.life.first_known_generation;
+            if !out.births.contains_key(&g) {
+                store
+                    .native_tree_room::<i64, Vec<usize>>(out.births.len())
+                    .map_err(err)?;
+            }
+            let bucket = out.births.entry(g).or_default();
+            store.native_vec_room(bucket, 1).map_err(err)?;
+            bucket.push(i);
         }
         // 本代changes沿旧活动序，不能换成累计withdrawn的主序。
         for i in &order {
             if let Some(g) = index[*i].life.withdrawn_generation {
-                out.deaths.entry(g).or_default().push(*i);
+                if !out.deaths.contains_key(&g) {
+                    store
+                        .native_tree_room::<i64, Vec<usize>>(out.deaths.len())
+                        .map_err(err)?;
+                }
+                let bucket = out.deaths.entry(g).or_default();
+                store.native_vec_room(bucket, 1).map_err(err)?;
+                bucket.push(*i);
             }
         }
         #[cfg(test)]
@@ -2049,7 +2119,7 @@ impl HistoryEvents {
             out.sort_passes += 1;
         }
         order.sort_unstable_by(|a, b| ordering(&index[*a], &index[*b], true).then(a.cmp(b)));
-        out
+        Ok(out)
     }
 }
 /// before-g游标保留原成员/变化审计入口和边界；不消费through-g状态。
@@ -2106,7 +2176,14 @@ impl HistorySweep {
 
     #[cfg(test)]
     fn new(index: &[Entry]) -> Self {
-        Self::from_events(std::sync::Arc::new(HistoryEvents::new(index)))
+        Self::new_admitted(index, &super::audit_store::NativeAdmission(None))
+            .expect("无scope的Native投影构造")
+    }
+    #[cfg(test)]
+    fn new_admitted(index: &[Entry], store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
+        Ok(Self::from_events(
+            HistoryEvents::new_admitted(index, store)?.into_arc_admitted(store)?,
+        ))
     }
     fn from_events(events: std::sync::Arc<HistoryEvents>) -> Self {
         Self {
@@ -2298,8 +2375,15 @@ impl ProjectionSweep {
         self.seek(g);
         Ok(())
     }
+    #[cfg(test)]
     fn new(index: &[Entry]) -> Self {
-        Self::from_events(std::sync::Arc::new(HistoryEvents::new(index)))
+        Self::new_admitted(index, &super::audit_store::NativeAdmission(None))
+            .expect("无scope的Native投影构造")
+    }
+    fn new_admitted(index: &[Entry], store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
+        Ok(Self::from_events(
+            HistoryEvents::new_admitted(index, store)?.into_arc_admitted(store)?,
+        ))
     }
     fn from_events(events: std::sync::Arc<HistoryEvents>) -> Self {
         Self {

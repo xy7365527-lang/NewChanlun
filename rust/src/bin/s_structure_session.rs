@@ -1100,19 +1100,31 @@ fn verify_profile_binding_with_owner(
     conn: &Connection,
     owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
 ) -> Result<(v3::business_json::TextValue, v3::business_json::TextValue), String> {
+    verify_profile_binding_admitted(conn, owner, None)
+}
+fn verify_profile_binding_admitted(
+    conn: &Connection,
+    owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<(v3::business_json::TextValue, v3::business_json::TextValue), String> {
+    use v3::audit_store::{CodecRead, NativeAdmission};
     use v3::business_json::TextValue;
+    let admission = NativeAdmission(work);
+    if work.is_some() && owner.is_some() {
+        return Err("Native profile父域不得混入Owned存储".into());
+    }
 
-    let id = v2::control_meta_text(conn, "profile_id", owner)?;
-    let hash = v2::control_meta_text(conn, "profile_hash", owner)?;
-    let input = v2::control_meta_text(conn, "input_profile", owner)?;
-    let definition = v2::control_meta_text(conn, "profile_definition", owner)?;
+    let id = v2::control_meta_text_admitted(conn, "profile_id", owner, work)?;
+    let hash = v2::control_meta_text_admitted(conn, "profile_hash", owner, work)?;
+    let input = v2::control_meta_text_admitted(conn, "input_profile", owner, work)?;
+    let definition = v2::control_meta_text_admitted(conn, "profile_definition", owner, work)?;
     let raw_count: i64 = conn
         .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0))
         .map_err(|e| e.to_string())?;
     if id.is_none() && hash.is_none() && input.is_none() && definition.is_none() && raw_count == 0 {
         return Ok((
-            TextValue::from_str("", owner)?,
-            TextValue::from_str("", owner)?,
+            TextValue::from_str_admitted("", owner, work)?,
+            TextValue::from_str_admitted("", owner, work)?,
         ));
     }
     let id = id
@@ -1129,7 +1141,8 @@ fn verify_profile_binding_with_owner(
         return Err("StorageUnavailable：input_profile与固定profile_id不一致".to_string());
     }
     if let Some(definition) = definition {
-        let profile = json_shape_with_owner(definition.as_str(), JsonShape::Object, owner)?;
+        let profile =
+            json_shape_with_owner_admitted(definition.as_str(), JsonShape::Object, owner, work)?;
         let view = profile.view();
         if view.get("profile_id").and_then(|v| v.as_str()) != Some(id.as_str())
             || newchan_rust::session_protocol::canonical_hash_view_with_owner(view, owner)?.as_str()
@@ -1145,8 +1158,11 @@ fn verify_profile_binding_with_owner(
         let mut stmt=newchan_rust::sqlite_checked::CheckedStatement::prepare(conn,c"SELECT b.batch_id FROM batches b JOIN structure_deltas d ON d.index_frontier=b.batch_id ORDER BY d.generation ASC").map_err(|e|e.to_string())?;
         let mut sealed_ids = v3::business_json::new_work(owner);
         while let Some(mut row) = stmt.next().map_err(|e| e.to_string())? {
+            admission
+                .native_codec_room(&mut sealed_ids, 1)
+                .map_err(|e| e.to_string())?;
             sealed_ids
-                .try_push(TextValue::from_sql(&mut row, 0, owner)?)
+                .try_push(TextValue::from_sql_admitted(&mut row, 0, owner, work)?)
                 .map_err(|e| e.to_string())?;
         }
         stmt.finalize().map_err(|e| e.to_string())?;
@@ -1157,18 +1173,8 @@ fn verify_profile_binding_with_owner(
         };
         for batch_id in &sealed_ids {
             let bytes = load_profile_batch_bytes(conn, &mut reader, batch_id, owner)?;
-            #[cfg(feature = "s_allocation_json_testonly")]
-            let batch = if let Some(b) = owner {
-                newchan_rust::s_content::capture_allocation::audit_json::OwnedJson::parse_legacy_shape(&bytes,b).map(v3::business_json::JsonOwner::Owned).map_err(|e|e.to_string())?
-            } else {
-                serde_json::from_slice(&bytes)
-                    .map(v3::business_json::JsonOwner::Plain)
-                    .map_err(|e| e.to_string())?
-            };
-            #[cfg(not(feature = "s_allocation_json_testonly"))]
-            let batch = serde_json::from_slice(&bytes)
-                .map(v3::business_json::JsonOwner::Plain)
-                .map_err(|e| e.to_string())?;
+            // #1394：旧sealed来源reader的图展开尚未取得Native分配资格；保持原源核。
+            let batch = v3::business_json::legacy_json_owner_admitted(&bytes, owner, work)?;
             let batch = batch.view();
             if batch
                 .get("profile_id")
@@ -1187,10 +1193,11 @@ fn verify_profile_binding_with_owner(
             break;
         }
         if !sealed_found {
-            let declared = json_shape_with_owner(
+            let declared = json_shape_with_owner_admitted(
                 include_str!("../../../s_session/profiles/testonly_tick_1_1_ohlc.json"),
                 JsonShape::Object,
                 owner,
+                work,
             )?;
             let declared = declared.view();
             if declared.get("profile_id").and_then(|v| v.as_str()) != Some(id.as_str())
@@ -2118,6 +2125,75 @@ fn read_raw_events_until(
         .collect::<Result<Vec<_>, String>>()?;
     tb02a::enrich_raw_until(conn, &mut rows, deadline)?;
     v3::business_json::validate_raw(v3::business_json::RawEventsView::plain(&rows), deadline)?;
+    check_read_deadline(deadline)?;
+    Ok(rows)
+}
+
+/// Native cold原始账沿相同SQL顺序、列类型及唯一验证核，在借用后准入再复制。
+fn read_raw_events_until_admitted(
+    conn: &Connection,
+    deadline: Option<std::time::Instant>,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<Vec<Value>, String> {
+    use v3::audit_store::CodecRead;
+    if work.is_none() {
+        return read_raw_events_until(conn, deadline);
+    }
+    check_read_deadline(deadline)?;
+    let admission = v3::audit_store::NativeAdmission(work);
+    let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
+        conn, c"SELECT identity_key, revision, input_revision, payload_hash, receipt_id, seq, source_namespace, source_epoch, instrument, event_id, received_at, raw_text, price, ts, volume, source_coord, supersedes_revision FROM raw_events ORDER BY seq ASC",
+    ).map_err(|e| format!("prepare 读取失败：{e}"))?;
+    let mut rows = Vec::new();
+    while let Some(mut row) = stmt.next().map_err(|e| format!("collect 失败：{e}"))? {
+        check_read_deadline(deadline)?;
+        let mut fields = serde_json::Map::new();
+        for (column, key) in [
+            (0, "identity_key"),
+            (2, "input_revision"),
+            (3, "payload_hash"),
+            (4, "receipt_id"),
+            (6, "source_namespace"),
+            (7, "source_epoch"),
+            (8, "instrument"),
+            (9, "event_id"),
+            (10, "received_at"),
+            (11, "raw_text"),
+            (12, "price"),
+            (13, "ts"),
+            (14, "volume"),
+            (15, "source_coord"),
+        ] {
+            let text = row.text(column).map_err(|e| format!("collect 失败：{e}"))?;
+            let value = Value::String(admission.native_string(text).map_err(|e| e.to_string())?);
+            tb02a::raw_insert_admitted(&mut fields, key, value, &admission)?;
+        }
+        for (column, key) in [(1, "revision"), (5, "seq")] {
+            let value = Value::from(
+                row.integer(column)
+                    .map_err(|e| format!("collect 失败：{e}"))?,
+            );
+            tb02a::raw_insert_admitted(&mut fields, key, value, &admission)?;
+        }
+        let value = row
+            .optional_integer(16)
+            .map_err(|e| format!("collect 失败：{e}"))?
+            .map(Value::from)
+            .unwrap_or(Value::Null);
+        tb02a::raw_insert_admitted(&mut fields, "supersedes_revision", value, &admission)?;
+        admission
+            .native_vec_room(&mut rows, 1)
+            .map_err(|e| e.to_string())?;
+        rows.push(Value::Object(fields));
+    }
+    stmt.finalize()
+        .map_err(|e| format!("finalize 读取失败：{e}"))?;
+    tb02a::enrich_raw_until_admitted(conn, &mut rows, deadline, work)?;
+    v3::business_json::validate_raw_admitted(
+        v3::business_json::RawEventsView::plain(&rows),
+        deadline,
+        work,
+    )?;
     check_read_deadline(deadline)?;
     Ok(rows)
 }
@@ -3911,6 +3987,34 @@ fn json_shape(text: &str, shape: JsonShape) -> Result<Value, String> {
         }
     }
 }
+fn json_shape_with_owner_admitted(
+    text: &str,
+    shape: JsonShape,
+    owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<v3::business_json::JsonOwner, String> {
+    #[cfg(feature = "s_capture_native_testonly")]
+    if let Some(work) = work {
+        if owner.is_some() {
+            return Err(work
+                .reject(
+                    newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger,
+                )
+                .to_string());
+        }
+        work.reserve_native(v3::audit_owner::native::JsonShape::scan(text.as_bytes()).parse_peak())
+            .map_err(|e| e.to_string())?
+            .retain();
+    }
+    #[cfg(not(feature = "s_capture_native_testonly"))]
+    if let Some(work) = work {
+        return Err(work
+            .reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger)
+            .to_string());
+    }
+    json_shape_with_owner(text, shape, owner)
+}
+
 fn json_shape_with_owner(
     text: &str,
     shape: JsonShape,
@@ -6780,6 +6884,86 @@ mod tests {
         let rels = s3["relations"].as_array().unwrap();
         assert!(rels.iter().any(|r| r["relation_type"] == "replaces"));
         assert!(rels.iter().any(|r| r["relation_type"] == "supersedes"));
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn assert_native_raw_matches_plain(conn: &Connection, expected_len: usize, ohlc: bool) {
+        let expected = read_raw_events_until_admitted(conn, None, None).unwrap();
+        assert_eq!(expected.len(), expected_len);
+        assert!(expected
+            .iter()
+            .any(|row| row["supersedes_revision"].as_i64() == Some(1)));
+        let budget = v3::audit_owner::native::Budget::new(8 * 1024 * 1024, 0).unwrap();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let actual = read_raw_events_until_admitted(conn, None, Some(work))?;
+                assert_eq!(
+                    actual, expected,
+                    "完整SQL JSON、payload hash和receipt逐字段对照"
+                );
+                for (seq, row) in actual.iter().enumerate() {
+                    v3::business_json::validate_raw_row_admitted(
+                        row.into(),
+                        seq,
+                        row["supersedes_revision"].as_i64(),
+                        Some(work),
+                    )?;
+                    assert_eq!(row["payload_hash"].as_str().unwrap().len(), 64);
+                    assert_eq!(row["receipt_id"].as_str().unwrap().len(), 21);
+                    assert_eq!(row.get("schema_revision").is_some(), ohlc);
+                    if ohlc {
+                        assert_eq!(row["schema_revision"], tb02a::RAW_SCHEMA);
+                        assert_eq!(row["price"], row["close"]);
+                        for field in ["open", "high", "low", "close"] {
+                            assert!(row[field].is_string());
+                        }
+                    }
+                }
+                let held = budget.live();
+                drop(actual);
+                assert_eq!(budget.live(), held, "Native保守账随父Budget持有");
+                Ok::<_, String>(())
+            })
+            .unwrap();
+        assert!(budget.live() > 0);
+        assert_eq!(budget.scratch_observation().0, 0);
+        assert_eq!(budget.scratch_observation().2, 0);
+    }
+
+    #[test]
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn native_cold_raw_sql_json_hash_receipt_revision_matches_plain() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let mut first = test_input(&[ev("e0", "1", "0", "10000"), ev("e1", "1", "1", "10500")]);
+        first["events"][0]["raw_text"] = json!("汉😀\n\"原始账\"");
+        accept(
+            &files,
+            &first,
+            "native-raw-first.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        accept(
+            &files,
+            &test_input(&[ev("e1", "2", "1", "11500")]),
+            "native-raw-revision.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        let conn = open_db(&files.db()).unwrap();
+        assert_native_raw_matches_plain(&conn, 3, false);
+    }
+
+    #[test]
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn native_cold_raw_ohlc_and_revision_matches_plain() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept_ohlc(&files, &ohlc_input(&[(0, 4), (2, 5), (1, 6)], false));
+        accept_ohlc(&files, &ohlc_input(&[(0, 4), (2, 5), (1, 7)], true));
+        let conn = open_db(&files.db()).unwrap();
+        assert_native_raw_matches_plain(&conn, 4, true);
     }
 
     #[test]

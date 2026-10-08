@@ -28,8 +28,10 @@
 //! 模块承担；本模块返回的逐代期望只声明「控制历史自洽、每代都有真实 Commit 与发布索引行」，
 //! 不冒充内容闭包、ID 配方、来源对拍或 crosswalk 已核。本模块只读，不写任何行。
 
+use super::audit_store::{CodecRead, NativeAdmission};
 use super::*;
 use crate::v3::business_json::{self as control_json, TextValue};
+use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
 use newchan_rust::s_content::{capture_allocation::OwnedBudget, CodecVec};
 use newchan_rust::sqlite_checked::CheckedStatement;
 
@@ -45,16 +47,33 @@ pub(super) fn prepare_s3_control_history_with_owner(
     conn: &Connection,
     owner: Option<&OwnedBudget>,
 ) -> Result<v2::ControlHistory, String> {
+    prepare_s3_control_history_admitted(conn, owner, None)
+}
+pub(super) fn prepare_s3_control_history_admitted(
+    conn: &Connection,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<v2::ControlHistory, String> {
+    if let Some(work) = work {
+        if owner.is_some() {
+            return Err(work
+                .reject(
+                    newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger,
+                )
+                .to_string());
+        }
+    }
     #[cfg(not(feature = "s_allocation_json_testonly"))]
     if owner.is_some() {
         return Err("prototype_audit_allocation_incomplete：owned控制审计未启用".into());
     }
-    verify_s3_markers_with_owner(conn, owner)?;
-    verify_s3_schema_with_owner(conn, owner)?;
-    let _profile = crate::verify_profile_binding_with_owner(conn, owner)?;
-    let epoch = v2::verify_epoch_history_with_owner(conn, true, owner)?;
-    let history = v2::validate_control_history_with_owner(conn, PROTOCOL_REVISION, epoch, owner)?;
-    verify_s3_publications_with_owner(conn, owner)?;
+    verify_s3_markers_admitted(conn, owner, work)?;
+    verify_s3_schema_admitted(conn, owner, work)?;
+    let _profile = crate::verify_profile_binding_admitted(conn, owner, work)?;
+    let epoch = v2::verify_epoch_history_admitted(conn, true, owner, work)?;
+    let history =
+        v2::validate_control_history_admitted(conn, PROTOCOL_REVISION, epoch, owner, work)?;
+    verify_s3_publications_admitted(conn, owner, work)?;
     Ok(history)
 }
 
@@ -66,7 +85,14 @@ fn verify_s3_markers_with_owner(
     conn: &Connection,
     owner: Option<&OwnedBudget>,
 ) -> Result<(), String> {
-    let meta_marker = v2::control_meta_text(conn, "protocol_revision", owner)?;
+    verify_s3_markers_admitted(conn, owner, None)
+}
+fn verify_s3_markers_admitted(
+    conn: &Connection,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    let meta_marker = v2::control_meta_text_admitted(conn, "protocol_revision", owner, work)?;
     let mut stmt = CheckedStatement::prepare(
         conn,
         c"SELECT protocol_revision FROM s_protocol_meta WHERE singleton=1",
@@ -77,9 +103,11 @@ fn verify_s3_markers_with_owner(
     let table_marker = match stmt.next().map_err(|e| {
         format!("StorageUnavailable：读 s_protocol_meta 标记失败（控制域不可判定）：{e}")
     })? {
-        Some(mut row) => Some(TextValue::from_sql(&mut row, 0, owner).map_err(|e| {
-            format!("StorageUnavailable：读 s_protocol_meta 标记失败（控制域不可判定）：{e}")
-        })?),
+        Some(mut row) => Some(
+            TextValue::from_sql_admitted(&mut row, 0, owner, work).map_err(|e| {
+                format!("StorageUnavailable：读 s_protocol_meta 标记失败（控制域不可判定）：{e}")
+            })?,
+        ),
         None => None,
     };
     stmt.finalize().map_err(|e| {
@@ -103,11 +131,26 @@ pub(crate) fn schema_ddls_with_owner(
     conn: &Connection,
     owner: Option<&OwnedBudget>,
 ) -> Result<CodecVec<&'static str>, String> {
+    schema_ddls_admitted(conn, owner, None)
+}
+pub(crate) fn schema_ddls_admitted(
+    conn: &Connection,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<CodecVec<&'static str>, String> {
     let mut ddls = control_json::new_work(owner);
     for ddl in [SCHEMA, v2::SCHEMA_V2] {
+        NativeAdmission(work)
+            .native_codec_room(&mut ddls, 1)
+            .map_err(|e| e.to_string())?;
         ddls.try_push(ddl).map_err(|e| e.to_string())?;
     }
-    if v2::control_meta_text(conn, "profile_id", owner)?.as_deref() == Some(tb02a::PROFILE) {
+    if v2::control_meta_text_admitted(conn, "profile_id", owner, work)?.as_deref()
+        == Some(tb02a::PROFILE)
+    {
+        NativeAdmission(work)
+            .native_codec_room(&mut ddls, 1)
+            .map_err(|e| e.to_string())?;
         ddls.try_push(tb02a::SCHEMA).map_err(|e| e.to_string())?;
     }
     for ddl in [
@@ -116,6 +159,9 @@ pub(crate) fn schema_ddls_with_owner(
         aux_index::SCHEMA,
         object_index::SCHEMA,
     ] {
+        NativeAdmission(work)
+            .native_codec_room(&mut ddls, 1)
+            .map_err(|e| e.to_string())?;
         ddls.try_push(ddl).map_err(|e| e.to_string())?;
     }
     Ok(ddls)
@@ -127,11 +173,18 @@ pub(crate) fn verify_s3_schema_with_owner(
     conn: &Connection,
     owner: Option<&OwnedBudget>,
 ) -> Result<(), String> {
+    verify_s3_schema_admitted(conn, owner, None)
+}
+pub(crate) fn verify_s3_schema_admitted(
+    conn: &Connection,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
     let mut expected = v2::ControlSchema::new(owner);
-    for ddl in schema_ddls_with_owner(conn, owner)? {
-        expected.add_ddl("S3固定DDL", ddl)?;
+    for ddl in schema_ddls_admitted(conn, owner, work)? {
+        expected.add_ddl_admitted("S3固定DDL", ddl, work)?;
     }
-    v2::verify_control_schema(conn, &expected)?;
+    v2::verify_control_schema_admitted(conn, &expected, work)?;
     content_store::ensure_format(conn).map_err(|e| format!("StorageUnavailable：{e}"))?;
     verify_content_registration_rows(conn)?;
     Ok(())
@@ -165,7 +218,14 @@ fn verify_s3_publications_with_owner(
     conn: &Connection,
     owner: Option<&OwnedBudget>,
 ) -> Result<(), String> {
-    let generation = v2::control_meta_i64(conn, "generation", owner)?;
+    verify_s3_publications_admitted(conn, owner, None)
+}
+fn verify_s3_publications_admitted(
+    conn: &Connection,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    let generation = v2::control_meta_i64_admitted(conn, "generation", owner, work)?;
     let (count, head): (i64, i64) = conn
         .query_row(
             "SELECT COUNT(*),COALESCE(MAX(generation),0) FROM s_content_publications",
@@ -198,9 +258,9 @@ fn verify_s3_publications_with_owner(
         let g: i64 = r
             .integer(0)
             .map_err(|e| format!("StorageUnavailable：{e}"))?;
-        let batch_id = TextValue::from_sql(&mut r, 1, owner)
+        let batch_id = TextValue::from_sql_admitted(&mut r, 1, owner, work)
             .map_err(|e| format!("StorageUnavailable：{e}"))?;
-        let delta_batch = TextValue::optional_sql(&mut r, 2, owner)
+        let delta_batch = TextValue::optional_sql_admitted(&mut r, 2, owner, work)
             .map_err(|e| format!("StorageUnavailable：{e}"))?;
         let root_lens = [
             r.optional_integer(3)
@@ -391,6 +451,82 @@ mod tests {
             )
             .unwrap();
         history.finish().unwrap();
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn r12_native_control_cold_matches_plain_published_facts_on_parent_scope() {
+        let domain = published_domain();
+        let mut plain = prepare_s3_control_history(&domain.fixture.conn).unwrap();
+        let budget = super::super::audit_owner::native::Budget::new(32 * 1024 * 1024, 0).unwrap();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                // 代表调用方已持有的父域工作；控制链必须继续使用这一本账。
+                NativeAdmission(Some(scope))
+                    .native_admit(137)
+                    .map_err(|e| e.to_string())?;
+                let before = budget.live();
+                let mut native =
+                    prepare_s3_control_history_admitted(&domain.fixture.conn, None, Some(scope))?;
+                assert_eq!(native.session_generation(), plain.session_generation());
+                assert_eq!(native.clock_plan_hash(), plain.clock_plan_hash());
+                assert_eq!(
+                    native.remaining_commit(1, &domain.batch_id),
+                    plain.remaining_commit(1, &domain.batch_id)
+                );
+                assert!(budget.live() > before);
+                let after = budget.live();
+                for history in [&mut plain, &mut native] {
+                    history.consume_header(
+                        1,
+                        &domain.batch_id,
+                        Some("1"),
+                        Some(&domain.clock_hash),
+                        Some(COMMIT_NS),
+                    )?;
+                }
+                plain.finish()?;
+                native.finish()?;
+                assert_eq!(
+                    budget.live(),
+                    after,
+                    "消费已有事实不再复制文本，Native许可留在原父域"
+                );
+                Ok::<_, String>(())
+            })
+            .unwrap();
+        assert!(budget.live() > 137, "离开WorkScope不提前释放父域许可");
+        assert_eq!(budget.scratch_observation().2, 0);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn r12_native_control_cold_matches_plain_empty_domain_on_parent_scope() {
+        let temp = Temp::new();
+        let (db, _) = empty_domain(&temp);
+        let conn = open_db(&db).unwrap();
+        let plain = prepare_s3_control_history(&conn).unwrap();
+        let budget = super::super::audit_owner::native::Budget::new(32 * 1024 * 1024, 0).unwrap();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let native = prepare_s3_control_history_admitted(&conn, None, Some(scope))?;
+                assert_eq!(native.session_generation(), plain.session_generation());
+                assert_eq!(native.clock_plan_hash(), plain.clock_plan_hash());
+                assert_eq!(
+                    native.remaining_commit(1, "absent"),
+                    plain.remaining_commit(1, "absent")
+                );
+                native.finish()?;
+                plain.finish()?;
+                assert!(budget.live() > 0);
+                Ok::<_, String>(())
+            })
+            .unwrap();
+        assert_eq!(budget.scratch_observation().2, 0);
     }
 
     #[cfg(feature = "s_allocation_json_testonly")]

@@ -1,8 +1,10 @@
 //! #1394 业务原始账的入口存储选择与同一借用判据。Owned失败直接Err，不转回std。
+use super::audit_store::{CodecRead, NativeAdmission};
 use super::*;
 use aj::{ArrayIter, ArrayView, JsonView};
 use newchan_rust::s_content as sc;
 use newchan_rust::sqlite_checked::{CheckedRow, CheckedStatement};
+use sc::capture_allocation::scratch::WorkScope;
 use sc::capture_allocation::{audit_json as aj, OwnedBudget};
 use sha2::{Digest, Sha256};
 use std::time::Instant;
@@ -591,6 +593,15 @@ pub(crate) fn validate_raw(
     rows: RawEventsView<'_>,
     deadline: Option<Instant>,
 ) -> Result<(), String> {
+    validate_raw_admitted(rows, deadline, None)
+}
+pub(crate) fn validate_raw_admitted(
+    rows: RawEventsView<'_>,
+    deadline: Option<Instant>,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    check_native_owner(rows.budget(), work).map_err(|e| e.to_string())?;
+    let admission = NativeAdmission(work);
     let mut owners = workmap::<i64, &str>(rows.budget());
     let mut positions = workmap::<&str, i64>(rows.budget());
     let mut prior = workmap::<&str, i64>(rows.budget());
@@ -598,6 +609,12 @@ pub(crate) fn validate_raw(
         check_read_deadline(deadline)?;
         let c = coord(event)?;
         let identity = text(event, "identity_key")?;
+        admission
+            .native_map_room(&mut owners)
+            .map_err(|e| e.to_string())?;
+        admission
+            .native_map_room(&mut positions)
+            .map_err(|e| e.to_string())?;
         validate_raw_coordinate(
             identity,
             c,
@@ -606,10 +623,13 @@ pub(crate) fn validate_raw(
         )?;
         let revision = parse_canonical_i64(text(event, "input_revision")?, "input_revision")
             .map_err(|e| format!("StorageUnavailable：{e}"))?;
+        admission
+            .native_map_room(&mut prior)
+            .map_err(|e| e.to_string())?;
         let previous = prior
             .insert(identity, revision)
             .map_err(|e| e.to_string())?;
-        validate_raw_row(event, expected_seq, previous, rows.budget())?;
+        validate_raw_row_core(event, expected_seq, previous, rows.budget(), work)?;
     }
     check_read_deadline(deadline)
 }
@@ -634,6 +654,24 @@ pub(super) fn validate_raw_row(
     previous: Option<i64>,
     budget: Option<&OwnedBudget>,
 ) -> Result<(), String> {
+    validate_raw_row_core(event, expected_seq, previous, budget, None)
+}
+pub(crate) fn validate_raw_row_admitted(
+    event: JsonView<'_>,
+    expected_seq: usize,
+    previous: Option<i64>,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    validate_raw_row_core(event, expected_seq, previous, None, work)
+}
+fn validate_raw_row_core(
+    event: JsonView<'_>,
+    expected_seq: usize,
+    previous: Option<i64>,
+    budget: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    check_native_owner(budget, work).map_err(|e| e.to_string())?;
     let identity = text(event, "identity_key")?;
     let price = text(event, "price")?;
     let volume = text(event, "volume")?;
@@ -672,7 +710,11 @@ pub(super) fn validate_raw_row(
         used += 1;
     }
     let content = JsonView::object_fields(&fields[..used]).map_err(|e| e.to_string())?;
-    let payload = hex(&sha_json(content, budget)?);
+    let payload = hex(&if work.is_some() {
+        sha_json_admitted(&NativeAdmission(work), content)?
+    } else {
+        sha_json(content, budget)?
+    });
     #[cfg(test)]
     super::state::trace_raw_hashes(false, 1);
     let payload = std::str::from_utf8(&payload).unwrap();
@@ -1072,6 +1114,52 @@ pub(crate) enum TextValue {
     Owned(aj::TextOwner),
 }
 impl TextValue {
+    pub fn from_str_admitted(
+        text: &str,
+        owner: Option<&OwnedBudget>,
+        work: Option<&WorkScope>,
+    ) -> Result<Self, String> {
+        check_native_owner(owner, work).map_err(|e| e.to_string())?;
+        if work.is_some() {
+            return NativeAdmission(work)
+                .native_string(text)
+                .map(Self::Plain)
+                .map_err(|e| e.to_string());
+        }
+        Self::from_str(text, owner)
+    }
+    pub fn from_sql_admitted(
+        row: &mut CheckedRow<'_>,
+        column: usize,
+        owner: Option<&OwnedBudget>,
+        work: Option<&WorkScope>,
+    ) -> Result<Self, String> {
+        let text = row.text(column).map_err(|e| e.to_string())?;
+        Self::from_str_admitted(text, owner, work)
+    }
+    pub fn optional_sql_admitted(
+        row: &mut CheckedRow<'_>,
+        column: usize,
+        owner: Option<&OwnedBudget>,
+        work: Option<&WorkScope>,
+    ) -> Result<Option<Self>, String> {
+        check_native_owner(owner, work).map_err(|e| e.to_string())?;
+        row.optional_text(column)
+            .map_err(|e| e.to_string())?
+            .map(|text| Self::from_str_admitted(text, owner, work))
+            .transpose()
+    }
+    pub fn try_clone_admitted(&self, work: Option<&WorkScope>) -> Result<Self, String> {
+        if let Some(work) = work {
+            if matches!(self, Self::Owned(_)) {
+                return Err(work
+                    .reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)
+                    .to_string());
+            }
+            return Self::from_str_admitted(self.as_str(), None, Some(work));
+        }
+        self.try_clone()
+    }
     pub fn from_owned_bytes(bytes: sc::CodecVec<u8>) -> Result<Self, String> {
         #[cfg(feature = "s_allocation_json_testonly")]
         {
@@ -1860,6 +1948,70 @@ pub(crate) enum StrictOwnerError {
     OwnedSyntax(aj::strict::Diagnostic),
     Allocation(sc::CodecError),
 }
+/// Native 与 Owned 是不同父账，禁止把两种能力同时传入。
+fn check_native_owner(
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<(), sc::CodecError> {
+    if let Some(work) = work {
+        if owner.is_some() {
+            return Err(work.reject(sc::capture_allocation::scratch::ScratchFailure::Ledger));
+        }
+    }
+    Ok(())
+}
+fn admit_json_parse(
+    bytes: &[u8],
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<(), sc::CodecError> {
+    check_native_owner(owner, work)?;
+    if let Some(work) = work {
+        #[cfg(feature = "s_capture_native_testonly")]
+        {
+            let peak = super::audit_owner::native::JsonShape::scan(bytes).parse_peak();
+            work.reserve_native(peak)?.retain();
+        }
+        #[cfg(not(feature = "s_capture_native_testonly"))]
+        {
+            let _ = (bytes, work);
+            return Err(sc::CodecError::new(
+                sc::capture_allocation::INCOMPLETE,
+                "Native JSON入口未启用",
+            ));
+        }
+    }
+    Ok(())
+}
+pub(crate) fn strict_json_owner_admitted(
+    bytes: &[u8],
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<JsonOwner, StrictOwnerError> {
+    admit_json_parse(bytes, owner, work).map_err(StrictOwnerError::Allocation)?;
+    strict_json_owner(bytes, owner)
+}
+pub(crate) fn legacy_json_owner_admitted(
+    bytes: &[u8],
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<JsonOwner, String> {
+    admit_json_parse(bytes, owner, work).map_err(|e| e.to_string())?;
+    if let Some(owner) = owner {
+        #[cfg(feature = "s_allocation_json_testonly")]
+        return aj::OwnedJson::parse_legacy_shape(bytes, owner)
+            .map(JsonOwner::Owned)
+            .map_err(|e| e.to_string());
+        #[cfg(not(feature = "s_allocation_json_testonly"))]
+        {
+            let _ = owner;
+            return Err("prototype_audit_allocation_incomplete：Owned JSON入口未启用".into());
+        }
+    }
+    serde_json::from_slice(bytes)
+        .map(JsonOwner::Plain)
+        .map_err(|e| e.to_string())
+}
 pub(crate) fn strict_json_owner(
     bytes: &[u8],
     allocation: Option<&OwnedBudget>,
@@ -2178,6 +2330,44 @@ mod owner_retention {
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 mod native_consumer_tests {
     use super::*;
+
+    #[test]
+    fn admitted_sql_text_clone_and_json_parsers_match_plain() {
+        let conn = Connection::open_in_memory().unwrap();
+        let input = br#"{"escaped":"\u6c49\n\"quoted\"","rows":[null,true,-7,1.25,{"x":"text"}]}"#;
+        let expected: Value = serde_json::from_slice(input).unwrap();
+        let budget = super::super::audit_owner::native::Budget::new(2 * 1024 * 1024, 0).unwrap();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let strict = strict_json_owner_admitted(input, None, Some(work))
+                    .unwrap_or_else(|_| panic!("正常strict JSON须解析成功"));
+                let legacy = legacy_json_owner_admitted(input, None, Some(work))?;
+                assert_eq!(strict.view(), JsonView::Plain(&expected));
+                assert_eq!(legacy.view(), JsonView::Plain(&expected));
+                let mut stmt = CheckedStatement::prepare(&conn, c"SELECT '汉😀', NULL, '正常'")
+                    .map_err(|e| e.to_string())?;
+                let mut row = stmt.next().map_err(|e| e.to_string())?.unwrap();
+                let text = TextValue::from_sql_admitted(&mut row, 0, None, Some(work))?;
+                assert_eq!(text.as_str(), "汉😀");
+                assert_eq!(text.try_clone_admitted(Some(work))?.as_str(), text.as_str());
+                assert!(TextValue::optional_sql_admitted(&mut row, 1, None, Some(work))?.is_none());
+                assert_eq!(
+                    TextValue::optional_sql_admitted(&mut row, 2, None, Some(work))?
+                        .unwrap()
+                        .as_str(),
+                    "正常"
+                );
+                drop(row);
+                stmt.finalize().map_err(|e| e.to_string())?;
+                Ok::<_, String>(())
+            })
+            .unwrap();
+        assert!(budget.live() > 0);
+        assert_eq!(budget.scratch_observation().0, 0);
+        assert_eq!(budget.scratch_observation().2, 0);
+    }
 
     #[test]
     fn admitted_json_and_hash_match_normal_with_conservative_scope_charge() {

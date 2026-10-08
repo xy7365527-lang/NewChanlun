@@ -230,8 +230,9 @@ pub(super) fn audit_native_in_request_admitted(
                 (capture, count, None, false, source_same)
             }
         };
-        let control = control_audit::prepare_s3_control_history_with_owner(tx, None)?;
-        let raw = super::business_json::RawEvents::Plain(read_raw_events_until(tx, None)?);
+        let control = control_audit::prepare_s3_control_history_admitted(tx, None, work)?;
+        let raw =
+            super::business_json::RawEvents::Plain(read_raw_events_until_admitted(tx, None, work)?);
         if let Some((prior_binding, prior_result, source_pending)) = prior {
             #[cfg(test)]
             context.before_binding(tx);
@@ -241,12 +242,13 @@ pub(super) fn audit_native_in_request_admitted(
                 work,
             )?;
             if binding == prior_binding && same_nodes {
-                history::revalidate_current_for_reuse(
+                history::revalidate_current_for_reuse_admitted(
                     tx,
                     raw.view(),
                     control,
                     &capture,
                     &prior_result.cuts,
+                    work,
                 )?;
                 #[cfg(test)]
                 trace_event("request_history_hit", None);
@@ -289,6 +291,7 @@ pub(super) fn audit_native_in_request_admitted(
             Some((control, raw)),
             RetentionReport::Skip,
             source_trial.as_mut(),
+            work,
         )?;
         let HistoricalOwner::Unique(result) = audited.historical else {
             unreachable!()
@@ -375,6 +378,7 @@ pub(super) fn audit_native_with_source_keeper_for_testonly(
             None,
             RetentionReport::Skip,
             Some(&mut trial),
+            None,
         )?;
         let frontier = audited
             .cuts
@@ -605,6 +609,7 @@ fn audit_core_fresh(
         retention_report,
         #[cfg(feature = "s_capture_native_testonly")]
         None,
+        None,
     )
 }
 
@@ -621,6 +626,7 @@ fn audit_core_fresh_inner(
     #[cfg(feature = "s_capture_native_testonly")] mut source_cache: Option<
         &mut super::cross_request_source_cache::Trial<'_>,
     >,
+    work: Option<&sc::capture_allocation::scratch::WorkScope>,
 ) -> Result<(AuditedState, Option<Value>), String> {
     // 外部不能带入旧捕获；只有本次fresh audit在None/None内可新建自有读集。
     #[cfg(test)]
@@ -683,7 +689,8 @@ fn audit_core_fresh_inner(
     let (control, raw) = match fresh {
         Some(fresh) => fresh,
         None => {
-            let control = control_audit::prepare_s3_control_history_with_owner(tx, control_owner)?;
+            let control =
+                control_audit::prepare_s3_control_history_admitted(tx, control_owner, work)?;
             #[cfg(test)]
             trace_event("raw", None);
             // 2. 真实原始账：逐序回读并做身份/修订链/内容hash/receipt 自检。
@@ -694,12 +701,14 @@ fn audit_core_fresh_inner(
                     .is_some_and(|c| c.is_allocation_prototype())
             }) {
                 Some(b) => super::business_json::read_owned(tx, deadline, b)?,
-                None => {
-                    super::business_json::RawEvents::Plain(read_raw_events_until(tx, deadline)?)
-                }
+                None => super::business_json::RawEvents::Plain(read_raw_events_until_admitted(
+                    tx, deadline, work,
+                )?),
             };
             #[cfg(not(feature = "s_allocation_json_testonly"))]
-            let raw = super::business_json::RawEvents::Plain(read_raw_events_until(tx, deadline)?);
+            let raw = super::business_json::RawEvents::Plain(read_raw_events_until_admitted(
+                tx, deadline, work,
+            )?);
             (control, raw)
         }
     };
@@ -716,7 +725,7 @@ fn audit_core_fresh_inner(
                 && deadline.is_none()
                 && max_render_bytes.is_none()
         })
-        .and_then(history::NativeRecordFields::new);
+        .and_then(|capture| history::NativeRecordFields::new_admitted(capture, work));
     #[cfg(not(feature = "s_capture_native_testonly"))]
     let mut native_records: Option<history::NativeRecordFields<'_>> = None;
     let history::IndexedHistory {
@@ -727,7 +736,7 @@ fn audit_core_fresh_inner(
         objects,
         auxiliary,
         object_sweep,
-    } = history::read_indexed_history_for_audit_captured_with_records(
+    } = history::read_indexed_history_for_audit_captured_with_records_admitted(
         tx,
         raw.view(),
         control,
@@ -736,13 +745,14 @@ fn audit_core_fresh_inner(
         budget,
         capture,
         native_records.as_mut(),
+        work,
     )?;
     #[cfg(test)]
     trace_event("catalog_metadata", None);
     // 4. 从未运行的目录行：空初态（generation=0）要求全部行都仍是未运行。
-    verify_unrun_catalog(tx, cuts.is_empty(), control_owner)?;
+    verify_unrun_catalog_admitted(tx, cuts.is_empty(), control_owner, work)?;
     // 5. 来源审计与目录证据只接线 OHLC 档；非 OHLC 明确拒绝，不跳过也不宣布永久缩小范围。
-    let _profile_id = audit_profile_id(tx, control_owner)?;
+    let _profile_id = audit_profile_id_admitted(tx, control_owner, work)?;
     // 只读源 + 内存派生层：overlay 随本函数内的 store 一起销毁，不是 SQLite 写入通道。
     let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
     if budget.is_none() {
@@ -754,6 +764,7 @@ fn audit_core_fresh_inner(
             .with_audit_gate(budget, deadline),
         None => history::HashReader::metered(&mut reader, deadline, max_render_bytes, budget),
     };
+    store = store.with_native_scope(work).map_err(err)?;
     // 7a. 当前代对象索引已在同次history中完整加载并绑定原件；继续用它核逐代变化。
     #[cfg(feature = "s_capture_native_testonly")]
     let mut native_sources = capture
@@ -765,7 +776,12 @@ fn audit_core_fresh_inner(
                 && max_render_bytes.is_none()
         })
         .map(|c| {
-            source_audit::NativeSourceAudit::new_with_records(c, raw.view(), native_records.take())
+            source_audit::NativeSourceAudit::new_with_records_admitted(
+                c,
+                raw.view(),
+                native_records.take(),
+                work,
+            )
         })
         .transpose()?;
     #[cfg(not(feature = "s_capture_native_testonly"))]
@@ -884,7 +900,7 @@ fn audit_one_cut_sources(
     }
     let allocation = super::audit_store::CodecRead::allocation_budget(store);
     let (withdrawals, replaces) = match &object_sweep {
-        Some(sweep) => sweep.changes(objects, cut.metadata.generation)?,
+        Some(sweep) => sweep.changes_admitted(store, objects, cut.metadata.generation)?,
         None => object_index::changes_at_budgeted(
             objects,
             cut.metadata.generation,
@@ -1034,7 +1050,14 @@ fn audit_profile_id(
     tx: &Transaction<'_>,
     allocation: Option<&sc::capture_allocation::OwnedBudget>,
 ) -> Result<super::business_json::TextValue, String> {
-    let profile_id = v2::control_meta_text(tx, "profile_id", allocation)?
+    audit_profile_id_admitted(tx, allocation, None)
+}
+fn audit_profile_id_admitted(
+    tx: &Transaction<'_>,
+    allocation: Option<&sc::capture_allocation::OwnedBudget>,
+    work: Option<&sc::capture_allocation::scratch::WorkScope>,
+) -> Result<super::business_json::TextValue, String> {
+    let profile_id = v2::control_meta_text_admitted(tx, "profile_id", allocation, work)?
         .ok_or_else(|| err("缺冻结字段 profile_id"))?;
     if profile_id != tb02a::PROFILE {
         return Err(err(format!(
@@ -1050,6 +1073,14 @@ fn verify_unrun_catalog(
     tx: &Transaction<'_>,
     initial: bool,
     allocation: Option<&sc::capture_allocation::OwnedBudget>,
+) -> Result<(), String> {
+    verify_unrun_catalog_admitted(tx, initial, allocation, None)
+}
+fn verify_unrun_catalog_admitted(
+    tx: &Transaction<'_>,
+    initial: bool,
+    allocation: Option<&sc::capture_allocation::OwnedBudget>,
+    work: Option<&sc::capture_allocation::scratch::WorkScope>,
 ) -> Result<(), String> {
     use super::business_json::TextValue;
     let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
@@ -1076,7 +1107,7 @@ fn verify_unrun_catalog(
                     actual,
                 )));
             }
-            TextValue::from_sql(row, column, allocation).map_err(err)
+            TextValue::from_sql_admitted(row, column, allocation, work).map_err(err)
         };
         let id = text(&mut row, 0)?;
         let implemented = text(&mut row, 1)?;

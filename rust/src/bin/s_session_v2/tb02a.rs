@@ -284,35 +284,124 @@ pub(super) fn enrich_raw_until(
     rows: &mut [Value],
     deadline: Option<std::time::Instant>,
 ) -> Result<(), String> {
+    enrich_raw_until_admitted(conn, rows, deadline, None)
+}
+
+pub(super) fn enrich_raw_until_admitted(
+    conn: &Connection,
+    rows: &mut [Value],
+    deadline: Option<std::time::Instant>,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<(), String> {
     crate::check_read_deadline(deadline)?;
-    if !enabled(conn)? {
+    if !enabled_admitted(conn, work)? {
         return Ok(());
     }
     verify_raw_ohlc_cardinality(conn)?;
     for row in rows {
         crate::check_read_deadline(deadline)?;
-        enrich_raw_row(conn, row)?;
+        enrich_raw_row_admitted(conn, row, work)?;
+    }
+    Ok(())
+}
+/// profile比较借用原SQL文本，不创建未准入的String。
+fn enabled_admitted(
+    conn: &Connection,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<bool, String> {
+    if work.is_none() {
+        return enabled(conn);
+    }
+    let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
+        conn,
+        c"SELECT value FROM meta WHERE key = ?1",
+    )
+    .map_err(|e| format!("读 meta.profile_id 失败：{e}"))?;
+    stmt.bind_text(1, "profile_id")
+        .map_err(|e| format!("读 meta.profile_id 失败：{e}"))?;
+    let enabled = match stmt
+        .next()
+        .map_err(|e| format!("读 meta.profile_id 失败：{e}"))?
+    {
+        Some(mut row) => {
+            row.text(0)
+                .map_err(|e| format!("读 meta.profile_id 失败：{e}"))?
+                == PROFILE
+        }
+        None => false,
+    };
+    stmt.finalize()
+        .map_err(|e| format!("读 meta.profile_id 失败：{e}"))?;
+    Ok(enabled)
+}
+/// 所有raw字段插入先取得文本、键和BTree增长许可，覆盖后不重复分配键。
+pub(super) fn raw_insert_admitted(
+    fields: &mut serde_json::Map<String, Value>,
+    key: &str,
+    value: Value,
+    admission: &v3::audit_store::NativeAdmission<'_>,
+) -> Result<(), String> {
+    use v3::audit_store::CodecRead;
+    if let Some(existing) = fields.get_mut(key) {
+        *existing = value;
+    } else {
+        admission
+            .native_tree_room::<String, Value>(fields.len())
+            .map_err(|e| e.to_string())?;
+        let key = admission.native_string(key).map_err(|e| e.to_string())?;
+        fields.insert(key, value);
     }
     Ok(())
 }
 /// 配对键已由调用者闭合；同一 OHLC 行校验用于 cold 与固定追加回读。
 pub(super) fn enrich_raw_row(conn: &Connection, row: &mut Value) -> Result<(), String> {
+    enrich_raw_row_admitted(conn, row, None)
+}
+pub(super) fn enrich_raw_row_admitted(
+    conn: &Connection,
+    row: &mut Value,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<(), String> {
+    use v3::audit_store::CodecRead;
+    let admission = v3::audit_store::NativeAdmission(work);
     let revision = match &row["revision"] {
         Value::Number(n) => n.as_i64().ok_or("StorageUnavailable：revision非i64")?,
         Value::String(s) => parse_canonical_i64(s, "revision")?,
         _ => return Err("StorageUnavailable：revision类型非法".into()),
     };
-    let p:(String,String,String,String,String)=conn.query_row(
-            "SELECT schema_revision,open,high,low,close FROM raw_ohlc WHERE identity_key=?1 AND revision=?2",
-            params![row["identity_key"].as_str(),revision],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).map_err(|e|format!("StorageUnavailable：OHLC原件缺失 {e}"))?;
-    if p.0 != RAW_SCHEMA || row["price"] != p.4 {
+    let missing = |e| format!("StorageUnavailable：OHLC原件缺失 {e}");
+    let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
+        conn, c"SELECT schema_revision,open,high,low,close FROM raw_ohlc WHERE identity_key=?1 AND revision=?2",
+    ).map_err(missing)?;
+    match row["identity_key"].as_str() {
+        Some(identity) => stmt.bind_text(1, identity),
+        None => stmt.bind_null(1),
+    }
+    .map_err(missing)?;
+    stmt.bind_integer(2, revision).map_err(missing)?;
+    let mut sql = stmt
+        .next()
+        .map_err(missing)?
+        .ok_or("StorageUnavailable：OHLC原件缺失")?;
+    if sql.text(0).map_err(missing)? != RAW_SCHEMA
+        || row["price"].as_str() != Some(sql.text(4).map_err(missing)?)
+    {
         return Err("StorageUnavailable：OHLC schema/close索引矛盾".into());
     }
-    row["schema_revision"] = json!(p.0);
-    row["open"] = json!(p.1);
-    row["high"] = json!(p.2);
-    row["low"] = json!(p.3);
-    row["close"] = json!(p.4);
+    let fields = row.as_object_mut().ok_or("StorageUnavailable：raw非对象")?;
+    for (column, key) in [
+        (0, "schema_revision"),
+        (1, "open"),
+        (2, "high"),
+        (3, "low"),
+        (4, "close"),
+    ] {
+        let text = sql.text(column).map_err(missing)?;
+        let value = Value::String(admission.native_string(text).map_err(|e| e.to_string())?);
+        raw_insert_admitted(fields, key, value, &admission)?;
+    }
+    drop(sql);
+    stmt.finalize().map_err(missing)?;
     Ok(())
 }
 
