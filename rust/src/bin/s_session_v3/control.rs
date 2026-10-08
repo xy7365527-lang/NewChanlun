@@ -240,6 +240,8 @@ impl<'a> S3Control<'a> {
     ///
     /// `results` 是调用方实际接纳产出的结果（`status/seq/receipt_id`），本模块不代业务判定。
     pub(super) fn accept(&self, view: &IngestView, results: &[Value]) -> Result<(), String> {
+        #[cfg(test)]
+        super::prepared::tests::normal_input_r2::observe("accept_enter", serde_json::json!({}));
         self.require_write_transaction()?;
         if view.state != StoredState::Fresh {
             return Err(format!(
@@ -260,6 +262,8 @@ impl<'a> S3Control<'a> {
         base_cut: &str,
         configured_epoch: &str,
     ) -> Result<String, String> {
+        #[cfg(test)]
+        super::prepared::tests::normal_input_r2::observe("begin_enter", serde_json::json!({}));
         self.require_write_transaction()?;
         verify_writer_epoch(self.conn, configured_epoch)?;
         if view.state == StoredState::Committed {

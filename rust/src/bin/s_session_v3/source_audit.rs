@@ -1501,6 +1501,28 @@ fn audit_generated_in_store(
         }
     }
     drop(ordered_groups);
+    #[cfg(test)]
+    if super::prepared::tests::normal_input_r2::enabled() {
+        let effective = bj::effective(raw_prefix, None).expect("r2正常现场raw赢家观察");
+        let winners: Vec<Value> = effective
+            .iter()
+            .map(|event| serde_json::to_value(event).unwrap())
+            .collect();
+        let observed_groups: Vec<Value> = groups.iter().map(|(index, group)| {
+            json!({"index":index,"anchor":group.anchor,"members":group.members.iter().copied().collect::<Vec<_>>()})
+        }).collect();
+        let missing: Vec<_> = raw
+            .iter()
+            .filter_map(|(coord, _)| (!partition.contains_key(coord)).then_some(*coord))
+            .collect();
+        super::prepared::tests::normal_input_r2::observe(
+            "source_partition",
+            json!({
+                "generated_state":state.root(),"raw_winners":winners,"groups":observed_groups,
+                "raw_minus_partition":missing,"raw_count":raw.len(),"partition_count":partition.len()
+            }),
+        );
+    }
     if partition.len() != raw.len() || partition.iter().any(|(coord, _)| !raw.contains_key(coord)) {
         return Err(err("同cut组未完整覆盖生效原始账"));
     }
