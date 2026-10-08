@@ -292,6 +292,8 @@ pub(crate) fn effective<'a>(
 pub(super) struct RawPrefixIndex<'raw> {
     raw: RawEventsView<'raw>,
     facts: RawPrefixFacts,
+    #[cfg(feature = "s_capture_native_testonly")]
+    retained: super::audit_retention::RetainedDelta,
 }
 #[derive(Default)]
 pub(super) struct RawPrefixFacts {
@@ -328,6 +330,8 @@ impl<'raw> RawPrefixIndex<'raw> {
         Self {
             raw,
             facts: RawPrefixFacts::default(),
+            #[cfg(feature = "s_capture_native_testonly")]
+            retained: Default::default(),
         }
     }
     pub(super) fn restore(
@@ -338,11 +342,38 @@ impl<'raw> RawPrefixIndex<'raw> {
         if facts.prefix > raw.len() || raw.budget().is_some() {
             return Err("StorageUnavailable：raw facts 不属于已绑定前缀".into());
         }
-        Ok(Self { raw, facts })
+        Ok(Self {
+            raw,
+            facts,
+            #[cfg(feature = "s_capture_native_testonly")]
+            retained: Default::default(),
+        })
     }
     pub(super) fn into_facts(self) -> RawPrefixFacts {
         self.facts
     }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn into_facts_retained(
+        self,
+        delta: &mut super::audit_retention::RetainedDelta,
+    ) -> RawPrefixFacts {
+        delta.merge(self.retained);
+        self.facts
+    }
+    fn clear_winners(&mut self) {
+        #[cfg(feature = "s_capture_native_testonly")]
+        {
+            for key in self.facts.winners.keys() {
+                self.retained.release(key);
+            }
+            self.retained
+                .tree_len::<i64, usize>(self.facts.ordered.len(), 0);
+        }
+        // HashMap clear 保留桶；BTree clear 真实释放根。
+        self.facts.winners.clear();
+        self.facts.ordered.clear();
+    }
+
     pub(super) fn is_empty(&self) -> bool {
         self.winners.is_empty()
     }
@@ -360,8 +391,7 @@ impl<'raw> RawPrefixIndex<'raw> {
     }
     pub(super) fn clear(&mut self) {
         self.prefix = 0;
-        self.winners.clear();
-        self.ordered.clear();
+        self.clear_winners();
         self.coordinates.clear();
     }
     pub(super) fn advance(&mut self, prefix: usize) -> Result<RawPrefixChanges, String> {
@@ -379,8 +409,7 @@ impl<'raw> RawPrefixIndex<'raw> {
         let rewound = prefix < self.prefix;
         if rewound {
             self.prefix = 0;
-            self.winners.clear();
-            self.ordered.clear();
+            self.clear_winners();
         }
         // 同一 cut 内先选最终赢家；不会因跨越的暂态修订提前拒绝。
         let raw = self.raw;
@@ -410,7 +439,12 @@ impl<'raw> RawPrefixIndex<'raw> {
                 Some(c) => *c,
                 None => {
                     let c = coord(self.raw.get(ordinal).expect("赢家原件"))?;
+                    #[cfg(feature = "s_capture_native_testonly")]
+                    let capacity = self.coordinates.capacity();
                     self.coordinates.insert(ordinal, c);
+                    #[cfg(feature = "s_capture_native_testonly")]
+                    self.retained
+                        .hash_capacity::<usize, i64>(capacity, self.facts.coordinates.capacity());
                     updates.coord_decodes += 1;
                     c
                 }
@@ -418,22 +452,44 @@ impl<'raw> RawPrefixIndex<'raw> {
             let previous = match self.winners.get_mut(identity) {
                 Some(winner) => Some(std::mem::replace(winner, (revision, ordinal, c))),
                 None => {
-                    self.winners
-                        .insert(identity.to_owned(), (revision, ordinal, c));
+                    let key = identity.to_owned();
+                    #[cfg(feature = "s_capture_native_testonly")]
+                    let capacity = self.winners.capacity();
+                    #[cfg(feature = "s_capture_native_testonly")]
+                    self.retained.add(&key);
+                    self.winners.insert(key, (revision, ordinal, c));
+                    #[cfg(feature = "s_capture_native_testonly")]
+                    self.retained.hash_capacity::<String, (i64, usize, i64)>(
+                        capacity,
+                        self.facts.winners.capacity(),
+                    );
                     None
                 }
             };
             if let Some((_, _, old)) = previous {
+                #[cfg(feature = "s_capture_native_testonly")]
+                let len = self.ordered.len();
                 self.ordered.remove(&old);
+                if self.ordered.is_empty() {
+                    self.ordered.clear();
+                }
+                #[cfg(feature = "s_capture_native_testonly")]
+                self.retained
+                    .tree_len::<i64, usize>(len, self.facts.ordered.len());
                 updates.removed.push(old);
             }
             updates.added.push((c, ordinal));
         }
         updates.added.sort_unstable_by_key(|(c, _)| *c);
         for &(c, ordinal) in &updates.added {
+            #[cfg(feature = "s_capture_native_testonly")]
+            let len = self.ordered.len();
             if self.ordered.insert(c, ordinal).is_some() {
                 return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖业务身份".into());
             }
+            #[cfg(feature = "s_capture_native_testonly")]
+            self.retained
+                .tree_len::<i64, usize>(len, self.facts.ordered.len());
         }
         self.prefix = prefix;
         Ok(updates)
@@ -1306,9 +1362,40 @@ pub(crate) fn render_json(
             .map(JsonOwner::Owned)
             .map_err(|e| e.to_string());
     }
+    if let Some(work) = s.codec_work() {
+        struct ScratchOut {
+            bytes: sc::capture_allocation::scratch::ScratchBytes,
+            error: Option<sc::CodecError>,
+        }
+        impl std::io::Write for ScratchOut {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                match self.bytes.try_extend_bytes(bytes) {
+                    Ok(()) => Ok(bytes.len()),
+                    Err(e) => {
+                        self.error = Some(e);
+                        Err(std::io::ErrorKind::Other.into())
+                    }
+                }
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let mut out = ScratchOut {
+            bytes: work.bytes(),
+            error: None,
+        };
+        let result = s.render_ref(r, &mut out);
+        if let Some(e) = out.error {
+            return Err(e.to_string());
+        }
+        result.map_err(|e| e.to_string())?;
+        // 借用 scratch bytes 解析；不把 Owned 容器 try_into_plain 擦域。
+        return s.parse_rendered_plain(&out.bytes).map(JsonOwner::Plain);
+    }
     let mut out = Vec::new();
     s.render_ref(r, &mut out).map_err(|e| e.to_string())?;
-    newchan_rust::session_protocol::strict_json(&out).map(JsonOwner::Plain)
+    s.parse_rendered_plain(&out).map(JsonOwner::Plain)
 }
 pub(crate) fn read_text(
     s: &mut (impl super::audit_store::CodecRead + ?Sized),

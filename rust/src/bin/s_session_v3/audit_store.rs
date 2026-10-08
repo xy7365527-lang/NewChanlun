@@ -21,6 +21,10 @@ impl sc::path::PathView for BorrowedFieldPath<'_> {
 
 /// 仅bin内的静态codec门；具体捕获owner不可擦除成外来来源。
 pub(crate) trait CodecRead: NodeSource {
+    fn parse_rendered_plain(&self, bytes: &[u8]) -> Result<serde_json::Value, String> {
+        newchan_rust::session_protocol::strict_json(bytes)
+    }
+
     fn lookup_array_ref(
         &mut self,
         r: sc::RefView<'_>,
@@ -293,6 +297,13 @@ impl<'a, 'source> StoreView<'a, 'source> {
     }
 }
 impl CodecRead for StoreView<'_, '_> {
+    fn parse_rendered_plain(&self, bytes: &[u8]) -> Result<serde_json::Value, String> {
+        match &self.backend {
+            Backend::Generic(s) => s.parse_rendered_plain(bytes),
+            Backend::Audit(s) => s.parse_rendered_plain(bytes),
+        }
+    }
+
     fn lookup_array_ref(
         &mut self,
         r: sc::RefView<'_>,
@@ -544,6 +555,9 @@ impl CodecStore for StoreView<'_, '_> {
     }
 }
 impl NodeSource for StoreView<'_, '_> {
+    fn codec_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+        self.source().codec_work()
+    }
     fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, CodecError> {
         self.store().read(d)
     }
@@ -564,6 +578,9 @@ impl NodeSource for StoreView<'_, '_> {
     }
 }
 impl NodeSink for StoreView<'_, '_> {
+    fn codec_sink_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+        self.source().codec_work()
+    }
     fn put(&mut self, d: NodeDigest, t: u8, b: &[u8]) -> Result<(), CodecError> {
         self.store().put(d, t, b)
     }

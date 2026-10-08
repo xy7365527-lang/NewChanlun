@@ -309,6 +309,9 @@ struct ArrayAuditSource<'a, 'borrow, 'source, 'capture> {
     fields: Option<&'a mut NativeFieldMemo<'capture>>,
 }
 impl NodeSource for ArrayAuditSource<'_, '_, '_, '_> {
+    fn codec_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+        self.source.codec_work()
+    }
     fn audit_full_array_scan(&self) -> bool {
         self.full_arrays && self.deadline.is_none()
     }
@@ -329,6 +332,9 @@ impl NodeSource for ArrayAuditSource<'_, '_, '_, '_> {
     }
 }
 impl NodeSink for ArrayAuditSource<'_, '_, '_, '_> {
+    fn codec_sink_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+        self.source.codec_work()
+    }
     fn put(&mut self, d: NodeDigest, t: u8, body: &[u8]) -> Result<(), sc::CodecError> {
         self.source.put(d, t, body)
     }
@@ -386,6 +392,9 @@ impl SourceFieldStore for ArrayAuditSource<'_, '_, '_, '_> {
     }
 }
 impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
+    fn parse_rendered_plain(&self, bytes: &[u8]) -> Result<serde_json::Value, String> {
+        self.source.parse_rendered_plain(bytes)
+    }
     fn content_ref_view(&mut self, r: &str) -> Result<RefValue, sc::CodecError> {
         if self.source.owned_codec_active() {
             self.owned_role(|s| s.content_ref_view(r))
@@ -1023,6 +1032,8 @@ struct NativeRawLedger<'raw> {
     winners: bj::RawPrefixIndex<'raw>,
     sources: BusinessMap<i64, Source>,
     originals: std::collections::HashMap<usize, (i64, Source)>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    retained: super::audit_retention::RetainedDelta,
     #[cfg(test)]
     stats: NativeRawLedgerStats,
 }
@@ -1035,12 +1046,28 @@ impl<'raw> NativeRawLedger<'raw> {
         }
     }
 
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn into_facts_retained(
+        self,
+        delta: &mut super::audit_retention::RetainedDelta,
+    ) -> NativeRawFacts {
+        delta.merge(self.retained);
+        NativeRawFacts {
+            // 这是独立归属的第二份赢家账，不按共享 raw 减费。
+            winners: self.winners.into_facts_retained(delta),
+            sources: self.sources,
+            originals: self.originals,
+        }
+    }
+
     fn new(raw: RawEventsView<'raw>) -> Self {
         Self {
             raw,
             winners: bj::RawPrefixIndex::new(raw),
             sources: bj::new_map(None),
             originals: Default::default(),
+            #[cfg(feature = "s_capture_native_testonly")]
+            retained: Default::default(),
             #[cfg(test)]
             stats: Default::default(),
         }
@@ -1055,6 +1082,8 @@ impl<'raw> NativeRawLedger<'raw> {
             winners: bj::RawPrefixIndex::restore(raw, facts.winners, bound)?,
             sources: facts.sources,
             originals: facts.originals,
+            #[cfg(feature = "s_capture_native_testonly")]
+            retained: Default::default(),
             #[cfg(test)]
             stats: Default::default(),
         })
@@ -1085,8 +1114,14 @@ impl<'raw> NativeRawLedger<'raw> {
     ) -> Result<(), String> {
         let changes = self.winners.advance(prefix)?;
         if changes.rewound {
+            #[cfg(feature = "s_capture_native_testonly")]
+            self.retained
+                .hash_capacity::<i64, Source>(self.sources.capacity(), 0);
             self.sources = bj::new_map(None);
         }
+        // 修订先 remove 后重插同一坐标；跨完整变更量容量，不能把中间墓碑当释放。
+        #[cfg(feature = "s_capture_native_testonly")]
+        let source_capacity = self.sources.capacity();
         #[cfg(test)]
         {
             self.stats.raw_visits += changes.raw_visits as u64;
@@ -1117,7 +1152,12 @@ impl<'raw> NativeRawLedger<'raw> {
                 }
                 #[cfg(test)]
                 super::state::trace_raw_hashes(true, 4);
+                #[cfg(feature = "s_capture_native_testonly")]
+                let capacity = self.originals.capacity();
                 self.originals.insert(ordinal, (coord, source));
+                #[cfg(feature = "s_capture_native_testonly")]
+                self.retained
+                    .hash_capacity::<usize, (i64, Source)>(capacity, self.originals.capacity());
                 source
             };
             self.sources.insert(coord, source).map_err(err)?;
@@ -1126,6 +1166,9 @@ impl<'raw> NativeRawLedger<'raw> {
                 self.stats.map_updates += 1;
             }
         }
+        #[cfg(feature = "s_capture_native_testonly")]
+        self.retained
+            .hash_capacity::<i64, Source>(source_capacity, self.sources.capacity());
         Ok(())
     }
 }
@@ -1140,8 +1183,25 @@ pub(super) struct NativeSourceAudit<'capture> {
     raw: RawEventsView<'capture>,
 }
 impl<'capture> NativeSourceAudit<'capture> {
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn with_codec_work(
+        mut self,
+        scope: &'capture sc::capture_allocation::scratch::WorkScope,
+        native: &'capture super::audit_owner::native::Budget,
+    ) -> Self {
+        self.reader = self.reader.with_codec_work(scope, native);
+        self
+    }
+
     pub(super) fn into_raw_facts(self) -> NativeRawFacts {
         self.ledger.into_facts()
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn into_raw_facts_retained(
+        self,
+        delta: &mut super::audit_retention::RetainedDelta,
+    ) -> NativeRawFacts {
+        self.ledger.into_facts_retained(delta)
     }
 
     #[cfg(feature = "s_capture_native_testonly")]
@@ -1965,6 +2025,7 @@ mod tests {
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn cold_raw_index_normal_revisions_unordered_duplicate_prices_and_replay_view() {
+        use crate::v3::audit_retention::{Retained, RetainedDelta};
         let mut fixture = super::super::prepared::tests::Fixture::new();
         // 正常 Accept/Begin，实际读回独立 raw；本测试只核来源索引，不运行生成 runtime。
         for (n, row, revision) in [
@@ -2005,6 +2066,14 @@ mod tests {
             ledger.winners.retained_slots()
         );
 
+        let mut retained = RetainedDelta::default();
+        let facts = ledger.into_facts_retained(&mut retained);
+        assert_eq!(
+            retained.apply(0).unwrap(),
+            facts.heap_bytes(),
+            "独立来源账的赢家 key、坐标、source/original 桶按真实容量计费"
+        );
+
         // 相同修订的重复借用视图保首次；未向数据库插入重复行或修改原件。
         let repeated = [raw[0].clone(), raw[1].clone(), raw[0].clone()];
         let view = RawEventsView::plain(&repeated);
@@ -2015,6 +2084,13 @@ mod tests {
             .unwrap()
             .iter()
             .eq(index.ordered().map(|(_, i)| view.get(i).unwrap())));
+        let mut retained = RetainedDelta::default();
+        let facts = index.into_facts_retained(&mut retained);
+        assert_eq!(
+            retained.apply(0).unwrap(),
+            facts.heap_bytes(),
+            "重复借用视图不增加赢家 key"
+        );
     }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]

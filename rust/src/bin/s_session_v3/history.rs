@@ -218,14 +218,30 @@ impl NativeRawPrefixes {
         _bound: &super::audit_owner::BoundOriginals,
         native: &super::audit_owner::native::Budget,
     ) -> Result<usize, super::audit_owner::native::Failure> {
-        let store = HashReader::captured_for_audit(capture, None).map_err(err)?;
+        native
+            .codec_work()?
+            .run(|scope| self.check_appended_work(capture, raw, _bound, native, scope))
+            .map_err(|e| match e {
+                sc::capture_allocation::scratch::WorkError::Resource(e) => e.into(),
+                sc::capture_allocation::scratch::WorkError::Operation(e) => e,
+            })
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn check_appended_work(
+        &mut self,
+        capture: &sc::AuditCapture,
+        raw: RawEventsView<'_>,
+        _bound: &super::audit_owner::BoundOriginals,
+        native: &super::audit_owner::native::Budget,
+        work: &sc::capture_allocation::scratch::WorkScope,
+    ) -> Result<usize, super::audit_owner::native::Failure> {
+        let store = HashReader::captured_for_audit(capture, None)
+            .map_err(err)?
+            .with_codec_work(work, native);
         if self.raw_nodes.len() != self.raw_wire_nodes.len() || self.raw_nodes.len() > raw.len() {
             return Err(err("raw 已核 R 前沿不符").into());
         }
-        let old = self
-            .raw_nodes
-            .capacity()
-            .saturating_add(self.raw_wire_nodes.capacity());
+        let old = [self.raw_nodes.capacity(), self.raw_wire_nodes.capacity()];
         let append = raw.len() - self.raw_nodes.len();
         native.codec_vec_grow(&mut self.raw_nodes, append)?;
         native.codec_vec_grow(&mut self.raw_wire_nodes, append)?;
@@ -238,9 +254,10 @@ impl NativeRawPrefixes {
                 .try_push(hash_json_in_store(&store, wire.view(), None, None)?)
                 .map_err(err)?;
         }
-        Ok(super::audit_retention::vec_bytes::<NodeDigest>(
-            self.raw_nodes.capacity() + self.raw_wire_nodes.capacity() - old,
-        ))
+        let mut retained = super::audit_retention::RetainedDelta::default();
+        retained.vec_capacity::<NodeDigest>(old[0], self.raw_nodes.capacity());
+        retained.vec_capacity::<NodeDigest>(old[1], self.raw_wire_nodes.capacity());
+        retained.apply(0)
     }
     pub(super) fn checked_len(&self) -> usize {
         self.raw_nodes.len()
@@ -577,6 +594,7 @@ fn audit_one_published_cut<'capture>(
     budget: Option<&dyn super::audit_budget::Budget>,
     allocation: Option<&OwnedBudget>,
 ) -> Result<PublishedCut, String> {
+    let codec_work = store.work;
     check_deadline(deadline)?;
     let generation: i64 = row.integer(0).map_err(err)?;
     #[cfg(test)]
@@ -838,12 +856,13 @@ fn audit_one_published_cut<'capture>(
             None => {
                 #[cfg(test)]
                 record_history_prefix_leaves(0, frontier as u64 + 1);
-                hash_array_metered_with_owner(
+                hash_array_metered_with_work(
                     &raw_nodes[..=frontier as usize],
                     deadline,
                     budget,
                     false,
                     allocation,
+                    codec_work,
                 )?
             }
         },
@@ -867,7 +886,9 @@ fn audit_one_published_cut<'capture>(
                 };
                 #[cfg(test)]
                 record_history_prefix_leaves(1, nodes.len() as u64);
-                hash_array_metered_with_owner(&nodes, deadline, budget, false, allocation)?
+                hash_array_metered_with_work(
+                    &nodes, deadline, budget, false, allocation, codec_work,
+                )?
             }
         },
     )?;
@@ -880,12 +901,13 @@ fn audit_one_published_cut<'capture>(
             None => {
                 #[cfg(test)]
                 record_history_prefix_leaves(2, frontier as u64 + 1);
-                hash_array_metered_with_owner(
+                hash_array_metered_with_work(
                     &raw_wire_nodes[..=frontier as usize],
                     deadline,
                     budget,
                     true,
                     allocation,
+                    codec_work,
                 )?
             }
         },
@@ -894,12 +916,13 @@ fn audit_one_published_cut<'capture>(
         store,
         &delta,
         "raw_history_added",
-        hash_array_metered_with_owner(
+        hash_array_metered_with_work(
             &raw_wire_nodes[(previous + 1) as usize..=frontier as usize],
             deadline,
             budget,
             true,
             allocation,
+            codec_work,
         )?,
     )?;
     #[cfg(test)]
@@ -1418,8 +1441,12 @@ fn cv_until(v: &Value, deadline: Option<std::time::Instant>) -> Result<V, String
 struct Discard<'a>(
     Option<std::time::Instant>,
     Option<&'a dyn super::audit_budget::Budget>,
+    Option<&'a sc::capture_allocation::scratch::WorkScope>,
 );
 impl NodeSink for Discard<'_> {
+    fn codec_sink_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+        self.2
+    }
     fn put(&mut self, d: NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
         check_deadline(self.0).map_err(|e| sc::CodecError::new("verify_deadline", e))?;
         if let Some(b) = self.1 {
@@ -1444,7 +1471,7 @@ pub(super) fn hash_json_metered<'a>(
 ) -> Result<NodeDigest, String> {
     check_deadline(deadline)?;
     let value = v.into();
-    sc::write_json_view(&mut Discard(deadline, budget), value)
+    sc::write_json_view(&mut Discard(deadline, budget, None), value)
         .map(|b| b.digest)
         .map_err(err)
 }
@@ -1454,23 +1481,34 @@ pub(super) fn hash_json_in_store<'a>(
     deadline: Option<std::time::Instant>,
     job: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<NodeDigest, String> {
-    hash_json_with_owner(v.into(), deadline, job, store.allocation_budget().as_ref())
+    hash_json_with_owner(
+        v.into(),
+        deadline,
+        job,
+        store.allocation_budget().as_ref(),
+        store.codec_work(),
+    )
 }
 fn hash_json_with_owner(
     v: sc::capture_allocation::audit_json::JsonView<'_>,
     deadline: Option<std::time::Instant>,
     job: Option<&dyn super::audit_budget::Budget>,
     owner: Option<&sc::capture_allocation::OwnedBudget>,
+    work: Option<&sc::capture_allocation::scratch::WorkScope>,
 ) -> Result<NodeDigest, String> {
     check_deadline(deadline)?;
     #[cfg(feature = "s_allocation_json_testonly")]
     if let Some(b) = owner {
-        return sc::write_json_view_for_allocation_prototype(&mut Discard(deadline, job), v, b)
-            .map(|v| v.digest)
-            .map_err(err);
+        return sc::write_json_view_for_allocation_prototype(
+            &mut Discard(deadline, job, work),
+            v,
+            b,
+        )
+        .map(|v| v.digest)
+        .map_err(err);
     }
     let _ = owner;
-    sc::write_json_view(&mut Discard(deadline, job), v)
+    sc::write_json_view(&mut Discard(deadline, job, work), v)
         .map(|v| v.digest)
         .map_err(err)
 }
@@ -1499,11 +1537,22 @@ fn hash_array_metered_with_owner(
     records: bool,
     allocation: Option<&OwnedBudget>,
 ) -> Result<NodeDigest, String> {
+    hash_array_metered_with_work(nodes, deadline, budget, records, allocation, None)
+}
+fn hash_array_metered_with_work(
+    nodes: &[NodeDigest],
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+    records: bool,
+    allocation: Option<&OwnedBudget>,
+    work: Option<&sc::capture_allocation::scratch::WorkScope>,
+) -> Result<NodeDigest, String> {
     #[cfg(not(feature = "s_allocation_json_testonly"))]
     if allocation.is_some() {
         return Err(err("owned历史摘要入口未启用"));
     }
     let mut edges = bj::new_work(allocation);
+    let mut work_edges = work.map(|scope| scope.vector());
     for d in nodes {
         check_deadline(deadline)?;
         if records {
@@ -1511,20 +1560,24 @@ fn hash_array_metered_with_owner(
                 b.record().map_err(err)?;
             }
         }
-        edges.try_push(sc::ValueView::Edge(*d)).map_err(err)?;
+        match &mut work_edges {
+            Some(edges) => edges.try_push(sc::ValueView::Edge(*d)),
+            None => edges.try_push(sc::ValueView::Edge(*d)),
+        }
+        .map_err(err)?;
     }
-    let value = sc::ValueView::Array(&edges);
+    let value = sc::ValueView::Array(work_edges.as_ref().map_or(&*edges, |edges| &**edges));
     #[cfg(feature = "s_allocation_json_testonly")]
     if let Some(b) = allocation {
         return sc::write_value_view_for_allocation_prototype(
-            &mut Discard(deadline, budget),
+            &mut Discard(deadline, budget, work),
             value,
             b,
         )
         .map(|built| built.digest)
         .map_err(err);
     }
-    sc::write_value_view(&mut Discard(deadline, budget), value)
+    sc::write_value_view(&mut Discard(deadline, budget, work), value)
         .map(|built| built.digest)
         .map_err(err)
 }
@@ -1606,6 +1659,15 @@ struct NativeHistoryPrefixes {
     last_coord: Option<i64>,
 }
 impl NativeHistoryPrefixes {
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn retained_capacities(&self) -> [usize; 3] {
+        [
+            self.raw.stack.capacity(),
+            self.wire.stack.capacity(),
+            self.effective.as_ref().map_or(0, |p| p.stack.capacity()),
+        ]
+    }
+
     fn new(
         store: &HashReader<'_>,
         raw: RawEventsView<'_>,
@@ -1780,6 +1842,9 @@ pub(crate) struct HashReader<'a> {
     source: ReadOwner<'a>,
     overlay: OverlayOwner,
     owned: Option<sc::ClosedCapturedOwner<'a>>,
+    work: Option<&'a sc::capture_allocation::scratch::WorkScope>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    native_budget: Option<&'a super::audit_owner::native::Budget>,
     deadline: Option<std::time::Instant>,
     max_render_bytes: Option<u64>,
     budget: Option<&'a dyn super::audit_budget::Budget>,
@@ -1819,6 +1884,17 @@ impl sc::ClosedReadObserver for AuditObserver<'_> {
     }
 }
 impl<'a> HashReader<'a> {
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(crate) fn with_codec_work(
+        mut self,
+        work: &'a sc::capture_allocation::scratch::WorkScope,
+        native: &'a super::audit_owner::native::Budget,
+    ) -> Self {
+        assert!(self.owned.is_none(), "codec scratch 不能改变 Owned 业务域");
+        self.work = Some(work);
+        self.native_budget = Some(native);
+        self
+    }
     /// 仅本轮 Native captured 历史审计可取到 owner；Owned、普通 reader、Q 与有门路径
     /// 均不开投影 memo。返回 owner 自身寿命，不借用或延长任何临时 overlay body。
     pub(crate) fn native_projection_capture(&self) -> Option<&'a sc::AuditCapture> {
@@ -2046,6 +2122,9 @@ impl<'a> HashReader<'a> {
             source: ReadOwner::Captured(capture),
             overlay: OverlayOwner::Dynamic(BTreeMap::new()),
             owned: None,
+            work: None,
+            #[cfg(feature = "s_capture_native_testonly")]
+            native_budget: None,
             deadline: None,
             max_render_bytes,
             budget: None,
@@ -2088,7 +2167,7 @@ impl<'a> HashReader<'a> {
         if let Some(owner) = &mut self.owned {
             return owner.verify_cached(r, mode);
         }
-        if self.budget.is_none() && self.deadline.is_none() {
+        if self.work.is_none() && self.budget.is_none() && self.deadline.is_none() {
             if let ReadOwner::Captured(c) = &self.source {
                 if c.contains(&r.digest()?) {
                     return c.verify(r, mode);
@@ -2106,7 +2185,8 @@ impl<'a> HashReader<'a> {
         if let Some(owner) = &mut self.owned {
             return owner.verify_many_cached(refs, mode);
         }
-        if matches!(self.source, ReadOwner::Dynamic(_))
+        if self.work.is_some()
+            || matches!(self.source, ReadOwner::Dynamic(_))
             || self.budget.is_some()
             || self.deadline.is_some()
         {
@@ -2124,6 +2204,9 @@ impl<'a> HashReader<'a> {
             source: ReadOwner::Dynamic(source),
             overlay: OverlayOwner::Dynamic(BTreeMap::new()),
             owned: None,
+            work: None,
+            #[cfg(feature = "s_capture_native_testonly")]
+            native_budget: None,
             deadline: None,
             max_render_bytes: None,
             budget: None,
@@ -2138,6 +2221,9 @@ impl<'a> HashReader<'a> {
             source: ReadOwner::Dynamic(source),
             overlay: OverlayOwner::Dynamic(BTreeMap::new()),
             owned: None,
+            work: None,
+            #[cfg(feature = "s_capture_native_testonly")]
+            native_budget: None,
             deadline,
             max_render_bytes: None,
             budget: None,
@@ -2153,6 +2239,9 @@ impl<'a> HashReader<'a> {
             source: ReadOwner::Dynamic(source),
             overlay: OverlayOwner::Dynamic(BTreeMap::new()),
             owned: None,
+            work: None,
+            #[cfg(feature = "s_capture_native_testonly")]
+            native_budget: None,
             deadline,
             max_render_bytes,
             budget: None,
@@ -2169,6 +2258,9 @@ impl<'a> HashReader<'a> {
             source: ReadOwner::Dynamic(source),
             overlay: OverlayOwner::Dynamic(BTreeMap::new()),
             owned: None,
+            work: None,
+            #[cfg(feature = "s_capture_native_testonly")]
+            native_budget: None,
             deadline,
             max_render_bytes,
             budget,
@@ -2187,6 +2279,9 @@ pub(super) fn check_deadline(deadline: Option<std::time::Instant>) -> Result<(),
 }
 
 impl NodeSource for HashReader<'_> {
+    fn codec_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+        self.work
+    }
     fn audit_full_array_scan(&self) -> bool {
         self.audit_full_arrays && self.budget.is_none() && self.deadline.is_none()
     }
@@ -2288,6 +2383,9 @@ impl NodeSource for HashReader<'_> {
     }
 }
 impl NodeSink for HashReader<'_> {
+    fn codec_sink_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+        self.work
+    }
     fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
         if let Some(owner) = &mut self.owned {
             return owner.raw_put(digest, tag, body);
@@ -2326,6 +2424,25 @@ impl NodeSink for HashReader<'_> {
 }
 
 impl CodecRead for HashReader<'_> {
+    fn parse_rendered_plain(&self, bytes: &[u8]) -> Result<serde_json::Value, String> {
+        #[cfg(feature = "s_capture_native_testonly")]
+        if let (Some(work), Some(native)) = (self.work, self.native_budget) {
+            use super::audit_owner::native::JsonShape;
+            use super::audit_retention::Retained;
+            let permit = native
+                .reserve(JsonShape::scan(bytes).parse_peak())
+                .map_err(|_| {
+                    work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget)
+                        .to_string()
+                })?;
+            let value = newchan_rust::session_protocol::strict_json(bytes)?;
+            // 业务输出仍 Plain。保守保留这笔载荷费到本次父账销毁；不计入 scratch。
+            permit.commit(0, value.heap_bytes());
+            return Ok(value);
+        }
+        newchan_rust::session_protocol::strict_json(bytes)
+    }
+
     fn lookup_array_ref(
         &mut self,
         r: sc::RefView<'_>,
@@ -2426,7 +2543,7 @@ impl CodecRead for HashReader<'_> {
         match &mut self.owned {
             Some(o) => o.verify_cached_owned(r, m),
             None => {
-                if self.budget.is_none() && self.deadline.is_none() {
+                if self.work.is_none() && self.budget.is_none() && self.deadline.is_none() {
                     if let ReadOwner::Captured(c) = &self.source {
                         if c.contains(&r.digest()?) {
                             return c.verify_refview(r, m);
@@ -2457,7 +2574,8 @@ impl CodecRead for HashReader<'_> {
         match &mut self.owned {
             Some(o) => o.verify_many_cached_owned(r, m),
             None => {
-                if matches!(self.source, ReadOwner::Dynamic(_))
+                if self.work.is_some()
+                    || matches!(self.source, ReadOwner::Dynamic(_))
                     || self.budget.is_some()
                     || self.deadline.is_some()
                 {
@@ -2751,6 +2869,40 @@ mod tests {
         assert_eq!(overflow.count, sc::MAX_FRAME_LEN);
         assert!(overflow.stack.is_empty());
         assert!(overflow.array_root().is_err(), "算法错误必须直传");
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn owner_retained_prefix_normal_append_and_revision_matches_oracle() {
+        use crate::v3::audit_retention::{Retained, RetainedDelta};
+        let capture = sc::AuditCapture::new(sc::MemoryNodes::new());
+        let mut reader = HashReader::captured_for_audit(&capture, None).unwrap();
+        reader.enable_full_arrays_for_test();
+        let mut prefixes = NativeHistoryPrefixes::new(&reader, (&[][..]).into(), None).unwrap();
+        let mut retained = 0;
+        // 四叶折叠令 stack.len 缩小但 capacity 不变；同坐标修订真实丢掉 effective。
+        for (n, coord) in [0, 10, 20, 30, 30, 40].into_iter().enumerate() {
+            let before = prefixes.retained_capacities();
+            let digest = sc::frame(sc::tag::STRING, &(n as u64).to_be_bytes());
+            prefixes.append(coord, digest, digest).unwrap();
+            let mut delta = RetainedDelta::default();
+            for (old, new) in before.into_iter().zip(prefixes.retained_capacities()) {
+                delta.vec_capacity::<(u64, NodeDigest)>(old, new);
+            }
+            retained = delta.apply(retained).unwrap();
+            assert_eq!(
+                retained,
+                prefixes.heap_bytes(),
+                "叶 {n} 保留费必须等于独立全量 oracle"
+            );
+            if n == 3 {
+                assert_eq!(prefixes.raw.stack.len(), 1);
+                assert!(prefixes.raw.stack.capacity() > prefixes.raw.stack.len());
+            }
+            if n >= 4 {
+                assert!(prefixes.effective.is_none());
+            }
+        }
     }
 
     #[cfg(feature = "s_capture_native_testonly")]
@@ -5991,18 +6143,28 @@ pub(super) fn append_owner_cut(
     object_rows: &[i64],
     aux_rows: &[Vec<i64>; 3],
     bound: &super::audit_owner::BoundOriginals,
-) -> Result<IndexedHistory, String> {
+    work: &sc::capture_allocation::scratch::WorkScope,
+    native: &super::audit_owner::native::Budget,
+) -> Result<
+    (IndexedHistory, super::audit_retention::RetainedDelta),
+    super::audit_owner::native::Failure,
+> {
+    let mut retained = super::audit_retention::RetainedDelta::default();
     verify_required_meta(tx)?;
     let previous = old.cuts.last().map_or(-1, |c| c.metadata.input_frontier);
     if generation != old.cuts.len() as i64 + 1 {
-        return Err(err("owner 后缀非连续一代"));
+        return Err(err("owner 后缀非连续一代").into());
     }
-    let mut store = HashReader::captured_for_audit(capture, None).map_err(err)?;
+    let mut store = HashReader::captured_for_audit(capture, None)
+        .map_err(err)?
+        .with_codec_work(work, native);
     store.audit_full_arrays = true;
     let mut sweep = old
         .object_sweep
         .take()
         .ok_or_else(|| err("缺完整对象事件事实"))?;
+    // 冷构造的计数已由 capture 全量准入计过；本轮只消费新变更。
+    drop(sweep.take_retained_delta());
     object_index::update_from_owner(
         tx,
         &mut store,
@@ -6011,6 +6173,7 @@ pub(super) fn append_owner_cut(
         &mut sweep,
         object_rows,
         bound,
+        &mut retained,
     )
     .map_err(|e| format!("{e} [owner object effects g={generation}]"))?;
     let mut aux_facts = old
@@ -6025,9 +6188,11 @@ pub(super) fn append_owner_cut(
         &mut aux_facts,
         aux_rows,
         bound,
+        &mut retained,
     )
     .map_err(|e| format!("{e} [owner aux effects g={generation}]"))?;
-    let mut objects = object_index::restore_for_owner(old.objects, &store, &mut sweep, bound)?;
+    let mut objects =
+        object_index::restore_for_owner(old.objects, &store, &mut sweep, bound, &mut retained)?;
     let mut object_sweep = Some(sweep);
     let mut native_aux = Some(aux_index::NativeAuxAudit::restore(
         &store,
@@ -6045,12 +6210,13 @@ pub(super) fn append_owner_cut(
         .raw_prefixes
         .take()
         .ok_or_else(|| err("缺 raw R/F 事实"))?;
+    let prefix_capacities = prefixes.retained_capacities();
     let mut prefixes = Some(prefixes);
     let mut ordered = Some(bj::RawPrefixIndex::restore(raw, ordered, bound)?);
     let mut effective = bj::new_map(None);
-    let mut control = old
-        .control_facts
-        .resume_owner(generation, batch, commit_ns, bound)?;
+    let mut control =
+        old.control_facts
+            .resume_owner(generation, batch, commit_ns, bound, &mut retained)?;
     let mut resolved = bj::new_work(None);
     let mut stmt=CheckedStatement::prepare(tx,c"SELECT p.generation,p.batch_id,p.manifest_root,p.snapshot_root,p.delta_root,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.catalog_run_status,d.catalog_evidence_json,d.delta_json FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation WHERE p.generation=?1").map_err(err)?;
     stmt.bind_integer(1, generation).map_err(err)?;
@@ -6094,34 +6260,44 @@ pub(super) fn append_owner_cut(
     drop(row);
     stmt.finalize().map_err(err)?;
     let frontier = cut.metadata.input_frontier;
+    retained.add(&cut);
+    let capacity = old.cuts.capacity();
     old.cuts.try_push(cut).map_err(err)?;
+    retained.vec_capacity::<PublishedCut>(capacity, old.cuts.capacity());
     store
         .verify_many_ref(resolved.iter().map(RefValue::view), sc::Mode::Public)
         .map_err(err)?;
     let facts = control.into_facts()?;
     verify_current_frontiers(tx, &old.cuts, frontier, None)?;
-    let auxiliary_facts = native_aux.map(aux_index::NativeAuxAudit::into_facts);
-    Ok(IndexedHistory {
-        control_facts: facts,
-        raw_prefixes: Some(NativeRawPrefixes {
-            raw_nodes,
-            raw_wire_nodes,
-            prefixes: prefixes.unwrap(),
-            ordered: ordered.unwrap().into_facts(),
-        }),
-        cuts: old.cuts,
-        objects: {
-            #[cfg(feature = "s_capture_native_testonly")]
-            {
-                objects.into_entries_preserving(&mut object_sweep)
-            }
-            #[cfg(not(feature = "s_capture_native_testonly"))]
-            {
-                objects.into_entries()
-            }
+    let auxiliary_facts = native_aux.map(|aux| aux.into_facts_retained(&mut retained));
+    let prefixes = prefixes.unwrap();
+    for (before, after) in prefix_capacities
+        .into_iter()
+        .zip(prefixes.retained_capacities())
+    {
+        // truncate 不减容量；effective=None 真实 drop 的整栈才减费。
+        retained.vec_capacity::<(u64, NodeDigest)>(before, after);
+    }
+    let ordered = ordered.unwrap().into_facts_retained(&mut retained);
+    let objects = objects.into_entries_preserving(&mut object_sweep);
+    if let Some(sweep) = &mut object_sweep {
+        retained.merge(sweep.take_retained_delta());
+    }
+    Ok((
+        IndexedHistory {
+            control_facts: facts,
+            raw_prefixes: Some(NativeRawPrefixes {
+                raw_nodes,
+                raw_wire_nodes,
+                prefixes,
+                ordered,
+            }),
+            cuts: old.cuts,
+            objects,
+            auxiliary: old.auxiliary,
+            auxiliary_facts,
+            object_sweep,
         },
-        auxiliary: old.auxiliary,
-        auxiliary_facts,
-        object_sweep,
-    })
+        retained,
+    ))
 }

@@ -1,6 +1,7 @@
 //! #1394 局部原型：同OwnedBudget计量capture/固定overlay、codec节点body与选定全部工作集真实Layout。
 //! 未覆盖业务JSON/其它业务容器、ContentRef字符串/外部输出、SQLite、外层错误/诊断、allocator元数据与物理RSS。
-//! 普通NodeSource及擦除后的公开Vec契约保持；固定Arc/Mutex仪表不算payload，无生产默认额度/完整准入。
+//! 普通NodeSource及公开Vec契约保持；默认Owned Arc/Mutex仪表不算payload。
+//! Native独立scratch元数据先计入父账，真实工作Layout动态预留；仍不授予完整Native准入。
 
 use super::{CodecError, NodeDigest};
 use std::alloc::{alloc_zeroed, dealloc, Layout};
@@ -589,6 +590,8 @@ impl CaptureSlab {
     }
 }
 
+#[doc(hidden)]
+pub mod scratch;
 pub(crate) mod work;
 
 /// #1394 caller-owned dispatch allocations; no global allocator installation.

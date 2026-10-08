@@ -1199,6 +1199,8 @@ pub(super) struct NativeAuxAudit<'index, 'capture, 'raw> {
     index: &'index Index,
     raw: RawEventsView<'raw>,
     facts: NativeAuxFacts,
+    #[cfg(feature = "s_capture_native_testonly")]
+    retained_raw_capacity: usize,
     relation_memo: std::collections::HashMap<RelationRefKey, RelationCore>,
     raw_memo: std::collections::HashMap<usize, Option<RefValue>>,
 }
@@ -1245,6 +1247,8 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
                 raw_scanned: 0,
                 raw_revisions: Vec::new(),
             },
+            #[cfg(feature = "s_capture_native_testonly")]
+            retained_raw_capacity: 0,
             relation_memo: Default::default(),
             raw_memo: Default::default(),
         })
@@ -1266,6 +1270,7 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
                 .ok_or_else(|| err("aux 缺 Native owner"))?,
             index,
             raw,
+            retained_raw_capacity: facts.raw_revisions.capacity(),
             facts,
             relation_memo: Default::default(),
             raw_memo: Default::default(),
@@ -1304,6 +1309,18 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
     pub(super) fn into_facts(self) -> NativeAuxFacts {
         self.facts
     }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn into_facts_retained(
+        self,
+        delta: &mut super::audit_retention::RetainedDelta,
+    ) -> NativeAuxFacts {
+        delta.vec_capacity::<usize>(
+            self.retained_raw_capacity,
+            self.facts.raw_revisions.capacity(),
+        );
+        self.facts
+    }
+
     fn birth_names(&self, role: usize, g: i64) -> impl ExactSizeIterator<Item = &str> {
         self.born[role]
             .get(&g)
@@ -1740,6 +1757,7 @@ pub(super) fn update_from_owner(
     facts: &mut NativeAuxFacts,
     rowids: &[Vec<i64>; 3],
     _bound: &super::audit_owner::BoundOriginals,
+    retained: &mut super::audit_retention::RetainedDelta,
 ) -> Result<(), String> {
     let mut rt = Runtime::default();
     for role in 0..3 {
@@ -1759,19 +1777,28 @@ pub(super) fn update_from_owner(
                 0 => {
                     let e = audit_persisted_witness(&mut row, s, latest, None, &mut rt)?;
                     let out = (e.id.to_string(), index.witnesses.len(), e.first);
+                    retained.add(&e);
+                    let capacity = index.witnesses.capacity();
                     index.witnesses.try_push(e).map_err(err)?;
+                    retained.vec_capacity::<Witness>(capacity, index.witnesses.capacity());
                     out
                 }
                 1 => {
                     let e = audit_persisted_relation(&mut row, s, latest, None)?;
                     let out = (e.id.to_string(), index.relations.len(), e.first);
+                    retained.add(&e);
+                    let capacity = index.relations.capacity();
                     index.relations.try_push(e).map_err(err)?;
+                    retained.vec_capacity::<Relation>(capacity, index.relations.capacity());
                     out
                 }
                 _ => {
                     let e = audit_persisted_observation(&mut row, s, latest, None)?;
                     let out = (e.id.to_string(), index.observations.len(), e.first);
+                    retained.add(&e);
+                    let capacity = index.observations.capacity();
                     index.observations.try_push(e).map_err(err)?;
+                    retained.vec_capacity::<Observation>(capacity, index.observations.capacity());
                     out
                 }
             };
@@ -1782,10 +1809,18 @@ pub(super) fn update_from_owner(
                 1 => &mut facts.relations,
                 _ => &mut facts.observations,
             };
+            let capacity = map.capacity();
+            retained.add(&id);
             if map.insert(id, ordinal).is_some() {
                 return Err(err("辅助索引重复身份"));
             }
-            facts.born[role].entry(first).or_default().push(ordinal);
+            retained.hash_capacity::<String, usize>(capacity, map.capacity());
+            let len = facts.born[role].len();
+            let bucket = facts.born[role].entry(first).or_default();
+            let capacity = bucket.capacity();
+            bucket.push(ordinal);
+            retained.vec_capacity::<usize>(capacity, bucket.capacity());
+            retained.tree_len::<i64, Vec<usize>>(len, facts.born[role].len());
         }
     }
     Ok(())

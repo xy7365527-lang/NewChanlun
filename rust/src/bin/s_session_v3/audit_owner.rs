@@ -1340,24 +1340,34 @@ fn audit_owner_ended_cannot_promote_earlier_context_or_fixture_life() {
 
 #[cfg(feature = "s_capture_native_testonly")]
 impl CompleteCandidate {
-    fn detach_slot(&mut self) {
+    fn detach_slot(&mut self) -> Result<(), String> {
         if let Some(slot) = self.slot.take() {
             self.capture = Some(slot.capture);
             // 真实释放历史绑定和旧来源候选；唯一 audited 继续拥有全 C 与事实。
             drop(slot.result);
             drop(slot.binding);
             drop(slot.source_pending);
-            let released = super::audit_retention::sum([
-                self.charge.slot_result_capacity,
-                self.charge.historical_binding_capacity,
-                self.charge.source_pool_charge,
-            ]);
-            self.charge.historical_and_raw_capacity -= self.charge.slot_result_capacity;
-            self.charge.total -= released;
+            let released = self
+                .charge
+                .slot_result_capacity
+                .checked_add(self.charge.historical_binding_capacity)
+                .and_then(|n| n.checked_add(self.charge.source_pool_charge))
+                .ok_or_else(|| invalid("slot 释放账不符"))?;
+            self.charge.historical_and_raw_capacity = self
+                .charge
+                .historical_and_raw_capacity
+                .checked_sub(self.charge.slot_result_capacity)
+                .ok_or_else(|| invalid("slot 历史账下溢"))?;
+            self.charge.total = self
+                .charge
+                .total
+                .checked_sub(released)
+                .ok_or_else(|| invalid("slot 总账下溢"))?;
             self.charge.slot_result_capacity = 0;
             self.charge.historical_binding_capacity = 0;
             self.charge.source_pool_charge = 0;
         }
+        Ok(())
     }
     fn validate_effects(
         mut self,
@@ -1365,7 +1375,7 @@ impl CompleteCandidate {
         mut effects: effects::Effects,
         limit: usize,
     ) -> Result<Option<Self>, String> {
-        use super::audit_retention::{sum, Retained};
+        use super::audit_retention::sum;
         use effects::Table;
         // #1394 未完成项：旧倍率门仍缺逐容器推导，不能视作新cut全部Native分配的许可。
         // 完整替换须贯通object/aux/codec构造；当前超额仍只撤可选候选，校验Err不改判。
@@ -1377,7 +1387,7 @@ impl CompleteCandidate {
         if reserve >= limit {
             return Ok(None);
         }
-        self.detach_slot();
+        self.detach_slot()?;
         let capture = self.capture.as_mut().unwrap();
         for change in effects
             .changes
@@ -1411,10 +1421,14 @@ impl CompleteCandidate {
         };
         match self.q.advance(tx, &effects, &mut self.audited, &budget) {
             Ok(raw_added) => {
-                self.charge.historical_and_raw_capacity = self
+                let Some(total) = self
                     .charge
                     .historical_and_raw_capacity
-                    .saturating_add(raw_added);
+                    .checked_add(raw_added)
+                else {
+                    return Ok(None);
+                };
+                self.charge.historical_and_raw_capacity = total;
             }
             Err(native::Failure::BudgetExceeded) => return Ok(None),
             Err(native::Failure::Invalid(e)) => return Err(e),
@@ -1422,10 +1436,10 @@ impl CompleteCandidate {
         let bound = BoundOriginals { _private: () };
         match self.audited.check_owner_raw(capture, &bound, &budget) {
             Ok(added) => {
-                self.charge.historical_and_raw_capacity = self
-                    .charge
-                    .historical_and_raw_capacity
-                    .saturating_add(added)
+                let Some(total) = self.charge.historical_and_raw_capacity.checked_add(added) else {
+                    return Ok(None);
+                };
+                self.charge.historical_and_raw_capacity = total;
             }
             Err(native::Failure::BudgetExceeded) => return Ok(None),
             Err(native::Failure::Invalid(e)) => return Err(e),
@@ -1459,11 +1473,37 @@ impl CompleteCandidate {
                 objects.len(),
                 auxiliary.each_ref().map(Vec::len)
             );
-            self.audited = self
-                .audited
-                .append_owner_cut(tx, capture, g, batch, ns, &objects, &auxiliary, &bound)?;
-            // 新cut的完整保留分项仍需下游构造账；Accept/Begin/Recover已不再扫描旧历史计费。
-            self.charge.historical_and_raw_capacity = self.audited.heap_bytes();
+            let work = match budget.codec_work() {
+                Ok(work) => work,
+                Err(native::Failure::BudgetExceeded) => return Ok(None),
+                Err(native::Failure::Invalid(e)) => return Err(e),
+            };
+            // 整个新 cut 是一次独占操作域；所有 String 桥首次 Err 立即短路，不重判。
+            let updated = work
+                .run(|scope| {
+                    self.audited.append_owner_cut(
+                        tx, capture, g, batch, ns, &objects, &auxiliary, &bound, scope, &budget,
+                    )
+                })
+                .map_err(native::Failure::from);
+            #[cfg(test)]
+            eprintln!(
+                "NATIVE_CODEC_WORK live_peak_meta={:?} total_peak={}",
+                budget.scratch_observation(),
+                budget.peak()
+            );
+            let (audited, retained) = match updated {
+                Ok(updated) => updated,
+                Err(native::Failure::BudgetExceeded) => return Ok(None),
+                Err(native::Failure::Invalid(e)) => return Err(e),
+            };
+            self.audited = audited;
+            self.charge.historical_and_raw_capacity =
+                match retained.apply(self.charge.historical_and_raw_capacity) {
+                    Ok(total) => total,
+                    Err(native::Failure::BudgetExceeded) => return Ok(None),
+                    Err(native::Failure::Invalid(error)) => return Err(error),
+                };
         }
         let effect_rows = effects.changes.len();
         let Some(peak) = effects.apply(
@@ -1623,7 +1663,7 @@ impl AuditTxn<'_> {
                     FixedOperation::Recover => effects::Operation::Recover,
                 };
                 if let Some(recording) = effects::Recording::start(self.tx(), op, limit / 8)? {
-                    candidate.detach_slot();
+                    candidate.detach_slot()?;
                     self.effect_limit.set(limit);
                     *self.pending.borrow_mut() = Some(candidate);
                     *self.recording.borrow_mut() = Some(recording);
@@ -1801,7 +1841,7 @@ fn audit_owner_q_itemized_normal_cold_growth_and_typed_limit() {
         + c.charge.historical_binding_capacity
         + c.charge.source_pool_charge;
     assert!(actual_release > 0);
-    c.detach_slot();
+    c.detach_slot().unwrap();
     assert_eq!(c.charge.total, held - actual_release);
     assert!(c.slot.is_none() && c.capture.is_some());
     assert_eq!(c.charge.source_pool_charge, 0, "真正drop后释放source归属");

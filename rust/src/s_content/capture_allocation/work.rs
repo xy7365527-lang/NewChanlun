@@ -14,8 +14,55 @@ pub(crate) fn allocation_error() -> CodecError {
     CodecError::static_detail(LIMIT, "codec requested Layout 超过显式实验额度或分配失败")
 }
 #[derive(Clone)]
+pub(crate) enum WorkBudget {
+    Owned(OwnedBudget),
+    Scratch(super::scratch::ScratchHandle),
+}
+impl WorkBudget {
+    pub(crate) fn observe<T>(&self, result: &Result<T, CodecError>) {
+        if let (Self::Scratch(b), Err(e)) = (self, result) {
+            b.observe(e);
+        }
+    }
+
+    fn reserve_layout(&self, layout: Layout, kind: &'static str) -> Result<(), CodecError> {
+        match self {
+            Self::Owned(b) => b.reserve_layout(layout, kind),
+            Self::Scratch(b) => b.reserve(layout).map_err(CodecError::scratch),
+        }
+    }
+    fn rollback_layout(&self, layout: Layout) {
+        match self {
+            Self::Owned(b) => b.rollback_layout(layout),
+            Self::Scratch(b) => b.release(layout),
+        }
+    }
+    fn release_layout(&self, layout: Layout) {
+        match self {
+            Self::Owned(b) => b.release_layout(layout),
+            Self::Scratch(b) => b.release(layout),
+        }
+    }
+    fn commit_layout(&self, layout: Layout) {
+        if let Self::Owned(b) = self {
+            b.commit_layout(layout);
+        }
+    }
+    fn allocation_failed(&self) {
+        if let Self::Scratch(b) = self {
+            b.fail(super::scratch::ScratchFailure::Allocation);
+        }
+    }
+    fn error(&self) -> CodecError {
+        match self {
+            Self::Owned(_) => allocation_error(),
+            Self::Scratch(b) => b.error(),
+        }
+    }
+}
+#[derive(Clone)]
 pub(crate) struct LedgerAllocator {
-    budget: OwnedBudget,
+    budget: WorkBudget,
     kind: &'static str,
 }
 impl LedgerAllocator {
@@ -23,6 +70,12 @@ impl LedgerAllocator {
         Self::new_tag(budget, "codec Layout")
     }
     pub(crate) fn new_tag(budget: &OwnedBudget, kind: &'static str) -> Self {
+        Self {
+            budget: WorkBudget::Owned(budget.clone()),
+            kind,
+        }
+    }
+    fn work(budget: &WorkBudget, kind: &'static str) -> Self {
         Self {
             budget: budget.clone(),
             kind,
@@ -45,6 +98,7 @@ unsafe impl Allocator for LedgerAllocator {
         // SAFETY: nonzero valid caller Layout.
         let p = unsafe { std::alloc::alloc(layout) };
         let Some(p) = NonNull::new(p) else {
+            self.budget.allocation_failed();
             self.budget.rollback_layout(layout);
             return Err(AllocError);
         };
@@ -114,7 +168,10 @@ impl<T> CodecVec<T> {
     pub fn allocation_budget(&self) -> Option<&OwnedBudget> {
         match &self.storage {
             VecStorage::Plain(_) => None,
-            VecStorage::Owned(v) => Some(&v.allocator().budget),
+            VecStorage::Owned(v) => match &v.allocator().budget {
+                WorkBudget::Owned(b) => Some(b),
+                WorkBudget::Scratch(_) => None,
+            },
         }
     }
     pub fn new_with_allocation(budget: Option<&OwnedBudget>) -> Self {
@@ -148,10 +205,13 @@ impl<T> CodecVec<T> {
         }
     }
     pub(crate) fn new(b: Option<&OwnedBudget>) -> Self {
+        Self::new_work(b.map(|b| WorkBudget::Owned(b.clone())).as_ref())
+    }
+    pub(crate) fn new_work(b: Option<&WorkBudget>) -> Self {
         Self {
             storage: match b {
                 None => VecStorage::Plain(Vec::new()),
-                Some(b) => VecStorage::Owned(AllocVec::new_in(LedgerAllocator::new_tag(
+                Some(b) => VecStorage::Owned(AllocVec::new_in(LedgerAllocator::work(
                     b,
                     std::any::type_name::<T>(),
                 ))),
@@ -159,29 +219,25 @@ impl<T> CodecVec<T> {
         }
     }
     pub(crate) fn with_capacity(n: usize, b: Option<&OwnedBudget>) -> Result<Self, CodecError> {
-        match b {
-            None => {
-                let mut v = Self::from_plain(Vec::new());
-                v.reserve_exact(n)?;
-                Ok(v)
-            }
-            Some(b) => {
-                let mut v = Self::new(Some(b));
-                v.reserve_exact(n)?;
-                Ok(v)
-            }
-        }
+        Self::with_work_capacity(n, b.map(|b| WorkBudget::Owned(b.clone())).as_ref())
+    }
+    pub(crate) fn with_work_capacity(n: usize, b: Option<&WorkBudget>) -> Result<Self, CodecError> {
+        let mut v = Self::new_work(b);
+        v.reserve_exact(n)?;
+        Ok(v)
     }
     pub(crate) fn reserve(&mut self, n: usize) -> Result<(), CodecError> {
         match &mut self.storage {
             VecStorage::Plain(v) => v.try_reserve(n).map_err(|_| allocation_error()),
-            VecStorage::Owned(v) => v.try_reserve(n).map_err(|_| allocation_error()),
+            VecStorage::Owned(v) => v.try_reserve(n).map_err(|_| v.allocator().budget.error()),
         }
     }
     pub(crate) fn reserve_exact(&mut self, n: usize) -> Result<(), CodecError> {
         match &mut self.storage {
             VecStorage::Plain(v) => v.try_reserve_exact(n).map_err(|_| allocation_error()),
-            VecStorage::Owned(v) => v.try_reserve_exact(n).map_err(|_| allocation_error()),
+            VecStorage::Owned(v) => v
+                .try_reserve_exact(n)
+                .map_err(|_| v.allocator().budget.error()),
         }
     }
     pub fn try_push(&mut self, x: T) -> Result<(), CodecError> {
@@ -237,7 +293,7 @@ impl<T> CodecVec<T> {
         match &self.storage {
             VecStorage::Plain(v) => Ok(Self::from_plain(v.clone())),
             VecStorage::Owned(v) => {
-                let mut c = Self::new(Some(&v.allocator().budget));
+                let mut c = Self::new_work(Some(&v.allocator().budget));
                 c.extend_from_slice(v)?;
                 Ok(c)
             }
@@ -380,11 +436,14 @@ impl<K: Eq + Hash, V> WorkMap<K, V> {
         }
     }
     pub(crate) fn new(b: Option<&OwnedBudget>) -> Self {
+        Self::new_work(b.map(|b| WorkBudget::Owned(b.clone())).as_ref())
+    }
+    pub(crate) fn new_work(b: Option<&WorkBudget>) -> Self {
         match b {
             None => Self::default(),
             Some(b) => Self::Owned(hashbrown::HashMap::with_hasher_in(
                 RandomState::new(),
-                LedgerAllocator::new_tag(b, std::any::type_name::<(K, V)>()),
+                LedgerAllocator::work(b, std::any::type_name::<(K, V)>()),
             )),
         }
     }
@@ -401,7 +460,7 @@ impl<K: Eq + Hash, V> WorkMap<K, V> {
                 if let Some(old) = m.get_mut(&k) {
                     return Ok(Some(std::mem::replace(old, v)));
                 }
-                m.try_reserve(1).map_err(|_| allocation_error())?;
+                m.try_reserve(1).map_err(|_| m.allocator().budget.error())?;
                 Ok(m.insert(k, v))
             }
         }
@@ -475,11 +534,14 @@ impl<T> Default for WorkSet<T> {
 }
 impl<T: Eq + Hash> WorkSet<T> {
     pub(crate) fn new(b: Option<&OwnedBudget>) -> Self {
+        Self::new_work(b.map(|b| WorkBudget::Owned(b.clone())).as_ref())
+    }
+    pub(crate) fn new_work(b: Option<&WorkBudget>) -> Self {
         match b {
             None => Self::default(),
             Some(b) => Self::Owned(hashbrown::HashSet::with_hasher_in(
                 RandomState::new(),
-                LedgerAllocator::new_tag(b, std::any::type_name::<T>()),
+                LedgerAllocator::work(b, std::any::type_name::<T>()),
             )),
         }
     }
@@ -496,7 +558,7 @@ impl<T: Eq + Hash> WorkSet<T> {
                 if m.contains(&v) {
                     return Ok(false);
                 }
-                m.try_reserve(1).map_err(|_| allocation_error())?;
+                m.try_reserve(1).map_err(|_| m.allocator().budget.error())?;
                 Ok(m.insert(v))
             }
         }

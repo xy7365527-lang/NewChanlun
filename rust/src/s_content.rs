@@ -39,7 +39,7 @@ mod closed;
 pub mod json_writer;
 mod ref_owner;
 pub use capture_allocation::work::{CodecFields, CodecVec};
-use capture_allocation::work::{WorkMap, WorkSet, WorkVec};
+use capture_allocation::work::{WorkBudget, WorkMap, WorkSet, WorkVec};
 use closed::CodecContext;
 #[doc(hidden)]
 pub use closed::{ClosedAccess, ClosedCapturedOwner, ClosedReadObserver};
@@ -117,19 +117,31 @@ pub mod code {
 pub struct CodecError {
     code: &'static str,
     detail: std::borrow::Cow<'static, str>,
+    scratch_failure: Option<capture_allocation::scratch::ScratchFailure>,
 }
 
 impl CodecError {
+    fn scratch(failure: capture_allocation::scratch::ScratchFailure) -> Self {
+        let mut error = Self::static_detail(capture_allocation::LIMIT, "codec 工作域分配失败");
+        error.scratch_failure = Some(failure);
+        error
+    }
+    pub fn scratch_failure(&self) -> Option<capture_allocation::scratch::ScratchFailure> {
+        self.scratch_failure
+    }
+
     pub(crate) fn static_detail(code: &'static str, detail: &'static str) -> Self {
         Self {
             code,
             detail: std::borrow::Cow::Borrowed(detail),
+            scratch_failure: None,
         }
     }
     pub fn new(code: &'static str, detail: impl Into<String>) -> Self {
         Self {
             code,
             detail: std::borrow::Cow::Owned(detail.into()),
+            scratch_failure: None,
         }
     }
 
@@ -151,6 +163,13 @@ impl fmt::Display for CodecError {
 impl std::error::Error for CodecError {}
 
 fn io_error(err: std::io::Error) -> CodecError {
+    if let Some(e) = err
+        .get_ref()
+        .and_then(|e| e.downcast_ref::<CodecError>())
+        .filter(|e| e.scratch_failure().is_some())
+    {
+        return e.clone();
+    }
     CodecError::new(code::IO, err.to_string())
 }
 
@@ -423,6 +442,10 @@ pub fn bytes_root(bytes: &[u8]) -> NodeDigest {
 /// 节点写入面：`put` 收到的摘要必须等于 F(tag, body)（写入面自己算摘要，故恒成立）。
 /// 本模块不把 sink 变成跨服务校验器：写入面只保证自己算的摘要与 (tag, body) 一致。
 pub trait NodeSink {
+    fn codec_sink_work(&self) -> Option<&capture_allocation::scratch::WorkScope> {
+        None
+    }
+
     fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError>;
 }
 
@@ -439,6 +462,11 @@ pub enum NodeRead {
 /// （不可变快照或等价的一致性保证）。生产 job 可以在任意一次 `read` 返回 `Err` 中止
 /// 本轮核验；`Err` 原样上抛，不会变成「部分通过」。
 pub trait NodeSource {
+    /// 独立临时工作域，不改变节点、业务返回值或 Owned 分派。
+    fn codec_work(&self) -> Option<&capture_allocation::scratch::WorkScope> {
+        None
+    }
+
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError>;
 
     // Reached a checked array and an in-range index, immediately before descent.
@@ -861,8 +889,9 @@ fn write_bytes_ctx(
         let digest = put_node(sink, tag::SEQ_EMPTY, &[])?;
         return Ok(digest);
     }
-    let budget = sink.budget();
-    let mut leaves = WorkVec::with_capacity(bytes.len().div_ceil(CHUNK_BYTES), budget.as_ref())?;
+    let budget = sink.work_budget();
+    let mut leaves =
+        WorkVec::with_work_capacity(bytes.len().div_ceil(CHUNK_BYTES), budget.as_ref())?;
     for chunk in bytes.chunks(CHUNK_BYTES) {
         let digest = put_node(sink, tag::BYTES_CHUNK, chunk)?;
         leaves.push(digest)?;
@@ -891,8 +920,8 @@ fn write_sequence_ctx(
             format!("序列叶数 {} 超过 2^63-1", leaves.len()),
         ));
     }
-    let budget = sink.budget();
-    let mut stack: WorkVec<(u64, NodeDigest)> = WorkVec::new(budget.as_ref());
+    let budget = sink.work_budget();
+    let mut stack: WorkVec<(u64, NodeDigest)> = WorkVec::new_work(budget.as_ref());
     for leaf in leaves {
         let leaf_node = put_node(sink, tag::SEQ_LEAF, leaf)?;
         stack.push((1, leaf_node))?;
@@ -989,10 +1018,24 @@ fn write_steps<'a>(
     extent: Option<u64>,
     mode: Mode,
 ) -> Result<Built, CodecError> {
-    let budget = sink.budget();
-    let mut steps = WorkVec::with_capacity(1, budget.as_ref())?;
+    let operation_work = sink.work_budget();
+    let operation_result = write_steps_inner(sink, initial, kind, extent, mode);
+    if let Some(work) = operation_work {
+        work.observe(&operation_result);
+    }
+    operation_result
+}
+fn write_steps_inner<'a>(
+    sink: &mut CodecContext<'_, '_>,
+    initial: WStep<'a>,
+    kind: Kind,
+    extent: Option<u64>,
+    mode: Mode,
+) -> Result<Built, CodecError> {
+    let budget = sink.work_budget();
+    let mut steps = WorkVec::with_work_capacity(1, budget.as_ref())?;
     steps.push(initial)?;
-    let mut done: WorkVec<NodeDigest> = WorkVec::new(budget.as_ref());
+    let mut done: WorkVec<NodeDigest> = WorkVec::new_work(budget.as_ref());
     while let Some(step) = steps.pop() {
         match step {
             WStep::Value(v) => write_value_step(sink, v, mode, &mut steps, &mut done)?,
@@ -1027,7 +1070,7 @@ fn write_steps<'a>(
                 let children = &done[base..];
                 let n = u64::try_from(children.len()).expect("元素数可表达");
                 let fields = write_sequence_ctx(sink, children)?;
-                let mut body = WorkVec::with_capacity(40, sink.budget().as_ref())?;
+                let mut body = WorkVec::with_work_capacity(40, sink.work_budget().as_ref())?;
                 body.extend_from_slice(&checked_frame_len(n)?)?;
                 body.extend_from_slice(&fields)?;
                 let digest = put_node(sink, tag::ARRAY, &body)?;
@@ -1042,7 +1085,7 @@ fn write_steps<'a>(
                         "对象字段记账与已写入子值不符".to_string(),
                     ));
                 }
-                let mut order = WorkVec::with_capacity(keys.len(), budget.as_ref())?;
+                let mut order = WorkVec::with_work_capacity(keys.len(), budget.as_ref())?;
                 for i in 0..keys.len() {
                     order.push(i)?;
                 }
@@ -1055,7 +1098,7 @@ fn write_steps<'a>(
                         ));
                     }
                 }
-                let mut field_digests = WorkVec::with_capacity(order.len(), budget.as_ref())?;
+                let mut field_digests = WorkVec::with_work_capacity(order.len(), budget.as_ref())?;
                 for &i in &order {
                     let key_digest = write_string_node(sink, keys[i])?;
                     let mut body = [0u8; 64];
@@ -1064,7 +1107,7 @@ fn write_steps<'a>(
                     field_digests.push(put_node(sink, tag::OBJECT_FIELD, &body)?)?;
                 }
                 let fields = write_sequence_ctx(sink, &field_digests)?;
-                let mut body = WorkVec::with_capacity(40, sink.budget().as_ref())?;
+                let mut body = WorkVec::with_work_capacity(40, sink.work_budget().as_ref())?;
                 body.extend_from_slice(&checked_frame_len(n)?)?;
                 body.extend_from_slice(&fields)?;
                 let digest = put_node(sink, tag::OBJECT, &body)?;
@@ -1204,7 +1247,7 @@ fn write_borrowed_json_step<'a>(
         }
         JsonKind::Object => {
             let object = v.as_object().unwrap();
-            let mut keys = WorkVec::with_capacity(object.len(), sink.budget().as_ref())?;
+            let mut keys = WorkVec::with_work_capacity(object.len(), sink.work_budget().as_ref())?;
             for k in object.keys() {
                 keys.push(k)?;
             }
@@ -1261,7 +1304,7 @@ fn write_value_view_step<'a>(
             steps.push(WStep::ViewArray(a.iter()))?;
         }
         ValueView::Object(a) => {
-            let mut keys = WorkVec::with_capacity(a.len(), sink.budget().as_ref())?;
+            let mut keys = WorkVec::with_work_capacity(a.len(), sink.work_budget().as_ref())?;
             for (k, _) in a {
                 keys.push(*k)?;
             }
@@ -1284,7 +1327,7 @@ fn write_string_node(
 ) -> Result<NodeDigest, CodecError> {
     let bytes = text.as_bytes();
     let root = write_bytes_ctx(sink, bytes)?;
-    let mut body = WorkVec::with_capacity(40, sink.budget().as_ref())?;
+    let mut body = WorkVec::with_work_capacity(40, sink.work_budget().as_ref())?;
     body.extend_from_slice(&checked_frame_len(
         u64::try_from(bytes.len()).expect("字节数可表达"),
     )?)?;
@@ -1298,7 +1341,7 @@ fn write_byte_node(
     bytes: &[u8],
 ) -> Result<NodeDigest, CodecError> {
     let root = write_bytes_ctx(sink, bytes)?;
-    let mut body = WorkVec::with_capacity(40, sink.budget().as_ref())?;
+    let mut body = WorkVec::with_work_capacity(40, sink.work_budget().as_ref())?;
     body.extend_from_slice(&checked_frame_len(
         u64::try_from(bytes.len()).expect("字节数可表达"),
     )?)?;
@@ -1357,7 +1400,8 @@ fn write_value_step<'a>(
             steps.push(WStep::FinishObject {
                 base: done.len(),
                 keys: {
-                    let mut keys = WorkVec::with_capacity(fields.len(), sink.budget().as_ref())?;
+                    let mut keys =
+                        WorkVec::with_work_capacity(fields.len(), sink.work_budget().as_ref())?;
                     for (k, _) in fields {
                         keys.push(k.as_str())?;
                     }
@@ -1408,7 +1452,8 @@ fn write_json_step<'a>(
             steps.push(WStep::FinishObject {
                 base: done.len(),
                 keys: {
-                    let mut keys = WorkVec::with_capacity(fields.len(), sink.budget().as_ref())?;
+                    let mut keys =
+                        WorkVec::with_work_capacity(fields.len(), sink.work_budget().as_ref())?;
                     for (k, _) in fields {
                         keys.push(k.as_str())?;
                     }
@@ -1817,11 +1862,8 @@ struct LeafIter {
 }
 
 impl LeafIter {
-    fn new(
-        root: NodeDigest,
-        budget: Option<&capture_allocation::OwnedBudget>,
-    ) -> Result<Self, CodecError> {
-        let mut stack = WorkVec::with_capacity(1, budget)?;
+    fn new(root: NodeDigest, budget: Option<&WorkBudget>) -> Result<Self, CodecError> {
+        let mut stack = WorkVec::with_work_capacity(1, budget)?;
         stack.push(root)?;
         Ok(Self { stack })
     }
@@ -1897,7 +1939,7 @@ impl LeafIter {
 
 #[derive(Default)]
 struct AuditMemo {
-    budget: Option<capture_allocation::OwnedBudget>,
+    budget: Option<WorkBudget>,
     /// 已核过的 (摘要, 上下文)。
     seen: WorkSet<(NodeDigest, Flavor)>,
     /// 已入待核集合的 (摘要, 上下文) —— 重复子树不重复入队。
@@ -1913,16 +1955,19 @@ struct AuditMemo {
 
 impl AuditMemo {
     fn new(b: Option<&capture_allocation::OwnedBudget>) -> Self {
+        Self::new_work(b.map(|b| WorkBudget::Owned(b.clone())).as_ref())
+    }
+    fn new_work(b: Option<&WorkBudget>) -> Self {
         Self {
             budget: b.cloned(),
-            seen: WorkSet::new(b),
-            pushed: WorkSet::new(b),
-            todo: WorkVec::new(b),
-            read_digests: WorkSet::new(b),
-            bytes_memo: WorkMap::new(b),
-            elem_memo: WorkMap::new(b),
-            field_memo: WorkMap::new(b),
-            key_cmp: WorkMap::new(b),
+            seen: WorkSet::new_work(b),
+            pushed: WorkSet::new_work(b),
+            todo: WorkVec::new_work(b),
+            read_digests: WorkSet::new_work(b),
+            bytes_memo: WorkMap::new_work(b),
+            elem_memo: WorkMap::new_work(b),
+            field_memo: WorkMap::new_work(b),
+            key_cmp: WorkMap::new_work(b),
         }
     }
 }
@@ -4018,6 +4063,7 @@ mod native_frame_reuse_tests {
 struct Verifier<'a, 'capture> {
     source: CodecContext<'a, 'capture>,
     mode: Mode,
+    work: Option<WorkBudget>,
     /// 已核过的 (摘要, 上下文)。
     seen: WorkSet<(NodeDigest, Flavor)>,
     /// 已入待核集合的 (摘要, 上下文) —— 重复子树不重复入队。
@@ -4044,16 +4090,17 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         Self::with_context(CodecContext::Source(source), mode, memo)
     }
     fn with_context(source: CodecContext<'a, 'capture>, mode: Mode, memo: AuditMemo) -> Self {
-        let budget = source.budget();
+        let budget = source.work_budget();
         let memo = if budget.is_some() && memo.budget.is_none() {
             assert!(memo.seen.is_empty() && memo.pushed.is_empty() && memo.read_digests.is_empty());
-            AuditMemo::new(budget.as_ref())
+            AuditMemo::new_work(budget.as_ref())
         } else {
             memo
         };
         Self {
             source,
             mode,
+            work: memo.budget,
             seen: memo.seen,
             pushed: memo.pushed,
             todo: memo.todo,
@@ -4066,7 +4113,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
     }
     fn into_memo(self) -> AuditMemo {
         AuditMemo {
-            budget: self.source.budget(),
+            budget: self.work.clone(),
             seen: self.seen,
             pushed: self.pushed,
             todo: self.todo,
@@ -4117,14 +4164,14 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                 num: NumState,
             },
         }
-        let budget = self.source.budget();
-        let mut steps = WorkVec::with_capacity(1, budget.as_ref())?;
+        let budget = self.work.clone();
+        let mut steps = WorkVec::with_work_capacity(1, budget.as_ref())?;
         steps.push(Step::Enter {
             digest: *root,
             utf8: Utf8State::Empty,
             num: NumState::Start,
         })?;
-        let mut aggs: WorkVec<ByteAgg> = WorkVec::new(budget.as_ref());
+        let mut aggs: WorkVec<ByteAgg> = WorkVec::new_work(budget.as_ref());
         while let Some(step) = steps.pop() {
             match step {
                 Step::Enter { digest, utf8, num } => {
@@ -4276,10 +4323,10 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
             Enter(NodeDigest),
             Combine { digest: NodeDigest, n: u64 },
         }
-        let budget = self.source.budget();
-        let mut steps = WorkVec::with_capacity(1, budget.as_ref())?;
+        let budget = self.work.clone();
+        let mut steps = WorkVec::with_work_capacity(1, budget.as_ref())?;
         steps.push(Step::Enter(*root))?;
-        let mut counts: WorkVec<u64> = WorkVec::new(budget.as_ref());
+        let mut counts: WorkVec<u64> = WorkVec::new_work(budget.as_ref());
         while let Some(step) = steps.pop() {
             match step {
                 Step::Enter(digest) => {
@@ -4377,10 +4424,10 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
             Enter(NodeDigest),
             Combine { digest: NodeDigest, n: u64 },
         }
-        let budget = self.source.budget();
-        let mut steps = WorkVec::with_capacity(1, budget.as_ref())?;
+        let budget = self.work.clone();
+        let mut steps = WorkVec::with_work_capacity(1, budget.as_ref())?;
         steps.push(Step::Enter(*root))?;
-        let mut aggs: WorkVec<FieldAgg> = WorkVec::new(budget.as_ref());
+        let mut aggs: WorkVec<FieldAgg> = WorkVec::new_work(budget.as_ref());
         while let Some(step) = steps.pop() {
             match step {
                 Step::Enter(digest) => {
@@ -4581,8 +4628,8 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         use std::cmp::Ordering;
         let root_a = self.string_bytes_root(a)?;
         let root_b = self.string_bytes_root(b)?;
-        let mut iter_a = LeafIter::new(root_a, self.source.budget().as_ref())?;
-        let mut iter_b = LeafIter::new(root_b, self.source.budget().as_ref())?;
+        let mut iter_a = LeafIter::new(root_a, self.work.clone().as_ref())?;
+        let mut iter_b = LeafIter::new(root_b, self.work.clone().as_ref())?;
         let mut buf_a = VerifierBody::empty();
         let mut buf_b = VerifierBody::empty();
         let mut pos_a = 0usize;
@@ -4666,6 +4713,17 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         self.verify_refview(reference.into())
     }
     fn verify_refview(
+        &mut self,
+        reference: RefView<'_>,
+    ) -> Result<(NodeDigest, Kind, Option<u64>), CodecError> {
+        let operation_work = self.work.clone();
+        let operation_result = self.verify_refview_inner(reference);
+        if let Some(work) = operation_work {
+            work.observe(&operation_result);
+        }
+        operation_result
+    }
+    fn verify_refview_inner(
         &mut self,
         reference: RefView<'_>,
     ) -> Result<(NodeDigest, Kind, Option<u64>), CodecError> {
@@ -5034,7 +5092,7 @@ struct Renderer<'a, 'capture> {
 impl Renderer<'_, '_> {
     /// 写出字节：处于转义层时逐字符转义，否则原样写出。
     fn emit(&mut self, bytes: &[u8]) -> Result<(), CodecError> {
-        let budget = self.source.budget();
+        let budget = self.source.work_budget();
         let Renderer {
             out,
             escaping,
@@ -5044,7 +5102,7 @@ impl Renderer<'_, '_> {
         if !*escaping {
             return out.write_all(bytes).map_err(io_error);
         }
-        let mut buf = WorkVec::with_capacity(
+        let mut buf = WorkVec::with_work_capacity(
             bytes
                 .len()
                 .checked_add(8)
@@ -5056,8 +5114,8 @@ impl Renderer<'_, '_> {
     }
 
     fn run(&mut self, root: NodeDigest) -> Result<(), CodecError> {
-        let budget = self.source.budget();
-        let mut tasks = WorkVec::with_capacity(1, budget.as_ref())?;
+        let budget = self.source.work_budget();
+        let mut tasks = WorkVec::with_work_capacity(1, budget.as_ref())?;
         tasks.push(RTask::Value(root, Flavor::Value))?;
         while let Some(task) = tasks.pop() {
             match task {
@@ -5219,10 +5277,10 @@ impl Renderer<'_, '_> {
             ));
         }
         let declared = framed_len(&body, "字符串")?;
-        let budget = self.source.budget();
+        let budget = self.source.work_budget();
         let mut iter = LeafIter::new(digest_at(&body, 8), budget.as_ref())?;
         let mut decoder = Utf8Decoder::default();
-        let mut escaped = WorkVec::with_capacity(8, budget.as_ref())?;
+        let mut escaped = WorkVec::with_work_capacity(8, budget.as_ref())?;
         let mut total: u64 = 0;
         loop {
             let next = {
@@ -5281,7 +5339,7 @@ impl Renderer<'_, '_> {
             ));
         }
         let declared = framed_len(&body, "数字 token")?;
-        let budget = self.source.budget();
+        let budget = self.source.work_budget();
         let mut iter = LeafIter::new(digest_at(&body, 8), budget.as_ref())?;
         let mut state = NumState::Start;
         let mut total: u64 = 0;
@@ -5351,6 +5409,18 @@ fn render_ctx(
     render_refview_ctx(source, reference.into(), out)
 }
 fn render_refview_ctx(
+    mut source: CodecContext<'_, '_>,
+    reference: RefView<'_>,
+    out: &mut dyn Write,
+) -> Result<(), CodecError> {
+    let operation_work = source.work_budget();
+    let operation_result = render_refview_ctx_inner(source, reference, out);
+    if let Some(work) = operation_work {
+        work.observe(&operation_result);
+    }
+    operation_result
+}
+fn render_refview_ctx_inner(
     mut source: CodecContext<'_, '_>,
     reference: RefView<'_>,
     out: &mut dyn Write,
@@ -6653,5 +6723,82 @@ mod request_original_tuple_tests {
                 .exact_original_tuples_equal(&AuditCapture::new(changed))
                 .unwrap());
         }
+    }
+}
+
+#[cfg(test)]
+mod r6_codec_memo_tests {
+    use super::*;
+    use capture_allocation::scratch::{
+        CodecWork, ScratchCharge, ScratchFailure, ScratchParent, WorkScope,
+    };
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+    struct Parent(AtomicUsize);
+    impl ScratchParent for Parent {
+        fn health(&self) -> Result<(), ScratchFailure> {
+            Ok(())
+        }
+        fn invalidate(&self) {
+            panic!("正常生命周期不应损坏账本");
+        }
+
+        fn reserve(&self, n: usize, _: ScratchCharge) -> Result<(), ScratchFailure> {
+            self.0.fetch_add(n, Ordering::SeqCst);
+            Ok(())
+        }
+        fn release(&self, n: usize, _: ScratchCharge) -> Result<(), ScratchFailure> {
+            assert!(self.0.fetch_sub(n, Ordering::SeqCst) >= n);
+            Ok(())
+        }
+    }
+    struct Scoped<'a> {
+        nodes: &'a mut MemoryNodes,
+        scope: &'a WorkScope,
+    }
+    impl NodeSource for Scoped<'_> {
+        fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, CodecError> {
+            self.nodes.read(d)
+        }
+        fn codec_work(&self) -> Option<&WorkScope> {
+            Some(self.scope)
+        }
+    }
+    #[test]
+    fn r6_codec_into_memo_preserves_actual_work_domain() {
+        let mut nodes = MemoryNodes::new();
+        let reference = write_value(
+            &mut nodes,
+            &Value::Array(vec![Value::String("same".into()); 8]),
+        )
+        .unwrap()
+        .content_ref();
+        let parent = Arc::new(Parent(AtomicUsize::new(0)));
+        CodecWork::new(parent.clone(), 1024 * 1024)
+            .unwrap()
+            .run(|scope| {
+                let mut source = Scoped {
+                    nodes: &mut nodes,
+                    scope,
+                };
+                let mut verifier = Verifier::new(&mut source, Mode::Public);
+                verifier.verify_reference(&reference)?;
+                let memo = verifier.into_memo();
+                assert!(matches!(memo.budget, Some(WorkBudget::Scratch(_))));
+                assert!(scope.snapshot().live > 0);
+                // reborrow/context 的预算不能覆盖真实保留容器的预算。
+                let mut resumed = Verifier::with_memo(&mut *source.nodes, Mode::Public, memo);
+                resumed.verify_reference(&reference)?;
+                let memo = resumed.into_memo();
+                assert!(matches!(memo.budget, Some(WorkBudget::Scratch(_))));
+                drop(memo);
+                assert_eq!(scope.snapshot().live, 0);
+                assert_eq!(parent.0.load(Ordering::SeqCst), CodecWork::metadata_bytes());
+                Ok::<_, CodecError>(())
+            })
+            .unwrap();
+        assert_eq!(parent.0.load(Ordering::SeqCst), 0);
     }
 }

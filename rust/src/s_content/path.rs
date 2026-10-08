@@ -186,6 +186,19 @@ pub(super) fn lookup_path_view_output<R: RefOutput>(
     path: &dyn PathView,
     forbid_json_text: bool,
 ) -> Result<R, CodecError> {
+    let operation_work = source.work_budget();
+    let operation_result = lookup_path_view_output_inner(source, reference, path, forbid_json_text);
+    if let Some(work) = operation_work {
+        work.observe(&operation_result);
+    }
+    operation_result
+}
+fn lookup_path_view_output_inner<R: RefOutput>(
+    source: &mut CodecContext<'_, '_>,
+    reference: RefView<'_>,
+    path: &dyn PathView,
+    forbid_json_text: bool,
+) -> Result<R, CodecError> {
     let descent = navigate_path_view(source, reference, path, forbid_json_text)?;
     let kind =
         Kind::from_tag(descent.tag).ok_or_else(|| unsupported_value_tag_error(descent.tag))?;
@@ -215,6 +228,17 @@ pub(super) fn lookup_array_output<R: RefOutput>(
     source: &mut CodecContext<'_, '_>,
     reference: RefView<'_>,
 ) -> Result<WorkVec<R>, CodecError> {
+    let operation_work = source.work_budget();
+    let operation_result = lookup_array_output_inner(source, reference);
+    if let Some(work) = operation_work {
+        work.observe(&operation_result);
+    }
+    operation_result
+}
+fn lookup_array_output_inner<R: RefOutput>(
+    source: &mut CodecContext<'_, '_>,
+    reference: RefView<'_>,
+) -> Result<WorkVec<R>, CodecError> {
     let (count, root) = {
         let node = navigate_view(source, reference, &[], false)?;
         if node.tag != tag::ARRAY {
@@ -222,10 +246,10 @@ pub(super) fn lookup_array_output<R: RefOutput>(
         }
         (framed_len(&node.body, "数组")?, digest_at(&node.body, 8))
     };
-    let budget = source.budget();
-    let mut stack = WorkVec::with_capacity(1, budget.as_ref())?;
+    let budget = source.work_budget();
+    let mut stack = WorkVec::with_work_capacity(1, budget.as_ref())?;
     stack.push((root, count, 0u64))?;
-    let mut result = WorkVec::new(budget.as_ref());
+    let mut result = WorkVec::new(source.budget().as_ref());
     while let Some((digest, count, base_index)) = stack.pop() {
         match read_seq_node(source, &digest, count)? {
             SeqNode::Empty => {}
@@ -324,6 +348,19 @@ pub(super) fn object_fields_output<'names, O: FieldOutput<'names>>(
     names: &[&'names str],
     exact: bool,
 ) -> Result<O, CodecError> {
+    let operation_work = source.work_budget();
+    let operation_result = object_fields_output_inner(source, reference, names, exact);
+    if let Some(work) = operation_work {
+        work.observe(&operation_result);
+    }
+    operation_result
+}
+fn object_fields_output_inner<'names, O: FieldOutput<'names>>(
+    source: &mut CodecContext<'_, '_>,
+    reference: RefView<'_>,
+    names: &[&'names str],
+    exact: bool,
+) -> Result<O, CodecError> {
     let node = navigate_view(source, reference, &[], false)?;
     if node.tag != tag::OBJECT {
         return Err(step_kind_error("对象字段集", "0x06 对象", node.tag));
@@ -332,15 +369,15 @@ pub(super) fn object_fields_output<'names, O: FieldOutput<'names>>(
     if exact && count != names.len() as u64 {
         return Err(sequence_shape_error("对象字段数与固定 exact 清单不同"));
     }
-    let budget = source.budget();
-    let mut keys = WorkVec::with_capacity(names.len(), budget.as_ref())?;
+    let budget = source.work_budget();
+    let mut keys = WorkVec::with_work_capacity(names.len(), budget.as_ref())?;
     keys.extend_from_slice(names)?;
     keys.sort_unstable();
     if keys.windows(2).any(|pair| pair[0] == pair[1]) {
         return Err(CodecError::new(code::DUPLICATE_KEY, "exact 清单重复键"));
     }
-    let mut result = O::new(budget.as_ref())?;
-    let mut stack = WorkVec::with_capacity(1, budget.as_ref())?;
+    let mut result = O::new(source.budget().as_ref())?;
+    let mut stack = WorkVec::with_work_capacity(1, budget.as_ref())?;
     stack.push((digest_at(&node.body, 8), count))?;
     let mut at = 0;
     let mut previous_key = None;
@@ -559,8 +596,7 @@ pub(super) fn bytes_between_view_ctx(
     let count = total.div_ceil(CHUNK_BYTES as u64);
     let root = digest_at(&node.body, 8);
     check_range_root_view_ctx(source, reference)?;
-    let budget = source.budget();
-    let mut output = WorkVec::new(budget.as_ref());
+    let mut output = WorkVec::new(source.budget().as_ref());
     if offset == end {
         return Ok(output);
     }
@@ -603,6 +639,19 @@ pub(super) fn replace_output<R: RefOutput>(
     path: &[PathStep],
     batch_id: &str,
 ) -> Result<R, CodecError> {
+    let operation_work = store.work_budget();
+    let operation_result = replace_output_inner(store, reference, path, batch_id);
+    if let Some(work) = operation_work {
+        work.observe(&operation_result);
+    }
+    operation_result
+}
+fn replace_output_inner<R: RefOutput>(
+    store: &mut CodecContext<'_, '_>,
+    reference: RefView<'_>,
+    path: &[PathStep],
+    batch_id: &str,
+) -> Result<R, CodecError> {
     check_batch_id(batch_id)?;
     if path.iter().any(|step| matches!(step, PathStep::JsonText)) {
         return Err(CodecError::new(
@@ -638,8 +687,8 @@ pub(super) fn replace_output<R: RefOutput>(
             Ancestor::Array { declared, branches } => {
                 let leaf = store.emit(tag::SEQ_LEAF, &digest)?;
                 let fields = rebuild_sequence(store, branches, leaf)?;
-                let budget = store.budget();
-                let mut body = WorkVec::with_capacity(40, budget.as_ref())?;
+                let budget = store.work_budget();
+                let mut body = WorkVec::with_work_capacity(40, budget.as_ref())?;
                 body.extend_from_slice(&checked_frame_len(*declared)?)?;
                 body.extend_from_slice(&fields)?;
                 digest = store.emit(tag::ARRAY, &body)?;
@@ -657,8 +706,8 @@ pub(super) fn replace_output<R: RefOutput>(
                 let field = store.emit(tag::OBJECT_FIELD, &field_body)?;
                 let leaf = store.emit(tag::SEQ_LEAF, &field)?;
                 let fields = rebuild_sequence(store, branches, leaf)?;
-                let budget = store.budget();
-                let mut body = WorkVec::with_capacity(40, budget.as_ref())?;
+                let budget = store.work_budget();
+                let mut body = WorkVec::with_work_capacity(40, budget.as_ref())?;
                 body.extend_from_slice(&checked_frame_len(*declared)?)?;
                 body.extend_from_slice(&fields)?;
                 digest = store.emit(tag::OBJECT, &body)?;
@@ -755,9 +804,9 @@ fn navigate_path_view<'capture>(
     let mut cur_digest = root;
     // json_text 上下文：进入文本视图后不再复位（其内部任意深度都受同一禁令）。
     let mut json_inner = false;
-    let budget = source.budget();
+    let budget = source.work_budget();
     let mut ancestors: WorkVec<Ancestor> =
-        WorkVec::with_capacity(path.len().min(64), budget.as_ref())?;
+        WorkVec::with_work_capacity(path.len().min(64), budget.as_ref())?;
     for step_position in 0..path.len() {
         match path
             .step(step_position)
@@ -1002,8 +1051,8 @@ fn descend_seq(
     if index >= count {
         return Err(index_range_error(index, count));
     }
-    let budget = source.budget();
-    let mut branches: WorkVec<BranchFrame> = WorkVec::new(budget.as_ref());
+    let budget = source.work_budget();
+    let mut branches: WorkVec<BranchFrame> = WorkVec::new_work(budget.as_ref());
     let mut digest = *root;
     let mut at = index;
     let mut n = count;
@@ -1108,8 +1157,8 @@ fn find_field(
     name: &str,
 ) -> Result<(WorkVec<BranchFrame>, NodeDigest, NodeDigest), CodecError> {
     let wanted = name.as_bytes();
-    let budget = source.budget();
-    let mut branches: WorkVec<BranchFrame> = WorkVec::new(budget.as_ref());
+    let budget = source.work_budget();
+    let mut branches: WorkVec<BranchFrame> = WorkVec::new_work(budget.as_ref());
     let mut digest = *root;
     let mut n = count;
     loop {
@@ -1194,7 +1243,7 @@ fn cmp_key_bytes(
     wanted: &[u8],
 ) -> Result<Ordering, CodecError> {
     let (bytes_root, declared) = read_string_header(source, key)?;
-    let mut iter = LeafIter::new(bytes_root, source.budget().as_ref())?;
+    let mut iter = LeafIter::new(bytes_root, source.work_budget().as_ref())?;
     let mut pos = 0usize;
     let mut total: u64 = 0;
     while let Some((lt, _leaf, chunk)) = iter.next_context(source)? {
@@ -1241,8 +1290,8 @@ fn cmp_key_nodes(
     }
     let (root_a, declared_a) = read_string_header(source, a)?;
     let (root_b, declared_b) = read_string_header(source, b)?;
-    let mut iter_a = LeafIter::new(root_a, source.budget().as_ref())?;
-    let mut iter_b = LeafIter::new(root_b, source.budget().as_ref())?;
+    let mut iter_a = LeafIter::new(root_a, source.work_budget().as_ref())?;
+    let mut iter_b = LeafIter::new(root_b, source.work_budget().as_ref())?;
     let mut buf_a = VerifierBody::empty();
     let mut buf_b = VerifierBody::empty();
     let mut pos_a = 0usize;

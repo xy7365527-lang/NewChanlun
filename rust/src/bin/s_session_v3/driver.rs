@@ -3558,6 +3558,12 @@ mod tests {
                     [n]
                 );
             }
+            assert!(
+                !events
+                    .iter()
+                    .any(|e| e["phase"] == "owner_retained_full_scan"),
+                "warm staged Publish 不能全量重算保留费：{events:?}"
+            );
             native.conn.assert_complete_matches_cold();
             // staged 原语义只刷可达新节点；以独立逐次 cold 的 staged 臂比较全部节点原字节，
             // ordinary eager 臂比较全部非节点持久原件、公开根与回执。
@@ -3591,6 +3597,14 @@ mod tests {
             c.freeze_manifest_workspace_budget(total, crate::cache::retained_bytes(), old)
                 .unwrap();
             c
+        }
+        fn no_retained_scan(events: &[Value]) {
+            assert!(
+                !events
+                    .iter()
+                    .any(|e| e["phase"] == "owner_retained_full_scan"),
+                "warm owner 不能全量重算历史保留费：{events:?}"
+            );
         }
         fn same(n: &Driver, o: &Driver) {
             n.conn.assert_complete_matches_cold();
@@ -3645,6 +3659,7 @@ mod tests {
                 "content_frame_hashes":newchan_rust::s_content::frame_calls_on_thread()-frames,
                 "content_frame_sha256_bytes":newchan_rust::s_content::frame_bytes_on_thread()-frame_bytes,"retention":n.conn.complete_report()})
             );
+            no_retained_scan(&events);
             same(n, o);
             actual.unwrap()
         }
@@ -3715,6 +3730,7 @@ mod tests {
             "{}",
             json!({"scenario":"r4-accept-R-greater-than-F","allocation":memory,"protocol_sha256_calls":after.0-hashes.0,"protocol_sha256_bytes":after.1-hashes.1,"events":events,"work":work,"retention":native.conn.complete_report()})
         );
+        no_retained_scan(&events);
         same(&native, &ordinary);
         let mut c = context(&mut native);
         let mut oc = request_audit::RequestAuditContext::default();
@@ -3750,6 +3766,7 @@ mod tests {
             "{}",
             json!({"scenario":"r4-normal-begin","allocation":memory,"protocol_sha256_calls":after.0-hashes.0,"protocol_sha256_bytes":after.1-hashes.1,"events":events,"work":work})
         );
+        no_retained_scan(&events);
         same(&native, &ordinary);
         let probe = native.conn.sql_read_probe();
         let memory = Window::start();
@@ -3776,6 +3793,7 @@ mod tests {
             "{}",
             json!({"scenario":"r4-normal-recover","allocation":memory,"protocol_sha256_calls":after.0-hashes.0,"protocol_sha256_bytes":after.1-hashes.1,"events":events,"work":work,"retention":native.conn.complete_report()})
         );
+        no_retained_scan(&events);
         same(&native, &ordinary);
         let mut c = context(&mut native);
         let mut oc = request_audit::RequestAuditContext::default();
@@ -3811,6 +3829,7 @@ mod tests {
             "{}",
             json!({"scenario":"r4-retry-original-envelope","allocation":memory,"protocol_sha256_calls":after.0-hashes.0,"protocol_sha256_bytes":after.1-hashes.1,"events":events,"work":work,"retention":native.conn.complete_report()})
         );
+        no_retained_scan(&events);
         same(&native, &ordinary);
         let mut revision = Fixture::ingest(3);
         revision["payload"]["raw_input"] = second["payload"]["raw_input"].clone();

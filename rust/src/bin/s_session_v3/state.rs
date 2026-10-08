@@ -2449,6 +2449,8 @@ mod owner_retention {
     });
     impl Retained for AuditedState {
         fn heap_bytes(&self) -> usize {
+            #[cfg(test)]
+            trace_event("owner_retained_full_scan", None);
             let Self {
                 raw,
                 budget,
@@ -2477,11 +2479,20 @@ impl AuditedState {
         object_rows: &[i64],
         aux_rows: &[Vec<i64>; 3],
         bound: &super::audit_owner::BoundOriginals,
-    ) -> Result<Self, String> {
+        work: &sc::capture_allocation::scratch::WorkScope,
+        native: &super::audit_owner::native::Budget,
+    ) -> Result<(Self, super::audit_retention::RetainedDelta), super::audit_owner::native::Failure>
+    {
+        let mut retained = super::audit_retention::RetainedDelta::default();
         let historical = match self.historical {
             HistoricalOwner::Unique(v) => v,
             HistoricalOwner::Shared(v) => {
-                std::rc::Rc::try_unwrap(v).map_err(|_| err("owner 历史仍有外部共享引用"))?
+                let value =
+                    std::rc::Rc::try_unwrap(v).map_err(|_| err("owner 历史仍有外部共享引用"))?;
+                // facts 只移动；try_unwrap 真正释放的是 Rc 外壳和两个计数。
+                retained.release_bytes(std::mem::size_of::<ImmutableHistoricalAudit>());
+                retained.release_bytes(2 * std::mem::size_of::<usize>());
+                value
             }
         };
         let ImmutableHistoricalAudit {
@@ -2495,7 +2506,7 @@ impl AuditedState {
             auxiliary,
         } = historical;
         let previous = cuts.last().map_or(-1, |c| c.metadata.input_frontier);
-        let updated = history::append_owner_cut(
+        let (updated, history_delta) = history::append_owner_cut(
             tx,
             self.raw.view(),
             capture,
@@ -2514,14 +2525,22 @@ impl AuditedState {
             object_rows,
             aux_rows,
             bound,
+            work,
+            native,
         )?;
-        let mut source = Some(source_audit::NativeSourceAudit::restore(
-            capture,
-            self.raw.view(),
-            raw_sources.ok_or_else(|| err("缺 raw 来源事实"))?,
-            bound,
-        )?);
-        let mut store = history::HashReader::captured_for_audit(capture, None).map_err(err)?;
+        retained.merge(history_delta);
+        let mut source = Some(
+            source_audit::NativeSourceAudit::restore(
+                capture,
+                self.raw.view(),
+                raw_sources.ok_or_else(|| err("缺 raw 来源事实"))?,
+                bound,
+            )?
+            .with_codec_work(work, native),
+        );
+        let mut store = history::HashReader::captured_for_audit(capture, None)
+            .map_err(err)?
+            .with_codec_work(work, native);
         let cut = updated.cuts.last().ok_or_else(|| err("缺新 C_h"))?;
         audit_one_cut_sources(
             cut,
@@ -2539,21 +2558,24 @@ impl AuditedState {
         catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;
         #[cfg(test)]
         trace_event("owner_suffix_complete", Some(g));
-        let raw_sources = source.map(source_audit::NativeSourceAudit::into_raw_facts);
-        Ok(Self {
-            raw: self.raw,
-            budget: self.budget,
-            historical: HistoricalOwner::Unique(ImmutableHistoricalAudit {
-                control_facts: updated.control_facts,
-                raw_prefixes: updated.raw_prefixes,
-                raw_sources,
-                auxiliary_facts: updated.auxiliary_facts,
-                object_facts: updated.object_sweep,
-                cuts: updated.cuts,
-                objects: updated.objects,
-                auxiliary: updated.auxiliary,
-            }),
-        })
+        let raw_sources = source.map(|source| source.into_raw_facts_retained(&mut retained));
+        Ok((
+            Self {
+                raw: self.raw,
+                budget: self.budget,
+                historical: HistoricalOwner::Unique(ImmutableHistoricalAudit {
+                    control_facts: updated.control_facts,
+                    raw_prefixes: updated.raw_prefixes,
+                    raw_sources,
+                    auxiliary_facts: updated.auxiliary_facts,
+                    object_facts: updated.object_sweep,
+                    cuts: updated.cuts,
+                    objects: updated.objects,
+                    auxiliary: updated.auxiliary,
+                }),
+            },
+            retained,
+        ))
     }
     pub(super) fn check_owner_raw(
         &mut self,

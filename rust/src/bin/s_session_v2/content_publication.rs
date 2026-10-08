@@ -562,13 +562,23 @@ fn match_field_ref(
     }
     Ok(())
 }
+// #1394 独立摘要仍使用调用方的临时工作域，不保存正文或改变业务所有权。
+struct ScopedHashOnly<'a>(Option<&'a sc::capture_allocation::scratch::WorkScope>);
+impl NodeSink for ScopedHashOnly<'_> {
+    fn codec_sink_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+        self.0
+    }
+    fn put(&mut self, _: NodeDigest, _: u8, _: &[u8]) -> Result<(), sc::CodecError> {
+        Ok(())
+    }
+}
 fn hash_view(store: &(impl CodecStore + ?Sized), v: VV<'_>) -> Result<NodeDigest, String> {
     let result = match store.allocation_budget() {
         #[cfg(feature = "s_allocation_json_testonly")]
         Some(b) => sc::write_value_view_for_allocation_prototype(&mut HashOnly, v, &b),
         #[cfg(not(feature = "s_allocation_json_testonly"))]
         Some(_) => return Err(err("owned hash未启用TestOnly feature")),
-        None => sc::write_value_view(&mut HashOnly, v),
+        None => sc::write_value_view(&mut ScopedHashOnly(store.codec_work()), v),
     };
     result.map(|v| v.digest).map_err(err)
 }

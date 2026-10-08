@@ -2,11 +2,14 @@
 //! 许可先占完整新块，扩容返回后才释放旧块；临时许可由 Drop 归还。
 use crate::v3::audit_retention::{hash_slots, sum, tree_slots, vec_bytes, Retained};
 use std::{
-    cell::Cell,
+    alloc::Layout,
     collections::{BTreeMap, HashMap},
     hash::Hash,
     mem::size_of,
-    rc::Rc,
+    sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -15,6 +18,277 @@ pub(crate) struct BudgetExceeded;
 pub(crate) enum Failure {
     BudgetExceeded,
     Invalid(String),
+}
+
+#[cfg(test)]
+mod r6_codec_work_tests {
+    use super::*;
+    use newchan_rust::s_content::{self as sc, capture_allocation::scratch::WorkError};
+
+    #[test]
+    fn r6_codec_completed_scope_keeps_readable_bytes_and_rejects_writes() {
+        let budget = Budget::new(4096, 0).unwrap();
+        let base = budget.live();
+        let mut bytes = budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let mut bytes = scope.bytes();
+                bytes.try_reserve_exact(32)?;
+                bytes.try_extend_bytes(b"kept")?;
+                Ok::<_, sc::CodecError>(bytes)
+            })
+            .unwrap();
+        assert_eq!(&*bytes, b"kept");
+        assert!(bytes.capacity() >= 32);
+        assert!(budget.scratch_observation().0 >= 32);
+        assert_eq!(budget.scratch_observation().2, CodecWork::metadata_bytes());
+        let before = budget.live();
+        for error in [
+            bytes.try_push(b'x').unwrap_err(),
+            bytes.try_extend_bytes(b"tail").unwrap_err(),
+            bytes.try_reserve_exact(0).unwrap_err(),
+        ] {
+            assert_eq!(error.scratch_failure(), Some(ScratchFailure::Ledger));
+        }
+        assert_eq!(&*bytes, b"kept");
+        assert_eq!(budget.live(), before);
+        drop(bytes);
+        assert_eq!(budget.live(), base);
+        assert_eq!(budget.scratch_observation().0, 0);
+        assert_eq!(budget.scratch_observation().2, 0);
+    }
+
+    #[test]
+    fn r6_codec_real_verify_render_lookup_writer_plain_and_scoped_memo() {
+        use crate::v3::{
+            audit_store::{CodecRead, CodecStore, RefValue},
+            business_json,
+            history::HashReader,
+        };
+        let value = sc::Value::Object(vec![
+            (
+                "items".into(),
+                sc::Value::Array(vec![sc::Value::Null, sc::Value::Bool(true)]),
+            ),
+            ("name".into(), sc::Value::String("中😀\n\"".repeat(1800))),
+            (
+                "nested".into(),
+                sc::Value::JsonText(Box::new(sc::JsonValue::String("escaped\n😀".into()))),
+            ),
+        ]);
+        let mut nodes = sc::MemoryNodes::new();
+        let reference = sc::write_value(&mut nodes, &value).unwrap().content_ref();
+        let mut expected = Vec::new();
+        sc::render_canonical(&mut nodes, &reference, &mut expected).unwrap();
+        let capture = sc::AuditCapture::new(nodes)
+            .enable_native_frame_reuse_for_testonly()
+            .unwrap();
+        let before = capture.retention();
+        for _ in 0..2 {
+            let budget = Budget::new(8 * 1024 * 1024, 0).unwrap();
+            let base = budget.live();
+            budget
+                .codec_work()
+                .unwrap()
+                .run(|scope| {
+                    let mut reader = HashReader::captured_for_audit(&capture, None)
+                        .unwrap()
+                        .with_codec_work(scope, &budget);
+                    reader.enable_full_arrays_for_test();
+                    assert!(reader.allocation_budget().is_none());
+                    reader.verify_many_ref([(&reference).into()], sc::Mode::Public)?;
+                    assert_eq!(scope.snapshot().live, 0, "verification memo 随操作析构");
+                    let mut actual = Vec::new();
+                    reader.render_ref((&reference).into(), &mut actual)?;
+                    assert_eq!(actual, expected);
+                    let items = reader.lookup_field_ref((&reference).into(), "items")?;
+                    assert!(matches!(items, RefValue::Plain(_)));
+                    let items = reader.lookup_array_ref(items.view())?;
+                    assert!(items.allocation_budget().is_none());
+                    assert_eq!(items.len(), 2);
+                    let fields = reader
+                        .lookup_fields_ref((&reference).into(), &["items", "name", "nested"])?;
+                    assert!(matches!(
+                        fields,
+                        crate::v3::audit_store::RefFields::Plain(_)
+                    ));
+                    let rebuilt = reader.write_value(&value)?;
+                    assert_eq!(rebuilt.content_ref(), reference);
+                    assert_eq!(scope.snapshot().live, 0);
+                    // 真正消费临时 scratch 输出，再在 Native 解析许可下产出 Plain。
+                    let parsed =
+                        business_json::render_json(&mut reader, (&reference).into()).unwrap();
+                    assert!(matches!(parsed, business_json::JsonOwner::Plain(_)));
+                    assert_eq!(scope.snapshot().live, 0);
+                    assert!(budget.live() > base + CodecWork::metadata_bytes());
+                    eprintln!(
+                        "R6_CODEC_FLOW snapshot={:?} parent_parts={:?}",
+                        scope.snapshot(),
+                        budget.scratch_observation()
+                    );
+                    Ok::<_, sc::CodecError>(())
+                })
+                .unwrap();
+            assert_eq!(budget.scratch_observation().0, 0);
+            assert_eq!(budget.scratch_observation().2, 0);
+            let after = capture.retention();
+            assert_eq!(before["public"], after["public"], "不能回填跨 scope memo");
+            assert_eq!(before["template"], after["template"]);
+        }
+        let base = Budget::new(4096, 0).unwrap().live();
+        let tight = Budget::new(base + CodecWork::metadata_bytes() + 1, 0).unwrap();
+        let result = tight.codec_work().unwrap().run(|scope| {
+            let mut reader = HashReader::captured_for_audit(&capture, None)
+                .unwrap()
+                .with_codec_work(scope, &tight);
+            let result = reader.verify_ref((&reference).into(), sc::Mode::Public);
+            assert_eq!(
+                scope.snapshot().attempts,
+                0,
+                "实际 verifier 在首个分配前 typed 拒绝"
+            );
+            result
+        });
+        assert!(matches!(
+            result,
+            Err(WorkError::Resource(ScratchFailure::Budget))
+        ));
+        assert_eq!(tight.live(), base);
+        let budget = Budget::new(8 * 1024 * 1024, 0).unwrap();
+        let mut ordinary = HashReader::captured_for_audit(&capture, None).unwrap();
+        let expected_error = ordinary
+            .lookup_field_ref((&reference).into(), "absent")
+            .unwrap_err();
+        let result = budget.codec_work().unwrap().run(|scope| {
+            let mut reader = HashReader::captured_for_audit(&capture, None)
+                .unwrap()
+                .with_codec_work(scope, &budget);
+            reader.lookup_field_ref((&reference).into(), "absent")
+        });
+        match result {
+            Err(WorkError::Operation(e)) => assert_eq!(e, expected_error),
+            _ => panic!("普通 lookup 语义失败不得变成资源拒绝"),
+        }
+        assert_eq!(budget.live(), base);
+    }
+
+    #[test]
+    fn r6_codec_render_output_refusal_keeps_write_cause() {
+        use crate::v3::{audit_store::CodecRead, business_json, history::HashReader};
+        let mut nodes = sc::MemoryNodes::new();
+        let reference = sc::write_value(&mut nodes, &sc::Value::String("x".repeat(48_000)))
+            .unwrap()
+            .content_ref();
+        let capture = sc::AuditCapture::new(nodes)
+            .enable_native_frame_reuse_for_testonly()
+            .unwrap();
+        let budget = Budget::new(65_536, 0).unwrap();
+        let base = budget.live();
+        let result = budget.codec_work().unwrap().run(|scope| {
+            let mut reader = HashReader::captured_for_audit(&capture, None)
+                .unwrap()
+                .with_codec_work(scope, &budget);
+            reader
+                .verify_ref((&reference).into(), sc::Mode::Public)
+                .unwrap();
+            let rendered = business_json::render_json(&mut reader, (&reference).into());
+            assert!(rendered.is_err());
+            assert_eq!(scope.snapshot().live, 0);
+            eprintln!("R6_CODEC_RENDER_REFUSAL snapshot={:?}", scope.snapshot());
+            rendered
+        });
+        assert!(matches!(
+            result,
+            Err(WorkError::Resource(ScratchFailure::Budget))
+        ));
+        assert_eq!(budget.live(), base);
+    }
+
+    #[test]
+    fn r6_codec_parent_metadata_growth_refusal_and_real_drop() {
+        let base = Budget::new(4096, 0).unwrap().live();
+        let meta = CodecWork::metadata_bytes();
+        let tight = Budget::new(base + meta - 1, 0).unwrap();
+        assert!(matches!(tight.codec_work(), Err(Failure::BudgetExceeded)));
+        assert_eq!(tight.live(), base);
+        for payload in [95, 96] {
+            let b = Budget::new(base + meta + payload, 0).unwrap();
+            let w = b.codec_work().unwrap();
+            let result = w.run(|scope| {
+                let mut bytes = scope.bytes();
+                bytes.try_reserve_exact(32)?;
+                bytes.try_extend_bytes(&[7; 32])?;
+                let before = scope.snapshot();
+                let grown = bytes.try_reserve_exact(32);
+                if payload == 95 {
+                    let e = grown.unwrap_err();
+                    assert_eq!(e.scratch_failure(), Some(ScratchFailure::Budget));
+                    assert_eq!(&*bytes, &[7; 32]);
+                    assert_eq!(bytes.capacity(), 32);
+                    assert_eq!(scope.snapshot().attempts, before.attempts);
+                    assert_eq!(b.live(), base + meta + 32);
+                    return Err(e);
+                }
+                grown?;
+                assert_eq!(&*bytes, &[7; 32]);
+                assert_eq!(b.peak(), base + meta + 96);
+                assert_eq!(scope.snapshot().peak, 96);
+                Ok(())
+            });
+            if payload == 95 {
+                assert!(matches!(
+                    result,
+                    Err(WorkError::Resource(ScratchFailure::Budget))
+                ));
+            } else {
+                result.unwrap();
+            }
+            assert_eq!(b.live(), base);
+            assert_eq!(b.scratch_observation().0, 0);
+            assert_eq!(b.scratch_observation().2, 0);
+            eprintln!(
+                "R6_CODEC_GROW payload={payload} base={base} metadata={meta} parts={:?} peak={}",
+                b.scratch_observation(),
+                b.peak()
+            );
+        }
+        let b = Budget::new(4096, 0).unwrap();
+        let result = CodecWork::new(b.0.clone(), 31).unwrap().run(|scope| {
+            let mut bytes = scope.bytes();
+            let result = bytes.try_reserve_exact(32);
+            assert_eq!(scope.snapshot().attempts, 0, "子账拒绝必须在真实 alloc 前");
+            assert_eq!(b.live(), base + meta, "父预留已回滚");
+            result
+        });
+        assert!(matches!(
+            result,
+            Err(WorkError::Resource(ScratchFailure::Budget))
+        ));
+        assert_eq!(b.live(), base);
+
+        let memory = super::super::allocation_probe::Window::start();
+        let work = b.codec_work().unwrap();
+        let observed = memory.finish();
+        assert_eq!(observed["allocated_bytes"], meta, "当前 std Arc 元数据实测");
+        let bytes = work
+            .run(|scope| {
+                let mut bytes = scope.bytes();
+                bytes.try_reserve_exact(32)?;
+                Ok::<_, sc::CodecError>(bytes)
+            })
+            .unwrap();
+        assert_eq!(b.live(), base + meta + 32, "容器离开闭包仍持元数据账");
+        let memory = super::super::allocation_probe::Window::start();
+        drop(bytes);
+        let released = memory.finish();
+        assert_eq!(released["released_bytes"], meta + 32);
+        assert_eq!(b.live(), base);
+        eprintln!("R6_CODEC_METADATA layout={meta} allocate={observed} release={released}");
+        fn send_sync<T: Send + Sync>() {}
+        send_sync::<sc::capture_allocation::OwnedBudget>();
+        send_sync::<Budget>();
+    }
 }
 impl From<BudgetExceeded> for Failure {
     fn from(_: BudgetExceeded) -> Self {
@@ -27,11 +301,16 @@ impl From<String> for Failure {
     }
 }
 #[derive(Clone)]
-pub(crate) struct Budget(Rc<Ledger>);
+pub(crate) struct Budget(Arc<Ledger>);
 struct Ledger {
     limit: usize,
-    live: Cell<usize>,
-    peak: Cell<usize>,
+    live: AtomicUsize,
+    peak: AtomicUsize,
+    broken: AtomicBool,
+    scratch_live: AtomicUsize,
+    scratch_peak: AtomicUsize,
+    metadata_live: AtomicUsize,
+    metadata_peak: AtomicUsize,
 }
 pub(crate) struct Permit {
     budget: Budget,
@@ -71,42 +350,57 @@ impl Permit {
 }
 impl Budget {
     pub(crate) fn new(limit: usize, retained: usize) -> Result<Self, BudgetExceeded> {
-        let live = retained
-            .checked_add(size_of::<Ledger>() + 2 * size_of::<usize>())
-            .ok_or(BudgetExceeded)?;
+        // 当前 Rust 1.98 ArcInner 元数据；在 Arc::new 前预留，不声称 fallible Arc。
+        let metadata = Layout::new::<[AtomicUsize; 2]>()
+            .extend(Layout::new::<Ledger>())
+            .map_err(|_| BudgetExceeded)?
+            .0
+            .pad_to_align()
+            .size();
+        let live = retained.checked_add(metadata).ok_or(BudgetExceeded)?;
         if live > limit {
             return Err(BudgetExceeded);
         }
-        Ok(Self(Rc::new(Ledger {
+        Ok(Self(Arc::new(Ledger {
             limit,
-            live: Cell::new(live),
-            peak: Cell::new(live),
+            live: AtomicUsize::new(live),
+            peak: AtomicUsize::new(live),
+            broken: AtomicBool::new(false),
+            scratch_live: AtomicUsize::new(0),
+            scratch_peak: AtomicUsize::new(0),
+            metadata_live: AtomicUsize::new(0),
+            metadata_peak: AtomicUsize::new(0),
         })))
     }
     pub(crate) fn reserve(&self, bytes: usize) -> Result<Permit, BudgetExceeded> {
-        let live = self.live().checked_add(bytes).ok_or(BudgetExceeded)?;
-        if live > self.0.limit {
-            return Err(BudgetExceeded);
-        }
-        self.0.live.set(live);
-        self.0.peak.set(self.peak().max(live));
+        self.0.reserve_total(bytes).map_err(|_| BudgetExceeded)?;
         Ok(Permit {
             budget: self.clone(),
             bytes,
         })
     }
     pub(crate) fn live(&self) -> usize {
-        self.0.live.get()
+        self.0.live.load(Ordering::Acquire)
     }
     pub(crate) fn peak(&self) -> usize {
-        self.0.peak.get()
+        self.0.peak.load(Ordering::Acquire)
     }
     pub(crate) fn release(&self, bytes: usize) {
-        self.0.live.set(
-            self.live()
-                .checked_sub(bytes)
-                .expect("Native 归属账不得释放未持有费用"),
-        );
+        self.0
+            .release_total(bytes)
+            .expect("Native 归属账不得释放未持有费用");
+    }
+    pub(crate) fn codec_work(&self) -> Result<CodecWork, Failure> {
+        // Arc coercion 复用已有控制块，不 new 包装适配器。
+        CodecWork::new(self.0.clone(), self.0.limit).map_err(Failure::from)
+    }
+    pub(crate) fn scratch_observation(&self) -> (usize, usize, usize, usize) {
+        (
+            self.0.scratch_live.load(Ordering::Acquire),
+            self.0.scratch_peak.load(Ordering::Acquire),
+            self.0.metadata_live.load(Ordering::Acquire),
+            self.0.metadata_peak.load(Ordering::Acquire),
+        )
     }
     pub(crate) fn string(&self, value: &str) -> Result<String, BudgetExceeded> {
         let permit = self.reserve(value.len())?;
@@ -191,6 +485,93 @@ impl Budget {
         m.insert(k, v);
         permit.commit(0, tree_slots::<K, V>(1));
         Ok(())
+    }
+}
+use newchan_rust::s_content::capture_allocation::scratch::{
+    CodecWork, ScratchCharge, ScratchFailure, ScratchParent, WorkError,
+};
+impl From<ScratchFailure> for Failure {
+    fn from(e: ScratchFailure) -> Self {
+        match e {
+            ScratchFailure::Budget | ScratchFailure::Allocation => Self::BudgetExceeded,
+            ScratchFailure::Ledger => Self::Invalid("Native codec 工作账损坏".into()),
+        }
+    }
+}
+impl<E: Into<Failure>> From<WorkError<E>> for Failure {
+    fn from(e: WorkError<E>) -> Self {
+        match e {
+            WorkError::Resource(e) => e.into(),
+            WorkError::Operation(e) => e.into(),
+        }
+    }
+}
+impl Ledger {
+    fn reserve_total(&self, bytes: usize) -> Result<(), ScratchFailure> {
+        if self.broken.load(Ordering::Acquire) {
+            return Err(ScratchFailure::Ledger);
+        }
+        let old = self
+            .live
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+                n.checked_add(bytes).filter(|n| *n <= self.limit)
+            })
+            .map_err(|_| ScratchFailure::Budget)?;
+        self.peak.fetch_max(old + bytes, Ordering::Relaxed);
+        Ok(())
+    }
+    fn release_total(&self, bytes: usize) -> Result<(), ScratchFailure> {
+        if self
+            .live
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+                n.checked_sub(bytes)
+            })
+            .is_err()
+        {
+            self.broken.store(true, Ordering::Release);
+            return Err(ScratchFailure::Ledger);
+        }
+        Ok(())
+    }
+    fn component(&self, kind: ScratchCharge) -> (&AtomicUsize, &AtomicUsize) {
+        match kind {
+            ScratchCharge::Layout => (&self.scratch_live, &self.scratch_peak),
+            ScratchCharge::Metadata => (&self.metadata_live, &self.metadata_peak),
+        }
+    }
+}
+impl ScratchParent for Ledger {
+    fn health(&self) -> Result<(), ScratchFailure> {
+        if self.broken.load(Ordering::Acquire) {
+            Err(ScratchFailure::Ledger)
+        } else {
+            Ok(())
+        }
+    }
+    fn invalidate(&self) {
+        self.broken.store(true, Ordering::Release);
+    }
+
+    fn reserve(&self, bytes: usize, kind: ScratchCharge) -> Result<(), ScratchFailure> {
+        self.reserve_total(bytes)?;
+        let (live, peak) = self.component(kind);
+        // 分项仅观测，准入由同一 total CAS 决定。
+        let n = live.fetch_add(bytes, Ordering::AcqRel) + bytes;
+        peak.fetch_max(n, Ordering::Relaxed);
+        Ok(())
+    }
+    fn release(&self, bytes: usize, kind: ScratchCharge) -> Result<(), ScratchFailure> {
+        let (live, _) = self.component(kind);
+        if live
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+                n.checked_sub(bytes)
+            })
+            .is_err()
+        {
+            self.broken.store(true, Ordering::Release);
+            return Err(ScratchFailure::Ledger);
+        }
+        self.release_total(bytes)
     }
 }
 /// 固定 std SwissTable：小表 4/8 桶只空一槽，>=16 桶的装载率 7/8；控制组最多16字节。

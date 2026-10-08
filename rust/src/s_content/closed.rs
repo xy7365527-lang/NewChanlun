@@ -609,6 +609,19 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
             _ => None,
         }
     }
+    pub(super) fn work_budget(&self) -> Option<WorkBudget> {
+        let scope = match self {
+            Self::Source(s) => s.codec_work(),
+            Self::Store(s) => s.codec_work(),
+            Self::Sink(s, _) => s.codec_sink_work(),
+            #[cfg(feature = "s_capture_native_testonly")]
+            Self::NativeLocal { sink, .. } => sink.codec_sink_work(),
+            _ => None,
+        };
+        scope
+            .map(|s| s.budget())
+            .or_else(|| self.budget().map(WorkBudget::Owned))
+    }
     pub(super) fn reborrow(&mut self) -> CodecContext<'_, 'capture> {
         match self {
             Self::Source(s) => CodecContext::Source(&mut **s),
@@ -1288,7 +1301,7 @@ mod codec_workset_growth_probe {
             .closed_codec_for_allocation_prototype(0, 0, None)
             .unwrap();
         let mut source = CodecContext::Closed(&mut owner);
-        let mut iter = LeafIter::new(seq, source.budget().as_ref()).unwrap();
+        let mut iter = LeafIter::new(seq, source.work_budget().as_ref()).unwrap();
         let got = iter.next_context(&mut source);
         assert!(got.is_err());
         assert_eq!(got.err().unwrap().code(), capture_allocation::LIMIT);

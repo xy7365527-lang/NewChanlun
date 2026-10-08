@@ -987,24 +987,24 @@ impl ControlFacts {
         batch: &str,
         commit_ns: &str,
         _bound: &crate::v3::audit_owner::BoundOriginals,
+        retained: &mut crate::v3::audit_retention::RetainedDelta,
     ) -> Result<ControlHistory, String> {
         if generation != self.headers.len() as i64 + 1 {
             return Err(err("owner 新控制头非连续尾"));
         }
-        if self
-            .headers
-            .insert(
-                (generation, TextValue::Plain(batch.into())),
-                ControlHeader {
-                    commit_ns: TextValue::Plain(commit_ns.into()),
-                    consumed: false,
-                },
-            )
-            .map_err(err)?
-            .is_some()
-        {
+        let key = (generation, TextValue::Plain(batch.into()));
+        let header = ControlHeader {
+            commit_ns: TextValue::Plain(commit_ns.into()),
+            consumed: false,
+        };
+        retained.add(&key);
+        retained.add(&header);
+        let capacity = self.headers.capacity();
+        if self.headers.insert(key, header).map_err(err)?.is_some() {
             return Err(err("重复发布控制头"));
         }
+        retained
+            .hash_capacity::<(i64, TextValue), ControlHeader>(capacity, self.headers.capacity());
         Ok(ControlHistory {
             facts: self,
             pending: 1,

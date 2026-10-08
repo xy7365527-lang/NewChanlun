@@ -495,8 +495,22 @@ struct NativeProjection<'capture> {
     wires: Vec<[Option<RefValue>; 2]>,
     // 只读事件表与 before-g 成员审计共享；through-g 游标与集合归本 owner。
     sweep: Option<ProjectionSweep>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    retained: super::audit_retention::RetainedDelta,
 }
 impl NativeProjection<'_> {
+    fn remember_wire(&mut self, ordinal: usize, phase: usize, wire: &RefValue) {
+        let saved = wire.clone();
+        #[cfg(feature = "s_capture_native_testonly")]
+        {
+            if let Some(old) = &self.wires[ordinal][phase] {
+                self.retained.release(old);
+            }
+            self.retained.add(&saved);
+        }
+        self.wires[ordinal][phase] = Some(saved);
+    }
+
     fn wire(
         &mut self,
         s: &mut (impl CodecStore + ?Sized),
@@ -520,7 +534,7 @@ impl NativeProjection<'_> {
         self.capture
             .verify_refview(wire.view(), sc::Mode::Public)
             .map_err(err)?;
-        self.wires[ordinal][phase] = Some(wire.clone());
+        self.remember_wire(ordinal, phase, &wire);
         Ok(wire)
     }
 }
@@ -547,7 +561,9 @@ impl HistoryObjects<'_> {
         owner: &mut Option<HistorySweep>,
     ) -> sc::CodecVec<Entry> {
         if let (Some(native), Some(owner)) = (self.native.take(), owner.as_mut()) {
+            owner.retained.merge(native.retained);
             if let Some(sweep) = native.sweep {
+                owner.retained.merge(sweep.retained);
                 owner.projection = Some(OwnerProjection {
                     wires: native.wires,
                     active: sweep.active,
@@ -665,7 +681,7 @@ impl HistoryObjects<'_> {
                             .capture
                             .verify_refview(public.view(), sc::Mode::Public)
                             .map_err(err)?;
-                        native.wires[ordinal][phase] = Some(public.clone());
+                        native.remember_wire(ordinal, phase, &public);
                         let pair = (template, public);
                         pairs.insert(ordinal, pair.clone());
                         pair
@@ -1326,6 +1342,8 @@ pub(super) fn load_for_history<'capture>(
         capture,
         wires: vec![[None, None]; entries.len()],
         sweep: events.map(ProjectionSweep::from_events),
+        #[cfg(feature = "s_capture_native_testonly")]
+        retained: Default::default(),
     });
     Ok(HistoryObjects { entries, native })
 }
@@ -1499,6 +1517,7 @@ pub(super) fn update_from_owner(
     sweep: &mut HistorySweep,
     rowids: &[i64],
     _bound: &super::audit_owner::BoundOriginals,
+    retained: &mut super::audit_retention::RetainedDelta,
 ) -> Result<(), String> {
     let mut changed = Vec::with_capacity(rowids.len());
     let mut leaf_bindings = s
@@ -1534,31 +1553,57 @@ pub(super) fn update_from_owner(
         let ordinal = match events.by_id.get(e.id.as_str()) {
             Some(i) => {
                 let i = *i;
+                retained.release(&index[i]);
+                retained.add(&e);
                 index[i] = e;
                 i
             }
             None => {
                 let i = index.len();
-                events.by_id.insert(e.id.try_clone()?, i).map_err(err)?;
-                events.ranks.push(order_key(&e, false).owned());
-                events.withdrawn_ranks.push(order_key(&e, true).owned());
-                events
+                let id = e.id.try_clone()?;
+                retained.add(&id);
+                let capacity = events.by_id.capacity();
+                events.by_id.insert(id, i).map_err(err)?;
+                retained.hash_capacity::<TextValue, usize>(capacity, events.by_id.capacity());
+                let rank = order_key(&e, false).owned();
+                retained.add(&rank);
+                let capacity = events.ranks.capacity();
+                events.ranks.push(rank);
+                retained.vec_capacity::<OrderKey<String>>(capacity, events.ranks.capacity());
+                let rank = order_key(&e, true).owned();
+                retained.add(&rank);
+                let capacity = events.withdrawn_ranks.capacity();
+                events.withdrawn_ranks.push(rank);
+                retained
+                    .vec_capacity::<OrderKey<String>>(capacity, events.withdrawn_ranks.capacity());
+                let len = events.births.len();
+                let bucket = events
                     .births
                     .entry(e.life.first_known_generation)
-                    .or_default()
-                    .push(i);
+                    .or_default();
+                let capacity = bucket.capacity();
+                bucket.push(i);
+                retained.vec_capacity::<usize>(capacity, bucket.capacity());
+                retained.tree_len::<i64, Vec<usize>>(len, events.births.len());
+                retained.add(&e);
+                let capacity = index.capacity();
                 index.try_push(e).map_err(err)?;
+                retained.vec_capacity::<Entry>(capacity, index.capacity());
                 i
             }
         };
         if let Some(death) = index[ordinal].life.withdrawn_generation {
+            let len = events.deaths.len();
             let ids = events.deaths.entry(death).or_default();
+            let capacity = ids.capacity();
             let at = ids.partition_point(|other| {
                 (&events.ranks[*other], *other) < (&events.ranks[ordinal], ordinal)
             });
             if ids.get(at) != Some(&ordinal) {
                 ids.insert(at, ordinal);
             }
+            retained.vec_capacity::<usize>(capacity, ids.capacity());
+            retained.tree_len::<i64, Vec<usize>>(len, events.deaths.len());
         }
         changed.push(ordinal);
     }
@@ -1573,7 +1618,8 @@ pub(super) fn restore_for_owner<'a>(
     s: &super::history::HashReader<'a>,
     sweep: &mut HistorySweep,
     _bound: &super::audit_owner::BoundOriginals,
-) -> Result<HistoryObjects<'a>, String> {
+    retained: &mut super::audit_retention::RetainedDelta,
+) -> Result<HistoryObjects<'a>, super::audit_owner::native::Failure> {
     let capture = s
         .native_projection_capture()
         .ok_or_else(|| err("对象恢复缺 Native owner"))?;
@@ -1586,6 +1632,7 @@ pub(super) fn restore_for_owner<'a>(
                 active: saved.active,
                 withdrawn: saved.withdrawn,
                 previous_cut: saved.previous_cut,
+                retained: Default::default(),
                 #[cfg(test)]
                 visits: saved.visits,
             },
@@ -1596,14 +1643,21 @@ pub(super) fn restore_for_owner<'a>(
         ),
     };
     // 仅新增身份取得两个空memo槽；旧wire、游标及活动/撤回集合原样移动。
+    let capacity = wires.capacity();
+    let additional = entries
+        .len()
+        .checked_sub(wires.len())
+        .ok_or_else(|| err("owner wire 槽数超过对象数"))?;
     wires
-        .try_reserve_exact(entries.len().saturating_sub(wires.len()))
-        .map_err(err)?;
+        .try_reserve_exact(additional)
+        .map_err(|_| super::audit_owner::native::Failure::BudgetExceeded)?;
     wires.resize_with(entries.len(), || [None, None]);
+    retained.vec_capacity::<[Option<RefValue>; 2]>(capacity, wires.capacity());
     let native = Some(NativeProjection {
         capture,
         wires,
         sweep: Some(projection),
+        retained: Default::default(),
     });
     Ok(HistoryObjects { entries, native })
 }
@@ -1849,6 +1903,8 @@ pub(super) struct HistorySweep {
     previous: i64,
     #[cfg(feature = "s_capture_native_testonly")]
     projection: Option<OwnerProjection>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    retained: super::audit_retention::RetainedDelta,
     #[cfg(test)]
     visits: SweepVisits,
 }
@@ -1861,6 +1917,11 @@ struct SweepVisits {
     active: std::cell::Cell<usize>,
 }
 impl HistorySweep {
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn take_retained_delta(&mut self) -> super::audit_retention::RetainedDelta {
+        std::mem::take(&mut self.retained)
+    }
+
     #[cfg(test)]
     fn new(index: &[Entry]) -> Self {
         Self::from_events(std::sync::Arc::new(HistoryEvents::new(index)))
@@ -1877,6 +1938,8 @@ impl HistorySweep {
             previous: 0,
             #[cfg(feature = "s_capture_native_testonly")]
             projection: None,
+            #[cfg(feature = "s_capture_native_testonly")]
+            retained: Default::default(),
         }
     }
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -1919,6 +1982,10 @@ impl HistorySweep {
         }
         for (_, ids) in self.events.births.range(self.previous..g) {
             for i in ids {
+                #[cfg(feature = "s_capture_native_testonly")]
+                self.retained
+                    .tree_insert(&mut self.active, (self.events.ranks[*i].clone(), *i));
+                #[cfg(not(feature = "s_capture_native_testonly"))]
                 self.active.insert((self.events.ranks[*i].clone(), *i));
                 #[cfg(test)]
                 {
@@ -1928,6 +1995,10 @@ impl HistorySweep {
         }
         for (_, ids) in self.events.deaths.range(self.previous..g) {
             for i in ids {
+                #[cfg(feature = "s_capture_native_testonly")]
+                self.retained
+                    .tree_remove(&mut self.active, &(self.events.ranks[*i].clone(), *i));
+                #[cfg(not(feature = "s_capture_native_testonly"))]
                 self.active.remove(&(self.events.ranks[*i].clone(), *i));
                 #[cfg(test)]
                 {
@@ -1975,6 +2046,8 @@ struct ProjectionSweep {
     active: BTreeSet<(OrderKey<String>, usize)>,
     withdrawn: BTreeSet<(OrderKey<String>, usize)>,
     previous_cut: Option<i64>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    retained: super::audit_retention::RetainedDelta,
     #[cfg(test)]
     visits: ProjectionVisits,
 }
@@ -1995,6 +2068,8 @@ impl ProjectionSweep {
             active: Default::default(),
             withdrawn: Default::default(),
             previous_cut: None,
+            #[cfg(feature = "s_capture_native_testonly")]
+            retained: Default::default(),
             #[cfg(test)]
             visits: ProjectionVisits::default(),
         }
@@ -2008,6 +2083,10 @@ impl ProjectionSweep {
             let lower = self.previous_cut.map_or(Unbounded, Excluded);
             for (_, ids) in self.events.births.range((lower, Included(g))) {
                 for i in ids {
+                    #[cfg(feature = "s_capture_native_testonly")]
+                    self.retained
+                        .tree_insert(&mut self.active, (self.events.ranks[*i].clone(), *i));
+                    #[cfg(not(feature = "s_capture_native_testonly"))]
                     self.active.insert((self.events.ranks[*i].clone(), *i));
                     #[cfg(test)]
                     {
@@ -2017,7 +2096,17 @@ impl ProjectionSweep {
             }
             for (_, ids) in self.events.deaths.range((lower, Included(g))) {
                 for i in ids {
+                    #[cfg(feature = "s_capture_native_testonly")]
+                    self.retained
+                        .tree_remove(&mut self.active, &(self.events.ranks[*i].clone(), *i));
+                    #[cfg(not(feature = "s_capture_native_testonly"))]
                     self.active.remove(&(self.events.ranks[*i].clone(), *i));
+                    #[cfg(feature = "s_capture_native_testonly")]
+                    self.retained.tree_insert(
+                        &mut self.withdrawn,
+                        (self.events.withdrawn_ranks[*i].clone(), *i),
+                    );
+                    #[cfg(not(feature = "s_capture_native_testonly"))]
                     self.withdrawn
                         .insert((self.events.withdrawn_ranks[*i].clone(), *i));
                     #[cfg(test)]
@@ -2032,8 +2121,18 @@ impl ProjectionSweep {
             // 生产生命判据始终要求withdrawn_generation > first_known_generation。
             for (_, ids) in self.events.deaths.range((Excluded(g), Included(previous))) {
                 for i in ids {
+                    #[cfg(feature = "s_capture_native_testonly")]
+                    self.retained.tree_remove(
+                        &mut self.withdrawn,
+                        &(self.events.withdrawn_ranks[*i].clone(), *i),
+                    );
+                    #[cfg(not(feature = "s_capture_native_testonly"))]
                     self.withdrawn
                         .remove(&(self.events.withdrawn_ranks[*i].clone(), *i));
+                    #[cfg(feature = "s_capture_native_testonly")]
+                    self.retained
+                        .tree_insert(&mut self.active, (self.events.ranks[*i].clone(), *i));
+                    #[cfg(not(feature = "s_capture_native_testonly"))]
                     self.active.insert((self.events.ranks[*i].clone(), *i));
                     #[cfg(test)]
                     {
@@ -2043,6 +2142,10 @@ impl ProjectionSweep {
             }
             for (_, ids) in self.events.births.range((Excluded(g), Included(previous))) {
                 for i in ids {
+                    #[cfg(feature = "s_capture_native_testonly")]
+                    self.retained
+                        .tree_remove(&mut self.active, &(self.events.ranks[*i].clone(), *i));
+                    #[cfg(not(feature = "s_capture_native_testonly"))]
                     self.active.remove(&(self.events.ranks[*i].clone(), *i));
                     #[cfg(test)]
                     {
@@ -3620,6 +3723,7 @@ mod tests {
             capture,
             wires: vec![[None, None]; count],
             sweep: None,
+            retained: Default::default(),
         }
     }
     #[cfg(feature = "s_capture_native_testonly")]
@@ -3839,6 +3943,7 @@ mod tests {
     }
     #[cfg(feature = "s_capture_native_testonly")]
     fn projection_sweep_positive_event_counts(index: &[Entry]) {
+        use crate::v3::audit_retention::Retained;
         // 调用方传入经过完整load的真实索引，绝不使用旧抽象death==birth夹具。
         for e in index {
             assert!(e
@@ -3846,7 +3951,27 @@ mod tests {
                 .withdrawn_generation
                 .is_none_or(|death| e.life.first_known_generation < death));
         }
+        let mut before_g = HistorySweep::new(index);
+        for g in 1..=4 {
+            let before = before_g.heap_bytes();
+            before_g.advance(g).unwrap();
+            assert_eq!(
+                before_g.take_retained_delta().apply(before).unwrap(),
+                before_g.heap_bytes(),
+                "before-g 独立克隆及删除计费"
+            );
+        }
         let mut projection = ProjectionSweep::new(index);
+        let advance_retained = |projection: &mut ProjectionSweep, g| {
+            let before = projection.active.heap_bytes() + projection.withdrawn.heap_bytes();
+            projection.seek(g);
+            let delta = std::mem::take(&mut projection.retained);
+            assert_eq!(
+                delta.apply(before).unwrap(),
+                projection.active.heap_bytes() + projection.withdrawn.heap_bytes(),
+                "through-g 活动/撤回独立克隆与真实删除计费，cut={g}"
+            );
+        };
         let check = |projection: &ProjectionSweep, g: i64| {
             let mut active = index
                 .iter()
@@ -3884,7 +4009,7 @@ mod tests {
             );
         };
         for g in 1..=512 {
-            projection.seek(g);
+            advance_retained(&mut projection, g);
             check(&projection, g);
         }
         assert_eq!(projection.events.initial_entries, index.len());
@@ -3903,14 +4028,14 @@ mod tests {
             "512 cuts撤回事件各过一次"
         );
         let visited = (projection.visits.births, projection.visits.deaths);
-        projection.seek(512);
+        advance_retained(&mut projection, 512);
         assert_eq!(
             (projection.visits.births, projection.visits.deaths),
             visited,
             "重复cut不推进事件"
         );
         for g in [1, 3, 3, 2, 8, i64::MAX, 1] {
-            projection.seek(g);
+            advance_retained(&mut projection, g);
             check(&projection, g);
             assert_eq!(
                 projection.events.sort_passes, 2,
@@ -4623,6 +4748,7 @@ mod owner_retention {
                 active,
                 previous: _,
                 projection,
+                retained: _,
                 #[cfg(test)]
                     visits: _,
             } = self;
