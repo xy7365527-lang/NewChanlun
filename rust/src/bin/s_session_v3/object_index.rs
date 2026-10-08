@@ -1265,6 +1265,7 @@ pub(super) fn load(
         &mut super::audit_store::StoreView::generic(s),
         latest,
         None,
+        None,
     )
 }
 pub(super) fn load_for_audit(
@@ -1278,6 +1279,7 @@ pub(super) fn load_for_audit(
         &mut super::audit_store::StoreView::for_audit(s),
         latest,
         capture,
+        None,
     )
 }
 pub(super) fn load_for_history<'capture>(
@@ -1286,14 +1288,20 @@ pub(super) fn load_for_history<'capture>(
     latest: i64,
 ) -> Result<HistoryObjects<'capture>, String> {
     // 不接受外部旧 index/memo。先全核本事务原件，成功之后才能开当前索引的两个槽。
-    let entries = load_for_audit(tx, s, latest)?;
-    let native = s
-        .native_projection_capture()
-        .map(|capture| NativeProjection {
-            capture,
-            wires: vec![[None, None]; entries.len()],
-            sweep: None,
-        });
+    let capture = s.native_projection_capture();
+    let mut events = None;
+    let entries = load_in_store(
+        tx,
+        &mut super::audit_store::StoreView::for_audit(s),
+        latest,
+        capture,
+        capture.map(|_| &mut events),
+    )?;
+    let native = capture.map(|capture| NativeProjection {
+        capture,
+        wires: vec![[None, None]; entries.len()],
+        sweep: events.map(ProjectionSweep::from_events),
+    });
     Ok(HistoryObjects { entries, native })
 }
 fn load_in_store(
@@ -1301,6 +1309,7 @@ fn load_in_store(
     s: &mut super::audit_store::StoreView<'_, '_>,
     latest: i64,
     capture: Option<&sc::AuditCapture>,
+    events: Option<&mut Option<std::sync::Arc<HistoryEvents>>>,
 ) -> Result<sc::CodecVec<Entry>, String> {
     let mut leaf_bindings = capture.map(|capture| ShapeLeafBindings {
         capture,
@@ -1367,6 +1376,21 @@ fn load_in_store(
         out.try_push(e).map_err(err)?;
     }
     stmt.finalize().map_err(err)?;
+    // 含已撤回身份的完整表；只克隆身份键，不复制正文。Owned 路径沿既有分配器。
+    let mut by_id = bj::new_map(allocation.as_ref());
+    for (ordinal, e) in out.iter().enumerate() {
+        #[cfg(test)]
+        LOAD_ID_VISITS.with(|n| n.set(n.get() + 1));
+        if by_id
+            .insert(e.id.try_clone()?, ordinal)
+            .map_err(err)?
+            .is_some()
+        {
+            return Err(err("独立对象索引重复身份"));
+        }
+    }
+    #[cfg(test)]
+    LOAD_ID_CAPACITY.with(|n| n.set(by_id.capacity()));
     // 一次调用复用codec既有的上下文记忆；每根声明仍核，所有来源/生命周期绑定仍逐行执行。
     #[cfg(test)]
     super::state::trace_event("object_index_closures", None);
@@ -1397,10 +1421,9 @@ fn load_in_store(
                 e.life.superseded_by.as_deref(),
             ) {
                 (Some("superseded_by_revision"), Some(id)) => {
-                    let target = out
-                        .iter()
-                        .find(|v| v.id == id)
-                        .ok_or_else(|| err("替代目标不存在"))?;
+                    #[cfg(test)]
+                    LOAD_TARGET_LOOKUPS.with(|n| n.set(n.get() + 1));
+                    let target = &out[*by_id.get(id).ok_or_else(|| err("替代目标不存在"))?];
                     if target.slot != e.slot
                         || target.life.first_known_generation > death
                         || target.life.withdrawn_generation.is_some_and(|d| d <= death)
@@ -1421,6 +1444,10 @@ fn load_in_store(
     }
     #[cfg(test)]
     super::state::trace_event("object_index_done", None);
+    if let Some(events) = events {
+        // 仅 Native 无分配预算入口保有 std 有序事件表；失败不转普通路径。
+        *events = Some(std::sync::Arc::new(HistoryEvents::from_ids(&out, by_id)));
+    }
     Ok(out)
 }
 /// 内部 prior 只来自上代活动CC010/CC056；调用者保持本Vec活到generate结束。
@@ -1583,7 +1610,7 @@ pub(super) fn changes_at_budgeted(
 }
 /// 当前已核Capture的只读事件表；两游标共享，普通/Owned入口不创建它。
 struct HistoryEvents {
-    by_id: std::collections::HashMap<String, usize>,
+    by_id: bj::BusinessMap<TextValue, usize>,
     births: std::collections::BTreeMap<i64, Vec<usize>>,
     deaths: std::collections::BTreeMap<i64, Vec<usize>>,
     ranks: Vec<usize>,
@@ -1593,10 +1620,31 @@ struct HistoryEvents {
     #[cfg(test)]
     sort_passes: usize,
 }
+#[cfg(test)]
+pub(super) fn take_load_lookup_counts() -> (usize, usize) {
+    (
+        LOAD_ID_VISITS.with(|n| n.replace(0)),
+        LOAD_TARGET_LOOKUPS.with(|n| n.replace(0)),
+    )
+}
+#[cfg(test)]
+pub(super) fn load_id_capacity() -> usize {
+    LOAD_ID_CAPACITY.with(|n| n.get())
+}
 impl HistoryEvents {
     fn new(index: &[Entry]) -> Self {
+        let mut by_id = bj::new_map(None);
+        for (i, e) in index.iter().enumerate() {
+            assert!(by_id
+                .insert(e.id.try_clone().expect("Native身份"), i)
+                .expect("Native索引")
+                .is_none());
+        }
+        Self::from_ids(index, by_id)
+    }
+    fn from_ids(index: &[Entry], by_id: bj::BusinessMap<TextValue, usize>) -> Self {
         let mut out = Self {
-            by_id: Default::default(),
+            by_id,
             births: Default::default(),
             deaths: Default::default(),
             ranks: vec![0; index.len()],
@@ -1620,7 +1668,6 @@ impl HistoryEvents {
             {
                 out.initial_entries += 1;
             }
-            out.by_id.insert(e.id.as_str().to_owned(), i);
             out.births
                 .entry(e.life.first_known_generation)
                 .or_default()
@@ -1748,8 +1795,11 @@ struct ProjectionVisits {
 }
 impl ProjectionSweep {
     fn new(index: &[Entry]) -> Self {
+        Self::from_events(std::sync::Arc::new(HistoryEvents::new(index)))
+    }
+    fn from_events(events: std::sync::Arc<HistoryEvents>) -> Self {
         Self {
-            events: std::sync::Arc::new(HistoryEvents::new(index)),
+            events,
             active: Default::default(),
             withdrawn: Default::default(),
             previous_cut: None,
@@ -2038,6 +2088,9 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
 
 #[cfg(test)]
 thread_local! {
+    static LOAD_ID_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static LOAD_TARGET_LOOKUPS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static LOAD_ID_CAPACITY: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static WIRE_PROJECTIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 #[cfg(test)]
@@ -2051,6 +2104,68 @@ mod tests {
     };
     use newchan_rust::s_content::NodeSink;
     use rusqlite::Connection;
+    #[cfg(all(
+        feature = "s_allocation_json_testonly",
+        feature = "s_capture_native_testonly"
+    ))]
+    #[test]
+    fn cold_object_by_id_owned_load_matches_normal_and_releases() {
+        let mut fixture = super::super::prepared::tests::Fixture::new();
+        for (n, row, revision) in [
+            (1, ("a", 0, 6, 12, 3, 7), 1),
+            (2, ("b", 10, 8, 16, 6, 12), 1),
+            (3, ("b", 10, 8, 17, 6, 12), 2),
+        ] {
+            let (event, token) = fixture.accept_begin(n, row, revision);
+            fixture.publish(&event, &token).unwrap();
+        }
+        let tx = fixture.conn.transaction().unwrap();
+        let mut plain = content_store::ReadStore::new(&tx).unwrap();
+        let mut reader = super::super::history::HashReader::new(&mut plain);
+        let expected = load_for_audit(&tx, &mut reader, 3).unwrap();
+        let budget = OwnedBudget::new(64 * 1024 * 1024);
+        let capture = sc::AuditCapture::from_slab_for_allocation_prototype(
+            content_store::capture_slab_for_prototype(
+                &tx,
+                &budget,
+                &content_store::CaptureCancellation::never(),
+            )
+            .unwrap(),
+        );
+        super::super::audit_store::with_owned_store_probe(
+            &capture,
+            &budget,
+            16384,
+            4 * 1024 * 1024,
+            |store| {
+                let actual = load_in_store(&tx, store, 3, None, None).unwrap();
+                assert!(actual.allocation_budget().unwrap().same_ledger(&budget));
+                assert_eq!(actual.len(), expected.len());
+                for (a, b) in actual.iter().zip(expected.iter()) {
+                    assert_eq!(a.id, b.id);
+                    assert_eq!(a.revision, b.revision);
+                    assert_eq!(a.kind, b.kind);
+                    assert_eq!(a.slot, b.slot);
+                    assert_eq!(a.generated, b.generated);
+                    assert_eq!(a.internal, b.internal);
+                    assert_eq!(a.immutable, b.immutable);
+                    assert_eq!(a.birth_wire.view().root(), b.birth_wire.view().root());
+                    assert_eq!(a.life.first_known_generation, b.life.first_known_generation);
+                    assert_eq!(a.life.withdrawn_generation, b.life.withdrawn_generation);
+                    assert_eq!(a.life.superseded_by, b.life.superseded_by);
+                }
+                assert!(budget.snapshot().live_requested_layout_bytes > 0);
+                Ok::<_, String>(())
+            },
+        )
+        .unwrap();
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        eprintln!(
+            "Owned对象完整load：{}身份，索引/键沿原budget，释放后live=0",
+            expected.len()
+        );
+    }
     thread_local! {
         pub(super) static SHAPE_LEAF_CHECKS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     }
@@ -3269,6 +3384,41 @@ mod tests {
             entries.push(e);
         }
         (nodes, entries)
+    }
+    #[test]
+    fn cold_relation_index_sort_ties_keep_complete_projection_roots() {
+        let (mut nodes, entries) = projection_fixture();
+        assert_eq!(
+            ordering(&entries[1], &entries[2], false),
+            std::cmp::Ordering::Equal
+        );
+        let mut sweep = ProjectionSweep::new(&entries);
+        for g in [1, 2, 3, 4, 2, 1, 4] {
+            let expected = at_cut(&mut nodes, &entries, g).unwrap();
+            sweep.seek(g);
+            let mut project = |ordinals: Vec<usize>| {
+                let refs = ordinals
+                    .into_iter()
+                    .map(|i| wire_at(&mut nodes, &entries[i], g).unwrap())
+                    .collect::<Vec<_>>();
+                array(&mut nodes, &refs).unwrap()
+            };
+            let active = project(sweep.active.iter().map(|(_, i)| *i).collect());
+            let withdrawn = project(sweep.withdrawn.iter().map(|(_, i)| *i).collect());
+            let births = project(
+                sweep
+                    .events
+                    .births
+                    .get(&g)
+                    .into_iter()
+                    .flatten()
+                    .copied()
+                    .collect(),
+            );
+            assert_eq!(expected, (active, withdrawn, births), "cut={g}");
+        }
+        assert_eq!(sweep.events.sort_passes, 2);
+        assert_eq!(sweep.events.initial_entries, entries.len());
     }
     #[cfg(feature = "s_capture_native_testonly")]
     fn projection_memo(capture: &sc::AuditCapture, count: usize) -> NativeProjection<'_> {

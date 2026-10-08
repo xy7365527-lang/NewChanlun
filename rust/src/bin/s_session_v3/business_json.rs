@@ -287,6 +287,121 @@ pub(crate) fn effective<'a>(
     })
 }
 
+/// #1394：同一冷审计的借用索引。只在无分配预算的 Native 路径创建；
+/// 有预算入口继续用 effective 的原分配/Hash/期限门，不以失败触发分派。
+/// 完整 raw 保留在调用方，索引仅保存身份借用、坐标与持久序号。
+pub(super) struct RawPrefixIndex<'raw> {
+    raw: RawEventsView<'raw>,
+    prefix: usize,
+    winners: std::collections::HashMap<&'raw str, (i64, usize, i64)>,
+    ordered: std::collections::BTreeMap<i64, usize>,
+    coordinates: std::collections::HashMap<usize, i64>,
+}
+pub(super) struct RawPrefixChanges {
+    pub removed: Vec<i64>,
+    pub added: Vec<(i64, usize)>,
+    pub raw_visits: usize,
+    pub coord_decodes: usize,
+    pub rewound: bool,
+}
+impl<'raw> RawPrefixIndex<'raw> {
+    pub(super) fn new(raw: RawEventsView<'raw>) -> Self {
+        Self {
+            raw,
+            prefix: 0,
+            winners: Default::default(),
+            ordered: Default::default(),
+            coordinates: Default::default(),
+        }
+    }
+    pub(super) fn is_empty(&self) -> bool {
+        self.winners.is_empty()
+    }
+    pub(super) fn ordered(&self) -> impl Iterator<Item = (i64, usize)> + '_ {
+        self.ordered.iter().map(|(c, i)| (*c, *i))
+    }
+    #[cfg(test)]
+    pub(super) fn retained_slots(&self) -> [usize; 3] {
+        // HashMap 实际 capacity；BTreeMap 只报条目，不冒充节点布局/allocator开销。
+        [
+            self.winners.capacity(),
+            self.coordinates.capacity(),
+            self.ordered.len(),
+        ]
+    }
+    pub(super) fn clear(&mut self) {
+        self.prefix = 0;
+        self.winners.clear();
+        self.ordered.clear();
+        self.coordinates.clear();
+    }
+    pub(super) fn advance(&mut self, prefix: usize) -> Result<RawPrefixChanges, String> {
+        let result = self.advance_inner(prefix);
+        if result.is_err() {
+            self.clear();
+        }
+        result
+    }
+    fn advance_inner(&mut self, prefix: usize) -> Result<RawPrefixChanges, String> {
+        if self.raw.budget().is_some() {
+            return Err("prototype_audit_allocation_incomplete：有序raw索引不接收Owned原件".into());
+        }
+        self.raw.prefix(prefix)?;
+        let rewound = prefix < self.prefix;
+        if rewound {
+            self.prefix = 0;
+            self.winners.clear();
+            self.ordered.clear();
+        }
+        // 同一 cut 内先选最终赢家；不会因跨越的暂态修订提前拒绝。
+        let mut changed = std::collections::BTreeMap::<&str, (i64, usize)>::new();
+        for ordinal in self.prefix..prefix {
+            let event = self.raw.get(ordinal).expect("已截前缀");
+            let identity = field(event, "identity_key").as_str().unwrap_or("");
+            let revision = field(event, "revision").as_i64().unwrap_or(0);
+            let previous = changed
+                .get(identity)
+                .copied()
+                .or_else(|| self.winners.get(identity).map(|(r, i, _)| (*r, *i)));
+            if previous.is_none_or(|(r, i)| effective_precedence(revision, ordinal, r, i).is_lt()) {
+                changed.insert(identity, (revision, ordinal));
+            }
+        }
+        let mut updates = RawPrefixChanges {
+            removed: Vec::new(),
+            added: Vec::new(),
+            raw_visits: prefix - self.prefix,
+            coord_decodes: 0,
+            rewound,
+        };
+        // 与 effective 一样先按身份序验证最终坐标，随后按坐标输出。
+        for (&identity, &(revision, ordinal)) in &changed {
+            let c = match self.coordinates.get(&ordinal) {
+                Some(c) => *c,
+                None => {
+                    let c = coord(self.raw.get(ordinal).expect("赢家原件"))?;
+                    self.coordinates.insert(ordinal, c);
+                    updates.coord_decodes += 1;
+                    c
+                }
+            };
+            if let Some((_, _, old)) = self.winners.insert(identity, (revision, ordinal, c)) {
+                self.ordered.remove(&old);
+                updates.removed.push(old);
+            }
+            updates.added.push((c, ordinal));
+        }
+        updates.added.sort_unstable_by_key(|(c, _)| *c);
+        for &(c, ordinal) in &updates.added {
+            if self.ordered.insert(c, ordinal).is_some() {
+                return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖业务身份".into());
+            }
+        }
+        self.prefix = prefix;
+        Ok(updates)
+    }
+}
+
 fn hex(bytes: &[u8; 32]) -> [u8; 64] {
     const H: &[u8; 16] = b"0123456789abcdef";
     let mut out = [0; 64];

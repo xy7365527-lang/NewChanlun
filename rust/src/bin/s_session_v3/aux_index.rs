@@ -1191,6 +1191,8 @@ pub(super) struct NativeAuxAudit<'index, 'capture, 'raw> {
     duplicates: [Option<i64>; 3],
     relation_memo: std::collections::HashMap<RelationRefKey, RelationCore>,
     raw_memo: std::collections::HashMap<usize, Option<RefValue>>,
+    raw_scanned: usize,
+    raw_revisions: Vec<usize>,
 }
 impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
     pub(super) fn from_loaded(
@@ -1216,6 +1218,8 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
             duplicates: [dw, dr, do_],
             relation_memo: Default::default(),
             raw_memo: Default::default(),
+            raw_scanned: 0,
+            raw_revisions: Vec::new(),
         })
     }
     pub(super) fn audit(
@@ -1240,6 +1244,8 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
         if result.is_err() {
             self.relation_memo.clear();
             self.raw_memo.clear();
+            self.raw_scanned = 0;
+            self.raw_revisions.clear();
         }
         result
     }
@@ -1290,7 +1296,6 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
             }
             return Ok(value.clone());
         }
-        audit_count(5);
         let event = self
             .raw
             .get(ordinal)
@@ -1313,6 +1318,24 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
             self.raw_memo.insert(ordinal, value.clone());
         }
         Ok(value)
+    }
+    fn advance_raw(&mut self, prefix: usize) -> Result<usize, String> {
+        self.raw.prefix(prefix)?;
+        // 原件只实际读一遍；历史回退取 ordinal 前缀，不把未来修订写回旧 cut。
+        for ordinal in self.raw_scanned..prefix {
+            audit_count(5);
+            let event = self
+                .raw
+                .get(ordinal)
+                .ok_or_else(|| err("raw ordinal越界"))?;
+            if !bj::field(event, "supersedes_revision").is_null() {
+                self.raw_revisions.push(ordinal);
+            }
+        }
+        self.raw_scanned = self.raw_scanned.max(prefix);
+        Ok(self
+            .raw_revisions
+            .partition_point(|ordinal| *ordinal < prefix))
     }
 }
 
@@ -1468,15 +1491,20 @@ fn verify_generated_members_in_view(
             .try_push(replacement_relation(s, replacement)?)
             .map_err(err)?;
     }
-    for (ordinal, event) in raw.into_iter().enumerate() {
-        let value = if let Some(owner) = native.as_deref_mut() {
-            owner.raw_relation(s, ordinal)?
-        } else {
+    if let Some(owner) = native.as_deref_mut() {
+        let count = owner.advance_raw(raw.len())?;
+        for i in 0..count {
+            let ordinal = owner.raw_revisions[i];
+            if let Some(r) = owner.raw_relation(s, ordinal)? {
+                relation_candidates.try_push(r).map_err(err)?;
+            }
+        }
+    } else {
+        for event in raw {
             audit_count(5);
-            supersedes_relation(s, event)?
-        };
-        if let Some(r) = value {
-            relation_candidates.try_push(r).map_err(err)?;
+            if let Some(r) = supersedes_relation(s, event)? {
+                relation_candidates.try_push(r).map_err(err)?;
+            }
         }
     }
     let mut relation_seen = work_map(owned_budget.as_ref());

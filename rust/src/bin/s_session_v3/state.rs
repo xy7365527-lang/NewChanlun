@@ -687,6 +687,7 @@ fn audit_core_fresh_inner(
         cuts,
         objects,
         auxiliary,
+        object_sweep,
     } = history::read_indexed_history_for_audit_captured_with_records(
         tx,
         raw.view(),
@@ -771,11 +772,14 @@ fn audit_core_fresh_inner(
             cache.record(cut, &counts);
         }
         let allocation = super::audit_store::CodecRead::allocation_budget(&store);
-        let (withdrawals, replaces) = object_index::changes_at_budgeted(
-            &objects,
-            cut.metadata.generation,
-            allocation.as_ref(),
-        )?;
+        let (withdrawals, replaces) = match &object_sweep {
+            Some(sweep) => sweep.changes(&objects, cut.metadata.generation)?,
+            None => object_index::changes_at_budgeted(
+                &objects,
+                cut.metadata.generation,
+                allocation.as_ref(),
+            )?,
+        };
         #[cfg(test)]
         AUDIT_TRACE.with(|trace| {
             if let Some(t) = trace.borrow_mut().as_mut() {
@@ -800,6 +804,7 @@ fn audit_core_fresh_inner(
             replaces.view(),
             deadline,
             budget,
+            native_sources.as_ref().map(|_| (previous + 1) as usize),
         )?;
         previous = cut.metadata.input_frontier;
     }
@@ -1792,6 +1797,154 @@ mod audit_capture_gate_tests {
             s.objects,
             s.auxiliary
         )
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn cold_relation_indexes_normal_multicut_full_state_parity() {
+        let cases = [
+            [
+                ("a", 0, 6, 12, 3, 7, 1),
+                ("b", 10, 8, 16, 6, 12, 1),
+                ("c", 20, 8, 13, 4, 7, 1),
+                ("b", 10, 8, 17, 6, 12, 2),
+            ],
+            [
+                ("a", 0, 6, 12, 3, 7, 1),
+                ("b", 10, 8, 16, 6, 12, 1),
+                ("c", 20, 8, 13, 4, 7, 1),
+                ("d", 30, 8, 17, 6, 12, 1),
+            ],
+            [
+                ("a", 0, 6, 12, 3, 7, 1),
+                ("b", 10, 8, 16, 6, 12, 1),
+                ("b", 10, 8, 17, 6, 12, 2),
+                ("b", 10, 8, 18, 6, 12, 3),
+            ],
+        ];
+        let mut saw_later_dead_target = false;
+        for (case, rows) in cases.into_iter().enumerate() {
+            let mut fixture = prepared::tests::Fixture::new();
+            for (n, (id, coord, open, high, low, close, revision)) in rows.into_iter().enumerate() {
+                let (event, token) = fixture.accept_begin(
+                    n as i64 + 1,
+                    (id, coord, open, high, low, close),
+                    revision,
+                );
+                fixture.publish(&event, &token).unwrap();
+            }
+            let tx = fixture.conn.transaction().unwrap();
+            catalog_evidence::take_raw_visits();
+            aux_index::reset_aux_audit_stats();
+            let ordinary = audit(&tx).unwrap();
+            let old_catalog = catalog_evidence::take_raw_visits();
+            let old_aux = aux_index::aux_audit_stats();
+            object_index::take_load_lookup_counts();
+            aux_index::reset_aux_audit_stats();
+            let (native, _) = audit_with_capture_impl(&tx, None, None, None, true, None).unwrap();
+            let new_catalog = catalog_evidence::take_raw_visits();
+            let new_aux = aux_index::aux_audit_stats();
+            let (ids, lookups) = object_index::take_load_lookup_counts();
+            assert_eq!(fingerprint(&ordinary), fingerprint(&native), "case={case}");
+            assert_eq!(native.cuts.len(), 4);
+            assert_eq!(old_catalog, 10);
+            assert_eq!(new_catalog, 4);
+            assert_eq!(old_aux[5], 10);
+            assert_eq!(new_aux[5], 4);
+            assert_eq!(old_aux[3], new_aux[3], "完整候选比较不能减少");
+            assert_eq!(ids, native.objects.len());
+            eprintln!(
+                "对象 by-id 实际 capacity={}",
+                object_index::load_id_capacity()
+            );
+            let mut old_target_comparisons = 0;
+            let mut targets = 0;
+            for object in &native.objects {
+                if let Some(id) = object.life.superseded_by.as_deref() {
+                    let ordinal = native.objects.iter().position(|e| e.id == id).unwrap();
+                    old_target_comparisons += ordinal + 1;
+                    targets += 1;
+                    if let Some(death) = native.objects[ordinal].life.withdrawn_generation {
+                        assert!(death > object.life.withdrawn_generation.unwrap());
+                        saw_later_dead_target = true;
+                    }
+                }
+            }
+            assert_eq!(lookups, targets);
+            assert!(old_target_comparisons >= lookups);
+            eprintln!("冷审计 case={case} cuts=4 identities={ids} target_scan={old_target_comparisons} target_lookup={lookups} aux_raw={}->{}, catalog_raw={}->{}",
+                old_aux[5], new_aux[5], old_catalog, new_catalog);
+
+            // 同一真实原件逐 cut 与既有排序 oracle 对拍，另测回退与跳跃。
+            let raw = native.raw.view();
+            let mut index = super::super::business_json::RawPrefixIndex::new(raw);
+            let mut visits = 0;
+            for n in 0..=raw.len() {
+                visits += index.advance(n).unwrap().raw_visits;
+                let expected =
+                    super::super::business_json::effective(raw.prefix(n).unwrap(), None).unwrap();
+                let actual: Vec<_> = index
+                    .ordered()
+                    .map(|(_, ordinal)| raw.get(ordinal).unwrap())
+                    .collect();
+                assert!(
+                    expected.iter().eq(actual.iter().copied()),
+                    "case={case} prefix={n}"
+                );
+            }
+            assert_eq!(visits, raw.len());
+            for n in [1, 4, 2, 4] {
+                index.advance(n).unwrap();
+                let expected =
+                    super::super::business_json::effective(raw.prefix(n).unwrap(), None).unwrap();
+                assert!(expected.iter().eq(index
+                    .ordered()
+                    .map(|(_, ordinal)| raw.get(ordinal).unwrap())));
+            }
+        }
+        assert!(saw_later_dead_target, "必须覆盖已撤回替代目标的完整身份史");
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn cold_relation_indexes_replay_message_keeps_raw_and_cuts() {
+        let mut fixture = prepared::tests::Fixture::new();
+        let mut first = None;
+        for (n, row) in [
+            (1, ("a", 0, 6, 12, 3, 7)),
+            (2, ("b", 10, 8, 16, 6, 12)),
+            (3, ("c", 20, 8, 13, 4, 7)),
+        ] {
+            let (event, token) = fixture.accept_begin(n, row, 1);
+            fixture.publish(&event, &token).unwrap();
+            if n == 1 {
+                first = Some(event);
+            }
+        }
+        let before = {
+            let tx = fixture.conn.transaction().unwrap();
+            fingerprint(&audit(&tx).unwrap())
+        };
+        let mut replay = first.unwrap();
+        replay["message_id"] = json!("message-4");
+        replay["payload"]["clock_event_id"] = json!("input-4");
+        replay["payload_hash"] = json!(sha256_hex(canonical_json(&replay["payload"]).as_bytes()));
+        let clock = v2::stored_clock(&fixture.conn).unwrap();
+        {
+            let tx = fixture.conn.transaction().unwrap();
+            let control = control::S3Control::attach(&tx, &clock).unwrap();
+            let view = control.inspect_ingest(replay.clone()).unwrap();
+            let parsed = tb02a::parse_input(&replay["payload"]["raw_input"]).unwrap();
+            let accepted = raw_input::accept_events(&tx, &parsed, Some("1")).unwrap();
+            control.accept(&view, &accepted).unwrap();
+            tx.commit().unwrap();
+        }
+        let tx = fixture.conn.transaction().unwrap();
+        let ordinary = audit(&tx).unwrap();
+        let (native, _) = audit_with_capture_impl(&tx, None, None, None, true, None).unwrap();
+        assert_eq!(native.raw.len(), 3);
+        assert_eq!(native.cuts.len(), 3);
+        assert_eq!(before, fingerprint(&native));
+        assert_eq!(fingerprint(&ordinary), fingerprint(&native));
+        eprintln!("正常 replay：4消息引用3 raw，3 cuts 全字段/根保持不变");
     }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]

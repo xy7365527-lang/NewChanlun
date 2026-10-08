@@ -194,6 +194,8 @@ pub(super) struct IndexedHistory {
     pub cuts: sc::CodecVec<PublishedCut>,
     pub objects: sc::CodecVec<object_index::Entry>,
     pub auxiliary: aux_index::Index,
+    // 与历史成员、公开投影共享同一完整身份/事件表，只在本次冷审计内交接。
+    pub object_sweep: Option<object_index::HistorySweep>,
 }
 
 /// 全局控制史和原始账必须先由相应正本检查取得；本口消费每代控制头并验证完整闭包。
@@ -425,6 +427,7 @@ fn read_indexed_history_inner(
     let publication_memo = content_publication::NativePublicationMemo::new(&store);
     let mut native_aux = aux_index::NativeAuxAudit::from_loaded(&store, &auxiliary, raw);
     let mut native_prefix = NativeHistoryPrefixes::new(&store, raw, allocation.as_ref());
+    let mut ordered_raw = native_prefix.as_ref().map(|_| bj::RawPrefixIndex::new(raw));
     let mut effective = bj::new_map::<i64, NodeDigest>(allocation.as_ref());
     let mut previous = -1i64;
     let mut output = bj::new_work(allocation.as_ref());
@@ -693,14 +696,19 @@ fn read_indexed_history_inner(
                 return Err(err("真实原始账序与数组位置不符"));
             }
             let coord = bj::coord(event)?;
-            effective
-                .insert(coord, raw_nodes[n as usize])
-                .map_err(err)?;
+            if ordered_raw.is_none() {
+                effective
+                    .insert(coord, raw_nodes[n as usize])
+                    .map_err(err)?;
+            }
             if let Some(prefix) = &mut native_prefix {
                 // Only the actual newly checked interval is appended. Future raw material
                 // was hashed above but does not enter any earlier cut's prefix.
                 prefix.append(coord, raw_nodes[n as usize], raw_wire_nodes[n as usize])?;
             }
+        }
+        if let Some(index) = &mut ordered_raw {
+            index.advance(frontier as usize + 1)?;
         }
         same_digest(
             &mut store,
@@ -728,7 +736,16 @@ fn read_indexed_history_inner(
             match native_prefix.as_ref().and_then(|p| p.effective.as_ref()) {
                 Some(prefix) => prefix.array_root()?,
                 None => {
-                    let nodes = ordered_effective_nodes(&effective, allocation.as_ref())?;
+                    let nodes = if let Some(index) = &ordered_raw {
+                        // 修订/乱序后保留原 ARRAY 编码；只消除每 cut 的重新排序。
+                        let mut nodes = bj::new_work(allocation.as_ref());
+                        for (_, ordinal) in index.ordered() {
+                            nodes.try_push(raw_nodes[ordinal]).map_err(err)?;
+                        }
+                        nodes
+                    } else {
+                        ordered_effective_nodes(&effective, allocation.as_ref())?
+                    };
                     #[cfg(test)]
                     record_history_prefix_leaves(1, nodes.len() as u64);
                     hash_array_metered_with_owner(
@@ -932,6 +949,7 @@ fn read_indexed_history_inner(
         cuts: output,
         objects: objects.into_entries(),
         auxiliary,
+        object_sweep,
     })
 }
 
@@ -1542,7 +1560,7 @@ impl<'capture> NativeHistoryPrefixes<'capture> {
             record_history_prefix_leaves(3, 1);
             record_history_prefix_leaves(5, 1);
         }
-        // effective 的旧语义是按 coord 最后覆盖。仅严格递增输入的有序 map
+        // 完整 raw 已核同身份坐标不变及严格递增修订。仅严格递增坐标的有序赢家
         // 等于追加数组；重复/乱序由输入拓扑永久关闭本 cold 的 effective fold，
         // 继续使用同一规范 hash_array。此处分派不消费任何根校验失败。
         if self.last_coord.is_some_and(|last| coord <= last) {

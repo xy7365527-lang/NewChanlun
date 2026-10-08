@@ -489,6 +489,7 @@ pub(super) fn verify_cut_metered<'a>(
         JsonView::BorrowedArray(&replacement_view),
         deadline,
         budget,
+        0,
     )
 }
 #[allow(clippy::too_many_arguments)]
@@ -504,19 +505,40 @@ pub(super) fn verify_cut_for_audit<'a, 'r>(
     replaces: JsonView<'_>,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
+    indexed_start: Option<usize>,
 ) -> Result<(), String> {
+    let raw_prefix = raw_prefix.into();
+    // 唯一调用者 state 已完整读取并核过 raw 的 seq=ordinal 及所有历史前沿。
+    // Native 无预算冷审计只物理访问新增区间；其他入口保留原逻辑收费/期限顺序。
+    if indexed_start.is_some()
+        && (budget.is_some()
+            || deadline.is_some()
+            || raw_prefix.budget().is_some()
+            || store.allocation_budget().is_some())
+    {
+        return Err(err("目录区间索引不接收有预算/期限路径"));
+    }
+    let raw_start = indexed_start.unwrap_or(0);
+    if indexed_start.is_some() && i64::try_from(raw_start).ok() != previous_frontier.checked_add(1)
+    {
+        return Err(err("目录区间与已核前沿不符"));
+    }
+    if raw_start > raw_prefix.len() {
+        return Err(err("目录raw区间越界"));
+    }
     verify_cut_in_store(
         &mut super::audit_store::StoreView::for_audit(store),
         metadata,
         generated_state.into(),
         delta.into(),
-        raw_prefix.into(),
+        raw_prefix,
         previous_frontier,
         counts,
         withdrawals,
         replaces,
         deadline,
         budget,
+        raw_start,
     )
 }
 #[allow(clippy::too_many_arguments)]
@@ -532,6 +554,7 @@ fn verify_cut_in_store(
     replaces: JsonView<'_>,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
+    raw_start: usize,
 ) -> Result<(), String> {
     super::history::check_deadline(deadline)?;
     require_ohlc(metadata.profile_id)?;
@@ -630,7 +653,12 @@ fn verify_cut_in_store(
         .ok_or_else(|| err("目录轴缺 CC-056"))?;
     let allocation = store.allocation_budget();
     let mut revisions = bj::ReferenceArray(bj::new_work(allocation.as_ref()));
-    for event in raw_prefix {
+    for ordinal in raw_start..raw_prefix.len() {
+        #[cfg(test)]
+        RAW_VISITS.with(|n| n.set(n.get() + 1));
+        let event = raw_prefix
+            .get(ordinal)
+            .ok_or_else(|| err("目录raw序号越界"))?;
         super::history::check_deadline(deadline)?;
         let seq = bj::field(event, "seq")
             .as_i64()
@@ -669,6 +697,13 @@ fn verify_cut_in_store(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+thread_local! { static RAW_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) }; }
+#[cfg(test)]
+pub(super) fn take_raw_visits() -> usize {
+    RAW_VISITS.with(|n| n.replace(0))
 }
 
 /// S3 私有 `catalog` 当前行的本代暂写：四列按 13 轴真实值对应，其余静态列不动。

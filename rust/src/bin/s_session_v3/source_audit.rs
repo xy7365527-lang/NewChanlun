@@ -991,12 +991,6 @@ impl<'capture> NativeWitnessIdentityMemo<'capture> {
 // #1394：账本只借同一完整 immutable raw；请求只能指定 prefix，不能替换原件。
 // 先选本 cut 最终身份赢家，再核全部变化坐标，最后才按 coord hash；跳跃中的
 // 暂态赢家、暂态坐标碰撞和未来事件均不取得 Source 构造资格。
-#[derive(Clone, Copy)]
-struct NativeRawWinner {
-    revision: i64,
-    ordinal: usize,
-    coord: Option<i64>,
-}
 #[cfg(test)]
 #[derive(Default, Clone, Copy, Debug)]
 pub(super) struct NativeRawLedgerStats {
@@ -1008,8 +1002,7 @@ pub(super) struct NativeRawLedgerStats {
 }
 struct NativeRawLedger<'raw> {
     raw: RawEventsView<'raw>,
-    prefix: usize,
-    winners: std::collections::HashMap<&'raw str, NativeRawWinner>,
+    winners: bj::RawPrefixIndex<'raw>,
     sources: BusinessMap<i64, Source>,
     originals: std::collections::HashMap<usize, (i64, Source)>,
     #[cfg(test)]
@@ -1019,8 +1012,7 @@ impl<'raw> NativeRawLedger<'raw> {
     fn new(raw: RawEventsView<'raw>) -> Self {
         Self {
             raw,
-            prefix: 0,
-            winners: Default::default(),
+            winners: bj::RawPrefixIndex::new(raw),
             sources: bj::new_map(None),
             originals: Default::default(),
             #[cfg(test)]
@@ -1028,7 +1020,6 @@ impl<'raw> NativeRawLedger<'raw> {
         }
     }
     fn reset_progress(&mut self) {
-        self.prefix = 0;
         self.winners.clear();
         self.sources = bj::new_map(None);
     }
@@ -1052,69 +1043,20 @@ impl<'raw> NativeRawLedger<'raw> {
         s: &mut (impl CodecRead + ?Sized),
         prefix: usize,
     ) -> Result<(), String> {
-        self.raw.prefix(prefix)?;
-        if prefix < self.prefix {
-            self.reset_progress();
-            #[cfg(test)]
-            {
-                self.stats.rewinds += 1;
-            }
+        let changes = self.winners.advance(prefix)?;
+        if changes.rewound {
+            self.sources = bj::new_map(None);
         }
-        let mut changed = std::collections::BTreeMap::new();
-        for ordinal in self.prefix..prefix {
-            #[cfg(test)]
-            {
-                self.stats.raw_visits += 1;
-            }
-            let event = self.raw.get(ordinal).expect("checked raw prefix");
-            let identity = bj::field(event, "identity_key").as_str().unwrap_or("");
-            let revision = bj::field(event, "revision").as_i64().unwrap_or(0);
-            let previous = self.winners.get(identity).copied();
-            if previous.is_some_and(|old| {
-                !bj::effective_precedence(revision, ordinal, old.revision, old.ordinal).is_lt()
-            }) {
-                continue;
-            }
-            changed
-                .entry(identity)
-                .or_insert(previous.and_then(|old| old.coord));
-            self.winners.insert(
-                identity,
-                NativeRawWinner {
-                    revision,
-                    ordinal,
-                    coord: None,
-                },
-            );
-        }
-        // 与 effective 相同：先按身份顺序验证坐标，再计算任何来源摘要。
-        let mut additions = Vec::with_capacity(changed.len());
-        for &identity in changed.keys() {
-            let winner = self.winners.get(identity).expect("changed winner");
-            let coord = if let Some((coord, _)) = self.originals.get(&winner.ordinal) {
-                *coord
-            } else {
-                #[cfg(test)]
-                {
-                    self.stats.coord_decodes += 1;
-                }
-                bj::coord(self.raw.get(winner.ordinal).expect("winner original"))?
-            };
-            additions.push((coord, identity, winner.ordinal));
-        }
-        // 先移除全部旧赢家再核最终坐标；允许坐标交换，不拒绝跳过前缀的暂态冲突。
-        for coord in changed.values().flatten() {
-            self.sources.remove(coord);
-        }
-        additions.sort_unstable_by_key(|(coord, _, _)| *coord);
-        if additions.windows(2).any(|v| v[0].0 == v[1].0)
-            || additions
-                .iter()
-                .any(|(coord, _, _)| self.sources.contains_key(coord))
+        #[cfg(test)]
         {
-            return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖业务身份".into());
+            self.stats.raw_visits += changes.raw_visits as u64;
+            self.stats.coord_decodes += changes.coord_decodes as u64;
+            self.stats.rewinds += u64::from(changes.rewound);
         }
-        for (coord, identity, ordinal) in additions {
+        for coord in changes.removed {
+            self.sources.remove(&coord);
+        }
+        for (coord, ordinal) in changes.added {
             let source = if let Some((_, source)) = self.originals.get(&ordinal) {
                 *source
             } else {
@@ -1136,16 +1078,11 @@ impl<'raw> NativeRawLedger<'raw> {
                 source
             };
             self.sources.insert(coord, source).map_err(err)?;
-            self.winners
-                .get_mut(identity)
-                .expect("changed winner")
-                .coord = Some(coord);
             #[cfg(test)]
             {
                 self.stats.map_updates += 1;
             }
         }
-        self.prefix = prefix;
         Ok(())
     }
 }
@@ -1956,6 +1893,75 @@ mod tests {
         map.iter()
             .map(|(coord, source)| (*coord, *source))
             .collect()
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn cold_raw_index_normal_revisions_unordered_duplicate_prices_and_replay_view() {
+        let mut fixture = super::super::prepared::tests::Fixture::new();
+        // 正常 Accept/Begin，实际读回独立 raw；本测试只核来源索引，不运行生成 runtime。
+        for (n, row, revision) in [
+            (1, ("a", 20, 6, 12, 3, 7), 1),
+            (2, ("b", 0, 6, 12, 3, 7), 1),
+            (3, ("c", 10, 8, 16, 6, 12), 1),
+            (4, ("a", 20, 8, 17, 6, 12), 2),
+        ] {
+            fixture.accept_begin(n, row, revision);
+        }
+        let raw = read_raw_events(&fixture.conn).unwrap();
+        let capture = sc::AuditCapture::new(MemoryNodes::default());
+        let mut reader = super::super::history::HashReader::captured(&capture, None);
+        let mut ledger = NativeRawLedger::new((&raw).into());
+        let mut old_hashes = 0;
+        for n in 0..=raw.len() {
+            let want = original_sources(&raw, n).unwrap();
+            old_hashes += 3 * want.len();
+            assert_eq!(
+                source_entries(ledger.advance(&mut reader, n).unwrap()),
+                source_entries(&want)
+            );
+        }
+        assert_eq!(ledger.stats.raw_visits, 4);
+        assert_eq!(ledger.stats.source_hashes, 12);
+        assert_eq!(old_hashes, 27);
+        for n in [1, 4, 2, 4, 4] {
+            assert_eq!(
+                source_entries(ledger.advance(&mut reader, n).unwrap()),
+                source_entries(&original_sources(&raw, n).unwrap())
+            );
+        }
+        assert_eq!(ledger.stats.coord_decodes, 4);
+        assert_eq!(ledger.stats.source_hashes, 12);
+        eprintln!("有序来源原件 raw=4 cuts=4 source_hashes={old_hashes}->12；回退/跳跃不重Hash");
+        eprintln!(
+            "raw索引容量 [赢家map,坐标map,BTree条目]={:?}；未含BTree布局及allocator开销",
+            ledger.winners.retained_slots()
+        );
+
+        // 相同修订的重复借用视图保首次；未向数据库插入重复行或修改原件。
+        let repeated = [raw[0].clone(), raw[1].clone(), raw[0].clone()];
+        let view = RawEventsView::plain(&repeated);
+        let mut index = bj::RawPrefixIndex::new(view);
+        index.advance(3).unwrap();
+        assert_eq!(index.ordered().collect::<Vec<_>>(), [(0, 1), (20, 0)]);
+        assert!(bj::effective(view, None)
+            .unwrap()
+            .iter()
+            .eq(index.ordered().map(|(_, i)| view.get(i).unwrap())));
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn cold_source_normal_fixture_oracle() {
+        let (mut nodes, state, raw, rule) = fixture();
+        let expected = audit_generated(&mut nodes, &state, &raw, tb02a::PROFILE, &rule).unwrap();
+        assert_eq!(expected.effective, 14);
+        assert!(expected.objects > expected.groups && expected.groups > 3);
+        let capture = sc::AuditCapture::new(nodes);
+        let mut native = NativeSourceAudit::new(&capture, (&raw).into()).unwrap();
+        let actual = native
+            .audit(&state, raw.len(), tb02a::PROFILE, &rule)
+            .unwrap();
+        assert_eq!(format!("{expected:?}"), format!("{actual:?}"));
+        eprintln!("既有正常 OHLC oracle：14条原件，完整 Counts={actual:?}");
     }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
