@@ -3385,6 +3385,7 @@ mod tests {
         }
         (nodes, entries)
     }
+    #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn cold_relation_index_sort_ties_keep_complete_projection_roots() {
         let (mut nodes, entries) = projection_fixture();

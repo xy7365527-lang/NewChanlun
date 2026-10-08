@@ -18,6 +18,8 @@ use newchan_rust::s_content::{
     Built, ContentRef, Kind, NodeDigest, NodeSink, NodeSource, NodeStore, Value as V,
 };
 use serde_json::{json, Value};
+#[path = "source_pending.rs"]
+mod source_pending;
 #[path = "source_prefix.rs"]
 mod source_prefix;
 use source_prefix::{NativeSourceMemo, ParseDomain, SourceCoords};
@@ -673,6 +675,7 @@ struct Source {
     wire: NodeDigest,
     numeric: NodeDigest,
     raw: NodeDigest,
+    bar: NodeDigest,
 }
 struct Object {
     id: bj::TextValue,
@@ -1064,15 +1067,16 @@ impl<'raw> NativeRawLedger<'raw> {
                 let wire = bj::RawReference::new(event, false)?;
                 let numeric = bj::RawReference::new(event, true)?;
                 // hash_json_in_store 用 Discard 丢弃节点，不写 reader overlay。
-                // 后续只比较这三个摘要，从不以它们读取节点。
+                // 后续只比较摘要（含 r3 的五字段 bar 投影），从不以它们读取节点。
                 let source = Source {
                     wire: super::history::hash_json_in_store(s, wire.view(), None, None)?,
                     numeric: super::history::hash_json_in_store(s, numeric.view(), None, None)?,
                     raw: super::history::hash_json_in_store(s, event, None, None)?,
+                    bar: source_pending::raw_bar(s, event, None, None)?,
                 };
                 #[cfg(test)]
                 {
-                    self.stats.source_hashes += 3;
+                    self.stats.source_hashes += 4;
                 }
                 self.originals.insert(ordinal, (coord, source));
                 source
@@ -1290,6 +1294,7 @@ fn audit_generated_in_store(
                             budget,
                         )?,
                         raw: super::history::hash_json_in_store(s, event, deadline, budget)?,
+                        bar: source_pending::raw_bar(s, event, deadline, budget)?,
                     },
                 )
                 .map_err(err)?;
@@ -1486,6 +1491,8 @@ fn audit_generated_in_store(
             })
             .map_err(err)?;
     }
+    // #1394 r3：先绑定已发布未定事实，再核组成员与 pending 的不交完备并集。
+    let pending = source_pending::audit(s, &objects, raw, &groups, deadline)?;
     let mut partition = bj::new_map(allocation.as_ref());
     let ordered_groups = sorted_numeric_entries(s, &groups)?;
     for (expected, (index, group)) in ordered_groups.iter().enumerate() {
@@ -1501,27 +1508,11 @@ fn audit_generated_in_store(
         }
     }
     drop(ordered_groups);
-    #[cfg(test)]
-    if super::prepared::tests::normal_input_r2::enabled() {
-        let effective = bj::effective(raw_prefix, None).expect("r2正常现场raw赢家观察");
-        let winners: Vec<Value> = effective
-            .iter()
-            .map(|event| serde_json::to_value(event).unwrap())
-            .collect();
-        let observed_groups: Vec<Value> = groups.iter().map(|(index, group)| {
-            json!({"index":index,"anchor":group.anchor,"members":group.members.iter().copied().collect::<Vec<_>>()})
-        }).collect();
-        let missing: Vec<_> = raw
-            .iter()
-            .filter_map(|(coord, _)| (!partition.contains_key(coord)).then_some(*coord))
-            .collect();
-        super::prepared::tests::normal_input_r2::observe(
-            "source_partition",
-            json!({
-                "generated_state":state.root(),"raw_winners":winners,"groups":observed_groups,
-                "raw_minus_partition":missing,"raw_count":raw.len(),"partition_count":partition.len()
-            }),
-        );
+    for coord in pending {
+        super::history::check_deadline(deadline)?;
+        if partition.insert(coord, ()).map_err(err)?.is_some() {
+            return Err(err("同cut组成员与初始未定来源重叠"));
+        }
     }
     if partition.len() != raw.len() || partition.iter().any(|(coord, _)| !raw.contains_key(coord)) {
         return Err(err("同cut组未完整覆盖生效原始账"));
@@ -1904,6 +1895,7 @@ mod tests {
                         raw: sc::write_json_view(&mut HashOnly, event)
                             .map_err(err)?
                             .digest,
+                        bar: source_pending::raw_bar(&MemoryNodes::default(), event, None, None)?,
                     },
                 )
                 .map_err(err)?;
@@ -1936,15 +1928,15 @@ mod tests {
         let mut old_hashes = 0;
         for n in 0..=raw.len() {
             let want = original_sources(&raw, n).unwrap();
-            old_hashes += 3 * want.len();
+            old_hashes += 4 * want.len();
             assert_eq!(
                 source_entries(ledger.advance(&mut reader, n).unwrap()),
                 source_entries(&want)
             );
         }
         assert_eq!(ledger.stats.raw_visits, 4);
-        assert_eq!(ledger.stats.source_hashes, 12);
-        assert_eq!(old_hashes, 27);
+        assert_eq!(ledger.stats.source_hashes, 16);
+        assert_eq!(old_hashes, 36);
         for n in [1, 4, 2, 4, 4] {
             assert_eq!(
                 source_entries(ledger.advance(&mut reader, n).unwrap()),
@@ -1952,8 +1944,8 @@ mod tests {
             );
         }
         assert_eq!(ledger.stats.coord_decodes, 4);
-        assert_eq!(ledger.stats.source_hashes, 12);
-        eprintln!("有序来源原件 raw=4 cuts=4 source_hashes={old_hashes}->12；回退/跳跃不重Hash");
+        assert_eq!(ledger.stats.source_hashes, 16);
+        eprintln!("有序来源原件 raw=4 cuts=4 source_hashes={old_hashes}->16；回退/跳跃不重Hash");
         eprintln!(
             "raw索引容量 [赢家map,坐标map,BTree条目]={:?}；未含BTree布局及allocator开销",
             ledger.winners.retained_slots()
@@ -2008,7 +2000,7 @@ mod tests {
         }
         assert_eq!(ledger.stats.raw_visits, 7);
         assert_eq!(ledger.stats.coord_decodes, 5);
-        assert_eq!(ledger.stats.source_hashes, 15);
+        assert_eq!(ledger.stats.source_hashes, 20);
         assert_eq!(ledger.stats.map_updates, 5);
         for n in [0, 3, 6, 1, 7, 7] {
             assert_eq!(
@@ -2019,7 +2011,7 @@ mod tests {
             reader.clear_overlay();
         }
         assert_eq!(
-            ledger.stats.source_hashes, 15,
+            ledger.stats.source_hashes, 20,
             "successful originals hash once, including rewind"
         );
         assert_eq!(ledger.stats.coord_decodes, 5);
@@ -2055,7 +2047,7 @@ mod tests {
             ledger.stats.coord_decodes, 4,
             "transient/future coords never decoded"
         );
-        assert_eq!(ledger.stats.source_hashes, 12);
+        assert_eq!(ledger.stats.source_hashes, 16);
         assert_eq!(
             ledger.advance(&mut reader, 7).err().unwrap(),
             original_sources(&raw, 7).err().unwrap()
@@ -2065,7 +2057,7 @@ mod tests {
         );
         ledger.advance(&mut reader, 6).unwrap();
         assert_eq!(
-            ledger.stats.source_hashes, 18,
+            ledger.stats.source_hashes, 24,
             "failure removed prior successful originals"
         );
         assert_eq!(
@@ -2102,7 +2094,7 @@ mod tests {
         let mut ledger = NativeRawLedger::new((&raw).into());
         ledger.advance(&mut reader, 1).unwrap();
         ledger.advance(&mut reader, 3).unwrap();
-        assert_eq!(ledger.stats.source_hashes, 6);
+        assert_eq!(ledger.stats.source_hashes, 8);
         assert_eq!(
             ledger.advance(&mut reader, 2).err().unwrap(),
             original_sources(&raw, 2).err().unwrap()
@@ -2181,7 +2173,7 @@ mod tests {
             native.reader.clear_overlay();
         }
         let stats = native.raw_ledger_stats();
-        assert_eq!(stats.source_hashes, raw.len() as u64 * 3);
+        assert_eq!(stats.source_hashes, raw.len() as u64 * 4);
         assert_eq!(stats.coord_decodes, raw.len() as u64);
         assert_eq!(stats.rewinds, 2);
         assert!(stats.raw_visits < (raw.len() * (raw.len() + 1) / 2) as u64);
@@ -2191,7 +2183,7 @@ mod tests {
         native.audit(&roots[0], 1, tb02a::PROFILE, &rule).unwrap();
         assert_eq!(
             native.raw_ledger_stats().source_hashes,
-            stats.source_hashes + 3
+            stats.source_hashes + 4
         );
     }
     #[test]
@@ -3140,7 +3132,9 @@ mod tests {
         let budget_hash =
             crate::sha256_hex(canonical_json(&json!(meter.events.into_inner())).as_bytes());
         eprintln!("Some full: counts={counts:?}, reads={}, F={frames}, read_hash={read_hash}, budget_hash={budget_hash}", roots.len());
-        // dc425df7 固定fixture的旧路径实测；不是由候选路径重算期望。
+        // #1394 r3：相同原 fixture 新增 CC004/CC054 绑定及 raw bar 投影费用。
+        // dc425df7 旧轨迹为 151351 reads / 170797 F；本次未缩减原访问，
+        // 新轨迹增加 13016 reads / 14276 F，固定以下实测计数和完整有序摘要。
         assert_eq!(
             (
                 counts.objects,
@@ -3152,15 +3146,15 @@ mod tests {
             ),
             (76, 13, 11, 14, 0, 0)
         );
-        assert_eq!(roots.len(), 151351, "固定基线的完整Some读取轨迹");
-        assert_eq!(frames, 170797, "固定基线的完整Some F次数");
+        assert_eq!(roots.len(), 151351 + 13016, "r3完整Some读取轨迹");
+        assert_eq!(frames, 170797 + 14276, "r3完整Some F次数");
         assert_eq!(
             read_hash,
-            "668e022e318e445f163d23036d33cccefb5e735a82ae97ce6db8b453b936d69a"
+            "8418acae04255ccc19c4cdd3d76b746e57fcf3be9636a716d5aba8055a1d6012"
         );
         assert_eq!(
             budget_hash,
-            "dc5c1b67c63046ecb4edf84c12e84c784793112fff94bc4a449cef1c8befd1b2"
+            "f194dbc3abaa5e2228f97c51a3825082975dcdedd44090e20428a9583dfe82d1"
         );
     }
     fn json_text_edge(s: &mut dyn NodeStore, value: &ContentRef) -> ContentRef {

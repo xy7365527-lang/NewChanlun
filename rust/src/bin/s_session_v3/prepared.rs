@@ -534,11 +534,6 @@ impl Runtime {
             .catalog_axes
             .clone()
             .ok_or_else(|| err("目录轴完成后仍缺真实根"))?;
-        #[cfg(test)]
-        tests::normal_input_r2::observe(
-            "generated_before_source_audit",
-            json!({"generation":generation,"frontier":frontier,"generated_state":generated.generated_state.root}),
-        );
         let counts = source_audit::audit_generated(
             store,
             &generated.generated_state,
@@ -732,8 +727,8 @@ pub(crate) mod tests {
 
     static NEXT: AtomicU64 = AtomicU64::new(0);
 
-    pub(crate) mod normal_input_r2 {
-        include!("normal_input_r2.rs");
+    mod pending_source_tests {
+        include!("pending_source_tests.rs");
     }
 
     /// 真实 OHLC 域夹具：init_v3 + 真实接纳/Begin + 真实提交；同域兄弟模块的测试可复用。

@@ -50,6 +50,8 @@ mod tests {
                         .unwrap()
                         .digest,
                     raw: sc::write_json_view(&mut HashOnly, event).unwrap().digest,
+                    bar: source_pending::raw_bar(&sc::MemoryNodes::default(), event, None, None)
+                        .unwrap(),
                 },
             )
             .unwrap();
