@@ -1149,50 +1149,71 @@ impl RelationCore {
         })
     }
 }
-fn native_tables<'i, T>(
-    rows: &'i [T],
+fn native_tables<T>(
+    rows: &[T],
     id: fn(&T) -> &str,
     first: fn(&T) -> i64,
 ) -> (
-    std::collections::HashMap<&'i str, &'i T>,
-    std::collections::BTreeMap<i64, Vec<&'i str>>,
+    std::collections::HashMap<String, usize>,
+    std::collections::BTreeMap<i64, Vec<usize>>,
     Option<i64>,
 ) {
-    let mut map = std::collections::HashMap::<&'i str, &'i T>::new();
-    let mut born = std::collections::BTreeMap::<i64, Vec<&str>>::new();
+    let mut map = std::collections::HashMap::<String, usize>::new();
+    let mut born = std::collections::BTreeMap::<i64, Vec<usize>>::new();
     let mut duplicate = None;
-    for row in rows {
+    for (ordinal, row) in rows.iter().enumerate() {
         audit_count(0);
         audit_count(1);
         let name = id(row);
         let g = first(row);
-        born.entry(g).or_default().push(name);
+        born.entry(g).or_default().push(ordinal);
         if let Some(previous) = map.get(name).copied() {
-            let from = g.max(first(previous));
+            let from = g.max(first(&rows[previous]));
             duplicate = Some(duplicate.map_or(from, |old: i64| old.min(from)));
-            if g < first(previous) {
-                map.insert(name, row);
+            if g < first(&rows[previous]) {
+                map.insert(name.to_owned(), ordinal);
             }
         } else {
-            map.insert(name, row);
+            map.insert(name.to_owned(), ordinal);
         }
     }
     (map, born, duplicate)
 }
-/// One complete-load Native history owner; audit cannot replace its index/raw borrow.
+/// 完整身份表按原 SQL 行序保存稳定 ordinal；首次观察桶不借用索引行或身份文本。
+pub(super) struct NativeAuxFacts {
+    witnesses: std::collections::HashMap<String, usize>,
+    relations: std::collections::HashMap<String, usize>,
+    observations: std::collections::HashMap<String, usize>,
+    born: [std::collections::BTreeMap<i64, Vec<usize>>; 3],
+    duplicates: [Option<i64>; 3],
+    raw_scanned: usize,
+    raw_revisions: Vec<usize>,
+}
+/// 本事务 facade 绑定原件及索引；纯 codec memo 随 facade 终结，不移交为当前性资格。
 pub(super) struct NativeAuxAudit<'index, 'capture, 'raw> {
     capture: &'capture sc::AuditCapture,
     index: &'index Index,
     raw: RawEventsView<'raw>,
-    witnesses: std::collections::HashMap<&'index str, &'index Witness>,
-    relations: std::collections::HashMap<&'index str, &'index Relation>,
-    observations: std::collections::HashMap<&'index str, &'index Observation>,
-    born: [std::collections::BTreeMap<i64, Vec<&'index str>>; 3],
-    duplicates: [Option<i64>; 3],
+    facts: NativeAuxFacts,
     relation_memo: std::collections::HashMap<RelationRefKey, RelationCore>,
     raw_memo: std::collections::HashMap<usize, Option<RefValue>>,
-    raw_scanned: usize,
-    raw_revisions: Vec<usize>,
+}
+impl std::ops::Deref for NativeAuxAudit<'_, '_, '_> {
+    type Target = NativeAuxFacts;
+    fn deref(&self) -> &Self::Target {
+        &self.facts
+    }
+}
+impl std::ops::DerefMut for NativeAuxAudit<'_, '_, '_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.facts
+    }
+}
+fn same_birth_order<'a>(
+    generated: &[TextValue],
+    actual: impl ExactSizeIterator<Item = &'a str>,
+) -> bool {
+    generated.len() == actual.len() && generated.iter().zip(actual).all(|(a, b)| a.as_str() == b)
 }
 impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
     pub(super) fn from_loaded(
@@ -1211,15 +1232,17 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
             capture,
             index,
             raw,
-            witnesses: w,
-            relations: r,
-            observations: o,
-            born: [bw, br, bo],
-            duplicates: [dw, dr, do_],
+            facts: NativeAuxFacts {
+                witnesses: w,
+                relations: r,
+                observations: o,
+                born: [bw, br, bo],
+                duplicates: [dw, dr, do_],
+                raw_scanned: 0,
+                raw_revisions: Vec::new(),
+            },
             relation_memo: Default::default(),
             raw_memo: Default::default(),
-            raw_scanned: 0,
-            raw_revisions: Vec::new(),
         })
     }
     pub(super) fn audit(
@@ -1252,8 +1275,21 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
     fn duplicate(&self, role: usize, g: i64) -> bool {
         self.duplicates[role].is_some_and(|first| first <= g)
     }
-    fn born(&self, role: usize, g: i64) -> &[&'index str] {
-        self.born[role].get(&g).map(Vec::as_slice).unwrap_or(&[])
+    pub(super) fn into_facts(self) -> NativeAuxFacts {
+        self.facts
+    }
+    fn birth_names(&self, role: usize, g: i64) -> impl ExactSizeIterator<Item = &str> {
+        self.born[role]
+            .get(&g)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+            .iter()
+            .map(move |ordinal| match role {
+                0 => self.index.witnesses[*ordinal].id.as_str(),
+                1 => self.index.relations[*ordinal].id.as_str(),
+                2 => self.index.observations[*ordinal].id.as_str(),
+                _ => unreachable!("固定辅助族"),
+            })
     }
     fn relation(
         &mut self,
@@ -1425,7 +1461,7 @@ fn verify_generated_members_in_view(
             owner
                 .witnesses
                 .get(id.as_str())
-                .copied()
+                .map(|ordinal| &owner.index.witnesses[*ordinal])
                 .filter(|r| r.first <= g)
         } else {
             witness_by_id.get(&id.as_str()).copied()
@@ -1447,18 +1483,13 @@ fn verify_generated_members_in_view(
             indexed_births.try_push(row.id.as_str()).map_err(err)?;
         }
     }
-    let indexed_births_view = if let Some(owner) = native.as_ref() {
-        owner.born(0, g)
-    } else {
-        &indexed_births
-    };
     audit_count(4);
-    if generated_births.len() != indexed_births_view.len()
-        || generated_births
-            .iter()
-            .zip(indexed_births_view)
-            .any(|(a, b)| a.as_str() != *b)
-    {
+    let births_match = if let Some(owner) = native.as_ref() {
+        same_birth_order(&generated_births, owner.birth_names(0, g))
+    } else {
+        same_birth_order(&generated_births, indexed_births.iter().copied())
+    };
+    if !births_match {
         return Err(err("见证出生集合或顺序与独立索引不同"));
     }
 
@@ -1530,7 +1561,7 @@ fn verify_generated_members_in_view(
             owner
                 .relations
                 .get(row.id.as_str())
-                .copied()
+                .map(|ordinal| &owner.index.relations[*ordinal])
                 .filter(|r| r.first <= g)
         } else {
             relation_by_id.get(&row.id.as_str()).copied()
@@ -1554,18 +1585,13 @@ fn verify_generated_members_in_view(
                 .map_err(err)?;
         }
     }
-    let indexed_relation_births_view = if let Some(owner) = native.as_ref() {
-        owner.born(1, g)
-    } else {
-        &indexed_relation_births
-    };
     audit_count(4);
-    if relation_births.len() != indexed_relation_births_view.len()
-        || relation_births
-            .iter()
-            .zip(indexed_relation_births_view)
-            .any(|(a, b)| a.as_str() != *b)
-    {
+    let births_match = if let Some(owner) = native.as_ref() {
+        same_birth_order(&relation_births, owner.birth_names(1, g))
+    } else {
+        same_birth_order(&relation_births, indexed_relation_births.iter().copied())
+    };
+    if !births_match {
         return Err(err("关系出生集合或顺序与独立索引不同"));
     }
 
@@ -1605,7 +1631,7 @@ fn verify_generated_members_in_view(
             owner
                 .observations
                 .get(id.as_str())
-                .copied()
+                .map(|ordinal| &owner.index.observations[*ordinal])
                 .filter(|r| r.first <= g)
         } else {
             observation_by_id.get(&id.as_str()).copied()
@@ -1634,18 +1660,16 @@ fn verify_generated_members_in_view(
                 .map_err(err)?;
         }
     }
-    let indexed_observation_births_view = if let Some(owner) = native.as_ref() {
-        owner.born(2, g)
-    } else {
-        &indexed_observation_births
-    };
     audit_count(4);
-    if observation_births.len() != indexed_observation_births_view.len()
-        || observation_births
-            .iter()
-            .zip(indexed_observation_births_view)
-            .any(|(a, b)| a.as_str() != *b)
-    {
+    let births_match = if let Some(owner) = native.as_ref() {
+        same_birth_order(&observation_births, owner.birth_names(2, g))
+    } else {
+        same_birth_order(
+            &observation_births,
+            indexed_observation_births.iter().copied(),
+        )
+    };
+    if !births_match {
         return Err(err("观察出生集合或顺序与独立索引不同"));
     }
     Ok(())
@@ -1663,89 +1687,119 @@ pub(super) fn load(
     let mut rt = Runtime::default();
     let mut stmt=CheckedStatement::prepare(tx,c"SELECT witness_id,object_id,slot,generated_root,wire_root,published_generation,merged_index FROM s_content_witnesses ORDER BY rowid").map_err(err)?;
     while let Some(mut row) = stmt.next().map_err(err)? {
-        let id = TextValue::from_sql(&mut row, 0, owned_budget.as_ref()).map_err(err)?;
-        let object_id = TextValue::from_sql(&mut row, 1, owned_budget.as_ref()).map_err(err)?;
-        let slot: i64 = row.integer(2).map_err(err)?;
-        let merged_index: i64 = row.integer(6).map_err(err)?;
-        let generated = root(s, row.blob(3).map_err(err)?)?;
-        let wire = root(s, row.blob(4).map_err(err)?)?;
-        let first: i64 = row.integer(5).map_err(err)?;
-        check_generation(first, latest)?;
-        exact(&generated, 9)?;
-        if text(s, &generated, "witness_id")? != id
-            || text(s, &generated, "object_id")? != object_id
-            || integer(s, &generated, "slot")? != slot
-            || !(0..3).contains(&slot)
-        {
-            return Err(err("见证索引与原件不符"));
-        }
-        verify_witness_id(s, &generated, &id, &object_id, slot, merged_index)?;
-        if rt.witness_wire(s, &generated)? != wire {
-            return Err(err("见证wire与生成原件不符"));
-        }
-        out.witnesses
-            .try_push(Witness {
-                id,
-                object_id,
-                slot,
-                merged_index,
-                generated,
-                wire,
-                first,
-            })
-            .map_err(err)?;
+        let entry = audit_persisted_witness(&mut row, s, latest, owned_budget.as_ref(), &mut rt)?;
+        out.witnesses.try_push(entry).map_err(err)?;
     }
     stmt.finalize().map_err(err)?;
     let mut stmt=CheckedStatement::prepare(tx,c"SELECT relation_id,subject,relation_type,object,generated_root,published_generation FROM s_content_relations ORDER BY rowid").map_err(err)?;
     while let Some(mut row) = stmt.next().map_err(err)? {
-        let first: i64 = row.integer(5).map_err(err)?;
-        check_generation(first, latest)?;
-        let generated = root(s, row.blob(4).map_err(err)?)?;
-        let r = relation(s, generated, first)?;
-        if r.id != row.text(0).map_err(err)?
-            || r.subject != row.text(1).map_err(err)?
-            || r.relation_type != row.text(2).map_err(err)?
-            || r.object != row.text(3).map_err(err)?
-        {
-            return Err(err("关系索引与原件不符"));
-        }
-        out.relations.try_push(r).map_err(err)?;
+        let entry = audit_persisted_relation(&mut row, s, latest, owned_budget.as_ref())?;
+        out.relations.try_push(entry).map_err(err)?;
     }
     stmt.finalize().map_err(err)?;
     let mut stmt=CheckedStatement::prepare(tx,c"SELECT observation_id,kind,window_start,batch_id,generated_root,birth_wire_root,published_generation FROM s_content_observations ORDER BY rowid").map_err(err)?;
     while let Some(mut row) = stmt.next().map_err(err)? {
-        let id = TextValue::from_sql(&mut row, 0, owned_budget.as_ref()).map_err(err)?;
-        let kind = TextValue::from_sql(&mut row, 1, owned_budget.as_ref()).map_err(err)?;
-        let window_start: Option<i64> = row.optional_integer(2).map_err(err)?;
-        let batch = TextValue::from_sql(&mut row, 3, owned_budget.as_ref()).map_err(err)?;
-        check_batch(&batch)?;
-        let generated = root(s, row.blob(4).map_err(err)?)?;
-        let wire = root(s, row.blob(5).map_err(err)?)?;
-        let first: i64 = row.integer(6).map_err(err)?;
-        check_generation(first, latest)?;
-        exact(&generated, 6)?;
-        if text(s, &generated, "kind")? != kind
-            || window(s, &generated, "window_start")? != window_start
-            || observation_id(s, &generated)? != id
-            || observation_wire(s, &generated, &id, Some(&batch))? != wire
-        {
-            return Err(err("观察索引与出生原件不符"));
-        }
-        out.observations
-            .try_push(Observation {
-                id,
-                kind,
-                window_start,
-                batch: Some(batch),
-                generated,
-                wire,
-                first,
-            })
-            .map_err(err)?;
+        let entry = audit_persisted_observation(&mut row, s, latest, owned_budget.as_ref())?;
+        out.observations.try_push(entry).map_err(err)?;
     }
     stmt.finalize().map_err(err)?;
     Ok(out)
 }
+/// cold 与增量回读共用同一原行谓词，不接受插入参数冒充持久原件。
+fn audit_persisted_witness(
+    row: &mut newchan_rust::sqlite_checked::CheckedRow<'_>,
+    s: &mut (impl CodecStore + ?Sized),
+    latest: i64,
+    allocation: Option<&OwnedBudget>,
+    rt: &mut Runtime,
+) -> Result<Witness, String> {
+    let id = TextValue::from_sql(row, 0, allocation).map_err(err)?;
+    let object_id = TextValue::from_sql(row, 1, allocation).map_err(err)?;
+    let slot: i64 = row.integer(2).map_err(err)?;
+    let merged_index: i64 = row.integer(6).map_err(err)?;
+    let generated = root(s, row.blob(3).map_err(err)?)?;
+    let wire = root(s, row.blob(4).map_err(err)?)?;
+    let first: i64 = row.integer(5).map_err(err)?;
+    check_generation(first, latest)?;
+    exact(&generated, 9)?;
+    if text(s, &generated, "witness_id")? != id
+        || text(s, &generated, "object_id")? != object_id
+        || integer(s, &generated, "slot")? != slot
+        || !(0..3).contains(&slot)
+    {
+        return Err(err("见证索引与原件不符"));
+    }
+    verify_witness_id(s, &generated, &id, &object_id, slot, merged_index)?;
+    if rt.witness_wire(s, &generated)? != wire {
+        return Err(err("见证wire与生成原件不符"));
+    }
+    Ok(Witness {
+        id,
+        object_id,
+        slot,
+        merged_index,
+        generated,
+        wire,
+        first,
+    })
+}
+
+/// cold 与增量回读共用同一原行谓词，不接受插入参数冒充持久原件。
+fn audit_persisted_relation(
+    row: &mut newchan_rust::sqlite_checked::CheckedRow<'_>,
+    s: &mut (impl CodecStore + ?Sized),
+    latest: i64,
+    _allocation: Option<&OwnedBudget>,
+) -> Result<Relation, String> {
+    let first: i64 = row.integer(5).map_err(err)?;
+    check_generation(first, latest)?;
+    let generated = root(s, row.blob(4).map_err(err)?)?;
+    let r = relation(s, generated, first)?;
+    if r.id != row.text(0).map_err(err)?
+        || r.subject != row.text(1).map_err(err)?
+        || r.relation_type != row.text(2).map_err(err)?
+        || r.object != row.text(3).map_err(err)?
+    {
+        return Err(err("关系索引与原件不符"));
+    }
+    Ok(r)
+}
+
+/// cold 与增量回读共用同一原行谓词，不接受插入参数冒充持久原件。
+fn audit_persisted_observation(
+    row: &mut newchan_rust::sqlite_checked::CheckedRow<'_>,
+    s: &mut (impl CodecStore + ?Sized),
+    latest: i64,
+    allocation: Option<&OwnedBudget>,
+) -> Result<Observation, String> {
+    let id = TextValue::from_sql(row, 0, allocation).map_err(err)?;
+    let kind = TextValue::from_sql(row, 1, allocation).map_err(err)?;
+    let window_start: Option<i64> = row.optional_integer(2).map_err(err)?;
+    let batch = TextValue::from_sql(row, 3, allocation).map_err(err)?;
+    check_batch(&batch)?;
+    let generated = root(s, row.blob(4).map_err(err)?)?;
+    let wire = root(s, row.blob(5).map_err(err)?)?;
+    let first: i64 = row.integer(6).map_err(err)?;
+    check_generation(first, latest)?;
+    exact(&generated, 6)?;
+    if text(s, &generated, "kind")? != kind
+        || window(s, &generated, "window_start")? != window_start
+        || observation_id(s, &generated)? != id
+        || observation_wire(s, &generated, &id, Some(&batch))? != wire
+    {
+        return Err(err("观察索引与出生原件不符"));
+    }
+    Ok(Observation {
+        id,
+        kind,
+        window_start,
+        batch: Some(batch),
+        generated,
+        wire,
+        first,
+    })
+}
+
 fn check_generation(first: i64, latest: i64) -> Result<(), String> {
     if first < 1 || first > latest {
         Err(err("索引出生代号越界"))

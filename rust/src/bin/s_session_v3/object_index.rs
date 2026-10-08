@@ -1304,6 +1304,65 @@ pub(super) fn load_for_history<'capture>(
     });
     Ok(HistoryObjects { entries, native })
 }
+/// 原始 SQL 行解码的唯一谓词；回读新增或死亡更新行仍须调用此处及原件绑定核。
+fn decode_persisted_entry(
+    row: &mut newchan_rust::sqlite_checked::CheckedRow<'_>,
+    s: &mut (impl CodecStore + ?Sized),
+    latest: i64,
+    allocation: Option<&OwnedBudget>,
+) -> Result<Entry, String> {
+    let kind = TextValue::from_sql(row, 2, allocation).map_err(err)?;
+    let fact_key = TextValue::optional_sql(row, 3, allocation).map_err(err)?;
+    let coords = [
+        row.optional_integer(4).map_err(err)?,
+        row.optional_integer(5).map_err(err)?,
+        row.optional_integer(6).map_err(err)?,
+    ];
+    let slot = if kind == SHAPE {
+        if fact_key.is_some() {
+            return Err(err("形态不得带typed槽位"));
+        }
+        Slot::Shape([
+            coords[0].ok_or_else(|| err("缺窗口"))?,
+            coords[1].ok_or_else(|| err("缺窗口"))?,
+            coords[2].ok_or_else(|| err("缺窗口"))?,
+        ])
+    } else {
+        if coords != [None, None, None] {
+            return Err(err("typed不得带形态窗口"));
+        }
+        Slot::Typed {
+            kind: kind.try_clone()?,
+            fact_key: fact_key.ok_or_else(|| err("缺typed槽位"))?,
+        }
+    };
+    let e = Entry {
+        id: TextValue::from_sql(row, 0, allocation).map_err(err)?,
+        revision: row.integer(1).map_err(err)?,
+        kind,
+        slot,
+        generated: root_header_bytes(s, row.blob(7).map_err(err)?)?,
+        internal: root_header_bytes(s, row.blob(8).map_err(err)?)?,
+        immutable: root_header_bytes(s, row.blob(9).map_err(err)?)?,
+        birth_wire: root_ref_bytes(s, row.blob(10).map_err(err)?)?,
+        life: LifeOwner {
+            batch: BatchOwner::Existing(TextValue::from_sql(row, 11, allocation).map_err(err)?),
+            first_known_generation: row.integer(12).map_err(err)?,
+            first_known_cut: TextValue::from_sql(row, 13, allocation).map_err(err)?,
+            published_generation: row.integer(14).map_err(err)?,
+            withdrawn_generation: row.optional_integer(15).map_err(err)?,
+            withdrawal_reason: TextValue::optional_sql(row, 16, allocation).map_err(err)?,
+            superseded_by: TextValue::optional_sql(row, 17, allocation).map_err(err)?,
+        },
+    };
+    if e.life.first_known_generation > latest
+        || e.life.withdrawn_generation.is_some_and(|d| d > latest)
+    {
+        return Err(err("出生代超过已发布代"));
+    }
+    Ok(e)
+}
+
 fn load_in_store(
     tx: &Transaction<'_>,
     s: &mut super::audit_store::StoreView<'_, '_>,
@@ -1319,60 +1378,7 @@ fn load_in_store(
     let allocation = s.allocation_budget();
     let mut out = bj::new_work(allocation.as_ref());
     while let Some(mut row) = stmt.next().map_err(err)? {
-        let kind = TextValue::from_sql(&mut row, 2, allocation.as_ref()).map_err(err)?;
-        let fact_key = TextValue::optional_sql(&mut row, 3, allocation.as_ref()).map_err(err)?;
-        let coords = [
-            row.optional_integer(4).map_err(err)?,
-            row.optional_integer(5).map_err(err)?,
-            row.optional_integer(6).map_err(err)?,
-        ];
-        let slot = if kind == SHAPE {
-            if fact_key.is_some() {
-                return Err(err("形态不得带typed槽位"));
-            }
-            Slot::Shape([
-                coords[0].ok_or_else(|| err("缺窗口"))?,
-                coords[1].ok_or_else(|| err("缺窗口"))?,
-                coords[2].ok_or_else(|| err("缺窗口"))?,
-            ])
-        } else {
-            if coords != [None, None, None] {
-                return Err(err("typed不得带形态窗口"));
-            }
-            Slot::Typed {
-                kind: kind.try_clone()?,
-                fact_key: fact_key.ok_or_else(|| err("缺typed槽位"))?,
-            }
-        };
-        let e = Entry {
-            id: TextValue::from_sql(&mut row, 0, allocation.as_ref()).map_err(err)?,
-            revision: row.integer(1).map_err(err)?,
-            kind,
-            slot,
-            generated: root_header_bytes(s, row.blob(7).map_err(err)?)?,
-            internal: root_header_bytes(s, row.blob(8).map_err(err)?)?,
-            immutable: root_header_bytes(s, row.blob(9).map_err(err)?)?,
-            birth_wire: root_ref_bytes(s, row.blob(10).map_err(err)?)?,
-            life: LifeOwner {
-                batch: BatchOwner::Existing(
-                    TextValue::from_sql(&mut row, 11, allocation.as_ref()).map_err(err)?,
-                ),
-                first_known_generation: row.integer(12).map_err(err)?,
-                first_known_cut: TextValue::from_sql(&mut row, 13, allocation.as_ref())
-                    .map_err(err)?,
-                published_generation: row.integer(14).map_err(err)?,
-                withdrawn_generation: row.optional_integer(15).map_err(err)?,
-                withdrawal_reason: TextValue::optional_sql(&mut row, 16, allocation.as_ref())
-                    .map_err(err)?,
-                superseded_by: TextValue::optional_sql(&mut row, 17, allocation.as_ref())
-                    .map_err(err)?,
-            },
-        };
-        if e.life.first_known_generation > latest
-            || e.life.withdrawn_generation.is_some_and(|d| d > latest)
-        {
-            return Err(err("出生代超过已发布代"));
-        }
+        let e = decode_persisted_entry(&mut row, s, latest, allocation.as_ref())?;
         out.try_push(e).map_err(err)?;
     }
     stmt.finalize().map_err(err)?;

@@ -477,7 +477,7 @@ mod tests {
         let (db, _clock) = empty_domain(&temp);
         let conn = open_db(&db).unwrap();
         let history = prepare_s3_control_history(&conn).unwrap();
-        assert!(history.remaining().is_empty());
+        assert_eq!(history.pending_count(), 0);
         history.finish().unwrap();
     }
 

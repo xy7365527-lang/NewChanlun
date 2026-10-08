@@ -286,9 +286,16 @@ impl AuditConnection {
                         let accepted = raw_input::accept_events(tx, &input, volume_unit)?;
                         control.accept(&view, &accepted)?;
                         wrote = true;
-                        Admission::Advance {
-                            original: envelope,
-                            accepted: true,
+                        // #1394：新消息可以引用已发布 raw；接纳控制账此时已将其
+                        // 记为 Committed。回读实际状态并返回原发布回执，不再 Begin。
+                        let accepted_view = control.inspect_ingest(envelope.clone())?;
+                        if accepted_view.is_committed() {
+                            Admission::Reply(accepted_view.receipt().clone())
+                        } else {
+                            Admission::Advance {
+                                original: envelope,
+                                accepted: true,
+                            }
                         }
                     } else {
                         let original = control

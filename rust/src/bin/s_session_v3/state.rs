@@ -43,8 +43,15 @@ pub(super) struct AuditedState {
     historical: HistoricalOwner,
 }
 
-/// 只有全部旧历史判据成功后的纯结果；没有raw尾部、控制消费状态或提交许可。
+/// 全部旧历史判据成功后的纯结果；保留控制头与 Native 前缀状态，不含当前事务或提交许可。
 pub(super) struct ImmutableHistoricalAudit {
+    /// 全局控制已通过且全部发布头已逐代消费后的原头事实。
+    pub control_facts: v2::ControlFacts,
+    pub raw_prefixes: Option<history::NativeRawPrefixes>,
+    pub raw_sources: Option<source_audit::NativeRawFacts>,
+    pub auxiliary_facts: Option<aux_index::NativeAuxFacts>,
+    /// 当前 cold 的完整身份事件表；其静态排序 rank 尚不构成追加资格。
+    pub object_facts: Option<object_index::HistorySweep>,
     /// 逐代已发布闭包（manifest、实际根、批次身份与快照/Delta 根）。
     pub cuts: sc::CodecVec<history::PublishedCut>,
     /// 当前已发布代的对象索引（独立出生/撤回行）。
@@ -684,6 +691,9 @@ fn audit_core_fresh_inner(
     #[cfg(not(feature = "s_capture_native_testonly"))]
     let mut native_records: Option<history::NativeRecordFields<'_>> = None;
     let history::IndexedHistory {
+        control_facts,
+        raw_prefixes,
+        auxiliary_facts,
         cuts,
         objects,
         auxiliary,
@@ -733,78 +743,18 @@ fn audit_core_fresh_inner(
     let mut native_sources: Option<source_audit::NativeSourceAudit<'_>> = None;
     let mut previous = -1i64;
     for cut in &cuts {
-        #[cfg(test)]
-        trace_event("generated_sources", Some(cut.metadata.generation));
-        history::check_deadline(deadline)?;
-        let prefix = raw
-            .view()
-            .prefix(cut.metadata.input_frontier as usize + 1)?;
-        // 5'. 真实源与生成对象配方逐代对拍；本层不重跑分类。
-        #[cfg(feature = "s_capture_native_testonly")]
-        let cached_counts = source_cache
-            .as_deref_mut()
-            .and_then(|cache| cache.lookup(cut));
-        #[cfg(not(feature = "s_capture_native_testonly"))]
-        let cached_counts: Option<source_audit::Counts> = None;
-        let counts = if let Some(counts) = cached_counts {
-            counts
-        } else {
-            match native_sources.as_mut() {
-                Some(native) => native.audit(
-                    &cut.roots.generated_state,
-                    prefix.len(),
-                    &cut.metadata.profile_id,
-                    &cut.metadata.rule_revision,
-                )?,
-                None => source_audit::audit_generated_for_audit(
-                    &mut store,
-                    &cut.roots.generated_state,
-                    prefix,
-                    &cut.metadata.profile_id,
-                    &cut.metadata.rule_revision,
-                    deadline,
-                    budget,
-                )?,
-            }
-        };
-        #[cfg(feature = "s_capture_native_testonly")]
-        if let Some(cache) = source_cache.as_deref_mut() {
-            cache.record(cut, &counts);
-        }
-        let allocation = super::audit_store::CodecRead::allocation_budget(&store);
-        let (withdrawals, replaces) = match &object_sweep {
-            Some(sweep) => sweep.changes(&objects, cut.metadata.generation)?,
-            None => object_index::changes_at_budgeted(
-                &objects,
-                cut.metadata.generation,
-                allocation.as_ref(),
-            )?,
-        };
-        #[cfg(test)]
-        AUDIT_TRACE.with(|trace| {
-            if let Some(t) = trace.borrow_mut().as_mut() {
-                t.events.push(
-                    json!({"phase":"source_business_result","generation":cut.metadata.generation,
-                "counts":format!("{:?}",counts),"withdrawals":withdrawals.view(),"replaces":replaces.view()}),
-                );
-            }
-        });
-        #[cfg(test)]
-        trace_event("catalog_cut", Some(cut.metadata.generation));
-        // 6'. Delta 目录证据与 CC-056 变化集合必须与本代真实来源、replaces 一致。
-        catalog_evidence::verify_cut_for_audit(
+        audit_one_cut_sources(
+            cut,
+            raw.view(),
             &mut store,
-            cut.metadata.view(),
-            &cut.roots.generated_state,
-            &cut.delta,
-            prefix,
+            &objects,
+            object_sweep.as_ref(),
+            &mut native_sources,
             previous,
-            &counts,
-            withdrawals.view(),
-            replaces.view(),
             deadline,
             budget,
-            native_sources.as_ref().map(|_| (previous + 1) as usize),
+            #[cfg(feature = "s_capture_native_testonly")]
+            source_cache.as_deref_mut(),
         )?;
         previous = cut.metadata.input_frontier;
     }
@@ -832,12 +782,17 @@ fn audit_core_fresh_inner(
             value
         });
     // 当前 Capture memo 的 Raw 借用到此结束，输出可转移已审原始账。
-    drop(native_sources);
+    let raw_sources = native_sources.map(source_audit::NativeSourceAudit::into_raw_facts);
     Ok((
         AuditedState {
             budget: raw.budget().cloned(),
             raw,
             historical: HistoricalOwner::Unique(ImmutableHistoricalAudit {
+                control_facts,
+                raw_prefixes,
+                raw_sources,
+                auxiliary_facts,
+                object_facts: object_sweep,
                 cuts,
                 objects,
                 auxiliary,
@@ -845,6 +800,95 @@ fn audit_core_fresh_inner(
         },
         capacity,
     ))
+}
+
+/// 与历史 manifest 核配套的单代来源、Counts、变化集合及 catalog 判据。
+fn audit_one_cut_sources(
+    cut: &history::PublishedCut,
+    raw: super::business_json::RawEventsView<'_>,
+    store: &mut history::HashReader<'_>,
+    objects: &[object_index::Entry],
+    object_sweep: Option<&object_index::HistorySweep>,
+    native_sources: &mut Option<source_audit::NativeSourceAudit<'_>>,
+    previous: i64,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn audit_budget::Budget>,
+    #[cfg(feature = "s_capture_native_testonly")] mut source_cache: Option<
+        &mut super::cross_request_source_cache::Trial<'_>,
+    >,
+) -> Result<(), String> {
+    #[cfg(test)]
+    trace_event("generated_sources", Some(cut.metadata.generation));
+    history::check_deadline(deadline)?;
+    let prefix = raw.prefix(cut.metadata.input_frontier as usize + 1)?;
+    // 5'. 真实源与生成对象配方逐代对拍；本层不重跑分类。
+    #[cfg(feature = "s_capture_native_testonly")]
+    let cached_counts = source_cache
+        .as_deref_mut()
+        .and_then(|cache| cache.lookup(cut));
+    #[cfg(not(feature = "s_capture_native_testonly"))]
+    let cached_counts: Option<source_audit::Counts> = None;
+    let counts = if let Some(counts) = cached_counts {
+        counts
+    } else {
+        match native_sources.as_mut() {
+            Some(native) => native.audit(
+                &cut.roots.generated_state,
+                prefix.len(),
+                &cut.metadata.profile_id,
+                &cut.metadata.rule_revision,
+            )?,
+            None => source_audit::audit_generated_for_audit(
+                store,
+                &cut.roots.generated_state,
+                prefix,
+                &cut.metadata.profile_id,
+                &cut.metadata.rule_revision,
+                deadline,
+                budget,
+            )?,
+        }
+    };
+    #[cfg(feature = "s_capture_native_testonly")]
+    if let Some(cache) = source_cache.as_deref_mut() {
+        cache.record(cut, &counts);
+    }
+    let allocation = super::audit_store::CodecRead::allocation_budget(store);
+    let (withdrawals, replaces) = match &object_sweep {
+        Some(sweep) => sweep.changes(objects, cut.metadata.generation)?,
+        None => object_index::changes_at_budgeted(
+            objects,
+            cut.metadata.generation,
+            allocation.as_ref(),
+        )?,
+    };
+    #[cfg(test)]
+    AUDIT_TRACE.with(|trace| {
+        if let Some(t) = trace.borrow_mut().as_mut() {
+            t.events.push(
+                json!({"phase":"source_business_result","generation":cut.metadata.generation,
+            "counts":format!("{:?}",counts),"withdrawals":withdrawals.view(),"replaces":replaces.view()}),
+            );
+        }
+    });
+    #[cfg(test)]
+    trace_event("catalog_cut", Some(cut.metadata.generation));
+    // 6'. Delta 目录证据与 CC-056 变化集合必须与本代真实来源、replaces 一致。
+    catalog_evidence::verify_cut_for_audit(
+        store,
+        cut.metadata.view(),
+        &cut.roots.generated_state,
+        &cut.delta,
+        prefix,
+        previous,
+        &counts,
+        withdrawals.view(),
+        replaces.view(),
+        deadline,
+        budget,
+        native_sources.as_ref().map(|_| (previous + 1) as usize),
+    )?;
+    Ok(())
 }
 
 // #1394：仅ignored成本诊断开启的当前线程阶段记录，不进入生产代码或资源判据。
@@ -1798,6 +1842,57 @@ mod audit_capture_gate_tests {
             s.auxiliary
         )
     }
+    /// 正常未发布修订尾不得进入旧 cut；移交结果不得带 SQL/raw/capture 借用。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn cold_owned_facts_keep_unpublished_raw_separate_after_transaction_end() {
+        fn require_owned<T: 'static>(_: &T) {}
+        let mut fixture = prepared::tests::Fixture::new();
+        for (n, row) in [(1, ("a", 0, 6, 12, 3, 7)), (2, ("b", 10, 8, 16, 6, 12))] {
+            let (event, token) = fixture.accept_begin(n, row, 1);
+            fixture.publish(&event, &token).unwrap();
+        }
+        let (pending, token) = fixture.accept_begin(3, ("a", 0, 7, 13, 4, 8), 2);
+        let tx = fixture.conn.transaction().unwrap();
+        let ordinary = audit(&tx).unwrap();
+        let native = audit_native_current(&tx).unwrap();
+        assert_eq!(fingerprint(&ordinary), fingerprint(&native));
+        tx.rollback().unwrap();
+        require_owned(&native.control_facts);
+        require_owned(&native.raw_prefixes);
+        require_owned(&native.raw_sources);
+        require_owned(&native.auxiliary_facts);
+        require_owned(&native.object_facts);
+        assert!(native.object_facts.is_some());
+        assert!(native.auxiliary_facts.is_some());
+        assert_eq!(native.control_facts.len(), 2);
+        let prefix = native.raw_prefixes.as_ref().unwrap();
+        assert_eq!(prefix.checked_len(), 3);
+        assert_eq!(prefix.published_len(), 2);
+        let source = native.raw_sources.as_ref().unwrap();
+        assert_eq!(source.prefix_len(), 2);
+        assert_eq!(source.hashed_rows(), 2);
+        for cut in &native.cuts {
+            native
+                .control_facts
+                .verify_header(
+                    cut.metadata.generation,
+                    &cut.batch_id,
+                    Some(&cut.metadata.session_generation),
+                    Some(&cut.metadata.clock_plan_hash),
+                    Some(&cut.metadata.semantic_commit_ns),
+                )
+                .unwrap();
+        }
+        // 新发布走正常生产 API；旧纯结果保持原 F，没有引用可被新提交改写。
+        fixture.publish(&pending, &token).unwrap();
+        let tx = fixture.conn.transaction().unwrap();
+        let current = audit_native_current(&tx).unwrap();
+        assert_eq!(current.raw_prefixes.as_ref().unwrap().published_len(), 3);
+        assert_eq!(native.raw_prefixes.as_ref().unwrap().published_len(), 2);
+        assert_eq!(current.control_facts.len(), 3);
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn cold_relation_indexes_normal_multicut_full_state_parity() {

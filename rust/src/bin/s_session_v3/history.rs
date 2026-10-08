@@ -191,11 +191,31 @@ pub(super) struct PublishedCut {
 
 /// 仅本次只读事务中完成原件绑定的历史与索引，不作为跨事务/跨请求缓存。
 pub(super) struct IndexedHistory {
+    pub control_facts: v2::ControlFacts,
+    pub raw_prefixes: Option<NativeRawPrefixes>,
+    pub auxiliary_facts: Option<aux_index::NativeAuxFacts>,
     pub cuts: sc::CodecVec<PublishedCut>,
     pub objects: sc::CodecVec<object_index::Entry>,
     pub auxiliary: aux_index::Index,
     // 与历史成员、公开投影共享同一完整身份/事件表，只在本次冷审计内交接。
     pub object_sweep: Option<object_index::HistorySweep>,
+}
+
+/// R 是已取得并核 raw/wire 摘要的行数；F 是最后已发布 cut 真正消费的前缀。
+/// 两者不能混为一个进度，未发布尾不会进入旧 cut 的前缀树。
+pub(super) struct NativeRawPrefixes {
+    raw_nodes: sc::CodecVec<NodeDigest>,
+    raw_wire_nodes: sc::CodecVec<NodeDigest>,
+    prefixes: NativeHistoryPrefixes,
+    ordered: bj::RawPrefixFacts,
+}
+impl NativeRawPrefixes {
+    pub(super) fn checked_len(&self) -> usize {
+        self.raw_nodes.len()
+    }
+    pub(super) fn published_len(&self) -> u64 {
+        self.prefixes.raw.count
+    }
 }
 
 /// 全局控制史和原始账必须先由相应正本检查取得；本口消费每代控制头并验证完整闭包。
@@ -434,507 +454,32 @@ fn read_indexed_history_inner(
     let mut resolved_roots = bj::new_work(allocation.as_ref());
     let mut stmt = CheckedStatement::prepare(tx, c"SELECT p.generation,p.batch_id,p.manifest_root,p.snapshot_root,p.delta_root,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.catalog_run_status,d.catalog_evidence_json,d.delta_json FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
     while let Some(mut row) = stmt.next().map_err(err)? {
-        check_deadline(deadline)?;
-        let generation: i64 = row.integer(0).map_err(err)?;
-        #[cfg(test)]
-        super::state::trace_event("history_template_closure", Some(generation));
-        let batch_id = TextValue::from_sql(&mut row, 1, allocation.as_ref()).map_err(err)?;
-        let manifest = root_ref_bytes(&mut store, row.blob(2).map_err(err)?)?;
-        let snapshot = root_ref_bytes(&mut store, row.blob(3).map_err(err)?)?;
-        let delta = root_ref_bytes(&mut store, row.blob(4).map_err(err)?)?;
-        #[cfg(test)]
-        super::state::trace_event("history_decode_manifest", Some(generation));
-        let (m, roots) = decode_manifest(&mut store, manifest.view())?;
-        #[cfg(test)]
-        super::state::trace_event("history_assemble_manifest", Some(generation));
-        // 重用唯一 manifest 构造/跨根判据；写口仅计算摘要，不写 SQLite。
-        let mut assembly = super::audit_store::StoreView::for_audit(&mut store);
-        let (value, batch_rebuilt) = match assembly.allocation_budget() {
-            #[cfg(feature = "s_allocation_json_testonly")]
-            Some(_) => {
-                let u = content_manifest::assemble_unpublished_owned_in_store(
-                    &mut assembly,
-                    m.view(),
-                    roots.view(),
-                )
-                .map_err(err)?;
-                (u.value, TextValue::Owned(u.batch_id))
-            }
-            _ => {
-                let u = content_manifest::assemble_unpublished_view_in_store(
-                    &mut assembly,
-                    m.view(),
-                    roots.view(),
-                )
-                .map_err(err)?;
-                (u.value, TextValue::Plain(u.batch_id))
-            }
-        };
-        if value.digest != manifest.digest().map_err(err)?
-            || value.kind != manifest.kind()
-            || value.extent != manifest.extent()
-            || batch_rebuilt != batch_id
-            || m.generation != generation
-        {
-            return Err(err("持久 manifest 原件/身份/代号不一致"));
-        }
-        #[cfg(test)]
-        super::state::trace_event("history_resolve_publication", Some(generation));
-        // Native array/birth projection can report one of several simultaneous faults earlier;
-        // the final ordered Public equations and full closure verification remain mandatory.
-        let dual = if publication_memo.is_some() {
-            Some(
-                native_cut_projection(
-                    tx,
-                    &mut store,
-                    &mut objects,
-                    &auxiliary,
-                    m.view(),
-                    roots.view(),
-                    batch_id.as_str(),
-                    previous,
-                )?
-                .ok_or_else(|| err("Native双投影资格失效；不回退重判"))?,
-            )
-        } else {
-            None
-        };
-        let resolved = if let Some(projection) = &dual {
-            content_publication::resolve_native_dual_templates_pending_view(
-                tx,
-                &mut store,
-                m.view(),
-                roots.view(),
-                batch_id.as_str(),
-                previous,
-                projection,
-            )?
-        } else {
-            content_publication::resolve_indexed_templates_pending_view(
-                tx,
-                &mut store,
-                m.view(),
-                roots.view(),
-                batch_id.as_str(),
-                previous,
-            )?
-        };
-        if resolved.snapshot != snapshot || resolved.delta != delta {
-            return Err(err("实际发布根不是 manifest 模板按独立出生索引解析的结果"));
-        }
-        resolved_roots.try_push(resolved.snapshot).map_err(err)?;
-        resolved_roots.try_push(resolved.delta).map_err(err)?;
-        #[cfg(test)]
-        super::state::trace_event("history_object_members", Some(generation));
-        if let Some(sweep) = &mut object_sweep {
-            sweep.advance(generation)?;
-        }
-        object_index::verify_generated_members_swept_with_records(
+        let cut = audit_one_published_cut(
+            tx,
+            &mut row,
             &mut store,
-            objects.entries(),
-            roots.generated_state.view(),
-            generation,
-            object_sweep.as_ref(),
+            raw,
+            &mut control,
+            &mut objects,
+            &auxiliary,
+            &mut object_sweep,
+            &mut native_aux,
+            &mut native_prefix,
+            &mut ordered_raw,
+            &mut effective,
+            &raw_nodes,
+            &raw_wire_nodes,
+            previous,
+            &mut resolved_roots,
             records.as_deref_mut(),
+            publication_memo.is_some(),
+            deadline,
+            budget,
+            allocation.as_ref(),
         )?;
-        let (active, withdrawn, upserts) = if let Some(p) = &dual {
-            (
-                p.arrays[0].1.clone(),
-                p.arrays[1].1.clone(),
-                p.arrays[2].1.clone(),
-            )
-        } else {
-            objects.at_cut(&mut store, generation, budget)?
-        };
-        for (public, key, expected) in [
-            (&snapshot, "objects", active.digest),
-            (&snapshot, "withdrawn_objects", withdrawn.digest),
-            (&delta, "upserts", upserts.digest),
-        ] {
-            same_digest(&mut store, public, key, expected)?;
-        }
-        let (withdrawals, replaces) = match &object_sweep {
-            Some(sweep) => sweep.changes(objects.entries(), generation)?,
-            None => object_index::changes_at_budgeted(
-                objects.entries(),
-                generation,
-                allocation.as_ref(),
-            )?,
-        };
-        let mut wire_withdrawals = bj::WithdrawalArray(bj::new_work(allocation.as_ref()));
-        for v in withdrawals
-            .view()
-            .as_array()
-            .ok_or_else(|| err("withdrawals不是数组"))?
-            .iter()
-        {
-            if let Some(b) = budget {
-                b.record().map_err(err)?;
-            }
-            wire_withdrawals
-                .0
-                .try_push(bj::WithdrawalWire::new(v)?)
-                .map_err(err)?;
-        }
-        same_json(&mut store, &delta, "withdrawals", wire_withdrawals.view())?;
-        for _ in replaces
-            .view()
-            .as_array()
-            .ok_or_else(|| err("replaces不是数组"))?
-            .iter()
-        {
-            if let Some(b) = budget {
-                b.record().map_err(err)?;
-            }
-        }
-        same_json(&mut store, &delta, "replaces", replaces.view())?;
-        for (public, is_delta) in [(&snapshot, false), (&delta, true)] {
-            if let Some(p) = &dual {
-                let members = if is_delta {
-                    &p.delta_members
-                } else {
-                    &p.snapshot_members
-                };
-                for (name, nodes) in ["witnesses", "relations", "observations"]
-                    .into_iter()
-                    .zip(members.iter())
-                {
-                    compare_cut_array(
-                        &mut store,
-                        public,
-                        name,
-                        nodes,
-                        deadline,
-                        budget,
-                        allocation.as_ref(),
-                    )?;
-                }
-            } else {
-                let members =
-                    aux_index::cut_members_metered(&auxiliary, generation, is_delta, budget)?;
-                // Preserve ordinary/Owned by-value consuming iterator and per-item owner drop.
-                for (name, nodes) in ["witnesses", "relations", "observations"]
-                    .into_iter()
-                    .zip(members)
-                {
-                    compare_cut_array(
-                        &mut store,
-                        public,
-                        name,
-                        &nodes,
-                        deadline,
-                        budget,
-                        allocation.as_ref(),
-                    )?;
-                }
-            }
-        }
-        for (key, actual) in [
-            ("session_id", &m.session_id),
-            ("profile_id", &m.profile_id),
-            ("profile_hash", &m.profile_hash),
-            ("rule_revision", &m.rule_revision),
-            ("catalog_revision", &m.catalog_revision),
-        ] {
-            if v2::control_meta_text(tx, key, allocation.as_ref())?.as_deref()
-                != Some(actual.as_str())
-            {
-                return Err(err(format!("manifest.{key} 与冻结域不符")));
-            }
-        }
-        let scope_text = v2::control_meta_text(tx, "scope", allocation.as_ref())?
-            .ok_or_else(|| err("缺scope"))?;
-        let scope = history_decode(scope_text.as_bytes(), allocation.as_ref())?;
-        if m.scope.digest().map_err(err)?
-            != hash_json_in_store(&store, scope.view(), deadline, budget)?
-        {
-            return Err(err("manifest.scope 与冻结域不符"));
-        }
-        verify_source(tx, &m, allocation.as_ref())?;
-        control.consume_header(
-            generation,
-            &batch_id,
-            Some(&m.session_generation),
-            Some(&m.clock_plan_hash),
-            Some(&m.semantic_commit_ns),
-        )?;
-        let frontier = m.input_frontier;
-        if frontier <= previous
-            || frontier < 0
-            || usize::try_from(frontier)
-                .ok()
-                .is_none_or(|n| n >= raw.len())
-        {
-            return Err(err("发布原始前沿无新增、越界或倒退"));
-        }
-        #[cfg(test)]
-        super::state::trace_event("history_aux_members", Some(generation));
-        if let Some(owner) = &mut native_aux {
-            owner.audit(
-                &mut store,
-                &roots.generated_state,
-                replaces.view(),
-                frontier as usize + 1,
-                generation,
-            )?;
-        } else {
-            aux_index::verify_generated_members_with_changes(
-                &mut store,
-                &auxiliary,
-                &roots.generated_state,
-                replaces.view(),
-                raw.prefix(frontier as usize + 1)?,
-                generation,
-            )?;
-        }
-        #[cfg(test)]
-        super::state::trace_event("history_raw_members", Some(generation));
-        for n in (previous + 1)..=frontier {
-            check_deadline(deadline)?;
-            let event = raw.get(n as usize).ok_or_else(|| err("原始序号越界"))?;
-            if bj::field(event, "seq").as_i64() != Some(n) {
-                return Err(err("真实原始账序与数组位置不符"));
-            }
-            let coord = bj::coord(event)?;
-            if ordered_raw.is_none() {
-                effective
-                    .insert(coord, raw_nodes[n as usize])
-                    .map_err(err)?;
-            }
-            if let Some(prefix) = &mut native_prefix {
-                // Only the actual newly checked interval is appended. Future raw material
-                // was hashed above but does not enter any earlier cut's prefix.
-                prefix.append(coord, raw_nodes[n as usize], raw_wire_nodes[n as usize])?;
-            }
-        }
-        if let Some(index) = &mut ordered_raw {
-            index.advance(frontier as usize + 1)?;
-        }
-        same_digest(
-            &mut store,
-            roots.generated_state.view(),
-            "raw_events",
-            match &native_prefix {
-                Some(prefix) => prefix.raw_root(frontier as usize + 1)?,
-                None => {
-                    #[cfg(test)]
-                    record_history_prefix_leaves(0, frontier as u64 + 1);
-                    hash_array_metered_with_owner(
-                        &raw_nodes[..=frontier as usize],
-                        deadline,
-                        budget,
-                        false,
-                        allocation.as_ref(),
-                    )?
-                }
-            },
-        )?;
-        same_digest(
-            &mut store,
-            roots.generated_state.view(),
-            "effective_events",
-            match native_prefix.as_ref().and_then(|p| p.effective.as_ref()) {
-                Some(prefix) => prefix.array_root()?,
-                None => {
-                    let nodes = if let Some(index) = &ordered_raw {
-                        // 修订/乱序后保留原 ARRAY 编码；只消除每 cut 的重新排序。
-                        let mut nodes = bj::new_work(allocation.as_ref());
-                        for (_, ordinal) in index.ordered() {
-                            nodes.try_push(raw_nodes[ordinal]).map_err(err)?;
-                        }
-                        nodes
-                    } else {
-                        ordered_effective_nodes(&effective, allocation.as_ref())?
-                    };
-                    #[cfg(test)]
-                    record_history_prefix_leaves(1, nodes.len() as u64);
-                    hash_array_metered_with_owner(
-                        &nodes,
-                        deadline,
-                        budget,
-                        false,
-                        allocation.as_ref(),
-                    )?
-                }
-            },
-        )?;
-        same_digest(
-            &mut store,
-            &snapshot,
-            "raw_history",
-            match &native_prefix {
-                Some(prefix) => prefix.wire_root(frontier as usize + 1)?,
-                None => {
-                    #[cfg(test)]
-                    record_history_prefix_leaves(2, frontier as u64 + 1);
-                    hash_array_metered_with_owner(
-                        &raw_wire_nodes[..=frontier as usize],
-                        deadline,
-                        budget,
-                        true,
-                        allocation.as_ref(),
-                    )?
-                }
-            },
-        )?;
-        same_digest(
-            &mut store,
-            &delta,
-            "raw_history_added",
-            hash_array_metered_with_owner(
-                &raw_wire_nodes[(previous + 1) as usize..=frontier as usize],
-                deadline,
-                budget,
-                true,
-                allocation.as_ref(),
-            )?,
-        )?;
-        #[cfg(test)]
-        super::state::trace_event("history_public_fields", Some(generation));
-        let from_decimal = bj::Decimal::new(previous + 1);
-        let to_decimal = bj::Decimal::new(frontier);
-        let generation_decimal = bj::Decimal::new(generation);
-        let seq_fields = [
-            ("from", JsonView::String(from_decimal.text())),
-            ("to", JsonView::String(to_decimal.text())),
-        ];
-        let seq_range = JsonView::object_fields(&seq_fields).map_err(err)?;
-        for public in [&snapshot, &delta] {
-            same_json(
-                &mut store,
-                public,
-                "generation",
-                JsonView::String(generation_decimal.text()),
-            )?;
-            same_json(
-                &mut store,
-                public,
-                "session_id",
-                JsonView::String(&m.session_id),
-            )?;
-            same_json(
-                &mut store,
-                public,
-                "catalog_revision",
-                JsonView::String(&m.catalog_revision),
-            )?;
-            same_json(
-                &mut store,
-                public,
-                "input_frontier",
-                JsonView::String(to_decimal.text()),
-            )?;
-            same_json(
-                &mut store,
-                public,
-                "index_frontier",
-                JsonView::String(&batch_id),
-            )?;
-            same_json(&mut store, public, "seq_range", seq_range)?;
-        }
-        same_json(
-            &mut store,
-            &snapshot,
-            "structure_cut",
-            JsonView::String(&m.structure_cut),
-        )?;
-        same_json(
-            &mut store,
-            &snapshot,
-            "history_mode",
-            JsonView::String("RecomputedWithRevision"),
-        )?;
-        same_json(&mut store, &snapshot, "as_of_generation", JsonView::Null)?;
-        same_json(
-            &mut store,
-            &snapshot,
-            "profile_id",
-            JsonView::String(&m.profile_id),
-        )?;
-        same_json(
-            &mut store,
-            &snapshot,
-            "profile_hash",
-            JsonView::String(&m.profile_hash),
-        )?;
-        same_digest(
-            &mut store,
-            &snapshot,
-            "scope",
-            m.scope.digest().map_err(err)?,
-        )?;
-        same_json(
-            &mut store,
-            &delta,
-            "base_cut",
-            JsonView::String(&m.base_cut),
-        )?;
-        same_json(
-            &mut store,
-            &delta,
-            "next_cut",
-            JsonView::String(&m.structure_cut),
-        )?;
-        if m.base_cut.strip_prefix("cut-") != Some(bj::Decimal::new(generation - 1).text())
-            || m.structure_cut.strip_prefix("cut-") != Some(generation_decimal.text())
-        {
-            return Err(err("manifest cut 链不连续"));
-        }
-        for (column, actual) in [
-            (5, m.session_id.as_str()),
-            (6, m.catalog_revision.as_str()),
-            (7, m.base_cut.as_str()),
-            (8, m.structure_cut.as_str()),
-            (10, batch_id.as_str()),
-        ] {
-            if TextValue::from_sql(&mut row, column, allocation.as_ref())
-                .map_err(err)?
-                .as_str()
-                != actual
-            {
-                return Err(err("Delta 独立控制列与 manifest 不符"));
-            }
-        }
-        let stored_range = TextValue::from_sql(&mut row, 9, allocation.as_ref()).map_err(err)?;
-        if !history_canonical_equal(seq_range, &stored_range, allocation.as_ref())?
-            || row.integer(11).map_err(err)? != frontier
-        {
-            return Err(err("Delta 独立前沿不符"));
-        }
-        let catalog_run_status =
-            TextValue::from_sql(&mut row, 12, allocation.as_ref()).map_err(err)?;
-        same_json(
-            &mut store,
-            &delta,
-            "catalog_run_status",
-            JsonView::String(&catalog_run_status),
-        )?;
-        let evidence = field(&mut store, &delta, "catalog_evidence")?;
-        for (column, want) in [(13, &evidence), (14, &delta)] {
-            let encoded =
-                TextValue::from_sql(&mut row, column, allocation.as_ref()).map_err(err)?;
-            let parsed = history_decode(encoded.as_bytes(), allocation.as_ref())?;
-            if !history_canonical_equal(parsed.view(), &encoded, allocation.as_ref())?
-                || !transport_equal(parsed.view(), want)?
-            {
-                return Err(err("Delta 持久引用与实际内容根不同"));
-            }
-        }
-        for key in ["catalog_evidence", "catalog_run_status"] {
-            let expected = field(&mut store, &delta, key)?.digest().map_err(err)?;
-            same_digest(&mut store, &snapshot, key, expected)?;
-        }
-        previous = frontier;
-        output
-            .try_push(PublishedCut {
-                metadata: m,
-                roots,
-                batch_id,
-                snapshot,
-                delta,
-            })
-            .map_err(err)?;
-        // 中间路径节点只服务本代重算；已发布闭包始终从同一 SQLite 快照读取。
+        previous = cut.metadata.input_frontier;
+        output.try_push(cut).map_err(err)?;
+        // 保持原 Owned 工作集重叠：先登记结果，再释放本代派生节点。
         store.clear_overlay();
     }
     stmt.finalize().map_err(err)?;
@@ -942,14 +487,500 @@ fn read_indexed_history_inner(
     store
         .verify_many_ref(resolved_roots.iter().map(RefValue::view), sc::Mode::Public)
         .map_err(err)?;
-    control.finish()?;
+    let control_facts = control.into_facts()?;
     verify_current_frontiers(tx, &output, previous, allocation.as_ref())?;
-    drop(native_aux);
+    let auxiliary_facts = native_aux.map(aux_index::NativeAuxAudit::into_facts);
+    let raw_prefixes = match (native_prefix, ordered_raw) {
+        (Some(prefixes), Some(ordered)) => Some(NativeRawPrefixes {
+            raw_nodes,
+            raw_wire_nodes,
+            prefixes,
+            ordered: ordered.into_facts(),
+        }),
+        (None, None) => None,
+        _ => return Err(err("Native raw 两前沿状态未共同闭合")),
+    };
     Ok(IndexedHistory {
+        control_facts,
+        raw_prefixes,
+        auxiliary_facts,
         cuts: output,
         objects: objects.into_entries(),
         auxiliary,
         object_sweep,
+    })
+}
+
+/// cold 与 owner warm 必须调用同一单代判据；调用方负责当前 Q、材料资格与末尾闭合。
+/// 返回成功之前不改变已核前沿，派生根仍须由调用方统一核 Public 闭包。
+fn audit_one_published_cut<'capture>(
+    tx: &Transaction<'_>,
+    row: &mut newchan_rust::sqlite_checked::CheckedRow<'_>,
+    store: &mut HashReader<'capture>,
+    raw: RawEventsView<'_>,
+    control: &mut v2::ControlHistory,
+    objects: &mut object_index::HistoryObjects<'capture>,
+    auxiliary: &aux_index::Index,
+    object_sweep: &mut Option<object_index::HistorySweep>,
+    native_aux: &mut Option<aux_index::NativeAuxAudit<'_, '_, '_>>,
+    native_prefix: &mut Option<NativeHistoryPrefixes>,
+    ordered_raw: &mut Option<bj::RawPrefixIndex<'_>>,
+    effective: &mut BusinessMap<i64, NodeDigest>,
+    raw_nodes: &[NodeDigest],
+    raw_wire_nodes: &[NodeDigest],
+    previous: i64,
+    resolved_roots: &mut sc::CodecVec<RefValue>,
+    mut records: Option<&mut NativeRecordFields<'_>>,
+    native_publication: bool,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+    allocation: Option<&OwnedBudget>,
+) -> Result<PublishedCut, String> {
+    check_deadline(deadline)?;
+    let generation: i64 = row.integer(0).map_err(err)?;
+    #[cfg(test)]
+    super::state::trace_event("history_template_closure", Some(generation));
+    let batch_id = TextValue::from_sql(row, 1, allocation).map_err(err)?;
+    let manifest = root_ref_bytes(store, row.blob(2).map_err(err)?)?;
+    let snapshot = root_ref_bytes(store, row.blob(3).map_err(err)?)?;
+    let delta = root_ref_bytes(store, row.blob(4).map_err(err)?)?;
+    #[cfg(test)]
+    super::state::trace_event("history_decode_manifest", Some(generation));
+    let (m, roots) = decode_manifest(store, manifest.view())?;
+    #[cfg(test)]
+    super::state::trace_event("history_assemble_manifest", Some(generation));
+    // 重用唯一 manifest 构造/跨根判据；写口仅计算摘要，不写 SQLite。
+    let mut assembly = super::audit_store::StoreView::for_audit(store);
+    let (value, batch_rebuilt) = match assembly.allocation_budget() {
+        #[cfg(feature = "s_allocation_json_testonly")]
+        Some(_) => {
+            let u = content_manifest::assemble_unpublished_owned_in_store(
+                &mut assembly,
+                m.view(),
+                roots.view(),
+            )
+            .map_err(err)?;
+            (u.value, TextValue::Owned(u.batch_id))
+        }
+        _ => {
+            let u = content_manifest::assemble_unpublished_view_in_store(
+                &mut assembly,
+                m.view(),
+                roots.view(),
+            )
+            .map_err(err)?;
+            (u.value, TextValue::Plain(u.batch_id))
+        }
+    };
+    if value.digest != manifest.digest().map_err(err)?
+        || value.kind != manifest.kind()
+        || value.extent != manifest.extent()
+        || batch_rebuilt != batch_id
+        || m.generation != generation
+    {
+        return Err(err("持久 manifest 原件/身份/代号不一致"));
+    }
+    #[cfg(test)]
+    super::state::trace_event("history_resolve_publication", Some(generation));
+    // Native array/birth projection can report one of several simultaneous faults earlier;
+    // the final ordered Public equations and full closure verification remain mandatory.
+    let dual = if native_publication {
+        Some(
+            native_cut_projection(
+                tx,
+                store,
+                objects,
+                auxiliary,
+                m.view(),
+                roots.view(),
+                batch_id.as_str(),
+                previous,
+            )?
+            .ok_or_else(|| err("Native双投影资格失效；不回退重判"))?,
+        )
+    } else {
+        None
+    };
+    let resolved = if let Some(projection) = &dual {
+        content_publication::resolve_native_dual_templates_pending_view(
+            tx,
+            store,
+            m.view(),
+            roots.view(),
+            batch_id.as_str(),
+            previous,
+            projection,
+        )?
+    } else {
+        content_publication::resolve_indexed_templates_pending_view(
+            tx,
+            store,
+            m.view(),
+            roots.view(),
+            batch_id.as_str(),
+            previous,
+        )?
+    };
+    if resolved.snapshot != snapshot || resolved.delta != delta {
+        return Err(err("实际发布根不是 manifest 模板按独立出生索引解析的结果"));
+    }
+    resolved_roots.try_push(resolved.snapshot).map_err(err)?;
+    resolved_roots.try_push(resolved.delta).map_err(err)?;
+    #[cfg(test)]
+    super::state::trace_event("history_object_members", Some(generation));
+    if let Some(sweep) = object_sweep.as_mut() {
+        sweep.advance(generation)?;
+    }
+    object_index::verify_generated_members_swept_with_records(
+        store,
+        objects.entries(),
+        roots.generated_state.view(),
+        generation,
+        object_sweep.as_ref(),
+        records.as_deref_mut(),
+    )?;
+    let (active, withdrawn, upserts) = if let Some(p) = &dual {
+        (
+            p.arrays[0].1.clone(),
+            p.arrays[1].1.clone(),
+            p.arrays[2].1.clone(),
+        )
+    } else {
+        objects.at_cut(store, generation, budget)?
+    };
+    for (public, key, expected) in [
+        (&snapshot, "objects", active.digest),
+        (&snapshot, "withdrawn_objects", withdrawn.digest),
+        (&delta, "upserts", upserts.digest),
+    ] {
+        same_digest(store, public, key, expected)?;
+    }
+    let (withdrawals, replaces) = match &object_sweep {
+        Some(sweep) => sweep.changes(objects.entries(), generation)?,
+        None => object_index::changes_at_budgeted(objects.entries(), generation, allocation)?,
+    };
+    let mut wire_withdrawals = bj::WithdrawalArray(bj::new_work(allocation));
+    for v in withdrawals
+        .view()
+        .as_array()
+        .ok_or_else(|| err("withdrawals不是数组"))?
+        .iter()
+    {
+        if let Some(b) = budget {
+            b.record().map_err(err)?;
+        }
+        wire_withdrawals
+            .0
+            .try_push(bj::WithdrawalWire::new(v)?)
+            .map_err(err)?;
+    }
+    same_json(store, &delta, "withdrawals", wire_withdrawals.view())?;
+    for _ in replaces
+        .view()
+        .as_array()
+        .ok_or_else(|| err("replaces不是数组"))?
+        .iter()
+    {
+        if let Some(b) = budget {
+            b.record().map_err(err)?;
+        }
+    }
+    same_json(store, &delta, "replaces", replaces.view())?;
+    for (public, is_delta) in [(&snapshot, false), (&delta, true)] {
+        if let Some(p) = &dual {
+            let members = if is_delta {
+                &p.delta_members
+            } else {
+                &p.snapshot_members
+            };
+            for (name, nodes) in ["witnesses", "relations", "observations"]
+                .into_iter()
+                .zip(members.iter())
+            {
+                compare_cut_array(store, public, name, nodes, deadline, budget, allocation)?;
+            }
+        } else {
+            let members = aux_index::cut_members_metered(auxiliary, generation, is_delta, budget)?;
+            // Preserve ordinary/Owned by-value consuming iterator and per-item owner drop.
+            for (name, nodes) in ["witnesses", "relations", "observations"]
+                .into_iter()
+                .zip(members)
+            {
+                compare_cut_array(store, public, name, &nodes, deadline, budget, allocation)?;
+            }
+        }
+    }
+    for (key, actual) in [
+        ("session_id", &m.session_id),
+        ("profile_id", &m.profile_id),
+        ("profile_hash", &m.profile_hash),
+        ("rule_revision", &m.rule_revision),
+        ("catalog_revision", &m.catalog_revision),
+    ] {
+        if v2::control_meta_text(tx, key, allocation)?.as_deref() != Some(actual.as_str()) {
+            return Err(err(format!("manifest.{key} 与冻结域不符")));
+        }
+    }
+    let scope_text =
+        v2::control_meta_text(tx, "scope", allocation)?.ok_or_else(|| err("缺scope"))?;
+    let scope = history_decode(scope_text.as_bytes(), allocation)?;
+    if m.scope.digest().map_err(err)? != hash_json_in_store(store, scope.view(), deadline, budget)?
+    {
+        return Err(err("manifest.scope 与冻结域不符"));
+    }
+    verify_source(tx, &m, allocation)?;
+    control.consume_header(
+        generation,
+        &batch_id,
+        Some(&m.session_generation),
+        Some(&m.clock_plan_hash),
+        Some(&m.semantic_commit_ns),
+    )?;
+    let frontier = m.input_frontier;
+    if frontier <= previous
+        || frontier < 0
+        || usize::try_from(frontier)
+            .ok()
+            .is_none_or(|n| n >= raw.len())
+    {
+        return Err(err("发布原始前沿无新增、越界或倒退"));
+    }
+    #[cfg(test)]
+    super::state::trace_event("history_aux_members", Some(generation));
+    if let Some(owner) = native_aux.as_mut() {
+        owner.audit(
+            store,
+            &roots.generated_state,
+            replaces.view(),
+            frontier as usize + 1,
+            generation,
+        )?;
+    } else {
+        aux_index::verify_generated_members_with_changes(
+            store,
+            auxiliary,
+            &roots.generated_state,
+            replaces.view(),
+            raw.prefix(frontier as usize + 1)?,
+            generation,
+        )?;
+    }
+    #[cfg(test)]
+    super::state::trace_event("history_raw_members", Some(generation));
+    for n in (previous + 1)..=frontier {
+        check_deadline(deadline)?;
+        let event = raw.get(n as usize).ok_or_else(|| err("原始序号越界"))?;
+        if bj::field(event, "seq").as_i64() != Some(n) {
+            return Err(err("真实原始账序与数组位置不符"));
+        }
+        let coord = bj::coord(event)?;
+        if ordered_raw.is_none() {
+            effective
+                .insert(coord, raw_nodes[n as usize])
+                .map_err(err)?;
+        }
+        if let Some(prefix) = native_prefix.as_mut() {
+            // Only the actual newly checked interval is appended. Future raw material
+            // was hashed above but does not enter any earlier cut's prefix.
+            prefix.append(coord, raw_nodes[n as usize], raw_wire_nodes[n as usize])?;
+        }
+    }
+    if let Some(index) = ordered_raw.as_mut() {
+        index.advance(frontier as usize + 1)?;
+    }
+    same_digest(
+        store,
+        roots.generated_state.view(),
+        "raw_events",
+        match &native_prefix {
+            Some(prefix) => prefix.raw_root(frontier as usize + 1)?,
+            None => {
+                #[cfg(test)]
+                record_history_prefix_leaves(0, frontier as u64 + 1);
+                hash_array_metered_with_owner(
+                    &raw_nodes[..=frontier as usize],
+                    deadline,
+                    budget,
+                    false,
+                    allocation,
+                )?
+            }
+        },
+    )?;
+    same_digest(
+        store,
+        roots.generated_state.view(),
+        "effective_events",
+        match native_prefix.as_ref().and_then(|p| p.effective.as_ref()) {
+            Some(prefix) => prefix.array_root()?,
+            None => {
+                let nodes = if let Some(index) = &ordered_raw {
+                    // 修订/乱序后保留原 ARRAY 编码；只消除每 cut 的重新排序。
+                    let mut nodes = bj::new_work(allocation);
+                    for (_, ordinal) in index.ordered() {
+                        nodes.try_push(raw_nodes[ordinal]).map_err(err)?;
+                    }
+                    nodes
+                } else {
+                    ordered_effective_nodes(&effective, allocation)?
+                };
+                #[cfg(test)]
+                record_history_prefix_leaves(1, nodes.len() as u64);
+                hash_array_metered_with_owner(&nodes, deadline, budget, false, allocation)?
+            }
+        },
+    )?;
+    same_digest(
+        store,
+        &snapshot,
+        "raw_history",
+        match &native_prefix {
+            Some(prefix) => prefix.wire_root(frontier as usize + 1)?,
+            None => {
+                #[cfg(test)]
+                record_history_prefix_leaves(2, frontier as u64 + 1);
+                hash_array_metered_with_owner(
+                    &raw_wire_nodes[..=frontier as usize],
+                    deadline,
+                    budget,
+                    true,
+                    allocation,
+                )?
+            }
+        },
+    )?;
+    same_digest(
+        store,
+        &delta,
+        "raw_history_added",
+        hash_array_metered_with_owner(
+            &raw_wire_nodes[(previous + 1) as usize..=frontier as usize],
+            deadline,
+            budget,
+            true,
+            allocation,
+        )?,
+    )?;
+    #[cfg(test)]
+    super::state::trace_event("history_public_fields", Some(generation));
+    let from_decimal = bj::Decimal::new(previous + 1);
+    let to_decimal = bj::Decimal::new(frontier);
+    let generation_decimal = bj::Decimal::new(generation);
+    let seq_fields = [
+        ("from", JsonView::String(from_decimal.text())),
+        ("to", JsonView::String(to_decimal.text())),
+    ];
+    let seq_range = JsonView::object_fields(&seq_fields).map_err(err)?;
+    for public in [&snapshot, &delta] {
+        same_json(
+            store,
+            public,
+            "generation",
+            JsonView::String(generation_decimal.text()),
+        )?;
+        same_json(store, public, "session_id", JsonView::String(&m.session_id))?;
+        same_json(
+            store,
+            public,
+            "catalog_revision",
+            JsonView::String(&m.catalog_revision),
+        )?;
+        same_json(
+            store,
+            public,
+            "input_frontier",
+            JsonView::String(to_decimal.text()),
+        )?;
+        same_json(store, public, "index_frontier", JsonView::String(&batch_id))?;
+        same_json(store, public, "seq_range", seq_range)?;
+    }
+    same_json(
+        store,
+        &snapshot,
+        "structure_cut",
+        JsonView::String(&m.structure_cut),
+    )?;
+    same_json(
+        store,
+        &snapshot,
+        "history_mode",
+        JsonView::String("RecomputedWithRevision"),
+    )?;
+    same_json(store, &snapshot, "as_of_generation", JsonView::Null)?;
+    same_json(
+        store,
+        &snapshot,
+        "profile_id",
+        JsonView::String(&m.profile_id),
+    )?;
+    same_json(
+        store,
+        &snapshot,
+        "profile_hash",
+        JsonView::String(&m.profile_hash),
+    )?;
+    same_digest(store, &snapshot, "scope", m.scope.digest().map_err(err)?)?;
+    same_json(store, &delta, "base_cut", JsonView::String(&m.base_cut))?;
+    same_json(
+        store,
+        &delta,
+        "next_cut",
+        JsonView::String(&m.structure_cut),
+    )?;
+    if m.base_cut.strip_prefix("cut-") != Some(bj::Decimal::new(generation - 1).text())
+        || m.structure_cut.strip_prefix("cut-") != Some(generation_decimal.text())
+    {
+        return Err(err("manifest cut 链不连续"));
+    }
+    for (column, actual) in [
+        (5, m.session_id.as_str()),
+        (6, m.catalog_revision.as_str()),
+        (7, m.base_cut.as_str()),
+        (8, m.structure_cut.as_str()),
+        (10, batch_id.as_str()),
+    ] {
+        if TextValue::from_sql(row, column, allocation)
+            .map_err(err)?
+            .as_str()
+            != actual
+        {
+            return Err(err("Delta 独立控制列与 manifest 不符"));
+        }
+    }
+    let stored_range = TextValue::from_sql(row, 9, allocation).map_err(err)?;
+    if !history_canonical_equal(seq_range, &stored_range, allocation)?
+        || row.integer(11).map_err(err)? != frontier
+    {
+        return Err(err("Delta 独立前沿不符"));
+    }
+    let catalog_run_status = TextValue::from_sql(row, 12, allocation).map_err(err)?;
+    same_json(
+        store,
+        &delta,
+        "catalog_run_status",
+        JsonView::String(&catalog_run_status),
+    )?;
+    let evidence = field(store, &delta, "catalog_evidence")?;
+    for (column, want) in [(13, &evidence), (14, &delta)] {
+        let encoded = TextValue::from_sql(row, column, allocation).map_err(err)?;
+        let parsed = history_decode(encoded.as_bytes(), allocation)?;
+        if !history_canonical_equal(parsed.view(), &encoded, allocation)?
+            || !transport_equal(parsed.view(), want)?
+        {
+            return Err(err("Delta 持久引用与实际内容根不同"));
+        }
+    }
+    for key in ["catalog_evidence", "catalog_run_status"] {
+        let expected = field(store, &delta, key)?.digest().map_err(err)?;
+        same_digest(store, &snapshot, key, expected)?;
+    }
+
+    Ok(PublishedCut {
+        metadata: m,
+        roots,
+        batch_id,
+        snapshot,
+        delta,
     })
 }
 
@@ -1527,25 +1558,23 @@ impl PrefixArray {
 }
 
 /// 唯一 owner 随本次实际多 cut 循环创建及销毁，不跨事务或请求保存。
-struct NativeHistoryPrefixes<'capture> {
-    _capture: &'capture sc::AuditCapture,
+struct NativeHistoryPrefixes {
     raw: PrefixArray,
     wire: PrefixArray,
     effective: Option<PrefixArray>,
     last_coord: Option<i64>,
 }
-impl<'capture> NativeHistoryPrefixes<'capture> {
+impl NativeHistoryPrefixes {
     fn new(
-        store: &HashReader<'capture>,
+        store: &HashReader<'_>,
         raw: RawEventsView<'_>,
         allocation: Option<&OwnedBudget>,
     ) -> Option<Self> {
         if store.max_render_bytes.is_some() || raw.budget().is_some() || allocation.is_some() {
             return None;
         }
-        let capture = store.native_projection_capture()?;
+        store.native_projection_capture()?;
         Some(Self {
-            _capture: capture,
             raw: PrefixArray::default(),
             wire: PrefixArray::default(),
             effective: Some(PrefixArray::default()),

@@ -1003,6 +1003,21 @@ pub(super) struct NativeRawLedgerStats {
     pub map_updates: u64,
     pub rewinds: u64,
 }
+/// 单代来源核完成后的纯所有权账；保留已访问 seq 的四类摘要、身份赢家和有序坐标。
+/// 不包含 capture/reader/RawEventsView，不能单独授予新事务的来源资格。
+pub(super) struct NativeRawFacts {
+    winners: bj::RawPrefixFacts,
+    sources: BusinessMap<i64, Source>,
+    originals: std::collections::HashMap<usize, (i64, Source)>,
+}
+impl NativeRawFacts {
+    pub(super) fn prefix_len(&self) -> usize {
+        self.winners.prefix_len()
+    }
+    pub(super) fn hashed_rows(&self) -> usize {
+        self.originals.len()
+    }
+}
 struct NativeRawLedger<'raw> {
     raw: RawEventsView<'raw>,
     winners: bj::RawPrefixIndex<'raw>,
@@ -1012,6 +1027,14 @@ struct NativeRawLedger<'raw> {
     stats: NativeRawLedgerStats,
 }
 impl<'raw> NativeRawLedger<'raw> {
+    fn into_facts(self) -> NativeRawFacts {
+        NativeRawFacts {
+            winners: self.winners.into_facts(),
+            sources: self.sources,
+            originals: self.originals,
+        }
+    }
+
     fn new(raw: RawEventsView<'raw>) -> Self {
         Self {
             raw,
@@ -1101,6 +1124,10 @@ pub(super) struct NativeSourceAudit<'capture> {
     raw: RawEventsView<'capture>,
 }
 impl<'capture> NativeSourceAudit<'capture> {
+    pub(super) fn into_raw_facts(self) -> NativeRawFacts {
+        self.ledger.into_facts()
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn new(
         capture: &'capture sc::AuditCapture,

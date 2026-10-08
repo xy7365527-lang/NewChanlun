@@ -919,27 +919,64 @@ impl hashbrown::Equivalent<(TextValue, TextValue, i64)> for PhaseKey<'_> {
         self.0 == key.0.as_str() && self.1 == key.1.as_str() && self.2 == key.2
     }
 }
-pub(super) struct ControlHistory {
+/// 全控制谓词产生的独立发布头事实；不包含 SQL 连接或可继续查询的能力。
+/// 原始控制行的所有权和跨事务当前性必须另由 audit owner 保证。
+pub(super) struct ControlFacts {
     session_generation: TextValue,
     clock_plan_hash: TextValue,
-    remaining: BusinessMap<(i64, TextValue), TextValue>,
+    headers: BusinessMap<(i64, TextValue), ControlHeader>,
+}
+struct ControlHeader {
+    commit_ns: TextValue,
+    consumed: bool,
+}
+pub(super) struct ControlHistory {
+    facts: ControlFacts,
+    pending: usize,
+}
+impl ControlFacts {
+    pub(super) fn len(&self) -> usize {
+        self.headers.len()
+    }
+    pub(super) fn verify_header(
+        &self,
+        generation: i64,
+        batch_id: &str,
+        session_generation: Option<&str>,
+        clock_plan_hash: Option<&str>,
+        commit_ns: Option<&str>,
+    ) -> Result<(), String> {
+        let expected = self
+            .headers
+            .get(&GenerationKey(generation, batch_id))
+            .ok_or_else(|| err("v2批次控制头缺待验证期望或重复消费"))?;
+        if session_generation != Some(self.session_generation.as_str())
+            || clock_plan_hash != Some(self.clock_plan_hash.as_str())
+            || commit_ns != Some(expected.commit_ns.as_str())
+        {
+            return Err(err("发布batch与真实语义clock/session不一致"));
+        }
+        Ok(())
+    }
 }
 impl ControlHistory {
     pub(super) fn session_generation(&self) -> &str {
-        self.session_generation.as_str()
+        self.facts.session_generation.as_str()
     }
     pub(super) fn clock_plan_hash(&self) -> &str {
-        self.clock_plan_hash.as_str()
+        self.facts.clock_plan_hash.as_str()
     }
-    pub(super) fn remaining(&self) -> &BusinessMap<(i64, TextValue), TextValue> {
-        &self.remaining
+    pub(super) fn pending_count(&self) -> usize {
+        self.pending
     }
     pub(super) fn remaining_commit(&self, generation: i64, batch_id: &str) -> Option<&str> {
-        self.remaining
+        self.facts
+            .headers
             .get(&GenerationKey(generation, batch_id))
-            .map(TextValue::as_str)
+            .filter(|header| !header.consumed)
+            .map(|header| header.commit_ns.as_str())
     }
-    /// 校验失败不消费；借用 tuple 查询不分配临时 key。
+    /// 校验失败不消费；成功只改同一分配内的消费标记，不复制或丢失原头。
     pub(super) fn consume_header(
         &mut self,
         generation: i64,
@@ -948,25 +985,33 @@ impl ControlHistory {
         clock_plan_hash: Option<&str>,
         commit_ns: Option<&str>,
     ) -> Result<(), String> {
-        let key = GenerationKey(generation, batch_id);
-        let expected_commit = self
-            .remaining
-            .get(&key)
-            .ok_or_else(|| err("v2批次控制头缺待验证期望或重复消费"))?;
-        if session_generation != Some(self.session_generation.as_str())
-            || clock_plan_hash != Some(self.clock_plan_hash.as_str())
-            || commit_ns != Some(expected_commit.as_str())
-        {
-            return Err(err("发布batch与真实语义clock/session不一致"));
+        if self.remaining_commit(generation, batch_id).is_none() {
+            return Err(err("v2批次控制头缺待验证期望或重复消费"));
         }
-        self.remaining.remove(&key);
+        self.facts.verify_header(
+            generation,
+            batch_id,
+            session_generation,
+            clock_plan_hash,
+            commit_ns,
+        )?;
+        self.facts
+            .headers
+            .get_mut(&GenerationKey(generation, batch_id))
+            .unwrap()
+            .consumed = true;
+        self.pending -= 1;
         Ok(())
     }
-    pub(super) fn finish(self) -> Result<(), String> {
-        if !self.remaining.is_empty() {
+    /// 只有全部 pending 头闭合后才可移交纯所有权事实；不签发跨事务资格。
+    pub(super) fn into_facts(self) -> Result<ControlFacts, String> {
+        if self.pending != 0 {
             return Err(err("v2发布批次控制头未全部验证"));
         }
-        Ok(())
+        Ok(self.facts)
+    }
+    pub(super) fn finish(self) -> Result<(), String> {
+        self.into_facts().map(drop)
     }
 }
 
@@ -1586,16 +1631,25 @@ pub(super) fn validate_control_history_with_owner(
         remaining
             .insert(
                 (g, batch_id),
-                TextValue::from_str(clock.phase(id, "commit", *index).map_err(err)?, owner)
+                ControlHeader {
+                    commit_ns: TextValue::from_str(
+                        clock.phase(id, "commit", *index).map_err(err)?,
+                        owner,
+                    )
                     .map_err(err)?,
+                    consumed: false,
+                },
             )
             .map_err(err)?;
     }
     q.finalize().map_err(err)?;
     Ok(ControlHistory {
-        session_generation: inc,
-        clock_plan_hash: clock.hash,
-        remaining,
+        pending: remaining.len(),
+        facts: ControlFacts {
+            session_generation: inc,
+            clock_plan_hash: clock.hash,
+            headers: remaining,
+        },
     })
 }
 
@@ -2115,15 +2169,21 @@ mod tests {
             remaining
                 .insert(
                     (*generation, TextValue::from_str(batch_id, None).unwrap()),
-                    TextValue::from_str(commit_ns, None).unwrap(),
+                    ControlHeader {
+                        commit_ns: TextValue::from_str(commit_ns, None).unwrap(),
+                        consumed: false,
+                    },
                 )
                 .unwrap();
         }
         ExpectedControl::V2 {
             history: ControlHistory {
-                session_generation: TextValue::from_str("1", None).unwrap(),
-                clock_plan_hash: TextValue::from_str("test-clock-hash", None).unwrap(),
-                remaining,
+                pending: remaining.len(),
+                facts: ControlFacts {
+                    session_generation: TextValue::from_str("1", None).unwrap(),
+                    clock_plan_hash: TextValue::from_str("test-clock-hash", None).unwrap(),
+                    headers: remaining,
+                },
             },
         }
     }

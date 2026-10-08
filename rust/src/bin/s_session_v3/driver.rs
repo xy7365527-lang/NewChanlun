@@ -617,6 +617,81 @@ mod tests {
         assert!(after.conn.is_autocommit());
     }
 
+    // 仅调用正常 Driver，覆盖“新消息携带既有 raw”而控制账继续变化的情况。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn audit_owner_new_message_raw_replay_matches_ordinary_complete_tables() {
+        let native_fixture = Fixture::new();
+        let ordinary_fixture = Fixture::new();
+        let mut native = Driver::open_for_serve_with_mode(
+            &native_fixture.db,
+            &native_fixture.profile,
+            "1",
+            native_fixture.clock.clone(),
+            536_870_912,
+            s_allocation::Mode::CapturedNative,
+        )
+        .unwrap();
+        let mut ordinary = ordinary_fixture.open("1").unwrap();
+        let first = Fixture::ingest(1);
+        let first_reply = native.handle(first.clone()).unwrap();
+        assert_eq!(ordinary.handle(first.clone()).unwrap(), first_reply);
+        let first_root: Vec<u8> = native
+            .conn
+            .query_row(
+                "SELECT snapshot_root FROM s_content_publications WHERE generation=1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        for n in 2..=3 {
+            let mut next = Fixture::ingest(n);
+            next["payload"]["raw_input"] = first["payload"]["raw_input"].clone();
+            next["payload_hash"] = json!(sha256_hex(canonical_json(&next["payload"]).as_bytes()));
+            let ordinary_result = ordinary.handle(next.clone());
+            let native_result = native.handle(next.clone());
+            eprintln!("normal new-message raw replay: ordinary={ordinary_result:?}; native={native_result:?}");
+            assert_eq!(native_result, ordinary_result);
+            let actual = native_result.unwrap();
+            assert_eq!(actual["kind"], "Committed");
+            assert_eq!(count(&native.conn, "raw_events"), 1);
+            assert_eq!(count(&native.conn, "raw_ohlc"), 1);
+            assert_eq!(count(&native.conn, "s_input_messages"), n);
+            assert_eq!(count(&native.conn, "s_clock_events"), n + 2);
+            assert_eq!(count(&native.conn, "s_content_publications"), 1);
+            assert_eq!(
+                prepared::tests::runtime_root_tables(&native.conn, true),
+                prepared::tests::runtime_root_tables(&ordinary.conn, true),
+            );
+            let before_duplicate = prepared::tests::runtime_root_tables(&native.conn, true);
+            assert_eq!(native.handle(next.clone()).unwrap(), actual);
+            assert_eq!(native.handle(receipt_request(&next)).unwrap(), actual);
+            assert_eq!(
+                prepared::tests::runtime_root_tables(&native.conn, true),
+                before_duplicate,
+            );
+            let ready = envelope("ready-replay", json!({"op":"ready"}));
+            assert_eq!(
+                native.handle(ready.clone()).unwrap(),
+                ordinary.handle(ready).unwrap()
+            );
+            assert_eq!(native.handle(receipt_request(&first)).unwrap(), first_reply);
+            let tx = native.conn.transaction().unwrap();
+            let audited = state::audit(&tx).unwrap();
+            assert_eq!(audited.cuts.len(), 1);
+            assert_eq!(audited.raw.len(), 1);
+            assert_eq!(
+                audited.cuts[0].snapshot.digest().unwrap().as_slice(),
+                first_root
+            );
+            for cut in &audited.cuts {
+                assert_eq!(cut.metadata.input_frontier, 0);
+            }
+            drop(audited);
+            tx.rollback().unwrap();
+        }
+    }
+
     /// #1394 完整 owner 的验收锁：只有实际省去旧 C_g 才能通过。
     /// 不能将此断言改成接受 cold 重扫，也不能把事务入口收拢当作复用已完成。
     #[cfg(feature = "s_capture_native_testonly")]

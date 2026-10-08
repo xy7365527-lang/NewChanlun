@@ -287,15 +287,34 @@ pub(crate) fn effective<'a>(
     })
 }
 
-/// #1394：同一冷审计的借用索引。只在无分配预算的 Native 路径创建；
-/// 有预算入口继续用 effective 的原分配/Hash/期限门，不以失败触发分派。
-/// 完整 raw 保留在调用方，索引仅保存身份借用、坐标与持久序号。
+/// raw 的事务内 facade；所有前缀状态只持有稳定 seq ordinal 和完整身份文本。
+/// 原件资格由上层 owner 负责；取走 facts 不会保留 RawEventsView 或事务借用。
 pub(super) struct RawPrefixIndex<'raw> {
     raw: RawEventsView<'raw>,
+    facts: RawPrefixFacts,
+}
+#[derive(Default)]
+pub(super) struct RawPrefixFacts {
     prefix: usize,
-    winners: std::collections::HashMap<&'raw str, (i64, usize, i64)>,
+    winners: std::collections::HashMap<String, (i64, usize, i64)>,
     ordered: std::collections::BTreeMap<i64, usize>,
     coordinates: std::collections::HashMap<usize, i64>,
+}
+impl RawPrefixFacts {
+    pub(super) fn prefix_len(&self) -> usize {
+        self.prefix
+    }
+}
+impl std::ops::Deref for RawPrefixIndex<'_> {
+    type Target = RawPrefixFacts;
+    fn deref(&self) -> &Self::Target {
+        &self.facts
+    }
+}
+impl std::ops::DerefMut for RawPrefixIndex<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.facts
+    }
 }
 pub(super) struct RawPrefixChanges {
     pub removed: Vec<i64>,
@@ -308,11 +327,11 @@ impl<'raw> RawPrefixIndex<'raw> {
     pub(super) fn new(raw: RawEventsView<'raw>) -> Self {
         Self {
             raw,
-            prefix: 0,
-            winners: Default::default(),
-            ordered: Default::default(),
-            coordinates: Default::default(),
+            facts: RawPrefixFacts::default(),
         }
+    }
+    pub(super) fn into_facts(self) -> RawPrefixFacts {
+        self.facts
     }
     pub(super) fn is_empty(&self) -> bool {
         self.winners.is_empty()
@@ -354,9 +373,10 @@ impl<'raw> RawPrefixIndex<'raw> {
             self.ordered.clear();
         }
         // 同一 cut 内先选最终赢家；不会因跨越的暂态修订提前拒绝。
+        let raw = self.raw;
         let mut changed = std::collections::BTreeMap::<&str, (i64, usize)>::new();
         for ordinal in self.prefix..prefix {
-            let event = self.raw.get(ordinal).expect("已截前缀");
+            let event = raw.get(ordinal).expect("已截前缀");
             let identity = field(event, "identity_key").as_str().unwrap_or("");
             let revision = field(event, "revision").as_i64().unwrap_or(0);
             let previous = changed
@@ -385,7 +405,15 @@ impl<'raw> RawPrefixIndex<'raw> {
                     c
                 }
             };
-            if let Some((_, _, old)) = self.winners.insert(identity, (revision, ordinal, c)) {
+            let previous = match self.winners.get_mut(identity) {
+                Some(winner) => Some(std::mem::replace(winner, (revision, ordinal, c))),
+                None => {
+                    self.winners
+                        .insert(identity.to_owned(), (revision, ordinal, c));
+                    None
+                }
+            };
+            if let Some((_, _, old)) = previous {
                 self.ordered.remove(&old);
                 updates.removed.push(old);
             }
