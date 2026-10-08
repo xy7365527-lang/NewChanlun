@@ -191,9 +191,12 @@ impl RawRefSpec {
 ///
 /// `obj3` 的六字段身份对象是**派生输入**，不是要发布的节点：它的值摘要 `V` 只进
 /// `F(0x20, ·)`，本身不必成为内容节点，故不污染节点表。
-struct DigestOnly;
+struct DigestOnly<'a>(Option<&'a sc::capture_allocation::scratch::WorkScope>);
 
-impl NodeSink for DigestOnly {
+impl NodeSink for DigestOnly<'_> {
+    fn codec_sink_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+        self.0
+    }
     fn put(&mut self, _digest: NodeDigest, _tag: u8, _body: &[u8]) -> Result<(), CodecError> {
         Ok(())
     }
@@ -1039,21 +1042,28 @@ impl Cc004Producer {
         payload: &Built,
         input_refs: &Built,
     ) -> Result<NodeDigest, ProducerError> {
-        let identity = CValue::Object(vec![
-            ("kind".to_string(), CValue::String(kind.to_string())),
-            ("fact_key".to_string(), CValue::String(fact_key.to_string())),
-            ("payload".to_string(), CValue::Edge(payload.digest)),
-            ("input_refs".to_string(), CValue::Edge(input_refs.digest)),
-            (
-                "profile_id".to_string(),
-                CValue::String(self.profile_id.clone()),
-            ),
-            (
-                "rule_revision".to_string(),
-                CValue::String(self.rule_revision.clone()),
-            ),
-        ]);
-        Ok(self.identity_summary(&identity)?)
+        self.typed_identity_scoped(kind, fact_key, payload, input_refs, None)
+    }
+
+    /// 生产与审计共享六字段配方；scope 只决定分配账，不改变身份。
+    pub(super) fn typed_identity_scoped(
+        &self,
+        kind: &str,
+        fact_key: &str,
+        payload: &Built,
+        input_refs: &Built,
+        work: Option<&sc::capture_allocation::scratch::WorkScope>,
+    ) -> Result<NodeDigest, ProducerError> {
+        use sc::ValueView as V;
+        let fields = [
+            ("kind", V::String(kind)),
+            ("fact_key", V::String(fact_key)),
+            ("payload", V::Edge(payload.digest)),
+            ("input_refs", V::Edge(input_refs.digest)),
+            ("profile_id", V::String(&self.profile_id)),
+            ("rule_revision", V::String(&self.rule_revision)),
+        ];
+        Ok(sc::write_value_view(&mut DigestOnly(work), V::Object(&fields))?.digest)
     }
 
     /// 只求身份对象的值摘要（不落节点表：身份对象是派生输入，不是要发布的节点）。
@@ -1079,6 +1089,14 @@ impl Cc004Producer {
         &self,
         part: ShapeIdentityView<'_>,
     ) -> Result<NodeDigest, ProducerError> {
+        self.shape_identity_scoped(part, None)
+    }
+
+    pub(super) fn shape_identity_scoped(
+        &self,
+        part: ShapeIdentityView<'_>,
+        work: Option<&sc::capture_allocation::scratch::WorkScope>,
+    ) -> Result<NodeDigest, ProducerError> {
         use sc::ValueView as V;
         let highs = part.highs.map(V::String);
         let lows = part.lows.map(V::String);
@@ -1096,12 +1114,12 @@ impl Cc004Producer {
             ("rule_revision", V::String(&self.rule_revision)),
             ("profile_id", V::String(&self.profile_id)),
         ];
-        let mut derived = DigestOnly;
+        let mut derived = DigestOnly(work);
         Ok(sc::write_value_view(&mut derived, V::Object(&fields))?.digest)
     }
 
     fn identity_summary(&self, identity: &CValue) -> Result<NodeDigest, ProducerError> {
-        let mut derived = DigestOnly;
+        let mut derived = DigestOnly(None);
         Ok(sc::write_value(&mut derived, identity)?.digest)
     }
 
@@ -2973,7 +2991,19 @@ fn lower_hex(bytes: &[u8]) -> String {
 /// `V` 本身不必落成内容节点
 /// （见 [`DigestOnly`]），故这里只做帧摘要与十六进制渲染，不写节点表。
 pub(super) fn object_id_of(identity: &NodeDigest) -> String {
-    format!("obj3-{}", lower_hex(&sc::frame(OBJECT_ID_TAG, identity)))
+    object_id_display(identity).to_string()
+}
+
+/// 固定摘要的文本视图；审计可先计长并准入，生产沿同一格式化实现。
+pub(super) fn object_id_display(identity: &NodeDigest) -> impl fmt::Display {
+    struct ObjectId(NodeDigest);
+    impl fmt::Display for ObjectId {
+        fn fmt(&self, out: &mut fmt::Formatter<'_>) -> fmt::Result {
+            let root = sc::FixedRoot::new(&self.0);
+            write!(out, "obj3-{}", &root.as_str()[4..])
+        }
+    }
+    ObjectId(sc::frame(OBJECT_ID_TAG, identity))
 }
 
 // ────────────────────────────────────────────────────────────────────────────

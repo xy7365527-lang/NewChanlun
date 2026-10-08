@@ -123,6 +123,13 @@ impl<'capture> ClosedCapturedOwner<'capture> {
     ) -> Result<RefOwner, CodecError> {
         path::lookup_path_view_output(&mut CodecContext::Closed(self), r, p, false)
     }
+    pub fn lookup_optional_field_owned(
+        &mut self,
+        r: RefView<'_>,
+        key: &str,
+    ) -> Result<Option<RefOwner>, CodecError> {
+        path::lookup_optional_field_output(&mut CodecContext::Closed(self), r, key)
+    }
     /// 同一实际captured owner的窄访问装饰器；每个codec read/put执行原Q访问门。
     pub fn with_q_access<R>(
         &mut self,

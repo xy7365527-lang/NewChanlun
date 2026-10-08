@@ -160,7 +160,7 @@ fn text_ref<'r>(
         .view()
         .as_str()
         .ok_or_else(|| err(format!("{key} 不是文本")))?;
-    TextValue::from_str(text, s.allocation_budget().as_ref()).map_err(err)
+    s.native_text(text).map_err(err)
 }
 fn array_field_ref<'r>(
     s: &mut (impl CodecRead + ?Sized),
@@ -289,6 +289,7 @@ fn axes_entries<'r>(
         )));
     }
     let mut out = bj::new_work(s.allocation_budget().as_ref());
+    s.native_codec_room(&mut out, AXIS_IDS.len()).map_err(err)?;
     for id in AXIS_IDS {
         let axis = field_ref(s, axes, id)?;
         if axis.kind() != Kind::Object || axis.extent() != Some(AXIS_FIELDS.len() as u64) {
@@ -667,6 +668,7 @@ fn verify_cut_in_store(
             .as_i64()
             .ok_or_else(|| err("原始账事件缺整数 revision"))?;
         if seq > previous_frontier && revision > 1 {
+            store.native_codec_room(&mut revisions.0, 1).map_err(err)?;
             revisions
                 .0
                 .try_push(bj::RawReference::new(event, false)?)
@@ -674,6 +676,9 @@ fn verify_cut_in_store(
         }
     }
     let mut withdrawals_view = bj::WithdrawalArray(bj::new_work(allocation.as_ref()));
+    store
+        .native_codec_room(&mut withdrawals_view.0, withdrawals_array.len())
+        .map_err(err)?;
     for v in withdrawals_array.iter() {
         super::history::check_deadline(deadline)?;
         withdrawals_view
@@ -777,10 +782,18 @@ fn verify_current_in_store<'r>(
             .map_err(|e| read_error(e.to_string()))?;
         let row = match query.next().map_err(|e| read_error(e.to_string()))? {
             Some(mut row) => Some((
-                TextValue::from_sql(&mut row, 0, budget.as_ref()).map_err(read_error)?,
-                TextValue::from_sql(&mut row, 1, budget.as_ref()).map_err(read_error)?,
-                TextValue::from_sql(&mut row, 2, budget.as_ref()).map_err(read_error)?,
-                TextValue::from_sql(&mut row, 3, budget.as_ref()).map_err(read_error)?,
+                store
+                    .native_text(row.text(0).map_err(|e| read_error(e.to_string()))?)
+                    .map_err(read_error)?,
+                store
+                    .native_text(row.text(1).map_err(|e| read_error(e.to_string()))?)
+                    .map_err(read_error)?,
+                store
+                    .native_text(row.text(2).map_err(|e| read_error(e.to_string()))?)
+                    .map_err(read_error)?,
+                store
+                    .native_text(row.text(3).map_err(|e| read_error(e.to_string()))?)
+                    .map_err(read_error)?,
             )),
             None => None,
         };
@@ -797,8 +810,14 @@ fn verify_current_in_store<'r>(
                 entry.id
             )));
         }
-        let parsed = parse_json_owned(evidence_json.as_bytes(), budget.as_ref())
-            .map_err(|e| err(format!("catalog[{}].evidence_json 非法：{e}", entry.id)))?;
+        let parsed = if budget.is_none() && store.codec_work().is_some() {
+            store
+                .parse_rendered_plain(evidence_json.as_bytes())
+                .map(JsonOwner::Plain)
+        } else {
+            parse_json_owned(evidence_json.as_bytes(), budget.as_ref())
+        }
+        .map_err(|e| err(format!("catalog[{}].evidence_json 非法：{e}", entry.id)))?;
         if !canonical_matches(parsed.view(), evidence_json.as_bytes(), budget.as_ref())? {
             return Err(err(format!(
                 "catalog[{}].evidence_json 不是规范 JSON 文本",
@@ -858,7 +877,32 @@ fn canonical_matches(
             "prototype_audit_allocation_incomplete：owned目录编码入口未编译",
         ));
     }
-    Ok(serde_json::to_vec(&value).map_err(err)? == expected)
+    // #1394：直接核对完整规范字节流，避免为比较另分配输出 Vec。
+    struct Matches<'a> {
+        remaining: &'a [u8],
+        equal: bool,
+    }
+    impl std::io::Write for Matches<'_> {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if self.equal {
+                match self.remaining.strip_prefix(bytes) {
+                    Some(rest) => self.remaining = rest,
+                    None => self.equal = false,
+                }
+            }
+            // 不提前停止 serializer，保留它的完整错误传播。
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut out = Matches {
+        remaining: expected,
+        equal: true,
+    };
+    serde_json::to_writer(&mut out, &value).map_err(err)?;
+    Ok(out.equal && out.remaining.is_empty())
 }
 
 #[cfg(all(test, feature = "s_allocation_json_testonly"))]
@@ -1835,5 +1879,25 @@ mod tests {
         )
         .unwrap_err();
         assert!(error.contains("catalog_axes"), "{error}");
+    }
+}
+
+#[cfg(test)]
+mod r9_catalog_stream_tests {
+    use super::*;
+
+    #[test]
+    fn native_catalog_canonical_stream_matches_complete_normal_values() {
+        let values = [
+            serde_json::json!(null),
+            serde_json::json!(true),
+            serde_json::json!(-9223372036854775807_i64),
+            serde_json::json!([]),
+            serde_json::json!({"scope": "中文😀", "quotes": "\"\\\n", "items": [0, false, null]}),
+        ];
+        for value in &values {
+            let bytes = serde_json::to_vec(value).unwrap();
+            assert!(canonical_matches(JsonView::Plain(value), &bytes, None).unwrap());
+        }
     }
 }

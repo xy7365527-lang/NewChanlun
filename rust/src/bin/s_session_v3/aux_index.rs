@@ -63,7 +63,7 @@ fn field(
     r: &(impl AuxRef + ?Sized),
     k: &str,
 ) -> Result<RefValue, String> {
-    s.lookup_ref(r.view(), &[f(k)]).map_err(err)
+    s.lookup_field_ref(r.view(), k).map_err(err)
 }
 fn digest(r: &(impl AuxRef + ?Sized)) -> Result<NodeDigest, String> {
     r.view().digest().map_err(err)
@@ -160,12 +160,8 @@ fn root(s: &mut (impl CodecRead + ?Sized), b: &[u8]) -> Result<RefValue, String>
         .map_err(err)?;
     Ok(r)
 }
-fn built_ref(s: &(impl CodecRead + ?Sized), b: &Built) -> RefValue {
-    #[cfg(feature = "s_allocation_json_testonly")]
-    if s.allocation_budget().is_some() {
-        return RefValue::Owned(b.owned_ref());
-    }
-    RefValue::Plain(b.content_ref())
+fn built_ref(s: &(impl CodecRead + ?Sized), b: &Built) -> Result<RefValue, String> {
+    s.native_built_ref(b).map_err(err)
 }
 fn exact(r: &(impl AuxRef + ?Sized), n: u64) -> Result<(), String> {
     if r.view().kind() != Kind::Object || r.view().extent() != Some(n) {
@@ -175,16 +171,24 @@ fn exact(r: &(impl AuxRef + ?Sized), n: u64) -> Result<(), String> {
     }
 }
 fn fmt_text(
+    s: &(impl CodecRead + ?Sized),
     args: std::fmt::Arguments<'_>,
     budget: Option<&OwnedBudget>,
 ) -> Result<TextValue, String> {
     use std::fmt::Write;
-    struct Out {
+    struct Out<'a> {
+        work: Option<&'a sc::capture_allocation::scratch::WorkScope>,
         bytes: CodecVec<u8>,
         error: Option<sc::CodecError>,
     }
-    impl std::fmt::Write for Out {
+    impl std::fmt::Write for Out<'_> {
         fn write_str(&mut self, value: &str) -> std::fmt::Result {
+            super::audit_store::NativeAdmission(self.work)
+                .native_codec_room(&mut self.bytes, value.len())
+                .map_err(|error| {
+                    self.error = Some(error);
+                    std::fmt::Error
+                })?;
             #[cfg(feature = "s_allocation_json_testonly")]
             {
                 aj::extend_bytes(&mut self.bytes, value.as_bytes()).map_err(|error| {
@@ -205,6 +209,7 @@ fn fmt_text(
         }
     }
     let mut out = Out {
+        work: s.codec_work(),
         bytes: bj::new_work(budget),
         error: None,
     };
@@ -213,7 +218,12 @@ fn fmt_text(
         return Err(err(error));
     }
     result.map_err(err)?;
-    TextValue::from_str(std::str::from_utf8(&out.bytes).map_err(err)?, budget).map_err(err)
+    let text = std::str::from_utf8(&out.bytes).map_err(err)?;
+    if budget.is_none() {
+        s.native_text(text).map_err(err)
+    } else {
+        TextValue::from_str(text, budget).map_err(err)
+    }
 }
 fn stable_sort<T>(
     rows: &mut CodecVec<T>,
@@ -426,6 +436,20 @@ impl<K: Eq + std::hash::Hash, V> Cache<K, V> {
         map.insert(key, value).map_err(err)?;
         Ok(())
     }
+    fn insert_admitted(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        key: K,
+        value: V,
+        budget: Option<&OwnedBudget>,
+    ) -> Result<(), String> {
+        self.check(budget)?;
+        let map = self.map.get_or_insert_with(|| work_map(budget));
+        s.native_map_room(map).map_err(err)?;
+        self.budget = budget.cloned();
+        map.insert(key, value).map_err(err)?;
+        Ok(())
+    }
 }
 /// 缓存只按真实内容根命中；实际owner/容器由store选同账，回滚/换库仍必须discard。
 #[derive(Default)]
@@ -487,7 +511,7 @@ impl Runtime {
         merged_index: i64,
         g: i64,
     ) -> Result<Witness, String> {
-        let generated = built_ref(s, &w.built);
+        let generated = built_ref(s, &w.built)?;
         s.verify_many_ref_fresh([generated.view()], sc::Mode::Public)
             .map_err(err)?;
         exact(&generated, 9)?;
@@ -539,14 +563,20 @@ impl Runtime {
             let d = digest(&bar)?;
             let projected =
                 if let Some(cached) = self.bar_wires.get(&d, s.allocation_budget().as_ref())? {
-                    cached.clone()
+                    s.native_ref_clone(cached).map_err(err)?
                 } else {
                     let original = render(s, &bar)?;
                     let built = project_bar(s, original.view())?;
-                    let r = built_ref(s, &built);
-                    self.bar_wires.insert(d, r.clone(), owned_budget.as_ref())?;
+                    let r = built_ref(s, &built)?;
+                    self.bar_wires.insert_admitted(
+                        s,
+                        d,
+                        s.native_ref_clone(&r).map_err(err)?,
+                        owned_budget.as_ref(),
+                    )?;
                     r
                 };
+            s.native_codec_room(&mut values, 1).map_err(err)?;
             values
                 .try_push(VV::Edge(digest(&projected)?))
                 .map_err(err)?;
@@ -571,7 +601,7 @@ impl Runtime {
             ("raw_bars", VV::Array(&values)),
         ];
         let b = s.write_value_view(VV::Object(&fields)).map_err(err)?;
-        Ok(built_ref(s, &b))
+        Ok(built_ref(s, &b)?)
     }
     fn observation(
         &mut self,
@@ -579,7 +609,7 @@ impl Runtime {
         b: &Built,
         g: i64,
     ) -> Result<Observation, String> {
-        let generated = built_ref(s, b);
+        let generated = built_ref(s, b)?;
         s.verify_many_ref_fresh([generated.view()], sc::Mode::Public)
             .map_err(err)?;
         exact(&generated, 6)?;
@@ -644,7 +674,7 @@ impl Runtime {
                 .iter()
                 .find(|o| o.object_id() == w.object_id)
                 .ok_or_else(|| err("见证对象不在本代生成态"))?;
-            let generated_object = built_ref(s, object.generated());
+            let generated_object = built_ref(s, object.generated())?;
             let group = s
                 .lookup_ref(
                     generated_object.view(),
@@ -679,7 +709,7 @@ impl Runtime {
         }
         let mut candidates = bj::new_work(owned_budget.as_ref());
         for b in &generated.relations {
-            candidates.try_push(built_ref(s, b)).map_err(err)?;
+            candidates.try_push(built_ref(s, b)?).map_err(err)?;
         }
         for r in replaces {
             candidates
@@ -824,6 +854,7 @@ fn project_bar(s: &mut (impl CodecStore + ?Sized), bar: JsonView<'_>) -> Result<
                 .unwrap_or(JsonView::Null),
             _ => value,
         };
+        s.native_codec_room(&mut fields, 1).map_err(err)?;
         fields.try_push((key, value)).map_err(err)?;
     }
     let extra = if ohlc {
@@ -833,6 +864,7 @@ fn project_bar(s: &mut (impl CodecStore + ?Sized), bar: JsonView<'_>) -> Result<
     };
     for key in ["seq"].into_iter().chain(extra.iter().copied()) {
         if object.get(key).is_none() {
+            s.native_codec_room(&mut fields, 1).map_err(err)?;
             fields
                 .try_push((
                     key,
@@ -863,7 +895,7 @@ fn replacement_relation(
         ("object", JsonView::String(object)),
     ];
     let b = write_fields(s, &fields)?;
-    Ok(built_ref(s, &b))
+    Ok(built_ref(s, &b)?)
 }
 fn supersedes_relation(
     s: &mut (impl CodecStore + ?Sized),
@@ -879,15 +911,15 @@ fn supersedes_relation(
         .as_i64()
         .ok_or_else(|| err("源版本缺失"))?;
     let budget = s.allocation_budget();
-    let subject = fmt_text(format_args!("{identity}@{rev}"), budget.as_ref())?;
-    let object = fmt_text(format_args!("{identity}@{sup}"), budget.as_ref())?;
+    let subject = fmt_text(s, format_args!("{identity}@{rev}"), budget.as_ref())?;
+    let object = fmt_text(s, format_args!("{identity}@{sup}"), budget.as_ref())?;
     let fields = [
         ("subject", JsonView::String(&subject)),
         ("relation_type", JsonView::String("supersedes")),
         ("object", JsonView::String(&object)),
     ];
     let b = write_fields(s, &fields)?;
-    Ok(Some(built_ref(s, &b)))
+    Ok(Some(built_ref(s, &b)?))
 }
 fn public_sets(
     s: &mut (impl CodecStore + ?Sized),
@@ -958,7 +990,7 @@ fn observation_wire(
         ("window_end", number(&end)),
     ];
     let b = s.write_template_view(VV::Object(&fields)).map_err(err)?;
-    Ok(built_ref(s, &b))
+    Ok(built_ref(s, &b)?)
 }
 fn relation(
     s: &mut (impl CodecStore + ?Sized),
@@ -977,12 +1009,10 @@ fn relation(
         ("t", JsonView::String(&relation_type)),
         ("o", JsonView::String(&object)),
     ];
-    let hash = bj::sha_json(
-        JsonView::object_fields(&fields).map_err(err)?,
-        s.allocation_budget().as_ref(),
-    )?;
+    let hash = bj::sha_json_admitted(s, JsonView::object_fields(&fields).map_err(err)?)?;
     let hash = sc::FixedRoot::new(&hash);
     let id = fmt_text(
+        s,
         format_args!("rel-{}", &hash.as_str()[4..20]),
         s.allocation_budget().as_ref(),
     )?;
@@ -1016,7 +1046,7 @@ fn stream_hash(
     #[cfg(test)]
     super::state::trace_local_sha256(1, 0);
     let hash = sc::FixedRoot::new(&out.0.finalize().into());
-    TextValue::from_str(&hash.as_str()[4..], s.allocation_budget().as_ref()).map_err(err)
+    s.native_text(&hash.as_str()[4..]).map_err(err)
 }
 fn verify_witness_id(
     s: &mut (impl CodecStore + ?Sized),
@@ -1038,9 +1068,10 @@ fn verify_witness_id(
         ("raw_bars", edge(s, r, "raw_bars")?),
     ];
     let b = s.write_value_view(VV::Object(&fields)).map_err(err)?;
-    let recipe = built_ref(s, &b);
+    let recipe = built_ref(s, &b)?;
     let hash = stream_hash(s, &recipe)?;
     let expected = fmt_text(
+        s,
         format_args!("wit-{}", &hash[..16]),
         s.allocation_budget().as_ref(),
     )?;
@@ -1057,12 +1088,14 @@ fn observation_identity_value(
     if detail.kind() != Kind::Object {
         return Err(err("观察detail不是对象"));
     }
-    let tb = match s.lookup_ref(detail.view(), &[f("tb02a")]) {
-        Ok(value) => {
+    let tb = match s
+        .lookup_optional_field_ref(detail.view(), "tb02a")
+        .map_err(err)?
+    {
+        Some(value) => {
             value.kind() == Kind::Bool && render(s, &value)?.view().as_bool() == Some(true)
         }
-        Err(e) if e.code() == sc::path::path_code::PATH_FIELD_MISSING => false,
-        Err(e) => return Err(err(e)),
+        None => false,
     };
     if tb {
         return Ok(built_ref(
@@ -1072,7 +1105,7 @@ fn observation_identity_value(
                 kind: r.view().kind(),
                 extent: r.view().extent(),
             },
-        ));
+        )?);
     }
     let fields = [
         ("kind", edge(s, r, "kind")?),
@@ -1082,7 +1115,7 @@ fn observation_identity_value(
         ("window_end", edge(s, r, "window_end")?),
     ];
     let b = s.write_value_view(VV::Object(&fields)).map_err(err)?;
-    Ok(built_ref(s, &b))
+    Ok(built_ref(s, &b)?)
 }
 fn observation_id(
     s: &mut (impl CodecStore + ?Sized),
@@ -1094,6 +1127,7 @@ fn observation_id(
         && recipe.view().kind() == r.view().kind()
         && recipe.view().extent() == r.view().extent();
     fmt_text(
+        s,
         format_args!("obs-{}", if full { hash.as_str() } else { &hash[..16] }),
         s.allocation_budget().as_ref(),
     )
@@ -1511,6 +1545,7 @@ fn verify_generated_members_in_view(
         for row in &index.witnesses {
             audit_count(0);
             if row.first <= g {
+                s.native_map_room(&mut witness_by_id).map_err(err)?;
                 if witness_by_id
                     .insert(row.id.as_str(), row)
                     .map_err(err)?
@@ -1528,8 +1563,9 @@ fn verify_generated_members_in_view(
         audit_count(3);
         let id = text(s, &generated, "witness_id")?;
         let generated_digest = digest(&generated)?;
+        s.native_map_room(&mut seen).map_err(err)?;
         if seen
-            .insert(id.try_clone()?, generated_digest)
+            .insert(s.native_text(id.as_str())?, generated_digest)
             .map_err(err)?
             .is_some()
         {
@@ -1549,6 +1585,7 @@ fn verify_generated_members_in_view(
             return Err(err("生成见证原件与独立索引不一致"));
         }
         if row.first == g {
+            s.native_codec_room(&mut generated_births, 1).map_err(err)?;
             generated_births.try_push(id).map_err(err)?;
         }
     }
@@ -1558,6 +1595,7 @@ fn verify_generated_members_in_view(
             audit_count(1);
             row.first == g
         }) {
+            s.native_codec_room(&mut indexed_births, 1).map_err(err)?;
             indexed_births.try_push(row.id.as_str()).map_err(err)?;
         }
     }
@@ -1580,6 +1618,7 @@ fn verify_generated_members_in_view(
         for row in &index.relations {
             audit_count(0);
             if row.first <= g {
+                s.native_map_room(&mut relation_by_id).map_err(err)?;
                 if relation_by_id
                     .insert(row.id.as_str(), row)
                     .map_err(err)?
@@ -1596,6 +1635,8 @@ fn verify_generated_members_in_view(
         .ok_or_else(|| err("replaces不是数组"))?
         .iter()
     {
+        s.native_codec_room(&mut relation_candidates, 1)
+            .map_err(err)?;
         relation_candidates
             .try_push(replacement_relation(s, replacement)?)
             .map_err(err)?;
@@ -1605,6 +1646,8 @@ fn verify_generated_members_in_view(
         for i in 0..count {
             let ordinal = owner.raw_revisions[i];
             if let Some(r) = owner.raw_relation(s, ordinal)? {
+                s.native_codec_room(&mut relation_candidates, 1)
+                    .map_err(err)?;
                 relation_candidates.try_push(r).map_err(err)?;
             }
         }
@@ -1612,6 +1655,8 @@ fn verify_generated_members_in_view(
         for event in raw {
             audit_count(5);
             if let Some(r) = supersedes_relation(s, event)? {
+                s.native_codec_room(&mut relation_candidates, 1)
+                    .map_err(err)?;
                 relation_candidates.try_push(r).map_err(err)?;
             }
         }
@@ -1626,8 +1671,9 @@ fn verify_generated_members_in_view(
             relation(s, candidate, g)?
         };
         let row_digest = digest(&row.generated)?;
+        s.native_map_room(&mut relation_seen).map_err(err)?;
         if let Some(previous) = relation_seen
-            .insert(row.id.try_clone()?, row_digest)
+            .insert(s.native_text(row.id.as_str())?, row_digest)
             .map_err(err)?
         {
             if previous != row_digest {
@@ -1649,6 +1695,7 @@ fn verify_generated_members_in_view(
             return Err(err("生成关系原件与独立索引不一致"));
         }
         if stored.first == g {
+            s.native_codec_room(&mut relation_births, 1).map_err(err)?;
             relation_births.try_push(row.id).map_err(err)?;
         }
     }
@@ -1658,6 +1705,8 @@ fn verify_generated_members_in_view(
             audit_count(1);
             row.first == g
         }) {
+            s.native_codec_room(&mut indexed_relation_births, 1)
+                .map_err(err)?;
             indexed_relation_births
                 .try_push(row.id.as_str())
                 .map_err(err)?;
@@ -1682,6 +1731,7 @@ fn verify_generated_members_in_view(
         for row in &index.observations {
             audit_count(0);
             if row.first <= g {
+                s.native_map_room(&mut observation_by_id).map_err(err)?;
                 if observation_by_id
                     .insert(row.id.as_str(), row)
                     .map_err(err)?
@@ -1698,8 +1748,9 @@ fn verify_generated_members_in_view(
     for generated in generated_observations {
         audit_count(3);
         let id = observation_id(s, &generated)?;
+        s.native_map_room(&mut observation_seen).map_err(err)?;
         if observation_seen
-            .insert(id.try_clone()?, ())
+            .insert(s.native_text(id.as_str())?, ())
             .map_err(err)?
             .is_some()
         {
@@ -1724,6 +1775,8 @@ fn verify_generated_members_in_view(
             if stored.generated != generated {
                 return Err(err("观察出生原件与独立首版不一致"));
             }
+            s.native_codec_room(&mut observation_births, 1)
+                .map_err(err)?;
             observation_births.try_push(id).map_err(err)?;
         }
     }
@@ -1733,6 +1786,8 @@ fn verify_generated_members_in_view(
             audit_count(1);
             row.first == g
         }) {
+            s.native_codec_room(&mut indexed_observation_births, 1)
+                .map_err(err)?;
             indexed_observation_births
                 .try_push(row.id.as_str())
                 .map_err(err)?;
@@ -2140,7 +2195,10 @@ fn cut_members_projected(
                 let mut values = Vec::new();
                 s.native_vec_room(&mut values, NAMES.len()).map_err(err)?;
                 for name in NAMES {
-                    let r = fields.get(name).ok_or_else(|| err("观察wire缺字段"))?;
+                    let r = fields
+                        .get_admitted(*s, name)
+                        .map_err(err)?
+                        .ok_or_else(|| err("观察wire缺字段"))?;
                     values.push((
                         *name,
                         if *name == "batch_id" {
@@ -2616,7 +2674,7 @@ mod tests {
             .unwrap();
         for input in input["relations"].as_array().unwrap() {
             let b = write_json(&mut store, input).unwrap();
-            let r = built_ref(&store, &b);
+            let r = built_ref(&store, &b).unwrap();
             index
                 .relations
                 .try_push(relation(&mut store, r, 1).unwrap())

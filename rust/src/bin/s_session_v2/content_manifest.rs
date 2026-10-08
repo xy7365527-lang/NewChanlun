@@ -8,8 +8,7 @@
 use crate::v3::audit_store::{CodecRead, CodecStore};
 use crate::v3::audit_store::{RefFields, RefValue};
 use newchan_rust::s_content::{
-    self, path::PathStep, Built, CodecError, ContentRef, Kind, NodeDigest, NodeStore, NumberToken,
-    Value as V,
+    self, Built, CodecError, ContentRef, Kind, NodeDigest, NodeStore, NumberToken, Value as V,
 };
 use newchan_rust::session_protocol::{nonnegative, positive};
 use s_content::{BorrowedNumberToken, ValueView as VV};
@@ -1084,7 +1083,7 @@ pub(crate) fn assemble_unpublished_view_in_store(
     let body = assemble_manifest_body(store, metadata, roots)?;
     Ok(UnpublishedManifest {
         value: body.value,
-        batch_id: batch_text(&body.identity).as_str().to_owned(),
+        batch_id: store.native_string(batch_text(&body.identity).as_str())?,
     })
 }
 struct ManifestBody {
@@ -1145,8 +1144,7 @@ fn assemble_manifest_body(
             "index_frontier",
         )?;
         let evidence = field(store, root, "catalog_evidence")?;
-        let evidence_batch =
-            store.lookup_ref(evidence.view(), &[PathStep::Field("batch_id".into())])?;
+        let evidence_batch = store.lookup_field_ref(evidence.view(), "batch_id")?;
         require_kind(
             evidence_batch.view(),
             Kind::TemplateBatch,
@@ -1405,11 +1403,11 @@ fn require_kind(value: s_content::RefView<'_>, kind: Kind, name: &str) -> Result
 }
 
 fn field(
-    _store: &mut (impl CodecStore + ?Sized),
+    store: &mut (impl CodecStore + ?Sized),
     root: &Fields,
     name: &str,
 ) -> Result<RefValue, CodecError> {
-    root.get(name)
+    root.get_admitted(store, name)?
         .ok_or_else(|| CodecError::new("manifest_schema", format!("根缺字段{name}")))
 }
 
@@ -1438,7 +1436,7 @@ fn exact_object(
     if has_axes {
         require_kind(
             values
-                .get("catalog_axes")
+                .get_admitted(store, "catalog_axes")?
                 .ok_or_else(|| context_error("根缺catalog_axes"))?
                 .view(),
             Kind::Object,
@@ -1759,6 +1757,41 @@ mod tests {
             assert_eq!(Decimal::new(n).as_str(), n.to_string());
         }
     }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn r9a_manifest_scope_preserves_identity_and_accounts_outputs() {
+        let (mut nodes, metadata, roots, _, _, _) = fixture();
+        let expected = assemble_unpublished(&mut nodes, &metadata, &roots).unwrap();
+        let capture = s_content::AuditCapture::new(nodes);
+        let (_, stats) = crate::v3::audit_store::with_native_store_probe(
+            &capture,
+            16 * 1024 * 1024,
+            |store, live| {
+                let before = live();
+                let actual =
+                    assemble_unpublished_view_in_store(store, metadata.view(), roots.view())?;
+                assert_eq!(actual.value, expected.value);
+                assert_eq!(actual.batch_id, expected.batch_id);
+                assert!(live() > before + actual.batch_id.len());
+                let reference = store.native_built_ref(&actual.value)?;
+                assert!(matches!(reference, RefValue::Plain(_)));
+                let fields = store.lookup_subset_ref(
+                    reference.view(),
+                    &["source_commit", "scope", "generated_state"],
+                )?;
+                for key in ["source_commit", "scope", "generated_state"] {
+                    assert!(matches!(
+                        fields.get_admitted(store, key)?,
+                        Some(RefValue::Plain(_))
+                    ));
+                }
+                Ok::<_, CodecError>(())
+            },
+        );
+        assert_eq!((stats.0, stats.2), (0, 0));
+        assert!(stats.1 > 0);
+    }
+
     #[cfg(feature = "s_allocation_json_testonly")]
     #[test]
     fn owned_manifest_real_capture_body_matches_normal_identity_and_f() {

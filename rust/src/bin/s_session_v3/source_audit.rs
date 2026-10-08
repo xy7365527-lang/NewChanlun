@@ -132,12 +132,19 @@ impl<'names> SourceFields<'names> {
     fn get(&self, k: &str) -> Result<RefValue, String> {
         self.0.get(k).ok_or_else(|| err(format!("原件缺字段{k}")))
     }
+    fn get_admitted(&self, s: &(impl CodecRead + ?Sized), k: &str) -> Result<RefValue, String> {
+        self.0
+            .get_admitted(s, k)
+            .map_err(err)?
+            .ok_or_else(|| err(format!("原件缺字段{k}")))
+    }
     fn scalar(
         &self,
         s: &mut (impl SourceFieldStore + ?Sized),
         k: &str,
     ) -> Result<bj::JsonOwner, String> {
-        s.decoded_scalar(self.get(k)?.view())
+        let r = self.get_admitted(s, k)?;
+        s.decoded_scalar(r.view())
     }
     fn text(
         &self,
@@ -273,7 +280,7 @@ fn parsed_json(s: &(impl CodecRead + ?Sized), bytes: &[u8]) -> Result<bj::JsonOw
             .map(bj::JsonOwner::Owned)
             .map_err(err);
     }
-    newchan_rust::session_protocol::strict_json(bytes).map(bj::JsonOwner::Plain)
+    s.parse_rendered_plain(bytes).map(bj::JsonOwner::Plain)
 }
 fn canonical_matches(
     s: &(impl CodecRead + ?Sized),
@@ -288,7 +295,33 @@ fn canonical_matches(
     }
     match v {
         sc::capture_allocation::audit_json::JsonView::Plain(v) => {
-            Ok(canonical_json(v).as_bytes() == bytes)
+            if s.codec_work().is_none() {
+                return Ok(canonical_json(v).as_bytes() == bytes);
+            }
+            // serde_json::Map 采用排序 BTreeMap；逐段比较同一规范编码，不分配 parts/join。
+            struct Compare<'a> {
+                remaining: &'a [u8],
+                same: bool,
+            }
+            impl std::io::Write for Compare<'_> {
+                fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                    if self.remaining.starts_with(bytes) {
+                        self.remaining = &self.remaining[bytes.len()..];
+                    } else {
+                        self.same = false;
+                    }
+                    Ok(bytes.len())
+                }
+                fn flush(&mut self) -> std::io::Result<()> {
+                    Ok(())
+                }
+            }
+            let mut out = Compare {
+                remaining: bytes,
+                same: true,
+            };
+            serde_json::to_writer(&mut out, v).map_err(err)?;
+            Ok(out.same && out.remaining.is_empty())
         }
         _ => Err(err("owned JSON组合缺实际账本")),
     }
@@ -718,6 +751,7 @@ fn coords(s: &mut (impl CodecRead + ?Sized), r: &RefValue) -> Result<sc::CodecVe
         if out.last().is_some_and(|prev| *prev >= n) {
             return Err(err("源坐标不是严格升序"));
         }
+        s.native_codec_room(&mut out, 1).map_err(err)?;
         out.try_push(n).map_err(err)?;
     }
     Ok(out)
@@ -783,12 +817,14 @@ fn references(
             {
                 return Err(err("源引用不是本cut的真实完整八字段原件"));
             }
+            s.native_map_room(checked).map_err(err)?;
             checked.insert(key, coord).map_err(err)?;
             coord
         };
         if out.last().is_some_and(|prev| *prev >= coord) {
             return Err(err("源引用不是严格升序"));
         }
+        s.native_codec_room(&mut out, 1).map_err(err)?;
         out.try_push(coord).map_err(err)?;
     }
     Ok(out)
@@ -832,8 +868,10 @@ fn copy_source_coords(
 fn copy_coords(s: &(impl CodecRead + ?Sized), values: &[i64]) -> Result<sc::CodecVec<i64>, String> {
     let allocation = source_allocation(s)?;
     let mut out = bj::new_work(allocation.as_ref());
+    s.native_codec_room(&mut out, values.len()).map_err(err)?;
     out.try_reserve_exact(values.len()).map_err(err)?;
     for &value in values {
+        s.native_codec_room(&mut out, 1).map_err(err)?;
         out.try_push(value).map_err(err)?;
     }
     Ok(out)
@@ -862,6 +900,7 @@ fn union_coords(
             j += 1;
             v
         };
+        s.native_codec_room(&mut out, 1).map_err(err)?;
         out.try_push(value).map_err(err)?;
     }
     Ok(out)
@@ -879,6 +918,7 @@ fn difference_coords(
             j += 1;
         }
         if members.get(j) != Some(&value) {
+            s.native_codec_room(&mut out, 1).map_err(err)?;
             out.try_push(value).map_err(err)?;
         }
     }
@@ -891,6 +931,7 @@ fn sorted_numeric_entries<'a, V>(
     let allocation = source_allocation(s)?;
     let mut out = bj::new_work(allocation.as_ref());
     for (key, value) in map.iter() {
+        s.native_codec_room(&mut out, 1).map_err(err)?;
         out.try_push((*key, value)).map_err(err)?;
     }
     out.sort_unstable_by_key(|(key, _)| *key);
@@ -1016,8 +1057,8 @@ impl<'capture> NativeWitnessIdentityMemo<'capture> {
             };
         }
         // 根在 Capture 不等于完整闭包在 Capture；用不可变原件验证全部声明与闭包。
-        s.native_admit(sc::CONTENT_FORMAT.len() + 68).map_err(err)?;
-        s.native_verify_original(self.capture, (&bars.content_ref()).into(), sc::Mode::Public)
+        let bars_ref = s.native_built_ref(bars).map_err(err)?;
+        s.native_verify_original(self.capture, bars_ref.view(), sc::Mode::Public)
             .map_err(err)?;
         s.native_admit(object_id.len()).map_err(err)?;
         let key = self.key(object_id, slot, mi, bars);
@@ -1041,7 +1082,6 @@ impl<'capture> NativeWitnessIdentityMemo<'capture> {
         }
         // 首次纯函数成功和本次 stored ID 比较都通过之后，才保留输入声明及结果文本。
         s.native_std_map_room(&mut self.entries).map_err(err)?;
-        s.native_admit(want.len()).map_err(err)?;
         self.entries.insert(key, want);
         Ok(())
     }
@@ -1431,6 +1471,14 @@ fn audit_generated_in_store(
             "当前来源审计仅实现OHLC档；其他档仍待接线，拒绝按此口径放行",
         ));
     }
+    s.native_admit(
+        profile
+            .len()
+            .checked_add(rule.len())
+            .and_then(|n| n.checked_add(2 * std::mem::size_of::<[usize; 2]>()))
+            .ok_or_else(|| err(s.native_overflow()))?,
+    )
+    .map_err(err)?;
     let producer = Cc004Producer::new(profile, rule);
     let allocation;
     let ordinary_effective;
@@ -1447,6 +1495,7 @@ fn audit_generated_in_store(
             let coord = bj::coord(event)?;
             let wire = bj::RawReference::new(event, false)?;
             let numeric = bj::RawReference::new(event, true)?;
+            s.native_map_room(&mut ordinary_raw).map_err(err)?;
             ordinary_raw
                 .insert(
                     coord,
@@ -1488,20 +1537,30 @@ fn audit_generated_in_store(
         };
         let fields = SourceFields::read_subset(s, record.view(), names).map_err(err)?;
         let id = fields.text(s, "object_id").map_err(err)?;
-        if ids.insert(id.try_clone()?, ()).map_err(err)?.is_some()
+        s.native_map_room(&mut ids).map_err(err)?;
+        if ids
+            .insert(s.native_text(id.as_str())?, ())
+            .map_err(err)?
+            .is_some()
             || fields.integer(s, "object_revision").map_err(err)? != 1
         {
             return Err(err("对象身份重复或修订不符"));
         }
         let refs = s
             .lookup_ref(
-                fields.get("input_refs_json").map_err(err)?.view(),
+                fields
+                    .get_admitted(s, "input_refs_json")
+                    .map_err(err)?
+                    .view(),
                 &[PathStep::JsonText],
             )
             .map_err(err)?;
         let source_ref = s
             .lookup_ref(
-                fields.get("source_coords_json").map_err(err)?.view(),
+                fields
+                    .get_admitted(s, "source_coords_json")
+                    .map_err(err)?
+                    .view(),
                 &[PathStep::JsonText],
             )
             .map_err(err)?;
@@ -1528,7 +1587,7 @@ fn audit_generated_in_store(
             }
             let payload = s
                 .lookup_ref(
-                    fields.get("payload_json").map_err(err)?.view(),
+                    fields.get_admitted(s, "payload_json").map_err(err)?.view(),
                     &[PathStep::JsonText],
                 )
                 .map_err(err)?;
@@ -1561,8 +1620,20 @@ fn audit_generated_in_store(
             {
                 return Err(err("typed槽位种类/规范文本不符"));
             }
-            let expected = producer
-                .typed_object_id(&kind, &key, &built(payload.view())?, &built(refs.view())?)
+            let identity = producer
+                .typed_identity_scoped(
+                    &kind,
+                    &key,
+                    &built(payload.view())?,
+                    &built(refs.view())?,
+                    s.codec_work(),
+                )
+                .map_err(err)?;
+            let expected = s
+                .native_format(format_args!(
+                    "{}",
+                    content_producer::object_id_display(&identity)
+                ))
                 .map_err(err)?;
             if id != expected {
                 return Err(err("typed obj3身份与来源/载荷原件不符"));
@@ -1629,11 +1700,12 @@ fn audit_generated_in_store(
                 if &*union != &*sources {
                     return Err(err("组来源不等于成员及方向/封口依据的并集"));
                 }
+                s.native_map_room(&mut groups).map_err(err)?;
                 if groups
                     .insert(
                         index,
                         Group {
-                            payload: payload.clone(),
+                            payload: s.native_ref_clone(&payload).map_err(err)?,
                             members,
                             sources: copy_source_coords(s, &sources)?,
                             anchor,
@@ -1646,6 +1718,7 @@ fn audit_generated_in_store(
                 }
             }
         }
+        s.native_codec_room(&mut objects, 1).map_err(err)?;
         objects
             .try_push(Object {
                 id,
@@ -1667,6 +1740,7 @@ fn audit_generated_in_store(
         }
         for c in &group.members {
             super::history::check_deadline(deadline)?;
+            s.native_map_room(&mut partition).map_err(err)?;
             if partition.insert(*c, ()).map_err(err)?.is_some() {
                 return Err(err("同cut组成员重叠"));
             }
@@ -1675,6 +1749,7 @@ fn audit_generated_in_store(
     drop(ordered_groups);
     for coord in pending {
         super::history::check_deadline(deadline)?;
+        s.native_map_room(&mut partition).map_err(err)?;
         if partition.insert(coord, ()).map_err(err)?.is_some() {
             return Err(err("同cut组成员与初始未定来源重叠"));
         }
@@ -1718,7 +1793,7 @@ fn audit_generated_in_store(
                 .get(&index)
                 .ok_or_else(|| err("形态引用没有同cut组事实"))?;
             let raw_refs = if let Some(fields) = &part_fields {
-                fields.get("raw_refs").map_err(err)?
+                fields.get_admitted(s, "raw_refs").map_err(err)?
             } else {
                 field(s, &part, "raw_refs")?
             };
@@ -1736,7 +1811,7 @@ fn audit_generated_in_store(
                 return Err(err("形态raw_refs不是同cut组成员"));
             }
             let deps = if let Some(fields) = &part_fields {
-                fields.get("dependency_refs").map_err(err)?
+                fields.get_admitted(s, "dependency_refs").map_err(err)?
             } else {
                 field(s, &part, "dependency_refs")?
             };
@@ -1796,22 +1871,35 @@ fn audit_generated_in_store(
         };
         let input_refs = built(object.refs.view())?;
         let identity = producer
-            .shape_identity_borrowed(ShapeIdentityView {
-                branch: &branch,
-                dir_ab: &dir_ab,
-                dir_bc: &dir_bc,
-                window: windows.each_ref().map(|v| v.as_str()),
-                highs: highs.each_ref().map(|v| v.as_str()),
-                lows: lows.each_ref().map(|v| v.as_str()),
-                comparisons: &comparisons,
-                input_refs: &input_refs,
-            })
+            .shape_identity_scoped(
+                ShapeIdentityView {
+                    branch: &branch,
+                    dir_ab: &dir_ab,
+                    dir_bc: &dir_bc,
+                    window: windows.each_ref().map(|v| v.as_str()),
+                    highs: highs.each_ref().map(|v| v.as_str()),
+                    lows: lows.each_ref().map(|v| v.as_str()),
+                    comparisons: &comparisons,
+                    input_refs: &input_refs,
+                },
+                s.codec_work(),
+            )
             .map_err(err)?;
-        if content_producer::object_id_of(&identity) != object.id {
+        let expected = s
+            .native_format(format_args!(
+                "{}",
+                content_producer::object_id_display(&identity)
+            ))
+            .map_err(err)?;
+        if expected != object.id {
             return Err(err("CC006 obj3与同cut组事实身份不符"));
         }
+        s.native_map_room(&mut shapes).map_err(err)?;
         shapes
-            .insert(object.id.try_clone()?, Shape { groups: indices })
+            .insert(
+                s.native_text(object.id.as_str())?,
+                Shape { groups: indices },
+            )
             .map_err(err)?;
     }
     let witness_array = field_ref(s, state, "witnesses")?;
@@ -1840,9 +1928,10 @@ fn audit_generated_in_store(
         let id = fields.text(s, "witness_id").map_err(err)?;
         let object_id = fields.text(s, "object_id").map_err(err)?;
         let slot = fields.integer(s, "slot").map_err(err)?;
+        s.native_map_room(&mut seen).map_err(err)?;
         if !(0..3).contains(&slot)
             || seen
-                .insert((object_id.try_clone()?, slot), ())
+                .insert((s.native_text(object_id.as_str())?, slot), ())
                 .map_err(err)?
                 .is_some()
         {
@@ -1863,9 +1952,9 @@ fn audit_generated_in_store(
             ("merged_open", "open"),
             ("merged_close", "close"),
         ] {
-            let actual = fields.get(merged).map_err(err)?;
+            let actual = fields.get_admitted(s, merged).map_err(err)?;
             let expected = if let Some(fields) = &payload_fields {
-                fields.get(field_name).map_err(err)?
+                fields.get_admitted(s, field_name).map_err(err)?
             } else {
                 field(s, &group.payload, field_name)?
             };
@@ -1873,7 +1962,7 @@ fn audit_generated_in_store(
                 return Err(err("见证合并值不是同cut组事实"));
             }
         }
-        let bars = fields.get("raw_bars").map_err(err)?;
+        let bars = fields.get_admitted(s, "raw_bars").map_err(err)?;
         let items = elements(s, &bars)?;
         if items.len() != group.members.len() {
             return Err(err("见证raw_bars成员数不同"));
@@ -4023,6 +4112,7 @@ fn elements_ref(
     let mut out = bj::new_work(b.as_ref());
     for i in 0..r.extent().ok_or_else(|| err("数组缺长度"))? {
         let v = s.lookup_ref(r, &[PathStep::Index(i)]).map_err(err)?;
+        s.native_codec_room(&mut out, 1).map_err(err)?;
         out.try_push(v).map_err(err)?;
     }
     Ok(out)

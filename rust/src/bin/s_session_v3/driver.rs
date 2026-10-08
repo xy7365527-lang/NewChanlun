@@ -1046,6 +1046,66 @@ mod tests {
 
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
+    fn audit_owner_normal_append_keeps_candidate_below_old_multiplier_gate() {
+        let f = Fixture::new();
+        let o = Fixture::new();
+        let mut native = complete_driver(&f);
+        let mut ordinary = o.open("1").unwrap();
+        assert_eq!(
+            native.handle(Fixture::ingest(1)).unwrap(),
+            ordinary.handle(Fixture::ingest(1)).unwrap()
+        );
+        let before = native.conn.complete_report();
+        let held = native.conn.complete_retained_bytes();
+        assert!(held > 0);
+        assert_eq!(before["charge"]["slot_result_capacity"], 0);
+        let workspace = 16 * 1024 * 1024;
+        let old_gate_lower_bound = held.checked_mul(32).unwrap().checked_add(65536).unwrap();
+        assert!(
+            workspace < old_gate_lower_bound,
+            "旧门即使不计effects也会撤候选"
+        );
+        let cap = crate::cache::retained_bytes() + held + workspace;
+        native.audit_cache_source_bytes = Some(cap);
+        let (actual, events, _) = state::traced(true, || native.handle(Fixture::ingest(2)));
+        assert_eq!(
+            actual.unwrap(),
+            ordinary.handle(Fixture::ingest(2)).unwrap()
+        );
+        assert!(native.conn.complete_retained_bytes() > 0);
+        let retained = native.conn.complete_report();
+        assert!(retained["charge"]["handoff_peak"].as_u64().unwrap() < cap as u64);
+        for phase in [
+            "history_decode_manifest",
+            "generated_sources",
+            "catalog_cut",
+        ] {
+            assert_eq!(
+                events
+                    .iter()
+                    .filter(|e| e["phase"] == phase)
+                    .map(|e| e["generation"].as_i64().unwrap())
+                    .collect::<Vec<_>>(),
+                [2]
+            );
+        }
+        assert!(events.iter().any(|e| e["phase"] == "owner_complete_hit"));
+        assert!(!events
+            .iter()
+            .any(|e| e["phase"] == "owner_retained_full_scan"));
+        native.conn.assert_complete_matches_cold();
+        assert_eq!(
+            prepared::tests::runtime_root_tables(&native.conn, true),
+            prepared::tests::runtime_root_tables(&ordinary.conn, true)
+        );
+        eprintln!(
+            "{}",
+            json!({"scenario":"r9-normal-below-old-multiplier","workspace":workspace,"cap":cap,"old_gate_lower_bound":old_gate_lower_bound,"retention":retained})
+        );
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
     fn audit_owner_write_budget_releases_candidate_after_successful_normal_append() {
         use super::super::audit_owner::allocation_probe::Window;
         let f = Fixture::new();

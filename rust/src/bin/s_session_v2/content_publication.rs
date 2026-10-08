@@ -193,7 +193,7 @@ fn ref_value(store: &(impl CodecStore + ?Sized), r: sc::RefView<'_>) -> Result<R
         #[cfg(not(feature = "s_allocation_json_testonly"))]
         return Err(err("owned refs未启用TestOnly feature"));
     }
-    Ok(RefValue::Plain(normal_reference(r)))
+    store.native_plain_ref(r).map(RefValue::Plain).map_err(err)
 }
 pub(crate) fn resolve_indexed_templates_pending_view(
     tx: &Transaction<'_>,
@@ -374,11 +374,11 @@ pub(crate) fn resolve_native_dual_templates_pending_view(
     let capture = store
         .native_projection_capture()
         .ok_or_else(|| err("双投影缺Native capture"))?;
-    capture
-        .verify_refview(roots.publication_template, sc::Mode::Template)
+    store
+        .native_verify_original(capture, roots.publication_template, sc::Mode::Template)
         .map_err(err)?;
-    capture
-        .verify_refview(roots.delta_template, sc::Mode::Template)
+    store
+        .native_verify_original(capture, roots.delta_template, sc::Mode::Template)
         .map_err(err)?;
     let mut snapshot = ref_value(store, roots.publication_template)?;
     let mut delta = ref_value(store, roots.delta_template)?;
@@ -403,47 +403,53 @@ pub(crate) fn resolve_native_dual_templates_pending_view(
     ] {
         let fields = store.lookup_fields_ref(root.view(), names).map_err(err)?;
         for (name, ordinal) in replacements {
-            let actual = fields.get(name).ok_or_else(|| err("模板缺数组字段"))?;
+            let actual = fields
+                .get_admitted(store, name)
+                .map_err(err)?
+                .ok_or_else(|| err("模板缺数组字段"))?;
             let expected = &projection.arrays()[*ordinal].0;
-            capture
-                .verify_refview(actual.view(), sc::Mode::Template)
+            store
+                .native_verify_original(capture, actual.view(), sc::Mode::Template)
                 .map_err(err)?;
             if actual.kind() != Kind::Array
                 || actual.extent() != expected.extent
-                || normal_reference(actual.view()) != expected.content_ref()
+                || actual.view().format() != sc::CONTENT_FORMAT
+                || actual.root() != sc::FixedRoot::new(&expected.digest).as_str()
+                || actual.kind() != expected.kind
             {
                 return Err(err("真实Template数组与独立有序双投影不同"));
             }
         }
-        let values = names
-            .iter()
-            .map(|name| {
-                let digest =
-                    if let Some((_, ordinal)) = replacements.iter().find(|(k, _)| k == name) {
-                        projection.arrays()[*ordinal].1.digest
-                    } else {
-                        fields
-                            .get(name)
-                            .ok_or_else(|| err("模板缺字段"))?
-                            .digest()
-                            .map_err(err)?
-                    };
-                Ok((*name, VV::Edge(digest)))
-            })
-            .collect::<Result<Vec<_>, String>>()?;
-        *root = RefValue::Plain(
-            store
-                .write_template_view(VV::Object(&values))
-                .map_err(err)?
-                .content_ref(),
-        );
+        let mut values = Vec::new();
+        store
+            .native_vec_room(&mut values, names.len())
+            .map_err(err)?;
+        for name in names {
+            let digest = if let Some((_, ordinal)) = replacements.iter().find(|(k, _)| k == name) {
+                projection.arrays()[*ordinal].1.digest
+            } else {
+                fields
+                    .get_admitted(store, name)
+                    .map_err(err)?
+                    .ok_or_else(|| err("模板缺字段"))?
+                    .digest()
+                    .map_err(err)?
+            };
+            values.push((*name, VV::Edge(digest)));
+        }
+        let built = store
+            .write_template_view(VV::Object(&values))
+            .map_err(err)?;
+        *root = store.native_built_ref(&built).map_err(err)?;
     }
     for root in [&mut snapshot, &mut delta] {
-        for path in [
-            vec![field("index_frontier")],
-            vec![field("catalog_evidence"), field("batch_id")],
-        ] {
-            *root = store.replace_ref(root.view(), &path, batch).map_err(err)?;
+        let frontier = [store.native_field("index_frontier").map_err(err)?];
+        let evidence = [
+            store.native_field("catalog_evidence").map_err(err)?,
+            store.native_field("batch_id").map_err(err)?,
+        ];
+        for path in [&frontier[..], &evidence[..]] {
+            *root = store.replace_ref(root.view(), path, batch).map_err(err)?;
         }
     }
     Ok(PendingRefTemplates { snapshot, delta })
@@ -589,7 +595,7 @@ fn match_field_view(
     value: VV<'_>,
 ) -> Result<(), String> {
     let actual = store
-        .lookup_ref(root, &[field(key)])
+        .lookup_field_ref(root, key)
         .map_err(err)?
         .digest()
         .map_err(err)?;

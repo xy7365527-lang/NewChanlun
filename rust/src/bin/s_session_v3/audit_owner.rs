@@ -1377,17 +1377,15 @@ impl CompleteCandidate {
     ) -> Result<Option<Self>, String> {
         use super::audit_retention::sum;
         use effects::Table;
-        // #1394 未完成项：旧倍率门仍缺逐容器推导，不能视作新cut全部Native分配的许可。
-        // 完整替换须贯通object/aux/codec构造；当前超额仍只撤可选候选，校验Err不改判。
-        let reserve = sum([
-            self.charge.total.saturating_mul(32),
-            effects.bytes.saturating_mul(128),
-            65_536,
-        ]);
-        if reserve >= limit {
+        self.detach_slot()?;
+        let retained_at_entry = self.charge.total;
+        // Recording 已结束；它的峰值与候选保留物共存，不与后续审计峰值相加。
+        let Some(recording_peak) = retained_at_entry.checked_add(effects.peak) else {
+            return Ok(None);
+        };
+        if recording_peak >= limit {
             return Ok(None);
         }
-        self.detach_slot()?;
         let budget = match native::Budget::new(limit, sum([self.charge.total, effects.bytes])) {
             Ok(budget) => budget,
             Err(_) => return Ok(None),
@@ -1458,7 +1456,27 @@ impl CompleteCandidate {
             Err(native::Failure::Invalid(e)) => return Err(e),
         }
         if effects.operation == effects::Operation::Publish {
-            let g = meta_i64(tx, "generation")?;
+            // #1394：成功路径借用 SQL 文本，避免复制 meta 值及动态标签。
+            let g = {
+                let mut query = newchan_rust::sqlite_checked::CheckedStatement::prepare(
+                    tx,
+                    c"SELECT value FROM meta WHERE key=?1",
+                )
+                .map_err(invalid)?;
+                query.bind_text(1, "generation").map_err(invalid)?;
+                let mut row = query
+                    .next()
+                    .map_err(invalid)?
+                    .ok_or_else(|| invalid("meta.generation 缺失"))?;
+                let value = newchan_rust::session_protocol::parse_canonical_i64(
+                    row.text(0).map_err(invalid)?,
+                    "meta.generation",
+                )
+                .map_err(invalid)?;
+                drop(row);
+                query.finalize().map_err(invalid)?;
+                value
+            };
             let d = effects
                 .rows(Table::Delta)
                 .next()
@@ -1585,10 +1603,10 @@ impl CompleteCandidate {
             self.charge.inline,
         ]);
         self.charge.effects_peak = self.charge.effects_peak.max(peak);
-        self.charge.handoff_peak =
-            self.charge
-                .handoff_peak
-                .max(sum([self.charge.entry_reserved_bytes, reserve, peak]));
+        self.charge.handoff_peak = self.charge.handoff_peak.max(sum([
+            self.charge.entry_reserved_bytes,
+            budget.peak().max(recording_peak),
+        ]));
         if self.charge.total >= limit {
             return Ok(None);
         }
@@ -1694,11 +1712,16 @@ impl AuditTxn<'_> {
                     FixedOperation::Publish => effects::Operation::Publish,
                     FixedOperation::Recover => effects::Operation::Recover,
                 };
-                if let Some(recording) = effects::Recording::start(self.tx(), op, limit / 8)? {
-                    candidate.detach_slot()?;
-                    self.effect_limit.set(limit);
-                    *self.pending.borrow_mut() = Some(candidate);
-                    *self.recording.borrow_mut() = Some(recording);
+                // journal 首块出现前释放旧 slot；完整旧候选仍占同一工作额度。
+                candidate.detach_slot()?;
+                if let Some(recording_cap) = limit.checked_sub(candidate.charge.total) {
+                    if let Some(recording) =
+                        effects::Recording::start(self.tx(), op, (limit / 8).min(recording_cap))?
+                    {
+                        self.effect_limit.set(limit);
+                        *self.pending.borrow_mut() = Some(candidate);
+                        *self.recording.borrow_mut() = Some(recording);
+                    }
                 }
             }
         }
@@ -1718,7 +1741,11 @@ impl AuditTxn<'_> {
                 .take()
                 .ok_or_else(|| invalid("效果日志缺候选"))?;
             let limit = self.effect_limit.get();
-            let Some(effects) = recording.finish(self.tx(), &mut candidate.originals, limit)?
+            let recording_cap = limit
+                .checked_sub(candidate.charge.total)
+                .ok_or_else(|| invalid("效果日志与候选保留费超过工作额度"))?;
+            let Some(effects) =
+                recording.finish(self.tx(), &mut candidate.originals, recording_cap)?
             else {
                 return Ok(());
             };

@@ -1391,20 +1391,32 @@ pub(super) fn witness_identity(
         ));
     }
     let mut hasher = Sha256::new();
-    hasher.update(format!(r#"{{"mi":{mi},"object_id":"{object_id}","raw_bars":"#).as_bytes());
     {
+        use std::io::Write;
         let mut writer = DigestWriter(&mut hasher);
+        write!(
+            writer,
+            r#"{{"mi":{mi},"object_id":"{object_id}","raw_bars":"#
+        )
+        .map_err(|e| format!("GenError：见证输入失败：{e}"))?;
+        let reference = store.native_built_ref(raw_bars).map_err(codec_error)?;
         store
-            .render_canonical(&raw_bars.content_ref(), &mut writer)
+            .render_ref(reference.view(), &mut writer)
             .map_err(|error| format!("GenError：见证输入流式渲染失败：{error}"))?;
+        write!(writer, r#","slot":{slot}}}"#)
+            .map_err(|e| format!("GenError：见证输入失败：{e}"))?;
     }
-    hasher.update(format!(r#","slot":{slot}}}"#).as_bytes());
     let digest = hasher.finalize();
-    let hex = digest
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
-    Ok(format!("wit-{}", &hex[..16]))
+    // 输出固定为 wit- + 16 个十六进制字符；许可早于唯一的 String 分配。
+    store.native_admit(20).map_err(codec_error)?;
+    let mut result = String::with_capacity(20);
+    result.push_str("wit-");
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    for byte in &digest[..8] {
+        result.push(HEX[(byte >> 4) as usize] as char);
+        result.push(HEX[(byte & 15) as usize] as char);
+    }
+    Ok(result)
 }
 
 /// `std::io::Write` → SHA256 的流式适配（`render_canonical` 的 sink）。
@@ -1593,6 +1605,31 @@ mod tests {
     };
     use newchan_rust::s_content::{render_canonical, MemoryNodes};
     use serde_json::json;
+
+    #[test]
+    fn streamed_witness_identity_matches_normal_recipe_at_decimal_boundaries() {
+        let raw = json!([{"source_coord":"0", "open":"12.5", "note":"原件"}]);
+        let mut nodes = MemoryNodes::default();
+        let bars = sc::write_json_view(&mut nodes, (&raw).into()).unwrap();
+        for (slot, mi) in [(0usize, 0usize), (2, 127), (usize::MAX, usize::MAX)] {
+            let object_id = "obj3-正常身份";
+            let canonical = canonical_bytes_of_value(&json!({
+                "mi": mi, "object_id": object_id, "raw_bars": raw, "slot": slot,
+            }));
+            let digest = Sha256::digest(&canonical);
+            let expected = format!(
+                "wit-{}",
+                digest[..8]
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect::<String>()
+            );
+            assert_eq!(
+                witness_identity(&mut nodes, object_id, slot, mi, &bars).unwrap(),
+                expected
+            );
+        }
+    }
 
     #[cfg(feature = "s_allocation_json_testonly")]
     #[test]

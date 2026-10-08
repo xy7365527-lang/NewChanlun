@@ -220,6 +220,41 @@ fn lookup_path_view_output_inner<R: RefOutput>(
     native_reference(source, kind, descent.digest, extent)
 }
 
+/// 单层可选字段仍使用相同键序搜索核；不存在是正常值，真实错误照常结束工作域。
+pub(super) fn lookup_optional_field_output<R: RefOutput>(
+    source: &mut CodecContext<'_, '_>,
+    reference: RefView<'_>,
+    name: &str,
+) -> Result<Option<R>, CodecError> {
+    let work = source.work_budget();
+    let result = (|| {
+        let root = navigate_path_view(source, reference, &[], false)?;
+        if root.tag != tag::OBJECT {
+            return Err(step_kind_error("field", "0x06 对象", root.tag));
+        }
+        let declared = framed_len(&root.body, "对象")?;
+        let fields = digest_at(&root.body, 8);
+        let Some((_, _, value)) = find_field_optional(source, &fields, declared, name)? else {
+            return Ok(None);
+        };
+        let (tag, body) = read_value_node(source, &value, false)?;
+        let kind = Kind::from_tag(tag).ok_or_else(|| unsupported_value_tag_error(tag))?;
+        native_reference(source, kind, value, header_extent(tag, &body)?).map(Some)
+    })();
+    if let Some(work) = work {
+        work.observe(&result);
+    }
+    result
+}
+
+pub fn lookup_optional_field_refview(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+    name: &str,
+) -> Result<Option<ContentRef>, CodecError> {
+    lookup_optional_field_output(&mut CodecContext::Source(source), reference, name)
+}
+
 /// 私有审计用的完整 root[] 枚举（#1394）：与旧逐 Index 的 Value 角色一致。
 /// 每个逻辑序列位置核 count/k、每个实际读取核本次 F；同摘要的重复位置仍逐次读。
 /// 栈只保存摘要、期望数量和基准位置，不保存 body、不跨调用复用、不展开成员子图。
@@ -1194,6 +1229,15 @@ fn find_field(
     count: u64,
     name: &str,
 ) -> Result<(WorkVec<BranchFrame>, NodeDigest, NodeDigest), CodecError> {
+    find_field_optional(source, root, count, name)?.ok_or_else(|| field_missing_error(name))
+}
+
+fn find_field_optional(
+    source: &mut CodecContext<'_, '_>,
+    root: &NodeDigest,
+    count: u64,
+    name: &str,
+) -> Result<Option<(WorkVec<BranchFrame>, NodeDigest, NodeDigest)>, CodecError> {
     let wanted = name.as_bytes();
     let budget = source.work_budget();
     let mut branches: WorkVec<BranchFrame> = WorkVec::new_work(budget.as_ref());
@@ -1201,15 +1245,15 @@ fn find_field(
     let mut n = count;
     loop {
         if n == 0 {
-            return Err(field_missing_error(name));
+            return Ok(None);
         }
         match read_seq_node(source, &digest, n)? {
-            SeqNode::Empty => return Err(field_missing_error(name)),
+            SeqNode::Empty => return Ok(None),
             SeqNode::Leaf(field) => {
                 let (key, value) = read_field(source, &field)?;
                 return match cmp_key_bytes(source, &key, wanted)? {
-                    Ordering::Equal => Ok((branches, key, value)),
-                    _ => Err(field_missing_error(name)),
+                    Ordering::Equal => Ok(Some((branches, key, value))),
+                    _ => Ok(None),
                 };
             }
             SeqNode::Branch { k, left, right } => {

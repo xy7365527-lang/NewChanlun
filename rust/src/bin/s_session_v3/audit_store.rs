@@ -190,15 +190,105 @@ pub(crate) trait CodecRead: NodeSource {
         self.native_admit(bytes)
     }
     fn native_ref_clone(&self, value: &RefValue) -> Result<RefValue, CodecError> {
+        match value {
+            RefValue::Plain(r) => self.native_plain_ref(r.into()).map(RefValue::Plain),
+            RefValue::Owned(r) => Ok(RefValue::Owned(*r)),
+        }
+    }
+    /// 借用声明只复制文本，不提前核 digest，也不把 Plain 改成 Owned。
+    fn native_plain_ref(&self, r: sc::RefView<'_>) -> Result<ContentRef, CodecError> {
         self.native_admit(
-            value
-                .view()
-                .format()
+            r.format()
                 .len()
-                .checked_add(value.view().root().len())
+                .checked_add(r.root().len())
                 .ok_or_else(|| self.native_overflow())?,
         )?;
-        Ok(value.clone())
+        Ok(ContentRef {
+            format: r.format().to_owned(),
+            root: r.root().to_owned(),
+            kind: r.kind(),
+            extent: r.extent(),
+        })
+    }
+    fn native_built_ref(&self, b: &sc::Built) -> Result<RefValue, CodecError> {
+        if self.allocation_budget().is_some() {
+            #[cfg(feature = "s_allocation_json_testonly")]
+            return Ok(RefValue::Owned(b.owned_ref()));
+            #[cfg(not(feature = "s_allocation_json_testonly"))]
+            return Err(CodecError::new(
+                sc::capture_allocation::INCOMPLETE,
+                "owned refs未启用TestOnly feature",
+            ));
+        }
+        // FixedRoot 是栈上文本；两个 String 均在同父账准入之后才构造。
+        let root = sc::FixedRoot::new(&b.digest);
+        self.native_admit(sc::CONTENT_FORMAT.len() + root.as_str().len())?;
+        Ok(RefValue::Plain(ContentRef {
+            format: sc::CONTENT_FORMAT.to_owned(),
+            root: root.as_str().to_owned(),
+            kind: b.kind,
+            extent: b.extent,
+        }))
+    }
+    fn native_string(&self, text: &str) -> Result<String, CodecError> {
+        let permit = self
+            .codec_work()
+            .map(|w| w.reserve_native(text.len()))
+            .transpose()?;
+        let mut value = String::new();
+        value.try_reserve_exact(text.len()).map_err(|_| {
+            self.codec_work().map_or_else(
+                || CodecError::new(sc::capture_allocation::LIMIT, "Native文本分配失败"),
+                |w| w.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation),
+            )
+        })?;
+        value.push_str(text);
+        if let Some(permit) = permit {
+            permit.retain();
+        }
+        Ok(value)
+    }
+    fn native_field(&self, key: &str) -> Result<PathStep, CodecError> {
+        self.native_string(key).map(PathStep::Field)
+    }
+    /// 先向栈上计数器格式化，再一次性准入实际文本长度；不构造临时 String。
+    fn native_format(&self, args: std::fmt::Arguments<'_>) -> Result<String, CodecError> {
+        struct Count(usize);
+        impl std::fmt::Write for Count {
+            fn write_str(&mut self, value: &str) -> std::fmt::Result {
+                self.0 = self.0.checked_add(value.len()).ok_or(std::fmt::Error)?;
+                Ok(())
+            }
+        }
+        let mut count = Count(0);
+        std::fmt::write(&mut count, args).map_err(|_| self.native_overflow())?;
+        let permit = self
+            .codec_work()
+            .map(|w| w.reserve_native(count.0))
+            .transpose()?;
+        let mut value = String::new();
+        value.try_reserve_exact(count.0).map_err(|_| {
+            self.codec_work().map_or_else(
+                || CodecError::new(sc::capture_allocation::LIMIT, "Native文本分配失败"),
+                |w| w.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation),
+            )
+        })?;
+        struct BoundedText<'a>(&'a mut String, usize);
+        impl std::fmt::Write for BoundedText<'_> {
+            fn write_str(&mut self, text: &str) -> std::fmt::Result {
+                if text.len() > self.1.saturating_sub(self.0.len()) {
+                    return Err(std::fmt::Error);
+                }
+                self.0.push_str(text);
+                Ok(())
+            }
+        }
+        std::fmt::write(&mut BoundedText(&mut value, count.0), args)
+            .map_err(|_| self.native_overflow())?;
+        if let Some(permit) = permit {
+            permit.retain();
+        }
+        Ok(value)
     }
     fn native_ref_fields_bytes<'a>(
         &self,
@@ -262,7 +352,12 @@ pub(crate) trait CodecRead: NodeSource {
         sc::verify_refview(&mut Current { capture, scope }, reference, mode)
     }
     fn native_text(&self, text: &str) -> Result<super::business_json::TextValue, String> {
-        self.native_admit(text.len()).map_err(|e| e.to_string())?;
+        if self.codec_work().is_some() && self.allocation_budget().is_none() {
+            return self
+                .native_string(text)
+                .map(super::business_json::TextValue::Plain)
+                .map_err(|e| e.to_string());
+        }
         super::business_json::TextValue::from_str(text, self.allocation_budget().as_ref())
     }
     fn native_json_clone(
@@ -303,6 +398,7 @@ pub(crate) trait CodecRead: NodeSource {
     ) -> Result<sc::CodecVec<RefValue>, CodecError> {
         let refs = sc::path::lookup_array_items_refview(self.generic_source(), r)?;
         let mut out = sc::CodecVec::from_plain(Vec::new());
+        self.native_codec_room(&mut out, refs.len())?;
         for r in refs {
             out.try_push(RefValue::Plain(r))?;
         }
@@ -332,7 +428,16 @@ pub(crate) trait CodecRead: NodeSource {
         sc::path::lookup_path_refview(self.generic_source(), r, p).map(RefValue::Plain)
     }
     fn lookup_field_ref(&mut self, r: sc::RefView<'_>, key: &str) -> Result<RefValue, CodecError> {
-        self.lookup_ref(r, &[PathStep::Field(key.into())])
+        sc::path::lookup_path_view_refview(self.generic_source(), r, &BorrowedFieldPath(key))
+            .map(RefValue::Plain)
+    }
+    fn lookup_optional_field_ref(
+        &mut self,
+        r: sc::RefView<'_>,
+        key: &str,
+    ) -> Result<Option<RefValue>, CodecError> {
+        sc::path::lookup_optional_field_refview(self.generic_source(), r, key)
+            .map(|value| value.map(RefValue::Plain))
     }
     fn lookup_fields_ref<'a>(
         &mut self,
@@ -627,6 +732,16 @@ impl CodecRead for StoreView<'_, '_> {
         match &mut self.backend {
             Backend::Generic(s) => s.lookup_field_ref(r, key),
             Backend::Audit(s) => s.lookup_field_ref(r, key),
+        }
+    }
+    fn lookup_optional_field_ref(
+        &mut self,
+        r: sc::RefView<'_>,
+        key: &str,
+    ) -> Result<Option<RefValue>, CodecError> {
+        match &mut self.backend {
+            Backend::Generic(s) => s.lookup_optional_field_ref(r, key),
+            Backend::Audit(s) => s.lookup_optional_field_ref(r, key),
         }
     }
     fn lookup_fields_ref<'a>(
@@ -977,6 +1092,123 @@ impl serde::Serialize for RefValue {
 mod ref_value_tests {
     use super::*;
 
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn r9a_ref_outputs_charge_plain_text_and_preserve_values() {
+        let built = sc::Built {
+            digest: [0xad; 32],
+            kind: sc::Kind::Array,
+            extent: Some(7),
+        };
+        let reference = built.content_ref();
+        let bytes = reference.format.len() + reference.root.len();
+        let fields = RefFields::Plain(sc::CodecFields::from_plain(
+            std::collections::BTreeMap::from([("items".into(), reference.clone())]),
+        ));
+        let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let store = NativeAdmission(Some(scope));
+                let before = budget.live();
+                let value = fields.get_admitted(&store, "items")?.unwrap();
+                assert_eq!(value, RefValue::Plain(reference));
+                assert_eq!(budget.live() - before, bytes);
+                let copied = store.native_ref_clone(&value)?;
+                let returned = store.native_built_ref(&built)?;
+                assert_eq!(copied, value);
+                assert_eq!(returned, value);
+                assert!(matches!(returned, RefValue::Plain(_)));
+                assert_eq!(budget.live() - before, 3 * bytes);
+                assert!(fields.get_admitted(&store, "missing")?.is_none());
+                assert_eq!(budget.live() - before, 3 * bytes);
+                let formatted = store.native_format(format_args!("{:?}", Some(u64::MAX)))?;
+                assert_eq!(formatted, "Some(18446744073709551615)");
+                assert_eq!(budget.live() - before, 3 * bytes + formatted.len());
+                drop((value, copied, returned, formatted));
+                assert!(budget.live() > before, "Plain许可保守留到父域结束");
+                Ok::<_, CodecError>(())
+            })
+            .unwrap();
+        assert_eq!(budget.scratch_observation().0, 0);
+        assert_eq!(budget.scratch_observation().2, 0);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn r9a_optional_fields_preserve_absence_kind_and_scoped_reads() {
+        let mut nodes = sc::MemoryNodes::new();
+        let mut deep = sc::Value::Null;
+        for _ in 0..160 {
+            deep = sc::Value::Array(vec![deep]);
+        }
+        let values = [
+            sc::Value::Object(vec![]),
+            sc::Value::Object(vec![("deep".into(), deep)]),
+            sc::Value::Object(vec![("tb02a".into(), sc::Value::Bool(true))]),
+            sc::Value::Object(vec![("tb02a".into(), sc::Value::Bool(false))]),
+            sc::Value::Object(vec![(
+                "tb02a".into(),
+                sc::Value::JsonText(Box::new(sc::JsonValue::Bool(true))),
+            )]),
+        ];
+        let roots: Vec<_> = values
+            .iter()
+            .map(|v| sc::write_value(&mut nodes, v).unwrap().content_ref())
+            .collect();
+        let expected = [
+            None,
+            None,
+            Some(sc::Kind::Bool),
+            Some(sc::Kind::Bool),
+            Some(sc::Kind::JsonText),
+        ];
+        let capture = sc::AuditCapture::new(nodes.clone())
+            .enable_native_frame_reuse_for_testonly()
+            .unwrap();
+        let ((), stats) = with_native_store_probe(&capture, 8 * 1024 * 1024, |store, _| {
+            for (root, kind) in roots.iter().zip(expected) {
+                let found = store.lookup_optional_field_ref(root.into(), "tb02a")?;
+                assert_eq!(found.as_ref().map(RefValue::kind), kind);
+                if let Some(found) = found {
+                    assert!(matches!(found, RefValue::Plain(_)));
+                    assert_eq!(found, store.lookup_field_ref(root.into(), "tb02a")?);
+                }
+            }
+            assert_eq!(
+                store.native_string("scope remains usable")?,
+                "scope remains usable"
+            );
+            Ok(())
+        });
+        assert_eq!((stats.0, stats.2), (0, 0));
+        #[cfg(feature = "s_allocation_json_testonly")]
+        {
+            use sc::capture_allocation::{CaptureSlab, OwnedBudget};
+            let budget = OwnedBudget::new(16 * 1024 * 1024);
+            let bytes = nodes.iter().map(|(_, _, b)| b.len()).sum();
+            let mut slab = CaptureSlab::new(nodes.len(), bytes, &budget).unwrap();
+            for (d, t, b) in nodes.iter() {
+                slab.push(*d, t, b).unwrap();
+            }
+            let owned =
+                sc::AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
+            with_owned_store_probe(&owned, &budget, 64, 65536, |store| {
+                for (root, kind) in roots.iter().zip(expected) {
+                    let found = store
+                        .lookup_optional_field_ref(root.into(), "tb02a")
+                        .unwrap();
+                    assert_eq!(found.as_ref().map(RefValue::kind), kind);
+                    if let Some(found) = found {
+                        assert!(matches!(found, RefValue::Owned(_)));
+                        assert_eq!(found, store.lookup_field_ref(root.into(), "tb02a").unwrap());
+                    }
+                }
+            });
+        }
+    }
+
     #[test]
     fn ref_value_transport_matches_public_ref_for_all_kinds_and_extents() {
         for kind in sc::Kind::ALL {
@@ -1011,6 +1243,19 @@ pub(crate) enum RefFields<'a> {
     Owned(sc::OwnedRefFields<'a>),
 }
 impl RefFields<'_> {
+    pub fn get_admitted(
+        &self,
+        s: &(impl CodecRead + ?Sized),
+        key: &str,
+    ) -> Result<Option<RefValue>, CodecError> {
+        match self {
+            Self::Plain(f) => f
+                .get(key)
+                .map(|r| s.native_plain_ref(r.into()).map(RefValue::Plain))
+                .transpose(),
+            Self::Owned(f) => Ok(f.get(key).copied().map(RefValue::Owned)),
+        }
+    }
     pub fn get(&self, key: &str) -> Option<RefValue> {
         match self {
             Self::Plain(f) => f.get(key).cloned().map(RefValue::Plain),
@@ -1023,6 +1268,26 @@ impl RefFields<'_> {
             Self::Owned(f) => f.len(),
         }
     }
+}
+
+/// 仅测试：真实capture/overlay/config进入实际HashReader backend，不制作owned成功token。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(crate) fn with_native_store_probe<T>(
+    capture: &sc::AuditCapture,
+    limit: usize,
+    action: impl FnOnce(&mut StoreView<'_, '_>, &dyn Fn() -> usize) -> Result<T, CodecError>,
+) -> (T, (usize, usize, usize, usize)) {
+    let budget = super::audit_owner::native::Budget::new(limit, 0).unwrap();
+    let result = budget
+        .codec_work()
+        .unwrap()
+        .run(|scope| {
+            let mut reader =
+                HashReader::captured_for_audit(capture, None)?.with_codec_work(scope, &budget);
+            action(&mut StoreView::for_audit(&mut reader), &|| budget.live())
+        })
+        .unwrap();
+    (result, budget.scratch_observation())
 }
 
 /// 仅测试：真实capture/overlay/config进入实际HashReader backend，不制作owned成功token。

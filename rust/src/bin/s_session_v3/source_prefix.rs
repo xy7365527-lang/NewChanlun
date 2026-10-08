@@ -69,6 +69,54 @@ mod tests {
         super::super::super::history::HashReader::captured(capture, None)
     }
     #[test]
+    fn native_prefix_certificates_and_shared_coords_use_current_parent_scope() {
+        let raw = vec![
+            event("a", "10", 1, 1),
+            event("a", "10", 2, 2),
+            event("b", "30", 1, 3),
+        ];
+        let expected = NativeSourceMemo::winner_intervals((&raw).into()).unwrap();
+        let capture = sc::AuditCapture::new(sc::MemoryNodes::default());
+        let mut memo = NativeSourceMemo::new(&capture, (&raw).into());
+        assert!(!memo.intervals_ready && memo.intervals.is_none());
+        let budget = super::super::super::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let before = budget.live();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let admission = super::super::super::audit_store::NativeAdmission(Some(scope));
+                let intervals =
+                    NativeSourceMemo::winner_intervals_admitted(&admission, (&raw).into())?
+                        .unwrap();
+                assert_eq!(intervals, expected);
+                let shared = memo.share(&admission, copy_coords(&admission, &[10, 30])?)?;
+                let again = memo.share(&admission, copy_coords(&admission, &[10, 30])?)?;
+                assert!(Rc::ptr_eq(&shared, &again));
+                assert_eq!(&*shared, &[10, 30]);
+                assert!(
+                    budget.live()
+                        > before + sc::capture_allocation::scratch::CodecWork::metadata_bytes()
+                );
+                drop(shared);
+                drop(again);
+                drop(intervals);
+                memo.clear();
+                assert!(
+                    budget.live()
+                        > before + sc::capture_allocation::scratch::CodecWork::metadata_bytes(),
+                    "容器析构后保守许可仍归候选父Budget"
+                );
+                drop(memo);
+                Ok::<_, String>(())
+            })
+            .unwrap();
+        assert!(budget.live() > before, "WorkScope结束不归还Native保守持账");
+        assert_eq!(budget.scratch_observation().0, 0);
+        assert_eq!(budget.scratch_observation().2, 0);
+    }
+
+    #[test]
     fn winner_sweep_matches_every_effective_prefix_with_revisions_and_sparse_coords() {
         // Acceptance ordinal and source coordinate deliberately have different order/spacing.
         let raw = vec![
@@ -363,7 +411,9 @@ struct Proof {
 }
 pub(super) struct NativeSourceMemo<'capture> {
     capture: &'capture sc::AuditCapture,
+    raw: RawEventsView<'capture>,
     raw_len: usize,
+    intervals_ready: bool,
     // None means no optimization qualification; original reference predicate still runs.
     intervals: Option<HashMap<(i64, NodeDigest, bool), Vec<Interval>>>,
     coords: HashMap<SequenceKey, Rc<[i64]>>,
@@ -373,13 +423,16 @@ pub(super) struct NativeSourceMemo<'capture> {
     pub(super) stats: [u64; 4], // coords hit/miss, refs hit/miss
 }
 impl<'capture> NativeSourceMemo<'capture> {
-    pub(super) fn new(capture: &'capture sc::AuditCapture, raw: RawEventsView<'_>) -> Self {
+    pub(super) fn new(capture: &'capture sc::AuditCapture, raw: RawEventsView<'capture>) -> Self {
         #[cfg(test)]
         STATS.with(|s| s.set(Some([0; 4])));
         Self {
             capture,
+            raw,
             raw_len: raw.len(),
-            intervals: Self::winner_intervals(raw).ok(),
+            // restore 先接父 scope，再在真实消费时建立证书，构造失败不降级放行。
+            intervals_ready: false,
+            intervals: None,
             coords: HashMap::new(),
             references: HashMap::new(),
             intern: HashMap::new(),
@@ -392,16 +445,34 @@ impl<'capture> NativeSourceMemo<'capture> {
         self.references.clear();
         self.intern.clear();
     }
+    #[cfg(test)]
     fn winner_intervals(
         raw: RawEventsView<'_>,
     ) -> Result<HashMap<(i64, NodeDigest, bool), Vec<Interval>>, String> {
+        Self::winner_intervals_admitted(&super::super::audit_store::NativeAdmission(None), raw)?
+            .ok_or_else(|| err("来源证书身份坐标不可固定"))
+    }
+    fn winner_intervals_admitted(
+        s: &(impl CodecRead + ?Sized),
+        raw: RawEventsView<'_>,
+    ) -> Result<Option<HashMap<(i64, NodeDigest, bool), Vec<Interval>>>, String> {
         // Establish fixed identity coordinates and no cross-identity coordinate alias.
         // Future malformed input disables proof reuse without changing an earlier cut's errors.
         let mut identity_coords = BTreeMap::new();
         let mut coord_identities = BTreeMap::new();
         for event in raw.iter() {
             let identity = bj::field(event, "identity_key").as_str().unwrap_or("");
-            let coord = bj::coord(event)?;
+            let Ok(coord) = bj::coord(event) else {
+                return Ok(None);
+            };
+            if !identity_coords.contains_key(identity) {
+                s.native_tree_room::<&str, i64>(identity_coords.len())
+                    .map_err(err)?;
+            }
+            if !coord_identities.contains_key(&coord) {
+                s.native_tree_room::<i64, &str>(coord_identities.len())
+                    .map_err(err)?;
+            }
             if identity_coords
                 .insert(identity, coord)
                 .is_some_and(|old| old != coord)
@@ -409,7 +480,7 @@ impl<'capture> NativeSourceMemo<'capture> {
                     .insert(coord, identity)
                     .is_some_and(|old| old != identity)
             {
-                return Err(err("来源证书身份坐标不可固定"));
+                return Ok(None);
             }
         }
         struct Winner {
@@ -422,8 +493,11 @@ impl<'capture> NativeSourceMemo<'capture> {
         }
         let mut winners: BTreeMap<&str, Winner> = BTreeMap::new();
         let mut out: HashMap<(i64, NodeDigest, bool), Vec<Interval>> = HashMap::new();
-        let mut close = |winner: Winner, last: usize| {
+        let mut close = |winner: Winner, last: usize| -> Result<(), String> {
             for (numeric, d) in [(false, winner.wire), (true, winner.numeric)] {
+                if !out.contains_key(&(winner.coord, d, numeric)) {
+                    s.native_std_map_room(&mut out).map_err(err)?;
+                }
                 let runs = out.entry((winner.coord, d, numeric)).or_default();
                 let interval = Interval {
                     first: winner.first,
@@ -435,9 +509,11 @@ impl<'capture> NativeSourceMemo<'capture> {
                 {
                     prev.last = last;
                 } else {
+                    s.native_vec_room(runs, 1).map_err(err)?;
                     runs.push(interval);
                 }
             }
+            Ok(())
         };
         for (ordinal, event) in raw.iter().enumerate() {
             let identity = bj::field(event, "identity_key").as_str().unwrap_or("");
@@ -447,36 +523,54 @@ impl<'capture> NativeSourceMemo<'capture> {
             }) {
                 continue;
             }
-            let wire = bj::RawReference::new(event, false)?;
-            let numeric = bj::RawReference::new(event, true)?;
+            let Ok(wire) = bj::RawReference::new(event, false) else {
+                return Ok(None);
+            };
+            let Ok(numeric) = bj::RawReference::new(event, true) else {
+                return Ok(None);
+            };
             let winner = Winner {
                 revision,
                 ordinal,
                 coord: bj::coord(event)?,
-                wire: sc::write_json_view(&mut HashOnly, wire.view())
-                    .map_err(err)?
-                    .digest,
-                numeric: sc::write_json_view(&mut HashOnly, numeric.view())
-                    .map_err(err)?
-                    .digest,
+                wire: super::super::history::hash_json_in_store(s, wire.view(), None, None)?,
+                numeric: super::super::history::hash_json_in_store(s, numeric.view(), None, None)?,
                 first: ordinal + 1,
             };
+            if !winners.contains_key(identity) {
+                s.native_tree_room::<&str, Winner>(winners.len())
+                    .map_err(err)?;
+            }
             if let Some(old) = winners.insert(identity, winner) {
-                close(old, ordinal);
+                close(old, ordinal)?;
             }
         }
         for (_, winner) in winners {
-            close(winner, raw.len());
+            close(winner, raw.len())?;
         }
-        Ok(out)
+        Ok(Some(out))
     }
-    fn share(&mut self, values: sc::CodecVec<i64>) -> Rc<[i64]> {
+    fn share(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        values: sc::CodecVec<i64>,
+    ) -> Result<Rc<[i64]>, String> {
         if let Some(shared) = self.intern.get(&*values) {
-            return shared.clone();
+            return Ok(shared.clone());
         }
+        // Rc<[i64]> = 两个引用计数 + 对齐后的 i64 数组；旧 CodecVec 仍在父账内。
+        let layout = std::alloc::Layout::array::<i64>(values.len())
+            .and_then(|array| {
+                std::alloc::Layout::new::<[usize; 2]>()
+                    .extend(array)
+                    .map(|v| v.0.pad_to_align())
+            })
+            .map_err(|_| err(s.native_overflow()))?;
+        s.native_admit(layout.size()).map_err(err)?;
+        s.native_std_map_room(&mut self.intern).map_err(err)?;
         let shared: Rc<[i64]> = Rc::from(&*values);
         self.intern.insert(shared.clone(), shared.clone());
-        shared
+        Ok(shared)
     }
     pub(super) fn coords(
         &mut self,
@@ -501,7 +595,9 @@ impl<'capture> NativeSourceMemo<'capture> {
             self.stats[1] += 1;
             STATS.with(|s| s.set(Some(self.stats)));
         }
-        let values = self.share(super::coords(s, r)?);
+        let parsed = super::coords(s, r)?;
+        let values = self.share(s, parsed)?;
+        s.native_std_map_room(&mut self.coords).map_err(err)?;
         self.coords.insert(key, values.clone());
         Ok(SourceCoords::Shared(values))
     }
@@ -515,6 +611,10 @@ impl<'capture> NativeSourceMemo<'capture> {
         prefix: usize,
         domain: ParseDomain,
     ) -> Result<SourceCoords, String> {
+        if !self.intervals_ready {
+            self.intervals = Self::winner_intervals_admitted(s, self.raw)?;
+            self.intervals_ready = true;
+        }
         let key = SequenceKey::new(r, domain, numeric)?;
         if self.intervals.is_none() || !self.capture.contains(&key.digest) {
             return super::references(s, r, raw, numeric, checked).map(SourceCoords::Original);
@@ -557,7 +657,8 @@ impl<'capture> NativeSourceMemo<'capture> {
             };
             interval = interval.intersect(*run);
         }
-        let values = self.share(values);
+        let values = self.share(s, values)?;
+        s.native_std_map_room(&mut self.references).map_err(err)?;
         self.references.insert(
             key,
             Proof {

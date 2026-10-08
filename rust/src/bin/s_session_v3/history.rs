@@ -50,20 +50,23 @@ fn compare_cut_array(
     budget: Option<&dyn super::audit_budget::Budget>,
     allocation: Option<&OwnedBudget>,
 ) -> Result<(), String> {
-    same_digest(
-        s,
-        public,
-        name,
-        hash_array_metered_with_owner(nodes, deadline, budget, false, allocation)?,
-    )
+    let expected =
+        hash_array_metered_with_work(nodes, deadline, budget, false, allocation, s.codec_work())?;
+    same_digest(s, public, name, expected)
 }
 fn native_cut_binding(
+    store: &(impl CodecRead + ?Sized),
     m: content_manifest::MetadataView<'_>,
     r: content_manifest::RootsView<'_>,
     previous: i64,
-) -> Vec<String> {
+) -> Result<Vec<String>, String> {
     let c = m.source_commit;
-    let mut out = [
+    let mut out = Vec::new();
+    // 18 个原字段、4 个十进制字段、4 份 ref 的各4字段。
+    store
+        .native_vec_room(&mut out, 18 + 4 + 4 * 4)
+        .map_err(err)?;
+    for text in [
         m.session_id,
         m.session_generation,
         m.writer_epoch,
@@ -82,30 +85,32 @@ fn native_cut_binding(
         c.producer_id,
         c.producer_epoch,
         c.clock_event_id,
-    ]
-    .iter()
-    .map(|s| (*s).to_owned())
-    .collect::<Vec<_>>();
-    out.extend([
-        m.generation.to_string(),
-        m.input_frontier.to_string(),
-        c.attempt_index.to_string(),
-        previous.to_string(),
-    ]);
+    ] {
+        out.push(store.native_string(text).map_err(err)?);
+    }
+    for value in [m.generation, m.input_frontier, c.attempt_index, previous] {
+        out.push(
+            store
+                .native_string(bj::Decimal::new(value).text())
+                .map_err(err)?,
+        );
+    }
     for v in [
         m.scope,
         r.generated_state,
         r.publication_template,
         r.delta_template,
     ] {
-        out.extend([
-            v.format().into(),
-            v.root().into(),
-            v.kind().name().into(),
-            format!("{:?}", v.extent()),
-        ]);
+        for text in [v.format(), v.root(), v.kind().name()] {
+            out.push(store.native_string(text).map_err(err)?);
+        }
+        out.push(
+            store
+                .native_format(format_args!("{:?}", v.extent()))
+                .map_err(err)?,
+        );
     }
-    out
+    Ok(out)
 }
 impl NativeCutProjection<'_, '_, '_> {
     pub(crate) fn check_scope(
@@ -119,7 +124,7 @@ impl NativeCutProjection<'_, '_, '_> {
     ) -> Result<(), String> {
         if !std::ptr::eq(self.transaction, tx)
             || self.batch != batch
-            || self.binding != native_cut_binding(m, r, previous)
+            || self.binding != native_cut_binding(s, m, r, previous)?
             || !s
                 .native_projection_capture()
                 .is_some_and(|c| std::ptr::eq(c, self.capture))
@@ -154,11 +159,9 @@ fn native_cut_projection<'scope, 'connection, 'capture>(
         aux_index::native_cut_members(aux, s, m.generation, true, batch)?;
     let public_array =
         |s: &mut HashReader<'_>, nodes: &[NodeDigest]| -> Result<sc::Built, String> {
-            let values = nodes
-                .iter()
-                .copied()
-                .map(sc::ValueView::Edge)
-                .collect::<Vec<_>>();
+            let mut values = Vec::new();
+            s.native_vec_room(&mut values, nodes.len()).map_err(err)?;
+            values.extend(nodes.iter().copied().map(sc::ValueView::Edge));
             s.write_template_view(sc::ValueView::Array(&values))
                 .map_err(err)
         };
@@ -167,8 +170,8 @@ fn native_cut_projection<'scope, 'connection, 'capture>(
     Ok(Some(NativeCutProjection {
         capture,
         transaction: tx,
-        batch: batch.into(),
-        binding: native_cut_binding(m, roots, previous),
+        batch: s.native_string(batch).map_err(err)?,
+        binding: native_cut_binding(s, m, roots, previous)?,
         arrays: [
             o[0].clone(),
             o[1].clone(),
@@ -537,7 +540,7 @@ fn read_indexed_history_inner(
         .verify_many_ref(resolved_roots.iter().map(RefValue::view), sc::Mode::Public)
         .map_err(err)?;
     let control_facts = control.into_facts()?;
-    verify_current_frontiers(tx, &output, previous, allocation.as_ref())?;
+    verify_current_frontiers(&store, tx, &output, previous, allocation.as_ref())?;
     let auxiliary_facts = native_aux.map(aux_index::NativeAuxAudit::into_facts);
     let raw_prefixes = match (native_prefix, ordered_raw) {
         (Some(prefixes), Some(ordered)) => Some(NativeRawPrefixes {
@@ -599,10 +602,7 @@ fn audit_one_published_cut<'capture>(
     let generation: i64 = row.integer(0).map_err(err)?;
     #[cfg(test)]
     super::state::trace_event("history_template_closure", Some(generation));
-    store
-        .native_admit(row.text(1).map_err(err)?.len())
-        .map_err(err)?;
-    let batch_id = TextValue::from_sql(row, 1, allocation).map_err(err)?;
+    let batch_id = sql_text_in_store(store, row, 1, allocation).map_err(err)?;
     let manifest = root_ref_bytes(store, row.blob(2).map_err(err)?)?;
     let snapshot = root_ref_bytes(store, row.blob(3).map_err(err)?)?;
     let delta = root_ref_bytes(store, row.blob(4).map_err(err)?)?;
@@ -719,7 +719,7 @@ fn audit_one_published_cut<'capture>(
         same_digest(store, public, key, expected)?;
     }
     let (withdrawals, replaces) = match &object_sweep {
-        Some(sweep) => sweep.changes(objects.entries(), generation)?,
+        Some(sweep) => sweep.changes_admitted(store, objects.entries(), generation)?,
         None => object_index::changes_at_budgeted(objects.entries(), generation, allocation)?,
     };
     let mut wire_withdrawals = bj::WithdrawalArray(bj::new_work(allocation));
@@ -732,6 +732,9 @@ fn audit_one_published_cut<'capture>(
         if let Some(b) = budget {
             b.record().map_err(err)?;
         }
+        store
+            .native_codec_room(&mut wire_withdrawals.0, 1)
+            .map_err(err)?;
         wire_withdrawals
             .0
             .try_push(bj::WithdrawalWire::new(v)?)
@@ -780,18 +783,18 @@ fn audit_one_published_cut<'capture>(
         ("rule_revision", &m.rule_revision),
         ("catalog_revision", &m.catalog_revision),
     ] {
-        if v2::control_meta_text(tx, key, allocation)?.as_deref() != Some(actual.as_str()) {
+        if meta_text_in_store(store, tx, key, allocation)?.as_deref() != Some(actual.as_str()) {
             return Err(err(format!("manifest.{key} 与冻结域不符")));
         }
     }
     let scope_text =
-        v2::control_meta_text(tx, "scope", allocation)?.ok_or_else(|| err("缺scope"))?;
-    let scope = history_decode(scope_text.as_bytes(), allocation)?;
+        meta_text_in_store(store, tx, "scope", allocation)?.ok_or_else(|| err("缺scope"))?;
+    let scope = history_decode_in_store(store, scope_text.as_bytes(), allocation)?;
     if m.scope.digest().map_err(err)? != hash_json_in_store(store, scope.view(), deadline, budget)?
     {
         return Err(err("manifest.scope 与冻结域不符"));
     }
-    verify_source(tx, &m, allocation)?;
+    verify_source(store, tx, &m, allocation)?;
     control.consume_header(
         generation,
         &batch_id,
@@ -838,6 +841,7 @@ fn audit_one_published_cut<'capture>(
         }
         let coord = bj::coord(event)?;
         if ordered_raw.is_none() {
+            store.native_map_room(effective).map_err(err)?;
             effective
                 .insert(coord, raw_nodes[n as usize])
                 .map_err(err)?;
@@ -882,6 +886,9 @@ fn audit_one_published_cut<'capture>(
                 let nodes = if let Some(index) = &ordered_raw {
                     // 修订/乱序后保留原 ARRAY 编码；只消除每 cut 的重新排序。
                     let mut nodes = bj::new_work(allocation);
+                    store
+                        .native_codec_room(&mut nodes, frontier as usize + 1)
+                        .map_err(err)?;
                     for (_, ordinal) in index.ordered() {
                         nodes.try_push(raw_nodes[ordinal]).map_err(err)?;
                     }
@@ -1008,7 +1015,7 @@ fn audit_one_published_cut<'capture>(
         (8, m.structure_cut.as_str()),
         (10, batch_id.as_str()),
     ] {
-        if TextValue::from_sql(row, column, allocation)
+        if sql_text_in_store(store, row, column, allocation)
             .map_err(err)?
             .as_str()
             != actual
@@ -1016,13 +1023,13 @@ fn audit_one_published_cut<'capture>(
             return Err(err("Delta 独立控制列与 manifest 不符"));
         }
     }
-    let stored_range = TextValue::from_sql(row, 9, allocation).map_err(err)?;
+    let stored_range = sql_text_in_store(store, row, 9, allocation).map_err(err)?;
     if !history_canonical_equal(seq_range, &stored_range, allocation)?
         || row.integer(11).map_err(err)? != frontier
     {
         return Err(err("Delta 独立前沿不符"));
     }
-    let catalog_run_status = TextValue::from_sql(row, 12, allocation).map_err(err)?;
+    let catalog_run_status = sql_text_in_store(store, row, 12, allocation).map_err(err)?;
     same_json(
         store,
         &delta,
@@ -1031,8 +1038,8 @@ fn audit_one_published_cut<'capture>(
     )?;
     let evidence = field(store, &delta, "catalog_evidence")?;
     for (column, want) in [(13, &evidence), (14, &delta)] {
-        let encoded = TextValue::from_sql(row, column, allocation).map_err(err)?;
-        let parsed = history_decode(encoded.as_bytes(), allocation)?;
+        let encoded = sql_text_in_store(store, row, column, allocation).map_err(err)?;
+        let parsed = history_decode_in_store(store, encoded.as_bytes(), allocation)?;
         if !history_canonical_equal(parsed.view(), &encoded, allocation)?
             || !transport_equal(parsed.view(), want)?
         {
@@ -1082,16 +1089,17 @@ fn hash_current_raw(
     Ok((raw_nodes, raw_wire_nodes))
 }
 fn verify_current_frontiers(
+    store: &(impl CodecRead + ?Sized),
     tx: &Transaction<'_>,
     output: &sc::CodecVec<PublishedCut>,
     previous: i64,
     allocation: Option<&OwnedBudget>,
 ) -> Result<(), String> {
-    if v2::control_meta_i64(tx, "last_advance_frontier", allocation)? != previous {
+    if meta_i64_in_store(store, tx, "last_advance_frontier", allocation)? != previous {
         return Err(err("根前沿与完整发布史不符"));
     }
     if let Some(last) = output.last() {
-        if v2::control_meta_text(tx, "index_frontier", allocation)?.as_deref()
+        if meta_text_in_store(store, tx, "index_frontier", allocation)?.as_deref()
             != Some(last.batch_id.as_str())
         {
             return Err(err("根批次与完整发布史末代不符"));
@@ -1123,6 +1131,7 @@ pub(super) fn revalidate_current_for_reuse(
     }
     control.finish()?;
     verify_current_frontiers(
+        &store,
         tx,
         cuts,
         cuts.last().map_or(-1, |c| c.metadata.input_frontier),
@@ -1131,6 +1140,7 @@ pub(super) fn revalidate_current_for_reuse(
 }
 
 fn verify_source(
+    store: &(impl CodecRead + ?Sized),
     tx: &Transaction<'_>,
     m: &AuditMetadata,
     allocation: Option<&OwnedBudget>,
@@ -1145,10 +1155,10 @@ fn verify_source(
             .next()
             .map_err(err)?
             .ok_or_else(|| err(rusqlite::Error::QueryReturnedNoRows))?;
-        TextValue::from_sql(&mut row, 0, allocation).map_err(err)?
+        sql_text_in_store(store, &mut row, 0, allocation).map_err(err)?
     };
     stmt.finalize().map_err(err)?;
-    let envelope = history_decode(raw.as_bytes(), allocation)?;
+    let envelope = history_decode_in_store(store, raw.as_bytes(), allocation)?;
     let e = newchan_rust::session_protocol::validate_envelope_view_with_owner(
         envelope.view(),
         PROTOCOL_REVISION,
@@ -1173,7 +1183,7 @@ fn verify_source(
     {
         return Err(err("manifest clock 与真实消息不符"));
     }
-    if writer_for_generation(tx, m.generation, allocation)? != m.writer_epoch {
+    if writer_for_generation(store, tx, m.generation, allocation)? != m.writer_epoch {
         return Err(err("manifest写者与本代实际换代史不同"));
     }
     let mut stmt = CheckedStatement::prepare(tx, c"SELECT generation,semantic_ns FROM s_clock_events WHERE clock_event_id=?1 AND phase='commit' AND attempt_index=?2").map_err(err)?;
@@ -1186,7 +1196,7 @@ fn verify_source(
             .ok_or_else(|| err(rusqlite::Error::QueryReturnedNoRows))?;
         (
             row.integer(0).map_err(err)?,
-            TextValue::from_sql(&mut row, 1, allocation).map_err(err)?,
+            sql_text_in_store(store, &mut row, 1, allocation).map_err(err)?,
         )
     };
     stmt.finalize().map_err(err)?;
@@ -1198,6 +1208,7 @@ fn verify_source(
 
 /// 已核换代史的本代归属；allocator由actualstore显式传入，空历史也不猜metadata预算。
 fn writer_for_generation(
+    store: &(impl CodecRead + ?Sized),
     tx: &Transaction<'_>,
     generation: i64,
     allocation: Option<&OwnedBudget>,
@@ -1205,9 +1216,9 @@ fn writer_for_generation(
     let mut stmt = CheckedStatement::prepare(tx, c"SELECT from_epoch,to_epoch,generation_at_transition FROM writer_epoch_history ORDER BY ordinal").map_err(err)?;
     let mut result = None;
     while let Some(mut row) = stmt.next().map_err(err)? {
-        let from = TextValue::from_sql(&mut row, 0, allocation).map_err(err)?;
-        let to = TextValue::from_sql(&mut row, 1, allocation).map_err(err)?;
-        let at = TextValue::from_sql(&mut row, 2, allocation).map_err(err)?;
+        let from = sql_text_in_store(store, &mut row, 0, allocation).map_err(err)?;
+        let to = sql_text_in_store(store, &mut row, 1, allocation).map_err(err)?;
+        let at = sql_text_in_store(store, &mut row, 2, allocation).map_err(err)?;
         if result.is_none() {
             result = Some(from);
         }
@@ -1221,7 +1232,8 @@ fn writer_for_generation(
     }
     stmt.finalize().map_err(err)?;
     result.map(Ok).unwrap_or_else(|| {
-        v2::control_meta_text(tx, "writer_epoch", allocation)?.ok_or_else(|| err("缺writer_epoch"))
+        meta_text_in_store(store, tx, "writer_epoch", allocation)?
+            .ok_or_else(|| err("缺writer_epoch"))
     })
 }
 fn history_allocation(s: &(impl CodecRead + ?Sized)) -> Result<Option<OwnedBudget>, String> {
@@ -1231,6 +1243,65 @@ fn history_allocation(s: &(impl CodecRead + ?Sized)) -> Result<Option<OwnedBudge
         return Err(err("owned历史集合入口未启用"));
     }
     Ok(allocation)
+}
+fn sql_text_in_store(
+    store: &(impl CodecRead + ?Sized),
+    row: &mut newchan_rust::sqlite_checked::CheckedRow<'_>,
+    column: usize,
+    allocation: Option<&OwnedBudget>,
+) -> Result<TextValue, String> {
+    if store.codec_work().is_some() {
+        store.native_text(row.text(column).map_err(err)?)
+    } else {
+        TextValue::from_sql(row, column, allocation)
+    }
+}
+fn meta_text_in_store(
+    store: &(impl CodecRead + ?Sized),
+    tx: &Transaction<'_>,
+    key: &str,
+    allocation: Option<&OwnedBudget>,
+) -> Result<Option<TextValue>, String> {
+    if store.codec_work().is_none() {
+        return v2::control_meta_text(tx, key, allocation);
+    }
+    let error = |e| format!("读 meta.{key} 失败：{e}");
+    let mut stmt =
+        CheckedStatement::prepare(tx, c"SELECT value FROM meta WHERE key = ?1").map_err(error)?;
+    stmt.bind_text(1, key).map_err(error)?;
+    let value = match stmt.next().map_err(error)? {
+        Some(mut row) => Some(sql_text_in_store(store, &mut row, 0, allocation)?),
+        None => None,
+    };
+    stmt.finalize().map_err(error)?;
+    Ok(value)
+}
+fn meta_i64_in_store(
+    store: &(impl CodecRead + ?Sized),
+    tx: &Transaction<'_>,
+    key: &str,
+    allocation: Option<&OwnedBudget>,
+) -> Result<i64, String> {
+    if store.codec_work().is_none() {
+        return v2::control_meta_i64(tx, key, allocation);
+    }
+    let value = meta_text_in_store(store, tx, key, allocation)?
+        .ok_or_else(|| format!("StorageUnavailable：meta.{key} 缺失"))?;
+    let label = store
+        .native_format(format_args!("meta.{key}"))
+        .map_err(err)?;
+    parse_canonical_i64(&value, &label).map_err(|e| format!("StorageUnavailable：{e}"))
+}
+fn history_decode_in_store(
+    store: &(impl CodecRead + ?Sized),
+    bytes: &[u8],
+    allocation: Option<&OwnedBudget>,
+) -> Result<JsonOwner, String> {
+    if allocation.is_none() {
+        store.parse_rendered_plain(bytes).map(JsonOwner::Plain)
+    } else {
+        history_decode(bytes, allocation)
+    }
 }
 fn history_decode(bytes: &[u8], allocation: Option<&OwnedBudget>) -> Result<JsonOwner, String> {
     #[cfg(feature = "s_allocation_json_testonly")]
@@ -2630,6 +2701,20 @@ impl CodecRead for HashReader<'_> {
                 .map(RefValue::Owned),
             None => sc::path::lookup_path_view_refview(self, r, &BorrowedFieldPath(key))
                 .map(RefValue::Plain),
+        }
+    }
+    fn lookup_optional_field_ref(
+        &mut self,
+        r: sc::RefView<'_>,
+        key: &str,
+    ) -> Result<Option<RefValue>, sc::CodecError> {
+        self.sync_owned();
+        match &mut self.owned {
+            Some(owner) => owner
+                .lookup_optional_field_owned(r, key)
+                .map(|value| value.map(RefValue::Owned)),
+            None => sc::path::lookup_optional_field_refview(self, r, key)
+                .map(|value| value.map(RefValue::Plain)),
         }
     }
     fn lookup_fields_ref<'a>(
@@ -4574,6 +4659,66 @@ mod tests {
     }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
+    fn r9a_new_cut_manifest_consumes_scoped_sql_source_and_publication() {
+        let mut fixture = published();
+        let tx = fixture.conn.transaction().unwrap();
+        let raw = read_raw_events(&tx).unwrap();
+        let raw_view = RawEventsView::plain(&raw);
+        let capture = content_store::capture_for_prototype(&tx).unwrap();
+        let mut control = control_audit::prepare_s3_control_history(&tx).unwrap();
+        let budget = super::super::audit_owner::native::Budget::new(64 * 1024 * 1024, 0).unwrap();
+        budget.codec_work().unwrap().run(|scope| {
+            // 夹具的旧事实在本闭包内创建，以免其 capture 不变生命周期逃出 scope。
+            let mut base = HashReader::captured_for_audit(&capture, None).unwrap();
+            base.audit_full_arrays = true;
+            let auxiliary = aux_index::load(&tx, &mut base, 1).unwrap();
+            let mut objects = object_index::load_for_history(&tx, &mut base, 1).unwrap();
+            let mut sweep = objects.native_sweep();
+            let mut aux = aux_index::NativeAuxAudit::from_loaded(&base, &auxiliary, raw_view);
+            let mut prefixes = NativeHistoryPrefixes::new(&base, raw_view, None);
+            let mut ordered = Some(bj::RawPrefixIndex::new(raw_view));
+            let (raw_nodes, wire_nodes) = hash_current_raw(&base, raw_view, None, None).unwrap();
+            let before = budget.live();
+            assert_eq!(verify_required_meta_admitted(&tx, scope)?, 1);
+            let mut store = HashReader::captured_for_audit(&capture, None).map_err(err)?
+                .with_codec_work(scope, &budget);
+            store.audit_full_arrays = true;
+            let mut effective = bj::new_map(None);
+            let mut resolved = bj::new_work(None);
+            let mut stmt = CheckedStatement::prepare(&tx, c"SELECT p.generation,p.batch_id,p.manifest_root,p.snapshot_root,p.delta_root,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.catalog_run_status,d.catalog_evidence_json,d.delta_json FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation WHERE p.generation=1").map_err(err)?;
+            let mut row = stmt.next().map_err(err)?.unwrap();
+            let snapshot = root_ref_bytes(&mut store, row.blob(3).map_err(err)?)?;
+            let delta = root_ref_bytes(&mut store, row.blob(4).map_err(err)?)?;
+            let cut = audit_one_published_cut(
+                &tx, &mut row, &mut store, raw_view, &mut control, &mut objects, &auxiliary,
+                &mut sweep, &mut aux, &mut prefixes, &mut ordered, &mut effective,
+                &raw_nodes, &wire_nodes, -1, &mut resolved, None, true, None, None, None,
+            )?;
+            drop(row);
+            stmt.finalize().map_err(err)?;
+            assert_eq!(cut.snapshot, snapshot);
+            assert_eq!(cut.delta, delta);
+            assert!(matches!(cut.snapshot, RefValue::Plain(_)));
+            assert!(matches!(cut.metadata.session_id, TextValue::Plain(_)));
+            assert!(matches!(cut.metadata.source_commit.message_id, TextValue::Plain(_)));
+            assert_eq!(control.pending_count(), 0);
+            assert_eq!(resolved.len(), 2);
+            store.verify_many_ref(resolved.iter().map(RefValue::view), sc::Mode::Public).map_err(err)?;
+            let mut cuts = bj::new_work(None);
+            store.native_codec_room(&mut cuts, 1).map_err(err)?;
+            cuts.try_push(cut).map_err(err)?;
+            verify_current_frontiers(&store, &tx, &cuts, 0, None)?;
+            assert!(budget.live() > before);
+            assert!(scope.snapshot().attempts > 0);
+            Ok::<_, String>(())
+        }).unwrap();
+        let stats = budget.scratch_observation();
+        assert_eq!((stats.0, stats.2), (0, 0));
+        assert!(stats.1 > 0);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
     fn native_history_prefix_real_multicut_roots_and_linear_leaf_visits() {
         let bars = [(6, 12, 3, 7), (8, 16, 6, 12), (8, 13, 4, 7), (8, 17, 6, 12)];
         for (coords, ids, revisions, fast_effective, old_effective) in [
@@ -5511,7 +5656,13 @@ mod tests {
         let mut cuts = audit(&mut f.conn).unwrap();
         cuts[0].metadata.source_commit.attempt_index = 1;
         let tx = f.conn.transaction().unwrap();
-        assert!(verify_source(&tx, &cuts[0].metadata, None).is_err());
+        assert!(verify_source(
+            &super::super::audit_store::NativeAdmission(None),
+            &tx,
+            &cuts[0].metadata,
+            None
+        )
+        .is_err());
     }
 
     #[test]
@@ -6253,6 +6404,58 @@ mod owner_retention {
 }
 
 /// owner 已闭合全局 Q 和共同保持前件后，只消费实际新增的一代完整历史。
+/// 原 verify_required_meta 的共享判据仍原位执行。先借同一事务的原列，给它实际
+/// 会构造的文本和 scope 树预留；不复制判据，不在失败后换另一套检查。
+#[cfg(feature = "s_capture_native_testonly")]
+fn verify_required_meta_admitted(
+    tx: &Transaction<'_>,
+    work: &sc::capture_allocation::scratch::WorkScope,
+) -> Result<i64, String> {
+    use super::audit_owner::native::JsonShape;
+    let admission = super::audit_store::NativeAdmission(Some(work));
+    for key in [
+        "session_id",
+        "writer_epoch",
+        "generation",
+        "structure_cut",
+        "catalog_revision",
+        "index_frontier",
+        "last_advance_frontier",
+        "scope",
+    ] {
+        let mut stmt =
+            CheckedStatement::prepare(tx, c"SELECT value FROM meta WHERE key = ?1").map_err(err)?;
+        stmt.bind_text(1, key).map_err(err)?;
+        if let Some(mut row) = stmt.next().map_err(err)? {
+            let text = row.text(0).map_err(err)?;
+            admission.native_admit(text.len()).map_err(err)?;
+            if key == "scope" {
+                admission
+                    .native_admit(JsonShape::scan(text.as_bytes()).parse_peak())
+                    .map_err(err)?;
+            }
+        }
+        stmt.finalize().map_err(err)?;
+    }
+    // format!("cut-{generation}")：初块8，i64最长20位后新块至多24；
+    // meta_i64 的两个 label：初块10，增长块 max(20, 5 + key.len())。
+    admission.native_admit(8 + 24).map_err(err)?;
+    for key in ["generation", "last_advance_frontier"] {
+        admission
+            .native_admit(10 + 20usize.max(5 + key.len()))
+            .map_err(err)?;
+    }
+    // validate_scope 原样构造的固定两字段期望对象也与解析树共存。
+    admission
+        .native_admit(
+            JsonShape::scan(br#"{"structure":"CompleteCut","economic":"not_started"}"#)
+                .parse_peak(),
+        )
+        .map_err(err)?;
+    verify_required_meta(tx)
+}
+
+/// owner 已闭合全局 Q 和共同保持前件后，只消费实际新增的一代完整历史。
 #[cfg(feature = "s_capture_native_testonly")]
 pub(super) fn append_owner_cut(
     tx: &Transaction<'_>,
@@ -6272,7 +6475,7 @@ pub(super) fn append_owner_cut(
     super::audit_owner::native::Failure,
 > {
     let mut retained = super::audit_retention::RetainedDelta::default();
-    verify_required_meta(tx)?;
+    verify_required_meta_admitted(tx, work)?;
     let previous = old.cuts.last().map_or(-1, |c| c.metadata.input_frontier);
     if generation != old.cuts.len() as i64 + 1 {
         return Err(err("owner 后缀非连续一代").into());
@@ -6396,7 +6599,7 @@ pub(super) fn append_owner_cut(
         .verify_many_ref(resolved.iter().map(RefValue::view), sc::Mode::Public)
         .map_err(err)?;
     let facts = control.into_facts()?;
-    verify_current_frontiers(tx, &old.cuts, frontier, None)?;
+    verify_current_frontiers(&store, tx, &old.cuts, frontier, None)?;
     let auxiliary_facts = native_aux.map(|aux| aux.into_facts_retained(&mut retained));
     let prefixes = prefixes.unwrap();
     for (before, after) in prefix_capacities

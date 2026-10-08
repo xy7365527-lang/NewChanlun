@@ -466,20 +466,14 @@ fn wire_at(s: &mut (impl CodecStore + ?Sized), e: &Entry, g: i64) -> Result<RefV
     let saved = e.life.view().batch;
     let built =
         object_records::reproject_stored_wire_view(s, e.birth_wire.view(), life, g).map_err(err)?;
-    let mut wire = if s.allocation_budget().is_some() {
-        #[cfg(feature = "s_allocation_json_testonly")]
-        {
-            RefValue::Owned(built.owned_ref())
-        }
-        #[cfg(not(feature = "s_allocation_json_testonly"))]
-        {
-            return Err(err("owned引用执行未启用"));
-        }
-    } else {
-        RefValue::Plain(built.content_ref())
-    };
+    #[cfg(not(feature = "s_allocation_json_testonly"))]
+    if s.allocation_budget().is_some() {
+        return Err(err("owned引用执行未启用"));
+    }
+    let mut wire = built_ref(s, &built)?;
     if e.life.first_known_generation == g {
         if let BatchView::Existing(batch) = saved {
+            s.native_admit("batch_id".len()).map_err(err)?;
             wire = s
                 .replace_ref(wire.view(), &[f("batch_id")], batch)
                 .map_err(err)?;
@@ -702,8 +696,8 @@ impl HistoryObjects<'_> {
                             g,
                         )
                         .map_err(err)?;
-                        s.native_admit(sc::CONTENT_FORMAT.len() + 68).map_err(err)?;
-                        let template = RefValue::Plain(b.content_ref());
+                        let template = built_ref(s, &b)?;
+                        s.native_admit("batch_id".len()).map_err(err)?;
                         let public = s
                             .replace_ref(template.view(), &[f("batch_id")], saved)
                             .map_err(err)?;
@@ -1061,8 +1055,8 @@ fn bind_originals(
     leaf_bindings: &mut Option<ShapeLeafBindings<'_>>,
 ) -> Result<(), String> {
     let shape = e.slot.is_shape();
-    let generated_ref = built_ref(s, &e.generated);
-    let internal_ref = built_ref(s, &e.internal);
+    let generated_ref = built_ref(s, &e.generated)?;
+    let internal_ref = built_ref(s, &e.internal)?;
     let r = OwnerFields::read(
         s,
         generated_ref.view(),
@@ -1098,7 +1092,7 @@ fn bind_originals(
         "first_known_cut",
         "published_generation",
     ] {
-        r.equal(key, &i, key)?;
+        r.equal(s, key, &i, key)?;
     }
     for key in if shape {
         &SHAPE_IMMUTABLE[1..]
@@ -1108,7 +1102,7 @@ fn bind_originals(
         if *key == "comparisons_json" {
             continue;
         }
-        r.equal(key, &i, key)?;
+        r.equal(s, key, &i, key)?;
     }
     if r.text(s, "object_id")? != e.id
         || r.integer(s, "object_revision")? != e.revision
@@ -1133,35 +1127,66 @@ fn bind_originals(
     ] {
         i.bind_json_text(s, json, value)?;
     }
-    i.equal("source_coords", &w, "source_coords")?;
+    i.equal(s, "source_coords", &w, "source_coords")?;
     if shape {
         for key in ["branch", "dir_ab", "dir_bc"] {
-            i.equal(key, &w, key)?;
+            i.equal(s, key, &w, key)?;
         }
         for key in ["window_start", "window_mid", "window_end"] {
-            if w.text(s, key)? != i.integer(s, key)?.to_string() {
+            if w.text(s, key)? != bj::Decimal::new(i.integer(s, key)?).text() {
                 return Err(err("窗口公开投影不符"));
             }
         }
-        let comparison = i.get("comparisons")?;
-        let mut out = Vec::new();
-        s.render_ref(comparison.view(), &mut out).map_err(err)?;
-        if r.text(s, "comparisons_json")?.as_bytes() != out {
-            return Err(err("comparisons文本与内部值不符"));
+        let comparison = i.get(s, "comparisons")?;
+        if let Some(work) = s.codec_work() {
+            struct Out {
+                bytes: sc::capture_allocation::scratch::ScratchBytes,
+                error: Option<sc::CodecError>,
+            }
+            impl std::io::Write for Out {
+                fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                    self.bytes.try_extend_bytes(bytes).map_err(|e| {
+                        self.error = Some(e);
+                        std::io::Error::from(std::io::ErrorKind::Other)
+                    })?;
+                    Ok(bytes.len())
+                }
+                fn flush(&mut self) -> std::io::Result<()> {
+                    Ok(())
+                }
+            }
+            let mut out = Out {
+                bytes: work.bytes(),
+                error: None,
+            };
+            let result = s.render_ref(comparison.view(), &mut out);
+            if let Some(e) = out.error {
+                return Err(err(e));
+            }
+            result.map_err(err)?;
+            if r.text(s, "comparisons_json")?.as_bytes() != &*out.bytes {
+                return Err(err("comparisons文本与内部值不符"));
+            }
+        } else {
+            let mut out = Vec::new();
+            s.render_ref(comparison.view(), &mut out).map_err(err)?;
+            if r.text(s, "comparisons_json")?.as_bytes() != out {
+                return Err(err("comparisons文本与内部值不符"));
+            }
         }
-        i.equal("comparisons", &w, "comparisons")?;
-        let generated_refs = i.get("input_refs")?;
-        let wire_refs = w.get("input_refs")?;
+        i.equal(s, "comparisons", &w, "comparisons")?;
+        let generated_refs = i.get(s, "input_refs")?;
+        let wire_refs = w.get(s, "input_refs")?;
         bind_shape_refs_view(s, generated_refs.view(), wire_refs.view(), leaf_bindings)?;
     } else {
         i.bind_json_text(s, "payload_json", "payload")?;
         for key in ["fact_key", "payload", "input_refs"] {
-            i.equal(key, &w, key)?;
+            i.equal(s, key, &w, key)?;
         }
     }
     if w.text(s, "object_id")? != e.id
         || w.text(s, "kind")? != e.kind
-        || w.text(s, "object_revision")? != e.revision.to_string()
+        || w.text(s, "object_revision")? != bj::Decimal::new(e.revision).text()
     {
         return Err(err("出生公开身份不符"));
     }
@@ -1280,10 +1305,12 @@ fn bind_shape_leaf(
         "input_revision",
         "source_coord",
     ] {
-        a_fields.equal(field_name, &b_fields, field_name)?;
+        a_fields.equal(s, field_name, &b_fields, field_name)?;
     }
     for field_name in ["revision", "seq"] {
-        if b_fields.text(s, field_name)? != a_fields.integer(s, field_name)?.to_string() {
+        if b_fields.text(s, field_name)?
+            != bj::Decimal::new(a_fields.integer(s, field_name)?).text()
+        {
             return Err(err("来源数字公开投影不符"));
         }
     }
@@ -1310,7 +1337,7 @@ fn bind_shape_refs_view(
         if a.extent() != Some(3)
             || b.extent() != Some(3)
             || text_ref(s, b.view(), "merged_index")?
-                != integer_ref(s, a.view(), "merged_index")?.to_string()
+                != bj::Decimal::new(integer_ref(s, a.view(), "merged_index")?).text()
         {
             return Err(err("合并序号公开投影不符"));
         }
@@ -1330,7 +1357,10 @@ fn bind_shape_refs_view(
             };
             for k in 0..aa.extent().ok_or_else(|| err("来源缺长度"))? {
                 let (ar, br) = if let Some((a, b)) = &items {
-                    (a[k as usize].clone(), b[k as usize].clone())
+                    (
+                        s.native_ref_clone(&a[k as usize]).map_err(err)?,
+                        s.native_ref_clone(&b[k as usize]).map_err(err)?,
+                    )
                 } else {
                     // Some 仍逐位置交错原件读取与字段/业务检查，预算与期限门顺序不变。
                     (
@@ -1516,7 +1546,7 @@ fn load_in_store(
     let mut refs = bj::new_work(allocation.as_ref());
     for e in &out {
         for b in [&e.generated, &e.internal, &e.immutable] {
-            refs.try_push(built_ref(s, b)).map_err(err)?;
+            refs.try_push(built_ref(s, b)?).map_err(err)?;
         }
         refs.try_push(e.birth_wire.clone()).map_err(err)?;
     }
@@ -1610,9 +1640,9 @@ pub(super) fn update_from_owner(
         drop(row);
         q.finalize().map_err(err)?;
         let refs = [
-            built_ref(&store, &e.generated),
-            built_ref(&store, &e.internal),
-            built_ref(&store, &e.immutable),
+            built_ref(&store, &e.generated)?,
+            built_ref(&store, &e.internal)?,
+            built_ref(&store, &e.immutable)?,
             store.native_ref_clone(&e.birth_wire).map_err(err)?,
         ];
         store
@@ -1820,10 +1850,18 @@ fn change_array(allocation: Option<&OwnedBudget>) -> Result<bj::JsonOwner, Strin
     }
     Ok(bj::JsonOwner::Plain(Value::Array(Vec::new())))
 }
-fn push_change(array: &mut bj::JsonOwner, view: aj::JsonView<'_>) -> Result<(), String> {
+fn push_change(
+    s: &(impl CodecRead + ?Sized),
+    array: &mut bj::JsonOwner,
+    view: aj::JsonView<'_>,
+) -> Result<(), String> {
     match array {
         bj::JsonOwner::Plain(Value::Array(rows)) => {
-            rows.push(serde_json::to_value(view).map_err(err)?);
+            s.native_vec_room(rows, 1).map_err(err)?;
+            let bj::JsonOwner::Plain(value) = bj::json_from_view_admitted(s, view)? else {
+                return Err(err("Plain变化JSON不能接Owned所有者"));
+            };
+            rows.push(value);
             Ok(())
         }
         bj::JsonOwner::Plain(_) => Err(err("变化JSON不是数组")),
@@ -1832,6 +1870,7 @@ fn push_change(array: &mut bj::JsonOwner, view: aj::JsonView<'_>) -> Result<(), 
     }
 }
 fn push_withdrawal(
+    s: &(impl CodecRead + ?Sized),
     array: &mut bj::JsonOwner,
     e: &Entry,
     reason: &str,
@@ -1850,7 +1889,7 @@ fn push_withdrawal(
                 ("reason", J::String(reason)),
                 ("superseded_by", sup),
             ];
-            push_change(array, J::object_fields(&fields).map_err(err)?)
+            push_change(s, array, J::object_fields(&fields).map_err(err)?)
         }
         Slot::Typed { fact_key, .. } => {
             let fields = [
@@ -1859,16 +1898,21 @@ fn push_withdrawal(
                 ("reason", J::String(reason)),
                 ("superseded_by", sup),
             ];
-            push_change(array, J::object_fields(&fields).map_err(err)?)
+            push_change(s, array, J::object_fields(&fields).map_err(err)?)
         }
     }
 }
-fn push_replace(array: &mut bj::JsonOwner, old_id: &str, new_id: &str) -> Result<(), String> {
+fn push_replace(
+    s: &(impl CodecRead + ?Sized),
+    array: &mut bj::JsonOwner,
+    old_id: &str,
+    new_id: &str,
+) -> Result<(), String> {
     let fields = [
         ("new_object_id", aj::JsonView::String(new_id)),
         ("old_object_id", aj::JsonView::String(old_id)),
     ];
-    push_change(array, aj::JsonView::object_fields(&fields).map_err(err)?)
+    push_change(s, array, aj::JsonView::object_fields(&fields).map_err(err)?)
 }
 /// 独立生命周期导出的本代变化集合，顺序沿上一代活动主序。
 /// 旧接口仅消费同一核心的普通数组，Owned所有者不能擦除为普通Vec。
@@ -1886,12 +1930,27 @@ pub(super) fn changes_at_budgeted(
     g: i64,
     allocation: Option<&OwnedBudget>,
 ) -> Result<(bj::JsonOwner, bj::JsonOwner), String> {
+    changes_at_admitted(
+        &super::audit_store::NativeAdmission(None),
+        index,
+        g,
+        allocation,
+    )
+}
+/// 当前候选域入口；旧接口只用于无 scope 的调用。
+pub(super) fn changes_at_admitted(
+    s: &(impl CodecRead + ?Sized),
+    index: &[Entry],
+    g: i64,
+    allocation: Option<&OwnedBudget>,
+) -> Result<(bj::JsonOwner, bj::JsonOwner), String> {
     let mut dead = bj::new_work(allocation);
     for (ordinal, e) in index
         .iter()
         .enumerate()
         .filter(|(_, e)| e.life.withdrawn_generation == Some(g))
     {
+        s.native_codec_room(&mut dead, 1).map_err(err)?;
         dead.try_push((ordinal, e)).map_err(err)?;
     }
     // 同一主序加原始序号，保留stable排序的平局行为；unstable排序不另分配std工作集。
@@ -1904,9 +1963,15 @@ pub(super) fn changes_at_budgeted(
             .withdrawal_reason
             .as_deref()
             .ok_or_else(|| err("撤回缺原因"))?;
-        push_withdrawal(&mut withdrawals, e, reason, e.life.superseded_by.as_deref())?;
+        push_withdrawal(
+            s,
+            &mut withdrawals,
+            e,
+            reason,
+            e.life.superseded_by.as_deref(),
+        )?;
         if let Some(id) = &e.life.superseded_by {
-            push_replace(&mut replaces, e.id.as_str(), id.as_str())?;
+            push_replace(s, &mut replaces, e.id.as_str(), id.as_str())?;
         }
     }
     Ok((withdrawals, replaces))
@@ -2131,6 +2196,14 @@ impl HistorySweep {
         index: &[Entry],
         g: i64,
     ) -> Result<(bj::JsonOwner, bj::JsonOwner), String> {
+        self.changes_admitted(&super::audit_store::NativeAdmission(None), index, g)
+    }
+    pub(super) fn changes_admitted(
+        &self,
+        s: &(impl CodecRead + ?Sized),
+        index: &[Entry],
+        g: i64,
+    ) -> Result<(bj::JsonOwner, bj::JsonOwner), String> {
         let mut withdrawals = change_array(None)?;
         let mut replaces = change_array(None)?;
         for i in self.events.deaths.get(&g).into_iter().flatten() {
@@ -2140,9 +2213,15 @@ impl HistorySweep {
                 .withdrawal_reason
                 .as_deref()
                 .ok_or_else(|| err("撤回缺原因"))?;
-            push_withdrawal(&mut withdrawals, e, reason, e.life.superseded_by.as_deref())?;
+            push_withdrawal(
+                s,
+                &mut withdrawals,
+                e,
+                reason,
+                e.life.superseded_by.as_deref(),
+            )?;
             if let Some(id) = &e.life.superseded_by {
-                push_replace(&mut replaces, e.id.as_str(), id.as_str())?;
+                push_replace(s, &mut replaces, e.id.as_str(), id.as_str())?;
             }
         }
         Ok((withdrawals, replaces))
@@ -2335,6 +2414,63 @@ pub(super) fn verify_generated_members_swept<'a>(
 ) -> Result<(), String> {
     verify_generated_members_swept_with_records(s, index, state, g, sweep, None)
 }
+/// #1394：唯一 object_diff 核未接 CodecRead，在调用点按实际输入域逐容器预留。
+/// 借用槽位/身份键不复制文本。每次容量增长的新块均预留，旧块保守持账至父域结束。
+fn admit_diff_work(
+    s: &(impl CodecRead + ?Sized),
+    new_len: usize,
+    active_len: usize,
+    old_len: Option<usize>,
+) -> Result<(), String> {
+    if s.codec_work().is_none() {
+        return Ok(());
+    }
+    fn vector<T>(s: &(impl CodecRead + ?Sized), count: usize) -> Result<(), String> {
+        // 本核三个 Vec 的元素大小均在 2..=1024，std 初始容量为 4，此后翻倍。
+        let mut capacity = 0usize;
+        while capacity < count {
+            capacity = if capacity == 0 {
+                4
+            } else {
+                capacity
+                    .checked_mul(2)
+                    .ok_or_else(|| err(s.native_overflow()))?
+            };
+            let bytes = capacity
+                .checked_mul(std::mem::size_of::<T>())
+                .ok_or_else(|| err(s.native_overflow()))?;
+            s.native_admit(bytes).map_err(err)?;
+        }
+        Ok(())
+    }
+    fn map<K, V>(s: &(impl CodecRead + ?Sized), count: usize) -> Result<(), String> {
+        let mut capacity = 0usize;
+        while capacity < count {
+            s.native_admit(
+                s.native_hash_bytes::<K, V>(capacity, capacity)
+                    .map_err(err)?,
+            )
+            .map_err(err)?;
+            // SwissTable 4/8 桶容量 3/7，其后 7/8 装载率，桶数翻倍。
+            capacity = match capacity {
+                0 => 3,
+                3 => 7,
+                n => n.checked_mul(2).ok_or_else(|| err(s.native_overflow()))?,
+            };
+        }
+        Ok(())
+    }
+    map::<&&Slot, usize>(s, new_len)?;
+    if let Some(old_len) = old_len {
+        map::<&str, usize>(s, old_len)?;
+        map::<&str, usize>(s, active_len)?;
+    }
+    vector::<usize>(s, new_len)?;
+    vector::<object_diff::Withdrawal>(s, active_len)?;
+    vector::<object_diff::Replace>(s, active_len)?;
+    Ok(())
+}
+
 pub(super) fn verify_generated_members_swept_with_records<'a>(
     s: &mut (impl CodecStore + ?Sized),
     index: &[Entry],
@@ -2345,9 +2481,11 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
 ) -> Result<(), String> {
     let state = state.into();
     let allocation = s.allocation_budget();
+    let cut_number = bj::Decimal::new(g);
     let mut by_id = bj::new_map(allocation.as_ref());
     if sweep.is_none() {
         for e in index.iter().filter(|e| e.life.first_known_generation <= g) {
+            s.native_map_room(&mut by_id).map_err(err)?;
             by_id.insert(e.id.as_str(), e).map_err(err)?;
         }
     }
@@ -2364,13 +2502,18 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
     };
     for n in 0..objects.extent().ok_or_else(|| err("生成集缺长度"))? {
         let object = if let Some(items) = &items {
-            items[n as usize].clone()
+            s.native_ref_clone(&items[n as usize]).map_err(err)?
         } else {
             s.lookup_ref(objects.view(), &[PathStep::Index(n)])
                 .map_err(err)?
         };
         let id = text_ref(s, object.view(), "object_id")?;
-        if seen.insert(id.try_clone()?, ()).map_err(err)?.is_some() {
+        s.native_map_room(&mut seen).map_err(err)?;
+        if seen
+            .insert(s.native_text(id.as_str())?, ())
+            .map_err(err)?
+            .is_some()
+        {
             return Err(err("生成集重复对象身份"));
         }
         let e = match sweep {
@@ -2393,20 +2536,21 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
             || object.extent() != Some(if e.slot.is_shape() { 15 } else { 10 })
             || fields.integer(s, "first_known_generation")? != g
             || fields.integer(s, "published_generation")? != g
-            || fields.text(s, "first_known_cut")? != format!("cut-{g}")
+            || fields.text(s, "first_known_cut")?.strip_prefix("cut-") != Some(cut_number.text())
         {
             return Err(err("生成对象字段/当代元数据不符"));
         }
         if fields.immutable(s, e.slot.is_shape())? != e.immutable {
             return Err(err("生成集同身份内容与独立原件不同"));
         }
-        if e.life.first_known_generation == g && object != built_ref(s, &e.generated) {
+        if e.life.first_known_generation == g && object != built_ref(s, &e.generated)? {
             return Err(err("出生原件不等于真实首次生成记录"));
         }
         // #1394：全部原record检查通过之后，只交接同capture的exact字段材料。
         if let Some(records) = records.as_deref_mut() {
             records.seed(object.view(), names, &fields.0).map_err(err)?;
         }
+        s.native_codec_room(&mut new, 1).map_err(err)?;
         new.try_push(object_diff::Key {
             object_id: id,
             slot: &e.slot,
@@ -2421,11 +2565,13 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
         .enumerate()
         .filter(|(_, e)| e.life.first_known_generation < g)
     {
+        s.native_codec_room(&mut before, 1).map_err(err)?;
         before.try_push((ordinal, e)).map_err(err)?;
     }
     before.sort_unstable_by(|a, b| ordering(a.1, b.1, false).then(a.0.cmp(&b.0)));
     let mut old = bj::new_work(allocation.as_ref());
     for (_, e) in &before {
+        s.native_codec_room(&mut old, 1).map_err(err)?;
         old.try_push(object_diff::Existing {
             key: object_diff::Key {
                 object_id: e.id.as_str(),
@@ -2436,6 +2582,15 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
         })
         .map_err(err)?;
     }
+    admit_diff_work(
+        s,
+        new.len(),
+        sweep.map_or_else(
+            || old.iter().filter(|e| e.active).count(),
+            |sweep| sweep.active.len(),
+        ),
+        sweep.is_none().then_some(old.len()),
+    )?;
     let changes = if let Some(sweep) = sweep {
         object_diff::plan_indexed_budgeted(
             &new,
@@ -2467,33 +2622,33 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
     } else {
         object_diff::plan_budgeted(&new, &old, allocation.as_ref())?
     };
-    if !changes
-        .births
-        .iter()
-        .map(|i| new[*i].object_id.as_str())
-        .eq(match sweep {
-            Some(sweep) => Box::new(
-                sweep
-                    .events
-                    .births
-                    .get(&g)
-                    .into_iter()
-                    .flatten()
-                    .map(|i| index[*i].id.as_str()),
-            ) as Box<dyn Iterator<Item = &str>>,
-            None => Box::new(
-                index
-                    .iter()
-                    .filter(|e| e.life.first_known_generation == g)
-                    .map(|e| e.id.as_str()),
-            ),
-        })
-    {
+    let births_match = match sweep {
+        Some(sweep) => changes
+            .births
+            .iter()
+            .map(|i| new[*i].object_id.as_str())
+            .eq(sweep
+                .events
+                .births
+                .get(&g)
+                .into_iter()
+                .flatten()
+                .map(|i| index[*i].id.as_str())),
+        None => changes
+            .births
+            .iter()
+            .map(|i| new[*i].object_id.as_str())
+            .eq(index
+                .iter()
+                .filter(|e| e.life.first_known_generation == g)
+                .map(|e| e.id.as_str())),
+    };
+    if !births_match {
         return Err(err("真实出生顺序与独立索引不同"));
     }
     let (expected_withdrawals, expected_replaces) = match sweep {
-        Some(sweep) => sweep.changes(index, g)?,
-        None => changes_at_budgeted(index, g, allocation.as_ref())?,
+        Some(sweep) => sweep.changes_admitted(s, index, g)?,
+        None => changes_at_admitted(s, index, g, allocation.as_ref())?,
     };
     let mut withdrawals = change_array(allocation.as_ref())?;
     for w in changes.withdrawals {
@@ -2520,11 +2675,12 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
                 ),
             ),
         };
-        push_withdrawal(&mut withdrawals, e, reason, sup)?;
+        push_withdrawal(s, &mut withdrawals, e, reason, sup)?;
     }
     let mut replaces = change_array(allocation.as_ref())?;
     for r in changes.replaces {
         push_replace(
+            s,
             &mut replaces,
             if sweep.is_some() {
                 index[r.old_index].id.as_str()
@@ -4738,22 +4894,31 @@ impl<'a> OwnerFields<'a> {
     ) -> Result<Self, String> {
         s.lookup_fields_ref(r, names).map(Self).map_err(err)
     }
-    fn get(&self, k: &str) -> Result<RefValue, String> {
-        self.0.get(k).ok_or_else(|| err(format!("原件缺字段{k}")))
+    fn get(&self, s: &(impl CodecRead + ?Sized), k: &str) -> Result<RefValue, String> {
+        self.0
+            .get_admitted(s, k)
+            .map_err(err)?
+            .ok_or_else(|| err(format!("原件缺字段{k}")))
     }
     fn text(&self, s: &mut (impl CodecRead + ?Sized), k: &str) -> Result<TextValue, String> {
-        let r = self.get(k)?;
+        let r = self.get(s, k)?;
         bj::read_text(s, r.view()).map_err(err)
     }
     fn integer(&self, s: &mut (impl CodecRead + ?Sized), k: &str) -> Result<i64, String> {
-        let r = self.get(k)?;
+        let r = self.get(s, k)?;
         bj::render_json(s, r.view())?
             .view()
             .as_i64()
             .ok_or_else(|| err(format!("{k}不是i64")))
     }
-    fn equal(&self, k: &str, o: &Self, j: &str) -> Result<(), String> {
-        if self.get(k)? != o.get(j)? {
+    fn equal(
+        &self,
+        s: &(impl CodecRead + ?Sized),
+        k: &str,
+        o: &Self,
+        j: &str,
+    ) -> Result<(), String> {
+        if self.get(s, k)? != o.get(s, j)? {
             Err(err(format!("{k}/{j}内容边不同")))
         } else {
             Ok(())
@@ -4768,7 +4933,7 @@ impl<'a> OwnerFields<'a> {
             ]))
         } else {
             Ok(Slot::Typed {
-                kind: TextValue::from_str(kind, s.allocation_budget().as_ref())?,
+                kind: s.native_text(kind)?,
                 fact_key: self.text(s, "fact_key")?,
             })
         }
@@ -4781,7 +4946,7 @@ impl<'a> OwnerFields<'a> {
         };
         let mut fields = [("", sc::ValueView::BatchSelf); 12];
         for (i, name) in names.iter().enumerate() {
-            let child = self.get(name)?;
+            let child = self.get(s, name)?;
             if child.kind() == Kind::Null {
                 return Err(err("不可变字段不得为空"));
             }
@@ -4796,22 +4961,18 @@ impl<'a> OwnerFields<'a> {
         json: &str,
         value: &str,
     ) -> Result<(), String> {
-        let input = self.get(json)?;
+        let input = self.get(s, json)?;
         let parsed = s
             .lookup_ref(input.view(), &[PathStep::JsonText])
             .map_err(err)?;
-        if parsed != self.get(value)? {
+        if parsed != self.get(s, value)? {
             return Err(err("内部JSON视图与值边不同"));
         }
         Ok(())
     }
 }
-fn built_ref(s: &(impl CodecRead + ?Sized), b: &Built) -> RefValue {
-    #[cfg(feature = "s_allocation_json_testonly")]
-    if s.allocation_budget().is_some() {
-        return RefValue::Owned(b.owned_ref());
-    }
-    RefValue::Plain(b.content_ref())
+fn built_ref(s: &(impl CodecRead + ?Sized), b: &Built) -> Result<RefValue, String> {
+    s.native_built_ref(b).map_err(err)
 }
 
 fn field_ref(
@@ -4819,7 +4980,7 @@ fn field_ref(
     r: sc::RefView<'_>,
     k: &str,
 ) -> Result<RefValue, String> {
-    s.lookup_ref(r, &[f(k)]).map_err(err)
+    s.lookup_field_ref(r, k).map_err(err)
 }
 fn text_ref(
     s: &mut (impl CodecRead + ?Sized),

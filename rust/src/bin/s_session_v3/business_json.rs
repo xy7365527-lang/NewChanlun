@@ -555,6 +555,38 @@ pub(crate) fn sha_json(v: JsonView<'_>, b: Option<&OwnedBudget>) -> Result<[u8; 
     super::state::trace_local_sha256(1, out.len());
     Ok(Sha256::digest(&out).into())
 }
+/// Native 哈希直接消费同一 serde 规范字节，不建立未准入的中间 Vec。
+pub(crate) fn sha_json_admitted(
+    s: &(impl super::audit_store::CodecRead + ?Sized),
+    value: JsonView<'_>,
+) -> Result<[u8; 32], String> {
+    if s.codec_work().is_none() {
+        return sha_json(value, s.allocation_budget().as_ref());
+    }
+    struct Out {
+        hash: Sha256,
+        bytes: usize,
+    }
+    impl std::io::Write for Out {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.hash.update(bytes);
+            self.bytes += bytes.len();
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut out = Out {
+        hash: Sha256::new(),
+        bytes: 0,
+    };
+    serde_json::to_writer(&mut out, &value).map_err(|e| e.to_string())?;
+    #[cfg(test)]
+    super::state::trace_local_sha256(1, out.bytes);
+    Ok(out.hash.finalize().into())
+}
+
 pub(crate) fn validate_raw(
     rows: RawEventsView<'_>,
     deadline: Option<Instant>,
@@ -1322,6 +1354,47 @@ pub(crate) fn json_from_view(
         .map(JsonOwner::Plain)
         .map_err(|e| e.to_string())
 }
+/// #1394：Plain 借用 JSON 的各容器在构造前取得父域许可；不改 Owned 所有权。
+/// Native 许可保守持有到候选父 Budget 结束；WorkScope 和临时物析构不提前减账。
+pub(crate) fn json_from_view_admitted(
+    s: &(impl super::audit_store::CodecRead + ?Sized),
+    value: JsonView<'_>,
+) -> Result<JsonOwner, String> {
+    if s.codec_work().is_none() {
+        return json_from_view(value, s.allocation_budget().as_ref());
+    }
+    fn plain(
+        s: &(impl super::audit_store::CodecRead + ?Sized),
+        value: JsonView<'_>,
+    ) -> Result<Value, String> {
+        if let Some(text) = value.as_str() {
+            s.native_admit(text.len()).map_err(|e| e.to_string())?;
+            return Ok(Value::String(text.to_owned()));
+        }
+        if let Some(array) = value.as_array() {
+            let mut rows = Vec::new();
+            s.native_vec_room(&mut rows, array.len())
+                .map_err(|e| e.to_string())?;
+            for child in array.iter() {
+                rows.push(plain(s, child)?);
+            }
+            return Ok(Value::Array(rows));
+        }
+        if let Some(object) = value.as_object() {
+            let mut fields = serde_json::Map::new();
+            for (key, child) in object.iter() {
+                s.native_tree_room::<String, Value>(fields.len())
+                    .map_err(|e| e.to_string())?;
+                s.native_admit(key.len()).map_err(|e| e.to_string())?;
+                fields.insert(key.to_owned(), plain(s, child)?);
+            }
+            return Ok(Value::Object(fields));
+        }
+        serde_json::to_value(value).map_err(|e| e.to_string())
+    }
+    plain(s, value).map(JsonOwner::Plain)
+}
+
 /// 旧 wire 整数投影的共同核：只转换整数，浮点/空值/文本保持原值。
 pub(crate) fn project_wire_integers_with_owner(
     value: JsonView<'_>,
@@ -2099,5 +2172,52 @@ mod owner_retention {
                 Self::Owned(_) => usize::MAX,
             }
         }
+    }
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+mod native_consumer_tests {
+    use super::*;
+
+    #[test]
+    fn admitted_json_and_hash_match_normal_with_conservative_scope_charge() {
+        let value = serde_json::json!({
+            "撤回": [{"object_id": "obj3-正常", "superseded_by": null, "window_end": -7}],
+            "escaped": "line\n\"quoted\"",
+            "scalars": [true, false, 0, 1.25]
+        });
+        let expected_hash = sha_json((&value).into(), None).unwrap();
+        let budget = super::super::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let before = budget.live();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let admission = super::super::audit_store::NativeAdmission(Some(scope));
+                let actual = json_from_view_admitted(&admission, (&value).into())?;
+                assert_eq!(actual.view(), JsonView::Plain(&value));
+                assert_eq!(
+                    sha_json_admitted(&admission, (&value).into())?,
+                    expected_hash
+                );
+                let held = budget.live();
+                assert!(
+                    held > before + sc::capture_allocation::scratch::CodecWork::metadata_bytes()
+                );
+                drop(actual);
+                assert_eq!(budget.live(), held, "Plain析构不冒充候选父账提前减账");
+                Ok::<_, String>(())
+            })
+            .unwrap();
+        assert!(
+            budget.live() > before,
+            "WorkScope结束仍保守持账至候选父Budget结束"
+        );
+        assert_eq!(
+            budget.scratch_observation().0,
+            0,
+            "真实scratch Layout已释放"
+        );
+        assert_eq!(budget.scratch_observation().2, 0, "真实scope元数据已释放");
     }
 }
