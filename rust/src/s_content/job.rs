@@ -407,6 +407,14 @@ impl ScopedBody {
     }
 }
 impl ScopedFrame {
+    /// 只借用正在持许可的帧，不转移正文或提前释放许可。
+    pub fn tag(&self) -> u8 {
+        self.frame.tag()
+    }
+    pub fn body(&self) -> &[u8] {
+        self.frame.body()
+    }
+
     pub fn new(
         frame: CheckedFrame,
         permit: Option<super::capture_allocation::scratch::NativeReservation>,

@@ -9,6 +9,7 @@ use generation::{GenerationInput, GenerationRuntime};
 use newchan_rust::s_content::{self as sc, ContentRef, NodeStore, Value as V};
 use newchan_rust::session_protocol::required;
 use rusqlite::Transaction;
+use sc::capture_allocation::scratch::WorkScope;
 
 /// 私有构造字段：只有本模块成功获得 NativeReadLease 的分支可发此代生成资格。
 /// 不授予节点存在、checked frame、旧账或发布闭包证明。
@@ -24,6 +25,15 @@ struct BusinessTxStore<T: NodeStore> {
     budget: Option<sc::capture_allocation::OwnedBudget>,
 }
 impl<T: NodeStore> sc::NodeSource for BusinessTxStore<T> {
+    fn checked_read_scoped(
+        &mut self,
+        d: &sc::NodeDigest,
+    ) -> Result<Option<sc::job::ScopedFrame>, sc::CodecError> {
+        self.inner.checked_read_scoped(d)
+    }
+    fn codec_work(&self) -> Option<&WorkScope> {
+        self.inner.codec_work()
+    }
     fn read(&mut self, digest: &sc::NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
         sc::NodeSource::read(&mut self.inner, digest)
     }
@@ -35,6 +45,9 @@ impl<T: NodeStore> sc::NodeSource for BusinessTxStore<T> {
     }
 }
 impl<T: NodeStore> sc::NodeSink for BusinessTxStore<T> {
+    fn codec_sink_work(&self) -> Option<&WorkScope> {
+        self.inner.codec_sink_work()
+    }
     fn put(&mut self, digest: sc::NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
         sc::NodeSink::put(&mut self.inner, digest, tag, body)
     }
@@ -213,6 +226,38 @@ impl Runtime {
         context: Option<&mut request_audit::RequestAuditContext>,
         #[cfg(feature = "s_capture_native_testonly")] bound_audit: Option<&state::AuditedState>,
     ) -> Result<commit::CommitReceipt, String> {
+        self.publish_impl_admitted(
+            tx,
+            token,
+            envelope,
+            context,
+            #[cfg(feature = "s_capture_native_testonly")]
+            bound_audit,
+            None,
+        )
+    }
+    /// 调用者在 prepare 之前开启唯一父域，并保持到 Commit 返回；此入口本身不签发整堆资格。
+    pub(super) fn publish_impl_admitted(
+        &mut self,
+        tx: &mut Transaction<'_>,
+        token: &str,
+        envelope: &Value,
+        context: Option<&mut request_audit::RequestAuditContext>,
+        #[cfg(feature = "s_capture_native_testonly")] bound_audit: Option<&state::AuditedState>,
+        work: Option<&WorkScope>,
+    ) -> Result<commit::CommitReceipt, String> {
+        if work.is_some() {
+            #[cfg(feature = "s_capture_native_testonly")]
+            if !matches!(self.mode, s_allocation::Mode::CapturedNative) {
+                return Err("PublicationInvalid：Native工作域不能覆盖Owned或普通模式".into());
+            }
+            #[cfg(not(feature = "s_capture_native_testonly"))]
+            return Err("PublicationInvalid：Native工作域需要相应feature".into());
+        }
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        if work.is_some() && self.stage_new_nodes {
+            return Err("PublicationInvalid：staged发布工作域尚未接入，不能丢弃父scope".into());
+        }
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
         let stage = if self.stage_new_nodes {
             if !matches!(self.mode, s_allocation::Mode::CapturedNative) {
@@ -232,6 +277,7 @@ impl Runtime {
                 bound_audit,
                 #[cfg(all(test, feature = "s_capture_native_testonly"))]
                 stage.as_ref(),
+                work,
             )?;
             #[cfg(test)]
             if let Some(inject) = self.after_prepare {
@@ -255,13 +301,14 @@ impl Runtime {
                 );
             }
             #[cfg(feature = "s_capture_native_testonly")]
-            return commit::publish_borrowed_with_workspace(
+            return commit::publish_borrowed_with_workspace_admitted(
                 tx,
                 token,
                 &prepared.metadata,
                 &prepared.roots,
                 &prepared.manifest,
                 prepared.workspace,
+                work,
             );
             #[cfg(not(feature = "s_capture_native_testonly"))]
             commit::publish_borrowed(
@@ -292,6 +339,7 @@ impl Runtime {
         #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
             &staged_nodes::StageOwner,
         >,
+        work: Option<&WorkScope>,
     ) -> Result<Prepared, String> {
         #[cfg(feature = "s_capture_native_testonly")]
         let workspace_budget = context
@@ -379,7 +427,7 @@ impl Runtime {
             catalog_revision: get("catalog_revision")?,
             scope: scope_root,
         };
-        content_publication::verify_current_begin(tx, token, &metadata)?;
+        content_publication::verify_current_begin_admitted(tx, token, metadata.view(), work)?;
         if metadata.profile_id != tb02a::PROFILE {
             return Err(err("非OHLC档生成/来源接线仍未实现"));
         }
@@ -464,7 +512,7 @@ impl Runtime {
             drop(control);
             let products = {
                 let mut store = BusinessTxStore {
-                    inner: content_store::NativeReadLease::new(tx).map_err(err)?,
+                    inner: content_store::NativeReadLease::new_admitted(tx, work).map_err(err)?,
                     budget: None,
                 };
                 self.generate_node_products(
@@ -493,7 +541,9 @@ impl Runtime {
                 workspace,
             } = products;
             let mut store = BusinessTxStore {
-                inner: content_store::TxStore::new(tx).map_err(err)?,
+                inner: content_store::TxStore::new(tx)
+                    .map_err(err)?
+                    .with_work(work),
                 budget: None,
             };
             object_index::stage(tx, &mut store, &objects, &manifest.batch_id)?;
@@ -509,9 +559,13 @@ impl Runtime {
         let _ = use_lease;
         let mut store = BusinessTxStore {
             #[cfg(all(test, feature = "s_capture_native_testonly"))]
-            inner: content_store::TxStore::new_with_stage(tx, stage).map_err(err)?,
+            inner: content_store::TxStore::new_with_stage(tx, stage)
+                .map_err(err)?
+                .with_work(work),
             #[cfg(not(all(test, feature = "s_capture_native_testonly")))]
-            inner: content_store::TxStore::new(tx).map_err(err)?,
+            inner: content_store::TxStore::new(tx)
+                .map_err(err)?
+                .with_work(work),
             budget: audited.budget.clone(),
         };
         let NodeProducts {
@@ -1412,6 +1466,15 @@ pub(crate) mod tests {
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn native_manifest_workspace_four_normal_commits_match_cold_and_ordinary_full_rows() {
+        manifest_workspace_normal_commits(false);
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn r10_native_manifest_workspace_shared_scope_normal_commits_match_full_rows() {
+        manifest_workspace_normal_commits(true);
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn manifest_workspace_normal_commits(admitted: bool) {
         let mut warm = Fixture::new();
         warm.runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
         let mut cold = Fixture::new();
@@ -1448,11 +1511,41 @@ pub(crate) mod tests {
                 Some(total)
             );
             let start = std::time::Instant::now();
-            let tx = warm.conn.transaction().unwrap();
-            let wr = warm
-                .runtime
-                .commit_in_request(tx, &wt, &we, &mut context)
-                .unwrap();
+            let mut tx = warm.conn.transaction().unwrap();
+            let wr = if admitted {
+                // Explicit finite prototype heap cap, independent of the S7 source allowance.
+                let parent =
+                    super::super::audit_owner::native::Budget::new(64 * 1024 * 1024, 0).unwrap();
+                let baseline = parent.live();
+                let receipt = parent
+                    .codec_work()
+                    .unwrap()
+                    .run(|work| {
+                        warm.runtime.publish_impl_admitted(
+                            &mut tx,
+                            &wt,
+                            &we,
+                            Some(&mut context),
+                            None,
+                            Some(work),
+                        )
+                    })
+                    .unwrap();
+                assert!(parent.peak() > baseline);
+                assert_eq!(parent.scratch_observation().0, 0);
+                assert_eq!(parent.scratch_observation().2, 0);
+                eprintln!(
+                    "R10_PUBLICATION generation={n} parent_peak={} native_live={}",
+                    parent.peak(),
+                    parent.live()
+                );
+                tx.commit().unwrap();
+                receipt
+            } else {
+                warm.runtime
+                    .commit_in_request(tx, &wt, &we, &mut context)
+                    .unwrap()
+            };
             let workspace_cost =
                 content_manifest::manifest_workspace_stats().last_workspace_source_cost as usize;
             assert!(

@@ -31,7 +31,7 @@ pub(super) fn log_pager_handle(
 #[cfg(feature = "s_capture_native_testonly")]
 pub(super) mod effects;
 #[cfg(feature = "s_capture_native_testonly")]
-pub(super) mod native;
+pub(crate) mod native;
 #[cfg(feature = "s_capture_native_testonly")]
 mod q;
 

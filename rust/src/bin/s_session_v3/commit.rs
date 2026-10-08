@@ -13,6 +13,7 @@ use newchan_rust::s_content::{
     ContentRef, Kind,
 };
 use rusqlite::Transaction;
+use sc::capture_allocation::scratch::WorkScope;
 
 /// S3 私有发布索引。原 `structure_deltas` 保留共同控制列和 delivery 外键；其 `delta_json`
 /// 在明确的 s-session/3 域中存四字段 ContentRef，真实 Delta 在这里同根绑定。
@@ -77,6 +78,7 @@ pub(super) fn publish_borrowed(
         &[],
         #[cfg(feature = "s_capture_native_testonly")]
         None,
+        None,
     )
 }
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -89,7 +91,17 @@ pub(super) fn publish_borrowed_staged(
     stage: &staged_nodes::StageOwner,
     runtime: &[sc::NodeDigest],
 ) -> Result<CommitReceipt, String> {
-    publish_prepared_inner(tx, token, m, roots, manifest, Some(stage), runtime, None)
+    publish_prepared_inner(
+        tx,
+        token,
+        m,
+        roots,
+        manifest,
+        Some(stage),
+        runtime,
+        None,
+        None,
+    )
 }
 #[cfg(feature = "s_capture_native_testonly")]
 pub(super) fn publish_borrowed_with_workspace(
@@ -99,6 +111,18 @@ pub(super) fn publish_borrowed_with_workspace(
     roots: &ManifestRoots,
     manifest: &UnpublishedManifest,
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
+) -> Result<CommitReceipt, String> {
+    publish_borrowed_with_workspace_admitted(tx, token, m, roots, manifest, workspace, None)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) fn publish_borrowed_with_workspace_admitted(
+    tx: &mut Transaction<'_>,
+    token: &str,
+    m: &ManifestMetadata,
+    roots: &ManifestRoots,
+    manifest: &UnpublishedManifest,
+    workspace: Option<content_manifest::PreparedManifestWorkspace>,
+    work: Option<&WorkScope>,
 ) -> Result<CommitReceipt, String> {
     publish_prepared_inner(
         tx,
@@ -111,6 +135,7 @@ pub(super) fn publish_borrowed_with_workspace(
         #[cfg(test)]
         &[],
         workspace,
+        work,
     )
 }
 fn publish_prepared_inner(
@@ -126,6 +151,7 @@ fn publish_prepared_inner(
     #[cfg(feature = "s_capture_native_testonly")] workspace: Option<
         content_manifest::PreparedManifestWorkspace,
     >,
+    work: Option<&WorkScope>,
 ) -> Result<CommitReceipt, String> {
     let m = metadata;
     let (count, head): (i64, i64) = tx
@@ -148,23 +174,25 @@ fn publish_prepared_inner(
             manifest,
             stage,
         )?,
-        None => content_publication::resolve_current_births_with_workspace(
+        None => content_publication::resolve_current_births_with_workspace_admitted(
             tx,
             begin_token,
             m,
             roots,
             manifest,
             workspace,
+            work,
         )?,
     };
     #[cfg(all(not(test), feature = "s_capture_native_testonly"))]
-    let resolved = content_publication::resolve_current_births_with_workspace(
+    let resolved = content_publication::resolve_current_births_with_workspace_admitted(
         tx,
         begin_token,
         m,
         roots,
         manifest,
         workspace,
+        work,
     )?;
     #[cfg(not(feature = "s_capture_native_testonly"))]
     let resolved =
@@ -186,9 +214,13 @@ fn publish_prepared_inner(
 
     let (seq_range, run, evidence_ref) = {
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
-        let mut store = content_store::TxStore::new_with_stage(&tx, stage).map_err(err)?;
+        let mut store = content_store::TxStore::new_with_stage(&tx, stage)
+            .map_err(err)?
+            .with_work(work);
         #[cfg(not(all(test, feature = "s_capture_native_testonly")))]
-        let mut store = content_store::TxStore::new(&tx).map_err(err)?;
+        let mut store = content_store::TxStore::new(&tx)
+            .map_err(err)?
+            .with_work(work);
         let seq_range = small_field(&mut store, &resolved.delta, "seq_range")?;
         let run = small_field(&mut store, &resolved.delta, "catalog_run_status")?;
         let run = run

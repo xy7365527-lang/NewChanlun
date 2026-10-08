@@ -8,23 +8,29 @@
 //! 不从旧私有格式表推断协议。未接线的 S3 writer 必须生成此合同，不能复用 legacy-full 集合。
 #![allow(dead_code)]
 
-use super::{canonical_json, content_manifest, content_store, meta_get_opt, sha256_hex, v2};
+#[cfg(test)]
+use super::meta_get_opt;
+use super::{canonical_json, content_manifest, content_store, v2};
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 use crate::staged_nodes;
 use crate::v3::audit_store::HashReader;
-use crate::v3::audit_store::{CodecRead, CodecStore};
+use crate::v3::audit_store::{CodecRead, CodecStore, NativeAdmission};
 use crate::v3::audit_store::{RefFields, RefValue};
+use crate::v3::business_json;
 use content_manifest::Decimal;
 use content_manifest::{
     ManifestMetadata, ManifestRoots, MetadataView, RootsView, UnpublishedManifest,
 };
-use newchan_rust::s_content::{
-    self as sc, path::PathStep, ContentRef, Kind, NodeDigest, NodeSink, Value as V,
-};
+use newchan_rust::s_content::{self as sc, path::PathStep, ContentRef, Kind, NodeDigest, NodeSink};
 use newchan_rust::session_protocol::{parse_canonical_i64, strict_json, validate_envelope};
-use rusqlite::{params, Transaction};
+use newchan_rust::sqlite_checked::{CheckedRow, CheckedStatement};
+use rusqlite::{OptionalExtension, Transaction};
+use sc::capture_allocation::{audit_json::JsonView, scratch::WorkScope};
+#[cfg(test)]
+use sc::Value as V;
 use sc::ValueView as VV;
 use std::collections::{BTreeMap, BTreeSet};
+use std::ffi::CStr;
 use std::rc::Rc;
 
 #[derive(Debug)]
@@ -52,6 +58,7 @@ pub(super) fn resolve_current_births(
         metadata,
         roots,
         manifest,
+        None,
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
         None,
     )
@@ -65,7 +72,7 @@ pub(super) fn resolve_current_births_staged(
     manifest: &UnpublishedManifest,
     stage: &staged_nodes::StageOwner,
 ) -> Result<ResolvedTemplates, String> {
-    resolve_current_births_inner(tx, token, m, roots, manifest, Some(stage))
+    resolve_current_births_inner(tx, token, m, roots, manifest, None, Some(stage))
 }
 #[cfg(feature = "s_capture_native_testonly")]
 pub(super) fn resolve_current_births_with_workspace(
@@ -76,14 +83,45 @@ pub(super) fn resolve_current_births_with_workspace(
     manifest: &UnpublishedManifest,
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
 ) -> Result<ResolvedTemplates, String> {
+    resolve_current_births_with_workspace_admitted(tx, token, m, roots, manifest, workspace, None)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) fn resolve_current_births_with_workspace_admitted(
+    tx: &mut Transaction<'_>,
+    token: &str,
+    m: &ManifestMetadata,
+    roots: &ManifestRoots,
+    manifest: &UnpublishedManifest,
+    workspace: Option<content_manifest::PreparedManifestWorkspace>,
+    work: Option<&WorkScope>,
+) -> Result<ResolvedTemplates, String> {
     let Some(workspace) = workspace else {
-        return resolve_current_births(tx, token, m, roots, manifest);
+        return resolve_current_births_inner(
+            tx,
+            token,
+            m,
+            roots,
+            manifest,
+            work,
+            #[cfg(test)]
+            None,
+        );
     };
-    workspace.resolve_in_publication(tx, token, m, roots, manifest)
+    workspace.resolve_in_publication_admitted(tx, token, m, roots, manifest, work)
 }
 #[cfg(feature = "s_capture_native_testonly")]
 pub(super) fn current_publication_frontier(tx: &Transaction<'_>) -> Result<i64, String> {
-    parse_canonical_i64(&meta(tx, "last_advance_frontier")?, "last_advance_frontier")
+    current_publication_frontier_admitted(tx, None)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn current_publication_frontier_admitted(
+    tx: &Transaction<'_>,
+    work: Option<&WorkScope>,
+) -> Result<i64, String> {
+    parse_canonical_i64(
+        &meta_admitted(tx, "last_advance_frontier", work)?,
+        "last_advance_frontier",
+    )
 }
 
 fn resolve_current_births_inner(
@@ -92,24 +130,33 @@ fn resolve_current_births_inner(
     metadata: &ManifestMetadata,
     roots: &ManifestRoots,
     manifest: &UnpublishedManifest,
+    work: Option<&WorkScope>,
     #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
         &staged_nodes::StageOwner,
     >,
 ) -> Result<ResolvedTemplates, String> {
-    verify_current_begin(tx, begin_token, metadata)?;
+    verify_current_begin_admitted(tx, begin_token, metadata.view(), work)?;
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
-    let mut store = content_store::TxStore::new_with_stage(tx, stage).map_err(err)?;
+    let mut store = content_store::TxStore::new_with_stage(tx, stage)
+        .map_err(err)?
+        .with_work(work);
     #[cfg(not(all(test, feature = "s_capture_native_testonly")))]
-    let mut store = content_store::TxStore::new(tx).map_err(err)?;
+    let mut store = content_store::TxStore::new(tx)
+        .map_err(err)?
+        .with_work(work);
     let computed =
         content_manifest::assemble_unpublished(&mut store, metadata, roots).map_err(err)?;
     if computed.batch_id != manifest.batch_id
-        || computed.value.content_ref() != manifest.value.content_ref()
+        || computed.value.digest != manifest.value.digest
+        || computed.value.kind != manifest.value.kind
+        || computed.value.extent != manifest.value.extent
     {
         return Err("IdentityConflict：manifest 与当前三个根/上下文不符".into());
     }
-    let previous_frontier =
-        parse_canonical_i64(&meta(tx, "last_advance_frontier")?, "last_advance_frontier")?;
+    let previous_frontier = parse_canonical_i64(
+        &meta_admitted(tx, "last_advance_frontier", work)?,
+        "last_advance_frontier",
+    )?;
     resolve_indexed_templates(
         tx,
         &mut store,
@@ -133,8 +180,8 @@ pub(super) fn resolve_indexed_templates(
     let result =
         resolve_indexed_templates_pending(tx, store, metadata, roots, batch_id, previous_frontier)?;
     store
-        .verify_many_fresh(
-            [result.snapshot.clone(), result.delta.clone()],
+        .verify_many_ref_fresh(
+            [(&result.snapshot).into(), (&result.delta).into()],
             sc::Mode::Public,
         )
         .map_err(err)?;
@@ -162,14 +209,17 @@ pub(super) fn resolve_indexed_templates_pending(
         previous_frontier,
     )?;
     Ok(PendingTemplates {
-        snapshot: normal_reference(result.snapshot.view()),
-        delta: normal_reference(result.delta.view()),
+        snapshot: store
+            .native_plain_ref(result.snapshot.view())
+            .map_err(err)?,
+        delta: store.native_plain_ref(result.delta.view()).map_err(err)?,
     })
 }
 pub(crate) struct PendingRefTemplates {
     pub snapshot: RefValue,
     pub delta: RefValue,
 }
+#[cfg(test)]
 fn normal_reference(r: sc::RefView<'_>) -> ContentRef {
     ContentRef {
         format: r.format().to_owned(),
@@ -282,6 +332,17 @@ enum PublicationFields {
     Shared(Rc<RefFields<'static>>),
 }
 impl PublicationFields {
+    fn get_admitted(
+        &self,
+        store: &(impl CodecRead + ?Sized),
+        name: &str,
+    ) -> Result<Option<RefValue>, String> {
+        match self {
+            Self::Direct(f) => f.get_admitted(store, name),
+            Self::Shared(f) => f.get_admitted(store, name),
+        }
+        .map_err(err)
+    }
     fn get(&self, name: &str) -> Option<RefValue> {
         match self {
             Self::Direct(f) => f.get(name),
@@ -509,12 +570,14 @@ fn resolve_indexed_templates_pending_core(
     )?;
     resolve_observations(store, &mut delta, &observations, &metadata, batch_id, true)?;
     for root in [&mut snapshot, &mut delta] {
-        for path in [
-            vec![field("index_frontier")],
-            vec![field("catalog_evidence"), field("batch_id")],
-        ] {
+        let frontier = [store.native_field("index_frontier").map_err(err)?];
+        let evidence = [
+            store.native_field("catalog_evidence").map_err(err)?,
+            store.native_field("batch_id").map_err(err)?,
+        ];
+        for path in [&frontier[..], &evidence[..]] {
             *root = store
-                .replace_ref(root.view(), &path, batch_id)
+                .replace_ref(root.view(), path, batch_id)
                 .map_err(err)?;
         }
     }
@@ -524,9 +587,11 @@ fn resolve_indexed_templates_pending_core(
 fn err(e: impl std::fmt::Display) -> String {
     format!("PublicationInvalid：{e}")
 }
+#[cfg(test)]
 fn field(s: &str) -> PathStep {
     PathStep::Field(s.into())
 }
+#[cfg(test)]
 fn meta(tx: &Transaction<'_>, key: &str) -> Result<String, String> {
     meta_get_opt(tx, key)?.ok_or_else(|| err(format!("缺 meta.{key}")))
 }
@@ -536,37 +601,9 @@ impl NodeSink for HashOnly {
         Ok(())
     }
 }
-fn hash(v: V) -> Result<NodeDigest, String> {
-    sc::write_value(&mut HashOnly, &v)
-        .map(|v| v.digest)
-        .map_err(err)
-}
+#[cfg(test)]
 fn text(s: impl ToString) -> V {
     V::String(s.to_string())
-}
-fn match_field(
-    store: &mut (impl CodecStore + ?Sized),
-    root: &ContentRef,
-    key: &str,
-    v: V,
-) -> Result<(), String> {
-    match_field_ref(store, root.into(), key, v)
-}
-fn match_field_ref(
-    store: &mut (impl CodecStore + ?Sized),
-    root: sc::RefView<'_>,
-    key: &str,
-    v: V,
-) -> Result<(), String> {
-    let actual = store
-        .lookup_ref(root, &[field(key)])
-        .map_err(err)?
-        .digest()
-        .map_err(err)?;
-    if actual != hash(v)? {
-        return Err(err(format!("{key} 与独立记录不同")));
-    }
-    Ok(())
 }
 // #1394 独立摘要仍使用调用方的临时工作域，不保存正文或改变业务所有权。
 struct ScopedHashOnly<'a>(Option<&'a sc::capture_allocation::scratch::WorkScope>);
@@ -578,7 +615,7 @@ impl NodeSink for ScopedHashOnly<'_> {
         Ok(())
     }
 }
-fn hash_view(store: &(impl CodecStore + ?Sized), v: VV<'_>) -> Result<NodeDigest, String> {
+fn hash_view(store: &(impl CodecRead + ?Sized), v: VV<'_>) -> Result<NodeDigest, String> {
     let result = match store.allocation_budget() {
         #[cfg(feature = "s_allocation_json_testonly")]
         Some(b) => sc::write_value_view_for_allocation_prototype(&mut HashOnly, v, &b),
@@ -604,20 +641,128 @@ fn match_field_view(
     }
     Ok(())
 }
-fn json_value(v: &serde_json::Value) -> Result<V, String> {
-    use serde_json::Value as J;
-    Ok(match v {
-        J::Null => V::Null,
-        J::Bool(x) => V::Bool(*x),
-        J::String(x) => V::String(x.clone()),
-        J::Number(x) => V::Number(sc::NumberToken::parse(&x.to_string()).map_err(err)?),
-        J::Array(xs) => V::Array(xs.iter().map(json_value).collect::<Result<_, _>>()?),
-        J::Object(xs) => V::Object(
-            xs.iter()
-                .map(|(k, v)| Ok((k.clone(), json_value(v)?)))
-                .collect::<Result<_, String>>()?,
-        ),
+// 固定 SELECT 和原列类型判据；checked 行先拒 NOMEM，业务文本随后才准入复制。
+fn query_one<T>(
+    tx: &Transaction<'_>,
+    sql: &CStr,
+    bind: impl FnOnce(&mut CheckedStatement<'_>) -> rusqlite::Result<()>,
+    read: impl FnOnce(&mut CheckedRow<'_>) -> rusqlite::Result<T>,
+) -> rusqlite::Result<T> {
+    let mut statement = CheckedStatement::prepare(tx, sql)?;
+    bind(&mut statement)?;
+    let value = {
+        let mut row = statement
+            .next()?
+            .ok_or(rusqlite::Error::QueryReturnedNoRows)?;
+        read(&mut row)?
+    };
+    statement.finalize()?;
+    Ok(value)
+}
+fn row_text_admitted(
+    row: &mut CheckedRow<'_>,
+    index: usize,
+    admission: &(impl CodecRead + ?Sized),
+) -> rusqlite::Result<String> {
+    let text = row.text(index)?;
+    admission.native_string(text).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(index, rusqlite::types::Type::Text, Box::new(e))
     })
+}
+fn row_optional_text_admitted(
+    row: &mut CheckedRow<'_>,
+    index: usize,
+    admission: &(impl CodecRead + ?Sized),
+) -> rusqlite::Result<Option<String>> {
+    row.optional_text(index)?
+        .map(|text| {
+            admission.native_string(text).map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    index,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })
+        })
+        .transpose()
+}
+fn meta_optional_admitted(
+    tx: &Transaction<'_>,
+    key: &str,
+    work: Option<&WorkScope>,
+) -> Result<Option<String>, String> {
+    query_one(
+        tx,
+        c"SELECT value FROM meta WHERE key = ?1",
+        |statement| statement.bind_text(1, key),
+        |row| row_text_admitted(row, 0, &NativeAdmission(work)),
+    )
+    .optional()
+    .map_err(|e| format!("读 meta.{key} 失败：{e}"))
+}
+fn meta_admitted(
+    tx: &Transaction<'_>,
+    key: &str,
+    work: Option<&WorkScope>,
+) -> Result<String, String> {
+    meta_optional_admitted(tx, key, work)?.ok_or_else(|| err(format!("缺 meta.{key}")))
+}
+fn generation_admitted(
+    tx: &Transaction<'_>,
+    store: &(impl CodecRead + ?Sized),
+) -> Result<i64, String> {
+    let value = meta_optional_admitted(tx, "generation", store.codec_work())?
+        .ok_or_else(|| "StorageUnavailable：meta.generation 缺失".to_owned())?;
+    parse_canonical_i64(&value, "meta.generation").map_err(|e| format!("StorageUnavailable：{e}"))
+}
+fn strict_json_admitted(
+    raw: &str,
+    admission: &NativeAdmission<'_>,
+) -> Result<serde_json::Value, String> {
+    if admission.0.is_some() {
+        #[cfg(feature = "s_capture_native_testonly")]
+        admission
+            .native_admit(
+                crate::v3::audit_owner::native::JsonShape::scan(raw.as_bytes()).parse_peak(),
+            )
+            .map_err(err)?;
+        #[cfg(not(feature = "s_capture_native_testonly"))]
+        return Err(err(admission
+            .0
+            .unwrap()
+            .reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)));
+    }
+    strict_json(raw.as_bytes())
+}
+fn canonical_admitted(
+    value: &serde_json::Value,
+    admission: &NativeAdmission<'_>,
+) -> Result<String, String> {
+    if admission.0.is_some() {
+        #[cfg(feature = "s_capture_native_testonly")]
+        admission
+            .native_admit(
+                crate::v3::audit_owner::native::JsonShape::of_value(value).canonical_peak(),
+            )
+            .map_err(err)?;
+        #[cfg(not(feature = "s_capture_native_testonly"))]
+        return Err(err(admission
+            .0
+            .unwrap()
+            .reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)));
+    }
+    Ok(canonical_json(value))
+}
+fn canonical_array_admitted(
+    values: &[JsonView<'_>],
+    admission: &NativeAdmission<'_>,
+) -> Result<String, String> {
+    let owner = business_json::json_from_view_admitted(admission, JsonView::ArraySlice(values))?;
+    match owner {
+        business_json::JsonOwner::Plain(value) => canonical_admitted(&value, admission),
+        #[cfg(feature = "s_allocation_json_testonly")]
+        business_json::JsonOwner::Owned(_) => Err(err("Native准入不可擦除Owned JSON")),
+    }
 }
 
 /// 冻结标量和当前 Begin 必须来自同一事务；不调用只认识 v2/旧 batch 的根审计器。
@@ -634,6 +779,15 @@ pub(crate) fn verify_current_begin_view(
     token: &str,
     m: MetadataView<'_>,
 ) -> Result<(), String> {
+    verify_current_begin_admitted(tx, token, m, None)
+}
+pub(crate) fn verify_current_begin_admitted(
+    tx: &Transaction<'_>,
+    token: &str,
+    m: MetadataView<'_>,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    let admission = NativeAdmission(work);
     for (key, expected) in [
         ("protocol_revision", "s-session/3"),
         ("session_id", m.session_id),
@@ -645,59 +799,75 @@ pub(crate) fn verify_current_begin_view(
         ("rule_revision", m.rule_revision),
         ("begin_token", token),
     ] {
-        if meta(tx, key)? != expected {
+        if meta_admitted(tx, key, work)? != expected {
             return Err(err(format!("当前 {key} 不符")));
         }
     }
     if m.generation.checked_sub(1)
-        != Some(parse_canonical_i64(&meta(tx, "generation")?, "generation")?)
-        || m.structure_cut != format!("cut-{}", m.generation)
-        || meta(tx, "advance_state")?
-            != format!("begun:{token}:{}:{}", m.generation, m.input_frontier)
+        != Some(parse_canonical_i64(
+            &meta_admitted(tx, "generation", work)?,
+            "generation",
+        )?)
+        || m.structure_cut
+            != admission
+                .native_format(format_args!("cut-{}", m.generation))
+                .map_err(err)?
+        || meta_admitted(tx, "advance_state", work)?
+            != admission
+                .native_format(format_args!(
+                    "begun:{token}:{}:{}",
+                    m.generation, m.input_frontier
+                ))
+                .map_err(err)?
     {
         return Err("StaleWriter：当前 Begin 所有权/代号/cut 不符".into());
     }
-    if hash(json_value(&strict_json(meta(tx, "scope")?.as_bytes())?)?)?
-        != m.scope.digest().map_err(err)?
-    {
+    let scope_raw = meta_admitted(tx, "scope", work)?;
+    let scope = strict_json_admitted(&scope_raw, &admission)?;
+    if hash_view(&admission, VV::Json((&scope).into()))? != m.scope.digest().map_err(err)? {
         return Err(err("scope 与冻结域不同"));
     }
-    let frontier: i64 = tx
-        .query_row("SELECT COALESCE(MAX(seq),-1) FROM raw_events", [], |r| {
-            r.get(0)
-        })
-        .map_err(err)?;
+    let frontier = query_one(
+        tx,
+        c"SELECT COALESCE(MAX(seq),-1) FROM raw_events",
+        |_| Ok(()),
+        |r| r.integer(0),
+    )
+    .map_err(err)?;
     if frontier != m.input_frontier {
         return Err("StaleWriter：输入前沿已变化".into());
     }
-    let (protocol,inc,clock_hash,clock_raw,next_ordinal,phase_frontier):(String,String,String,String,i64,String)=tx.query_row(
-        "SELECT protocol_revision,session_generation,clock_plan_hash,clock_plan_json,next_attempt_ordinal,logical_phase_frontier FROM s_protocol_meta WHERE singleton=1",[],
-        |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?))).map_err(err)?;
-    let clock = v2::ClockPlan::parse(strict_json(clock_raw.as_bytes())?)?;
+    let (protocol,inc,clock_hash,clock_raw,next_ordinal,phase_frontier):(String,String,String,String,i64,String)=query_one(tx,
+        c"SELECT protocol_revision,session_generation,clock_plan_hash,clock_plan_json,next_attempt_ordinal,logical_phase_frontier FROM s_protocol_meta WHERE singleton=1", |_| Ok(()),
+        |r|Ok((row_text_admitted(r,0,&admission)?,row_text_admitted(r,1,&admission)?,row_text_admitted(r,2,&admission)?,row_text_admitted(r,3,&admission)?,r.integer(4)?,row_text_admitted(r,5,&admission)?))).map_err(err)?;
+    let clock_value = strict_json_admitted(&clock_raw, &admission)?;
+    // ClockPlan::parse 的规则核使用栈上 FixedHash，唯一拥有的摘要文本为 64 字节。
+    admission.native_admit(64).map_err(err)?;
+    let clock = v2::ClockPlan::parse(clock_value)?;
     if protocol != "s-session/3"
         || inc != m.session_generation
         || clock_hash != m.clock_plan_hash
         || clock.hash != clock_hash
-        || canonical_json(&clock.value) != clock_raw
+        || canonical_admitted(&clock.value, &admission)? != clock_raw
     {
         return Err(err("协议/会话代号/clock 冻结原件不同"));
     }
     let s = &m.source_commit;
-    let (ph,raw,accepted,status,first,cid,attempts,receipt):(String,String,i64,String,Option<i64>,String,i64,String)=tx.query_row(
-        "SELECT payload_hash,canonical_envelope,accepted_seq,status,first_published_generation,clock_event_id,attempt_count,receipt_id FROM s_input_messages WHERE source_namespace=?1 AND source_epoch=?2 AND message_id=?3",
-        params![s.source_namespace,s.source_epoch,s.message_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?,r.get(7)?))).map_err(err)?;
-    let accepted_receipt: String = tx
-        .query_row(
-            "SELECT receipt_id FROM raw_events WHERE seq=?1",
-            params![accepted],
-            |r| r.get(0),
-        )
-        .map_err(err)?;
+    let (ph,raw,accepted,status,first,cid,attempts,receipt):(String,String,i64,String,Option<i64>,String,i64,String)=query_one(tx,
+        c"SELECT payload_hash,canonical_envelope,accepted_seq,status,first_published_generation,clock_event_id,attempt_count,receipt_id FROM s_input_messages WHERE source_namespace=?1 AND source_epoch=?2 AND message_id=?3",
+        |statement| { statement.bind_text(1,s.source_namespace)?; statement.bind_text(2,s.source_epoch)?; statement.bind_text(3,s.message_id) },|r|Ok((row_text_admitted(r,0,&admission)?,row_text_admitted(r,1,&admission)?,r.integer(2)?,row_text_admitted(r,3,&admission)?,r.optional_integer(4)?,row_text_admitted(r,5,&admission)?,r.integer(6)?,row_text_admitted(r,7,&admission)?))).map_err(err)?;
+    let accepted_receipt = query_one(
+        tx,
+        c"SELECT receipt_id FROM raw_events WHERE seq=?1",
+        |statement| statement.bind_integer(1, accepted),
+        |r| row_text_admitted(r, 0, &admission),
+    )
+    .map_err(err)?;
     if receipt != accepted_receipt {
         return Err(err("message 的接纳收据与实际源行不同"));
     }
-    let envelope = validate_envelope(strict_json(raw.as_bytes())?, "s-session/3")?;
-    if canonical_json(&envelope) != raw
+    let envelope = validate_envelope(strict_json_admitted(&raw, &admission)?, "s-session/3")?;
+    if canonical_admitted(&envelope, &admission)? != raw
         || ph != s.payload_hash
         || cid != s.clock_event_id
         || accepted > frontier
@@ -725,35 +895,54 @@ pub(crate) fn verify_current_begin_view(
     if envelope["payload"]["clock_event_id"].as_str() != Some(s.clock_event_id) {
         return Err(err("envelope clock_event_id 不符"));
     }
-    let (begin_ns,message_key,ordinal,generation):(String,String,i64,i64)=tx.query_row(
-        "SELECT semantic_ns,message_key,attempt_ordinal,generation FROM s_clock_events WHERE clock_event_id=?1 AND phase='begin' AND attempt_index=?2",
-        params![cid,s.attempt_index],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).map_err(err)?;
-    let expected_key = canonical_json(&serde_json::json!([
-        s.source_namespace,
-        s.source_epoch,
-        s.message_id
-    ]));
-    let expected_token = format!(
-        "begin-{}",
-        sha256_hex(
-            canonical_json(&serde_json::json!([
-                m.session_id,
-                m.session_generation,
-                m.writer_epoch,
-                ordinal.to_string(),
-                m.base_cut,
-                m.generation.to_string(),
-                m.input_frontier.to_string()
-            ]))
-            .as_bytes()
-        )
-    );
-    let commit_ns = clock.phase(&cid, "commit", s.attempt_index)?;
+    let (begin_ns,message_key,ordinal,generation):(String,String,i64,i64)=query_one(tx,
+        c"SELECT semantic_ns,message_key,attempt_ordinal,generation FROM s_clock_events WHERE clock_event_id=?1 AND phase='begin' AND attempt_index=?2",
+        |statement| { statement.bind_text(1,&cid)?; statement.bind_integer(2,s.attempt_index) },|r|Ok((row_text_admitted(r,0,&admission)?,row_text_admitted(r,1,&admission)?,r.integer(2)?,r.integer(3)?))).map_err(err)?;
+    let expected_key = canonical_array_admitted(
+        &[
+            JsonView::String(s.source_namespace),
+            JsonView::String(s.source_epoch),
+            JsonView::String(s.message_id),
+        ],
+        &admission,
+    )?;
+    let ordinal_text = Decimal::new(ordinal);
+    let generation_text = Decimal::new(m.generation);
+    let frontier_text = Decimal::new(m.input_frontier);
+    let token_parts = [
+        JsonView::String(m.session_id),
+        JsonView::String(m.session_generation),
+        JsonView::String(m.writer_epoch),
+        JsonView::String(ordinal_text.as_str()),
+        JsonView::String(m.base_cut),
+        JsonView::String(generation_text.as_str()),
+        JsonView::String(frontier_text.as_str()),
+    ];
+    // 共用协议规范字节/摘要核，借用数组与固定摘要不建立临时 JSON 树或字符串。
+    let token_hash = newchan_rust::session_protocol::canonical_hash_view_with_owner(
+        JsonView::ArraySlice(&token_parts),
+        None,
+    )?;
+    let expected_token = admission
+        .native_format(format_args!("begin-{}", token_hash.as_str()))
+        .map_err(err)?;
+    let commit_ns = newchan_rust::session_protocol::clock_phase_view(
+        (&clock.value).into(),
+        &cid,
+        "commit",
+        s.attempt_index,
+    )?;
     if ordinal < 1
         || ordinal.checked_add(1) != Some(next_ordinal)
         || generation != m.generation
         || message_key != expected_key
-        || begin_ns != clock.phase(&cid, "begin", s.attempt_index)?
+        || begin_ns
+            != newchan_rust::session_protocol::clock_phase_view(
+                (&clock.value).into(),
+                &cid,
+                "begin",
+                s.attempt_index,
+            )?
         || commit_ns != m.semantic_commit_ns
         || token != expected_token
         || phase_frontier != begin_ns
@@ -782,29 +971,30 @@ fn object_births(
     store: &(impl CodecStore + ?Sized),
 ) -> Result<BTreeMap<NodeDigest, ObjectBirth>, String> {
     let mut out = BTreeMap::new();
-    let latest = super::meta_i64(tx, "generation")?.max(m.generation);
+    let latest = generation_admitted(tx, store)?.max(m.generation);
     {
-        let sql="SELECT object_id,object_revision,kind,batch_id,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM s_content_objects";
-        let mut stmt = tx.prepare(&sql).map_err(err)?;
-        let mut rows = stmt.query([]).map_err(err)?;
-        while let Some(r) = rows.next().map_err(err)? {
-            let id: String = r.get(0).map_err(err)?;
+        let mut stmt = CheckedStatement::prepare(tx, c"SELECT object_id,object_revision,kind,batch_id,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM s_content_objects").map_err(err)?;
+        while let Some(mut r) = stmt.next().map_err(err)? {
+            let id = row_text_admitted(&mut r, 0, store).map_err(err)?;
             let mut b = ObjectBirth {
-                revision: r.get(1).map_err(err)?,
-                kind: r.get(2).map_err(err)?,
-                batch: r.get(3).map_err(err)?,
-                first: r.get(4).map_err(err)?,
-                cut: r.get(5).map_err(err)?,
-                published: r.get(6).map_err(err)?,
-                withdrawn: r.get(7).map_err(err)?,
-                reason: r.get(8).map_err(err)?,
-                superseded: r.get(9).map_err(err)?,
+                revision: r.integer(1).map_err(err)?,
+                kind: row_text_admitted(&mut r, 2, store).map_err(err)?,
+                batch: row_text_admitted(&mut r, 3, store).map_err(err)?,
+                first: r.integer(4).map_err(err)?,
+                cut: row_text_admitted(&mut r, 5, store).map_err(err)?,
+                published: r.integer(6).map_err(err)?,
+                withdrawn: r.optional_integer(7).map_err(err)?,
+                reason: row_optional_text_admitted(&mut r, 8, store).map_err(err)?,
+                superseded: row_optional_text_admitted(&mut r, 9, store).map_err(err)?,
             };
             if b.first < 1
                 || b.first > latest
                 || b.published < b.first
                 || b.published > latest
-                || b.cut != format!("cut-{}", b.first)
+                || b.cut
+                    != store
+                        .native_format(format_args!("cut-{}", b.first))
+                        .map_err(err)?
                 || b.withdrawn.is_some_and(|g| g <= b.first || g > latest)
             {
                 return Err(err("独立对象出生/生命周期代号非法"));
@@ -820,10 +1010,17 @@ fn object_births(
                 b.reason = None;
                 b.superseded = None;
             }
-            if out.insert(hash_view(store, VV::String(&id))?, b).is_some() {
+            let digest = hash_view(store, VV::String(&id))?;
+            if !out.contains_key(&digest) {
+                store
+                    .native_tree_room::<NodeDigest, ObjectBirth>(out.len())
+                    .map_err(err)?;
+            }
+            if out.insert(digest, b).is_some() {
                 return Err(err("对象身份同时存在两个独立表"));
             }
         }
+        stmt.finalize().map_err(err)?;
     }
     Ok(out)
 }
@@ -838,19 +1035,18 @@ fn observation_births(
     store: &(impl CodecStore + ?Sized),
 ) -> Result<BTreeMap<NodeDigest, ObservationBirth>, String> {
     let mut out = BTreeMap::new();
-    let latest = super::meta_i64(tx, "generation")?.max(m.generation);
-    let mut stmt = tx
-        .prepare(
-            "SELECT observation_id,kind,batch_id,published_generation FROM s_content_observations",
-        )
-        .map_err(err)?;
-    let mut rows = stmt.query([]).map_err(err)?;
-    while let Some(r) = rows.next().map_err(err)? {
-        let id: String = r.get(0).map_err(err)?;
+    let latest = generation_admitted(tx, store)?.max(m.generation);
+    let mut stmt = CheckedStatement::prepare(
+        tx,
+        c"SELECT observation_id,kind,batch_id,published_generation FROM s_content_observations",
+    )
+    .map_err(err)?;
+    while let Some(mut r) = stmt.next().map_err(err)? {
+        let id = row_text_admitted(&mut r, 0, store).map_err(err)?;
         let b = ObservationBirth {
-            kind: r.get(1).map_err(err)?,
-            batch: r.get(2).map_err(err)?,
-            first: r.get(3).map_err(err)?,
+            kind: row_text_admitted(&mut r, 1, store).map_err(err)?,
+            batch: row_text_admitted(&mut r, 2, store).map_err(err)?,
+            first: r.integer(3).map_err(err)?,
         };
         if b.first < 1 || b.first > latest {
             return Err(err("独立观察首次发布代号非法"));
@@ -858,8 +1054,15 @@ fn observation_births(
         if b.first > m.generation {
             continue;
         }
-        out.insert(hash_view(store, VV::String(&id))?, b);
+        let digest = hash_view(store, VV::String(&id))?;
+        if !out.contains_key(&digest) {
+            store
+                .native_tree_room::<NodeDigest, ObservationBirth>(out.len())
+                .map_err(err)?;
+        }
+        out.insert(digest, b);
     }
+    stmt.finalize().map_err(err)?;
     Ok(out)
 }
 #[derive(Clone, Copy)]
@@ -880,7 +1083,7 @@ fn array_len(
     root: &RefValue,
     name: &str,
 ) -> Result<u64, String> {
-    let r = store.lookup_ref(root.view(), &[field(name)]).map_err(err)?;
+    let r = store.lookup_field_ref(root.view(), name).map_err(err)?;
     array_reference_len(&r, name)
 }
 fn array_reference_len(r: &RefValue, name: &str) -> Result<u64, String> {
@@ -900,14 +1103,26 @@ fn resolve_record_batch(
     batch: &str,
 ) -> Result<(), String> {
     let value = store
-        .lookup_ref(record.view(), &[field("batch_id")])
+        .lookup_field_ref(record.view(), "batch_id")
         .map_err(err)?;
     if first == m.generation {
         if stored_batch != batch || value.kind() != Kind::TemplateBatch {
             return Err(err("本批出生索引/占位不符"));
         }
-        let mut p = path.to_vec();
-        p.push(field("batch_id"));
+        let mut p = Vec::new();
+        let count = path
+            .len()
+            .checked_add(1)
+            .ok_or_else(|| err(store.native_overflow()))?;
+        store.native_vec_room(&mut p, count).map_err(err)?;
+        for step in path {
+            p.push(match step {
+                PathStep::Field(key) => store.native_field(key).map_err(err)?,
+                PathStep::Index(index) => PathStep::Index(*index),
+                PathStep::JsonText => PathStep::JsonText,
+            });
+        }
+        p.push(store.native_field("batch_id").map_err(err)?);
         *root = store.replace_ref(root.view(), &p, batch).map_err(err)?;
     } else {
         if stored_batch == batch {
@@ -951,20 +1166,22 @@ fn resolve_objects(
         n[0] += 1;
         v.set(n);
     });
-    let expected: BTreeSet<_> = births
-        .iter()
-        .filter(|(_, b)| member(b, m, family))
-        .map(|(id, _)| *id)
-        .collect();
+    let mut expected = BTreeSet::new();
+    for (id, _) in births.iter().filter(|(_, b)| member(b, m, family)) {
+        store
+            .native_tree_room::<NodeDigest, ()>(expected.len())
+            .map_err(err)?;
+        expected.insert(*id);
+    }
     // 本轮只修改其它成员的batch标量；未处理成员仍来自同一不可变模板数组。
-    let array = store.lookup_ref(root.view(), &[field(name)]).map_err(err)?;
+    let array = store.lookup_field_ref(root.view(), name).map_err(err)?;
     let n = array_reference_len(&array, name)?;
     if n != expected.len() as u64 {
         return Err(err(format!("{name} 与独立索引成员数不符")));
     }
     let mut seen = BTreeSet::new();
     for i in 0..n {
-        let path = [field(name), PathStep::Index(i)];
+        let path = [store.native_field(name).map_err(err)?, PathStep::Index(i)];
         let record = store
             .lookup_ref(array.view(), &[PathStep::Index(i)])
             .map_err(err)?;
@@ -974,10 +1191,15 @@ fn resolve_objects(
             None => PublicationFields::Direct(read_publication_fields(store, record.view())?),
         };
         let id = fields
-            .get("object_id")
+            .get_admitted(store, "object_id")?
             .ok_or_else(|| err("缺object_id"))?
             .digest()
             .map_err(err)?;
+        if expected.contains(&id) && !seen.contains(&id) {
+            store
+                .native_tree_room::<NodeDigest, ()>(seen.len())
+                .map_err(err)?;
+        }
         if !expected.contains(&id) || !seen.insert(id) {
             return Err(err(format!("{name} 存在越界/重复身份")));
         }
@@ -1018,7 +1240,7 @@ fn resolve_objects(
             ),
         ] {
             if fields
-                .get(k)
+                .get_admitted(store, k)?
                 .ok_or_else(|| err(format!("缺{k}")))?
                 .digest()
                 .map_err(err)?
@@ -1045,24 +1267,37 @@ fn resolve_observations(
         n[1] += 1;
         v.set(n);
     });
-    let expected: BTreeSet<_> = births
+    let mut expected = BTreeSet::new();
+    for (id, _) in births
         .iter()
         .filter(|(_, b)| !delta || b.first == m.generation)
-        .map(|(id, _)| *id)
-        .collect();
+    {
+        store
+            .native_tree_room::<NodeDigest, ()>(expected.len())
+            .map_err(err)?;
+        expected.insert(*id);
+    }
     let n = array_len(store, root, "observations")?;
     if n != expected.len() as u64 {
         return Err(err("观察与独立索引成员数不符"));
     }
     let mut seen = BTreeSet::new();
     for i in 0..n {
-        let path = [field("observations"), PathStep::Index(i)];
+        let path = [
+            store.native_field("observations").map_err(err)?,
+            PathStep::Index(i),
+        ];
         let record = store.lookup_ref(root.view(), &path).map_err(err)?;
         let id = store
-            .lookup_ref(record.view(), &[field("observation_id")])
+            .lookup_field_ref(record.view(), "observation_id")
             .map_err(err)?
             .digest()
             .map_err(err)?;
+        if expected.contains(&id) && !seen.contains(&id) {
+            store
+                .native_tree_room::<NodeDigest, ()>(seen.len())
+                .map_err(err)?;
+        }
         if !expected.contains(&id) || !seen.insert(id) {
             return Err(err("观察有越界/重复身份"));
         }
@@ -1968,6 +2203,69 @@ mod tests {
         drop(capture);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_publication_begin_and_consumers_share_parent_scope() {
+        let mut db = Connection::open_in_memory().unwrap();
+        let tx = db.transaction().unwrap();
+        let (m, roots, manifest) = fixtures_with(&tx, FixtureChange::Observations);
+        let token = meta(&tx, "begin_token").unwrap();
+        verify_current_begin(&tx, &token, &m).unwrap();
+        let expected_frontier = current_publication_frontier(&tx).unwrap();
+        let expected = resolve_indexed_templates(
+            &tx,
+            &mut content_store::TxStore::new(&tx).unwrap(),
+            &m,
+            &roots,
+            &manifest.batch_id,
+            expected_frontier,
+        )
+        .unwrap();
+        let budget = crate::v3::audit_owner::native::Budget::new(64 * 1024 * 1024, 0).unwrap();
+        let before = budget.live();
+        let actual = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                verify_current_begin_admitted(&tx, &token, m.view(), Some(work))?;
+                assert_eq!(
+                    current_publication_frontier_admitted(&tx, Some(work))?,
+                    expected_frontier
+                );
+                let begin_held = budget.live();
+                assert!(
+                    begin_held
+                        > before + sc::capture_allocation::scratch::CodecWork::metadata_bytes()
+                );
+                let mut store = content_store::TxStore::new(&tx)
+                    .map_err(err)?
+                    .with_work(Some(work));
+                let resolved = resolve_indexed_templates(
+                    &tx,
+                    &mut store,
+                    &m,
+                    &roots,
+                    &manifest.batch_id,
+                    expected_frontier,
+                )?;
+                assert!(
+                    budget.live() > begin_held,
+                    "出生表、集合、路径和引用沿同一父账持有"
+                );
+                let held = budget.live();
+                drop(store);
+                assert_eq!(budget.live(), held, "Native许可不得随借用store提前释放");
+                Ok::<_, String>(resolved)
+            })
+            .unwrap();
+        assert_eq!(actual.snapshot, expected.snapshot);
+        assert_eq!(actual.delta, expected.delta);
+        assert!(budget.peak() > before);
+        assert!(budget.live() > before, "结果与临时许可保守持有到父预算结束");
+        assert_eq!(budget.scratch_observation().0, 0);
+        assert_eq!(budget.scratch_observation().2, 0);
+    }
+
     #[test]
     fn historical_template_resolution_ignores_future_births_and_withdrawals() {
         let mut db = Connection::open_in_memory().unwrap();

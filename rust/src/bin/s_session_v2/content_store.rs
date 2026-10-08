@@ -3,8 +3,10 @@
 //! s-content/1 与旧 evidence-graph 码本分表；只有新 s-session/3 域可以初始化或读取。
 //! 本层保存节点，不发布 cut、不核业务出生许可；完整闭包和独立索引仍由发布者核验。
 
+use crate::v3::audit_store::{CodecRead, NativeAdmission};
 use newchan_rust::s_content::{self, code, CodecError, NodeDigest, NodeRead, NodeSink, NodeSource};
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
+use s_content::capture_allocation::scratch::{NativeReservation, WorkScope};
 use std::collections::BTreeMap;
 
 fn storage_error(error: impl std::fmt::Display) -> CodecError {
@@ -113,27 +115,144 @@ fn read_material(
     conn: &Connection,
     digest: &NodeDigest,
 ) -> Result<Option<(u8, Vec<u8>)>, CodecError> {
-    // 每次真实 SELECT 当前原件；tag 转换和错误处理先于任何证明复用。
+    read_material_admitted(conn, digest, None)
+}
+
+/// 借用经过 NOMEM 检查的 SQL 正文，取得父账许可后才生成 Rust 副本。
+fn read_material_admitted(
+    conn: &Connection,
+    digest: &NodeDigest,
+    work: Option<&WorkScope>,
+) -> Result<Option<(u8, Vec<u8>)>, CodecError> {
+    let result = read_material_reserved(conn, digest, work)?;
+    Ok(result.map(|(tag, body, permit)| {
+        if let Some(permit) = permit {
+            permit.retain();
+        }
+        (tag, body)
+    }))
+}
+fn read_material_reserved(
+    conn: &Connection,
+    digest: &NodeDigest,
+    work: Option<&WorkScope>,
+) -> Result<Option<(u8, Vec<u8>, Option<NativeReservation>)>, CodecError> {
     #[cfg(test)]
     SQL_READS.with(|calls| calls.set(calls.get() + 1));
-    let row: Option<(i64, Vec<u8>)> = conn
-        .prepare_cached("SELECT tag, body FROM s_content_nodes WHERE digest=?1")
-        .map_err(storage_error)?
-        .query_row(params![&digest[..]], |row| Ok((row.get(0)?, row.get(1)?)))
-        .optional()
+    // 保留无 scope 路线原有的 statement cache；两路只改变正文取得/许可方式。
+    let result: Option<(i64, Vec<u8>, Option<NativeReservation>)> = if work.is_none() {
+        conn.prepare_cached("SELECT tag, body FROM s_content_nodes WHERE digest=?1")
+            .map_err(storage_error)?
+            .query_row(params![&digest[..]], |row| {
+                Ok((row.get(0)?, row.get(1)?, None))
+            })
+            .optional()
+            .map_err(storage_error)?
+    } else {
+        let mut statement = newchan_rust::sqlite_checked::CheckedStatement::prepare(
+            conn,
+            c"SELECT tag, body FROM s_content_nodes WHERE digest=?1",
+        )
         .map_err(storage_error)?;
-    let Some((stored_tag, body)) = row else {
+        statement.bind_blob(1, digest).map_err(storage_error)?;
+        let row = match statement.next().map_err(storage_error)? {
+            Some(mut row) => {
+                let tag = row.integer(0).map_err(storage_error)?;
+                let (body, permit) =
+                    native_body_reserved(work, row.blob(1).map_err(storage_error)?)?;
+                Some((tag, body, permit))
+            }
+            None => None,
+        };
+        statement.finalize().map_err(storage_error)?;
+        row
+    };
+    let Some(row) = result else {
         return Ok(None);
     };
-    let tag = u8::try_from(stored_tag)
+    // 失败前保持聚合所有权：body 字段先析构，permit 字段随后归还。
+    let tag = u8::try_from(row.0)
         .map_err(|_| CodecError::new(code::NODE_DIGEST, "节点 tag 超过一个字节"))?;
+    let (_, body, permit) = row;
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     RUNTIME_READS.with(|reads| {
         if let Some(reads) = reads.borrow_mut().as_mut() {
             reads.insert(*digest);
         }
     });
-    Ok(Some((tag, body)))
+    Ok(Some((tag, body, permit)))
+}
+
+/// Native 正文复制在许可之后；无 scope 的旧调用维持同一复制语义。
+pub(super) fn native_body_copy(
+    work: Option<&WorkScope>,
+    body: &[u8],
+) -> Result<Vec<u8>, CodecError> {
+    let (body, permit) = native_body_reserved(work, body)?;
+    if let Some(permit) = permit {
+        permit.retain();
+    }
+    Ok(body)
+}
+pub(super) fn native_body_reserved(
+    work: Option<&WorkScope>,
+    body: &[u8],
+) -> Result<(Vec<u8>, Option<NativeReservation>), CodecError> {
+    let permit = work.map(|w| w.reserve_native(body.len())).transpose()?;
+    let mut result = Vec::new();
+    result.try_reserve_exact(body.len()).map_err(|_| {
+        work.map_or_else(
+            || CodecError::new(s_content::capture_allocation::LIMIT, "Native正文分配失败"),
+            |w| w.reject(s_content::capture_allocation::scratch::ScratchFailure::Allocation),
+        )
+    })?;
+    result.extend_from_slice(body);
+    Ok((result, permit))
+}
+/// 新整树上界先许可，旧许可仍持有；插入完成后用新许可承接现有树。
+/// 避免把每次可能 split 的最坏路径当成永久新增节点，累计成 n log n 的虚费。
+pub(super) fn native_tree_storage<K, V>(
+    work: Option<&WorkScope>,
+    len: usize,
+) -> Result<Option<NativeReservation>, CodecError> {
+    let Some(work) = work else {
+        return Ok(None);
+    };
+    #[cfg(feature = "s_capture_native_testonly")]
+    {
+        work.reserve_native(crate::v3::audit_retention::tree_slots::<K, V>(len))
+            .map(Some)
+    }
+    #[cfg(not(feature = "s_capture_native_testonly"))]
+    {
+        let _ = len;
+        Err(work.reject(s_content::capture_allocation::scratch::ScratchFailure::Ledger))
+    }
+}
+
+fn read_checked_node_scoped(
+    conn: &Connection,
+    digest: &NodeDigest,
+    work: Option<&WorkScope>,
+) -> Result<Option<s_content::job::ScopedFrame>, CodecError> {
+    match read_material_reserved(conn, digest, work)? {
+        None => Ok(None),
+        Some((tag, body, permit)) => {
+            let frame = s_content::job::CheckedFrame::checked(digest, tag, body)?;
+            Ok(Some(s_content::job::ScopedFrame::new(frame, permit)))
+        }
+    }
+}
+
+fn read_checked_node_admitted(
+    conn: &Connection,
+    digest: &NodeDigest,
+    work: Option<&WorkScope>,
+) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
+    match read_material_admitted(conn, digest, work)? {
+        None => Ok(None),
+        Some((tag, body)) => s_content::job::CheckedFrame::checked(digest, tag, body).map(Some),
+    }
 }
 
 #[cfg(test)]
@@ -175,6 +294,8 @@ const SAME_MATERIAL_ENTRIES: usize = 65_536;
 struct SameMaterial {
     frames: BTreeMap<NodeDigest, (s_content::job::CheckedFrame, usize)>,
     retained_capacity: usize,
+    // frames 先析构；许可只在整棵实际树释放后归还。
+    tree_permit: Option<NativeReservation>,
 }
 
 impl SameMaterial {
@@ -201,6 +322,17 @@ impl SameMaterial {
         max_bytes: usize,
         max_entries: usize,
     ) -> Result<s_content::job::CheckedFrame, CodecError> {
+        self.check_with_limits_admitted(digest, tag, body, max_bytes, max_entries, None)
+    }
+    fn check_with_limits_admitted(
+        &mut self,
+        digest: &NodeDigest,
+        tag: u8,
+        body: Vec<u8>,
+        max_bytes: usize,
+        max_entries: usize,
+        work: Option<&WorkScope>,
+    ) -> Result<s_content::job::CheckedFrame, CodecError> {
         let body = if let Some((old, _)) = self.frames.get(digest) {
             match old.try_rebind_same_material(digest, tag, body) {
                 s_content::job::SameMaterialRebind::Same(frame) => return Ok(frame),
@@ -217,11 +349,21 @@ impl SameMaterial {
         // 复制前先按长度/条数筛选，复制后再按 Vec 的实际 capacity 筛选。
         let remaining = max_bytes.saturating_sub(self.retained_capacity);
         if self.frames.len() < max_entries && frame.body().len() <= remaining {
-            let retained = frame.body().to_vec();
+            let next = self
+                .frames
+                .len()
+                .checked_add(1)
+                .ok_or_else(|| NativeAdmission(work).native_overflow())?;
+            let tree_permit = native_tree_storage::<
+                NodeDigest,
+                (s_content::job::CheckedFrame, usize),
+            >(work, next)?;
+            let retained = native_body_copy(work, frame.body())?;
             let capacity = retained.capacity();
             if capacity <= remaining {
                 let proof = frame.checked_same_material(digest, tag, retained)?;
                 self.frames.insert(*digest, (proof, capacity));
+                self.tree_permit = tree_permit;
                 self.retained_capacity += capacity;
             }
         }
@@ -437,6 +579,7 @@ fn native_insert_only_target(before: u64, after: u64, direct: u64) -> bool {
 #[cfg(feature = "s_capture_native_testonly")]
 pub(super) struct NativeReadLease<'lease, 'conn> {
     tx: &'lease mut Transaction<'conn>,
+    work: Option<&'lease WorkScope>,
     material: SameMaterial,
     poisoned: bool,
     insert_can_preserve: bool,
@@ -444,6 +587,12 @@ pub(super) struct NativeReadLease<'lease, 'conn> {
 #[cfg(feature = "s_capture_native_testonly")]
 impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
     pub(super) fn new(tx: &'lease mut Transaction<'conn>) -> Result<Self, CodecError> {
+        Self::new_admitted(tx, None)
+    }
+    pub(super) fn new_admitted(
+        tx: &'lease mut Transaction<'conn>,
+        work: Option<&'lease WorkScope>,
+    ) -> Result<Self, CodecError> {
         if tx.is_autocommit() {
             return Err(storage_error("Native读取租约要求活动事务"));
         }
@@ -460,6 +609,7 @@ impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
         let insert_can_preserve = native_insert_can_preserve(tx)?;
         Ok(Self {
             tx,
+            work,
             material: Default::default(),
             poisoned: false,
             insert_can_preserve,
@@ -482,16 +632,33 @@ impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
         &mut self,
         digest: &NodeDigest,
     ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
+        self.current_scoped(digest)
+            .map(|f| f.map(s_content::job::ScopedFrame::into_frame))
+    }
+    fn current_scoped(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<Option<s_content::job::ScopedFrame>, CodecError> {
         self.check_live()?;
         let result = (|| {
             if let Some((frame, _)) = self.material.frames.get(digest) {
-                return frame
-                    .checked_same_material(digest, frame.tag(), frame.body().to_vec())
-                    .map(Some);
+                let (body, permit) = native_body_reserved(self.work, frame.body())?;
+                let frame = frame.checked_same_material(digest, frame.tag(), body)?;
+                return Ok(Some(s_content::job::ScopedFrame::new(frame, permit)));
             }
-            match read_material(self.tx, digest)? {
-                Some((tag, body)) => self.material.check(digest, tag, body).map(Some),
-                None => Ok(None), // No negative entry: only actual successful immutable material.
+            match read_material_reserved(self.tx, digest, self.work)? {
+                Some((tag, body, permit)) => {
+                    let frame = self.material.check_with_limits_admitted(
+                        digest,
+                        tag,
+                        body,
+                        SAME_MATERIAL_BYTES,
+                        SAME_MATERIAL_ENTRIES,
+                        self.work,
+                    )?;
+                    Ok(Some(s_content::job::ScopedFrame::new(frame, permit)))
+                }
+                None => Ok(None),
             }
         })();
         if result.is_err() {
@@ -503,6 +670,15 @@ impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl NodeSource for NativeReadLease<'_, '_> {
+    fn checked_read_scoped(
+        &mut self,
+        d: &NodeDigest,
+    ) -> Result<Option<s_content::job::ScopedFrame>, CodecError> {
+        self.current_scoped(d)
+    }
+    fn codec_work(&self) -> Option<&WorkScope> {
+        self.work
+    }
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
         self.current_checked(digest).map(|frame| match frame {
             None => NodeRead::Missing,
@@ -521,6 +697,9 @@ impl NodeSource for NativeReadLease<'_, '_> {
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl NodeSink for NativeReadLease<'_, '_> {
+    fn codec_sink_work(&self) -> Option<&WorkScope> {
+        self.work
+    }
     fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError> {
         self.check_live()?;
         // Private short reborrow avoids a self-referential &mut Transaction + TxStore pair.
@@ -531,6 +710,7 @@ impl NodeSink for NativeReadLease<'_, '_> {
         let mut parked = None;
         let result = TxStore {
             tx,
+            work: self.work,
             #[cfg(all(test, feature = "s_capture_native_testonly"))]
             stage: None,
         }
@@ -572,8 +752,9 @@ pub(super) fn publication_insert_gate(tx: &mut Transaction<'_>) -> Result<bool, 
 pub(super) fn publication_read_checked(
     tx: &Transaction<'_>,
     digest: &NodeDigest,
-) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
-    read_checked_node(tx, digest)
+    work: Option<&WorkScope>,
+) -> Result<Option<s_content::job::ScopedFrame>, CodecError> {
+    read_checked_node_scoped(tx, digest, work)
 }
 #[cfg(feature = "s_capture_native_testonly")]
 pub(super) enum PublicationPutEffect {
@@ -588,10 +769,12 @@ pub(super) fn publication_put(
     digest: NodeDigest,
     tag: u8,
     body: &[u8],
+    work: Option<&WorkScope>,
 ) -> Result<PublicationPutEffect, CodecError> {
     let mut before_write = None;
     TxStore {
         tx,
+        work,
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
         stage: None,
     }
@@ -612,15 +795,21 @@ pub(super) fn publication_put(
 
 pub(super) struct TxStore<'a, 'conn> {
     tx: &'a Transaction<'conn>,
+    work: Option<&'a WorkScope>,
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     stage: Option<&'a super::staged_nodes::StageOwner>,
 }
 
 impl<'a, 'conn> TxStore<'a, 'conn> {
+    pub(super) fn with_work(mut self, work: Option<&'a WorkScope>) -> Self {
+        self.work = work;
+        self
+    }
     pub(super) fn new(tx: &'a Transaction<'conn>) -> Result<Self, CodecError> {
         ensure_format(tx)?;
         Ok(Self {
             tx,
+            work: None,
             #[cfg(all(test, feature = "s_capture_native_testonly"))]
             stage: None,
         })
@@ -640,8 +829,29 @@ impl<'a, 'conn> TxStore<'a, 'conn> {
 }
 
 impl NodeSource for TxStore<'_, '_> {
+    fn checked_read_scoped(
+        &mut self,
+        d: &NodeDigest,
+    ) -> Result<Option<s_content::job::ScopedFrame>, CodecError> {
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        if self.stage.is_some() {
+            return self
+                .checked_read(d)
+                .map(|f| f.map(|f| s_content::job::ScopedFrame::new(f, None)));
+        }
+        read_checked_node_scoped(self.tx, d, self.work)
+    }
+    fn codec_work(&self) -> Option<&WorkScope> {
+        self.work
+    }
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
-        let current = read_node(self.tx, digest)?;
+        let current = match read_checked_node_admitted(self.tx, digest, self.work)? {
+            None => NodeRead::Missing,
+            Some(frame) => {
+                let (tag, body) = frame.into_parts();
+                NodeRead::Found { tag, body }
+            }
+        };
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
         if matches!(current, NodeRead::Missing) {
             if let Some(stage) = self.stage {
@@ -658,7 +868,7 @@ impl NodeSource for TxStore<'_, '_> {
         &mut self,
         digest: &NodeDigest,
     ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
-        let current = read_checked_node(self.tx, digest)?;
+        let current = read_checked_node_admitted(self.tx, digest, self.work)?;
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
         if current.is_none() {
             if let Some(stage) = self.stage {
@@ -680,19 +890,17 @@ impl TxStore<'_, '_> {
         before_write: impl FnOnce(),
     ) -> Result<(), CodecError> {
         check_digest(&digest, tag, body)?;
-        match read_node(self.tx, &digest)? {
-            NodeRead::Found {
-                tag: old_tag,
-                body: old_body,
-            } => {
-                if old_tag != tag || old_body != body {
+        let current = read_checked_node_scoped(self.tx, &digest, self.work)?;
+        match current {
+            Some(frame) => {
+                if frame.tag() != tag || frame.body() != body {
                     return Err(CodecError::new(
                         code::NODE_DIGEST,
                         "同摘要异原件：保留旧节点并拒绝写入",
                     ));
                 }
             }
-            NodeRead::Missing => {
+            None => {
                 before_write();
                 #[cfg(all(test, feature = "s_capture_native_testonly"))]
                 if let Some(stage) = self.stage {
@@ -714,6 +922,9 @@ impl TxStore<'_, '_> {
 }
 
 impl NodeSink for TxStore<'_, '_> {
+    fn codec_sink_work(&self) -> Option<&WorkScope> {
+        self.work
+    }
     fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError> {
         self.put_before_write(digest, tag, body, || {})
     }

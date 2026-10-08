@@ -487,6 +487,8 @@ pub(crate) struct PreparedManifestWorkspace {
     source_cost: usize,
     originals: std::collections::BTreeMap<NodeDigest, (u8, Vec<u8>)>,
     puts: Vec<NodeDigest>,
+    // originals 先释放，树许可后归还；随 workspace move，不复制全池。
+    tree_permit: Option<s_content::capture_allocation::scratch::NativeReservation>,
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl PreparedManifestWorkspace {
@@ -500,13 +502,30 @@ impl PreparedManifestWorkspace {
         roots: &ManifestRoots,
         manifest: &UnpublishedManifest,
     ) -> Result<super::content_publication::ResolvedTemplates, String> {
+        self.resolve_in_publication_admitted(tx, token, metadata, roots, manifest, None)
+    }
+    pub(crate) fn resolve_in_publication_admitted(
+        self,
+        tx: &mut rusqlite::Transaction<'_>,
+        token: &str,
+        metadata: &ManifestMetadata,
+        roots: &ManifestRoots,
+        manifest: &UnpublishedManifest,
+        work: Option<&s_content::capture_allocation::scratch::WorkScope>,
+    ) -> Result<super::content_publication::ResolvedTemplates, String> {
         // No qualified originals exist across these actual Begin/scope/frontier SELECTs.
         // The issuer itself performs them; callers cannot substitute a scope/frontier token.
-        super::content_publication::verify_current_begin(tx, token, metadata)?;
-        let previous_frontier = super::content_publication::current_publication_frontier(tx)?;
+        super::content_publication::verify_current_begin_admitted(
+            tx,
+            token,
+            metadata.view(),
+            work,
+        )?;
+        let previous_frontier =
+            super::content_publication::current_publication_frontier_admitted(tx, work)?;
         NativePublicationLease::new(tx)
             .map_err(|e| format!("PublicationInvalid：{e}"))?
-            .resolve(self, metadata, roots, manifest, previous_frontier)
+            .resolve(self, metadata, roots, manifest, previous_frontier, work)
     }
 }
 
@@ -531,12 +550,13 @@ impl<'lease, 'conn> NativePublicationLease<'lease, 'conn> {
         roots: &ManifestRoots,
         manifest: &UnpublishedManifest,
         previous_frontier: i64,
+        work: Option<&s_content::capture_allocation::scratch::WorkScope>,
     ) -> Result<super::content_publication::ResolvedTemplates, String> {
         let budget = workspace.budget;
         let source_cost = workspace.source_cost;
         let before = manifest_workspace_stats();
         let tx = &*self.tx;
-        let mut store = PublicationMaterialStore::new(tx, self.insert_can_preserve);
+        let mut store = PublicationMaterialStore::new(tx, self.insert_can_preserve).with_work(work);
         let mut issued_owner = false;
         let mut bound_originals = 0usize;
         let mut owner_body_capacity = 0usize;
@@ -570,6 +590,7 @@ impl<'lease, 'conn> NativePublicationLease<'lease, 'conn> {
                 if store.bind_after_replay {
                     // Move the single budgeted map; never clone a second complete pool.
                     store.originals = workspace.originals;
+                    store.tree_permit = workspace.tree_permit;
                     // Even a real put which was a Noop retires its target. The next read is
                     // actual SQL/F, and remains cold here (no new unbudgeted full-node memo).
                     for digest in workspace.puts {
@@ -635,6 +656,8 @@ struct PublicationMaterialStore<'a, 'conn> {
     insert_can_preserve: bool,
     bind_after_replay: bool,
     poisoned: bool,
+    work: Option<&'a s_content::capture_allocation::scratch::WorkScope>,
+    tree_permit: Option<s_content::capture_allocation::scratch::NativeReservation>,
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
@@ -645,7 +668,16 @@ impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
             insert_can_preserve,
             bind_after_replay: true,
             poisoned: false,
+            work: None,
+            tree_permit: None,
         }
+    }
+    fn with_work(
+        mut self,
+        work: Option<&'a s_content::capture_allocation::scratch::WorkScope>,
+    ) -> Self {
+        self.work = work;
+        self
     }
     fn check_live(&mut self) -> Result<(), CodecError> {
         if self.poisoned || self.tx.is_autocommit() {
@@ -665,7 +697,7 @@ impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
         let mut equal = true;
         for (digest, (tag, body)) in originals {
             record_workspace_stats(|stats| stats.rebind_rows += 1);
-            match s_content::NodeSource::checked_read(self, digest)? {
+            match s_content::NodeSource::checked_read_scoped(self, digest)? {
                 Some(frame) => equal &= frame.tag() == *tag && frame.body() == body.as_slice(),
                 None => equal = false,
             }
@@ -676,16 +708,25 @@ impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
         &mut self,
         digest: &NodeDigest,
     ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
+        self.current_scoped(digest)
+            .map(|f| f.map(s_content::job::ScopedFrame::into_frame))
+    }
+    fn current_scoped(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<Option<s_content::job::ScopedFrame>, CodecError> {
         self.check_live()?;
-        let result = if let Some((tag, body)) = self.originals.get(digest) {
-            record_workspace_stats(|stats| stats.publication_reused_reads += 1);
-            // Only SQL acquisition is reused. Fresh F/frame checks and all codec/business
-            // validation still run on this current owner, including final two-root fresh.
-            s_content::job::CheckedFrame::checked(digest, *tag, body.clone()).map(Some)
-        } else {
-            record_workspace_stats(|stats| stats.publication_fallback_sql_reads += 1);
-            super::content_store::publication_read_checked(self.tx, digest)
-        };
+        let result = (|| {
+            if let Some((tag, body)) = self.originals.get(digest) {
+                record_workspace_stats(|stats| stats.publication_reused_reads += 1);
+                let (body, permit) = super::content_store::native_body_reserved(self.work, body)?;
+                let frame = s_content::job::CheckedFrame::checked(digest, *tag, body)?;
+                Ok(Some(s_content::job::ScopedFrame::new(frame, permit)))
+            } else {
+                record_workspace_stats(|stats| stats.publication_fallback_sql_reads += 1);
+                super::content_store::publication_read_checked(self.tx, digest, self.work)
+            }
+        })();
         if result.is_err() {
             self.originals.clear();
             self.poisoned = true;
@@ -695,6 +736,15 @@ impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl s_content::NodeSource for PublicationMaterialStore<'_, '_> {
+    fn checked_read_scoped(
+        &mut self,
+        d: &NodeDigest,
+    ) -> Result<Option<s_content::job::ScopedFrame>, CodecError> {
+        self.current_scoped(d)
+    }
+    fn codec_work(&self) -> Option<&s_content::capture_allocation::scratch::WorkScope> {
+        self.work
+    }
     fn read(&mut self, digest: &NodeDigest) -> Result<s_content::NodeRead, CodecError> {
         self.current_checked(digest).map(|frame| match frame {
             None => s_content::NodeRead::Missing,
@@ -713,6 +763,9 @@ impl s_content::NodeSource for PublicationMaterialStore<'_, '_> {
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl s_content::NodeSink for PublicationMaterialStore<'_, '_> {
+    fn codec_sink_work(&self) -> Option<&s_content::capture_allocation::scratch::WorkScope> {
+        self.work
+    }
     fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError> {
         self.check_live()?;
         // Retire the target before every real put, even Noop. Its first subsequent read
@@ -725,6 +778,7 @@ impl s_content::NodeSink for PublicationMaterialStore<'_, '_> {
             digest,
             tag,
             body,
+            self.work,
         );
         match result {
             Ok(
@@ -857,20 +911,21 @@ struct ManifestRecordingStore<'a> {
     accepted_entries: usize,
     accepted_body_len: usize,
     puts: Vec<NodeDigest>,
+    tree_permit: Option<s_content::capture_allocation::scratch::NativeReservation>,
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl ManifestRecordingStore<'_> {
-    fn record(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) {
+    fn record(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError> {
         let Some(originals) = &mut self.originals else {
-            return;
+            return Ok(());
         };
         if let Some((old_tag, old_body)) = originals.get(&digest) {
             if *old_tag == tag && old_body.as_slice() == body {
-                return;
+                return Ok(());
             }
             self.originals = None;
             self.puts.clear();
-            return;
+            return Ok(());
         }
         // Same canonical node source recipe as Keeper: body + digest/tag/proof 97B.
         let next = self
@@ -880,9 +935,18 @@ impl ManifestRecordingStore<'_> {
         let Some(next) = next.filter(|v| *v <= self.allowance) else {
             self.originals = None;
             self.puts.clear();
-            return;
+            return Ok(());
         };
-        let body = body.to_vec();
+        let admission = crate::v3::audit_store::NativeAdmission(self.inner.codec_work());
+        let next_len = originals
+            .len()
+            .checked_add(1)
+            .ok_or_else(|| admission.native_overflow())?;
+        let tree_permit = super::content_store::native_tree_storage::<NodeDigest, (u8, Vec<u8>)>(
+            self.inner.codec_work(),
+            next_len,
+        )?;
+        let body = super::content_store::native_body_copy(self.inner.codec_work(), body)?;
         let totals = self
             .retained_capacity
             .checked_add(body.capacity())
@@ -891,21 +955,36 @@ impl ManifestRecordingStore<'_> {
         let Some(((capacity, entries), len)) = totals else {
             self.originals = None;
             self.puts.clear();
-            return;
+            return Ok(());
         };
         self.source_cost = next;
         self.retained_capacity = capacity;
         self.accepted_entries = entries;
         self.accepted_body_len = len;
         originals.insert(digest, (tag, body));
+        self.tree_permit = tree_permit;
+        Ok(())
     }
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl s_content::NodeSource for ManifestRecordingStore<'_> {
+    fn checked_read_scoped(
+        &mut self,
+        d: &NodeDigest,
+    ) -> Result<Option<s_content::job::ScopedFrame>, CodecError> {
+        let frame = self.inner.checked_read_scoped(d)?;
+        if let Some(frame) = &frame {
+            self.record(*d, frame.tag(), frame.body())?;
+        }
+        Ok(frame)
+    }
+    fn codec_work(&self) -> Option<&s_content::capture_allocation::scratch::WorkScope> {
+        self.inner.codec_work()
+    }
     fn read(&mut self, digest: &NodeDigest) -> Result<s_content::NodeRead, CodecError> {
         let result = self.inner.read(digest)?;
         match &result {
-            s_content::NodeRead::Found { tag, body } => self.record(*digest, *tag, body),
+            s_content::NodeRead::Found { tag, body } => self.record(*digest, *tag, body)?,
             s_content::NodeRead::Missing => {
                 self.originals = None;
                 self.puts.clear();
@@ -919,22 +998,27 @@ impl s_content::NodeSource for ManifestRecordingStore<'_> {
     ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
         let result = self.inner.checked_read(digest)?;
         if let Some(frame) = &result {
-            self.record(*digest, frame.tag(), frame.body())
+            self.record(*digest, frame.tag(), frame.body())?
         }
         Ok(result)
     }
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl s_content::NodeSink for ManifestRecordingStore<'_> {
+    fn codec_sink_work(&self) -> Option<&s_content::capture_allocation::scratch::WorkScope> {
+        self.inner.codec_sink_work()
+    }
     fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError> {
         self.inner.put(digest, tag, body)?;
-        self.record(digest, tag, body);
+        self.record(digest, tag, body)?;
         if self.originals.is_some() {
             if let Some(next) = self
                 .source_cost
                 .checked_add(32)
                 .filter(|v| *v <= self.allowance)
             {
+                crate::v3::audit_store::NativeAdmission(self.inner.codec_work())
+                    .native_vec_room(&mut self.puts, 1)?;
                 self.puts.push(digest);
                 self.source_cost = next;
             } else {
@@ -964,6 +1048,7 @@ pub(crate) fn assemble_unpublished_with_workspace(
         accepted_entries: 0,
         accepted_body_len: 0,
         puts: Vec::new(),
+        tree_permit: None,
     };
     let manifest = assemble_unpublished(&mut recording, metadata, roots)?;
     let recording_peak_source_cost = recording.source_cost;
@@ -1021,6 +1106,43 @@ pub(crate) fn assemble_unpublished_with_workspace(
             stats.recorded_body_capacity += recording.retained_capacity as u64;
         }
     });
+    if recording.originals.is_some() {
+        let admission = crate::v3::audit_store::NativeAdmission(recording.inner.codec_work());
+        let mut bytes = manifest.batch_id.len();
+        for text in [
+            &metadata.session_id,
+            &metadata.session_generation,
+            &metadata.writer_epoch,
+            &metadata.base_cut,
+            &metadata.structure_cut,
+            &metadata.clock_plan_hash,
+            &metadata.semantic_commit_ns,
+            &metadata.profile_id,
+            &metadata.profile_hash,
+            &metadata.rule_revision,
+            &metadata.catalog_revision,
+            &metadata.source_commit.source_namespace,
+            &metadata.source_commit.source_epoch,
+            &metadata.source_commit.message_id,
+            &metadata.source_commit.payload_hash,
+            &metadata.source_commit.producer_id,
+            &metadata.source_commit.producer_epoch,
+            &metadata.source_commit.clock_event_id,
+            &metadata.scope.format,
+            &metadata.scope.root,
+            &roots.generated_state.format,
+            &roots.generated_state.root,
+            &roots.publication_template.format,
+            &roots.publication_template.root,
+            &roots.delta_template.format,
+            &roots.delta_template.root,
+        ] {
+            bytes = bytes
+                .checked_add(text.len())
+                .ok_or_else(|| admission.native_overflow())?;
+        }
+        admission.native_admit(bytes)?;
+    }
     let workspace = recording
         .originals
         .map(|originals| PreparedManifestWorkspace {
@@ -1034,6 +1156,7 @@ pub(crate) fn assemble_unpublished_with_workspace(
             source_cost: workspace_source_cost,
             originals,
             puts: recording.puts,
+            tree_permit: recording.tree_permit,
         });
     record_workspace_stats(|stats| {
         if workspace.is_some() {
