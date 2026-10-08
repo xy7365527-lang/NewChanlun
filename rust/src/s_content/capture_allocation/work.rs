@@ -160,7 +160,11 @@ impl<T> CodecVec<T> {
     }
     pub(crate) fn with_capacity(n: usize, b: Option<&OwnedBudget>) -> Result<Self, CodecError> {
         match b {
-            None => Ok(Self::from_plain(Vec::with_capacity(n))),
+            None => {
+                let mut v = Self::from_plain(Vec::new());
+                v.reserve_exact(n)?;
+                Ok(v)
+            }
             Some(b) => {
                 let mut v = Self::new(Some(b));
                 v.reserve_exact(n)?;
@@ -170,19 +174,13 @@ impl<T> CodecVec<T> {
     }
     pub(crate) fn reserve(&mut self, n: usize) -> Result<(), CodecError> {
         match &mut self.storage {
-            VecStorage::Plain(v) => {
-                v.reserve(n);
-                Ok(())
-            }
+            VecStorage::Plain(v) => v.try_reserve(n).map_err(|_| allocation_error()),
             VecStorage::Owned(v) => v.try_reserve(n).map_err(|_| allocation_error()),
         }
     }
     pub(crate) fn reserve_exact(&mut self, n: usize) -> Result<(), CodecError> {
         match &mut self.storage {
-            VecStorage::Plain(v) => {
-                v.reserve_exact(n);
-                Ok(())
-            }
+            VecStorage::Plain(v) => v.try_reserve_exact(n).map_err(|_| allocation_error()),
             VecStorage::Owned(v) => v.try_reserve_exact(n).map_err(|_| allocation_error()),
         }
     }

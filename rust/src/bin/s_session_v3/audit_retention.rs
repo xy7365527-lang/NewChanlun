@@ -18,7 +18,7 @@ pub(crate) fn sum(values: impl IntoIterator<Item = usize>) -> usize {
 pub(crate) fn vec_bytes<T>(capacity: usize) -> usize {
     capacity.saturating_mul(size_of::<T>())
 }
-fn hash_slots<K, V>(capacity: usize) -> usize {
+pub(crate) fn hash_slots<K, V>(capacity: usize) -> usize {
     if capacity == 0 {
         return 0;
     }
@@ -28,7 +28,7 @@ fn hash_slots<K, V>(capacity: usize) -> usize {
         .saturating_add(16)
         .saturating_mul(size_of::<(K, V)>().saturating_add(1))
 }
-fn tree_slots<K, V>(len: usize) -> usize {
+pub(crate) fn tree_slots<K, V>(len: usize) -> usize {
     // 每个条目最多独占一棵含 11 key/value、12 edge 的节点；上界刻意不减费。
     len.saturating_mul(
         size_of::<(K, V)>()
@@ -39,7 +39,7 @@ fn tree_slots<K, V>(len: usize) -> usize {
 macro_rules! scalar {
     ($($t:ty),*) => { $(impl Retained for $t { fn heap_bytes(&self)->usize {0} })* };
 }
-scalar!(u8, u32, u64, usize, i64, bool, sc::Built);
+scalar!((), u8, u32, u64, usize, i64, bool, sc::Built);
 impl Retained for String {
     fn heap_bytes(&self) -> usize {
         self.capacity()

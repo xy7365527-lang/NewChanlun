@@ -174,10 +174,7 @@ impl Journal {
     fn layout(keys: usize, node_capacity: usize) -> usize {
         sum([
             vec_bytes::<Key>(keys),
-            node_capacity
-                .saturating_mul(2)
-                .saturating_add(16)
-                .saturating_mul(33),
+            super::super::audit_retention::hash_slots::<[u8; 32], ()>(node_capacity),
             std::mem::size_of::<Self>(),
             128,
         ])
@@ -201,16 +198,28 @@ impl Journal {
         } else {
             self.nodes.capacity()
         };
-        // HashSet try_reserve 的可用 capacity 可向上取整；再乘2覆盖下一桶档。
-        let projected = Self::layout(
-            keys,
+        // 只预留实际增长的容器；未增长的另一个容器已经在 self.bytes 中。
+        // std SwissTable 的下一桶档按小表/7:8装载率推导，再按实际capacity结算。
+        let node_capacity = if grow_nodes {
+            match super::native::hash_capacity(nodes) {
+                Ok(capacity) => capacity,
+                Err(_) => {
+                    self.overflow = true;
+                    return false;
+                }
+            }
+        } else {
+            0
+        };
+        let new_blocks = sum([
+            if grow_keys { vec_bytes::<Key>(keys) } else { 0 },
             if grow_nodes {
-                nodes.saturating_mul(2)
+                super::super::audit_retention::hash_slots::<[u8; 32], ()>(node_capacity)
             } else {
-                nodes
+                0
             },
-        );
-        let coexist = sum([self.bytes, projected]);
+        ]);
+        let coexist = sum([self.bytes, new_blocks]);
         if coexist > self.cap {
             self.overflow = true;
             return false;
@@ -366,7 +375,8 @@ impl Recording {
             changes,
             operation: journal.operation,
             peak,
-            bytes: used,
+            // journal及读行头已真实Drop；旧载荷仍由原件账全额承接，不在这里重复计入。
+            bytes: used - journal.bytes,
         }))
     }
 }
@@ -391,6 +401,7 @@ impl Effects {
         mut self,
         originals: &mut [ExactRows],
         cap: usize,
+        original_charge: &mut usize,
     ) -> Result<Option<usize>, String> {
         let mut peak = self.peak;
         let mut shift = (Table::Meta, 0isize);
@@ -409,6 +420,9 @@ impl Effects {
             } else {
                 rows.partition_point(|r| integer(&r[0]).unwrap_or(i64::MIN) < change.rowid)
             };
+            let old_payload = change.old.heap_bytes();
+            let new_payload = change.new.heap_bytes();
+            let old_capacity = vec_bytes::<Vec<SqlCell>>(rows.capacity());
             match change.new.take() {
                 Some(row) if change.old.is_some() => {
                     rows[index] = row;
@@ -431,6 +445,13 @@ impl Effects {
                 }
                 None => return Err(invalid("固定效果同时缺旧新原件")),
             }
+            *original_charge = original_charge
+                .checked_sub(old_payload)
+                .and_then(|n| n.checked_add(new_payload))
+                .and_then(|n| {
+                    n.checked_add(vec_bytes::<Vec<SqlCell>>(rows.capacity()) - old_capacity)
+                })
+                .ok_or_else(|| invalid("SQL原件增量归属账溢出/缺旧费用"))?;
         }
         Ok(Some(peak))
     }
@@ -549,4 +570,41 @@ pub(crate) fn note_node(tx: &Transaction<'_>, digest: [u8; 32]) {
             digest,
         });
     });
+}
+
+#[cfg(test)]
+#[test]
+fn native_journal_only_reserves_the_container_that_grows() {
+    let inline = std::mem::size_of::<Journal>() + 128;
+    let mut j = Journal {
+        keys: Vec::new(),
+        nodes: Default::default(),
+        operation: Operation::Publish,
+        overflow: false,
+        unexpected: false,
+        cap: usize::MAX,
+        bytes: inline,
+        peak: inline,
+    };
+    assert!(j.reserve_one(true));
+    let node_cap = j.nodes.capacity();
+    let key_cap = j.keys.capacity();
+    for rowid in 0..key_cap {
+        j.keys.push(Key {
+            table: Table::Meta,
+            rowid: rowid as i64,
+            digest: [0; 32],
+        });
+    }
+    let before = j.bytes;
+    let request = vec_bytes::<Key>(key_cap * 2);
+    j.cap = before + request;
+    assert!(j.reserve_one(false), "未增长nodes不得再次占新块许可");
+    assert_eq!(j.nodes.capacity(), node_cap);
+    assert_eq!(j.peak, before + request);
+    assert_eq!(
+        j.bytes,
+        Journal::layout(j.keys.capacity(), j.nodes.capacity())
+    );
+    assert!(j.bytes <= j.cap);
 }

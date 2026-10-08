@@ -1941,6 +1941,9 @@ struct NativeNode {
     body: Vec<u8>,
     // 成功后才分配证明；未读节点不常驻完整 CheckedFrame。
     proof: std::cell::RefCell<Option<allocator_api2::boxed::Box<NativeFrameProof>>>,
+    // owner热写清理链复用节点inline，不另分配全nodes列表。
+    owner_dirty: std::cell::Cell<bool>,
+    owner_next: std::cell::Cell<Option<NodeDigest>>,
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl NativeNode {
@@ -1949,6 +1952,8 @@ impl NativeNode {
             tag,
             body,
             proof: Default::default(),
+            owner_dirty: Default::default(),
+            owner_next: Default::default(),
         }
     }
 }
@@ -1956,6 +1961,9 @@ impl NativeNode {
 struct NativeCaptureNodes {
     // 标准 RandomState；未核摘要不使用弱哈希。
     nodes: std::collections::HashMap<NodeDigest, NativeNode>,
+    body_len: usize,
+    body_capacity: usize,
+    owner_dirty_head: std::cell::Cell<Option<NodeDigest>>,
     memo: std::cell::RefCell<NativeFrameMemo>,
     #[cfg(test)]
     index_lookups: std::cell::Cell<u64>,
@@ -2394,8 +2402,12 @@ impl AuditCapture {
         let CaptureNodes::Native(native) = &mut self.nodes else {
             unreachable!()
         };
+        native.body_len = 0;
+        native.body_capacity = 0;
         for (digest, node) in native.nodes.drain() {
             if material.digests.contains(&digest) {
+                native.body_len = native.body_len.saturating_add(node.body.len());
+                native.body_capacity = native.body_capacity.saturating_add(node.body.capacity());
                 kept.insert(digest, node);
             }
             // 不保留的NativeNode在本轮drop；body Vec不复制、不留在旧HashMap或proof中。
@@ -2465,13 +2477,13 @@ impl AuditCapture {
         *self.public.get_mut() = AuditMemo::default();
         *self.template.get_mut() = AuditMemo::default();
         if let CaptureNodes::Native(native) = &mut self.nodes {
-            let bytes = native.nodes.values().try_fold(0usize, |sum, node| {
-                sum.checked_add(node.body.len())
-                    .ok_or_else(|| CodecError::new(code::SOURCE, "原件body总长度溢出"))
-            })?;
+            let bytes = native.body_len;
             for node in native.nodes.values_mut() {
                 *node.proof.get_mut() = None;
+                node.owner_dirty.set(false);
+                node.owner_next.set(None);
             }
+            native.owner_dirty_head.set(None);
             *native.memo.get_mut() = NativeFrameMemo::new(native.nodes.len(), bytes);
         }
         self.reads.set(0);
@@ -2562,11 +2574,62 @@ impl AuditCapture {
             }
         }
         let bytes = body.capacity();
+        native.body_len = native
+            .body_len
+            .checked_add(body.len())
+            .ok_or_else(|| CodecError::new(code::SOURCE, "原件body总长度溢出"))?;
+        native.body_capacity = native
+            .body_capacity
+            .checked_add(bytes)
+            .ok_or_else(|| CodecError::new(code::SOURCE, "原件body总capacity溢出"))?;
         native.nodes.insert(digest, NativeNode::new(tag, body));
         let memo = native.memo.get_mut();
         memo.entry_limit = memo.entry_limit.saturating_add(1);
         memo.body_capacity_limit = memo.body_capacity_limit.saturating_add(bytes);
         Ok(true)
+    }
+
+    /// #1394 owner正常追加的热交接：只清本步实际生成过proof的节点。
+    /// 完整原件与根证书继续保留；不扫描旧节点求body总量。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn finish_owner_step_for_testonly(mut self) -> Result<Self, CodecError> {
+        let CaptureNodes::Native(native) = &mut self.nodes else {
+            return Err(CodecError::new(code::SOURCE, "owner交接只接受Native"));
+        };
+        *self.public.get_mut() = AuditMemo::default();
+        *self.template.get_mut() = AuditMemo::default();
+        let mut next = native.owner_dirty_head.take();
+        while let Some(digest) = next {
+            let node = native
+                .nodes
+                .get_mut(&digest)
+                .expect("dirty链节点由同owner完整持有");
+            next = node.owner_next.take();
+            node.owner_dirty.set(false);
+            native.memo.get_mut().remove(node.proof.get_mut());
+        }
+        *native.memo.get_mut() = NativeFrameMemo::new(native.nodes.len(), native.body_len);
+        self.reads.set(0);
+        Ok(self)
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    fn assert_owner_retention_oracle(&self) {
+        let CaptureNodes::Native(native) = &self.nodes else {
+            panic!("Native oracle");
+        };
+        assert_eq!(
+            native.body_len,
+            native.nodes.values().map(|v| v.body.len()).sum::<usize>()
+        );
+        assert_eq!(
+            native.body_capacity,
+            native
+                .nodes
+                .values()
+                .map(|v| v.body.capacity())
+                .sum::<usize>()
+        );
     }
 
     /// #1394 私有Native请求复用的原件绑定：比较完整digest/tag/body集合；不读取证明或摘要替代正文。
@@ -2649,7 +2712,10 @@ impl AuditCapture {
             // 保留旧重复 opt-in 的冷 proof 语义；不重置原件、reads 或语义 memo。
             for node in native.nodes.values_mut() {
                 *node.proof.get_mut() = None;
+                node.owner_dirty.set(false);
+                node.owner_next.set(None);
             }
+            native.owner_dirty_head.set(None);
             *native.memo.get_mut() = NativeFrameMemo::new(native.nodes.len(), body_capacity_limit);
             return Ok(self);
         }
@@ -2674,11 +2740,18 @@ impl AuditCapture {
             unreachable!()
         };
         // 移动原件 Vec，不预核 F、不复制全部正文，不改变第一处严格拒绝的位置。
+        let mut body_capacity = 0usize;
         for (digest, (tag, body)) in nodes {
+            body_capacity = body_capacity
+                .checked_add(body.capacity())
+                .ok_or_else(|| CodecError::new(code::SOURCE, "原件capacity溢出"))?;
             native_nodes.insert(digest, NativeNode::new(tag, body));
         }
         self.nodes = CaptureNodes::Native(NativeCaptureNodes {
             nodes: native_nodes,
+            body_len: body_capacity_limit,
+            body_capacity,
+            owner_dirty_head: Default::default(),
             memo: std::cell::RefCell::new(NativeFrameMemo::new(entry_limit, body_capacity_limit)),
             #[cfg(test)]
             index_lookups: Default::default(),
@@ -2752,14 +2825,8 @@ impl AuditCapture {
         };
         let roots = self.codec_roots.borrow();
         Some(NativeCaptureRetention {
-            body_len: native
-                .nodes
-                .values()
-                .fold(0usize, |n, v| n.saturating_add(v.body.len())),
-            body_capacity: native
-                .nodes
-                .values()
-                .fold(0usize, |n, v| n.saturating_add(v.body.capacity())),
+            body_len: native.body_len,
+            body_capacity: native.body_capacity,
             index_capacity: native.nodes.capacity(),
             index_payload: native
                 .nodes
@@ -3117,6 +3184,21 @@ mod counts_subset_codec_root_tests {
             .unwrap()
     }
     fn assert_cold_workspaces(capture: &AuditCapture) {
+        let CaptureNodes::Native(native) = &capture.nodes else {
+            panic!("正常稀疏原件测试必须保留 Native 域");
+        };
+        let actual_len: usize = native.nodes.values().map(|node| node.body.len()).sum();
+        let actual_capacity: usize = native.nodes.values().map(|node| node.body.capacity()).sum();
+        assert_eq!(native.body_len, actual_len, "裁剪后正文长度缓存须匹配实存");
+        assert_eq!(
+            native.body_capacity, actual_capacity,
+            "裁剪后正文容量缓存须匹配实存"
+        );
+        assert_eq!(capture.retention()["body_len_bytes"], actual_len);
+        assert_eq!(
+            capture.retention()["body_vec_capacity_bytes"],
+            actual_capacity
+        );
         for mode in ["public", "template"] {
             assert!(capture.retention()[mode]
                 .as_object()
@@ -3351,10 +3433,17 @@ impl CaptureReader<'_> {
         let node = native.get(digest);
         // 本次原件先实际读取/完整复制；proof 槽沿用同一次实际 get 返回的 entry。
         let current = read_current(node);
-        native
+        let result = native
             .memo
             .borrow_mut()
-            .checked_current(digest, node, current)
+            .checked_current(digest, node, current);
+        if let Some(node) = node.filter(|node| node.proof.borrow().is_some()) {
+            if !node.owner_dirty.replace(true) {
+                node.owner_next
+                    .set(native.owner_dirty_head.replace(Some(*digest)));
+            }
+        }
+        result
     }
 }
 impl NodeSource for CaptureReader<'_> {
@@ -3443,6 +3532,44 @@ mod native_frame_reuse_tests {
         // 未覆写 checked_read 的 MemoryNodes 是同次原实现 oracle。
         nodes.checked_read(digest)
     }
+    #[test]
+    fn owner_normal_append_counters_and_dirty_proofs_match_full_oracle() {
+        let mut nodes = MemoryNodes::new();
+        let first = write_value(&mut nodes, &Value::String("正常原件é".into())).unwrap();
+        let mut capture = AuditCapture::new(nodes)
+            .enable_native_frame_reuse_for_testonly()
+            .unwrap();
+        capture.assert_owner_retention_oracle();
+        let pointer = capture.original(&first.digest).unwrap().1.as_ptr();
+        capture.verify(&first.content_ref(), Mode::Public).unwrap();
+        assert!(native(&capture).owner_dirty_head.get().is_some());
+        capture = capture.finish_owner_step_for_testonly().unwrap();
+        assert!(native(&capture).owner_dirty_head.get().is_none());
+        assert_eq!(native(&capture).memo.borrow().retained_entries, 0);
+        assert!(native(&capture)
+            .nodes
+            .values()
+            .all(|n| n.proof.borrow().is_none()));
+        let old = capture.native_retention_numbers_for_testonly().unwrap();
+        let body = "第二个合法字节块".as_bytes().to_vec();
+        let digest = frame(tag::BYTES_CHUNK, &body);
+        let len = body.len();
+        let cap = body.capacity();
+        assert!(capture
+            .append_original_for_owner_testonly(digest, tag::BYTES_CHUNK, body, usize::MAX)
+            .unwrap());
+        capture.assert_owner_retention_oracle();
+        let new = capture.native_retention_numbers_for_testonly().unwrap();
+        assert_eq!(new.body_len, old.body_len + len);
+        assert_eq!(new.body_capacity, old.body_capacity + cap);
+        assert_eq!(capture.original(&first.digest).unwrap().1.as_ptr(), pointer);
+        capture.reader().checked_read(&digest).unwrap().unwrap();
+        capture = capture.finish_owner_step_for_testonly().unwrap();
+        assert_eq!(native(&capture).memo.borrow().retained_entries, 0);
+        capture.assert_owner_retention_oracle();
+        assert_eq!(capture.original(&first.digest).unwrap().1.as_ptr(), pointer);
+    }
+
     #[test]
     fn native_single_index_optin_moves_original_buffers_and_keeps_default_representation() {
         let mut body = Vec::with_capacity(128);

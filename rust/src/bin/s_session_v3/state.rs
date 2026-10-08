@@ -2559,7 +2559,8 @@ impl AuditedState {
         &mut self,
         capture: &sc::AuditCapture,
         bound: &super::audit_owner::BoundOriginals,
-    ) -> Result<(), String> {
+        native: &super::audit_owner::native::Budget,
+    ) -> Result<usize, super::audit_owner::native::Failure> {
         let historical = match &mut self.historical {
             HistoricalOwner::Unique(v) => v,
             HistoricalOwner::Shared(v) => {
@@ -2570,7 +2571,7 @@ impl AuditedState {
             .raw_prefixes
             .as_mut()
             .ok_or_else(|| err("缺 raw R/F 状态"))?
-            .check_appended(capture, self.raw.view(), bound)
+            .check_appended(capture, self.raw.view(), bound, native)
     }
 }
 #[cfg(all(test, feature = "s_capture_native_testonly"))]

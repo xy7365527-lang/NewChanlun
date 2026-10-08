@@ -985,7 +985,7 @@ impl TextValue {
     }
     pub fn try_clone(&self) -> Result<Self, String> {
         match self {
-            Self::Plain(s) => Ok(Self::Plain(s.clone())),
+            Self::Plain(s) => Self::from_str(s, None),
             Self::Owned(s) => {
                 #[cfg(feature = "s_allocation_json_testonly")]
                 {
@@ -1020,7 +1020,12 @@ impl TextValue {
                 "Owned文本入口未启用",
             ));
         }
-        Ok(Self::Plain(s.to_owned()))
+        let mut value = String::new();
+        value.try_reserve_exact(s.len()).map_err(|_| {
+            sc::CodecError::new(sc::capture_allocation::LIMIT, "Native文本分配失败")
+        })?;
+        value.push_str(s);
+        Ok(Self::Plain(value))
     }
     pub fn from_sql(
         row: &mut CheckedRow<'_>,

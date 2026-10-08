@@ -540,6 +540,27 @@ impl HistoryObjects<'_> {
     pub(super) fn into_entries(self) -> sc::CodecVec<Entry> {
         self.entries
     }
+    /// 归属随连接移动；事件Arc只借给在途facade，返回后保持唯一可增长的事件所有者。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn into_entries_preserving(
+        mut self,
+        owner: &mut Option<HistorySweep>,
+    ) -> sc::CodecVec<Entry> {
+        if let (Some(native), Some(owner)) = (self.native.take(), owner.as_mut()) {
+            if let Some(sweep) = native.sweep {
+                owner.projection = Some(OwnerProjection {
+                    wires: native.wires,
+                    active: sweep.active,
+                    withdrawn: sweep.withdrawn,
+                    previous_cut: sweep.previous_cut,
+                    #[cfg(test)]
+                    visits: sweep.visits,
+                });
+            }
+        }
+        self.entries
+    }
+
     pub(super) fn at_cut(
         &mut self,
         s: &mut super::history::HashReader<'_>,
@@ -1550,16 +1571,39 @@ pub(super) fn update_from_owner(
 pub(super) fn restore_for_owner<'a>(
     entries: sc::CodecVec<Entry>,
     s: &super::history::HashReader<'a>,
-    sweep: &HistorySweep,
+    sweep: &mut HistorySweep,
     _bound: &super::audit_owner::BoundOriginals,
 ) -> Result<HistoryObjects<'a>, String> {
     let capture = s
         .native_projection_capture()
         .ok_or_else(|| err("对象恢复缺 Native owner"))?;
+    let saved = sweep.projection.take();
+    let (mut wires, projection) = match saved {
+        Some(saved) => (
+            saved.wires,
+            ProjectionSweep {
+                events: sweep.events.clone(),
+                active: saved.active,
+                withdrawn: saved.withdrawn,
+                previous_cut: saved.previous_cut,
+                #[cfg(test)]
+                visits: saved.visits,
+            },
+        ),
+        None => (
+            Vec::new(),
+            ProjectionSweep::from_events(sweep.events.clone()),
+        ),
+    };
+    // 仅新增身份取得两个空memo槽；旧wire、游标及活动/撤回集合原样移动。
+    wires
+        .try_reserve_exact(entries.len().saturating_sub(wires.len()))
+        .map_err(err)?;
+    wires.resize_with(entries.len(), || [None, None]);
     let native = Some(NativeProjection {
         capture,
-        wires: vec![[None, None]; entries.len()],
-        sweep: Some(ProjectionSweep::from_events(sweep.events.clone())),
+        wires,
+        sweep: Some(projection),
     });
     Ok(HistoryObjects { entries, native })
 }
@@ -1803,6 +1847,8 @@ pub(super) struct HistorySweep {
     events: std::sync::Arc<HistoryEvents>,
     active: BTreeSet<(OrderKey<String>, usize)>,
     previous: i64,
+    #[cfg(feature = "s_capture_native_testonly")]
+    projection: Option<OwnerProjection>,
     #[cfg(test)]
     visits: SweepVisits,
 }
@@ -1829,6 +1875,35 @@ impl HistorySweep {
             events,
             active: Default::default(),
             previous: 0,
+            #[cfg(feature = "s_capture_native_testonly")]
+            projection: None,
+        }
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn assert_owner_projection_oracle(&self, latest: i64) {
+        if let Some(p) = &self.projection {
+            assert_eq!(p.previous_cut, (latest > 0).then_some(latest));
+            assert_eq!(p.wires.len(), self.events.ranks.len());
+            assert_eq!(
+                p.visits.births,
+                self.events
+                    .births
+                    .range(..=latest)
+                    .map(|(_, v)| v.len())
+                    .sum::<usize>(),
+                "owner不得重放旧birth"
+            );
+            assert_eq!(
+                p.visits.deaths,
+                self.events
+                    .deaths
+                    .range(..=latest)
+                    .map(|(_, v)| v.len())
+                    .sum::<usize>(),
+                "owner不得重放旧death"
+            );
+        } else {
+            assert_eq!(latest, 0, "已发布owner必须保留投影游标");
         }
     }
     fn active_ordinals(&self) -> impl Iterator<Item = usize> + '_ {
@@ -1884,6 +1959,15 @@ impl HistorySweep {
         }
         Ok((withdrawals, replaces))
     }
+}
+#[cfg(feature = "s_capture_native_testonly")]
+struct OwnerProjection {
+    wires: Vec<[Option<RefValue>; 2]>,
+    active: BTreeSet<(OrderKey<String>, usize)>,
+    withdrawn: BTreeSet<(OrderKey<String>, usize)>,
+    previous_cut: Option<i64>,
+    #[cfg(test)]
+    visits: ProjectionVisits,
 }
 /// through-g双投影游标；任意合法cut可重复、跳跃、回退，不改准入判据。
 struct ProjectionSweep {
@@ -4538,10 +4622,32 @@ mod owner_retention {
                 events,
                 active,
                 previous: _,
+                projection,
                 #[cfg(test)]
                     visits: _,
             } = self;
-            events.heap_bytes().saturating_add(active.heap_bytes())
+            crate::v3::audit_retention::sum([
+                events.heap_bytes(),
+                active.heap_bytes(),
+                projection.heap_bytes(),
+            ])
+        }
+    }
+    impl Retained for OwnerProjection {
+        fn heap_bytes(&self) -> usize {
+            let Self {
+                wires,
+                active,
+                withdrawn,
+                previous_cut: _,
+                #[cfg(test)]
+                    visits: _,
+            } = self;
+            crate::v3::audit_retention::sum([
+                wires.heap_bytes(),
+                active.heap_bytes(),
+                withdrawn.heap_bytes(),
+            ])
         }
     }
 }

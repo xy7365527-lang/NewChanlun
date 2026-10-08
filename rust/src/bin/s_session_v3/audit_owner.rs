@@ -31,6 +31,8 @@ pub(super) fn log_pager_handle(
 #[cfg(feature = "s_capture_native_testonly")]
 pub(super) mod effects;
 #[cfg(feature = "s_capture_native_testonly")]
+pub(super) mod native;
+#[cfg(feature = "s_capture_native_testonly")]
 mod q;
 
 /// 只有 owner 从同快照完整候选以及固定 effects 闭合后创建；不对外开放构造。
@@ -1011,6 +1013,7 @@ struct CompleteCharge {
     node_capacity: usize,
     historical_and_raw_capacity: usize,
     historical_binding_capacity: usize,
+    slot_result_capacity: usize,
     source_pool_charge: usize,
     current_sql_capacity: usize,
     q_capacity: usize,
@@ -1073,6 +1076,7 @@ impl CompleteCandidate {
             // 两份归属都照收，Rc 实际共享不是减费依据。
             historical_and_raw_capacity: sum([audited.heap_bytes(), slot.result.heap_bytes()]),
             historical_binding_capacity: slot.binding.heap_bytes(),
+            slot_result_capacity: slot.result.heap_bytes(),
             source_pool_charge: slot
                 .source_pending
                 .as_ref()
@@ -1206,22 +1210,20 @@ impl CompleteCandidate {
         if charge.total >= limit {
             return Ok(Err(slot));
         }
-        // Q 索引只在首次 cold 建立。复制身份键、clock 解码及索引槽位先预留保守上界。
-        let q_bound = originals
-            .heap_bytes()
-            .saturating_mul(128)
-            .saturating_add(4096);
-        if charge.total.saturating_add(q_bound) >= limit {
-            return Ok(Err(slot));
-        }
-        let q = q::Facts::cold(tx, &originals, &audited)?;
+        let budget = match native::Budget::new(limit, charge.total) {
+            Ok(budget) => budget,
+            Err(_) => return Ok(Err(slot)),
+        };
+        let q = match q::Facts::cold(tx, &originals, &audited, &budget) {
+            Ok(q) => q,
+            Err(native::Failure::BudgetExceeded) => return Ok(Err(slot)),
+            Err(native::Failure::Invalid(e)) => return Err(e),
+        };
         charge.q_capacity = q.heap_bytes();
         charge.total = charge.total.saturating_add(charge.q_capacity);
-        charge.handoff_peak = charge.handoff_peak.max(
-            entry_reserved_bytes
-                .saturating_add(charge.total)
-                .saturating_add(q_bound),
-        );
+        charge.handoff_peak = charge
+            .handoff_peak
+            .max(entry_reserved_bytes.saturating_add(budget.peak()));
         #[cfg(test)]
         state::trace_event("owner_complete_cold_candidate", None);
         Ok(Ok(Self {
@@ -1257,6 +1259,27 @@ impl AuditConnection {
         let active = self.begin(TransactionBehavior::Deferred).unwrap();
         let candidate = self.complete.borrow();
         let c = candidate.as_ref().unwrap();
+        use super::audit_retention::Retained;
+        assert_eq!(
+            c.charge.current_sql_capacity,
+            c.originals.heap_bytes(),
+            "SQL增量账与全量oracle"
+        );
+        assert_eq!(c.charge.q_capacity, c.q.heap_bytes(), "Q增量账与全量oracle");
+        assert_eq!(
+            c.q.retained_bytes(),
+            c.q.heap_bytes(),
+            "Q缓存分项与全量oracle"
+        );
+        assert_eq!(
+            c.charge.historical_and_raw_capacity,
+            c.audited.heap_bytes() + c.charge.slot_result_capacity,
+            "历史/raw增量账与全量oracle"
+        );
+
+        if let Some(sweep) = &c.audited.object_facts {
+            sweep.assert_owner_projection_oracle(c.audited.cuts.len() as i64);
+        }
         let cold = state::audit(active.tx()).unwrap();
         assert_eq!(view(&c.audited), view(&cold));
         for original in &c.originals {
@@ -1324,6 +1347,16 @@ impl CompleteCandidate {
             drop(slot.result);
             drop(slot.binding);
             drop(slot.source_pending);
+            let released = super::audit_retention::sum([
+                self.charge.slot_result_capacity,
+                self.charge.historical_binding_capacity,
+                self.charge.source_pool_charge,
+            ]);
+            self.charge.historical_and_raw_capacity -= self.charge.slot_result_capacity;
+            self.charge.total -= released;
+            self.charge.slot_result_capacity = 0;
+            self.charge.historical_binding_capacity = 0;
+            self.charge.source_pool_charge = 0;
         }
     }
     fn validate_effects(
@@ -1334,8 +1367,8 @@ impl CompleteCandidate {
     ) -> Result<Option<Self>, String> {
         use super::audit_retention::{sum, Retained};
         use effects::Table;
-        // 包含新旧正文、事实索引扩容、codec 派生工作集及旧行暂存共存的保守预留。
-        // 未分配前超额只撤可选候选；不会把任何校验 Err 改判为成功。
+        // #1394 未完成项：旧倍率门仍缺逐容器推导，不能视作新cut全部Native分配的许可。
+        // 完整替换须贯通object/aux/codec构造；当前超额仍只撤可选候选，校验Err不改判。
         let reserve = sum([
             self.charge.total.saturating_mul(32),
             effects.bytes.saturating_mul(128),
@@ -1372,9 +1405,31 @@ impl CompleteCandidate {
                 self.node_count += 1;
             }
         }
-        self.q.advance(tx, &effects, &mut self.audited)?;
+        let budget = match native::Budget::new(limit, sum([self.charge.total, effects.bytes])) {
+            Ok(budget) => budget,
+            Err(_) => return Ok(None),
+        };
+        match self.q.advance(tx, &effects, &mut self.audited, &budget) {
+            Ok(raw_added) => {
+                self.charge.historical_and_raw_capacity = self
+                    .charge
+                    .historical_and_raw_capacity
+                    .saturating_add(raw_added);
+            }
+            Err(native::Failure::BudgetExceeded) => return Ok(None),
+            Err(native::Failure::Invalid(e)) => return Err(e),
+        }
         let bound = BoundOriginals { _private: () };
-        self.audited.check_owner_raw(capture, &bound)?;
+        match self.audited.check_owner_raw(capture, &bound, &budget) {
+            Ok(added) => {
+                self.charge.historical_and_raw_capacity = self
+                    .charge
+                    .historical_and_raw_capacity
+                    .saturating_add(added)
+            }
+            Err(native::Failure::BudgetExceeded) => return Ok(None),
+            Err(native::Failure::Invalid(e)) => return Err(e),
+        }
         if effects.operation == effects::Operation::Publish {
             let g = meta_i64(tx, "generation")?;
             let d = effects
@@ -1407,16 +1462,23 @@ impl CompleteCandidate {
             self.audited = self
                 .audited
                 .append_owner_cut(tx, capture, g, batch, ns, &objects, &auxiliary, &bound)?;
+            // 新cut的完整保留分项仍需下游构造账；Accept/Begin/Recover已不再扫描旧历史计费。
+            self.charge.historical_and_raw_capacity = self.audited.heap_bytes();
         }
         let effect_rows = effects.changes.len();
-        let Some(peak) = effects.apply(&mut self.originals, limit - reserve)? else {
+        let Some(peak) = effects.apply(
+            &mut self.originals,
+            limit - reserve,
+            &mut self.charge.current_sql_capacity,
+        )?
+        else {
             return Ok(None);
         };
         self.capture = Some(
             self.capture
                 .take()
                 .unwrap()
-                .into_originals_and_codec_roots_for_testonly()
+                .finish_owner_step_for_testonly()
                 .map_err(invalid)?,
         );
         let retained = self
@@ -1439,11 +1501,9 @@ impl CompleteCandidate {
                 .saturating_mul(66)
                 .saturating_add(32),
         ]);
-        self.charge.historical_and_raw_capacity = self.audited.heap_bytes();
         self.charge.historical_binding_capacity = 0;
         self.charge.source_pool_charge = 0;
-        self.charge.current_sql_capacity = self.originals.heap_bytes();
-        self.charge.q_capacity = self.q.heap_bytes();
+        self.charge.q_capacity = self.q.retained_bytes();
         self.charge.total = sum([
             self.charge.node_source_and_certificates,
             self.charge.node_capacity,
@@ -1676,4 +1736,105 @@ impl AuditConnection {
         assert_eq!(rc, rusqlite::ffi::SQLITE_OK);
         SqlReadProbe(db)
     }
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[test]
+fn audit_owner_q_itemized_normal_cold_growth_and_typed_limit() {
+    use super::audit_retention::Retained;
+    let mut f = prepared::tests::Fixture::new();
+    let (envelope, token) = f.accept_begin(1, ("q-budget", 0, 6, 12, 3, 7), 1);
+    f.publish(&envelope, &token).unwrap();
+    let owner = AuditConnection::open(&f.db_path()).unwrap();
+    let mut context = request_audit::RequestAuditContext::with_source_keeper(
+        cross_request_source_cache::Keeper::new(536_870_912),
+    );
+    context
+        .freeze_manifest_workspace_budget(536_870_912, 0, 0)
+        .unwrap();
+    let active = owner.begin(TransactionBehavior::Deferred).unwrap();
+    active
+        .audit_admission(
+            &json!({"payload":{"op":"ready"}}),
+            &s_allocation::Mode::CapturedNative,
+            &mut context,
+        )
+        .unwrap();
+    let mut c = active.complete.borrow_mut().take().unwrap();
+    let old_gate = c
+        .originals
+        .heap_bytes()
+        .saturating_mul(128)
+        .saturating_add(4096);
+    let probe = native::Budget::new(536_870_912, 0).unwrap();
+    let memory = allocation_probe::Window::start();
+    let facts = q::Facts::cold(active.tx(), &c.originals, &c.audited, &probe).unwrap();
+    let layout = memory.finish();
+    let peak = probe.peak();
+    let layout_peak =
+        layout["coexistence_peak"].as_u64().unwrap() - layout["live_before"].as_u64().unwrap();
+    assert!(
+        layout_peak <= peak as u64,
+        "正常小样本实测不能超过其推导预留；实测本身不授准入"
+    );
+    assert!(peak < old_gate, "正常Q逐容器上界须低于旧整表128倍门");
+    let bounded = native::Budget::new(peak, 0).unwrap();
+    let actual = q::Facts::cold(active.tx(), &c.originals, &c.audited, &bounded).unwrap();
+    assert_eq!(actual.retained_bytes(), facts.heap_bytes());
+    assert_eq!(actual.heap_bytes(), facts.heap_bytes());
+    let tight = native::Budget::new(128, 0).unwrap();
+    let before = tight.live();
+    assert!(matches!(
+        q::Facts::cold(active.tx(), &c.originals, &c.audited, &tight),
+        Err(native::Failure::BudgetExceeded)
+    ));
+    assert_eq!(
+        tight.live(),
+        before,
+        "拒绝clock构造前未产生未归还的临时许可"
+    );
+    let candidate_cap = c.charge.handoff_peak.max(c.charge.total).saturating_add(1);
+    let old_candidate_gate = c.charge.total - c.charge.q_capacity + old_gate;
+    assert!(candidate_cap < old_candidate_gate);
+    let held = c.charge.total;
+    let actual_release = c.charge.slot_result_capacity
+        + c.charge.historical_binding_capacity
+        + c.charge.source_pool_charge;
+    assert!(actual_release > 0);
+    c.detach_slot();
+    assert_eq!(c.charge.total, held - actual_release);
+    assert!(c.slot.is_none() && c.capture.is_some());
+    assert_eq!(c.charge.source_pool_charge, 0, "真正drop后释放source归属");
+    eprintln!(
+        "{}",
+        json!({"scenario":"r5-q-itemized-normal","old_128_gate":old_gate,"reserved_peak":peak,"q_retained":actual.retained_bytes(),"slot_released":actual_release,"layout_observation":layout,"rust_layout":{"value":std::mem::size_of::<Value>(),"string":std::mem::size_of::<String>(),"hash_pair":std::mem::size_of::<(String,(i64,i64))>()}})
+    );
+    drop(c);
+    active.read_end().unwrap();
+    drop(context);
+    let mut context = request_audit::RequestAuditContext::with_source_keeper(
+        cross_request_source_cache::Keeper::new(candidate_cap),
+    );
+    context
+        .freeze_manifest_workspace_budget(candidate_cap, 0, 0)
+        .unwrap();
+    let active = owner.begin(TransactionBehavior::Deferred).unwrap();
+    active
+        .audit_admission(
+            &json!({"payload":{"op":"ready"}}),
+            &s_allocation::Mode::CapturedNative,
+            &mut context,
+        )
+        .unwrap();
+    assert!(
+        active.complete.borrow().is_some(),
+        "合法收紧额度保留完整候选；旧128倍门会提前丢弃"
+    );
+    let ended = active.read_end().unwrap();
+    owner.continue_with(ended).unwrap();
+    owner.assert_complete_matches_cold();
+    eprintln!(
+        "{}",
+        json!({"scenario":"r5-complete-cold-itemized-budget","candidate_cap":candidate_cap,"old_gate_required":old_candidate_gate,"retention":owner.complete_report()})
+    );
 }

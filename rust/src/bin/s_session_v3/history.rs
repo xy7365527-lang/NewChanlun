@@ -216,11 +216,19 @@ impl NativeRawPrefixes {
         capture: &sc::AuditCapture,
         raw: RawEventsView<'_>,
         _bound: &super::audit_owner::BoundOriginals,
-    ) -> Result<(), String> {
+        native: &super::audit_owner::native::Budget,
+    ) -> Result<usize, super::audit_owner::native::Failure> {
         let store = HashReader::captured_for_audit(capture, None).map_err(err)?;
         if self.raw_nodes.len() != self.raw_wire_nodes.len() || self.raw_nodes.len() > raw.len() {
-            return Err(err("raw 已核 R 前沿不符"));
+            return Err(err("raw 已核 R 前沿不符").into());
         }
+        let old = self
+            .raw_nodes
+            .capacity()
+            .saturating_add(self.raw_wire_nodes.capacity());
+        let append = raw.len() - self.raw_nodes.len();
+        native.codec_vec_grow(&mut self.raw_nodes, append)?;
+        native.codec_vec_grow(&mut self.raw_wire_nodes, append)?;
         for event in raw.iter().skip(self.raw_nodes.len()) {
             self.raw_nodes
                 .try_push(hash_json_in_store(&store, event, None, None)?)
@@ -230,7 +238,9 @@ impl NativeRawPrefixes {
                 .try_push(hash_json_in_store(&store, wire.view(), None, None)?)
                 .map_err(err)?;
         }
-        Ok(())
+        Ok(super::audit_retention::vec_bytes::<NodeDigest>(
+            self.raw_nodes.capacity() + self.raw_wire_nodes.capacity() - old,
+        ))
     }
     pub(super) fn checked_len(&self) -> usize {
         self.raw_nodes.len()
@@ -527,7 +537,16 @@ fn read_indexed_history_inner(
         raw_prefixes,
         auxiliary_facts,
         cuts: output,
-        objects: objects.into_entries(),
+        objects: {
+            #[cfg(feature = "s_capture_native_testonly")]
+            {
+                objects.into_entries_preserving(&mut object_sweep)
+            }
+            #[cfg(not(feature = "s_capture_native_testonly"))]
+            {
+                objects.into_entries()
+            }
+        },
         auxiliary,
         object_sweep,
     })
@@ -6008,7 +6027,7 @@ pub(super) fn append_owner_cut(
         bound,
     )
     .map_err(|e| format!("{e} [owner aux effects g={generation}]"))?;
-    let mut objects = object_index::restore_for_owner(old.objects, &store, &sweep, bound)?;
+    let mut objects = object_index::restore_for_owner(old.objects, &store, &mut sweep, bound)?;
     let mut object_sweep = Some(sweep);
     let mut native_aux = Some(aux_index::NativeAuxAudit::restore(
         &store,
@@ -6091,7 +6110,16 @@ pub(super) fn append_owner_cut(
             ordered: ordered.unwrap().into_facts(),
         }),
         cuts: old.cuts,
-        objects: objects.into_entries(),
+        objects: {
+            #[cfg(feature = "s_capture_native_testonly")]
+            {
+                objects.into_entries_preserving(&mut object_sweep)
+            }
+            #[cfg(not(feature = "s_capture_native_testonly"))]
+            {
+                objects.into_entries()
+            }
+        },
         auxiliary: old.auxiliary,
         auxiliary_facts,
         object_sweep,
