@@ -926,6 +926,17 @@ pub(super) fn trace_event(phase: &'static str, generation: Option<i64>) {
     });
 }
 #[cfg(test)]
+pub(super) fn trace_request_clock(bytes: usize, elapsed: std::time::Duration) {
+    AUDIT_TRACE.with(|trace| {
+        if let Some(trace) = trace.borrow_mut().as_mut() {
+            trace
+                .events
+                .push(json!({"phase":"request_clock_full_check","bytes":bytes,
+                "clock_hashes":1,"duration_ns":elapsed.as_nanos().to_string()}));
+        }
+    });
+}
+#[cfg(test)]
 pub(super) fn trace_read(overlay: bool) {
     AUDIT_TRACE.with(|trace| {
         if let Some(trace) = trace
@@ -2400,5 +2411,38 @@ mod unrun_catalog_owner_tests {
         assert_eq!(short.allocation_request_probe().refused_bytes, request);
         assert_eq!(short.snapshot().live_requested_layout_bytes, 0);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+mod owner_retention {
+    use super::*;
+    use crate::v3::audit_retention::{retained_struct, Retained};
+
+    retained_struct!(ImmutableHistoricalAudit {
+        control_facts,
+        raw_prefixes,
+        raw_sources,
+        auxiliary_facts,
+        object_facts,
+        cuts,
+        objects,
+        auxiliary
+    });
+    impl Retained for AuditedState {
+        fn heap_bytes(&self) -> usize {
+            let Self {
+                raw,
+                budget,
+                historical,
+            } = self;
+            if budget.is_some() {
+                return usize::MAX;
+            }
+            raw.heap_bytes().saturating_add(match historical {
+                HistoricalOwner::Unique(v) => v.heap_bytes(),
+                HistoricalOwner::Shared(v) => v.heap_bytes(),
+            })
+        }
     }
 }

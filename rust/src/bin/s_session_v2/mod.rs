@@ -208,6 +208,8 @@ fn stored_control_clock(
     conn: &Connection,
     owner: Option<&OwnedBudget>,
 ) -> Result<ControlClock, String> {
+    #[cfg(test)]
+    let clock_start = std::time::Instant::now();
     #[cfg(not(feature = "s_allocation_json_testonly"))]
     if owner.is_some() {
         return Err("prototype_audit_allocation_incomplete：owned控制clock未启用".into());
@@ -234,6 +236,8 @@ fn stored_control_clock(
         return Err(err("clock计划/hash不一致"));
     }
     let hash = TextValue::from_str(hash.as_str(), owner)?;
+    #[cfg(test)]
+    crate::v3::trace_request_clock(raw.as_str().len(), clock_start.elapsed());
     Ok(ControlClock { value, hash })
 }
 /// 持久 clock 计划绑定核验（唯一判据；v2 与 S3 共用，不另立第二份）。
@@ -3433,4 +3437,20 @@ fn testonly_audit_cost_breakdown() {
             })
         );
     }
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+mod owner_retention {
+    use super::*;
+    use crate::v3::audit_retention::retained_struct;
+
+    retained_struct!(ControlFacts {
+        session_generation,
+        clock_plan_hash,
+        headers
+    });
+    retained_struct!(ControlHeader {
+        commit_ns,
+        consumed
+    });
 }

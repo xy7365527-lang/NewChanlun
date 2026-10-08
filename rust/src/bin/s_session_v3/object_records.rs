@@ -2828,3 +2828,27 @@ impl std::fmt::Debug for LifeOwner {
             .finish()
     }
 }
+
+#[cfg(feature = "s_capture_native_testonly")]
+mod owner_retention {
+    use super::*;
+    use crate::v3::audit_retention::{retained_struct, Retained};
+
+    retained_struct!(LifeOwner {
+        first_known_generation,
+        first_known_cut,
+        published_generation,
+        withdrawn_generation,
+        withdrawal_reason,
+        superseded_by,
+        batch
+    });
+    impl Retained for BatchOwner {
+        fn heap_bytes(&self) -> usize {
+            match self {
+                Self::CurrentBatch => 0,
+                Self::Existing(v) => v.heap_bytes(),
+            }
+        }
+    }
+}

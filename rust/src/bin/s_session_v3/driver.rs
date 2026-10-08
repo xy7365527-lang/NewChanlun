@@ -83,7 +83,7 @@ pub(super) struct Driver {
     epoch: String,
     profile_id: String,
     volume_unit: Option<String>,
-    /// 启动时冻结的唯一审计源保留预算；每次handle仍重新读取当前原件。
+    /// 启动时冻结的唯一审计源保留预算；完整候选须由owner在每次handle绑定当前快照。
     audit_cache_source_bytes: Option<usize>,
     /// #1394：Native私有诊断开关在首次事务前冻结。
     #[cfg(feature = "s_capture_native_testonly")]
@@ -254,7 +254,7 @@ impl Driver {
             return Err("StorageUnavailable：S3驱动只打开已初始化库".into());
         }
         let lock = session_transport::process_lock(db, "S")?;
-        let conn = super::audit_owner::AuditConnection::new(open_db(db)?)?;
+        let conn = super::audit_owner::AuditConnection::open(db)?;
         #[cfg(feature = "s_capture_native_testonly")]
         let sqlite_pager_probe = matches!(mode, s_allocation::Mode::CapturedNative)
             && super::audit_owner::pager_enabled();
@@ -311,18 +311,29 @@ impl Driver {
         let mut request_audit = request_audit::RequestAuditContext::default();
         #[cfg(feature = "s_capture_native_testonly")]
         let mut request_audit = {
-            let previous = self.conn.take_source_keeper();
-            let old_pool = previous
-                .as_ref()
-                .map_or(0, |keeper| keeper.retained_source_bytes());
+            let mut previous = self.conn.take_source_keeper();
             let mut context = request_audit::RequestAuditContext::default();
             if matches!(self.mode, s_allocation::Mode::CapturedNative) {
                 if let Some(total) = self.audit_cache_source_bytes {
                     let legacy = crate::cache::retained_bytes();
-                    context.freeze_manifest_workspace_budget(total, legacy, old_pool)?;
                     let keeper_cap = total
                         .checked_sub(legacy)
                         .ok_or("S3WriterResourcesInvalid：legacy来源费用超过S7")?;
+                    let held = previous
+                        .as_ref()
+                        .map_or(0, |k| k.retained_source_bytes())
+                        .saturating_add(self.conn.complete_retained_bytes());
+                    if held > keeper_cap {
+                        self.conn.discard_after_error();
+                        if let Some(k) = &mut previous {
+                            k.set_retention_cap(keeper_cap);
+                        }
+                    }
+                    let old_pool = previous
+                        .as_ref()
+                        .map_or(0, |k| k.retained_source_bytes())
+                        .saturating_add(self.conn.complete_retained_bytes());
+                    context.freeze_manifest_workspace_budget(total, legacy, old_pool)?;
                     if super::cross_request_source_cache::Keeper::retention_possible(keeper_cap) {
                         let mut keeper = previous.unwrap_or_else(|| {
                             super::cross_request_source_cache::Keeper::new(keeper_cap)
@@ -354,7 +365,10 @@ impl Driver {
                 let _ = ended;
                 Ok(reply)
             }
-            Err(error) => Err(error),
+            Err(error) => {
+                self.conn.discard_after_error();
+                Err(error)
+            }
         }
     }
 
@@ -449,7 +463,7 @@ pub(super) fn recover(
         return Err("StorageUnavailable：恢复需要已初始化库".into());
     }
     let _lock = session_transport::process_lock(db, "S")?;
-    let conn = super::audit_owner::AuditConnection::new(open_db(db)?)?;
+    let conn = super::audit_owner::AuditConnection::open(db)?;
     conn.recover(new_epoch, clock, clock_event)
 }
 fn err(e: impl std::fmt::Display) -> String {
@@ -645,6 +659,10 @@ mod tests {
             )
             .unwrap();
         for n in 2..=3 {
+            native
+                .handle(envelope("establish-before-replay", json!({"op":"ready"})))
+                .unwrap();
+            assert!(native.conn.complete_retained_bytes() > 0);
             let mut next = Fixture::ingest(n);
             next["payload"]["raw_input"] = first["payload"]["raw_input"].clone();
             next["payload_hash"] = json!(sha256_hex(canonical_json(&next["payload"]).as_bytes()));
@@ -653,6 +671,11 @@ mod tests {
             eprintln!("normal new-message raw replay: ordinary={ordinary_result:?}; native={native_result:?}");
             assert_eq!(native_result, ordinary_result);
             let actual = native_result.unwrap();
+            assert_eq!(
+                native.conn.complete_retained_bytes(),
+                0,
+                "新message raw replay也是真实控制写，不能保留资格"
+            );
             assert_eq!(actual["kind"], "Committed");
             assert_eq!(count(&native.conn, "raw_events"), 1);
             assert_eq!(count(&native.conn, "raw_ohlc"), 1);
@@ -739,12 +762,341 @@ mod tests {
                 "capture_body_bytes":capture_after.body_bytes-capture_before.body_bytes,
             "frame_hash_calls":newchan_rust::s_content::frame_calls_on_thread()-hashes,
             "elapsed_ns":started.elapsed().as_nanos().to_string(),"audit_work":work,
-            "source_retention":driver.conn.source_keeper_for_test().as_ref().unwrap().report()})
+            "source_retention":driver.conn.source_keeper_for_test().as_ref().unwrap().report(),
+            "complete_retention":driver.conn.complete_report(),
+            "remaining_clock_checks":events.iter().filter(|e|e["phase"]=="request_clock_full_check").collect::<Vec<_>>()})
         );
         assert_eq!(
             old_cuts, 0,
             "重复无写仍执行旧 C_g：完整事务 owner 与历史保持证明尚未接通"
         );
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn complete_driver(f: &Fixture) -> Driver {
+        Driver::open_for_serve_with_mode(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            536_870_912,
+            s_allocation::Mode::CapturedNative,
+        )
+        .unwrap()
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn audit_owner_complete_ready_receipt_repost_keep_owned_state_and_match_ordinary() {
+        let f = Fixture::new();
+        let o = Fixture::new();
+        let mut native = complete_driver(&f);
+        let mut ordinary = o.open("1").unwrap();
+        for n in 1..=3 {
+            let e = Fixture::ingest(n);
+            assert_eq!(
+                native.handle(e.clone()).unwrap(),
+                ordinary.handle(e).unwrap()
+            );
+        }
+        let ready = envelope("ready-complete", json!({"op":"ready"}));
+        assert_eq!(
+            native.handle(ready.clone()).unwrap(),
+            ordinary.handle(ready.clone()).unwrap()
+        );
+        native.conn.assert_complete_matches_cold();
+        let pointers = native.conn.complete_pointers();
+        let before = prepared::tests::runtime_root_tables(&native.conn, true);
+        for request in [
+            ready.clone(),
+            receipt_request(&Fixture::ingest(2)),
+            Fixture::ingest(3),
+            ready,
+        ] {
+            let expected = ordinary.handle(request.clone()).unwrap();
+            let capture = content_store::prototype_capture_work_on_thread();
+            let hashes = newchan_rust::s_content::frame_calls_on_thread();
+            let start = std::time::Instant::now();
+            let (actual, events, work) = state::traced(true, || native.handle(request.clone()));
+            assert_eq!(actual.unwrap(), expected);
+            assert!(events.iter().any(|e| e["phase"] == "owner_complete_hit"));
+            assert!(!events
+                .iter()
+                .any(|e| e["phase"] == "history_template_closure"));
+            let after = content_store::prototype_capture_work_on_thread();
+            assert_eq!(after.capture_builds, capture.capture_builds);
+            assert_eq!(after.node_scans, capture.node_scans);
+            assert_eq!(after.decoded_rows, capture.decoded_rows);
+            assert_eq!(newchan_rust::s_content::frame_calls_on_thread(), hashes);
+            assert_eq!(
+                native.conn.complete_pointers(),
+                pointers,
+                "全raw/历史/SQL原件不得复制"
+            );
+            assert_eq!(
+                prepared::tests::runtime_root_tables(&native.conn, true),
+                before
+            );
+            assert_eq!(
+                before,
+                prepared::tests::runtime_root_tables(&ordinary.conn, true)
+            );
+            eprintln!(
+                "{}",
+                json!({"scenario":"owner-complete-no-write","op":request["payload"]["op"],"elapsed_ns":start.elapsed().as_nanos().to_string(),"events":events,"work":work,"retention":native.conn.complete_report()})
+            );
+        }
+        native.conn.assert_complete_matches_cold();
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn audit_owner_complete_accept_tail_begin_recover_retry_and_revision_invalidate() {
+        let f = Fixture::new();
+        let o = Fixture::new();
+        let mut native = complete_driver(&f);
+        let mut ordinary = o.open("1").unwrap();
+        let first = Fixture::ingest(1);
+        assert_eq!(
+            native.handle(first.clone()).unwrap(),
+            ordinary.handle(first).unwrap()
+        );
+        let ready = envelope("ready-effects", json!({"op":"ready"}));
+        native.handle(ready.clone()).unwrap();
+        assert!(native.conn.complete_retained_bytes() > 0);
+        let second = Fixture::ingest(2);
+        // 首 Commit12 → Accept20 → Begin21 → Recover23 → Begin24 → Commit25。
+        for d in [&mut native, &mut ordinary] {
+            let mut context = request_audit::RequestAuditContext::default();
+            let (admitted, ended) = d
+                .conn
+                .admit(
+                    second.clone(),
+                    &d.epoch,
+                    &d.clock,
+                    &d.profile_id,
+                    d.volume_unit.as_deref(),
+                    &d.mode,
+                    &mut context,
+                )
+                .unwrap();
+            assert!(matches!(
+                admitted,
+                super::super::audit_owner::Admission::Advance { accepted: true, .. }
+            ));
+            d.conn.finish_source_keeper(context, ended);
+            assert_eq!(d.conn.complete_retained_bytes(), 0);
+        }
+        assert_eq!(
+            native.handle(ready.clone()).unwrap(),
+            ordinary.handle(ready.clone()).unwrap()
+        );
+        native.conn.assert_complete_matches_cold();
+        assert_eq!(native.conn.complete_report()["raw_checked"], 2);
+        assert_eq!(native.conn.complete_report()["published_prefix"], 1);
+        for d in [&mut native, &mut ordinary] {
+            let mut context = request_audit::RequestAuditContext::default();
+            let begun = d
+                .conn
+                .begin_advance(&second, &d.epoch, &d.clock, &d.mode, &mut context)
+                .unwrap();
+            drop(begun);
+            assert_eq!(d.conn.complete_retained_bytes(), 0);
+        }
+        assert_eq!(
+            native.handle(ready.clone()).unwrap(),
+            ordinary.handle(ready.clone()).unwrap()
+        );
+        native.conn.assert_complete_matches_cold();
+        let nr = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap();
+        let or = ordinary
+            .conn
+            .recover("2", &ordinary.clock, "recover-2")
+            .unwrap();
+        assert_eq!(nr, or);
+        assert_eq!(native.conn.complete_retained_bytes(), 0);
+        native.epoch = "2".into();
+        ordinary.epoch = "2".into();
+        assert_eq!(
+            native.handle(ready.clone()).unwrap(),
+            ordinary.handle(ready.clone()).unwrap()
+        );
+        native.conn.assert_complete_matches_cold();
+        for d in [&mut native, &mut ordinary] {
+            let mut context = request_audit::RequestAuditContext::default();
+            let (reply, ended) = d.advance(&second, &mut context).unwrap();
+            assert_eq!(reply["kind"], "Committed");
+            d.conn.finish_source_keeper(context, ended);
+            assert_eq!(
+                d.conn.complete_retained_bytes(),
+                0,
+                "写前结果不能借提交结束贴为写后资格"
+            );
+        }
+        assert_eq!(
+            native.handle(ready.clone()).unwrap(),
+            ordinary.handle(ready.clone()).unwrap()
+        );
+        native.conn.assert_complete_matches_cold();
+        let mut revision = Fixture::ingest(3);
+        let raw = &mut revision["payload"]["raw_input"];
+        *raw = second["payload"]["raw_input"].clone();
+        raw["events"][0]["revision"] = json!("2");
+        raw["events"][0]["high"] = json!("17");
+        revision["payload"]["writer_epoch"] = json!("2");
+        revision["payload_hash"] =
+            json!(sha256_hex(canonical_json(&revision["payload"]).as_bytes()));
+        assert_eq!(
+            native.handle(revision.clone()).unwrap(),
+            ordinary.handle(revision).unwrap()
+        );
+        assert_eq!(native.conn.complete_retained_bytes(), 0);
+        assert_eq!(
+            native.handle(ready.clone()).unwrap(),
+            ordinary.handle(ready).unwrap()
+        );
+        native.conn.assert_complete_matches_cold();
+        assert_eq!(
+            prepared::tests::runtime_root_tables(&native.conn, true),
+            prepared::tests::runtime_root_tables(&ordinary.conn, true)
+        );
+        eprintln!(
+            "{}",
+            json!({"scenario":"owner-normal-accept-begin-recover-retry-revision","complete":native.conn.complete_report()})
+        );
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn audit_owner_complete_optional_budget_releases_without_changing_reply() {
+        let f = Fixture::new();
+        let mut build = f.open("1").unwrap();
+        let input = Fixture::ingest(1);
+        let committed = build.handle(input.clone()).unwrap();
+        let ready = envelope("ready-budget", json!({"op":"ready"}));
+        let expected = build.handle(ready.clone()).unwrap();
+        drop(build);
+        // 已有完整候选后收紧真实 S7，覆盖入口 held > keeper_cap 分支。
+        let mut warm = complete_driver(&f);
+        assert_eq!(warm.handle(ready.clone()).unwrap(), expected);
+        let previously_held = warm.conn.complete_retained_bytes();
+        assert!(previously_held > 1024);
+        let tables_before = prepared::tests::runtime_root_tables(&warm.conn, true);
+        warm.audit_cache_source_bytes = Some(crate::cache::retained_bytes().saturating_add(1024));
+        let (tightened, events, _) = state::traced(true, || warm.handle(ready.clone()));
+        assert_eq!(tightened.unwrap(), expected);
+        assert_eq!(warm.conn.complete_retained_bytes(), 0);
+        assert!(!events.iter().any(|e| e["phase"] == "owner_complete_hit"));
+        assert_eq!(
+            tables_before,
+            prepared::tests::runtime_root_tables(&warm.conn, true)
+        );
+        assert_eq!(warm.handle(input.clone()).unwrap(), committed);
+        eprintln!(
+            "{}",
+            json!({"scenario":"owner-existing-complete-budget-tightened","previously_held":previously_held,"complete_retained":warm.conn.complete_retained_bytes()})
+        );
+        drop(warm);
+        // 收紧现有同一S7，不扩大预算；不足只放弃完整候选，正常严格核仍返回成功。
+        let mut bounded = Driver::open_for_serve_with_mode(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            1024,
+            s_allocation::Mode::CapturedNative,
+        )
+        .unwrap();
+        for request in [ready.clone(), ready, input] {
+            let (reply, events, _) = state::traced(true, || bounded.handle(request.clone()));
+            assert_eq!(
+                reply.unwrap(),
+                if request["payload"]["op"] == "ready" {
+                    expected.clone()
+                } else {
+                    committed.clone()
+                }
+            );
+            assert_eq!(bounded.conn.complete_retained_bytes(), 0);
+            assert!(!events.iter().any(|e| e["phase"] == "owner_complete_hit"));
+            assert_eq!(
+                events
+                    .iter()
+                    .filter(|e| e["phase"] == "history_template_closure")
+                    .count(),
+                1
+            );
+        }
+        eprintln!(
+            "{}",
+            json!({"scenario":"owner-optional-retention-budget","cap":1024,"complete_retained":bounded.conn.complete_retained_bytes()})
+        );
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn audit_owner_complete_normal_second_connection_and_new_life_are_cold() {
+        let f = Fixture::new();
+        let mut native = complete_driver(&f);
+        native.handle(Fixture::ingest(1)).unwrap();
+        let ready = envelope("ready-external", json!({"op":"ready"}));
+        native.handle(ready.clone()).unwrap();
+        let old_life = native.conn.complete_report()["life"].clone();
+        // 第二连接使用实际 owner 的正常接纳/推进/发布；不改坏库、不绕过 idle 前件。
+        let external = super::super::audit_owner::AuditConnection::open(&f.db).unwrap();
+        let next = Fixture::ingest(2);
+        let mut context = request_audit::RequestAuditContext::default();
+        let mode = s_allocation::Mode::Ordinary;
+        let (admission, _) = external
+            .admit(
+                next.clone(),
+                "1",
+                &f.clock,
+                &native.profile_id,
+                native.volume_unit.as_deref(),
+                &mode,
+                &mut context,
+            )
+            .unwrap();
+        assert!(matches!(
+            admission,
+            super::super::audit_owner::Admission::Advance { .. }
+        ));
+        let begun = external
+            .begin_advance(&next, "1", &f.clock, &mode, &mut context)
+            .unwrap();
+        let mut runtime = prepared::Runtime::with_mode(mode);
+        external
+            .publish(&mut runtime, &begun.token, &next, &mut context)
+            .unwrap();
+        drop(begun);
+        drop(external);
+        let (_, events, _) = state::traced(true, || native.handle(ready.clone()).unwrap());
+        assert!(!events.iter().any(|e| e["phase"] == "owner_complete_hit"));
+        assert_eq!(
+            events
+                .iter()
+                .filter(|e| e["phase"] == "history_template_closure")
+                .count(),
+            2
+        );
+        native.conn.assert_complete_matches_cold();
+        drop(native);
+        let mut reopened = complete_driver(&f);
+        assert_eq!(reopened.conn.complete_retained_bytes(), 0);
+        let (_, events, _) = state::traced(true, || reopened.handle(ready).unwrap());
+        assert_eq!(
+            events
+                .iter()
+                .filter(|e| e["phase"] == "history_template_closure")
+                .count(),
+            2
+        );
+        assert_ne!(reopened.conn.complete_report()["life"], old_life);
+        reopened.conn.assert_complete_matches_cold();
     }
 
     #[cfg(feature = "s_capture_native_testonly")]
@@ -1402,7 +1754,7 @@ mod tests {
             runtime_root_compare_reachable_bytes(&warm.conn, &ordinary.conn);
         }
         let hits = warm.conn.source_keeper_for_test().as_ref().unwrap().hits;
-        // 首次repost只命中旧池cut1/2；其后已核cut3才可供第二次repost命中。
+        // 首次repost仍执行旧来源池的cut1/2命中；第二次复用完整owner结果，不再调用来源核。
         for _ in 0..2 {
             let actual = warm.handle(Fixture::ingest(3)).unwrap();
             assert_eq!(actual, cold.handle(Fixture::ingest(3)).unwrap());
@@ -1418,7 +1770,7 @@ mod tests {
         }
         assert_eq!(
             warm.conn.source_keeper_for_test().as_ref().unwrap().hits - hits,
-            5
+            2
         );
         drop(warm);
         let mut restarted = Driver::open_for_serve_with_mode(

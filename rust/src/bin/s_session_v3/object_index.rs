@@ -4368,3 +4368,65 @@ fn integer_ref(
         .as_i64()
         .ok_or_else(|| err(format!("{k}不是i64")))
 }
+
+#[cfg(feature = "s_capture_native_testonly")]
+mod owner_retention {
+    use super::*;
+    use crate::v3::audit_retention::{retained_struct, Retained};
+
+    retained_struct!(Entry {
+        id,
+        revision,
+        kind,
+        slot,
+        generated,
+        internal,
+        immutable,
+        birth_wire,
+        life
+    });
+    impl Retained for Slot {
+        fn heap_bytes(&self) -> usize {
+            match self {
+                Self::Shape(_) => 0,
+                Self::Typed { kind, fact_key } => {
+                    kind.heap_bytes().saturating_add(fact_key.heap_bytes())
+                }
+            }
+        }
+    }
+    impl Retained for HistoryEvents {
+        fn heap_bytes(&self) -> usize {
+            let Self {
+                by_id,
+                births,
+                deaths,
+                ranks,
+                withdrawn_ranks,
+                #[cfg(test)]
+                    initial_entries: _,
+                #[cfg(test)]
+                    sort_passes: _,
+            } = self;
+            crate::v3::audit_retention::sum([
+                by_id.heap_bytes(),
+                births.heap_bytes(),
+                deaths.heap_bytes(),
+                ranks.heap_bytes(),
+                withdrawn_ranks.heap_bytes(),
+            ])
+        }
+    }
+    impl Retained for HistorySweep {
+        fn heap_bytes(&self) -> usize {
+            let Self {
+                events,
+                active,
+                previous: _,
+                #[cfg(test)]
+                    visits: _,
+            } = self;
+            events.heap_bytes().saturating_add(active.heap_bytes())
+        }
+    }
+}

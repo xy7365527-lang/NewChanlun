@@ -38,6 +38,8 @@ use std::collections::BTreeSet;
 mod audit_budget;
 mod audit_header;
 mod audit_owner;
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) mod audit_retention;
 pub(crate) mod audit_store;
 pub(super) mod aux_index;
 pub(super) mod business_json;
@@ -1519,4 +1521,9 @@ mod tests {
         .is_err());
         assert_eq!(std::fs::read(&db).unwrap(), before);
     }
+}
+
+#[cfg(test)]
+pub(super) fn trace_request_clock(bytes: usize, elapsed: std::time::Duration) {
+    state::trace_request_clock(bytes, elapsed);
 }

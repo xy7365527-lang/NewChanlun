@@ -1489,3 +1489,43 @@ mod counts_footprint_tests {
         );
     }
 }
+
+/// 完整候选不裁剪旧来源证明；原收费项全留，另加容器容量。
+impl PendingPool {
+    pub(super) fn work_counts(&self) -> (usize, usize) {
+        (self.hits, self.cold)
+    }
+    pub(super) fn full_retention_charge(&self) -> usize {
+        use super::audit_retention::{sum, Retained};
+        let source = binding_source_bytes(&self.binding)
+            .and_then(|base| {
+                self.proofs.iter().try_fold(base, |total, proof| {
+                    add(
+                        add(total, proof_source_bytes(proof)?)?,
+                        proof
+                            .dependency
+                            .as_ref()
+                            .map_or(Ok(0), |c| c.source_bytes().map_err(|e| e.to_string()))?,
+                    )
+                })
+            })
+            .unwrap_or(usize::MAX);
+        let proofs = self.proofs.iter().map(|p| {
+            sum([
+                p.key.state.format.capacity(),
+                p.key.state.root.capacity(),
+                p.key.profile.capacity(),
+                p.key.rule.capacity(),
+                p.dependency
+                    .as_ref()
+                    .map_or(0, |c| c.string_capacity_bytes()),
+            ])
+        });
+        sum([
+            source,
+            self.binding.rows.heap_bytes(),
+            super::audit_retention::vec_bytes::<Proof>(self.proofs.capacity()),
+            sum(proofs),
+        ])
+    }
+}

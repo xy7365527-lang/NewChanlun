@@ -1910,3 +1910,25 @@ mod strict_owner_protocol_tests {
         }
     }
 }
+
+#[cfg(feature = "s_capture_native_testonly")]
+mod owner_retention {
+    use super::*;
+    use crate::v3::audit_retention::{retained_struct, Retained};
+
+    retained_struct!(RawPrefixFacts {
+        prefix,
+        winners,
+        ordered,
+        coordinates
+    });
+    impl Retained for RawEvents {
+        fn heap_bytes(&self) -> usize {
+            match self {
+                Self::Plain(v) => v.heap_bytes(),
+                #[cfg(feature = "s_allocation_json_testonly")]
+                Self::Owned(_) => usize::MAX,
+            }
+        }
+    }
+}

@@ -154,3 +154,42 @@ impl std::fmt::Debug for AuditRoots {
             .finish()
     }
 }
+
+#[cfg(feature = "s_capture_native_testonly")]
+mod owner_retention {
+    use super::*;
+    use crate::v3::audit_retention::retained_struct;
+
+    retained_struct!(AuditSourceCommit {
+        source_namespace,
+        source_epoch,
+        message_id,
+        payload_hash,
+        producer_id,
+        producer_epoch,
+        clock_event_id,
+        attempt_index
+    });
+    retained_struct!(AuditMetadata {
+        session_id,
+        session_generation,
+        writer_epoch,
+        base_cut,
+        structure_cut,
+        clock_plan_hash,
+        semantic_commit_ns,
+        profile_id,
+        profile_hash,
+        rule_revision,
+        catalog_revision,
+        generation,
+        input_frontier,
+        source_commit,
+        scope
+    });
+    retained_struct!(AuditRoots {
+        generated_state,
+        publication_template,
+        delta_template
+    });
+}

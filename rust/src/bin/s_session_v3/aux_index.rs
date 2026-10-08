@@ -3314,3 +3314,63 @@ mod tests {
             .contains("观察索引与出生原件不符"));
     }
 }
+
+#[cfg(feature = "s_capture_native_testonly")]
+mod owner_retention {
+    use super::*;
+    use crate::v3::audit_retention::{retained_struct, Retained};
+
+    retained_struct!(Witness {
+        id,
+        object_id,
+        slot,
+        merged_index,
+        generated,
+        wire,
+        first
+    });
+    retained_struct!(Relation {
+        id,
+        subject,
+        relation_type,
+        object,
+        generated,
+        first
+    });
+    retained_struct!(Observation {
+        id,
+        kind,
+        window_start,
+        generated,
+        wire,
+        batch,
+        first
+    });
+    retained_struct!(NativeAuxFacts {
+        witnesses,
+        relations,
+        observations,
+        born,
+        duplicates,
+        raw_scanned,
+        raw_revisions
+    });
+    impl Retained for Index {
+        fn heap_bytes(&self) -> usize {
+            let Self {
+                witnesses,
+                relations,
+                observations,
+                budget,
+            } = self;
+            if budget.is_some() {
+                return usize::MAX;
+            }
+            crate::v3::audit_retention::sum([
+                witnesses.heap_bytes(),
+                relations.heap_bytes(),
+                observations.heap_bytes(),
+            ])
+        }
+    }
+}

@@ -3873,3 +3873,21 @@ fn elements_ref(
     }
     Ok(out)
 }
+
+#[cfg(feature = "s_capture_native_testonly")]
+mod owner_retention {
+    use super::*;
+    use crate::v3::audit_retention::retained_struct;
+
+    retained_struct!(Source {
+        wire,
+        numeric,
+        raw,
+        bar
+    });
+    retained_struct!(NativeRawFacts {
+        winners,
+        sources,
+        originals
+    });
+}

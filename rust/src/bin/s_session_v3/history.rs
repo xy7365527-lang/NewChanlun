@@ -5909,3 +5909,30 @@ mod borrowed_change_consumer_probe {
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
 }
+
+#[cfg(feature = "s_capture_native_testonly")]
+mod owner_retention {
+    use super::*;
+    use crate::v3::audit_retention::retained_struct;
+
+    retained_struct!(PublishedCut {
+        metadata,
+        roots,
+        batch_id,
+        snapshot,
+        delta
+    });
+    retained_struct!(NativeRawPrefixes {
+        raw_nodes,
+        raw_wire_nodes,
+        prefixes,
+        ordered
+    });
+    retained_struct!(PrefixArray { count, stack });
+    retained_struct!(NativeHistoryPrefixes {
+        raw,
+        wire,
+        effective,
+        last_coord
+    });
+}

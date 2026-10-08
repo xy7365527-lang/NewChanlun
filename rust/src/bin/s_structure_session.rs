@@ -302,7 +302,11 @@ CREATE TABLE IF NOT EXISTS catalog (
 "#;
 
 fn open_db(db: &Path) -> Result<Connection, String> {
-    let conn = Connection::open(db).map_err(|e| format!("打开 SQLite 失败：{e}"))?;
+    let conn = Connection::open_with_flags(
+        db,
+        rusqlite::OpenFlags::default() | rusqlite::OpenFlags::SQLITE_OPEN_PRIVATE_CACHE,
+    )
+    .map_err(|e| format!("打开 SQLite 失败：{e}"))?;
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;")
         .map_err(|e| format!("设置 WAL/FULL 失败：{e}"))?;
     #[cfg(target_os = "macos")]

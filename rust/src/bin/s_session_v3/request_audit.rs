@@ -1,7 +1,8 @@
 //! #1394 Native同一同步handler或服务bootstrap局部scope内纯历史结果；每事务重新绑定完整原件。
 //! 完整历史只在handler内复用；Native可经精确原件绑定复用Driver持有的来源Counts。
 //! 请求成功后仅移交原件、来源证书和纯codec成功根证书，完整历史与全部memo释放。
-//! 跨请求完整history/独立索引/catalog继续fresh核验；根证书不授予业务或提交许可。
+//! owner可按实际无写终结接收完整slot；只有owner绑定同连接当前快照后才能免重核。
+//! 旧来源池本身仍不能授予完整history或提交许可。
 use super::{audit_header::AuditSourceCommit, state::ImmutableHistoricalAudit};
 use newchan_rust::s_content::AuditCapture;
 use rusqlite::{params, types::ValueRef, Params, Transaction};
@@ -1209,5 +1210,182 @@ mod tests {
                 assert_ne!(rows.rows[i], rows.rows[j]);
             }
         }
+    }
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+mod owner_retention {
+    use super::*;
+    use crate::v3::audit_retention::{retained_struct, Retained};
+
+    retained_struct!(ExactRows {
+        sql,
+        scope,
+        columns,
+        rows
+    });
+    retained_struct!(HistoricalDependencyBinding { frontier, material });
+    impl Retained for SqlCell {
+        fn heap_bytes(&self) -> usize {
+            match self {
+                Self::Text(v) | Self::Blob(v) => v.heap_bytes(),
+                _ => 0,
+            }
+        }
+    }
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+impl RequestAuditContext {
+    pub(super) fn restore_slot(&mut self, slot: VerifiedHistoricalSlot) {
+        self.slot = Some(slot);
+    }
+    pub(super) fn note_complete_source_work(
+        &mut self,
+        pending: Option<&super::cross_request_source_cache::PendingPool>,
+    ) {
+        if let (Some(keeper), Some(pending)) = (&mut self.source_keeper, pending) {
+            let (hits, cold) = pending.work_counts();
+            keeper.hits += hits;
+            keeper.cold += cold;
+        }
+    }
+    pub(super) fn complete_workspace_limit(&self) -> usize {
+        self.workspace_budget.map_or(0, |b| b.allowance)
+    }
+    pub(super) fn complete_entry_reserved_bytes(&self) -> usize {
+        self.workspace_budget
+            .map_or(0, |b| b.legacy.saturating_add(b.old_pool))
+    }
+    pub(super) fn complete_retention_cap(&self) -> usize {
+        self.workspace_budget
+            .and_then(|b| {
+                b.total
+                    .checked_sub(crate::cache::retained_bytes().max(b.legacy))
+            })
+            .unwrap_or(0)
+    }
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl ExactRows {
+    /// 可选保留的预算不足不是校验成功；原完整核已经完成，仅停止材料保留。
+    /// SQL/取值错误仍直接传播。每行容量进入累计账，不先聚合一份无界全表。
+    pub(super) fn read_optional_bounded(
+        tx: &Transaction<'_>,
+        sql: &str,
+        cap: usize,
+    ) -> Result<Option<(Self, usize)>, String> {
+        use super::audit_retention::{sum, vec_bytes, Retained};
+        let mut stmt = tx.prepare(sql).map_err(storage)?;
+        let count = stmt.column_count();
+        // column_names() 自身会分配 Vec；只借用逐列名称计算完整头部请求量。
+        let mut fixed = sum([sql.len(), vec_bytes::<String>(count)]);
+        for i in 0..count {
+            fixed = fixed.saturating_add(stmt.column_name(i).map_err(storage)?.len());
+        }
+        if fixed > cap {
+            stmt.finalize().map_err(storage)?;
+            return Ok(None);
+        }
+        let mut columns = Vec::new();
+        let mut owned_sql = String::new();
+        if columns.try_reserve_exact(count).is_err()
+            || owned_sql.try_reserve_exact(sql.len()).is_err()
+        {
+            stmt.finalize().map_err(storage)?;
+            return Ok(None);
+        }
+        owned_sql.push_str(sql);
+        for i in 0..count {
+            let name = stmt.column_name(i).map_err(storage)?;
+            let mut owned = String::new();
+            if owned.try_reserve_exact(name.len()).is_err() {
+                stmt.finalize().map_err(storage)?;
+                return Ok(None);
+            }
+            owned.push_str(name);
+            columns.push(owned);
+        }
+        let mut result = Self {
+            sql: owned_sql,
+            scope: vec![],
+            columns,
+            rows: vec![],
+        };
+        let fixed = sum([result.sql.capacity(), result.columns.heap_bytes()]);
+        if fixed > cap {
+            stmt.finalize().map_err(storage)?;
+            return Ok(None);
+        }
+        let mut payload = 0usize;
+        let mut peak = fixed;
+        let mut cursor = stmt.query([]).map_err(storage)?;
+        let mut fits = true;
+        while let Some(row) = cursor.next().map_err(storage)? {
+            // 先按当前借用字节和精确将要申请的布局计峰值，再复制本行。
+            let mut row_bytes = vec_bytes::<SqlCell>(count);
+            for i in 0..count {
+                row_bytes = row_bytes.saturating_add(match row.get_ref(i).map_err(storage)? {
+                    ValueRef::Text(v) | ValueRef::Blob(v) => v.len(),
+                    _ => 0,
+                });
+            }
+            let old_capacity = result.rows.capacity();
+            let grows = result.rows.len() == old_capacity;
+            let new_capacity = if grows {
+                old_capacity.saturating_mul(2).max(4)
+            } else {
+                old_capacity
+            };
+            let next_peak = sum([
+                fixed,
+                payload,
+                row_bytes,
+                vec_bytes::<Vec<SqlCell>>(new_capacity),
+                if grows {
+                    vec_bytes::<Vec<SqlCell>>(old_capacity)
+                } else {
+                    0
+                },
+            ]);
+            peak = peak.max(next_peak);
+            if peak > cap {
+                fits = false;
+                break;
+            }
+            if grows
+                && result
+                    .rows
+                    .try_reserve_exact(new_capacity - result.rows.len())
+                    .is_err()
+            {
+                fits = false;
+                break;
+            }
+            let mut cells = Vec::with_capacity(count);
+            for i in 0..count {
+                cells.push(match row.get_ref(i).map_err(storage)? {
+                    ValueRef::Null => SqlCell::Null,
+                    ValueRef::Integer(v) => SqlCell::Integer(v),
+                    ValueRef::Real(v) => SqlCell::Real(v.to_bits()),
+                    ValueRef::Text(v) => SqlCell::Text(v.to_vec()),
+                    ValueRef::Blob(v) => SqlCell::Blob(v.to_vec()),
+                });
+            }
+            payload = payload.saturating_add(cells.heap_bytes());
+            result.rows.push(cells);
+            peak = peak.max(sum([
+                fixed,
+                payload,
+                vec_bytes::<Vec<SqlCell>>(result.rows.capacity()),
+            ]));
+            if peak > cap {
+                fits = false;
+                break;
+            }
+        }
+        drop(cursor);
+        stmt.finalize().map_err(storage)?;
+        Ok(fits.then_some((result, peak)))
     }
 }

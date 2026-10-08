@@ -2392,6 +2392,20 @@ impl AuditCapture {
     }
 }
 
+/// Native owner 的无分配计费读数；不构造诊断 JSON 或赋予审计资格。
+#[cfg(feature = "s_capture_native_testonly")]
+#[doc(hidden)]
+pub struct NativeCaptureRetention {
+    pub body_len: usize,
+    pub body_capacity: usize,
+    pub index_capacity: usize,
+    pub index_payload: usize,
+    pub public_roots: usize,
+    pub template_roots: usize,
+    pub public_capacity: usize,
+    pub template_capacity: usize,
+}
+
 pub struct AuditCapture {
     nodes: CaptureNodes,
     public: std::cell::RefCell<AuditMemo>,
@@ -2668,6 +2682,33 @@ impl AuditCapture {
             let _ = digest;
         }
         result.map(|_| ())
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn native_retention_numbers_for_testonly(&self) -> Option<NativeCaptureRetention> {
+        let CaptureNodes::Native(native) = &self.nodes else {
+            return None;
+        };
+        let roots = self.codec_roots.borrow();
+        Some(NativeCaptureRetention {
+            body_len: native
+                .nodes
+                .values()
+                .fold(0usize, |n, v| n.saturating_add(v.body.len())),
+            body_capacity: native
+                .nodes
+                .values()
+                .fold(0usize, |n, v| n.saturating_add(v.body.capacity())),
+            index_capacity: native.nodes.capacity(),
+            index_payload: native
+                .nodes
+                .capacity()
+                .saturating_mul(std::mem::size_of::<(NodeDigest, NativeNode)>()),
+            public_roots: roots.public.len(),
+            template_roots: roots.template.len(),
+            public_capacity: roots.public.capacity(),
+            template_capacity: roots.template.capacity(),
+        })
     }
     pub fn retention(&self) -> serde_json::Value {
         let memo = |m: &AuditMemo| {
