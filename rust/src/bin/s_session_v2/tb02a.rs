@@ -291,25 +291,31 @@ pub(super) fn enrich_raw_until(
     verify_raw_ohlc_cardinality(conn)?;
     for row in rows {
         crate::check_read_deadline(deadline)?;
-        let revision = match &row["revision"] {
-            Value::Number(n) => n.as_i64().ok_or("StorageUnavailable：revision非i64")?,
-            Value::String(s) => parse_canonical_i64(s, "revision")?,
-            _ => return Err("StorageUnavailable：revision类型非法".into()),
-        };
-        let p:(String,String,String,String,String)=conn.query_row(
-            "SELECT schema_revision,open,high,low,close FROM raw_ohlc WHERE identity_key=?1 AND revision=?2",
-            params![row["identity_key"].as_str(),revision],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).map_err(|e|format!("StorageUnavailable：OHLC原件缺失 {e}"))?;
-        if p.0 != RAW_SCHEMA || row["price"] != p.4 {
-            return Err("StorageUnavailable：OHLC schema/close索引矛盾".into());
-        }
-        row["schema_revision"] = json!(p.0);
-        row["open"] = json!(p.1);
-        row["high"] = json!(p.2);
-        row["low"] = json!(p.3);
-        row["close"] = json!(p.4);
+        enrich_raw_row(conn, row)?;
     }
     Ok(())
 }
+/// 配对键已由调用者闭合；同一 OHLC 行校验用于 cold 与固定追加回读。
+pub(super) fn enrich_raw_row(conn: &Connection, row: &mut Value) -> Result<(), String> {
+    let revision = match &row["revision"] {
+        Value::Number(n) => n.as_i64().ok_or("StorageUnavailable：revision非i64")?,
+        Value::String(s) => parse_canonical_i64(s, "revision")?,
+        _ => return Err("StorageUnavailable：revision类型非法".into()),
+    };
+    let p:(String,String,String,String,String)=conn.query_row(
+            "SELECT schema_revision,open,high,low,close FROM raw_ohlc WHERE identity_key=?1 AND revision=?2",
+            params![row["identity_key"].as_str(),revision],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).map_err(|e|format!("StorageUnavailable：OHLC原件缺失 {e}"))?;
+    if p.0 != RAW_SCHEMA || row["price"] != p.4 {
+        return Err("StorageUnavailable：OHLC schema/close索引矛盾".into());
+    }
+    row["schema_revision"] = json!(p.0);
+    row["open"] = json!(p.1);
+    row["high"] = json!(p.2);
+    row["low"] = json!(p.3);
+    row["close"] = json!(p.4);
+    Ok(())
+}
+
 pub(super) fn stored_prices(row: &Value) -> Result<Option<Ohlc>, String> {
     Ok(stored_prices_view(row.into())?.map(|p| Ohlc {
         open: p.open.into(),

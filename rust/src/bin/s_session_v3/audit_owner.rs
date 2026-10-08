@@ -28,6 +28,19 @@ pub(super) fn log_pager_handle(
     sqlite_pager_probe::log_handle(before.0, after.0, id, ok);
 }
 
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) mod effects;
+#[cfg(feature = "s_capture_native_testonly")]
+mod q;
+
+/// 只有 owner 从同快照完整候选以及固定 effects 闭合后创建；不对外开放构造。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(super) mod allocation_probe;
+
+pub(crate) struct BoundOriginals {
+    _private: (),
+}
+
 static NEXT_LIFE: AtomicU64 = AtomicU64::new(1);
 
 pub(super) struct AuditConnection {
@@ -52,6 +65,8 @@ pub(super) struct Ended {
 /// 下层只接受固定发布能力；没有 SQL、Connection 或 commit 的访问器。
 pub(super) struct PublishPhase<'a, 'db> {
     transaction: &'a mut Transaction<'db>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    audited: Option<&'a state::AuditedState>,
 }
 impl PublishPhase<'_, '_> {
     pub(super) fn publish(
@@ -61,7 +76,14 @@ impl PublishPhase<'_, '_> {
         envelope: &Value,
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<commit::CommitReceipt, String> {
-        runtime.publish_impl(self.transaction, token, envelope, Some(context))
+        runtime.publish_impl(
+            self.transaction,
+            token,
+            envelope,
+            Some(context),
+            #[cfg(feature = "s_capture_native_testonly")]
+            self.audited,
+        )
     }
 }
 
@@ -76,6 +98,12 @@ struct AuditTxn<'a> {
     dirty: Cell<bool>,
     #[cfg(feature = "s_capture_native_testonly")]
     complete: std::cell::RefCell<Option<CompleteCandidate>>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    pending: std::cell::RefCell<Option<CompleteCandidate>>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    recording: std::cell::RefCell<Option<effects::Recording>>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    effect_limit: Cell<usize>,
 }
 
 pub(super) enum Admission {
@@ -86,7 +114,7 @@ pub(super) enum Admission {
 /// 保留原 Advance→Prepare 的实际工作集重叠；Owned 峰值不能因拆函数被静默改口径。
 pub(super) struct Begun {
     pub(super) token: String,
-    _audited: state::AuditedState,
+    _audited: Option<state::AuditedState>,
 }
 
 impl AuditConnection {
@@ -151,6 +179,12 @@ impl AuditConnection {
             dirty: Cell::new(false),
             #[cfg(feature = "s_capture_native_testonly")]
             complete: Default::default(),
+            #[cfg(feature = "s_capture_native_testonly")]
+            pending: Default::default(),
+            #[cfg(feature = "s_capture_native_testonly")]
+            recording: Default::default(),
+            #[cfg(feature = "s_capture_native_testonly")]
+            effect_limit: Cell::new(0),
         };
         // COUNT(*) 确实访问 main.meta Btree；SELECT 1/只读 PRAGMA 不能替代此步。
         let _: i64 = active
@@ -318,7 +352,7 @@ impl AuditConnection {
                         clock.phase(event, "accept", -1)?;
                         clock.phase(event, "begin", 0)?;
                         clock.phase(event, "commit", 0)?;
-                        active.before_write()?;
+                        active.before_fixed_write(FixedOperation::Accept, Some(context))?;
                         let accepted = raw_input::accept_events(tx, &input, volume_unit)?;
                         control.accept(&view, &accepted)?;
                         wrote = true;
@@ -353,6 +387,7 @@ impl AuditConnection {
         };
         drop(control);
         let ended = if wrote {
+            active.finish_fixed_write()?;
             active.commit()?
         } else {
             active.read_end()?
@@ -368,11 +403,19 @@ impl AuditConnection {
         mode: &s_allocation::Mode,
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<Begun, String> {
-        self.clear_complete();
         let active = self.begin(TransactionBehavior::Immediate)?;
         let tx = active.tx();
-        let audited =
-            s_allocation::audit_in_request(tx, mode, s_allocation::Phase::Advance, context)?;
+        let reused = active.bind_existing(Some(context))?;
+        let audited = if reused {
+            None
+        } else {
+            Some(s_allocation::audit_in_request(
+                tx,
+                mode,
+                s_allocation::Phase::Advance,
+                context,
+            )?)
+        };
         verify_writer_epoch(tx, epoch)?;
         if meta_get_opt(tx, "advance_state")?.as_deref() != Some("idle") {
             return Err("StaleWriter：已有未完成Begin".into());
@@ -389,15 +432,21 @@ impl AuditConnection {
         let generation = meta_i64(tx, "generation")?
             .checked_add(1)
             .ok_or_else(|| invalid("代号溢出"))?;
-        let frontier = i64::try_from(audited.raw.len())
+        let raw_len = match &audited {
+            Some(a) => a.raw.len(),
+            None => active.bound_raw_len()?,
+        };
+        let frontier = i64::try_from(raw_len)
             .map_err(invalid)?
             .checked_sub(1)
             .ok_or_else(|| invalid("没有原始输入"))?;
         let base = meta_get_opt(tx, "structure_cut")?.ok_or_else(|| invalid("缺当前cut"))?;
-        active.before_write()?;
+        active.before_fixed_write(FixedOperation::Begin, Some(context))?;
         let token = control.begin(&view, generation, frontier, &base, epoch)?;
         drop(control);
-        active.commit()?;
+        active.finish_fixed_write()?;
+        let ended = active.commit()?;
+        self.continue_with(ended)?;
         Ok(Begun {
             token,
             _audited: audited,
@@ -414,11 +463,19 @@ impl AuditConnection {
         let result = (|| {
             let mut active = self.begin(TransactionBehavior::Immediate)?;
             // 固定 phase 覆盖 Runtime 内全部 node/stage/非节点/发布写；无裸 SQL 能力外借。
-            active.before_write()?;
+            active.bind_existing(Some(context))?;
+            active.before_fixed_write(FixedOperation::Publish, Some(context))?;
+            #[cfg(feature = "s_capture_native_testonly")]
+            let pending = active.pending.borrow();
             let phase = PublishPhase {
                 transaction: active.transaction.as_mut().unwrap(),
+                #[cfg(feature = "s_capture_native_testonly")]
+                audited: pending.as_ref().map(|c| &c.audited),
             };
             let receipt = runtime.publish_in_owner(phase, token, envelope, context)?;
+            #[cfg(feature = "s_capture_native_testonly")]
+            drop(pending);
+            active.finish_fixed_write()?;
             let ended = active.commit_publication()?;
             Ok((receipt, ended))
         })();
@@ -451,10 +508,10 @@ impl AuditConnection {
         if ended.life != self.life || self.retired.get() || !self.connection.is_autocommit() {
             return;
         }
-        // 完整候选仅由本 owner 的本次无写事务签发；旧来源池仍独立移交。
+        // 完整候选由本 owner 的无写审计或固定 effects 核验签发；来源池独立移交。
         let cap = context.complete_retention_cap();
         let mut complete = ended.complete;
-        // 只有对应事务 read_end 封存的实际无写结果可接回。slot/fixture 没有签发能力。
+        // 只有对应事务成功终结后封存的结果可接回。slot/fixture 没有签发能力。
         if let Some(candidate) = &complete {
             if candidate.seal.life != self.life
                 || candidate.seal.write_sequence != self.write_sequence.get()
@@ -506,11 +563,12 @@ impl AuditConnection {
         clock: &v2::ClockPlan,
         clock_event: &str,
     ) -> Result<Value, String> {
-        self.clear_candidates();
         let next = parse_writer_epoch(new_epoch, "new writer_epoch")?;
         let active = self.begin(TransactionBehavior::Immediate)?;
         let tx = active.tx();
-        state::audit(tx)?;
+        if !active.bind_existing(None)? {
+            state::audit(tx)?;
+        }
         let current = meta_get_opt(tx, "writer_epoch")?.ok_or_else(|| invalid("缺writer_epoch"))?;
         if next <= parse_writer_epoch(&current, "current writer_epoch")? {
             return Err("StaleWriter：recover换代必须严格上升".into());
@@ -518,7 +576,7 @@ impl AuditConnection {
         let control = control::S3Control::attach(tx, clock)?;
         let generation = meta_get_opt(tx, "generation")?.ok_or_else(|| invalid("缺generation"))?;
         let prior = meta_get_opt(tx, "advance_state")?.ok_or_else(|| invalid("缺advance_state"))?;
-        active.before_write()?;
+        active.before_fixed_write(FixedOperation::Recover, None)?;
         let transitioned_at = control.recover(clock_event, &generation)?;
         let recovered = if prior != "idle" {
             meta_set(tx, "advance_state", "idle")?;
@@ -537,7 +595,9 @@ impl AuditConnection {
         let result = json!({"ok":true,"previous_epoch":current,"new_epoch":new_epoch,"epoch_transitioned":true,"recovered_begin":recovered,
             "reachable_root":{"generation":generation,"structure_cut":meta_get_opt(tx,"structure_cut")?,"index_frontier":meta_get_opt(tx,"index_frontier")?}});
         drop(control);
-        active.commit()?;
+        active.finish_fixed_write()?;
+        let ended = active.commit()?;
+        self.continue_with(ended)?;
         Ok(result)
     }
 
@@ -599,6 +659,15 @@ impl AuditTxn<'_> {
     }
 
     fn commit_as(&mut self, publication: bool) -> Result<Ended, String> {
+        #[cfg(feature = "s_capture_native_testonly")]
+        if let Some(c) = self.complete.borrow().as_ref() {
+            if c.seal.life != self.owner.life
+                || c.seal.transaction_id != self.transaction_id
+                || c.seal.write_sequence != self.owner.write_sequence.get()
+            {
+                return Err(invalid("写后候选没有绑定本次已闭合事务"));
+            }
+        }
         // 此处封存锁内读取的版本；不得在 commit 后刷新 data_version。
         let _sealed = (
             self.owner.life,
@@ -638,7 +707,7 @@ impl AuditTxn<'_> {
         Ok(Ended {
             life: self.owner.life,
             #[cfg(feature = "s_capture_native_testonly")]
-            complete: None,
+            complete: self.complete.borrow_mut().take(),
         })
     }
 }
@@ -646,6 +715,16 @@ impl AuditTxn<'_> {
 impl Drop for AuditTxn<'_> {
     fn drop(&mut self) {
         if let Some(tx) = self.transaction.take() {
+            #[cfg(feature = "s_capture_native_testonly")]
+            {
+                if tx
+                    .update_hook(None::<fn(rusqlite::hooks::Action, &str, &str, i64)>)
+                    .is_err()
+                {
+                    self.owner.retired.set(true);
+                }
+                effects::clear_node_journal(&tx);
+            }
             self.owner.clear_candidates();
             self.owner.connection.flush_prepared_statement_cache();
             // 不依赖 rusqlite 的隐式 Drop 回滚；必须核实终结结果。
@@ -752,11 +831,11 @@ impl AuditConnection {
         self.complete.borrow().as_ref().map_or(Value::Null, |c| json!({
             "charge":c.charge,"life":c.seal.life,"transaction":c.seal.transaction_id,
             "write_sequence":c.seal.write_sequence,"tables":c.originals.len(),
-            "nodes":c.slot.node_count,"raw_rows":c.audited.raw.len(),"cuts":c.audited.cuts.len(),
+            "nodes":c.node_count,"raw_rows":c.audited.raw.len(),"cuts":c.audited.cuts.len(),
             "raw_checked":c.audited.raw_prefixes.as_ref().map(|p|p.checked_len()),
             "published_prefix":c.audited.raw_prefixes.as_ref().map(|p|p.published_len()),
             "source_hash_rows":c.audited.raw_sources.as_ref().map(|p|p.hashed_rows()),
-            "source_counts_preserved":c.slot.source_pending.is_some(),
+            "source_counts_preserved":c.slot.as_ref().is_some_and(|s|s.source_pending.is_some()),
             "capacity_method":"实际 Vec/String capacity 加树/散列表保守槽位上界；非RSS",
         }))
     }
@@ -786,19 +865,12 @@ impl AuditTxn<'_> {
     ) -> Result<(), String> {
         #[cfg(feature = "s_capture_native_testonly")]
         if matches!(mode, s_allocation::Mode::CapturedNative) && context.source_cache_enabled() {
-            // 请求局部状态读取只决定是否有无写资格。未知操作/新消息/待推进一律 cold。
+            // 只对固定操作绑定完整候选；未知操作在执行前撤资格。
             // 后续原 inspect_ingest/lookup 仍逐字执行全部请求判据，错误绝不重判。
-            let no_write = match envelope["payload"]["op"].as_str() {
-                Some("ready" | "receipt") => true,
-                Some("ingest") => v2::message_row(
-                    self.tx(),
-                    required(envelope, "source_namespace")?,
-                    required(envelope, "source_epoch")?,
-                    required(envelope, "message_id")?,
-                )?
-                .is_some_and(|m| m.status == "Committed"),
-                _ => false,
-            };
+            let known = matches!(
+                envelope["payload"]["op"].as_str(),
+                Some("ready" | "receipt" | "ingest")
+            );
             let domain = self.read_domain()?;
             let seal = SnapshotSeal {
                 life: self.owner.life,
@@ -810,14 +882,15 @@ impl AuditTxn<'_> {
             };
             let prior = self.owner.complete.borrow_mut().take();
             if let Some(mut candidate) = prior {
-                if no_write && candidate.seal.same_snapshot(&seal) {
+                if known && candidate.seal.same_snapshot(&seal) {
                     candidate.seal = seal;
+                    candidate.charge.entry_reserved_bytes = context.complete_entry_reserved_bytes();
                     #[cfg(test)]
                     state::trace_event("owner_complete_hit", None);
                     *self.complete.borrow_mut() = Some(candidate);
                     return Ok(());
                 }
-                // 外部提交/写请求在核验前决定冷分派并真释放；不是校验错误后的回退。
+                // 外部提交或未知操作在核验前决定冷分派并真释放；不是校验错误后的回退。
                 drop(candidate);
             }
             let audited = s_allocation::audit_in_request(
@@ -826,7 +899,7 @@ impl AuditTxn<'_> {
                 s_allocation::Phase::Handle,
                 context,
             )?;
-            if no_write {
+            if known {
                 if let Some(slot) = context.take() {
                     match CompleteCandidate::capture(
                         self.tx(),
@@ -837,8 +910,12 @@ impl AuditTxn<'_> {
                         context.complete_entry_reserved_bytes(),
                     )? {
                         Ok(candidate) => {
-                            context
-                                .note_complete_source_work(candidate.slot.source_pending.as_ref());
+                            context.note_complete_source_work(
+                                candidate
+                                    .slot
+                                    .as_ref()
+                                    .and_then(|s| s.source_pending.as_ref()),
+                            );
                             *self.complete.borrow_mut() = Some(candidate);
                         }
                         Err(slot) => context.restore_slot(slot),
@@ -936,6 +1013,9 @@ struct CompleteCharge {
     historical_binding_capacity: usize,
     source_pool_charge: usize,
     current_sql_capacity: usize,
+    q_capacity: usize,
+    effects_peak: usize,
+    incremental_steps: usize,
     inline: usize,
     total: usize,
     entry_reserved_bytes: usize,
@@ -944,7 +1024,11 @@ struct CompleteCharge {
 #[cfg(feature = "s_capture_native_testonly")]
 struct CompleteCandidate {
     seal: SnapshotSeal,
-    slot: request_audit::VerifiedHistoricalSlot,
+    slot: Option<request_audit::VerifiedHistoricalSlot>,
+    capture: Option<newchan_rust::s_content::AuditCapture>,
+    node_count: usize,
+    q: q::Facts,
+    limit: usize,
     audited: state::AuditedState,
     // Q 全集：所有非节点表、schema/完整配置/clock/raw尾/控制关系，不是只有 H 的绑定。
     originals: Vec<request_audit::ExactRows>,
@@ -994,6 +1078,9 @@ impl CompleteCandidate {
                 .as_ref()
                 .map_or(0, |p| p.full_retention_charge()),
             current_sql_capacity: 0,
+            q_capacity: 0,
+            effects_peak: 0,
+            incremental_steps: 0,
             inline: std::mem::size_of::<Self>(),
             total: 0,
             entry_reserved_bytes,
@@ -1119,11 +1206,31 @@ impl CompleteCandidate {
         if charge.total >= limit {
             return Ok(Err(slot));
         }
+        // Q 索引只在首次 cold 建立。复制身份键、clock 解码及索引槽位先预留保守上界。
+        let q_bound = originals
+            .heap_bytes()
+            .saturating_mul(128)
+            .saturating_add(4096);
+        if charge.total.saturating_add(q_bound) >= limit {
+            return Ok(Err(slot));
+        }
+        let q = q::Facts::cold(tx, &originals, &audited)?;
+        charge.q_capacity = q.heap_bytes();
+        charge.total = charge.total.saturating_add(charge.q_capacity);
+        charge.handoff_peak = charge.handoff_peak.max(
+            entry_reserved_bytes
+                .saturating_add(charge.total)
+                .saturating_add(q_bound),
+        );
         #[cfg(test)]
         state::trace_event("owner_complete_cold_candidate", None);
         Ok(Ok(Self {
             seal,
-            slot,
+            node_count: slot.node_count,
+            slot: Some(slot),
+            capture: None,
+            q,
+            limit,
             audited,
             originals,
             charge,
@@ -1138,7 +1245,7 @@ impl AuditConnection {
         let c = candidate.as_ref().unwrap();
         (
             c.audited.raw.plain().unwrap().as_ptr() as usize,
-            std::rc::Rc::as_ptr(&c.slot.result) as usize,
+            (&*c.audited as *const state::ImmutableHistoricalAudit) as usize,
             c.originals.as_ptr() as usize,
         )
     }
@@ -1206,4 +1313,367 @@ fn audit_owner_ended_cannot_promote_earlier_context_or_fixture_life() {
     let empty = request_audit::RequestAuditContext::default();
     owner.finish_source_keeper(empty, fixture_end);
     assert_eq!(owner.complete_retained_bytes(), 0);
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+impl CompleteCandidate {
+    fn detach_slot(&mut self) {
+        if let Some(slot) = self.slot.take() {
+            self.capture = Some(slot.capture);
+            // 真实释放历史绑定和旧来源候选；唯一 audited 继续拥有全 C 与事实。
+            drop(slot.result);
+            drop(slot.binding);
+            drop(slot.source_pending);
+        }
+    }
+    fn validate_effects(
+        mut self,
+        tx: &Transaction<'_>,
+        mut effects: effects::Effects,
+        limit: usize,
+    ) -> Result<Option<Self>, String> {
+        use super::audit_retention::{sum, Retained};
+        use effects::Table;
+        // 包含新旧正文、事实索引扩容、codec 派生工作集及旧行暂存共存的保守预留。
+        // 未分配前超额只撤可选候选；不会把任何校验 Err 改判为成功。
+        let reserve = sum([
+            self.charge.total.saturating_mul(32),
+            effects.bytes.saturating_mul(128),
+            65_536,
+        ]);
+        if reserve >= limit {
+            return Ok(None);
+        }
+        self.detach_slot();
+        let capture = self.capture.as_mut().unwrap();
+        for change in effects
+            .changes
+            .iter_mut()
+            .filter(|c| c.table == Table::Node)
+        {
+            let row = change.new.as_mut().ok_or_else(|| invalid("缺新增节点"))?;
+            let digest = match &row[1] {
+                request_audit::SqlCell::Blob(b) => b.as_slice().try_into().map_err(invalid)?,
+                _ => return Err(invalid("digest 非 BLOB")),
+            };
+            let tag = u8::try_from(effects::integer(&row[2])?).map_err(invalid)?;
+            let body = match std::mem::replace(&mut row[3], request_audit::SqlCell::Null) {
+                request_audit::SqlCell::Blob(b) => b,
+                _ => return Err(invalid("body 非 BLOB")),
+            };
+            let existed = capture.contains(&digest);
+            if !capture
+                .append_original_for_owner_testonly(digest, tag, body, limit - reserve)
+                .map_err(invalid)?
+            {
+                return Ok(None);
+            }
+            if !existed {
+                self.node_count += 1;
+            }
+        }
+        self.q.advance(tx, &effects, &mut self.audited)?;
+        let bound = BoundOriginals { _private: () };
+        self.audited.check_owner_raw(capture, &bound)?;
+        if effects.operation == effects::Operation::Publish {
+            let g = meta_i64(tx, "generation")?;
+            let d = effects
+                .rows(Table::Delta)
+                .next()
+                .unwrap()
+                .new
+                .as_ref()
+                .unwrap();
+            let batch = effects::text(&d[7])?;
+            let commit = effects
+                .rows(Table::Phase)
+                .find(|c| {
+                    c.new
+                        .as_ref()
+                        .is_some_and(|r| effects::text(&r[2]).ok() == Some("commit"))
+                })
+                .ok_or_else(|| invalid("缺 commit 实际效果"))?;
+            let ns = effects::text(&commit.new.as_ref().unwrap()[4])?;
+            let objects: Vec<_> = effects.rows(Table::Object).map(|c| c.rowid).collect();
+            let auxiliary = [Table::Witness, Table::Relation, Table::Observation]
+                .map(|t| effects.rows(t).map(|c| c.rowid).collect());
+            #[cfg(test)]
+            eprintln!(
+                "owner actual suffix g={g} nodes={} object_effects={} aux_effects={:?}",
+                self.node_count,
+                objects.len(),
+                auxiliary.each_ref().map(Vec::len)
+            );
+            self.audited = self
+                .audited
+                .append_owner_cut(tx, capture, g, batch, ns, &objects, &auxiliary, &bound)?;
+        }
+        let effect_rows = effects.changes.len();
+        let Some(peak) = effects.apply(&mut self.originals, limit - reserve)? else {
+            return Ok(None);
+        };
+        self.capture = Some(
+            self.capture
+                .take()
+                .unwrap()
+                .into_originals_and_codec_roots_for_testonly()
+                .map_err(invalid)?,
+        );
+        let retained = self
+            .capture
+            .as_ref()
+            .unwrap()
+            .native_retention_numbers_for_testonly()
+            .ok_or_else(|| invalid("缺 Native 原件费用"))?;
+        self.charge.node_source_and_certificates = sum([
+            retained.body_len,
+            self.node_count.saturating_mul(97),
+            8 + newchan_rust::s_content::CONTENT_FORMAT.len() + 4 + 2 * (1 + 1 + 8),
+            sum([retained.public_roots, retained.template_roots]).saturating_mul(32),
+        ]);
+        self.charge.node_capacity = sum([
+            retained.body_capacity,
+            retained.index_payload.saturating_mul(2),
+            retained.index_capacity.saturating_mul(2).saturating_add(16),
+            sum([retained.public_capacity, retained.template_capacity])
+                .saturating_mul(66)
+                .saturating_add(32),
+        ]);
+        self.charge.historical_and_raw_capacity = self.audited.heap_bytes();
+        self.charge.historical_binding_capacity = 0;
+        self.charge.source_pool_charge = 0;
+        self.charge.current_sql_capacity = self.originals.heap_bytes();
+        self.charge.q_capacity = self.q.heap_bytes();
+        self.charge.total = sum([
+            self.charge.node_source_and_certificates,
+            self.charge.node_capacity,
+            self.charge.historical_and_raw_capacity,
+            self.charge.current_sql_capacity,
+            self.charge.q_capacity,
+            self.charge.inline,
+        ]);
+        self.charge.effects_peak = self.charge.effects_peak.max(peak);
+        self.charge.handoff_peak =
+            self.charge
+                .handoff_peak
+                .max(sum([self.charge.entry_reserved_bytes, reserve, peak]));
+        if self.charge.total >= limit {
+            return Ok(None);
+        }
+        self.charge.incremental_steps += 1;
+        #[cfg(test)]
+        state::trace_owner_effects(
+            effect_rows,
+            peak,
+            self.audited.raw.len(),
+            self.audited.cuts.len(),
+        );
+        Ok(Some(self))
+    }
+}
+
+#[derive(Clone, Copy)]
+enum FixedOperation {
+    Accept,
+    Begin,
+    Publish,
+    Recover,
+}
+impl AuditConnection {
+    /// 同一请求的 Accept/Begin 已提交结果在下一事务重新绑定，不刷新版本号。
+    pub(super) fn continue_with(&self, ended: Ended) -> Result<(), String> {
+        if ended.life != self.life || self.retired.get() || !self.connection.is_autocommit() {
+            return Err(invalid("事务结果不属于当前连接生涯"));
+        }
+        #[cfg(feature = "s_capture_native_testonly")]
+        {
+            *self.complete.borrow_mut() = ended.complete;
+        }
+        Ok(())
+    }
+}
+impl AuditTxn<'_> {
+    fn bind_existing(
+        &self,
+        context: Option<&request_audit::RequestAuditContext>,
+    ) -> Result<bool, String> {
+        #[cfg(feature = "s_capture_native_testonly")]
+        {
+            let Some(mut candidate) = self.owner.complete.borrow_mut().take() else {
+                return Ok(false);
+            };
+            let seal = SnapshotSeal {
+                life: self.owner.life,
+                transaction_id: self.transaction_id,
+                write_sequence: self.write_sequence,
+                data_version: self.data_version,
+                schema_version: self.schema_version,
+                domain: self.read_domain()?,
+            };
+            if !candidate.seal.same_snapshot(&seal) {
+                return Ok(false);
+            }
+            if let Some(context) = context {
+                if !context.source_cache_enabled() {
+                    return Ok(false);
+                }
+                candidate.charge.entry_reserved_bytes = context.complete_entry_reserved_bytes();
+            }
+            candidate.seal = seal;
+            #[cfg(test)]
+            state::trace_event("owner_complete_hit", None);
+            *self.complete.borrow_mut() = Some(candidate);
+            return Ok(true);
+        }
+        #[cfg(not(feature = "s_capture_native_testonly"))]
+        {
+            let _ = context;
+            Ok(false)
+        }
+    }
+    fn bound_raw_len(&self) -> Result<usize, String> {
+        #[cfg(feature = "s_capture_native_testonly")]
+        {
+            return self
+                .complete
+                .borrow()
+                .as_ref()
+                .map(|c| c.audited.raw.len())
+                .ok_or_else(|| invalid("缺当前绑定原始账"));
+        }
+        #[cfg(not(feature = "s_capture_native_testonly"))]
+        Err(invalid("非 Native 无 owner 原始账"))
+    }
+    fn before_fixed_write(
+        &self,
+        operation: FixedOperation,
+        context: Option<&request_audit::RequestAuditContext>,
+    ) -> Result<(), String> {
+        #[cfg(feature = "s_capture_native_testonly")]
+        {
+            let candidate = self.complete.borrow_mut().take();
+            if let Some(mut candidate) = candidate {
+                let limit = context
+                    .map(|c| c.complete_workspace_limit())
+                    .unwrap_or(candidate.limit.saturating_sub(candidate.charge.total));
+                let op = match operation {
+                    FixedOperation::Accept => effects::Operation::Accept,
+                    FixedOperation::Begin => effects::Operation::Begin,
+                    FixedOperation::Publish => effects::Operation::Publish,
+                    FixedOperation::Recover => effects::Operation::Recover,
+                };
+                if let Some(recording) = effects::Recording::start(self.tx(), op, limit / 8)? {
+                    candidate.detach_slot();
+                    self.effect_limit.set(limit);
+                    *self.pending.borrow_mut() = Some(candidate);
+                    *self.recording.borrow_mut() = Some(recording);
+                }
+            }
+        }
+        #[cfg(not(feature = "s_capture_native_testonly"))]
+        let _ = (operation, context);
+        self.before_write()
+    }
+    fn finish_fixed_write(&self) -> Result<(), String> {
+        #[cfg(feature = "s_capture_native_testonly")]
+        {
+            let Some(recording) = self.recording.borrow_mut().take() else {
+                return Ok(());
+            };
+            let mut candidate = self
+                .pending
+                .borrow_mut()
+                .take()
+                .ok_or_else(|| invalid("效果日志缺候选"))?;
+            let limit = self.effect_limit.get();
+            let Some(effects) = recording.finish(self.tx(), &mut candidate.originals, limit)?
+            else {
+                return Ok(());
+            };
+            if let Some(mut candidate) = candidate.validate_effects(self.tx(), effects, limit)? {
+                candidate.seal.write_sequence = self.owner.write_sequence.get();
+                *self.complete.borrow_mut() = Some(candidate);
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn note_persisted_node(tx: &Transaction<'_>, digest: [u8; 32]) {
+    effects::note_node(tx, digest);
+}
+
+/// 正常行为锁的实际 SQL 返回行/字节观察器；不计估算的底层 Btree/page I/O。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(super) struct SqlReadProbe(*mut rusqlite::ffi::sqlite3);
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+impl Drop for SqlReadProbe {
+    fn drop(&mut self) {
+        unsafe {
+            rusqlite::ffi::sqlite3_trace_v2(self.0, 0, None, std::ptr::null_mut());
+        }
+    }
+}
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+impl AuditConnection {
+    pub(super) fn sql_read_probe(&self) -> SqlReadProbe {
+        unsafe extern "C" fn observe(
+            _: u32,
+            _: *mut std::ffi::c_void,
+            p: *mut std::ffi::c_void,
+            _: *mut std::ffi::c_void,
+        ) -> std::ffi::c_int {
+            use rusqlite::ffi;
+            // SQLite 在 SQLITE_TRACE_ROW 回调期间持有活 stmt；只借用当前结果列。
+            let stmt = p.cast::<ffi::sqlite3_stmt>();
+            let sql = unsafe { ffi::sqlite3_sql(stmt) };
+            if sql.is_null() {
+                return 0;
+            }
+            let sql = unsafe { std::ffi::CStr::from_ptr(sql) }.to_string_lossy();
+            let class = if sql.contains("raw_events") || sql.contains("raw_ohlc") {
+                0
+            } else if [
+                "s_input_messages",
+                "s_clock_events",
+                "s_protocol_meta",
+                "writer_epoch_history",
+                "s_delivery",
+            ]
+            .iter()
+            .any(|t| sql.contains(t))
+            {
+                1
+            } else if sql.contains("s_content_nodes") {
+                3
+            } else {
+                2
+            };
+            let mut bytes = 0usize;
+            for col in 0..unsafe { ffi::sqlite3_column_count(stmt) } {
+                bytes =
+                    bytes.saturating_add(match unsafe { ffi::sqlite3_column_type(stmt, col) } {
+                        ffi::SQLITE_TEXT | ffi::SQLITE_BLOB => {
+                            unsafe { ffi::sqlite3_column_bytes(stmt, col) }.max(0) as usize
+                        }
+                        ffi::SQLITE_INTEGER | ffi::SQLITE_FLOAT => 8,
+                        _ => 0,
+                    });
+            }
+            state::trace_sql_row(class, bytes);
+            0
+        }
+        let db = unsafe { self.connection.handle() };
+        let rc = unsafe {
+            rusqlite::ffi::sqlite3_trace_v2(
+                db,
+                rusqlite::ffi::SQLITE_TRACE_ROW as u32,
+                Some(observe),
+                std::ptr::null_mut(),
+            )
+        };
+        assert_eq!(rc, rusqlite::ffi::SQLITE_OK);
+        SqlReadProbe(db)
+    }
 }

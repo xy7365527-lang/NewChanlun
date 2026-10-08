@@ -707,6 +707,8 @@ impl TxStore<'_, '_> {
                     .map_err(storage_error)?;
             }
         }
+        #[cfg(feature = "s_capture_native_testonly")]
+        crate::v3::audit_owner::note_persisted_node(self.tx, digest);
         Ok(())
     }
 }

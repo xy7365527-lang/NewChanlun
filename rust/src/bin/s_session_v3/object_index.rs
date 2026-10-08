@@ -283,31 +283,35 @@ fn raw_withdrawal(e: &Entry, reason: &str, sup: Option<&str>) -> Value {
         }
     }
 }
-fn ordering(a: &Entry, b: &Entry, dead: bool) -> std::cmp::Ordering {
-    match (&a.slot, &b.slot) {
-        (Slot::Shape(wa), Slot::Shape(wb)) => {
-            if dead {
-                a.life
-                    .first_known_generation
-                    .cmp(&b.life.first_known_generation)
-            } else {
-                wa[0].cmp(&wb[0])
-            }
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum OrderKey<T> {
+    Shape(i64),
+    Typed(T, T, T, i64),
+}
+fn order_key(e: &Entry, dead: bool) -> OrderKey<&str> {
+    match &e.slot {
+        Slot::Shape(w) => OrderKey::Shape(if dead {
+            e.life.first_known_generation
+        } else {
+            w[0]
+        }),
+        Slot::Typed { kind, fact_key } => {
+            OrderKey::Typed(kind.as_str(), fact_key.as_str(), e.id.as_str(), e.revision)
         }
-        (Slot::Shape(_), _) => std::cmp::Ordering::Less,
-        (_, Slot::Shape(_)) => std::cmp::Ordering::Greater,
-        (
-            Slot::Typed {
-                kind: ka,
-                fact_key: fa,
-            },
-            Slot::Typed {
-                kind: kb,
-                fact_key: fb,
-            },
-        ) => (ka, fa, &a.id, a.revision).cmp(&(kb, fb, &b.id, b.revision)),
     }
 }
+impl OrderKey<&str> {
+    fn owned(self) -> OrderKey<String> {
+        match self {
+            Self::Shape(n) => OrderKey::Shape(n),
+            Self::Typed(k, f, i, r) => OrderKey::Typed(k.into(), f.into(), i.into(), r),
+        }
+    }
+}
+fn ordering(a: &Entry, b: &Entry, dead: bool) -> std::cmp::Ordering {
+    order_key(a, dead).cmp(&order_key(b, dead))
+}
+
 fn candidate(
     s: &mut (impl CodecStore + ?Sized),
     o: &ProducedObject,
@@ -1421,32 +1425,7 @@ fn load_in_store(
         #[cfg(test)]
         super::state::trace_event("object_index_wire_at", Some(e.life.first_known_generation));
         wire_at(s, e, latest)?;
-        if let Some(death) = e.life.withdrawn_generation {
-            match (
-                e.life.withdrawal_reason.as_deref(),
-                e.life.superseded_by.as_deref(),
-            ) {
-                (Some("superseded_by_revision"), Some(id)) => {
-                    #[cfg(test)]
-                    LOAD_TARGET_LOOKUPS.with(|n| n.set(n.get() + 1));
-                    let target = &out[*by_id.get(id).ok_or_else(|| err("替代目标不存在"))?];
-                    if target.slot != e.slot
-                        || target.life.first_known_generation > death
-                        || target.life.withdrawn_generation.is_some_and(|d| d <= death)
-                    {
-                        return Err(err("替代目标槽位/出生代不同"));
-                    }
-                }
-                (Some(reason), None)
-                    if reason
-                        == if e.slot.is_shape() {
-                            "window_removed"
-                        } else {
-                            "fact_removed"
-                        } => {}
-                _ => return Err(err("撤回原因与替代身份不符")),
-            }
-        }
+        validate_withdrawal_target(e, &out, &by_id)?;
     }
     #[cfg(test)]
     super::state::trace_event("object_index_done", None);
@@ -1456,6 +1435,135 @@ fn load_in_store(
     }
     Ok(out)
 }
+fn validate_withdrawal_target(
+    e: &Entry,
+    index: &[Entry],
+    by_id: &bj::BusinessMap<TextValue, usize>,
+) -> Result<(), String> {
+    if let Some(death) = e.life.withdrawn_generation {
+        match (
+            e.life.withdrawal_reason.as_deref(),
+            e.life.superseded_by.as_deref(),
+        ) {
+            (Some("superseded_by_revision"), Some(id)) => {
+                #[cfg(test)]
+                LOAD_TARGET_LOOKUPS.with(|n| n.set(n.get() + 1));
+                let target = &index[*by_id.get(id).ok_or_else(|| err("替代目标不存在"))?];
+                if target.slot != e.slot
+                    || target.life.first_known_generation > death
+                    || target.life.withdrawn_generation.is_some_and(|d| d <= death)
+                {
+                    return Err(err("替代目标槽位/出生代不同"));
+                }
+            }
+            (Some(reason), None)
+                if reason
+                    == if e.slot.is_shape() {
+                        "window_removed"
+                    } else {
+                        "fact_removed"
+                    } => {}
+            _ => return Err(err("撤回原因与替代身份不符")),
+        }
+    }
+    Ok(())
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) fn update_from_owner(
+    tx: &Transaction<'_>,
+    s: &mut super::history::HashReader<'_>,
+    latest: i64,
+    index: &mut sc::CodecVec<Entry>,
+    sweep: &mut HistorySweep,
+    rowids: &[i64],
+    _bound: &super::audit_owner::BoundOriginals,
+) -> Result<(), String> {
+    let mut changed = Vec::with_capacity(rowids.len());
+    let mut leaf_bindings = s
+        .native_projection_capture()
+        .map(|capture| ShapeLeafBindings {
+            capture,
+            successful: HashSet::new(),
+        });
+    let mut store = super::audit_store::StoreView::for_audit(s);
+    let events = std::sync::Arc::get_mut(&mut sweep.events)
+        .ok_or_else(|| err("对象事件仍被旧 facade 借用"))?;
+    for rowid in rowids {
+        let mut q = CheckedStatement::prepare(tx,c"SELECT object_id,object_revision,kind,fact_key,window_start,window_mid,window_end,generated_root,internal_root,immutable_root,birth_wire_root,batch_id,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM s_content_objects WHERE rowid=?1").map_err(err)?;
+        q.bind_integer(1, *rowid).map_err(err)?;
+        let mut row = q
+            .next()
+            .map_err(err)?
+            .ok_or_else(|| err("缺对象实际效果行"))?;
+        let e = decode_persisted_entry(&mut row, &mut store, latest, None)?;
+        drop(row);
+        q.finalize().map_err(err)?;
+        let refs = [
+            built_ref(&store, &e.generated),
+            built_ref(&store, &e.internal),
+            built_ref(&store, &e.immutable),
+            e.birth_wire.clone(),
+        ];
+        store
+            .verify_many_ref(refs.iter().map(RefValue::view), sc::Mode::Public)
+            .map_err(err)?;
+        bind_originals(&mut store, &e, &mut leaf_bindings)?;
+        wire_at(&mut store, &e, latest)?;
+        let ordinal = match events.by_id.get(e.id.as_str()) {
+            Some(i) => {
+                let i = *i;
+                index[i] = e;
+                i
+            }
+            None => {
+                let i = index.len();
+                events.by_id.insert(e.id.try_clone()?, i).map_err(err)?;
+                events.ranks.push(order_key(&e, false).owned());
+                events.withdrawn_ranks.push(order_key(&e, true).owned());
+                events
+                    .births
+                    .entry(e.life.first_known_generation)
+                    .or_default()
+                    .push(i);
+                index.try_push(e).map_err(err)?;
+                i
+            }
+        };
+        if let Some(death) = index[ordinal].life.withdrawn_generation {
+            let ids = events.deaths.entry(death).or_default();
+            let at = ids.partition_point(|other| {
+                (&events.ranks[*other], *other) < (&events.ranks[ordinal], ordinal)
+            });
+            if ids.get(at) != Some(&ordinal) {
+                ids.insert(at, ordinal);
+            }
+        }
+        changed.push(ordinal);
+    }
+    for ordinal in changed {
+        validate_withdrawal_target(&index[ordinal], index, &events.by_id)?;
+    }
+    Ok(())
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) fn restore_for_owner<'a>(
+    entries: sc::CodecVec<Entry>,
+    s: &super::history::HashReader<'a>,
+    sweep: &HistorySweep,
+    _bound: &super::audit_owner::BoundOriginals,
+) -> Result<HistoryObjects<'a>, String> {
+    let capture = s
+        .native_projection_capture()
+        .ok_or_else(|| err("对象恢复缺 Native owner"))?;
+    let native = Some(NativeProjection {
+        capture,
+        wires: vec![[None, None]; entries.len()],
+        sweep: Some(ProjectionSweep::from_events(sweep.events.clone())),
+    });
+    Ok(HistoryObjects { entries, native })
+}
+
 /// 内部 prior 只来自上代活动CC010/CC056；调用者保持本Vec活到generate结束。
 pub(super) fn prior_records(index: &[Entry]) -> Result<(Vec<Built>, Option<Built>), String> {
     let mut bi = Vec::new();
@@ -1619,8 +1727,8 @@ struct HistoryEvents {
     by_id: bj::BusinessMap<TextValue, usize>,
     births: std::collections::BTreeMap<i64, Vec<usize>>,
     deaths: std::collections::BTreeMap<i64, Vec<usize>>,
-    ranks: Vec<usize>,
-    withdrawn_ranks: Vec<usize>,
+    ranks: Vec<OrderKey<String>>,
+    withdrawn_ranks: Vec<OrderKey<String>>,
     #[cfg(test)]
     initial_entries: usize,
     #[cfg(test)]
@@ -1653,8 +1761,8 @@ impl HistoryEvents {
             by_id,
             births: Default::default(),
             deaths: Default::default(),
-            ranks: vec![0; index.len()],
-            withdrawn_ranks: vec![0; index.len()],
+            ranks: index.iter().map(|e| order_key(e, false).owned()).collect(),
+            withdrawn_ranks: index.iter().map(|e| order_key(e, true).owned()).collect(),
             #[cfg(test)]
             initial_entries: 0,
             #[cfg(test)]
@@ -1666,9 +1774,6 @@ impl HistoryEvents {
             out.sort_passes += 1;
         }
         order.sort_unstable_by(|a, b| ordering(&index[*a], &index[*b], false).then(a.cmp(b)));
-        for (rank, i) in order.iter().enumerate() {
-            out.ranks[*i] = rank;
-        }
         for (i, e) in index.iter().enumerate() {
             #[cfg(test)]
             {
@@ -1690,16 +1795,13 @@ impl HistoryEvents {
             out.sort_passes += 1;
         }
         order.sort_unstable_by(|a, b| ordering(&index[*a], &index[*b], true).then(a.cmp(b)));
-        for (rank, i) in order.into_iter().enumerate() {
-            out.withdrawn_ranks[i] = rank;
-        }
         out
     }
 }
 /// before-g游标保留原成员/变化审计入口和边界；不消费through-g状态。
 pub(super) struct HistorySweep {
     events: std::sync::Arc<HistoryEvents>,
-    active: BTreeSet<(usize, usize)>,
+    active: BTreeSet<(OrderKey<String>, usize)>,
     previous: i64,
     #[cfg(test)]
     visits: SweepVisits,
@@ -1742,7 +1844,7 @@ impl HistorySweep {
         }
         for (_, ids) in self.events.births.range(self.previous..g) {
             for i in ids {
-                self.active.insert((self.events.ranks[*i], *i));
+                self.active.insert((self.events.ranks[*i].clone(), *i));
                 #[cfg(test)]
                 {
                     self.visits.births += 1;
@@ -1751,7 +1853,7 @@ impl HistorySweep {
         }
         for (_, ids) in self.events.deaths.range(self.previous..g) {
             for i in ids {
-                self.active.remove(&(self.events.ranks[*i], *i));
+                self.active.remove(&(self.events.ranks[*i].clone(), *i));
                 #[cfg(test)]
                 {
                     self.visits.deaths += 1;
@@ -1786,8 +1888,8 @@ impl HistorySweep {
 /// through-g双投影游标；任意合法cut可重复、跳跃、回退，不改准入判据。
 struct ProjectionSweep {
     events: std::sync::Arc<HistoryEvents>,
-    active: BTreeSet<(usize, usize)>,
-    withdrawn: BTreeSet<(usize, usize)>,
+    active: BTreeSet<(OrderKey<String>, usize)>,
+    withdrawn: BTreeSet<(OrderKey<String>, usize)>,
     previous_cut: Option<i64>,
     #[cfg(test)]
     visits: ProjectionVisits,
@@ -1822,7 +1924,7 @@ impl ProjectionSweep {
             let lower = self.previous_cut.map_or(Unbounded, Excluded);
             for (_, ids) in self.events.births.range((lower, Included(g))) {
                 for i in ids {
-                    self.active.insert((self.events.ranks[*i], *i));
+                    self.active.insert((self.events.ranks[*i].clone(), *i));
                     #[cfg(test)]
                     {
                         self.visits.births += 1;
@@ -1831,8 +1933,9 @@ impl ProjectionSweep {
             }
             for (_, ids) in self.events.deaths.range((lower, Included(g))) {
                 for i in ids {
-                    self.active.remove(&(self.events.ranks[*i], *i));
-                    self.withdrawn.insert((self.events.withdrawn_ranks[*i], *i));
+                    self.active.remove(&(self.events.ranks[*i].clone(), *i));
+                    self.withdrawn
+                        .insert((self.events.withdrawn_ranks[*i].clone(), *i));
                     #[cfg(test)]
                     {
                         self.visits.deaths += 1;
@@ -1846,8 +1949,8 @@ impl ProjectionSweep {
             for (_, ids) in self.events.deaths.range((Excluded(g), Included(previous))) {
                 for i in ids {
                     self.withdrawn
-                        .remove(&(self.events.withdrawn_ranks[*i], *i));
-                    self.active.insert((self.events.ranks[*i], *i));
+                        .remove(&(self.events.withdrawn_ranks[*i].clone(), *i));
+                    self.active.insert((self.events.ranks[*i].clone(), *i));
                     #[cfg(test)]
                     {
                         self.visits.deaths += 1;
@@ -1856,7 +1959,7 @@ impl ProjectionSweep {
             }
             for (_, ids) in self.events.births.range((Excluded(g), Included(previous))) {
                 for i in ids {
-                    self.active.remove(&(self.events.ranks[*i], *i));
+                    self.active.remove(&(self.events.ranks[*i].clone(), *i));
                     #[cfg(test)]
                     {
                         self.visits.births += 1;
@@ -4392,6 +4495,18 @@ mod owner_retention {
                 Self::Typed { kind, fact_key } => {
                     kind.heap_bytes().saturating_add(fact_key.heap_bytes())
                 }
+            }
+        }
+    }
+    impl Retained for OrderKey<String> {
+        fn heap_bytes(&self) -> usize {
+            match self {
+                Self::Shape(_) => 0,
+                Self::Typed(k, f, i, _) => crate::v3::audit_retention::sum([
+                    k.heap_bytes(),
+                    f.heap_bytes(),
+                    i.heap_bytes(),
+                ]),
             }
         }
     }

@@ -2109,27 +2109,7 @@ fn read_raw_events_until(
         )
         .map_err(|e| format!("prepare 读取失败：{e}"))?;
     let mut rows = stmt
-        .query_map([], |r| {
-            Ok(json!({
-                "identity_key": r.get::<_, String>(0)?,
-                "revision": r.get::<_, i64>(1)?,
-                "input_revision": r.get::<_, String>(2)?,
-                "payload_hash": r.get::<_, String>(3)?,
-                "receipt_id": r.get::<_, String>(4)?,
-                "seq": r.get::<_, i64>(5)?,
-                "source_namespace": r.get::<_, String>(6)?,
-                "source_epoch": r.get::<_, String>(7)?,
-                "instrument": r.get::<_, String>(8)?,
-                "event_id": r.get::<_, String>(9)?,
-                "received_at": r.get::<_, String>(10)?,
-                "raw_text": r.get::<_, String>(11)?,
-                "price": r.get::<_, String>(12)?,
-                "ts": r.get::<_, String>(13)?,
-                "volume": r.get::<_, String>(14)?,
-                "source_coord": r.get::<_, String>(15)?,
-                "supersedes_revision": r.get::<_, Option<i64>>(16)?,
-            }))
-        })
+        .query_map([], decode_raw_row)
         .map_err(|e| format!("query 失败：{e}"))?
         .map(|row| {
             check_read_deadline(deadline)?;
@@ -2140,6 +2120,36 @@ fn read_raw_events_until(
     v3::business_json::validate_raw(v3::business_json::RawEventsView::plain(&rows), deadline)?;
     check_read_deadline(deadline)?;
     Ok(rows)
+}
+
+fn decode_raw_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Value> {
+    Ok(json!({
+        "identity_key": r.get::<_, String>(0)?,
+        "revision": r.get::<_, i64>(1)?,
+        "input_revision": r.get::<_, String>(2)?,
+        "payload_hash": r.get::<_, String>(3)?,
+        "receipt_id": r.get::<_, String>(4)?,
+        "seq": r.get::<_, i64>(5)?,
+        "source_namespace": r.get::<_, String>(6)?,
+        "source_epoch": r.get::<_, String>(7)?,
+        "instrument": r.get::<_, String>(8)?,
+        "event_id": r.get::<_, String>(9)?,
+        "received_at": r.get::<_, String>(10)?,
+        "raw_text": r.get::<_, String>(11)?,
+        "price": r.get::<_, String>(12)?,
+        "ts": r.get::<_, String>(13)?,
+        "volume": r.get::<_, String>(14)?,
+        "source_coord": r.get::<_, String>(15)?,
+        "supersedes_revision": r.get::<_, Option<i64>>(16)?,
+    }))
+}
+/// 固定 Accept 的实际 seq 回读；沿完整读取相同解码，不构造旧 raw 副本。
+#[cfg(feature = "s_capture_native_testonly")]
+fn read_raw_event_at(conn: &Connection, seq: i64) -> Result<Value, String> {
+    let mut value = conn.query_row(
+        "SELECT identity_key,revision,input_revision,payload_hash,receipt_id,seq,source_namespace,source_epoch,instrument,event_id,received_at,raw_text,price,ts,volume,source_coord,supersedes_revision FROM raw_events WHERE seq=?1", [seq], decode_raw_row).map_err(|e| format!("StorageUnavailable：{e}"))?;
+    tb02a::enrich_raw_row(conn, &mut value)?;
+    Ok(value)
 }
 
 /// 有效源位置：每个业务身份取最新 revision，按源坐标升序（晚到新版不当作追加 tick）。

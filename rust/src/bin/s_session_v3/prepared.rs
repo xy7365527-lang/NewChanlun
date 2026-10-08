@@ -153,7 +153,14 @@ impl Runtime {
         envelope: &Value,
     ) -> Result<commit::CommitReceipt, String> {
         let result = (|| {
-            let receipt = self.publish_impl(&mut tx, token, envelope, None)?;
+            let receipt = self.publish_impl(
+                &mut tx,
+                token,
+                envelope,
+                None,
+                #[cfg(feature = "s_capture_native_testonly")]
+                None,
+            )?;
             tx.commit()
                 .map_err(|e| format!("PublicationInvalid：{e}"))?;
             Ok(receipt)
@@ -172,7 +179,14 @@ impl Runtime {
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<commit::CommitReceipt, String> {
         let result = (|| {
-            let receipt = self.publish_impl(&mut tx, token, envelope, Some(context))?;
+            let receipt = self.publish_impl(
+                &mut tx,
+                token,
+                envelope,
+                Some(context),
+                #[cfg(feature = "s_capture_native_testonly")]
+                None,
+            )?;
             tx.commit()
                 .map_err(|e| format!("PublicationInvalid：{e}"))?;
             Ok(receipt)
@@ -197,6 +211,7 @@ impl Runtime {
         token: &str,
         envelope: &Value,
         context: Option<&mut request_audit::RequestAuditContext>,
+        #[cfg(feature = "s_capture_native_testonly")] bound_audit: Option<&state::AuditedState>,
     ) -> Result<commit::CommitReceipt, String> {
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
         let stage = if self.stage_new_nodes {
@@ -213,6 +228,8 @@ impl Runtime {
                 token,
                 envelope,
                 context,
+                #[cfg(feature = "s_capture_native_testonly")]
+                bound_audit,
                 #[cfg(all(test, feature = "s_capture_native_testonly"))]
                 stage.as_ref(),
             )?;
@@ -271,6 +288,7 @@ impl Runtime {
         token: &str,
         envelope: &Value,
         context: Option<&mut request_audit::RequestAuditContext>,
+        #[cfg(feature = "s_capture_native_testonly")] bound_audit: Option<&state::AuditedState>,
         #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
             &staged_nodes::StageOwner,
         >,
@@ -280,14 +298,22 @@ impl Runtime {
             .as_deref()
             .and_then(request_audit::RequestAuditContext::manifest_workspace_budget);
         // 完整旧状态审计（读写共用同一份 state::audit）先于节点、索引、目录等第一次写入完成。
-        let audited = match context {
-            Some(context) => s_allocation::audit_in_request(
-                tx,
-                &self.mode,
-                s_allocation::Phase::Prepare,
-                context,
-            )?,
-            None => s_allocation::audit(tx, &self.mode, s_allocation::Phase::Prepare)?,
+        #[cfg(not(feature = "s_capture_native_testonly"))]
+        let bound_audit: Option<&state::AuditedState> = None;
+        let fresh;
+        let audited = if let Some(bound) = bound_audit {
+            bound
+        } else {
+            fresh = match context {
+                Some(context) => s_allocation::audit_in_request(
+                    tx,
+                    &self.mode,
+                    s_allocation::Phase::Prepare,
+                    context,
+                )?,
+                None => s_allocation::audit(tx, &self.mode, s_allocation::Phase::Prepare)?,
+            };
+            &fresh
         };
         let clock = v2::stored_clock(tx)?;
         let control = control::S3Control::attach(tx, &clock)?;

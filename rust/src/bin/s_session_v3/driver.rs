@@ -393,6 +393,7 @@ impl Driver {
         match admission {
             super::audit_owner::Admission::Reply(reply) => Ok((reply, ended)),
             super::audit_owner::Admission::Advance { original, accepted } => {
+                self.conn.continue_with(ended)?;
                 #[cfg(test)]
                 if accepted && self.stop_after == Some("accept") {
                     return Err("TestOnly：stop_after_accept".into());
@@ -671,11 +672,11 @@ mod tests {
             eprintln!("normal new-message raw replay: ordinary={ordinary_result:?}; native={native_result:?}");
             assert_eq!(native_result, ordinary_result);
             let actual = native_result.unwrap();
-            assert_eq!(
-                native.conn.complete_retained_bytes(),
-                0,
-                "新message raw replay也是真实控制写，不能保留资格"
+            assert!(
+                native.conn.complete_retained_bytes() > 0,
+                "新 message replay 必须由实际 Accept Q 效果取得写后资格"
             );
+            native.conn.assert_complete_matches_cold();
             assert_eq!(actual["kind"], "Committed");
             assert_eq!(count(&native.conn, "raw_events"), 1);
             assert_eq!(count(&native.conn, "raw_ohlc"), 1);
@@ -799,6 +800,13 @@ mod tests {
                 ordinary.handle(e).unwrap()
             );
         }
+        assert!(
+            native.conn.complete_report()["charge"]["incremental_steps"]
+                .as_u64()
+                .unwrap_or(0)
+                >= 9,
+            "三次正常写应完整消费 owner effects 与新代"
+        );
         let ready = envelope("ready-complete", json!({"op":"ready"}));
         assert_eq!(
             native.handle(ready.clone()).unwrap(),
@@ -851,7 +859,7 @@ mod tests {
 
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
-    fn audit_owner_complete_accept_tail_begin_recover_retry_and_revision_invalidate() {
+    fn audit_owner_complete_accept_tail_begin_recover_retry_and_revision_qualification() {
         let f = Fixture::new();
         let o = Fixture::new();
         let mut native = complete_driver(&f);
@@ -917,7 +925,7 @@ mod tests {
             .recover("2", &ordinary.clock, "recover-2")
             .unwrap();
         assert_eq!(nr, or);
-        assert_eq!(native.conn.complete_retained_bytes(), 0);
+        assert!(native.conn.complete_retained_bytes() > 0);
         native.epoch = "2".into();
         ordinary.epoch = "2".into();
         assert_eq!(
@@ -953,7 +961,7 @@ mod tests {
             native.handle(revision.clone()).unwrap(),
             ordinary.handle(revision).unwrap()
         );
-        assert_eq!(native.conn.complete_retained_bytes(), 0);
+        assert!(native.conn.complete_retained_bytes() > 0);
         assert_eq!(
             native.handle(ready.clone()).unwrap(),
             ordinary.handle(ready).unwrap()
@@ -1033,6 +1041,40 @@ mod tests {
         eprintln!(
             "{}",
             json!({"scenario":"owner-optional-retention-budget","cap":1024,"complete_retained":bounded.conn.complete_retained_bytes()})
+        );
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn audit_owner_write_budget_releases_candidate_after_successful_normal_append() {
+        use super::super::audit_owner::allocation_probe::Window;
+        let f = Fixture::new();
+        let o = Fixture::new();
+        let mut native = complete_driver(&f);
+        let mut ordinary = o.open("1").unwrap();
+        assert_eq!(
+            native.handle(Fixture::ingest(1)).unwrap(),
+            ordinary.handle(Fixture::ingest(1)).unwrap()
+        );
+        let held = native.conn.complete_retained_bytes();
+        assert!(held > 0);
+        // 仅收紧本测试 Driver 的同一 S7 额度，不修改任何默认额度。
+        native.audit_cache_source_bytes =
+            Some(crate::cache::retained_bytes() + held + 8 * 1024 * 1024);
+        let memory = Window::start();
+        let (actual, events, work) = state::traced(true, || native.handle(Fixture::ingest(2)));
+        let memory = memory.finish();
+        let expected = ordinary.handle(Fixture::ingest(2)).unwrap();
+        assert_eq!(actual.unwrap(), expected);
+        assert_eq!(native.conn.complete_retained_bytes(), 0);
+        assert!(events.iter().any(|e| e["phase"] == "owner_complete_hit"));
+        assert_eq!(
+            prepared::tests::runtime_root_tables(&native.conn, true),
+            prepared::tests::runtime_root_tables(&ordinary.conn, true)
+        );
+        eprintln!(
+            "{}",
+            json!({"scenario":"r4-write-budget-release","old_charge":held,"allocation":memory,"events":events,"work":work,"retained":native.conn.complete_retained_bytes()})
         );
     }
 
@@ -3475,5 +3517,347 @@ mod tests {
             .starts_with("begun:"));
         assert_eq!(count(&c, "writer_epoch_history"), 0);
         assert_eq!(count(&c, "s_clock_events"), 2);
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn audit_owner_staged_normal_append_consumes_actual_nodes_and_suffix() {
+        let f = Fixture::new();
+        let o = Fixture::new();
+        let c = Fixture::new();
+        let mut native = complete_driver(&f);
+        let mut ordinary = o.open("1").unwrap();
+        native.runtime.enable_staging_for_native_test().unwrap();
+        let mut control = native_driver(&c);
+        control.runtime.enable_staging_for_native_test().unwrap();
+        let ready = envelope("stage-establish", json!({"op":"ready"}));
+        assert_eq!(
+            native.handle(ready.clone()).unwrap(),
+            ordinary.handle(ready).unwrap()
+        );
+        for n in 1..=3 {
+            let input = Fixture::ingest(n);
+            let expected = ordinary.handle(input.clone()).unwrap();
+            assert_eq!(control.handle(input.clone()).unwrap(), expected);
+            let probe = native.conn.sql_read_probe();
+            let memory = super::super::audit_owner::allocation_probe::Window::start();
+            let (actual, events, work) = state::traced(true, || native.handle(input));
+            let memory = memory.finish();
+            drop(probe);
+            assert_eq!(actual.unwrap(), expected);
+            for phase in [
+                "history_decode_manifest",
+                "generated_sources",
+                "catalog_cut",
+            ] {
+                assert_eq!(
+                    events
+                        .iter()
+                        .filter(|e| e["phase"] == phase)
+                        .map(|e| e["generation"].as_i64().unwrap())
+                        .collect::<Vec<_>>(),
+                    [n]
+                );
+            }
+            native.conn.assert_complete_matches_cold();
+            // staged 原语义只刷可达新节点；以独立逐次 cold 的 staged 臂比较全部节点原字节，
+            // ordinary eager 臂比较全部非节点持久原件、公开根与回执。
+            assert_eq!(
+                prepared::tests::runtime_root_tables(&native.conn, true),
+                prepared::tests::runtime_root_tables(&control.conn, true)
+            );
+            assert_eq!(
+                prepared::tests::runtime_root_tables(&native.conn, false),
+                prepared::tests::runtime_root_tables(&ordinary.conn, false)
+            );
+            eprintln!(
+                "{}",
+                json!({"scenario":"r4-staged-normal-append","generation":n,"allocation":memory,"events":events,"work":work,"staging":native.runtime.staging_report_for_native_test(),"retention":native.conn.complete_report()})
+            );
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn audit_owner_incremental_normal_writes_full_oracle_and_suffix() {
+        use super::super::audit_owner::allocation_probe::Window;
+        fn context(d: &mut Driver) -> request_audit::RequestAuditContext {
+            let total = d.audit_cache_source_bytes.unwrap_or(536_870_912);
+            let keeper = d
+                .conn
+                .take_source_keeper()
+                .unwrap_or_else(|| super::super::cross_request_source_cache::Keeper::new(total));
+            let old = keeper.retained_source_bytes() + d.conn.complete_retained_bytes();
+            let mut c = request_audit::RequestAuditContext::with_source_keeper(keeper);
+            c.freeze_manifest_workspace_budget(total, crate::cache::retained_bytes(), old)
+                .unwrap();
+            c
+        }
+        fn same(n: &Driver, o: &Driver) {
+            n.conn.assert_complete_matches_cold();
+            assert_eq!(
+                prepared::tests::runtime_root_tables(&n.conn, true),
+                prepared::tests::runtime_root_tables(&o.conn, true)
+            );
+        }
+        fn request(n: &mut Driver, o: &mut Driver, e: Value, new: Option<i64>) -> Value {
+            let expected = o.handle(e.clone()).unwrap();
+            let probe = n.conn.sql_read_probe();
+            let frames = newchan_rust::s_content::frame_calls_on_thread();
+            let frame_bytes = newchan_rust::s_content::frame_bytes_on_thread();
+            let hashes = newchan_rust::session_protocol::hash_work_on_thread();
+            let memory = Window::start();
+            let (actual, events, work) = state::traced(true, || n.handle(e.clone()));
+            let memory = memory.finish();
+            let after = newchan_rust::session_protocol::hash_work_on_thread();
+            drop(probe);
+            assert_eq!(actual.as_ref().unwrap(), &expected);
+            for phase in [
+                "history_decode_manifest",
+                "generated_sources",
+                "catalog_cut",
+            ] {
+                let generations: Vec<_> = events
+                    .iter()
+                    .filter(|event| event["phase"] == phase)
+                    .map(|event| event["generation"].as_i64().unwrap())
+                    .collect();
+                assert_eq!(
+                    generations,
+                    new.into_iter().collect::<Vec<_>>(),
+                    "{phase}: {events:?}"
+                );
+            }
+            assert!(
+                n.conn.complete_retained_bytes() > 0,
+                "正常包不得仅因可选保留被丢弃而绕过后缀锁"
+            );
+            if new.is_some() {
+                assert_eq!(work["raw_payload_hashes"], 1);
+                assert_eq!(work["raw_source_hashes"], 4);
+            } else {
+                assert_eq!(work["raw_payload_hashes"], 0);
+                assert_eq!(work["raw_source_hashes"], 0);
+            }
+            eprintln!(
+                "{}",
+                json!({"scenario":"r4-normal-owner-request","message":e["message_id"],"expected_new_cut":new,"allocation":memory,"events":events,"work":work,
+                "sql_classes":["raw_and_ohlc","control","other_nonnode","nodes"],"protocol_sha256_calls":after.0-hashes.0,"protocol_sha256_bytes":after.1-hashes.1,
+                "content_frame_hashes":newchan_rust::s_content::frame_calls_on_thread()-frames,
+                "content_frame_sha256_bytes":newchan_rust::s_content::frame_bytes_on_thread()-frame_bytes,"retention":n.conn.complete_report()})
+            );
+            same(n, o);
+            actual.unwrap()
+        }
+        let base = Fixture::new();
+        let mut plan = base.clock.value.clone();
+        for n in 4..=5 {
+            plan["events"][format!("input-{n}")] = json!({"accept_ns":(n*10).to_string(),"attempts":[{"begin_ns":(n*10+1).to_string(),"commit_ns":(n*10+2).to_string()}]});
+        }
+        let f = Fixture::with_clock(plan.clone());
+        let o = Fixture::with_clock(plan);
+        let mut native = complete_driver(&f);
+        let mut ordinary = o.open("1").unwrap();
+        let ready = envelope("establish-q", json!({"op":"ready"}));
+        assert_eq!(
+            native.handle(ready.clone()).unwrap(),
+            ordinary.handle(ready).unwrap()
+        );
+        same(&native, &ordinary);
+        request(&mut native, &mut ordinary, Fixture::ingest(1), Some(1));
+        let second = Fixture::ingest(2);
+        // 使用固定 API 正常终结 Accept 与 Begin；没有 stop_after、异常、坏库或故障注入。
+        let mut c = context(&mut native);
+        let mut oc = request_audit::RequestAuditContext::default();
+        let probe = native.conn.sql_read_probe();
+        let memory = Window::start();
+        let hashes = newchan_rust::session_protocol::hash_work_on_thread();
+        let (accepted, events, work) = state::traced(true, || {
+            native.conn.admit(
+                second.clone(),
+                &native.epoch,
+                &native.clock,
+                &native.profile_id,
+                native.volume_unit.as_deref(),
+                &native.mode,
+                &mut c,
+            )
+        });
+        drop(probe);
+        let memory = memory.finish();
+        let after = newchan_rust::session_protocol::hash_work_on_thread();
+        let (a, end) = accepted.unwrap();
+        assert!(matches!(
+            a,
+            super::super::audit_owner::Admission::Advance { accepted: true, .. }
+        ));
+        native.conn.finish_source_keeper(c, end);
+        let (_, end) = ordinary
+            .conn
+            .admit(
+                second.clone(),
+                &ordinary.epoch,
+                &ordinary.clock,
+                &ordinary.profile_id,
+                ordinary.volume_unit.as_deref(),
+                &ordinary.mode,
+                &mut oc,
+            )
+            .unwrap();
+        ordinary.conn.finish_source_keeper(oc, end);
+        assert_eq!(native.conn.complete_report()["raw_checked"], 2);
+        assert_eq!(native.conn.complete_report()["published_prefix"], 1);
+        assert!(!events
+            .iter()
+            .any(|e| e["phase"] == "history_decode_manifest"));
+        assert_eq!(work["raw_payload_hashes"], 1);
+        assert_eq!(work["raw_source_hashes"], 0);
+        eprintln!(
+            "{}",
+            json!({"scenario":"r4-accept-R-greater-than-F","allocation":memory,"protocol_sha256_calls":after.0-hashes.0,"protocol_sha256_bytes":after.1-hashes.1,"events":events,"work":work,"retention":native.conn.complete_report()})
+        );
+        same(&native, &ordinary);
+        let mut c = context(&mut native);
+        let mut oc = request_audit::RequestAuditContext::default();
+        let probe = native.conn.sql_read_probe();
+        let memory = Window::start();
+        let hashes = newchan_rust::session_protocol::hash_work_on_thread();
+        let (b, events, work) = state::traced(true, || {
+            native
+                .conn
+                .begin_advance(&second, &native.epoch, &native.clock, &native.mode, &mut c)
+        });
+        drop(probe);
+        let memory = memory.finish();
+        let after = newchan_rust::session_protocol::hash_work_on_thread();
+        drop(b.unwrap());
+        drop(c);
+        drop(
+            ordinary
+                .conn
+                .begin_advance(
+                    &second,
+                    &ordinary.epoch,
+                    &ordinary.clock,
+                    &ordinary.mode,
+                    &mut oc,
+                )
+                .unwrap(),
+        );
+        assert!(!events
+            .iter()
+            .any(|e| e["phase"] == "history_decode_manifest"));
+        eprintln!(
+            "{}",
+            json!({"scenario":"r4-normal-begin","allocation":memory,"protocol_sha256_calls":after.0-hashes.0,"protocol_sha256_bytes":after.1-hashes.1,"events":events,"work":work})
+        );
+        same(&native, &ordinary);
+        let probe = native.conn.sql_read_probe();
+        let memory = Window::start();
+        let hashes = newchan_rust::session_protocol::hash_work_on_thread();
+        let (recovered, events, work) = state::traced(true, || {
+            native.conn.recover("2", &native.clock, "recover-2")
+        });
+        drop(probe);
+        let memory = memory.finish();
+        let after = newchan_rust::session_protocol::hash_work_on_thread();
+        assert_eq!(
+            recovered.unwrap(),
+            ordinary
+                .conn
+                .recover("2", &ordinary.clock, "recover-2")
+                .unwrap()
+        );
+        native.epoch = "2".into();
+        ordinary.epoch = "2".into();
+        assert!(!events
+            .iter()
+            .any(|e| e["phase"] == "history_decode_manifest"));
+        eprintln!(
+            "{}",
+            json!({"scenario":"r4-normal-recover","allocation":memory,"protocol_sha256_calls":after.0-hashes.0,"protocol_sha256_bytes":after.1-hashes.1,"events":events,"work":work,"retention":native.conn.complete_report()})
+        );
+        same(&native, &ordinary);
+        let mut c = context(&mut native);
+        let mut oc = request_audit::RequestAuditContext::default();
+        let probe = native.conn.sql_read_probe();
+        let memory = Window::start();
+        let hashes = newchan_rust::session_protocol::hash_work_on_thread();
+        let (advanced, events, work) = state::traced(true, || native.advance(&second, &mut c));
+        drop(probe);
+        let memory = memory.finish();
+        let after = newchan_rust::session_protocol::hash_work_on_thread();
+        let (reply, end) = advanced.unwrap();
+        native.conn.finish_source_keeper(c, end);
+        let (expected, end) = ordinary.advance(&second, &mut oc).unwrap();
+        ordinary.conn.finish_source_keeper(oc, end);
+        assert_eq!(reply, expected);
+        for phase in [
+            "history_decode_manifest",
+            "generated_sources",
+            "catalog_cut",
+        ] {
+            assert_eq!(
+                events
+                    .iter()
+                    .filter(|e| e["phase"] == phase)
+                    .map(|e| e["generation"].as_i64().unwrap())
+                    .collect::<Vec<_>>(),
+                [2]
+            );
+        }
+        assert_eq!(work["raw_payload_hashes"], 0);
+        assert_eq!(work["raw_source_hashes"], 4);
+        eprintln!(
+            "{}",
+            json!({"scenario":"r4-retry-original-envelope","allocation":memory,"protocol_sha256_calls":after.0-hashes.0,"protocol_sha256_bytes":after.1-hashes.1,"events":events,"work":work,"retention":native.conn.complete_report()})
+        );
+        same(&native, &ordinary);
+        let mut revision = Fixture::ingest(3);
+        revision["payload"]["raw_input"] = second["payload"]["raw_input"].clone();
+        revision["payload"]["raw_input"]["events"][0]["revision"] = json!("2");
+        revision["payload"]["raw_input"]["events"][0]["high"] = json!("17");
+        revision["payload"]["writer_epoch"] = json!("2");
+        revision["payload_hash"] =
+            json!(sha256_hex(canonical_json(&revision["payload"]).as_bytes()));
+        request(&mut native, &mut ordinary, revision.clone(), Some(3));
+        let mut replay = revision.clone();
+        replay["message_id"] = json!("message-4");
+        replay["payload"]["clock_event_id"] = json!("input-4");
+        replay["payload_hash"] = json!(sha256_hex(canonical_json(&replay["payload"]).as_bytes()));
+        request(&mut native, &mut ordinary, replay, None);
+        assert_eq!(count(&native.conn, "s_content_publications"), 3);
+        assert_eq!(count(&native.conn, "raw_events"), 3);
+        let mut inserted = Fixture::ingest(3);
+        inserted["message_id"] = json!("message-5");
+        inserted["payload"]["clock_event_id"] = json!("input-5");
+        inserted["payload"]["raw_input"]["events"][0]["seq"] = json!("5");
+        inserted["payload"]["writer_epoch"] = json!("2");
+        inserted["payload_hash"] =
+            json!(sha256_hex(canonical_json(&inserted["payload"]).as_bytes()));
+        request(&mut native, &mut ordinary, inserted, Some(4));
+        let retained = native.conn.complete_retained_bytes();
+        assert!(retained > 0);
+        let memory = Window::start();
+        drop(native);
+        let memory = memory.finish();
+        let mut reopened = Driver::open_for_serve_with_mode(
+            &f.db,
+            &f.profile,
+            "2",
+            f.clock.clone(),
+            536_870_912,
+            s_allocation::Mode::CapturedNative,
+        )
+        .unwrap();
+        assert_eq!(reopened.conn.complete_retained_bytes(), 0);
+        assert_eq!(
+            reopened.handle(receipt_request(&revision)).unwrap(),
+            ordinary.handle(receipt_request(&revision)).unwrap()
+        );
+        reopened.conn.assert_complete_matches_cold();
+        eprintln!(
+            "{}",
+            json!({"scenario":"r4-release-reopen","released_owner_charge":retained,"allocation":memory,"new_life":reopened.conn.complete_report()["life"]})
+        );
     }
 }

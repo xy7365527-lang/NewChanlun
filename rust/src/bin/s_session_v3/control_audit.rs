@@ -210,18 +210,35 @@ fn verify_s3_publications_with_owner(
             r.optional_integer(5)
                 .map_err(|e| format!("StorageUnavailable：{e}"))?,
         ];
-        if g != expected_generation
-            || delta_batch.as_deref() != Some(batch_id.as_str())
-            || root_lens != [Some(32), Some(32), Some(32)]
-        {
-            return Err(format!(
-                "IdentityConflict：发布索引第 {g} 代与结构 Delta 不闭合（应代={expected_generation}，batch_id={batch_id}，delta批次={delta_batch:?}，三根长度={root_lens:?}）"
-            ));
-        }
+        validate_publication_pair(
+            g,
+            expected_generation,
+            batch_id.as_str(),
+            delta_batch.as_deref(),
+            root_lens,
+        )?;
         expected_generation += 1;
     }
     q.finalize()
         .map_err(|e| format!("StorageUnavailable：读发布索引行失败：{e}"))?;
+    Ok(())
+}
+
+pub(super) fn validate_publication_pair(
+    g: i64,
+    expected_generation: i64,
+    batch_id: &str,
+    delta_batch: Option<&str>,
+    root_lens: [Option<i64>; 3],
+) -> Result<(), String> {
+    if g != expected_generation
+        || delta_batch != Some(batch_id)
+        || root_lens != [Some(32), Some(32), Some(32)]
+    {
+        return Err(format!(
+                "IdentityConflict：发布索引第 {g} 代与结构 Delta 不闭合（应代={expected_generation}，batch_id={batch_id}，delta批次={delta_batch:?}，三根长度={root_lens:?}）"
+            ));
+    }
     Ok(())
 }
 

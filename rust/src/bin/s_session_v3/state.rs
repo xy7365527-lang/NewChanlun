@@ -895,6 +895,12 @@ fn audit_one_cut_sources(
 #[cfg(test)]
 #[derive(Default, Clone, Copy, serde::Serialize)]
 struct WorkCounts {
+    sql_returned_rows: [u64; 4],
+    sql_returned_bytes: [u64; 4],
+    local_sha256_calls: u64,
+    local_sha256_bytes: u64,
+    raw_payload_hashes: u64,
+    raw_source_hashes: u64,
     source_reads: u64,
     overlay_reads: u64,
     overlay_puts: u64,
@@ -1048,16 +1054,28 @@ fn verify_unrun_catalog(
         let proof = text(&mut row, 2)?;
         let run = text(&mut row, 3)?;
         let evidence = text(&mut row, 4)?;
-        if (initial || !catalog_evidence::AXIS_IDS.contains(&id.as_str()))
-            && (implemented != "not_implemented"
-                || proof != "not_proved"
-                || run != "not_run"
-                || evidence != "{}")
-        {
-            return Err(err(format!("未运行目录{id}带无来源运行状态")));
-        }
+        validate_unrun_row(&id, &implemented, &proof, &run, &evidence, initial)?;
     }
     stmt.finalize().map_err(err)
+}
+
+pub(super) fn validate_unrun_row(
+    id: &str,
+    implemented: &str,
+    proof: &str,
+    run: &str,
+    evidence: &str,
+    initial: bool,
+) -> Result<(), String> {
+    if (initial || !catalog_evidence::AXIS_IDS.contains(&id))
+        && (implemented != "not_implemented"
+            || proof != "not_proved"
+            || run != "not_run"
+            || evidence != "{}")
+    {
+        return Err(err(format!("未运行目录{id}带无来源运行状态")));
+    }
+    Ok(())
 }
 
 fn err(e: impl std::fmt::Display) -> String {
@@ -2445,4 +2463,152 @@ mod owner_retention {
             })
         }
     }
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+impl AuditedState {
+    pub(super) fn append_owner_cut(
+        self,
+        tx: &Transaction<'_>,
+        capture: &sc::AuditCapture,
+        g: i64,
+        batch: &str,
+        ns: &str,
+        object_rows: &[i64],
+        aux_rows: &[Vec<i64>; 3],
+        bound: &super::audit_owner::BoundOriginals,
+    ) -> Result<Self, String> {
+        let historical = match self.historical {
+            HistoricalOwner::Unique(v) => v,
+            HistoricalOwner::Shared(v) => {
+                std::rc::Rc::try_unwrap(v).map_err(|_| err("owner 历史仍有外部共享引用"))?
+            }
+        };
+        let ImmutableHistoricalAudit {
+            control_facts,
+            raw_prefixes,
+            raw_sources,
+            auxiliary_facts,
+            object_facts,
+            cuts,
+            objects,
+            auxiliary,
+        } = historical;
+        let previous = cuts.last().map_or(-1, |c| c.metadata.input_frontier);
+        let updated = history::append_owner_cut(
+            tx,
+            self.raw.view(),
+            capture,
+            history::IndexedHistory {
+                control_facts,
+                raw_prefixes,
+                auxiliary_facts,
+                cuts,
+                objects,
+                auxiliary,
+                object_sweep: object_facts,
+            },
+            g,
+            batch,
+            ns,
+            object_rows,
+            aux_rows,
+            bound,
+        )?;
+        let mut source = Some(source_audit::NativeSourceAudit::restore(
+            capture,
+            self.raw.view(),
+            raw_sources.ok_or_else(|| err("缺 raw 来源事实"))?,
+            bound,
+        )?);
+        let mut store = history::HashReader::captured_for_audit(capture, None).map_err(err)?;
+        let cut = updated.cuts.last().ok_or_else(|| err("缺新 C_h"))?;
+        audit_one_cut_sources(
+            cut,
+            self.raw.view(),
+            &mut store,
+            &updated.objects,
+            updated.object_sweep.as_ref(),
+            &mut source,
+            previous,
+            None,
+            None,
+            None,
+        )?;
+        let axes = field(&mut store, &cut.roots.generated_state, "catalog_axes")?;
+        catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;
+        #[cfg(test)]
+        trace_event("owner_suffix_complete", Some(g));
+        let raw_sources = source.map(source_audit::NativeSourceAudit::into_raw_facts);
+        Ok(Self {
+            raw: self.raw,
+            budget: self.budget,
+            historical: HistoricalOwner::Unique(ImmutableHistoricalAudit {
+                control_facts: updated.control_facts,
+                raw_prefixes: updated.raw_prefixes,
+                raw_sources,
+                auxiliary_facts: updated.auxiliary_facts,
+                object_facts: updated.object_sweep,
+                cuts: updated.cuts,
+                objects: updated.objects,
+                auxiliary: updated.auxiliary,
+            }),
+        })
+    }
+    pub(super) fn check_owner_raw(
+        &mut self,
+        capture: &sc::AuditCapture,
+        bound: &super::audit_owner::BoundOriginals,
+    ) -> Result<(), String> {
+        let historical = match &mut self.historical {
+            HistoricalOwner::Unique(v) => v,
+            HistoricalOwner::Shared(v) => {
+                std::rc::Rc::get_mut(v).ok_or_else(|| err("raw owner 仍有借用"))?
+            }
+        };
+        historical
+            .raw_prefixes
+            .as_mut()
+            .ok_or_else(|| err("缺 raw R/F 状态"))?
+            .check_appended(capture, self.raw.view(), bound)
+    }
+}
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(super) fn trace_owner_effects(rows: usize, peak: usize, raw: usize, cuts: usize) {
+    AUDIT_TRACE.with(|t| if let Some(t)=t.borrow_mut().as_mut() {
+        t.events.push(json!({"phase":"owner_effects","actual_rows":rows,"effects_peak":peak,"raw":raw,"cuts":cuts}));
+    });
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(super) fn trace_sql_row(class: usize, bytes: usize) {
+    AUDIT_TRACE.with(|t| {
+        if let Some(t) = t.borrow_mut().as_mut() {
+            t.work.sql_returned_rows[class] += 1;
+            t.work.sql_returned_bytes[class] += bytes as u64;
+        }
+    });
+}
+#[cfg(test)]
+pub(super) fn trace_raw_hashes(source: bool, count: u64) {
+    AUDIT_TRACE.with(|t| {
+        if let Some(t) = t.borrow_mut().as_mut() {
+            if source {
+                t.work.raw_source_hashes += count;
+            } else {
+                t.work.raw_payload_hashes += count;
+            }
+        }
+    });
+}
+
+/// 本二进制业务JSON、raw receipt、aux stream 三处直接SHA256的实际调用/输入字节。
+#[cfg(test)]
+pub(super) fn trace_local_sha256(calls: u64, bytes: usize) {
+    AUDIT_TRACE.with(|t| {
+        if let Some(t) = t.borrow_mut().as_mut() {
+            t.work.local_sha256_calls += calls;
+            t.work.local_sha256_bytes += bytes as u64;
+        }
+    });
 }

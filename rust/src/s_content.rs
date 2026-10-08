@@ -280,6 +280,8 @@ pub fn checked_frame_len(n: u64) -> Result<[u8; 8], CodecError> {
 std::thread_local! {
     /// 本线程内 `frame` 的实际调用次数（诊断探针，见 [`frame_calls_on_thread`]）。
     static FRAME_CALLS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    #[cfg(feature = "s_capture_native_testonly")]
+    static FRAME_BYTES: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
 /// 诊断探针：**本线程**内 [`frame`] 的实际计算次数（只增；跨线程不聚合）。
@@ -292,9 +294,24 @@ pub fn frame_calls_on_thread() -> u64 {
     FRAME_CALLS.with(std::cell::Cell::get)
 }
 
+/// 与实际 frame 同位置累计 SHA256 输入字节，仅 Native 诊断使用。
+#[cfg(feature = "s_capture_native_testonly")]
+#[doc(hidden)]
+pub fn frame_bytes_on_thread() -> u64 {
+    FRAME_BYTES.with(std::cell::Cell::get)
+}
+
 /// F(tag, body) = SHA256(D || one_byte(tag) || U64(len(body)) || body)。
 pub fn frame(t: u8, body: &[u8]) -> NodeDigest {
     FRAME_CALLS.with(|calls| calls.set(calls.get().wrapping_add(1)));
+    #[cfg(feature = "s_capture_native_testonly")]
+    FRAME_BYTES.with(|bytes| {
+        bytes.set(
+            bytes
+                .get()
+                .wrapping_add((DOMAIN_SEPARATOR.len() + 9 + body.len()) as u64),
+        )
+    });
     let mut h = Sha256::new();
     h.update(DOMAIN_SEPARATOR);
     h.update([t]);
@@ -2506,6 +2523,50 @@ impl AuditCapture {
         *self.template.borrow_mut() = template;
         // 不复制旧root证书：只有本capture verify_refview再次完整成功才记录可封存根。
         Ok(roots)
+    }
+
+    /// #1394 owner 已在锁内回读的追加 tuple。只保持内容关系，不能签发 Q/C 资格。
+    /// cap 是调用方扣除全部共存归属后给出的索引扩容余量；正文按值移动。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn append_original_for_owner_testonly(
+        &mut self,
+        digest: NodeDigest,
+        tag: u8,
+        body: Vec<u8>,
+        cap: usize,
+    ) -> Result<bool, CodecError> {
+        if frame(tag, &body) != digest {
+            return Err(CodecError::new(code::NODE_DIGEST, "实际追加节点摘要不符"));
+        }
+        let CaptureNodes::Native(native) = &mut self.nodes else {
+            return Err(CodecError::new(
+                code::SOURCE,
+                "owner 追加只接受 Native 原件",
+            ));
+        };
+        if let Some(old) = native.nodes.get(&digest) {
+            if old.tag != tag || old.body != body {
+                return Err(CodecError::new(code::NODE_DIGEST, "同摘要异原件"));
+            }
+            return Ok(true);
+        }
+        if native.nodes.len() == native.nodes.capacity() {
+            let capacity = native.nodes.capacity().saturating_mul(2).max(4);
+            let growth = capacity
+                .saturating_mul(2)
+                .saturating_add(16)
+                .saturating_mul(std::mem::size_of::<(NodeDigest, NativeNode)>() + 1);
+            if growth > cap || native.nodes.try_reserve(1).is_err() {
+                return Ok(false);
+            }
+        }
+        let bytes = body.capacity();
+        native.nodes.insert(digest, NativeNode::new(tag, body));
+        let memo = native.memo.get_mut();
+        memo.entry_limit = memo.entry_limit.saturating_add(1);
+        memo.body_capacity_limit = memo.body_capacity_limit.saturating_add(bytes);
+        Ok(true)
     }
 
     /// #1394 私有Native请求复用的原件绑定：比较完整digest/tag/body集合；不读取证明或摘要替代正文。

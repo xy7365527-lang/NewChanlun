@@ -210,6 +210,28 @@ pub(super) struct NativeRawPrefixes {
     ordered: bj::RawPrefixFacts,
 }
 impl NativeRawPrefixes {
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn check_appended(
+        &mut self,
+        capture: &sc::AuditCapture,
+        raw: RawEventsView<'_>,
+        _bound: &super::audit_owner::BoundOriginals,
+    ) -> Result<(), String> {
+        let store = HashReader::captured_for_audit(capture, None).map_err(err)?;
+        if self.raw_nodes.len() != self.raw_wire_nodes.len() || self.raw_nodes.len() > raw.len() {
+            return Err(err("raw 已核 R 前沿不符"));
+        }
+        for event in raw.iter().skip(self.raw_nodes.len()) {
+            self.raw_nodes
+                .try_push(hash_json_in_store(&store, event, None, None)?)
+                .map_err(err)?;
+            let wire = bj::RawWire::new(event)?;
+            self.raw_wire_nodes
+                .try_push(hash_json_in_store(&store, wire.view(), None, None)?)
+                .map_err(err)?;
+        }
+        Ok(())
+    }
     pub(super) fn checked_len(&self) -> usize {
         self.raw_nodes.len()
     }
@@ -5935,4 +5957,143 @@ mod owner_retention {
         effective,
         last_coord
     });
+}
+
+/// owner 已闭合全局 Q 和共同保持前件后，只消费实际新增的一代完整历史。
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) fn append_owner_cut(
+    tx: &Transaction<'_>,
+    raw: RawEventsView<'_>,
+    capture: &sc::AuditCapture,
+    mut old: IndexedHistory,
+    generation: i64,
+    batch: &str,
+    commit_ns: &str,
+    object_rows: &[i64],
+    aux_rows: &[Vec<i64>; 3],
+    bound: &super::audit_owner::BoundOriginals,
+) -> Result<IndexedHistory, String> {
+    verify_required_meta(tx)?;
+    let previous = old.cuts.last().map_or(-1, |c| c.metadata.input_frontier);
+    if generation != old.cuts.len() as i64 + 1 {
+        return Err(err("owner 后缀非连续一代"));
+    }
+    let mut store = HashReader::captured_for_audit(capture, None).map_err(err)?;
+    store.audit_full_arrays = true;
+    let mut sweep = old
+        .object_sweep
+        .take()
+        .ok_or_else(|| err("缺完整对象事件事实"))?;
+    object_index::update_from_owner(
+        tx,
+        &mut store,
+        generation,
+        &mut old.objects,
+        &mut sweep,
+        object_rows,
+        bound,
+    )
+    .map_err(|e| format!("{e} [owner object effects g={generation}]"))?;
+    let mut aux_facts = old
+        .auxiliary_facts
+        .take()
+        .ok_or_else(|| err("缺辅助事实"))?;
+    aux_index::update_from_owner(
+        tx,
+        &mut store,
+        generation,
+        &mut old.auxiliary,
+        &mut aux_facts,
+        aux_rows,
+        bound,
+    )
+    .map_err(|e| format!("{e} [owner aux effects g={generation}]"))?;
+    let mut objects = object_index::restore_for_owner(old.objects, &store, &sweep, bound)?;
+    let mut object_sweep = Some(sweep);
+    let mut native_aux = Some(aux_index::NativeAuxAudit::restore(
+        &store,
+        &old.auxiliary,
+        raw,
+        aux_facts,
+        bound,
+    )?);
+    let NativeRawPrefixes {
+        raw_nodes,
+        raw_wire_nodes,
+        prefixes,
+        ordered,
+    } = old
+        .raw_prefixes
+        .take()
+        .ok_or_else(|| err("缺 raw R/F 事实"))?;
+    let mut prefixes = Some(prefixes);
+    let mut ordered = Some(bj::RawPrefixIndex::restore(raw, ordered, bound)?);
+    let mut effective = bj::new_map(None);
+    let mut control = old
+        .control_facts
+        .resume_owner(generation, batch, commit_ns, bound)?;
+    let mut resolved = bj::new_work(None);
+    let mut stmt=CheckedStatement::prepare(tx,c"SELECT p.generation,p.batch_id,p.manifest_root,p.snapshot_root,p.delta_root,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.catalog_run_status,d.catalog_evidence_json,d.delta_json FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation WHERE p.generation=?1").map_err(err)?;
+    stmt.bind_integer(1, generation).map_err(err)?;
+    let mut row = stmt
+        .next()
+        .map_err(err)?
+        .ok_or_else(|| err("缺实际新发布行"))?;
+    let manifest = root_ref_bytes(&mut store, row.blob(2).map_err(err)?)?;
+    let snapshot = root_ref_bytes(&mut store, row.blob(3).map_err(err)?)?;
+    let delta = root_ref_bytes(&mut store, row.blob(4).map_err(err)?)?;
+    store
+        .verify_many_ref([snapshot.view(), delta.view()], sc::Mode::Public)
+        .map_err(err)?;
+    store
+        .verify_many_ref([manifest.view()], sc::Mode::Template)
+        .map_err(err)?;
+    let cut = audit_one_published_cut(
+        tx,
+        &mut row,
+        &mut store,
+        raw,
+        &mut control,
+        &mut objects,
+        &old.auxiliary,
+        &mut object_sweep,
+        &mut native_aux,
+        &mut prefixes,
+        &mut ordered,
+        &mut effective,
+        &raw_nodes,
+        &raw_wire_nodes,
+        previous,
+        &mut resolved,
+        None,
+        true,
+        None,
+        None,
+        None,
+    )
+    .map_err(|e| format!("{e} [owner full cut g={generation}]"))?;
+    drop(row);
+    stmt.finalize().map_err(err)?;
+    let frontier = cut.metadata.input_frontier;
+    old.cuts.try_push(cut).map_err(err)?;
+    store
+        .verify_many_ref(resolved.iter().map(RefValue::view), sc::Mode::Public)
+        .map_err(err)?;
+    let facts = control.into_facts()?;
+    verify_current_frontiers(tx, &old.cuts, frontier, None)?;
+    let auxiliary_facts = native_aux.map(aux_index::NativeAuxAudit::into_facts);
+    Ok(IndexedHistory {
+        control_facts: facts,
+        raw_prefixes: Some(NativeRawPrefixes {
+            raw_nodes,
+            raw_wire_nodes,
+            prefixes: prefixes.unwrap(),
+            ordered: ordered.unwrap().into_facts(),
+        }),
+        cuts: old.cuts,
+        objects: objects.into_entries(),
+        auxiliary: old.auxiliary,
+        auxiliary_facts,
+        object_sweep,
+    })
 }

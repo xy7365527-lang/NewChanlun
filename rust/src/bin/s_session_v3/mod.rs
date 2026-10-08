@@ -37,7 +37,7 @@ use std::collections::BTreeSet;
 
 mod audit_budget;
 mod audit_header;
-mod audit_owner;
+pub(super) mod audit_owner;
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) mod audit_retention;
 pub(crate) mod audit_store;

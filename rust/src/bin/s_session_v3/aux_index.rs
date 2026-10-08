@@ -988,6 +988,8 @@ struct HashWriter(Sha256);
 impl std::io::Write for HashWriter {
     fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
         self.0.update(b);
+        #[cfg(test)]
+        super::state::trace_local_sha256(0, b.len());
         Ok(b.len())
     }
     fn flush(&mut self) -> std::io::Result<()> {
@@ -1000,6 +1002,8 @@ fn stream_hash(
 ) -> Result<TextValue, String> {
     let mut out = HashWriter(Sha256::new());
     s.render_ref(r.view(), &mut out).map_err(err)?;
+    #[cfg(test)]
+    super::state::trace_local_sha256(1, 0);
     let hash = sc::FixedRoot::new(&out.0.finalize().into());
     TextValue::from_str(&hash.as_str()[4..], s.allocation_budget().as_ref()).map_err(err)
 }
@@ -1241,6 +1245,28 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
                 raw_scanned: 0,
                 raw_revisions: Vec::new(),
             },
+            relation_memo: Default::default(),
+            raw_memo: Default::default(),
+        })
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn restore(
+        s: &super::history::HashReader<'capture>,
+        index: &'index Index,
+        raw: RawEventsView<'raw>,
+        facts: NativeAuxFacts,
+        _bound: &super::audit_owner::BoundOriginals,
+    ) -> Result<Self, String> {
+        if facts.raw_scanned > raw.len() {
+            return Err(err("aux raw 前沿超过绑定原件"));
+        }
+        Ok(Self {
+            capture: s
+                .native_projection_capture()
+                .ok_or_else(|| err("aux 缺 Native owner"))?,
+            index,
+            raw,
+            facts,
             relation_memo: Default::default(),
             raw_memo: Default::default(),
         })
@@ -1705,6 +1731,66 @@ pub(super) fn load(
     stmt.finalize().map_err(err)?;
     Ok(out)
 }
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) fn update_from_owner(
+    tx: &Transaction<'_>,
+    s: &mut super::history::HashReader<'_>,
+    latest: i64,
+    index: &mut Index,
+    facts: &mut NativeAuxFacts,
+    rowids: &[Vec<i64>; 3],
+    _bound: &super::audit_owner::BoundOriginals,
+) -> Result<(), String> {
+    let mut rt = Runtime::default();
+    for role in 0..3 {
+        for rowid in &rowids[role] {
+            let sql=match role {
+                0=>c"SELECT witness_id,object_id,slot,generated_root,wire_root,published_generation,merged_index FROM s_content_witnesses WHERE rowid=?1",
+                1=>c"SELECT relation_id,subject,relation_type,object,generated_root,published_generation FROM s_content_relations WHERE rowid=?1",
+                _=>c"SELECT observation_id,kind,window_start,batch_id,generated_root,birth_wire_root,published_generation FROM s_content_observations WHERE rowid=?1",
+            };
+            let mut stmt = CheckedStatement::prepare(tx, sql).map_err(err)?;
+            stmt.bind_integer(1, *rowid).map_err(err)?;
+            let mut row = stmt
+                .next()
+                .map_err(err)?
+                .ok_or_else(|| err("缺 aux 实际行"))?;
+            let (id, ordinal, first) = match role {
+                0 => {
+                    let e = audit_persisted_witness(&mut row, s, latest, None, &mut rt)?;
+                    let out = (e.id.to_string(), index.witnesses.len(), e.first);
+                    index.witnesses.try_push(e).map_err(err)?;
+                    out
+                }
+                1 => {
+                    let e = audit_persisted_relation(&mut row, s, latest, None)?;
+                    let out = (e.id.to_string(), index.relations.len(), e.first);
+                    index.relations.try_push(e).map_err(err)?;
+                    out
+                }
+                _ => {
+                    let e = audit_persisted_observation(&mut row, s, latest, None)?;
+                    let out = (e.id.to_string(), index.observations.len(), e.first);
+                    index.observations.try_push(e).map_err(err)?;
+                    out
+                }
+            };
+            drop(row);
+            stmt.finalize().map_err(err)?;
+            let map = match role {
+                0 => &mut facts.witnesses,
+                1 => &mut facts.relations,
+                _ => &mut facts.observations,
+            };
+            if map.insert(id, ordinal).is_some() {
+                return Err(err("辅助索引重复身份"));
+            }
+            facts.born[role].entry(first).or_default().push(ordinal);
+        }
+    }
+    Ok(())
+}
+
 /// cold 与增量回读共用同一原行谓词，不接受插入参数冒充持久原件。
 fn audit_persisted_witness(
     row: &mut newchan_rust::sqlite_checked::CheckedRow<'_>,

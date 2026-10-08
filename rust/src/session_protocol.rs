@@ -9,6 +9,8 @@ use sha2::{Digest, Sha256};
 use std::fmt;
 
 pub fn sha256_hex(bytes: &[u8]) -> String {
+    #[cfg(feature = "s_capture_native_testonly")]
+    note_hash(bytes.len());
     let mut h = Sha256::new();
     h.update(bytes);
     let d = h.finalize();
@@ -368,6 +370,8 @@ pub fn canonical_hash_view_typed(
     value: JsonView<'_>,
     owner: Option<&OwnedBudget>,
 ) -> Result<FixedHash, ProtocolError<'static>> {
+    #[cfg(feature = "s_capture_native_testonly")]
+    let mut hashed_bytes = 0usize;
     let mut hash = Sha256::new();
     if let Some(owner) = owner {
         #[cfg(feature = "s_allocation_json_testonly")]
@@ -376,6 +380,10 @@ pub fn canonical_hash_view_typed(
                 crate::s_content::capture_allocation::audit_json::canonical_bytes(value, owner)
                     .map_err(ProtocolError::Allocation)?;
             hash.update(&*bytes);
+            #[cfg(feature = "s_capture_native_testonly")]
+            {
+                hashed_bytes = bytes.len();
+            }
         }
         #[cfg(not(feature = "s_allocation_json_testonly"))]
         {
@@ -383,18 +391,35 @@ pub fn canonical_hash_view_typed(
             return Err(ProtocolError::Fixed(EnvelopeFailure::HashUnavailable));
         }
     } else {
-        struct HashOut<'a>(&'a mut Sha256);
+        struct HashOut<'a>(
+            &'a mut Sha256,
+            #[cfg(feature = "s_capture_native_testonly")] &'a mut usize,
+        );
         impl std::io::Write for HashOut<'_> {
             fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
                 self.0.update(bytes);
+                #[cfg(feature = "s_capture_native_testonly")]
+                {
+                    *self.1 += bytes.len();
+                }
                 Ok(bytes.len())
             }
             fn flush(&mut self) -> std::io::Result<()> {
                 Ok(())
             }
         }
-        serde_json::to_writer(HashOut(&mut hash), &value).map_err(ProtocolError::Encoding)?;
+        serde_json::to_writer(
+            HashOut(
+                &mut hash,
+                #[cfg(feature = "s_capture_native_testonly")]
+                &mut hashed_bytes,
+            ),
+            &value,
+        )
+        .map_err(ProtocolError::Encoding)?;
     }
+    #[cfg(feature = "s_capture_native_testonly")]
+    note_hash(hashed_bytes);
     Ok(FixedHash::from_digest(&hash.finalize()))
 }
 
@@ -799,4 +824,20 @@ mod borrowed_control_tests {
         drop(tree);
         assert_eq!(room.snapshot().live_requested_layout_bytes, 0);
     }
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+thread_local! { static HASH_WORK:std::cell::Cell<(u64,u64)> = const { std::cell::Cell::new((0,0)) }; }
+#[cfg(feature = "s_capture_native_testonly")]
+fn note_hash(bytes: usize) {
+    HASH_WORK.with(|c| {
+        let (n, b) = c.get();
+        c.set((n.saturating_add(1), b.saturating_add(bytes as u64)));
+    });
+}
+/// Native 正常诊断：实际执行的协议/clock/raw 入参 SHA256 次数及输入字节。
+#[cfg(feature = "s_capture_native_testonly")]
+#[doc(hidden)]
+pub fn hash_work_on_thread() -> (u64, u64) {
+    HASH_WORK.with(std::cell::Cell::get)
 }

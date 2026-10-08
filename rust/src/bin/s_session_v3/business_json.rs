@@ -330,6 +330,16 @@ impl<'raw> RawPrefixIndex<'raw> {
             facts: RawPrefixFacts::default(),
         }
     }
+    pub(super) fn restore(
+        raw: RawEventsView<'raw>,
+        facts: RawPrefixFacts,
+        _bound: &super::audit_owner::BoundOriginals,
+    ) -> Result<Self, String> {
+        if facts.prefix > raw.len() || raw.budget().is_some() {
+            return Err("StorageUnavailable：raw facts 不属于已绑定前缀".into());
+        }
+        Ok(Self { raw, facts })
+    }
     pub(super) fn into_facts(self) -> RawPrefixFacts {
         self.facts
     }
@@ -443,10 +453,14 @@ pub(crate) fn sha_json(v: JsonView<'_>, b: Option<&OwnedBudget>) -> Result<[u8; 
     #[cfg(feature = "s_allocation_json_testonly")]
     if let Some(b) = b {
         let out = aj::canonical_bytes(v, b).map_err(|e| e.to_string())?;
+        #[cfg(test)]
+        super::state::trace_local_sha256(1, out.len());
         return Ok(Sha256::digest(&*out).into());
     }
     let _ = b;
     let out = serde_json::to_vec(&v).map_err(|e| e.to_string())?;
+    #[cfg(test)]
+    super::state::trace_local_sha256(1, out.len());
     Ok(Sha256::digest(&out).into())
 }
 pub(crate) fn validate_raw(
@@ -460,106 +474,133 @@ pub(crate) fn validate_raw(
         check_read_deadline(deadline)?;
         let c = coord(event)?;
         let identity = text(event, "identity_key")?;
-        if owners
-            .insert(c, identity)
-            .map_err(|e| e.to_string())?
-            .is_some_and(|old| old != identity)
-            || positions
-                .insert(identity, c)
-                .map_err(|e| e.to_string())?
-                .is_some_and(|old| old != c)
-        {
-            return Err("StorageUnavailable：原始源坐标与业务身份的唯一归属被破坏".into());
-        }
-        let price = text(event, "price")?;
-        let volume = text(event, "volume")?;
-        let ohlc = crate::tb02a::stored_prices_view(event)?;
-        crate::tb02a::validate_prices_view(price, volume, ohlc)
-            .map_err(|e| format!("StorageUnavailable：{e}"))?;
-        let input_rev = text(event, "input_revision")?;
-        let revision = parse_canonical_i64(input_rev, "input_revision")
+        validate_raw_coordinate(
+            identity,
+            c,
+            owners.insert(c, identity).map_err(|e| e.to_string())?,
+            positions.insert(identity, c).map_err(|e| e.to_string())?,
+        )?;
+        let revision = parse_canonical_i64(text(event, "input_revision")?, "input_revision")
             .map_err(|e| format!("StorageUnavailable：{e}"))?;
         let previous = prior
             .insert(identity, revision)
             .map_err(|e| e.to_string())?;
-        let mut fields = [("", JsonView::Null); 12];
-        let mut used = 0;
-        for (key, raw_key) in [
-            ("event_id", "event_id"),
-            ("revision", "input_revision"),
-            ("seq", "source_coord"),
-            ("received_at", "received_at"),
-            ("raw_text", "raw_text"),
-            ("timestamp", "ts"),
-            ("volume", "volume"),
-        ] {
-            fields[used] = (key, field(event, raw_key));
-            used += 1;
-        }
-        if let Some(p) = ohlc {
-            for (k, v) in [
-                ("open", p.open),
-                ("high", p.high),
-                ("low", p.low),
-                ("close", p.close),
-            ] {
-                fields[used] = (k, JsonView::String(v));
-                used += 1;
-            }
-        } else {
-            fields[used] = ("price", JsonView::String(price));
-            used += 1;
-        }
-        let content = JsonView::object_fields(&fields[..used]).map_err(|e| e.to_string())?;
-        let payload = hex(&sha_json(content, rows.budget())?);
-        let payload = std::str::from_utf8(&payload).unwrap();
-        let mut h = Sha256::new();
-        h.update(identity.as_bytes());
-        h.update(b"|");
-        h.update(payload.as_bytes());
-        let receipt_hex = hex(&h.finalize().into());
-        let mut receipt = [0; 21];
-        receipt[..5].copy_from_slice(b"rcpt-");
-        receipt[5..].copy_from_slice(&receipt_hex[..16]);
-        let receipt = std::str::from_utf8(&receipt).unwrap();
-        let ns = text(event, "source_namespace")?;
-        let epoch = text(event, "source_epoch")?;
-        let instrument = text(event, "instrument")?;
-        let event_id = text(event, "event_id")?;
-        let expected_id = ns
-            .bytes()
-            .chain([b'|'])
-            .chain(epoch.bytes())
-            .chain([b'|'])
-            .chain(instrument.bytes())
-            .chain([b'|'])
-            .chain(event_id.bytes());
-        let supersedes = field(event, "supersedes_revision");
-        let sup_matches = match previous {
-            None => supersedes.is_null(),
-            Some(v) => supersedes.as_i64() == Some(v),
-        };
-        if field(event, "seq").as_i64() != i64::try_from(expected_seq).ok()
-            || revision < 1
-            || field(event, "revision").as_i64() != Some(revision)
-            || previous.is_some_and(|p| p >= revision)
-            || !sup_matches
-            || !identity.bytes().eq(expected_id)
-            || text(event, "payload_hash")? != payload
-            || text(event, "receipt_id")? != receipt
-        {
-            return Err("StorageUnavailable：原始身份/接纳序/修订链/内容hash/receipt矛盾".into());
-        }
-        for (name, value) in [
-            ("price", price),
-            ("timestamp", text(event, "ts")?),
-            ("volume", volume),
-        ] {
-            parse_canonical_i64(value, name).map_err(|e| format!("StorageUnavailable：{e}"))?;
-        }
+        validate_raw_row(event, expected_seq, previous, rows.budget())?;
     }
     check_read_deadline(deadline)
 }
+/// 坐标双向归属共用谓词；调用者只提供已核映射的旧值。
+pub(super) fn validate_raw_coordinate(
+    identity: &str,
+    coordinate: i64,
+    previous_identity: Option<&str>,
+    previous_coordinate: Option<i64>,
+) -> Result<(), String> {
+    if previous_identity.is_some_and(|old| old != identity)
+        || previous_coordinate.is_some_and(|old| old != coordinate)
+    {
+        return Err("StorageUnavailable：原始源坐标与业务身份的唯一归属被破坏".into());
+    }
+    Ok(())
+}
+/// cold 与 owner 增量账共用：seq/修订前件由同一已核索引提供，内容谓词不另写一份。
+pub(super) fn validate_raw_row(
+    event: JsonView<'_>,
+    expected_seq: usize,
+    previous: Option<i64>,
+    budget: Option<&OwnedBudget>,
+) -> Result<(), String> {
+    let identity = text(event, "identity_key")?;
+    let price = text(event, "price")?;
+    let volume = text(event, "volume")?;
+    let ohlc = crate::tb02a::stored_prices_view(event)?;
+    crate::tb02a::validate_prices_view(price, volume, ohlc)
+        .map_err(|e| format!("StorageUnavailable：{e}"))?;
+    let input_rev = text(event, "input_revision")?;
+    let revision = parse_canonical_i64(input_rev, "input_revision")
+        .map_err(|e| format!("StorageUnavailable：{e}"))?;
+    let mut fields = [("", JsonView::Null); 12];
+    let mut used = 0;
+    for (key, raw_key) in [
+        ("event_id", "event_id"),
+        ("revision", "input_revision"),
+        ("seq", "source_coord"),
+        ("received_at", "received_at"),
+        ("raw_text", "raw_text"),
+        ("timestamp", "ts"),
+        ("volume", "volume"),
+    ] {
+        fields[used] = (key, field(event, raw_key));
+        used += 1;
+    }
+    if let Some(p) = ohlc {
+        for (k, v) in [
+            ("open", p.open),
+            ("high", p.high),
+            ("low", p.low),
+            ("close", p.close),
+        ] {
+            fields[used] = (k, JsonView::String(v));
+            used += 1;
+        }
+    } else {
+        fields[used] = ("price", JsonView::String(price));
+        used += 1;
+    }
+    let content = JsonView::object_fields(&fields[..used]).map_err(|e| e.to_string())?;
+    let payload = hex(&sha_json(content, budget)?);
+    #[cfg(test)]
+    super::state::trace_raw_hashes(false, 1);
+    let payload = std::str::from_utf8(&payload).unwrap();
+    let mut h = Sha256::new();
+    h.update(identity.as_bytes());
+    h.update(b"|");
+    h.update(payload.as_bytes());
+    #[cfg(test)]
+    super::state::trace_local_sha256(1, identity.len() + 1 + payload.len());
+    let receipt_hex = hex(&h.finalize().into());
+    let mut receipt = [0; 21];
+    receipt[..5].copy_from_slice(b"rcpt-");
+    receipt[5..].copy_from_slice(&receipt_hex[..16]);
+    let receipt = std::str::from_utf8(&receipt).unwrap();
+    let ns = text(event, "source_namespace")?;
+    let epoch = text(event, "source_epoch")?;
+    let instrument = text(event, "instrument")?;
+    let event_id = text(event, "event_id")?;
+    let expected_id = ns
+        .bytes()
+        .chain([b'|'])
+        .chain(epoch.bytes())
+        .chain([b'|'])
+        .chain(instrument.bytes())
+        .chain([b'|'])
+        .chain(event_id.bytes());
+    let supersedes = field(event, "supersedes_revision");
+    let sup_matches = match previous {
+        None => supersedes.is_null(),
+        Some(v) => supersedes.as_i64() == Some(v),
+    };
+    if field(event, "seq").as_i64() != i64::try_from(expected_seq).ok()
+        || revision < 1
+        || field(event, "revision").as_i64() != Some(revision)
+        || previous.is_some_and(|p| p >= revision)
+        || !sup_matches
+        || !identity.bytes().eq(expected_id)
+        || text(event, "payload_hash")? != payload
+        || text(event, "receipt_id")? != receipt
+    {
+        return Err("StorageUnavailable：原始身份/接纳序/修订链/内容hash/receipt矛盾".into());
+    }
+    for (name, value) in [
+        ("price", price),
+        ("timestamp", text(event, "ts")?),
+        ("volume", volume),
+    ] {
+        parse_canonical_i64(value, name).map_err(|e| format!("StorageUnavailable：{e}"))?;
+    }
+    Ok(())
+}
+
 #[cfg(feature = "s_allocation_json_testonly")]
 pub(crate) fn read_owned(
     conn: &Connection,

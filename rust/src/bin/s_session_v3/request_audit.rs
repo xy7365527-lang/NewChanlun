@@ -1275,6 +1275,14 @@ impl ExactRows {
         sql: &str,
         cap: usize,
     ) -> Result<Option<(Self, usize)>, String> {
+        Self::read_optional_bounded_params(tx, sql, [], cap)
+    }
+    pub(super) fn read_optional_bounded_params(
+        tx: &Transaction<'_>,
+        sql: &str,
+        params: impl Params,
+        cap: usize,
+    ) -> Result<Option<(Self, usize)>, String> {
         use super::audit_retention::{sum, vec_bytes, Retained};
         let mut stmt = tx.prepare(sql).map_err(storage)?;
         let count = stmt.column_count();
@@ -1319,7 +1327,7 @@ impl ExactRows {
         }
         let mut payload = 0usize;
         let mut peak = fixed;
-        let mut cursor = stmt.query([]).map_err(storage)?;
+        let mut cursor = stmt.query(params).map_err(storage)?;
         let mut fits = true;
         while let Some(row) = cursor.next().map_err(storage)? {
             // 先按当前借用字节和精确将要申请的布局计峰值，再复制本行。

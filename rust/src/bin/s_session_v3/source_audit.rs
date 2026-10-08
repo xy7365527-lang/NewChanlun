@@ -1045,6 +1045,20 @@ impl<'raw> NativeRawLedger<'raw> {
             stats: Default::default(),
         }
     }
+    fn restore(
+        raw: RawEventsView<'raw>,
+        facts: NativeRawFacts,
+        bound: &super::audit_owner::BoundOriginals,
+    ) -> Result<Self, String> {
+        Ok(Self {
+            raw,
+            winners: bj::RawPrefixIndex::restore(raw, facts.winners, bound)?,
+            sources: facts.sources,
+            originals: facts.originals,
+            #[cfg(test)]
+            stats: Default::default(),
+        })
+    }
     fn reset_progress(&mut self) {
         self.winners.clear();
         self.sources = bj::new_map(None);
@@ -1101,6 +1115,8 @@ impl<'raw> NativeRawLedger<'raw> {
                 {
                     self.stats.source_hashes += 4;
                 }
+                #[cfg(test)]
+                super::state::trace_raw_hashes(true, 4);
                 self.originals.insert(ordinal, (coord, source));
                 source
             };
@@ -1160,6 +1176,17 @@ impl<'capture> NativeSourceAudit<'capture> {
             reader: super::history::HashReader::captured(capture, None),
             memo: NativeWitnessIdentityMemo::new(capture)?,
         })
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn restore(
+        capture: &'capture sc::AuditCapture,
+        raw: RawEventsView<'capture>,
+        facts: NativeRawFacts,
+        bound: &super::audit_owner::BoundOriginals,
+    ) -> Result<Self, String> {
+        let mut result = Self::new(capture, raw)?;
+        result.ledger = NativeRawLedger::restore(raw, facts, bound)?;
+        Ok(result)
     }
     #[cfg(test)]
     pub(super) fn raw_ledger_stats(&self) -> NativeRawLedgerStats {
