@@ -20,6 +20,31 @@ pub enum ScratchFailure {
 pub enum ScratchCharge {
     Metadata,
     Layout,
+    /// Native/Plain 业务容器的结构上界，独立于 scratch 的真实 Layout。
+    Native,
+}
+
+/// Native 容器许可；只在实际载荷析构后释放，或保守留在父账到父作用域结束。
+/// 它不改变业务值的 Plain/Owned 归属，也不写入 Owned requested Layout 账。
+pub struct NativeReservation {
+    parent: Arc<dyn ScratchParent>,
+    bytes: usize,
+}
+impl NativeReservation {
+    pub fn retain(mut self) {
+        self.bytes = 0;
+    }
+}
+impl Drop for NativeReservation {
+    fn drop(&mut self) {
+        if self
+            .parent
+            .release(self.bytes, ScratchCharge::Native)
+            .is_err()
+        {
+            self.parent.invalidate();
+        }
+    }
 }
 
 /// 实现方必须先原子预留总额，再更新观测分项；不得分别检查分项后相加。
@@ -69,6 +94,17 @@ impl Drop for ScratchHandle {
     }
 }
 impl ScratchHandle {
+    pub(crate) fn reserve_native(&self, bytes: usize) -> Result<NativeReservation, CodecError> {
+        self.check_write()?;
+        let parent = self.core().parent.clone();
+        parent
+            .reserve(bytes, ScratchCharge::Native)
+            .map_err(|failure| {
+                self.fail(failure);
+                CodecError::scratch(failure)
+            })?;
+        Ok(NativeReservation { parent, bytes })
+    }
     fn core(&self) -> &ScratchCore {
         self.0.as_ref().expect("scratch handle")
     }
@@ -281,6 +317,10 @@ impl CodecWork {
     }
 }
 impl WorkScope {
+    /// 实际 Plain 分配之前预留；溢出/容量不足沿当前独占操作域分类。
+    pub fn reserve_native(&self, bytes: usize) -> Result<NativeReservation, CodecError> {
+        self.handle.reserve_native(bytes)
+    }
     /// 父 Native 解析许可等同域资源拒绝，分类不穿过错误文字。
     pub fn reject(&self, failure: ScratchFailure) -> CodecError {
         self.handle.fail(failure);

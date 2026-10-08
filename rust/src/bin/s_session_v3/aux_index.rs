@@ -92,7 +92,7 @@ fn text(
         .view()
         .as_str()
         .ok_or_else(|| err(format!("{k}不是文本")))?;
-    TextValue::from_str(value, s.allocation_budget().as_ref()).map_err(err)
+    s.native_text(value).map_err(err)
 }
 fn integer(
     s: &mut (impl CodecRead + ?Sized),
@@ -145,6 +145,7 @@ fn array_elements(
     }
     let mut out = bj::new_work(s.allocation_budget().as_ref());
     for i in 0..r.view().extent().ok_or_else(|| err("数组缺长度"))? {
+        s.native_codec_room(&mut out, 1).map_err(err)?;
         out.try_push(s.lookup_ref(r.view(), &[PathStep::Index(i)]).map_err(err)?)
             .map_err(err)?;
     }
@@ -218,9 +219,16 @@ fn stable_sort<T>(
     rows: &mut CodecVec<T>,
     compare: impl Fn(&T, &T) -> std::cmp::Ordering,
     budget: Option<&OwnedBudget>,
+    admission: &(impl CodecRead + ?Sized),
 ) -> Result<(), String> {
     let mut order = bj::new_work(budget);
     let mut target = bj::new_work(budget);
+    admission
+        .native_codec_room(&mut order, rows.len())
+        .map_err(err)?;
+    admission
+        .native_codec_room(&mut target, rows.len())
+        .map_err(err)?;
     for i in 0..rows.len() {
         order.try_push(i).map_err(err)?;
         target.try_push(0usize).map_err(err)?;
@@ -725,6 +733,7 @@ impl Runtime {
             &mut snapshot.witnesses,
             |a, b| (&a.object_id, a.slot).cmp(&(&b.object_id, b.slot)),
             owned_budget.as_ref(),
+            s,
         )?;
         stable_sort(
             &mut snapshot.relations,
@@ -736,11 +745,13 @@ impl Runtime {
                 ))
             },
             owned_budget.as_ref(),
+            s,
         )?;
         stable_sort(
             &mut snapshot.observations,
             |a, b| (&a.kind, a.window_start).cmp(&(&b.kind, b.window_start)),
             owned_budget.as_ref(),
+            s,
         )?;
         let mut raw_nodes = bj::new_work(owned_budget.as_ref());
         for (n, event) in raw.prefix(frontier as usize + 1)?.iter().enumerate() {
@@ -1142,7 +1153,13 @@ struct RelationCore {
     generated: RefValue,
 }
 impl RelationCore {
-    fn at(&self, g: i64) -> Result<Relation, String> {
+    fn at(&self, g: i64, admission: &(impl CodecRead + ?Sized)) -> Result<Relation, String> {
+        for text in [&self.id, &self.subject, &self.relation_type, &self.object] {
+            admission.native_admit(text.len()).map_err(err)?;
+        }
+        admission
+            .native_admit(self.generated.view().root().len() + self.generated.view().format().len())
+            .map_err(err)?;
         Ok(Relation {
             id: self.id.try_clone()?,
             subject: self.subject.try_clone()?,
@@ -1343,12 +1360,13 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
         if !self.capture.contains(&candidate.digest().map_err(err)?) {
             return relation(s, candidate, g);
         }
-        self.capture
-            .verify_refview(candidate.view(), sc::Mode::Public)
+        s.native_verify_original(self.capture, candidate.view(), sc::Mode::Public)
+            .map_err(err)?;
+        s.native_admit(candidate.view().root().len() + candidate.view().format().len())
             .map_err(err)?;
         let key = RelationRefKey::new(&candidate);
         if let Some(core) = self.relation_memo.get(&key) {
-            return core.at(g);
+            return core.at(g, s);
         }
         let parsed = relation(s, candidate, g)?;
         let core = RelationCore {
@@ -1358,7 +1376,9 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
             object: parsed.object,
             generated: parsed.generated,
         };
-        let result = core.at(g)?;
+        let result = core.at(g, s)?;
+        s.native_std_map_room(&mut self.relation_memo)
+            .map_err(err)?;
         self.relation_memo.insert(key, core);
         Ok(result)
     }
@@ -1369,11 +1389,13 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
     ) -> Result<Option<RefValue>, String> {
         if let Some(value) = self.raw_memo.get(&ordinal) {
             if let Some(r) = value {
-                self.capture
-                    .verify_refview(r.view(), sc::Mode::Public)
+                s.native_verify_original(self.capture, r.view(), sc::Mode::Public)
                     .map_err(err)?;
             }
-            return Ok(value.clone());
+            return value
+                .as_ref()
+                .map(|r| s.native_ref_clone(r).map_err(err))
+                .transpose();
         }
         let event = self
             .raw
@@ -1384,8 +1406,7 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
             None => true,
             Some(r) => {
                 if self.capture.contains(&r.digest().map_err(err)?) {
-                    self.capture
-                        .verify_refview(r.view(), sc::Mode::Public)
+                    s.native_verify_original(self.capture, r.view(), sc::Mode::Public)
                         .map_err(err)?;
                     true
                 } else {
@@ -1394,11 +1415,22 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
             }
         };
         if eligible {
-            self.raw_memo.insert(ordinal, value.clone());
+            s.native_std_map_room(&mut self.raw_memo).map_err(err)?;
+            self.raw_memo.insert(
+                ordinal,
+                value
+                    .as_ref()
+                    .map(|r| s.native_ref_clone(r).map_err(err))
+                    .transpose()?,
+            );
         }
         Ok(value)
     }
-    fn advance_raw(&mut self, prefix: usize) -> Result<usize, String> {
+    fn advance_raw(
+        &mut self,
+        prefix: usize,
+        admission: &(impl CodecRead + ?Sized),
+    ) -> Result<usize, String> {
         self.raw.prefix(prefix)?;
         // 原件只实际读一遍；历史回退取 ordinal 前缀，不把未来修订写回旧 cut。
         for ordinal in self.raw_scanned..prefix {
@@ -1408,6 +1440,9 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
                 .get(ordinal)
                 .ok_or_else(|| err("raw ordinal越界"))?;
             if !bj::field(event, "supersedes_revision").is_null() {
+                admission
+                    .native_vec_room(&mut self.facts.raw_revisions, 1)
+                    .map_err(err)?;
                 self.raw_revisions.push(ordinal);
             }
         }
@@ -1566,7 +1601,7 @@ fn verify_generated_members_in_view(
             .map_err(err)?;
     }
     if let Some(owner) = native.as_deref_mut() {
-        let count = owner.advance_raw(raw.len())?;
+        let count = owner.advance_raw(raw.len(), s)?;
         for i in 0..count {
             let ordinal = owner.raw_revisions[i];
             if let Some(r) = owner.raw_relation(s, ordinal)? {
@@ -1776,27 +1811,34 @@ pub(super) fn update_from_owner(
             let (id, ordinal, first) = match role {
                 0 => {
                     let e = audit_persisted_witness(&mut row, s, latest, None, &mut rt)?;
+                    s.native_admit(e.id.len()).map_err(err)?;
                     let out = (e.id.to_string(), index.witnesses.len(), e.first);
                     retained.add(&e);
                     let capacity = index.witnesses.capacity();
+                    s.native_codec_room(&mut index.witnesses, 1).map_err(err)?;
                     index.witnesses.try_push(e).map_err(err)?;
                     retained.vec_capacity::<Witness>(capacity, index.witnesses.capacity());
                     out
                 }
                 1 => {
                     let e = audit_persisted_relation(&mut row, s, latest, None)?;
+                    s.native_admit(e.id.len()).map_err(err)?;
                     let out = (e.id.to_string(), index.relations.len(), e.first);
                     retained.add(&e);
                     let capacity = index.relations.capacity();
+                    s.native_codec_room(&mut index.relations, 1).map_err(err)?;
                     index.relations.try_push(e).map_err(err)?;
                     retained.vec_capacity::<Relation>(capacity, index.relations.capacity());
                     out
                 }
                 _ => {
                     let e = audit_persisted_observation(&mut row, s, latest, None)?;
+                    s.native_admit(e.id.len()).map_err(err)?;
                     let out = (e.id.to_string(), index.observations.len(), e.first);
                     retained.add(&e);
                     let capacity = index.observations.capacity();
+                    s.native_codec_room(&mut index.observations, 1)
+                        .map_err(err)?;
                     index.observations.try_push(e).map_err(err)?;
                     retained.vec_capacity::<Observation>(capacity, index.observations.capacity());
                     out
@@ -1811,13 +1853,18 @@ pub(super) fn update_from_owner(
             };
             let capacity = map.capacity();
             retained.add(&id);
+            s.native_std_map_room(map).map_err(err)?;
             if map.insert(id, ordinal).is_some() {
                 return Err(err("辅助索引重复身份"));
             }
             retained.hash_capacity::<String, usize>(capacity, map.capacity());
             let len = facts.born[role].len();
+            if !facts.born[role].contains_key(&first) {
+                s.native_tree_room::<i64, Vec<usize>>(len).map_err(err)?;
+            }
             let bucket = facts.born[role].entry(first).or_default();
             let capacity = bucket.capacity();
+            s.native_vec_room(bucket, 1).map_err(err)?;
             bucket.push(ordinal);
             retained.vec_capacity::<usize>(capacity, bucket.capacity());
             retained.tree_len::<i64, Vec<usize>>(len, facts.born[role].len());
@@ -1834,6 +1881,12 @@ fn audit_persisted_witness(
     allocation: Option<&OwnedBudget>,
     rt: &mut Runtime,
 ) -> Result<Witness, String> {
+    if s.codec_work().is_some() {
+        s.native_admit(row.text(0).map_err(err)?.len())
+            .map_err(err)?;
+        s.native_admit(row.text(1).map_err(err)?.len())
+            .map_err(err)?;
+    }
     let id = TextValue::from_sql(row, 0, allocation).map_err(err)?;
     let object_id = TextValue::from_sql(row, 1, allocation).map_err(err)?;
     let slot: i64 = row.integer(2).map_err(err)?;
@@ -1893,6 +1946,14 @@ fn audit_persisted_observation(
     latest: i64,
     allocation: Option<&OwnedBudget>,
 ) -> Result<Observation, String> {
+    if s.codec_work().is_some() {
+        s.native_admit(row.text(0).map_err(err)?.len())
+            .map_err(err)?;
+        s.native_admit(row.text(1).map_err(err)?.len())
+            .map_err(err)?;
+        s.native_admit(row.text(3).map_err(err)?.len())
+            .map_err(err)?;
+    }
     let id = TextValue::from_sql(row, 0, allocation).map_err(err)?;
     let kind = TextValue::from_sql(row, 1, allocation).map_err(err)?;
     let window_start: Option<i64> = row.optional_integer(2).map_err(err)?;
@@ -1967,6 +2028,9 @@ fn cut_members_projected(
     budget: Option<&dyn super::audit_budget::Budget>,
     mut native: Option<(&mut super::history::HashReader<'_>, &str)>,
 ) -> Result<([CodecVec<NodeDigest>; 3], Option<sc::Built>), String> {
+    let admission = super::audit_store::NativeAdmission(
+        native.as_ref().and_then(|(s, _)| s.native_work_scope()),
+    );
     let member = |first| {
         if delta {
             first == generation
@@ -1979,12 +2043,21 @@ fn cut_members_projected(
     let mut r = bj::new_work(owned);
     let mut o = bj::new_work(owned);
     for row in index.witnesses.iter().filter(|row| member(row.first)) {
+        if let Some((s, _)) = native.as_ref() {
+            s.native_codec_room(&mut w, 1).map_err(err)?;
+        }
         w.try_push(row).map_err(err)?;
     }
     for row in index.relations.iter().filter(|row| member(row.first)) {
+        if let Some((s, _)) = native.as_ref() {
+            s.native_codec_room(&mut r, 1).map_err(err)?;
+        }
         r.try_push(row).map_err(err)?;
     }
     for row in index.observations.iter().filter(|row| member(row.first)) {
+        if let Some((s, _)) = native.as_ref() {
+            s.native_codec_room(&mut o, 1).map_err(err)?;
+        }
         o.try_push(row).map_err(err)?;
     }
     if !delta {
@@ -1992,6 +2065,7 @@ fn cut_members_projected(
             &mut w,
             |a, b| (&a.object_id, a.slot).cmp(&(&b.object_id, b.slot)),
             owned,
+            &admission,
         )?;
         stable_sort(
             &mut r,
@@ -2003,11 +2077,13 @@ fn cut_members_projected(
                 ))
             },
             owned,
+            &admission,
         )?;
         stable_sort(
             &mut o,
             |a, b| (&a.kind, a.window_start).cmp(&(&b.kind, b.window_start)),
             owned,
+            &admission,
         )?;
     }
     let mut witnesses = bj::new_work(owned);
@@ -2018,11 +2094,17 @@ fn cut_members_projected(
         if let Some(b) = budget {
             b.record().map_err(err)?;
         }
+        if let Some((s, _)) = native.as_ref() {
+            s.native_codec_room(&mut witnesses, 1).map_err(err)?;
+        }
         witnesses.try_push(digest(&row.wire)?).map_err(err)?;
     }
     for row in r {
         if let Some(b) = budget {
             b.record().map_err(err)?;
+        }
+        if let Some((s, _)) = native.as_ref() {
+            s.native_codec_room(&mut relations, 1).map_err(err)?;
         }
         relations.try_push(digest(&row.generated)?).map_err(err)?;
     }
@@ -2041,8 +2123,7 @@ fn cut_members_projected(
             let capture = s
                 .native_projection_capture()
                 .ok_or_else(|| err("观察capture丢失"))?;
-            capture
-                .verify_refview(row.wire.view(), sc::Mode::Public)
+            s.native_verify_original(capture, row.wire.view(), sc::Mode::Public)
                 .map_err(err)?;
             let template = if row.first == generation {
                 const NAMES: &[&str] = &[
@@ -2057,6 +2138,7 @@ fn cut_members_projected(
                 ];
                 let fields = s.lookup_fields_ref(row.wire.view(), NAMES).map_err(err)?;
                 let mut values = Vec::new();
+                s.native_vec_room(&mut values, NAMES.len()).map_err(err)?;
                 for name in NAMES {
                     let r = fields.get(name).ok_or_else(|| err("观察wire缺字段"))?;
                     values.push((
@@ -2074,12 +2156,24 @@ fn cut_members_projected(
             } else {
                 digest(&row.wire)?
             };
+            s.native_vec_room(template_observations.as_mut().unwrap(), 1)
+                .map_err(err)?;
             template_observations.as_mut().unwrap().push(template);
+        }
+        if let Some((s, _)) = native.as_ref() {
+            s.native_codec_room(&mut observations, 1).map_err(err)?;
         }
         observations.try_push(digest(&row.wire)?).map_err(err)?;
     }
     let template = if let Some(nodes) = template_observations {
-        let values = nodes.iter().copied().map(VV::Edge).collect::<Vec<_>>();
+        let mut values = Vec::new();
+        native
+            .as_ref()
+            .unwrap()
+            .0
+            .native_vec_room(&mut values, nodes.len())
+            .map_err(err)?;
+        values.extend(nodes.iter().copied().map(VV::Edge));
         Some(
             native
                 .as_mut()

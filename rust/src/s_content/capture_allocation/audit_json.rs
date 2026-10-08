@@ -2075,6 +2075,19 @@ impl<'a, K: 'a, V: 'a> Iterator for BusinessIter<'a, K, V> {
 impl<K, V> ExactSizeIterator for BusinessIter<'_, K, V> {}
 impl<K, V> std::iter::FusedIterator for BusinessIter<'_, K, V> {}
 impl<K: Eq + std::hash::Hash, V> BusinessMap<K, V> {
+    /// Native 调用者先按桶档取得独立许可；本桥只作 Plain 的 fallible 扩容。
+    #[doc(hidden)]
+    pub fn try_reserve_plain(&mut self, additional: usize) -> Result<(), CodecError> {
+        match &mut self.0 {
+            super::work::WorkMap::Plain(map) => map
+                .try_reserve(additional)
+                .map_err(|_| super::work::allocation_error()),
+            super::work::WorkMap::Owned(_) => Err(CodecError::static_detail(
+                super::INCOMPLETE,
+                "Native桥不接受Owned map",
+            )),
+        }
+    }
     pub fn retain(&mut self, f: impl FnMut(&K, &mut V) -> bool) {
         self.0.retain(f)
     }

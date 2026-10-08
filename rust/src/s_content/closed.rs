@@ -575,6 +575,41 @@ impl<'body> FrameMaterial<'body> {
 #[derive(Default)]
 pub(super) struct NativeLocalMaterialMemo {
     materials: BTreeMap<u8, BTreeMap<Vec<u8>, NodeDigest>>,
+    scoped: Option<WorkMap<NativeMaterial, NodeDigest>>,
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+struct NativeMaterial {
+    tag: u8,
+    body: WorkVec<u8>,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl std::hash::Hash for NativeMaterial {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&(self.tag, &self.body[..]), state);
+    }
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl PartialEq for NativeMaterial {
+    fn eq(&self, other: &Self) -> bool {
+        self.tag == other.tag && self.body[..] == other.body[..]
+    }
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl Eq for NativeMaterial {}
+#[cfg(feature = "s_capture_native_testonly")]
+struct BorrowedMaterial<'a>(u8, &'a [u8]);
+#[cfg(feature = "s_capture_native_testonly")]
+impl std::hash::Hash for BorrowedMaterial<'_> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&(self.0, self.1), state);
+    }
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl hashbrown::Equivalent<NativeMaterial> for BorrowedMaterial<'_> {
+    fn equivalent(&self, other: &NativeMaterial) -> bool {
+        self.0 == other.tag && self.1 == &other.body[..]
+    }
 }
 
 /// 私有静态分派；任意公开NodeSource不能自行提供Closed分支。
@@ -596,6 +631,54 @@ pub(super) enum CodecContext<'read, 'capture> {
     Fragment(&'read mut dyn fragment::FragmentRead<'capture>),
 }
 impl<'read, 'capture> CodecContext<'read, 'capture> {
+    pub(super) fn reserve_native(
+        &self,
+        bytes: usize,
+    ) -> Result<Option<capture_allocation::scratch::NativeReservation>, CodecError> {
+        match self.work_budget() {
+            Some(work) => work.reserve_native(bytes),
+            None => Ok(None),
+        }
+    }
+
+    pub(super) fn plain_vec_room<T>(
+        &self,
+        result: &mut WorkVec<T>,
+        additional: usize,
+    ) -> Result<(), CodecError> {
+        let failure = |reason| {
+            self.work_budget()
+                .map_or_else(capture_allocation::work::allocation_error, |b| {
+                    b.native_failure(reason)
+                })
+        };
+        let needed = result
+            .len()
+            .checked_add(additional)
+            .ok_or_else(|| failure(capture_allocation::scratch::ScratchFailure::Budget))?;
+        if needed <= result.capacity() || self.budget().is_some() {
+            return Ok(());
+        }
+        // 只替 Native 动态结果申请新完整块；已释放旧块仍保守持账，不提前减费。
+        let next = needed
+            .max(
+                result
+                    .capacity()
+                    .checked_mul(2)
+                    .ok_or_else(|| failure(capture_allocation::scratch::ScratchFailure::Budget))?,
+            )
+            .max(4);
+        let bytes = next
+            .checked_mul(std::mem::size_of::<T>())
+            .ok_or_else(|| failure(capture_allocation::scratch::ScratchFailure::Budget))?;
+        if let Some(permit) = self.reserve_native(bytes)? {
+            result
+                .try_reserve_exact(next - result.len())
+                .map_err(|_| failure(capture_allocation::scratch::ScratchFailure::Allocation))?;
+            permit.retain();
+        }
+        Ok(())
+    }
     pub(super) fn budget(&self) -> Option<OwnedBudget> {
         match self {
             Self::Capture(c) => match &c.nodes {
@@ -646,8 +729,8 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
         d: &NodeDigest,
     ) -> Result<(u8, VerifierBody<'capture>), CodecError> {
         match self {
-            Self::Source(s) => read_checked(&mut **s, d).map(|(t, b)| (t, VerifierBody::Plain(b))),
-            Self::Store(s) => read_checked(&mut **s, d).map(|(t, b)| (t, VerifierBody::Plain(b))),
+            Self::Source(s) => read_scoped_checked(&mut **s, d),
+            Self::Store(s) => read_scoped_checked(&mut **s, d),
             Self::Capture(c) => {
                 let mut reader = CaptureReader(c);
                 if c.is_allocation_prototype() {
@@ -672,6 +755,23 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
     pub(super) fn emit(&mut self, tag: u8, body: &[u8]) -> Result<NodeDigest, CodecError> {
         #[cfg(feature = "s_capture_native_testonly")]
         if let Self::NativeLocal { sink, memo } = self {
+            if let Some(scope) = sink.codec_sink_work() {
+                let work = scope.budget();
+                let materials = memo
+                    .scoped
+                    .get_or_insert_with(|| WorkMap::new_work(Some(&work)));
+                if let Some(digest) = materials.get(&BorrowedMaterial(tag, body)) {
+                    return Ok(*digest);
+                }
+                // 表与完整正文都是本次工作集；真实 put 前取得全部新分配许可。
+                materials.try_reserve(1)?;
+                let mut bytes = WorkVec::with_work_capacity(body.len(), Some(&work))?;
+                bytes.try_extend_bytes(body)?;
+                let material = FrameMaterial::checked(tag, body);
+                sink.put(material.digest, material.tag, material.body)?;
+                materials.insert(NativeMaterial { tag, body: bytes }, material.digest)?;
+                return Ok(material.digest);
+            }
             if let Some(digest) = memo.materials.get(&tag).and_then(|bucket| bucket.get(body)) {
                 return Ok(*digest);
             }

@@ -462,6 +462,14 @@ pub enum NodeRead {
 /// （不可变快照或等价的一致性保证）。生产 job 可以在任意一次 `read` 返回 `Err` 中止
 /// 本轮核验；`Err` 原样上抛，不会变成「部分通过」。
 pub trait NodeSource {
+    /// 同一次真实帧读取的临时正文许可；普通来源沿既有检查，Native 包装器保留生命周期。
+    fn checked_read_scoped(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<Option<job::ScopedFrame>, CodecError> {
+        self.checked_read(digest)
+            .map(|frame| frame.map(|f| job::ScopedFrame::new(f, None)))
+    }
     /// 独立临时工作域，不改变节点、业务返回值或 Owned 分派。
     fn codec_work(&self) -> Option<&capture_allocation::scratch::WorkScope> {
         None
@@ -1610,6 +1618,30 @@ fn read_checked(
     }
 }
 
+fn read_scoped_checked<'a>(
+    source: &mut dyn NodeSource,
+    digest: &NodeDigest,
+) -> Result<(u8, VerifierBody<'a>), CodecError> {
+    let frame = source.checked_read_scoped(digest)?.ok_or_else(|| {
+        CodecError::new(
+            code::NODE_MISSING,
+            format!("节点缺失：{}", root_string(digest)),
+        )
+    })?;
+    if frame.digest() != digest {
+        return Err(CodecError::new(
+            code::NODE_DIGEST,
+            format!(
+                "已核节点摘要与本次请求不符：请求 {}，实算 {}",
+                root_string(digest),
+                root_string(frame.digest())
+            ),
+        ));
+    }
+    let (tag, body) = frame.into_body();
+    Ok((tag, VerifierBody::Scoped(body)))
+}
+
 /// U64 帧长度（字符串/数字的字节数、数组/对象的分量数）。长度契约集中在这里。
 fn framed_len(body: &[u8], what: &str) -> Result<u64, CodecError> {
     if body.len() != 40 {
@@ -1784,6 +1816,7 @@ enum VerifierBody<'capture> {
     Borrowed(&'capture [u8]),
     Plain(Vec<u8>),
     Metered(capture_allocation::body::MeteredBody),
+    Scoped(job::ScopedBody),
 }
 impl VerifierBody<'_> {
     fn empty() -> Self {
@@ -1792,7 +1825,7 @@ impl VerifierBody<'_> {
     fn clear(&mut self) {
         match self {
             Self::Plain(v) => v.clear(),
-            Self::Borrowed(_) | Self::Metered(_) => *self = Self::empty(),
+            Self::Borrowed(_) | Self::Metered(_) | Self::Scoped(_) => *self = Self::empty(),
         }
     }
 }
@@ -1803,6 +1836,7 @@ impl std::ops::Deref for VerifierBody<'_> {
             Self::Plain(v) => v,
             Self::Borrowed(v) => v,
             Self::Metered(v) => v,
+            Self::Scoped(v) => v,
         }
     }
 }
@@ -2592,6 +2626,7 @@ impl AuditCapture {
         tag: u8,
         body: Vec<u8>,
         cap: usize,
+        work: Option<&capture_allocation::scratch::WorkScope>,
     ) -> Result<bool, CodecError> {
         if frame(tag, &body) != digest {
             return Err(CodecError::new(code::NODE_DIGEST, "实际追加节点摘要不符"));
@@ -2608,14 +2643,33 @@ impl AuditCapture {
             }
             return Ok(true);
         }
+        // body 按值从 effects 移入，其分配已收费；S7 正文/证书归属另行全额登记。
+        let source_permit = if let Some(work) = work {
+            let bytes = body
+                .len()
+                .checked_add(97)
+                .ok_or_else(|| work.reject(capture_allocation::scratch::ScratchFailure::Budget))?;
+            Some(work.reserve_native(bytes)?)
+        } else {
+            None
+        };
         if native.nodes.len() == native.nodes.capacity() {
             let capacity = native.nodes.capacity().saturating_mul(2).max(4);
             let growth = capacity
                 .saturating_mul(2)
                 .saturating_add(16)
                 .saturating_mul(std::mem::size_of::<(NodeDigest, NativeNode)>() + 1);
+            let permit = work.map(|w| w.reserve_native(growth)).transpose()?;
             if growth > cap || native.nodes.try_reserve(1).is_err() {
+                if let Some(work) = work {
+                    return Err(
+                        work.reject(capture_allocation::scratch::ScratchFailure::Allocation)
+                    );
+                }
                 return Ok(false);
+            }
+            if let Some(permit) = permit {
+                permit.retain();
             }
         }
         let bytes = body.capacity();
@@ -2628,6 +2682,9 @@ impl AuditCapture {
             .checked_add(bytes)
             .ok_or_else(|| CodecError::new(code::SOURCE, "原件body总capacity溢出"))?;
         native.nodes.insert(digest, NativeNode::new(tag, body));
+        if let Some(permit) = source_permit {
+            permit.retain();
+        }
         let memo = native.memo.get_mut();
         memo.entry_limit = memo.entry_limit.saturating_add(1);
         memo.body_capacity_limit = memo.body_capacity_limit.saturating_add(bytes);
@@ -3601,7 +3658,7 @@ mod native_frame_reuse_tests {
         let len = body.len();
         let cap = body.capacity();
         assert!(capture
-            .append_original_for_owner_testonly(digest, tag::BYTES_CHUNK, body, usize::MAX)
+            .append_original_for_owner_testonly(digest, tag::BYTES_CHUNK, body, usize::MAX, None)
             .unwrap());
         capture.assert_owner_retention_oracle();
         let new = capture.native_retention_numbers_for_testonly().unwrap();
@@ -4874,12 +4931,17 @@ fn content_ref_ctx(
 ) -> Result<ContentRef, CodecError> {
     let digest = parse_root(root)?;
     let (kind, extent) = path::reference_header(source, &digest)?;
-    Ok(ContentRef {
+    let permit = source.reserve_native(CONTENT_FORMAT.len() + root.len())?;
+    let reference = ContentRef {
         format: CONTENT_FORMAT.to_string(),
         root: root.to_string(),
         kind,
         extent,
-    })
+    };
+    if let Some(permit) = permit {
+        permit.retain();
+    }
+    Ok(reference)
 }
 
 /// 严格核验通用公开逻辑值：`ContentRef` 四字段逐项对真实节点，且全闭包通过。

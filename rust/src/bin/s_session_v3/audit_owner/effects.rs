@@ -400,9 +400,9 @@ impl Effects {
     pub(super) fn apply(
         mut self,
         originals: &mut [ExactRows],
-        cap: usize,
+        budget: &super::native::Budget,
         original_charge: &mut usize,
-    ) -> Result<Option<usize>, String> {
+    ) -> Result<usize, super::native::Failure> {
         let mut peak = self.peak;
         let mut shift = (Table::Meta, 0isize);
         for change in &mut self.changes {
@@ -429,13 +429,17 @@ impl Effects {
                 }
                 Some(row) => {
                     if rows.len() == rows.capacity() {
-                        let next = rows.capacity().saturating_mul(2).max(4);
-                        let request = sum([self.bytes, vec_bytes::<Vec<SqlCell>>(next)]);
+                        let next = rows
+                            .capacity()
+                            .checked_mul(2)
+                            .ok_or(super::native::Failure::BudgetExceeded)?
+                            .max(4);
+                        let request = vec_bytes::<Vec<SqlCell>>(next)
+                            .checked_add(self.bytes)
+                            .ok_or(super::native::Failure::BudgetExceeded)?;
                         peak = peak.max(request);
-                        if request > cap || rows.try_reserve_exact(next - rows.len()).is_err() {
-                            return Ok(None);
-                        }
                     }
+                    budget.vec_grow(rows, 1)?;
                     rows.insert(index, row);
                     shift.1 += 1;
                 }
@@ -443,7 +447,7 @@ impl Effects {
                     rows.remove(index);
                     shift.1 -= 1;
                 }
-                None => return Err(invalid("固定效果同时缺旧新原件")),
+                None => return Err(invalid("固定效果同时缺旧新原件").into()),
             }
             *original_charge = original_charge
                 .checked_sub(old_payload)
@@ -453,7 +457,7 @@ impl Effects {
                 })
                 .ok_or_else(|| invalid("SQL原件增量归属账溢出/缺旧费用"))?;
         }
-        Ok(Some(peak))
+        Ok(peak)
     }
 }
 pub(super) fn table(originals: &[ExactRows], t: Table) -> Result<&ExactRows, String> {

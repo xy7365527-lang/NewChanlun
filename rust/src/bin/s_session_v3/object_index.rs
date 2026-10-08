@@ -301,10 +301,31 @@ fn order_key(e: &Entry, dead: bool) -> OrderKey<&str> {
     }
 }
 impl OrderKey<&str> {
+    fn admit(self, store: &(impl CodecRead + ?Sized)) -> Result<(), String> {
+        if let Self::Typed(kind, fact, id, _) = self {
+            let bytes = kind
+                .len()
+                .checked_add(fact.len())
+                .and_then(|n| n.checked_add(id.len()))
+                .ok_or_else(|| err(store.native_overflow()))?;
+            store.native_admit(bytes).map_err(err)?;
+        }
+        Ok(())
+    }
     fn owned(self) -> OrderKey<String> {
         match self {
             Self::Shape(n) => OrderKey::Shape(n),
             Self::Typed(k, f, i, r) => OrderKey::Typed(k.into(), f.into(), i.into(), r),
+        }
+    }
+}
+impl OrderKey<String> {
+    fn admit(&self, store: &(impl CodecRead + ?Sized)) -> Result<(), String> {
+        match self {
+            Self::Shape(_) => Ok(()),
+            Self::Typed(k, f, id, _) => {
+                OrderKey::Typed(k.as_str(), f.as_str(), id.as_str(), 0).admit(store)
+            }
         }
     }
 }
@@ -499,8 +520,14 @@ struct NativeProjection<'capture> {
     retained: super::audit_retention::RetainedDelta,
 }
 impl NativeProjection<'_> {
-    fn remember_wire(&mut self, ordinal: usize, phase: usize, wire: &RefValue) {
-        let saved = wire.clone();
+    fn remember_wire(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        ordinal: usize,
+        phase: usize,
+        wire: &RefValue,
+    ) -> Result<(), String> {
+        let saved = s.native_ref_clone(wire).map_err(err)?;
         #[cfg(feature = "s_capture_native_testonly")]
         {
             if let Some(old) = &self.wires[ordinal][phase] {
@@ -509,6 +536,7 @@ impl NativeProjection<'_> {
             self.retained.add(&saved);
         }
         self.wires[ordinal][phase] = Some(saved);
+        Ok(())
     }
 
     fn wire(
@@ -523,18 +551,16 @@ impl NativeProjection<'_> {
         if let Some(wire) = &self.wires[ordinal][phase] {
             // 命中也必须按本 cut 跑唯一生命周期判据；不能拿旧代成功代替当前准入。
             object_records::validate_life_view(life, g, e.id.as_str()).map_err(err)?;
-            self.capture
-                .verify_refview(wire.view(), sc::Mode::Public)
+            s.native_verify_original(self.capture, wire.view(), sc::Mode::Public)
                 .map_err(err)?;
-            return Ok(wire.clone());
+            return s.native_ref_clone(wire).map_err(err);
         }
         let wire = wire_at(s, e, g)?;
         // clear_overlay 每 cut 清除派生 body。只允许当前 capture 自己证明的完整 Public
         // 闭包进入 memo，不保留临时 overlay 引用，也不靠 root 存在替代闭包检查。
-        self.capture
-            .verify_refview(wire.view(), sc::Mode::Public)
+        s.native_verify_original(self.capture, wire.view(), sc::Mode::Public)
             .map_err(err)?;
-        self.remember_wire(ordinal, phase, &wire);
+        self.remember_wire(s, ordinal, phase, &wire)?;
         Ok(wire)
     }
 }
@@ -617,25 +643,25 @@ impl HistoryObjects<'_> {
         let sweep = native
             .sweep
             .get_or_insert_with(|| ProjectionSweep::new(&self.entries));
-        sweep.seek(g);
-        let active = sweep
-            .active
-            .iter()
-            .map(|(_, i)| (*i, &self.entries[*i]))
-            .collect::<Vec<_>>();
-        let dead = sweep
-            .withdrawn
-            .iter()
-            .map(|(_, i)| (*i, &self.entries[*i]))
-            .collect::<Vec<_>>();
-        let births = sweep
+        sweep.seek_admitted(g, s)?;
+        // #1394：先为真实 Vec 容量取得许可，避免 collect 的最小扩容超出元素数上界。
+        let mut active = Vec::new();
+        s.native_vec_room(&mut active, sweep.active.len())
+            .map_err(err)?;
+        active.extend(sweep.active.iter().map(|(_, i)| (*i, &self.entries[*i])));
+        let mut dead = Vec::new();
+        s.native_vec_room(&mut dead, sweep.withdrawn.len())
+            .map_err(err)?;
+        dead.extend(sweep.withdrawn.iter().map(|(_, i)| (*i, &self.entries[*i])));
+        let born = sweep
             .events
             .births
             .get(&g)
-            .into_iter()
-            .flatten()
-            .map(|i| (*i, &self.entries[*i]))
-            .collect::<Vec<_>>();
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
+        let mut births = Vec::new();
+        s.native_vec_room(&mut births, born.len()).map_err(err)?;
+        births.extend(born.iter().map(|i| (*i, &self.entries[*i])));
         #[cfg(test)]
         {
             sweep.visits.output_entries += active.len() + dead.len() + births.len();
@@ -659,7 +685,10 @@ impl HistoryObjects<'_> {
                 }
                 let pair = if e.life.first_known_generation == g {
                     if let Some(pair) = pairs.get(&ordinal) {
-                        pair.clone()
+                        (
+                            s.native_ref_clone(&pair.0).map_err(err)?,
+                            s.native_ref_clone(&pair.1).map_err(err)?,
+                        )
                     } else {
                         let life = effective_life(e, g)?;
                         object_records::validate_life_view(life, g, e.id.as_str()).map_err(err)?;
@@ -673,17 +702,24 @@ impl HistoryObjects<'_> {
                             g,
                         )
                         .map_err(err)?;
+                        s.native_admit(sc::CONTENT_FORMAT.len() + 68).map_err(err)?;
                         let template = RefValue::Plain(b.content_ref());
                         let public = s
                             .replace_ref(template.view(), &[f("batch_id")], saved)
                             .map_err(err)?;
-                        native
-                            .capture
-                            .verify_refview(public.view(), sc::Mode::Public)
+                        s.native_verify_original(native.capture, public.view(), sc::Mode::Public)
                             .map_err(err)?;
-                        native.remember_wire(ordinal, phase, &public);
+                        native.remember_wire(s, ordinal, phase, &public)?;
                         let pair = (template, public);
-                        pairs.insert(ordinal, pair.clone());
+                        s.native_tree_room::<usize, (RefValue, RefValue)>(pairs.len())
+                            .map_err(err)?;
+                        pairs.insert(
+                            ordinal,
+                            (
+                                s.native_ref_clone(&pair.0).map_err(err)?,
+                                s.native_ref_clone(&pair.1).map_err(err)?,
+                            ),
+                        );
                         pair
                     }
                 } else {
@@ -691,11 +727,13 @@ impl HistoryObjects<'_> {
                     let life = effective_life(e, g)?;
                     object_records::validate_life_view(life, g, e.id.as_str()).map_err(err)?;
                     let public = native.wire(s, e, ordinal, g)?;
-                    (public.clone(), public)
+                    (s.native_ref_clone(&public).map_err(err)?, public)
                 };
                 let (a, b) = pair;
-                template.push(a.clone());
-                public.push(b.clone());
+                s.native_vec_room(&mut template, 1).map_err(err)?;
+                s.native_vec_room(&mut public, 1).map_err(err)?;
+                template.push(s.native_ref_clone(&a).map_err(err)?);
+                public.push(s.native_ref_clone(&b).map_err(err)?);
             }
             Ok((array(s, &template)?, array(s, &public)?))
         };
@@ -780,9 +818,7 @@ impl HistoryObjects<'_> {
                         let public = s
                             .replace_ref(template.view(), &[f("batch_id")], saved)
                             .map_err(err)?;
-                        native
-                            .capture
-                            .verify_refview(public.view(), sc::Mode::Public)
+                        s.native_verify_original(native.capture, public.view(), sc::Mode::Public)
                             .map_err(err)?;
                         native.wires[ordinal][phase] = Some(public.clone());
                         (template, public)
@@ -1168,11 +1204,9 @@ impl ShapeLeafBindings<'_> {
             }
             // 两端自有时必须核完整声明及 capture 自己的 Public 闭包。
             // 自有根缺深叶/坏原件是实际错误，overlay 不得替当前 capture 补证。
-            self.capture
-                .verify_refview(ar, sc::Mode::Public)
+            s.native_verify_original(self.capture, ar, sc::Mode::Public)
                 .map_err(err)?;
-            self.capture
-                .verify_refview(br, sc::Mode::Public)
+            s.native_verify_original(self.capture, br, sc::Mode::Public)
                 .map_err(err)?;
             let declaration = |r: sc::RefView<'_>| {
                 (
@@ -1182,9 +1216,30 @@ impl ShapeLeafBindings<'_> {
                     r.extent(),
                 )
             };
+            for r in [ar, br] {
+                s.native_admit(
+                    r.format()
+                        .len()
+                        .checked_add(r.root().len())
+                        .ok_or_else(|| err(s.native_overflow()))?,
+                )
+                .map_err(err)?;
+            }
             let key = [declaration(ar), declaration(br)];
             if !self.successful.contains(&key) {
                 bind_shape_leaf(s, ar, br)?;
+                let bytes = s
+                    .native_hash_bytes::<[ShapeLeafDeclaration; 2], ()>(
+                        self.successful.len(),
+                        self.successful.capacity(),
+                    )
+                    .map_err(err)?;
+                s.native_admit(bytes).map_err(err)?;
+                if bytes > 0 {
+                    self.successful
+                        .try_reserve(1)
+                        .map_err(|_| err(s.native_overflow()))?;
+                }
                 self.successful.insert(key);
             }
             Ok(())
@@ -1354,6 +1409,20 @@ fn decode_persisted_entry(
     latest: i64,
     allocation: Option<&OwnedBudget>,
 ) -> Result<Entry, String> {
+    if s.codec_work().is_some() {
+        let mut bytes = 0usize;
+        for column in [0, 2, 3, 11, 13, 16, 17] {
+            let value = row.optional_text(column).map_err(err)?;
+            bytes = bytes
+                .checked_add(value.map_or(0, str::len))
+                .ok_or_else(|| err(s.native_overflow()))?;
+        }
+        // typed 槽位独立拥有 kind；先收费，再由原解码决定是否需要该副本。
+        bytes = bytes
+            .checked_add(row.text(2).map_err(err)?.len())
+            .ok_or_else(|| err(s.native_overflow()))?;
+        s.native_admit(bytes).map_err(err)?;
+    }
     let kind = TextValue::from_sql(row, 2, allocation).map_err(err)?;
     let fact_key = TextValue::optional_sql(row, 3, allocation).map_err(err)?;
     let coords = [
@@ -1519,7 +1588,8 @@ pub(super) fn update_from_owner(
     _bound: &super::audit_owner::BoundOriginals,
     retained: &mut super::audit_retention::RetainedDelta,
 ) -> Result<(), String> {
-    let mut changed = Vec::with_capacity(rowids.len());
+    let mut changed = Vec::new();
+    s.native_vec_room(&mut changed, rowids.len()).map_err(err)?;
     let mut leaf_bindings = s
         .native_projection_capture()
         .map(|capture| ShapeLeafBindings {
@@ -1543,7 +1613,7 @@ pub(super) fn update_from_owner(
             built_ref(&store, &e.generated),
             built_ref(&store, &e.internal),
             built_ref(&store, &e.immutable),
-            e.birth_wire.clone(),
+            store.native_ref_clone(&e.birth_wire).map_err(err)?,
         ];
         store
             .verify_many_ref(refs.iter().map(RefValue::view), sc::Mode::Public)
@@ -1560,33 +1630,47 @@ pub(super) fn update_from_owner(
             }
             None => {
                 let i = index.len();
-                let id = e.id.try_clone()?;
+                let id = store.native_text(e.id.as_str())?;
                 retained.add(&id);
                 let capacity = events.by_id.capacity();
+                store.native_map_room(&mut events.by_id).map_err(err)?;
                 events.by_id.insert(id, i).map_err(err)?;
                 retained.hash_capacity::<TextValue, usize>(capacity, events.by_id.capacity());
+                order_key(&e, false).admit(&store)?;
                 let rank = order_key(&e, false).owned();
                 retained.add(&rank);
                 let capacity = events.ranks.capacity();
+                store.native_vec_room(&mut events.ranks, 1).map_err(err)?;
                 events.ranks.push(rank);
                 retained.vec_capacity::<OrderKey<String>>(capacity, events.ranks.capacity());
+                order_key(&e, true).admit(&store)?;
                 let rank = order_key(&e, true).owned();
                 retained.add(&rank);
                 let capacity = events.withdrawn_ranks.capacity();
+                store
+                    .native_vec_room(&mut events.withdrawn_ranks, 1)
+                    .map_err(err)?;
                 events.withdrawn_ranks.push(rank);
                 retained
                     .vec_capacity::<OrderKey<String>>(capacity, events.withdrawn_ranks.capacity());
                 let len = events.births.len();
+                if !events.births.contains_key(&e.life.first_known_generation) {
+                    store
+                        .native_tree_room::<i64, Vec<usize>>(len)
+                        .map_err(err)?;
+                }
                 let bucket = events
                     .births
                     .entry(e.life.first_known_generation)
                     .or_default();
                 let capacity = bucket.capacity();
+                store.native_vec_room(bucket, 1).map_err(err)?;
                 bucket.push(i);
                 retained.vec_capacity::<usize>(capacity, bucket.capacity());
                 retained.tree_len::<i64, Vec<usize>>(len, events.births.len());
                 retained.add(&e);
                 let capacity = index.capacity();
+                store.native_codec_room(index, 1).map_err(err)?;
                 index.try_push(e).map_err(err)?;
                 retained.vec_capacity::<Entry>(capacity, index.capacity());
                 i
@@ -1594,12 +1678,18 @@ pub(super) fn update_from_owner(
         };
         if let Some(death) = index[ordinal].life.withdrawn_generation {
             let len = events.deaths.len();
+            if !events.deaths.contains_key(&death) {
+                store
+                    .native_tree_room::<i64, Vec<usize>>(len)
+                    .map_err(err)?;
+            }
             let ids = events.deaths.entry(death).or_default();
             let capacity = ids.capacity();
             let at = ids.partition_point(|other| {
                 (&events.ranks[*other], *other) < (&events.ranks[ordinal], ordinal)
             });
             if ids.get(at) != Some(&ordinal) {
+                store.native_vec_room(ids, 1).map_err(err)?;
                 ids.insert(at, ordinal);
             }
             retained.vec_capacity::<usize>(capacity, ids.capacity());
@@ -1648,6 +1738,7 @@ pub(super) fn restore_for_owner<'a>(
         .len()
         .checked_sub(wires.len())
         .ok_or_else(|| err("owner wire 槽数超过对象数"))?;
+    s.native_vec_room(&mut wires, additional).map_err(err)?;
     wires
         .try_reserve_exact(additional)
         .map_err(|_| super::audit_owner::native::Failure::BudgetExceeded)?;
@@ -1917,6 +2008,32 @@ struct SweepVisits {
     active: std::cell::Cell<usize>,
 }
 impl HistorySweep {
+    pub(super) fn advance_admitted(
+        &mut self,
+        g: i64,
+        store: &(impl CodecRead + ?Sized),
+    ) -> Result<(), String> {
+        if store.codec_work().is_some() && g > self.previous {
+            let mut maximum = self.active.len();
+            for (_, ids) in self.events.births.range(self.previous..g) {
+                for i in ids {
+                    self.events.ranks[*i].admit(store)?;
+                    store
+                        .native_tree_room::<(OrderKey<String>, usize), ()>(maximum)
+                        .map_err(err)?;
+                    maximum = maximum
+                        .checked_add(1)
+                        .ok_or_else(|| err(store.native_overflow()))?;
+                }
+            }
+            for (_, ids) in self.events.deaths.range(self.previous..g) {
+                for i in ids {
+                    self.events.ranks[*i].admit(store)?;
+                }
+            }
+        }
+        self.advance(g)
+    }
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn take_retained_delta(&mut self) -> super::audit_retention::RetainedDelta {
         std::mem::take(&mut self.retained)
@@ -2059,6 +2176,49 @@ struct ProjectionVisits {
     output_entries: usize,
 }
 impl ProjectionSweep {
+    fn seek_admitted(&mut self, g: i64, store: &(impl CodecRead + ?Sized)) -> Result<(), String> {
+        use std::ops::Bound::{Excluded, Included, Unbounded};
+        if store.codec_work().is_some() && self.previous_cut != Some(g) {
+            let (lower, upper) = match self.previous_cut {
+                Some(previous) if previous > g => (Excluded(g), Included(previous)),
+                previous => (previous.map_or(Unbounded, Excluded), Included(g)),
+            };
+            let mut active_max = self.active.len();
+            let mut withdrawn_max = self.withdrawn.len();
+            // 每个受影响 birth 至多插入 active；每个 death 至多移除一份 key 并插入另一集合。
+            // 反向 seek 同一上界覆盖实际反向操作，不遍历未受影响的旧事件。
+            for (_, ids) in self.events.births.range((lower, upper)) {
+                for i in ids {
+                    self.events.ranks[*i].admit(store)?;
+                    store
+                        .native_tree_room::<(OrderKey<String>, usize), ()>(active_max)
+                        .map_err(err)?;
+                    active_max = active_max
+                        .checked_add(1)
+                        .ok_or_else(|| err(store.native_overflow()))?;
+                }
+            }
+            for (_, ids) in self.events.deaths.range((lower, upper)) {
+                for i in ids {
+                    self.events.ranks[*i].admit(store)?;
+                    self.events.withdrawn_ranks[*i].admit(store)?;
+                    store
+                        .native_tree_room::<(OrderKey<String>, usize), ()>(
+                            active_max.max(withdrawn_max),
+                        )
+                        .map_err(err)?;
+                    active_max = active_max
+                        .checked_add(1)
+                        .ok_or_else(|| err(store.native_overflow()))?;
+                    withdrawn_max = withdrawn_max
+                        .checked_add(1)
+                        .ok_or_else(|| err(store.native_overflow()))?;
+                }
+            }
+        }
+        self.seek(g);
+        Ok(())
+    }
     fn new(index: &[Entry]) -> Self {
         Self::from_events(std::sync::Arc::new(HistoryEvents::new(index)))
     }

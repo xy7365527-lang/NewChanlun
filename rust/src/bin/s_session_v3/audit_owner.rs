@@ -1388,37 +1388,50 @@ impl CompleteCandidate {
             return Ok(None);
         }
         self.detach_slot()?;
-        let capture = self.capture.as_mut().unwrap();
-        for change in effects
-            .changes
-            .iter_mut()
-            .filter(|c| c.table == Table::Node)
-        {
-            let row = change.new.as_mut().ok_or_else(|| invalid("缺新增节点"))?;
-            let digest = match &row[1] {
-                request_audit::SqlCell::Blob(b) => b.as_slice().try_into().map_err(invalid)?,
-                _ => return Err(invalid("digest 非 BLOB")),
-            };
-            let tag = u8::try_from(effects::integer(&row[2])?).map_err(invalid)?;
-            let body = match std::mem::replace(&mut row[3], request_audit::SqlCell::Null) {
-                request_audit::SqlCell::Blob(b) => b,
-                _ => return Err(invalid("body 非 BLOB")),
-            };
-            let existed = capture.contains(&digest);
-            if !capture
-                .append_original_for_owner_testonly(digest, tag, body, limit - reserve)
-                .map_err(invalid)?
-            {
-                return Ok(None);
-            }
-            if !existed {
-                self.node_count += 1;
-            }
-        }
         let budget = match native::Budget::new(limit, sum([self.charge.total, effects.bytes])) {
             Ok(budget) => budget,
             Err(_) => return Ok(None),
         };
+        let node_work = match budget.codec_work() {
+            Ok(work) => work,
+            Err(native::Failure::BudgetExceeded) => return Ok(None),
+            Err(native::Failure::Invalid(e)) => return Err(e),
+        };
+        let capture = self.capture.as_mut().unwrap();
+        let node_result = node_work.run(|scope| -> Result<(), String> {
+            for change in effects
+                .changes
+                .iter_mut()
+                .filter(|c| c.table == Table::Node)
+            {
+                let row = change.new.as_mut().ok_or_else(|| invalid("缺新增节点"))?;
+                let digest = match &row[1] {
+                    request_audit::SqlCell::Blob(b) => b.as_slice().try_into().map_err(invalid)?,
+                    _ => return Err(invalid("digest 非 BLOB")),
+                };
+                let tag = u8::try_from(effects::integer(&row[2])?).map_err(invalid)?;
+                let body = match std::mem::replace(&mut row[3], request_audit::SqlCell::Null) {
+                    request_audit::SqlCell::Blob(b) => b,
+                    _ => return Err(invalid("body 非 BLOB")),
+                };
+                let existed = capture.contains(&digest);
+                if !capture
+                    .append_original_for_owner_testonly(digest, tag, body, usize::MAX, Some(scope))
+                    .map_err(invalid)?
+                {
+                    return Err(invalid("Native 节点许可未被消费"));
+                }
+                if !existed {
+                    self.node_count += 1;
+                }
+            }
+            Ok(())
+        });
+        match node_result.map_err(native::Failure::from) {
+            Ok(()) => {}
+            Err(native::Failure::BudgetExceeded) => return Ok(None),
+            Err(native::Failure::Invalid(e)) => return Err(e),
+        }
         match self.q.advance(tx, &effects, &mut self.audited, &budget) {
             Ok(raw_added) => {
                 let Some(total) = self
@@ -1463,9 +1476,26 @@ impl CompleteCandidate {
                 })
                 .ok_or_else(|| invalid("缺 commit 实际效果"))?;
             let ns = effects::text(&commit.new.as_ref().unwrap()[4])?;
-            let objects: Vec<_> = effects.rows(Table::Object).map(|c| c.rowid).collect();
-            let auxiliary = [Table::Witness, Table::Relation, Table::Observation]
-                .map(|t| effects.rows(t).map(|c| c.rowid).collect());
+            let row_ids = |table| -> Result<Vec<i64>, native::BudgetExceeded> {
+                let mut rows = Vec::new();
+                budget.vec_grow(&mut rows, effects.rows(table).count())?;
+                rows.extend(effects.rows(table).map(|change| change.rowid));
+                Ok(rows)
+            };
+            let row_ids = (|| -> Result<_, native::BudgetExceeded> {
+                Ok((
+                    row_ids(Table::Object)?,
+                    [
+                        row_ids(Table::Witness)?,
+                        row_ids(Table::Relation)?,
+                        row_ids(Table::Observation)?,
+                    ],
+                ))
+            })();
+            let (objects, auxiliary) = match row_ids {
+                Ok(rows) => rows,
+                Err(_) => return Ok(None),
+            };
             #[cfg(test)]
             eprintln!(
                 "owner actual suffix g={g} nodes={} object_effects={} aux_effects={:?}",
@@ -1488,8 +1518,9 @@ impl CompleteCandidate {
                 .map_err(native::Failure::from);
             #[cfg(test)]
             eprintln!(
-                "NATIVE_CODEC_WORK live_peak_meta={:?} total_peak={}",
+                "NATIVE_CODEC_WORK live_peak_meta={:?} native_upper_live_peak={:?} total_peak={}",
                 budget.scratch_observation(),
+                budget.native_observation(),
                 budget.peak()
             );
             let (audited, retained) = match updated {
@@ -1506,13 +1537,14 @@ impl CompleteCandidate {
                 };
         }
         let effect_rows = effects.changes.len();
-        let Some(peak) = effects.apply(
+        let peak = match effects.apply(
             &mut self.originals,
-            limit - reserve,
+            &budget,
             &mut self.charge.current_sql_capacity,
-        )?
-        else {
-            return Ok(None);
+        ) {
+            Ok(peak) => peak,
+            Err(native::Failure::BudgetExceeded) => return Ok(None),
+            Err(native::Failure::Invalid(e)) => return Err(e),
         };
         self.capture = Some(
             self.capture

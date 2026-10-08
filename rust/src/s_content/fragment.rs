@@ -1064,6 +1064,10 @@ impl<'capture> NodeSource for Recorder<'_, 'capture> {
         let (tag, body) = self.read_record(digest)?;
         match body {
             VerifierBody::Plain(body) => Ok(NodeRead::Found { tag, body }),
+            VerifierBody::Scoped(body) => Ok(NodeRead::Found {
+                tag,
+                body: body.into_plain(),
+            }),
             VerifierBody::Borrowed(_) | VerifierBody::Metered(_) => Err(CodecError::static_detail(
                 capture_allocation::INCOMPLETE,
                 "owned Recorder不允许擦为NodeSource",

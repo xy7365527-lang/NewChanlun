@@ -255,14 +255,17 @@ impl<'a> From<&'a RefOwner> for RefView<'a> {
 
 // Only output representation varies; the path's source reads and checks are shared.
 pub(super) trait RefOutput: Sized {
+    const NATIVE_HEAP: usize;
     fn from_checked(kind: Kind, digest: NodeDigest, extent: Option<u64>) -> Self;
 }
 impl RefOutput for ContentRef {
+    const NATIVE_HEAP: usize = CONTENT_FORMAT.len() + ROOT_PREFIX.len() + 64;
     fn from_checked(kind: Kind, digest: NodeDigest, extent: Option<u64>) -> Self {
         ContentRef::new(kind, &digest, extent)
     }
 }
 impl RefOutput for RefOwner {
+    const NATIVE_HEAP: usize = 0;
     fn from_checked(kind: Kind, digest: NodeDigest, extent: Option<u64>) -> Self {
         Self::new(kind, digest, extent)
     }

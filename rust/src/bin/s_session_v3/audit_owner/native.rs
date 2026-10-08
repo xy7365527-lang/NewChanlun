@@ -311,6 +311,8 @@ struct Ledger {
     scratch_peak: AtomicUsize,
     metadata_live: AtomicUsize,
     metadata_peak: AtomicUsize,
+    native_live: AtomicUsize,
+    native_peak: AtomicUsize,
 }
 pub(crate) struct Permit {
     budget: Budget,
@@ -349,6 +351,13 @@ impl Permit {
     }
 }
 impl Budget {
+    #[cfg(test)]
+    pub(super) fn native_observation(&self) -> (usize, usize) {
+        (
+            self.0.native_live.load(Ordering::Acquire),
+            self.0.native_peak.load(Ordering::Acquire),
+        )
+    }
     pub(crate) fn new(limit: usize, retained: usize) -> Result<Self, BudgetExceeded> {
         // 当前 Rust 1.98 ArcInner 元数据；在 Arc::new 前预留，不声称 fallible Arc。
         let metadata = Layout::new::<[AtomicUsize; 2]>()
@@ -370,6 +379,8 @@ impl Budget {
             scratch_peak: AtomicUsize::new(0),
             metadata_live: AtomicUsize::new(0),
             metadata_peak: AtomicUsize::new(0),
+            native_live: AtomicUsize::new(0),
+            native_peak: AtomicUsize::new(0),
         })))
     }
     pub(crate) fn reserve(&self, bytes: usize) -> Result<Permit, BudgetExceeded> {
@@ -537,6 +548,7 @@ impl Ledger {
         match kind {
             ScratchCharge::Layout => (&self.scratch_live, &self.scratch_peak),
             ScratchCharge::Metadata => (&self.metadata_live, &self.metadata_peak),
+            ScratchCharge::Native => (&self.native_live, &self.native_peak),
         }
     }
 }
@@ -795,5 +807,181 @@ mod tests {
             let canonical = newchan_rust::session_protocol::canonical_json(&value);
             assert!(canonical.capacity() <= shape.canonical_peak());
         }
+    }
+}
+
+#[cfg(test)]
+mod r8_native_admission_tests {
+    use super::*;
+    use crate::v3::{audit_store::CodecRead, history::HashReader};
+    use newchan_rust::s_content::{self as sc, NodeSource};
+
+    #[test]
+    fn r8_native_frame_body_release_and_preallocation_refusal() {
+        let mut nodes = sc::MemoryNodes::new();
+        let body = vec![b'x'; 4096];
+        let digest = sc::frame(sc::tag::BYTES_CHUNK, &body);
+        sc::NodeSink::put(&mut nodes, digest, sc::tag::BYTES_CHUNK, &body).unwrap();
+        let capture = sc::AuditCapture::new(nodes)
+            .enable_native_frame_reuse_for_testonly()
+            .unwrap();
+        let budget = Budget::new(65536, 0).unwrap();
+        let base = budget.live();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let mut reader = HashReader::captured_for_audit(&capture, None)
+                    .unwrap()
+                    .with_codec_work(scope, &budget);
+                let before = budget.live();
+                let frame = reader.checked_read_scoped(&digest)?.unwrap();
+                assert_eq!(frame.digest(), &digest);
+                assert_eq!(budget.live(), before + body.len());
+                drop(frame);
+                assert_eq!(budget.live(), before, "先释放正文，随后归还父账");
+                assert_eq!(budget.native_observation(), (0, body.len()));
+                Ok::<_, sc::CodecError>(())
+            })
+            .unwrap();
+        assert_eq!(budget.live(), base);
+        let tight = Budget::new(base + CodecWork::metadata_bytes() + body.len() - 1, 0).unwrap();
+        let result = tight.codec_work().unwrap().run(|scope| {
+            let mut reader = HashReader::captured_for_audit(&capture, None)
+                .unwrap()
+                .with_codec_work(scope, &tight);
+            let before = capture.retention()["capture_reads"].as_u64().unwrap();
+            let result = reader.checked_read_scoped(&digest);
+            assert!(result.is_err());
+            assert_eq!(
+                capture.retention()["capture_reads"].as_u64().unwrap(),
+                before,
+                "额度在实际复制/读取前拒绝"
+            );
+            result.map(|_| ())
+        });
+        assert!(matches!(
+            result,
+            Err(WorkError::Resource(ScratchFailure::Budget))
+        ));
+        assert_eq!(tight.live(), base);
+        eprintln!(
+            "R8_NATIVE_BODY base={base} bytes={} peak={} parts={:?}",
+            body.len(),
+            budget.peak(),
+            budget.native_observation()
+        );
+    }
+
+    #[test]
+    fn r8_native_local_material_memo_consumes_work_and_releases() {
+        struct Sink<'a> {
+            work: Option<&'a sc::capture_allocation::scratch::WorkScope>,
+            calls: usize,
+        }
+        impl sc::NodeSink for Sink<'_> {
+            fn codec_sink_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+                self.work
+            }
+            fn put(
+                &mut self,
+                digest: sc::NodeDigest,
+                tag: u8,
+                body: &[u8],
+            ) -> Result<(), sc::CodecError> {
+                assert_eq!(sc::frame(tag, body), digest);
+                self.calls += 1;
+                Ok(())
+            }
+        }
+        let value = sc::Value::Array(vec![sc::Value::String("重复正文".repeat(900)); 3]);
+        let mut plain = Sink {
+            work: None,
+            calls: 0,
+        };
+        let expected = sc::write_value_native_local_for_testonly(&mut plain, &value).unwrap();
+        let budget = Budget::new(1024 * 1024, 0).unwrap();
+        let base = budget.live();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let mut sink = Sink {
+                    work: Some(scope),
+                    calls: 0,
+                };
+                let actual = sc::write_value_native_local_for_testonly(&mut sink, &value)?;
+                assert_eq!(actual, expected);
+                assert_eq!(sink.calls, plain.calls, "完整正文 memo 保持真实 put 次数");
+                assert!(scope.snapshot().attempts > 0);
+                assert_eq!(scope.snapshot().live, 0, "memo 和正文随这次编码释放");
+                Ok::<_, sc::CodecError>(())
+            })
+            .unwrap();
+        assert_eq!(budget.live(), base);
+        let tight = Budget::new(base + CodecWork::metadata_bytes() + 1, 0).unwrap();
+        let result = tight.codec_work().unwrap().run(|scope| {
+            let mut sink = Sink {
+                work: Some(scope),
+                calls: 0,
+            };
+            let result = sc::write_value_native_local_for_testonly(&mut sink, &value);
+            assert_eq!(sink.calls, 0, "真实 put 前拒绝工作集分配");
+            result
+        });
+        assert!(matches!(
+            result,
+            Err(WorkError::Resource(ScratchFailure::Budget))
+        ));
+        assert_eq!(tight.live(), base);
+        eprintln!(
+            "R8_NATIVE_MEMO calls={} scratch={:?} parent_peak={}",
+            plain.calls,
+            budget.scratch_observation(),
+            budget.peak()
+        );
+    }
+
+    #[test]
+    fn r8_native_business_map_growth_uses_parent_ledger() {
+        use crate::v3::audit_store::NativeAdmission;
+        use sc::capture_allocation::audit_json::BusinessMap;
+        let budget = Budget::new(1024 * 1024, 0).unwrap();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let admission = NativeAdmission(Some(scope));
+                let mut map = BusinessMap::<i64, i64>::plain();
+                for n in 0..200 {
+                    admission.native_map_room(&mut map)?;
+                    let capacity = map.capacity();
+                    map.insert(n, n * 2)?;
+                    assert_eq!(map.capacity(), capacity, "实际插入不再暗中扩桶");
+                }
+                assert_eq!(map.len(), 200);
+                assert!(budget.native_observation().0 > 0);
+                assert_eq!(scope.snapshot().live, 0, "Plain map 不伪装成 Owned/scratch");
+                Ok::<_, sc::CodecError>(())
+            })
+            .unwrap();
+        let base = Budget::new(4096, 0).unwrap().live();
+        let tight = Budget::new(base + CodecWork::metadata_bytes() + 1, 0).unwrap();
+        let result = tight.codec_work().unwrap().run(|scope| {
+            let mut map = BusinessMap::<i64, i64>::plain();
+            let result = NativeAdmission(Some(scope)).native_map_room(&mut map);
+            assert_eq!(map.capacity(), 0);
+            assert!(map.is_empty());
+            result
+        });
+        assert!(matches!(
+            result,
+            Err(WorkError::Resource(ScratchFailure::Budget))
+        ));
+        assert_eq!(tight.live(), base);
+        eprintln!(
+            "R8_NATIVE_MAP retained_bound_peak={:?}",
+            budget.native_observation()
+        );
     }
 }

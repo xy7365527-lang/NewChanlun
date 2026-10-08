@@ -395,13 +395,24 @@ impl<'raw> RawPrefixIndex<'raw> {
         self.coordinates.clear();
     }
     pub(super) fn advance(&mut self, prefix: usize) -> Result<RawPrefixChanges, String> {
-        let result = self.advance_inner(prefix);
+        self.advance_admitted(prefix, &super::audit_store::NativeAdmission(None))
+    }
+    pub(super) fn advance_admitted(
+        &mut self,
+        prefix: usize,
+        admission: &(impl super::audit_store::CodecRead + ?Sized),
+    ) -> Result<RawPrefixChanges, String> {
+        let result = self.advance_inner(prefix, admission);
         if result.is_err() {
             self.clear();
         }
         result
     }
-    fn advance_inner(&mut self, prefix: usize) -> Result<RawPrefixChanges, String> {
+    fn advance_inner(
+        &mut self,
+        prefix: usize,
+        admission: &(impl super::audit_store::CodecRead + ?Sized),
+    ) -> Result<RawPrefixChanges, String> {
         if self.raw.budget().is_some() {
             return Err("prototype_audit_allocation_incomplete：有序raw索引不接收Owned原件".into());
         }
@@ -423,6 +434,11 @@ impl<'raw> RawPrefixIndex<'raw> {
                 .copied()
                 .or_else(|| self.winners.get(identity).map(|(r, i, _)| (*r, *i)));
             if previous.is_none_or(|(r, i)| effective_precedence(revision, ordinal, r, i).is_lt()) {
+                if !changed.contains_key(identity) {
+                    admission
+                        .native_tree_room::<&str, (i64, usize)>(changed.len())
+                        .map_err(|e| e.to_string())?;
+                }
                 changed.insert(identity, (revision, ordinal));
             }
         }
@@ -441,6 +457,9 @@ impl<'raw> RawPrefixIndex<'raw> {
                     let c = coord(self.raw.get(ordinal).expect("赢家原件"))?;
                     #[cfg(feature = "s_capture_native_testonly")]
                     let capacity = self.coordinates.capacity();
+                    admission
+                        .native_std_map_room(&mut self.facts.coordinates)
+                        .map_err(|e| e.to_string())?;
                     self.coordinates.insert(ordinal, c);
                     #[cfg(feature = "s_capture_native_testonly")]
                     self.retained
@@ -452,11 +471,17 @@ impl<'raw> RawPrefixIndex<'raw> {
             let previous = match self.winners.get_mut(identity) {
                 Some(winner) => Some(std::mem::replace(winner, (revision, ordinal, c))),
                 None => {
+                    admission
+                        .native_admit(identity.len())
+                        .map_err(|e| e.to_string())?;
                     let key = identity.to_owned();
                     #[cfg(feature = "s_capture_native_testonly")]
                     let capacity = self.winners.capacity();
                     #[cfg(feature = "s_capture_native_testonly")]
                     self.retained.add(&key);
+                    admission
+                        .native_std_map_room(&mut self.facts.winners)
+                        .map_err(|e| e.to_string())?;
                     self.winners.insert(key, (revision, ordinal, c));
                     #[cfg(feature = "s_capture_native_testonly")]
                     self.retained.hash_capacity::<String, (i64, usize, i64)>(
@@ -476,14 +501,25 @@ impl<'raw> RawPrefixIndex<'raw> {
                 #[cfg(feature = "s_capture_native_testonly")]
                 self.retained
                     .tree_len::<i64, usize>(len, self.facts.ordered.len());
+                admission
+                    .native_vec_room(&mut updates.removed, 1)
+                    .map_err(|e| e.to_string())?;
                 updates.removed.push(old);
             }
+            admission
+                .native_vec_room(&mut updates.added, 1)
+                .map_err(|e| e.to_string())?;
             updates.added.push((c, ordinal));
         }
         updates.added.sort_unstable_by_key(|(c, _)| *c);
         for &(c, ordinal) in &updates.added {
             #[cfg(feature = "s_capture_native_testonly")]
             let len = self.ordered.len();
+            if !self.ordered.contains_key(&c) {
+                admission
+                    .native_tree_room::<i64, usize>(self.ordered.len())
+                    .map_err(|e| e.to_string())?;
+            }
             if self.ordered.insert(c, ordinal).is_some() {
                 return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖业务身份".into());
             }
@@ -1406,7 +1442,7 @@ pub(crate) fn read_text(
         .view()
         .as_str()
         .ok_or("StorageUnavailable：预期文本")?;
-    TextValue::from_str(text, s.allocation_budget().as_ref())
+    s.native_text(text)
 }
 impl PartialEq<TextValue> for String {
     fn eq(&self, o: &TextValue) -> bool {

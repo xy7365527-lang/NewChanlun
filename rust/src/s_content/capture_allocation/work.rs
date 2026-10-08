@@ -19,6 +19,15 @@ pub(crate) enum WorkBudget {
     Scratch(super::scratch::ScratchHandle),
 }
 impl WorkBudget {
+    pub(crate) fn reserve_native(
+        &self,
+        bytes: usize,
+    ) -> Result<Option<super::scratch::NativeReservation>, CodecError> {
+        match self {
+            Self::Scratch(handle) => handle.reserve_native(bytes).map(Some),
+            Self::Owned(_) => Ok(None),
+        }
+    }
     pub(crate) fn observe<T>(&self, result: &Result<T, CodecError>) {
         if let (Self::Scratch(b), Err(e)) = (self, result) {
             b.observe(e);
@@ -53,7 +62,13 @@ impl WorkBudget {
             b.fail(super::scratch::ScratchFailure::Allocation);
         }
     }
-    fn error(&self) -> CodecError {
+    pub(crate) fn native_failure(&self, failure: super::scratch::ScratchFailure) -> CodecError {
+        if let Self::Scratch(b) = self {
+            b.fail(failure);
+        }
+        self.error()
+    }
+    pub(crate) fn error(&self) -> CodecError {
         match self {
             Self::Owned(_) => allocation_error(),
             Self::Scratch(b) => b.error(),
@@ -423,6 +438,14 @@ impl<K, V> Default for WorkMap<K, V> {
     }
 }
 impl<K: Eq + Hash, V> WorkMap<K, V> {
+    pub(crate) fn try_reserve(&mut self, additional: usize) -> Result<(), CodecError> {
+        match self {
+            Self::Plain(m) => m.try_reserve(additional).map_err(|_| allocation_error()),
+            Self::Owned(m) => m
+                .try_reserve(additional)
+                .map_err(|_| m.allocator().budget.error()),
+        }
+    }
     pub(crate) fn retain(&mut self, f: impl FnMut(&K, &mut V) -> bool) {
         match self {
             Self::Plain(m) => m.retain(f),

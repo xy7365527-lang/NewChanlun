@@ -65,6 +65,7 @@ struct NativeScalarFields {
     hits: u64,
 }
 struct NativeFieldMemo<'capture> {
+    work: Option<&'capture sc::capture_allocation::scratch::WorkScope>,
     capture: &'capture sc::AuditCapture,
     records: Option<super::history::NativeRecordFields<'capture>>,
     fields: std::collections::HashMap<
@@ -79,6 +80,7 @@ impl<'capture> NativeFieldMemo<'capture> {
     fn new(capture: &'capture sc::AuditCapture) -> Self {
         Self {
             capture,
+            work: None,
             records: None,
             fields: Default::default(),
             scalars: Default::default(),
@@ -91,7 +93,11 @@ impl<'capture> NativeFieldMemo<'capture> {
         // and the complete immutable closure. Overlay-only records never obtain a handle.
         if let sc::RefView::Normal(original) = r {
             if self.capture.contains(&original.digest()?) {
-                self.capture.verify(original, sc::Mode::Public)?;
+                super::audit_store::NativeAdmission(self.work).native_verify_original(
+                    self.capture,
+                    original.into(),
+                    sc::Mode::Public,
+                )?;
                 return Ok(true);
             }
         }
@@ -141,7 +147,7 @@ impl<'names> SourceFields<'names> {
         let value = self.scalar(s, k)?;
         let view = value.view();
         let text = view.as_str().ok_or_else(|| err(format!("{k}不是文本")))?;
-        bj::TextValue::from_str(text, s.allocation_budget().as_ref())
+        s.native_text(text)
     }
     fn integer(&self, s: &mut (impl SourceFieldStore + ?Sized), k: &str) -> Result<i64, String> {
         self.scalar(s, k)?
@@ -209,7 +215,7 @@ fn text_value<'a>(
     let value = scalar_value(s, r)?;
     let v = value.view();
     let text = v.as_str().ok_or_else(|| err(format!("{k}不是文本")))?;
-    bj::TextValue::from_str(text, s.allocation_budget().as_ref())
+    s.native_text(text)
 }
 fn number<'a>(
     s: &mut (impl CodecRead + ?Sized),
@@ -309,6 +315,13 @@ struct ArrayAuditSource<'a, 'borrow, 'source, 'capture> {
     fields: Option<&'a mut NativeFieldMemo<'capture>>,
 }
 impl NodeSource for ArrayAuditSource<'_, '_, '_, '_> {
+    fn checked_read_scoped(
+        &mut self,
+        d: &NodeDigest,
+    ) -> Result<Option<sc::job::ScopedFrame>, sc::CodecError> {
+        self.source.checked_read_scoped(d)
+    }
+
     fn codec_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
         self.source.codec_work()
     }
@@ -369,13 +382,17 @@ impl SourceFieldStore for ArrayAuditSource<'_, '_, '_, '_> {
                 .map_err(err)?
                 .unwrap_or(false);
         let key = if eligible {
+            self.source
+                .native_admit(r.format().len() + r.root().len())
+                .map_err(err)?;
             Some(NativeFieldRefKey::new(r).map_err(err)?)
         } else {
             None
         };
         if let Some(key) = &key {
             if let Some(memo) = self.fields.as_mut() {
-                if let Some(value) = memo.scalars.values.get(key).cloned() {
+                if let Some(value) = memo.scalars.values.get(key) {
+                    let value = self.source.native_json_clone(value).map_err(err)?;
                     memo.scalars.hits += 1;
                     return Ok(bj::JsonOwner::Plain(value));
                 }
@@ -385,7 +402,12 @@ impl SourceFieldStore for ArrayAuditSource<'_, '_, '_, '_> {
         if let Some(key) = key {
             if let (Some(memo), bj::JsonOwner::Plain(parsed)) = (self.fields.as_mut(), &value) {
                 memo.scalars.decodes += 1;
-                memo.scalars.values.insert(key, parsed.clone());
+                self.source
+                    .native_std_map_room(&mut memo.scalars.values)
+                    .map_err(err)?;
+                memo.scalars
+                    .values
+                    .insert(key, self.source.native_json_clone(parsed).map_err(err)?);
             }
         }
         Ok(value)
@@ -422,7 +444,8 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
             // 同 lookup_ref 的实际 full-array 角色；不得继承先造 String 的默认实现。
             self.owned_role(|s| s.lookup_field_ref(r, key))
         } else {
-            self.lookup_ref(r, &[PathStep::Field(key.into())])
+            sc::path::lookup_path_view_refview(self, r, &super::audit_store::BorrowedFieldPath(key))
+                .map(RefValue::Plain)
         }
     }
     fn lookup_fields_ref<'a>(
@@ -463,6 +486,18 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
                 }
             }
             let key = if eligible {
+                let bytes = n.iter().try_fold(
+                    r.format()
+                        .len()
+                        .checked_add(r.root().len())
+                        .and_then(|v| v.checked_add(n.len() * std::mem::size_of::<String>()))
+                        .ok_or_else(|| self.native_overflow())?,
+                    |v, name| {
+                        v.checked_add(name.len())
+                            .ok_or_else(|| self.native_overflow())
+                    },
+                )?;
+                self.native_admit(bytes)?;
                 Some((
                     NativeFieldRefKey::new(r)?,
                     n.iter().map(|name| (*name).to_owned()).collect::<Vec<_>>(),
@@ -473,6 +508,8 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
             if let Some(key) = &key {
                 if let Some(memo) = self.fields.as_mut() {
                     if let Some(fields) = memo.fields.get(key) {
+                        self.source
+                            .native_ref_fields_bytes(fields.iter().map(|(k, v)| (k.as_str(), v)))?;
                         let fields = fields.clone();
                         memo.field_hits += 1;
                         return Ok(super::audit_store::RefFields::Plain(
@@ -484,12 +521,17 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
             let fields = sc::path::lookup_fields_refview(self, r, n, true)?;
             if let Some(key) = key {
                 // Keep the exact requested name sequence (including duplicates) in the key.
+                self.native_ref_fields_bytes(
+                    n.iter()
+                        .filter_map(|name| fields.get(name).map(|r| (*name, r))),
+                )?;
                 let originals = n
                     .iter()
                     .filter_map(|name| fields.get(name).cloned().map(|r| ((*name).to_owned(), r)))
                     .collect();
                 if let Some(memo) = self.fields.as_mut() {
                     memo.field_decodes += 1;
+                    self.source.native_std_map_room(&mut memo.fields)?;
                     memo.fields.insert(key, originals);
                 }
             }
@@ -505,6 +547,7 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
         } else {
             let plain = sc::path::lookup_array_items_refview(self, r)?;
             let mut out = bj::new_work(None);
+            self.native_codec_room(&mut out, plain.len())?;
             for r in plain {
                 out.try_push(RefValue::Plain(r))?;
             }
@@ -973,9 +1016,10 @@ impl<'capture> NativeWitnessIdentityMemo<'capture> {
             };
         }
         // 根在 Capture 不等于完整闭包在 Capture；用不可变原件验证全部声明与闭包。
-        self.capture
-            .verify(&bars.content_ref(), sc::Mode::Public)
+        s.native_admit(sc::CONTENT_FORMAT.len() + 68).map_err(err)?;
+        s.native_verify_original(self.capture, (&bars.content_ref()).into(), sc::Mode::Public)
             .map_err(err)?;
+        s.native_admit(object_id.len()).map_err(err)?;
         let key = self.key(object_id, slot, mi, bars);
         if let Some(want) = self.entries.get(&key) {
             #[cfg(test)]
@@ -996,6 +1040,8 @@ impl<'capture> NativeWitnessIdentityMemo<'capture> {
             return Err(err("见证ID不符"));
         }
         // 首次纯函数成功和本次 stored ID 比较都通过之后，才保留输入声明及结果文本。
+        s.native_std_map_room(&mut self.entries).map_err(err)?;
+        s.native_admit(want.len()).map_err(err)?;
         self.entries.insert(key, want);
         Ok(())
     }
@@ -1112,7 +1158,7 @@ impl<'raw> NativeRawLedger<'raw> {
         s: &mut (impl CodecRead + ?Sized),
         prefix: usize,
     ) -> Result<(), String> {
-        let changes = self.winners.advance(prefix)?;
+        let changes = self.winners.advance_admitted(prefix, s)?;
         if changes.rewound {
             #[cfg(feature = "s_capture_native_testonly")]
             self.retained
@@ -1154,12 +1200,16 @@ impl<'raw> NativeRawLedger<'raw> {
                 super::state::trace_raw_hashes(true, 4);
                 #[cfg(feature = "s_capture_native_testonly")]
                 let capacity = self.originals.capacity();
+                s.native_std_map_room(&mut self.originals).map_err(err)?;
                 self.originals.insert(ordinal, (coord, source));
                 #[cfg(feature = "s_capture_native_testonly")]
                 self.retained
                     .hash_capacity::<usize, (i64, Source)>(capacity, self.originals.capacity());
                 source
             };
+            if !self.sources.contains_key(&coord) {
+                s.native_map_room(&mut self.sources).map_err(err)?;
+            }
             self.sources.insert(coord, source).map_err(err)?;
             #[cfg(test)]
             {
@@ -1190,6 +1240,7 @@ impl<'capture> NativeSourceAudit<'capture> {
         native: &'capture super::audit_owner::native::Budget,
     ) -> Self {
         self.reader = self.reader.with_codec_work(scope, native);
+        self.fields.work = Some(scope);
         self
     }
 

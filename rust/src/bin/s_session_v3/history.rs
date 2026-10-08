@@ -599,6 +599,9 @@ fn audit_one_published_cut<'capture>(
     let generation: i64 = row.integer(0).map_err(err)?;
     #[cfg(test)]
     super::state::trace_event("history_template_closure", Some(generation));
+    store
+        .native_admit(row.text(1).map_err(err)?.len())
+        .map_err(err)?;
     let batch_id = TextValue::from_sql(row, 1, allocation).map_err(err)?;
     let manifest = root_ref_bytes(store, row.blob(2).map_err(err)?)?;
     let snapshot = root_ref_bytes(store, row.blob(3).map_err(err)?)?;
@@ -683,12 +686,13 @@ fn audit_one_published_cut<'capture>(
     if resolved.snapshot != snapshot || resolved.delta != delta {
         return Err(err("实际发布根不是 manifest 模板按独立出生索引解析的结果"));
     }
+    store.native_codec_room(resolved_roots, 2).map_err(err)?;
     resolved_roots.try_push(resolved.snapshot).map_err(err)?;
     resolved_roots.try_push(resolved.delta).map_err(err)?;
     #[cfg(test)]
     super::state::trace_event("history_object_members", Some(generation));
     if let Some(sweep) = object_sweep.as_mut() {
-        sweep.advance(generation)?;
+        sweep.advance_admitted(generation, store)?;
     }
     object_index::verify_generated_members_swept_with_records(
         store,
@@ -841,11 +845,12 @@ fn audit_one_published_cut<'capture>(
         if let Some(prefix) = native_prefix.as_mut() {
             // Only the actual newly checked interval is appended. Future raw material
             // was hashed above but does not enter any earlier cut's prefix.
+            prefix.admit_append(store)?;
             prefix.append(coord, raw_nodes[n as usize], raw_wire_nodes[n as usize])?;
         }
     }
     if let Some(index) = ordered_raw.as_mut() {
-        index.advance(frontier as usize + 1)?;
+        index.advance_admitted(frontier as usize + 1, store)?;
     }
     same_digest(
         store,
@@ -1659,6 +1664,18 @@ struct NativeHistoryPrefixes {
     last_coord: Option<i64>,
 }
 impl NativeHistoryPrefixes {
+    fn admit_append(&mut self, store: &(impl CodecRead + ?Sized)) -> Result<(), String> {
+        store.native_vec_room(&mut self.raw.stack, 1).map_err(err)?;
+        store
+            .native_vec_room(&mut self.wire.stack, 1)
+            .map_err(err)?;
+        if let Some(effective) = &mut self.effective {
+            store
+                .native_vec_room(&mut effective.stack, 1)
+                .map_err(err)?;
+        }
+        Ok(())
+    }
     #[cfg(feature = "s_capture_native_testonly")]
     fn retained_capacities(&self) -> [usize; 3] {
         [
@@ -1780,10 +1797,41 @@ impl OverlayOwner {
     fn contains_key(&self, d: &NodeDigest) -> bool {
         self.get(d).is_some()
     }
-    fn put(&mut self, d: NodeDigest, t: u8, b: &[u8]) -> Result<(), sc::CodecError> {
+    fn put(
+        &mut self,
+        d: NodeDigest,
+        t: u8,
+        b: &[u8],
+        work: Option<&sc::capture_allocation::scratch::WorkScope>,
+    ) -> Result<(), sc::CodecError> {
         match self {
             Self::Dynamic(m) => {
-                m.insert(d, (t, b.to_vec()));
+                let permit = if let Some(work) = work {
+                    let levels = usize::BITS as usize - (m.len() + 1).leading_zeros() as usize + 2;
+                    let node = 11 * std::mem::size_of::<(NodeDigest, (u8, Vec<u8>))>()
+                        + 16 * std::mem::size_of::<usize>();
+                    let bytes = node
+                        .checked_mul(levels)
+                        .and_then(|n| n.checked_add(b.len()))
+                        .ok_or_else(|| {
+                            work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget)
+                        })?;
+                    Some(work.reserve_native(bytes)?)
+                } else {
+                    None
+                };
+                let mut body = Vec::new();
+                body.try_reserve_exact(b.len()).map_err(|_| {
+                    work.map_or_else(
+                        || sc::CodecError::new(sc::capture_allocation::LIMIT, "overlay分配失败"),
+                        |w| w.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation),
+                    )
+                })?;
+                body.extend_from_slice(b);
+                m.insert(d, (t, body));
+                if let Some(permit) = permit {
+                    permit.retain();
+                }
                 Ok(())
             }
             #[cfg(test)]
@@ -1884,6 +1932,29 @@ impl sc::ClosedReadObserver for AuditObserver<'_> {
     }
 }
 impl<'a> HashReader<'a> {
+    pub(crate) fn native_work_scope(
+        &self,
+    ) -> Option<&'a sc::capture_allocation::scratch::WorkScope> {
+        self.work
+    }
+    fn reserve_copy(
+        &self,
+        bytes: usize,
+    ) -> Result<Option<sc::capture_allocation::scratch::NativeReservation>, sc::CodecError> {
+        self.work.map(|w| w.reserve_native(bytes)).transpose()
+    }
+    fn reserve_source_copy(
+        &self,
+        digest: &NodeDigest,
+    ) -> Result<Option<sc::capture_allocation::scratch::NativeReservation>, sc::CodecError> {
+        match &self.source {
+            ReadOwner::Captured(capture) => {
+                self.reserve_copy(capture.original(digest).map_or(0, |(_, body)| body.len()))
+            }
+            // 动态来源在自己的实际读取边界持账；不可在读取后补签许可。
+            ReadOwner::Dynamic(_) => Ok(None),
+        }
+    }
     #[cfg(feature = "s_capture_native_testonly")]
     pub(crate) fn with_codec_work(
         mut self,
@@ -2305,14 +2376,24 @@ impl NodeSource for HashReader<'_> {
         let value = if let Some((tag, body)) = self.overlay.get(d) {
             #[cfg(test)]
             super::state::trace_read(true);
-            NodeRead::Found {
+            let permit = self.reserve_copy(body.len())?;
+            let result = NodeRead::Found {
                 tag,
                 body: body.to_vec(),
+            };
+            if let Some(permit) = permit {
+                permit.retain();
             }
+            result
         } else {
             #[cfg(test)]
             super::state::trace_read(false);
-            self.source.read(d)?
+            let permit = self.reserve_source_copy(d)?;
+            let result = self.source.read(d)?;
+            if let Some(permit) = permit {
+                permit.retain();
+            }
+            result
         };
         if let Some(b) = self.budget {
             if let NodeRead::Found { tag, body } = &value {
@@ -2327,6 +2408,13 @@ impl NodeSource for HashReader<'_> {
         &mut self,
         d: &NodeDigest,
     ) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
+        self.checked_read_scoped(d)
+            .map(|frame| frame.map(sc::job::ScopedFrame::into_frame))
+    }
+    fn checked_read_scoped(
+        &mut self,
+        d: &NodeDigest,
+    ) -> Result<Option<sc::job::ScopedFrame>, sc::CodecError> {
         if self.owned.is_some() {
             return Err(sc::CodecError::new(
                 sc::capture_allocation::INCOMPLETE,
@@ -2340,7 +2428,20 @@ impl NodeSource for HashReader<'_> {
         if self.budget.is_none() && !self.overlay.contains_key(d) {
             #[cfg(test)]
             super::state::trace_read(false);
+            if let ReadOwner::Dynamic(source) = &mut self.source {
+                let frame = source.checked_read_scoped(d)?;
+                if frame.as_ref().is_some_and(|f| f.digest() != d) {
+                    return Err(sc::CodecError::new(
+                        sc::code::NODE_DIGEST,
+                        "本次已核帧不属于请求摘要",
+                    ));
+                }
+                check_deadline(self.deadline)
+                    .map_err(|e| sc::CodecError::new("verify_deadline", e))?;
+                return Ok(frame);
+            }
             // 透传本次真实读取的已核帧；仅源层可逐字比较复用纯F，计费分支门序不变。
+            let permit = self.reserve_source_copy(d)?;
             let frame = self.source.checked_read(d)?;
             if frame.as_ref().is_some_and(|f| f.digest() != d) {
                 return Err(sc::CodecError::new(
@@ -2349,19 +2450,26 @@ impl NodeSource for HashReader<'_> {
                 ));
             }
             check_deadline(self.deadline).map_err(|e| sc::CodecError::new("verify_deadline", e))?;
-            return Ok(frame);
+            return Ok(frame.map(|frame| sc::job::ScopedFrame::new(frame, permit)));
         }
+        let permit = if let Some((_, body)) = self.overlay.get(d) {
+            self.reserve_copy(body.len())?
+        } else {
+            self.reserve_source_copy(d)?
+        };
         let value = if let Some((tag, body)) = self.overlay.get(d) {
             #[cfg(test)]
             super::state::trace_read(true);
-            NodeRead::Found {
+            let result = NodeRead::Found {
                 tag,
                 body: body.to_vec(),
-            }
+            };
+            result
         } else {
             #[cfg(test)]
             super::state::trace_read(false);
-            self.source.read(d)?
+            let result = self.source.read(d)?;
+            result
         };
         let checked = match value {
             NodeRead::Missing => None,
@@ -2379,7 +2487,7 @@ impl NodeSource for HashReader<'_> {
         if let Some(b) = self.budget {
             b.precheck()?;
         }
-        Ok(checked)
+        Ok(checked.map(|frame| sc::job::ScopedFrame::new(frame, permit)))
     }
 }
 impl NodeSink for HashReader<'_> {
@@ -2419,7 +2527,7 @@ impl NodeSink for HashReader<'_> {
                 }
             }
         }
-        self.overlay.put(digest, tag, body)
+        self.overlay.put(digest, tag, body, self.work)
     }
 }
 
@@ -2459,6 +2567,19 @@ impl CodecRead for HashReader<'_> {
         } else {
             let refs = sc::path::lookup_array_items_refview(self, r)?;
             let mut out = sc::CodecVec::from_plain(Vec::new());
+            if let Some(work) = self.work {
+                let bytes = refs
+                    .len()
+                    .checked_mul(std::mem::size_of::<RefValue>())
+                    .ok_or_else(|| {
+                        work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget)
+                    })?;
+                let permit = work.reserve_native(bytes)?;
+                out.try_reserve_exact(refs.len()).map_err(|_| {
+                    work.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
+                })?;
+                permit.retain();
+            }
             for r in refs {
                 out.try_push(super::audit_store::RefValue::Plain(r))?;
             }
@@ -2507,7 +2628,8 @@ impl CodecRead for HashReader<'_> {
             Some(o) => o
                 .lookup_path_view_owned(r, &BorrowedFieldPath(key))
                 .map(RefValue::Owned),
-            None => self.lookup_ref(r, &[PathStep::Field(key.into())]),
+            None => sc::path::lookup_path_view_refview(self, r, &BorrowedFieldPath(key))
+                .map(RefValue::Plain),
         }
     }
     fn lookup_fields_ref<'a>(
@@ -3052,7 +3174,7 @@ mod tests {
         assert!(reader.overlay.contains_key(&added));
         reader
             .overlay
-            .put(digest, sc::tag::BYTES_CHUNK, b"old-overlay")
+            .put(digest, sc::tag::BYTES_CHUNK, b"old-overlay", None)
             .unwrap();
         reader.put(digest, sc::tag::BYTES_CHUNK, body).unwrap();
         assert_eq!(
@@ -6214,9 +6336,14 @@ pub(super) fn append_owner_cut(
     let mut prefixes = Some(prefixes);
     let mut ordered = Some(bj::RawPrefixIndex::restore(raw, ordered, bound)?);
     let mut effective = bj::new_map(None);
-    let mut control =
-        old.control_facts
-            .resume_owner(generation, batch, commit_ns, bound, &mut retained)?;
+    let mut control = old.control_facts.resume_owner(
+        generation,
+        batch,
+        commit_ns,
+        bound,
+        &mut retained,
+        &store,
+    )?;
     let mut resolved = bj::new_work(None);
     let mut stmt=CheckedStatement::prepare(tx,c"SELECT p.generation,p.batch_id,p.manifest_root,p.snapshot_root,p.delta_root,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.catalog_run_status,d.catalog_evidence_json,d.delta_json FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation WHERE p.generation=?1").map_err(err)?;
     stmt.bind_integer(1, generation).map_err(err)?;
@@ -6262,6 +6389,7 @@ pub(super) fn append_owner_cut(
     let frontier = cut.metadata.input_frontier;
     retained.add(&cut);
     let capacity = old.cuts.capacity();
+    store.native_codec_room(&mut old.cuts, 1).map_err(err)?;
     old.cuts.try_push(cut).map_err(err)?;
     retained.vec_capacity::<PublishedCut>(capacity, old.cuts.capacity());
     store

@@ -8,6 +8,24 @@ use newchan_rust::s_content::{
 use sc::path::PathStep;
 use std::io::Write;
 
+/// 仅传递当前工作域的分配能力；不持 SQL、原件或核验资格。
+pub(crate) struct NativeAdmission<'a>(
+    pub(crate) Option<&'a sc::capture_allocation::scratch::WorkScope>,
+);
+impl NodeSource for NativeAdmission<'_> {
+    fn codec_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+        self.0
+    }
+    fn read(&mut self, _: &NodeDigest) -> Result<NodeRead, CodecError> {
+        Err(CodecError::new(sc::code::SOURCE, "分配能力不能读取原件"))
+    }
+}
+impl CodecRead for NativeAdmission<'_> {
+    fn generic_source(&mut self) -> &mut dyn NodeSource {
+        self
+    }
+}
+
 /// #1394：内部字段定位借用原键，Owned路径不先构造未持账的String。
 pub(crate) struct BorrowedFieldPath<'a>(pub(crate) &'a str);
 impl sc::path::PathView for BorrowedFieldPath<'_> {
@@ -21,6 +39,260 @@ impl sc::path::PathView for BorrowedFieldPath<'_> {
 
 /// 仅bin内的静态codec门；具体捕获owner不可擦除成外来来源。
 pub(crate) trait CodecRead: NodeSource {
+    fn native_admit(&self, bytes: usize) -> Result<(), CodecError> {
+        if let Some(work) = self.codec_work() {
+            work.reserve_native(bytes)?.retain();
+        }
+        Ok(())
+    }
+    fn native_overflow(&self) -> CodecError {
+        self.codec_work().map_or_else(
+            || CodecError::new(sc::capture_allocation::LIMIT, "Native容量溢出"),
+            |w| w.reject(sc::capture_allocation::scratch::ScratchFailure::Budget),
+        )
+    }
+    fn native_vec_room<T>(&self, values: &mut Vec<T>, additional: usize) -> Result<(), CodecError> {
+        if self.codec_work().is_none() {
+            return Ok(());
+        }
+        let needed = values
+            .len()
+            .checked_add(additional)
+            .ok_or_else(|| self.native_overflow())?;
+        if needed <= values.capacity() {
+            return Ok(());
+        }
+        let next = needed
+            .max(
+                values
+                    .capacity()
+                    .checked_mul(2)
+                    .ok_or_else(|| self.native_overflow())?,
+            )
+            .max(4);
+        let bytes = next
+            .checked_mul(std::mem::size_of::<T>())
+            .ok_or_else(|| self.native_overflow())?;
+        let permit = self.codec_work().unwrap().reserve_native(bytes)?;
+        values.try_reserve_exact(next - values.len()).map_err(|_| {
+            self.codec_work()
+                .unwrap()
+                .reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
+        })?;
+        permit.retain();
+        Ok(())
+    }
+    fn native_codec_room<T>(
+        &self,
+        values: &mut sc::CodecVec<T>,
+        additional: usize,
+    ) -> Result<(), CodecError> {
+        if self.codec_work().is_none() {
+            return Ok(());
+        }
+        if values.allocation_budget().is_some() {
+            return Err(self
+                .codec_work()
+                .unwrap()
+                .reject(sc::capture_allocation::scratch::ScratchFailure::Ledger));
+        }
+        let needed = values
+            .len()
+            .checked_add(additional)
+            .ok_or_else(|| self.native_overflow())?;
+        if needed <= values.capacity() {
+            return Ok(());
+        }
+        let next = needed
+            .max(
+                values
+                    .capacity()
+                    .checked_mul(2)
+                    .ok_or_else(|| self.native_overflow())?,
+            )
+            .max(4);
+        let bytes = next
+            .checked_mul(std::mem::size_of::<T>())
+            .ok_or_else(|| self.native_overflow())?;
+        let permit = self.codec_work().unwrap().reserve_native(bytes)?;
+        values.try_reserve_exact(next - values.len()).map_err(|_| {
+            self.codec_work()
+                .unwrap()
+                .reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
+        })?;
+        permit.retain();
+        Ok(())
+    }
+    fn native_hash_bytes<K, V>(&self, len: usize, capacity: usize) -> Result<usize, CodecError> {
+        if self.codec_work().is_none() || len < capacity {
+            return Ok(0);
+        }
+        let needed = len.checked_add(1).ok_or_else(|| self.native_overflow())?;
+        // 固定 SwissTable 的容量档：4/8 桶各空一槽，其后 7/8 装载率。
+        let buckets = if needed <= 3 {
+            4
+        } else if needed <= 7 {
+            8
+        } else {
+            needed
+                .checked_mul(8)
+                .and_then(|n| n.checked_add(6))
+                .map(|n| n / 7)
+                .and_then(usize::checked_next_power_of_two)
+                .ok_or_else(|| self.native_overflow())?
+        };
+        // 每桶 payload、控制字节及一组哨兵；额外 payload 对齐最多一个 bucket。
+        buckets
+            .checked_add(16)
+            .and_then(|n| n.checked_mul(std::mem::size_of::<(K, V)>() + 1))
+            .ok_or_else(|| self.native_overflow())
+    }
+    fn native_map_room<K: Eq + std::hash::Hash, V>(
+        &self,
+        map: &mut sc::capture_allocation::audit_json::BusinessMap<K, V>,
+    ) -> Result<(), CodecError> {
+        let bytes = self.native_hash_bytes::<K, V>(map.len(), map.capacity())?;
+        if bytes > 0 {
+            let work = self.codec_work().unwrap();
+            let permit = work.reserve_native(bytes)?;
+            map.try_reserve_plain(1).map_err(|_| {
+                work.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
+            })?;
+            permit.retain();
+        }
+        Ok(())
+    }
+    fn native_std_map_room<K: Eq + std::hash::Hash, V>(
+        &self,
+        map: &mut std::collections::HashMap<K, V>,
+    ) -> Result<(), CodecError> {
+        let bytes = self.native_hash_bytes::<K, V>(map.len(), map.capacity())?;
+        if bytes > 0 {
+            let work = self.codec_work().unwrap();
+            let permit = work.reserve_native(bytes)?;
+            map.try_reserve(1).map_err(|_| {
+                work.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
+            })?;
+            permit.retain();
+        }
+        Ok(())
+    }
+    fn native_tree_room<K, V>(&self, len: usize) -> Result<(), CodecError> {
+        if self.codec_work().is_none() {
+            return Ok(());
+        }
+        let depth = usize::BITS as usize - len.leading_zeros() as usize + 2;
+        let bytes = std::mem::size_of::<(K, V)>()
+            .checked_mul(11)
+            .and_then(|n| n.checked_add(16 * std::mem::size_of::<usize>()))
+            .and_then(|n| n.checked_mul(depth))
+            .ok_or_else(|| self.native_overflow())?;
+        self.native_admit(bytes)
+    }
+    fn native_ref_clone(&self, value: &RefValue) -> Result<RefValue, CodecError> {
+        self.native_admit(
+            value
+                .view()
+                .format()
+                .len()
+                .checked_add(value.view().root().len())
+                .ok_or_else(|| self.native_overflow())?,
+        )?;
+        Ok(value.clone())
+    }
+    fn native_ref_fields_bytes<'a>(
+        &self,
+        fields: impl IntoIterator<Item = (&'a str, &'a ContentRef)>,
+    ) -> Result<(), CodecError> {
+        let node =
+            11 * std::mem::size_of::<(String, ContentRef)>() + 16 * std::mem::size_of::<usize>();
+        for (name, reference) in fields {
+            let bytes = node
+                .checked_add(name.len())
+                .and_then(|n| n.checked_add(reference.format.len()))
+                .and_then(|n| n.checked_add(reference.root.len()))
+                .ok_or_else(|| self.native_overflow())?;
+            self.native_admit(bytes)?;
+        }
+        Ok(())
+    }
+    fn native_verify_original(
+        &self,
+        capture: &sc::AuditCapture,
+        reference: sc::RefView<'_>,
+        mode: sc::Mode,
+    ) -> Result<(), CodecError> {
+        let Some(scope) = self.codec_work() else {
+            return capture.verify_refview(reference, mode);
+        };
+        struct Current<'a> {
+            capture: &'a sc::AuditCapture,
+            scope: &'a sc::capture_allocation::scratch::WorkScope,
+        }
+        impl NodeSource for Current<'_> {
+            fn codec_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+                Some(self.scope)
+            }
+            fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+                let permit = self
+                    .scope
+                    .reserve_native(self.capture.original(digest).map_or(0, |(_, b)| b.len()))?;
+                let value = self.capture.reader().read(digest)?;
+                permit.retain();
+                Ok(value)
+            }
+            fn checked_read(
+                &mut self,
+                digest: &NodeDigest,
+            ) -> Result<Option<sc::job::CheckedFrame>, CodecError> {
+                self.checked_read_scoped(digest)
+                    .map(|f| f.map(sc::job::ScopedFrame::into_frame))
+            }
+            fn checked_read_scoped(
+                &mut self,
+                digest: &NodeDigest,
+            ) -> Result<Option<sc::job::ScopedFrame>, CodecError> {
+                let permit = self
+                    .scope
+                    .reserve_native(self.capture.original(digest).map_or(0, |(_, b)| b.len()))?;
+                let value = self.capture.reader().checked_read(digest)?;
+                Ok(value.map(|f| sc::job::ScopedFrame::new(f, Some(permit))))
+            }
+        }
+        sc::verify_refview(&mut Current { capture, scope }, reference, mode)
+    }
+    fn native_text(&self, text: &str) -> Result<super::business_json::TextValue, String> {
+        self.native_admit(text.len()).map_err(|e| e.to_string())?;
+        super::business_json::TextValue::from_str(text, self.allocation_budget().as_ref())
+    }
+    fn native_json_clone(
+        &self,
+        value: &serde_json::Value,
+    ) -> Result<serde_json::Value, CodecError> {
+        fn bytes(value: &serde_json::Value) -> Option<usize> {
+            use serde_json::Value;
+            match value {
+                Value::String(s) => Some(s.len()),
+                Value::Array(v) => v.iter().try_fold(
+                    v.len().checked_mul(std::mem::size_of::<Value>())?,
+                    |n, v| n.checked_add(bytes(v)?),
+                ),
+                Value::Object(m) => m.iter().try_fold(0usize, |n, (k, v)| {
+                    n.checked_add(
+                        11 * std::mem::size_of::<(String, Value)>()
+                            + 16 * std::mem::size_of::<usize>(),
+                    )?
+                    .checked_add(k.len())?
+                    .checked_add(bytes(v)?)
+                }),
+                _ => Some(0),
+            }
+        }
+        if self.codec_work().is_some() {
+            self.native_admit(bytes(value).ok_or_else(|| self.native_overflow())?)?;
+        }
+        Ok(value.clone())
+    }
     fn parse_rendered_plain(&self, bytes: &[u8]) -> Result<serde_json::Value, String> {
         newchan_rust::session_protocol::strict_json(bytes)
     }
@@ -555,6 +827,16 @@ impl CodecStore for StoreView<'_, '_> {
     }
 }
 impl NodeSource for StoreView<'_, '_> {
+    fn checked_read_scoped(
+        &mut self,
+        d: &NodeDigest,
+    ) -> Result<Option<sc::job::ScopedFrame>, sc::CodecError> {
+        match &mut self.backend {
+            Backend::Generic(s) => s.checked_read_scoped(d),
+            Backend::Audit(s) => s.checked_read_scoped(d),
+        }
+    }
+
     fn codec_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
         self.source().codec_work()
     }

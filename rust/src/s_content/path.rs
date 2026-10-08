@@ -52,6 +52,20 @@ use super::{
 use super::{OwnedRefFields, RefOwner, RefView};
 use std::cmp::Ordering;
 
+fn native_reference<R: RefOutput>(
+    source: &CodecContext<'_, '_>,
+    kind: Kind,
+    digest: NodeDigest,
+    extent: Option<u64>,
+) -> Result<R, CodecError> {
+    let permit = source.reserve_native(R::NATIVE_HEAP)?;
+    let reference = R::from_checked(kind, digest, extent);
+    if let Some(permit) = permit {
+        permit.retain();
+    }
+    Ok(reference)
+}
+
 /// 本模块的稳定拒绝码（与 §5.1–5.3 的 content codec 码互不冲突）。
 pub mod path_code {
     /// 对象里没有该字段（规范键序里不存在该键）。
@@ -203,7 +217,7 @@ fn lookup_path_view_output_inner<R: RefOutput>(
     let kind =
         Kind::from_tag(descent.tag).ok_or_else(|| unsupported_value_tag_error(descent.tag))?;
     let extent = header_extent(descent.tag, &descent.body)?;
-    Ok(R::from_checked(kind, descent.digest, extent))
+    native_reference(source, kind, descent.digest, extent)
 }
 
 /// 私有审计用的完整 root[] 枚举（#1394）：与旧逐 Index 的 Value 角色一致。
@@ -269,7 +283,8 @@ fn lookup_array_output_inner<R: RefOutput>(
                 }
                 let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
                 let extent = header_extent(t, &body)?;
-                result.push(R::from_checked(kind, value, extent))?;
+                source.plain_vec_room(&mut result, 1)?;
+                result.push(native_reference(source, kind, value, extent)?)?;
             }
         }
     }
@@ -439,8 +454,30 @@ fn object_fields_output_inner<'names, O: FieldOutput<'names>>(
                     return Err(field_missing_error(expected));
                 }
                 let (kind, extent) = reference_header(source, &value)?;
-                let reference = O::Reference::from_checked(kind, value, extent);
+                let reference = native_reference(source, kind, value, extent)?;
+                // std BTree B=6；一个字段保留一个完整节点，上界含至多
+                // log2(n)+2 次分裂/新根。键正文另外全额计费。
+                let height = usize::BITS as usize - (at + 1).leading_zeros() as usize;
+                let node = 11 * std::mem::size_of::<(String, ContentRef)>()
+                    + 16 * std::mem::size_of::<usize>();
+                let field_bytes = node
+                    .checked_mul(height + 2)
+                    .and_then(|n| n.checked_add(expected.len()))
+                    .ok_or_else(|| {
+                        source.work_budget().map_or_else(
+                            super::capture_allocation::work::allocation_error,
+                            |work| {
+                                work.native_failure(
+                                    super::capture_allocation::scratch::ScratchFailure::Budget,
+                                )
+                            },
+                        )
+                    })?;
+                let permit = source.reserve_native(field_bytes)?;
                 result.append(expected, reference)?;
+                if let Some(permit) = permit {
+                    permit.retain();
+                }
                 at += 1;
             }
         }
@@ -567,7 +604,7 @@ pub(super) fn object_key_at_view_ctx<R: RefOutput>(
     if kind != Kind::String {
         return Err(step_kind_error("对象键", "0x03 字符串", node.tag));
     }
-    Ok(R::from_checked(kind, key, extent))
+    native_reference(source, kind, key, extent)
 }
 
 /// 只读取覆盖所求区间的规范字节块；不会线性扫描 offset 之前的叶。
@@ -611,6 +648,7 @@ pub(super) fn bytes_between_view_ctx(
         }
         let lo = offset.saturating_sub(start) as usize;
         let hi = (end - start).min(expected) as usize;
+        source.plain_vec_room(&mut output, hi - lo)?;
         output.extend_from_slice(&body[lo..hi])?;
     }
     Ok(output)
@@ -716,7 +754,7 @@ fn replace_output_inner<R: RefOutput>(
             }
         }
     }
-    Ok(R::from_checked(kind, digest, extent))
+    native_reference(store, kind, digest, extent)
 }
 
 // ── 定位 ────────────────────────────────────────────────────────────────────
@@ -1567,6 +1605,14 @@ pub fn lookup_path_refview(
     path: &[PathStep],
 ) -> Result<ContentRef, CodecError> {
     lookup_path_output(&mut CodecContext::Source(source), reference, path)
+}
+#[doc(hidden)]
+pub fn lookup_path_view_refview(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+    path: &dyn PathView,
+) -> Result<ContentRef, CodecError> {
+    lookup_path_view_output(&mut CodecContext::Source(source), reference, path, false)
 }
 #[doc(hidden)]
 pub fn lookup_fields_refview(

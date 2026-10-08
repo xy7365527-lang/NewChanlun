@@ -382,6 +382,59 @@ pub struct CheckedFrame {
     usage: CheckedNodeUsage,
 }
 
+/// Native 临时帧：正文先析构，分配许可随后归还；不改变原件/帧资格。
+#[doc(hidden)]
+pub struct ScopedFrame {
+    frame: CheckedFrame,
+    permit: Option<super::capture_allocation::scratch::NativeReservation>,
+}
+pub(super) struct ScopedBody {
+    body: Vec<u8>,
+    _permit: Option<super::capture_allocation::scratch::NativeReservation>,
+}
+impl std::ops::Deref for ScopedBody {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        &self.body
+    }
+}
+impl ScopedBody {
+    pub(super) fn into_plain(self) -> Vec<u8> {
+        if let Some(permit) = self._permit {
+            permit.retain();
+        }
+        self.body
+    }
+}
+impl ScopedFrame {
+    pub fn new(
+        frame: CheckedFrame,
+        permit: Option<super::capture_allocation::scratch::NativeReservation>,
+    ) -> Self {
+        Self { frame, permit }
+    }
+    pub fn digest(&self) -> &NodeDigest {
+        self.frame.digest()
+    }
+    pub fn into_frame(self) -> CheckedFrame {
+        // 旧 API 返回独立 Vec，无法随值析构；这一路保守持账到父账结束。
+        if let Some(permit) = self.permit {
+            permit.retain();
+        }
+        self.frame
+    }
+    pub(super) fn into_body(self) -> (u8, ScopedBody) {
+        let (tag, body) = self.frame.into_parts();
+        (
+            tag,
+            ScopedBody {
+                body,
+                _permit: self.permit,
+            },
+        )
+    }
+}
+
 /// 逐字核对当前 owned Vec 后的结果；变化时原 Vec 退回调用方，尚未核验新帧。
 pub enum SameMaterialRebind {
     /// 纯 F 证明已重绑定到本次传入的 Vec。
