@@ -23,6 +23,20 @@ _INTERVAL_PATTERN = "|".join(sorted(_KNOWN_INTERVALS, key=len, reverse=True))
 _CACHE_RE = re.compile(rf"^(.+)_({_INTERVAL_PATTERN})_raw\.parquet$")
 
 
+def _safe_cache_name(name: str) -> str:
+    """验证缓存名称，防止路径遍历等问题。
+
+    仅允许字母、数字、下划线和短横线，且必须匹配简单的 `{...}_raw` 结构。
+    """
+    # 基本字符白名单，禁止路径分隔符等特殊字符
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", name):
+        raise ValueError(f"非法缓存名称: {name!r}")
+    # 简单结构约束：至少包含一个下划线并以 `_raw` 结尾，以兼容现有 `{symbol}_{interval}_raw`
+    if "_" not in name or not name.endswith("_raw"):
+        raise ValueError(f"缓存名称格式无效: {name!r}")
+    return name
+
+
 def _cache_dir() -> Path:
     p = Path(CACHE_DIR)
     p.mkdir(parents=True, exist_ok=True)
@@ -31,7 +45,8 @@ def _cache_dir() -> Path:
 
 def load_df(name: str) -> pd.DataFrame | None:
     """从缓存加载 DataFrame，不存在返回 None。"""
-    path = _cache_dir() / f"{name}.parquet"
+    safe_name = _safe_cache_name(name)
+    path = _cache_dir() / f"{safe_name}.parquet"
     if not path.exists():
         return None
     return pd.read_parquet(path)
@@ -39,7 +54,8 @@ def load_df(name: str) -> pd.DataFrame | None:
 
 def save_df(name: str, df: pd.DataFrame) -> Path:
     """将 DataFrame 写入缓存，返回文件路径。"""
-    path = _cache_dir() / f"{name}.parquet"
+    safe_name = _safe_cache_name(name)
+    path = _cache_dir() / f"{safe_name}.parquet"
     df.to_parquet(path, engine="pyarrow")
     return path
 
