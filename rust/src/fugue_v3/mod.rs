@@ -81,6 +81,7 @@
 // - **禁回灌**：本次仅加标记，未删除/未移动任何代码。
 pub mod accounting;
 pub mod axis;
+pub mod financial;
 pub mod cycle;
 pub mod engine;
 pub mod ffi;
