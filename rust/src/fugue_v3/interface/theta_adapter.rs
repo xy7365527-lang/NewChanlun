@@ -53,23 +53,56 @@ impl ThetaClassificationAdapter {
     }
 
     /// 内部转换：ClassifyOutput → ClassificationResult
-    fn convert_output(&self, _output: ClassifyOutput) -> ClassificationResult {
-        // TODO: 将 theta_v0 的 ClassifyOutput 转换为 fugue_v3 的 ClassificationResult
-        // ClassifyOutput 包含：
-        // - classification: Classification (多级别状态)
-        // - tower: Vec<Rc<Vec<LeveledMove>>>
-        // - candidate_streams: CandidateStreams
-        // - operations: Vec<OperationSequence>
-        //
-        // ClassificationResult 包含：
-        // - levels: Vec<LevelState>
-        //
-        // 当前简化实现：返回空的 levels
-        // 生产实现需要遍历 classification 的各级别，提取 centers/bsp/moves
+    fn convert_output(&self, output: ClassifyOutput) -> ClassificationResult {
+        // 遍历 theta_v0 的每个级别状态，转换为 fugue_v3 的 LevelState
+        let levels = output.classification.levels
+            .into_iter()
+            .map(|theta_level| {
+                use crate::fugue_v3::interface::classification::{
+                    LevelState, CenterPlaceholder, BspPointPlaceholder, MovePlaceholder
+                };
+                
+                // 转换中枢序列（保持 Rc 共享）
+                let centers = Rc::new(
+                    theta_level.centers.iter()
+                        .map(|_center| {
+                            // TODO: 完整映射 theta_v0::Center → CenterPlaceholder
+                            // 当前 CenterPlaceholder 是空结构体，需要后续添加字段
+                            CenterPlaceholder
+                        })
+                        .collect()
+                );
+                
+                // 转换买卖点序列（保持 Rc 共享）
+                let bsp = Rc::new(
+                    theta_level.bsp.iter()
+                        .map(|_bsp_point| {
+                            // TODO: 完整映射 theta_v0::BspPoint → BspPointPlaceholder
+                            // 需要传递 pivot_low/pivot_high/center/six_bit 等字段
+                            BspPointPlaceholder
+                        })
+                        .collect()
+                );
+                
+                // 转换走势块序列
+                let moves = theta_level.moves
+                    .into_iter()
+                    .map(|_move_block| {
+                        // TODO: 完整映射 theta_v0::MoveBlock → MovePlaceholder
+                        // 需要传递方向、起止位置、类型等字段
+                        MovePlaceholder
+                    })
+                    .collect();
+                
+                LevelState {
+                    centers,
+                    bsp,
+                    moves,
+                }
+            })
+            .collect();
         
-        ClassificationResult {
-            levels: Vec::new(),
-        }
+        ClassificationResult { levels }
     }
 }
 
