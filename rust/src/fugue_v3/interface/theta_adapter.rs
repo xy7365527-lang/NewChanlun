@@ -5,12 +5,15 @@
 use std::rc::Rc;
 
 use crate::fugue_v3::interface::classification::{
-    CenterPlaceholder, ClassificationEngine, ClassificationResult, LevelState,
+    BspPointPlaceholder, CenterPlaceholder, ClassificationEngine, ClassificationResult,
+    Direction as FugueDir, LevelState, MoveKind as FugueMoveKind, MovePlaceholder,
+    MoveStatus as FugueMoveStatus,
 };
-use crate::theta_v0::classifier::{classify, classify_incremental, ClassifyOutput, TowerCache};
+use crate::theta_v0::classifier::decompose::MoveStatus;
+use crate::theta_v0::classifier::{classify, classify_incremental, BspPoint, ClassifyOutput, TowerCache};
 use crate::theta_v0::config::ThetaConfig;
 use crate::theta_v0::parser::parse_layer;
-use crate::theta_v0::types::Bar;
+use crate::theta_v0::types::{Bar, BspBits, Direction, MoveKind};
 
 /// Theta 分类引擎适配器
 pub struct ThetaClassificationAdapter {
@@ -20,6 +23,65 @@ pub struct ThetaClassificationAdapter {
 impl ThetaClassificationAdapter {
     pub fn new(config: ThetaConfig) -> Self {
         Self { config }
+    }
+
+    /// 转换 BspBits 到 u8 bit vector
+    fn convert_bsp_bits(bits: &BspBits) -> u8 {
+        let mut result = 0u8;
+        if bits.buy1 {
+            result |= 0b000001;
+        }
+        if bits.sell1 {
+            result |= 0b000010;
+        }
+        if bits.buy2 {
+            result |= 0b000100;
+        }
+        if bits.sell2 {
+            result |= 0b001000;
+        }
+        if bits.buy3 {
+            result |= 0b010000;
+        }
+        if bits.sell3 {
+            result |= 0b100000;
+        }
+        result
+    }
+
+    /// 转换 BspPoint 到 BspPointPlaceholder
+    fn convert_bsp_point(bsp: &BspPoint) -> BspPointPlaceholder {
+        BspPointPlaceholder {
+            source_index: bsp.source_index,
+            bits: Self::convert_bsp_bits(&bsp.bits),
+            pivot_low: bsp.pivot_low as f64,
+            pivot_high: bsp.pivot_high as f64,
+            center_index: None, // TODO: 从 bsp.owner 提取中枢索引
+        }
+    }
+
+    /// 转换 MoveKind
+    fn convert_move_kind(kind: &MoveKind) -> FugueMoveKind {
+        match kind {
+            MoveKind::Trend => FugueMoveKind::Trend,
+            MoveKind::Consolidation => FugueMoveKind::Consolidation,
+        }
+    }
+
+    /// 转换 Direction
+    fn convert_direction(dir: &Option<Direction>) -> Option<FugueDir> {
+        dir.as_ref().map(|d| match d {
+            Direction::Up => FugueDir::Up,
+            Direction::Down => FugueDir::Down,
+        })
+    }
+
+    /// 转换 MoveStatus
+    fn convert_move_status(status: &MoveStatus) -> FugueMoveStatus {
+        match status {
+            MoveStatus::Active => FugueMoveStatus::Active,
+            MoveStatus::Completed => FugueMoveStatus::Closed,
+        }
     }
 }
 
@@ -42,6 +104,7 @@ impl ClassificationEngine for ThetaClassificationAdapter {
             .levels
             .iter()
             .map(|level| {
+                // 转换中枢
                 let centers = Rc::new(
                     level
                         .centers
@@ -57,10 +120,31 @@ impl ClassificationEngine for ThetaClassificationAdapter {
                         .collect(),
                 );
 
+                // 转换买卖点
+                let bsp_points = level
+                    .bsp
+                    .iter()
+                    .map(|b| Self::convert_bsp_point(b))
+                    .collect();
+
+                // 转换走势段
+                let moves = level
+                    .moves
+                    .iter()
+                    .map(|m| MovePlaceholder {
+                        start_center: m.start_center,
+                        end_center: m.end_center,
+                        kind: Self::convert_move_kind(&m.kind),
+                        dir: Self::convert_direction(&m.dir),
+                        level_lift: m.level_lift,
+                        status: Self::convert_move_status(&m.status),
+                    })
+                    .collect();
+
                 LevelState {
                     centers,
-                    bsp_points: vec![],
-                    moves: vec![],
+                    bsp_points,
+                    moves,
                 }
             })
             .collect();
