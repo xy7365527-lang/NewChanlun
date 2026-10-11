@@ -540,6 +540,10 @@ pub(super) fn handle(
                 apply_allocation(c, config, epoch, e_epoch, e)
             }
             "BindVoice" if config.domain.starts_with("B:") => bind_voice(c, config, epoch, e),
+            // TB-03-B 财务操作
+            "Reserve" if config.domain == "E" => reserve(c, config, epoch, e),
+            "PrepareDecision" if config.domain.starts_with("B:") => prepare_decision(c, config, epoch, e),
+            "CommitDecision" if config.domain.starts_with("B:") => commit_decision(c, config, epoch, e),
             "ReadView" | "Watch" | "QueryFact" | "QueryAllocation" | "QueryVoice" => {
                 read(c, config, epoch, runtime, &e["payload"])
             }
@@ -625,4 +629,118 @@ pub fn cli(is_b: bool) -> Result<(), String> {
         _ => return Err("InvalidDomain：未知子命令".into()),
     }
     Ok(())
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  TB-03-B: 财务会话操作（E.Reserve + B.Prepare/Commit）
+// ════════════════════════════════════════════════════════════════════════════
+
+use crate::fugue_v3::financial::{ResponsibilityEngine, DecisionBook, Grant};
+use std::sync::Mutex;
+
+// 全局财务状态（简化实现，生产应持久化到数据库）
+lazy_static::lazy_static! {
+    static ref E_ENGINE: Mutex<ResponsibilityEngine> = Mutex::new(ResponsibilityEngine::new(10000.0));
+    static ref B_BOOK: Mutex<DecisionBook> = Mutex::new(DecisionBook::new());
+}
+
+fn reserve(
+    _c: &mut Connection,
+    config: &Config,
+    _epoch: i64,
+    e: &Value,
+) -> Result<Value, String> {
+    let p = &e["payload"];
+    exact(p, &["op", "tower_id", "voice_id", "amount", "max_capacity"])?;
+    
+    let tower_id = positive(required(p, "tower_id")?, "tower_id")? as u64;
+    let voice_id = positive(required(p, "voice_id")?, "voice_id")? as u64;
+    let amount = required(p, "amount")?
+        .parse::<f64>().map_err(|_| "InvalidDomain: amount must be numeric string")?;
+    
+    let mut engine = E_ENGINE.lock().unwrap();
+    
+    match engine.reserve(tower_id, voice_id, amount, 1) {
+        Ok(grant) => {
+            Ok(json!({
+                "kind": "Reserved",
+                "domain_id": config.domain,
+                "grant": {
+                    "grant_id": grant.grant_id.to_string(),
+                    "tower_id": grant.tower_id.to_string(),
+                    "voice_id": grant.voice_id.to_string(),
+                    "reserved_amount": grant.reserved_amount.to_string(),
+                    "epoch": grant.epoch.to_string()
+                }
+            }))
+        }
+        Err(e) => Err(format!("ReserveError: {:?}", e)),
+    }
+}
+
+fn prepare_decision(
+    _c: &mut Connection,
+    config: &Config,
+    _epoch: i64,
+    e: &Value,
+) -> Result<Value, String> {
+    let p = &e["payload"];
+    exact(p, &["op", "tower_id", "voice_id", "amount"])?;
+    
+    let tower_id = positive(required(p, "tower_id")?, "tower_id")? as u64;
+    let voice_id = positive(required(p, "voice_id")?, "voice_id")? as u64;
+    let amount = required(p, "amount")?
+        .parse::<f64>().map_err(|_| "InvalidDomain: amount must be numeric string")?;
+    
+    let mut book = B_BOOK.lock().unwrap();
+    
+    match book.prepare_decision(tower_id, voice_id, amount, 1) {
+        Ok(prepared_id) => {
+            Ok(json!({
+                "kind": "Prepared",
+                "domain_id": config.domain,
+                "prepared_id": prepared_id.0.to_string()
+            }))
+        }
+        Err(e) => Err(format!("PrepareError: {:?}", e)),
+    }
+}
+
+fn commit_decision(
+    _c: &mut Connection,
+    config: &Config,
+    _epoch: i64,
+    e: &Value,
+) -> Result<Value, String> {
+    let p = &e["payload"];
+    exact(p, &["op", "prepared_id", "grant"])?;
+    
+    let prepared_id = positive(required(p, "prepared_id")?, "prepared_id")? as u64;
+    let g = &p["grant"];
+    
+    let grant = Grant {
+        grant_id: positive(required(g, "grant_id")?, "grant_id")? as u64,
+        tower_id: positive(required(g, "tower_id")?, "tower_id")? as u64,
+        voice_id: positive(required(g, "voice_id")?, "voice_id")? as u64,
+        reserved_amount: required(g, "reserved_amount")?
+            .parse().map_err(|_| "InvalidDomain: reserved_amount parse")?,
+        epoch: positive(required(g, "epoch")?, "epoch")? as u64,
+    };
+    let mut book = B_BOOK.lock().unwrap();
+    
+    use crate::fugue_v3::financial::PreparedId;
+    match book.commit_decision(PreparedId(prepared_id), &grant) {
+        Ok(receipt) => {
+            Ok(json!({
+                "kind": "Committed",
+                "domain_id": config.domain,
+                "receipt": {
+                    "commit_id": receipt.commit_id.to_string(),
+                    "prepared_id": receipt.prepared_id.0.to_string(),
+                    "grant_id": receipt.grant_id.to_string()
+                }
+            }))
+        }
+        Err(e) => Err(format!("CommitError: {:?}", e)),
+    }
 }
