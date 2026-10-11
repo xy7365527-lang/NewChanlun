@@ -103,6 +103,15 @@ impl ResponsibilityEngine {
     pub fn total_responsibility(&self) -> f64 {
         self.total_responsibility
     }
+    /// 获取所有已发放的 grants（AC4：JSON 观察用）
+    pub fn grants(&self) -> Vec<&Grant> {
+        self.grants.values().collect()
+    }
+
+    /// 获取最大容量（AC4：JSON 观察用）
+    pub fn max_capacity(&self) -> f64 {
+        self.max_responsibility
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -209,6 +218,10 @@ impl DecisionBook {
     pub fn committed_count(&self) -> usize {
         self.committed.len()
     }
+    /// 获取所有已提交的 receipts（AC4：JSON 观察用）
+    pub fn receipts(&self) -> Vec<&Receipt> {
+        self.committed.values().collect()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -314,5 +327,212 @@ mod tests {
         assert_eq!(e1.total_responsibility(), e2.total_responsibility());
         assert_eq!(b1.committed_count(), b2.committed_count());
         assert_eq!(r1.prepared_id, r2.prepared_id);
+    }
+}
+// 在 financial.rs 末尾添加持久化层
+
+#[cfg(feature = "s_session")]
+use rusqlite::{params, Connection, Result as SqlResult};
+
+#[cfg(feature = "s_session")]
+pub struct FinancialStore {
+    conn: Connection,
+}
+
+#[cfg(feature = "s_session")]
+impl FinancialStore {
+    pub fn new(path: &str) -> SqlResult<Self> {
+        let conn = Connection::open(path)?;
+        
+        // 创建表
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS financial_responsibilities (
+                tower_id INTEGER NOT NULL,
+                voice_id INTEGER NOT NULL,
+                total_responsibility REAL NOT NULL,
+                max_capacity REAL NOT NULL,
+                updated_at INTEGER NOT NULL,
+                PRIMARY KEY (tower_id, voice_id)
+            )",
+            [],
+        )?;
+        
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS financial_grants (
+                grant_id INTEGER PRIMARY KEY,
+                tower_id INTEGER NOT NULL,
+                voice_id INTEGER NOT NULL,
+                reserved_amount REAL NOT NULL,
+                epoch INTEGER NOT NULL,
+                created_at INTEGER NOT NULL
+            )",
+            [],
+        )?;
+        
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS financial_decisions (
+                prepared_id INTEGER PRIMARY KEY,
+                tower_id INTEGER NOT NULL,
+                voice_id INTEGER NOT NULL,
+                amount REAL NOT NULL,
+                epoch INTEGER NOT NULL,
+                state TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            )",
+            [],
+        )?;
+        
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS financial_receipts (
+                commit_id INTEGER PRIMARY KEY,
+                prepared_id INTEGER NOT NULL,
+                grant_id INTEGER NOT NULL,
+                timestamp INTEGER NOT NULL,
+                FOREIGN KEY (prepared_id) REFERENCES financial_decisions(prepared_id),
+                FOREIGN KEY (grant_id) REFERENCES financial_grants(grant_id)
+            )",
+            [],
+        )?;
+        
+        Ok(Self { conn })
+    }
+    
+    // 保存责任状态
+    pub fn save_responsibility(&self, tower_id: u64, voice_id: u64, engine: &ResponsibilityEngine) -> SqlResult<()> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        
+        self.conn.execute(
+            "INSERT OR REPLACE INTO financial_responsibilities 
+             (tower_id, voice_id, total_responsibility, max_capacity, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                tower_id as i64,
+                voice_id as i64,
+                engine.total_responsibility(),
+                engine.max_responsibility,
+                now as i64
+            ],
+        )?;
+        Ok(())
+    }
+    
+    // 保存 Grant
+    pub fn save_grant(&self, grant: &Grant) -> SqlResult<()> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        
+        self.conn.execute(
+            "INSERT INTO financial_grants 
+             (grant_id, tower_id, voice_id, reserved_amount, epoch, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                grant.grant_id as i64,
+                grant.tower_id as i64,
+                grant.voice_id as i64,
+                grant.reserved_amount,
+                grant.epoch as i64,
+                now as i64
+            ],
+        )?;
+        Ok(())
+    }
+    
+    // 保存 Receipt
+    pub fn save_receipt(&self, receipt: &Receipt) -> SqlResult<()> {
+        self.conn.execute(
+            "INSERT INTO financial_receipts 
+             (commit_id, prepared_id, grant_id, timestamp)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![
+                receipt.commit_id as i64,
+                receipt.prepared_id.0 as i64,
+                receipt.grant_id as i64,
+                receipt.timestamp as i64
+            ],
+        )?;
+        Ok(())
+    }
+    
+    // 查询所有 Receipt（用于验收）
+    pub fn query_receipts(&self) -> SqlResult<Vec<Receipt>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT commit_id, prepared_id, grant_id, timestamp FROM financial_receipts ORDER BY timestamp"
+        )?;
+        
+        let receipts = stmt.query_map([], |row| {
+            Ok(Receipt {
+                commit_id: row.get::<_, i64>(0)? as u64,
+                prepared_id: PreparedId(row.get::<_, i64>(1)? as u64),
+                grant_id: row.get::<_, i64>(2)? as u64,
+                timestamp: row.get::<_, i64>(3)? as u64,
+            })
+        })?
+        .collect::<SqlResult<Vec<_>>>()?;
+        
+        Ok(receipts)
+    }
+    
+    // 恢复 ResponsibilityEngine 状态
+    pub fn restore_engine(&self, tower_id: u64, voice_id: u64) -> SqlResult<Option<ResponsibilityEngine>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT total_responsibility, max_capacity FROM financial_responsibilities 
+             WHERE tower_id = ?1 AND voice_id = ?2"
+        )?;
+        
+        let mut rows = stmt.query(params![tower_id as i64, voice_id as i64])?;
+        
+        if let Some(row) = rows.next()? {
+            let total: f64 = row.get(0)?;
+            let max: f64 = row.get(1)?;
+            
+            let mut engine = ResponsibilityEngine::new(max);
+            engine.total_responsibility = total;
+            
+            Ok(Some(engine))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+#[cfg(all(test, feature = "s_session"))]
+mod persistence_tests {
+    use super::*;
+    
+    #[test]
+    fn test_store_roundtrip() {
+        let store = FinancialStore::new(":memory:").unwrap();
+        let mut engine = ResponsibilityEngine::new(1000.0);
+        let grant = engine.reserve(1, 1, 100.0, 1).unwrap();
+        
+        // 保存
+        store.save_responsibility(1, 1, &engine).unwrap();
+        store.save_grant(&grant).unwrap();
+        
+        // 恢复
+        let restored = store.restore_engine(1, 1).unwrap().unwrap();
+        assert_eq!(restored.total_responsibility(), 100.0);
+    }
+    
+    #[test]
+    fn test_receipt_persistence() {
+        let store = FinancialStore::new(":memory:").unwrap();
+        let receipt = Receipt {
+            commit_id: 1,
+            prepared_id: PreparedId(1),
+            grant_id: 1,
+            timestamp: 1000,
+        };
+        
+        store.save_receipt(&receipt).unwrap();
+        let receipts = store.query_receipts().unwrap();
+        
+        assert_eq!(receipts.len(), 1);
+        assert_eq!(receipts[0].commit_id, 1);
     }
 }
