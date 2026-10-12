@@ -1535,17 +1535,14 @@ fn load_in_store(
         successful: HashSet::new(),
     });
     let mut stmt=CheckedStatement::prepare(tx,c"SELECT object_id,object_revision,kind,fact_key,window_start,window_mid,window_end,generated_root,internal_root,immutable_root,birth_wire_root,batch_id,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM s_content_objects ORDER BY rowid").map_err(err)?;
-    eprintln!("[OBJ_IDX] after SQL prepare: {:.3}s", _t_load.elapsed().as_secs_f64());
     let allocation = s.allocation_budget();
     let mut out = bj::new_work(allocation.as_ref());
-    eprintln!("[OBJ_IDX] before decode loop: {:.3}s", _t_load.elapsed().as_secs_f64());
     while let Some(mut row) = stmt.next().map_err(err)? {
         let e = decode_persisted_entry(&mut row, s, latest, allocation.as_ref())?;
         s.native_codec_room(&mut out, 1).map_err(err)?;
         out.try_push(e).map_err(err)?;
     }
     stmt.finalize().map_err(err)?;
-    eprintln!("[OBJ_IDX] after decode loop: {:.3}s", _t_load.elapsed().as_secs_f64());
     // 含已撤回身份的完整表；只克隆身份键，不复制正文。Owned 路径沿既有分配器。
     let mut by_id = bj::new_map(allocation.as_ref());
     for (ordinal, e) in out.iter().enumerate() {
@@ -1599,7 +1596,6 @@ fn load_in_store(
         let value = HistoryEvents::from_ids_admitted(&out, by_id, s)?;
         *events = Some(value.into_arc_admitted(s)?);
     }
-    eprintln!("[OBJ_IDX] load_in_store exit: {:.3}s", _t_load.elapsed().as_secs_f64());
 
     Ok(out)
 }
