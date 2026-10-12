@@ -1,0 +1,94 @@
+{
+  "scannedHead": "230f7cdb06feb5710d97a50cffe7cf01b6063041",
+  "startedAt": "2026-10-12T03:09:01Z",
+  "finishedAt": "2026-10-12T03:13:56Z",
+  "scannerExitCode": 0,
+  "gateExitCode": 1,
+  "actionsArtifactUploaded": false,
+  "sarifExists": true,
+  "sarifSha256": "849538dd882dcbc0a6ecda5881d2a8f3aa0f486c392da95dd48d0b89b555357d",
+  "scannerImage": [
+    {
+      "Id": "sha256:fb3a4913fdaa63a7b888f53dfca1ce8fe44a5db8e0d8892849c48cbe7c191da4",
+      "RepoTags": [
+        "devskim-scanner:1.0.90"
+      ],
+      "RepoDigests": [
+        "devskim-scanner@sha256:fb3a4913fdaa63a7b888f53dfca1ce8fe44a5db8e0d8892849c48cbe7c191da4"
+      ],
+      "Comment": "buildkit.dockerfile.v0",
+      "Created": "2026-10-12T03:08:17.283465918Z",
+      "Config": {
+        "Env": [
+          "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "APP_UID=1654",
+          "ASPNETCORE_HTTP_PORTS=8080",
+          "DOTNET_RUNNING_IN_CONTAINER=true",
+          "DOTNET_VERSION=8.0.30",
+          "ASPNET_VERSION=8.0.30",
+          "DOTNET_GENERATE_ASPNET_CERTIFICATE=false",
+          "DOTNET_NOLOGO=true",
+          "DOTNET_SDK_VERSION=8.0.424",
+          "DOTNET_USE_POLLING_FILE_WATCHER=true",
+          "NUGET_XMLDOC_MODE=skip",
+          "POWERSHELL_DISTRIBUTION_CHANNEL=PSDocker-DotnetSDK-Debian-12"
+        ],
+        "Entrypoint": [
+          "/entrypoint.sh"
+        ]
+      },
+      "Architecture": "amd64",
+      "Os": "linux",
+      "Size": 487677944,
+      "RootFS": {
+        "Type": "layers",
+        "Layers": [
+          "sha256:66462cc862fe2053b9863fefa3866e07bb5dfb06f6b3ce3177cc096e4021aabe",
+          "sha256:ac412f03cd67170c2be482dd96ecfffb403596dc81988f910c6ee6aa189bdad3",
+          "sha256:6e1ed81000e4212be77cb38a2db66cb7dde6ae179ce1b094951981c7a98509e7",
+          "sha256:ab2cf1fb64bed7c928ad8be87344cef30654706d74574b14d023da87591ee48c",
+          "sha256:b8c5d8e269d09c0a7a6c9a85d0321ed9d5823d8e02ce478c5e36f3a9de9e9a93",
+          "sha256:26798b9bcd21b5f1f26b859384d95f44298a5c62d1ffc9833b3f81d8ef3760cb",
+          "sha256:f494c82bd28016fa7922a00e798cefdc15486dbfce100d9d73089d932a735fda",
+          "sha256:d6be215c3312abc629daa984029ee57878bddcafaa7742415cacebedb5797900",
+          "sha256:0dd0f584cb99d3ee1cd21cd183585e20f58f783ad8d578ddf4ef7ab1d6158fd0",
+          "sha256:3dfdfc31eb3b457901819e2fa0230962b0c994d6cb3cb8967033e902bd6136d2",
+          "sha256:80b9273a2c97e5253254264cd91cc07f7565cfc22ce7d44d2a537a5d040d612a",
+          "sha256:77b96e5ee50014fb291a4ad16094440b97280b9c8bc9a1f3e8e2a57cd9cc69aa",
+          "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef"
+        ]
+      },
+      "Metadata": {
+        "LastTagTime": "2026-10-12T03:08:17.406735334Z"
+      },
+      "Descriptor": {
+        "mediaType": "application/vnd.oci.image.index.v1+json",
+        "digest": "sha256:fb3a4913fdaa63a7b888f53dfca1ce8fe44a5db8e0d8892849c48cbe7c191da4",
+        "size": 856
+      },
+      "Identity": {
+        "Build": [
+          {
+            "Ref": "uxxdo9nd7fh5x1qeqo87hf4vb",
+            "CreatedAt": "2026-10-12T03:08:17.411201501Z"
+          }
+        ]
+      }
+    }
+  ],
+  "ciSourceBindings": {
+    ".github/workflows/devskim.yml": "f3a11c5e2f4c782e07b7bb494bb994de5df3548d5290eaab9b221bae6e45772e",
+    ".github/devskim/Dockerfile": "f0b71abb79139549eced074f0af4df14f7cbe55b8be4de6dd5f77d138fe6f375",
+    ".github/devskim/entrypoint.sh": "f22f05ca60a85b5eef9aee879d0c34a6743758d2d499281ed0d56d5a16d50135",
+    "scripts/devskim_sarif_gate.sh": "c3154bd748c796ba950d1b4926308cd37a1cf54b0a802f644b6a8877132ce5fc",
+    ".github/devskim-baseline.json": "df25ff2ec9a0898de03a4450fc3506444f08100ca0657a32665086991e202595"
+  },
+  "ignoreGlobs": "**/.git/**,**/bin/**,**/.chanlun/block-topology/concept_registry.json,**/.chanlun/block-topology/morse_landscape.json,**/.chanlun/block-topology/meta.json,**/.chanlun/concept_registry.json,**/topological-computation/experiment_long_run_2000.json,**/topological-computation/experiment_real_result.json,**/topological-computation/experiment_f_criterion_2000.json,**/topological-computation/signifier_net/.dialogue_ingest_state.json,**/skills-lock.json,**/chanlun/review-results/treasury-reverify-t1-armR-trades-golden-20260727.json,**/tmp/**,**/.claude/skills/brainstorming/**,**/.agents/skills/diagnosing-bugs/**,**/.claude/skills/diagnosing-bugs/**",
+  "rawSarif": "/tmp/goal1323-native-20261012/structure/scan-current-head/devskim-results.sarif",
+  "rawSarifBytes": 135718558,
+  "rawSarifSha256": "849538dd882dcbc0a6ecda5881d2a8f3aa0f486c392da95dd48d0b89b555357d",
+  "rawSarifArchivedInGit": false,
+  "comparisonReport": "TAIL-SCAN-TRIAGE.json",
+  "wholeRepositoryScopeUnchanged": true,
+  "notPassedReason": "零告警门保留；本地未上传Actions artifact；例外需具体版本批准。"
+}
