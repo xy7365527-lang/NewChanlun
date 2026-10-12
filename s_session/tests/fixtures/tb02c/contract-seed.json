@@ -1,0 +1,77 @@
+{
+  "schema_revision": "s-segment/1",
+  "semantic_version": "segment-seed-first/1",
+  "policy_version": "seed_closed_first_no_gap",
+  "view_role": "main",
+  "object_generation": "1",
+  "slot": "seed:1:1",
+  "data": {
+    "entity_id": "seed:1:1",
+    "stroke_refs": [
+      {
+        "stroke_index": "0",
+        "entity_id": "bi:1:1",
+        "start_anchor": "1",
+        "end_anchor": "5",
+        "start_price": "120",
+        "end_price": "384",
+        "start_roots": [
+          "1"
+        ],
+        "end_roots": [
+          "5"
+        ]
+      },
+      {
+        "stroke_index": "1",
+        "entity_id": "bi:1:5",
+        "start_anchor": "5",
+        "end_anchor": "9",
+        "start_price": "384",
+        "end_price": "192",
+        "start_roots": [
+          "5"
+        ],
+        "end_roots": [
+          "9"
+        ]
+      },
+      {
+        "stroke_index": "2",
+        "entity_id": "bi:1:9",
+        "start_anchor": "9",
+        "end_anchor": "13",
+        "start_price": "192",
+        "end_price": "528",
+        "start_roots": [
+          "9"
+        ],
+        "end_roots": [
+          "13"
+        ]
+      }
+    ],
+    "construction": {
+      "start_stroke": "0",
+      "stroke_indices": [
+        "0",
+        "1",
+        "2"
+      ],
+      "length": "odd_ge3",
+      "vector": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "overlap": [
+        "192",
+        "384"
+      ],
+      "overlap_relation": "OVERLAP",
+      "direction": "UP",
+      "failed_conditions": []
+    }
+  }
+}

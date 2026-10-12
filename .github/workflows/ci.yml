@@ -245,6 +245,10 @@ jobs:
       # 须逐轮记录 rust-check job 与两档 cargo test 的实际耗时，再据此裁 timeout。
       # 既有 #[ignore]（theta_v0_fixture_drift、profile_*、oddeven_*_diagnosis 等
       # 需要 BTC 全量数据或 --release 的用例）维持现状，不在 #810 范围内摘除。
+      # #1404：成员来源回归先执行，避免已登记的默认域失败使本片新锁被跳过。
+      - name: cargo test — TB-02-C member source binding
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --bin s_structure_session tb02c_member_relations_bind_only_the_member_sources --jobs 1
+
       - name: cargo test — default targets
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --all-targets --jobs 1
 
@@ -275,8 +279,14 @@ jobs:
         run: python -B -m unittest discover -s s_session/tests -p 'test_tb01c_*.py' -v
       - name: TB-02-A capture deadline and cleanup tests
         run: python -B -m unittest discover -s s_session/tests -p 'test_tb02a_*.py' -v
+      - name: Install TB-02-C trace comparison dependency
+        run: python -m pip install -r s_session/tests/requirements-tb02c.txt
+      - name: TB-02-C public contract and oracle tests
+        run: python -B -m unittest discover -s s_session/tests -p 'test_tb02c_*.py' -v
       - name: Browser protocol tests
         run: node s_session/tests/test_tb01c_browser.cjs
+      - name: TB-02-C observer contract tests
+        run: node --test s_session/tests/test_tb02c_contract.cjs
 
   fixture-drift:
     # #265（#245 裁定）：Lean 源 → parity fixture 双向闭环的 CI 腿。

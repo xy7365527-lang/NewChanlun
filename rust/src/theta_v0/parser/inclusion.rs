@@ -588,6 +588,8 @@ pub struct InclusionStepFact {
 pub struct InclusionFacts {
     /// #1392：同次 parser 的生产新笔与证据，包含层自身不填判定。
     pub stroke_facts: Option<super::stroke::StrokeFacts>,
+    /// #1404：同次生产线段状态机的构造过程。
+    pub segment_facts: Option<super::segment::SegmentFacts>,
     pub merged: Vec<Bar>,
     pub groups: Vec<InclusionGroupFact>,
     pub steps: Vec<InclusionStepFact>,

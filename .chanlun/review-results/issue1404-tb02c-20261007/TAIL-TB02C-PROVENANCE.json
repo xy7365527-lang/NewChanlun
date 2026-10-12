@@ -1,0 +1,25 @@
+{
+  "head": "230f7cdb06feb5710d97a50cffe7cf01b6063041",
+  "source_sha256": "057c1fedc52587c9488bdb27dc6f3e1ddf9da0591a3d7ce265ca36bff3e3c429",
+  "fixture_log_sha256": "db0c90e35acaa6d3b1eb3960bf70c7a8dae3f1cc0ea10713c608f1dc2f5a5451",
+  "execution_records": [
+    {
+      "source_session": "rollout-2026-10-12T10-04-57-01a12ddb-1d0f-70b0-b908-ba9737ef4011.jsonl",
+      "line": 456,
+      "timestamp": "2026-10-12T02:28:13.026Z",
+      "record_type": "function_call",
+      "command": "cd /Users/silencehan/.codex/worktrees/goal1323-structure-delivery/NewChanlun && CARGO_TARGET_DIR=/tmp/goal1323-tb02c-tail-target cargo test --manifest-path rust/Cargo.toml --locked --offline --lib tb02c_ -j 2 -- --nocapture > /tmp/goal1323-tb02c-fixture-tests.log 2>&1"
+    },
+    {
+      "source_session": "rollout-2026-10-12T10-04-57-01a12ddb-1d0f-70b0-b908-ba9737ef4011.jsonl",
+      "line": 459,
+      "timestamp": "2026-10-12T02:28:13.323Z",
+      "record_type": "function_call_output",
+      "direct_output": "Chunk ID: f03d88\nWall time: 0.1396 seconds\nProcess exited with code 0\nOriginal token count: 0\nOutput:\n"
+    }
+  ],
+  "result_footer": "test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 3106 filtered out; finished in 0.03s",
+  "binding_basis": "同一固定工位直接命令、原工具exit0、当前head未改变；本轮重算源摘要；非重新运行fixture。",
+  "original_rustfmt_log_empty": true,
+  "rustfmt_limit": "空日志本身不证明成功；历史工蜂if/else回包显示Format OK，root也确认exit0；本材料不把空文件单独列成passed check。"
+}

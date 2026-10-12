@@ -38,6 +38,7 @@
 //! 包含关系的」——确认「假设转折点」逻辑（包含时先试不合并看是否触发分型）是正确缠论语义。
 
 use super::super::types::{Direction, Stroke, Tick};
+use serde::Serialize;
 
 // ════════════════════════════════════════════════════════════
 // #246 相切探针（票 #248 裁定影响量化）——thread_local 计数器
@@ -92,6 +93,42 @@ struct FeatElem {
     high: Tick,
     low: Tick,
     stroke_idx: usize,
+}
+
+/// #1404：在原状态机求值现场记录；笔索引由同次 StrokeFacts 绑定身份。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct FeatureElement {
+    pub high: Tick,
+    pub low: Tick,
+    pub stroke_idx: usize,
+    pub stroke_indices: Vec<usize>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct FeatureStep {
+    pub incoming: FeatureElement,
+    pub before: Option<FeatureElement>,
+    pub after: FeatureElement,
+    pub action: &'static str,
+    pub merge_direction: Option<&'static str>,
+    pub scope: &'static str,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct FeatureCheck {
+    pub elements: [FeatureElement; 3],
+    pub first_fractal: bool,
+    /// 无分型时不适用，不填 false。
+    pub gap: Option<bool>,
+    pub gap_closed_by_c: Option<bool>,
+    pub provisional: bool,
+    /// 第71课:40：假设转折点前/后的两元素是 a/b；不是包含试探时的 b/c。
+    pub turn_hypothesis_pair: Option<[usize; 2]>,
+}
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct FeatureSequenceFacts {
+    pub raw_elements: Vec<FeatureElement>,
+    pub standard: Vec<FeatureElement>,
+    pub steps: Vec<FeatureStep>,
+    pub checks: Vec<FeatureCheck>,
 }
 
 /// 笔的特征序列高低（= max/min(start_price, end_price)）。
@@ -313,6 +350,8 @@ pub struct FeatureSeqState {
     /// ⟹ 本段 seg_start 是 unsealed 起点。`reset` 清零（每段独立），跳过时置真（段内累积）。
     /// 增量层 `IncrSegments::append` 读此标志把 seg_start 记入 `earliest_unsealed_from`。
     skipped_secondkind: bool,
+    facts: Option<FeatureSequenceFacts>,
+    provisional: bool,
 }
 
 impl FeatureSeqState {
@@ -336,6 +375,8 @@ impl FeatureSeqState {
             tail_window,
             second_seq_window,
             skipped_secondkind: false,
+            facts: None,
+            provisional: false,
         }
     }
 
@@ -350,6 +391,18 @@ impl FeatureSeqState {
         self.skip_until_stroke = -1;
         self.seg_dir = seg_dir;
         self.skipped_secondkind = false;
+        if self.facts.is_some() {
+            self.facts = Some(FeatureSequenceFacts::default());
+        }
+        self.provisional = false;
+    }
+
+    pub fn observe(&mut self) {
+        self.facts = Some(FeatureSequenceFacts::default());
+    }
+
+    pub fn facts(&self) -> FeatureSequenceFacts {
+        self.facts.clone().unwrap_or_default()
     }
 
     /// #88：本段扫描期间是否跳过过 SecondKind 候选（unsealed 起点信号，增量层读取）。
@@ -368,12 +421,27 @@ impl FeatureSeqState {
     /// - 有分型 → 不合并（转折点，两元素属不同特征序列，第71课:42）。
     /// - 无分型 → pop 回退，按方向性 K 线包含规则合并。
     pub fn append(&mut self, stroke_idx: usize, high: Tick, low: Tick, strokes: &[Stroke]) {
+        let incoming = FeatureElement {
+            high,
+            low,
+            stroke_idx,
+            stroke_indices: if self.facts.is_some() {
+                vec![stroke_idx]
+            } else {
+                Vec::new()
+            },
+        };
+        let before = self.facts.as_ref().and_then(|f| f.standard.last().cloned());
+        if let Some(f) = &mut self.facts {
+            f.raw_elements.push(incoming.clone());
+        }
         if self.std.is_empty() {
             self.std.push(FeatElem {
                 high,
                 low,
                 stroke_idx,
             });
+            self.record_step(incoming, before, "append", None, "SAME_SEQUENCE");
             return;
         }
         let last = *self.std.last().unwrap();
@@ -389,7 +457,17 @@ impl FeatureSeqState {
                 low,
                 stroke_idx,
             });
-            if self.scan_trigger(strokes).is_some() {
+            if let Some(f) = &mut self.facts {
+                f.standard.push(incoming.clone());
+            }
+            self.provisional = true;
+            let turn = self.scan_trigger(strokes).is_some();
+            self.provisional = false;
+            if let Some(f) = &mut self.facts {
+                f.standard.pop();
+            }
+            if turn {
+                self.record_step(incoming, before, "turn_boundary", None, "TURN_HYPOTHESIS");
                 return;
             }
             self.std.pop();
@@ -406,6 +484,13 @@ impl FeatureSeqState {
             }
             last_mut.stroke_idx = stroke_idx;
             self.last_checked = self.std.len().saturating_sub(3);
+            self.record_step(
+                incoming,
+                before,
+                "merge",
+                Some(if effective_up { "UP" } else { "DOWN" }),
+                "SAME_SEQUENCE",
+            );
         } else {
             if high > last_h && low > last_l {
                 self.dir_state = Some(Direction::Up);
@@ -416,6 +501,41 @@ impl FeatureSeqState {
                 high,
                 low,
                 stroke_idx,
+            });
+            self.record_step(incoming, before, "append", None, "SAME_SEQUENCE");
+        }
+    }
+
+    fn record_step(
+        &mut self,
+        incoming: FeatureElement,
+        before: Option<FeatureElement>,
+        action: &'static str,
+        merge_direction: Option<&'static str>,
+        scope: &'static str,
+    ) {
+        if let Some(f) = &mut self.facts {
+            let elem = self.std.last().unwrap();
+            let mut stroke_indices = if action == "merge" {
+                f.standard.pop().unwrap().stroke_indices
+            } else {
+                vec![]
+            };
+            stroke_indices.push(incoming.stroke_idx);
+            let after = FeatureElement {
+                high: elem.high,
+                low: elem.low,
+                stroke_idx: elem.stroke_idx,
+                stroke_indices,
+            };
+            f.standard.push(after.clone());
+            f.steps.push(FeatureStep {
+                incoming,
+                before,
+                after,
+                action,
+                merge_direction,
+                scope,
             });
         }
     }
@@ -446,6 +566,29 @@ impl FeatureSeqState {
             let (c_h, c_l) = (self.std[i + 1].high, self.std[i + 1].low);
             let (is_fractal, mut has_gap) =
                 is_fractal_and_gap(a_h, a_l, b_h, b_l, c_h, c_l, self.seg_dir);
+            let raw_gap = has_gap;
+            let gap_closed_by_c = (is_fractal && raw_gap).then(|| match self.seg_dir {
+                Direction::Up => c_l <= a_h,
+                Direction::Down => c_h >= a_l,
+            });
+            if let Some(f) = &mut self.facts {
+                let check = FeatureCheck {
+                    elements: [
+                        f.standard[i - 1].clone(),
+                        f.standard[i].clone(),
+                        f.standard[i + 1].clone(),
+                    ],
+                    first_fractal: is_fractal,
+                    gap: is_fractal.then_some(raw_gap),
+                    gap_closed_by_c,
+                    provisional: self.provisional,
+                    turn_hypothesis_pair: is_fractal
+                        .then_some([f.standard[i - 1].stroke_idx, f.standard[i].stroke_idx]),
+                };
+                if f.checks.last() != Some(&check) {
+                    f.checks.push(check);
+                }
+            }
             if !is_fractal {
                 continue;
             }

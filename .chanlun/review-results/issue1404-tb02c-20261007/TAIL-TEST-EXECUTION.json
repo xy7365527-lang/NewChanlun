@@ -1,0 +1,25 @@
+{
+  "head": "230f7cdb06feb5710d97a50cffe7cf01b6063041",
+  "source_sha256": "057c1fedc52587c9488bdb27dc6f3e1ddf9da0591a3d7ce265ca36bff3e3c429",
+  "reason": "历史tb02b测试包装使用tee但没有pipefail；重新捕获唯一小测的真实进程退出码并绑定当前源文件，不重跑R3。",
+  "command": [
+    "cargo",
+    "test",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "--locked",
+    "--offline",
+    "--lib",
+    "theta_v0::parser::stroke::tests::tb02b_",
+    "-j",
+    "2",
+    "--",
+    "--nocapture"
+  ],
+  "started_at": "2026-10-12T03:04:31.299983+00:00",
+  "exit_code": 0,
+  "finished_at": "2026-10-12T03:04:47.684879+00:00",
+  "source_unchanged": true,
+  "clean_after": true,
+  "log_sha256": "24875bef608498017f84fa94e49b6b205bf102ed039d5191c1e29edfba1479ca"
+}

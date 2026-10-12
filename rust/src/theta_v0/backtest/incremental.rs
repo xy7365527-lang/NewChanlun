@@ -870,19 +870,39 @@ mod tests {
         );
     }
 
-    /// fixture2：多尺度锐锯齿——快尺度制造密集中枢 + 频繁 pop-and-rescan，慢尺度偶发簇发段完成
-    /// 产 T>1；同时高级 units 偶尔归零触发 units.is_empty 早停（§2.6 路径2 + 第6条 pop 覆盖）。
+    /// fixture2（#1404）：三笔构造有效的交替线段，簇间上移使上级外缘最终分离。
+    /// raw170 重扫产两个窗口；raw266 有三个上级输入但无中枢，触发空投影早停。
+    /// 原9K随机夹具在完整段构造准入后仅剩一层，已不能承担这两项覆盖。
     #[test]
     fn a3_oracle_pop_rescan_empty() {
-        let mut bars = pseudo_walk(9000, 0xD1B5_4A32_D192_ED03, 46, 500, 3500);
-        // #1392：显式加入每根一 tick 的趋势，使已成中枢的外缘能分离，
-        // 覆盖“本级至少三单元但无上级中枢”的空投影；仍走原始 K 线完整解析。
-        for (i, bar) in bars.iter_mut().enumerate() {
-            for value in [&mut bar.open, &mut bar.high, &mut bar.low, &mut bar.close] {
-                *value += i as i64;
+        let mut knots = vec![0i64];
+        for j in 0..12 {
+            let base = 8 * j;
+            knots.extend([base + 10, base + 4, base + 20, base + 8, base + 16, base]);
+        }
+        let mut prices = vec![500, 1];
+        for pair in knots.windows(2) {
+            // 笔端间四根raw；每根加一tick区分端点身份，不改生产同价判据。
+            for t in 1..=4 {
+                prices
+                    .push(pair[0] * 100 + (pair[1] - pair[0]) * 100 * t / 4 + prices.len() as i64);
             }
         }
-        let bars = without_cross_bar_price_ties(bars);
+        let bars: Vec<Bar> = prices
+            .into_iter()
+            .take(267)
+            .enumerate()
+            .map(|(i, price)| Bar {
+                source_index: i,
+                timestamp: i as i64,
+                open: price,
+                high: price + 1,
+                low: price - 1,
+                close: price,
+                volume: 1.0,
+                untradable: false,
+            })
+            .collect();
         let p = run_oracle(&bars, "pop_rescan_empty");
         // ★核心覆盖（第6条 refuted 根修）：pop-and-rescan 两分支都命中——T==1（重扫仅复现被 pop
         // 窗口，did_extend 恒 false 而尾部改写，did_extend 证伪正向锁）+ T>1（frontier 值改写，

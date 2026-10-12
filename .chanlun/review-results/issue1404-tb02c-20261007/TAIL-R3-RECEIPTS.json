@@ -1,0 +1,162 @@
+[
+  {
+    "path": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/EXIT.json",
+    "expected_sha256": "3e42a2ad3dbeab9d1167d20261ad6305bdea31103ffc09c30f25558345966de2",
+    "exists": true,
+    "size": 16,
+    "actual_sha256": "3e42a2ad3dbeab9d1167d20261ad6305bdea31103ffc09c30f25558345966de2",
+    "match": true
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/RESULT.json",
+    "expected_sha256": "c8d84d2b255d958f3ed48b758773af4804fef8eea2cb2c40b35118ec979e02f4",
+    "exists": true,
+    "size": 1248,
+    "actual_sha256": "c8d84d2b255d958f3ed48b758773af4804fef8eea2cb2c40b35118ec979e02f4",
+    "match": true
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/query-oracle.json",
+    "expected_sha256": "91813138742c040e06b116787ee7202541dd792c1f434bc4e5af6cb9ac5e8308",
+    "exists": true,
+    "size": 136,
+    "actual_sha256": "91813138742c040e06b116787ee7202541dd792c1f434bc4e5af6cb9ac5e8308",
+    "match": true
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/browser/RESULT.json",
+    "expected_sha256": "e1831e460e44375eaa11ba30abb595937a20cb3ff1ab1ee87241c8f732e57f4f",
+    "exists": true,
+    "size": 89,
+    "actual_sha256": "e1831e460e44375eaa11ba30abb595937a20cb3ff1ab1ee87241c8f732e57f4f",
+    "match": true
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/normal-recovery.json",
+    "expected_sha256": "b49a4422633be51a99b59d2da9fab652c6c689648a8bc6cee3be9eaf773ebdc9",
+    "exists": true,
+    "size": 2744,
+    "actual_sha256": "b49a4422633be51a99b59d2da9fab652c6c689648a8bc6cee3be9eaf773ebdc9",
+    "match": true
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-b/EXIT.json",
+    "expected_sha256": "3e42a2ad3dbeab9d1167d20261ad6305bdea31103ffc09c30f25558345966de2",
+    "exists": true,
+    "size": 16,
+    "actual_sha256": "3e42a2ad3dbeab9d1167d20261ad6305bdea31103ffc09c30f25558345966de2",
+    "match": true
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-b/evidence/RESULT.json",
+    "expected_sha256": "ebffe8c29e13f97e984a88a7d044011a4d2a53e46326eff1bb5bda1900a93ab8",
+    "exists": true,
+    "size": 1248,
+    "actual_sha256": "ebffe8c29e13f97e984a88a7d044011a4d2a53e46326eff1bb5bda1900a93ab8",
+    "match": true
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-b/evidence/query-oracle.json",
+    "expected_sha256": "91813138742c040e06b116787ee7202541dd792c1f434bc4e5af6cb9ac5e8308",
+    "exists": true,
+    "size": 136,
+    "actual_sha256": "91813138742c040e06b116787ee7202541dd792c1f434bc4e5af6cb9ac5e8308",
+    "match": true
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-b/evidence/browser/RESULT.json",
+    "expected_sha256": "e1831e460e44375eaa11ba30abb595937a20cb3ff1ab1ee87241c8f732e57f4f",
+    "exists": true,
+    "size": 89,
+    "actual_sha256": "e1831e460e44375eaa11ba30abb595937a20cb3ff1ab1ee87241c8f732e57f4f",
+    "match": true
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-b/evidence/normal-recovery.json",
+    "expected_sha256": "ee480d698f3e13472f77b418ff1d246915f3123fe100dedb475716294f5f984d",
+    "exists": true,
+    "size": 2744,
+    "actual_sha256": "ee480d698f3e13472f77b418ff1d246915f3123fe100dedb475716294f5f984d",
+    "match": true
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-a/EXIT.json",
+    "expected_sha256": "3e42a2ad3dbeab9d1167d20261ad6305bdea31103ffc09c30f25558345966de2",
+    "exists": true,
+    "size": 16,
+    "actual_sha256": "3e42a2ad3dbeab9d1167d20261ad6305bdea31103ffc09c30f25558345966de2",
+    "match": true
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-a/evidence/RESULT.json",
+    "expected_sha256": "b2c84dc1db1e524fd2c256c6225cf8a71a182a871fa4bfce8a84842527ae628e",
+    "exists": true,
+    "size": 1248,
+    "actual_sha256": "b2c84dc1db1e524fd2c256c6225cf8a71a182a871fa4bfce8a84842527ae628e",
+    "match": true
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-a/evidence/query-oracle.json",
+    "expected_sha256": "6f2791df6c97f25d6a49af2318a067a78bf1e853146507a7c572b4b4ba7ffd59",
+    "exists": true,
+    "size": 138,
+    "actual_sha256": "6f2791df6c97f25d6a49af2318a067a78bf1e853146507a7c572b4b4ba7ffd59",
+    "match": true
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-a/evidence/browser/RESULT.json",
+    "expected_sha256": "e1831e460e44375eaa11ba30abb595937a20cb3ff1ab1ee87241c8f732e57f4f",
+    "exists": true,
+    "size": 89,
+    "actual_sha256": "e1831e460e44375eaa11ba30abb595937a20cb3ff1ab1ee87241c8f732e57f4f",
+    "match": true
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-a/evidence/normal-recovery.json",
+    "expected_sha256": "62d625f038c297dc69772378837ce29dbd44ee583ba2e3e1c8e390567f3088b9",
+    "exists": true,
+    "size": 2752,
+    "actual_sha256": "62d625f038c297dc69772378837ce29dbd44ee583ba2e3e1c8e390567f3088b9",
+    "match": true
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-b/EXIT.json",
+    "expected_sha256": "3e42a2ad3dbeab9d1167d20261ad6305bdea31103ffc09c30f25558345966de2",
+    "exists": true,
+    "size": 16,
+    "actual_sha256": "3e42a2ad3dbeab9d1167d20261ad6305bdea31103ffc09c30f25558345966de2",
+    "match": true
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-b/evidence/RESULT.json",
+    "expected_sha256": "1bfc4cd800fcf8776d4f4ca7e6d4e1cd454d3366436559f900c5d0681cdf2510",
+    "exists": true,
+    "size": 1248,
+    "actual_sha256": "1bfc4cd800fcf8776d4f4ca7e6d4e1cd454d3366436559f900c5d0681cdf2510",
+    "match": true
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-b/evidence/query-oracle.json",
+    "expected_sha256": "6f2791df6c97f25d6a49af2318a067a78bf1e853146507a7c572b4b4ba7ffd59",
+    "exists": true,
+    "size": 138,
+    "actual_sha256": "6f2791df6c97f25d6a49af2318a067a78bf1e853146507a7c572b4b4ba7ffd59",
+    "match": true
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-b/evidence/browser/RESULT.json",
+    "expected_sha256": "e1831e460e44375eaa11ba30abb595937a20cb3ff1ab1ee87241c8f732e57f4f",
+    "exists": true,
+    "size": 89,
+    "actual_sha256": "e1831e460e44375eaa11ba30abb595937a20cb3ff1ab1ee87241c8f732e57f4f",
+    "match": true
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-b/evidence/normal-recovery.json",
+    "expected_sha256": "2589f2a4411a9f751e26881e3437261019c618b80bff1c360d9747b9944b1bf1",
+    "exists": true,
+    "size": 2752,
+    "actual_sha256": "2589f2a4411a9f751e26881e3437261019c618b80bff1c360d9747b9944b1bf1",
+    "match": true
+  }
+]

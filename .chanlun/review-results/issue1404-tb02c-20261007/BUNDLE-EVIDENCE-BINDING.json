@@ -1,0 +1,176 @@
+{
+  "schema": "issue1404-bundle-evidence-binding/1",
+  "verifiedAt": "2026-10-12T03:17:01.696292+00:00",
+  "publicHead": "95165b79d7dea25c2f3b45e666596c03edde4c13",
+  "productHead": "230f7cdb06feb5710d97a50cffe7cf01b6063041",
+  "artifacts": [
+    {
+      "path": ".chanlun/review-results/issue1404-tb02c-20261007/developing.png",
+      "sha256": "280cfa57ef5fae9bc15fb29df0a9c0578c2552f1d49222ea3cd13167009d6a91",
+      "mode": "100644",
+      "type": "历史PNG证据图",
+      "public_equals_tail": true,
+      "png_signature_valid": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1404-tb02c-20261007/final-javascript.txt",
+      "sha256": "adfd2f54716cfa85ef0a5209a3a7b0c0502cac963ebdcbf2c24f3eebe53da86b",
+      "mode": "100644",
+      "type": "历史原始日志",
+      "public_equals_tail": true,
+      "footer": [
+        "# tests 5",
+        "# pass 5",
+        "# fail 0"
+      ],
+      "historical_failure": false
+    },
+    {
+      "path": ".chanlun/review-results/issue1404-tb02c-20261007/final-member-source.txt",
+      "sha256": "041d78cf011dda8e0d11837939cd6024f50e9aca82d42c305b986711f58c0be7",
+      "mode": "100644",
+      "type": "历史原始日志",
+      "public_equals_tail": true,
+      "footer": [
+        "    Finished `test` profile [unoptimized] target(s) in 13.63s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 80 filtered out; finished in 0.02s"
+      ],
+      "historical_failure": false
+    },
+    {
+      "path": ".chanlun/review-results/issue1404-tb02c-20261007/final-oracle.txt",
+      "sha256": "66c72505a2bcc3168f10088791e2271836c4efb830548f2d05cef0e9f104e04d",
+      "mode": "100644",
+      "type": "历史原始日志",
+      "public_equals_tail": true,
+      "footer": [
+        "    Finished `test` profile [unoptimized] target(s) in 30.62s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3109 filtered out; finished in 0.05s"
+      ],
+      "historical_failure": false
+    },
+    {
+      "path": ".chanlun/review-results/issue1404-tb02c-20261007/final-python.txt",
+      "sha256": "5dc3a6fa0695f525a243e109e06bc3242c52f4eed2e1b025c5062478792a7292",
+      "mode": "100644",
+      "type": "历史原始日志",
+      "public_equals_tail": true,
+      "footer": [
+        "Ran 14 tests in 0.101s",
+        "OK"
+      ],
+      "historical_failure": false
+    },
+    {
+      "path": ".chanlun/review-results/issue1404-tb02c-20261007/final-release-build.txt",
+      "sha256": "ab0239f4579784e4c230cc14b9c7fc2e62a8f1767ade33d5f52691ba9044f9e1",
+      "mode": "100644",
+      "type": "历史原始日志",
+      "public_equals_tail": true,
+      "footer": [
+        "    Finished `release` profile [optimized] target(s) in 1m 50s"
+      ],
+      "historical_failure": false
+    },
+    {
+      "path": ".chanlun/review-results/issue1404-tb02c-20261007/final-rust-parser.txt",
+      "sha256": "dc2531abc321f94bb2b57481135d86aaf23763f2eca2db3718b67dc6d9ae70ec",
+      "mode": "100644",
+      "type": "历史原始日志",
+      "public_equals_tail": true,
+      "footer": [
+        "    Finished `test` profile [unoptimized] target(s) in 30.41s",
+        "test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 3102 filtered out; finished in 0.01s"
+      ],
+      "historical_failure": false
+    },
+    {
+      "path": ".chanlun/review-results/issue1404-tb02c-20261007/javascript-observer.txt",
+      "sha256": "8f706f67bc61b1330997a935574b1737d86502c1396d862782e09855bca75235",
+      "mode": "100644",
+      "type": "历史原始日志",
+      "public_equals_tail": true,
+      "footer": [
+        "# tests 5",
+        "# pass 5",
+        "# fail 0"
+      ],
+      "historical_failure": false
+    },
+    {
+      "path": ".chanlun/review-results/issue1404-tb02c-20261007/python-contract.txt",
+      "sha256": "698d16d7b93c4bd9707d3cfacda6fb1e0fea99ed0cda6e69bedc42772940540a",
+      "mode": "100644",
+      "type": "历史原始日志",
+      "public_equals_tail": true,
+      "footer": [
+        "Ran 8 tests in 0.001s",
+        "OK"
+      ],
+      "historical_failure": false
+    },
+    {
+      "path": ".chanlun/review-results/issue1404-tb02c-20261007/rust-feature-regression.txt",
+      "sha256": "898a8fc27ce2502ea169326253a44456d61f4d150a2269995fffe9b8809df373",
+      "mode": "100644",
+      "type": "历史原始日志",
+      "public_equals_tail": true,
+      "footer": [
+        "    Finished `test` profile [unoptimized] target(s) in 0.04s",
+        "test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 3094 filtered out; finished in 0.00s"
+      ],
+      "historical_failure": false
+    },
+    {
+      "path": ".chanlun/review-results/issue1404-tb02c-20261007/rust-parser.txt",
+      "sha256": "25ef2d9914827557691f424246e1348a3cd529ba7c6df0022ef5eeaf5e05ce9d",
+      "mode": "100644",
+      "type": "历史原始日志",
+      "public_equals_tail": true,
+      "footer": [
+        "    Finished `test` profile [unoptimized] target(s) in 18.29s",
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 3102 filtered out; finished in 0.01s"
+      ],
+      "historical_failure": false
+    },
+    {
+      "path": ".chanlun/review-results/issue1404-tb02c-20261007/rust-persistence.txt",
+      "sha256": "3e2773ccb370296eb4c9d90d19eee4652cde0bdb44389ffa3b19630a2a7185f3",
+      "mode": "100644",
+      "type": "历史原始日志",
+      "public_equals_tail": true,
+      "footer": [
+        "    Finished `test` profile [unoptimized] target(s) in 7.84s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 79 filtered out; finished in 357.22s"
+      ],
+      "historical_failure": false
+    },
+    {
+      "path": ".chanlun/review-results/issue1404-tb02c-20261007/rust-segment-regression.txt",
+      "sha256": "b57c4354b652a4ccd2a5aea64ed9bd0b85475a14709a3dddfa6e5b925fd13589",
+      "mode": "100644",
+      "type": "历史原始日志",
+      "public_equals_tail": true,
+      "footer": [
+        "    Finished `test` profile [unoptimized] target(s) in 0.04s",
+        "test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 3089 filtered out; finished in 0.51s"
+      ],
+      "historical_failure": false
+    },
+    {
+      "path": ".chanlun/review-results/issue1404-tb02c-20261007/ui-red.txt",
+      "sha256": "41406f370942ac17a7a4436fd9c9a144429c3f3868c1494e1a4e62a4215044cd",
+      "mode": "100644",
+      "type": "历史原始日志",
+      "public_equals_tail": true,
+      "footer": [
+        "# tests 4",
+        "# pass 3",
+        "# fail 1"
+      ],
+      "historical_failure": true
+    }
+  ],
+  "method": "固定Git blob与当前文件逐字节对比；txt UTF8读取并摘取真实footer，PNG核文件签名。未重新运行历史命令，未声称新截图。",
+  "reviewPurpose": "delivery schema将txt/png保守计入产品差异，本机械核验只负责这14份数据证据的字节与类型覆盖；代码审查由既有与新尾部独评分别承担。"
+}

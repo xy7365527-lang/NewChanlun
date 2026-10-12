@@ -1,0 +1,2398 @@
+{
+  "schema": "issue1404-tail-scan-triage/1",
+  "createdAt": "2026-10-12T03:16:07.457358+00:00",
+  "scannedHead": "230f7cdb06feb5710d97a50cffe7cf01b6063041",
+  "baseHead": "8619a20f2800095e6bb9ec20ba2607a744740f91",
+  "publicHead": "95165b79d7dea25c2f3b45e666596c03edde4c13",
+  "scannerExecution": {
+    "scannedHead": "230f7cdb06feb5710d97a50cffe7cf01b6063041",
+    "startedAt": "2026-10-12T03:09:01Z",
+    "finishedAt": "2026-10-12T03:13:56Z",
+    "scannerExitCode": 0,
+    "gateExitCode": 1,
+    "actionsArtifactUploaded": false,
+    "sarifExists": true,
+    "sarifSha256": "849538dd882dcbc0a6ecda5881d2a8f3aa0f486c392da95dd48d0b89b555357d"
+  },
+  "base": {
+    "path": "/Volumes/AgentStorage/issue1404-ci-review-20261007/base-devskim.zip",
+    "sha256": "059b619b128c869911da3a6dc5a7c2b9c01fdfe9307832454a56f7a0a02ef25c",
+    "count": 41207,
+    "tool": [
+      {
+        "name": "devskim",
+        "version": "1.0.90+fb2d676ce4",
+        "semanticVersion": null
+      }
+    ]
+  },
+  "public": {
+    "path": "/Volumes/AgentStorage/issue1404-ci-review-20261007/head-current-devskim.zip",
+    "sha256": "c3c0d2036af16cc82df59dd673508cf38ebfaf81a3c50051ae6d60b00d746126",
+    "count": 41312,
+    "tool": [
+      {
+        "name": "devskim",
+        "version": "1.0.90+fb2d676ce4",
+        "semanticVersion": null
+      }
+    ]
+  },
+  "tail": {
+    "path": "/tmp/goal1323-native-20261012/structure/scan-current-head/devskim-results.sarif",
+    "sha256": "849538dd882dcbc0a6ecda5881d2a8f3aa0f486c392da95dd48d0b89b555357d",
+    "count": 41312,
+    "tool": [
+      {
+        "name": "devskim",
+        "version": "1.0.90+fb2d676ce4",
+        "semanticVersion": null
+      }
+    ]
+  },
+  "comparisonKey": [
+    "ruleId",
+    "level",
+    "message完整对象",
+    "locations按原序的path与snippet完整对象"
+  ],
+  "ignored": [
+    "行列号",
+    "字符偏移",
+    "其他非比较键属性"
+  ],
+  "multiset": true,
+  "new_vs_public": [],
+  "removed_vs_public": [],
+  "new_vs_base": [
+    {
+      "finding_fingerprint": "041e850f3a7cec4e9d283c04a86e09ded225bc38a9038edbb015789f102ee575",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:rust/src/bin/s_session_v2/tb02a.rs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:rust/src/bin/s_session_v2/tb02a.rs",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[2].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "05cdeb4eecb22d3a1939c7fc201e0ca3d37b27ac13fec8270fa889992d6c729f",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/tb02c_browser.cjs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0041-tb02c_browser.cjs",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[22].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "05f8bf2c686ef2e9f5cb1405dfdc65d0bd4c1d6f9bacc90a33ea8bc4b536cb70",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-b/evidence/RESULT.json",
+          "method": "SHA-256重算正式运行回执"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.arms[3].receipts_sha256.evidence/RESULT.json"
+      ]
+    },
+    {
+      "finding_fingerprint": "087bd5bfa21153ec2d9a6da60debf92afcd8426f5d0ea4349ecd25f061b47bb4",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/browser/index.html",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0056-index.html",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[12].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "099db136ea4efaa9938998825ce18087b727d8d7562a186942e5e584857163b8",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/fixtures/tb02c/hand-oracle.json",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0084-hand-oracle.json",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[19].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "12a879b66a9e5bdb2955c946136c6e011baa61cd4a22c51eef6cd0aa716a01e3",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/test_tb02c_verifier.py",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0044-test_tb02c_verifier.py",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[31].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "1aaefc7be1d0709ba1ed38f7b4ec0f1b1e95e95fd93e1032bc4eec5a49a58f74",
+      "count": 2,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/COMPARISON-RESULT.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-a/evidence/semantic-core.jsonl",
+          "method": "流式SHA-256重算完整语义原件，不解析数据库"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-b/evidence/semantic-core.jsonl",
+          "method": "流式SHA-256重算完整语义原件，不解析数据库"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/COMPARISON-RESULT.json#$.comparisons[1].sha256[0]",
+        ".chanlun/review-results/issue1404-tb02c-20261007/COMPARISON-RESULT.json#$.comparisons[1].sha256[1]"
+      ]
+    },
+    {
+      "finding_fingerprint": "1b10ea1c0a60f7566aeb04008b721fb4805cf23744fe331978d332709debdbcf",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Users/silencehan/Projects/NewChanlun/.scratch/issue1404-seed-first-20261007/root-checks-r5/rust-session.log",
+          "method": "SHA-256重算尾部Rust测试原始日志"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.post_pr_checks.rust[1].log_sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "1ccd12d5299f05fd0ee3c04683591db40a34598d1400a04d4e98bf607c36c456",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/browser/tb01c-client.js",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0057-tb01c-client.js",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[13].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "2163a8978720b3d05631540a7f8458a567ddc5e2aadda362627ca071372be2e4",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:rust/src/theta_v0/parser/mod.rs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:rust/src/theta_v0/parser/mod.rs",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[9].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "21820dcb57152f45573f86008f023008a86aff83970b9129a051bf6295b371c5",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:rust/src/theta_v0/parser/tb02c_tests.rs",
+          "method": "SHA-256重算固定提交文件"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[11].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "24ebb68abea89bfaf3d18f83002cc3a7b541907715f3adf799f1e0d180d86750",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/fixtures/tb02c/hand-oracle.json",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0084-hand-oracle.json",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[19].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "264a12cdc67419bab2f871c08140bb7d159120a5c67dcc14df0422ba066d4a6b",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Volumes/AgentStorage/NewChanlun-Build/issue1404-seed-first-20261007/target/release/s_structure_session",
+          "method": "SHA-256重算固定二进制"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.build.binary.sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "29d8522a86433685a14b95062b3f453a99c25cb6feb3b97086e05c805e5b7583",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/test_tb02c_contract.cjs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0046-test_tb02c_contract.cjs",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[29].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "2a146ba06bb908380db2a38976f810b0f697dc0275d7989787d7276e03594f36",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:rust/src/theta_v0/parser/feature_seq.rs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:rust/src/theta_v0/parser/feature_seq.rs",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[7].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "2d7668081327a3668275c5d623ca9afc299f6dfc33243e673ae446305e7ec995",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:rust/src/bin/s_session_v2/tb02a_facts.rs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:rust/src/bin/s_session_v2/tb02a_facts.rs",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[2].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "2f0821503568ca2d01c68434ee46546541e96682a4756f6373319849904151ee",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/RESULT.json",
+          "method": "SHA-256重算正式运行回执"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.arms[0].receipts_sha256.evidence/RESULT.json"
+      ]
+    },
+    {
+      "finding_fingerprint": "2f25efc66019e201d4f5aa8533ad8449f6ec122ec516727d9efb2693707590bb",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/tb02c_runtime.py",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0039-tb02c_runtime.py",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[25].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "33471f7fbe9025839c9758c511b5dc51e3e45e1b3a44f025dea086295cf08a3e",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Users/silencehan/Projects/NewChanlun/.scratch/issue1404-seed-first-20261007/root-checks-r5/python.log",
+          "method": "SHA-256重算尾部Python与重复复验日志"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.post_pr_checks.python_and_reverification.checks[0].log_sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "356b95d2f84400b58d56a04c0c68421845bc8008998887b6ccfcd0984856f628",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/test_tb01c_browser.cjs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0042-test_tb01c_browser.cjs",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[25].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "36f75897384584e1ea4136c10e05ed5ccad98e0aee9be2236fd210bd79925bda",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0047-tb02c_harness.py",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[22].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "416de09f106bf3d6b7fb039a6af91b4ec1283eee10eb8bbaa4619e813e5fef76",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/tb02c_compare.py",
+          "method": "SHA-256重算固定提交文件"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[23].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "421e7bb2e43391388c3160d02d89522946c324c0fc3783bf8927fdcc0d4a7f90",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/tb02c_browser.cjs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0041-tb02c_browser.cjs",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[21].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "428459e4ac90d90a5a050aeacc08346b5daaad39ae959bffbb61cc329ac7821d",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:rust/src/bin/s_session_v2/tb02c.rs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:rust/src/bin/s_session_v2/tb02c.rs",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[4].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "43ed429d277fbe3135890a6bdeef6ba40d23a87e717b8473e75d9746dcf5a547",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#/files",
+          "method": "规范files数组聚合重算"
+        },
+        {
+          "source": ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#/aggregate_sha256",
+          "method": "匹配已重算运行聚合"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.aggregate_sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "47b26406051b95fd6c2310f47de180f22b651b23b9b3455c69aec0a8cc7ba436",
+      "count": 2,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-a/evidence/query-oracle.json",
+          "method": "SHA-256重算正式运行回执"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-b/evidence/query-oracle.json",
+          "method": "SHA-256重算正式运行回执"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.arms[2].receipts_sha256.evidence/query-oracle.json",
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.arms[3].receipts_sha256.evidence/query-oracle.json"
+      ]
+    },
+    {
+      "finding_fingerprint": "49c7a0287a99d9d9f74b92a517677a624791c2936908aa6318915e776a05139a",
+      "count": 2,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/query-oracle.json",
+          "method": "SHA-256重算正式运行回执"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-b/evidence/query-oracle.json",
+          "method": "SHA-256重算正式运行回执"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.arms[0].receipts_sha256.evidence/query-oracle.json",
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.arms[1].receipts_sha256.evidence/query-oracle.json"
+      ]
+    },
+    {
+      "finding_fingerprint": "49de37959e94a19fcae89026699b0d097376ee5dbb972bd65aaced0407e77185",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:rust/src/bin/s_session_v2/tb02b.rs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:rust/src/bin/s_session_v2/tb02b.rs",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[3].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "4e1d933f49c2fddcce6bada3c6c7cfa5e5c7e23ad7728d987d511dde2bf9a474",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Volumes/AgentStorage/NewChanlun-Build/issue1404-seed-first-20261007/target/release/s_structure_session",
+          "method": "SHA-256重算固定二进制"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.binary_sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "4e4ebb5164f99dd97ff6eb644eb61e2fd7faf3f4e6a4d86795b8ab263d7cd33d",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#/files",
+          "method": "规范files数组聚合重算"
+        },
+        {
+          "source": ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#/aggregate_sha256",
+          "method": "匹配已重算最终源码聚合"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.aggregate_sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "4f9a4ed5c041bcb2bd722f875166531635b29d2298536934d22e6e4742ff2631",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:rust/src/theta_v0/parser/tb02c_tests.rs",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[11].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "53deee08428c2efdb745025b51a0cec477a80f2ac0eb4b30fb596f1c892224b6",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Users/silencehan/Projects/NewChanlun/.scratch/issue1404-seed-first-20261007/root-checks-r5/repeat-comparison.log",
+          "method": "SHA-256重算尾部Python与重复复验日志"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.post_pr_checks.python_and_reverification.checks[1].log_sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "54d15eb8a70eb5157a7fab89c527dc65f5cc8e2d36e7e3e994b8dbde0d5ece6c",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:rust/src/bin/s_structure_session.rs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:rust/src/bin/s_structure_session.rs",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[6].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "557a4150c653d9c87f3067b3823f3b18dc73cda77854d002f1d621e9ab27e04b",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-b/evidence/normal-recovery.json",
+          "method": "SHA-256重算正式运行回执"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.arms[3].receipts_sha256.evidence/normal-recovery.json"
+      ]
+    },
+    {
+      "finding_fingerprint": "559cf4a71b5e72aa96af63b1ff6b52a1000ff079e9bf38b7a83638abe542ef11",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "验收报告中的Git基线提交指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:8619a20",
+          "method": "固定Git提交对象身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.base_commit"
+      ]
+    },
+    {
+      "finding_fingerprint": "55a05995e989784234605f0d7e0a1919cfb1b0d1bc74fbce63d72ab5963d3c51",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:rust/src/bin/s_session_v2/tb02a_facts.rs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:rust/src/bin/s_session_v2/tb02a_facts.rs",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[3].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "5673b292459edd40a88edde34ddee525ddbc16df97e1aa51793bf47725efe37b",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/tb02c_verify.py",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0026-tb02c_verify.py",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[26].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "576cd64c9dbeb87d5c9416d3dd02156eb2c07d453fa90fa0b98529c050b5eb98",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/tb02c_runtime.py",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0039-tb02c_runtime.py",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[23].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "5b55ccf9943d22ec1f7ac20bb01250501786feaffbdb5078476cf2d039a0d427",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "验收报告中的Git基线提交指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:ce1ec9d283b05b5939e44f977a30848bd499d6f5",
+          "method": "固定上一轮CI提交对象"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.ci_observation.head"
+      ]
+    },
+    {
+      "finding_fingerprint": "676dae79355a1d5ea324eb4a88624fd602b6be80d308066c495f8e172cfb67e5",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/fixtures/tb02c/contract-seed.json",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0083-contract-seed.json",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[17].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "68748efa299974cc640900037b67ff462f55da7a893d6e42c2d5dfa121742e4a",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/s_tb02_contract.py",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0016-s_tb02_contract.py",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[15].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "6a3e0d4b58c4c33fb0c2483f15259ef885ff41a7de71af386d597a03a4473948",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/test_tb02c_contract.py",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0048-test_tb02c_contract.py",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[30].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "6ca2605f15fdb829ec533fb2eaf61b8f9b1a190bb5f2bb7b6f130a378ab1804b",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:rust/src/theta_v0/backtest/incremental.rs",
+          "method": "SHA-256重算固定提交文件"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[6].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "74043b8fdcc8b50b318e8a0e494ad29ad372f7d8473babd7cedda52c888630bc",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-b/evidence/normal-recovery.json",
+          "method": "SHA-256重算正式运行回执"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.arms[1].receipts_sha256.evidence/normal-recovery.json"
+      ]
+    },
+    {
+      "finding_fingerprint": "762e673928befd893142af96485d012e2424744c04f482b5111584eb27df4ff9",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/browser/index.html",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0056-index.html",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[12].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "77bca6b6959ff2c1394209f6a574b80c26cb51076dd223ee9e5ea69a69a04f8b",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/test_tb01c_browser.cjs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0042-test_tb01c_browser.cjs",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[27].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "7861e67187466376f9ea0e1e19f622a75ac768d04f2fe0cc996f49b046f4d6a3",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/test_tb02c_verifier.py",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0044-test_tb02c_verifier.py",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[28].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "7a9862da046f45ba6241fee1ae17349a6de3d21674c112954060306a7aff01ca",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/fixtures/tb02c/first-cut-logical-slots.json",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0081-first-cut-logical-slots.json",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[18].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "7acd46ddf635c28c358810d8759ea2c3038886ec816dbb35a14acb41efa6cdb3",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-a/evidence/normal-recovery.json",
+          "method": "SHA-256重算正式运行回执"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.arms[2].receipts_sha256.evidence/normal-recovery.json"
+      ]
+    },
+    {
+      "finding_fingerprint": "7bca12c9251e15c668aa24b29a6bff6cc4cd9fc43cb3142479a35528c0b59763",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/fixtures/tb02c/ORACLE.md",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:s_session/tests/fixtures/tb02c/ORACLE.md",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[16].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "7c8606d1c2fd194eb32fd2dbbc470dc3e547687544f6b6bc87ffcbeecfd24b15",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:rust/src/bin/s_structure_session.rs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:rust/src/bin/s_structure_session.rs",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[5].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "80699c649ea00358ebf7e28cc6840e2009c22918a64c404286c4d66550671ae7",
+      "count": 1,
+      "ruleId": "DS162092",
+      "level": "note",
+      "paths": [
+        "s_session/tests/tb02c_runtime.py"
+      ],
+      "classification": "正式验收脚本仅连接本机Q的loopback浏览器URL；开发代码规则提示",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [],
+      "prior_report_fields": []
+    },
+    {
+      "finding_fingerprint": "81f72652d0bebc3ce4d1d42ae185e77c0c7287058d9f8b0e7fcc0605651bdef7",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:rust/Cargo.lock",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[0].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "83186b27e1184eaae2b08aed6a2598260d715d6b8463ab7a68775569d9b47af4",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/fixtures/tb02c/raw-ledger.json",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0082-raw-ledger.json",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[20].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "86ea88f12cae2ea72af8274473a6d498bf533673991e5a9b752425a025725c63",
+      "count": 4,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/browser/RESULT.json",
+          "method": "SHA-256重算正式运行回执"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-b/evidence/browser/RESULT.json",
+          "method": "SHA-256重算正式运行回执"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-a/evidence/browser/RESULT.json",
+          "method": "SHA-256重算正式运行回执"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-b/evidence/browser/RESULT.json",
+          "method": "SHA-256重算正式运行回执"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.arms[0].receipts_sha256.evidence/browser/RESULT.json",
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.arms[1].receipts_sha256.evidence/browser/RESULT.json",
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.arms[2].receipts_sha256.evidence/browser/RESULT.json",
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.arms[3].receipts_sha256.evidence/browser/RESULT.json"
+      ]
+    },
+    {
+      "finding_fingerprint": "87ad6cd2177e7c2d126558e20fc6503e4f5fde0293e82d61fda19d737ea81eb9",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "验收报告中的Git基线提交指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:8619a20",
+          "method": "固定Git提交对象身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.base"
+      ]
+    },
+    {
+      "finding_fingerprint": "88193d3bd1ca7c463534a6223ff22deea96006407fc462144aca4295ca107fda",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/fixtures/tb02c/ORACLE.md",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:s_session/tests/fixtures/tb02c/ORACLE.md",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[16].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "8f073efb07c56757b418bf1d496b7c2d0135e017462ee937c5531a7a0e0a502a",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Users/silencehan/Projects/NewChanlun/.scratch/issue1404-seed-first-20261007/root-checks-r5/rust-parser.log",
+          "method": "SHA-256重算尾部Rust测试原始日志"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.post_pr_checks.rust[0].log_sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "8fe598ec1efdf4a464574609ddaea260323b8f422cc8e61d734338b49adc789b",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FILES.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#/files",
+          "method": "规范files数组聚合重算"
+        },
+        {
+          "source": ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#/aggregate_sha256",
+          "method": "匹配已重算最终源码聚合"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FILES.json#$.product_source_sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "924d17575d5e06e17b57820d3aaa7db564bd0930ebf5a919b34baa20fad78d66",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/requirements-tb02c.txt",
+          "method": "SHA-256重算固定提交文件"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[21].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "9eadc5ce2db0bd88268ecbf8e0efaac6d69281103e640b0bacada6a9f9a374a1",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Users/silencehan/Projects/NewChanlun/.scratch/issue1404-seed-first-20261007/worker-run-r1/original-reports/VALIDATION.json#/source_snapshot_sha256",
+          "method": "匹配工蜂原始归档报告字段"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.worker_initial.source_snapshot_sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "9fecbd5a8a19d75245b0ed19156ea5c9b575386c098b4f00d5ae85078fac35f7",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#/files",
+          "method": "规范files数组聚合重算"
+        },
+        {
+          "source": ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#/aggregate_sha256",
+          "method": "匹配已重算运行聚合"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.source_aggregate_sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "a180f86f96167a74baa0a2d6f9838905dd891a8f3c05ec4d7339f6a8ed607b41",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:rust/src/theta_v0/parser/inclusion.rs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:rust/src/theta_v0/parser/inclusion.rs",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[8].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "a338fbf6d79d58f2050dac1ce97384e0636bfa4a716c95c406b5d3ac5bcaac47",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        "s_session/tests/fixtures/tb02c/first-cut-logical-slots.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r2-20261007/first_up-a/evidence/http/commands/live-0/http/00001-response.body",
+          "method": "SHA-256重算R2真实HTTP原件"
+        }
+      ],
+      "prior_report_fields": [
+        "s_session/tests/fixtures/tb02c/first-cut-logical-slots.json#$.response_sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "a6938803101b28026e43d59ae3397d7dd8f3b54c736e3b35f5b4dd7115d8953b",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:rust/src/theta_v0/parser/inclusion.rs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:rust/src/theta_v0/parser/inclusion.rs",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[8].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "aadc6aa9012602f7d46b0e7768a6cb8d5ea5a57c26ad6f6126766578d9eefa80",
+      "count": 2,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:.chanlun/review-results/issue1404-tb02c-20261007/COMPARISON-RESULT.json",
+          "method": "SHA-256重算对拍报告"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/COMPARISON-RESULT.json",
+          "method": "原比较收据SHA-256重算"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.post_pr_checks.python_and_reverification.receipt_sha256",
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.comparison_sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "af2cecca6e0400c1fe1b300ddc875f1c469aff6f5c0df2e9c5acc34708ce52db",
+      "count": 2,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/COMPARISON-RESULT.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/semantic-core.jsonl",
+          "method": "流式SHA-256重算完整语义原件，不解析数据库"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-b/evidence/semantic-core.jsonl",
+          "method": "流式SHA-256重算完整语义原件，不解析数据库"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/COMPARISON-RESULT.json#$.comparisons[0].sha256[0]",
+        ".chanlun/review-results/issue1404-tb02c-20261007/COMPARISON-RESULT.json#$.comparisons[0].sha256[1]"
+      ]
+    },
+    {
+      "finding_fingerprint": "afc06355352d142e141814de5ad78a86c87b8a1f8a7debed2eae580dcbc4f324",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:rust/src/theta_v0/parser/feature_seq.rs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:rust/src/theta_v0/parser/feature_seq.rs",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[7].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "b08c796759d7bf3381d2869022295bcb7271ac39980fce858f8f466a058683d6",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/s_query_integrity.py",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0010-s_query_integrity.py",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[14].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "b1c28ab8e86912cb0d9e05571f2205084e235a4ff0a016583e7e7c70f68dda08",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/test_tb02c_contract.py",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0048-test_tb02c_contract.py",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[27].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "b803d75850d6b133bcbe003aac8b09be9f0dc2a565618338f97f6b9a17030cb3",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:rust/src/theta_v0/parser/mod.rs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:rust/src/theta_v0/parser/mod.rs",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[9].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "bb7fb0a16e13038c8853c6907bb71a248f6f32c0b2ead2bb1c08ea0d737481d1",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/fixtures/tb02c/contract-seed.json",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0083-contract-seed.json",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[17].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "bc76d4e83925cca3749a05ba23845fb932d98a043c7fc3c442eabf925d4fad17",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/test_tb02c_compare.py",
+          "method": "SHA-256重算固定提交文件"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[28].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "bd0fe0160daa6f6b48bca478846d1537aa802e6ed5ab243f152f5dc6b8e9400e",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:rust/src/theta_v0/parser/segment.rs",
+          "method": "SHA-256重算固定提交文件"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[10].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "bff4202079659e75e192fe823e7f766bb26dbf15453a75c9ce3fcb977aaf33e2",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Users/silencehan/Projects/NewChanlun/.scratch/issue1404-seed-first-20261007/root-checks-r2/SOURCE-BEFORE.json#/files",
+          "method": "规范构建输入数组聚合重算"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.build.source_aggregate_sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "c04a3ba2419c5270dee660bc8d9fdb8a903b24f08d7efc0ee82c243f1c2326fd",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-a/evidence/RESULT.json",
+          "method": "SHA-256重算正式运行回执"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.arms[2].receipts_sha256.evidence/RESULT.json"
+      ]
+    },
+    {
+      "finding_fingerprint": "c68fd1a98e4522ecc9ee9b1d93778891f55e6329b6a08ff6b96841e135ab3546",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:rust/src/bin/s_session_v2/tb02c.rs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:rust/src/bin/s_session_v2/tb02c.rs",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[5].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "c69373cdededd10a16f21aed38d10e0edfbb53c04096a4ad2f7378e6df61821e",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/s_tb02_contract.py",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0016-s_tb02_contract.py",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[15].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "c98d18cd3e4045eb237634c7a1a49506807eeb2941cb9bd38b6c3d193027ef6d",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/test_tb02c_contract.cjs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0046-test_tb02c_contract.cjs",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[26].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "cb77b6081c9764605fd342df91e68968077ec5ca39df36947922d5d4a4692d17",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:rust/src/bin/s_session_v2/tb02b.rs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:rust/src/bin/s_session_v2/tb02b.rs",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[4].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "ce58a5fecce0633a15ecfe3f35a820d8e7c7f173074c2ff24aebf7a3abc7c0c0",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/s_query_integrity.py",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0010-s_query_integrity.py",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[14].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "cff47c3ba6cefb8e345e201a4a9e817ae7530bd9fe2ac089f827659a388509e0",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/tb02c_verify.py",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0026-tb02c_verify.py",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[24].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "d33ffffa224100f9436d2b1e60bf5dff25bfa59b0ffaec1071b68be07bb3bc77",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-b/evidence/RESULT.json",
+          "method": "SHA-256重算正式运行回执"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.arms[1].receipts_sha256.evidence/RESULT.json"
+      ]
+    },
+    {
+      "finding_fingerprint": "d365767993e083b0e318786965f00c5b654c9bb202b46979246a9960a572aeab",
+      "count": 4,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/EXIT.json",
+          "method": "SHA-256重算正式运行回执"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-b/EXIT.json",
+          "method": "SHA-256重算正式运行回执"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-a/EXIT.json",
+          "method": "SHA-256重算正式运行回执"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_down-b/EXIT.json",
+          "method": "SHA-256重算正式运行回执"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.arms[0].receipts_sha256.EXIT.json",
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.arms[1].receipts_sha256.EXIT.json",
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.arms[2].receipts_sha256.EXIT.json",
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.arms[3].receipts_sha256.EXIT.json"
+      ]
+    },
+    {
+      "finding_fingerprint": "d5a9f7902f8bfec1c51a5fb516aaf8fcf2ffb597a4a5ace91ddc6c368c62c8c4",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/normal-recovery.json",
+          "method": "SHA-256重算正式运行回执"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.runtime.arms[0].receipts_sha256.evidence/normal-recovery.json"
+      ]
+    },
+    {
+      "finding_fingerprint": "d743970570efc0f3ec4b1b3702690566d321fb1e0cf9400a6dbe31bd946ef91d",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:.github/workflows/ci.yml",
+          "method": "SHA-256重算固定提交文件"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[0].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "dedece7a5ee21a77a71b7949b49a8990b6848b4ea77669cd11ee2752563f9ed5",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/fixtures/tb02c/raw-ledger.json",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0082-raw-ledger.json",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[20].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "e46458bb67e2c972453a6fb7f37ef6e3b06f8b64cf39d63e71935a3a036e198f",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:rust/Cargo.toml",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[1].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "e6077af72815ce42dab8dc6ee40d404c3702904c9bd332dc1ff73309eca06553",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:rust/src/theta_v0/parser/segment.rs",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[10].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "e6fd67c0071041a559fdc2e6d64f5479554195c241644848b3ad146577657718",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/fixtures/tb02c/first-cut-logical-slots.json",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0081-first-cut-logical-slots.json",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/RUNTIME-SOURCE-R3.json#$.files[18].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "f44eb794b989292eda9709c74043e745b967443cddaa0b9662dfb48ab2fb04c9",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:rust/src/bin/s_session_v2/tb02a.rs",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "git:d8a4dc2c8a9b22dd6360406a447b6d5c3c991cac:rust/src/bin/s_session_v2/tb02a.rs",
+          "method": "SHA-256重算R3原版本Git源码，保留历史运行身份"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[1].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "f565553fc242a025a900de828ae4cd3aca6ebd3dd5d16f946632ac5d6b03d509",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "/Users/silencehan/Projects/NewChanlun/.scratch/issue1404-seed-first-20261007/root-checks-r6/oracle.log",
+          "method": "SHA-256重算267raw原始测试日志"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/VALIDATION.json#$.post_pr_checks.oracle_coverage.log_sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "fa71b3be13a0d2c0b875f720cf4fc2185a9a76e84d0b750215e8c5ae2eb3bb60",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/tests/tb02c_harness.py",
+          "method": "SHA-256重算固定提交文件"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[24].sha256"
+      ]
+    },
+    {
+      "finding_fingerprint": "fb2cce37d647c211b058073c01ea04c307fa4bb0222d3c0db3cbe33e38e33d09",
+      "count": 1,
+      "ruleId": "DS173237",
+      "level": "error",
+      "paths": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json"
+      ],
+      "classification": "测试夹具或验收报告中的SHA-256证据指纹；密钥规则误报",
+      "reused_prior_exact_key_and_multiplicity": true,
+      "public_to_tail_source_bytes_identical": true,
+      "new_security_risk": false,
+      "prior_provenance": [
+        {
+          "source": "git:95165b79d7dea25c2f3b45e666596c03edde4c13:s_session/browser/tb01c-client.js",
+          "method": "SHA-256重算固定提交文件"
+        },
+        {
+          "source": "/Volumes/AgentStorage/issue1404-formal-r3-20261007/first_up-a/evidence/source-before-run/0057-tb01c-client.js",
+          "method": "SHA-256重算R3冻结源码副本"
+        }
+      ],
+      "prior_report_fields": [
+        ".chanlun/review-results/issue1404-tb02c-20261007/FINAL-SOURCE.json#$.files[13].sha256"
+      ]
+    }
+  ],
+  "removed_vs_base": [],
+  "unresolved": [],
+  "baseline_untriaged_findings": 41207,
+  "confirmedUnfixedProductFindings": 0,
+  "scope": "扫描全仓既有CI范围；本次分诊仅base和public增量，不宣称旧基线全部无风险。"
+}

@@ -1,0 +1,23 @@
+{
+  "head": "230f7cdb06feb5710d97a50cffe7cf01b6063041",
+  "ledger_sha256": "32d00df0b3e349411b79e34e284242bce5b63dce97a03b6cb2eb17a8dec27aa4",
+  "public_ledger_identical": true,
+  "cases": {
+    "first_up": {
+      "raw_count": 28,
+      "adjacent_pairs": 27,
+      "strict_same_direction_pairs": 27,
+      "all_adjacent_pairs_noninclusion": true,
+      "raw_indices_unique": true,
+      "every_prefix_noninclusion": true
+    },
+    "first_down": {
+      "raw_count": 28,
+      "adjacent_pairs": 27,
+      "strict_same_direction_pairs": 27,
+      "all_adjacent_pairs_noninclusion": true,
+      "raw_indices_unique": true,
+      "every_prefix_noninclusion": true
+    }
+  }
+}

@@ -334,7 +334,9 @@ fn parse_layer_from_facts(
     let stroke_facts = stroke::build_stroke_facts(facts, config);
     let strokes = stroke_facts.production_strokes();
     facts.stroke_facts = Some(stroke_facts);
-    let (segments, pending_start) = segment::divide_segments_with_tail(&strokes, config);
+    let (segments, pending_start, segment_facts) =
+        segment::divide_segments_with_facts(&strokes, config);
+    facts.segment_facts = Some(segment_facts);
     let tail = tail::build_tail(merged, &fractals, &strokes, &segments, pending_start);
     ParseLayer {
         merged_bars: Rc::new(merged.to_vec()),
@@ -347,6 +349,9 @@ fn parse_layer_from_facts(
         tail: Rc::new(tail),
     }
 }
+
+#[cfg(test)]
+mod tb02c_tests;
 
 #[cfg(test)]
 mod tests {

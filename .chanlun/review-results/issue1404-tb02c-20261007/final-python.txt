@@ -1,0 +1,19 @@
+test_all_bytes_and_extra_tail_are_checked (test_tb02c_compare.TraceComparisonTests.test_all_bytes_and_extra_tail_are_checked) ... ok
+test_large_record_is_fully_read_in_chunks (test_tb02c_compare.TraceComparisonTests.test_large_record_is_fully_read_in_chunks) ... ok
+test_layout_binds_complete_query_and_table_sequence (test_tb02c_compare.TraceComparisonTests.test_layout_binds_complete_query_and_table_sequence) ... ok
+test_object_key_order_is_only_unverified_not_semantic_failure (test_tb02c_compare.TraceComparisonTests.test_object_key_order_is_only_unverified_not_semantic_failure) ... ok
+test_precise_json_required_even_when_bytes_match (test_tb02c_compare.TraceComparisonTests.test_precise_json_required_even_when_bytes_match) ... ok
+test_reverification_preserves_existing_receipt (test_tb02c_compare.TraceComparisonTests.test_reverification_preserves_existing_receipt) ... ok
+test_shared_truncation_and_wrong_identity_cannot_pass (test_tb02c_compare.TraceComparisonTests.test_shared_truncation_and_wrong_identity_cannot_pass) ... ok
+test_reject_missing_condition_and_false_direction_claim (test_tb02c_contract.SegmentContractTest.test_reject_missing_condition_and_false_direction_claim) ... ok
+test_reject_unbound_stroke_and_extra_field (test_tb02c_contract.SegmentContractTest.test_reject_unbound_stroke_and_extra_field) ... ok
+test_seed_four_conditions_coexist (test_tb02c_contract.SegmentContractTest.test_seed_four_conditions_coexist) ... ok
+test_two_strokes_are_candidate_not_seed (test_tb02c_contract.SegmentContractTest.test_two_strokes_are_candidate_not_seed) ... ok
+test_mirror_is_valid_only_for_its_own_oracle (test_tb02c_verifier.VerificationBoundaryTest.test_mirror_is_valid_only_for_its_own_oracle) ... ok
+test_old_b_publication_does_not_acquire_future_axes (test_tb02c_verifier.VerificationBoundaryTest.test_old_b_publication_does_not_acquire_future_axes) ... ok
+test_optimized_python_still_checks_the_oracle (test_tb02c_verifier.VerificationBoundaryTest.test_optimized_python_still_checks_the_oracle) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.101s
+
+OK
