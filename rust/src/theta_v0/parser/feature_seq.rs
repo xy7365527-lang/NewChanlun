@@ -353,7 +353,11 @@ pub(super) fn second_seq_has_fractal(
 }
 
 /// #1414：判定与证据来自同一遍扫描，正证据提前停，不把窗口耗尽当否定。
-/// #1344 裁定：语义终点 = 分型或越界先到者（078:52）；本片未实现 078:52 失效条件（KILLED_BY_NEW_EXTREME），失效语义归 TB-02-W #1420。
+///
+/// #1344 / #1420（xianduan §5.1）：语义终点 = 分型或越界先到者。逐笔推进，同一笔内先做包含
+/// 处理与分型检查、后做越界检查（越界取该笔原始极值、严格不等）：先成分型 ⟹ `CONFIRMED`；
+/// 原方向价格先严格越过 P ⟹ `KILLED_BY_NEW_EXTREME`（078:52，候选作废、不复活，失效即停）；
+/// 已知前缀末端皆无 ⟹ `OPEN_AT_PREFIX_END`。预算 `scan_window` 只决定扫描覆盖，耗尽时语义为空。
 pub(super) fn second_sequence(
     strokes: &[Stroke],
     seg_dir: Direction,
@@ -394,6 +398,16 @@ pub(super) fn second_sequence(
             continue;
         }
         let (high, low) = stroke_high_low(sk);
+        // #1344：越界看该笔原始极值（不是包含合并后的元素），水位只作记账。
+        let reach = match seg_dir {
+            Direction::Up => high,
+            Direction::Down => low,
+        };
+        facts.breach_watermark = Some(match (facts.breach_watermark, seg_dir) {
+            (None, _) => reach,
+            (Some(w), Direction::Up) => w.max(reach),
+            (Some(w), Direction::Down) => w.min(reach),
+        });
         let incoming = FeatureElement {
             high,
             low,
@@ -456,6 +470,25 @@ pub(super) fn second_sequence(
                 return facts;
             }
         }
+        // #1344 第二问：分型检查之后才看越界；被包含并入前一元素的笔不是独立第三元素，
+        // 但它的新高/新低照样触发失效（078:52「直接新高或新低」）。
+        let breached = match seg_dir {
+            Direction::Up => reach > candidate_extreme,
+            Direction::Down => reach < candidate_extreme,
+        };
+        if breached {
+            facts.killed_by = Some(SecondKill {
+                stroke_idx: i,
+                price: reach,
+                candidate_extreme,
+                comparison: match seg_dir {
+                    Direction::Up => ">",
+                    Direction::Down => "<",
+                },
+            });
+            facts.semantic_state = Some(SecondTerminal::KilledByNewExtreme);
+            return facts;
+        }
     }
     facts.resource_truncated = end < strokes.len();
     if facts.resource_truncated {
@@ -501,11 +534,15 @@ pub struct FeatureSeqState {
     tail_window: u32,
     /// 第二特征序列扫描窗口（config second_seq_scan_window，0=无限）。
     second_seq_window: u32,
-    /// #88 frontier 修复：本段扫描期间是否跳过过 SecondKind 候选（`has_gap &&
-    /// !second_seq_has_fractal`）。跳过的候选未来 bar 可能让第二序列出现分形而复活，改写本段
-    /// ⟹ 本段 seg_start 是 unsealed 起点。`reset` 清零（每段独立），跳过时置真（段内累积）。
-    /// 增量层 `IncrSegments::append` 读此标志把 seg_start 记入 `earliest_unsealed_from`。
+    /// #88 frontier 修复：本段扫描期间是否跳过过**尚可改判**的 SecondKind 候选。`reset` 清零
+    /// （每段独立），跳过时置真（段内累积）。增量层 `IncrSegments::append` 读此标志把 seg_start 记入
+    /// `earliest_unsealed_from`（检查点安全边界）。#1344：`OPEN_AT_PREFIX_END` 与预算耗尽的候选
+    /// 未来可确认或失效 ⟹ 置真；`KILLED_BY_NEW_EXTREME` 不复活 ⟹ 不置真——唯一例外是失效笔仍是
+    /// 输入末笔（末笔可改写，失效尚可撤销）。
     skipped_secondkind: bool,
+    /// #1420 / A-ST-048-01：已遇预算耗尽的候选。预算耗尽不是否定，本段之后的候选一律不判，
+    /// 直到该候选在新输入上解出（增量层每次 append 新建状态机，故只在单次扫描内生效）。
+    budget_blocked: bool,
     facts: Option<FeatureSequenceFacts>,
     second: Option<SecondSequenceFacts>,
     // #1414 / 067:196：同b的首次FIRST c，不能吸收后来的封闭而倒改第一种。
@@ -535,6 +572,7 @@ impl FeatureSeqState {
             tail_window,
             second_seq_window,
             skipped_secondkind: false,
+            budget_blocked: false,
             facts: None,
             second: None,
             frozen_first: Default::default(),
@@ -554,6 +592,7 @@ impl FeatureSeqState {
         self.skip_until_stroke = -1;
         self.seg_dir = seg_dir;
         self.skipped_secondkind = false;
+        self.budget_blocked = false;
         self.second = None;
         self.frozen_first.clear();
         self.frozen_first_facts.clear();
@@ -718,7 +757,7 @@ impl FeatureSeqState {
     /// 缺口处理：strict 模式下缺口被 c 封闭 → 变第一种情况；有缺口须第二特征序列出现分型才确认。
     pub fn scan_trigger(&mut self, strokes: &[Stroke]) -> Option<TriggerHit> {
         let n = self.std.len();
-        if n < 3 {
+        if n < 3 || self.budget_blocked {
             return None;
         }
         // start = max(1, last_checked, n - tail_window)。tail_window=0 → 无尾窗下限。
@@ -809,11 +848,33 @@ impl FeatureSeqState {
             if !self.provisional {
                 self.second = second.clone();
             }
-            if second.as_ref().is_some_and(|s| s.matched.is_none()) {
-                // #88 frontier：跳过的 SecondKind 候选未来可复活 ⟹ 本段 seg_start unsealed，
-                // 增量层必须回退到其前重扫（第二序列 scan_window=0 无限 ⟹ 任意早的候选都可复活）。
-                self.skipped_secondkind = true;
-                continue;
+            match second.as_ref().map(|s| (s.semantic_state, s)) {
+                None | Some((Some(SecondTerminal::Confirmed), _)) => {}
+                Some((Some(SecondTerminal::KilledByNewExtreme), s)) => {
+                    // #1344：失效候选作废、不复活（078:52），段继续；失效笔仍是输入末笔时末笔可改写，
+                    // 失效尚可撤销 ⟹ 本段保持 unsealed，否则失效终局，检查点安全边界前移。
+                    if s.killed_by
+                        .as_ref()
+                        .is_some_and(|k| k.stroke_idx + 1 >= strokes.len())
+                    {
+                        self.skipped_secondkind = true;
+                    }
+                    continue;
+                }
+                Some((Some(SecondTerminal::OpenAtPrefixEnd), _)) => {
+                    // #88 frontier：跳过的 SecondKind 候选未来可确认或失效 ⟹ 本段 seg_start unsealed，
+                    // 增量层必须回退到其前重扫（第二序列 scan_window=0 无限 ⟹ 任意早的候选都可改判）。
+                    self.skipped_secondkind = true;
+                    continue;
+                }
+                Some((None, _)) => {
+                    // A-ST-048-01 / G-007：预算耗尽不是否定——不得把它当「无分型」跳过去判后续候选。
+                    self.skipped_secondkind = true;
+                    if !self.provisional {
+                        self.budget_blocked = true;
+                    }
+                    return None;
+                }
             }
             self.last_checked = i.saturating_sub(1);
             return Some(TriggerHit {
@@ -1006,39 +1067,75 @@ mod tests {
         assert!(!second_seq_has_fractal(&strokes, Direction::Up, 0, 20, 50));
     }
 
-    /// ★bit-exact 等价性验证（#93 性能优化的等价锚）：提前终止版 `second_seq_has_fractal`
-    /// 必须等价于"完整 collect elements + apply_inclusion + has_any_fractal"的参照实现。
-    ///
-    /// 这是合成数据 L1 交叉验证（formalization-validity-domain：L0→L1 信息增量为零，仅验证
-    /// 管线等价；L2 真实数据等价由 diag_segment_window_effect 的 seg_n=1072 全规模 bit-exact 提供）。
-    /// 参照实现独立重写完整扫描逻辑（不调被测函数），二者比对。
-    fn reference_second_seq_has_fractal(
+    /// ★#1344 三态参照（#93 等价锚换含失效 oracle）：逐笔把已到同向笔**完整重建**为标准第二序列，
+    /// 在整列上找任意分型（不调被测函数）；同一笔内先判分型、后判严格越界（xianduan §5.1 第二问）。
+    /// 返回 (终态, 决定笔)。整列重找与被测的尾三元组提前停等价：包含合并只改末元素。
+    fn reference_second_terminal(
         strokes: &[Stroke],
         seg_dir: Direction,
         from_stroke_idx: usize,
-    ) -> bool {
-        let mut elements: Vec<(Tick, Tick)> = Vec::new();
-        let mut dir_state: Option<Direction> = match seg_dir {
-            Direction::Up => Some(Direction::Down),
-            Direction::Down => None,
-        };
-        for sk in strokes.iter().skip(from_stroke_idx + 1) {
+        candidate_extreme: Tick,
+    ) -> (SecondTerminal, Option<usize>) {
+        let mut members: Vec<(Tick, Tick)> = Vec::new();
+        for (i, sk) in strokes.iter().enumerate().skip(from_stroke_idx + 1) {
             if sk.direction != seg_dir {
                 continue;
             }
             let (h, l) = stroke_high_low(sk);
-            if elements.is_empty() {
-                elements.push((h, l));
-            } else {
-                dir_state = apply_inclusion(&mut elements, h, l, dir_state);
+            members.push((h, l));
+            let mut elements: Vec<(Tick, Tick)> = Vec::new();
+            let mut dir_state: Option<Direction> = match seg_dir {
+                Direction::Up => Some(Direction::Down),
+                Direction::Down => None,
+            };
+            for &(mh, ml) in &members {
+                if elements.is_empty() {
+                    elements.push((mh, ml));
+                } else {
+                    dir_state = apply_inclusion(&mut elements, mh, ml, dir_state);
+                }
+            }
+            if has_any_fractal(&elements) {
+                return (SecondTerminal::Confirmed, Some(i));
+            }
+            let breached = match seg_dir {
+                Direction::Up => h > candidate_extreme,
+                Direction::Down => l < candidate_extreme,
+            };
+            if breached {
+                return (SecondTerminal::KilledByNewExtreme, Some(i));
             }
         }
-        has_any_fractal(&elements)
+        (SecondTerminal::OpenAtPrefixEnd, None)
+    }
+
+    fn assert_matches_reference(
+        strokes: &[Stroke],
+        seg_dir: Direction,
+        apex: usize,
+        p: Tick,
+        label: &str,
+    ) {
+        let got = second_sequence(strokes, seg_dir, apex, p, 0);
+        let decided_at = got
+            .matched
+            .as_ref()
+            .map(|m| m.through_stroke)
+            .or(got.killed_by.as_ref().map(|k| k.stroke_idx));
+        assert_eq!(
+            (got.semantic_state, decided_at),
+            {
+                let (state, at) = reference_second_terminal(strokes, seg_dir, apex, p);
+                (Some(state), at)
+            },
+            "{label}"
+        );
+        assert_eq!(got.coverage, ScanCoverage::Complete, "{label}");
     }
 
     #[test]
-    fn property_second_seq_early_terminate_equals_full_scan() {
-        // 多组手工序列：单调（无分型）、顶分型、底分型、包含后分型、长序列无分型。
+    fn property_second_seq_three_state_equals_full_rebuild_oracle() {
+        // 手工序列：单调（无分型）、顶分型、底分型、包含后分型（P=100 不越界）。
         // 向上线段（seg_dir=Up）→ 第二特征序列取 Up 笔（同向），dir_state 初始 Down。
         let cases: Vec<Vec<Stroke>> = vec![
             // 单调递增 Up 笔（无分型）。
@@ -1081,12 +1178,65 @@ mod tests {
             ],
         ];
         for (i, strokes) in cases.iter().enumerate() {
-            let early = second_seq_has_fractal(strokes, Direction::Up, 0, 100, 0);
-            let full = reference_second_seq_has_fractal(strokes, Direction::Up, 0);
-            assert_eq!(
-                early, full,
-                "case {i}: early-terminate ({early}) != full-scan ({full})"
+            assert_matches_reference(strokes, Direction::Up, 0, 100, &format!("hand case {i}"));
+            // 同一序列把 P 压到 25：越界与分型谁先到由参照逐笔裁决。
+            assert_matches_reference(
+                strokes,
+                Direction::Up,
+                0,
+                25,
+                &format!("hand case {i} P=25"),
             );
         }
+        // 交替随机游走（确定性 LCG）：每根可作 b 的笔都以其极值为 P 对拍，两个方向都覆盖。
+        let mut state: u64 = 0x1420;
+        let mut next = move || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 33) as i64
+        };
+        let mut kinds = [0usize; 3];
+        for round in 0..60 {
+            let len = 20 + (round % 7) * 9;
+            let mut price = 1_000i64;
+            let mut strokes = Vec::with_capacity(len);
+            for i in 0..len {
+                let step = 1 + next() % 40;
+                let end = if i % 2 == 0 {
+                    price + step
+                } else {
+                    price - step
+                };
+                let dir = if end > price {
+                    Direction::Up
+                } else {
+                    Direction::Down
+                };
+                strokes.push(stroke(dir, i * 4, i * 4 + 4, price, end));
+                price = end;
+            }
+            for apex in 0..len {
+                let seg_dir = strokes[apex].direction.flip();
+                let (h, l) = stroke_high_low(&strokes[apex]);
+                let p = match seg_dir {
+                    Direction::Up => h,
+                    Direction::Down => l,
+                };
+                assert_matches_reference(
+                    &strokes,
+                    seg_dir,
+                    apex,
+                    p,
+                    &format!("random {round} apex {apex}"),
+                );
+                let (state, _) = reference_second_terminal(&strokes, seg_dir, apex, p);
+                kinds[state as usize] += 1;
+            }
+        }
+        assert!(
+            kinds.iter().all(|&k| k > 0),
+            "随机语料须同时覆盖三态：{kinds:?}"
+        );
     }
 }
