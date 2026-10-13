@@ -201,6 +201,10 @@ pub(super) struct SourcePins {
     pub session_generation: String,
     pub writer_epoch: String,
     pub resources: FinancialReaderResources,
+    /// #1394 DESIGN-R6 c2 候选：S 财务只读会话的 socket；`None` 为冷路径。生产来源应是
+    /// finance.structure 的 `reader_session` 字段，而该字段改动 §5.7:321 的 exact 九字段，
+    /// 属待裁的协议修订；裁定前 `from_structure` 恒为 `None`，只有 `with_session` 能设置。
+    pub session: Option<String>,
 }
 impl SourcePins {
     pub(super) fn from_structure(value: &Value) -> Result<Self, String> {
@@ -231,7 +235,31 @@ impl SourcePins {
             session_generation: text(value, "session_generation")?.to_owned(),
             writer_epoch: text(value, "writer_epoch")?.to_owned(),
             resources: FinancialReaderResources::from_json(&value["reader_resources"])?,
+            session: None,
         })
+    }
+    /// 经会话读取：S 客户端进程照旧逐次启动、计次计字节并受 45 s 单次期限，只多 `--session`。
+    #[allow(dead_code)] // 待 reader_session 字段（§5.7:321 修订）裁定后由 from_structure 接线
+    pub(super) fn with_session(mut self, socket: &str) -> Result<Self, String> {
+        // macOS sockaddr_un.sun_path 含结尾 NUL 共 104 字节。
+        if !Path::new(socket).is_absolute() || socket.len() > 103 {
+            return Err(invalid("reader_session 必须是短于104字节的绝对路径"));
+        }
+        self.session = Some(socket.to_owned());
+        Ok(self)
+    }
+    fn reader_args<'a>(&'a self, command: &'a str) -> Vec<&'a str> {
+        let mut args = vec![
+            command,
+            "--protocol-revision",
+            "s-session/3",
+            "--db",
+            self.db.as_str(),
+        ];
+        if let Some(socket) = &self.session {
+            args.extend(["--session", socket.as_str()]);
+        }
+        args
     }
     fn check_binary(&self, job: &mut Job, deadline: Instant) -> Result<(), String> {
         job.begin_first_read().map_err(codec)?;
@@ -276,13 +304,7 @@ impl SourcePins {
         job: &mut Job,
         deadline: Instant,
     ) -> Result<Value, String> {
-        let args = [
-            command,
-            "--protocol-revision",
-            "s-session/3",
-            "--db",
-            self.db.as_str(),
-        ];
+        let args = self.reader_args(command);
         finance_transport::financial_reader(
             &self.binary,
             &args,
@@ -1104,6 +1126,32 @@ mod tests {
         pins.as_object_mut().unwrap().remove("extra");
         pins["reader_revision"] = json!("s-financial-basis/2");
         assert!(SourcePins::from_structure(&pins).is_err());
+    }
+    #[test]
+    fn reader_args_add_only_the_session_socket() {
+        let pins =
+            SourcePins::from_structure(&structure("/frozen/s", "/frozen/db", &"0".repeat(64)))
+                .unwrap();
+        assert!(pins.session.is_none());
+        assert_eq!(
+            pins.reader_args("financial-content"),
+            ["financial-content", "--protocol-revision", "s-session/3", "--db", "/frozen/db"]
+        );
+        let warm = pins.clone().with_session("/tmp/s1394/s.sock").unwrap();
+        assert_eq!(
+            warm.reader_args("financial-basis-ref"),
+            [
+                "financial-basis-ref",
+                "--protocol-revision",
+                "s-session/3",
+                "--db",
+                "/frozen/db",
+                "--session",
+                "/tmp/s1394/s.sock"
+            ]
+        );
+        assert!(pins.clone().with_session("relative.sock").is_err());
+        assert!(pins.with_session(&format!("/{}", "x".repeat(103))).is_err());
     }
     #[test]
     fn page_binding_rejects_malformed_source_even_with_valid_nodes() {

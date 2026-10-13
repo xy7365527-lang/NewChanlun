@@ -53,6 +53,9 @@ mod control_audit;
 mod cross_request_source_cache;
 mod driver;
 mod financial_reader;
+// #1394 DESIGN-R6 c2 候选：长驻只读财务会话（待 §5.7 多请求一致性修订裁定）。
+#[cfg(unix)]
+mod financial_session;
 mod generation;
 mod history;
 pub(super) mod object_index;
@@ -129,7 +132,10 @@ pub(super) fn dispatch(args: &[String]) -> Result<bool, String> {
         }
     }
     if positions.is_empty() {
-        if matches!(cmd, "financial-basis-ref" | "financial-content") {
+        if matches!(
+            cmd,
+            "financial-basis-ref" | "financial-content" | "financial-serve" | "financial-serve-stop"
+        ) {
             return Err("VersionUnsupported：新财务命令必须显式选择 s-session/3".into());
         }
         return Ok(false);
@@ -160,9 +166,22 @@ pub(super) fn dispatch(args: &[String]) -> Result<bool, String> {
         financial_reader::run(args)?;
         return Ok(true);
     }
+    if matches!(cmd, "financial-serve" | "financial-serve-stop") && value == PROTOCOL_REVISION {
+        #[cfg(unix)]
+        {
+            if cmd == "financial-serve" {
+                financial_session::serve(args)?;
+            } else {
+                financial_session::stop(args)?;
+            }
+            return Ok(true);
+        }
+        #[cfg(not(unix))]
+        return Err("VersionUnsupported：财务只读会话当前需要Unix平台".into());
+    }
     if cmd != "init" {
         return Err(format!(
-            "VersionUnsupported：{SELECTOR} 目前只适用于 init 或 s-session/3 query-serve/serve/advance/recover/financial-basis-ref/financial-content；`{cmd}` 尚未接线，拒绝执行"
+            "VersionUnsupported：{SELECTOR} 目前只适用于 init 或 s-session/3 query-serve/serve/advance/recover/financial-basis-ref/financial-content/financial-serve/financial-serve-stop；`{cmd}` 尚未接线，拒绝执行"
         ));
     }
     if value == PROTOCOL_REVISION {

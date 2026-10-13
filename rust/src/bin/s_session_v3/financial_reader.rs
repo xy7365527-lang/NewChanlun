@@ -1,6 +1,11 @@
 //! #1394 C §5.7: current S3 financial source and independently proved fragments.
 //! A CLI invocation owns one read-only transaction. The economic owner carries the
 //! frozen reader_resources Job across invocations; this S process does not mint it.
+//! #1394 DESIGN-R6 c2 candidate (pending the §5.7 multi-request consistency ruling): the
+//! explicit 8-argument `--session <socket>` grammar only forwards stdin to a long-lived
+//! read-only session (`financial_session.rs`), never audits locally and never falls back to
+//! this cold path. The session serves through the same `basis_ref_with`/`content_with`
+//! with the one `state::audit` it ran at startup on its audited capture.
 
 use super::*;
 use newchan_rust::s_content::{
@@ -115,6 +120,10 @@ fn db_identity(_db: &Path) -> std::io::Result<(u64, u64)> {
 }
 
 pub(super) fn run(args: &[String]) -> Result<(), String> {
+    #[cfg(unix)]
+    if args.len() == 8 && args.iter().any(|a| a == "--session") {
+        return super::financial_session::client(args);
+    }
     let db = db_arg(args)?;
     // Open only a regular file before waiting for stdin, otherwise a later
     // path swap to FIFO can block SQLite open after the request is complete.
@@ -135,9 +144,21 @@ pub(super) fn run(args: &[String]) -> Result<(), String> {
     }
     let request = strict_json(&bytes).map_err(invalid)?;
     let tx = conn.transaction().map_err(invalid)?;
+    check_markers(&tx)?;
+    let out = match args[1].as_str() {
+        "financial-basis-ref" => basis_ref(&tx, &request)?,
+        "financial-content" => content(&tx, &request, sc::MAX_FRAME_LEN)?,
+        _ => unreachable!(),
+    };
+    println!("{}", canonical_json(&out));
+    Ok(())
+}
+
+/// Shared by the cold CLI and the c2 session (on its audited copy); logic unchanged.
+pub(super) fn check_markers(tx: &Transaction<'_>) -> Result<(), String> {
     // The CLI is a typed S3 endpoint. Both persisted protocol markers must
     // identify this domain before any financial request reaches the auditor.
-    let marker = meta_get_opt(&tx, "protocol_revision")?;
+    let marker = meta_get_opt(tx, "protocol_revision")?;
     let table_marker: Option<String> = tx
         .query_row(
             "SELECT protocol_revision FROM s_protocol_meta WHERE singleton=1",
@@ -151,12 +172,6 @@ pub(super) fn run(args: &[String]) -> Result<(), String> {
     {
         return Err("MixedDomain：财务读者只接受双标记s-session/3".into());
     }
-    let out = match args[1].as_str() {
-        "financial-basis-ref" => basis_ref(&tx, &request)?,
-        "financial-content" => content(&tx, &request, sc::MAX_FRAME_LEN)?,
-        _ => unreachable!(),
-    };
-    println!("{}", canonical_json(&out));
     Ok(())
 }
 
@@ -180,11 +195,25 @@ impl Basis {
     }
 }
 
-fn current_basis(
+/// Exact text of the two request-binding refusals; the c2 session classifies them by
+/// whole-string equality (never by substring), see `is_request_binding_mismatch`.
+const ANCHOR_NOT_CURRENT: &str = "财务anchor与本片当前控制元组不同";
+const IDENTITY_NOT_CURRENT: &str = "请求会话、化身或writer epoch不是当前值";
+
+/// True only for the two refusals that mean "the request is bound to another anchor or
+/// session identity" (content anchor / basis-ref session,generation,epoch).
+#[cfg(unix)]
+pub(super) fn is_request_binding_mismatch(error: &str) -> bool {
+    error == missing(ANCHOR_NOT_CURRENT) || error == missing(IDENTITY_NOT_CURRENT)
+}
+
+/// The current control tuple equals the last audited cut and nothing is pending. One
+/// judgment shared by the cold `current_basis` and by every c2 session request (where it
+/// runs on the live source's fresh short transaction against the startup audit).
+fn current_control<'a>(
     tx: &Transaction<'_>,
-    audited: &state::AuditedState,
-    graph: &mut history::HashReader<'_>,
-) -> Result<Basis, String> {
+    audited: &'a state::AuditedState,
+) -> Result<(&'a history::PublishedCut, (String, String, String)), String> {
     let cut = audited
         .cuts
         .last()
@@ -210,6 +239,24 @@ fn current_basis(
     if accepted != cut.metadata.input_frontier {
         return Err(missing("有尚未发布的已接纳修订"));
     }
+    Ok((cut, (session_id, session_generation, writer_epoch)))
+}
+
+/// c2 session: `current_control` on the live source's per-request short transaction.
+#[cfg(unix)]
+pub(super) fn check_current_control(
+    tx: &Transaction<'_>,
+    audited: &state::AuditedState,
+) -> Result<(), String> {
+    current_control(tx, audited).map(|_| ())
+}
+
+fn current_basis(
+    tx: &Transaction<'_>,
+    audited: &state::AuditedState,
+    graph: &mut history::HashReader<'_>,
+) -> Result<Basis, String> {
+    let (cut, (session_id, session_generation, writer_epoch)) = current_control(tx, audited)?;
     let commit_ns = cut.metadata.semantic_commit_ns.try_clone()?;
     nonnegative(&commit_ns, "commit_ns")?;
     let snapshot = cut.snapshot.clone();
@@ -246,6 +293,23 @@ fn current_basis(
         index_frontier: cut.batch_id.try_clone()?,
         commit_ns,
     })
+}
+
+/// c2 session startup: the anchor of the audited copy (same `current_basis`, same judgment).
+#[cfg(unix)]
+pub(super) fn session_anchor(
+    tx: &Transaction<'_>,
+    audited: &state::AuditedState,
+) -> Result<Value, String> {
+    let mut source = content_store::ReadStore::new(tx).map_err(invalid)?;
+    let mut graph = history::HashReader::new(&mut source);
+    Ok(current_basis(tx, audited, &mut graph)?.anchor())
+}
+
+/// c2 client: the same regular-file and (dev, ino) identity the cold path takes.
+#[cfg(unix)]
+pub(super) fn client_db_identity(db: &Path) -> Result<(u64, u64), String> {
+    db_identity(db).map_err(invalid)
 }
 
 struct NoOwnerJob;
@@ -333,6 +397,17 @@ fn string_proof(
 }
 
 fn basis_ref(tx: &Transaction<'_>, request: &Value) -> Result<Value, String> {
+    basis_ref_with(tx, request, None)
+}
+
+/// `audited=None` is the cold path (one full `state::audit` in this transaction). The c2
+/// session passes the result of the one `state::audit` it ran on the same immutable
+/// audited copy that `tx` reads; every other line is shared.
+pub(super) fn basis_ref_with(
+    tx: &Transaction<'_>,
+    request: &Value,
+    audited: Option<&state::AuditedState>,
+) -> Result<Value, String> {
     exact(request, &QUERY_FIELDS)?;
     if request["schema_revision"] != "s-financial-query/1" {
         return Err(invalid("SchemaUnsupported：财务点查版本不符"));
@@ -355,10 +430,17 @@ fn basis_ref(tx: &Transaction<'_>, request: &Value) -> Result<Value, String> {
             return Err(invalid("object_ids重复"));
         }
     }
-    let audited = state::audit(tx)?;
+    let owned;
+    let audited = match audited {
+        Some(audited) => audited,
+        None => {
+            owned = state::audit(tx)?;
+            &owned
+        }
+    };
     let mut source = content_store::ReadStore::new(tx).map_err(invalid)?;
     let mut graph = history::HashReader::new(&mut source);
-    let basis = current_basis(tx, &audited, &mut graph)?;
+    let basis = current_basis(tx, audited, &mut graph)?;
     if (sid, generation, epoch)
         != (
             basis.session_id.as_str(),
@@ -366,7 +448,7 @@ fn basis_ref(tx: &Transaction<'_>, request: &Value) -> Result<Value, String> {
             basis.writer_epoch.as_str(),
         )
     {
-        return Err(missing("请求会话、化身或writer epoch不是当前值"));
+        return Err(missing(IDENTITY_NOT_CURRENT));
     }
     let mut nodes = BTreeMap::new();
     add_nodes(
@@ -479,6 +561,16 @@ fn basis_ref(tx: &Transaction<'_>, request: &Value) -> Result<Value, String> {
 }
 
 fn content(tx: &Transaction<'_>, request: &Value, max_reply_bytes: u64) -> Result<Value, String> {
+    content_with(tx, request, max_reply_bytes, None)
+}
+
+/// Same contract as `basis_ref_with`.
+pub(super) fn content_with(
+    tx: &Transaction<'_>,
+    request: &Value,
+    max_reply_bytes: u64,
+    audited: Option<&state::AuditedState>,
+) -> Result<Value, String> {
     exact(request, &CONTENT_FIELDS)?;
     if request["schema_revision"] != "s-financial-content/1" {
         return Err(invalid("SchemaUnsupported：财务片段版本不符"));
@@ -494,12 +586,19 @@ fn content(tx: &Transaction<'_>, request: &Value, max_reply_bytes: u64) -> Resul
         .checked_add(limit)
         .filter(|n| *n <= sc::MAX_FRAME_LEN)
         .ok_or_else(|| invalid("offset+limit溢出"))?;
-    let audited = state::audit(tx)?;
+    let owned;
+    let audited = match audited {
+        Some(audited) => audited,
+        None => {
+            owned = state::audit(tx)?;
+            &owned
+        }
+    };
     let mut source = content_store::ReadStore::new(tx).map_err(invalid)?;
     let mut graph = history::HashReader::new(&mut source);
-    let actual = current_basis(tx, &audited, &mut graph)?;
+    let actual = current_basis(tx, audited, &mut graph)?;
     if claimed != actual.root || *anchor != actual.anchor() {
-        return Err(missing("财务anchor与本片当前控制元组不同"));
+        return Err(missing(ANCHOR_NOT_CURRENT));
     }
     let fragment = range(
         &mut graph,

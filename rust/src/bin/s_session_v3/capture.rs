@@ -725,7 +725,7 @@ fn pin_first_read(c: &Connection) -> Result<(), String> {
     }
     stmt.finalize().map_err(sql_err)
 }
-fn version(c: &Connection) -> Result<i64, String> {
+pub(super) fn version(c: &Connection) -> Result<i64, String> {
     scalar(c, c"PRAGMA data_version")
 }
 
@@ -1394,6 +1394,66 @@ fn verify_image_metered(
     max_capture_bytes: u64,
     job: Option<&mut dyn newchan_rust::s_content::access::Access>,
 ) -> Result<VerifiedCapture, String> {
+    let mut db = import_image(&image, deadline)?;
+    let digest = image.digest;
+    let allocation = image.allocation.clone();
+    let captured_bytes = image.captured_bytes;
+    drop(image);
+    db.pragma_update(None, "query_only", true)
+        .map_err(sql_err)?;
+    let (audited, audit_receipt, q_source) = {
+        let tx = db.transaction().map_err(sql_err)?;
+        match (job, allocation.as_ref()) {
+            (Some(job), Some(profile)) => {
+                let (state, receipt, capture) = state::audit_with_access_and_allocation(
+                    &tx,
+                    Some(deadline),
+                    Some(max_capture_bytes),
+                    job,
+                    profile,
+                )?;
+                (state, Some(receipt), Some(capture))
+            }
+            (Some(job), None) => {
+                let (state, receipt) =
+                    state::audit_with_access(&tx, Some(deadline), Some(max_capture_bytes), job)?;
+                (state, Some(receipt), None)
+            }
+            (None, Some(profile)) => {
+                let (state, capture) = state::audit_bounded_with_allocation(
+                    &tx,
+                    Some(deadline),
+                    Some(max_capture_bytes),
+                    profile,
+                )?;
+                (state, None, Some(capture))
+            }
+            (None, None) => (
+                state::audit_bounded(&tx, Some(deadline), Some(max_capture_bytes))?,
+                None,
+                None,
+            ),
+        }
+    };
+    check(deadline, "Verify")?;
+    db.progress_handler(0, None::<fn() -> bool>)
+        .map_err(sql_err)?;
+    Ok(VerifiedCapture {
+        db,
+        audited,
+        digest,
+        captured_bytes,
+        source_versions: [0; 3],
+        verify_deadline: deadline,
+        audit_receipt,
+        q_source,
+        allocation,
+    })
+}
+
+/// 把一致捕获镜像导入私有内存副本（Q3 verify 与 #1394 财务会话共用同一段导入；不审计）。
+/// 返回的连接仍挂着以 `deadline` 为界的 progress handler，由调用方在审计后撤下。
+fn import_image(image: &Image, deadline: Instant) -> Result<Connection, String> {
     check(deadline, "Verify")?;
     let mut db = Connection::open_in_memory().map_err(sql_err)?;
     db.pragma_update(None, "foreign_keys", false)
@@ -1459,60 +1519,7 @@ fn verify_image_metered(
         return Err(err("捕获内容外键闭合失败"));
     }
     tx.commit().map_err(sql_err)?;
-    let digest = image.digest;
-    let allocation = image.allocation.clone();
-    let captured_bytes = image.captured_bytes;
-    drop(image);
-    db.pragma_update(None, "query_only", true)
-        .map_err(sql_err)?;
-    let (audited, audit_receipt, q_source) = {
-        let tx = db.transaction().map_err(sql_err)?;
-        match (job, allocation.as_ref()) {
-            (Some(job), Some(profile)) => {
-                let (state, receipt, capture) = state::audit_with_access_and_allocation(
-                    &tx,
-                    Some(deadline),
-                    Some(max_capture_bytes),
-                    job,
-                    profile,
-                )?;
-                (state, Some(receipt), Some(capture))
-            }
-            (Some(job), None) => {
-                let (state, receipt) =
-                    state::audit_with_access(&tx, Some(deadline), Some(max_capture_bytes), job)?;
-                (state, Some(receipt), None)
-            }
-            (None, Some(profile)) => {
-                let (state, capture) = state::audit_bounded_with_allocation(
-                    &tx,
-                    Some(deadline),
-                    Some(max_capture_bytes),
-                    profile,
-                )?;
-                (state, None, Some(capture))
-            }
-            (None, None) => (
-                state::audit_bounded(&tx, Some(deadline), Some(max_capture_bytes))?,
-                None,
-                None,
-            ),
-        }
-    };
-    check(deadline, "Verify")?;
-    db.progress_handler(0, None::<fn() -> bool>)
-        .map_err(sql_err)?;
-    Ok(VerifiedCapture {
-        db,
-        audited,
-        digest,
-        captured_bytes,
-        source_versions: [0; 3],
-        verify_deadline: deadline,
-        audit_receipt,
-        q_source,
-        allocation,
-    })
+    Ok(db)
 }
 
 /// 每个worker独占的长期连接与至多一份完整缓存；data_version不跨连接比较。
@@ -1810,7 +1817,7 @@ fn open_source(path: &Path, limits: Limits, deadline: Instant) -> Result<Connect
         .map_err(sql_err)?;
     Ok(source)
 }
-fn validate_source(source: &Connection) -> Result<(), String> {
+pub(super) fn validate_source(source: &Connection) -> Result<(), String> {
     validate_source_with_owner(source, None)
 }
 fn validate_source_with_owner(
@@ -1852,6 +1859,196 @@ fn validate_source_with_owner(
     }
     Ok(())
 }
+
+// ===== #1394 DESIGN-R6 c2：财务只读会话的启动捕获与变体 B 原件字节门（候选，待 §5.7 修订裁定）=====
+// 只复用本文件既有的 open_source/validate_source/version/pin_first_read/capture_image/import_image；
+// 判据不另写。活源连接由会话持有（同连接 data_version 夹持只在这一条连接上比较）。
+
+/// 会话启动的一次当前一致捕获：私有副本 P（尚未审计，query_only=ON）与同一读事务内的控制原件。
+pub(super) struct SessionCapture {
+    pub db: Connection,
+    pub versions: [i64; 3],
+    pub digest: CaptureDigest,
+    pub captured_bytes: u64,
+    /// 捕获镜像的实测堆字节：`capture_image` 前后 Δ(全部 malloc zone 在用) − Δ(SQLite 自记)。
+    pub image_heap_bytes: i64,
+    pub control: Vec<u8>,
+    pub original: Option<SessionOriginal>,
+}
+
+/// 变体 B 保留的被审原件镜像；只在本模块内逐字节比较，不对外开放内容。
+pub(super) struct SessionOriginal {
+    image: Image,
+}
+impl SessionOriginal {
+    pub(super) fn captured_bytes(&self) -> u64 {
+        self.image.captured_bytes
+    }
+}
+
+/// 变体 B 每次字节门的计数（行数与本次重新捕获的原件记账字节）。
+pub(super) struct SessionGate {
+    pub rows: u64,
+    pub captured_bytes: u64,
+}
+
+/// 变体 B 字节门的失败分型：`Changed` 是逐字节比较得出的真实差异；`Capture` 是重新捕获本身失败
+/// （SQLite 中断、busy、模式核验失败等），由调用方按本请求是否真被中断再分“未完成”或“失效”。
+pub(super) enum GateFault {
+    Changed(String),
+    Capture(String),
+}
+
+/// 活源连接：同 Q3 `open_source`（READ_ONLY|NO_MUTEX、query_only=ON、read_uncommitted=OFF、单值长度限）。
+pub(super) fn session_open_source(
+    path: &Path,
+    max_capture_bytes: u64,
+    startup_timeout_ms: u64,
+    deadline: Instant,
+) -> Result<Connection, String> {
+    open_source(
+        path,
+        Limits {
+            max_capture_bytes,
+            capture_deadline_ms: startup_timeout_ms,
+            verify_deadline_ms: startup_timeout_ms,
+        },
+        deadline,
+    )
+}
+
+/// 三点夹持同 `capture_with_deadline_and_access`：v0 → BEGIN → 首读 → v1 → 全域捕获与控制原件
+/// （同一读事务）→ ROLLBACK → v2；要求 v0=v1=v2 且 DB 文件身份不变。捕获随后导入私有副本 P。
+pub(super) fn session_capture(
+    source: &mut Connection,
+    path: &Path,
+    max_capture_bytes: u64,
+    deadline: Instant,
+    keep_original: bool,
+    control: impl FnOnce(&Connection) -> Result<Vec<u8>, String>,
+    heap: impl Fn() -> Result<(u64, i64), String>,
+) -> Result<SessionCapture, String> {
+    check(deadline, "Capture")?;
+    let identity = file_identity(path)?;
+    source
+        .busy_timeout(deadline.saturating_duration_since(Instant::now()))
+        .map_err(sql_err)?;
+    source
+        .progress_handler(100, Some(move || Instant::now() >= deadline))
+        .map_err(sql_err)?;
+    let captured = (|| {
+        validate_source(source)?;
+        let v0 = version(source)?;
+        let tx = source.transaction().map_err(sql_err)?;
+        pin_first_read(&tx)?;
+        let v1 = version(&tx)?;
+        let before = heap()?;
+        let image = capture_image(&tx, max_capture_bytes, deadline)?;
+        let after = heap()?;
+        let image_heap = (i128::from(after.0) - i128::from(before.0))
+            - (i128::from(after.1) - i128::from(before.1));
+        let control = control(&tx)?;
+        tx.rollback().map_err(sql_err)?;
+        let v2 = version(source)?;
+        check(deadline, "Capture")?;
+        if file_identity(path)? != identity {
+            return Err(err("Incomplete：捕获期间DB文件身份改变"));
+        }
+        if v0 != v1 || v1 != v2 {
+            return Err(err("Incomplete：捕获期间data_version改变"));
+        }
+        Ok((image, control, [v0, v1, v2], image_heap))
+    })();
+    source
+        .progress_handler(0, None::<fn() -> bool>)
+        .map_err(sql_err)?;
+    let (image, control, versions, image_heap) =
+        captured.map_err(|e| phase_error(e, deadline, "Capture"))?;
+    let db = import_image(&image, deadline).map_err(|e| phase_error(e, deadline, "Verify"))?;
+    db.pragma_update(None, "query_only", true)
+        .map_err(sql_err)?;
+    let digest = image.digest;
+    let captured_bytes = image.captured_bytes;
+    let original = if keep_original {
+        Some(SessionOriginal { image })
+    } else {
+        drop(image);
+        None
+    };
+    Ok(SessionCapture {
+        db,
+        versions,
+        digest,
+        captured_bytes,
+        image_heap_bytes: i64::try_from(image_heap).unwrap_or(i64::MAX),
+        control,
+        original,
+    })
+}
+
+fn same_cell(a: CellView<'_>, b: CellView<'_>) -> bool {
+    match (a, b) {
+        (CellView::Null, CellView::Null) => true,
+        (CellView::Integer(x), CellView::Integer(y)) => x == y,
+        (CellView::Text(x), CellView::Text(y)) => x.as_bytes() == y.as_bytes(),
+        (CellView::Blob(x), CellView::Blob(y)) => x == y,
+        _ => false,
+    }
+}
+
+/// 变体 B 字节门：在调用方的新短读事务里用同一 `capture_image` 重新捕获全部持久表原件，与启动时被审
+/// 的那份镜像逐表、逐列名、逐 rowid、逐行逐单元逐字节比较（含模式头），另核捕获摘要。
+/// 全表是审计所消费原件的超集；任何差异或捕获失败都由调用方按 MissingDependency 处理。
+pub(super) fn session_original_unchanged(
+    tx: &Transaction<'_>,
+    original: &SessionOriginal,
+    max_capture_bytes: u64,
+    deadline: Instant,
+) -> Result<SessionGate, GateFault> {
+    let fresh = capture_image(tx, max_capture_bytes, deadline).map_err(GateFault::Capture)?;
+    let old = &original.image;
+    let changed = || GateFault::Changed("原件与已审捕获逐字节不同".into());
+    if fresh.header[..] != old.header[..] || fresh.tables.len() != old.tables.len() {
+        return Err(changed());
+    }
+    let mut rows = 0u64;
+    for (x, y) in fresh.tables.iter().zip(old.tables.iter()) {
+        if x.name.as_str() != y.name.as_str()
+            || x.columns.len() != y.columns.len()
+            || x.columns
+                .iter()
+                .zip(y.columns.iter())
+                .any(|(a, b)| a.as_str() != b.as_str())
+            || x.rows.len() != y.rows.len()
+        {
+            return Err(changed());
+        }
+        match (&x.rowids, &y.rowids) {
+            (None, None) => {}
+            (Some(a), Some(b)) if a[..] == b[..] => {}
+            _ => return Err(changed()),
+        }
+        for (r1, r2) in x.rows.iter().zip(y.rows.iter()) {
+            if r1.len() != r2.len()
+                || r1
+                    .iter()
+                    .zip(r2.iter())
+                    .any(|(a, b)| !same_cell(a.view(), b.view()))
+            {
+                return Err(changed());
+            }
+            rows += 1;
+        }
+    }
+    if fresh.digest != old.digest {
+        return Err(changed());
+    }
+    Ok(SessionGate {
+        rows,
+        captured_bytes: fresh.captured_bytes,
+    })
+}
+// ===== #1394 c2 会话段结束 =====
 
 #[cfg(test)]
 mod tests {
