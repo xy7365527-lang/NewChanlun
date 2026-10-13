@@ -1,4 +1,4 @@
-"""#1419 TB-02-E 中枢合同（schema v1）：共享语料逐条判定，并与浏览器端 JS 逐条对拍结论与原因码。
+"""#1419 TB-02-E 中枢合同（schema v1.2）：共享语料逐条判定，并与浏览器端 JS 逐条对拍结论与原因码。
 
 语料 fixtures/tb02e-contract/corpus.json 由同目录 generate-corpus.py 按定义直算生成（不读生产输出）；本测试只检
 合同门，不作中枢语义或正式运行验收。node 不可用时失败，不跳过。
@@ -30,7 +30,7 @@ for (const c of corpus.cases) {
     records.push(...c.add); axes = c.axes ?? b.axes;
   }
   try { API.validateCenterCut(records, c.rule_revision, axes); out[c.name] = 'ACCEPT'; }
-  catch (e) { out[c.name] = e.message.startsWith('TB02E_') ? e.message.split(':')[0].slice(6) : 'UNCODED:' + e.message; }
+  catch (e) { out[c.name] = e.message.startsWith('TB02E_') ? e.message : 'UNCODED:' + e.message; }
 }
 process.stdout.write(JSON.stringify(out));
 """
@@ -45,8 +45,13 @@ def python_verdicts():
             out[name] = "ACCEPT"
         except ValueError as err:
             text = str(err)
-            out[name] = text.split(":")[0][len("TB02E_"):] if text.startswith("TB02E_") else "UNCODED:" + text
+            out[name] = text if text.startswith("TB02E_") else "UNCODED:" + text
     return corpus, out
+
+
+def code(verdict):
+    """完整拒因 `TB02E_<CODE>: <文>` → `<CODE>`；ACCEPT/UNCODED 原样。"""
+    return verdict.split(":")[0][len("TB02E_"):] if verdict.startswith("TB02E_") else verdict
 
 
 def js_verdicts():
@@ -68,9 +73,10 @@ class CenterContractCorpus(unittest.TestCase):
         self.assertGreaterEqual(sum(case["expected"] != "ACCEPT" for case in cases), 20)
         for case in cases:
             with self.subTest(case=case["name"]):
-                self.assertEqual(got[case["name"]], case["expected"])
+                self.assertEqual(code(got[case["name"]]), case["expected"])
 
     def test_python_and_js_agree_case_by_case(self):
+        """两侧逐条比完整拒因（原因码与拒因文字同文，schema v1.2 §6），不只比原因码。"""
         _corpus, py = python_verdicts()
         js = js_verdicts()
         self.assertEqual(sorted(py), sorted(js))
@@ -84,7 +90,7 @@ class CenterContractCorpus(unittest.TestCase):
         required = {"CONNECTOR_AS_MEMBER", "CONNECTOR", "PLUS_ONE_REUSE", "RESUME_ANCHOR", "ROLE_VALUE", "ROLES_SHAPE",
                     "CONTRIBUTORS", "CANDIDATE_KIND", "MEMBER_NOT_COMPLETED", "UNIT_SOURCE", "EXCLUSION_REASON", "RULE_MIX",
                     "VERSION", "NOT_ALTERNATING", "BREAK_UP_UNDEFINED", "ASSIGNMENT", "ASSIGNMENT_CONSISTENCY", "RESUME_GAP",
-                    "ROLE_NULL", "AXIS_BINDING"}
+                    "ROLE_NULL", "AXIS_BINDING", "SCAN_CURSOR", "MEMBER_EDGE", "MEMBER_EDGE_COUNT", "BREAK_UP"}
         self.assertEqual(required - codes, set())
 
     def test_old_rule_axes_and_segment_schema_unchanged(self):

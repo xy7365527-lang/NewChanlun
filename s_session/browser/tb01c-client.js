@@ -943,12 +943,19 @@
       if (a.status === "CONNECTOR") needE(!memberOf.has(uid), "CONNECTOR_AS_MEMBER", "连接段被列为中枢成员");
       if (a.reason === "UPGRADE_PENDING_TB02H") needE(upgradeMembers.has(uid), "ASSIGNMENT_CONSISTENCY", "UPGRADE_PENDING_TB02H 归属的单元不属任何 UPGRADE 中枢");
     }
-    const byCenter = new Map(centers.map(c => [c.entity_id, c]));
+    const byCenter = new Map(centers.map(c => [c.entity_id, c])), edges = new Map();
     for (const r of byKind[CENTER_KINDS[4]]) {
       const d = r.payload.data;
       if (d.relation_kind !== "member_of") continue;
       const target = byCenter.get(d.target_id);
       needE(target !== undefined && target.status !== "UPGRADE_PENDING_TB02H" && target.members.includes(d.source_id), "MEMBER_EDGE", "member_of 只能从非 UPGRADE 中枢的成员指向该中枢");
+      const key = JSON.stringify([d.source_id, d.target_id]);
+      edges.set(key, (edges.get(key) ?? 0) + 1);
+    }
+    // schema v1.2 §6 E4：非 UPGRADE 中枢的每个成员恰有一条指向该中枢的 member_of 边（缺边、重边都拒）。
+    for (const c of centers) {
+      if (c.status === "UPGRADE_PENDING_TB02H") continue;
+      for (const m of c.members) needE((edges.get(JSON.stringify([m, c.entity_id])) ?? 0) === 1, "MEMBER_EDGE_COUNT", "非 UPGRADE 中枢的每个成员须恰有一条指向该中枢的 member_of 边（E4）");
     }
     validateScanCursor(byKind[CENTER_KINDS[6]], completed, pending, pos, centers, attempts);
     if (axes !== null && Object.hasOwn(axes, "CC-016")) {

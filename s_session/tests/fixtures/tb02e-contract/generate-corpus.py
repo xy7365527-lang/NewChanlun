@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""#1419 TB-02-E：Q/JS 合同共享语料（schema v1）。只用标准库整数算术，不导入项目代码。
+"""#1419 TB-02-E：Q/JS 合同共享语料（schema v1.2）。只用标准库整数算术，不导入项目代码。
 
 合法 cut 由段层端点按定义直算（seed=三单元交替且 max(低)<min(高)；延伸=闭区间相交；Zn=与 seed 首单元同向；
 结算后自 last+2 续扫；归属按根裁定 D9/D-G/D-I 与 r2 R2/R3/R6），再按 schema v1 投影成 wire 对象。反例是对合法
@@ -302,7 +302,13 @@ def main():
     add("member_edge_from_connector", "MEMBER_EDGE", UP, lambda c: c["records"].append(rec("CC-055.center_relation", "obj-rel-y", [uid(8), "member_of", A],
         {"source_id": uid(8), "relation_kind": "member_of", "target_id": A, "version": "1", "witness_object_id": "obj-center-0"})))
     add("break_up_wrong", "BREAK_UP", UP, set_in("CC-016.center", A, ["break_up"], True))
-    json.dump({"schema": "tb02e-contract-corpus/1", "ticket": 1419, "schema_doc": "tb1419-schema.md v1（根裁定 D-J）",
+    # schema v1.2 §6 E4：非 UPGRADE 中枢的每个成员恰有一条指向该中枢的 member_of 边。正例＝上面各合法 cut（两中枢的
+    # up_k12/down_k12 每成员一条，W9 的 UPGRADE 中枢零条）；反例＝已结算 A 缺一条、开放 B 缺新成员那条、同一边重发。
+    drop_edge = lambda k: lambda c: c["records"].remove(next(r for r in c["records"] if r["object_id"] == f"obj-rel-{k}"))
+    add("member_edge_missing_settled", "MEMBER_EDGE_COUNT", UP, drop_edge(3))
+    add("member_edge_missing_open_newest", "MEMBER_EDGE_COUNT", UP, drop_edge(12))
+    add("member_edge_duplicate", "MEMBER_EDGE_COUNT", UP, lambda c: c["records"].append(dict(copy.deepcopy(next(r for r in c["records"] if r["object_id"] == "obj-rel-0")), object_id="obj-rel-0-dup")))
+    json.dump({"schema": "tb02e-contract-corpus/1", "ticket": 1419, "schema_doc": "tb1419-schema.md v1.2（冻结，E1–E4）",
                "provenance": "generate-corpus.py 按定义直算段层合法 cut，反例为其补丁；不读生产输出", "cases": cases},
               sys.stdout, ensure_ascii=False, separators=(",", ":"))
     sys.stdout.write("\n")

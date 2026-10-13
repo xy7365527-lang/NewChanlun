@@ -1339,11 +1339,18 @@ def validate_center_links(records, axes=None):
         if a["reason"] == "UPGRADE_PENDING_TB02H":
             _need(uid in upgrade_members, "ASSIGNMENT_CONSISTENCY", "UPGRADE_PENDING_TB02H 归属的单元不属任何 UPGRADE 中枢")
     by_center = {c["entity_id"]: c for c in centers}
+    edges = {}
     for r in by_kind[CENTER_KINDS[4]]:
         d = r["payload"]["data"]
         if d["relation_kind"] == "member_of":
             target = by_center.get(d["target_id"])
             _need(target is not None and target["status"] != "UPGRADE_PENDING_TB02H" and d["source_id"] in target["members"], "MEMBER_EDGE", "member_of 只能从非 UPGRADE 中枢的成员指向该中枢")
+            edges[(d["source_id"], d["target_id"])] = edges.get((d["source_id"], d["target_id"]), 0) + 1
+    # schema v1.2 §6 E4：非 UPGRADE 中枢的每个成员恰有一条指向该中枢的 member_of 边（缺边、重边都拒）。
+    for c in centers:
+        if c["status"] != "UPGRADE_PENDING_TB02H":
+            for m in c["members"]:
+                _need(edges.get((m, c["entity_id"]), 0) == 1, "MEMBER_EDGE_COUNT", "非 UPGRADE 中枢的每个成员须恰有一条指向该中枢的 member_of 边（E4）")
     _validate_scan_cursor(by_kind[CENTER_KINDS[6]], completed, pending, pos, centers, attempts)
     if axes is not None and "CC-016" in axes:
         ids = lambda *kinds: sorted(r["object_id"] for r in records if r["kind"] in kinds)
