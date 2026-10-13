@@ -100,15 +100,20 @@ fn has_any_feature_fractal(std_feat: &[Interval]) -> bool {
 /// 性能。窗口截断若需作 config（不硬编码 Python 的 50）。
 ///
 /// 边界条件：`apex_stroke_offset` 之后无 seg_dir 同向笔 / 不足成第二特征序列 ⟹ `false`。
-pub fn second_kind_confirmed(strokes: &[Stroke], apex_stroke_offset: usize) -> bool {
+pub fn second_kind_confirmed(
+    strokes: &[Stroke],
+    apex_stroke_offset: usize,
+    candidate_extreme: Tick,
+) -> bool {
     let Some(first) = strokes.first() else {
         return false;
     };
     let seg_dir = first.direction;
     // 第二特征序列 = apex 之后的 seg_dir 同向笔 + 方向性包含处理 + 任意分型检测——
     // 与 feature_seq::second_seq_has_fractal 完全同构（scan_window=0 = 无限全扫，
-    // 对齐本模块"默认全扫描，bit-exact 优先"承诺）。
-    second_seq_has_fractal(strokes, seg_dir, apex_stroke_offset, 0)
+    // 对齐本模块"默认全扫描，bit-exact 优先"承诺）。#1344：同一判定，含 078:52 越界失效，
+    // 不另留一份只认分型的判据（#799）。
+    second_seq_has_fractal(strokes, seg_dir, apex_stroke_offset, candidate_extreme, 0)
 }
 
 /// 在线段方向反向笔序列里定位首特征序列分型极值点的笔偏移（SecondKind 确认的起点锚）。
@@ -150,7 +155,12 @@ pub fn resolve_second_kind(strokes: &[Stroke], apex: &Interval) -> SecondKindRes
     let Some(apex_offset) = locate_apex_stroke(strokes, apex) else {
         return SecondKindResult::Pending;
     };
-    if second_kind_confirmed(strokes, apex_offset) {
+    // #1344：P = 首特征序列分型中心元素 apex 的方向极值。
+    let candidate_extreme = match strokes[0].direction {
+        Direction::Up => apex.hi,
+        Direction::Down => apex.lo,
+    };
+    if second_kind_confirmed(strokes, apex_offset, candidate_extreme) {
         SecondKindResult::Confirmed {
             end_offset: apex_offset,
         }
@@ -242,7 +252,7 @@ mod tests {
             stroke(Direction::Up, 24, 28, 8, 16), // 元素3 [8,16] → 顶分型（中间最高）
         ];
         // apex_offset=1。第二特征序列 = offset>1 的向上笔 [5,12]/[10,20]/[8,16]（互不含）→ 顶分型。
-        assert!(second_kind_confirmed(&strokes, 1));
+        assert!(second_kind_confirmed(&strokes, 1, 25));
     }
 
     /// golden：第二特征序列无分型（互不含 + 单调）→ 未确认（Pending，严格不强断）。
@@ -258,12 +268,12 @@ mod tests {
             stroke(Direction::Down, 20, 24, 12, 6),
             stroke(Direction::Up, 24, 28, 13, 16), // [13,16] 单调递增（互不含）→ 无分型
         ];
-        assert!(!second_kind_confirmed(&strokes, 1));
+        assert!(!second_kind_confirmed(&strokes, 1, 20));
     }
 
     #[test]
     fn second_kind_empty_strokes_false() {
-        assert!(!second_kind_confirmed(&[], 0));
+        assert!(!second_kind_confirmed(&[], 0, 0));
     }
 
     #[test]
@@ -293,7 +303,7 @@ mod tests {
             stroke(Direction::Up, 16, 20, 4, 9),
         ];
         // 仅 2 根向上笔（offset>1），< 3 不足成分型 → 不确认。
-        assert!(!second_kind_confirmed(&strokes, 1));
+        assert!(!second_kind_confirmed(&strokes, 1, 20));
     }
 
     #[test]

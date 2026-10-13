@@ -139,6 +139,41 @@ pub struct SecondCheck {
     pub bottom_fractal: bool,
     pub through_stroke: usize,
 }
+/// #1344 / xianduan §5.1：第二种候选语义终点的规则版本（随 S `rule_revision` 绑定）。
+pub const SECOND_CANDIDATE_RULE_REVISION: &str = "second-candidate-terminal/1";
+/// #1420 根裁定：第二特征序列扫描预算的具名版本——调度参数，不是语义。
+pub const SECOND_SEQ_SCAN_BUDGET_POLICY: &str = "second-seq-scan-budget/1";
+
+/// #1344 第一问：第二种候选 X（主序列分型极值 P）自 b 笔后逐笔推进的语义终点。
+/// 只在扫描覆盖 `COMPLETE` 时成立；预算耗尽时语义状态为空（不是否定，A-ST-048-01）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum SecondTerminal {
+    /// 第二特征序列先成分型（067:38）。
+    Confirmed,
+    /// 原方向价格先严格越过 P（078:52）；候选作废、不复活。
+    KilledByNewExtreme,
+    /// 到已知前缀末端二者皆未发生（065:28）；不是否定。
+    OpenAtPrefixEnd,
+}
+
+/// #1344 第四问 / SPEC CC-014：扫描覆盖，与语义状态正交。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ScanCoverage {
+    Complete,
+    IncompleteResourceBound,
+}
+
+/// `KILLED_BY_NEW_EXTREME` 的见证：哪根同向笔以哪个原始极值严格越过 P。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SecondKill {
+    pub stroke_idx: usize,
+    pub price: Tick,
+    pub candidate_extreme: Tick,
+    pub comparison: &'static str,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SecondSequenceFacts {
     pub raw_elements: Vec<FeatureElement>,
@@ -148,8 +183,23 @@ pub struct SecondSequenceFacts {
     pub from_stroke: usize,
     pub through_stroke: usize,
     pub input_stroke_count: usize,
+    /// 覆盖 = `INCOMPLETE_RESOURCE_BOUND` 的旧名（TB-02-D 线形保留）；失效时为 false。
     pub resource_truncated: bool,
     pub matched: Option<SecondCheck>,
+    // #1420：以下语义字段暂不进 S 线形——tb02c/合同/浏览器按新 rule_revision 另片接入，
+    // 本片不改 TB-02-D 已发布对象的键集（s_tb02_contract.py / tb01c-client.js 逐键校验）。
+    /// 候选极值 P：主序列分型中心元素 b 的 high（向上段）/ low（向下段）。
+    #[serde(skip_serializing)]
+    pub candidate_extreme: Tick,
+    /// 越界水位：已消费同向笔原始极值的最远处（向上段取 max high，向下段取 min low）。
+    #[serde(skip_serializing)]
+    pub breach_watermark: Option<Tick>,
+    #[serde(skip_serializing)]
+    pub semantic_state: Option<SecondTerminal>,
+    #[serde(skip_serializing)]
+    pub killed_by: Option<SecondKill>,
+    #[serde(skip_serializing)]
+    pub coverage: ScanCoverage,
 }
 
 /// 笔的特征序列高低（= max/min(start_price, end_price)）。
@@ -288,19 +338,27 @@ pub(super) fn second_seq_has_fractal(
     strokes: &[Stroke],
     seg_dir: Direction,
     from_stroke_idx: usize,
+    candidate_extreme: Tick,
     scan_window: u32,
 ) -> bool {
-    second_sequence(strokes, seg_dir, from_stroke_idx, scan_window)
-        .matched
-        .is_some()
+    second_sequence(
+        strokes,
+        seg_dir,
+        from_stroke_idx,
+        candidate_extreme,
+        scan_window,
+    )
+    .semantic_state
+        == Some(SecondTerminal::Confirmed)
 }
 
 /// #1414：判定与证据来自同一遍扫描，正证据提前停，不把窗口耗尽当否定。
 /// #1344 裁定：语义终点 = 分型或越界先到者（078:52）；本片未实现 078:52 失效条件（KILLED_BY_NEW_EXTREME），失效语义归 TB-02-W #1420。
-fn second_sequence(
+pub(super) fn second_sequence(
     strokes: &[Stroke],
     seg_dir: Direction,
     from_stroke_idx: usize,
+    candidate_extreme: Tick,
     scan_window: u32,
 ) -> SecondSequenceFacts {
     let mut elements = Vec::new();
@@ -324,6 +382,11 @@ fn second_sequence(
         input_stroke_count: strokes.len(),
         resource_truncated: false,
         matched: None,
+        candidate_extreme,
+        breach_watermark: None,
+        semantic_state: None,
+        killed_by: None,
+        coverage: ScanCoverage::Complete,
     };
     for (i, sk) in strokes.iter().enumerate().take(end).skip(from) {
         facts.through_stroke = i;
@@ -389,11 +452,17 @@ fn second_sequence(
             facts.checks.push(check.clone());
             if check.top_fractal || check.bottom_fractal {
                 facts.matched = Some(check);
+                facts.semantic_state = Some(SecondTerminal::Confirmed);
                 return facts;
             }
         }
     }
     facts.resource_truncated = end < strokes.len();
+    if facts.resource_truncated {
+        facts.coverage = ScanCoverage::IncompleteResourceBound;
+    } else {
+        facts.semantic_state = Some(SecondTerminal::OpenAtPrefixEnd);
+    }
     facts
 }
 
@@ -720,8 +789,20 @@ impl FeatureSeqState {
                 }
             }
             // 有缺口须第二特征序列出现分型才确认（Python :424-427）。
-            let second = has_gap
-                .then(|| second_sequence(strokes, self.seg_dir, b_stroke, self.second_seq_window));
+            // #1344：P = 主序列分型中心元素 b 的极值（冻结窗口优先，同上 FIRST 判定）。
+            let candidate_extreme = match self.seg_dir {
+                Direction::Up => b_h,
+                Direction::Down => b_l,
+            };
+            let second = has_gap.then(|| {
+                second_sequence(
+                    strokes,
+                    self.seg_dir,
+                    b_stroke,
+                    candidate_extreme,
+                    self.second_seq_window,
+                )
+            });
             let through_stroke = second.as_ref().map_or(window[2].stroke_idx, |s| {
                 s.through_stroke.max(window[2].stroke_idx)
             });
@@ -921,8 +1002,8 @@ mod tests {
     fn second_seq_window_unlimited_vs_bounded() {
         // 仅验证窗口参数生效不 panic：无同向笔 → 无分型。
         let strokes = vec![stroke(Direction::Up, 0, 4, 5, 20)];
-        assert!(!second_seq_has_fractal(&strokes, Direction::Up, 0, 0));
-        assert!(!second_seq_has_fractal(&strokes, Direction::Up, 0, 50));
+        assert!(!second_seq_has_fractal(&strokes, Direction::Up, 0, 20, 0));
+        assert!(!second_seq_has_fractal(&strokes, Direction::Up, 0, 20, 50));
     }
 
     /// ★bit-exact 等价性验证（#93 性能优化的等价锚）：提前终止版 `second_seq_has_fractal`
@@ -1000,7 +1081,7 @@ mod tests {
             ],
         ];
         for (i, strokes) in cases.iter().enumerate() {
-            let early = second_seq_has_fractal(strokes, Direction::Up, 0, 0);
+            let early = second_seq_has_fractal(strokes, Direction::Up, 0, 100, 0);
             let full = reference_second_seq_has_fractal(strokes, Direction::Up, 0);
             assert_eq!(
                 early, full,
