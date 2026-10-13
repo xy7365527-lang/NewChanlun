@@ -333,7 +333,7 @@ fn candidate_event_stream_classify_fnv1a_golden() {
 /// 增量 `advance` 逐段喂 ≡ 全量自 ∅ 重放——两条**不同计算路径**互拍，禁同输入跑两遍。
 ///
 /// **seam（平价锁判定公共接口）**：`ChainCertificateBook::advance`（增量簿推进）+
-/// `classify_incremental`（事件流生成），经 `chain_fixture(120)` 前缀序列
+/// `classify_incremental`（事件流生成），经 `chain_fixture(160)` 前缀序列（#1419 r2 第 4 条前为 120）
 /// 两路驱动对拍 bit-exact。
 ///
 /// 旧锁（#641 原版）把同一个预生成 `inputs` 列表（**事件流**）喂给驻留簿与重放簿两遍，
@@ -355,7 +355,9 @@ fn candidate_event_stream_classify_fnv1a_golden() {
 #[test]
 fn chain_certificate_book_incremental_equals_full_replay() {
     let cfg = ThetaConfig::default();
-    let (segments, closes) = chain_fixture(120);
+    // ★#1419 根裁定 r2 第 4 条：120 段在 R8 下塔只剩 3 层、skip 边为 0，本锁不再经过 skip 边；
+    // 升到 160 段（4 层）并在末尾断言 skip_edges > 0，防止再次静默失效。
+    let (segments, closes) = chain_fixture(160);
 
     // 原始前缀几何只构造一次（两侧共享的是输入，不是计算）。
     let mut prefixes = Vec::with_capacity(segments.len());
@@ -423,6 +425,11 @@ fn chain_certificate_book_incremental_equals_full_replay() {
         "边非真空锁：至少一条 certificate 的 edges 非空；\
              with_edges={with_edges_count} certificates={certificate_count}"
     );
+    let summary = final_book.summarize();
+    assert!(
+        summary.skip_edges > 0,
+        "skip 边非真空锁（#1419 r2 第 4 条）：summary={summary:?}"
+    );
 }
 
 /// 因果簿驱动与终态窗口投影驱动都是 `chain_cert` 声明支持的输入语义
@@ -452,7 +459,8 @@ fn chain_certificate_book_incremental_equals_full_replay() {
 #[test]
 fn causal_and_terminal_projection_drives_agree_on_common_chain_keys() {
     let cfg = ThetaConfig::default();
-    let (segments, closes) = chain_fixture(120);
+    // ★#1419 根裁定 r2 第 4 条：升到 160 段并断言两驱动 skip_edges > 0（120 段在 R8 下为 0）。
+    let (segments, closes) = chain_fixture(160);
     let causal_book = chain_book_over_prefixes(
         &segments,
         &closes,
@@ -464,6 +472,16 @@ fn causal_and_terminal_projection_drives_agree_on_common_chain_keys() {
 
     let causal_heads = causal_book.heads();
     let terminal_projection_heads = terminal_projection_book.heads();
+    for (name, book) in [
+        ("causal", &causal_book),
+        ("terminal_projection", &terminal_projection_book),
+    ] {
+        let summary = book.summarize();
+        assert!(
+            summary.skip_edges > 0,
+            "{name}: skip 边非真空锁（#1419 r2 第 4 条）：summary={summary:?}"
+        );
+    }
 
     // 硬锁（唯一不变量）：两驱动共有 key 的证书逐字段相同，唯独候选全集计数
     // （`alive_at_level` / `inside_parent`）豁免——理由见上方函数文档。
@@ -483,9 +501,9 @@ fn causal_and_terminal_projection_drives_agree_on_common_chain_keys() {
              differences={common_differences:#?}"
     );
 
-    // 照实登记（golden 锚，非规律断言）：`chain_fixture(120)` 上的实测差集形状。
-    // 40 段时 terminal_only=0（超集关系「成立」）纯属规模巧合；120 段上子集关系不成立，
-    // causal_only/terminal_only 双向计数按此固定，漂移即改证据、不悄悄放宽。
+    // 照实登记（golden 锚，非规律断言）：`chain_fixture(160)` 上的实测差集形状（#1419 r2 第 4 条
+    // 前为 120 段）。40 段时 terminal_only=0（超集关系「成立」）纯属规模巧合；120/160 段上子集关系
+    // 不成立，causal_only/terminal_only 双向计数按此固定，漂移即改证据、不悄悄放宽。
     let common_count = terminal_projection_heads
         .iter()
         .filter(|terminal| causal_heads.iter().any(|causal| causal.key == terminal.key))
@@ -507,21 +525,23 @@ fn causal_and_terminal_projection_drives_agree_on_common_chain_keys() {
     // #1419 S1 诚实更新（旧值 (33, 27, 16) / causal_only 17 / terminal_only 11）：R8 续扫自
     // last_member+2 ⟹ 120 段合成流中枢变少（塔实测 3 层 [120, 30, 7]），链身份随之减少（口径回归）；
     // 双向差集仍都非空，子集关系破裂这一形状不变。
+    // #1419 根裁定 r2 第 4 条（旧值 (12, 14, 9) / 3 / 5）：夹具升到 160 段（4 层，skip 边非真空），
+    // 读数随规模改写；双向差集仍都非空。
     assert_eq!(
         (
             causal_heads.len(),
             terminal_projection_heads.len(),
             common_count
         ),
-        (12, 14, 9),
+        (52, 42, 34),
         "驱动身份总数 golden 漂移（causal, terminal_projection, common）"
     );
     assert_eq!(
-        causal_only_count, 3,
+        causal_only_count, 18,
         "causal_only 计数 golden 漂移（#551 甲管方向）"
     );
     assert_eq!(
-        terminal_only_count, 5,
+        terminal_only_count, 8,
         "terminal_only 计数 golden 漂移（子集关系破裂方向，根因在查 #681）"
     );
 }
@@ -1578,7 +1598,8 @@ fn incremental_operation_bypass_matches_full_after_cascade_reset() {
 #[test]
 fn e2eo_assembly_incremental_equals_full_replay() {
     let cfg = ThetaConfig::default();
-    let (segments, closes) = chain_fixture(120);
+    // ★#1419 根裁定 r2 第 4 条：升到 160 段并断言 skip_edges > 0（120 段在 R8 下为 0）。
+    let (segments, closes) = chain_fixture(160);
 
     let mut prefixes = Vec::with_capacity(segments.len());
     for n in 1..=segments.len() {
@@ -1641,5 +1662,10 @@ fn e2eo_assembly_incremental_equals_full_replay() {
     assert!(
         with_edges_count > 0,
         "边非真空锁：至少一条 certificate 的 edges 非空"
+    );
+    let summary = final_book.summarize();
+    assert!(
+        summary.skip_edges > 0,
+        "skip 边非真空锁（#1419 r2 第 4 条）：summary={summary:?}"
     );
 }
