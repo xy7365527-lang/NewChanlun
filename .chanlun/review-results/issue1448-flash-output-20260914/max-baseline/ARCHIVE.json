@@ -1,0 +1,23 @@
+{
+  "scope": "91fd5c7 routing baseline; later prompt changes have separate tests",
+  "files": [
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1448-deepseek-flash/max/MAX-VERIFIED.json",
+      "archive": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+      "sha256": "d5f0d9c3514bec9c72502040e5e9a69253bd0ada9db9d45b0e7550e238c9658f",
+      "bytes": 2090
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1448-deepseek-flash/max/tests-final.log",
+      "archive": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/TESTS.log",
+      "sha256": "599bba95a9b1f4851a9f1fadeadb480d20602c197e6081f985d28cc262bf9b5f",
+      "bytes": 13695
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1448-deepseek-flash/max/execute-run/result.json",
+      "archive": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json",
+      "sha256": "fa81ec7de43019dbf291fa56776411e324e7d126ca93412d9cc9ac88adef6748",
+      "bytes": 3638
+    }
+  ]
+}

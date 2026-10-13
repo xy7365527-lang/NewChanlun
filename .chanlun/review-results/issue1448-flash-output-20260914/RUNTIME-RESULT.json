@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "run_id": "b4655724-e934-4a3f-b3b0-25106abe85da",
+  "ticket": 1448,
+  "parent_thread_id": "01a07fb3-9da9-7ca0-9be2-e15de6eac7b3",
+  "manager_agent_id": "/root/tb02b_leaf_sandcastle_manager",
+  "manager_kind": "codex_native_subagent",
+  "worker_kind": "sandcastle_external_codex",
+  "native_subagent": false,
+  "status": "completed",
+  "mode": "review",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "effort": "max",
+  "sandbox_backend": "no-sandbox",
+  "codex_sandbox": "read-only",
+  "approval_policy": "never",
+  "automatic_claim": false,
+  "automatic_push": false,
+  "automatic_merge": false,
+  "checkout_preserved": true,
+  "expected_head": "3a3ed2b83267bee277e6d6ded6120254a4a0efd9",
+  "checkout_before": {
+    "root": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/sandcastle-schema-smoke/checkout",
+    "branch": "codex/1448-schema-smoke",
+    "head": "3a3ed2b83267bee277e6d6ded6120254a4a0efd9",
+    "status": ""
+  },
+  "checkout_after": {
+    "root": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/sandcastle-schema-smoke/checkout",
+    "branch": "codex/1448-schema-smoke",
+    "head": "3a3ed2b83267bee277e6d6ded6120254a4a0efd9",
+    "status": ""
+  },
+  "started_at": "2026-09-14T13:06:22.795Z",
+  "ended_at": "2026-09-14T13:06:40.793Z",
+  "process_pid": 35393,
+  "process_exit": {
+    "code": 0,
+    "signal": null
+  },
+  "external_session_id": "01a0a006-9e14-7a80-ba16-bedd090e084d",
+  "external_session_log": "/Users/silencehan/.codex/sessions/2026/09/14/rollout-2026-09-14T21-06-23-01a0a006-9e14-7a80-ba16-bedd090e084d.jsonl",
+  "output_dir": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/sandcastle-schema-smoke/run",
+  "stdout_log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/sandcastle-schema-smoke/run/codex.stdout.jsonl",
+  "stderr_log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/sandcastle-schema-smoke/run/codex.stderr.log",
+  "events_log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/sandcastle-schema-smoke/run/events.jsonl",
+  "prompt_sha256": "eaebb0d0b2d8cf6b6e680afcb0111222e794676312b435eed711cdb37a306c1f",
+  "result": {
+    "status": "completed",
+    "summary": "已按只读探针要求读取当前 checkout 的 fixture.txt，确认其中声明的 route 与 effort，并用 sha256 工具计算出该文件真实摘要，未写入任何文件。",
+    "findings": [
+      "fixture.txt 内容为三行：route=deepseek/deepseek-v4.1-flash、effort=max、run=visible-schema-smoke。",
+      "文件声明的 route 为 deepseek/deepseek-v4.1-flash，effort 为 max。",
+      "fixture.txt 的真实 SHA-256 摘要为 06610f767f56666770c90a7f5658582ccb0c6503ca3714992f810dac282edd6d。",
+      "checkout 目录仅含 .git 与 fixture.txt，未发现其他待审文件。"
+    ],
+    "validation": [
+      "已在当前 checkout 下执行 cat fixture.txt，确认 route 与 effort 两行取值。",
+      "已执行 shasum -a 256 fixture.txt，输出 06610f767f56666770c90a7f5658582ccb0c6503ca3714992f810dac282edd6d。",
+      "全程只读：未写文件、未提交、未切分支、未运行其他任务，也未读取任何凭据或认证文件。"
+    ]
+  },
+  "failure_reason": null
+}

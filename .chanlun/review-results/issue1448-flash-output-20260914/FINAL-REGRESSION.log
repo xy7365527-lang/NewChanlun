@@ -1,0 +1,256 @@
+TAP version 13
+# Subtest: SDK bypass 被精确收紧，prompt 不进入 argv，模型和推理档固定
+ok 1 - SDK bypass 被精确收紧，prompt 不进入 argv，模型和推理档固定
+  ---
+  duration_ms: 396.7125
+  type: 'test'
+  ...
+# Subtest: Router 拒绝非本机地址及 caller secret，错误不泄漏输入
+ok 2 - Router 拒绝非本机地址及 caller secret，错误不泄漏输入
+  ---
+  duration_ms: 414.702542
+  type: 'test'
+  ...
+# Subtest: Router 目录须唯一登记 Flash max；缺配置或坏 TOML 不回退
+ok 3 - Router 目录须唯一登记 Flash max；缺配置或坏 TOML 不回退
+  ---
+  duration_ms: 288.253791
+  type: 'test'
+  ...
+# Subtest: 认证沿用目录，环境只留白名单，不转发密钥或自动续跑配置
+ok 4 - 认证沿用目录，环境只留白名单，不转发密钥或自动续跑配置
+  ---
+  duration_ms: 0.4725
+  type: 'test'
+  ...
+# Subtest: 保留大小写代理路由环境，但不传 API/GitHub 密钥
+ok 5 - 保留大小写代理路由环境，但不传 API/GitHub 密钥
+  ---
+  duration_ms: 0.08375
+  type: 'test'
+  ...
+# Subtest: checkout 守卫拒绝共享 cwd、脏树、错误 HEAD、main、detached HEAD 和项目配置
+ok 6 - checkout 守卫拒绝共享 cwd、脏树、错误 HEAD、main、detached HEAD 和项目配置
+  ---
+  duration_ms: 769.902417
+  type: 'test'
+  ...
+# Subtest: 预检拒绝 assume-unchanged 隐藏的实际修改，保留原始 index 标志
+ok 7 - 预检拒绝 assume-unchanged 隐藏的实际修改，保留原始 index 标志
+  ---
+  duration_ms: 182.772
+  type: 'test'
+  ...
+# Subtest: 后检拒绝工蜂新增 assume-unchanged 隐藏的修改
+ok 8 - 后检拒绝工蜂新增 assume-unchanged 隐藏的修改
+  ---
+  duration_ms: 864.303125
+  type: 'test'
+  ...
+# Subtest: 预检拒绝 skip-worktree 隐藏的实际修改，保留原始 index 标志
+ok 9 - 预检拒绝 skip-worktree 隐藏的实际修改，保留原始 index 标志
+  ---
+  duration_ms: 189.408167
+  type: 'test'
+  ...
+# Subtest: 后检拒绝工蜂新增 skip-worktree 隐藏的修改
+ok 10 - 后检拒绝工蜂新增 skip-worktree 隐藏的修改
+  ---
+  duration_ms: 776.609417
+  type: 'test'
+  ...
+# Subtest: core.filemode=false 不能隐藏权限修改，真实配置不变
+ok 11 - core.filemode=false 不能隐藏权限修改，真实配置不变
+  ---
+  duration_ms: 215.1215
+  type: 'test'
+  ...
+# Subtest: 真实子进程：直接 SDK provider 完成，保存 session/parent 映射，不加载项目 .env
+ok 12 - 真实子进程：直接 SDK provider 完成，保存 session/parent 映射，不加载项目 .env
+  ---
+  duration_ms: 792.233083
+  type: 'test'
+  ...
+# Subtest: 不会覆盖结果目录，失败预检也留结构化结果且不开进程
+ok 13 - 不会覆盖结果目录，失败预检也留结构化结果且不开进程
+  ---
+  duration_ms: 174.097708
+  type: 'test'
+  ...
+# Subtest: 异常不成功：空输出 exit0
+ok 14 - 异常不成功：空输出 exit0
+  ---
+  duration_ms: 755.903834
+  type: 'test'
+  ...
+# Subtest: 异常不成功：坏 JSONL 后还有完成结果
+ok 15 - 异常不成功：坏 JSONL 后还有完成结果
+  ---
+  duration_ms: 749.025958
+  type: 'test'
+  ...
+# Subtest: 异常不成功：最终结果坏 JSON
+ok 16 - 异常不成功：最终结果坏 JSON
+  ---
+  duration_ms: 748.916167
+  type: 'test'
+  ...
+# Subtest: 异常不成功：error 不能被后续完成掩盖
+ok 17 - 异常不成功：error 不能被后续完成掩盖
+  ---
+  duration_ms: 755.913166
+  type: 'test'
+  ...
+# Subtest: 异常不成功：缺少 turn.completed
+ok 18 - 异常不成功：缺少 turn.completed
+  ---
+  duration_ms: 756.392
+  type: 'test'
+  ...
+# Subtest: 异常不成功：有效结果但进程 exit7
+ok 19 - 异常不成功：有效结果但进程 exit7
+  ---
+  duration_ms: 747.061292
+  type: 'test'
+  ...
+# Subtest: 异常不成功：有效结果但自杀信号
+ok 20 - 异常不成功：有效结果但自杀信号
+  ---
+  duration_ms: 750.118083
+  type: 'test'
+  ...
+# Subtest: 异常不成功：session 文件缺失
+ok 21 - 异常不成功：session 文件缺失
+  ---
+  duration_ms: 737.104125
+  type: 'test'
+  ...
+# Subtest: 异常不成功：业务 blocked
+ok 22 - 异常不成功：业务 blocked
+  ---
+  duration_ms: 759.46025
+  type: 'test'
+  ...
+# Subtest: 异常不成功：只读模式出现改动
+ok 23 - 异常不成功：只读模式出现改动
+  ---
+  duration_ms: 760.686291
+  type: 'test'
+  ...
+# Subtest: execute 只留独立分支差异，不做 commit/push/merge
+ok 24 - execute 只留独立分支差异，不做 commit/push/merge
+  ---
+  duration_ms: 748.639125
+  type: 'test'
+  ...
+# Subtest: 运行中 HEAD 漂移必失败并保留差异，不自行回滚
+ok 25 - 运行中 HEAD 漂移必失败并保留差异，不自行回滚
+  ---
+  duration_ms: 817.476375
+  type: 'test'
+  ...
+# Subtest: 收到完成文本仍等待真实进程退出
+ok 26 - 收到完成文本仍等待真实进程退出
+  ---
+  duration_ms: 970.042125
+  type: 'test'
+  ...
+# Subtest: 无输出超时停止进程并失败
+ok 27 - 无输出超时停止进程并失败
+  ---
+  duration_ms: 499.925166
+  type: 'test'
+  ...
+# Subtest: 管理者取消只终止自己的进程组，等待根进程和子进程退出
+ok 28 - 管理者取消只终止自己的进程组，等待根进程和子进程退出
+  ---
+  duration_ms: 773.922584
+  type: 'test'
+  ...
+# Subtest: 预先取消不开工；相同 checkout 并行任务被锁挡住
+ok 29 - 预先取消不开工；相同 checkout 并行任务被锁挡住
+  ---
+  duration_ms: 762.11825
+  type: 'test'
+  ...
+# Subtest: 流解析拒绝重复 session 及 schema 外内容
+ok 30 - 流解析拒绝重复 session 及 schema 外内容
+  ---
+  duration_ms: 0.651
+  type: 'test'
+  ...
+# Subtest: onState 在 spawn 同步抛错：停止工蜂、释放锁、持久化 failed
+ok 31 - onState 在 spawn 同步抛错：停止工蜂、释放锁、持久化 failed
+  ---
+  duration_ms: 341.737875
+  type: 'test'
+  ...
+# Subtest: onState 在 session 同步抛错：停止工蜂、释放锁、持久化 failed
+ok 32 - onState 在 session 同步抛错：停止工蜂、释放锁、持久化 failed
+  ---
+  duration_ms: 762.891791
+  type: 'test'
+  ...
+# Subtest: onState 在 terminal 同步抛错：停止工蜂、释放锁、持久化 failed
+ok 33 - onState 在 terminal 同步抛错：停止工蜂、释放锁、持久化 failed
+  ---
+  duration_ms: 750.045166
+  type: 'test'
+  ...
+# Subtest: stdout 日志 ENOSPC：实际子进程被停止，failed 仍可交付
+ok 34 - stdout 日志 ENOSPC：实际子进程被停止，failed 仍可交付
+  ---
+  duration_ms: 737.248583
+  type: 'test'
+  ...
+# Subtest: stderr 日志 ENOSPC：实际子进程被停止，failed 仍可交付
+ok 35 - stderr 日志 ENOSPC：实际子进程被停止，failed 仍可交付
+  ---
+  duration_ms: 770.306542
+  type: 'test'
+  ...
+# Subtest: 运行状态文件写失败接入清理；独立 result 记录 failed
+ok 36 - 运行状态文件写失败接入清理；独立 result 记录 failed
+  ---
+  duration_ms: 762.242292
+  type: 'test'
+  ...
+# Subtest: 最终 receipt 无法写入也返回 failed，不通知 completed，已退出并释放锁
+ok 37 - 最终 receipt 无法写入也返回 failed，不通知 completed，已退出并释放锁
+  ---
+  duration_ms: 749.450459
+  type: 'test'
+  ...
+# Subtest: session finder pending 时取消，查找返回后仍为 cancelled
+ok 38 - session finder pending 时取消，查找返回后仍为 cancelled
+  ---
+  duration_ms: 751.665041
+  type: 'test'
+  ...
+# Subtest: CLI stdout 管道关闭不会击穿监督器或遗留 detached 工蜂
+ok 39 - CLI stdout 管道关闭不会击穿监督器或遗留 detached 工蜂
+  ---
+  duration_ms: 1166.23275
+  type: 'test'
+  ...
+# Subtest: CLI SIGINT 被转为取消，退出码非零且留下结果
+ok 40 - CLI SIGINT 被转为取消，退出码非零且留下结果
+  ---
+  duration_ms: 1088.718292
+  type: 'test'
+  ...
+# Subtest: CLI SIGTERM 被转为取消，退出码非零且留下结果
+ok 41 - CLI SIGTERM 被转为取消，退出码非零且留下结果
+  ---
+  duration_ms: 1058.084209
+  type: 'test'
+  ...
+1..41
+# tests 41
+# suites 0
+# pass 41
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 26190.276458

@@ -1,0 +1,4118 @@
+{
+  "schema": "devskim-bounded-triage/1",
+  "scan_identity": {
+    "repository": "xy7365527-lang/NewChanlun",
+    "pull_request": 1459,
+    "workflow_run_id": 34852190257,
+    "workflow_url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34852190257",
+    "workflow_conclusion": "failure",
+    "workflow_conclusion_provenance": "主控已核；本分诊未重取 GitHub 状态。",
+    "base": "6f99b36c64e0560febdb08e5d1f8e781d2af9299",
+    "head": "950a49719bf1cc340ca4d1308df7710bbaff6557",
+    "scanner": {
+      "name": "devskim",
+      "fullName": "Microsoft DevSkim Command Line Interface",
+      "version": "1.0.90+fb2d676ce4",
+      "informationUri": "https://github.com/microsoft/DevSkim/"
+    },
+    "matched_rules": [
+      {
+        "id": "DS173237",
+        "name": "DoNotStoreTokensOrKeysInSourceCode",
+        "message": "A token or key was found in source code. If this represents a secret, it should be moved somewhere else."
+      },
+      {
+        "id": "DS162092",
+        "name": "DoNotLeaveDebugCodeInProduction",
+        "message": "Accessing localhost could indicate debug code, or could hinder scaling."
+      },
+      {
+        "id": "DS172411",
+        "name": "ReviewSettimeoutForUntrustedData",
+        "message": "If untrusted data (data from HTTP requests, user submitted files, etc.) is included in an setTimeout statement it can allow an attacker to inject their own code."
+      },
+      {
+        "id": "DS137138",
+        "name": "InsecureUrl",
+        "message": "An HTTP-based URL without TLS was detected."
+      }
+    ],
+    "original_sarif_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/pr1459-devskim/devskim-results.sarif",
+    "original_sarif_sha256": "ec83e07420ab175bbc73fb09f8afe2c519cc87d20e20f53a4b756758b19211ea",
+    "original_sarif_bytes": 134729361,
+    "original_sarif_digest_independently_verified": true,
+    "input_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/pr1459-devskim-CHANGED.json",
+    "input_sha256": "1bd3a3ec9755c9d9f4ccf8e97aeba0f6e4ec9de24fc9ca379d1a9d07a845bce0",
+    "ci_run_id": 34852190211,
+    "ci_jobs_success": 4,
+    "ci_provenance": "主控已核四个 job SUCCESS；本轮不重复查询、不运行 CI。"
+  },
+  "scope": {
+    "included_keys": 41,
+    "included_product_or_roster_keys": 19,
+    "included_report_keys": 22,
+    "product_bindings": {
+      ".sandcastle/codex-router-runtime.ts": {
+        "sha256": "190922c7d9688ce4ce4b0e25bb589f22d295e070fa9299d127dac2193a6c5a95",
+        "git_blob": "3a6b1d1ce4145420e25b02e34876c3516ffaf709",
+        "git_mode": "100644"
+      },
+      ".sandcastle/codex-child.ts": {
+        "sha256": "2feba6333802eeeee6f7caa478f5cd887c0c72f0f4f30758d675bd21b3028a03",
+        "git_blob": "dce240284d9a1269d4177e6b1129838b5e2cf97e",
+        "git_mode": "100644"
+      },
+      ".sandcastle/codex-child.test.ts": {
+        "sha256": "0cc296b8c8746457c310e69f95896d94c032a3a88e044e29ab87cb4c435f5e8c",
+        "git_blob": "78d5d8a1507c8f6a8361dcf2438e80d9a5090ce9",
+        "git_mode": "100644"
+      }
+    },
+    "previous_review": {
+      "path": ".chanlun/review-results/issue1448-flash-output-20260914/FINAL-REVIEW.md",
+      "reviewed_product_head": "434d7ee4e571ee0ac3a8f3324837852c671a2304",
+      "products_identical_to_current_head": true
+    },
+    "excluded_counts_from_supplied_cut": {
+      "unchanged_file": 31693,
+      "existing_baseline": 8187
+    },
+    "excluded_scope_handling": "上述两组由主控单列同字节继承及既有 main 扫描例外；本分诊未重审其具体漏洞，也不替它们给通过结论。"
+  },
+  "coverage": {
+    "input_keys": 41,
+    "output_keys": 41,
+    "missing_keys": [],
+    "extra_keys": [],
+    "original_sarif_locations_included": 49,
+    "all_supplied_regions_found_in_original_sarif": true,
+    "all_original_location_snippets_match_fixed_head": true,
+    "change_counts": {
+      "new_report_artifact": 22,
+      "new_runtime_file": 1,
+      "unchanged_line_moved": 11,
+      "modified_existing_test_line": 1,
+      "added_test_line": 6
+    },
+    "verdict_counts": {
+      "not_actionable": 41,
+      "confirmed": 0,
+      "needs_review": 0
+    },
+    "confirmed_unfixed_product_issues": 0,
+    "uncertain_items": [],
+    "limitations": [
+      "根 SECURITY.md 为模板，具体结论以已审产品文档、实际数据生成路径与测试入口为证据。",
+      "本轮仅做静态分诊，不运行测试、模型、服务、PoC 或新扫描。",
+      "扫描命中集合和 workflow 失败状态原样保留；没有修改 baseline 或关闭扫描告警。",
+      "既有宿主读取隔离与模型长任务输出格式限制仍由 FINAL-REVIEW.md 保留，本轮未宣布消除。"
+    ]
+  },
+  "integrity_checks": [
+    {
+      "kind": "archive_content_digest",
+      "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+      "sha256_matches": true,
+      "bytes_match": true
+    },
+    {
+      "kind": "archive_content_digest",
+      "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/TESTS.log",
+      "sha256_matches": true,
+      "bytes_match": true
+    },
+    {
+      "kind": "archive_content_digest",
+      "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json",
+      "sha256_matches": true,
+      "bytes_match": true
+    },
+    {
+      "kind": "old_git_source_digest",
+      "revision": "91fd5c7511a7e97f4d0a9b55da24a042ac175b6b",
+      "path": ".sandcastle/codex-router-runtime.ts",
+      "sha256_matches": true
+    },
+    {
+      "kind": "old_git_source_digest",
+      "revision": "91fd5c7511a7e97f4d0a9b55da24a042ac175b6b",
+      "path": ".sandcastle/codex-child.ts",
+      "sha256_matches": true
+    },
+    {
+      "kind": "old_git_source_digest",
+      "revision": "91fd5c7511a7e97f4d0a9b55da24a042ac175b6b",
+      "path": ".sandcastle/codex-child.test.ts",
+      "sha256_matches": true
+    },
+    {
+      "kind": "old_git_source_digest",
+      "revision": "91fd5c7511a7e97f4d0a9b55da24a042ac175b6b",
+      "path": ".sandcastle/CODEX-CHILD.md",
+      "sha256_matches": true
+    },
+    {
+      "kind": "old_git_source_digest",
+      "revision": "91fd5c7511a7e97f4d0a9b55da24a042ac175b6b",
+      "path": ".chanlun/agent-roster-20260914-sandcastle-flash.md",
+      "sha256_matches": true
+    },
+    {
+      "kind": "current_git_source_digest",
+      "revision": "950a49719bf1cc340ca4d1308df7710bbaff6557",
+      "path": ".sandcastle/codex-child.ts",
+      "sha256_matches": true
+    },
+    {
+      "kind": "current_git_source_digest",
+      "revision": "950a49719bf1cc340ca4d1308df7710bbaff6557",
+      "path": ".sandcastle/codex-child.test.ts",
+      "sha256_matches": true
+    }
+  ],
+  "key_audit": [
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json|47",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json",
+        "line": 47
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告摘要",
+      "rationale": "EXECUTE-RESULT 的 prompt_sha256 为提示内容的 SHA-256。生成路径是 codex-child.ts:529 的 createHash/update/digest，不是认证材料。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 35636,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 47,
+            "startColumn": 19,
+            "endLine": 47,
+            "endColumn": 85,
+            "charOffset": 2648,
+            "charLength": 66,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json|31",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json",
+        "line": 31
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告版本标识",
+      "rationale": "EXECUTE-RESULT 的 checkout_after.head 是运行后 Git HEAD，与同记录的受测 fixture 版本字段一致；字段由 Git 快照生成。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 35637,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 31,
+            "startColumn": 12,
+            "endLine": 31,
+            "endColumn": 54,
+            "charOffset": 1316,
+            "charLength": 42,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json|25",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json",
+        "line": 25
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告版本标识",
+      "rationale": "EXECUTE-RESULT 的 checkout_before.head 是运行前 Git HEAD，来源为预检快照，不用于认证。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 35638,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 25,
+            "startColumn": 12,
+            "endLine": 25,
+            "endColumn": 54,
+            "charOffset": 982,
+            "charLength": 42,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json|21",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json",
+        "line": 21
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告版本标识",
+      "rationale": "EXECUTE-RESULT 的 expected_head 为指定 fixture 的版本约束；入口要求完整 Git SHA 并与实际 HEAD 比对，不作为 token 使用。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 35639,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 21,
+            "startColumn": 19,
+            "endLine": 21,
+            "endColumn": 61,
+            "charOffset": 669,
+            "charLength": 42,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json|19",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json",
+        "line": 19
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告摘要",
+      "rationale": "ARCHIVE 的该 sha256 绑定归档 EXECUTE-RESULT.json；本轮对该 Git 内容重算摘要与字节数均一致。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 35640,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 19,
+            "startColumn": 16,
+            "endLine": 19,
+            "endColumn": 82,
+            "charOffset": 1287,
+            "charLength": 66,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json|13",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json",
+        "line": 13
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告摘要",
+      "rationale": "ARCHIVE 的该 sha256 绑定归档 TESTS.log；本轮对该 Git 内容重算摘要与字节数均一致。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 35641,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 13,
+            "startColumn": 16,
+            "endLine": 13,
+            "endColumn": 82,
+            "charOffset": 849,
+            "charLength": 66,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json|7",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json",
+        "line": 7
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告摘要",
+      "rationale": "ARCHIVE 的该 sha256 绑定归档 MAX-VERIFIED.json；本轮对该 Git 内容重算摘要与字节数均一致。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 35642,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 7,
+            "startColumn": 16,
+            "endLine": 7,
+            "endColumn": 82,
+            "charOffset": 430,
+            "charLength": 66,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|25",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+        "line": 25
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告摘要",
+      "rationale": "MAX-VERIFIED 的 fixture_sha256 记录旧短读写探针的文件校验和；同一摘要作为 execute 结果回读比对目标，没有认证用途。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 35643,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 25,
+            "startColumn": 22,
+            "endLine": 25,
+            "endColumn": 88,
+            "charOffset": 1498,
+            "charLength": 66,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|23",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+        "line": 23
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告摘要",
+      "rationale": "MAX-VERIFIED 的 runtime.sha256 绑定 execute 结果文件；与 ARCHIVE 对同文件的摘要一致，且已重算文件内容确认。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 35644,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 23,
+            "startColumn": 14,
+            "endLine": 23,
+            "endColumn": 80,
+            "charOffset": 1341,
+            "charLength": 66,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|13",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+        "line": 13
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告摘要",
+      "rationale": "source_sha256 的该值绑定旧版工位名册文件；本轮对已登记 Git commit 的该文件重算 SHA-256 一致。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 35645,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 13,
+            "startColumn": 58,
+            "endLine": 13,
+            "endColumn": 124,
+            "charOffset": 743,
+            "charLength": 66,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|12",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+        "line": 12
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告摘要",
+      "rationale": "source_sha256 的该值绑定旧版 CODEX-CHILD.md；本轮对已登记 Git commit 的该文件重算 SHA-256 一致。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 35646,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 12,
+            "startColumn": 34,
+            "endLine": 12,
+            "endColumn": 100,
+            "charOffset": 617,
+            "charLength": 66,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|11",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+        "line": 11
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告摘要",
+      "rationale": "source_sha256 的该值绑定旧版 codex-child.test.ts；本轮对已登记 Git commit 的测试文件重算 SHA-256 一致。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 35647,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 11,
+            "startColumn": 39,
+            "endLine": 11,
+            "endColumn": 105,
+            "charOffset": 515,
+            "charLength": 66,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|10",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+        "line": 10
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告摘要",
+      "rationale": "source_sha256 的该值绑定旧版 codex-child.ts；本轮对已登记 Git commit 的产品文件重算 SHA-256 一致。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 35648,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 10,
+            "startColumn": 34,
+            "endLine": 10,
+            "endColumn": 100,
+            "charOffset": 408,
+            "charLength": 66,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|9",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+        "line": 9
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告摘要",
+      "rationale": "source_sha256 的该值绑定 codex-router-runtime.ts；本轮对登记的旧 Git 内容重算 SHA-256 一致，当前内容亦相同。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 35649,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 9,
+            "startColumn": 43,
+            "endLine": 9,
+            "endColumn": 109,
+            "charOffset": 306,
+            "charLength": 66,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|7",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+        "line": 7
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告版本标识",
+      "rationale": "MAX-VERIFIED 的 commit 是旧路由入口 Git 提交号；本轮 git cat-file 确认该对象类型为 commit，且其源文件摘要逐个匹配。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 35650,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 7,
+            "startColumn": 12,
+            "endLine": 7,
+            "endColumn": 54,
+            "charOffset": 198,
+            "charLength": 42,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json|14",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json",
+        "line": 14
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告摘要",
+      "rationale": "CHECKS.sources 中该值是当前 codex-child.test.ts 的文件 SHA-256；本轮对固定 HEAD 内容重算一致。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 37734,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 14,
+            "startColumn": 39,
+            "endLine": 14,
+            "endColumn": 105,
+            "charOffset": 562,
+            "charLength": 66,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json|13",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json",
+        "line": 13
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告摘要",
+      "rationale": "CHECKS.sources 中该值是当前 codex-child.ts 的文件 SHA-256；本轮对固定 HEAD 内容重算一致。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 37735,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 13,
+            "startColumn": 34,
+            "endLine": 13,
+            "endColumn": 100,
+            "charOffset": 455,
+            "charLength": 66,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json|10",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json",
+        "line": 10
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告摘要",
+      "rationale": "CHECKS.fixture_sha256 是新短只读探针的文件校验和，与相邻 fixture_bytes 及 RUNTIME-RESULT 的摘要检查描述对应，不是凭据。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 37736,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 10,
+            "startColumn": 20,
+            "endLine": 10,
+            "endColumn": 86,
+            "charOffset": 315,
+            "charLength": 66,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json|47",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json",
+        "line": 47
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告摘要",
+      "rationale": "RUNTIME-RESULT 的 prompt_sha256 是提示内容 SHA-256，生成路径为 codex-child.ts:529；不保存提示中的认证内容。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 37737,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 47,
+            "startColumn": 19,
+            "endLine": 47,
+            "endColumn": 85,
+            "charOffset": 2749,
+            "charLength": 66,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json|31",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json",
+        "line": 31
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告版本标识",
+      "rationale": "RUNTIME-RESULT 的 checkout_after.head 是新只读 fixture 运行后 Git HEAD，与前快照和 expected_head 一致。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 37738,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 31,
+            "startColumn": 12,
+            "endLine": 31,
+            "endColumn": 54,
+            "charOffset": 1368,
+            "charLength": 42,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json|25",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json",
+        "line": 25
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告版本标识",
+      "rationale": "RUNTIME-RESULT 的 checkout_before.head 是新只读 fixture 运行前 Git HEAD，来源为 Git 预检快照。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 37739,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 25,
+            "startColumn": 12,
+            "endLine": 25,
+            "endColumn": 54,
+            "charOffset": 1009,
+            "charLength": 42,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json|21",
+      "supplied_category": "changed_report",
+      "rule_id": "DS173237",
+      "head_location": {
+        "path": ".chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json",
+        "line": 21
+      },
+      "change_kind": "new_report_artifact",
+      "base_line": null,
+      "classification": "报告版本标识",
+      "rationale": "RUNTIME-RESULT 的 expected_head 是新只读 fixture 的版本约束，入口将其与 Git HEAD 校验，不作为认证 token。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 37740,
+          "location_index": 0,
+          "level": "error",
+          "region": {
+            "startLine": 21,
+            "startColumn": 19,
+            "endLine": 21,
+            "endColumn": 61,
+            "charOffset": 671,
+            "charLength": 42,
+            "sourceLanguage": "json"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS162092|.sandcastle/codex-router-runtime.ts|31",
+      "supplied_category": "changed_product_or_roster",
+      "rule_id": "DS162092",
+      "head_location": {
+        "path": ".sandcastle/codex-router-runtime.ts",
+        "line": 31
+      },
+      "change_kind": "new_runtime_file",
+      "base_line": null,
+      "classification": "新增校验错误文案",
+      "rationale": "命中位于抛出 Error 的固定说明字符串。上一行拒绝非回环或非法端口输入；该位置没有连接动作或调试后门。本机 Router 是 CODEX-CHILD.md 明确支持的架构。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 39390,
+          "location_index": 0,
+          "level": "note",
+          "region": {
+            "startLine": 31,
+            "startColumn": 43,
+            "endLine": 31,
+            "endColumn": 52,
+            "charOffset": 1477,
+            "charLength": 9,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS172411|.sandcastle/codex-child.ts|364",
+      "supplied_category": "changed_product_or_roster",
+      "rule_id": "DS172411",
+      "head_location": {
+        "path": ".sandcastle/codex-child.ts",
+        "line": 364
+      },
+      "change_kind": "unchanged_line_moved",
+      "base_line": 351,
+      "classification": "旧代码移位：固定定时回调",
+      "rationale": "setTimeout 第一参数是固定箭头函数，只调用 stop 的固定超时消息。可配置时长位于第二参数并已作数值范围校验；外部文本没有进入可执行代码位置。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 39391,
+          "location_index": 0,
+          "level": "note",
+          "region": {
+            "startLine": 364,
+            "startColumn": 26,
+            "endLine": 364,
+            "endColumn": 58,
+            "charOffset": 15886,
+            "charLength": 32,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS172411|.sandcastle/codex-child.ts|360",
+      "supplied_category": "changed_product_or_roster",
+      "rule_id": "DS172411",
+      "head_location": {
+        "path": ".sandcastle/codex-child.ts",
+        "line": 360
+      },
+      "change_kind": "unchanged_line_moved",
+      "base_line": 347,
+      "classification": "旧代码移位：固定定时回调",
+      "rationale": "空闲计时器第一参数为固定箭头函数，传入 stop 的消息为静态常量；时长只参与毫秒数计算，不被当作代码执行。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 39392,
+          "location_index": 0,
+          "level": "note",
+          "region": {
+            "startLine": 360,
+            "startColumn": 22,
+            "endLine": 360,
+            "endColumn": 55,
+            "charOffset": 15651,
+            "charLength": 33,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS172411|.sandcastle/codex-child.ts|349",
+      "supplied_category": "changed_product_or_roster",
+      "rule_id": "DS172411",
+      "head_location": {
+        "path": ".sandcastle/codex-child.ts",
+        "line": 349
+      },
+      "change_kind": "unchanged_line_moved",
+      "base_line": 336,
+      "classification": "旧代码移位：固定定时回调",
+      "rationale": "killTimer 使用固定函数和固定 1000 毫秒延迟，回调只对已记录的本次子进程组发送 SIGKILL；没有字符串形式的定时代码。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 39393,
+          "location_index": 0,
+          "level": "note",
+          "region": {
+            "startLine": 349,
+            "startColumn": 22,
+            "endLine": 349,
+            "endColumn": 35,
+            "charOffset": 15205,
+            "charLength": 13,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS172411|.sandcastle/codex-child.test.ts|525",
+      "supplied_category": "changed_product_or_roster",
+      "rule_id": "DS172411",
+      "head_location": {
+        "path": ".sandcastle/codex-child.test.ts",
+        "line": 525
+      },
+      "change_kind": "unchanged_line_moved",
+      "base_line": 475,
+      "classification": "旧测试移位：固定定时回调",
+      "rationale": "测试的 10 秒兜底用固定箭头函数终止本测试创建的 CLI 子进程；未把外部文本传入 setTimeout。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 39671,
+          "location_index": 0,
+          "level": "note",
+          "region": {
+            "startLine": 525,
+            "startColumn": 22,
+            "endLine": 525,
+            "endColumn": 58,
+            "charOffset": 29358,
+            "charLength": 36,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS172411|.sandcastle/codex-child.test.ts|496",
+      "supplied_category": "changed_product_or_roster",
+      "rule_id": "DS172411",
+      "head_location": {
+        "path": ".sandcastle/codex-child.test.ts",
+        "line": 496
+      },
+      "change_kind": "unchanged_line_moved",
+      "base_line": 446,
+      "classification": "旧测试移位：固定定时回调",
+      "rationale": "管道关闭测试的 10 秒兜底是固定箭头函数，只终止同一测试创建的 CLI；不解释不可信字符串。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 39672,
+          "location_index": 0,
+          "level": "note",
+          "region": {
+            "startLine": 496,
+            "startColumn": 20,
+            "endLine": 496,
+            "endColumn": 56,
+            "charOffset": 27915,
+            "charLength": 36,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS172411|.sandcastle/codex-child.test.ts|483",
+      "supplied_category": "changed_product_or_roster",
+      "rule_id": "DS172411",
+      "head_location": {
+        "path": ".sandcastle/codex-child.test.ts",
+        "line": 483
+      },
+      "change_kind": "unchanged_line_moved",
+      "base_line": 433,
+      "classification": "旧测试移位：伪造进程脚本",
+      "rationale": "f.fake 接受源码中的固定测试程序字面量，延迟回调是固定 session() 函数；该 helper 只写本测试临时目录的假 codex，不是产品输入通道。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 39673,
+          "location_index": 0,
+          "level": "note",
+          "region": {
+            "startLine": 483,
+            "startColumn": 12,
+            "endLine": 483,
+            "endColumn": 38,
+            "charOffset": 27130,
+            "charLength": 26,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS172411|.sandcastle/codex-child.test.ts|311",
+      "supplied_category": "changed_product_or_roster",
+      "rule_id": "DS172411",
+      "head_location": {
+        "path": ".sandcastle/codex-child.test.ts",
+        "line": 311
+      },
+      "change_kind": "unchanged_line_moved",
+      "base_line": 261,
+      "classification": "旧测试移位：伪造进程脚本",
+      "rationale": "f.fake 的固定脚本通过函数回调延迟写入本测试的退出标记，用于验证监督器确实等到进程退出；没有外部可执行文本输入。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 39674,
+          "location_index": 0,
+          "level": "note",
+          "region": {
+            "startLine": 311,
+            "startColumn": 35,
+            "endLine": 311,
+            "endColumn": 48,
+            "charOffset": 18963,
+            "charLength": 13,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS137138|.sandcastle/codex-child.test.ts|214",
+      "supplied_category": "changed_product_or_roster",
+      "rule_id": "DS137138",
+      "head_location": {
+        "path": ".sandcastle/codex-child.test.ts",
+        "line": 214
+      },
+      "change_kind": "unchanged_line_moved",
+      "base_line": 168,
+      "classification": "旧测试移位：代理占位符",
+      "rationale": "HTTP 地址仅作为假子进程环境透传与日志不泄漏测试的代理占位值；f.fake 已替换 codex，捕获环境键和生成静态事件，不发出 HTTP 请求。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 39675,
+          "location_index": 0,
+          "level": "warning",
+          "region": {
+            "startLine": 214,
+            "startColumn": 19,
+            "endLine": 214,
+            "endColumn": 52,
+            "charOffset": 13409,
+            "charLength": 33,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS137138|.sandcastle/codex-child.test.ts|136",
+      "supplied_category": "changed_product_or_roster",
+      "rule_id": "DS137138",
+      "head_location": {
+        "path": ".sandcastle/codex-child.test.ts",
+        "line": 136
+      },
+      "change_kind": "unchanged_line_moved",
+      "base_line": 90,
+      "classification": "旧测试移位：代理占位符",
+      "rationale": "同一行两处 HTTP 字面量是大小写代理环境映射测试数据；workerEnvironment 只复制字段，紧接 deepEqual，不建立网络连接。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 39676,
+          "location_index": 0,
+          "level": "warning",
+          "region": {
+            "startLine": 136,
+            "startColumn": 67,
+            "endLine": 136,
+            "endColumn": 100,
+            "charOffset": 9223,
+            "charLength": 33,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        },
+        {
+          "run_index": 0,
+          "result_index": 39677,
+          "location_index": 0,
+          "level": "warning",
+          "region": {
+            "startLine": 136,
+            "startColumn": 17,
+            "endLine": 136,
+            "endColumn": 50,
+            "charOffset": 9173,
+            "charLength": 33,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": false,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS162092|.sandcastle/codex-child.test.ts|135",
+      "supplied_category": "changed_product_or_roster",
+      "rule_id": "DS162092",
+      "head_location": {
+        "path": ".sandcastle/codex-child.test.ts",
+        "line": 135
+      },
+      "change_kind": "unchanged_line_moved",
+      "base_line": 89,
+      "classification": "旧测试移位：NO_PROXY 数据",
+      "rationale": "该行 localhost 与回环地址是 NO_PROXY 的预期测试字符串，用来检查环境白名单保留数据；不是遗留调试服务。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 39678,
+          "location_index": 0,
+          "level": "note",
+          "region": {
+            "startLine": 135,
+            "startColumn": 75,
+            "endLine": 135,
+            "endColumn": 84,
+            "charOffset": 9144,
+            "charLength": 9,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        },
+        {
+          "run_index": 0,
+          "result_index": 39679,
+          "location_index": 0,
+          "level": "note",
+          "region": {
+            "startLine": 135,
+            "startColumn": 65,
+            "endLine": 135,
+            "endColumn": 74,
+            "charOffset": 9134,
+            "charLength": 9,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": false,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS137138|.sandcastle/codex-child.test.ts|134",
+      "supplied_category": "changed_product_or_roster",
+      "rule_id": "DS137138",
+      "head_location": {
+        "path": ".sandcastle/codex-child.test.ts",
+        "line": 134
+      },
+      "change_kind": "unchanged_line_moved",
+      "base_line": 88,
+      "classification": "旧测试移位：代理占位符",
+      "rationale": "同一行两处 HTTP 字面量是 HTTP_PROXY/HTTPS_PROXY 测试值，仅参与 workerEnvironment 的纯对象比较，没有 TLS 网络传输。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 39680,
+          "location_index": 0,
+          "level": "warning",
+          "region": {
+            "startLine": 134,
+            "startColumn": 67,
+            "endLine": 134,
+            "endColumn": 100,
+            "charOffset": 9033,
+            "charLength": 33,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        },
+        {
+          "run_index": 0,
+          "result_index": 39681,
+          "location_index": 0,
+          "level": "warning",
+          "region": {
+            "startLine": 134,
+            "startColumn": 17,
+            "endLine": 134,
+            "endColumn": 50,
+            "charOffset": 8983,
+            "charLength": 33,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": false,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS137138|.sandcastle/codex-child.test.ts|128",
+      "supplied_category": "changed_product_or_roster",
+      "rule_id": "DS137138",
+      "head_location": {
+        "path": ".sandcastle/codex-child.test.ts",
+        "line": 128
+      },
+      "change_kind": "modified_existing_test_line",
+      "base_line": 82,
+      "classification": "修改既有测试：拒绝不可信环境",
+      "rationale": "新 HTTP 值位于 OPENAI_BASE_URL 的反向测试输入；下一行断言返回环境不含此字段。实际白名单也没有该键，所以该地址不会被透传使用。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 39682,
+          "location_index": 0,
+          "level": "warning",
+          "region": {
+            "startLine": 128,
+            "startColumn": 161,
+            "endLine": 128,
+            "endColumn": 185,
+            "charOffset": 8712,
+            "charLength": 24,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS162092|.sandcastle/codex-child.test.ts|114",
+      "supplied_category": "changed_product_or_roster",
+      "rule_id": "DS162092",
+      "head_location": {
+        "path": ".sandcastle/codex-child.test.ts",
+        "line": 114
+      },
+      "change_kind": "added_test_line",
+      "base_line": null,
+      "classification": "新增测试：本机配置断言",
+      "rationale": "回环地址是临时配置读取结果的期望值。readRouterConfiguration 只解析文件和检查模型目录，此测试不建立服务连接。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 39683,
+          "location_index": 0,
+          "level": "note",
+          "region": {
+            "startLine": 114,
+            "startColumn": 63,
+            "endLine": 114,
+            "endColumn": 72,
+            "charOffset": 7723,
+            "charLength": 9,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS162092|.sandcastle/codex-child.test.ts|102",
+      "supplied_category": "changed_product_or_roster",
+      "rule_id": "DS162092",
+      "head_location": {
+        "path": ".sandcastle/codex-child.test.ts",
+        "line": 102
+      },
+      "change_kind": "added_test_line",
+      "base_line": null,
+      "classification": "新增测试：认证路径拒绝",
+      "rationale": "地址由固定占位 token 构成，写入隔离的临时 CODEX_HOME；随后断言 runCodexChild 失败、process_pid 为 null、结果不含占位值。生产校验在 spawn 前拒绝它。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 39684,
+          "location_index": 0,
+          "level": "note",
+          "region": {
+            "startLine": 102,
+            "startColumn": 84,
+            "endLine": 102,
+            "endColumn": 93,
+            "charOffset": 7163,
+            "charLength": 9,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS162092|.sandcastle/codex-child.test.ts|98",
+      "supplied_category": "changed_product_or_roster",
+      "rule_id": "DS162092",
+      "head_location": {
+        "path": ".sandcastle/codex-child.test.ts",
+        "line": 98
+      },
+      "change_kind": "added_test_line",
+      "base_line": null,
+      "classification": "新增测试：非法地址集合",
+      "rationale": "同一行五处本机地址属于拒绝用例集合，包含错误协议/端口、认证路径、用户信息和查询参数；每项均要求配置读取抛错，不是部署配置。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 39685,
+          "location_index": 0,
+          "level": "note",
+          "region": {
+            "startLine": 98,
+            "startColumn": 216,
+            "endLine": 98,
+            "endColumn": 225,
+            "charOffset": 6664,
+            "charLength": 9,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        },
+        {
+          "run_index": 0,
+          "result_index": 39686,
+          "location_index": 0,
+          "level": "note",
+          "region": {
+            "startLine": 98,
+            "startColumn": 188,
+            "endLine": 98,
+            "endColumn": 197,
+            "charOffset": 6636,
+            "charLength": 9,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": false,
+          "source_text_match": true
+        },
+        {
+          "run_index": 0,
+          "result_index": 39688,
+          "location_index": 0,
+          "level": "note",
+          "region": {
+            "startLine": 98,
+            "startColumn": 127,
+            "endLine": 98,
+            "endColumn": 136,
+            "charOffset": 6575,
+            "charLength": 9,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": false,
+          "source_text_match": true
+        },
+        {
+          "run_index": 0,
+          "result_index": 39689,
+          "location_index": 0,
+          "level": "note",
+          "region": {
+            "startLine": 98,
+            "startColumn": 98,
+            "endLine": 98,
+            "endColumn": 107,
+            "charOffset": 6546,
+            "charLength": 9,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": false,
+          "source_text_match": true
+        },
+        {
+          "run_index": 0,
+          "result_index": 39726,
+          "location_index": 0,
+          "level": "note",
+          "region": {
+            "startLine": 98,
+            "startColumn": 36,
+            "endLine": 98,
+            "endColumn": 45,
+            "charOffset": 6484,
+            "charLength": 9,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": false,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS137138|.sandcastle/codex-child.test.ts|98",
+      "supplied_category": "changed_product_or_roster",
+      "rule_id": "DS137138",
+      "head_location": {
+        "path": ".sandcastle/codex-child.test.ts",
+        "line": 98
+      },
+      "change_kind": "added_test_line",
+      "base_line": null,
+      "classification": "新增测试：非 TLS 反例",
+      "rationale": "同一行两处被规则捕获的 HTTP 地址是必须被拒绝的测试输入，含占位用户信息或无效远端；循环断言解析失败，未执行网络连接。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 39687,
+          "location_index": 0,
+          "level": "warning",
+          "region": {
+            "startLine": 98,
+            "startColumn": 171,
+            "endLine": 98,
+            "endColumn": 202,
+            "charOffset": 6619,
+            "charLength": 31,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        },
+        {
+          "run_index": 0,
+          "result_index": 39690,
+          "location_index": 0,
+          "level": "warning",
+          "region": {
+            "startLine": 98,
+            "startColumn": 57,
+            "endLine": 98,
+            "endColumn": 84,
+            "charOffset": 6505,
+            "charLength": 27,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": false,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS162092|.sandcastle/codex-child.test.ts|83",
+      "supplied_category": "changed_product_or_roster",
+      "rule_id": "DS162092",
+      "head_location": {
+        "path": ".sandcastle/codex-child.test.ts",
+        "line": 83
+      },
+      "change_kind": "added_test_line",
+      "base_line": null,
+      "classification": "新增测试：Router argv 断言",
+      "rationale": "回环地址处于 command.includes 的固定期望字符串，仅检查构造出的 CLI 配置是否绑定本机 Router，不是未删除的调试调用。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 39727,
+          "location_index": 0,
+          "level": "note",
+          "region": {
+            "startLine": 83,
+            "startColumn": 86,
+            "endLine": 83,
+            "endColumn": 95,
+            "charOffset": 5660,
+            "charLength": 9,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    },
+    {
+      "input_id": "DS162092|.sandcastle/codex-child.test.ts|31",
+      "supplied_category": "changed_product_or_roster",
+      "rule_id": "DS162092",
+      "head_location": {
+        "path": ".sandcastle/codex-child.test.ts",
+        "line": 31
+      },
+      "change_kind": "added_test_line",
+      "base_line": null,
+      "classification": "新增测试：隔离配置 fixture",
+      "rationale": "回环地址写入 mkdtemp 创建的临时 CODEX_HOME 配置，与临时模型目录配套供解析和假进程测试使用；测试清理删除整个 fixture，没有改变用户配置。",
+      "original_sarif_locations": [
+        {
+          "run_index": 0,
+          "result_index": 39728,
+          "location_index": 0,
+          "level": "note",
+          "region": {
+            "startLine": 31,
+            "startColumn": 75,
+            "endLine": 31,
+            "endColumn": 84,
+            "charOffset": 1607,
+            "charLength": 9,
+            "sourceLanguage": "typescript"
+          },
+          "exact_region_matches_supplied_representative": true,
+          "source_text_match": true
+        }
+      ]
+    }
+  ],
+  "triage_result": {
+    "schema_version": "triage-finding/v0",
+    "repository": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1448-flash",
+      "revision": "950a49719bf1cc340ca4d1308df7710bbaff6557"
+    },
+    "findings": [
+      {
+        "triage_item_id": "triage-001",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json|47",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json:47",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json|47"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告摘要",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json",
+            "lines": "47",
+            "detail": "EXECUTE-RESULT 的 prompt_sha256 为提示内容的 SHA-256。生成路径是 codex-child.ts:529 的 createHash/update/digest，不是认证材料。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json:47 与裁剪和原 SARIF 定位一致。",
+          "EXECUTE-RESULT 的 prompt_sha256 为提示内容的 SHA-256。生成路径是 codex-child.ts:529 的 createHash/update/digest，不是认证材料。",
+          "codex-child.ts:82,528-530"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-002",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json|31",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json:31",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json|31"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告版本标识",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json",
+            "lines": "31",
+            "detail": "EXECUTE-RESULT 的 checkout_after.head 是运行后 Git HEAD，与同记录的受测 fixture 版本字段一致；字段由 Git 快照生成。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json:31 与裁剪和原 SARIF 定位一致。",
+          "EXECUTE-RESULT 的 checkout_after.head 是运行后 Git HEAD，与同记录的受测 fixture 版本字段一致；字段由 Git 快照生成。",
+          "codex-child.ts:118-129,557-560"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-003",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json|25",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json:25",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json|25"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告版本标识",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json",
+            "lines": "25",
+            "detail": "EXECUTE-RESULT 的 checkout_before.head 是运行前 Git HEAD，来源为预检快照，不用于认证。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json:25 与裁剪和原 SARIF 定位一致。",
+          "EXECUTE-RESULT 的 checkout_before.head 是运行前 Git HEAD，来源为预检快照，不用于认证。",
+          "codex-child.ts:118-129,527"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-004",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json|21",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json:21",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json|21"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告版本标识",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json",
+            "lines": "21",
+            "detail": "EXECUTE-RESULT 的 expected_head 为指定 fixture 的版本约束；入口要求完整 Git SHA 并与实际 HEAD 比对，不作为 token 使用。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/max-baseline/EXECUTE-RESULT.json:21 与裁剪和原 SARIF 定位一致。",
+          "EXECUTE-RESULT 的 expected_head 为指定 fixture 的版本约束；入口要求完整 Git SHA 并与实际 HEAD 比对，不作为 token 使用。",
+          "codex-child.ts:143,164,480"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-005",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json|19",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json:19",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json|19"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告摘要",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json",
+            "lines": "19",
+            "detail": "ARCHIVE 的该 sha256 绑定归档 EXECUTE-RESULT.json；本轮对该 Git 内容重算摘要与字节数均一致。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json:19 与裁剪和原 SARIF 定位一致。",
+          "ARCHIVE 的该 sha256 绑定归档 EXECUTE-RESULT.json；本轮对该 Git 内容重算摘要与字节数均一致。",
+          "max-baseline/ARCHIVE.json:17-20"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-006",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json|13",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json:13",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json|13"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告摘要",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json",
+            "lines": "13",
+            "detail": "ARCHIVE 的该 sha256 绑定归档 TESTS.log；本轮对该 Git 内容重算摘要与字节数均一致。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json:13 与裁剪和原 SARIF 定位一致。",
+          "ARCHIVE 的该 sha256 绑定归档 TESTS.log；本轮对该 Git 内容重算摘要与字节数均一致。",
+          "max-baseline/ARCHIVE.json:11-14"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-007",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json|7",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json:7",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json|7"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告摘要",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json",
+            "lines": "7",
+            "detail": "ARCHIVE 的该 sha256 绑定归档 MAX-VERIFIED.json；本轮对该 Git 内容重算摘要与字节数均一致。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/max-baseline/ARCHIVE.json:7 与裁剪和原 SARIF 定位一致。",
+          "ARCHIVE 的该 sha256 绑定归档 MAX-VERIFIED.json；本轮对该 Git 内容重算摘要与字节数均一致。",
+          "max-baseline/ARCHIVE.json:5-8"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-008",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|25",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json:25",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|25"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告摘要",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+            "lines": "25",
+            "detail": "MAX-VERIFIED 的 fixture_sha256 记录旧短读写探针的文件校验和；同一摘要作为 execute 结果回读比对目标，没有认证用途。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json:25 与裁剪和原 SARIF 定位一致。",
+          "MAX-VERIFIED 的 fixture_sha256 记录旧短读写探针的文件校验和；同一摘要作为 execute 结果回读比对目标，没有认证用途。",
+          "max-baseline/EXECUTE-RESULT.json:48-58"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-009",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|23",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json:23",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|23"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告摘要",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+            "lines": "23",
+            "detail": "MAX-VERIFIED 的 runtime.sha256 绑定 execute 结果文件；与 ARCHIVE 对同文件的摘要一致，且已重算文件内容确认。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json:23 与裁剪和原 SARIF 定位一致。",
+          "MAX-VERIFIED 的 runtime.sha256 绑定 execute 结果文件；与 ARCHIVE 对同文件的摘要一致，且已重算文件内容确认。",
+          "max-baseline/ARCHIVE.json:17-20"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-010",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|13",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json:13",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|13"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告摘要",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+            "lines": "13",
+            "detail": "source_sha256 的该值绑定旧版工位名册文件；本轮对已登记 Git commit 的该文件重算 SHA-256 一致。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json:13 与裁剪和原 SARIF 定位一致。",
+          "source_sha256 的该值绑定旧版工位名册文件；本轮对已登记 Git commit 的该文件重算 SHA-256 一致。",
+          ".chanlun/agent-roster-20260914-sandcastle-flash.md at old recorded commit"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-011",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|12",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json:12",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|12"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告摘要",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+            "lines": "12",
+            "detail": "source_sha256 的该值绑定旧版 CODEX-CHILD.md；本轮对已登记 Git commit 的该文件重算 SHA-256 一致。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json:12 与裁剪和原 SARIF 定位一致。",
+          "source_sha256 的该值绑定旧版 CODEX-CHILD.md；本轮对已登记 Git commit 的该文件重算 SHA-256 一致。",
+          ".sandcastle/CODEX-CHILD.md at old recorded commit"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-012",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|11",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json:11",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|11"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告摘要",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+            "lines": "11",
+            "detail": "source_sha256 的该值绑定旧版 codex-child.test.ts；本轮对已登记 Git commit 的测试文件重算 SHA-256 一致。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json:11 与裁剪和原 SARIF 定位一致。",
+          "source_sha256 的该值绑定旧版 codex-child.test.ts；本轮对已登记 Git commit 的测试文件重算 SHA-256 一致。",
+          ".sandcastle/codex-child.test.ts at old recorded commit"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-013",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|10",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json:10",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|10"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告摘要",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+            "lines": "10",
+            "detail": "source_sha256 的该值绑定旧版 codex-child.ts；本轮对已登记 Git commit 的产品文件重算 SHA-256 一致。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json:10 与裁剪和原 SARIF 定位一致。",
+          "source_sha256 的该值绑定旧版 codex-child.ts；本轮对已登记 Git commit 的产品文件重算 SHA-256 一致。",
+          ".sandcastle/codex-child.ts at old recorded commit"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-014",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|9",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json:9",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|9"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告摘要",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+            "lines": "9",
+            "detail": "source_sha256 的该值绑定 codex-router-runtime.ts；本轮对登记的旧 Git 内容重算 SHA-256 一致，当前内容亦相同。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json:9 与裁剪和原 SARIF 定位一致。",
+          "source_sha256 的该值绑定 codex-router-runtime.ts；本轮对登记的旧 Git 内容重算 SHA-256 一致，当前内容亦相同。",
+          ".sandcastle/codex-router-runtime.ts at old and current commits"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-015",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|7",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json:7",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json|7"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告版本标识",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json",
+            "lines": "7",
+            "detail": "MAX-VERIFIED 的 commit 是旧路由入口 Git 提交号；本轮 git cat-file 确认该对象类型为 commit，且其源文件摘要逐个匹配。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/max-baseline/MAX-VERIFIED.json:7 与裁剪和原 SARIF 定位一致。",
+          "MAX-VERIFIED 的 commit 是旧路由入口 Git 提交号；本轮 git cat-file 确认该对象类型为 commit，且其源文件摘要逐个匹配。",
+          "max-baseline/MAX-VERIFIED.json:7-14"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-016",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json|14",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json:14",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json|14"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告摘要",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json",
+            "lines": "14",
+            "detail": "CHECKS.sources 中该值是当前 codex-child.test.ts 的文件 SHA-256；本轮对固定 HEAD 内容重算一致。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json:14 与裁剪和原 SARIF 定位一致。",
+          "CHECKS.sources 中该值是当前 codex-child.test.ts 的文件 SHA-256；本轮对固定 HEAD 内容重算一致。",
+          ".sandcastle/codex-child.test.ts at fixed head"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-017",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json|13",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json:13",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json|13"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告摘要",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json",
+            "lines": "13",
+            "detail": "CHECKS.sources 中该值是当前 codex-child.ts 的文件 SHA-256；本轮对固定 HEAD 内容重算一致。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json:13 与裁剪和原 SARIF 定位一致。",
+          "CHECKS.sources 中该值是当前 codex-child.ts 的文件 SHA-256；本轮对固定 HEAD 内容重算一致。",
+          ".sandcastle/codex-child.ts at fixed head"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-018",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json|10",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json:10",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json|10"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告摘要",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json",
+            "lines": "10",
+            "detail": "CHECKS.fixture_sha256 是新短只读探针的文件校验和，与相邻 fixture_bytes 及 RUNTIME-RESULT 的摘要检查描述对应，不是凭据。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/CHECKS.json:10 与裁剪和原 SARIF 定位一致。",
+          "CHECKS.fixture_sha256 是新短只读探针的文件校验和，与相邻 fixture_bytes 及 RUNTIME-RESULT 的摘要检查描述对应，不是凭据。",
+          "CHECKS.json:9-11; RUNTIME-RESULT.json:48-60"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-019",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json|47",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json:47",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json|47"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告摘要",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json",
+            "lines": "47",
+            "detail": "RUNTIME-RESULT 的 prompt_sha256 是提示内容 SHA-256，生成路径为 codex-child.ts:529；不保存提示中的认证内容。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json:47 与裁剪和原 SARIF 定位一致。",
+          "RUNTIME-RESULT 的 prompt_sha256 是提示内容 SHA-256，生成路径为 codex-child.ts:529；不保存提示中的认证内容。",
+          "codex-child.ts:82,528-530"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-020",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json|31",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json:31",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json|31"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告版本标识",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json",
+            "lines": "31",
+            "detail": "RUNTIME-RESULT 的 checkout_after.head 是新只读 fixture 运行后 Git HEAD，与前快照和 expected_head 一致。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json:31 与裁剪和原 SARIF 定位一致。",
+          "RUNTIME-RESULT 的 checkout_after.head 是新只读 fixture 运行后 Git HEAD，与前快照和 expected_head 一致。",
+          "codex-child.ts:118-129,557-560; RUNTIME-RESULT.json:21-32"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-021",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json|25",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json:25",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json|25"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告版本标识",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json",
+            "lines": "25",
+            "detail": "RUNTIME-RESULT 的 checkout_before.head 是新只读 fixture 运行前 Git HEAD，来源为 Git 预检快照。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json:25 与裁剪和原 SARIF 定位一致。",
+          "RUNTIME-RESULT 的 checkout_before.head 是新只读 fixture 运行前 Git HEAD，来源为 Git 预检快照。",
+          "codex-child.ts:118-129,527; RUNTIME-RESULT.json:21-32"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-022",
+        "input_id": "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json|21",
+        "source_type": "sarif",
+        "title": "Do not store tokens or keys in source code.",
+        "normalized_input": {
+          "vulnerable_component": ".chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json",
+          "claimed_source": "静态文件中的疑似秘密值",
+          "claimed_sink": "将可用认证 token/key 存入源码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json:21",
+          "preconditions": [
+            "命中值必须是具有认证能力的真实秘密"
+          ],
+          "impact": "若是真实秘密，读取源码者可能取得认证能力",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS173237",
+            "DS173237|.chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json|21"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "报告版本标识",
+            "path": ".chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json",
+            "lines": "21",
+            "detail": "RUNTIME-RESULT 的 expected_head 是新只读 fixture 的版本约束，入口将其与 Git HEAD 校验，不作为认证 token。"
+          }
+        ],
+        "reachable_path": [
+          "运行记录或归档内容生成摘要/读取 Git 版本",
+          "字段作为 JSON 证据归档",
+          "静态扫描将长十六进制字符串识别为疑似秘密"
+        ],
+        "boundary_assessment": {
+          "product_surface": "docs",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "报告字段结构和 codex-child.ts:118-129,143,164,528-530 的生成语义；根 SECURITY.md 为模板，未提供额外报告边界。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .chanlun/review-results/issue1448-flash-output-20260914/RUNTIME-RESULT.json:21 与裁剪和原 SARIF 定位一致。",
+          "RUNTIME-RESULT 的 expected_head 是新只读 fixture 的版本约束，入口将其与 Git HEAD 校验，不作为认证 token。",
+          "codex-child.ts:143,164,480; RUNTIME-RESULT.json:21-32"
+        ],
+        "counterevidence": [
+          "命中实际为 Git 对象标识或内容校验摘要，没有认证消费路径。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-023",
+        "input_id": "DS162092|.sandcastle/codex-router-runtime.ts|31",
+        "source_type": "sarif",
+        "title": "Do not leave debug code in production",
+        "normalized_input": {
+          "vulnerable_component": ".sandcastle/codex-router-runtime.ts",
+          "claimed_source": "localhost 或回环地址字面量",
+          "claimed_sink": "疑似生产调试路径或本机硬编码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.sandcastle/codex-router-runtime.ts:31",
+          "preconditions": [
+            "命中必须关联不应存在的调试功能或违反实际部署边界"
+          ],
+          "impact": "扫描器提示调试残留或扩展性问题，未给具体安全后果",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS162092",
+            "DS162092|.sandcastle/codex-router-runtime.ts|31"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "新增校验错误文案",
+            "path": ".sandcastle/codex-router-runtime.ts",
+            "lines": "31",
+            "detail": "命中位于抛出 Error 的固定说明字符串。上一行拒绝非回环或非法端口输入；该位置没有连接动作或调试后门。本机 Router 是 CODEX-CHILD.md 明确支持的架构。"
+          }
+        ],
+        "reachable_path": [
+          "本机用户配置进入 readRouterConfiguration",
+          "严格检查回环地址及端口",
+          "不合法时抛出含固定回环示例的 Error"
+        ],
+        "boundary_assessment": {
+          "product_surface": "CLI",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "CODEX-CHILD.md:7-9 明确仅支持本机 Router；codex-router-runtime.ts:28-31；.sandcastle/SECURITY.md 的秘密不落盘要求。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .sandcastle/codex-router-runtime.ts:31 与裁剪和原 SARIF 定位一致。",
+          "命中位于抛出 Error 的固定说明字符串。上一行拒绝非回环或非法端口输入；该位置没有连接动作或调试后门。本机 Router 是 CODEX-CHILD.md 明确支持的架构。",
+          "codex-router-runtime.ts:28-32; CODEX-CHILD.md:7-9"
+        ],
+        "counterevidence": [
+          "命中是拒绝分支文案，没有调试处理器或外部监听调用。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-024",
+        "input_id": "DS172411|.sandcastle/codex-child.ts|364",
+        "source_type": "sarif",
+        "title": "Review setTimeout for untrusted data",
+        "normalized_input": {
+          "vulnerable_component": ".sandcastle/codex-child.ts",
+          "claimed_source": "可能进入 setTimeout 的不可信数据",
+          "claimed_sink": "setTimeout 的可执行代码参数",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.sandcastle/codex-child.ts:364",
+          "preconditions": [
+            "外部文本必须到达被解释执行的第一参数"
+          ],
+          "impact": "可能执行攻击者注入的代码",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS172411",
+            "DS172411|.sandcastle/codex-child.ts|364"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "旧代码移位：固定定时回调",
+            "path": ".sandcastle/codex-child.ts",
+            "lines": "364",
+            "detail": "setTimeout 第一参数是固定箭头函数，只调用 stop 的固定超时消息。可配置时长位于第二参数并已作数值范围校验；外部文本没有进入可执行代码位置。"
+          }
+        ],
+        "reachable_path": [
+          "runCodexChild 接受已授权任务和时间参数",
+          "validateOptions 限制有限正数和上限",
+          "supervisedNoSandbox 以固定函数设置计时器",
+          "回调停止本次进程组"
+        ],
+        "boundary_assessment": {
+          "product_surface": "CLI",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "CODEX-CHILD.md:13-31 的管理者单次入口；codex-child.ts:133-150,297-303,330-351,537-543。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .sandcastle/codex-child.ts:364 与裁剪和原 SARIF 定位一致。",
+          "setTimeout 第一参数是固定箭头函数，只调用 stop 的固定超时消息。可配置时长位于第二参数并已作数值范围校验；外部文本没有进入可执行代码位置。",
+          "codex-child.ts:148-150,343-351,364,542-543",
+          "与 base 6f99b36c64e0560febdb08e5d1f8e781d2af9299 同文件第 351 行逐字相同，仅位置移动。"
+        ],
+        "counterevidence": [
+          "setTimeout 第一参数均为函数，外部内容没有被解释为 JavaScript 源码。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-025",
+        "input_id": "DS172411|.sandcastle/codex-child.ts|360",
+        "source_type": "sarif",
+        "title": "Review setTimeout for untrusted data",
+        "normalized_input": {
+          "vulnerable_component": ".sandcastle/codex-child.ts",
+          "claimed_source": "可能进入 setTimeout 的不可信数据",
+          "claimed_sink": "setTimeout 的可执行代码参数",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.sandcastle/codex-child.ts:360",
+          "preconditions": [
+            "外部文本必须到达被解释执行的第一参数"
+          ],
+          "impact": "可能执行攻击者注入的代码",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS172411",
+            "DS172411|.sandcastle/codex-child.ts|360"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "旧代码移位：固定定时回调",
+            "path": ".sandcastle/codex-child.ts",
+            "lines": "360",
+            "detail": "空闲计时器第一参数为固定箭头函数，传入 stop 的消息为静态常量；时长只参与毫秒数计算，不被当作代码执行。"
+          }
+        ],
+        "reachable_path": [
+          "runCodexChild 接受已授权任务和时间参数",
+          "validateOptions 限制有限正数和上限",
+          "supervisedNoSandbox 以固定函数设置计时器",
+          "回调停止本次进程组"
+        ],
+        "boundary_assessment": {
+          "product_surface": "CLI",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "CODEX-CHILD.md:13-31 的管理者单次入口；codex-child.ts:133-150,297-303,330-351,537-543。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .sandcastle/codex-child.ts:360 与裁剪和原 SARIF 定位一致。",
+          "空闲计时器第一参数为固定箭头函数，传入 stop 的消息为静态常量；时长只参与毫秒数计算，不被当作代码执行。",
+          "codex-child.ts:148-150,358-364,542-543",
+          "与 base 6f99b36c64e0560febdb08e5d1f8e781d2af9299 同文件第 347 行逐字相同，仅位置移动。"
+        ],
+        "counterevidence": [
+          "setTimeout 第一参数均为函数，外部内容没有被解释为 JavaScript 源码。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-026",
+        "input_id": "DS172411|.sandcastle/codex-child.ts|349",
+        "source_type": "sarif",
+        "title": "Review setTimeout for untrusted data",
+        "normalized_input": {
+          "vulnerable_component": ".sandcastle/codex-child.ts",
+          "claimed_source": "可能进入 setTimeout 的不可信数据",
+          "claimed_sink": "setTimeout 的可执行代码参数",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.sandcastle/codex-child.ts:349",
+          "preconditions": [
+            "外部文本必须到达被解释执行的第一参数"
+          ],
+          "impact": "可能执行攻击者注入的代码",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS172411",
+            "DS172411|.sandcastle/codex-child.ts|349"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "旧代码移位：固定定时回调",
+            "path": ".sandcastle/codex-child.ts",
+            "lines": "349",
+            "detail": "killTimer 使用固定函数和固定 1000 毫秒延迟，回调只对已记录的本次子进程组发送 SIGKILL；没有字符串形式的定时代码。"
+          }
+        ],
+        "reachable_path": [
+          "runCodexChild 接受已授权任务和时间参数",
+          "validateOptions 限制有限正数和上限",
+          "supervisedNoSandbox 以固定函数设置计时器",
+          "回调停止本次进程组"
+        ],
+        "boundary_assessment": {
+          "product_surface": "CLI",
+          "source_trust": "trusted_operator",
+          "boundary_crossed": false,
+          "policy_basis": "CODEX-CHILD.md:13-31 的管理者单次入口；codex-child.ts:133-150,297-303,330-351,537-543。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .sandcastle/codex-child.ts:349 与裁剪和原 SARIF 定位一致。",
+          "killTimer 使用固定函数和固定 1000 毫秒延迟，回调只对已记录的本次子进程组发送 SIGKILL；没有字符串形式的定时代码。",
+          "codex-child.ts:330-331,343-351",
+          "与 base 6f99b36c64e0560febdb08e5d1f8e781d2af9299 同文件第 336 行逐字相同，仅位置移动。"
+        ],
+        "counterevidence": [
+          "setTimeout 第一参数均为函数，外部内容没有被解释为 JavaScript 源码。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-027",
+        "input_id": "DS172411|.sandcastle/codex-child.test.ts|525",
+        "source_type": "sarif",
+        "title": "Review setTimeout for untrusted data",
+        "normalized_input": {
+          "vulnerable_component": ".sandcastle/codex-child.test.ts",
+          "claimed_source": "可能进入 setTimeout 的不可信数据",
+          "claimed_sink": "setTimeout 的可执行代码参数",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.sandcastle/codex-child.test.ts:525",
+          "preconditions": [
+            "外部文本必须到达被解释执行的第一参数"
+          ],
+          "impact": "可能执行攻击者注入的代码",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS172411",
+            "DS172411|.sandcastle/codex-child.test.ts|525"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "旧测试移位：固定定时回调",
+            "path": ".sandcastle/codex-child.test.ts",
+            "lines": "525",
+            "detail": "测试的 10 秒兜底用固定箭头函数终止本测试创建的 CLI 子进程；未把外部文本传入 setTimeout。"
+          }
+        ],
+        "reachable_path": [
+          "node:test 中的固定测试常量",
+          "隔离临时 fixture 或对象/命令断言",
+          "静态错误分支或假 Codex 子进程"
+        ],
+        "boundary_assessment": {
+          "product_surface": "test/fixture",
+          "source_trust": "trusted_developer_config",
+          "boundary_crossed": false,
+          "policy_basis": "codex-child.test.ts:1-2,21-59 定义 node:test 与临时假 Codex fixture；产品入口不导入测试模块；CODEX-CHILD.md:13-31 限定实际入口。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .sandcastle/codex-child.test.ts:525 与裁剪和原 SARIF 定位一致。",
+          "测试的 10 秒兜底用固定箭头函数终止本测试创建的 CLI 子进程；未把外部文本传入 setTimeout。",
+          "codex-child.test.ts:508-531",
+          "与 base 6f99b36c64e0560febdb08e5d1f8e781d2af9299 同文件第 475 行逐字相同，仅位置移动。"
+        ],
+        "counterevidence": [
+          "测试源码没有运行时产品输入入口；相关回调/地址是固定测试数据。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-028",
+        "input_id": "DS172411|.sandcastle/codex-child.test.ts|496",
+        "source_type": "sarif",
+        "title": "Review setTimeout for untrusted data",
+        "normalized_input": {
+          "vulnerable_component": ".sandcastle/codex-child.test.ts",
+          "claimed_source": "可能进入 setTimeout 的不可信数据",
+          "claimed_sink": "setTimeout 的可执行代码参数",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.sandcastle/codex-child.test.ts:496",
+          "preconditions": [
+            "外部文本必须到达被解释执行的第一参数"
+          ],
+          "impact": "可能执行攻击者注入的代码",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS172411",
+            "DS172411|.sandcastle/codex-child.test.ts|496"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "旧测试移位：固定定时回调",
+            "path": ".sandcastle/codex-child.test.ts",
+            "lines": "496",
+            "detail": "管道关闭测试的 10 秒兜底是固定箭头函数，只终止同一测试创建的 CLI；不解释不可信字符串。"
+          }
+        ],
+        "reachable_path": [
+          "node:test 中的固定测试常量",
+          "隔离临时 fixture 或对象/命令断言",
+          "静态错误分支或假 Codex 子进程"
+        ],
+        "boundary_assessment": {
+          "product_surface": "test/fixture",
+          "source_trust": "trusted_developer_config",
+          "boundary_crossed": false,
+          "policy_basis": "codex-child.test.ts:1-2,21-59 定义 node:test 与临时假 Codex fixture；产品入口不导入测试模块；CODEX-CHILD.md:13-31 限定实际入口。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .sandcastle/codex-child.test.ts:496 与裁剪和原 SARIF 定位一致。",
+          "管道关闭测试的 10 秒兜底是固定箭头函数，只终止同一测试创建的 CLI；不解释不可信字符串。",
+          "codex-child.test.ts:480-504",
+          "与 base 6f99b36c64e0560febdb08e5d1f8e781d2af9299 同文件第 446 行逐字相同，仅位置移动。"
+        ],
+        "counterevidence": [
+          "测试源码没有运行时产品输入入口；相关回调/地址是固定测试数据。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-029",
+        "input_id": "DS172411|.sandcastle/codex-child.test.ts|483",
+        "source_type": "sarif",
+        "title": "Review setTimeout for untrusted data",
+        "normalized_input": {
+          "vulnerable_component": ".sandcastle/codex-child.test.ts",
+          "claimed_source": "可能进入 setTimeout 的不可信数据",
+          "claimed_sink": "setTimeout 的可执行代码参数",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.sandcastle/codex-child.test.ts:483",
+          "preconditions": [
+            "外部文本必须到达被解释执行的第一参数"
+          ],
+          "impact": "可能执行攻击者注入的代码",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS172411",
+            "DS172411|.sandcastle/codex-child.test.ts|483"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "旧测试移位：伪造进程脚本",
+            "path": ".sandcastle/codex-child.test.ts",
+            "lines": "483",
+            "detail": "f.fake 接受源码中的固定测试程序字面量，延迟回调是固定 session() 函数；该 helper 只写本测试临时目录的假 codex，不是产品输入通道。"
+          }
+        ],
+        "reachable_path": [
+          "node:test 中的固定测试常量",
+          "隔离临时 fixture 或对象/命令断言",
+          "静态错误分支或假 Codex 子进程"
+        ],
+        "boundary_assessment": {
+          "product_surface": "test/fixture",
+          "source_trust": "trusted_developer_config",
+          "boundary_crossed": false,
+          "policy_basis": "codex-child.test.ts:1-2,21-59 定义 node:test 与临时假 Codex fixture；产品入口不导入测试模块；CODEX-CHILD.md:13-31 限定实际入口。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .sandcastle/codex-child.test.ts:483 与裁剪和原 SARIF 定位一致。",
+          "f.fake 接受源码中的固定测试程序字面量，延迟回调是固定 session() 函数；该 helper 只写本测试临时目录的假 codex，不是产品输入通道。",
+          "codex-child.test.ts:21-58,480-483",
+          "与 base 6f99b36c64e0560febdb08e5d1f8e781d2af9299 同文件第 433 行逐字相同，仅位置移动。"
+        ],
+        "counterevidence": [
+          "测试源码没有运行时产品输入入口；相关回调/地址是固定测试数据。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-030",
+        "input_id": "DS172411|.sandcastle/codex-child.test.ts|311",
+        "source_type": "sarif",
+        "title": "Review setTimeout for untrusted data",
+        "normalized_input": {
+          "vulnerable_component": ".sandcastle/codex-child.test.ts",
+          "claimed_source": "可能进入 setTimeout 的不可信数据",
+          "claimed_sink": "setTimeout 的可执行代码参数",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.sandcastle/codex-child.test.ts:311",
+          "preconditions": [
+            "外部文本必须到达被解释执行的第一参数"
+          ],
+          "impact": "可能执行攻击者注入的代码",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS172411",
+            "DS172411|.sandcastle/codex-child.test.ts|311"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "旧测试移位：伪造进程脚本",
+            "path": ".sandcastle/codex-child.test.ts",
+            "lines": "311",
+            "detail": "f.fake 的固定脚本通过函数回调延迟写入本测试的退出标记，用于验证监督器确实等到进程退出；没有外部可执行文本输入。"
+          }
+        ],
+        "reachable_path": [
+          "node:test 中的固定测试常量",
+          "隔离临时 fixture 或对象/命令断言",
+          "静态错误分支或假 Codex 子进程"
+        ],
+        "boundary_assessment": {
+          "product_surface": "test/fixture",
+          "source_trust": "trusted_developer_config",
+          "boundary_crossed": false,
+          "policy_basis": "codex-child.test.ts:1-2,21-59 定义 node:test 与临时假 Codex fixture；产品入口不导入测试模块；CODEX-CHILD.md:13-31 限定实际入口。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .sandcastle/codex-child.test.ts:311 与裁剪和原 SARIF 定位一致。",
+          "f.fake 的固定脚本通过函数回调延迟写入本测试的退出标记，用于验证监督器确实等到进程退出；没有外部可执行文本输入。",
+          "codex-child.test.ts:21-58,308-315",
+          "与 base 6f99b36c64e0560febdb08e5d1f8e781d2af9299 同文件第 261 行逐字相同，仅位置移动。"
+        ],
+        "counterevidence": [
+          "测试源码没有运行时产品输入入口；相关回调/地址是固定测试数据。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-031",
+        "input_id": "DS137138|.sandcastle/codex-child.test.ts|214",
+        "source_type": "sarif",
+        "title": "Insecure URL",
+        "normalized_input": {
+          "vulnerable_component": ".sandcastle/codex-child.test.ts",
+          "claimed_source": "HTTP 地址字面量",
+          "claimed_sink": "缺少 TLS 的实际网络传输",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.sandcastle/codex-child.test.ts:214",
+          "preconditions": [
+            "该地址必须被用于需要机密性或完整性保护的实际传输"
+          ],
+          "impact": "通信内容可能被监听或篡改",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS137138",
+            "DS137138|.sandcastle/codex-child.test.ts|214"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "旧测试移位：代理占位符",
+            "path": ".sandcastle/codex-child.test.ts",
+            "lines": "214",
+            "detail": "HTTP 地址仅作为假子进程环境透传与日志不泄漏测试的代理占位值；f.fake 已替换 codex，捕获环境键和生成静态事件，不发出 HTTP 请求。"
+          }
+        ],
+        "reachable_path": [
+          "node:test 中的固定测试常量",
+          "隔离临时 fixture 或对象/命令断言",
+          "静态错误分支或假 Codex 子进程"
+        ],
+        "boundary_assessment": {
+          "product_surface": "test/fixture",
+          "source_trust": "trusted_developer_config",
+          "boundary_crossed": false,
+          "policy_basis": "codex-child.test.ts:1-2,21-59 定义 node:test 与临时假 Codex fixture；产品入口不导入测试模块；CODEX-CHILD.md:13-31 限定实际入口。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .sandcastle/codex-child.test.ts:214 与裁剪和原 SARIF 定位一致。",
+          "HTTP 地址仅作为假子进程环境透传与日志不泄漏测试的代理占位值；f.fake 已替换 codex，捕获环境键和生成静态事件，不发出 HTTP 请求。",
+          "codex-child.test.ts:47-58,206-240",
+          "与 base 6f99b36c64e0560febdb08e5d1f8e781d2af9299 同文件第 168 行逐字相同，仅位置移动。"
+        ],
+        "counterevidence": [
+          "测试源码没有运行时产品输入入口；相关回调/地址是固定测试数据。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-032",
+        "input_id": "DS137138|.sandcastle/codex-child.test.ts|136",
+        "source_type": "sarif",
+        "title": "Insecure URL",
+        "normalized_input": {
+          "vulnerable_component": ".sandcastle/codex-child.test.ts",
+          "claimed_source": "HTTP 地址字面量",
+          "claimed_sink": "缺少 TLS 的实际网络传输",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.sandcastle/codex-child.test.ts:136",
+          "preconditions": [
+            "该地址必须被用于需要机密性或完整性保护的实际传输"
+          ],
+          "impact": "通信内容可能被监听或篡改",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS137138",
+            "DS137138|.sandcastle/codex-child.test.ts|136"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "旧测试移位：代理占位符",
+            "path": ".sandcastle/codex-child.test.ts",
+            "lines": "136",
+            "detail": "同一行两处 HTTP 字面量是大小写代理环境映射测试数据；workerEnvironment 只复制字段，紧接 deepEqual，不建立网络连接。"
+          }
+        ],
+        "reachable_path": [
+          "node:test 中的固定测试常量",
+          "隔离临时 fixture 或对象/命令断言",
+          "静态错误分支或假 Codex 子进程"
+        ],
+        "boundary_assessment": {
+          "product_surface": "test/fixture",
+          "source_trust": "trusted_developer_config",
+          "boundary_crossed": false,
+          "policy_basis": "codex-child.test.ts:1-2,21-59 定义 node:test 与临时假 Codex fixture；产品入口不导入测试模块；CODEX-CHILD.md:13-31 限定实际入口。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .sandcastle/codex-child.test.ts:136 与裁剪和原 SARIF 定位一致。",
+          "同一行两处 HTTP 字面量是大小写代理环境映射测试数据；workerEnvironment 只复制字段，紧接 deepEqual，不建立网络连接。",
+          "codex-child.test.ts:132-139; codex-child.ts:173-184",
+          "与 base 6f99b36c64e0560febdb08e5d1f8e781d2af9299 同文件第 90 行逐字相同，仅位置移动。",
+          "同一 key 对应 2 个原 SARIF location，已逐一与完整源码行匹配；均由本理由覆盖。"
+        ],
+        "counterevidence": [
+          "测试源码没有运行时产品输入入口；相关回调/地址是固定测试数据。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-033",
+        "input_id": "DS162092|.sandcastle/codex-child.test.ts|135",
+        "source_type": "sarif",
+        "title": "Do not leave debug code in production",
+        "normalized_input": {
+          "vulnerable_component": ".sandcastle/codex-child.test.ts",
+          "claimed_source": "localhost 或回环地址字面量",
+          "claimed_sink": "疑似生产调试路径或本机硬编码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.sandcastle/codex-child.test.ts:135",
+          "preconditions": [
+            "命中必须关联不应存在的调试功能或违反实际部署边界"
+          ],
+          "impact": "扫描器提示调试残留或扩展性问题，未给具体安全后果",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS162092",
+            "DS162092|.sandcastle/codex-child.test.ts|135"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "旧测试移位：NO_PROXY 数据",
+            "path": ".sandcastle/codex-child.test.ts",
+            "lines": "135",
+            "detail": "该行 localhost 与回环地址是 NO_PROXY 的预期测试字符串，用来检查环境白名单保留数据；不是遗留调试服务。"
+          }
+        ],
+        "reachable_path": [
+          "node:test 中的固定测试常量",
+          "隔离临时 fixture 或对象/命令断言",
+          "静态错误分支或假 Codex 子进程"
+        ],
+        "boundary_assessment": {
+          "product_surface": "test/fixture",
+          "source_trust": "trusted_developer_config",
+          "boundary_crossed": false,
+          "policy_basis": "codex-child.test.ts:1-2,21-59 定义 node:test 与临时假 Codex fixture；产品入口不导入测试模块；CODEX-CHILD.md:13-31 限定实际入口。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .sandcastle/codex-child.test.ts:135 与裁剪和原 SARIF 定位一致。",
+          "该行 localhost 与回环地址是 NO_PROXY 的预期测试字符串，用来检查环境白名单保留数据；不是遗留调试服务。",
+          "codex-child.test.ts:132-139; codex-child.ts:173-184",
+          "与 base 6f99b36c64e0560febdb08e5d1f8e781d2af9299 同文件第 89 行逐字相同，仅位置移动。",
+          "同一 key 对应 2 个原 SARIF location，已逐一与完整源码行匹配；均由本理由覆盖。"
+        ],
+        "counterevidence": [
+          "测试源码没有运行时产品输入入口；相关回调/地址是固定测试数据。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-034",
+        "input_id": "DS137138|.sandcastle/codex-child.test.ts|134",
+        "source_type": "sarif",
+        "title": "Insecure URL",
+        "normalized_input": {
+          "vulnerable_component": ".sandcastle/codex-child.test.ts",
+          "claimed_source": "HTTP 地址字面量",
+          "claimed_sink": "缺少 TLS 的实际网络传输",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.sandcastle/codex-child.test.ts:134",
+          "preconditions": [
+            "该地址必须被用于需要机密性或完整性保护的实际传输"
+          ],
+          "impact": "通信内容可能被监听或篡改",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS137138",
+            "DS137138|.sandcastle/codex-child.test.ts|134"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "旧测试移位：代理占位符",
+            "path": ".sandcastle/codex-child.test.ts",
+            "lines": "134",
+            "detail": "同一行两处 HTTP 字面量是 HTTP_PROXY/HTTPS_PROXY 测试值，仅参与 workerEnvironment 的纯对象比较，没有 TLS 网络传输。"
+          }
+        ],
+        "reachable_path": [
+          "node:test 中的固定测试常量",
+          "隔离临时 fixture 或对象/命令断言",
+          "静态错误分支或假 Codex 子进程"
+        ],
+        "boundary_assessment": {
+          "product_surface": "test/fixture",
+          "source_trust": "trusted_developer_config",
+          "boundary_crossed": false,
+          "policy_basis": "codex-child.test.ts:1-2,21-59 定义 node:test 与临时假 Codex fixture；产品入口不导入测试模块；CODEX-CHILD.md:13-31 限定实际入口。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .sandcastle/codex-child.test.ts:134 与裁剪和原 SARIF 定位一致。",
+          "同一行两处 HTTP 字面量是 HTTP_PROXY/HTTPS_PROXY 测试值，仅参与 workerEnvironment 的纯对象比较，没有 TLS 网络传输。",
+          "codex-child.test.ts:132-139; codex-child.ts:173-184",
+          "与 base 6f99b36c64e0560febdb08e5d1f8e781d2af9299 同文件第 88 行逐字相同，仅位置移动。",
+          "同一 key 对应 2 个原 SARIF location，已逐一与完整源码行匹配；均由本理由覆盖。"
+        ],
+        "counterevidence": [
+          "测试源码没有运行时产品输入入口；相关回调/地址是固定测试数据。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-035",
+        "input_id": "DS137138|.sandcastle/codex-child.test.ts|128",
+        "source_type": "sarif",
+        "title": "Insecure URL",
+        "normalized_input": {
+          "vulnerable_component": ".sandcastle/codex-child.test.ts",
+          "claimed_source": "HTTP 地址字面量",
+          "claimed_sink": "缺少 TLS 的实际网络传输",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.sandcastle/codex-child.test.ts:128",
+          "preconditions": [
+            "该地址必须被用于需要机密性或完整性保护的实际传输"
+          ],
+          "impact": "通信内容可能被监听或篡改",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS137138",
+            "DS137138|.sandcastle/codex-child.test.ts|128"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "修改既有测试：拒绝不可信环境",
+            "path": ".sandcastle/codex-child.test.ts",
+            "lines": "128",
+            "detail": "新 HTTP 值位于 OPENAI_BASE_URL 的反向测试输入；下一行断言返回环境不含此字段。实际白名单也没有该键，所以该地址不会被透传使用。"
+          }
+        ],
+        "reachable_path": [
+          "node:test 中的固定测试常量",
+          "隔离临时 fixture 或对象/命令断言",
+          "静态错误分支或假 Codex 子进程"
+        ],
+        "boundary_assessment": {
+          "product_surface": "test/fixture",
+          "source_trust": "trusted_developer_config",
+          "boundary_crossed": false,
+          "policy_basis": "codex-child.test.ts:1-2,21-59 定义 node:test 与临时假 Codex fixture；产品入口不导入测试模块；CODEX-CHILD.md:13-31 限定实际入口。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .sandcastle/codex-child.test.ts:128 与裁剪和原 SARIF 定位一致。",
+          "新 HTTP 值位于 OPENAI_BASE_URL 的反向测试输入；下一行断言返回环境不含此字段。实际白名单也没有该键，所以该地址不会被透传使用。",
+          "codex-child.test.ts:127-130; codex-child.ts:174-184",
+          "原测试第 82 行增加 OPENAI_BASE_URL 反向用例；旧字段和断言语义保持。"
+        ],
+        "counterevidence": [
+          "测试源码没有运行时产品输入入口；相关回调/地址是固定测试数据。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-036",
+        "input_id": "DS162092|.sandcastle/codex-child.test.ts|114",
+        "source_type": "sarif",
+        "title": "Do not leave debug code in production",
+        "normalized_input": {
+          "vulnerable_component": ".sandcastle/codex-child.test.ts",
+          "claimed_source": "localhost 或回环地址字面量",
+          "claimed_sink": "疑似生产调试路径或本机硬编码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.sandcastle/codex-child.test.ts:114",
+          "preconditions": [
+            "命中必须关联不应存在的调试功能或违反实际部署边界"
+          ],
+          "impact": "扫描器提示调试残留或扩展性问题，未给具体安全后果",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS162092",
+            "DS162092|.sandcastle/codex-child.test.ts|114"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "新增测试：本机配置断言",
+            "path": ".sandcastle/codex-child.test.ts",
+            "lines": "114",
+            "detail": "回环地址是临时配置读取结果的期望值。readRouterConfiguration 只解析文件和检查模型目录，此测试不建立服务连接。"
+          }
+        ],
+        "reachable_path": [
+          "node:test 中的固定测试常量",
+          "隔离临时 fixture 或对象/命令断言",
+          "静态错误分支或假 Codex 子进程"
+        ],
+        "boundary_assessment": {
+          "product_surface": "test/fixture",
+          "source_trust": "trusted_developer_config",
+          "boundary_crossed": false,
+          "policy_basis": "codex-child.test.ts:1-2,21-59 定义 node:test 与临时假 Codex fixture；产品入口不导入测试模块；CODEX-CHILD.md:13-31 限定实际入口。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .sandcastle/codex-child.test.ts:114 与裁剪和原 SARIF 定位一致。",
+          "回环地址是临时配置读取结果的期望值。readRouterConfiguration 只解析文件和检查模型目录，此测试不建立服务连接。",
+          "codex-child.test.ts:110-124; codex-router-runtime.ts:10-47"
+        ],
+        "counterevidence": [
+          "测试源码没有运行时产品输入入口；相关回调/地址是固定测试数据。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-037",
+        "input_id": "DS162092|.sandcastle/codex-child.test.ts|102",
+        "source_type": "sarif",
+        "title": "Do not leave debug code in production",
+        "normalized_input": {
+          "vulnerable_component": ".sandcastle/codex-child.test.ts",
+          "claimed_source": "localhost 或回环地址字面量",
+          "claimed_sink": "疑似生产调试路径或本机硬编码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.sandcastle/codex-child.test.ts:102",
+          "preconditions": [
+            "命中必须关联不应存在的调试功能或违反实际部署边界"
+          ],
+          "impact": "扫描器提示调试残留或扩展性问题，未给具体安全后果",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS162092",
+            "DS162092|.sandcastle/codex-child.test.ts|102"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "新增测试：认证路径拒绝",
+            "path": ".sandcastle/codex-child.test.ts",
+            "lines": "102",
+            "detail": "地址由固定占位 token 构成，写入隔离的临时 CODEX_HOME；随后断言 runCodexChild 失败、process_pid 为 null、结果不含占位值。生产校验在 spawn 前拒绝它。"
+          }
+        ],
+        "reachable_path": [
+          "node:test 中的固定测试常量",
+          "隔离临时 fixture 或对象/命令断言",
+          "静态错误分支或假 Codex 子进程"
+        ],
+        "boundary_assessment": {
+          "product_surface": "test/fixture",
+          "source_trust": "trusted_developer_config",
+          "boundary_crossed": false,
+          "policy_basis": "codex-child.test.ts:1-2,21-59 定义 node:test 与临时假 Codex fixture；产品入口不导入测试模块；CODEX-CHILD.md:13-31 限定实际入口。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .sandcastle/codex-child.test.ts:102 与裁剪和原 SARIF 定位一致。",
+          "地址由固定占位 token 构成，写入隔离的临时 CODEX_HOME；随后断言 runCodexChild 失败、process_pid 为 null、结果不含占位值。生产校验在 spawn 前拒绝它。",
+          "codex-child.test.ts:94-107; codex-child.ts:533-539; codex-router-runtime.ts:28-31"
+        ],
+        "counterevidence": [
+          "测试源码没有运行时产品输入入口；相关回调/地址是固定测试数据。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-038",
+        "input_id": "DS162092|.sandcastle/codex-child.test.ts|98",
+        "source_type": "sarif",
+        "title": "Do not leave debug code in production",
+        "normalized_input": {
+          "vulnerable_component": ".sandcastle/codex-child.test.ts",
+          "claimed_source": "localhost 或回环地址字面量",
+          "claimed_sink": "疑似生产调试路径或本机硬编码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.sandcastle/codex-child.test.ts:98",
+          "preconditions": [
+            "命中必须关联不应存在的调试功能或违反实际部署边界"
+          ],
+          "impact": "扫描器提示调试残留或扩展性问题，未给具体安全后果",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS162092",
+            "DS162092|.sandcastle/codex-child.test.ts|98"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "新增测试：非法地址集合",
+            "path": ".sandcastle/codex-child.test.ts",
+            "lines": "98",
+            "detail": "同一行五处本机地址属于拒绝用例集合，包含错误协议/端口、认证路径、用户信息和查询参数；每项均要求配置读取抛错，不是部署配置。"
+          }
+        ],
+        "reachable_path": [
+          "node:test 中的固定测试常量",
+          "隔离临时 fixture 或对象/命令断言",
+          "静态错误分支或假 Codex 子进程"
+        ],
+        "boundary_assessment": {
+          "product_surface": "test/fixture",
+          "source_trust": "trusted_developer_config",
+          "boundary_crossed": false,
+          "policy_basis": "codex-child.test.ts:1-2,21-59 定义 node:test 与临时假 Codex fixture；产品入口不导入测试模块；CODEX-CHILD.md:13-31 限定实际入口。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .sandcastle/codex-child.test.ts:98 与裁剪和原 SARIF 定位一致。",
+          "同一行五处本机地址属于拒绝用例集合，包含错误协议/端口、认证路径、用户信息和查询参数；每项均要求配置读取抛错，不是部署配置。",
+          "codex-child.test.ts:94-101; codex-router-runtime.ts:28-31",
+          "同一 key 对应 5 个原 SARIF location，已逐一与完整源码行匹配；均由本理由覆盖。"
+        ],
+        "counterevidence": [
+          "测试源码没有运行时产品输入入口；相关回调/地址是固定测试数据。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-039",
+        "input_id": "DS137138|.sandcastle/codex-child.test.ts|98",
+        "source_type": "sarif",
+        "title": "Insecure URL",
+        "normalized_input": {
+          "vulnerable_component": ".sandcastle/codex-child.test.ts",
+          "claimed_source": "HTTP 地址字面量",
+          "claimed_sink": "缺少 TLS 的实际网络传输",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.sandcastle/codex-child.test.ts:98",
+          "preconditions": [
+            "该地址必须被用于需要机密性或完整性保护的实际传输"
+          ],
+          "impact": "通信内容可能被监听或篡改",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS137138",
+            "DS137138|.sandcastle/codex-child.test.ts|98"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "新增测试：非 TLS 反例",
+            "path": ".sandcastle/codex-child.test.ts",
+            "lines": "98",
+            "detail": "同一行两处被规则捕获的 HTTP 地址是必须被拒绝的测试输入，含占位用户信息或无效远端；循环断言解析失败，未执行网络连接。"
+          }
+        ],
+        "reachable_path": [
+          "node:test 中的固定测试常量",
+          "隔离临时 fixture 或对象/命令断言",
+          "静态错误分支或假 Codex 子进程"
+        ],
+        "boundary_assessment": {
+          "product_surface": "test/fixture",
+          "source_trust": "trusted_developer_config",
+          "boundary_crossed": false,
+          "policy_basis": "codex-child.test.ts:1-2,21-59 定义 node:test 与临时假 Codex fixture；产品入口不导入测试模块；CODEX-CHILD.md:13-31 限定实际入口。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .sandcastle/codex-child.test.ts:98 与裁剪和原 SARIF 定位一致。",
+          "同一行两处被规则捕获的 HTTP 地址是必须被拒绝的测试输入，含占位用户信息或无效远端；循环断言解析失败，未执行网络连接。",
+          "codex-child.test.ts:94-101; codex-router-runtime.ts:28-31",
+          "同一 key 对应 2 个原 SARIF location，已逐一与完整源码行匹配；均由本理由覆盖。"
+        ],
+        "counterevidence": [
+          "测试源码没有运行时产品输入入口；相关回调/地址是固定测试数据。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-040",
+        "input_id": "DS162092|.sandcastle/codex-child.test.ts|83",
+        "source_type": "sarif",
+        "title": "Do not leave debug code in production",
+        "normalized_input": {
+          "vulnerable_component": ".sandcastle/codex-child.test.ts",
+          "claimed_source": "localhost 或回环地址字面量",
+          "claimed_sink": "疑似生产调试路径或本机硬编码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.sandcastle/codex-child.test.ts:83",
+          "preconditions": [
+            "命中必须关联不应存在的调试功能或违反实际部署边界"
+          ],
+          "impact": "扫描器提示调试残留或扩展性问题，未给具体安全后果",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS162092",
+            "DS162092|.sandcastle/codex-child.test.ts|83"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "新增测试：Router argv 断言",
+            "path": ".sandcastle/codex-child.test.ts",
+            "lines": "83",
+            "detail": "回环地址处于 command.includes 的固定期望字符串，仅检查构造出的 CLI 配置是否绑定本机 Router，不是未删除的调试调用。"
+          }
+        ],
+        "reachable_path": [
+          "node:test 中的固定测试常量",
+          "隔离临时 fixture 或对象/命令断言",
+          "静态错误分支或假 Codex 子进程"
+        ],
+        "boundary_assessment": {
+          "product_surface": "test/fixture",
+          "source_trust": "trusted_developer_config",
+          "boundary_crossed": false,
+          "policy_basis": "codex-child.test.ts:1-2,21-59 定义 node:test 与临时假 Codex fixture；产品入口不导入测试模块；CODEX-CHILD.md:13-31 限定实际入口。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .sandcastle/codex-child.test.ts:83 与裁剪和原 SARIF 定位一致。",
+          "回环地址处于 command.includes 的固定期望字符串，仅检查构造出的 CLI 配置是否绑定本机 Router，不是未删除的调试调用。",
+          "codex-child.test.ts:69-91; CODEX-CHILD.md:7-9"
+        ],
+        "counterevidence": [
+          "测试源码没有运行时产品输入入口；相关回调/地址是固定测试数据。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      },
+      {
+        "triage_item_id": "triage-041",
+        "input_id": "DS162092|.sandcastle/codex-child.test.ts|31",
+        "source_type": "sarif",
+        "title": "Do not leave debug code in production",
+        "normalized_input": {
+          "vulnerable_component": ".sandcastle/codex-child.test.ts",
+          "claimed_source": "localhost 或回环地址字面量",
+          "claimed_sink": "疑似生产调试路径或本机硬编码",
+          "claimed_control": "扫描器没有给出具体攻击者入口或已绕过的控制。",
+          "affected_version_or_path": "950a49719bf1cc340ca4d1308df7710bbaff6557:.sandcastle/codex-child.test.ts:31",
+          "preconditions": [
+            "命中必须关联不应存在的调试功能或违反实际部署边界"
+          ],
+          "impact": "扫描器提示调试残留或扩展性问题，未给具体安全后果",
+          "references": [
+            "github-actions-run:34852190257",
+            "rule:DS162092",
+            "DS162092|.sandcastle/codex-child.test.ts|31"
+          ]
+        },
+        "verdict": "not_actionable",
+        "confidence": "high",
+        "affected_locations": [
+          {
+            "label": "新增测试：隔离配置 fixture",
+            "path": ".sandcastle/codex-child.test.ts",
+            "lines": "31",
+            "detail": "回环地址写入 mkdtemp 创建的临时 CODEX_HOME 配置，与临时模型目录配套供解析和假进程测试使用；测试清理删除整个 fixture，没有改变用户配置。"
+          }
+        ],
+        "reachable_path": [
+          "node:test 中的固定测试常量",
+          "隔离临时 fixture 或对象/命令断言",
+          "静态错误分支或假 Codex 子进程"
+        ],
+        "boundary_assessment": {
+          "product_surface": "test/fixture",
+          "source_trust": "trusted_developer_config",
+          "boundary_crossed": false,
+          "policy_basis": "codex-child.test.ts:1-2,21-59 定义 node:test 与临时假 Codex fixture；产品入口不导入测试模块；CODEX-CHILD.md:13-31 限定实际入口。"
+        },
+        "exploitability_stack_rank": {
+          "rank_queue": null,
+          "rank": null,
+          "rationale": "该具体命中没有可处置的安全缺陷。",
+          "drivers": []
+        },
+        "evidence": [
+          "固定 HEAD 的 .sandcastle/codex-child.test.ts:31 与裁剪和原 SARIF 定位一致。",
+          "回环地址写入 mkdtemp 创建的临时 CODEX_HOME 配置，与临时模型目录配套供解析和假进程测试使用；测试清理删除整个 fixture，没有改变用户配置。",
+          "codex-child.test.ts:21-31,46-59"
+        ],
+        "counterevidence": [
+          "测试源码没有运行时产品输入入口；相关回调/地址是固定测试数据。"
+        ],
+        "proof_gaps": [],
+        "recommended_next_step": "保留本条分诊和扫描失败状态；本条无需产品修复，main 合入仍待主控提交显式扫描例外批准。",
+        "fix_finding_handoff": null
+      }
+    ]
+  },
+  "approval": {
+    "explicit_main_scan_exception_required": true,
+    "exception_approved": false,
+    "merge_authorized": false,
+    "required_disclosure": "DevSkim run 34852190257 仍为 failure；41 key 的逐项分诊不替代未变文件/既有 baseline 例外，也不授予 main 合入。"
+  }
+}

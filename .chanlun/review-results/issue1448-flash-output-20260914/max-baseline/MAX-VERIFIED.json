@@ -1,0 +1,40 @@
+{
+  "ticket": 1448,
+  "status": "PASS_LOCAL_FLASH_MAX",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "effort": "max",
+  "controller": "/Users/silencehan/Projects/NewChanlun-1448-flash",
+  "commit": "91fd5c7511a7e97f4d0a9b55da24a042ac175b6b",
+  "source_sha256": {
+    ".sandcastle/codex-router-runtime.ts": "190922c7d9688ce4ce4b0e25bb589f22d295e070fa9299d127dac2193a6c5a95",
+    ".sandcastle/codex-child.ts": "ff0ddfd5d62e087a60e482637c54f9dfa7e8617dfe4166b3ef173337ce260f84",
+    ".sandcastle/codex-child.test.ts": "98bca7b30d0e96ce6819d8b5288f418627a293588e8c5c5d1c1398c4186853da",
+    ".sandcastle/CODEX-CHILD.md": "064d54c757f9b7612f632eeabbebe6c86bbd3694a8782bbfbb58310d37d50aed",
+    ".chanlun/agent-roster-20260914-sandcastle-flash.md": "d76f26d31c9dc5b7fef2897b091a7fa50480b67df066fdcb87a7c558b46388a7"
+  },
+  "tests": {
+    "passed": 67,
+    "failed": 0,
+    "log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1448-deepseek-flash/max/tests-final.log",
+    "typescript_changed_scope_exit": 0
+  },
+  "runtime": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1448-deepseek-flash/max/execute-run/result.json",
+    "sha256": "fa81ec7de43019dbf291fa56776411e324e7d126ca93412d9cc9ac88adef6748",
+    "external_session_id": "01a09fbb-f0a2-77b0-9523-f9fd61780ae6",
+    "fixture_sha256": "82f310a4b05341496af94cb9e2556648c453dcf10467ff657f0e82df3a2edf5f",
+    "output_bytes": 65,
+    "output_matches_digest": true,
+    "process_gone": true
+  },
+  "historical_attempts": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1448-deepseek-flash/max/review-run/result.json",
+      "status": "preflight_failed_dirty_fixture",
+      "model_was_not_called": true
+    }
+  ],
+  "root_settings_changed": false,
+  "main_merged": false,
+  "legacy_prime_queue_started": false
+}
