@@ -6,6 +6,8 @@
 //! - Zn 外缘（#1419 S2，D-A/D-B，`020-第20课.md:52`）：DD/GG 只聚合与 seed 第一单元同向的成员；
 //!   L0 端点相连交替三段上与旧三段外缘恒等，延伸期的非 Zn 成员不再改外缘。
 //! - 走势区间 ≠ 中枢外缘（#1419 根裁定 r2 第 1 条）：上级走势的区间取全部子走势极值，中枢外缘只数 Zn。
+//! - 扫描事实内核（#1419 S4，#804 L2）：`scan_center_facts` 配 `NoopSink`（塔）与 `FactSink`（S 事实层）
+//!   输出逐位相同；事实派生的中枢等于塔中枢；具名切面的六变量、贡献成员、归属、续扫锚等于 oracle。
 //!
 //! 期待值取自独立工作例（`tb1419-prep/worked-examples.json` 的 UP/DOWN 流，与
 //! `.chanlun/review-results/issue1419-tb02e-20261013/` 的 oracle 冻结稿交叉核），不从被测函数推出。
@@ -15,8 +17,13 @@ use super::super::super::types::{Center, Direction, Tick};
 use super::super::center::{
     center_from_segments, center_from_window, compute_dd, compute_gg, UnitRange,
 };
+use super::super::center::{CoreOrder, RoleVar, SeedExclusion, SeedRule};
+use super::super::center_scan::{
+    scan_center_facts_full, FactSink, NoopSink, ScanState, SeedFromSelf, UnitAssignment, WaitReason,
+};
 use super::super::recursive_tower::{
-    compose_level, detect_centers_windowed_resume, project_to_units, ElementId, LeveledMove,
+    compose_level, detect_centers_windowed_resume, project_to_units, scan_center_facts, ElementId,
+    LeveledMove,
 };
 
 type Build = fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center>;
@@ -446,4 +453,517 @@ fn r2_move_interval_is_all_sub_extremes_not_center_outer() {
         (5, 40),
         "上级单元 = 走势区间"
     );
+}
+
+// ── #1419 S4：扫描事实内核 ────────────────────────────────────────────────────────────
+
+/// #804 L2：同一输入上 `NoopSink`（塔）与 `FactSink`（S 事实层）的扫描输出逐位相同；事实与塔中枢一致：
+/// <9 成员窗口的六变量投影 == 塔中枢；每次 seed 评估的 `formed` == 该事实按口径的投影；成立的评估与窗口一一
+/// 对应；结算窗口之后的下一次评估在 last+2（R8）。L0 与上级两个 build 都验。
+#[test]
+fn s4_fact_sink_scan_equals_tower_scan_and_projects_to_tower_centers() {
+    let builds: [(&str, Build, SeedRule); 2] = [
+        ("l0", center_from_segments, SeedRule::Complete),
+        ("geom", center_from_window, SeedRule::Geometric),
+    ];
+    let (mut settled, mut failed, mut upgraded) = (0usize, 0usize, 0usize);
+    for seed in 0..80u64 {
+        let units = units_from_endpoints(&alternating_endpoints(seed, 30));
+        for (name, build, rule) in builds {
+            for k in [units.len(), units.len() / 2, 7] {
+                let u = &units[..k.min(units.len())];
+                let ctx = format!("{name} seed={seed} len={}", u.len());
+                let tower = scan_center_facts(u, build, 0, &mut NoopSink);
+                let mut sink = FactSink::default();
+                let with_facts = scan_center_facts(u, build, 0, &mut sink);
+                assert_eq!(tower, with_facts, "{ctx}: 两种 sink 的扫描输出不同");
+                let facts = scan_center_facts_full(u, build);
+                assert_eq!(
+                    (&facts.centers, &facts.metas, &facts.cursor),
+                    (&tower.0, &tower.1, &tower.2),
+                    "{ctx}"
+                );
+                for a in &facts.attempts {
+                    assert_eq!(
+                        a.facts.center(rule).is_some(),
+                        a.formed,
+                        "{ctx}: at={}",
+                        a.at
+                    );
+                    failed += usize::from(!a.formed);
+                }
+                let formed_at: Vec<usize> = facts
+                    .attempts
+                    .iter()
+                    .filter(|a| a.formed)
+                    .map(|a| a.at)
+                    .collect();
+                let window_at: Vec<usize> = facts.windows.iter().map(|w| w.seed_at).collect();
+                assert_eq!(formed_at, window_at, "{ctx}: 成立评估与窗口不对应");
+                let mut emitted = 0usize;
+                for (w, wf) in facts.windows.iter().zip(facts.window_facts(u)) {
+                    if wf.settled {
+                        settled += 1;
+                        if let Some(next) = facts.attempts.iter().find(|a| a.at > wf.last) {
+                            assert_eq!(next.at, wf.last + 2, "{ctx}: 结算后续扫锚须 last+2");
+                        }
+                    }
+                    if w.upgraded {
+                        upgraded += 1;
+                    } else {
+                        let c = tower.0[emitted].0;
+                        assert_eq!(
+                            Center {
+                                zd: wf.role(RoleVar::Zd).value,
+                                zg: wf.role(RoleVar::Zg).value,
+                                dd: wf.role(RoleVar::Dd).value,
+                                gg: wf.role(RoleVar::Gg).value,
+                                start_index: u[wf.first].start_index,
+                                end_index: u[wf.last].end_index,
+                            },
+                            c,
+                            "{ctx}: 事实投影 ≠ 塔中枢"
+                        );
+                        assert_eq!(tower.0[emitted].1, (wf.first, wf.last), "{ctx}");
+                    }
+                    emitted += w.emitted;
+                }
+                assert_eq!(emitted, tower.0.len(), "{ctx}");
+                let unit_facts = facts.unit_facts();
+                assert_eq!(unit_facts.len(), u.len(), "{ctx}: 每单元恰一状态");
+            }
+        }
+    }
+    assert!(
+        settled > 0 && failed > 0 && upgraded > 0,
+        "随机域须含结算、seed 失败与 ≥9 升级（{settled}/{failed}/{upgraded}）"
+    );
+}
+
+/// 一个角色变量的 (值, 贡献成员)。
+fn role(f: &super::super::center_scan::CenterWindowFacts, v: RoleVar) -> (Tick, Vec<usize>) {
+    let r = f.role(v);
+    (r.value, r.contributors.clone())
+}
+
+/// oracle UP K7：A 开放（u0..u7），Zn = u0,u2,u4,u6；D=30(u4)、G=25(u6)（D>G），DD/GG 只数 Zn = 10/40，
+/// 全成员 dd=5 不进外缘；游标 EXTENDING、下一待测 u8。
+#[test]
+fn s4_up_k7_roles_and_contributors_match_oracle() {
+    let units = up_cut(7);
+    let facts = scan_center_facts_full(&units, center_from_segments);
+    let wf = facts.window_facts(&units);
+    assert_eq!(wf.len(), 1);
+    let a = &wf[0];
+    assert_eq!((a.first, a.last, a.count(), a.settled), (0, 7, 8, false));
+    assert_eq!(a.next_tested_unit, Some(8));
+    assert_eq!(a.zn_members, vec![0, 2, 4, 6]);
+    assert_eq!(role(a, RoleVar::Zd), (20, vec![1, 2]));
+    assert_eq!(role(a, RoleVar::Zg), (35, vec![2]));
+    assert_eq!(role(a, RoleVar::Dd), (10, vec![0]));
+    assert_eq!(role(a, RoleVar::Gg), (40, vec![0]));
+    assert_eq!(role(a, RoleVar::D), (30, vec![4]));
+    assert_eq!(role(a, RoleVar::G), (25, vec![6]));
+    assert_eq!(a.role(RoleVar::Zd).same_price_witness(), &[1, 2]);
+    assert!(a.role(RoleVar::Zg).same_price_witness().is_empty());
+    assert_eq!(
+        facts.scan_state(),
+        ScanState::Extending {
+            center: 0,
+            next_unit: 8
+        }
+    );
+}
+
+/// oracle UP K10 与 K12：K10 只有 A（结算于 u8，break_up=false，续扫锚 9），u8 CONNECTOR(A→pending)，
+/// u9/u10 待评估；K12 B = u9..u12 成立，u8 改为 CONNECTOR(A→B)，B 的六变量与贡献成员。
+#[test]
+fn s4_up_k10_k12_assignment_and_anchor_match_oracle() {
+    let k10 = up_cut(10);
+    let f10 = scan_center_facts_full(&k10, center_from_segments);
+    let w10 = f10.window_facts(&k10);
+    assert_eq!(w10.len(), 1);
+    assert_eq!(
+        (w10[0].break_unit, w10[0].break_up, w10[0].resume_anchor),
+        (Some(8), Some(false), Some(9))
+    );
+    let a10 = f10.unit_facts();
+    assert_eq!(
+        a10[8].assignment,
+        UnitAssignment::Connector {
+            left: 0,
+            right: None
+        }
+    );
+    assert_eq!(a10[8].seed_from_self, SeedFromSelf::NotEvaluated);
+    for k in [9, 10] {
+        assert_eq!(
+            a10[k].assignment,
+            UnitAssignment::NotYetAssigned(WaitReason::SeedNotYetEvaluable),
+            "u{k}"
+        );
+    }
+    assert_eq!(
+        f10.scan_state(),
+        ScanState::SeekingSeed {
+            seed_start: 9,
+            awaiting_unit: 11
+        }
+    );
+
+    let k12 = up_cut(12);
+    let f12 = scan_center_facts_full(&k12, center_from_segments);
+    let w12 = f12.window_facts(&k12);
+    assert_eq!(w12.len(), 2);
+    let b = &w12[1];
+    assert_eq!((b.first, b.last, b.settled), (9, 12, false));
+    assert_eq!(b.zn_members, vec![9, 11]);
+    assert_eq!(role(b, RoleVar::Zd), (4, vec![11]));
+    assert_eq!(role(b, RoleVar::Zg), (12, vec![10, 11]));
+    assert_eq!(role(b, RoleVar::Dd), (2, vec![9]));
+    assert_eq!(role(b, RoleVar::Gg), (15, vec![9]));
+    assert_eq!(role(b, RoleVar::D), (4, vec![11]));
+    assert_eq!(role(b, RoleVar::G), (12, vec![11]));
+    let a12 = f12.unit_facts();
+    assert!((0..=7).all(|k| a12[k].assignment == UnitAssignment::Member { center: 0 }));
+    assert_eq!(
+        a12[8].assignment,
+        UnitAssignment::Connector {
+            left: 0,
+            right: Some(1)
+        }
+    );
+    assert!((9..=12).all(|k| a12[k].assignment == UnitAssignment::Member { center: 1 }));
+    assert_eq!(a12[9].seed_from_self, SeedFromSelf::Formed);
+}
+
+/// oracle E4 K7/K8：续扫锚 u5 的 seed 相切（ZD=ZG=15，TANGENT_ZD_EQ_ZG）⟹ +1；K7 时 u4、u5 CONNECTOR(A→pending)
+/// （u5 seed_from_self=FAILED），u6、u7 待评估；K8 B 自 u6 成立，u4、u5 改为 CONNECTOR(A→B)。
+#[test]
+fn s4_e4_tangent_seed_failure_and_two_unit_connector_match_oracle() {
+    const E4: [Tick; 13] = [10, 40, 20, 35, 5, 15, 2, 18, 15, 17, 1, 8, 6];
+    let k7 = units_from_endpoints(&E4[..9]);
+    let f7 = scan_center_facts_full(&k7, center_from_segments);
+    let at: Vec<(usize, bool)> = f7.attempts.iter().map(|a| (a.at, a.formed)).collect();
+    assert_eq!(at, vec![(0, true), (5, false)]);
+    let tangent = &f7.attempts[1].facts;
+    assert_eq!(
+        (tangent.zd, tangent.zg, tangent.core_order),
+        (15, 15, CoreOrder::ZdEqZg)
+    );
+    assert_eq!(
+        tangent.exclusion(SeedRule::Complete),
+        Some(SeedExclusion::TangentZdEqZg)
+    );
+    let a7 = f7.unit_facts();
+    for k in [4, 5] {
+        assert_eq!(
+            a7[k].assignment,
+            UnitAssignment::Connector {
+                left: 0,
+                right: None
+            },
+            "u{k}"
+        );
+    }
+    assert_eq!(
+        (a7[4].seed_from_self, a7[5].seed_from_self),
+        (SeedFromSelf::NotEvaluated, SeedFromSelf::Failed)
+    );
+    for k in [6, 7] {
+        assert_eq!(
+            a7[k].assignment,
+            UnitAssignment::NotYetAssigned(WaitReason::SeedNotYetEvaluable),
+            "u{k}"
+        );
+    }
+
+    let k8 = units_from_endpoints(&E4[..10]);
+    let f8 = scan_center_facts_full(&k8, center_from_segments);
+    let a8 = f8.unit_facts();
+    for k in [4, 5] {
+        assert_eq!(
+            a8[k].assignment,
+            UnitAssignment::Connector {
+                left: 0,
+                right: Some(1)
+            },
+            "u{k}"
+        );
+    }
+    let b = &f8.window_facts(&k8)[1];
+    assert_eq!(b.first, 6);
+    assert_eq!(role(b, RoleVar::Zd), (15, vec![7, 8]));
+    assert_eq!(role(b, RoleVar::Zg), (17, vec![8]));
+}
+
+/// oracle LEAD K5：seed(0) 不成立（ZD>ZG，INVERTED_ZD_GT_ZG），u0 记 NO_LEFT_CENTER_IN_WINDOW、seed_from_self=FAILED；
+/// A = u1..u4，u5 向上突破（break_up=true），续扫锚 6。
+#[test]
+fn s4_lead_unit_before_first_center_matches_oracle() {
+    const LEAD: [Tick; 8] = [10, 40, 5, 9, 3, 20, 12, 15];
+    let k5 = units_from_endpoints(&LEAD[..7]);
+    let f = scan_center_facts_full(&k5, center_from_segments);
+    assert_eq!(
+        f.attempts[0].facts.exclusion(SeedRule::Complete),
+        Some(SeedExclusion::InvertedZdGtZg)
+    );
+    let u = f.unit_facts();
+    assert_eq!(
+        u[0].assignment,
+        UnitAssignment::NotYetAssigned(WaitReason::NoLeftCenterInWindow)
+    );
+    assert_eq!(u[0].seed_from_self, SeedFromSelf::Failed);
+    let a = &f.window_facts(&k5)[0];
+    assert_eq!((a.first, a.last), (1, 4));
+    assert_eq!(
+        (a.break_unit, a.break_up, a.resume_anchor),
+        (Some(5), Some(true), Some(6))
+    );
+    assert_eq!(
+        u[5].assignment,
+        UnitAssignment::Connector {
+            left: 0,
+            right: None
+        }
+    );
+}
+
+/// oracle W9 K8：第 9 个成员 u8 加入 ⟹ 窗口 upgrade_pending，u0..u8 记 UPGRADE_PENDING_TB02H（R3/D-I）。
+#[test]
+fn s4_w9_ninth_member_marks_upgrade_pending() {
+    const W9: [Tick; 12] = [10, 40, 20, 35, 25, 38, 22, 36, 24, 37, 26, 28];
+    let k7 = units_from_endpoints(&W9[..9]);
+    let f7 = scan_center_facts_full(&k7, center_from_segments);
+    assert!(!f7.windows[0].upgraded);
+    let k8 = units_from_endpoints(&W9[..10]);
+    let f8 = scan_center_facts_full(&k8, center_from_segments);
+    assert!(f8.windows[0].upgraded);
+    assert!(f8
+        .unit_facts()
+        .iter()
+        .all(|u| u.assignment == UnitAssignment::NotYetAssigned(WaitReason::UpgradePendingTb02h)));
+}
+
+/// 全量 oracle 核对（证据性，非常驻锁）：逐流逐切面读 S0 冻结稿 `worked-examples.json`，核中枢集合（首末、结算、
+/// 突破段、break_up、续扫锚、下一待测、Zn 成员、upgrade_pending、六变量值与贡献成员与同价见证）、扫描游标、
+/// 每单元归属与 seed_from_self、流级 seed 尝试（起点、结果、排除原因、三叶、Bool⁵、ZD/ZG 贡献）。
+/// 冻结稿是 review-results 工作草稿（活期随票），故 `#[ignore]`：`cargo test center_scan_1419 -- --ignored`。
+#[test]
+#[ignore = "读 review-results 冻结稿；收据见 tb1419-impl/receipts"]
+fn s4_full_oracle_sweep_worked_examples() {
+    use serde_json::Value;
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../.chanlun/review-results/issue1419-tb02e-20261013/worked-examples.json"
+    );
+    let doc: Value = serde_json::from_str(&std::fs::read_to_string(path).expect("读冻结稿"))
+        .expect("冻结稿是 JSON");
+    let ids = |idx: usize| ((b'A' + idx as u8) as char).to_string();
+    let ints = |v: &Value| -> Vec<usize> {
+        v.as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_u64().unwrap() as usize)
+            .collect()
+    };
+    let opt_usize = |v: &Value| v.as_u64().map(|x| x as usize);
+    let mut checked = 0usize;
+    for (stream, st) in doc["streams"].as_object().unwrap() {
+        let endpoints: Vec<Tick> = st["endpoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_i64().unwrap())
+            .collect();
+        let mut last_facts = None;
+        for cut in st["cuts"].as_array().unwrap() {
+            let k = cut["k"].as_u64().unwrap() as usize;
+            let ctx = format!("{stream} {}", cut["cut"]);
+            let units = units_from_endpoints(&endpoints[..k + 2]);
+            let f = scan_center_facts_full(&units, center_from_segments);
+            let wf = f.window_facts(&units);
+            let centers = cut["centers"].as_array().unwrap();
+            assert_eq!(wf.len(), centers.len(), "{ctx}: 中枢数");
+            for (idx, (w, c)) in wf.iter().zip(centers).enumerate() {
+                let cc = format!("{ctx} {}", ids(idx));
+                assert_eq!(c["id"].as_str().unwrap(), ids(idx), "{cc}");
+                assert_eq!(
+                    ints(&c["seed"]),
+                    vec![w.first, w.first + 1, w.first + 2],
+                    "{cc}"
+                );
+                assert_eq!(
+                    (w.first, w.last, w.count(), w.settled),
+                    (
+                        c["first"].as_u64().unwrap() as usize,
+                        c["last"].as_u64().unwrap() as usize,
+                        c["count"].as_u64().unwrap() as usize,
+                        c["settled"].as_bool().unwrap()
+                    ),
+                    "{cc}"
+                );
+                assert_eq!(
+                    w.break_unit,
+                    opt_usize(&c["break_unit"]),
+                    "{cc}: break_unit"
+                );
+                assert_eq!(w.break_up, c["break_up"].as_bool(), "{cc}: break_up");
+                assert_eq!(w.resume_anchor, opt_usize(&c["resume_anchor"]), "{cc}");
+                assert_eq!(
+                    w.next_tested_unit,
+                    opt_usize(&c["next_tested_unit"]),
+                    "{cc}"
+                );
+                assert_eq!(w.zn_members, ints(&c["zn_members"]), "{cc}: Zn");
+                assert_eq!(
+                    w.upgrade_pending,
+                    c["upgrade_pending"].as_bool().unwrap(),
+                    "{cc}"
+                );
+                if w.upgrade_pending {
+                    assert!(c["roles"].is_null(), "{cc}: ≥9 不发布六变量");
+                    continue;
+                }
+                for var in RoleVar::ALL {
+                    let o = &c["roles"][var.role()][var.as_str()];
+                    let r = w.role(var);
+                    assert_eq!(
+                        r.value,
+                        o["value"].as_i64().unwrap(),
+                        "{cc} {}",
+                        var.as_str()
+                    );
+                    assert_eq!(
+                        r.contributors,
+                        ints(&o["contributors"]),
+                        "{cc} {} 贡献",
+                        var.as_str()
+                    );
+                    assert_eq!(
+                        r.same_price_witness().to_vec(),
+                        ints(&o["same_price_witness"]),
+                        "{cc} {} 同价",
+                        var.as_str()
+                    );
+                    assert_eq!(var.frozen(), o["frozen"].as_bool().unwrap(), "{cc}");
+                }
+            }
+            let sc = &cut["scan_cursor"];
+            let want_state = match sc["state"].as_str().unwrap() {
+                "EXTENDING" => ScanState::Extending {
+                    center: (sc["center"].as_str().unwrap().as_bytes()[0] - b'A') as usize,
+                    next_unit: sc["next_unit"].as_u64().unwrap() as usize,
+                },
+                "SEEKING_SEED" => ScanState::SeekingSeed {
+                    seed_start: sc["seed_start"].as_u64().unwrap() as usize,
+                    awaiting_unit: sc["awaiting_unit"].as_u64().unwrap() as usize,
+                },
+                other => panic!("{ctx}: 未知游标 {other}"),
+            };
+            assert_eq!(f.scan_state(), want_state, "{ctx}: 游标");
+            let uf = f.unit_facts();
+            for a in cut["assignment"].as_array().unwrap() {
+                let k = a["unit"].as_u64().unwrap() as usize;
+                let (got, sfs) = if k < uf.len() {
+                    (uf[k].assignment, uf[k].seed_from_self)
+                } else {
+                    (
+                        UnitAssignment::NotYetAssigned(WaitReason::UnitNotCompleted),
+                        SeedFromSelf::NotEvaluated,
+                    )
+                };
+                let want = match a["status"].as_str().unwrap() {
+                    "CENTER_MEMBER" => UnitAssignment::Member {
+                        center: (a["center"].as_str().unwrap().as_bytes()[0] - b'A') as usize,
+                    },
+                    "CONNECTOR" => UnitAssignment::Connector {
+                        left: (a["left"].as_str().unwrap().as_bytes()[0] - b'A') as usize,
+                        right: match a["right"].as_str().unwrap() {
+                            "PENDING" => None,
+                            r => Some((r.as_bytes()[0] - b'A') as usize),
+                        },
+                    },
+                    "NOT_YET_ASSIGNED" => {
+                        UnitAssignment::NotYetAssigned(match a["reason"].as_str().unwrap() {
+                            "NO_LEFT_CENTER_IN_WINDOW" => WaitReason::NoLeftCenterInWindow,
+                            "SEED_NOT_YET_EVALUABLE" => WaitReason::SeedNotYetEvaluable,
+                            "UPGRADE_PENDING_TB02H" => WaitReason::UpgradePendingTb02h,
+                            "UNIT_NOT_COMPLETED" => WaitReason::UnitNotCompleted,
+                            r => panic!("{ctx}: 未知原因 {r}"),
+                        })
+                    }
+                    st => panic!("{ctx}: 未知状态 {st}"),
+                };
+                assert_eq!(got, want, "{ctx} u{k}");
+                assert_eq!(
+                    sfs.as_str(),
+                    a["seed_from_self"].as_str().unwrap(),
+                    "{ctx} u{k} seed_from_self"
+                );
+                checked += 1;
+            }
+            last_facts = Some(f);
+        }
+        let f = last_facts.expect("流非空");
+        let attempts = st["seed_attempts"].as_array().unwrap();
+        assert_eq!(f.attempts.len(), attempts.len(), "{stream}: seed 尝试数");
+        for (a, o) in f.attempts.iter().zip(attempts) {
+            let ctx = format!("{stream} seed@{}", a.at);
+            assert_eq!(a.at, o["start"].as_u64().unwrap() as usize, "{ctx}");
+            assert_eq!(a.formed, o["result"] == "FORMED", "{ctx}");
+            assert_eq!(
+                a.facts
+                    .exclusion(SeedRule::Complete)
+                    .map(SeedExclusion::as_str),
+                o["exclusion_reason"].as_str(),
+                "{ctx}"
+            );
+            assert_eq!(
+                a.facts.core_order.as_str(),
+                o["core_order"].as_str().unwrap(),
+                "{ctx}"
+            );
+            let v = a
+                .facts
+                .condition_vector(super::super::center::SeedInput::TOWER);
+            let ov = &o["vector"];
+            assert_eq!(
+                (
+                    v.completed,
+                    v.consecutive,
+                    v.same_level,
+                    v.alternating,
+                    v.strict
+                ),
+                (
+                    ov["completed"].as_bool().unwrap(),
+                    ov["consecutive"].as_bool().unwrap(),
+                    ov["same_level"].as_bool().unwrap(),
+                    ov["alternating"].as_bool().unwrap(),
+                    ov["strict"].as_bool()
+                ),
+                "{ctx}: Bool⁵"
+            );
+            let units = units_from_endpoints(&endpoints[..a.at + 4]);
+            let seed = &units[a.at..a.at + 3];
+            let roles = super::super::center::CenterRoles::of_members(seed);
+            for (var, key) in [(RoleVar::Zd, "ZD"), (RoleVar::Zg, "ZG")] {
+                let got: Vec<usize> = roles
+                    .contributors(seed, var)
+                    .into_iter()
+                    .map(|k| a.at + k)
+                    .collect();
+                assert_eq!(got, ints(&o[key]["contributors"]), "{ctx} {key}");
+                assert_eq!(
+                    roles.value(var),
+                    o[key]["value"].as_i64().unwrap(),
+                    "{ctx} {key}"
+                );
+            }
+            checked += 1;
+        }
+    }
+    assert!(checked > 300, "核对项 {checked}");
+    eprintln!("s4_full_oracle_sweep_worked_examples: checked={checked}");
 }

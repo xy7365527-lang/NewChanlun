@@ -54,7 +54,8 @@
 use std::rc::Rc;
 
 use super::super::types::{Center, Direction, Stroke, Tick};
-use super::center::{classify_relation, is_zn, CenterRelation, UnitRange};
+use super::center::{classify_relation, seed_facts, zn_extrema, CenterRelation, UnitRange};
+use super::center_scan::{NoopSink, ScanSink, ScanWindow};
 use super::decompose::{center_own_dir_at, MoveBlock};
 use super::descend::RMove;
 
@@ -502,10 +503,32 @@ pub fn compose_level(
 ///
 /// 条件满足时，从 `start_i` 续扫产出的 tail 与全量重扫到达 `start_i` 后继续的产出逐位相同
 /// （确定性左折叠：seed 判定读 `units[i..=i+2]`、延伸判定读单个 `units[j]` vs 冻结核心，均为纯函数）。
+///
+/// ★#1419 S4：本函数是 [`scan_center_facts`] 配 [`NoopSink`] 的投影（塔路径不算事实、不分配）。
 pub fn detect_centers_windowed_resume(
     units: &[UnitRange],
     build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center>,
     start_i: usize,
+) -> (
+    Vec<(Center, (usize, usize))>,
+    Vec<WinMeta>,
+    WindowScanCursor,
+) {
+    scan_center_facts(units, build, start_i, &mut NoopSink)
+}
+
+/// 共用中枢扫描内核（★#1419 S4，PLAN §2.1）：塔与 S 事实层取数的唯一一份扫描。
+///
+/// 行为与 [`detect_centers_windowed_resume`] 的文档完全相同；额外把每次 seed 评估（成立与否、
+/// [`super::center::SeedFacts`]）与每个成立窗口（seed 起点、退出点、是否 ≥9 升级）报给 `sink`。
+/// `S::WANTS_FACTS == false` 时不算 seed 事实（[`NoopSink`]，生产塔路径）。成立与否只由 `build` 判，
+/// `build` 本身是 `seed_facts` 的投影（`center_from_segments`/`center_from_window`），故报出的事实与判定
+/// 同源。
+pub fn scan_center_facts<S: ScanSink>(
+    units: &[UnitRange],
+    build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center>,
+    start_i: usize,
+    sink: &mut S,
 ) -> (
     Vec<(Center, (usize, usize))>,
     Vec<WinMeta>,
@@ -522,7 +545,12 @@ pub fn detect_centers_windowed_resume(
     // had_emitted_window 守卫）。
     let mut last_window: Option<(usize, usize)> = None;
     while i + 2 < units.len() {
-        match build(&units[i], &units[i + 1], &units[i + 2]) {
+        let formed = build(&units[i], &units[i + 1], &units[i + 2]);
+        if S::WANTS_FACTS {
+            let facts = seed_facts(&units[i], &units[i + 1], &units[i + 2]);
+            sink.seed(i, &facts, formed.is_some());
+        }
+        match formed {
             Some(seed) => {
                 // Step2 extension（中心定理一，PDF §5）：u_j 区间触及冻结核心 [ZD,ZG]（闭区间相交
                 // `d_j <= ZG ∧ g_j >= ZD`）⟹ 同一中枢延伸——end 吸收，核心不动；DD/GG 只吸收 Zn
@@ -534,10 +562,6 @@ pub fn detect_centers_windowed_resume(
                 let mut j = i + 3;
                 while j < units.len() && units[j].lo <= c.zg && units[j].hi >= c.zd {
                     c.end_index = units[j].end_index;
-                    if is_zn(&units[j], &units[i]) {
-                        c.dd = c.dd.min(units[j].lo);
-                        c.gg = c.gg.max(units[j].hi);
-                    }
                     j += 1;
                 }
                 let n = j - i;
@@ -545,7 +569,11 @@ pub fn detect_centers_windowed_resume(
                 // 上界。j==len ⟹ 窗口开放无哨兵 ⟹ +∞（usize::MAX，永不进保留前缀，设计 §1.2.1）。
                 let read_end_src = units.get(j).map_or(usize::MAX, |u| u.start_index);
                 let emitted = if n < UPGRADE_TOTAL_SEGMENTS {
-                    // Q2 有效域（≤8 段）：一个延伸中枢，不拆碎片。
+                    // Q2 有效域（≤8 段）：一个延伸中枢，不拆碎片。外缘 = 全部成员中 Zn 的极值
+                    // （★#1419 S1/S2，唯一一份聚合 `zn_extrema`；seed 三单元已含在内）。
+                    let zn = zn_extrema(&units[i..j]);
+                    c.dd = zn.dd;
+                    c.gg = zn.gg;
                     out.push((c, (i, j - 1)));
                     metas.push(WinMeta {
                         win_start: i,
@@ -594,6 +622,12 @@ pub fn detect_centers_windowed_resume(
                     k
                 };
                 last_window = Some((i, emitted));
+                sink.window(ScanWindow {
+                    seed_at: i,
+                    exit: j,
+                    upgraded: n >= UPGRADE_TOTAL_SEGMENTS,
+                    emitted,
+                });
                 // ★#1419 R8（#812 Z-5，`zhongshu.md` §6.1 C 口径）：结算（`j < len`，u_j 为突破段）后从
                 // last_member+2 = j+1 续扫——突破段是连接段，不属于任何中枢（`028-第28课.md:770`），
                 // 不得被下一中枢的 seed 复用（A-ST-016-01）。窗口开放（`j == len`：延伸吃到末尾、尚无
