@@ -177,24 +177,56 @@ pub(super) fn is_zn(u: &UnitRange, seed_first: &UnitRange) -> bool {
     u.direction == seed_first.direction
 }
 
+/// 中枢成员里 **Zn** 的四个极值（★#1419 S1；`020-第20课.md:52`【正文】「GG=max(gn),G=min(gn),
+/// D=max(dn),DD=min(dn)，n遍历中枢中所有Zn」）。
+///
+/// 全仓唯一一份 Zn 聚合：seed 外缘 [`compute_gg`]/[`compute_dd`]、共用扫描的延伸外缘
+/// （`recursive_tower::scan_center_facts`）、S 事实层的六变量（[`CenterRoles`]）都只经 [`zn_extrema`] 取值。
+/// ≥9 成员窗口的子窗外缘仍取全部单元，是 `zhongshu.md` §9.5 登记的过渡态（退场条件：#1429 落上级 Zn）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ZnExtrema {
+    /// `DD = min(dn)`：外缘下沿。
+    pub dd: Tick,
+    /// `GG = max(gn)`：外缘上沿。
+    pub gg: Tick,
+    /// `D = max(dn)`：Zn 低点的最高者。不替代核心 ZD。
+    pub d: Tick,
+    /// `G = min(gn)`：Zn 高点的最低者。不替代核心 ZG；允许 `D > G`。
+    pub g: Tick,
+}
+
+/// 聚合 `members` 中 Zn 的 [`ZnExtrema`]。`members[0]` 是 seed 第一单元（恒为 Zn），其余成员经 [`is_zn`]
+/// 判。`members` 为空时 panic（中枢至少有 seed 三单元）。
+pub fn zn_extrema(members: &[UnitRange]) -> ZnExtrema {
+    let first = members.first().expect("中枢成员非空（至少 seed 三单元）");
+    members.iter().filter(|u| is_zn(u, first)).fold(
+        ZnExtrema {
+            dd: first.lo,
+            gg: first.hi,
+            d: first.lo,
+            g: first.hi,
+        },
+        |acc, u| ZnExtrema {
+            dd: acc.dd.min(u.lo),
+            gg: acc.gg.max(u.hi),
+            d: acc.d.max(u.lo),
+            g: acc.g.min(u.hi),
+        },
+    )
+}
+
 /// 外缘上沿 `computeGG s1 s2 s3`（契约锚 `Origin.CenterConstruction.computeGG`）：seed 三段中 **Zn** 的
-/// hi 取 max（★#1419 S2：`a` 恒为 Zn，`b`/`c` 经 [`is_zn`] 判）。L0 端点相连交替时 Zn = {a, c}，中间段
-/// 两端点分别是 a、c 的端点 ⟹ 与三段 max 恒等（性质测试 `center_scan_1419`）。
+/// hi 取 max（★#1419 S2：`a` 恒为 Zn，`b`/`c` 经 [`is_zn`] 判；取值经 [`zn_extrema`]）。L0 端点相连交替时
+/// Zn = {a, c}，中间段两端点分别是 a、c 的端点 ⟹ 与三段 max 恒等（性质测试 `center_scan_1419`）。
 /// `pub(super)`：#95 CarriedOnly 投影（level_view V3）需按同一公式算外缘，禁止公式重抄漂移。
 pub(super) fn compute_gg(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Tick {
-    [b, c]
-        .into_iter()
-        .filter(|u| is_zn(u, a))
-        .fold(a.hi, |gg, u| gg.max(u.hi))
+    zn_extrema(&[*a, *b, *c]).gg
 }
 
 /// 外缘下沿 `computeDD s1 s2 s3`（契约锚 `Origin.CenterConstruction.computeDD`）：seed 三段中 **Zn** 的
 /// lo 取 min（★#1419 S2，同 `compute_gg`）。`pub(super)`：同 `compute_gg`（#95）。
 pub(super) fn compute_dd(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Tick {
-    [b, c]
-        .into_iter()
-        .filter(|u| is_zn(u, a))
-        .fold(a.lo, |dd, u| dd.min(u.lo))
+    zn_extrema(&[*a, *b, *c]).dd
 }
 
 /// 三段方向交替判定（契约锚 `Origin.CenterComplete.DirAlternates`，CenterComplete.lean:61-62）。
@@ -230,6 +262,313 @@ pub fn third_spans_core(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> bool {
     c.lo <= zg2 && zd2 <= c.hi
 }
 
+/// seed 核心序三叶（★#1419 S1，A-CC-016-01/02；oracle `core_order`）：`ZD<ZG` / `ZD=ZG` / `ZD>ZG` 恰落其一。
+/// strict 位 ⟺ `ZdLtZg`（#321：单点核心不成立）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CoreOrder {
+    /// `ZD < ZG`：核心严格非空。
+    ZdLtZg,
+    /// `ZD = ZG`：相切，单点核心不成立（#321 裁定）。
+    ZdEqZg,
+    /// `ZD > ZG`：三段无共同重叠。
+    ZdGtZg,
+}
+
+impl CoreOrder {
+    /// 由核心两端定三叶。
+    pub fn of(zd: Tick, zg: Tick) -> Self {
+        match zd.cmp(&zg) {
+            std::cmp::Ordering::Less => CoreOrder::ZdLtZg,
+            std::cmp::Ordering::Equal => CoreOrder::ZdEqZg,
+            std::cmp::Ordering::Greater => CoreOrder::ZdGtZg,
+        }
+    }
+
+    /// oracle / payload 字面量。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            CoreOrder::ZdLtZg => "ZD<ZG",
+            CoreOrder::ZdEqZg => "ZD=ZG",
+            CoreOrder::ZdGtZg => "ZD>ZG",
+        }
+    }
+}
+
+/// seed 判据口径。两者是同一份 [`SeedFacts`] 的两种投影：L0 完整判据查方向交替与 strict，上级几何判据
+/// 只查 strict（上级单元方向取自 Move 趋势裁决，不承担 §6.1 的交替维度）。Z-3 判二者在 L0 交替输入上
+/// 恒等，锁见 `center_segments_window_identity_on_l0_domain`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SeedRule {
+    /// L0 完整判据（[`center_from_segments`]）：方向交替 ∧ `ZD<ZG`。
+    Complete,
+    /// 上级几何判据（[`center_from_window`]）：`ZD<ZG`。
+    Geometric,
+}
+
+/// seed 不成立的排除原因（★#1419 S1；`TANGENT_ZD_EQ_ZG`/`INVERTED_ZD_GT_ZG` 为 S0 oracle 提议名，按根裁定 r2
+/// R1 采纳、并入 D-J schema 独审定名）。先查方向交替，再查核心序。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SeedExclusion {
+    /// 完整判据下三单元方向不交替（L0 端点相连的段恒交替，正常输入不出现；S 写者据此 fail-closed）。
+    NotAlternating,
+    /// `ZD = ZG`。
+    TangentZdEqZg,
+    /// `ZD > ZG`。
+    InvertedZdGtZg,
+}
+
+impl SeedExclusion {
+    /// payload 字面量。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SeedExclusion::NotAlternating => "NOT_ALTERNATING",
+            SeedExclusion::TangentZdEqZg => "TANGENT_ZD_EQ_ZG",
+            SeedExclusion::InvertedZdGtZg => "INVERTED_ZD_GT_ZG",
+        }
+    }
+}
+
+/// seed 五条件里由输入方给出的三位（★#1419 S1）：三单元是否都已完成、是否首尾相连、是否同一级别。
+///
+/// 这三位是输入事实，不是几何判定：生产塔的 L0 单元是同一层已确认线段，首尾相连、同级、已完成，
+/// 由构造保证（[`SeedInput::TOWER`]）；S 写者从已发布的 `CC-013.segment` 对象逐位核实，核不上即
+/// fail-closed，不进入扫描。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SeedInput {
+    /// 三单元都已完成。
+    pub completed: bool,
+    /// 三单元首尾相连（前一单元终点 = 后一单元起点）。
+    pub consecutive: bool,
+    /// 三单元同一级别。
+    pub same_level: bool,
+}
+
+impl SeedInput {
+    /// 生产塔 L0 单元的输入三位（由构造保证全真）。
+    pub const TOWER: SeedInput = SeedInput {
+        completed: true,
+        consecutive: true,
+        same_level: true,
+    };
+}
+
+/// seed 五条件向量 Bool⁵（★#1419 S1，A-CC-016-01/02；顺序 = oracle `seed_vector_order`）。
+///
+/// 各位独立取值，不 one-hot。三单元未全完成时 strict 位不评估，记 `None`（根裁定 r2 R5）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SeedConditionVector {
+    pub completed: bool,
+    pub consecutive: bool,
+    pub same_level: bool,
+    pub alternating: bool,
+    /// `ZD<ZG`；三单元未全完成时为 `None`（未评估）。
+    pub strict: Option<bool>,
+}
+
+impl SeedConditionVector {
+    /// 五位全真（L0 正式中枢的充要条件，「11111 才成中枢」）。
+    pub fn all_true(&self) -> bool {
+        self.completed
+            && self.consecutive
+            && self.same_level
+            && self.alternating
+            && self.strict == Some(true)
+    }
+}
+
+/// seed 判定的全部几何事实（★#1419 S1，PLAN S1 / PREP C4）。全仓唯一一份 seed 判定：
+/// [`center_from_segments`] 与 [`center_from_window`] 都是 [`SeedFacts::center`] 的投影，S 事实层发布的
+/// seed 尝试（CC-016）读同一结构。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SeedFacts {
+    /// 方向交替 `DirAlternates`。
+    pub alternating: bool,
+    /// `ZD = max(三低)`。
+    pub zd: Tick,
+    /// `ZG = min(三高)`。
+    pub zg: Tick,
+    /// 核心序三叶。
+    pub core_order: CoreOrder,
+    /// seed 三单元里 Zn 的四个极值。
+    pub zn: ZnExtrema,
+    /// 首单元起点。
+    pub start_index: usize,
+    /// 末单元终点。
+    pub end_index: usize,
+}
+
+/// 计算三单元 seed 的 [`SeedFacts`]（不判成立与否，成立由 [`SeedFacts::center`] 按口径投影）。
+pub fn seed_facts(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> SeedFacts {
+    let zd = compute_zd(a, b, c);
+    let zg = compute_zg(a, b, c);
+    SeedFacts {
+        alternating: dir_alternates(a, b, c),
+        zd,
+        zg,
+        core_order: CoreOrder::of(zd, zg),
+        zn: zn_extrema(&[*a, *b, *c]),
+        start_index: a.start_index,
+        end_index: c.end_index,
+    }
+}
+
+impl SeedFacts {
+    /// strict 位：`ZD < ZG`。
+    pub fn strict(&self) -> bool {
+        self.core_order == CoreOrder::ZdLtZg
+    }
+
+    /// 按口径给出排除原因；`None` ⟺ seed 成立。
+    pub fn exclusion(&self, rule: SeedRule) -> Option<SeedExclusion> {
+        if rule == SeedRule::Complete && !self.alternating {
+            return Some(SeedExclusion::NotAlternating);
+        }
+        match self.core_order {
+            CoreOrder::ZdLtZg => None,
+            CoreOrder::ZdEqZg => Some(SeedExclusion::TangentZdEqZg),
+            CoreOrder::ZdGtZg => Some(SeedExclusion::InvertedZdGtZg),
+        }
+    }
+
+    /// 按口径投影为中枢：成立 ⟹ 核心 `[ZD,ZG]`、外缘取 seed 三单元的 Zn 极值；不成立 ⟹ `None`。
+    pub fn center(&self, rule: SeedRule) -> Option<Center> {
+        if self.exclusion(rule).is_some() {
+            return None;
+        }
+        Some(Center {
+            zd: self.zd,
+            zg: self.zg,
+            dd: self.zn.dd,
+            gg: self.zn.gg,
+            start_index: self.start_index,
+            end_index: self.end_index,
+        })
+    }
+
+    /// 组 Bool⁵：输入三位取自 `input`，交替与 strict 取自本事实；三单元未全完成时 strict 记 `None`。
+    pub fn condition_vector(&self, input: SeedInput) -> SeedConditionVector {
+        SeedConditionVector {
+            completed: input.completed,
+            consecutive: input.consecutive,
+            same_level: input.same_level,
+            alternating: self.alternating,
+            strict: input.completed.then(|| self.strict()),
+        }
+    }
+}
+
+/// 中枢角色变量（★#1419 S1，A-CC-017-01/02；oracle `roles`）：CORE 的 ZD/ZG 冻结，OUTER 的 DD/GG 与
+/// INNER_EXTREMA 的 D/G 随 Zn 成员更新。六个变量各自成立，数值相等也不合并。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum RoleVar {
+    Zd,
+    Zg,
+    Dd,
+    Gg,
+    D,
+    G,
+}
+
+impl RoleVar {
+    /// 发布顺序：CORE(ZD,ZG) → OUTER(DD,GG) → INNER_EXTREMA(D,G)。
+    pub const ALL: [RoleVar; 6] = [
+        RoleVar::Zd,
+        RoleVar::Zg,
+        RoleVar::Dd,
+        RoleVar::Gg,
+        RoleVar::D,
+        RoleVar::G,
+    ];
+
+    /// payload 字面量。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            RoleVar::Zd => "ZD",
+            RoleVar::Zg => "ZG",
+            RoleVar::Dd => "DD",
+            RoleVar::Gg => "GG",
+            RoleVar::D => "D",
+            RoleVar::G => "G",
+        }
+    }
+
+    /// 所属角色：`CORE` / `OUTER` / `INNER_EXTREMA`。
+    pub fn role(self) -> &'static str {
+        match self {
+            RoleVar::Zd | RoleVar::Zg => "CORE",
+            RoleVar::Dd | RoleVar::Gg => "OUTER",
+            RoleVar::D | RoleVar::G => "INNER_EXTREMA",
+        }
+    }
+
+    /// 是否冻结（只有核心冻结，#819）。
+    pub fn frozen(self) -> bool {
+        matches!(self, RoleVar::Zd | RoleVar::Zg)
+    }
+}
+
+/// 中枢六变量（★#1419 S1，A-CC-017-01）：核心取 seed 三单元，四个动态极值取全部成员中的 Zn。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct CenterRoles {
+    pub zd: Tick,
+    pub zg: Tick,
+    pub zn: ZnExtrema,
+}
+
+impl CenterRoles {
+    /// `members` = seed 三单元 + 延伸成员（`len >= 3`，否则 panic）。
+    pub fn of_members(members: &[UnitRange]) -> Self {
+        assert!(members.len() >= 3, "中枢成员至少 seed 三单元");
+        CenterRoles {
+            zd: compute_zd(&members[0], &members[1], &members[2]),
+            zg: compute_zg(&members[0], &members[1], &members[2]),
+            zn: zn_extrema(members),
+        }
+    }
+
+    /// 取某一变量的值。
+    pub fn value(&self, v: RoleVar) -> Tick {
+        match v {
+            RoleVar::Zd => self.zd,
+            RoleVar::Zg => self.zg,
+            RoleVar::Dd => self.zn.dd,
+            RoleVar::Gg => self.zn.gg,
+            RoleVar::D => self.zn.d,
+            RoleVar::G => self.zn.g,
+        }
+    }
+
+    /// 取到该极值的成员（`members` 内相对下标，升序）。ZD/ZG 只在 seed 三单元内找，DD/GG/D/G 只在 Zn
+    /// 内找；两个及以上即同价见证。
+    pub fn contributors(&self, members: &[UnitRange], v: RoleVar) -> Vec<usize> {
+        let target = self.value(v);
+        let first = &members[0];
+        members
+            .iter()
+            .enumerate()
+            .filter(|(k, u)| match v {
+                RoleVar::Zd => *k < 3 && u.lo == target,
+                RoleVar::Zg => *k < 3 && u.hi == target,
+                RoleVar::Dd | RoleVar::D => is_zn(u, first) && u.lo == target,
+                RoleVar::Gg | RoleVar::G => is_zn(u, first) && u.hi == target,
+            })
+            .map(|(k, _)| k)
+            .collect()
+    }
+}
+
+/// 突破段的离开方向（契约锚 Lean `breakDirectionUp`，`formal/Origin/CenterConstruct.lean`）：整体在核心上方
+/// ⟹ 向上；整体在核心下方 ⟹ 向下；仍与核心相交时（非突破段，扫描不会传入）按高点是否越过 ZG 定。
+pub fn breaks_upward(breaker: &UnitRange, zd: Tick, zg: Tick) -> bool {
+    if breaker.lo > zg {
+        true
+    } else if breaker.hi < zd {
+        false
+    } else {
+        breaker.hi > zg
+    }
+}
+
 /// 从连续三段次级别走势单元构造**完整中枢**（契约锚 `Origin.CenterComplete.CenterConfirmedComplete`
 /// + `Origin.CenterConstruction.centerFromThree`）。
 ///
@@ -259,26 +598,10 @@ pub fn third_spans_core(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> bool {
 ///
 /// 缺方向维度（上级无方向单元）则方向交替不可判——见 `center_from_window`。
 pub fn center_from_segments(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Option<Center> {
-    // 支1：方向交替（§6.1，DirAlternates）。
-    if !dir_alternates(a, b, c) {
-        return None;
-    }
-    // 支2：全三段核心非空（口径 B，§6.3/§6.4——已含第三段贯穿，637号）。★#321 裁定（2026-07-26）：
-    // 从严——单点核心 `zd==zg` 不成立，须严格 `zd<zg`（与 #290 裁定 B / Python 三方对齐）。
-    let zd = compute_zd(a, b, c);
-    let zg = compute_zg(a, b, c);
-    if zd >= zg {
-        return None;
-    }
-    // 两支全成立 ⟹ 真中枢。核心 = 全三段 [zd,zg]（口径 B）；外缘 = seed 三段中 Zn 的 dd/gg（#1419 S2）。
-    Some(Center {
-        zd,
-        zg,
-        dd: compute_dd(a, b, c),
-        gg: compute_gg(a, b, c),
-        start_index: a.start_index,
-        end_index: c.end_index,
-    })
+    // ★#1419 S1：[`seed_facts`] 的 `Complete` 投影——支1 方向交替（§6.1，DirAlternates），支2 全三段核心
+    // 严格非空（口径 B，§6.3/§6.4，已含第三段贯穿，637号；#321 单点核心不成立）。核心 = 全三段 [zd,zg]；
+    // 外缘 = seed 三段中 Zn 的 dd/gg（#1419 S2）。
+    seed_facts(a, b, c).center(SeedRule::Complete)
 }
 
 /// 从连续三段构造中枢（**几何路径**，契约锚 `Origin.CenterConstruction.centerHolds` 全三段口径）。
@@ -302,21 +625,9 @@ pub fn center_from_segments(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Opti
 /// 机械锁用**（不得据本实装断言 Lean 侧行为，亦不得据 Lean `centerHolds` 反推本实装期望值）；
 /// 其余落点对齐声明不受影响。Lean 侧跟进留对方线。
 pub fn center_from_window(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Option<Center> {
-    // 全三段核心非空（口径 B——已含第三段贯穿，637号 codex L0 等价）。★#321 裁定（2026-07-26）：
-    // 从严——单点核心 `zd==zg` 不成立，须严格 `zd<zg`（与 #290 裁定 B / Python 三方对齐）。
-    let zd = compute_zd(a, b, c);
-    let zg = compute_zg(a, b, c);
-    if zd >= zg {
-        return None;
-    }
-    Some(Center {
-        zd,
-        zg,
-        dd: compute_dd(a, b, c),
-        gg: compute_gg(a, b, c),
-        start_index: a.start_index,
-        end_index: c.end_index,
-    })
+    // ★#1419 S1：[`seed_facts`] 的 `Geometric` 投影——全三段核心严格非空（口径 B，已含第三段贯穿，637号；
+    // #321 单点核心不成立），不查方向交替。
+    seed_facts(a, b, c).center(SeedRule::Geometric)
 }
 
 /// 判定两中枢关系（契约锚 `Origin.CenterStates.classifyDevelopment`：新生/扩展/延伸三态
@@ -827,5 +1138,205 @@ mod tests {
                 RelativePosition::Above => assert!(above),
             }
         }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  ★#1419 S1：seed 唯一判定 `seed_facts`（Bool⁵、核心序三叶、贡献成员、排除原因）
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// 端点序列 → 相连单元（`u_k = P_k → P_{k+1}`，S0 oracle 编码）。
+    fn connected(p: &[Tick]) -> Vec<UnitRange> {
+        p.windows(2)
+            .enumerate()
+            .map(|(k, w)| {
+                let dir = if w[1] > w[0] { up() } else { down() };
+                unit(k, k + 1, dir, w[0].min(w[1]), w[0].max(w[1]))
+            })
+            .collect()
+    }
+
+    /// 一条 oracle seed 例的期待值：(Bool⁵, ZD, ZD 贡献, ZG, ZG 贡献, 三叶, 排除原因)。
+    type SeedRow = (
+        [bool; 5],
+        Tick,
+        &'static [usize],
+        Tick,
+        &'static [usize],
+        &'static str,
+        Option<&'static str>,
+    );
+
+    fn assert_seed_row(name: &str, endpoints: &[Tick], want: SeedRow) {
+        let u = connected(endpoints);
+        let f = seed_facts(&u[0], &u[1], &u[2]);
+        let v = f.condition_vector(SeedInput::TOWER);
+        assert_eq!(
+            [
+                v.completed,
+                v.consecutive,
+                v.same_level,
+                v.alternating,
+                v.strict == Some(true)
+            ],
+            want.0,
+            "{name}: Bool⁵"
+        );
+        let roles = CenterRoles::of_members(&u[..3]);
+        assert_eq!(
+            (f.zd, roles.contributors(&u[..3], RoleVar::Zd).as_slice()),
+            (want.1, want.2),
+            "{name}: ZD"
+        );
+        assert_eq!(
+            (f.zg, roles.contributors(&u[..3], RoleVar::Zg).as_slice()),
+            (want.3, want.4),
+            "{name}: ZG"
+        );
+        assert_eq!(f.core_order.as_str(), want.5, "{name}: 三叶");
+        assert_eq!(
+            f.exclusion(SeedRule::Complete).map(SeedExclusion::as_str),
+            want.6,
+            "{name}: 排除原因"
+        );
+        assert_eq!(
+            center_from_segments(&u[0], &u[1], &u[2]).is_some(),
+            want.6.is_none(),
+            "{name}: 成立与否"
+        );
+        assert_eq!(v.all_true(), want.6.is_none(), "{name}: 11111 ⟺ 成立");
+    }
+
+    /// S0 oracle `seed_examples` E1a/E1b/E1b′/E1c（期待值取自 `worked-examples.json`，不从被测函数推出）。
+    #[test]
+    fn s1_seed_facts_match_oracle_e1_examples() {
+        let t = [true; 5];
+        let f4 = [true, true, true, true, false];
+        assert_seed_row(
+            "E1a",
+            &[10, 40, 20, 35],
+            (t, 20, &[1, 2], 35, &[2], "ZD<ZG", None),
+        );
+        assert_seed_row(
+            "E1b",
+            &[10, 40, 5, 10],
+            (f4, 10, &[0], 10, &[2], "ZD=ZG", Some("TANGENT_ZD_EQ_ZG")),
+        );
+        assert_seed_row(
+            "E1b_prime",
+            &[10, 40, 5, 11],
+            (t, 10, &[0], 11, &[2], "ZD<ZG", None),
+        );
+        assert_seed_row(
+            "E1c",
+            &[10, 40, 5, 9],
+            (f4, 10, &[0], 9, &[2], "ZD>ZG", Some("INVERTED_ZD_GT_ZG")),
+        );
+    }
+
+    /// E1e：第三单元未完成 ⟹ strict 位不评估（`None`，根裁定 r2 R5），五位不全真。
+    #[test]
+    fn s1_incomplete_input_leaves_strict_unevaluated() {
+        let u = connected(&[10, 40, 20, 35]);
+        let v = seed_facts(&u[0], &u[1], &u[2]).condition_vector(SeedInput {
+            completed: false,
+            ..SeedInput::TOWER
+        });
+        assert_eq!(v.strict, None);
+        assert!(!v.completed && !v.all_true());
+    }
+
+    /// 定义式直算（不调被测函数）：(ZD, ZG, 交替, Zn 的 DD/GG/D/G)。
+    fn brute(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> (Tick, Tick, bool, [Tick; 4]) {
+        let zd = *[a.lo, b.lo, c.lo].iter().max().unwrap();
+        let zg = *[a.hi, b.hi, c.hi].iter().min().unwrap();
+        let alt = a.direction != b.direction && b.direction != c.direction;
+        let zn: Vec<&UnitRange> = [a, b, c]
+            .into_iter()
+            .filter(|u| u.direction == a.direction)
+            .collect();
+        let dd = zn.iter().map(|u| u.lo).min().unwrap();
+        let gg = zn.iter().map(|u| u.hi).max().unwrap();
+        let d = zn.iter().map(|u| u.lo).max().unwrap();
+        let g = zn.iter().map(|u| u.hi).min().unwrap();
+        (zd, zg, alt, [dd, gg, d, g])
+    }
+
+    fn assert_projection(a: &UnitRange, b: &UnitRange, c: &UnitRange) {
+        let (zd, zg, alt, [dd, gg, d, g]) = brute(a, b, c);
+        let f = seed_facts(a, b, c);
+        let ctx = format!("{a:?} {b:?} {c:?}");
+        assert_eq!((f.zd, f.zg, f.alternating), (zd, zg, alt), "{ctx}");
+        assert_eq!((f.zn.dd, f.zn.gg, f.zn.d, f.zn.g), (dd, gg, d, g), "{ctx}");
+        let leaf = if zd < zg {
+            CoreOrder::ZdLtZg
+        } else if zd == zg {
+            CoreOrder::ZdEqZg
+        } else {
+            CoreOrder::ZdGtZg
+        };
+        assert_eq!(f.core_order, leaf, "{ctx}");
+        let want = |ok: bool| {
+            ok.then_some(Center {
+                zd,
+                zg,
+                dd,
+                gg,
+                start_index: a.start_index,
+                end_index: c.end_index,
+            })
+        };
+        assert_eq!(center_from_segments(a, b, c), want(alt && zd < zg), "{ctx}");
+        assert_eq!(center_from_window(a, b, c), want(zd < zg), "{ctx}");
+        assert_eq!(
+            f.condition_vector(SeedInput::TOWER).all_true(),
+            center_from_segments(a, b, c).is_some(),
+            "{ctx}: 11111 ⟺ 完整判据成立"
+        );
+    }
+
+    /// #804 L1：两个 build 都等于 `seed_facts` 的投影，且与定义式直算逐位相同。
+    /// (a) 端点 0..=6 的全部相连四点序列（含方向不交替的）；(b) 任意区间网格 × 全部 8 种方向组合。
+    #[test]
+    fn s1_builds_are_projections_of_seed_facts_small_domain() {
+        let mut n = 0usize;
+        for p0 in 0..=6 {
+            for p1 in 0..=6 {
+                for p2 in 0..=6 {
+                    for p3 in 0..=6 {
+                        if p0 == p1 || p1 == p2 || p2 == p3 {
+                            continue;
+                        }
+                        let u = connected(&[p0, p1, p2, p3]);
+                        assert_projection(&u[0], &u[1], &u[2]);
+                        n += 1;
+                    }
+                }
+            }
+        }
+        const BOUNDS: [Tick; 4] = [0, 5, 10, 20];
+        let ranges: Vec<(Tick, Tick)> = BOUNDS
+            .iter()
+            .flat_map(|&lo| {
+                BOUNDS
+                    .iter()
+                    .filter(move |&&hi| lo <= hi)
+                    .map(move |&hi| (lo, hi))
+            })
+            .collect();
+        for mask in 0..8u8 {
+            let dir = |bit: u8| if mask & (1 << bit) != 0 { up() } else { down() };
+            for &(al, ah) in &ranges {
+                for &(bl, bh) in &ranges {
+                    for &(cl, ch) in &ranges {
+                        let a = unit(0, 4, dir(0), al, ah);
+                        let b = unit(4, 8, dir(1), bl, bh);
+                        let c = unit(8, 12, dir(2), cl, ch);
+                        assert_projection(&a, &b, &c);
+                        n += 1;
+                    }
+                }
+            }
+        }
+        assert!(n > 9_000, "穷举域非空（{n}）");
     }
 }
