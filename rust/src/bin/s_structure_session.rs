@@ -2236,14 +2236,8 @@ fn advance_core(
 
     for (start, shape) in &wins {
         let start = *start;
-        // #1373 同角色极值身份仍有竞争时，不给依赖该组的分型选根。
-        if inclusion_facts.as_ref().is_some_and(|f| {
-            f.groups[start..start + 3]
-                .iter()
-                .any(|g| g.high_sources.len() != 1 || g.low_sources.len() != 1)
-        }) {
-            continue;
-        }
+        // #1405（#1343 Q2）：组内多根同极值时，分型的极值身份是根集合，形态只读组价——
+        // 多根窗口照常发布，不再等待「选根」（原 #1373 门已退役）。
         match shape {
             Cc006LocalShape::Classified {
                 branch,
@@ -4800,7 +4794,9 @@ mod tests {
     }
 
     #[test]
-    fn tb02a_three_groups_with_equal_roots_wait_for_exact_shape_request() {
+    fn tb02a_three_groups_with_equal_roots_publish_shape_with_root_set() {
+        // #1405（#1343 Q2/Q4）：组 {1,2} 的高点由两根同取 10——极值身份是根集合，不是未定态。
+        // 依赖该组的窗口照常发 CC-006；组/步骤请求不因同价标未定，标签只作证据留在载荷。
         let files = TestFiles::new();
         init_test_db(&files);
         accept_ohlc(
@@ -4818,24 +4814,76 @@ mod tests {
                 .count(),
             3
         );
-        assert!(objects.iter().any(|o| o["kind"] == "CC-005.inclusion_group"
-            && o["payload"]["high_sources"] == json!(["1", "2"])));
-        assert!(!objects.iter().any(|o| o["kind"] == "CC-006.local_shape"));
+        let group = objects
+            .iter()
+            .find(|o| {
+                o["kind"] == "CC-005.inclusion_group"
+                    && o["payload"]["high_sources"] == json!(["1", "2"])
+            })
+            .unwrap();
+        assert_eq!(
+            group["payload"]["waiting_reasons"],
+            json!(["equal_extreme_identity"]),
+            "同价标签留作证据"
+        );
+        let shapes: Vec<_> = objects
+            .iter()
+            .filter(|o| o["kind"] == "CC-006.local_shape")
+            .collect();
+        assert_eq!(shapes.len(), 1, "多根窗口照常发布形态");
+        assert_eq!(
+            (
+                &shapes[0]["window_start"],
+                &shapes[0]["window_mid"],
+                &shapes[0]["window_end"],
+                &shapes[0]["branch"]
+            ),
+            (&json!("0"), &json!("1"), &json!("3"), &json!("RISING"))
+        );
         let knowledge = objects
             .iter()
             .find(|o| o["kind"] == "CC-054.knowledge_state")
             .unwrap();
-        let slot = canonical_json(&json!(["CC-006.local_shape", ["0", "1", "3"]]));
-        let request = knowledge["payload"]["requests"]
+        assert_eq!(
+            knowledge["payload"]["domain"],
+            "established_direction_with_extreme_root_sets"
+        );
+        assert!(!knowledge["payload"]["waiting_reasons"]
             .as_array()
             .unwrap()
+            .contains(&json!("equal_extreme_identity")));
+        let requests = knowledge["payload"]["requests"].as_array().unwrap();
+        assert!(
+            requests.iter().all(|r| r["subject_id"].is_string()
+                || r["request_id"] == canonical_json(&json!(["CC-006.local_shape", "pending"]))),
+            "不再有 subject=null 的同价窗口请求"
+        );
+        for slot in [
+            json!(["CC-006.local_shape", ["0", "1", "3"]]),
+            json!(["CC-005.inclusion_group", "1"]),
+            json!(["CC-004.inclusion_step", "2"]),
+        ] {
+            let request = requests
+                .iter()
+                .find(|r| r["request_id"] == canonical_json(&slot))
+                .unwrap_or_else(|| panic!("缺请求 {slot}"));
+            assert!(request["subject_id"].is_string(), "{slot}");
+            assert_eq!(request["reasons"], json!([]), "{slot}");
+            assert_eq!(request["axes"]["computation"], "COMPLETE", "{slot}");
+            assert_eq!(request["axes"]["applicability"], "IN_DOMAIN", "{slot}");
+        }
+        let step = objects
             .iter()
-            .find(|r| r["request_id"] == slot)
+            .find(|o| {
+                o["kind"] == "CC-004.inclusion_step"
+                    && o["payload"]["incoming"]["source_coord"] == "2"
+            })
             .unwrap();
-        assert!(request["subject_id"].is_null());
-        assert_eq!(request["reasons"], json!(["equal_extreme_identity"]));
-        assert_eq!(request["source_coords"], json!(["0", "1", "2", "3"]));
-        assert_eq!(request["axes"]["computation"], "INCOMPLETE");
+        assert_eq!(
+            step["payload"]["waiting_reasons"],
+            json!(["equal_extreme_identity"]),
+            "步骤载荷的同价标签留作证据"
+        );
         let conn = open_db(&files.db()).unwrap();
         let evidence: String = conn
             .query_row(
@@ -4845,7 +4893,12 @@ mod tests {
             )
             .unwrap();
         let evidence: Value = serde_json::from_str(&evidence).unwrap();
-        assert_eq!(evidence["axes"]["CC-006"]["run_status"], "waiting");
+        // 原 #1373 门下此处为 "waiting"；同价窗口照常发布后 CC-006 轴实际运行。
+        assert_eq!(evidence["axes"]["CC-006"]["run_status"], "run");
+        assert_eq!(
+            evidence["axes"]["CC-006"]["evidence"]["waiting_reasons"],
+            json!([])
+        );
     }
 
     #[test]

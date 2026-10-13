@@ -17,12 +17,16 @@ KINDS += SEGMENT_KINDS
 AXES += ("CC-011", "CC-012", "CC-013")
 FIRST_SEGMENT_AXES = AXES
 AXES += ("CC-014",)
-# #1405：会话级 rule_revision 绑定笔/段两族合同代际（新笔合同, 段合同）；旧规则会话只读（AsKnown）。
+# #1405：TB-02-A 知识域两代——旧值只在旧规则会话里 AsKnown 可读；#1343 后极值身份以根集合计。
+KNOWLEDGE_DOMAIN_V1 = "established_direction_without_extreme_identity_competition"
+KNOWLEDGE_DOMAIN_V2 = "established_direction_with_extreme_root_sets"
+# #1405：会话级 rule_revision 绑定（新笔合同, 段合同, TB-02-A 知识域）代际；旧规则会话只读（AsKnown）。
 RULE_CONTRACTS = {
-    "s2-axis-quantifiers+new-bi/1": ("s-new-bi/1", None),
-    "s2-axis-quantifiers+new-bi/1+segment-first/1": ("s-new-bi/1", "s-segment/1"),
-    "s2-axis-quantifiers+new-bi/1+segment-second/1": ("s-new-bi/1", "s-segment/2"),
-    "s2-axis-quantifiers+new-bi/2+segment-second/1": ("s-new-bi/2", "s-segment/2"),
+    "s2-axis-quantifiers": (None, None, KNOWLEDGE_DOMAIN_V1),
+    "s2-axis-quantifiers+new-bi/1": ("s-new-bi/1", None, KNOWLEDGE_DOMAIN_V1),
+    "s2-axis-quantifiers+new-bi/1+segment-first/1": ("s-new-bi/1", "s-segment/1", KNOWLEDGE_DOMAIN_V1),
+    "s2-axis-quantifiers+new-bi/1+segment-second/1": ("s-new-bi/1", "s-segment/2", KNOWLEDGE_DOMAIN_V1),
+    "s2-axis-quantifiers+new-bi/2+segment-second/1": ("s-new-bi/2", "s-segment/2", KNOWLEDGE_DOMAIN_V2),
 }
 
 FACT_COLUMNS = ("object_id", "object_revision", "kind", "batch_id", "fact_key", "payload_json", "input_refs_json", "source_coords_json", "first_known_generation", "first_known_cut", "published_generation", "withdrawn_generation", "withdrawal_reason", "superseded_by")
@@ -234,7 +238,7 @@ def _validate_payload_fields(kind, p):
             raise ValueError("knowledge scope 不符")
         integer(p["input_frontier"], "knowledge.input_frontier", -1)
         strings(p["waiting_reasons"], "knowledge.waiting_reasons")
-        if p["known_facts"] != ["raw_ohlc", "inclusion_trace", "group_provenance"] or p["domain"] != "established_direction_without_extreme_identity_competition":
+        if p["known_facts"] != ["raw_ohlc", "inclusion_trace", "group_provenance"] or p["domain"] not in (KNOWLEDGE_DOMAIN_V1, KNOWLEDGE_DOMAIN_V2):
             raise ValueError("knowledge 已知事实/限定域声明不符")
         request_ids = set()
         for request in array(p["requests"], "knowledge.requests"):
@@ -332,11 +336,13 @@ def _validate_fact(value, meta=None, raw=None, *, _identity_hash=None):
     if value["fact_key"] != canonical([kind, slot]).decode():
         raise ValueError("fact_key 与真实语义槽不符")
     if meta is not None:
-        bi_schema, segment_schema = RULE_CONTRACTS.get(meta["rule_revision"], (None, None))
+        bi_schema, segment_schema, domain = RULE_CONTRACTS.get(meta["rule_revision"], (None, None, None))
         if kind in SEGMENT_KINDS and p["schema_revision"] != segment_schema:
             raise ValueError("段合同与cut规则版本不符")
         if kind in BI_KINDS and p["schema_revision"] != bi_schema:
             raise ValueError("新笔合同与cut规则版本不符")
+        if kind == KINDS[3] and domain is not None and p["domain"] != domain:
+            raise ValueError("TB-02-A 知识域与cut规则版本不符")
         identity = {key: value[key] for key in ("kind", "fact_key", "payload", "input_refs")}
         identity.update(profile_id=meta["profile_id"], rule_revision=meta["rule_revision"])
         digest = (hashlib.sha256(canonical(identity)).hexdigest() if _identity_hash is None
