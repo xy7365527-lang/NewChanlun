@@ -1,6 +1,21 @@
-# cargo test --lib（commit 355c1d8b46，基线同族 #1419 收据 2955 过 / 3 败 / 161 忽略）
+# cargo test --lib（HEAD ac9ef97c03；本票 Rust 侧终版，其后只有文档提交）
 
-thread 'theta_v0::backtest::l3_delta_r_alpha::tests::m3_partition_synthetic_holds' (11293474) panicked at src/theta_v0/backtest/l3_delta_r_alpha.rs:2541:9:
+failures:
+
+---- theta_v0::backtest::tick::tests::calibration_sweep_finds_non_collapsed_segments stdout ----
+gap=  3  strokes= 1311  segments=  27  median_stroke=$0.0100
+gap=  5  strokes= 1038  segments=  27  median_stroke=$0.0100
+gap= 10  strokes=  688  segments=  23  median_stroke=$0.0100
+gap= 20  strokes=  415  segments=  21  median_stroke=$0.0100
+gap= 50  strokes=  186  segments=   9  median_stroke=$0.0100
+gap=100  strokes=  100  segments=  10  median_stroke=$8.0900
+
+thread 'theta_v0::backtest::tick::tests::calibration_sweep_finds_non_collapsed_segments' (11756229) panicked at src/theta_v0/backtest/tick.rs:488:9:
+gap=10 笔中位尺寸 $0.0100 未逃出 gap=5 的 $0.0100 噪声底
+
+---- theta_v0::backtest::l3_delta_r_alpha::tests::m3_partition_synthetic_holds stdout ----
+
+thread 'theta_v0::backtest::l3_delta_r_alpha::tests::m3_partition_synthetic_holds' (11755980) panicked at src/theta_v0/backtest/l3_delta_r_alpha.rs:2541:9:
 合成鞅 3000 bar 产非空 ledger（否则测试空转）
 
 
@@ -8,9 +23,13 @@ failures:
     theta_v0::backtest::l3_delta_r_alpha::tests::m3_partition_synthetic_holds
     theta_v0::backtest::tick::tests::calibration_sweep_finds_non_collapsed_segments
 
-test result: FAILED. 2960 passed; 2 failed; 162 ignored; 0 measured; 0 filtered out; finished in 80.41s
+test result: FAILED. 2960 passed; 2 failed; 162 ignored; 0 measured; 0 filtered out; finished in 81.24s
 
-error: test failed, to rerun pass `--lib`
+# 失败集：恰为 m3_partition_synthetic_holds 与 calibration_sweep_finds_non_collapsed_segments 两项（基线 0d4dc644 同为红，分诊见 DELIVERY.md「红项分诊」）。
+# theta_v0::classifier::bsp::tests::no_stray_bsp_binding_rewrites_outside_registry ... ok（199b820c9d 上为红，c823155175 重锚后转绿）。
 
-# 终版 head 定点（tb02 / issue1392 / seam_btc_tick）
+# 历史读数（已被上方取代）：A 片 355c1d8b46 为 2960 过 / 2 败 / 162 忽略；199b820c9d（独立评审实测）为 2959 过 / 3 败 / 162 忽略，多出的红即 bsp 白名单行号漂移。
+# 基线同族 #1419 收据 2955 过 / 3 败 / 161 忽略。
+
+# 终版 head 定点（tb02 / issue1392 / seam_btc_tick，199b820c9d）
 test result: ok. 36 passed; 0 failed; 1 ignored; 0 measured; 3087 filtered out; finished in 16.82s

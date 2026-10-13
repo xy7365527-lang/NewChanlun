@@ -1,0 +1,91 @@
+{
+ "_scope": "独立评审 mut/contract_mutants.py 的九个合同变异，在 ac9ef97c03 工作区的临时副本上逐个应用→跑 py 十模块与 node 四文件→还原；_baseline 为未变异的失败集。runner 只按模块记 py 失败，C3 另以 unittest -v 复跑取得用例级结果。",
+ "_head": "ac9ef97c03",
+ "_reviewer_receipt": "tb1405-review/runs/contract-mutants.json（199b820c9d 上 C3、C8 存活）",
+ "_baseline": [],
+ "C1_py_v2_always": {
+  "file": "s_session/s_tb02_contract.py",
+  "from": "v2 = p[\"schema_revision\"] == \"s-new-bi/2\"",
+  "to": "v2 = True",
+  "failed": [
+   "py:test_tb02b_contract"
+  ],
+  "killed": true
+ },
+ "C2_py_v2_never": {
+  "file": "s_session/s_tb02_contract.py",
+  "from": "v2 = p[\"schema_revision\"] == \"s-new-bi/2\"",
+  "to": "v2 = False",
+  "failed": [
+   "py:test_tb02b_contract"
+  ],
+  "killed": true
+ },
+ "C3_py_bi_rule_binding_dropped": {
+  "file": "s_session/s_tb02_contract.py",
+  "from": "if kind in BI_KINDS and p[\"schema_revision\"] != bi_schema:",
+  "to": "if False and kind in BI_KINDS and p[\"schema_revision\"] != bi_schema:",
+  "failed": [
+   "py:test_tb02b_contract"
+  ],
+  "killed": true,
+  "failed_cases": [
+   "RuleBindingTest.test_new_bi_1_session_cut_rejects_new_bi_2_object",
+   "RuleBindingTest.test_new_bi_2_session_cut_rejects_new_bi_1_object"
+  ]
+ },
+ "C4_py_before_uses_event_generation": {
+  "file": "s_session/s_tb02_contract.py",
+  "from": "version = p[\"schema_revision\"] if k == \"after\" else (\"s-new-bi/2\" if \"raw_first\" in data[k][\"start\"] else \"s-new-bi/1\")",
+  "to": "version = p[\"schema_revision\"]",
+  "failed": [
+   "py:test_tb02b_contract"
+  ],
+  "killed": true
+ },
+ "C5_py_eq_selection_not_closed": {
+  "file": "s_session/s_tb02_contract.py",
+  "from": "if data[\"selection\"] != (\"REPLACE\" if stronger else \"KEEP\"):",
+  "to": "if data[\"selection\"] not in (\"REPLACE\", \"KEEP\"):",
+  "failed": [],
+  "killed": false
+ },
+ "C6_js_v2_always": {
+  "file": "s_session/browser/tb01c-client.js",
+  "from": "const v2 = p.schema_revision === \"s-new-bi/2\";",
+  "to": "const v2 = true;",
+  "failed": [
+   "node:v1 旧对象按 AsKnown 仍可读，v1/v2 字段不得混用",
+   "node:new-bi/2 会话 cut 里出现 s-new-bi/1 对象被拒"
+  ],
+  "killed": true
+ },
+ "C7_js_v2_never": {
+  "file": "s_session/browser/tb01c-client.js",
+  "from": "const v2 = p.schema_revision === \"s-new-bi/2\";",
+  "to": "const v2 = false;",
+  "failed": [
+   "node:v2 极值区端点与确定条件进入观察器",
+   "node:v2 同型同价只能 KEEP 在先者并带证据",
+   "node:new-bi/1 会话 cut 里出现 s-new-bi/2 对象被拒"
+  ],
+  "killed": true
+ },
+ "C8_js_bi_rule_binding_dropped": {
+  "file": "s_session/browser/tb01c-client.js",
+  "from": "if (BI_KINDS.includes(record.kind)) need(record.payload.schema_revision === biSchema, \"新笔合同与cut规则版本不符\");",
+  "to": "",
+  "failed": [
+   "node:new-bi/2 会话 cut 里出现 s-new-bi/1 对象被拒",
+   "node:new-bi/1 会话 cut 里出现 s-new-bi/2 对象被拒"
+  ],
+  "killed": true
+ },
+ "C9_js_before_uses_event_generation": {
+  "file": "s_session/browser/tb01c-client.js",
+  "from": "const schema = k === \"after\" ? p.schema_revision : (object(d[k].start) && Object.hasOwn(d[k].start, \"raw_first\") ? \"s-new-bi/2\" : \"s-new-bi/1\");",
+  "to": "const schema = p.schema_revision;",
+  "failed": [],
+  "killed": false
+ }
+}
