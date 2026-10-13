@@ -6293,12 +6293,20 @@ mod tests {
 #[cfg(test)]
 mod metered_key_body_tests {
     use super::*;
+    /// 键比较的读集合：一张 4 桶 hashbrown 表（公式见 work::hashbrown_layout；aarch64 140，x86_64 sse2 148）。
+    fn key_read_set() -> usize {
+        capture_allocation::work::hashbrown_layout::table_bytes_of::<NodeDigest>(4)
+    }
+    /// 键比较峰值：读集合 + 两个各 1 槽的叶迭代栈（`LeafIter`，与平台无关；aarch64 204，x86_64 sse2 212）。
+    fn key_peak() -> usize {
+        key_read_set() + 2 * std::mem::size_of::<NodeDigest>()
+    }
     #[test]
     fn borrowed_key_two_chunks_fit_without_body_layouts_or_copies() {
         let mut nodes = MemoryNodes::new();
         let a = write_value(&mut nodes, &Value::string("a".repeat(4096))).unwrap();
         let b = write_value(&mut nodes, &Value::string("b".repeat(4096))).unwrap();
-        let (capture, budget, base) = slab_capture(nodes, 204);
+        let (capture, budget, base) = slab_capture(nodes, key_peak());
         let before = budget.snapshot();
         let f = frame_calls_on_thread();
         let mut source = CaptureReader(&capture);
@@ -6312,12 +6320,12 @@ mod metered_key_body_tests {
         assert_eq!(frame_calls_on_thread() - f, 6);
         assert_eq!(
             after.live_requested_layout_bytes,
-            base + 140,
+            base + key_read_set(),
             "只有实际read集合持账"
         );
         assert_eq!(
             after.peak_requested_layout_bytes,
-            base + 204,
+            base + key_peak(),
             "集合与两个叶迭代栈持账"
         );
         assert_eq!(after.allocation_attempts, before.allocation_attempts + 3);
@@ -6367,7 +6375,7 @@ mod metered_key_body_tests {
             .compare_key_streams(&a.digest, &b.digest)
             .unwrap();
         let legacy_f = frame_calls_on_thread() - before_f;
-        let (capture, budget, base) = slab_capture(nodes, 8192 + 32 + 204);
+        let (capture, budget, base) = slab_capture(nodes, 8192 + 32 + key_peak());
         let before = budget.snapshot();
         let before_f = frame_calls_on_thread();
         assert_eq!(
@@ -6376,7 +6384,7 @@ mod metered_key_body_tests {
         );
         assert_eq!(frame_calls_on_thread() - before_f, legacy_f);
         let after = budget.snapshot();
-        assert_eq!(after.peak_requested_layout_bytes, base + 204);
+        assert_eq!(after.peak_requested_layout_bytes, base + key_peak());
         assert_eq!(after.allocated_layouts, before.allocated_layouts + 3);
         assert_eq!(after.released_layouts, before.released_layouts + 3);
         assert_eq!(after.copied_rows, before.copied_rows);
@@ -6819,9 +6827,16 @@ mod metered_verifier_body_tests {
             assert_eq!(frame_calls_on_thread() - f, 4);
             assert_eq!(after.copied_rows, before.copied_rows);
             assert_eq!(after.copied_body_bytes, before.copied_body_bytes);
+            // seen、pushed、read_digests、bytes_memo 各一张 4 桶表 + todo 4 槽（公式见 work::hashbrown_layout；
+            // aarch64 868，x86_64 sse2 916）。
+            use capture_allocation::work::hashbrown_layout::table_bytes_of as t;
+            let public_memo = 2 * t::<(NodeDigest, Flavor)>(4)
+                + t::<NodeDigest>(4)
+                + t::<((NodeDigest, Utf8State, NumState), ByteAgg)>(4)
+                + 4 * std::mem::size_of::<(NodeDigest, Flavor)>();
             assert_eq!(
                 after.live_requested_layout_bytes,
-                base + 868,
+                base + public_memo,
                 "成功memo仍持账"
             );
             assert!(
@@ -6831,6 +6846,81 @@ mod metered_verifier_body_tests {
             drop(capture);
             assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
         }
+    }
+}
+
+/// #1394 hashbrown 0.17.1 布局公式锁：逐张 memo 表断言公式值 == 实际 allocation_size。aarch64（组宽 8）
+/// 与 x86_64 sse2（组宽 16）都须通过；上面几处由公式推出的期望值以此为前提。hashbrown 升级改了布局时本锁先红。
+#[cfg(test)]
+mod hashbrown_layout_formula_lock {
+    use super::*;
+    #[test]
+    fn memo_tables_match_hashbrown_layout_formula() {
+        let mut nodes = MemoryNodes::new();
+        let built = write_value(
+            &mut nodes,
+            &Value::Object(vec![
+                (
+                    "a".repeat(4096),
+                    Value::Array(
+                        (0..40)
+                            .map(|i| Value::string(format!("item-{i}")))
+                            .collect(),
+                    ),
+                ),
+                ("b".repeat(4096), Value::string("z".repeat(5000))),
+                (
+                    "c".repeat(64),
+                    Value::Object(vec![("k".into(), Value::Null)]),
+                ),
+            ]),
+        )
+        .unwrap();
+        let reference = ContentRef::new(built.kind, &built.digest, built.extent);
+        let count = nodes.nodes.len();
+        let bytes = nodes.nodes.values().map(|(_, b)| b.len()).sum();
+        let base = capture_allocation::CaptureSlab::requested_bytes(count, bytes).unwrap();
+        let budget = capture_allocation::OwnedBudget::new(base + (1 << 20));
+        let mut slab = capture_allocation::CaptureSlab::new(count, bytes, &budget).unwrap();
+        for (d, (t, b)) in nodes.nodes {
+            slab.push(d, t, &b).unwrap();
+        }
+        let capture = AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
+        capture.verify(&reference, Mode::Public).unwrap();
+        let memo = capture.public.borrow();
+        let mut checked = Vec::new();
+        for (name, table) in [
+            ("seen", memo.seen.layout_vs_formula()),
+            ("pushed", memo.pushed.layout_vs_formula()),
+            ("read_digests", memo.read_digests.layout_vs_formula()),
+            ("bytes_memo", memo.bytes_memo.layout_vs_formula()),
+            ("elem_memo", memo.elem_memo.layout_vs_formula()),
+            ("field_memo", memo.field_memo.layout_vs_formula()),
+            ("key_cmp", memo.key_cmp.layout_vs_formula()),
+        ] {
+            if let Some((actual, formula)) = table {
+                assert_eq!(
+                    actual,
+                    formula,
+                    "{name}：实际 allocation_size 与 hashbrown 0.17.1 公式不符（组宽 {}）",
+                    capture_allocation::work::hashbrown_layout::GROUP_WIDTH
+                );
+                checked.push(name);
+            }
+        }
+        assert_eq!(
+            checked,
+            [
+                "seen",
+                "pushed",
+                "read_digests",
+                "bytes_memo",
+                "elem_memo",
+                "field_memo",
+                "key_cmp"
+            ],
+            "七张 memo 表都须分配并逐张核对"
+        );
     }
 }
 

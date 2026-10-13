@@ -428,6 +428,45 @@ impl<T> AsRef<[T]> for CodecVec<T> {
     }
 }
 
+/// #1394 测试辅助：hashbrown 0.17.1（Cargo.toml 钉 `=0.17.1`）一张表的 requested Layout 字节数。
+/// 组宽照 `control/group/mod.rs` 的选择：x86/x86_64 且 sse2 → 16（`__m128i`）；小端 aarch64 且 neon → 8
+/// （`uint8x8_t`）；其余走 generic（`GroupWord` = 指针宽）。字节数照 `raw.rs` `TableLayout::calculate_layout_for`：
+/// `round_up(size·buckets, max(align, 组宽)) + buckets + 组宽`。只供测试由同一公式推出期望值；hashbrown 升级
+/// 改了布局时 `memo_tables_match_hashbrown_layout_formula` 先红，依赖本模块的期望值须随之复核。
+#[cfg(test)]
+pub(crate) mod hashbrown_layout {
+    pub(crate) const GROUP_WIDTH: usize = if cfg!(all(
+        target_feature = "sse2",
+        any(target_arch = "x86", target_arch = "x86_64"),
+        not(miri)
+    )) {
+        16
+    } else if cfg!(all(
+        target_arch = "aarch64",
+        target_feature = "neon",
+        target_endian = "little",
+        not(miri)
+    )) {
+        8
+    } else {
+        std::mem::size_of::<usize>()
+    };
+    /// `buckets` 个桶、元素 `T` 的表分配字节数。
+    pub(crate) fn table_bytes_of<T>(buckets: usize) -> usize {
+        let (size, align) = (std::mem::size_of::<T>(), std::mem::align_of::<T>());
+        let ctrl_align = align.max(GROUP_WIDTH);
+        ((size * buckets + ctrl_align - 1) & !(ctrl_align - 1)) + buckets + GROUP_WIDTH
+    }
+    /// `capacity()`（= `bucket_mask_to_capacity`，表内无墓碑时）→ 桶数。
+    pub(crate) fn buckets_for_capacity(capacity: usize) -> usize {
+        if capacity < 8 {
+            capacity + 1
+        } else {
+            capacity / 7 * 8
+        }
+    }
+}
+
 pub(crate) enum WorkMap<K, V> {
     Plain(hashbrown::HashMap<K, V, RandomState, allocator_api2::alloc::Global>),
     Owned(hashbrown::HashMap<K, V, RandomState, LedgerAllocator>),
@@ -539,6 +578,18 @@ impl<K: Eq + Hash, V> WorkMap<K, V> {
             Self::Owned(m) => m.capacity(),
         }
     }
+    /// 测试：已分配表的（实际 allocation_size，hashbrown 公式值）；未分配返回 None。
+    #[cfg(test)]
+    pub(crate) fn layout_vs_formula(&self) -> Option<(usize, usize)> {
+        use hashbrown_layout::{buckets_for_capacity, table_bytes_of};
+        let actual = self.retained_layout_bytes();
+        (actual > 0).then(|| {
+            (
+                actual,
+                table_bytes_of::<(K, V)>(buckets_for_capacity(self.capacity())),
+            )
+        })
+    }
     pub(crate) fn is_empty(&self) -> bool {
         match self {
             Self::Plain(m) => m.is_empty(),
@@ -573,6 +624,18 @@ impl<T: Eq + Hash> WorkSet<T> {
             Self::Plain(_) => None,
             Self::Owned(m) => Some(m.allocation_size()),
         }
+    }
+    /// 测试：已分配表的（实际 allocation_size，hashbrown 公式值）；Plain 或未分配返回 None。
+    #[cfg(test)]
+    pub(crate) fn layout_vs_formula(&self) -> Option<(usize, usize)> {
+        use hashbrown_layout::{buckets_for_capacity, table_bytes_of};
+        let actual = self.retained_layout_bytes()?;
+        (actual > 0).then(|| {
+            (
+                actual,
+                table_bytes_of::<T>(buckets_for_capacity(self.capacity())),
+            )
+        })
     }
     pub(crate) fn insert(&mut self, v: T) -> Result<bool, CodecError> {
         match self {

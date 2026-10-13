@@ -1219,10 +1219,20 @@ mod tests {
         owner.verify_cached(&root, Mode::Template).unwrap();
         assert!(cap.public.borrow().seen.is_empty());
         assert!(!cap.template.borrow().seen.is_empty());
+        // 期望值由 hashbrown 0.17.1 表布局公式逐表推出（组宽随 target，见 work::hashbrown_layout）；桶数由本场景
+        // 的插入量决定，与平台无关。aarch64 合计 5772，x86_64 sse2 合计 5836。
+        use capture_allocation::work::hashbrown_layout::table_bytes_of as t;
+        let template_memo = t::<(NodeDigest, Flavor)>(16) // seen
+            + t::<(NodeDigest, Flavor)>(8) // pushed
+            + t::<NodeDigest>(64) // read_digests
+            + t::<((NodeDigest, Utf8State, NumState), ByteAgg)>(16) // bytes_memo
+            + t::<((NodeDigest, Flavor), FieldAgg)>(8) // field_memo
+            + t::<((NodeDigest, NodeDigest), std::cmp::Ordering)>(8) // key_cmp
+            + 4 * std::mem::size_of::<(NodeDigest, Flavor)>(); // todo：Vec 4 槽，与平台无关
         let retained_capture = cap.retained_layout_bytes().unwrap() as usize;
         assert_eq!(
             retained_capture - base,
-            5772,
+            template_memo,
             "成功Template memo的集合和折叠map由capture实际持有"
         );
         assert_eq!(
