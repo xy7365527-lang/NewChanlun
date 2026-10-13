@@ -60,7 +60,9 @@ use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde_json::{json, Value};
 
 /// CC-006 验收合同修订（SPEC-COVERAGE-INPUT.json `/classification_axes/5`）。
-const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/1+segment-second/1";
+/// #1405：新笔规则升 `new-bi-dual-coordinate/2`（#1343 同价裁定）⟹ 会话级规则随之升 `new-bi/2`；
+/// 旧规则会话只读（AsKnown），同一 rule_revision 下不混两代笔对象。
+const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2+segment-second/1";
 
 /// S 唯一结构写者的默认 writer_epoch（可经 `--writer-epoch` / `recover` 换代）。
 const DEFAULT_WRITER_EPOCH: &str = "1";
@@ -6898,19 +6900,23 @@ mod tests {
         cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
 
         let s = snapshot_of(&files, None);
-        // 见证 raw_bars.supersedes_revision 必须是规范十进制字符串（不 Number 中转）。
-        let mut saw_supersedes: Option<String> = None;
+        // 见证 raw_bars.supersedes_revision 必须是规范十进制字符串（不 Number 中转）。见证按 object_id（内容 hash，
+        // 含 RULE_REVISION）排序，故按集合核对，不依赖哪个见证排在最后（#1419 升规则修订后顺序改变）。
+        let mut saw_supersedes = std::collections::BTreeSet::new();
         for w in s["witnesses"].as_array().unwrap() {
             for rb in w["raw_bars"].as_array().unwrap() {
                 if let Some(sup) = rb.get("supersedes_revision") {
                     if !sup.is_null() {
                         assert!(sup.is_string(), "supersedes_revision 应为字符串：{sup}");
-                        saw_supersedes = Some(sup.as_str().unwrap().to_string());
+                        saw_supersedes.insert(sup.as_str().unwrap().to_string());
                     }
                 }
             }
         }
-        assert_eq!(saw_supersedes.as_deref(), Some("9007199254740993"));
+        assert!(
+            saw_supersedes.contains("9007199254740993"),
+            "第二次 >2^53 修订的 supersedes 须精确往返：{saw_supersedes:?}"
+        );
         // raw_history 的 supersedes_revision 同样为字符串。
         for r in s["raw_history"].as_array().unwrap() {
             if r["supersedes_revision"] != Value::Null {
