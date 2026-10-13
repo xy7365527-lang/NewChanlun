@@ -1527,3 +1527,28 @@ mod tests {
 pub(super) fn trace_request_clock(bytes: usize, elapsed: std::time::Duration) {
     state::trace_request_clock(bytes, elapsed);
 }
+
+mod ordinary_materials;
+
+#[cfg(test)]
+mod overlay_ab_fixture {
+ use super::*;
+ #[test]
+ fn complete_return_and_corrupt_fixture(){
+  let mut f=crate::v3::prepared::tests::Fixture::new();for (n,row) in [(1,("a",0,6,12,3,7)),(2,("b",10,8,16,6,12))]{let(e,t)=f.accept_begin(n,row,1);f.publish(&e,&t).unwrap();}
+  {let tx=f.conn.transaction().unwrap();let s=state::audit(&tx).unwrap();println!("AB_VALID {}",crate::canonical_json(&state::overlay_ab_signature(&s)));}
+  let (d,body):(Vec<u8>,Vec<u8>)=f.conn.query_row("SELECT n.digest,n.body FROM s_content_nodes n JOIN s_content_publications p ON n.digest=p.snapshot_root ORDER BY p.generation LIMIT 1",[],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();let mut bad=body;bad[0]^=1;f.conn.execute("UPDATE s_content_nodes SET body=?1 WHERE digest=?2",rusqlite::params![bad,d]).unwrap();let tx=f.conn.transaction().unwrap();let e=match state::audit(&tx){Ok(_)=>panic!("damaged frame admitted"),Err(e)=>e};println!("AB_INVALID {}",e);
+ }
+}
+
+#[cfg(test)]
+mod transaction_view_multiple_bad_fixture {
+ use super::*;
+ #[test]
+ fn two_bad_roots_preserve_first_error(){
+  let mut f=prepared::tests::Fixture::new();for(n,row)in[(1,("a",0,6,12,3,7)),(2,("b",10,8,16,6,12))]{let(e,t)=f.accept_begin(n,row,1);f.publish(&e,&t).unwrap();}
+  let rows:Vec<(Vec<u8>,Vec<u8>)>={let mut q=f.conn.prepare("SELECT n.digest,n.body FROM s_content_nodes n JOIN s_content_publications p ON n.digest=p.snapshot_root ORDER BY p.generation LIMIT 2").unwrap();q.query_map([],|r|Ok((r.get(0)?,r.get(1)?))).unwrap().collect::<Result<_,_>>().unwrap()};assert_eq!(rows.len(),2);
+  for(d,mut b)in rows{b[0]^=1;f.conn.execute("UPDATE s_content_nodes SET body=?1 WHERE digest=?2",rusqlite::params![b,d]).unwrap();}
+  let tx=f.conn.transaction().unwrap();let error=match state::audit(&tx){Ok(_)=>panic!("bad nodes admitted"),Err(e)=>e};println!("AB_TWO_BAD {}",error);
+ }
+}

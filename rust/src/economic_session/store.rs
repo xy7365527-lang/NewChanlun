@@ -18,8 +18,8 @@ pub(crate) fn err(e: impl std::fmt::Display) -> String {
 /// 旧域不原地升级、不混写，未知值当场拒绝（§5.8）。
 pub(crate) const SCHEMA_V1: &str = "economic-session/1";
 pub(crate) const SCHEMA_V2: &str = "economic-session/2";
-/// 旧调用点（含本票禁改的 `finance_transport.rs` 与既有单位测试）继续按 `/1` 读取；
-/// 新增调用点一律走 `Config::revision()`。
+/// #1394：旧 `/1` 调用与单位测试的兼容别名；
+/// 按 manifest 运行的生产调用一律走 `Config::revision()`。
 pub(crate) const SCHEMA: &str = SCHEMA_V1;
 /// manifest 顶层的版本选择子：缺省 `/1`（旧 manifest 逐字仍可读），显式只认两个已知值。
 /// 外层 `economic-manifest/1` 不因此改变。

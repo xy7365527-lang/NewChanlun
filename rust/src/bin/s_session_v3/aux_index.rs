@@ -3797,3 +3797,6 @@ mod owner_retention {
         }
     }
 }
+
+#[cfg(test)]
+impl Index { pub(super) fn overlay_ab_budget_absent(&self)->bool{self.budget.is_none()} }

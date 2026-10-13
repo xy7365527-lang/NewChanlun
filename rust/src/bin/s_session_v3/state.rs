@@ -35,6 +35,9 @@ use super::*;
 use newchan_rust::s_content::{self as sc, ContentRef, NodeStore};
 use rusqlite::Transaction;
 
+/// #1394 仅本模块可签发；不是公开事务或跨请求缓存许可。
+pub(super) struct OrdinaryAuditSeal { _private: () }
+
 /// 完整状态审计的返回值：全部来自同一只读快照与 SQLite 已持久原件。
 pub(super) struct AuditedState {
     /// 同一快照内的真实原始账（`raw_events` 逐序回读）。
@@ -665,6 +668,11 @@ fn audit_core_fresh_inner(
         None
     };
     let capture = external_capture.or(constructed_capture.as_ref());
+    let ordinary_materials_qualified = budget.is_none() && deadline.is_none()
+        && max_render_bytes.is_none() && !enable_prototype_capture
+        && owned_budget.is_none() && capture.is_none() && external_capture.is_none()
+        && work.is_none() && fresh.is_none()
+        && !cfg!(feature = "s_capture_native_testonly");
     #[cfg(test)]
     let capture_ns = capture_started.elapsed().as_nanos();
     #[cfg(all(test, feature = "s_allocation_sqlite_testonly"))]
@@ -728,6 +736,8 @@ fn audit_core_fresh_inner(
         .and_then(|capture| history::NativeRecordFields::new_admitted(capture, work));
     #[cfg(not(feature = "s_capture_native_testonly"))]
     let mut native_records: Option<history::NativeRecordFields<'_>> = None;
+    let mut materials = ordinary_materials_qualified.then(||
+        super::ordinary_materials::OrdinaryAuditMaterials::new(OrdinaryAuditSeal { _private: () }));
     let history::IndexedHistory {
         control_facts,
         raw_prefixes,
@@ -736,7 +746,7 @@ fn audit_core_fresh_inner(
         objects,
         auxiliary,
         object_sweep,
-    } = history::read_indexed_history_for_audit_captured_with_records_admitted(
+    } = history::read_indexed_history_for_sealed_ordinary_audit(
         tx,
         raw.view(),
         control,
@@ -746,6 +756,7 @@ fn audit_core_fresh_inner(
         capture,
         native_records.as_mut(),
         work,
+        materials.as_mut(),
     )?;
     #[cfg(test)]
     trace_event("catalog_metadata", None);
@@ -758,11 +769,17 @@ fn audit_core_fresh_inner(
     if budget.is_none() {
         reader.enable_audit_same_material();
     }
+    let mut reader = Some(reader);
+    let mut material_source = materials.as_mut().map(|pool| pool.source(reader.take().unwrap()));
+    let source: &mut dyn sc::NodeSource = match material_source.as_mut() {
+        Some(source) => source,
+        None => reader.as_mut().unwrap(),
+    };
     let mut store = match capture.as_ref() {
         Some(c) => history::HashReader::captured_for_audit(c, max_render_bytes)
             .map_err(err)?
             .with_audit_gate(budget, deadline),
-        None => history::HashReader::metered(&mut reader, deadline, max_render_bytes, budget),
+        None => history::HashReader::metered(source, deadline, max_render_bytes, budget),
     };
     store = store.with_native_scope(work).map_err(err)?;
     // 7a. 当前代对象索引已在同次history中完整加载并绑定原件；继续用它核逐代变化。
@@ -2694,4 +2711,44 @@ pub(super) fn trace_local_sha256(calls: u64, bytes: usize) {
             t.work.local_sha256_bytes += bytes as u64;
         }
     });
+}
+
+#[cfg(test)]
+pub(super) fn overlay_ab_signature(s:&AuditedState)->serde_json::Value {
+ let digest=|bytes:&[u8]|crate::sha256_hex(bytes);
+ let cuts=s.cuts.iter().map(|c|serde_json::json!({"metadata_debug":format!("{:?}",c.metadata),"roots_debug":format!("{:?}",c.roots),"batch_id":c.batch_id,"snapshot":c.snapshot,"delta":c.delta})).collect::<Vec<_>>();
+ let components=serde_json::json!({"raw_sha256":digest(crate::canonical_json(&serde_json::json!(s.raw)).as_bytes()),"control_facts":s.control_facts.overlay_ab_control_signature(),"cuts":cuts,"objects_debug_sha256":digest(format!("{:?}",s.objects).as_bytes()),"auxiliary_debug_sha256":digest(format!("{:?}",s.auxiliary).as_bytes()),"budget_present":s.budget.is_some(),"auxiliary_budget_present":!s.auxiliary.overlay_ab_budget_absent(),"raw_prefixes_present":s.raw_prefixes.is_some(),"raw_sources_present":s.raw_sources.is_some(),"auxiliary_facts_present":s.auxiliary_facts.is_some(),"object_facts_present":s.object_facts.is_some()});
+ // 该完整签名只接受普通返回布局；任何意外Native状态不以存在性摘要蒙混。
+ assert!(s.auxiliary.overlay_ab_budget_absent() && s.budget.is_none() && s.raw_prefixes.is_none() && s.raw_sources.is_none() && s.auxiliary_facts.is_none() && s.object_facts.is_none());
+ serde_json::json!({"schema_revision":"ordinary-audit-complete-return/1","sha256":digest(crate::canonical_json(&components).as_bytes()),"components":components})
+}
+
+#[cfg(test)]
+mod transaction_material_qualification {
+ use super::*;
+ struct Meter;
+ impl audit_budget::Budget for Meter {
+  fn precheck(&self)->Result<(),sc::CodecError>{Ok(())}
+  fn prepare_node(&self)->Result<(),sc::CodecError>{Ok(())}
+  fn accept_prepared_frame(&self,_:&sc::job::CheckedFrame)->Result<(),sc::CodecError>{Ok(())}
+  fn node(&self,_:&sc::NodeDigest,_:u8,_:&[u8])->Result<(),sc::CodecError>{Ok(())}
+  fn record(&self)->Result<(),sc::CodecError>{Ok(())}
+ }
+ #[test]
+ fn actual_entry_seven_exclusions_and_fresh_drop(){
+  let mut f=prepared::tests::Fixture::new();let tx=f.conn.transaction().unwrap();
+  let owned=sc::capture_allocation::OwnedBudget::new(1024*1024);let capture=sc::AuditCapture::new(sc::MemoryNodes::new());let meter=Meter;
+  for which in 0..8 {
+   super::super::ordinary_materials::LAST_REPORT.with(|r|r.set(None));
+   let fresh=if which==7{Some((control_audit::prepare_s3_control_history(&tx).unwrap(),super::super::business_json::RawEvents::Plain(read_raw_events_until_admitted(&tx,None,None).unwrap())))}else{None};
+   let result=audit_core_fresh(&tx,if which==1{Some(std::time::Instant::now()+std::time::Duration::from_secs(60))}else{None},if which==2{Some(1024*1024)}else{None},if which==3{Some(&meter)}else{None},which==4,if which==5{Some(&owned)}else{None},if which==6{Some(&capture)}else{None},fresh,RetentionReport::Skip);
+   if which==0 {result.unwrap();}
+   super::super::ordinary_materials::LAST_REPORT.with(|r|assert_eq!(r.get().is_some(),which==0,"qualification case {}",which));
+  }
+  use sc::capture_allocation::scratch::*;struct Parent;
+  impl ScratchParent for Parent {fn reserve(&self,_:usize,_:ScratchCharge)->Result<(),ScratchFailure>{Ok(())}fn release(&self,_:usize,_:ScratchCharge)->Result<(),ScratchFailure>{Ok(())}fn health(&self)->Result<(),ScratchFailure>{Ok(())}fn invalidate(&self){}}
+  super::super::ordinary_materials::LAST_REPORT.with(|r|r.set(None));
+  let _=CodecWork::new(std::sync::Arc::new(Parent),1024*1024).unwrap().run(|scope|{let _=audit_core_fresh_inner(&tx,None,None,None,false,None,None,None,RetentionReport::Skip,Some(scope));Ok::<_,()>(())});
+  super::super::ordinary_materials::LAST_REPORT.with(|r|assert!(r.get().is_none()));
+ }
 }

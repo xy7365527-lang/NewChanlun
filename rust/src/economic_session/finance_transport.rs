@@ -1,6 +1,6 @@
 //! #1394：财务模块内部的有界输送。响应未知只能查原身份，不铸造新许可。
 use super::financial_reader_resources::FinancialReaderResources;
-use super::store::{Config, SCHEMA};
+use super::store::Config;
 use crate::s_content::job::Job;
 use crate::session_protocol::{canonical_json, positive, reply_envelope, required, strict_json};
 use serde_json::Value;
@@ -78,7 +78,7 @@ fn round_trip(
     let expected = reply_envelope(
         &request,
         reply["payload"].clone(),
-        SCHEMA,
+        config.revision()?,
         &config.session,
         &config.generation,
         "economic-session/replies",
@@ -466,6 +466,7 @@ fn nonblocking(fd: std::os::fd::RawFd) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::store::SCHEMA;
     use super::*;
     use crate::session_protocol::validate_envelope;
     use serde_json::json;
@@ -840,5 +841,226 @@ mod financial_reader_tests {
         assert!(FinancialReaderResources::from_json(&value).is_err());
         value["max_reply_bytes"] = json!(1);
         assert!(FinancialReaderResources::from_json(&value).is_err());
+    }
+}
+
+#[cfg(test)]
+mod revision_tests {
+    use super::super::store::{SCHEMA_V1, SCHEMA_V2};
+    use super::*;
+    use serde_json::json;
+
+    // #1394：真实 socket/EOF 路径，只提供帧，不启动任何经济域或数据库。
+    fn exchange(
+        revision: Option<Value>,
+        reply_revision: &str,
+        mutate: impl FnOnce(&mut Value),
+    ) -> Result<Value, String> {
+        let mut manifest = json!({});
+        if let Some(revision) = revision {
+            manifest["protocol_revision"] = revision;
+        }
+        let config = Config {
+            manifest,
+            manifest_hash: String::new(),
+            db: Default::default(),
+            domain: "E".into(),
+            session: "transport-revision-unit".into(),
+            generation: "3".into(),
+            producer: "E".into(),
+            socket: Default::default(),
+        };
+        let payload = json!({"op":"QueryDecision","decision_id":"alpha"});
+        let request = json!({
+            "schema_revision":config.manifest["protocol_revision"].as_str().unwrap_or(SCHEMA_V1),
+            "session_id":config.session,"session_generation":config.generation,
+            "source_namespace":"coordinator","source_epoch":"epoch-a",
+            "producer_id":"unit","producer_epoch":"7","message_id":"original-query",
+            "payload_hash":crate::session_protocol::sha256_hex(canonical_json(&payload).as_bytes()),
+            "causal_refs":[],"payload":payload
+        });
+        let mut reply = reply_envelope(
+            &request,
+            json!({"kind":"EconomicDecision","domain_id":"B:alpha"}),
+            reply_revision,
+            &config.session,
+            &config.generation,
+            "economic-session/replies",
+            "B:alpha:transport-revision-unit",
+            "11",
+        );
+        mutate(&mut reply);
+        let bytes = (canonical_json(&reply) + "\n").into_bytes();
+        let expected_request = (canonical_json(&request) + "\n").into_bytes();
+        let (client, mut server) = UnixStream::pair().unwrap();
+        let worker = std::thread::spawn(move || {
+            server
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
+            server
+                .set_write_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
+            let mut received = Vec::new();
+            server.read_to_end(&mut received).unwrap();
+            assert_eq!(received, expected_request);
+            server.write_all(&bytes).unwrap();
+            server.shutdown(std::net::Shutdown::Write).unwrap();
+        });
+        let result = round_trip(
+            &config,
+            "B:alpha",
+            "11",
+            request,
+            client,
+            16384,
+            Instant::now() + Duration::from_secs(2),
+        );
+        worker.join().unwrap();
+        result
+    }
+
+    #[test]
+    fn v2_round_trip_uses_registered_revision() {
+        let result = exchange(Some(json!(SCHEMA_V2)), SCHEMA_V2, |_| {});
+        assert_eq!(
+            result.unwrap(),
+            json!({"kind":"EconomicDecision","domain_id":"B:alpha"})
+        );
+    }
+
+    #[test]
+    fn legacy_revision_selection_remains_compatible() {
+        for revision in [None, Some(Value::Null), Some(json!(SCHEMA_V1))] {
+            assert_eq!(
+                exchange(revision, SCHEMA_V1, |_| {}).unwrap()["kind"],
+                "EconomicDecision"
+            );
+        }
+    }
+
+    #[test]
+    fn cross_version_reply_is_rejected_in_both_directions() {
+        for (config, reply) in [(SCHEMA_V1, SCHEMA_V2), (SCHEMA_V2, SCHEMA_V1)] {
+            let error = exchange(Some(json!(config)), reply, |_| {}).unwrap_err();
+            assert!(
+                error.starts_with("IdentityConflict"),
+                "{config}/{reply}: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn all_eleven_fields_and_exact_shape_remain_bound() {
+        for revision in [SCHEMA_V1, SCHEMA_V2] {
+            for field in [
+                "schema_revision",
+                "session_id",
+                "session_generation",
+                "source_namespace",
+                "source_epoch",
+                "message_id",
+                "producer_id",
+                "producer_epoch",
+                "payload_hash",
+                "causal_refs",
+                "payload",
+            ] {
+                let error = exchange(Some(json!(revision)), revision, |reply| {
+                    assert_eq!(reply.as_object().unwrap().len(), 11);
+                    if field == "payload" {
+                        // 不重算 hash/id；自洽的新 payload 仍交由上层业务判断。
+                        reply["payload"]["domain_id"] = json!("B:other");
+                    } else if field == "causal_refs" {
+                        reply[field] = json!([]);
+                    } else {
+                        reply[field] = json!("tampered");
+                    }
+                })
+                .unwrap_err();
+                assert!(
+                    error.starts_with("IdentityConflict"),
+                    "{revision}/{field}: {error}"
+                );
+                assert!(
+                    exchange(Some(json!(revision)), revision, |reply| {
+                        reply.as_object_mut().unwrap().remove(field);
+                    })
+                    .is_err(),
+                    "missing {revision}/{field}"
+                );
+            }
+            let error = exchange(Some(json!(revision)), revision, |reply| {
+                reply["unexpected"] = json!(true);
+            })
+            .unwrap_err();
+            assert!(error.starts_with("IdentityConflict"));
+        }
+    }
+
+    #[test]
+    fn original_causal_identity_and_expected_epoch_remain_bound() {
+        for revision in [SCHEMA_V1, SCHEMA_V2] {
+            for field in [
+                "source_namespace",
+                "source_epoch",
+                "message_id",
+                "payload_hash",
+            ] {
+                let error = exchange(Some(json!(revision)), revision, |reply| {
+                    reply["causal_refs"][0][field] = json!("wrong-original");
+                })
+                .unwrap_err();
+                assert!(
+                    error.starts_with("IdentityConflict"),
+                    "{revision}/{field}: {error}"
+                );
+            }
+            let error = exchange(Some(json!(revision)), revision, |reply| {
+                let cause = reply["causal_refs"][0].clone();
+                reply["causal_refs"].as_array_mut().unwrap().push(cause);
+            })
+            .unwrap_err();
+            assert!(error.starts_with("IdentityConflict"));
+            let error = exchange(Some(json!(revision)), revision, |reply| {
+                reply["producer_epoch"] = json!("10");
+                reply["source_epoch"] = json!("10");
+            })
+            .unwrap_err();
+            assert!(error.starts_with("IdentityConflict"));
+        }
+    }
+
+    #[test]
+    fn authenticated_business_error_is_propagated_for_both_revisions() {
+        for revision in [SCHEMA_V1, SCHEMA_V2] {
+            let error = exchange(Some(json!(revision)), revision, |reply| {
+                let cause = reply["causal_refs"][0].clone();
+                *reply = reply_envelope(
+                    &cause,
+                    json!({"kind":"Error","error":"AwaitingPolicy：unit-test"}),
+                    revision,
+                    "transport-revision-unit",
+                    "3",
+                    "economic-session/replies",
+                    "B:alpha:transport-revision-unit",
+                    "11",
+                );
+            })
+            .unwrap_err();
+            assert_eq!(error, "AwaitingPolicy：unit-test");
+        }
+    }
+
+    #[test]
+    fn unknown_or_nontext_manifest_revision_is_rejected() {
+        for revision in [
+            json!("economic-session/999"),
+            json!(2),
+            json!([]),
+            json!({}),
+        ] {
+            let error = exchange(Some(revision), SCHEMA_V1, |_| {}).unwrap_err();
+            assert!(error.starts_with("SchemaUnsupported"), "{error}");
+        }
     }
 }

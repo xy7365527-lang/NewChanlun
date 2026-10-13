@@ -329,6 +329,7 @@ pub(super) fn read_indexed_history(
         None,
         None,
         None,
+        None,
     )
 }
 
@@ -348,6 +349,7 @@ pub(super) fn read_indexed_history_for_audit(
         max_render_bytes,
         budget,
         budget.is_none(),
+        None,
         None,
         None,
         None,
@@ -406,8 +408,24 @@ pub(super) fn read_indexed_history_for_audit_captured_with_records_admitted<'a>(
     max_render_bytes: Option<u64>,
     budget: Option<&dyn super::audit_budget::Budget>,
     capture: Option<&sc::AuditCapture>,
+    records: Option<&mut NativeRecordFields<'_>>,
+    work: Option<&sc::capture_allocation::scratch::WorkScope>,
+) -> Result<IndexedHistory, String> {
+    read_indexed_history_for_sealed_ordinary_audit(tx, raw, control, deadline, max_render_bytes,
+        budget, capture, records, work, None)
+}
+
+pub(super) fn read_indexed_history_for_sealed_ordinary_audit<'a>(
+    tx: &Transaction<'_>,
+    raw: impl Into<RawEventsView<'a>>,
+    control: v2::ControlHistory,
+    deadline: Option<std::time::Instant>,
+    max_render_bytes: Option<u64>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+    capture: Option<&sc::AuditCapture>,
     mut records: Option<&mut NativeRecordFields<'_>>,
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
+    materials: Option<&mut super::ordinary_materials::OrdinaryAuditMaterials>,
 ) -> Result<IndexedHistory, String> {
     // 清除失败 history 的部分交接材料；不会交给后续 source 审计。
     let result = read_indexed_history_inner(
@@ -421,6 +439,7 @@ pub(super) fn read_indexed_history_for_audit_captured_with_records_admitted<'a>(
         capture,
         records.as_deref_mut(),
         work,
+        materials,
     );
     if result.is_err() {
         if let Some(records) = records {
@@ -441,6 +460,7 @@ fn read_indexed_history_inner(
     capture: Option<&sc::AuditCapture>,
     mut records: Option<&mut NativeRecordFields<'_>>,
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
+    materials: Option<&mut super::ordinary_materials::OrdinaryAuditMaterials>,
 ) -> Result<IndexedHistory, String> {
     check_deadline(deadline)?;
     #[cfg(feature = "s_capture_native_testonly")]
@@ -455,13 +475,19 @@ fn read_indexed_history_inner(
     if audit_same_material {
         reader.enable_audit_same_material();
     }
+    let mut reader = Some(reader);
+    let mut material_source = materials.map(|pool| pool.source(reader.take().unwrap()));
+    let source: &mut dyn NodeSource = match material_source.as_mut() {
+        Some(source) => source,
+        None => reader.as_mut().unwrap(),
+    };
     let capture =
         capture.filter(|c| c.is_allocation_prototype() || (budget.is_none() && deadline.is_none()));
     let mut store = match capture {
         Some(c) => HashReader::captured_for_audit(c, max_render_bytes)
             .map_err(err)?
             .with_audit_gate(budget, deadline),
-        None => HashReader::metered(&mut reader, deadline, max_render_bytes, budget),
+        None => HashReader::metered(source, deadline, max_render_bytes, budget),
     };
     store = store.with_native_scope(work).map_err(err)?;
     store.audit_full_arrays = audit_same_material && budget.is_none();
