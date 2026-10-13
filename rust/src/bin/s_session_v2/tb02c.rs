@@ -160,7 +160,7 @@ pub(super) fn build(
                 "direction":if bi.start.kind=="BOTTOM" {"UP"}else{"DOWN"},
                 "member_direction":if bi.start.kind=="BOTTOM" {"UP"}else{"DOWN"},
                 "facts":second,"stroke_refs":refs,
-                "scan":{"from_stroke":c.start_stroke,"through_stroke":second.through_stroke,
+                "scan":{"from_stroke":second.from_stroke,"through_stroke":second.through_stroke,
                     "input_stroke_count":second.input_stroke_count,"resource_truncated":second.resource_truncated,"tail_cache_window":0},
                 "second_sequence_status":if second.matched.is_some() {"CONFIRMED"}else{"PENDING"}});
             add(&mut b, KINDS[1], json!(sequence), generation, seq_data, sources.clone())

@@ -241,6 +241,7 @@
     need(p.schema_revision === (v2 ? "s-segment/2" : "s-segment/1") && p.semantic_version === (v2 ? "segment-second/1" : "segment-seed-first/1") && p.policy_version === (v2 ? "seed_closed_strict_second" : "seed_closed_first_no_gap") && p.view_role === "main", "段规则/范围版本不符");
     integer(p.object_generation, true);
     const d = p.data, refs = new Map();
+    let segmentStart = null;
     function known(k) {
       keys(k, ["generation", "input_frontier", "receipt_id", "received_at", "semantic_commit_ns"], "段获知时点");
       integer(k.generation, true); integer(k.input_frontier, false, true);
@@ -282,11 +283,15 @@
       keys(d.scan, ["from_stroke", "through_stroke", "input_stroke_count", "resource_truncated", "tail_cache_window"], "扫描范围");
       for (const [k,v] of Object.entries(d.scan)) if (k !== "resource_truncated") integer(v);
       need(typeof d.scan.resource_truncated === "boolean", "截断状态错型");
+      need(refs.size > 0, "特征序列缺段笔引用");
+      // 身份锚＝stroke_refs 中数值最小的笔号，即段起笔；wire 整数是十进制文本，须按数值取最小。
+      segmentStart = [...refs.keys()].reduce((a, b) => BigInt(b) < BigInt(a) ? b : a);
+      need(second || d.scan.from_stroke === segmentStart, "FIRST扫描起点不是段起笔");
       const f = d.facts; keys(f, ["raw_elements", "standard", "steps", "checks", ...(second ? ["from_stroke", "through_stroke", "input_stroke_count", "resource_truncated", "matched"] : [])], "序列事实");
       for (const k of ["raw_elements", "standard", "steps", "checks"]) need(Array.isArray(f[k]), "序列事实集合错型");
       if (second) {
         integer(f.from_stroke); integer(f.through_stroke, false, true); integer(f.input_stroke_count);
-        need(typeof f.resource_truncated === "boolean" && d.scan.tail_cache_window === "0" && ["through_stroke", "input_stroke_count", "resource_truncated"].every(k => f[k] === d.scan[k]), "SECOND扫描边界不符");
+        need(typeof f.resource_truncated === "boolean" && d.scan.tail_cache_window === "0" && ["from_stroke", "through_stroke", "input_stroke_count", "resource_truncated"].every(k => f[k] === d.scan[k]) && BigInt(d.scan.from_stroke) > BigInt(segmentStart), "SECOND扫描边界不符");
       }
       [...f.raw_elements, ...f.standard].forEach(element);
       for (const s of f.steps) {
@@ -380,7 +385,7 @@
     }
     if ([...SEGMENT_KINDS.slice(0,3), SEGMENT_KINDS[6]].includes(kind)) {
       if (kind === SEGMENT_KINDS[1]) {
-        const expected = `segment:${p.object_generation}:${refs.get(d.scan.from_stroke).start_anchor}`;
+        const expected = `segment:${p.object_generation}:${refs.get(segmentStart).start_anchor}`;
         need(d.segment_id === expected && d.entity_id === (d.role === "SECOND_SEQUENCE" ? "second:" : "first:") + expected && ((d.direction === d.member_direction) === (d.role === "SECOND_SEQUENCE")), "FIRST身份/反向成员不符");
       } else {
         const anchor = refs.size ? refs.get(d.construction.start_stroke).start_anchor : "empty";

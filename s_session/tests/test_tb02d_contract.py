@@ -20,7 +20,7 @@ def samples():
     check = dict(elements=elements, top_fractal=True, bottom_fractal=False, through_stroke="2")
     second = envelope(dict(entity_id="second:segment:1:1", segment_id="segment:1:1", role="SECOND_SEQUENCE",
         direction="UP", member_direction="UP", stroke_refs=refs,
-        scan=dict(from_stroke="0", through_stroke="2", input_stroke_count="3", resource_truncated=False, tail_cache_window="0"),
+        scan=dict(from_stroke="1", through_stroke="2", input_stroke_count="3", resource_truncated=False, tail_cache_window="0"),
         facts=dict(raw_elements=elements, standard=elements, steps=[], checks=[check], from_stroke="1", through_stroke="2",
                    input_stroke_count="3", resource_truncated=False, matched=check), second_sequence_status="CONFIRMED"), "second:segment:1:1")
     known = dict(generation="1", input_frontier="13", receipt_id="r", received_at="t", semantic_commit_ns=None)
@@ -36,6 +36,40 @@ def samples():
     segment["data"]["fact_vector"]["termination_witness"] = dict(kind="CASE_TWO", strict=copy.deepcopy(segment["data"]["strict"]), second_match=copy.deepcopy(check), construction=copy.deepcopy(segment["data"]["construction"]), minimum_count_met=True, through_stroke="2")
     return second, segment
 
+def first_sample(second):
+    """由 SECOND 样本派生同段 FIRST：scan.from_stroke 取段起笔；只检合同。"""
+    first = copy.deepcopy(second); d = first["data"]
+    elements = d["facts"]["raw_elements"]
+    identity = "first:" + d["segment_id"]
+    d.update(entity_id=identity, role="FIRST_SEQUENCE", member_direction="DOWN", second_sequence_status="CONFIRMED")
+    d["scan"].update(from_stroke=min((r["stroke_index"] for r in d["stroke_refs"]), key=int), tail_cache_window="7")
+    d["facts"] = dict(raw_elements=elements, standard=elements, steps=[], checks=[dict(elements=elements,
+        first_fractal=True, gap=True, gap_closed_by_c=False, provisional=False,
+        turn_hypothesis_pair=[e["stroke_idx"] for e in elements[:2]])])
+    first["slot"] = identity
+    return first
+
+def decimal_trap_samples():
+    """段笔 4..12：按字符串取最小得 "10"，按数值取最小才是段起笔 "4"（起点锚 17）。"""
+    second, _ = samples(); d = second["data"]
+    refs = [dict(stroke_index=str(i), entity_id=f"bi:1:{4*i+1}", start_anchor=str(4*i+1), end_anchor=str(4*i+5),
+                 start_price=str(100+i), end_price=str(200+i), start_roots=[str(4*i+1)], end_roots=[str(4*i+5)])
+            for i in range(4, 13)]
+    elements = [dict(high="400", low="200", stroke_idx=str(i), stroke_indices=[str(i)]) for i in (6, 7, 8)]
+    check = dict(elements=elements, top_fractal=True, bottom_fractal=False, through_stroke="8")
+    d.update(entity_id="second:segment:1:17", segment_id="segment:1:17", stroke_refs=refs,
+        scan=dict(from_stroke="6", through_stroke="8", input_stroke_count="9", resource_truncated=False, tail_cache_window="0"),
+        facts=dict(raw_elements=elements, standard=elements, steps=[], checks=[check], from_stroke="6", through_stroke="8",
+                   input_stroke_count="9", resource_truncated=False, matched=check))
+    second["slot"] = "second:segment:1:17"
+    return second, first_sample(second)
+
+def rebind(p, segment):
+    p = copy.deepcopy(p); d = p["data"]
+    identity = ("second:" if d["role"] == "SECOND_SEQUENCE" else "first:") + segment
+    d.update(segment_id=segment, entity_id=identity); p["slot"] = identity
+    return p
+
 class SecondContractTest(unittest.TestCase):
     def both(self, kind, p, valid=True):
         if valid:
@@ -50,6 +84,32 @@ class SecondContractTest(unittest.TestCase):
         second, segment = samples()
         self.both("CC-012.feature_sequence", second)
         self.both("CC-013.segment", segment)
+
+    def test_second_scan_is_the_actual_second_scan(self):
+        # PR #1477 P2：SECOND 的 scan 从 FIRST 中心 b+1 起，必须等于 facts.from_stroke 且晚于段起笔。
+        for mutate in [lambda d: d["scan"].update(from_stroke="0"),
+                       lambda d: d["facts"].update(from_stroke="2"),
+                       lambda d: (d["scan"].update(from_stroke="0"), d["facts"].update(from_stroke="0"))]:
+            second, _ = samples(); mutate(second["data"])
+            self.both("CC-012.feature_sequence", second, False)
+
+    def test_first_scan_starts_at_identity_anchor(self):
+        second, _ = samples()
+        first = first_sample(second)
+        self.both("CC-012.feature_sequence", first)
+        first["data"]["scan"]["from_stroke"] = "1"
+        self.both("CC-012.feature_sequence", first, False)
+
+    def test_identity_anchor_is_numeric_minimum_of_decimal_text(self):
+        second, first = decimal_trap_samples()
+        self.both("CC-012.feature_sequence", second)
+        self.both("CC-012.feature_sequence", first)
+        # 以字符串最小的笔 "10"（起点锚 41）作身份：按字符串取锚的实现会接受这两件，两侧都必须拒绝。
+        bad_first = rebind(first, "segment:1:41"); bad_first["data"]["scan"]["from_stroke"] = "10"
+        bad_second = rebind(second, "segment:1:41")
+        bad_second["data"]["scan"]["from_stroke"] = bad_second["data"]["facts"]["from_stroke"] = "11"
+        for p in (bad_first, bad_second, rebind(first, "segment:1:41"), rebind(second, "segment:1:41")):
+            self.both("CC-012.feature_sequence", p, False)
 
     def test_mixed_versions_rejected(self):
         second, _ = samples()

@@ -589,13 +589,19 @@ def validate_segment_payload(kind, p):
                 integer(v, k, 0)
         if type(d["scan"]["resource_truncated"]) is not bool:
             raise ValueError("资源截断状态缺失")
+        if not refs:
+            raise ValueError("特征序列缺段笔引用")
+        # 身份锚＝stroke_refs 中数值最小的笔号，即段起笔；wire 整数是十进制文本，须按数值取最小。
+        segment_start = min(refs, key=int)
+        if not second and d["scan"]["from_stroke"] != segment_start:
+            raise ValueError("FIRST扫描起点不是段起笔")
         f = d["facts"]
         keys(f, ("raw_elements", "standard", "steps", "checks") + (("from_stroke", "through_stroke", "input_stroke_count", "resource_truncated", "matched") if second else ()), "序列事实")
         if second:
             for name in ("from_stroke", "input_stroke_count"):
                 integer(f[name], name, 0)
             integer(f["through_stroke"], "through_stroke", -1)
-            if type(f["resource_truncated"]) is not bool or d["scan"]["tail_cache_window"] != "0" or any(f[name] != d["scan"][name] for name in ("through_stroke", "input_stroke_count", "resource_truncated")):
+            if type(f["resource_truncated"]) is not bool or d["scan"]["tail_cache_window"] != "0" or any(f[name] != d["scan"][name] for name in ("from_stroke", "through_stroke", "input_stroke_count", "resource_truncated")) or int(d["scan"]["from_stroke"]) <= int(segment_start):
                 raise ValueError("SECOND扫描边界不符")
         for e in array(f["raw_elements"], "raw_elements") + array(f["standard"], "standard"):
             element(e)
@@ -764,8 +770,7 @@ def validate_segment_payload(kind, p):
             raise ValueError("段交付范围不符")
     if kind in SEGMENT_KINDS[:3] + SEGMENT_KINDS[6:]:
         if kind == SEGMENT_KINDS[1]:
-            first = d["scan"]["from_stroke"]
-            expected_segment = f'segment:{p["object_generation"]}:{refs[first]["start_anchor"]}'
+            expected_segment = f'segment:{p["object_generation"]}:{refs[segment_start]["start_anchor"]}'
             if d["segment_id"] != expected_segment or d["entity_id"] != ("second:" if d["role"] == "SECOND_SEQUENCE" else "first:") + expected_segment:
                 raise ValueError("FIRST身份未绑定候选")
             if (d["direction"] == d["member_direction"]) != (d["role"] == "SECOND_SEQUENCE"):

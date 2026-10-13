@@ -68,6 +68,7 @@ def check(snapshot, expected, case):
             require(f['matched']['bottom_fractal'] == (expected['second_fractal_kind'] == 'BOTTOM'), 'SECOND any bottom')
         for k in ('from_stroke','through_stroke','input_stroke_count','resource_truncated'):
             require(f[k] == wire(expected['second_scan'][k]), 'SECOND scan ' + k)
+            require(second['scan'][k] == wire(expected['second_scan'][k]), 'SECOND published scan ' + k)
         require(len(f['steps']) == len(expected['second_steps']), 'SECOND steps length')
         for actual, wanted in zip(f['steps'], expected['second_steps']):
             for k in ('incoming','after','action','merge_direction','scope'):
