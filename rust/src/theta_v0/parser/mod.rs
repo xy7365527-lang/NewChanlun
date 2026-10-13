@@ -59,6 +59,7 @@ pub mod feature_seq;
 pub mod fractal;
 /// Θ_parse 流水线分步实现（聚焦小文件，coding-style <400 行/文件）。
 pub mod inclusion;
+pub mod second_fold;
 pub mod second_kind;
 pub mod segment;
 pub mod stroke;

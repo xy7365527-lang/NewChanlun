@@ -5,7 +5,13 @@
 //! 的种子，s3 是 FIRST 顶分型中心 b（P = 40），a/b 缺口 [20,25] 未被 c 封闭 ⟹ 第二种候选；
 //! `sign = -1` 是逐价取负的镜像（向下段，P = -40）。
 use super::super::types::Direction;
-use super::feature_seq::{second_sequence, ScanCoverage, SecondTerminal};
+use super::feature_seq::{
+    second_sequence, ScanCoverage, SecondTerminal, SECOND_CANDIDATE_RULE_REVISION,
+    SECOND_SEQ_SCAN_BUDGET_POLICY,
+};
+use super::second_fold::{
+    FoldResumeError, SecondCandidateId, SecondFoldCursor, SECOND_FOLD_CURSOR_SCHEMA,
+};
 use super::*;
 
 fn chain(prices: &[i64], sign: i64) -> Vec<Stroke> {
@@ -389,4 +395,215 @@ fn tb02w_ast_048_02_windows_0_50_200_never_change_decided_semantics() {
         }
     }
     assert!(saw_bound, "覆盖为零：语料从未触发资源受限分支");
+}
+
+// ─── K1 每候选折叠游标（#1344 第四问，xianduan §5.1）─────────────────────────────────────
+
+fn cand(sign: i64, b: usize, p: i64) -> SecondCandidateId {
+    SecondCandidateId {
+        seg_dir: dir(sign),
+        b_stroke: b,
+        candidate_extreme: p * sign,
+    }
+}
+
+/// 末笔改写：同向延伸前的暂态（末笔回撤 1 tick）。
+fn wobble_tail(ss: &[Stroke]) -> Vec<Stroke> {
+    let mut w = ss.to_vec();
+    if let Some(last) = w.last_mut() {
+        last.end_price += match last.direction {
+            Direction::Up => -1,
+            Direction::Down => 1,
+        };
+    }
+    w
+}
+
+#[test]
+fn tb02w_k1_cursor_fields_seal_everything_but_the_tail() {
+    for sign in [1, -1] {
+        let killed = chain(KILLED, sign);
+        let mut cur = SecondFoldCursor::new(cand(sign, 3, 40), 0);
+        assert_eq!(
+            (cur.schema, cur.rule_revision, cur.budget_policy),
+            (
+                SECOND_FOLD_CURSOR_SCHEMA,
+                SECOND_CANDIDATE_RULE_REVISION,
+                SECOND_SEQ_SCAN_BUDGET_POLICY
+            )
+        );
+        assert_eq!(cur.budget_granted, None);
+        assert_eq!(cur.state.facts.from_stroke, 4);
+        assert_eq!(
+            cur.state.dir_state,
+            if sign > 0 {
+                Some(Direction::Down)
+            } else {
+                None
+            }
+        );
+        assert_eq!(cur.resume(&killed).unwrap(), second(KILLED, sign, 0));
+        // 失效笔 s6 不是输入末笔 ⟹ 终点封存：s4、s5、s6 三笔。
+        assert_eq!(cur.state.consumed_len, 3, "sign={sign}");
+        assert_eq!(
+            cur.state.facts.semantic_state,
+            Some(SecondTerminal::KilledByNewExtreme)
+        );
+        assert_eq!(cur.state.facts.through_stroke, 6);
+        assert_eq!(cur.state.facts.breach_watermark, Some(45 * sign));
+        assert_eq!(cur.input_stroke_count, killed.len());
+
+        // OPEN：末笔 s6 只暂算，封存态停在 s5。
+        let open = chain(OPEN, sign);
+        let mut cur = SecondFoldCursor::new(cand(sign, 3, 40), 0);
+        assert_eq!(cur.resume(&open).unwrap(), second(OPEN, sign, 0));
+        assert_eq!(cur.state.consumed_len, 2, "sign={sign}");
+        assert_eq!(cur.state.facts.semantic_state, None);
+        let members: Vec<_> = cur
+            .state
+            .facts
+            .standard
+            .iter()
+            .map(|e| e.stroke_indices.clone())
+            .collect();
+        assert_eq!(members, vec![vec![4]]);
+
+        // 末笔 s6 22→30 延伸为 22→45：游标未封存 s6，续扫即得失效。
+        let mut extended = open.clone();
+        extended[6].end_price = 45 * sign;
+        let got = cur.resume(&extended).unwrap();
+        assert_eq!(got, second_sequence(&extended, dir(sign), 3, 40 * sign, 0));
+        assert_eq!(got.semantic_state, Some(SecondTerminal::KilledByNewExtreme));
+
+        // 输入回撤一笔、新末笔 s5 改写：封存的 s5 回退一步，改为暂算。
+        let mut cur = SecondFoldCursor::new(cand(sign, 3, 40), 0);
+        cur.resume(&open).unwrap();
+        let mut retracted = open[..6].to_vec();
+        retracted[5].end_price = 20 * sign;
+        let got = cur.resume(&retracted).unwrap();
+        assert_eq!(got, second_sequence(&retracted, dir(sign), 3, 40 * sign, 0));
+        assert_eq!(cur.state.consumed_len, 1);
+
+        // 已封存笔被改写超过一步 ⟹ 拒绝续扫；重折叠与无中断折叠相同。
+        let mut cur = SecondFoldCursor::new(cand(sign, 3, 40), 0);
+        cur.resume(&killed).unwrap();
+        let mut tampered = killed.clone();
+        tampered[4].end_price = 36 * sign;
+        assert_eq!(cur.resume(&tampered), Err(FoldResumeError::InputChanged));
+        assert_eq!(
+            cur.refold(&tampered),
+            second_sequence(&tampered, dir(sign), 3, 40 * sign, 0)
+        );
+    }
+}
+
+#[test]
+fn tb02w_k1_budget_grant_resumes_to_full_budget_semantics() {
+    for sign in [1, -1] {
+        let ss = chain(&evidence_at_item_51(), sign);
+        let p = 1000 * sign;
+        let mut cur = SecondFoldCursor::new(cand(sign, 3, 1000), 50);
+        assert_eq!(cur.budget_granted, Some(50));
+        let w50 = cur.resume(&ss).unwrap();
+        assert_eq!(w50, second_sequence(&ss, dir(sign), 3, p, 50));
+        assert_eq!(w50.coverage, ScanCoverage::IncompleteResourceBound);
+        assert_eq!(w50.semantic_state, None, "sign={sign}: 预算耗尽不是否定");
+        assert_eq!(
+            cur.state.consumed_len, 50,
+            "预算内 50 项都不是输入末笔，全部封存"
+        );
+        cur.grant(50);
+        assert_eq!(cur.budget_granted, Some(100));
+        let w100 = cur.resume(&ss).unwrap();
+        assert_eq!(w100, second_sequence(&ss, dir(sign), 3, p, 100));
+        assert_eq!(
+            w100,
+            second_sequence(&ss, dir(sign), 3, p, 0),
+            "sign={sign}: 完备输入上语义与预算无关"
+        );
+        assert_eq!(w100.semantic_state, Some(SecondTerminal::Confirmed));
+        cur.grant(0);
+        assert_eq!(cur.budget_granted, None);
+    }
+}
+
+/// 分批续扫（逐前缀，含末笔改写与回撤一笔的暂态输入）、自任一切点复制的游标恢复，都与同一
+/// 输入上的无中断折叠逐位相同。
+#[test]
+fn tb02w_k1_resume_and_restore_equal_uninterrupted_fold() {
+    let mut corpora: Vec<Vec<i64>> = [
+        CONFIRMED,
+        KILLED,
+        OPEN,
+        SAME_STROKE,
+        TOUCH,
+        MERGED_KILL,
+        KILLED_THEN_B,
+    ]
+    .iter()
+    .map(|p| p.to_vec())
+    .collect();
+    corpora.push(skip_bait());
+    for seed in 1..=10u64 {
+        corpora.push(random_prices(seed, 24 + (seed as usize % 4) * 8));
+    }
+    let mut seen = [0usize; 4];
+    for sign in [1, -1] {
+        for (ci, prices) in corpora.iter().enumerate() {
+            let ss = chain(prices, sign);
+            for b in 0..ss.len() {
+                let seg_dir = ss[b].direction.flip();
+                let (hi, lo) = (
+                    ss[b].start_price.max(ss[b].end_price),
+                    ss[b].start_price.min(ss[b].end_price),
+                );
+                let c = SecondCandidateId {
+                    seg_dir,
+                    b_stroke: b,
+                    candidate_extreme: if seg_dir == Direction::Up { hi } else { lo },
+                };
+                for window in [0u32, 5] {
+                    let fold = |s: &[Stroke]| {
+                        second_sequence(s, c.seg_dir, b, c.candidate_extreme, window)
+                    };
+                    let label = format!("corpus{ci} sign={sign} b={b} window={window}");
+                    let mut cur = SecondFoldCursor::new(c, window);
+                    let mut snapshots = Vec::new();
+                    for n in 0..=ss.len() {
+                        if n >= 1 {
+                            let w = wobble_tail(&ss[..n]);
+                            assert_eq!(cur.resume(&w).unwrap(), fold(&w), "{label} wobble@{n}");
+                        }
+                        if n >= 2 {
+                            assert_eq!(
+                                cur.resume(&ss[..n]).unwrap(),
+                                fold(&ss[..n]),
+                                "{label}@{n}"
+                            );
+                            let r = wobble_tail(&ss[..n - 1]);
+                            assert_eq!(cur.resume(&r).unwrap(), fold(&r), "{label} retract@{n}");
+                        }
+                        let got = cur.resume(&ss[..n]).unwrap();
+                        assert_eq!(got, fold(&ss[..n]), "{label}@{n}");
+                        snapshots.push(cur.clone());
+                    }
+                    let full = fold(&ss);
+                    seen[match full.semantic_state {
+                        Some(SecondTerminal::Confirmed) => 0,
+                        Some(SecondTerminal::KilledByNewExtreme) => 1,
+                        Some(SecondTerminal::OpenAtPrefixEnd) => 2,
+                        None => 3,
+                    }] += 1;
+                    for (p, snap) in snapshots.into_iter().enumerate() {
+                        let mut restored = snap;
+                        assert_eq!(restored.resume(&ss).unwrap(), full, "{label} restore@{p}");
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        seen.iter().all(|&k| k > 0),
+        "语料须覆盖确认、失效、未决与预算耗尽四类：{seen:?}"
+    );
 }
