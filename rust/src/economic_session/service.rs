@@ -1,17 +1,24 @@
 use super::book::{apply, decode, fact_key, hash, target};
 use super::store::*;
+use crate::s_content::job::Job;
 use crate::session_protocol::{
     canonical_json, nonnegative, positive, reply_envelope, required, sha256_hex, validate_envelope,
 };
-use crate::session_transport::{process_lock, serve_unix, TransportBounds};
+use crate::session_transport::{
+    process_lock, serve_unix, serve_unix_with_deadline, EnvelopeValidator, TransportBounds,
+};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-fn validate(v: Value) -> Result<Value, String> {
-    validate_envelope(v, SCHEMA)
+/// `/1` 与 `/2` 的信封校验各一份，派发只按 `Config::revision()`；没有第三档、没有宽松兜底。
+fn validate_v1(v: Value) -> Result<Value, String> {
+    validate_envelope(v, SCHEMA_V1)
+}
+fn validate_v2(v: Value) -> Result<Value, String> {
+    validate_envelope(v, SCHEMA_V2)
 }
 fn exact(v: &Value, keys: &[&str]) -> Result<(), String> {
     let m = v.as_object().ok_or("SchemaUnsupported：请求须对象")?;
@@ -27,7 +34,7 @@ fn message_key(e: &Value) -> String {
         e["message_id"]
     ]))
 }
-fn previous_message(c: &Connection, e: &Value) -> Result<Option<Value>, String> {
+pub(super) fn previous_message(c: &Connection, e: &Value) -> Result<Option<Value>, String> {
     let r: Option<(String, String, String)> = c
         .query_row(
             "SELECT payload_hash,receipt_key,request_json FROM messages WHERE k=?",
@@ -46,7 +53,7 @@ fn previous_message(c: &Connection, e: &Value) -> Result<Option<Value>, String> 
     }
     Ok(None)
 }
-fn bind_message(c: &Connection, e: &Value, k: &str) -> Result<(), String> {
+pub(super) fn bind_message(c: &Connection, e: &Value, k: &str) -> Result<(), String> {
     c.execute(
         "INSERT INTO messages(k,payload_hash,receipt_key,request_json)VALUES(?,?,?,?)",
         params![
@@ -59,7 +66,7 @@ fn bind_message(c: &Connection, e: &Value, k: &str) -> Result<(), String> {
     .map_err(err)?;
     Ok(())
 }
-fn clocks(
+pub(super) fn clocks(
     config: &Config,
     e: &Value,
     last_ns: &str,
@@ -118,7 +125,13 @@ fn record_from_payload(config: &Config, e: &Value) -> Result<Value, String> {
         json!({"fact_key":fact_key(&event)?,"fact_hash":fact_hash,"raw_sha256":raw_hash,"raw_utf8":raw,"json_pointer":pointer,"event":event,"token":required(p,"token")?,"target_domain":format!("B:{id}"),"source_event_time":p["source_event_time"],"source_received_time":event["source"]["received_time"],"source_producer":{"producer_id":e["producer_id"],"producer_epoch":e["producer_epoch"]},"origin_message":{"source_namespace":e["source_namespace"],"source_epoch":e["source_epoch"],"message_id":e["message_id"],"payload_hash":e["payload_hash"]},"origin_request_hash":hash(e)}),
     )
 }
-fn capture(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Result<Value, String> {
+fn capture(
+    c: &mut Connection,
+    config: &Config,
+    epoch: i64,
+    e: &Value,
+    ingress_response_deadline: Option<std::time::Instant>,
+) -> Result<Value, String> {
     let mut record = record_from_payload(config, e)?;
     let key = required(&record, "fact_key")?.to_owned();
     let tx = immediate(c)?;
@@ -145,6 +158,7 @@ fn capture(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Result
         tx.commit().map_err(err)?;
         return Ok(receipt);
     }
+    check_operation_deadline(None, ingress_response_deadline)?;
     let token = required(&record, "token")?;
     if rows(&tx, "pending")?.iter().any(|r| r["token"] == token) {
         return Err("IdentityConflict：token已绑定另一原事实".into());
@@ -183,11 +197,24 @@ fn capture(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Result
     put(&tx, "receipts", &key, &receipt)?;
     bind_message(&tx, e, &key)?;
     config.pause(required(e, "message_id")?, "before_commit")?;
+    check_operation_deadline(None, ingress_response_deadline)?;
     tx.commit().map_err(err)?;
     config.pause(required(e, "message_id")?, "after_commit")?;
     Ok(receipt)
 }
 fn authoritative_fact(config: &Config, key: &str, expected_epoch: i64) -> Result<Value, String> {
+    authoritative_fact_inner(config, key, expected_epoch, None, None)
+}
+fn authoritative_fact_inner(
+    config: &Config,
+    key: &str,
+    expected_epoch: i64,
+    mut import: Option<(&mut super::content_store::Stage<'_>, &mut Job)>,
+    deadline: Option<std::time::Instant>,
+) -> Result<Value, String> {
+    if let Some((_, job)) = import.as_mut() {
+        job.charge_requests(1).map_err(|e| e.to_string())?;
+    }
     let mut ec = config.clone();
     ec.domain = "E".into();
     ec.producer = format!("E:{}", ec.session);
@@ -196,7 +223,11 @@ fn authoritative_fact(config: &Config, key: &str, expected_epoch: i64) -> Result
     let (mut c, _) = open(&ec.db, true)?;
     let tx = c.transaction().map_err(err)?;
     check_epoch(&tx, expected_epoch)?;
-    audit(&tx, &ec)?;
+    if let Some((_, job)) = import.as_mut() {
+        audit_with_deadline(&tx, &ec, Some(&mut **job), deadline)?;
+    } else {
+        audit(&tx, &ec)?;
+    }
     let mut f = row(&tx, "facts", key)?.ok_or("MissingDependency：固定E权威不存在该原事实")?;
     let r = row(&tx, "receipts", key)?.ok_or("StorageUnavailable：域损坏：固定E缺原回执")?;
     verify_record(&f)?;
@@ -215,6 +246,15 @@ fn authoritative_fact(config: &Config, key: &str, expected_epoch: i64) -> Result
         .map_err(err)?;
     f["e_commit_proof"] = json!({"previous_root":previous_root,"commit_ns":commit_ns,"image":crate::session_protocol::strict_json(image.as_bytes())?});
     verify_e_copy(&f, config)?;
+    if let Some((stage, job)) = import {
+        check_operation_deadline(Some(&mut *job), deadline)?;
+        job.charge_wire_bytes(u64::try_from(canonical_json(&f).len()).map_err(err)?)
+            .map_err(|e| e.to_string())?;
+        let refs = super::content_store::image_refs(&f["e_commit_proof"]["image"])
+            .map_err(|e| e.to_string())?;
+        super::content_store::import_peer_refs(&tx, &refs, stage, job)
+            .map_err(|e| format!("MissingDependency：E 历史引用导入失败：{e}"))?;
+    }
     tx.commit().map_err(err)?;
     Ok(f)
 }
@@ -225,6 +265,37 @@ fn apply_allocation(
     e_epoch: i64,
     e: &Value,
 ) -> Result<Value, String> {
+    apply_allocation_with_ingress(c, config, epoch, e_epoch, e, None)
+}
+fn apply_allocation_with_ingress(
+    c: &mut Connection,
+    config: &Config,
+    epoch: i64,
+    e_epoch: i64,
+    e: &Value,
+    ingress_response_deadline: Option<std::time::Instant>,
+) -> Result<Value, String> {
+    let mut audited = false;
+    match apply_allocation_inner(c, config, epoch, e_epoch, e, &mut audited, ingress_response_deadline) {
+        Ok(receipt) => Ok(receipt),
+        Err(error) if config.revision()? == SCHEMA_V2 && audited => {
+            match super::content_store::discard_unpublished(c, &config.db) {
+                Ok((removed, before, after)) => Err(format!("{error}; staged_cleanup rows={removed} allocated_before={before} allocated_after={after}")),
+                Err(cleanup) => Err(format!("{error}; staged_cleanup_pending_recover={cleanup}")),
+            }
+        }
+        Err(error) => Err(error),
+    }
+}
+fn apply_allocation_inner(
+    c: &mut Connection,
+    config: &Config,
+    epoch: i64,
+    e_epoch: i64,
+    e: &Value,
+    audited: &mut bool,
+    ingress_response_deadline: Option<std::time::Instant>,
+) -> Result<Value, String> {
     let p = &e["payload"];
     exact(
         p,
@@ -233,11 +304,22 @@ fn apply_allocation(
     let key = required(p, "fact_key")?;
     let allocation = required(p, "allocation_id")?;
     required(p, "expected_fact_hash")?;
+    let mut import_job = if config.revision()? == SCHEMA_V2 {
+        Some(new_content_job(c, config)?)
+    } else {
+        None
+    };
+    let deadline = if let Some(job) = import_job.as_mut() {
+        Some(operation_deadline(config, job, ingress_response_deadline)?)
+    } else {
+        None
+    };
     // #1374：已提交身份先从本域查回，不让当前E故障抹掉原成功。
     {
         let tx = immediate(c)?;
         check_epoch(&tx, epoch)?;
-        audit(&tx, config)?;
+        audit_with_job(&tx, config, import_job.as_mut())?;
+        *audited = true;
         if let Some(r) = previous_message(&tx, e)? {
             return Ok(r);
         }
@@ -253,17 +335,39 @@ fn apply_allocation(
             return Err("IdentityConflict：原事实已被别的allocation消费".into());
         }
     }
+    check_operation_deadline(import_job.as_mut(), deadline)?;
     // 固定 E 只读审计发生在 B 写事务之外；无跨域写锁、无 ATTACH。
-    let mut record = authoritative_fact(config, key, e_epoch)?;
+    // 新域在同一只读捕获内把该 E 提交图像全部历史引用导入本 B owner。
+    let mut record = if let Some(job) = import_job.as_mut() {
+        job.begin_first_read().map_err(|e| e.to_string())?;
+        let token = format!(
+            "stg-{}",
+            hash(&json!([config.domain, epoch.to_string(), allocation]))
+        );
+        let mut stage =
+            super::content_store::Stage::new(c, &config.db, job.snapshot().limits, token)
+                .map_err(|e| format!("Incomplete：B 内容暂存不可用：{e}"))?;
+        authoritative_fact_inner(config, key, e_epoch, Some((&mut stage, job)), deadline)?
+    } else {
+        authoritative_fact(config, key, e_epoch)?
+    };
     if record["fact_hash"] != p["expected_fact_hash"]
         || record["event"]["allocation_id"] != allocation
         || record["target_domain"] != config.domain
     {
         return Err("IdentityConflict：实读E事实/金额/归属与请求不匹配".into());
     }
+    let final_budget = if let Some(job) = import_job.as_mut() {
+        Some(
+            super::content_store::reserve_final(c, &config.db, job)
+                .map_err(|e| format!("Incomplete：ApplyAllocation 物理预留失败：{e}"))?,
+        )
+    } else {
+        None
+    };
     let tx = immediate(c)?;
     check_epoch(&tx, epoch)?;
-    audit(&tx, config)?;
+    audit_with_deadline(&tx, config, import_job.as_mut(), deadline)?;
     if row(&tx, "facts", key)?.is_some() || row(&tx, "receipts", allocation)?.is_some() {
         return Err("IdentityConflict：事实已消费".into());
     }
@@ -284,6 +388,14 @@ fn apply_allocation(
     record["b_origin_message"] = json!({"source_namespace":e["source_namespace"],"source_epoch":e["source_epoch"],"message_id":e["message_id"],"payload_hash":e["payload_hash"]});
     record["b_origin_request_hash"] = json!(hash(e));
     let (next, unmatched) = apply(&image, &record, seq, &ns)?;
+    if let Some(job) = import_job.as_mut() {
+        let refs = super::content_store::image_refs(&next)
+            .map_err(|e| format!("MissingDependency：ApplyAllocation 引用路径非法：{e}"))?;
+        super::content_store::publish(&tx, &refs, job)
+            .map_err(|e| format!("MissingDependency：B 缺完整 E 历史闭包：{e}"))?;
+        job.pre_io_check()
+            .map_err(|e| format!("Incomplete：ApplyAllocation 提交前期限：{e}"))?;
+    }
     let applied = next["applied"].as_array().unwrap().last().unwrap();
     put(&tx, "facts", key, &record)?;
     tx.execute(
@@ -307,11 +419,31 @@ fn apply_allocation(
     put(&tx, "receipts", allocation, &receipt)?;
     bind_message(&tx, e, allocation)?;
     config.pause(required(e, "message_id")?, "before_commit")?;
+    check_operation_deadline(import_job.as_mut(), deadline)?;
     tx.commit().map_err(err)?;
+    if let Some((grant, before, ceiling)) = final_budget {
+        super::content_store::reconcile_final(
+            c,
+            &config.db,
+            import_job
+                .as_mut()
+                .ok_or("DeliveryUnknown：Apply 已提交但 job 缺失")?,
+            &grant,
+            before,
+            ceiling,
+        )
+        .map_err(|e| format!("DeliveryUnknown：Apply 已提交，物理对账待核：{e}"))?;
+    }
     config.pause(required(e, "message_id")?, "after_commit")?;
     Ok(receipt)
 }
-fn bind_voice(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Result<Value, String> {
+fn bind_voice(
+    c: &mut Connection,
+    config: &Config,
+    epoch: i64,
+    e: &Value,
+    ingress_response_deadline: Option<std::time::Instant>,
+) -> Result<Value, String> {
     let p = &e["payload"];
     super::voice::validate_request(p)?;
     let binding = required(p, "binding_id")?;
@@ -340,6 +472,7 @@ fn bind_voice(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Res
             return Err("IdentityConflict：Voice 回执键已属于另一业务".into());
         }
     }
+    check_operation_deadline(None, ingress_response_deadline)?;
     // 读取固定证据在 B 写事务之外，绝不持生命周期控制锁等待外部依据。
     let verified = super::evidence::load(
         config,
@@ -349,6 +482,7 @@ fn bind_voice(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Res
     let tx = immediate(c)?;
     check_epoch(&tx, epoch)?;
     audit(&tx, config)?;
+    check_operation_deadline(None, ingress_response_deadline)?;
     let (seq, previous_root, last_ns, image) = latest(&tx)?;
     let seq = seq.checked_add(1).ok_or("InvalidDomain：commit seq 溢出")?;
     if super::voice::find_binding(&image, binding)?.is_some()
@@ -388,11 +522,12 @@ fn bind_voice(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Res
     put(&tx, "receipts", &key, &receipt)?;
     bind_message(&tx, e, &key)?;
     config.pause(required(e, "message_id")?, "before_commit")?;
+    check_operation_deadline(None, ingress_response_deadline)?;
     tx.commit().map_err(err)?;
     config.pause(required(e, "message_id")?, "after_commit")?;
     Ok(receipt)
 }
-fn select_cut(
+pub(super) fn select_cut(
     c: &Connection,
     config: &Config,
     p: &Value,
@@ -488,6 +623,7 @@ fn read(
             let (s, h, _, _) = latest(&tx)?;
             json!({"kind":"EconomicChanges","domain_id":config.domain,"cut":cut(config,s,&h),"changes":changes,"writer_epoch":epoch.to_string()})
         }
+        "QueryDecision" | "QueryGrant" => super::finance::query(&tx, config, p)?,
         "QueryFact" => {
             exact(p, &["op", "fact_key"])?;
             let k = required(p, "fact_key")?;
@@ -531,18 +667,59 @@ pub(super) fn handle(
     runtime: &Value,
     e: &Value,
 ) -> Value {
+    handle_with_deadline(c, config, epoch, e_epoch, runtime, e, None)
+}
+fn handle_with_deadline(
+    c: &mut Connection,
+    config: &Config,
+    epoch: i64,
+    e_epoch: i64,
+    runtime: &Value,
+    e: &Value,
+    ingress_response_deadline: Option<std::time::Instant>,
+) -> Value {
     let result = (|| {
         config.authorized(e)?;
+        if config.revision()? == SCHEMA_V2 {
+            let resources = super::financial_reader_resources::FinancialReaderResources::from_json(
+                &config.manifest["finance"]["structure"]["reader_resources"],
+            )?;
+            super::content_store::configure(c, &config.db, resources.job_limits)
+                .map_err(|error| format!("Incomplete：新域物理存储门未成立：{error}"))?;
+        }
         let op = required(&e["payload"], "op")?;
         match op {
-            "CaptureExternal" if config.domain == "E" => capture(c, config, epoch, e),
-            "ApplyAllocation" if config.domain.starts_with("B:") => {
-                apply_allocation(c, config, epoch, e_epoch, e)
+            "ChongAdvance" if config.domain == "E" => {
+                // Once admitted, the multi-owner responsibility workflow may
+                // continue after the reply times out. An already expired
+                // queued request must not start new cross-domain work.
+                check_operation_deadline(None, ingress_response_deadline)?;
+                super::finance::advance(c, config, epoch, e)
             }
-            "BindVoice" if config.domain.starts_with("B:") => bind_voice(c, config, epoch, e),
-            "ReadView" | "Watch" | "QueryFact" | "QueryAllocation" | "QueryVoice" => {
-                read(c, config, epoch, runtime, &e["payload"])
+            "PrepareDecision" | "CommitDecision" | "AbortDecision"
+                if config.domain.starts_with("B:") =>
+            {
+                super::finance::write_with_ingress(c, config, epoch, e, ingress_response_deadline)
             }
+            "ImportResponsibility" | "Reserve" | "CloseApplicants" if config.domain == "E" => {
+                super::finance::write_with_ingress(c, config, epoch, e, ingress_response_deadline)
+            }
+            "CaptureExternal" if config.domain == "E" => {
+                capture(c, config, epoch, e, ingress_response_deadline)
+            }
+            "ApplyAllocation" if config.domain.starts_with("B:") => apply_allocation_with_ingress(
+                c,
+                config,
+                epoch,
+                e_epoch,
+                e,
+                ingress_response_deadline,
+            ),
+            "BindVoice" if config.domain.starts_with("B:") => {
+                bind_voice(c, config, epoch, e, ingress_response_deadline)
+            }
+            "ReadView" | "Watch" | "QueryFact" | "QueryAllocation" | "QueryVoice"
+            | "QueryDecision" | "QueryGrant" => read(c, config, epoch, runtime, &e["payload"]),
             _ => Err("SchemaUnsupported：操作不属于本域".into()),
         }
     })();
@@ -550,16 +727,19 @@ pub(super) fn handle(
         Ok(v) => v,
         Err(error) => json!({"kind":"Error","domain_id":config.domain,"error":error}),
     };
-    reply_envelope(
-        e,
-        payload,
-        SCHEMA,
-        &config.session,
-        &config.generation,
-        "economic-session/replies",
-        &config.producer,
-        &epoch.to_string(),
-    )
+    match config.revision() {
+        Ok(revision) => reply_envelope(
+            e,
+            payload,
+            revision,
+            &config.session,
+            &config.generation,
+            "economic-session/replies",
+            &config.producer,
+            &epoch.to_string(),
+        ),
+        Err(error) => json!({"kind":"Error","domain_id":config.domain,"error":error}),
+    }
 }
 /// 正式 owner 入口。init/recover/serve 共用同一域独占锁；不给客户端创建替代权威路径。
 pub fn cli(is_b: bool) -> Result<(), String> {
@@ -618,9 +798,29 @@ pub fn cli(is_b: bool) -> Result<(), String> {
                 queue: n("queue_capacity")?,
                 connections: n("max_connections")?,
             };
-            serve_unix(&config.socket, bounds, validate, |e| {
-                handle(&mut c, &config, epoch, e_epoch, &runtime, &e)
-            })?;
+            // 信封校验按本域登记的版本派发；未知版本在 Config::load 就已拒绝。
+            let validator: EnvelopeValidator = if config.revision()? == SCHEMA_V2 {
+                validate_v2
+            } else {
+                validate_v1
+            };
+            if config.revision()? == SCHEMA_V2 {
+                serve_unix_with_deadline(&config.socket, bounds, validator, |e, deadline| {
+                    handle_with_deadline(
+                        &mut c,
+                        &config,
+                        epoch,
+                        e_epoch,
+                        &runtime,
+                        e,
+                        Some(deadline),
+                    )
+                })?;
+            } else {
+                serve_unix(&config.socket, bounds, validator, |e| {
+                    handle(&mut c, &config, epoch, e_epoch, &runtime, e)
+                })?;
+            }
         }
         _ => return Err("InvalidDomain：未知子命令".into()),
     }

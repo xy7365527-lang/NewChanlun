@@ -1,0 +1,21 @@
+{
+  "scope": "#1394 C frozen six-file S-content full-array audit performance patch",
+  "base_head": "e4ea36fbd16c3784b846092b6c28b976ff6343a5",
+  "base_rust_tree": "7196a77fef56cf87cbe91dc4b135326a142e2395",
+  "candidate_rust_tree_virtual": "c60452f606202ed6b4754ce29bd17698d115ed32",
+  "patch_sha256": "8e67ee4fe48625e61e83a6bb56fe18743774784df40c908db7cfe554222034c9",
+  "frozen_file_sha256_match": true,
+  "concept": "PASS",
+  "spec": "PASS_LOCAL_PATCH",
+  "standards": "PASS_PATCH_WITH_PREEXISTING_CLIPPY_GATE",
+  "findings": [],
+  "severity_counts": {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0},
+  "conclusion": "PASS_LOCAL_CODE_REVIEW",
+  "evidence": {
+    "targeted_tests_reported": {"passed": 58, "failed": 0, "independent_rerun": false},
+    "pending_pilot": {"published_cuts": 27, "raw_events": 28, "accepted_pending": 1, "baseline_node_selects": 8792023, "candidate_node_selects": 8090429, "baseline_and_candidate_repetitions": 3, "result_sha256_equal": true},
+    "git_diff_check": "PASS",
+    "clippy_default": "BLOCKED_BY_PREEXISTING_UNMODIFIED_STATE_RS_60"
+  },
+  "not_established": ["service", "9011_full_replay", "S_Q", "pending_recovery", "rss_heap_peak", "main_merge", "1323_whole_graph"]
+}

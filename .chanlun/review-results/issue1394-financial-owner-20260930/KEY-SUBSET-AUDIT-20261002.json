@@ -1,0 +1,854 @@
+{
+  "schema_revision": "issue1394-key-subset-audit-evidence/1",
+  "ticket": 1394,
+  "map": 1323,
+  "kind": "open-ticket working draft appendix",
+  "base_head": "dd43fe07372da3ba4181fb23eaaa4e48d19f40c5",
+  "base_rust_tree": "0eb9bec56e9d99606622ce11b4869eefebae5763",
+  "integrated_rust_tree": "5da6fc6caec9cb6a80569ff9497a2a5e461e5e12",
+  "source_sha256": {
+    "rust/src/s_content/path.rs": "dc88036dce9b99c19408dfcbb7e638e62e414c88cad24d1461a308573f4ee3f3",
+    "rust/src/bin/s_session_v3/history.rs": "f79127f9710341e50e187ae2bd5d886b4f8ca615531320393fc7c6d419b27663",
+    "rust/src/bin/s_session_v3/source_audit.rs": "cbbbbea3de6bbc95ac61feef8fd6efa4c425c382467ed1a7d19c2a5d9731bd1d",
+    "rust/tests/s_content_key_subset.rs": "1841d380bd4c178b7b51ef2e6937b17468b0fffa8e217cc006e731b16c4ba9a8"
+  },
+  "candidate_patch_sha256": "2bf898fa823cb7c119bfe3a416b7dde99a49f35d118d6d798f9b597944cf330a",
+  "scope": "Subset short UTF8 key bytes in one call, only explicit full audit BudgetNone/deadlineNone; all predicates preserved; exact/default/lookup/fragment/Some legacy",
+  "independent_review": {
+    "issue": 1394,
+    "reviewed_at_utc": "2026-10-01T21:32:01.364766+00:00",
+    "mode": "independent read-only scoped source review; existing validation logs reused",
+    "base_head": "dd43fe07372da3ba4181fb23eaaa4e48d19f40c5",
+    "base_rust_tree": "0eb9bec56e9d99606622ce11b4869eefebae5763",
+    "fixed_patch": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/CANDIDATE.patch",
+      "sha256": "2bf898fa823cb7c119bfe3a416b7dde99a49f35d118d6d798f9b597944cf330a"
+    },
+    "fixed_source_binding": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-manager-20261002/FIXED-PRODUCT-SHA.json",
+      "sha256": "fcdc1cd46ea703a3941e4821caca295f143e98767cc79d19fafbcc4c63a6de7b"
+    },
+    "fixed_source_files": {
+      "source_root": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/source",
+      "diagnostic_not_inserted": true,
+      "files": {
+        "rust/src/s_content/path.rs": "dc88036dce9b99c19408dfcbb7e638e62e414c88cad24d1461a308573f4ee3f3",
+        "rust/src/bin/s_session_v3/history.rs": "f79127f9710341e50e187ae2bd5d886b4f8ca615531320393fc7c6d419b27663",
+        "rust/src/bin/s_session_v3/source_audit.rs": "cbbbbea3de6bbc95ac61feef8fd6efa4c425c382467ed1a7d19c2a5d9731bd1d",
+        "rust/tests/s_content_key_subset.rs": "1841d380bd4c178b7b51ef2e6937b17468b0fffa8e217cc006e731b16c4ba9a8"
+      }
+    },
+    "all_four_sha_independently_verified": true,
+    "concept": "PASS",
+    "standards": "PASS",
+    "spec": "PASS",
+    "conclusion": "PASS",
+    "open_findings": [],
+    "severity_counts": {
+      "CRITICAL": 0,
+      "HIGH": 0,
+      "MEDIUM": 0,
+      "LOW": 0
+    },
+    "resolved_findings": [
+      {
+        "severity": "HIGH",
+        "type": "required test failure",
+        "file": "rust/src/bin/s_session_v3/source_audit.rs",
+        "original_snapshot_sha256": "a4fa5ec2cdd360b16f64fd48116679e403437f82bba2b9ee61e7e21f957de9cd",
+        "description": "deadlineSome/budgetNone fixture SQL=199 but F=91; test incorrectly expected F=199",
+        "resolution": "Added successful result assertion, retained complete old/new tuple equality and all SQL/budget/error/deadline checks; corrected only no-budget F expectation to91; full source audit10/10 passed"
+      }
+    ],
+    "validation": {
+      "key_subset": "7/7",
+      "path": "11/11",
+      "array": "4/4",
+      "history": "19/19",
+      "source_audit": "10/10",
+      "check": 0,
+      "fmt": 0,
+      "diff": 0,
+      "clippy": {
+        "exit_code": 101,
+        "unchanged_known_blocker": "rust/src/bin/s_session_v3/state.rs:60 clippy::absurd_extreme_comparisons"
+      },
+      "real_merkle_synthetic_counts": {
+        "15_take10": {
+          "legacy_reads": 199,
+          "candidate_reads": 100,
+          "candidate_F": 100
+        },
+        "20_take10": {
+          "legacy_reads": 244,
+          "candidate_reads": 130,
+          "candidate_F": 130
+        }
+      },
+      "some_gate": {
+        "budgetSome_deadlineNone": {
+          "SQL": 199,
+          "F": 398
+        },
+        "budgetNone_deadlineSome": {
+          "SQL": 199,
+          "F": 91
+        },
+        "budgetSome_deadlineSome": {
+          "SQL": 199,
+          "F": 398
+        }
+      }
+    },
+    "evidence_logs": {
+      "key-green.log": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/key-green.log",
+        "sha256": "cda29939891ca5340de20675f8f4564fea7e62b4100dde1db188844ba3b88308"
+      },
+      "path.log": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/path.log",
+        "sha256": "6217eec3d9c596495819208fce7b61fba2057ea058eae011af8d86021010c776"
+      },
+      "array.log": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/array.log",
+        "sha256": "038c118c7e11b6c5b748fab69382ffdc0d51c765a1bc91be0e727e2b91e08af9"
+      },
+      "history.log": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/history.log",
+        "sha256": "5e78a1adbea2b081e387443c6c6534fcdaa8249ecec8e7d134995f540a9d5c20"
+      },
+      "source-audit.log": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/source-audit.log",
+        "sha256": "45f80edd27170bf562ba53e2083b8ff15a6c2421782fc099813821efd2590e36"
+      },
+      "source-audit-gate-expectation-failure.log": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/source-audit-gate-expectation-failure.log",
+        "sha256": "94c581eddd2acb62d23e8076e3c9ce90028a5cc94c38b2c7e7acd37b157dff97"
+      },
+      "CHECKS.json": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/CHECKS.json",
+        "sha256": "468fc7164ad0cf2de8b1ed73472f1d84339bcef2771042d6a5c991ecdaa70cc1"
+      },
+      "clippy.log": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/clippy.log",
+        "sha256": "dc0b30314007908a9a1f7481ab6f019319932b233f5301096c61f9bc3cc5fd96"
+      }
+    },
+    "limits": [
+      "Pilot PROBE/ACCEPTANCE not independently reviewed in this report; parent and manager retain acceptance",
+      "No complete9011/service/fullgraph/main/push acceptance",
+      "No independent recompilation or repeated test execution",
+      "No Chanlun concept or formal source changed; C5.1/C5.2 are operative codec authority; no contradiction requiring genealogy review"
+    ]
+  },
+  "reported_targeted_checks_passed": 51,
+  "checks": {
+    "check": {
+      "command": [
+        "cargo",
+        "check",
+        "--offline",
+        "--release",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--features",
+        "s_session",
+        "--bin",
+        "s_structure_session"
+      ],
+      "exit_code": 0
+    },
+    "clippy": {
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--release",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--features",
+        "s_session",
+        "--bin",
+        "s_structure_session"
+      ],
+      "exit_code": 101
+    },
+    "fmt": {
+      "command": [
+        "rustfmt",
+        "--edition",
+        "2021",
+        "--check",
+        "rust/src/s_content/path.rs",
+        "rust/src/bin/s_session_v3/history.rs",
+        "rust/src/bin/s_session_v3/source_audit.rs",
+        "rust/tests/s_content_key_subset.rs"
+      ],
+      "exit_code": 0
+    },
+    "diff": {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0
+    },
+    "fmt_final": {
+      "exit_code": 0
+    },
+    "diff_final": {
+      "exit_code": 0
+    },
+    "build_product": {
+      "command": [
+        "cargo",
+        "build",
+        "--offline",
+        "--release",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--features",
+        "s_session",
+        "--bin",
+        "s_structure_session"
+      ],
+      "exit_code": 0
+    }
+  },
+  "root_exact_return_facts": {
+    "status": "PASS_ROOT_RECOMPUTED_READONLY_KEY_SUBSET",
+    "scope": "same raw28/cut27/pending1;not service/Driver/full9011",
+    "checks": [
+      {
+        "repeat": 0,
+        "old_SQL": 7753079,
+        "new_SQL": 6977348,
+        "F": 3400571,
+        "typed_all_four_members_equal": true,
+        "all963_phase_order_each_overlay_equal": true
+      },
+      {
+        "repeat": 1,
+        "old_SQL": 7753079,
+        "new_SQL": 6977348,
+        "F": 3400571,
+        "typed_all_four_members_equal": true,
+        "all963_phase_order_each_overlay_equal": true
+      }
+    ],
+    "new_probe_sha256": "b3ceb0d50ab0c5c5092bb7123d8d1f182ac5af7b024d5f5749a000601baa2272",
+    "wall_causal_speedup": "UNMEASURED",
+    "true_heap_RSS_IO_peaks": "UNMEASURED",
+    "full9011": false,
+    "C_complete": false
+  },
+  "measured_SQL_before_each": 7753079,
+  "measured_SQL_after_each": 6977348,
+  "SQL_removed_each": 775731,
+  "SQL_reduction_fraction": 0.10005457186751225,
+  "F_each_unchanged": 3400571,
+  "unique_digest_unchanged": 66953,
+  "wall_causal_speedup": "UNMEASURED",
+  "strict_heap_RSS_IO_peaks": "UNMEASURED",
+  "product_binary": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/key-product-bin",
+    "bytes": 7197360,
+    "sha256": "c133ed89d9fda4c332f8c5730c53393fcd50ceca4a97f28b593b6530900bbe43",
+    "not_formal_runtime_proved": true
+  },
+  "worker_terminal": {
+    "run_id": "7a237bd2-466d-4226-8f6c-c80a88b05658",
+    "tool_handle": 27401,
+    "exit_code": 0,
+    "process_pid": 10033,
+    "process_gone": true
+  },
+  "source_original_three_stat_bytes_unchanged": true,
+  "owned_SHM_stat_changed_disclosed": true,
+  "review_CHECKS_historical_exact_copy": "key-subset-inputs/030-CHECKS-REVIEW-SNAPSHOT.json.raw.json",
+  "final_CHECKS_only_added_product_build_fmt_diff": true,
+  "prior_packet_files": 399,
+  "prior_packet_git_tree": "0741a307bd70450142107ce39236836014d69a62",
+  "prior_packet_preserved_git_diff_empty": true,
+  "inputs": [
+    {
+      "path": "key-subset-inputs/001-AUTHOR-RESULT.json.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/AUTHOR-RESULT.json",
+      "source_bytes": 6116,
+      "source_sha256": "69a68c8886887db7017d81b8b34a243dfac3150819cd195e0fcd07c0e5367834",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 6882,
+      "sha256": "4dcb20c0b2e3d1d8a672d6df964a6df041cf5fedf14562f91ac1fb387821e27a"
+    },
+    {
+      "path": "key-subset-inputs/002-RECONSTRUCT.json.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/RECONSTRUCT.json",
+      "source_bytes": 3409,
+      "source_sha256": "d746ad25209ba5d6836d0ba7c68ae40bd7b3bae5b844dcd38a5188263e85fe64",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 3877,
+      "sha256": "5228bf98dcc024f0a1062fc4ddbf09f2c0947d5c0c7746978345c587a43f253c"
+    },
+    {
+      "path": "key-subset-inputs/003-ACCEPTANCE.json.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/ACCEPTANCE.json",
+      "source_bytes": 1285,
+      "source_sha256": "311fc21aed25837e0d4c65445db63e815058efbc72fb10f843fffaad53314b52",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 1756,
+      "sha256": "e5e3ffb4843d9b873b6fb57d795b99e978aed6aec29a62d62fdc73a4a2e8eba3"
+    },
+    {
+      "path": "key-subset-inputs/004-INPUT-BINDING.json.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/INPUT-BINDING.json",
+      "source_bytes": 4180,
+      "source_sha256": "8319c04ceb8edcf97d4b7476495faadb2ba47b92427801382c20771bf8c15b7e",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 4899,
+      "sha256": "6a37fa5917f03b24d0d642bc02a3f192d050384f17b6db6db74c761ec0b15325"
+    },
+    {
+      "path": "key-subset-inputs/005-CHECKS.json.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/CHECKS.json",
+      "source_bytes": 1286,
+      "source_sha256": "572b693588cf8cd7d528963557cca303a43d9160d5939f63bb4fc0bb33629f81",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 1805,
+      "sha256": "7cf4d0ef4a04d50958a92830919dfc3221531ef998e6aea28fb2099c50ff4270"
+    },
+    {
+      "path": "key-subset-inputs/006-VALIDATION-FIXTURES.json.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/VALIDATION-FIXTURES.json",
+      "source_bytes": 632,
+      "source_sha256": "c6e978f3f3eb8a99e8d6de411572478b665c51b6d77a3aff3fb07dbf4bad589a",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 1019,
+      "sha256": "333b82fc32a723d604e8dad5585fae0154d7483d73c61c884cb632c03bda9f84"
+    },
+    {
+      "path": "key-subset-inputs/007-CANDIDATE.patch.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/CANDIDATE.patch",
+      "source_bytes": 31983,
+      "source_sha256": "2bf898fa823cb7c119bfe3a416b7dde99a49f35d118d6d798f9b597944cf330a",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 33311,
+      "sha256": "bac7f361ba66d70af2fd1e3e9420d8eb7e62807412f7f0874beaa59576271321"
+    },
+    {
+      "path": "key-subset-inputs/008-DIAGNOSTIC-RECIPE.patch.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/DIAGNOSTIC-RECIPE.patch",
+      "source_bytes": 9855,
+      "source_sha256": "e70cddf3e54cfea917c573e0796338b7b88587bc29a74297ed18a22921d0f287",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 10511,
+      "sha256": "cdd22eb66b3e0b2e89702da5d81ff14bb658346dc74b6ad05b56e980efc9e4d3"
+    },
+    {
+      "path": "key-subset-inputs/009-BASELINE-audit_shadow_probe.rs.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/BASELINE-audit_shadow_probe.rs",
+      "source_bytes": 4588,
+      "source_sha256": "bb97f4451769854603ffdba431eba36e8d2a967b3acc9558d40444db4de16d46",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 5068,
+      "sha256": "2da3ff01ae78729241345fda9198bf67ed8adf79456f41ec6546298912402548"
+    },
+    {
+      "path": "key-subset-inputs/010-red.log.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/red.log",
+      "source_bytes": 41761,
+      "source_sha256": "45f42592f7fb78eb61b7785c3f6bf6f4104f0c9cfa9cc217a4d245933276ea3a",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 43371,
+      "sha256": "e642564672ce3c9c895c173925f75f184ecba4fc897a064dad07f5971ff6586d"
+    },
+    {
+      "path": "key-subset-inputs/011-key-green.log.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/key-green.log",
+      "source_bytes": 801,
+      "source_sha256": "cda29939891ca5340de20675f8f4564fea7e62b4100dde1db188844ba3b88308",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 1141,
+      "sha256": "bb0b1f3e9fa6a0daf9bf4827281b6b4b8fb0adb871650beaccd5c326f0888736"
+    },
+    {
+      "path": "key-subset-inputs/012-path.log.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/path.log",
+      "source_bytes": 931,
+      "source_sha256": "6217eec3d9c596495819208fce7b61fba2057ea058eae011af8d86021010c776",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 1269,
+      "sha256": "c10291e8040b7fb934f4980519963c15cd19493260ba5773efbc50a7936e2921"
+    },
+    {
+      "path": "key-subset-inputs/013-array.log.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/array.log",
+      "source_bytes": 667,
+      "source_sha256": "038c118c7e11b6c5b748fab69382ffdc0d51c765a1bc91be0e727e2b91e08af9",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 1005,
+      "sha256": "0e22cafb33d324eaf4d0d17adb48e94fb54b1a7be2211b5391e6ae06c9a1dec9"
+    },
+    {
+      "path": "key-subset-inputs/014-history.log.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/history.log",
+      "source_bytes": 2015,
+      "source_sha256": "5e78a1adbea2b081e387443c6c6534fcdaa8249ecec8e7d134995f540a9d5c20",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 2366,
+      "sha256": "283ba923cb187d70416994c2a12a51d3a9431e66ea078a0c7dd5d546b91c3aef"
+    },
+    {
+      "path": "key-subset-inputs/015-source-audit.log.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/source-audit.log",
+      "source_bytes": 3420,
+      "source_sha256": "45f80edd27170bf562ba53e2083b8ff15a6c2421782fc099813821efd2590e36",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 4033,
+      "sha256": "dafd3336f5204f8cbff6d50f0dc4693c98c3c26ae3e7afbda83749e3e41733a1"
+    },
+    {
+      "path": "key-subset-inputs/016-source-audit-gate-expectation-failure.log.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/source-audit-gate-expectation-failure.log",
+      "source_bytes": 3675,
+      "source_sha256": "94c581eddd2acb62d23e8076e3c9ce90028a5cc94c38b2c7e7acd37b157dff97",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 4321,
+      "sha256": "6661d481d09e3b39e28a1475b9ae39e72d0cd550a79ba82f058cadff2eb9dc07"
+    },
+    {
+      "path": "key-subset-inputs/017-build-targeted.log.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/build-targeted.log",
+      "source_bytes": 54622,
+      "source_sha256": "9e3592f9c611a7e5cd3ca2c5c2b429085bda94392637ddbb7261fce9007942e8",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 56644,
+      "sha256": "6ba22ec4ce72d0e1e4a2f1336a69217396f05335ccb1607ea1033907fb14f1a6"
+    },
+    {
+      "path": "key-subset-inputs/018-build-observer.log.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/build-observer.log",
+      "source_bytes": 22341,
+      "source_sha256": "5328aa3e78061abf57ce7585dc7a842eccb804b4bdb8b0cf528f84690d8c6e52",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 23332,
+      "sha256": "e8342b5f55d75a82b03ee65acc9b7c5f01647115a72ffb5fe11c6791ae30d140"
+    },
+    {
+      "path": "key-subset-inputs/019-build-product.log.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/build-product.log",
+      "source_bytes": 29554,
+      "source_sha256": "b7b5879683a4069b014030f96df31d66896f97195b84939a5e215cf0e40786f1",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 30776,
+      "sha256": "b1c5e3fa5ac1162134ae4455f693c853db31760a812537f60ed7dd73e11d45c1"
+    },
+    {
+      "path": "key-subset-inputs/020-check.log.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/check.log",
+      "source_bytes": 30447,
+      "source_sha256": "9c3811955cc09bfde2006935bb2da8dd191d7396d36e8e97185703119c56656f",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 31690,
+      "sha256": "866482c739e65039ced64cec1e23ba011494663b8aae94c1ebbc27cb0b6c7448"
+    },
+    {
+      "path": "key-subset-inputs/021-clippy.log.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/clippy.log",
+      "source_bytes": 206819,
+      "source_sha256": "dc0b30314007908a9a1f7481ab6f019319932b233f5301096c61f9bc3cc5fd96",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 212227,
+      "sha256": "4ee04ccc1c9cadef5f5de0a15d50f8983db1069c43107af7b2266c3013d3e519"
+    },
+    {
+      "path": "key-subset-inputs/022-fmt.log.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/fmt.log",
+      "source_bytes": 0,
+      "source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 318,
+      "sha256": "92269eb538897d7065b594534e619606394257d247fd52f5c7e315020d9b5e14"
+    },
+    {
+      "path": "key-subset-inputs/023-diff.log.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/diff.log",
+      "source_bytes": 0,
+      "source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 319,
+      "sha256": "eca4f5d6a040da45f4906c143b1819b49bb911cf5948cb6e343a32d1caa1c342"
+    },
+    {
+      "path": "key-subset-inputs/024-gate-diagnose.log.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/gate-diagnose.log",
+      "source_bytes": 23195,
+      "source_sha256": "8da3d7f87553a80c2f50f3bbf146becb9954dfc9dc5be7a5fea009a693406fb7",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 24205,
+      "sha256": "7baaf4c1f744d6cea514e048be1903ef7e4b6891a855cf11a28c4678be77a395"
+    },
+    {
+      "path": "key-subset-inputs/025-FINAL-REVIEW.json.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-review-20261002/FINAL-REVIEW.json",
+      "source_bytes": 5546,
+      "source_sha256": "9cd7d10731f163a5a5afa5517af17d8bed587c337014b81e091585214e7bd109",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 6292,
+      "sha256": "a313ae51801f8a8785418105b590a01666dcb0e3160d1836d783bd0bea272188"
+    },
+    {
+      "path": "key-subset-inputs/026-FINAL-REVIEW.md.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-review-20261002/FINAL-REVIEW.md",
+      "source_bytes": 4753,
+      "source_sha256": "d7ade914cad92af84dbca7679271991cb8e3732266b7af560456dc837603e8b9",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 5130,
+      "sha256": "6d0f53dc97eca5d73679047a3e3ac8844222babbad6712525daed399bf121e08"
+    },
+    {
+      "path": "key-subset-inputs/027-ROOT-FACTS.json.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-review-20261002/ROOT-FACTS.json",
+      "source_bytes": 760,
+      "source_sha256": "49e4976a92a093a00f9efd7094d4a4837a328d45a8d78cdc3da2584870e4134b",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 1167,
+      "sha256": "0236015737777de7a3eebcf005b44658ef909bda8c5402a72ebbf2df848e4a43"
+    },
+    {
+      "path": "key-subset-inputs/028-ROOT-BINDING-VERIFY.json.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-review-20261002/ROOT-BINDING-VERIFY.json",
+      "source_bytes": 1307,
+      "source_sha256": "ea1973b72dadb1c3587f6ca11793ac747ef874c8135cac813e5985163e30042d",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 1733,
+      "sha256": "17bd78f09f350d24efe5a1bf48a342f6679b02b576269547efe134882b9d0fdd"
+    },
+    {
+      "path": "key-subset-inputs/029-ROOT-STAGED-CODE.json.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-review-20261002/ROOT-STAGED-CODE.json",
+      "source_bytes": 789,
+      "source_sha256": "9ca63966f65e67b0249d2ee3e13eff6ea52e57eded5032efb742e8d6bbb54d71",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 1177,
+      "sha256": "163cfaefc8363e288d30a93a75962aefbe9ffb7ad7e94d35b31a9a015e4e120f"
+    },
+    {
+      "path": "key-subset-inputs/030-CHECKS-REVIEW-SNAPSHOT.json.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-review-20261002/CHECKS-REVIEW-SNAPSHOT.json",
+      "source_bytes": 934,
+      "source_sha256": "468fc7164ad0cf2de8b1ed73472f1d84339bcef2771042d6a5c991ecdaa70cc1",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 1415,
+      "sha256": "e42f48c38e639d51f4ca623413fc495124a11b4c4bb80425f582f0e04c88cf40"
+    },
+    {
+      "path": "key-subset-inputs/031-MANAGER-RECEIPT.json.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-manager-20261002/MANAGER-RECEIPT.json",
+      "source_bytes": 2176,
+      "source_sha256": "39926b3b7ed944faaa22d40633ea3b5e3003cdd98bd278b8c783f4ea72f6d42d",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 2669,
+      "sha256": "56ac6e5e39e21ed05a616653036969dc0f4c2b1ee043fc8534dbb2b622397942"
+    },
+    {
+      "path": "key-subset-inputs/032-BRIDGE-BINDING.json.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-manager-20261002/BRIDGE-BINDING.json",
+      "source_bytes": 716,
+      "source_sha256": "30c10a7800440dd6646fc24912ff191c55fb19bdda5d0f64b175b10f3a911710",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 1098,
+      "sha256": "63c5474d77666b305f2db7d2d4d03d952574889773c65351054dfd879f506c99"
+    },
+    {
+      "path": "key-subset-inputs/033-SPARSE-ADAPTATION.patch.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-manager-20261002/SPARSE-ADAPTATION.patch",
+      "source_bytes": 4507,
+      "source_sha256": "413090e9c662487169a3de3246d4046169f29adc62cbd629c1b6ef8d21d652f9",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 5041,
+      "sha256": "6357ec06d532e6cea37bf01296ff0ffcc2e222f13da9cc4aaf1b02c228f930cd"
+    },
+    {
+      "path": "key-subset-inputs/034-GUARD-CHECKS.json.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-manager-20261002/GUARD-CHECKS.json",
+      "source_bytes": 968,
+      "source_sha256": "6af91d306acd37710dda2d019da00c6009be1f6faa40325c6f41e16706135642",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 1435,
+      "sha256": "0e3b5363d22239bea8d25a5485b6513442004826d5b9deab76f4bf89d18981a1"
+    },
+    {
+      "path": "key-subset-inputs/035-BUILD-DEPENDENCIES.json.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-manager-20261002/BUILD-DEPENDENCIES.json",
+      "source_bytes": 820,
+      "source_sha256": "1aaf1e53047b6f59f053e033c9eda4de6ee63807cfc0bfd6019d41b38e9b1ecd",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 1245,
+      "sha256": "b5537ba26a83299a274e649c22d4ae46666383fd5a1251faedb56b86143ea5ca"
+    },
+    {
+      "path": "key-subset-inputs/036-FIXED-PRODUCT-SHA.json.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-manager-20261002/FIXED-PRODUCT-SHA.json",
+      "source_bytes": 621,
+      "source_sha256": "fcdc1cd46ea703a3941e4821caca295f143e98767cc79d19fafbcc4c63a6de7b",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 993,
+      "sha256": "9831e2da83606bf393709ed9ff75ffc08c93b178ef4d4bdc97420ee6c8d05e15"
+    }
+  ],
+  "caller_owned_external_files": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/AUTHOR-RESULT.json",
+      "bytes": 6116,
+      "sha256": "69a68c8886887db7017d81b8b34a243dfac3150819cd195e0fcd07c0e5367834"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/RECONSTRUCT.json",
+      "bytes": 3409,
+      "sha256": "d746ad25209ba5d6836d0ba7c68ae40bd7b3bae5b844dcd38a5188263e85fe64"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/ACCEPTANCE.json",
+      "bytes": 1285,
+      "sha256": "311fc21aed25837e0d4c65445db63e815058efbc72fb10f843fffaad53314b52"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/INPUT-BINDING.json",
+      "bytes": 4180,
+      "sha256": "8319c04ceb8edcf97d4b7476495faadb2ba47b92427801382c20771bf8c15b7e"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/CHECKS.json",
+      "bytes": 1286,
+      "sha256": "572b693588cf8cd7d528963557cca303a43d9160d5939f63bb4fc0bb33629f81"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/VALIDATION-FIXTURES.json",
+      "bytes": 632,
+      "sha256": "c6e978f3f3eb8a99e8d6de411572478b665c51b6d77a3aff3fb07dbf4bad589a"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/CANDIDATE.patch",
+      "bytes": 31983,
+      "sha256": "2bf898fa823cb7c119bfe3a416b7dde99a49f35d118d6d798f9b597944cf330a"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/DIAGNOSTIC-RECIPE.patch",
+      "bytes": 9855,
+      "sha256": "e70cddf3e54cfea917c573e0796338b7b88587bc29a74297ed18a22921d0f287"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/BASELINE-audit_shadow_probe.rs",
+      "bytes": 4588,
+      "sha256": "bb97f4451769854603ffdba431eba36e8d2a967b3acc9558d40444db4de16d46"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/red.log",
+      "bytes": 41761,
+      "sha256": "45f42592f7fb78eb61b7785c3f6bf6f4104f0c9cfa9cc217a4d245933276ea3a"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/key-green.log",
+      "bytes": 801,
+      "sha256": "cda29939891ca5340de20675f8f4564fea7e62b4100dde1db188844ba3b88308"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/path.log",
+      "bytes": 931,
+      "sha256": "6217eec3d9c596495819208fce7b61fba2057ea058eae011af8d86021010c776"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/array.log",
+      "bytes": 667,
+      "sha256": "038c118c7e11b6c5b748fab69382ffdc0d51c765a1bc91be0e727e2b91e08af9"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/history.log",
+      "bytes": 2015,
+      "sha256": "5e78a1adbea2b081e387443c6c6534fcdaa8249ecec8e7d134995f540a9d5c20"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/source-audit.log",
+      "bytes": 3420,
+      "sha256": "45f80edd27170bf562ba53e2083b8ff15a6c2421782fc099813821efd2590e36"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/source-audit-gate-expectation-failure.log",
+      "bytes": 3675,
+      "sha256": "94c581eddd2acb62d23e8076e3c9ce90028a5cc94c38b2c7e7acd37b157dff97"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/build-targeted.log",
+      "bytes": 54622,
+      "sha256": "9e3592f9c611a7e5cd3ca2c5c2b429085bda94392637ddbb7261fce9007942e8"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/build-observer.log",
+      "bytes": 22341,
+      "sha256": "5328aa3e78061abf57ce7585dc7a842eccb804b4bdb8b0cf528f84690d8c6e52"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/build-product.log",
+      "bytes": 29554,
+      "sha256": "b7b5879683a4069b014030f96df31d66896f97195b84939a5e215cf0e40786f1"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/check.log",
+      "bytes": 30447,
+      "sha256": "9c3811955cc09bfde2006935bb2da8dd191d7396d36e8e97185703119c56656f"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/clippy.log",
+      "bytes": 206819,
+      "sha256": "dc0b30314007908a9a1f7481ab6f019319932b233f5301096c61f9bc3cc5fd96"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/fmt.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/diff.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/gate-diagnose.log",
+      "bytes": 23195,
+      "sha256": "8da3d7f87553a80c2f50f3bbf146becb9954dfc9dc5be7a5fea009a693406fb7"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-review-20261002/FINAL-REVIEW.json",
+      "bytes": 5546,
+      "sha256": "9cd7d10731f163a5a5afa5517af17d8bed587c337014b81e091585214e7bd109"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-review-20261002/FINAL-REVIEW.md",
+      "bytes": 4753,
+      "sha256": "d7ade914cad92af84dbca7679271991cb8e3732266b7af560456dc837603e8b9"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-review-20261002/ROOT-FACTS.json",
+      "bytes": 760,
+      "sha256": "49e4976a92a093a00f9efd7094d4a4837a328d45a8d78cdc3da2584870e4134b"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-review-20261002/ROOT-BINDING-VERIFY.json",
+      "bytes": 1307,
+      "sha256": "ea1973b72dadb1c3587f6ca11793ac747ef874c8135cac813e5985163e30042d"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-review-20261002/ROOT-STAGED-CODE.json",
+      "bytes": 789,
+      "sha256": "9ca63966f65e67b0249d2ee3e13eff6ea52e57eded5032efb742e8d6bbb54d71"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-review-20261002/CHECKS-REVIEW-SNAPSHOT.json",
+      "bytes": 934,
+      "sha256": "468fc7164ad0cf2de8b1ed73472f1d84339bcef2771042d6a5c991ecdaa70cc1"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-manager-20261002/MANAGER-RECEIPT.json",
+      "bytes": 2176,
+      "sha256": "39926b3b7ed944faaa22d40633ea3b5e3003cdd98bd278b8c783f4ea72f6d42d"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-manager-20261002/BRIDGE-BINDING.json",
+      "bytes": 716,
+      "sha256": "30c10a7800440dd6646fc24912ff191c55fb19bdda5d0f64b175b10f3a911710"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-manager-20261002/SPARSE-ADAPTATION.patch",
+      "bytes": 4507,
+      "sha256": "413090e9c662487169a3de3246d4046169f29adc62cbd629c1b6ef8d21d652f9"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-manager-20261002/GUARD-CHECKS.json",
+      "bytes": 968,
+      "sha256": "6af91d306acd37710dda2d019da00c6009be1f6faa40325c6f41e16706135642"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-manager-20261002/BUILD-DEPENDENCIES.json",
+      "bytes": 820,
+      "sha256": "1aaf1e53047b6f59f053e033c9eda4de6ee63807cfc0bfd6019d41b38e9b1ecd"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-manager-20261002/FIXED-PRODUCT-SHA.json",
+      "bytes": 621,
+      "sha256": "fcdc1cd46ea703a3941e4821caca295f143e98767cc79d19fafbcc4c63a6de7b"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/PROBE.json",
+      "bytes": 2904990,
+      "sha256": "b3ceb0d50ab0c5c5092bb7123d8d1f182ac5af7b024d5f5749a000601baa2272"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/BASELINE-PROBE.json",
+      "bytes": 2905144,
+      "sha256": "e62fcada6c13514eb1da847daeef9cb432b12bb0ebdf582277a56dc1551d53cf"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/key-product-bin",
+      "bytes": 7197360,
+      "sha256": "c133ed89d9fda4c332f8c5730c53393fcd50ceca4a97f28b593b6530900bbe43"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/key-release-observer-testbin",
+      "bytes": 12465552,
+      "sha256": "8fdb8a9a5fb7c8d529e5a8bcdd550a8ab2e9f62303585bbfa0cb4f0aa1d0654a"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/key-targeted-testbin",
+      "bytes": 1231872,
+      "sha256": "1957d89fcd4e8fb686214bb22507d6e9ff9aef573d3291851dc2bf99d84a8b7b"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/path-targeted-testbin",
+      "bytes": 1282480,
+      "sha256": "e80d342b2d54378811554c3af85f2ac45b7b98e5e8225aac6d25916b898be9c5"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/array-targeted-testbin",
+      "bytes": 1149120,
+      "sha256": "959ccd395e937d20b0fea81eb2df530dedfc5de6d1a3a0cfb6a8e894ff7244f9"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/red-key-testbin",
+      "bytes": 1107920,
+      "sha256": "2539bf5551798082d9c544fdf42ef7d8f82dac5bc6860be5fd3c96863a0a69ff"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/s.sqlite",
+      "bytes": 13697024,
+      "sha256": "050562e2db766cc3d6d94e42bf43f0e21fe3a336d6c9d5b8adcc0e887959f9c1"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/s.sqlite-wal",
+      "bytes": 11680232,
+      "sha256": "9b1565422a3c45c03bb068ede25c199548072d6695c1b33b01ce2a851449671b"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/s.sqlite-shm",
+      "bytes": 32768,
+      "sha256": "0c58b51d09bfd39725a1fc4d8d63f3713e9ce6533dd899f45fa2be7d16633aca"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-manager-20261002/run-1/result.json",
+      "bytes": 112763,
+      "sha256": "ef0455bb8cfc35e68e7df028ad92db401a063e97ad1095f7e83a1ff205b89c97"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-manager-20261002/run-1/state.json",
+      "bytes": 112763,
+      "sha256": "ef0455bb8cfc35e68e7df028ad92db401a063e97ad1095f7e83a1ff205b89c97"
+    }
+  ],
+  "complete9011": false,
+  "full_service_30s_gate_pass": false,
+  "C_complete": false,
+  "wholegoal_complete": false,
+  "main_merged": false,
+  "pushed": false,
+  "next": "new exact production binary now available; formal full9011 requires new HEAD/tree/binary gate and fresh domains, original source/clock/S7/Q21; preserve pending28; restore original6GiB free-space gate before start"
+}

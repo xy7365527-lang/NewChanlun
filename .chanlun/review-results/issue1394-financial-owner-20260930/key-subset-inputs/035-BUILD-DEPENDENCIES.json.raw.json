@@ -1,0 +1,7 @@
+{
+  "schema_revision": "issue1394-verbatim-utf8-artifact/1",
+  "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-manager-20261002/BUILD-DEPENDENCIES.json",
+  "source_bytes": 820,
+  "source_sha256": "1aaf1e53047b6f59f053e033c9eda4de6ee63807cfc0bfd6019d41b38e9b1ecd",
+  "content_utf8": "[\n  {\n    \"path\": \"s_session/profiles/testonly_tick_1_1_ohlc.json\",\n    \"sha\": \"2cd50e43e659dc87498eebba76d88deb4cde276cd51c47fa0c083b07dffbdcfc\",\n    \"fixed_head_bytes_equal\": true,\n    \"flag_before\": \"H\",\n    \"manager_no_skip_worktree\": false,\n    \"flag_after\": \"H\"\n  },\n  {\n    \"path\": \"s_session/profiles/ohlc_integer_tb02a_v1.json\",\n    \"sha\": \"482250254133ba120afdd5cd428d1a32d4e5cb40cd7876c556b7007320e599d6\",\n    \"fixed_head_bytes_equal\": true,\n    \"flag_before\": \"H\",\n    \"manager_no_skip_worktree\": false,\n    \"flag_after\": \"H\"\n  },\n  {\n    \"path\": \"s_session/tests/fixtures/tb01c/query-resources.json\",\n    \"sha\": \"36b188ae42be8e24e7fdbb44e7d3a7068200f7c942f50975337d07595ac62e64\",\n    \"fixed_head_bytes_equal\": true,\n    \"flag_before\": \"H\",\n    \"manager_no_skip_worktree\": false,\n    \"flag_after\": \"H\"\n  }\n]\n"
+}

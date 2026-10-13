@@ -1,0 +1,360 @@
+{
+  "axis": "independent actual acceptance fact review",
+  "checks": [
+    {
+      "name": "manifest all bytes and SHA",
+      "status": "PASS"
+    },
+    {
+      "name": "final commit six changed source files and frozen binary",
+      "status": "PASS"
+    },
+    {
+      "name": "95 old originals before final and live identity",
+      "status": "PASS"
+    },
+    {
+      "name": "four raw Controller process socket nonce and private resource identities",
+      "status": "PASS"
+    },
+    {
+      "name": "19 canonical LF replies and full public envelope hashes causal identities nonce",
+      "status": "PASS"
+    },
+    {
+      "name": "A B original input full Committed receipt idempotence and clock",
+      "status": "PASS"
+    },
+    {
+      "name": "C original same-domain receipt and actual recover13 epoch1to2",
+      "status": "PASS"
+    },
+    {
+      "name": "C stale epoch start input zero logical DB and exact old receipt",
+      "status": "PASS"
+    },
+    {
+      "name": "three actual private SHA CLI negative exits and raw DB WAL SHM unchanged",
+      "status": "PASS"
+    },
+    {
+      "name": "actual frame read timeout connection bounds and zero logical writes",
+      "status": "PASS"
+    },
+    {
+      "name": "15 binary terminal handles actual signal exits and live identity observation",
+      "status": "PASS"
+    },
+    {
+      "name": "two harness FAIL records C continuation and old b86 hold preserved",
+      "status": "PASS"
+    },
+    {
+      "name": "owned cleanup absent and independent logical snapshot hashes",
+      "status": "PASS"
+    }
+  ],
+  "facts": {
+    "AB_all_committed_fields_match_frozen_cli": true,
+    "AB_committed": {
+      "accepted_seq": "0",
+      "kind": "Committed",
+      "ok": true,
+      "original_message_id": "message-1",
+      "publication": {
+        "catalog_revision": "s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)",
+        "generation": "1",
+        "index_frontier": "batch3-529bec7f18eb81627c1acfd1d7d39b2391b67168e810a1684723c9a07853ca13",
+        "input_frontier": "0",
+        "structure_cut": "cut-1"
+      },
+      "receipt_id": "rcpt-dd82deb93da29c71"
+    },
+    "C_epoch_history": [
+      {
+        "advance_state_at_transition": "idle",
+        "from_epoch": "1",
+        "generation_at_transition": "1",
+        "ordinal": 1,
+        "to_epoch": "2",
+        "transitioned_at": "13"
+      }
+    ],
+    "C_original_committed": {
+      "accepted_seq": "0",
+      "kind": "Committed",
+      "ok": true,
+      "original_message_id": "message-1",
+      "publication": {
+        "catalog_revision": "s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)",
+        "generation": "1",
+        "index_frontier": "batch3-8a0f92df23663923d8cc6fc6536c256d8adc5a90fd6775335d29aa58dfdfd1ee",
+        "input_frontier": "0",
+        "structure_cut": "cut-1"
+      },
+      "receipt_id": "rcpt-dd82deb93da29c71"
+    },
+    "C_recovery_changed_tables": [
+      "meta",
+      "s_clock_events",
+      "s_protocol_meta",
+      "writer_epoch_history"
+    ],
+    "C_same_DB_continuation": true,
+    "C_stale_original_input_error": {
+      "error": "StaleWriter：消息 writer_epoch=`1`，非本域当前持久 `2`（换代后旧 writer 拒绝，零写入）",
+      "identity_binding": "verified_at_service_start_only",
+      "ok": false
+    },
+    "LIFECYCLE-CLOCK-TEST-INPUT.json_canonical_sha256": "9f73852eae6de0140b9a7848cc61681979c891b2125f246ab888c08aa88bc9b9",
+    "Ready_clock_profile_bindings": {
+      "A/start-ready-1": "cd65fa6caa3d33591ba331bed0e6491555db2732c7c8c1155ecd5457fcd1f31d",
+      "B/start-ready-1": "cd65fa6caa3d33591ba331bed0e6491555db2732c7c8c1155ecd5457fcd1f31d",
+      "C/continuation-epoch2-ready-16": "9f73852eae6de0140b9a7848cc61681979c891b2125f246ab888c08aa88bc9b9",
+      "C/start-ready-1": "9f73852eae6de0140b9a7848cc61681979c891b2125f246ab888c08aa88bc9b9"
+    },
+    "actual_noLF_request_has_no_newline": true,
+    "binary": {
+      "bytes": 18609984,
+      "device": 16777232,
+      "inode": 324547449,
+      "mode": "0o500",
+      "mtime_ns": 1790816195743390154,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/s_structure_session-46d183a20a",
+      "sha256": "5437fbb5d581d1b48f6a1d3405cae67327113e5a2c7fedd7ce3a1d9ce1e18e91",
+      "uid": 501
+    },
+    "changed_source_sha256": {
+      ".chanlun/agent-roster-codex-20261001-s3-formal-entry.md": "7cecfd534fde5a188bcb59c822e36854c220752a5db54a6f192dca2e02741374",
+      "rust/src/bin/s_session_v3/driver.rs": "b3945937b401cd48fd348b54ae1b8772880a2cca80d31d4f62eb83aa8508f9ec",
+      "rust/src/bin/s_session_v3/state.rs": "f2ea61ad501c797a4e6c9ed127f06adfbbd0cdfa014a78e6217aaf0cf7efbd5b",
+      "rust/src/bin/s_session_v3/writer_cli.rs": "bfc119de105273230eddce1085f39ce8d37aea8792e8883393304d05f4bc994f",
+      "s_session/s_service_control.py": "894427caa51d9d58ea32a980bb473a93ca6e9b8a3e4664aa0b1f5a985c592d69",
+      "s_session/tests/test_tb01c_s3_service_control.py": "374df554cdff015178bf79398138fb516eb12c48a078e70c9d7ee8754f515c63"
+    },
+    "clock.json_canonical_sha256": "cd65fa6caa3d33591ba331bed0e6491555db2732c7c8c1155ecd5457fcd1f31d",
+    "commit": "46d183a20afe2c68e01e26555531663a7810f065",
+    "complete_canonical_lf_replies": 19,
+    "cross_clock_roots_not_compared": true,
+    "current_PID_reuse_observations": [],
+    "full_public_envelopes_verified": 16,
+    "identity_cases": {
+      "A/epoch1.identity.json": {
+        "nonce": "c89e3233-b326-4126-a42f-03c5c7efe2c0",
+        "pid": 72576,
+        "private_canonical_resource_sha256": "ce36ec974ebc06089be51ff8d578c7686e28c0e8e9fd9f6634b8e5879b64fb07",
+        "uid": 501
+      },
+      "B/epoch1.identity.json": {
+        "nonce": "597bfd38-00ac-43f1-b1e4-c81f96a9d9f7",
+        "pid": 72645,
+        "private_canonical_resource_sha256": "ce36ec974ebc06089be51ff8d578c7686e28c0e8e9fd9f6634b8e5879b64fb07",
+        "uid": 501
+      },
+      "C/continuation-epoch2.identity.json": {
+        "nonce": "fd1198eb-3f9e-4aed-bc15-6c0f68671050",
+        "pid": 77676,
+        "private_canonical_resource_sha256": "ce36ec974ebc06089be51ff8d578c7686e28c0e8e9fd9f6634b8e5879b64fb07",
+        "uid": 501
+      },
+      "C/epoch1.identity.json": {
+        "nonce": "a55c7fac-c410-44ad-99f3-5d0cabb3f25c",
+        "pid": 72679,
+        "private_canonical_resource_sha256": "ce36ec974ebc06089be51ff8d578c7686e28c0e8e9fd9f6634b8e5879b64fb07",
+        "uid": 501
+      }
+    },
+    "live_originals_verified": 95,
+    "logical_snapshot_count_rehashed": 17,
+    "manifest_files": 402,
+    "manifest_sha256": "4d4c36ea248d2987212b01f728e6a7f3beee3ec60a0e31fc50c4af06383195c1",
+    "owned_socket_dirs_absent": true,
+    "plain_transport_error_replies": 3,
+    "preserved_harness_failures": 2,
+    "private_sha_actual_cli_negatives": [
+      {
+        "DB_WAL_SHM_exact": true,
+        "case": "wrong64sha",
+        "exit": 1,
+        "no_writer_lock_or_socket": true,
+        "pid": 72568,
+        "stderr": "{\"error\":\"S3WriterResourcesInvalid：实际加载的资源规范 SHA256 与 S_CONTROL_RESOURCE_SHA256 不匹配\",\"ok\":false}\n"
+      },
+      {
+        "DB_WAL_SHM_exact": true,
+        "case": "invalid-string",
+        "exit": 1,
+        "no_writer_lock_or_socket": true,
+        "pid": 72570,
+        "stderr": "{\"error\":\"S3WriterResourcesInvalid：S_CONTROL_RESOURCE_SHA256 必须为规范小写 SHA256\",\"ok\":false}\n"
+      },
+      {
+        "DB_WAL_SHM_exact": true,
+        "case": "non-utf8",
+        "exit": 1,
+        "no_writer_lock_or_socket": true,
+        "pid": 72572,
+        "stderr": "{\"error\":\"S3WriterResourcesInvalid：S_CONTROL_RESOURCE_SHA256 必须为规范 UTF-8 SHA256\",\"ok\":false}\n"
+      }
+    ],
+    "raw_launch_binding_count": 15,
+    "raw_launch_bindings": [
+      {
+        "command": "init",
+        "pid": 72575,
+        "raw_launch_files": [
+          "A/process-72575.json"
+        ]
+      },
+      {
+        "command": "serve",
+        "pid": 72576,
+        "raw_launch_files": [
+          "A/process-72576.json"
+        ]
+      },
+      {
+        "command": "init",
+        "pid": 72644,
+        "raw_launch_files": [
+          "B/process-72644.json"
+        ]
+      },
+      {
+        "command": "serve",
+        "pid": 72645,
+        "raw_launch_files": [
+          "B/process-72645.json"
+        ]
+      },
+      {
+        "command": "recover",
+        "pid": 77641,
+        "raw_launch_files": [
+          "C/process-77641.json"
+        ]
+      },
+      {
+        "command": "serve",
+        "pid": 77656,
+        "raw_launch_files": [
+          "C/process-77656.json"
+        ]
+      },
+      {
+        "command": "serve",
+        "pid": 77676,
+        "raw_launch_files": [
+          "C/process-77676.json"
+        ]
+      },
+      {
+        "command": "serve",
+        "pid": 72679,
+        "raw_launch_files": [
+          "C/process-72679.json"
+        ]
+      },
+      {
+        "command": "init",
+        "pid": 69533,
+        "raw_launch_files": [
+          "RESOURCE-NEGATIVE/process-69533.json"
+        ]
+      },
+      {
+        "command": "serve",
+        "pid": 69542,
+        "raw_launch_files": [
+          "RESOURCE-NEGATIVE/wrong64sha.launch.json"
+        ]
+      },
+      {
+        "command": "init",
+        "pid": 72567,
+        "raw_launch_files": [
+          "RESOURCE-NEGATIVE-2/process-72567.json"
+        ]
+      },
+      {
+        "command": "serve",
+        "pid": 72568,
+        "raw_launch_files": [
+          "RESOURCE-NEGATIVE-2/wrong64sha.launch.json"
+        ]
+      },
+      {
+        "command": "serve",
+        "pid": 72570,
+        "raw_launch_files": [
+          "RESOURCE-NEGATIVE-2/invalid-string.launch.json"
+        ]
+      },
+      {
+        "command": "serve",
+        "pid": 72572,
+        "raw_launch_files": [
+          "RESOURCE-NEGATIVE-2/non-utf8.launch.json"
+        ]
+      },
+      {
+        "command": "init",
+        "pid": 72678,
+        "raw_launch_files": [
+          "C/process-72678.json"
+        ]
+      }
+    ],
+    "resource_boundaries": {
+      "frame_cap": 4096,
+      "frame_cap_plus_one": 4097,
+      "logical_DB_unchanged": true,
+      "max_connections": 1,
+      "noLF_duration_ms": 1005.481667,
+      "second_connection": "EOF"
+    },
+    "result_sha256": "1c8f40e860dbe852af3386df8bdf6d9e2660601cca7e4a0f4d8463a3b08a4256",
+    "runner_77619_current_ps": "",
+    "rust_tree": "5a2acd1e72c3846be38cc29689a82aeb57c68dc6",
+    "terminal_exit_codes": {
+      "69533": 0,
+      "69542": 1,
+      "72567": 0,
+      "72568": 1,
+      "72570": 1,
+      "72572": 1,
+      "72575": 0,
+      "72576": -15,
+      "72644": 0,
+      "72645": -2,
+      "72678": 0,
+      "72679": -15,
+      "77641": 0,
+      "77656": 1,
+      "77676": -15
+    },
+    "terminal_handle_count": 15
+  },
+  "failed_check_groups": 0,
+  "limitations": [
+    "ordinary onebar S3 domain only",
+    "Q and Browser untested",
+    "production capacity untested",
+    "strict RSS peaks untested",
+    "queue saturation write backpressure response expiry not executed",
+    "AcceptedPending fault matrix untested",
+    "conditional FIFO unimplemented",
+    "9011/S16 expansion untested",
+    "whole graph and main integration unproved"
+  ],
+  "not_run": [
+    "new services",
+    "build",
+    "new test matrix",
+    "full source tree rehash",
+    "SQLite open"
+  ],
+  "passed_check_groups": 13,
+  "runner_session99804_exit0": "parent runtime evidence; package STARTED/CLEANUP and current PID checked independently",
+  "verdict": "PASS"
+}

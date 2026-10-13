@@ -1,0 +1,7 @@
+{
+  "schema_revision": "issue1394-verbatim-utf8-artifact/1",
+  "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-current-build-review-20261002/WRAPPER-REVIEW.md",
+  "source_bytes": 1719,
+  "source_sha256": "f5900dd8a9efd182ded4281f3ba8abdcb870be529ffa28f0238e8aa748249f59",
+  "content_utf8": "# #1394 RUSTC_WRAPPER 独立复核\n\n结论：批准固定 SHA `03b9b255d7e846504c94697f03cb47a0fdf9379d5a352df4bfe589c866c1f6cb` 的 wrapper 工程/安全候选，当前范围内未发现未解决的 CRITICAL 或 HIGH。Root 保留真实 build 的最终批准。\n\n原阻断项已修复并靶向验证：目标 --cfg test 和 --test 拒绝；要求唯一 opt-level=3；查询命令转交而不记 product；拒绝旧证据和 symlink；child 信号透明；wrapper TERM/INT/HUP 转发并等待 child；finished 持久化期间收到 TERM 不再被吞。\n\n验证：23 项临时 fixture 通过，涵盖参数原样转交、目标筛选、编译失败、child SIGTERM/SIGKILL、wrapper TERM/INT/HUP、终态取消、fsync 失败、旧记录、父/末级 symlink、并发目标争用。语法 compile 通过。ruff、mypy、pylint、black、bandit 均不可用。git diff -- '*.py' 为空，本次以 scratch 单脚本固定 SHA 全文审查。\n\n所有 fixture 使用固定源字节快照和自有假 compiler，仅把 EVIDENCE 重定位到自有临时目录。终态信号/fsync 故障为受控注入。未执行真实 Rust build、服务或 SQLite。\n\nRoot 仍须核 cargo/wrapper 实际 exit0、完整 paired finished0、无取消或观察超时，以及源码/工具链/二进制绑定。finished 的 compiler returncode0 单项不够，fsync 失败测试已证明 wrapper 仍可非0。wrapper 自身 SIGKILL 必须靠外层 bridge 整进程组清理。源树 hash 只是软件 provenance，不是业务语义证明；完整 9011/crosswalk/全部 checks 不在本次范围。\n\n产物：[WRAPPER-REVIEW.json](WRAPPER-REVIEW.json)、[FIXTURE-RESULTS.json](FIXTURE-RESULTS.json)、[fixture_review.py](fixture_review.py)。\n"
+}

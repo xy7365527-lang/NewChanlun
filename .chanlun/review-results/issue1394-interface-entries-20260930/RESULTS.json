@@ -1,0 +1,160 @@
+{
+  "schema_revision": "testonly-interface-entry-receipt/1",
+  "ticket": 1394,
+  "goal": 1323,
+  "product_commit": "bdc50d324a0f1b858597257dcfc34b9302dccf1a",
+  "base_commit": "30f0f9e6eb38658f3df8627bd52e3083e8b4c343",
+  "checks": [
+    {
+      "path": ".scratch/issue1394-finance-reader-transport-20260930/root-final-test.log",
+      "product_commit": "a20bdee2e029fc4924148dd70660968d216bdf88",
+      "sha256": "ab8f61cabb96be9071b6aafe2a6bbb6fe5353d341b8e9d3d176e79f15d11f74f",
+      "status": "ok",
+      "passed": 8,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "path": ".scratch/issue1394-s3-financial-producer-20260930/root-final-entry-test.log",
+      "product_commit": "a20bdee2e029fc4924148dd70660968d216bdf88",
+      "sha256": "ecbfd137ff766793e65e105198bb11e22e6c50c9208f2bb1379f0dc7fb3461e9",
+      "status": "ok",
+      "passed": 18,
+      "failed": 0,
+      "ignored": 1
+    },
+    {
+      "path": ".scratch/issue1394-s3-financial-producer-20260930/root-final-cli-smoke.log",
+      "product_commit": "9611a33a9c1c8587787ed6cf32b3addd0e0db368",
+      "sha256": "3dab1fcb8c813a4a80d991cfe2127f32b4b3dc3cab93d8b2d91a155584d6ab23",
+      "status": "ok",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "path": ".scratch/issue1394-s3-writer-entry-20260930/root-final-profile-test.log",
+      "product_commit": "bdc50d324a0f1b858597257dcfc34b9302dccf1a",
+      "sha256": "48a61501eeb9008d3fff60841b2b0c6fbb76859135e03c8790b4aa31edd6ae87",
+      "status": "ok",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "path": ".scratch/issue1394-s3-writer-entry-20260930/root-final-legacy-test.log",
+      "product_commit": "bdc50d324a0f1b858597257dcfc34b9302dccf1a",
+      "sha256": "6b844b3031560255e5844bdf45d580d23a016fdd20650d5f02fa65b991cbcdc7",
+      "status": "ok",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    }
+  ],
+  "root_passed_total": 29,
+  "cli_invalid_path_checks": [
+    {
+      "path": ".scratch/issue1394-s3-financial-producer-20260930/cli-precheck/static-after-swap-fix.json",
+      "sha256": "9920d6e5a13383232978c74204467225d04b1932eef25fce24715aeb78ef5b5e",
+      "cases": 12,
+      "exit_1": 12,
+      "timeouts": 0
+    },
+    {
+      "path": ".scratch/issue1394-s3-financial-producer-20260930/cli-precheck/db-swap-after.json",
+      "sha256": "f2052b81f72c2c8e59e4f74061c1637e49cab943f4e55c3cf248cac53b797cb1",
+      "cases": 2,
+      "exit_1": 2,
+      "timeouts": 0
+    },
+    {
+      "path": ".scratch/issue1394-s3-financial-producer-20260930/cli-precheck/db-swap-regular-after.json",
+      "sha256": "0c1311713d4b8aa55074e018ee09e220849b46827ec03de74741ac9e2fd2d432",
+      "cases": 2,
+      "exit_1": 2,
+      "timeouts": 0
+    }
+  ],
+  "sandcastle_runs": [
+    {
+      "path": ".scratch/issue1394-s3-writer-entry-20260930/worker/result.json",
+      "sha256": "71dc174f2074ee19379e32dbeff063db8dcf81bee290246386e8f50efe41cff3",
+      "run_id": "4e8e8944-b299-4633-9785-afe90fa494d9",
+      "parent_thread_id": "01a07fb3-9da9-7ca0-9be2-e15de6eac7b3",
+      "manager_agent_id": "/root/s3_writer_entry_manager",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "effort": "max",
+      "status": "cancelled",
+      "sandbox_backend": "no-sandbox",
+      "codex_sandbox": "workspace-write",
+      "process_exit": {
+        "code": 0,
+        "signal": null
+      },
+      "failure_reason": "管理者取消工蜂",
+      "product_delivery": false
+    },
+    {
+      "path": ".scratch/issue1394-s3-financial-producer-20260930/run-1/result.json",
+      "sha256": "bbdfbc6944602d258b126b31a50b77e6e18fa255431c6a71ebe7bade79f50546",
+      "run_id": "56ee2d09-684a-4936-969d-b6cfd509ef5f",
+      "parent_thread_id": "01a07fb3-9da9-7ca0-9be2-e15de6eac7b3",
+      "manager_agent_id": "/root/s3_financial_producer_manager",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "effort": "max",
+      "status": "cancelled",
+      "sandbox_backend": "no-sandbox",
+      "codex_sandbox": "workspace-write",
+      "process_exit": {
+        "code": 0,
+        "signal": null
+      },
+      "failure_reason": "管理者取消工蜂",
+      "product_delivery": false
+    },
+    {
+      "path": ".scratch/issue1394-sandcastle-shell-write-canary-20260930/run-1/result.json",
+      "sha256": "aa9c4bfa8308dac36b5bec92bad4878c62e52663641967df3e8f619a26a6c211",
+      "run_id": "5cfa0631-71bf-4fe6-a3a6-c83bf9864c18",
+      "parent_thread_id": "01a07fb3-9da9-7ca0-9be2-e15de6eac7b3",
+      "manager_agent_id": "/root/s3_cli_contract_inventory",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "effort": "max",
+      "status": "completed",
+      "sandbox_backend": "no-sandbox",
+      "codex_sandbox": "workspace-write",
+      "process_exit": {
+        "code": 0,
+        "signal": null
+      },
+      "failure_reason": null,
+      "product_delivery": false
+    }
+  ],
+  "canary_fixture_commit": "050b9626dc77d05048868f98b3ef2c3a4b8934dd",
+  "canary_tool_events": {
+    "exec_command": 10,
+    "write_stdin": 6,
+    "apply_patch": 0
+  },
+  "native_product_implementation": true,
+  "scope": "后端入口与读取接缝；不是财务联合、部署或整图验收",
+  "scan": "本轮未执行DevSkim/远端CI",
+  "main_merged": false,
+  "goal_complete": false,
+  "s16_financial_probe": {
+    "reported_timeout_seconds": 45,
+    "pass": false,
+    "resource_acceptance": false,
+    "source_db_sha256": "1704c9d9ef50a822653206e0bf1136b37280814322bbb44398761a38322c154a",
+    "scope": "管理者一次观察，不以缺失构建/配额材料作容量判断"
+  },
+  "final_build": {
+    "product_commit": "bdc50d324a0f1b858597257dcfc34b9302dccf1a",
+    "exit_code": 0,
+    "log": ".scratch/issue1394-s3-financial-producer-20260930/root-final-product-build.log",
+    "log_sha256": "e53dec7b554be81e092ebbf1ee408b59025a40ce6616554fa8f532596c5db755",
+    "binary": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/rust/target/debug/s_structure_session",
+    "binary_sha256": "e2c826333e0e627a7e398f826bd77f02e4ad3e04d87b6a825882e693c74f8168"
+  }
+}

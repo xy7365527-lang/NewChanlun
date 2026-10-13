@@ -1,0 +1,125 @@
+{
+  "schema_revision": "root-1394-formal-cli-offline-recovery/1",
+  "scope": "正式recover CLI，S本case副本离线，冻结manifest不变；原财务请求离线Unix返件另未宣称",
+  "manifest_sha256": "9545db62d2d26de869d992bef3753eab7cd192466244561ad9131f429a825796",
+  "results": [
+    {
+      "owner": "e",
+      "argv": [
+        "/Users/silencehan/Projects/NewChanlun-1394-content-v3/rust/target/debug/e_economic_session",
+        "recover",
+        "--manifest",
+        "/tmp/nc1394-cli-20260930-b/evidence/manifest.json",
+        "--db",
+        "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/formal-cli-actual-20260930-attempt2/mounts/e/e.db"
+      ],
+      "exit_code": 0,
+      "response": {
+        "cut": {
+          "commit_seq": "4",
+          "domain_id": "E",
+          "root_hash": "e8d7310b9fb5a5e84941297773938cc8432eb9aa1c7d47d84fd661c3d6b26f50"
+        },
+        "domain_id": "E",
+        "kind": "Recovered",
+        "recover_ns": "1000",
+        "runtime": {
+          "control_instance_id": null,
+          "filesystem": "hfs, local=true, read_only=false, mount=/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/formal-cli-actual-20260930-attempt2/mounts/e, source=/dev/disk13s1",
+          "fullfsync": "1",
+          "journal_mode": "wal",
+          "pid": "37861",
+          "read_only": false,
+          "sqlite_version": "3.53.2",
+          "sqlite_version_number": "3053002",
+          "synchronous": "2"
+        },
+        "writer_epoch": "2"
+      },
+      "writer_epoch": "2",
+      "staging": 0,
+      "receipts": 4,
+      "commits": 5
+    },
+    {
+      "owner": "alpha",
+      "argv": [
+        "/Users/silencehan/Projects/NewChanlun-1394-content-v3/rust/target/debug/b_chong_session",
+        "recover",
+        "--manifest",
+        "/tmp/nc1394-cli-20260930-b/evidence/manifest.json",
+        "--db",
+        "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/formal-cli-actual-20260930-attempt2/mounts/alpha/alpha.db",
+        "--chong",
+        "alpha"
+      ],
+      "exit_code": 0,
+      "response": {
+        "cut": {
+          "commit_seq": "4",
+          "domain_id": "B:alpha",
+          "root_hash": "cfafee166a149e5c594bac68fe6d2d07c09dc694d5592c9e45e5a2c56d2cbf7d"
+        },
+        "domain_id": "B:alpha",
+        "kind": "Recovered",
+        "recover_ns": "1000",
+        "runtime": {
+          "control_instance_id": null,
+          "filesystem": "hfs, local=true, read_only=false, mount=/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/formal-cli-actual-20260930-attempt2/mounts/alpha, source=/dev/disk14s1",
+          "fullfsync": "1",
+          "journal_mode": "wal",
+          "pid": "37866",
+          "read_only": false,
+          "sqlite_version": "3.53.2",
+          "sqlite_version_number": "3053002",
+          "synchronous": "2"
+        },
+        "writer_epoch": "2"
+      },
+      "writer_epoch": "2",
+      "staging": 0,
+      "receipts": 4,
+      "commits": 5
+    },
+    {
+      "owner": "beta",
+      "argv": [
+        "/Users/silencehan/Projects/NewChanlun-1394-content-v3/rust/target/debug/b_chong_session",
+        "recover",
+        "--manifest",
+        "/tmp/nc1394-cli-20260930-b/evidence/manifest.json",
+        "--db",
+        "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/formal-cli-actual-20260930-attempt2/mounts/beta/beta.db",
+        "--chong",
+        "beta"
+      ],
+      "exit_code": 0,
+      "response": {
+        "cut": {
+          "commit_seq": "4",
+          "domain_id": "B:beta",
+          "root_hash": "94d46b503a15d10bc68baff65f6cad315e6f47eb25a0237fcc2d3081dc020980"
+        },
+        "domain_id": "B:beta",
+        "kind": "Recovered",
+        "recover_ns": "1000",
+        "runtime": {
+          "control_instance_id": null,
+          "filesystem": "hfs, local=true, read_only=false, mount=/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/formal-cli-actual-20260930-attempt2/mounts/beta, source=/dev/disk15s1",
+          "fullfsync": "1",
+          "journal_mode": "wal",
+          "pid": "37907",
+          "read_only": false,
+          "sqlite_version": "3.53.2",
+          "sqlite_version_number": "3053002",
+          "synchronous": "2"
+        },
+        "writer_epoch": "2"
+      },
+      "writer_epoch": "2",
+      "staging": 0,
+      "receipts": 4,
+      "commits": 5
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "schema_revision": "issue1394-verbatim-utf8-artifact/1",
+  "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-manager-20261002/GUARD-CHECKS.json",
+  "source_bytes": 968,
+  "source_sha256": "6af91d306acd37710dda2d019da00c6009be1f6faa40325c6f41e16706135642",
+  "content_utf8": "[\n  {\n    \"name\": \"actual sparse clean\",\n    \"snapshot\": {\n      \"root\": \"/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002\",\n      \"branch\": \"codex/1394-key-subset-20261002\",\n      \"head\": \"dd43fe07372da3ba4181fb23eaaa4e48d19f40c5\",\n      \"status\": \"\"\n    }\n  },\n  {\n    \"name\": \"excluded absent allowed\",\n    \"passed\": true\n  },\n  {\n    \"name\": \"included S\",\n    \"rejected\": true\n  },\n  {\n    \"name\": \"lowercase h\",\n    \"rejected\": true\n  },\n  {\n    \"name\": \"lowercase s\",\n    \"rejected\": true\n  },\n  {\n    \"name\": \"other root S\",\n    \"rejected\": true\n  },\n  {\n    \"name\": \"broken symlink\",\n    \"rejected\": true\n  },\n  {\n    \"name\": \"disk file\",\n    \"rejected\": true\n  },\n  {\n    \"name\": \"candidate clean restored\",\n    \"snapshot\": {\n      \"root\": \"/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002\",\n      \"branch\": \"codex/1394-key-subset-20261002\",\n      \"head\": \"dd43fe07372da3ba4181fb23eaaa4e48d19f40c5\",\n      \"status\": \"\"\n    }\n  }\n]\n"
+}

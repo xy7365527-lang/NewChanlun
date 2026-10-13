@@ -1,0 +1,1 @@
+{"clock_plan_id":"issue1394-s3-onebar-lifecycle-draft-20261001","events":{"input-1":{"accept_ns":"10","attempts":[{"begin_ns":"11","commit_ns":"12"}]},"input-2":{"accept_ns":"20","attempts":[{"begin_ns":"21","commit_ns":"22"}]},"recover-1":{"recover_ns":"13"}},"origin_utc":"2026-09-30T00:00:00Z","schema_revision":"s-clock-plan/1","unit":"ns"}

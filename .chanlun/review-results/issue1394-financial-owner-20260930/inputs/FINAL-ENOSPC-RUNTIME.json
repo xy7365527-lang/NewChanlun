@@ -1,0 +1,11 @@
+{
+  "binding_sha256": "032bcbd6b42ce56aac5065f0eafce191bccc3d7464b3d6c11d793092ecb349af",
+  "executable": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-build-20260930/target/debug/deps/newchan_rust-959aa50d9c32faa1",
+  "executable_sha256": "4a9f200c79e1e0b11beed976d11301b88438bae1766819caf9d33deb8703d73b",
+  "final_insert_sha256": "7bc005707a9fd347998a751ba6cdf152fbe7f2b14da2f59c0a1a22bf056c247e",
+  "fixture_source_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+  "private_bundle_sha256": "819159d29fa9f85a0b77977188fdfb190949bdd834d838c98d2396f8b9e1f0e1",
+  "reviewed_rust": "d8b4b713e4645d4b7833aca0705b4e35f22ab198",
+  "root_product": "909ccff13abaed83be3c939ab7459d52ff4afee5",
+  "scope": "new case final COMMIT filesystem pressure, no product/quota edit"
+}

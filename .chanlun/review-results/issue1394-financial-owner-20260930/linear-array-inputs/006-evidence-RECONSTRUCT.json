@@ -1,0 +1,10 @@
+{
+  "baseline_head": "e4ea36fbd16c3784b846092b6c28b976ff6343a5",
+  "candidate_patch_sha256": "8e67ee4fe48625e61e83a6bb56fe18743774784df40c908db7cfe554222034c9",
+  "diagnostic_patch_sha256": "e18ffbaefceb9c577f00c92bfed9edb8821e498afce481f9a90011f0f8d13ff3",
+  "observer_sha256": "bb97f4451769854603ffdba431eba36e8d2a967b3acc9558d40444db4de16d46",
+  "release_testbin_sha256": "e62213072f6c095702064f34ad1a8b388d3d0aeaadbde42e36967a2d0675a97f",
+  "build_command": "CARGO_TARGET_DIR=<owned target> cargo test --release --manifest-path rust/Cargo.toml --features s_session --bin s_structure_session --no-run",
+  "recipe": "git archive baseline HEAD; apply CANDIDATE.patch; apply DIAGNOSTIC.patch; copy audit_shadow_probe.rs; build release test binary; run readonly_audit_reuse_pilot on owned exact three-file clone",
+  "debug_targets_cleaned_by_worker": true
+}

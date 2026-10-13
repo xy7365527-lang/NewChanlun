@@ -1,0 +1,178 @@
+{
+  "schema_revision": "root-1394-matrix-artifact-audit/1",
+  "matrix_sha256": "b3544cbdf6e42152c5bce2df72ff1f0fc2018f56bfa7aefe576133e35cec4a6e",
+  "cases_checked": 24,
+  "comparison_pairs_checked": 12,
+  "root_product": "6dcee4da72873ab323132cf2fd64271702a1d8c3",
+  "checks": [
+    {
+      "case_id": "PrepareDecision-before_commit-0",
+      "result_sha256": "41cabb5a4097608aedfc133cec3e77970f8a4cb35fc66c2175f7548c6b344674",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 20
+    },
+    {
+      "case_id": "PrepareDecision-before_commit-1",
+      "result_sha256": "f511d55db23f847a1063134e0beef5dca92d986fde942fa622efc05c0135e9f1",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 20
+    },
+    {
+      "case_id": "PrepareDecision-after_commit-0",
+      "result_sha256": "3701a92a7346f93371776c822167c03d13247a9defbcd8b24124ece4c2e7ceef",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 20
+    },
+    {
+      "case_id": "PrepareDecision-after_commit-1",
+      "result_sha256": "1314e2d6338f9e3b1bdceb7f1e1dd83ad3b1fb1cb7533a5fdc5f08d70b8b0ae3",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 20
+    },
+    {
+      "case_id": "Reserve-before_commit-0",
+      "result_sha256": "b6f0b666837a8b767c2f34936fbc2e5cae29e3d1bcbf8882e5acd2518264d35c",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 20
+    },
+    {
+      "case_id": "Reserve-before_commit-1",
+      "result_sha256": "dc38f4f93aaa0d674116dd792b1f6116dd79e45bfe436184b1d4e5ccf46265ea",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 20
+    },
+    {
+      "case_id": "Reserve-after_commit-0",
+      "result_sha256": "ea9e9b97f9f6a9be4428116d7901101eccf1ea9fea734e6e0a0461f774172b1b",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 90
+    },
+    {
+      "case_id": "Reserve-after_commit-1",
+      "result_sha256": "82723eb12f17eaa4f7bd3b54570450ac3d8e4b4f9836754258485022b604e998",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 90
+    },
+    {
+      "case_id": "CommitDecision-before_commit-0",
+      "result_sha256": "802ba6b7de675687d1b848756b5a0804e7229354489e84e4a10df1df4d4c71b6",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 90
+    },
+    {
+      "case_id": "CommitDecision-before_commit-1",
+      "result_sha256": "2e6b97a0dc99efa82e0a3821cb0029f81c3a2471c8e59976d3dcdc8b1b5f1497",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 90
+    },
+    {
+      "case_id": "CommitDecision-after_commit-0",
+      "result_sha256": "c57315a7fc9d40763f3ad9f6e963d3d03728053f6d948e4a3801742a7327dad1",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 90
+    },
+    {
+      "case_id": "CommitDecision-after_commit-1",
+      "result_sha256": "9b8b19c76e4798d8fb4a73eca2265df4b26cfe6207e7526a3279b376eeb4718d",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 90
+    },
+    {
+      "case_id": "ImportResponsibility-before_commit-0",
+      "result_sha256": "72d73e389d964c1403b4dd93a06897420be21ff2003bff73563f0ec7b5c95a61",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 0
+    },
+    {
+      "case_id": "ImportResponsibility-before_commit-1",
+      "result_sha256": "8d9e8155c1a02768c5d61307a662dd1e115e9962bed233e8037dad7987f1bc95",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 0
+    },
+    {
+      "case_id": "ImportResponsibility-after_commit-0",
+      "result_sha256": "ed4b6cf56e2db2cdb0ef37b88e1ecda2b31505431e85dcd2ea39b075ff21cc90",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 20
+    },
+    {
+      "case_id": "ImportResponsibility-after_commit-1",
+      "result_sha256": "ed8850cd27485688c0fccfc7e9cfcce2a011c9e91e25c1b4ffbcb66f27f452a7",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 20
+    },
+    {
+      "case_id": "AbortDecision-before_commit-0",
+      "result_sha256": "745bae528d1883315ff40991745a237efab681b7cf6ae24a8910bd140002f6ed",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 90
+    },
+    {
+      "case_id": "AbortDecision-before_commit-1",
+      "result_sha256": "6f071fdadcb4c431e1a88d51a89669ae47759baddb6470a04285792d62c4a91d",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 90
+    },
+    {
+      "case_id": "AbortDecision-after_commit-0",
+      "result_sha256": "d6a79f6b7804ffbc0919d385f272c63b5abd32782ec495cc9986038b5785f31e",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 90
+    },
+    {
+      "case_id": "AbortDecision-after_commit-1",
+      "result_sha256": "e019158ed8b1f84525c015a84e0b15ccc42a81a6f79c11eb293cd99e32da557f",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 90
+    },
+    {
+      "case_id": "CloseApplicants-before_commit-0",
+      "result_sha256": "09d8ba0e3b1893d177448b49ed4f5a542c831ea458e6f22bf01ef18348b6d7aa",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 90
+    },
+    {
+      "case_id": "CloseApplicants-before_commit-1",
+      "result_sha256": "cf979e80b0e077166fb591ba77bcf2482c86a663cae62876865a2f513dc2bdfe",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 90
+    },
+    {
+      "case_id": "CloseApplicants-after_commit-0",
+      "result_sha256": "d5bda02ca3a7c5cd09cc0e74a83777c8554344923aa8979b11bbe2252f85223a",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 90
+    },
+    {
+      "case_id": "CloseApplicants-after_commit-1",
+      "result_sha256": "1e624d7563d446def17aee2759725de341abb0fadf62889e34605f8700b26fb9",
+      "source_hashes_checked": true,
+      "signal": 9,
+      "responsibility": 90
+    }
+  ],
+  "scope": "原始结果/manifest/binding逐项SHA与信号/回执/责任对拍，不冒正式CLI或半导入"
+}

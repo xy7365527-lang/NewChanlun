@@ -1,0 +1,32 @@
+{
+  "all_own_images_detached": true,
+  "owners": [
+    {
+      "capacity": "25124864",
+      "dev": "16777247",
+      "device": "/dev/disk8s1",
+      "image": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/e.dmg",
+      "image_sha256": "c4a2237b6751e3ddeec0cf91bf514e149a0440c4ba8acc4d59e17e96fd5f89fd",
+      "mount": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/mounts/e",
+      "owner": "e"
+    },
+    {
+      "capacity": "25124864",
+      "dev": "16777249",
+      "device": "/dev/disk9s1",
+      "image": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/alpha.dmg",
+      "image_sha256": "f9b0735cd2124e1e013f59340972dfe80ce099e0db092832bf21bdc2efc1203a",
+      "mount": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/mounts/alpha",
+      "owner": "alpha"
+    },
+    {
+      "capacity": "25124864",
+      "dev": "16777251",
+      "device": "/dev/disk10s1",
+      "image": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/beta.dmg",
+      "image_sha256": "e74de3aab49e5ec1e2b0a68cfd2e83e8485cf9ba1824673a66ec97f2d8ecfcc2",
+      "mount": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/mounts/beta",
+      "owner": "beta"
+    }
+  ]
+}

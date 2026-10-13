@@ -1,0 +1,9 @@
+同源码非test release正式S3 fullclock-prefix16双fresh结果 PASS。A/B均16/16 Committed，原identity/消息字节/完整790,213B时钟及七资源全部不变。初始化及最终同cut16完整schema、全部24表所有列行/BLOB逐值一致；每个generation1..16的reply、收据、clock事件和nativepublication相同。
+
+release真实opt-level3、ltofalse、codegenunits16、incremental0；binary SHA b4c81c9468be1d1911eecbd48deb1be9e9a2f3a0d082fd8f7474cf9e30efc7f5，7,176,304B。单次cargo非test编译退出0，PID35499同Popen wait/reap，未跑unit/alltests。Cargo.lock、Rusttree和所有旧dev244件失败包/hash/mtime/inode完整保留，先前AcceptedPending库未恢复或重放。
+
+A整exchange最大10.536168292s，B最大10.500176125s，均在同30s期限内。100ms采样峰值仅下界，见MEASUREMENT-SUMMARY.json；socketelapsed不能视为SQLCOMMIT或内部physical handle，Hash/audit/build/store/SQLCOMMIT及physical handle均UNMEASURED，process只记录launch至reap观测上界。真实负信号码及private资源SHA/PID/UID/argv/Ready/nonce和全部wire保留，自有socket目录已清理。
+
+dev为A9/B8后超时，release为A16/B16完成。四域共有1..8的reply/receipt/clock/nativepublication逐值相同。该结果支持此有限路径对编译profile的新验证，未控制CPU并发负载，不能单独归因fullclock，也不能把两个不同停代dev库解释成同代不确定性。
+
+本次只通过正式有限16双fresh。9011全量、完整资源容量、Q/前端/经济运行、FIFO及整图仍未完成。

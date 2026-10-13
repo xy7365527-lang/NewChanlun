@@ -1,0 +1,55 @@
+{
+  "kind": "READONLY_DIAGNOSTIC_ONLY",
+  "candidate_head": "c6255d308fc69d94178916a1dc5534546fb77591",
+  "candidate_rust_tree": "7196a77fef56cf87cbe91dc4b135326a142e2395",
+  "candidate_original_binary": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/target/release/s_structure_session",
+    "sha256": "c098bf76bb7870443b7564714ba2f9110f2c5593a3180ca13f9888c01ee16d17"
+  },
+  "pilot_head": "c6255d308fc69d94178916a1dc5534546fb77591",
+  "pilot_base_rust_tree": "7196a77fef56cf87cbe91dc4b135326a142e2395",
+  "tracked_changes": [
+    "rust/src/bin/s_session_v2/content_store.rs",
+    "rust/src/bin/s_session_v2/mod.rs",
+    "rust/src/bin/s_session_v3/history.rs",
+    "rust/src/bin/s_session_v3/state.rs",
+    "rust/src/bin/s_structure_session.rs"
+  ],
+  "new_test_observer": "rust/src/bin/audit_shadow_probe.rs",
+  "source": {
+    "rust/src/bin/s_session_v2/content_store.rs": {
+      "sha256": "7563080fca59834b78a4bac6a6616b091aeb966fe6ee9f73589e914b80507e9e",
+      "candidate_sha256": "185799c4c832993e55980f9b4163e5e452ac57fd76a76a567bb865a2bc30509e",
+      "unchanged_vs_candidate": false
+    },
+    "rust/src/bin/s_session_v2/mod.rs": {
+      "sha256": "472d9fbc022a354e95eddb3e1847eecce30616d3aa932347849c8dfcc8b313e9",
+      "candidate_sha256": "e4632de7d76ba0a728543446bb21e44dc1e0d402c672a20ec650a59f6a6560f7",
+      "unchanged_vs_candidate": false
+    },
+    "rust/src/bin/s_session_v3/history.rs": {
+      "sha256": "962be6fa767d139d19268bdafdba238621b47a050d0bb1a5e8591cf59f97079a",
+      "candidate_sha256": "37d4b07309d1047d48540a536f03737fabce7395ba7fcb3082f464d3c477da3e",
+      "unchanged_vs_candidate": false
+    },
+    "rust/src/bin/s_session_v3/state.rs": {
+      "sha256": "6cf4e9003817bc3e3d69d635cd5f454c3bc88d29c02b70b34056b80fe557d495",
+      "candidate_sha256": "7c5b2bdc92e6336449d89eb6fc69df078ffbc3d0eccd9912f734bb79d31b53d0",
+      "unchanged_vs_candidate": false
+    },
+    "rust/src/bin/s_structure_session.rs": {
+      "sha256": "cb249de09bb4a569611eb37f1ff2dc1a1d1af2ba305dcec2f761cc5598168678",
+      "candidate_sha256": "1479ab764fb6170b208bb6dd55035604cce98fd61b85f6f8442a7cc6dd261d03",
+      "unchanged_vs_candidate": false
+    },
+    "rust/src/bin/audit_shadow_probe.rs": {
+      "sha256": "bb97f4451769854603ffdba431eba36e8d2a967b3acc9558d40444db4de16d46",
+      "candidate_sha256": null,
+      "unchanged_vs_candidate": false
+    }
+  },
+  "diagnostic_patch_sha256": "e18ffbaefceb9c577f00c92bfed9edb8821e498afce481f9a90011f0f8d13ff3",
+  "test_binary": "NOT_BUILT",
+  "full9011": "NOT_RUN",
+  "whole_graph": "NOT_RUN"
+}

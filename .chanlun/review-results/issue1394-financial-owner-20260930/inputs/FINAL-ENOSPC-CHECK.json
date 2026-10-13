@@ -1,0 +1,132 @@
+{
+  "schema_revision": "testonly-1394-final-enospc-acceptance-check/1",
+  "product_root": "909ccff13abaed83be3c939ab7459d52ff4afee5",
+  "reviewed_rust": "d8b4b713e4645d4b7833aca0705b4e35f22ab198",
+  "build_exit_code": 0,
+  "test_exit_code": 0,
+  "test_passed": 1,
+  "outer_elapsed_seconds": 3.203870583092794,
+  "rust_test_seconds": 2.23,
+  "actual_errno": 28,
+  "sql_error": "StorageUnavailable：database or disk is full; staged_cleanup rows=0 allocated_before=352256 allocated_after=352256",
+  "sqlite_primary_after_product_cleanup": 0,
+  "sqlite_primary_13_directly_observed": false,
+  "first_and_only_hook_final_atomic_group": true,
+  "hook_requested_rollback": false,
+  "pre_commit_updated_tables": [
+    {
+      "action": 18,
+      "database": "main",
+      "rowid": 3,
+      "table": "commits"
+    },
+    {
+      "action": 18,
+      "database": "main",
+      "rowid": 3,
+      "table": "receipts"
+    },
+    {
+      "action": 18,
+      "database": "main",
+      "rowid": 3,
+      "table": "messages"
+    }
+  ],
+  "before_after_latest_equal": true,
+  "original_receipt_absent": true,
+  "messages_unchanged": true,
+  "prepared_or_grant_created": false,
+  "public_responsibility_unchanged": 20,
+  "published_1307_retained": true,
+  "stage_rows_after_failure": 0,
+  "audit_and_recover_passed": true,
+  "recover_writer_epoch": "2",
+  "hooks_and_pressure_cleared": true,
+  "own_three_images_detached": true,
+  "active_owned_test_or_S_processes": false,
+  "source_or_product_or_old_cases_modified": false,
+  "scope": "single real-S3 cached Prepare, external filesystem pressure precisely at final COMMIT; atomic failure only; no all-config resource/CLI/fullgoal claim",
+  "files": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/FINAL-ENOSPC-ACCEPTANCE-insert.rs",
+      "bytes": 11997,
+      "sha256": "7bc005707a9fd347998a751ba6cdf152fbe7f2b14da2f59c0a1a22bf056c247e"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/FINAL-ENOSPC-ACCEPTANCE-binding.md",
+      "bytes": 2479,
+      "sha256": "10d718e474089d925d426e660e8c2194d64646b90c70fe766054a5f654fc4564"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-build-20260930/build.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-build-20260930/build.stderr",
+      "bytes": 23294,
+      "sha256": "b0d2ddef03885d16e1de7ecf6f336942e9ced6df5a114ca4b92d006af1ee8a7e"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/binding.json",
+      "bytes": 1689,
+      "sha256": "032bcbd6b42ce56aac5065f0eafce191bccc3d7464b3d6c11d793092ecb349af"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/RUNTIME-BINDING.json",
+      "bytes": 863,
+      "sha256": "e984358fc42f89b6ddedacaef46a2cd3d1840b20fa6e4a0500ea38bdccdd7903"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/run-result.json",
+      "bytes": 251,
+      "sha256": "bbb832040a85cf0a46a1ee69cf7bc7c7dc346f0af05e29202eb4299e77e5bdcb"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/run.stdout",
+      "bytes": 273,
+      "sha256": "77f56137c8ac2bdb4f256fec187b49b7563297178f47dd9716a11c898e9f9173"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/run.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/CARRIERS.json",
+      "bytes": 1372,
+      "sha256": "1eb1f34401912cd5daf006c5db188e9b437ce73dff9fe3a9a2f4c8fa4261931b"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/DETACHED.json",
+      "bytes": 1626,
+      "sha256": "d26f54c117c6156aa41914ab597b12d72e6789d46ce7b0ac520b249926906752"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/PROCESS-CLEAR.json",
+      "bytes": 77,
+      "sha256": "2f8ba80130133a63a71eac5b910c9cab31daf9b2ac51fa6cbaf26dbb7e46784e"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/evidence/final-enospc-before.json",
+      "bytes": 33634,
+      "sha256": "ebbfa16db913c0b3246550d5f759af2186e319631eb57d2512a370dce9509f35"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/evidence/final-enospc-observed.json",
+      "bytes": 21322,
+      "sha256": "c52fe98ea8168b3f8dc3f8a6aee6b2ceab2ba79f547f1ae572edcba3e9f19355"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/evidence/final-enospc-pressure-released.json",
+      "bytes": 92,
+      "sha256": "ffb349425122b1e90bfe18fecac0d94da063e62c967302021698934cb94e3d61"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/evidence/final-enospc-result.json",
+      "bytes": 1337,
+      "sha256": "374b234edbd4a4106f43e81c874f73fe2ba32239ad64f7fd7c5ecca697cf110a"
+    }
+  ]
+}

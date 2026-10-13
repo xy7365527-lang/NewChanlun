@@ -1,0 +1,23 @@
+{
+  "argv": [
+    "/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps/s_structure_session-f691a9b42625f576",
+    "v3::state::readonly_reuse_pilot::readonly_audit_reuse_pilot",
+    "--exact",
+    "--ignored",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "binary_sha256": "5f9ef56e7cd0ee27dd00094faaf5c73821d6501fe38b4783c238c67d80cb286f",
+  "db": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/owned/s.sqlite",
+  "output": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/PROBE.json",
+  "parent_pid": 19321,
+  "pid": 19340,
+  "read_only_test": true,
+  "source_binding_sha256": "308caf5053d097709a3a3ef038738751c61cbfd5b0d51843fb3dabf5cb80cd47",
+  "started_monotonic_ns": 1754957393190625,
+  "started_utc": "2026-10-01T17:51:28.855664+00:00",
+  "test_invocations": 1,
+  "timeout_seconds": 180,
+  "tmpdir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/tmp",
+  "uid": 501
+}

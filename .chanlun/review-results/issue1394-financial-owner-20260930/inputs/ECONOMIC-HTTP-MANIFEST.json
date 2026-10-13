@@ -1,0 +1,400 @@
+{
+  "all_task_processes_reaped": true,
+  "all_task_volumes_detached": true,
+  "case1_diagnostic": {
+    "cause": "configured short socket was a symlink; Python EconomicQuery canonical Path.resolve expanded to long scratch path",
+    "failure": {
+      "bytes": 1919,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-1/http-actual/failure.json",
+      "sha256": "b8910c363466137c304b49638d617269773d30ddbbcc2f0163c8c0355c275484"
+    },
+    "first_response": {
+      "bytes": 1268,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-1/http-actual/snapshot-current.response.json",
+      "sha256": "726fb02bd9d23aec9c18d8dfc0e8ab658a562749b72d81dd4ed1a8fcdadd1f70"
+    },
+    "http_processes": {
+      "bytes": 3735,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-1/http-actual/processes.json",
+      "sha256": "d0e80c2b8c153324956f89edd44a88d805d187380538b4da4d82296683e4d386"
+    },
+    "owner_state_unchanged": true,
+    "resolved_target_utf8_bytes": {
+      "alpha": 133,
+      "beta": 132,
+      "e": 129
+    },
+    "status": "PARTIAL_VECTOR",
+    "volumes_detached": true
+  },
+  "case2_success": {
+    "actual_socket_root": "/tmp/nc1394-eo-31",
+    "binding": {
+      "bytes": 1936,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/binding.json",
+      "sha256": "be3b5425d11697e9a75d3ec6c99cc6d97bb04f2390efa4b454b001e11c4877b6"
+    },
+    "business_invariants": {
+      "execution_eligibility": "None",
+      "finance_revision": "tb03b-finance/2",
+      "locked_amounts": {
+        "alpha": "30",
+        "beta": "40"
+      },
+      "native_originals_full_object_equal": true,
+      "owner_state_before_equals_after": true,
+      "responsibility_total": "90"
+    },
+    "economic_config": {
+      "bytes": 590,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/economic-config.json",
+      "sha256": "9d43e290c9d1d53865a8ea45e3c7113bc1ea9bad1ca81d76655794390b06fe49"
+    },
+    "formal_cli_processes": {
+      "bytes": 3136,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/evidence/observer-cli-processes.json",
+      "sha256": "11819fcc8838cbcc9e5f93f9e2b58728ed9cfb2de5acf433ee30b69560cbb846"
+    },
+    "formal_cli_result": {
+      "bytes": 2061528,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/evidence/observer-cli-results.json",
+      "sha256": "703a0cbbed0ed17bb975ad16555196c604a57f1fed7fc68e0292dea604e78680"
+    },
+    "formal_finance_test": "1/1 passed in 35.71s: Prepare alpha/beta -> E Reserve -> B Commit alpha/beta via actual Unix serve",
+    "formal_test_stderr": {
+      "bytes": 21570,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/test.stderr",
+      "sha256": "9f4275ae5c611d49bbae2e91b1e34755b112c82d24a780fc1a03237ee042ab54"
+    },
+    "formal_test_stdout": {
+      "bytes": 268,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/test.stdout",
+      "sha256": "83237156ea037f226d2ea33aec7b3c424ea802061c91997f268da784dc9279ae"
+    },
+    "http_harness": {
+      "bytes": 13314,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/run_economic_http_case2.py",
+      "sha256": "5eedd981d70e9fd13c56d1b1eb8d06d2a5b0ae52db6c9b6f2fa0f6fb4e64f951"
+    },
+    "http_plan": {
+      "bytes": 5675,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/http-plan.json",
+      "sha256": "37ebd1e1eba885e96b838de72e2655c1a89cd9d4e05436a4c5cba7ed969327c6"
+    },
+    "http_processes": {
+      "bytes": 3735,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/http-actual/processes.json",
+      "sha256": "cb54c12b567d1ff058293a96d0c20c6e9be927332685a4460d6a58b42bce5ebb"
+    },
+    "http_requests_responses": [
+      {
+        "elapsed_ms": 2722.936,
+        "label": "snapshot-current",
+        "request": {
+          "bytes": 465,
+          "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/http-actual/snapshot-current.request.json",
+          "sha256": "215b3b6990c13cac149d60942c04eae64f6d0d86810839527025058c47c2dcb7"
+        },
+        "response": {
+          "bytes": 921564,
+          "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/http-actual/snapshot-current.response.json",
+          "sha256": "9f26648e3bbea9b0bd7eb636e5c256800cd2b8c87ba92445b27e1a73ba881384"
+        },
+        "status": 200
+      },
+      {
+        "elapsed_ms": 11.636,
+        "label": "snapshot-token-replay",
+        "request": {
+          "bytes": 550,
+          "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/http-actual/snapshot-token-replay.request.json",
+          "sha256": "db16f6a28a32d45e06a8f0e6bf281f43aebf9842b3dca30a1a46a696fe392574"
+        },
+        "response": {
+          "bytes": 921569,
+          "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/http-actual/snapshot-token-replay.response.json",
+          "sha256": "4ea92b4d56ece051dff3e075da70fd74599f934f9a6f79e439576ad796550918"
+        },
+        "status": 200
+      },
+      {
+        "elapsed_ms": 2677.973,
+        "label": "snapshot-fixed-latest",
+        "request": {
+          "bytes": 843,
+          "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/http-actual/snapshot-fixed-latest.request.json",
+          "sha256": "e28d1bc272d7ccf0c4ffcb74169986b2dfc8eaa4dc126d0ebdebed401e39566d"
+        },
+        "response": {
+          "bytes": 921569,
+          "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/http-actual/snapshot-fixed-latest.response.json",
+          "sha256": "a908d0c0007632abd72d496f99e325675836070f7fdb59c9a27c5a24945285b7"
+        },
+        "status": 200
+      },
+      {
+        "elapsed_ms": 15568.529,
+        "label": "watch-from-init",
+        "request": {
+          "bytes": 793,
+          "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/http-actual/watch-from-init.request.json",
+          "sha256": "c6c524479a95a7e9f7c00a52e8c362a32da621dd6ac9d4a9959942fbf228990c"
+        },
+        "response": {
+          "bytes": 1078412,
+          "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/http-actual/watch-from-init.response.json",
+          "sha256": "6915432369584c9f88df1e187348fc33eb9c2544558efeecbac99b6980d68a97"
+        },
+        "status": 200
+      },
+      {
+        "elapsed_ms": 5059.297,
+        "label": "original-decision-alpha",
+        "request": {
+          "bytes": 864,
+          "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/http-actual/original-decision-alpha.request.json",
+          "sha256": "22783a723b797ccbbd16c1af12ae0b122760f4480b132e72efe7769b17786b4a"
+        },
+        "response": {
+          "bytes": 16552,
+          "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/http-actual/original-decision-alpha.response.json",
+          "sha256": "cec2cfe17b335d60cfff38546e67c7e87fa4cbbbcb6b58f8aeaca38893aa3c73"
+        },
+        "status": 200
+      },
+      {
+        "elapsed_ms": 2217.688,
+        "label": "original-grant-e",
+        "request": {
+          "bytes": 907,
+          "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/http-actual/original-grant-e.request.json",
+          "sha256": "274833f7a39766dbf11b411139b90a95a4867fcbe7be5796442df6c5cbf86678"
+        },
+        "response": {
+          "bytes": 5195,
+          "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/http-actual/original-grant-e.response.json",
+          "sha256": "3301d8b5728596119474fdc07da7b02bb230aabf073f540366e28de894397657"
+        },
+        "status": 200
+      }
+    ],
+    "http_result": {
+      "bytes": 5982,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/http-actual/http-result.json",
+      "sha256": "f5efe798bce78af95ddd442e3e5a5d8e53eb6944e425b3727649275bcb7ac596"
+    },
+    "http_stderr": {
+      "bytes": 0,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/http-run.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "http_stdout": {
+      "bytes": 61,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/http-run.stdout",
+      "sha256": "5443efd96e849d74896e3df50f2aa9e7966ccffe22e42002f1ac2d23891fb6ef"
+    },
+    "manifest": {
+      "bytes": 5532,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/evidence/manifest.json",
+      "sha256": "bb44978f91d9f3086d244e166d706abcd5a4b4488b1b0cbb1cc6ff73191a0602"
+    },
+    "manifest_sha256": "bb44978f91d9f3086d244e166d706abcd5a4b4488b1b0cbb1cc6ff73191a0602",
+    "q_e_b_processes_reaped": true,
+    "resolved_socket_utf8_bytes": {
+      "alpha": 36,
+      "beta": 35,
+      "e": 32
+    },
+    "resource_rationale": {
+      "bytes": 5049,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/resource-rationale.json",
+      "sha256": "ce89f07fefaf0664c07366353681ad3d2447e6054eb6db9ce6ed2e3a72fbc910"
+    },
+    "socket_root_was_symlink": false,
+    "status": "PASS",
+    "three_volumes_detached": true
+  },
+  "claims_excluded": [
+    "no capital or trade execution permission",
+    "no #1460 frontend acceptance",
+    "no legacy S Q3 structure /api/ready acceptance",
+    "no complete cold S content import",
+    "no arbitrary-path socket guarantee",
+    "no global resource-envelope proof"
+  ],
+  "frozen_originals": {
+    "original_fault_source": {
+      "bytes": 36842,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/FAULT-ACCEPTANCE-source.rs",
+      "sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8"
+    },
+    "published_cache": {
+      "bytes": 238006,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/acceptance-raw/published-cache.json",
+      "sha256": "6219f3af68b78ac9eed0e314d1aeacb984c0a61556c59ce0fee39261ceda7efa"
+    },
+    "q19_resource": {
+      "bytes": 571,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/q19-resource-frozen.json",
+      "sha256": "36b188ae42be8e24e7fdbb44e7d3a7068200f7c942f50975337d07595ac62e64"
+    },
+    "small_source_inputs": {
+      "bytes": 4504,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-financial-reader-small-20260930/INPUTS.json",
+      "sha256": "5a7280178e45f6728c3d4afa9d313b98664af8c4141cccac10c99df639dfa82f"
+    },
+    "source_db": {
+      "bytes": 499712,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-financial-reader-small-20260930/s.sqlite",
+      "sha256": "08c9d59456cc3eeede74650fad8597ad2743b5acbdf198c7b0b43b64537ec4ad"
+    }
+  },
+  "head_at_archive": "976702750dfd7e89706223216ae8e0e19f2b9c87",
+  "issue": "#1394",
+  "later_diff_paths": [
+    ".chanlun/review-results/issue1394-financial-owner-20260930/EVIDENCE.md",
+    ".chanlun/review-results/issue1394-financial-owner-20260930/RESULTS.json",
+    ".chanlun/review-results/issue1394-financial-owner-20260930/REVIEW.md",
+    ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/READONLY-V2-FINAL-RESULTS.json",
+    ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/READONLY-V2-PYTHON-REVIEW.md",
+    ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/READONLY-V2-RAW.zip",
+    ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/READONLY-V2-TYPE-FIX-REVIEW.md"
+  ],
+  "library_testonly_prefix": "Book, Voice and existing20 are controlled library/TestOnly setup; actual finance phases use formal E/B Unix serve",
+  "only_test_include_diff": true,
+  "private_source": {
+    "b_cli": {
+      "bytes": 8678384,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/compile/rust/target/debug/b_chong_session",
+      "sha256": "6c3cb2b38b83747bcf29a32870413d98c9d0b202230769187657afd57426d048"
+    },
+    "build_binding_precompile": {
+      "bytes": 775,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/compile/build-binding-precompile.json",
+      "sha256": "21435f3d0ef265ed8203519e14facdadb75201a9a51fb761df816626bbc7faff"
+    },
+    "combined": {
+      "bytes": 54594,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/compile/OBSERVER-combined.rs",
+      "sha256": "4a6381fe9ad0c6bc7757a82b28231f66417d4d5c4df5ddd24304e94397085f37"
+    },
+    "e_cli": {
+      "bytes": 8678432,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/compile/rust/target/debug/e_economic_session",
+      "sha256": "30e66463f55460ff7eef05a7389f2bdca0937503b68465eddf76ebef47d00525"
+    },
+    "fault": {
+      "bytes": 38141,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/FAULT-private.rs",
+      "sha256": "20960e105fdd9912c4c8c3187c5071fb951a8dd927f07351cc23b5d40a6ca12a"
+    },
+    "formal_cli": {
+      "bytes": 16451,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/FORMAL-CLI-private.rs",
+      "sha256": "50e85da3301b33a8c42f99d03da9624808dd028875f8a926fcb9463e0269d4b2"
+    },
+    "test_executable": {
+      "bytes": 82515440,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/compile/rust/target/debug/deps/newchan_rust-959aa50d9c32faa1",
+      "sha256": "53076367776e95a37224d98cb0c4acabd1ebc4d166e7058ccfe78414fa27adb0"
+    }
+  },
+  "product_or_original_files_modified": false,
+  "real_short_socket_dir_removed_after_run": true,
+  "resources": {
+    "case2_observed_max_http_elapsed_ms": 15568.529,
+    "case2_observed_max_http_response_bytes": 1078412,
+    "economic_eight": {
+      "max_cached_bytes": "4194304",
+      "max_changes": "8",
+      "max_domains": "3",
+      "max_frame_bytes": "1048576",
+      "max_reply_bytes": "2097152",
+      "max_snapshots": "2",
+      "operation_timeout_ms": "30000",
+      "timeout_ms": "10000"
+    },
+    "measurement_basis": "case-1 owner-only read measurement; candidate limits kept identical for new case-2",
+    "q19_resource_sha256": "36b188ae42be8e24e7fdbb44e7d3a7068200f7c942f50975337d07595ac62e64",
+    "scope_limit": "tested named TestOnly sample only, not arbitrary deployment/whole 9011"
+  },
+  "schema_revision": "testonly-1394-economic-observer-actual-manifest/1",
+  "scope": "new economic-session/2 Q readonly observation; no structure/Q3 ready or frontend #1460 claim",
+  "source_head_at_build": "219c4f2ab14c55c262a46d65665889e4e7a3abb6",
+  "tracked_rust_files_compared": 523,
+  "tracked_s_session_files_compared": 79,
+  "volumes": [
+    {
+      "case": "case-1",
+      "detach_exit": 0,
+      "device": "/dev/disk8s1",
+      "image": {
+        "bytes": 25165824,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-1/e.dmg",
+        "sha256": "572341ac28512f75947ccd2e841e725b67c39e9e3aa1b7e74a67b134f34f6f8d"
+      },
+      "owner": "e",
+      "st_dev": "16777247"
+    },
+    {
+      "case": "case-1",
+      "detach_exit": 0,
+      "device": "/dev/disk9s1",
+      "image": {
+        "bytes": 25165824,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-1/alpha.dmg",
+        "sha256": "2bc953c289422030229a30ee3083219a42153475cfc4f541e7074c8c4abf15be"
+      },
+      "owner": "alpha",
+      "st_dev": "16777249"
+    },
+    {
+      "case": "case-1",
+      "detach_exit": 0,
+      "device": "/dev/disk10s1",
+      "image": {
+        "bytes": 25165824,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-1/beta.dmg",
+        "sha256": "5451569111c3b596f33e3d89395f5fefcc55e69533e910f09252547155189073"
+      },
+      "owner": "beta",
+      "st_dev": "16777251"
+    },
+    {
+      "case": "case-2",
+      "detach_exit": 0,
+      "device": "/dev/disk8s1",
+      "image": {
+        "bytes": 25165824,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/e.dmg",
+        "sha256": "c80cbcd7553e33a8a12b02346b4f77104b52723a819303598011739c2feb2250"
+      },
+      "owner": "e",
+      "st_dev": "16777247"
+    },
+    {
+      "case": "case-2",
+      "detach_exit": 0,
+      "device": "/dev/disk9s1",
+      "image": {
+        "bytes": 25165824,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/alpha.dmg",
+        "sha256": "ea8bf978864d7e4ce27824c22066e7d64741fd64c541e99e82e0dc0563eab974"
+      },
+      "owner": "alpha",
+      "st_dev": "16777249"
+    },
+    {
+      "case": "case-2",
+      "detach_exit": 0,
+      "device": "/dev/disk10s1",
+      "image": {
+        "bytes": 25165824,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/beta.dmg",
+        "sha256": "87ec0dfbeaa64dfec2de34a09fa60bd79bd47566230a7ab1056343f34d205bf9"
+      },
+      "owner": "beta",
+      "st_dev": "16777251"
+    }
+  ]
+}

@@ -1,0 +1,2313 @@
+{
+  "all_run_artifacts_excluding_dmg_and_manifest": [
+    {
+      "bytes": 4640,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BACKEND-PROCESSES-FINAL.json",
+      "sha256": "594fbd5236ace9f531925c8556e7f9361e697304703316bdfbd368e3f0dfe8a8"
+    },
+    {
+      "bytes": 2420,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-ACTUAL-RESULTS.md",
+      "sha256": "1c33e23d67efedbd0092719b75838544af48b65ac4b66e143a7d6b1d9052aa07"
+    },
+    {
+      "bytes": 594,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-COMMAND.json",
+      "sha256": "4ff0ebb4559bd3bc4af68b8ce70a46e056250668671677ade2344e750566c818"
+    },
+    {
+      "bytes": 19397,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-ENV-PREPARED.json",
+      "sha256": "2a7f77824c8609e7d1b782bcad9406b385cf7153c0f45527248ccb86a8685a4e"
+    },
+    {
+      "bytes": 3867,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-FACT-CHECK.json",
+      "sha256": "bf3877a980c84e9b52619c2e0561d74924786fbeecd0d6ca94800104f6aff4f7"
+    },
+    {
+      "bytes": 208,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-ORCHESTRATOR-FINAL.json",
+      "sha256": "ae7b4e3207212a0e50d5dfb14eb0760f297fb9000065e0deb6e3698f5a503379"
+    },
+    {
+      "bytes": 319,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-PROCESS-FINAL.json",
+      "sha256": "af6fc9776568843f73a689964c34d77b7009c9176797bbe0964a19151adf3e8c"
+    },
+    {
+      "bytes": 669,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-PROCESS-START.json",
+      "sha256": "953698a561d2b303392b9f114b1a211f90d19d0feb8264174d089bd24605d33a"
+    },
+    {
+      "bytes": 4942,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-RUN-PREFLIGHT.json",
+      "sha256": "8d77756398c7a3b3b59d4b09c58609e88bec1cf7fa532204f8cab85472056efc"
+    },
+    {
+      "bytes": 1382,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-STATE-AFTER.json",
+      "sha256": "1516de7a8be3228e3e9222cdc04104f7d349a0411ec8c942e4d3ccbd1370aa9a"
+    },
+    {
+      "bytes": 1284,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-STATE-BEFORE.json",
+      "sha256": "1d385d36a3bd23f321c0229414b98c7f078944f011fe6bbc3a322e133d62d2cd"
+    },
+    {
+      "bytes": 1764,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/CARRIER-PREFLIGHT.json",
+      "sha256": "86e75bc713b6a623e3a5129ba6db4304cea0fd49f3d86f67ea6e378cb02ffcb7"
+    },
+    {
+      "bytes": 179,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/CHROME-PROCESS-START.json",
+      "sha256": "5df909c42805f714d8dc2310ede1bcd4ed8007dd3216031a7a673ae476227893"
+    },
+    {
+      "bytes": 2136,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/COPIES.json",
+      "sha256": "afb4ed7a2a764ce1e9ff5c54b5af38b85b678296bbd04415db170891e924b7cf"
+    },
+    {
+      "bytes": 1198,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/COPY-DETACH-FINAL.json",
+      "sha256": "117cfcdae1581350bdff07a5a09646005af1593442e6188e2ef9941dc13f5979"
+    },
+    {
+      "bytes": 6024,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/MOUNTED-COPIES.json",
+      "sha256": "6db5feca313686a715c4870302da8a3a8c897ebd247fc8a3c1a236c8578c088c"
+    },
+    {
+      "bytes": 1507,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/PRE-MOUNT.json",
+      "sha256": "6a5f9bf4b62d174a57e77b0167aaf6ecf4cdd68c1c4e735f2bda7aa52f19357e"
+    },
+    {
+      "bytes": 9150,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/PRE-REVIEW-LIVE-CHECK.json",
+      "sha256": "6d17b68e0c78f22ba221d4fe1ae8507baf092222f2c3e2f8aa345a209ff05285"
+    },
+    {
+      "bytes": 991,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/PROCESS-READY-alpha.json",
+      "sha256": "f693e99f504fdb307922f0dfb30560bd5b9a1f5cb57322c2c33ee9d2f855b3e6"
+    },
+    {
+      "bytes": 984,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/PROCESS-READY-beta.json",
+      "sha256": "1b1a297f86c8103c0aa8402e9834eb4c508c3752b637e0dbad8fd1e0506651d6"
+    },
+    {
+      "bytes": 936,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/PROCESS-READY-e.json",
+      "sha256": "6118b59a7c87f046ec6280b744e75c42a169603dc057f7bbf5135b8a549e4753"
+    },
+    {
+      "bytes": 1260,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/PROCESS-READY-q-http.json",
+      "sha256": "a5ecc365b7af575839b960cb3f6af5b97e745cd882c213866819546fc37a9fd0"
+    },
+    {
+      "bytes": 882,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/PROCESS-START-alpha.json",
+      "sha256": "bde456dc897e43c7be57f8fa519c228bc9f28f8d790979d93cd3889f3b175642"
+    },
+    {
+      "bytes": 876,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/PROCESS-START-beta.json",
+      "sha256": "f23138c76ec2255afc258cfde0bfb9004b504c9dea0942388fad3c656b7572bb"
+    },
+    {
+      "bytes": 831,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/PROCESS-START-e.json",
+      "sha256": "4ed28e6ff339ede2bb90fa62608c67b837ebb494fb8f0bec7e061319d58f7d39"
+    },
+    {
+      "bytes": 1091,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/PROCESS-START-q-http.json",
+      "sha256": "4174123260be2b556909c84beadc1aee28abdf2023356c909cac925f2fbff5c7"
+    },
+    {
+      "bytes": 8793,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/ROOT-CLIENT-CANDIDATE-AUDIT.json",
+      "sha256": "2d90f0c2d63152cb3940386ff12679652f50b90e11b1517d101f5b88f8394a76"
+    },
+    {
+      "bytes": 9335,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/ROOT-FINAL-CLIENT-AUDIT.json",
+      "sha256": "4c8b2215153a73dfedf3cdb5cd04edec96629565e20fa2029041e5d1e73d46e6"
+    },
+    {
+      "bytes": 586,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/ROOT-REPLICA-PREP-AUDIT.json",
+      "sha256": "d465edeadb624c3d28378bd25d60397c2077891e71b46c4221dd54d3edeb235b"
+    },
+    {
+      "bytes": 124,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/SOCKET-CLEANUP.json",
+      "sha256": "522b5115d23d5ebb4a7cb4280bb7a009dfd71fc10617b5eb22fdb0ac518f75b6"
+    },
+    {
+      "bytes": 285,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/SOCKET-ROOT.json",
+      "sha256": "626f9b4930750d5c66e17e1ccff093d219bd08278151f58a8a09ceb775229a02"
+    },
+    {
+      "bytes": 22786,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/__pycache__/run_browser_actual.cpython-314.pyc",
+      "sha256": "f8f78ce625f80deeef02a75082806f0fd42e514ce1b144508d00bf506c03f588"
+    },
+    {
+      "bytes": 0,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/alpha.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 0,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/alpha.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 0,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/beta.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 0,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/beta.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 71319,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/all-originals.json",
+      "sha256": "772b2555fca0602a3817eaa69580b5a5b8f607c66dc2c36bed6cda7271d1d27f"
+    },
+    {
+      "bytes": 10263870,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/cdp.jsonl",
+      "sha256": "c680af4f9ede06ccf21f9d9307b2b8b2cb2dc0aa4179ac8d12e0fa93a8d97b3f"
+    },
+    {
+      "bytes": 1909750,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/changes-to-current.json",
+      "sha256": "05a2716243a1c5c09ff70bee91746b919f3c01537a6c0fe2665fc215630a326c"
+    },
+    {
+      "bytes": 380509,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/changes-to-current.png",
+      "sha256": "efb542e199a5dc771f3983ef0d5ee5f77107f225b74148d4be6b2f07629e0dd9"
+    },
+    {
+      "bytes": 4086,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/chrome.stderr",
+      "sha256": "a0695d70baba298d09e835981421ae8bdacb53532943ed5ae73791890d85999e"
+    },
+    {
+      "bytes": 0,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/chrome.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 514,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/command.json",
+      "sha256": "d559e5c44f325fab8712f2e0aa6626f99240bff8f6fadf99ed3bad7688fe00e6"
+    },
+    {
+      "bytes": 1909694,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/current.json",
+      "sha256": "db362d695d153ce08cd95abe2bd5c34e4357d41404e79e499b7bf7cf6928d0ca"
+    },
+    {
+      "bytes": 379805,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/current.png",
+      "sha256": "db8e82323500fc4c3c9ab454273a6a71ab0010f23eac20ad8abbfe13df8e1eb4"
+    },
+    {
+      "bytes": 429,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/http-0.json",
+      "sha256": "00f01b64b445dde1f32c55e87ca08e91ff6f8378b167ed4d1eb85a91faca7804"
+    },
+    {
+      "bytes": 921572,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/http-1.json",
+      "sha256": "16223d5d6bd82d3d60c8a3dae3f73785a205518df4ed18cd559e204717db1c92"
+    },
+    {
+      "bytes": 5203,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/http-10.json",
+      "sha256": "df1e2faf60b32a7458d2c0852cffe984bc6bd8f70b383f0fff927a95d369ff07"
+    },
+    {
+      "bytes": 5198,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/http-11.json",
+      "sha256": "bab03f7e88d94ba68bc958333902b7da88754212942e8b6fd3882328e6dc65fa"
+    },
+    {
+      "bytes": 80221,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/http-2.json",
+      "sha256": "253c3f4db6dc6c0e712fcabbd753530c5b496ab4c451feb832253ed018ff2696"
+    },
+    {
+      "bytes": 922213,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/http-3.json",
+      "sha256": "3cca2e729557da0505614bdf4e13060a5e2013b30ab0f5640a9e7ab965131757"
+    },
+    {
+      "bytes": 424940,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/http-4.json",
+      "sha256": "5cf41abb67a9dc0a050387ec8d58f9467b84520a9c4fd4fc16d19b66923bbb93"
+    },
+    {
+      "bytes": 424908,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/http-5.json",
+      "sha256": "2aeddd13e33e70aa9cc22b89c4f00f3a5570d122f5635c720662b84563210bc9"
+    },
+    {
+      "bytes": 232166,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/http-6.json",
+      "sha256": "540a7eae08fd0137fbd19a63e547da0a50520ccdd6efdf65055549f89f2ed001"
+    },
+    {
+      "bytes": 921572,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/http-7.json",
+      "sha256": "e02030bb27c327875583af52bbe689409800c755606a33b92e7f399808e6c9da"
+    },
+    {
+      "bytes": 16553,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/http-8.json",
+      "sha256": "cd0d43a43c70bedfc69f262650531afe9deb36ca79b7eb2207706829460058f7"
+    },
+    {
+      "bytes": 16481,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/http-9.json",
+      "sha256": "79626b681dd3b27bbc4074584cd328742e2345e47bc06ee17a5d9c5e4da55fe3"
+    },
+    {
+      "bytes": 1759,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/http-index.json",
+      "sha256": "786cbae66bacebfb468b293dffb204520341ece5510ea5fbe3f3448f0cf0c83e"
+    },
+    {
+      "bytes": 1980539,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/original-receipt.json",
+      "sha256": "bedb8f46d215884eab1aacd5d806284eaccbc51512e1a26009678596f4734c20"
+    },
+    {
+      "bytes": 572932,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/original-receipt.png",
+      "sha256": "73068ba45c9d101125c101e72cb95380f8df3483f94b2d77878bdadb23211fa3"
+    },
+    {
+      "bytes": 127194,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/prepared-as-known.json",
+      "sha256": "e4d9586eaeb6d99094581e42a46a04c85d77af74f0b09cc6d3e755f3ccd74ee1"
+    },
+    {
+      "bytes": 358093,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/prepared-as-known.png",
+      "sha256": "8ad243bbb27b97ef0fc93308b20e0a29b2134577f67bfa8ddbda40ab94f21980"
+    },
+    {
+      "bytes": 937,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/result.json",
+      "sha256": "94240fa22b45da134dfee66d6f7891fb79178376147770668a495f13ed643258"
+    },
+    {
+      "bytes": 0,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-runner.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 745,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-runner.stdout",
+      "sha256": "3e7b76f1152d947b3229b9374af78c63f473d1f98104dde6fe886d40e048a714"
+    },
+    {
+      "bytes": 0,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/e.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 0,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/e.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 1234,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/q-http.stderr",
+      "sha256": "3abff4b8d04dda1d95c640a0af9b107f5414715317426ff00fa92146e61f2592"
+    },
+    {
+      "bytes": 0,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/q-http.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 0,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/run-browser.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 137,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/run-browser.stdout",
+      "sha256": "30fe511ba7573f683209aa7a3aa1b642aa2a2330da65bf95728094195c54d9fe"
+    },
+    {
+      "bytes": 13157,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/run_browser_actual.py",
+      "sha256": "f82492bfcf1ae095759f719550ffd9e2be4f0ed3d18203fb1640863dc130889b"
+    }
+  ],
+  "b_binary": {
+    "bytes": 8678384,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/compile/rust/target/debug/b_chong_session",
+    "sha256": "6c3cb2b38b83747bcf29a32870413d98c9d0b202230769187657afd57426d048"
+  },
+  "backend_processes": {
+    "bytes": 4640,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BACKEND-PROCESSES-FINAL.json",
+    "sha256": "594fbd5236ace9f531925c8556e7f9361e697304703316bdfbd368e3f0dfe8a8"
+  },
+  "browser_command": {
+    "bytes": 594,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-COMMAND.json",
+    "sha256": "4ff0ebb4559bd3bc4af68b8ce70a46e056250668671677ade2344e750566c818"
+  },
+  "browser_process_final": {
+    "bytes": 319,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-PROCESS-FINAL.json",
+    "sha256": "af6fc9776568843f73a689964c34d77b7009c9176797bbe0964a19151adf3e8c"
+  },
+  "browser_process_start": {
+    "bytes": 669,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-PROCESS-START.json",
+    "sha256": "953698a561d2b303392b9f114b1a211f90d19d0feb8264174d089bd24605d33a"
+  },
+  "browser_result": {
+    "bytes": 937,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/result.json",
+    "sha256": "94240fa22b45da134dfee66d6f7891fb79178376147770668a495f13ed643258"
+  },
+  "business_invariants": {
+    "both_committed_current": true,
+    "both_prepared_as_known85": true,
+    "current_complete_vector": true,
+    "execution_eligibility": "None",
+    "four_original_full_objects_equal_native": true,
+    "locked_amounts": {
+      "alpha": "30",
+      "beta": "40"
+    },
+    "responsibility_total": "90",
+    "watch_same_three_cut_image_hash_commit_ns": true
+  },
+  "chrome_binary": {
+    "bytes": 367696,
+    "path": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "sha256": "633aa60f1ee2346804e006071d8f6a2114106e9c17abd601fe61bf9754638740"
+  },
+  "chrome_process": {
+    "bytes": 179,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/CHROME-PROCESS-START.json",
+    "sha256": "5df909c42805f714d8dc2310ede1bcd4ed8007dd3216031a7a673ae476227893"
+  },
+  "cleanup": {
+    "browser_runner_exit_zero": true,
+    "chrome_pid_observed": 44482,
+    "four_backends_reaped": true,
+    "original_archive_images_detached_unchanged": true,
+    "short_socket_dir_removed": true,
+    "task_services_remaining": false,
+    "three_replica_volumes_detached": true
+  },
+  "client_source": {
+    "s_session/browser/economic.html": {
+      "bytes": 10390,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/s_session/browser/economic.html",
+      "sha256": "946a181984ed43aa575af075fdb8e92033ea23fca1db033b67ae36f246f655a8"
+    },
+    "s_session/browser/tb03a-client.js": {
+      "bytes": 58860,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/s_session/browser/tb03a-client.js",
+      "sha256": "0bf62a6bc55ef7908c6d6e630e0776023272f9fc34df44bac29f1f9d8e28e9d3"
+    },
+    "s_session/tests/tb03b_browser.cjs": {
+      "bytes": 10207,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/s_session/tests/tb03b_browser.cjs",
+      "sha256": "74eba89e9264a3a859c0dc88957a013f7b58894eeab426aac707b1c4939747ff"
+    },
+    "s_session/tests/test_tb03a_voice_client.cjs": {
+      "bytes": 49451,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/s_session/tests/test_tb03a_voice_client.cjs",
+      "sha256": "eecaaebe6f0aa17590c2798f1a9f407a56e450b6550adcdcd65ed99b805fd762"
+    }
+  },
+  "copy_detach": {
+    "bytes": 1198,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/COPY-DETACH-FINAL.json",
+    "sha256": "117cfcdae1581350bdff07a5a09646005af1593442e6188e2ef9941dc13f5979"
+  },
+  "e_binary": {
+    "bytes": 8678432,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/compile/rust/target/debug/e_economic_session",
+    "sha256": "30e66463f55460ff7eef05a7389f2bdca0937503b68465eddf76ebef47d00525"
+  },
+  "fact_check": {
+    "bytes": 3867,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-FACT-CHECK.json",
+    "sha256": "bf3877a980c84e9b52619c2e0561d74924786fbeecd0d6ca94800104f6aff4f7"
+  },
+  "fresh_chrome_profile": {
+    "claim": "fresh unshared profile; ancillary browser runtime files, not economic evidence",
+    "file_count": 324,
+    "files": [
+      {
+        "bytes": 277,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/ChromeFeatureState",
+        "sha256": "32a57afb1616340d02c291bc788420b3ba59857c074040f9ade113afae69f876"
+      },
+      {
+        "bytes": 36,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Consent To Send Stats",
+        "sha256": "8fa44cd4abad804fb411b2382a37a4bd1ae8e04dbacf02e4e904bb38d6eb7649"
+      },
+      {
+        "bytes": 77824,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Account Web Data",
+        "sha256": "dd0c8f9d9dd0f4b53e18053a781a3f6ea78e21dbf1e80083ab5ac4e4dd3a723b"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Account Web Data-journal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 53248,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Affiliation Database",
+        "sha256": "52b369ae1ac4db15be400b8d45b01d9e4c4054299fd3743f811e785a6abcbe3a"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Affiliation Database-journal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/AutofillAiModelCache/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/AutofillAiModelCache/LOG",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/AutofillStrikeDatabase/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/AutofillStrikeDatabase/LOG",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 4,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/BookmarkMergedSurfaceOrdering",
+        "sha256": "d914176fd50bd7f565700006a31aa97b79d3ad17cee20c8e5ff2061d5cb74817"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/BudgetDatabase/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/BudgetDatabase/LOG",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 2920,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Cache/Cache_Data/5c931c9bedf7b1fc_0",
+        "sha256": "fae1e24e9fdc033314c73d8a2d35334f68abc10f4c2eec2f08ecde9d1805f3b0"
+      },
+      {
+        "bytes": 2898,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Cache/Cache_Data/5dfbd516de4f1da6_0",
+        "sha256": "af54e0ad8f07f8b08b4e7a201839f7743c1a34e07e040e5f3a547a81ac83222c"
+      },
+      {
+        "bytes": 24,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Cache/Cache_Data/index",
+        "sha256": "fbcfe23a2ecb82b7100c50811691dde0a33aa3da8d176be9882a9db485dc0f2d"
+      },
+      {
+        "bytes": 96,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Cache/Cache_Data/index-dir/the-real-index",
+        "sha256": "350bc74564886d16a2d89a2e58aba54d2208e0f26d6195a3d8494f7c1c860f9a"
+      },
+      {
+        "bytes": 4,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Cache/No_Vary_Search/journal.baj",
+        "sha256": "9c169428d852e25bd59b27652ed533d2a1f09f96e4c329fa5e06f47e16731543"
+      },
+      {
+        "bytes": 20,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Cache/No_Vary_Search/snapshot.baf",
+        "sha256": "0c2dd377ed0cc66161e9db8f89f7d8bcb3ad8c06c4a054bdcba214ab05f58c9a"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/ClientCertificates/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/ClientCertificates/LOG",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 257,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Code Cache/js/688197c81618933d_0",
+        "sha256": "c58af702716359cdb27e1784a6263d29a352c4559159dd148fc3ed79aae64b03"
+      },
+      {
+        "bytes": 298,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Code Cache/js/ba678a2fbd8c358c_0",
+        "sha256": "834043dd5e7a65adcbb863fe21caca91683a72aabe9f40310cddcf0cad29da6b"
+      },
+      {
+        "bytes": 577,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Code Cache/js/fa187591b6242d32_0",
+        "sha256": "3ca3176dab589ea2088fc7147c6431ed3fbbf5f3828873b1d295de5f47ab8bb9"
+      },
+      {
+        "bytes": 24,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Code Cache/js/index",
+        "sha256": "fbcfe23a2ecb82b7100c50811691dde0a33aa3da8d176be9882a9db485dc0f2d"
+      },
+      {
+        "bytes": 120,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Code Cache/js/index-dir/the-real-index",
+        "sha256": "9be755e4cfebfde8a29f15884e0ba36e8f4223af5804f59a85dc09502e9baa86"
+      },
+      {
+        "bytes": 24,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Code Cache/wasm/index",
+        "sha256": "fbcfe23a2ecb82b7100c50811691dde0a33aa3da8d176be9882a9db485dc0f2d"
+      },
+      {
+        "bytes": 48,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Code Cache/wasm/index-dir/the-real-index",
+        "sha256": "00b95986a7a574f51c0fd952960aab961b4bf7c7f38dd4674a7ed60595a1b4bb"
+      },
+      {
+        "bytes": 20480,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Cookies",
+        "sha256": "e63e5ecba16ce902f2c62dda454042ecca66a09d7a33f38fedac458d1a11f81b"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Cookies-journal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 4096,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/DIPS",
+        "sha256": "97e8d54f8a7255106f66cf1b213c4a4d7b558d21310b1c2bfedc3d0d526dddda"
+      },
+      {
+        "bytes": 45352,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/DIPS-wal",
+        "sha256": "993dbbde95c4804e1543b6b79e6d94cf73b12b141fcc651b66f64b71aba2f488"
+      },
+      {
+        "bytes": 8192,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/DawnGraphiteCache/data_0",
+        "sha256": "d6a5fe39cd672781b256e0e3102f7022635f1d4bb7cfcc90a80fffe4d0f3877e"
+      },
+      {
+        "bytes": 270336,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/DawnGraphiteCache/data_1",
+        "sha256": "902f30c1fb0597d0734bc34b979ec5d131f8f39a4b71b338083821216ec8d61b"
+      },
+      {
+        "bytes": 8192,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/DawnGraphiteCache/data_2",
+        "sha256": "ec1702806f4cc7c42a82fc2b38e89835fde7c64bb32060e0823c9077ca92efb7"
+      },
+      {
+        "bytes": 8192,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/DawnGraphiteCache/data_3",
+        "sha256": "e09f42c398d688dce168570291f1f92d079987deda3099a34adb9e8c0522b30c"
+      },
+      {
+        "bytes": 262512,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/DawnGraphiteCache/index",
+        "sha256": "509e62e4313d58acd2a39ba4ab892ec31801bcc156f90c65e0465c8f111949a3"
+      },
+      {
+        "bytes": 8192,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/DawnWebGPUCache/data_0",
+        "sha256": "d6a5fe39cd672781b256e0e3102f7022635f1d4bb7cfcc90a80fffe4d0f3877e"
+      },
+      {
+        "bytes": 270336,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/DawnWebGPUCache/data_1",
+        "sha256": "902f30c1fb0597d0734bc34b979ec5d131f8f39a4b71b338083821216ec8d61b"
+      },
+      {
+        "bytes": 8192,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/DawnWebGPUCache/data_2",
+        "sha256": "ec1702806f4cc7c42a82fc2b38e89835fde7c64bb32060e0823c9077ca92efb7"
+      },
+      {
+        "bytes": 8192,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/DawnWebGPUCache/data_3",
+        "sha256": "e09f42c398d688dce168570291f1f92d079987deda3099a34adb9e8c0522b30c"
+      },
+      {
+        "bytes": 262512,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/DawnWebGPUCache/index",
+        "sha256": "88ee37fb802f609f99f743516a15fe89d99fb1d4264a07d7a0347a6ac2bd5e9b"
+      },
+      {
+        "bytes": 20480,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Device Bound Sessions",
+        "sha256": "78a06f4f93849b88f0489d00c0389205bc9d5389608c6918549df4db668d783f"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Device Bound Sessions-journal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Download Service/EntryDB/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Download Service/EntryDB/LOG",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 12874783,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Download Service/Files/未确认 740698.crdownload",
+        "sha256": "8d760d269826cf19816bf256abf98136c70c35945adac823a3e08f36280adc32"
+      },
+      {
+        "bytes": 57,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Extension Rules/000003.log",
+        "sha256": "99c59cbe7db56d56a286485635e4467004641c6275e708887dd35728eb05109a"
+      },
+      {
+        "bytes": 16,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Extension Rules/CURRENT",
+        "sha256": "0f1bad70c7bd1e0a69562853ec529355462fcd0423263a3d39d6d0d70b780443"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Extension Rules/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 435,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Extension Rules/LOG",
+        "sha256": "1a50f7a02d575d9dfa41ddc0f16c806d1ee4dcd3031dcfacd8d8ecae3c1d7ad0"
+      },
+      {
+        "bytes": 41,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Extension Rules/MANIFEST-000001",
+        "sha256": "f9d31b278e215eb0d0e9cd709edfa037e828f36214ab7906f612160fead4b2b4"
+      },
+      {
+        "bytes": 57,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Extension Scripts/000003.log",
+        "sha256": "99c59cbe7db56d56a286485635e4467004641c6275e708887dd35728eb05109a"
+      },
+      {
+        "bytes": 16,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Extension Scripts/CURRENT",
+        "sha256": "0f1bad70c7bd1e0a69562853ec529355462fcd0423263a3d39d6d0d70b780443"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Extension Scripts/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 439,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Extension Scripts/LOG",
+        "sha256": "872db1e664921405b95a8eff98adc7b3edd41783f3ac824fea49baedf7f5d9ee"
+      },
+      {
+        "bytes": 41,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Extension Scripts/MANIFEST-000001",
+        "sha256": "f9d31b278e215eb0d0e9cd709edfa037e828f36214ab7906f612160fead4b2b4"
+      },
+      {
+        "bytes": 171,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Extension State/000003.log",
+        "sha256": "14f92b911f9fe774720461eec5bb4761ae6bfc9445c67e30bf624a8694b4b1da"
+      },
+      {
+        "bytes": 16,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Extension State/CURRENT",
+        "sha256": "0f1bad70c7bd1e0a69562853ec529355462fcd0423263a3d39d6d0d70b780443"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Extension State/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 435,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Extension State/LOG",
+        "sha256": "d1c306457939f9b6922ec6463ea9cddefec0c519eb522602b14fa2fa51074137"
+      },
+      {
+        "bytes": 41,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Extension State/MANIFEST-000001",
+        "sha256": "f9d31b278e215eb0d0e9cd709edfa037e828f36214ab7906f612160fead4b2b4"
+      },
+      {
+        "bytes": 20480,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Favicons",
+        "sha256": "1fbc7ea9722b2154b0d69c9d0ed80b6c0c98c5d389cf31ac1a2b8db030724840"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Favicons-journal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 1142,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/GCM Store/000003.log",
+        "sha256": "d05c3db40ba449ac51f606b70f28d408dbebceda59256a57821b4ea174e860f2"
+      },
+      {
+        "bytes": 16,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/GCM Store/CURRENT",
+        "sha256": "0f1bad70c7bd1e0a69562853ec529355462fcd0423263a3d39d6d0d70b780443"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/GCM Store/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 423,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/GCM Store/LOG",
+        "sha256": "d835e52e624a16e209794fdf43aa805bcf33a6d14b85fc51097d13c01ad96cbd"
+      },
+      {
+        "bytes": 41,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/GCM Store/MANIFEST-000001",
+        "sha256": "f9d31b278e215eb0d0e9cd709edfa037e828f36214ab7906f612160fead4b2b4"
+      },
+      {
+        "bytes": 8192,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/GPUCache/data_0",
+        "sha256": "d6a5fe39cd672781b256e0e3102f7022635f1d4bb7cfcc90a80fffe4d0f3877e"
+      },
+      {
+        "bytes": 270336,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/GPUCache/data_1",
+        "sha256": "902f30c1fb0597d0734bc34b979ec5d131f8f39a4b71b338083821216ec8d61b"
+      },
+      {
+        "bytes": 8192,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/GPUCache/data_2",
+        "sha256": "ec1702806f4cc7c42a82fc2b38e89835fde7c64bb32060e0823c9077ca92efb7"
+      },
+      {
+        "bytes": 8192,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/GPUCache/data_3",
+        "sha256": "e09f42c398d688dce168570291f1f92d079987deda3099a34adb9e8c0522b30c"
+      },
+      {
+        "bytes": 262512,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/GPUCache/index",
+        "sha256": "f9041734ca61718f6d2faa3f9bf3c5810aed8cfa0efff296a140a0f0173ae2f9"
+      },
+      {
+        "bytes": 163840,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/History",
+        "sha256": "c3bd2bebd79f02ca971c6c1a84e6d3e3bd7dc31e7de21af7b3e1640255465608"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/History-journal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/LOG",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 30,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Local Storage/leveldb/000003.log",
+        "sha256": "8bd2ea70a0b70c91de138a5b87c7936c6a6fa7c4275c54b97f4ef0ccc5b79bb4"
+      },
+      {
+        "bytes": 16,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Local Storage/leveldb/CURRENT",
+        "sha256": "0f1bad70c7bd1e0a69562853ec529355462fcd0423263a3d39d6d0d70b780443"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Local Storage/leveldb/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 447,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Local Storage/leveldb/LOG",
+        "sha256": "60054b66cfd1e662ffa2d90703f736cf396dd9942d690b5227fc5742f465820c"
+      },
+      {
+        "bytes": 41,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Local Storage/leveldb/MANIFEST-000001",
+        "sha256": "f9d31b278e215eb0d0e9cd709edfa037e828f36214ab7906f612160fead4b2b4"
+      },
+      {
+        "bytes": 40960,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Login Data",
+        "sha256": "869676a006de3214994dedee2318ece6fbf55a4afc42b551ce065bb35265f8d1"
+      },
+      {
+        "bytes": 40960,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Login Data For Account",
+        "sha256": "869676a006de3214994dedee2318ece6fbf55a4afc42b551ce065bb35265f8d1"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Login Data For Account-journal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Login Data-journal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 53248,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Network Action Predictor",
+        "sha256": "78c0f24e5b07037e9eb99ca2344f1b99ccc3a21c2ccecbe4282605e48a2751e7"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Network Action Predictor-journal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 59,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Network Persistent State",
+        "sha256": "0178d3cd64965de13e56a805628521262dc0b9bb2294d6eda186252382fe1f11"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/PersistentOriginTrials/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/PersistentOriginTrials/LOG",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 8236,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Preferences",
+        "sha256": "ecc3c2bb208b357343519e69f87c5569bf91d7345cf76a68942de4f765afb969"
+      },
+      {
+        "bytes": 33,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/PreferredApps",
+        "sha256": "42b55d126d1e640b1ed7a6bdcb9a46c81df461fa7e131f4f8c7108c2c61c14de"
+      },
+      {
+        "bytes": 180,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/README",
+        "sha256": "c43668eec4a8d88a5b3a06a84f8846853fe33e54293c2db56899a5a5dfb4d944"
+      },
+      {
+        "bytes": 36864,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Reporting and NEL",
+        "sha256": "76d1735f4a5e7f53b4aa0975b978e1b4bd84abf00da766db407f5ff0a3874e16"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Reporting and NEL-journal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 13472,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Secure Preferences",
+        "sha256": "5e0dc3024ed55f506fe732c299c754037aa542ccebce13ef64eb759b70757de6"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Segmentation Platform/SegmentInfoDB/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Segmentation Platform/SegmentInfoDB/LOG",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Segmentation Platform/SignalDB/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Segmentation Platform/SignalDB/LOG",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Segmentation Platform/SignalStorageConfigDB/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Segmentation Platform/SignalStorageConfigDB/LOG",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 20480,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/ServerCertificate",
+        "sha256": "180ffbc2a4f10b5563f5a7bfe62d23909f0aa77572a06e59a9be4c6fca7176f7"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/ServerCertificate-journal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 1263,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Service Worker/Database/000003.log",
+        "sha256": "15a24801f48a6e83c4a9e6f0e25c5fc2b483fab133c7c1f0820f93150f937b01"
+      },
+      {
+        "bytes": 16,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Service Worker/Database/CURRENT",
+        "sha256": "0f1bad70c7bd1e0a69562853ec529355462fcd0423263a3d39d6d0d70b780443"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Service Worker/Database/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 451,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Service Worker/Database/LOG",
+        "sha256": "2bffdb5421256b9c6b21c4fa6320feba16bb4cf239d6b700bbd8266eba48e15c"
+      },
+      {
+        "bytes": 41,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Service Worker/Database/MANIFEST-000001",
+        "sha256": "f9d31b278e215eb0d0e9cd709edfa037e828f36214ab7906f612160fead4b2b4"
+      },
+      {
+        "bytes": 472,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Service Worker/ScriptCache/2cc80dabc69f58b6_0",
+        "sha256": "7433e2de592bac3d53e34206cd580d140d107eae0defa146b238d209d3b34c87"
+      },
+      {
+        "bytes": 10387,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Service Worker/ScriptCache/4cb013792b196a35_0",
+        "sha256": "9bfcd210dc08c82ce5d351f0b2e015d246be763173e1310cc3fe651d99c308aa"
+      },
+      {
+        "bytes": 7177,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Service Worker/ScriptCache/4cb013792b196a35_1",
+        "sha256": "68c63d35c5c0a24ad5c365ec7f5a7a4c011447b9081442c97fed5342c32af719"
+      },
+      {
+        "bytes": 24,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Service Worker/ScriptCache/index",
+        "sha256": "fbcfe23a2ecb82b7100c50811691dde0a33aa3da8d176be9882a9db485dc0f2d"
+      },
+      {
+        "bytes": 96,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Service Worker/ScriptCache/index-dir/the-real-index",
+        "sha256": "8d11dbcd07d77f0ab3453c0889e6bee13211cf17050fb554d74a3f03b04fb33d"
+      },
+      {
+        "bytes": 201,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Session Storage/000003.log",
+        "sha256": "388d04b582928fa762c4f79c15f902d4d813fbcc0f8496124b34ddd739e9c556"
+      },
+      {
+        "bytes": 16,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Session Storage/CURRENT",
+        "sha256": "0f1bad70c7bd1e0a69562853ec529355462fcd0423263a3d39d6d0d70b780443"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Session Storage/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 435,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Session Storage/LOG",
+        "sha256": "35e43c53d886c7efaaed62e72af90a819ec0f8d4d6a2c26cff2b808832a52c33"
+      },
+      {
+        "bytes": 41,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Session Storage/MANIFEST-000001",
+        "sha256": "f9d31b278e215eb0d0e9cd709edfa037e828f36214ab7906f612160fead4b2b4"
+      },
+      {
+        "bytes": 6638,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Sessions/Session_13435254053868013",
+        "sha256": "b9db3ff283780f22e221d07b503578b8f6171e8cfb5046d3706bc7eed1ab1040"
+      },
+      {
+        "bytes": 24,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Shared Dictionary/cache/index",
+        "sha256": "fbcfe23a2ecb82b7100c50811691dde0a33aa3da8d176be9882a9db485dc0f2d"
+      },
+      {
+        "bytes": 48,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Shared Dictionary/cache/index-dir/the-real-index",
+        "sha256": "86b5d2b60789661be255af8813c16c9d120dbb77c003abef856ad3b223b84db0"
+      },
+      {
+        "bytes": 45056,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Shared Dictionary/db",
+        "sha256": "0d6287fecedbc44ed9f51ded9de88629ec9f385ecff5da9a34e47e96fd5a9cba"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Shared Dictionary/db-journal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 20480,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Shortcuts",
+        "sha256": "4d50f902dd988a05350991f9d575138fa62d7ee143eba5125bf5aac983ecd5de"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Shortcuts-journal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 40,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Site Characteristics Database/000003.log",
+        "sha256": "f096bc366a931fba656bdcd77b24af15a5f29fc53281a727c79f82c608ecfab8"
+      },
+      {
+        "bytes": 16,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Site Characteristics Database/CURRENT",
+        "sha256": "0f1bad70c7bd1e0a69562853ec529355462fcd0423263a3d39d6d0d70b780443"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Site Characteristics Database/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 463,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Site Characteristics Database/LOG",
+        "sha256": "17679742506900b7cf5664fcf99de17e00425b4e6c45cd9c62ff03d7bed26df6"
+      },
+      {
+        "bytes": 41,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Site Characteristics Database/MANIFEST-000001",
+        "sha256": "f9d31b278e215eb0d0e9cd709edfa037e828f36214ab7906f612160fead4b2b4"
+      },
+      {
+        "bytes": 3148,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Sync Data/LevelDB/000003.log",
+        "sha256": "42d34d72c1309b4e7890c53a1a0983cf24bf809194bc29184a9dcc5a41215c7b"
+      },
+      {
+        "bytes": 16,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Sync Data/LevelDB/CURRENT",
+        "sha256": "0f1bad70c7bd1e0a69562853ec529355462fcd0423263a3d39d6d0d70b780443"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Sync Data/LevelDB/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 439,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Sync Data/LevelDB/LOG",
+        "sha256": "64126b4c17d2e2846a7eb492baf309b41af8f411133562be3851138f095efa41"
+      },
+      {
+        "bytes": 41,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Sync Data/LevelDB/MANIFEST-000001",
+        "sha256": "f9d31b278e215eb0d0e9cd709edfa037e828f36214ab7906f612160fead4b2b4"
+      },
+      {
+        "bytes": 20480,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Top Sites",
+        "sha256": "09dee07f44d60afff0f03b15f75621825d72b3f632308c66922785ca0d7165cc"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Top Sites-journal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 36864,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Trust Tokens",
+        "sha256": "88bafa2a265212152b2405502209d64438a416ff594a040e666f031ef442a812"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Trust Tokens-journal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 10243,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/aghbiahbpaijignceidepookljebhfak/Icons/128.png",
+        "sha256": "36fa37d7b13869e4ab189350764cab7b7006f24dc85b8998dba7fe6d1a229da4"
+      },
+      {
+        "bytes": 10103,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/aghbiahbpaijignceidepookljebhfak/Icons/192.png",
+        "sha256": "ec1370090506692a566f9572cf962fe24819c496793229adb93b4e25524bf625"
+      },
+      {
+        "bytes": 30010,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/aghbiahbpaijignceidepookljebhfak/Icons/256.png",
+        "sha256": "7ca88ce2772a18613c1c30b8715bc435942cb8e112185515a342e282b449e8d5"
+      },
+      {
+        "bytes": 1854,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/aghbiahbpaijignceidepookljebhfak/Icons/32.png",
+        "sha256": "efeb751507c77b56963b563705e3d20325805e332988bb3e48cd891e2dd11b3c"
+      },
+      {
+        "bytes": 2982,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/aghbiahbpaijignceidepookljebhfak/Icons/48.png",
+        "sha256": "82fc9e7be1c1dc78bcca8c54db0fcd89e4658d542070b418b1d3f0c82e1a7389"
+      },
+      {
+        "bytes": 4159,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/aghbiahbpaijignceidepookljebhfak/Icons/64.png",
+        "sha256": "88ee95cc4940438e85c0f103638c8bfc8f326bc25c7223c5f6455657b0fcb128"
+      },
+      {
+        "bytes": 6955,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/aghbiahbpaijignceidepookljebhfak/Icons/96.png",
+        "sha256": "3d5cf5e1f10b583ed4f0bb84e82e5adef1dae546ff7befc7974d459ba807b542"
+      },
+      {
+        "bytes": 10243,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/aghbiahbpaijignceidepookljebhfak/Trusted Icons/Icons/128.png",
+        "sha256": "36fa37d7b13869e4ab189350764cab7b7006f24dc85b8998dba7fe6d1a229da4"
+      },
+      {
+        "bytes": 10103,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/aghbiahbpaijignceidepookljebhfak/Trusted Icons/Icons/192.png",
+        "sha256": "ec1370090506692a566f9572cf962fe24819c496793229adb93b4e25524bf625"
+      },
+      {
+        "bytes": 30010,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/aghbiahbpaijignceidepookljebhfak/Trusted Icons/Icons/256.png",
+        "sha256": "7ca88ce2772a18613c1c30b8715bc435942cb8e112185515a342e282b449e8d5"
+      },
+      {
+        "bytes": 1854,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/aghbiahbpaijignceidepookljebhfak/Trusted Icons/Icons/32.png",
+        "sha256": "efeb751507c77b56963b563705e3d20325805e332988bb3e48cd891e2dd11b3c"
+      },
+      {
+        "bytes": 2982,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/aghbiahbpaijignceidepookljebhfak/Trusted Icons/Icons/48.png",
+        "sha256": "82fc9e7be1c1dc78bcca8c54db0fcd89e4658d542070b418b1d3f0c82e1a7389"
+      },
+      {
+        "bytes": 4159,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/aghbiahbpaijignceidepookljebhfak/Trusted Icons/Icons/64.png",
+        "sha256": "88ee95cc4940438e85c0f103638c8bfc8f326bc25c7223c5f6455657b0fcb128"
+      },
+      {
+        "bytes": 6955,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/aghbiahbpaijignceidepookljebhfak/Trusted Icons/Icons/96.png",
+        "sha256": "3d5cf5e1f10b583ed4f0bb84e82e5adef1dae546ff7befc7974d459ba807b542"
+      },
+      {
+        "bytes": 10369,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/agimnkijcaahngcdmfeangaknmldooml/Icons/128.png",
+        "sha256": "21e62dd92c76155912fca7c320837039c05d087d2a6590e7637b9e82ce576947"
+      },
+      {
+        "bytes": 7081,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/agimnkijcaahngcdmfeangaknmldooml/Icons/192.png",
+        "sha256": "62fa13461b5d8d6fb313a58ad0f60f461a80e68aefc1931755ffa4c2a8510fb6"
+      },
+      {
+        "bytes": 26383,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/agimnkijcaahngcdmfeangaknmldooml/Icons/256.png",
+        "sha256": "b48e75f50a26c8a54b6aa4c2d866bba84e15035a9567cc7c51ab7ea2e29f367b"
+      },
+      {
+        "bytes": 1572,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/agimnkijcaahngcdmfeangaknmldooml/Icons/32.png",
+        "sha256": "7cce326e62b1efd08d37bee0c3cd20258a2527e5b267a359c03240a76badced0"
+      },
+      {
+        "bytes": 2572,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/agimnkijcaahngcdmfeangaknmldooml/Icons/48.png",
+        "sha256": "442bdbf96a0bbf2274f4f2a7a2a27bcf0e0851131284797df90bff59f738894d"
+      },
+      {
+        "bytes": 3945,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/agimnkijcaahngcdmfeangaknmldooml/Icons/64.png",
+        "sha256": "6b2ff6fdec1a618e884b82acdff34292f05002959e1ccabf9c2723d383a47f98"
+      },
+      {
+        "bytes": 7033,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/agimnkijcaahngcdmfeangaknmldooml/Icons/96.png",
+        "sha256": "8b45cd8893a8f096233044c28161139a3751b81f48751ad3bbc761f6db19f8d9"
+      },
+      {
+        "bytes": 10369,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/agimnkijcaahngcdmfeangaknmldooml/Trusted Icons/Icons/128.png",
+        "sha256": "21e62dd92c76155912fca7c320837039c05d087d2a6590e7637b9e82ce576947"
+      },
+      {
+        "bytes": 7081,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/agimnkijcaahngcdmfeangaknmldooml/Trusted Icons/Icons/192.png",
+        "sha256": "62fa13461b5d8d6fb313a58ad0f60f461a80e68aefc1931755ffa4c2a8510fb6"
+      },
+      {
+        "bytes": 26383,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/agimnkijcaahngcdmfeangaknmldooml/Trusted Icons/Icons/256.png",
+        "sha256": "b48e75f50a26c8a54b6aa4c2d866bba84e15035a9567cc7c51ab7ea2e29f367b"
+      },
+      {
+        "bytes": 1572,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/agimnkijcaahngcdmfeangaknmldooml/Trusted Icons/Icons/32.png",
+        "sha256": "7cce326e62b1efd08d37bee0c3cd20258a2527e5b267a359c03240a76badced0"
+      },
+      {
+        "bytes": 2572,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/agimnkijcaahngcdmfeangaknmldooml/Trusted Icons/Icons/48.png",
+        "sha256": "442bdbf96a0bbf2274f4f2a7a2a27bcf0e0851131284797df90bff59f738894d"
+      },
+      {
+        "bytes": 3945,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/agimnkijcaahngcdmfeangaknmldooml/Trusted Icons/Icons/64.png",
+        "sha256": "6b2ff6fdec1a618e884b82acdff34292f05002959e1ccabf9c2723d383a47f98"
+      },
+      {
+        "bytes": 7033,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/agimnkijcaahngcdmfeangaknmldooml/Trusted Icons/Icons/96.png",
+        "sha256": "8b45cd8893a8f096233044c28161139a3751b81f48751ad3bbc761f6db19f8d9"
+      },
+      {
+        "bytes": 7998,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fhihpiojkbmbpdjeoajapmgkhlnakfjf/Icons/128.png",
+        "sha256": "f347cab07bc35efee9af2cd12d1759679c95ed4301ef9b26f63a3c3ca01b81a8"
+      },
+      {
+        "bytes": 8310,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fhihpiojkbmbpdjeoajapmgkhlnakfjf/Icons/192.png",
+        "sha256": "a40d5f045ad67b296abb8c3aedebad36d11de19c27ab991e0e27ec8cd5e09e18"
+      },
+      {
+        "bytes": 22274,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fhihpiojkbmbpdjeoajapmgkhlnakfjf/Icons/256.png",
+        "sha256": "f6a845fa0308781327f9f9f3f1d657a64348b50ed7c8613e69d76d7d2f8b8adc"
+      },
+      {
+        "bytes": 1273,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fhihpiojkbmbpdjeoajapmgkhlnakfjf/Icons/32.png",
+        "sha256": "61df75b6fe5027556482806e295bdb5d7720a51771bdcc1b377b70829b40f22c"
+      },
+      {
+        "bytes": 2149,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fhihpiojkbmbpdjeoajapmgkhlnakfjf/Icons/48.png",
+        "sha256": "a515ad281e595a9f3e1967a07b2bdf613f651cba1b048fa55e7ba86af0394f7a"
+      },
+      {
+        "bytes": 2960,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fhihpiojkbmbpdjeoajapmgkhlnakfjf/Icons/64.png",
+        "sha256": "42afb31349eebbfaa6289cf8a5c65288fb7b4cdff5cb99823e7f93a992629a3b"
+      },
+      {
+        "bytes": 5149,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fhihpiojkbmbpdjeoajapmgkhlnakfjf/Icons/96.png",
+        "sha256": "e1ea1bd9d66f0f7b550a43af33073cc80a270d2ec0cad510ccecb64e50d9c0ae"
+      },
+      {
+        "bytes": 7998,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fhihpiojkbmbpdjeoajapmgkhlnakfjf/Trusted Icons/Icons/128.png",
+        "sha256": "f347cab07bc35efee9af2cd12d1759679c95ed4301ef9b26f63a3c3ca01b81a8"
+      },
+      {
+        "bytes": 8310,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fhihpiojkbmbpdjeoajapmgkhlnakfjf/Trusted Icons/Icons/192.png",
+        "sha256": "a40d5f045ad67b296abb8c3aedebad36d11de19c27ab991e0e27ec8cd5e09e18"
+      },
+      {
+        "bytes": 22274,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fhihpiojkbmbpdjeoajapmgkhlnakfjf/Trusted Icons/Icons/256.png",
+        "sha256": "f6a845fa0308781327f9f9f3f1d657a64348b50ed7c8613e69d76d7d2f8b8adc"
+      },
+      {
+        "bytes": 1273,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fhihpiojkbmbpdjeoajapmgkhlnakfjf/Trusted Icons/Icons/32.png",
+        "sha256": "61df75b6fe5027556482806e295bdb5d7720a51771bdcc1b377b70829b40f22c"
+      },
+      {
+        "bytes": 2149,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fhihpiojkbmbpdjeoajapmgkhlnakfjf/Trusted Icons/Icons/48.png",
+        "sha256": "a515ad281e595a9f3e1967a07b2bdf613f651cba1b048fa55e7ba86af0394f7a"
+      },
+      {
+        "bytes": 2960,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fhihpiojkbmbpdjeoajapmgkhlnakfjf/Trusted Icons/Icons/64.png",
+        "sha256": "42afb31349eebbfaa6289cf8a5c65288fb7b4cdff5cb99823e7f93a992629a3b"
+      },
+      {
+        "bytes": 5149,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fhihpiojkbmbpdjeoajapmgkhlnakfjf/Trusted Icons/Icons/96.png",
+        "sha256": "e1ea1bd9d66f0f7b550a43af33073cc80a270d2ec0cad510ccecb64e50d9c0ae"
+      },
+      {
+        "bytes": 8591,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fmgjjmmmlfnkbppncabfkddbjimcfncm/Icons/128.png",
+        "sha256": "05043c90fd7c795f665f7d4374673857da8ba578ef01a9563cf81bf98410de57"
+      },
+      {
+        "bytes": 7564,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fmgjjmmmlfnkbppncabfkddbjimcfncm/Icons/192.png",
+        "sha256": "e77ddd838401a22545cde73bc8dadabfb059ea65ef0784836c7dc823ffbb587a"
+      },
+      {
+        "bytes": 21836,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fmgjjmmmlfnkbppncabfkddbjimcfncm/Icons/256.png",
+        "sha256": "02d9d896281e088a9ef8562cc1dce71ffba7db465f7379a0bb69ddf3dc2de52e"
+      },
+      {
+        "bytes": 1650,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fmgjjmmmlfnkbppncabfkddbjimcfncm/Icons/32.png",
+        "sha256": "4ef6af3958daea67637a1034e4ff3910360c34f8d5bba1bd15dcdf7078bc3c77"
+      },
+      {
+        "bytes": 2751,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fmgjjmmmlfnkbppncabfkddbjimcfncm/Icons/48.png",
+        "sha256": "c9a6445efb6b3ed818d1e703f82f6c0445b49efc69b1480c61cdb2944114f523"
+      },
+      {
+        "bytes": 3605,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fmgjjmmmlfnkbppncabfkddbjimcfncm/Icons/64.png",
+        "sha256": "e7e71e63123edd2441d670e4f27134615639e695670c3fd8e566706cc2c65654"
+      },
+      {
+        "bytes": 5693,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fmgjjmmmlfnkbppncabfkddbjimcfncm/Icons/96.png",
+        "sha256": "360654ce87e12eca80b384779ecfcf54f95d264c5e75d5b0a4c9f9304e7610c0"
+      },
+      {
+        "bytes": 8591,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fmgjjmmmlfnkbppncabfkddbjimcfncm/Trusted Icons/Icons/128.png",
+        "sha256": "05043c90fd7c795f665f7d4374673857da8ba578ef01a9563cf81bf98410de57"
+      },
+      {
+        "bytes": 7564,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fmgjjmmmlfnkbppncabfkddbjimcfncm/Trusted Icons/Icons/192.png",
+        "sha256": "e77ddd838401a22545cde73bc8dadabfb059ea65ef0784836c7dc823ffbb587a"
+      },
+      {
+        "bytes": 21836,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fmgjjmmmlfnkbppncabfkddbjimcfncm/Trusted Icons/Icons/256.png",
+        "sha256": "02d9d896281e088a9ef8562cc1dce71ffba7db465f7379a0bb69ddf3dc2de52e"
+      },
+      {
+        "bytes": 1650,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fmgjjmmmlfnkbppncabfkddbjimcfncm/Trusted Icons/Icons/32.png",
+        "sha256": "4ef6af3958daea67637a1034e4ff3910360c34f8d5bba1bd15dcdf7078bc3c77"
+      },
+      {
+        "bytes": 2751,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fmgjjmmmlfnkbppncabfkddbjimcfncm/Trusted Icons/Icons/48.png",
+        "sha256": "c9a6445efb6b3ed818d1e703f82f6c0445b49efc69b1480c61cdb2944114f523"
+      },
+      {
+        "bytes": 3605,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fmgjjmmmlfnkbppncabfkddbjimcfncm/Trusted Icons/Icons/64.png",
+        "sha256": "e7e71e63123edd2441d670e4f27134615639e695670c3fd8e566706cc2c65654"
+      },
+      {
+        "bytes": 5693,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/fmgjjmmmlfnkbppncabfkddbjimcfncm/Trusted Icons/Icons/96.png",
+        "sha256": "360654ce87e12eca80b384779ecfcf54f95d264c5e75d5b0a4c9f9304e7610c0"
+      },
+      {
+        "bytes": 10085,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/kefjledonklijopmnomlcbpllchaibag/Icons/128.png",
+        "sha256": "9ad3eeebc2ae8f90ce1d00941f4d471603af3c02e249bf756d248cbeeb37cc52"
+      },
+      {
+        "bytes": 10277,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/kefjledonklijopmnomlcbpllchaibag/Icons/192.png",
+        "sha256": "f2d0468ecdf68d9b0ebf829d68ee1e2894c14358c40334342423fbb5ea8f7a57"
+      },
+      {
+        "bytes": 29566,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/kefjledonklijopmnomlcbpllchaibag/Icons/256.png",
+        "sha256": "90f78b856899a392438857ef6a85c50fcd1d48dde01483a3764c06a95c3d419e"
+      },
+      {
+        "bytes": 1559,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/kefjledonklijopmnomlcbpllchaibag/Icons/32.png",
+        "sha256": "56578e78a0175e9b89fef5927f9f41c7fdca566174daa7f47abbf8fb6d4afbd0"
+      },
+      {
+        "bytes": 2568,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/kefjledonklijopmnomlcbpllchaibag/Icons/48.png",
+        "sha256": "d859584cdaacb63559fdc79dde2a585db9fe163eeafeaba3427e79755d78e079"
+      },
+      {
+        "bytes": 3642,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/kefjledonklijopmnomlcbpllchaibag/Icons/64.png",
+        "sha256": "7c98c778ec28216e89c3d8bfa6cdf69580e9f9e5f4c5cdb886c865f928d4af4c"
+      },
+      {
+        "bytes": 6371,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/kefjledonklijopmnomlcbpllchaibag/Icons/96.png",
+        "sha256": "9554b438be1edeb0dcd3b00833997fa872f0e278b6e86c74f595c474597c16d7"
+      },
+      {
+        "bytes": 10085,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/kefjledonklijopmnomlcbpllchaibag/Trusted Icons/Icons/128.png",
+        "sha256": "9ad3eeebc2ae8f90ce1d00941f4d471603af3c02e249bf756d248cbeeb37cc52"
+      },
+      {
+        "bytes": 10277,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/kefjledonklijopmnomlcbpllchaibag/Trusted Icons/Icons/192.png",
+        "sha256": "f2d0468ecdf68d9b0ebf829d68ee1e2894c14358c40334342423fbb5ea8f7a57"
+      },
+      {
+        "bytes": 29566,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/kefjledonklijopmnomlcbpllchaibag/Trusted Icons/Icons/256.png",
+        "sha256": "90f78b856899a392438857ef6a85c50fcd1d48dde01483a3764c06a95c3d419e"
+      },
+      {
+        "bytes": 1559,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/kefjledonklijopmnomlcbpllchaibag/Trusted Icons/Icons/32.png",
+        "sha256": "56578e78a0175e9b89fef5927f9f41c7fdca566174daa7f47abbf8fb6d4afbd0"
+      },
+      {
+        "bytes": 2568,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/kefjledonklijopmnomlcbpllchaibag/Trusted Icons/Icons/48.png",
+        "sha256": "d859584cdaacb63559fdc79dde2a585db9fe163eeafeaba3427e79755d78e079"
+      },
+      {
+        "bytes": 3642,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/kefjledonklijopmnomlcbpllchaibag/Trusted Icons/Icons/64.png",
+        "sha256": "7c98c778ec28216e89c3d8bfa6cdf69580e9f9e5f4c5cdb886c865f928d4af4c"
+      },
+      {
+        "bytes": 6371,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/kefjledonklijopmnomlcbpllchaibag/Trusted Icons/Icons/96.png",
+        "sha256": "9554b438be1edeb0dcd3b00833997fa872f0e278b6e86c74f595c474597c16d7"
+      },
+      {
+        "bytes": 7291,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/mpnpojknpmmopombnjdcgaaiekajbnjb/Icons/128.png",
+        "sha256": "d173f0e97e87ceec803e9be8d516c37ef220f50a1dfd292f079ba533e8ada701"
+      },
+      {
+        "bytes": 7313,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/mpnpojknpmmopombnjdcgaaiekajbnjb/Icons/192.png",
+        "sha256": "99a6cf62c77486adceea84981408d4939f87f53d198d8fc9114a63ea1ac12275"
+      },
+      {
+        "bytes": 21355,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/mpnpojknpmmopombnjdcgaaiekajbnjb/Icons/256.png",
+        "sha256": "251a227d8cd7d5e85e2c7a8a3de52804626bdab74096e0d38a0ed8183bf6f5c3"
+      },
+      {
+        "bytes": 1288,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/mpnpojknpmmopombnjdcgaaiekajbnjb/Icons/32.png",
+        "sha256": "0eb5b575bc5ad0f0fe9e7747e7c8844397113e460ecb454780192355773d7265"
+      },
+      {
+        "bytes": 2132,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/mpnpojknpmmopombnjdcgaaiekajbnjb/Icons/48.png",
+        "sha256": "b44887b22da066690f192fcf504c99a16f17588777de201db29ce0708149aba0"
+      },
+      {
+        "bytes": 2921,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/mpnpojknpmmopombnjdcgaaiekajbnjb/Icons/64.png",
+        "sha256": "5bffe545e04d375416d4d974bf8fc6ec77d09963c16ce8eb4311e89f0c6b3815"
+      },
+      {
+        "bytes": 4911,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/mpnpojknpmmopombnjdcgaaiekajbnjb/Icons/96.png",
+        "sha256": "a13946a861f936023fd5e11c19fafd29033c0fe26fabd8fe9a55459335e4eca3"
+      },
+      {
+        "bytes": 7291,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/mpnpojknpmmopombnjdcgaaiekajbnjb/Trusted Icons/Icons/128.png",
+        "sha256": "d173f0e97e87ceec803e9be8d516c37ef220f50a1dfd292f079ba533e8ada701"
+      },
+      {
+        "bytes": 7313,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/mpnpojknpmmopombnjdcgaaiekajbnjb/Trusted Icons/Icons/192.png",
+        "sha256": "99a6cf62c77486adceea84981408d4939f87f53d198d8fc9114a63ea1ac12275"
+      },
+      {
+        "bytes": 21355,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/mpnpojknpmmopombnjdcgaaiekajbnjb/Trusted Icons/Icons/256.png",
+        "sha256": "251a227d8cd7d5e85e2c7a8a3de52804626bdab74096e0d38a0ed8183bf6f5c3"
+      },
+      {
+        "bytes": 1288,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/mpnpojknpmmopombnjdcgaaiekajbnjb/Trusted Icons/Icons/32.png",
+        "sha256": "0eb5b575bc5ad0f0fe9e7747e7c8844397113e460ecb454780192355773d7265"
+      },
+      {
+        "bytes": 2132,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/mpnpojknpmmopombnjdcgaaiekajbnjb/Trusted Icons/Icons/48.png",
+        "sha256": "b44887b22da066690f192fcf504c99a16f17588777de201db29ce0708149aba0"
+      },
+      {
+        "bytes": 2921,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/mpnpojknpmmopombnjdcgaaiekajbnjb/Trusted Icons/Icons/64.png",
+        "sha256": "5bffe545e04d375416d4d974bf8fc6ec77d09963c16ce8eb4311e89f0c6b3815"
+      },
+      {
+        "bytes": 4911,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/mpnpojknpmmopombnjdcgaaiekajbnjb/Trusted Icons/Icons/96.png",
+        "sha256": "a13946a861f936023fd5e11c19fafd29033c0fe26fabd8fe9a55459335e4eca3"
+      },
+      {
+        "bytes": 8958,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/pommaclcbfghclhalboakcipcmmndhcj/Icons/128.png",
+        "sha256": "c4d6a0f6c263a4d611fd6ec65643b9844f6eb0c1c9c0ec64b2fa9fcaad149170"
+      },
+      {
+        "bytes": 6710,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/pommaclcbfghclhalboakcipcmmndhcj/Icons/192.png",
+        "sha256": "b76aa025f0516496f80008232c3f1e9584cd74090ac50c0d67c89d619595e58d"
+      },
+      {
+        "bytes": 22941,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/pommaclcbfghclhalboakcipcmmndhcj/Icons/256.png",
+        "sha256": "b989f789c07c6d8f103d42c1adbd90a2152e54ac006a4db4956be29e5b292e94"
+      },
+      {
+        "bytes": 1741,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/pommaclcbfghclhalboakcipcmmndhcj/Icons/32.png",
+        "sha256": "d036530ce6b5320532f359ee4b96e5b2338f78640e91bcab10e7f2e637574240"
+      },
+      {
+        "bytes": 2790,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/pommaclcbfghclhalboakcipcmmndhcj/Icons/48.png",
+        "sha256": "04ab9b9bb94719dffe4487c44a9b5d2386b56e5d34f4b26e0c6c9c0505d78f22"
+      },
+      {
+        "bytes": 3966,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/pommaclcbfghclhalboakcipcmmndhcj/Icons/64.png",
+        "sha256": "09a66a69d37f7e99b104f442f878fd72e8fb3637eefba61987aaaa7a2a1cb185"
+      },
+      {
+        "bytes": 6314,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/pommaclcbfghclhalboakcipcmmndhcj/Icons/96.png",
+        "sha256": "2561ac539473f6175a4387169cdf3237a7ac46dfa7de354b60d8f2c03e081e74"
+      },
+      {
+        "bytes": 8958,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/pommaclcbfghclhalboakcipcmmndhcj/Trusted Icons/Icons/128.png",
+        "sha256": "c4d6a0f6c263a4d611fd6ec65643b9844f6eb0c1c9c0ec64b2fa9fcaad149170"
+      },
+      {
+        "bytes": 6710,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/pommaclcbfghclhalboakcipcmmndhcj/Trusted Icons/Icons/192.png",
+        "sha256": "b76aa025f0516496f80008232c3f1e9584cd74090ac50c0d67c89d619595e58d"
+      },
+      {
+        "bytes": 22941,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/pommaclcbfghclhalboakcipcmmndhcj/Trusted Icons/Icons/256.png",
+        "sha256": "b989f789c07c6d8f103d42c1adbd90a2152e54ac006a4db4956be29e5b292e94"
+      },
+      {
+        "bytes": 1741,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/pommaclcbfghclhalboakcipcmmndhcj/Trusted Icons/Icons/32.png",
+        "sha256": "d036530ce6b5320532f359ee4b96e5b2338f78640e91bcab10e7f2e637574240"
+      },
+      {
+        "bytes": 2790,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/pommaclcbfghclhalboakcipcmmndhcj/Trusted Icons/Icons/48.png",
+        "sha256": "04ab9b9bb94719dffe4487c44a9b5d2386b56e5d34f4b26e0c6c9c0505d78f22"
+      },
+      {
+        "bytes": 3966,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/pommaclcbfghclhalboakcipcmmndhcj/Trusted Icons/Icons/64.png",
+        "sha256": "09a66a69d37f7e99b104f442f878fd72e8fb3637eefba61987aaaa7a2a1cb185"
+      },
+      {
+        "bytes": 6314,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Applications/Manifest Resources/pommaclcbfghclhalboakcipcmmndhcj/Trusted Icons/Icons/96.png",
+        "sha256": "2561ac539473f6175a4387169cdf3237a7ac46dfa7de354b60d8f2c03e081e74"
+      },
+      {
+        "bytes": 157696,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Data",
+        "sha256": "ece804adf96dac8caa6235f4e047cfb8bcc01bfbd2f1e42ada1ac60c6bcaf6e5"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/Web Data-journal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 40960,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/WebStorage/QuotaManager",
+        "sha256": "101cd52170445dd5c3aee5346217e44dfb16405986cfaf21f7ffd31fa25a50f6"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/WebStorage/QuotaManager-journal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/chrome_cart_db/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/chrome_cart_db/LOG",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/commerce_subscription_db/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/commerce_subscription_db/LOG",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 32768,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/declarative_performance_observer.db",
+        "sha256": "eda4c9567974174f08a1dbcd8badf4d6199a7e9a8b78b8826548f49e20e7badf"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/declarative_performance_observer.db-journal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/discount_infos_db/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/discount_infos_db/LOG",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/discounts_db/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/discounts_db/LOG",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 16384,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/heavy_ad_intervention_opt_out.db",
+        "sha256": "2adb7920679589545e8f37e3918b42d962ca404ddbd569930383478f6525b6ee"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/heavy_ad_intervention_opt_out.db-journal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/optimization_guide_hint_cache_store/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/optimization_guide_hint_cache_store/LOG",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/parcel_tracking_db/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/parcel_tracking_db/LOG",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 77036,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/shared_proto_db/000003.log",
+        "sha256": "afe5be0e56e3b3a97781385c7c8a01100f2f0c43a5389812de183c795a0a74b7"
+      },
+      {
+        "bytes": 16,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/shared_proto_db/CURRENT",
+        "sha256": "0f1bad70c7bd1e0a69562853ec529355462fcd0423263a3d39d6d0d70b780443"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/shared_proto_db/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 435,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/shared_proto_db/LOG",
+        "sha256": "74f5ace2ce391638fd48c23ed0a9336595ddbee78fbc374a70a78172d955c85e"
+      },
+      {
+        "bytes": 41,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/shared_proto_db/MANIFEST-000001",
+        "sha256": "f9d31b278e215eb0d0e9cd709edfa037e828f36214ab7906f612160fead4b2b4"
+      },
+      {
+        "bytes": 994,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/shared_proto_db/metadata/000003.log",
+        "sha256": "451560e49466854c1a1f6ca57ec80301f094d3aadfe1edf370509a9c43730785"
+      },
+      {
+        "bytes": 16,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/shared_proto_db/metadata/CURRENT",
+        "sha256": "0f1bad70c7bd1e0a69562853ec529355462fcd0423263a3d39d6d0d70b780443"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/shared_proto_db/metadata/LOCK",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 453,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/shared_proto_db/metadata/LOG",
+        "sha256": "b826f3050822c318daea3ffc48365372222ab39275466a9ae91c0296918baca9"
+      },
+      {
+        "bytes": 41,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Default/shared_proto_db/metadata/MANIFEST-000001",
+        "sha256": "f9d31b278e215eb0d0e9cd709edfa037e828f36214ab7906f612160fead4b2b4"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/GPUPersistentCache/GPUCache/NCJR6QREIV6KRJGRZWTU7KPGU7MYHCMV/cache.db",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/GPUPersistentCache/GPUCache/NCJR6QREIV6KRJGRZWTU7KPGU7MYHCMV/cache.db-wal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/GPUPersistentCache/GPUCache/NCJR6QREIV6KRJGRZWTU7KPGU7MYHCMV/cache.journal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 45056,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/GraphiteDawnCache/data_0",
+        "sha256": "78a0bd5ddbb94d0b3d3a24a65c80f270eb94a12905ed04ae2b892560816bbdce"
+      },
+      {
+        "bytes": 270336,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/GraphiteDawnCache/data_1",
+        "sha256": "aec57f0824c6aa338ca7864492a05fd760c29c8fa87519b0232a03efa37ad468"
+      },
+      {
+        "bytes": 1056768,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/GraphiteDawnCache/data_2",
+        "sha256": "5944ffd4e947c4a6a9b882ee487729ba61cefba04469c7daa4c568203659bf40"
+      },
+      {
+        "bytes": 4202496,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/GraphiteDawnCache/data_3",
+        "sha256": "b737c14a2717fbbe80eeec2a59dbde1dade1c6b83d5eeac13748ea9dabf693dd"
+      },
+      {
+        "bytes": 16690,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/GraphiteDawnCache/f_000001",
+        "sha256": "61c463cce178604ba68a652568256110cde67a3534de2d5c2102fc9098235b66"
+      },
+      {
+        "bytes": 16927,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/GraphiteDawnCache/f_000002",
+        "sha256": "2425a4c94832f808173f75737d06c40688fe5ee35a8bd297472737696d8d3206"
+      },
+      {
+        "bytes": 18847,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/GraphiteDawnCache/f_000003",
+        "sha256": "d6bd299c1b7b3f485925b04f2b047f2cf9e64827fe3cf6c4295c41a2e13fc9ac"
+      },
+      {
+        "bytes": 262512,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/GraphiteDawnCache/index",
+        "sha256": "a9583cabde253d25beabb74a01fbb1c62ece93429be6402112190773e815e040"
+      },
+      {
+        "bytes": 13,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Last Version",
+        "sha256": "a3697e14092ad22e98542151c59e23b8d21da174345f463f0ee4493f92934217"
+      },
+      {
+        "bytes": 4700,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Local State",
+        "sha256": "491ce450aa45ef756b2edd73f4c17bc5f8a513a214def7ddedebb4ef5f440758"
+      },
+      {
+        "bytes": 4250,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/OptimizationGuideModelsManifest/1.20260927.2/_metadata/verified_contents.json",
+        "sha256": "31bbbd9f0b67e60b65847851544ae7d21f767e899b344f43f1eef3b16519f700"
+      },
+      {
+        "bytes": 10821,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/OptimizationGuideModelsManifest/1.20260927.2/manifest.binarypb",
+        "sha256": "cf05b57f6666109cac9f1cdb2f410728f37d3109cf5c9861c5ef0b3ef5cd2f86"
+      },
+      {
+        "bytes": 84,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/OptimizationGuideModelsManifest/1.20260927.2/manifest.json",
+        "sha256": "39bf83d824ef9898fb26f7ea20dcc8977bc7cede10f41f01d38a871af408ae18"
+      },
+      {
+        "bytes": 949,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/OptimizationGuideModelsManifest/1.20260927.2/prompt_gemma4_12b_solution_config.binarypb",
+        "sha256": "0f2c3e9d8ffe29d035fb56f4cab6a10f5c543e270934b667e8394db5d13890a3"
+      },
+      {
+        "bytes": 949,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/OptimizationGuideModelsManifest/1.20260927.2/prompt_gemma4_4b_solution_config.binarypb",
+        "sha256": "0f2c3e9d8ffe29d035fb56f4cab6a10f5c543e270934b667e8394db5d13890a3"
+      },
+      {
+        "bytes": 949,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/OptimizationGuideModelsManifest/1.20260927.2/prompt_gemma4_solution_config.binarypb",
+        "sha256": "0f2c3e9d8ffe29d035fb56f4cab6a10f5c543e270934b667e8394db5d13890a3"
+      },
+      {
+        "bytes": 949,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/OptimizationGuideModelsManifest/1.20260927.2/prompt_solution_config.binarypb",
+        "sha256": "0f2c3e9d8ffe29d035fb56f4cab6a10f5c543e270934b667e8394db5d13890a3"
+      },
+      {
+        "bytes": 498,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/OptimizationGuideModelsManifest/1.20260927.2/proofreader_small_expert_model_solution_config.binarypb",
+        "sha256": "4fcf7a99bc9d8ef1e94cedc734fe3ffaac142faeae6526e3ce698b4c9b5841e2"
+      },
+      {
+        "bytes": 1010,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/OptimizationGuideModelsManifest/1.20260927.2/scam_detection_solution_config.binarypb",
+        "sha256": "3adff134a5dce3a061cdeee052a4a61b6cbb2e3ec4ea76063fc858f61a6e5b44"
+      },
+      {
+        "bytes": 12,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/OptimizationGuideModelsManifest/1.20260927.2/speech_recognition_small_expert_model_solution_config.binarypb",
+        "sha256": "4fa54d5929befd5dcdd3b368a40ec9ff027e6ea2dd2383f39d53b2abce5eef54"
+      },
+      {
+        "bytes": 15605,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/OptimizationGuideModelsManifest/1.20260927.2/summarizer_gemma4_12b_solution_config.binarypb",
+        "sha256": "6ee4a6ef973aadd05ee4023d714d34f2661cb09181a892877977593edb8dbfcb"
+      },
+      {
+        "bytes": 15605,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/OptimizationGuideModelsManifest/1.20260927.2/summarizer_gemma4_4b_solution_config.binarypb",
+        "sha256": "6ee4a6ef973aadd05ee4023d714d34f2661cb09181a892877977593edb8dbfcb"
+      },
+      {
+        "bytes": 15605,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/OptimizationGuideModelsManifest/1.20260927.2/summarizer_gemma4_solution_config.binarypb",
+        "sha256": "6ee4a6ef973aadd05ee4023d714d34f2661cb09181a892877977593edb8dbfcb"
+      },
+      {
+        "bytes": 15601,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/OptimizationGuideModelsManifest/1.20260927.2/summarizer_nano_v3_solution_config.binarypb",
+        "sha256": "274d6c45c46c6c47d49a5bb50267595eca3d9904a4764fe217eec86997591107"
+      },
+      {
+        "bytes": 1027,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/OptimizationGuideModelsManifest/1.20260927.2/summarizer_small_expert_model_solution_config.binarypb",
+        "sha256": "6f59435579f2459ebb4e94d1db323c3684cf0994985ebe3e84b999053a99c64d"
+      },
+      {
+        "bytes": 11670,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/OptimizationGuideModelsManifest/1.20260927.2/writing_assistance_gemma4_12b_solution_config.binarypb",
+        "sha256": "814d2ed5e8eaadfaa6471f43ca8a024498ada20e2a6ab04fe2d21f0e0099af8c"
+      },
+      {
+        "bytes": 11670,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/OptimizationGuideModelsManifest/1.20260927.2/writing_assistance_gemma4_4b_solution_config.binarypb",
+        "sha256": "814d2ed5e8eaadfaa6471f43ca8a024498ada20e2a6ab04fe2d21f0e0099af8c"
+      },
+      {
+        "bytes": 11670,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/OptimizationGuideModelsManifest/1.20260927.2/writing_assistance_gemma4_solution_config.binarypb",
+        "sha256": "814d2ed5e8eaadfaa6471f43ca8a024498ada20e2a6ab04fe2d21f0e0099af8c"
+      },
+      {
+        "bytes": 11670,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/OptimizationGuideModelsManifest/1.20260927.2/writing_assistance_solution_config.binarypb",
+        "sha256": "814d2ed5e8eaadfaa6471f43ca8a024498ada20e2a6ab04fe2d21f0e0099af8c"
+      },
+      {
+        "bytes": 86,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/Variations",
+        "sha256": "f7b24f2eb3d5eb0550527490395d2f61c3d2fe74bb9cb345197dad81b58b5fed"
+      },
+      {
+        "bytes": 19,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/VariationsSafeSeedV2",
+        "sha256": "1560b22b2264f7cb6b7f6910164813f76c5e8a06fb1acf85b375e687ee49c1ad"
+      },
+      {
+        "bytes": 11,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/VariationsSeedV2",
+        "sha256": "b4cc4174735c28360b9081be3c3d0552d8a4b3cdb54431ac00ed0d622bab6296"
+      },
+      {
+        "bytes": 2,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/component_crx_cache/metadata.json",
+        "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+      },
+      {
+        "bytes": 13,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/extensions_crx_cache/metadata.json",
+        "sha256": "2771d13c637c267132afff9db67537bef95708534b79ae8d954254c4e64e4e0f"
+      },
+      {
+        "bytes": 49152,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/first_party_sets.db",
+        "sha256": "e442b59ce4879c77252d16341239513c3b54279ca3f29136c6879b1c9971968b"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/first_party_sets.db-journal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 12,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/optimization_guide_model_store/2/63922A0C010C80A5/22F4257A232EF9C7/model-info.pb",
+        "sha256": "5887dcfba850053c7d4cc3897c84f73a96baf16e48e00b87eb1e6fbd8e5101e6"
+      },
+      {
+        "bytes": 392048,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/optimization_guide_model_store/2/63922A0C010C80A5/22F4257A232EF9C7/model.tflite",
+        "sha256": "a0956386dc64fd9f4883c8741f950cd60a56859616b159c9e4251c9eb0ac5534"
+      },
+      {
+        "bytes": 164,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/optimization_guide_model_store/20/63922A0C010C80A5/C7821B89ECFD7CD2/model-info.pb",
+        "sha256": "fd9510efa2478b1709fa685f2c51c4517225ec618971819c808d64c8c49f6c9a"
+      },
+      {
+        "bytes": 31520,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/optimization_guide_model_store/20/63922A0C010C80A5/C7821B89ECFD7CD2/model.tflite",
+        "sha256": "e8c55250b30a5999403e9b7ad1031223ca3297e2a79de5bd169581f734691eab"
+      },
+      {
+        "bytes": 146,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/optimization_guide_model_store/25/63922A0C010C80A5/75B4BEBC16BAC659/model-info.pb",
+        "sha256": "48fb46558b429470e3442dd71df63466f71722c8ff28d8eb2ce0970f9883daba"
+      },
+      {
+        "bytes": 180520,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/optimization_guide_model_store/25/63922A0C010C80A5/75B4BEBC16BAC659/model.tflite",
+        "sha256": "498e3205bf85da0a8f8b57e292d4bd12b31d691e04039c04bedcde75d1ea7459"
+      },
+      {
+        "bytes": 3452826,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/optimization_guide_model_store/25/63922A0C010C80A5/75B4BEBC16BAC659/visual_model_desktop.tflite",
+        "sha256": "eaea1c7eeb2af4fcb59c7db541df61057c4ccdb8a4d4f70af75776d70aa1850c"
+      },
+      {
+        "bytes": 416,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/optimization_guide_model_store/26/63922A0C010C80A5/107639E1489E90D5/model-info.pb",
+        "sha256": "df5ace9343b9c960993fd8d97a3911d6cdfc2531ecd36d4bba32fef89dd46db3"
+      },
+      {
+        "bytes": 7112,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/optimization_guide_model_store/26/63922A0C010C80A5/107639E1489E90D5/model.tflite",
+        "sha256": "92e81784c55f74000441d25a29c895b19ca1bd53efe0177ce3c27fbdb7869fa1"
+      },
+      {
+        "bytes": 7104,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/optimization_guide_model_store/45/63922A0C010C80A5/BEF2AB69DA57B2F3/model-info.pb",
+        "sha256": "fab8e53a41540b352b8d58f37f23dc464ac8e0ecc47f65bd5f4be34df792c2e3"
+      },
+      {
+        "bytes": 131736,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/optimization_guide_model_store/45/63922A0C010C80A5/BEF2AB69DA57B2F3/model.tflite",
+        "sha256": "4c897707a45592774ffc4c65b207589efee2f1667798f96b4e37245047466e3e"
+      },
+      {
+        "bytes": 164,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/optimization_guide_model_store/9/63922A0C010C80A5/A9D8992633204FF4/model-info.pb",
+        "sha256": "804b149ba8918e68e78c25d262ba95118b4088e0cf06bf9c9dd821bfc8815dca"
+      },
+      {
+        "bytes": 31520,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/optimization_guide_model_store/9/63922A0C010C80A5/A9D8992633204FF4/model.tflite",
+        "sha256": "21ecf18a9eb18a66870208035d857a536d6d714e0eec47a86d316ade56bb90a4"
+      },
+      {
+        "bytes": 49152,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/segmentation_platform/ukm_db",
+        "sha256": "c161f685bf3feafa79112bf8946da73d9f31732702029dd74150c2efb6f2e2a1"
+      },
+      {
+        "bytes": 0,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/profile/segmentation_platform/ukm_db-wal",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "total_bytes": 26802337
+  },
+  "frozen_owner_sources": {
+    "economic_config": {
+      "bytes": 590,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/economic-config.json",
+      "sha256": "9d43e290c9d1d53865a8ea45e3c7113bc1ea9bad1ca81d76655794390b06fe49"
+    },
+    "manifest": {
+      "bytes": 5532,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/evidence/manifest.json",
+      "sha256": "bb44978f91d9f3086d244e166d706abcd5a4b4488b1b0cbb1cc6ff73191a0602"
+    },
+    "native_unix_oracle": {
+      "bytes": 2061528,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/evidence/observer-cli-results.json",
+      "sha256": "703a0cbbed0ed17bb975ad16555196c604a57f1fed7fc68e0292dea604e78680"
+    },
+    "q19": {
+      "bytes": 571,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/q19-resource-frozen.json",
+      "sha256": "36b188ae42be8e24e7fdbb44e7d3a7068200f7c942f50975337d07595ac62e64"
+    },
+    "s3_copy": {
+      "bytes": 499712,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/evidence/s.sqlite",
+      "sha256": "08c9d59456cc3eeede74650fad8597ad2743b5acbdf198c7b0b43b64537ec4ad"
+    }
+  },
+  "head": "3b53744be109aa18932bdc50d3590e10dde9b32d",
+  "http_evidence": {
+    "cdp_log": {
+      "bytes": 10263870,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/cdp.jsonl",
+      "sha256": "c680af4f9ede06ccf21f9d9307b2b8b2cb2dc0aa4179ac8d12e0fa93a8d97b3f"
+    },
+    "count": 12,
+    "economic_post_count": 11,
+    "header_payload_hash_reply_id_causal_all_verified": true,
+    "index": {
+      "bytes": 1759,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/http-index.json",
+      "sha256": "786cbae66bacebfb468b293dffb204520341ece5510ea5fbe3f3448f0cf0c83e"
+    },
+    "original_posts": 4,
+    "snapshot_posts": 6,
+    "watch_posts": 1
+  },
+  "independent_client_review_sha256_parent_reported": "244b5617bb9381919328a820351965c4d68a22b07e85a05c92605aabdc6db5a1",
+  "issue": "#1394",
+  "knowledge_cutoff": "85",
+  "limits_of_claim": [
+    "HTTP economic /2 browser path only",
+    "No independent content node closure or seven-field text binding",
+    "No top-level economic root recomputation without predecessor",
+    "No controller/Q3/9011/#1460 completion",
+    "No production money or trade execution",
+    "No arbitrary-path or all-resource proof"
+  ],
+  "orchestrator_result": {
+    "bytes": 208,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-ORCHESTRATOR-FINAL.json",
+    "sha256": "ae7b4e3207212a0e50d5dfb14eb0760f297fb9000065e0deb6e3698f5a503379"
+  },
+  "original_ids": [
+    {
+      "domain": "B:alpha",
+      "id": "alpha",
+      "kind": "decision"
+    },
+    {
+      "domain": "B:beta",
+      "id": "beta",
+      "kind": "decision"
+    },
+    {
+      "domain": "E",
+      "id": "57e3d76efd49570b2969255c23dbcf96d4f5d6c30cce86dfb788f2b277e4b9f9",
+      "kind": "grant"
+    },
+    {
+      "domain": "E",
+      "id": "d8bd15a5c5465e6b1a5a248484cb9ee707190cf5aecd9fe7f9e6f4fca096d13f",
+      "kind": "grant"
+    }
+  ],
+  "owner_state_after": {
+    "bytes": 1382,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-STATE-AFTER.json",
+    "sha256": "1516de7a8be3228e3e9222cdc04104f7d349a0411ec8c942e4d3ccbd1370aa9a"
+  },
+  "owner_state_before": {
+    "bytes": 1284,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-STATE-BEFORE.json",
+    "sha256": "1d385d36a3bd23f321c0229414b98c7f078944f011fe6bbc3a322e133d62d2cd"
+  },
+  "page_evidence": {
+    "all-originals.json": {
+      "bytes": 71319,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/all-originals.json",
+      "sha256": "772b2555fca0602a3817eaa69580b5a5b8f607c66dc2c36bed6cda7271d1d27f"
+    },
+    "changes-to-current.json": {
+      "bytes": 1909750,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/changes-to-current.json",
+      "sha256": "05a2716243a1c5c09ff70bee91746b919f3c01537a6c0fe2665fc215630a326c"
+    },
+    "changes-to-current.png": {
+      "bytes": 380509,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/changes-to-current.png",
+      "sha256": "efb542e199a5dc771f3983ef0d5ee5f77107f225b74148d4be6b2f07629e0dd9"
+    },
+    "current.json": {
+      "bytes": 1909694,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/current.json",
+      "sha256": "db362d695d153ce08cd95abe2bd5c34e4357d41404e79e499b7bf7cf6928d0ca"
+    },
+    "current.png": {
+      "bytes": 379805,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/current.png",
+      "sha256": "db8e82323500fc4c3c9ab454273a6a71ab0010f23eac20ad8abbfe13df8e1eb4"
+    },
+    "original-receipt.json": {
+      "bytes": 1980539,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/original-receipt.json",
+      "sha256": "bedb8f46d215884eab1aacd5d806284eaccbc51512e1a26009678596f4734c20"
+    },
+    "original-receipt.png": {
+      "bytes": 572932,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/original-receipt.png",
+      "sha256": "73068ba45c9d101125c101e72cb95380f8df3483f94b2d77878bdadb23211fa3"
+    },
+    "prepared-as-known.json": {
+      "bytes": 127194,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/prepared-as-known.json",
+      "sha256": "e4d9586eaeb6d99094581e42a46a04c85d77af74f0b09cc6d3e755f3ccd74ee1"
+    },
+    "prepared-as-known.png": {
+      "bytes": 358093,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/browser-run-1/prepared-as-known.png",
+      "sha256": "8ad243bbb27b97ef0fc93308b20e0a29b2134577f67bfa8ddbda40ab94f21980"
+    }
+  },
+  "physical_note": "Replica DMG whole-image hashes changed after writable HFS attach/detach; original archive DMGs and three owner DB byte hashes did not change; no economic semantic change was observed",
+  "preflight": {
+    "bytes": 4942,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-RUN-PREFLIGHT.json",
+    "sha256": "8d77756398c7a3b3b59d4b09c58609e88bec1cf7fa532204f8cab85472056efc"
+  },
+  "python_source": {
+    "s_session/economic_http.py": {
+      "bytes": 5870,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/s_session/economic_http.py",
+      "sha256": "1c88fac07338258fae1b18cf9e13e8eed5d0b6e4c38fe1393ac9f7ebc275fedd"
+    },
+    "s_session/economic_query.py": {
+      "bytes": 19623,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/s_session/economic_query.py",
+      "sha256": "b785373284ee7aac5c786dfb0acc39ce0bff5c40ddf197f4c647c1a3d5b09b1e"
+    },
+    "s_session/s_readonly_server.py": {
+      "bytes": 54494,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/s_session/s_readonly_server.py",
+      "sha256": "0c4fc9527058b5b4c87984122cef8e7034fe0c356c39308bc463bf0b1d644545"
+    },
+    "s_session/s_socket_client.py": {
+      "bytes": 9157,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/s_session/s_socket_client.py",
+      "sha256": "8fb63a14d131452e09b2ab3e4aeddef1c1cbf922ca641ec5a13a7db729b4a1e2"
+    }
+  },
+  "replica_images": [
+    {
+      "archive": {
+        "bytes": 25165824,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/e.dmg",
+        "sha256": "c80cbcd7553e33a8a12b02346b4f77104b52723a819303598011739c2feb2250"
+      },
+      "owner": "e",
+      "replica": {
+        "bytes": 25165824,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/e-replica.dmg",
+        "sha256": "8c213d703180b9b1cfee595d844e26f3f032969d7360ee76e3c429d9d1d9cdae"
+      },
+      "replica_sha256_before_attach": "c80cbcd7553e33a8a12b02346b4f77104b52723a819303598011739c2feb2250",
+      "replica_sha256_changed_after_detach": true
+    },
+    {
+      "archive": {
+        "bytes": 25165824,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/alpha.dmg",
+        "sha256": "ea8bf978864d7e4ce27824c22066e7d64741fd64c541e99e82e0dc0563eab974"
+      },
+      "owner": "alpha",
+      "replica": {
+        "bytes": 25165824,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/alpha-replica.dmg",
+        "sha256": "5a17d1cdfd38c7c73029d0fc2f544c94ed6bf39290f7b6e8c2b9c3ea405c280d"
+      },
+      "replica_sha256_before_attach": "ea8bf978864d7e4ce27824c22066e7d64741fd64c541e99e82e0dc0563eab974",
+      "replica_sha256_changed_after_detach": true
+    },
+    {
+      "archive": {
+        "bytes": 25165824,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/beta.dmg",
+        "sha256": "87ec0dfbeaa64dfec2de34a09fa60bd79bd47566230a7ab1056343f34d205bf9"
+      },
+      "owner": "beta",
+      "replica": {
+        "bytes": 25165824,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/beta-replica.dmg",
+        "sha256": "5482fef88b0cbeae35d81452f2ea885bdb558edcd300bcdda1e5b18bd10bfa94"
+      },
+      "replica_sha256_before_attach": "87ec0dfbeaa64dfec2de34a09fa60bd79bd47566230a7ab1056343f34d205bf9",
+      "replica_sha256_changed_after_detach": true
+    }
+  ],
+  "results_md": {
+    "bytes": 2420,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-ACTUAL-RESULTS.md",
+    "sha256": "1c33e23d67efedbd0092719b75838544af48b65ac4b66e143a7d6b1d9052aa07"
+  },
+  "schema_revision": "testonly-1394-browser-actual-manifest/1",
+  "status": "PASS_LIMITED_REAL_BROWSER"
+}

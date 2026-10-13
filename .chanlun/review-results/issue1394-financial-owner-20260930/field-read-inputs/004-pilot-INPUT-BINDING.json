@@ -1,0 +1,80 @@
+{
+  "source_before": {
+    "s.sqlite": {
+      "bytes": 13697024,
+      "sha256": "050562e2db766cc3d6d94e42bf43f0e21fe3a336d6c9d5b8adcc0e887959f9c1",
+      "dev": 16777232,
+      "inode": 324736682,
+      "mtime_ns": 1790875897695701998,
+      "ctime_ns": 1790876901864222008
+    },
+    "s.sqlite-wal": {
+      "bytes": 11680232,
+      "sha256": "9b1565422a3c45c03bb068ede25c199548072d6695c1b33b01ce2a851449671b",
+      "dev": 16777232,
+      "inode": 324736683,
+      "mtime_ns": 1790875927783211011,
+      "ctime_ns": 1790876901871304501
+    },
+    "s.sqlite-shm": {
+      "bytes": 32768,
+      "sha256": "0c58b51d09bfd39725a1fc4d8d63f3713e9ce6533dd899f45fa2be7d16633aca",
+      "dev": 16777232,
+      "inode": 324736684,
+      "mtime_ns": 1790877088871303050,
+      "ctime_ns": 1790877111874878164
+    }
+  },
+  "source_after_copy": {
+    "s.sqlite": {
+      "bytes": 13697024,
+      "sha256": "050562e2db766cc3d6d94e42bf43f0e21fe3a336d6c9d5b8adcc0e887959f9c1",
+      "dev": 16777232,
+      "inode": 324736682,
+      "mtime_ns": 1790875897695701998,
+      "ctime_ns": 1790876901864222008
+    },
+    "s.sqlite-wal": {
+      "bytes": 11680232,
+      "sha256": "9b1565422a3c45c03bb068ede25c199548072d6695c1b33b01ce2a851449671b",
+      "dev": 16777232,
+      "inode": 324736683,
+      "mtime_ns": 1790875927783211011,
+      "ctime_ns": 1790876901871304501
+    },
+    "s.sqlite-shm": {
+      "bytes": 32768,
+      "sha256": "0c58b51d09bfd39725a1fc4d8d63f3713e9ce6533dd899f45fa2be7d16633aca",
+      "dev": 16777232,
+      "inode": 324736684,
+      "mtime_ns": 1790877088871303050,
+      "ctime_ns": 1790877111874878164
+    }
+  },
+  "owned_copy": {
+    "s.sqlite": {
+      "bytes": 13697024,
+      "sha256": "050562e2db766cc3d6d94e42bf43f0e21fe3a336d6c9d5b8adcc0e887959f9c1",
+      "dev": 16777232,
+      "inode": 324899993,
+      "mtime_ns": 1790885044262744693,
+      "ctime_ns": 1790885044262779776
+    },
+    "s.sqlite-wal": {
+      "bytes": 11680232,
+      "sha256": "9b1565422a3c45c03bb068ede25c199548072d6695c1b33b01ce2a851449671b",
+      "dev": 16777232,
+      "inode": 324899994,
+      "mtime_ns": 1790885044271787736,
+      "ctime_ns": 1790885044271831028
+    },
+    "s.sqlite-shm": {
+      "bytes": 32768,
+      "sha256": "0c58b51d09bfd39725a1fc4d8d63f3713e9ce6533dd899f45fa2be7d16633aca",
+      "dev": 16777232,
+      "inode": 324899995,
+      "mtime_ns": 1790885044272192488,
+      "ctime_ns": 1790885044272201155
+    }
+  }
+}

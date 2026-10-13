@@ -1,0 +1,145 @@
+{
+  "all_original_keys": [
+    [
+      "decision",
+      "B:alpha",
+      "alpha"
+    ],
+    [
+      "decision",
+      "B:beta",
+      "beta"
+    ],
+    [
+      "grant",
+      "E",
+      "57e3d76efd49570b2969255c23dbcf96d4f5d6c30cce86dfb788f2b277e4b9f9"
+    ],
+    [
+      "grant",
+      "E",
+      "d8bd15a5c5465e6b1a5a248484cb9ee707190cf5aecd9fe7f9e6f4fca096d13f"
+    ]
+  ],
+  "all_post_header_hash_causality_verified": true,
+  "all_post_request_and_response_within_frozen_frame_reply_caps": true,
+  "archive_image_hashes_unchanged": true,
+  "both_decisions_prepared_at_85_and_committed_now": true,
+  "current_complete_vector": true,
+  "economic_discovery_revision": "tb03b-finance/2",
+  "economic_post_checks": [
+    {
+      "http_status": 200,
+      "payload_hash_and_causal": true,
+      "request_bytes": 466,
+      "request_id": "44592.7",
+      "response_bytes": 921572,
+      "response_file": "http-1.json",
+      "route": "snapshot"
+    },
+    {
+      "http_status": 200,
+      "payload_hash_and_causal": true,
+      "request_bytes": 466,
+      "request_id": "44592.9",
+      "response_bytes": 80221,
+      "response_file": "http-2.json",
+      "route": "snapshot"
+    },
+    {
+      "http_status": 200,
+      "payload_hash_and_causal": true,
+      "request_bytes": 795,
+      "request_id": "44592.10",
+      "response_bytes": 922213,
+      "response_file": "http-3.json",
+      "route": "watch"
+    },
+    {
+      "http_status": 200,
+      "payload_hash_and_causal": true,
+      "request_bytes": 839,
+      "request_id": "44592.11",
+      "response_bytes": 424940,
+      "response_file": "http-4.json",
+      "route": "snapshot"
+    },
+    {
+      "http_status": 200,
+      "payload_hash_and_causal": true,
+      "request_bytes": 839,
+      "request_id": "44592.12",
+      "response_bytes": 424908,
+      "response_file": "http-5.json",
+      "route": "snapshot"
+    },
+    {
+      "http_status": 200,
+      "payload_hash_and_causal": true,
+      "request_bytes": 839,
+      "request_id": "44592.13",
+      "response_bytes": 232166,
+      "response_file": "http-6.json",
+      "route": "snapshot"
+    },
+    {
+      "http_status": 200,
+      "payload_hash_and_causal": true,
+      "request_bytes": 839,
+      "request_id": "44592.14",
+      "response_bytes": 921572,
+      "response_file": "http-7.json",
+      "route": "snapshot"
+    },
+    {
+      "http_status": 200,
+      "payload_hash_and_causal": true,
+      "request_bytes": 858,
+      "request_id": "44592.15",
+      "response_bytes": 16553,
+      "response_file": "http-8.json",
+      "route": "original"
+    },
+    {
+      "http_status": 200,
+      "payload_hash_and_causal": true,
+      "request_bytes": 856,
+      "request_id": "44592.16",
+      "response_bytes": 16481,
+      "response_file": "http-9.json",
+      "route": "original"
+    },
+    {
+      "http_status": 200,
+      "payload_hash_and_causal": true,
+      "request_bytes": 908,
+      "request_id": "44592.17",
+      "response_bytes": 5203,
+      "response_file": "http-10.json",
+      "route": "original"
+    },
+    {
+      "http_status": 200,
+      "payload_hash_and_causal": true,
+      "request_bytes": 908,
+      "request_id": "44592.18",
+      "response_bytes": 5198,
+      "response_file": "http-11.json",
+      "route": "original"
+    }
+  ],
+  "economic_post_counts": {
+    "original": 4,
+    "snapshot": 6,
+    "watch": 1
+  },
+  "four_originals_full_object_equal_to_native_unix": true,
+  "network_http_entries": 12,
+  "owner_logical_state_unchanged": true,
+  "prepared_as_known_ns": "85",
+  "responsibility_total": "90",
+  "schema_revision": "testonly-1394-browser-independent-factcheck/1",
+  "scope_limit": "No independent content node closure or top-level root recomputation without predecessor; no controller/Q3/9011/#1460 proof",
+  "status": "PASS",
+  "watch_to_same_current_cut_image_hash_commit_ns_each_domain": true
+}

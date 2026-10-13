@@ -1,0 +1,7 @@
+# #1394 同次读取已核帧最小候选
+
+read_checked_node每次真实SQL返回本次CheckedFrame；普通read消费帧返回原NodeRead，TxStore/ReadStore的checked_read直接传本次帧。HashReader只有budget=None且不在overlay时取source.checked_read，重核其digest与当前请求，再在读后检查绝对期限。无新的保留表/跨read缓存。overlay每读仍核当前clone，budget=Some原门序与双F不变。所有三audit/闭包/来源/目录/变化判据保持。错误稳定code保持，digest细节文字使用既有CheckedFrame错误；不是省略损坏拒绝。
+
+真实SQL单F与第二次重读、同Transaction tag/body UPDATE与DELETE、合法但另一个digest的假source frame、第二次source error、读前/后deadline、Template/Public/JsonInner与错kind、SQLite和Memory坏帧prepare门差异均靶向覆盖。27 tests绿、非test cargo check绿。原RED计数2→预期1、稀疏缺include及测试构造不匹配失败全部保留，不冒产品缺陷。
+
+测试共享既有header Cargo target并设置CARGO_INCREMENTAL=0，仅deps testbin/check产物；正式冻结debug bin991dd18d前后SHA不变。编译源码及测试binSHA独立记录。未跑S16/9011/新service、新资源profile或实际耗时提速；只核同read F调用数减少。此候选非独评通过或整票/图完成。

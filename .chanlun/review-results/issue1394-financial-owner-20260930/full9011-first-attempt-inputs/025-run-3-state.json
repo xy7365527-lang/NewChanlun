@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "run_id": "6ba5ae6d-8091-4ffa-a668-7c43c5681af5",
+  "ticket": 1394,
+  "parent_thread_id": "root-1394-full9011",
+  "manager_agent_id": "/root/full9011_sandcastle_runner_manager",
+  "manager_kind": "codex_native_subagent",
+  "worker_kind": "sandcastle_external_codex",
+  "native_subagent": false,
+  "status": "completed",
+  "mode": "execute",
+  "model": "gpt-6.1-sol",
+  "effort": "high",
+  "sandbox_backend": "no-sandbox",
+  "codex_sandbox": "workspace-write",
+  "approval_policy": "never",
+  "automatic_claim": false,
+  "automatic_push": false,
+  "automatic_merge": false,
+  "checkout_preserved": true,
+  "expected_head": "5cc69fa6d08313f2c20f6ba730832e7a39873d35",
+  "checkout_before": {
+    "root": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/worker",
+    "branch": "codex/issue1394-full9011-runner-20261001",
+    "head": "5cc69fa6d08313f2c20f6ba730832e7a39873d35",
+    "status": ""
+  },
+  "checkout_after": {
+    "root": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/worker",
+    "branch": "codex/issue1394-full9011-runner-20261001",
+    "head": "5cc69fa6d08313f2c20f6ba730832e7a39873d35",
+    "status": "M .scratch/issue1394-full9011-runner-20261001/README.md\n M .scratch/issue1394-full9011-runner-20261001/contract.schema.json\n M .scratch/issue1394-full9011-runner-20261001/evidence.py\n M .scratch/issue1394-full9011-runner-20261001/runner.py\n M .scratch/issue1394-full9011-runner-20261001/runtime.py\n M .scratch/issue1394-full9011-runner-20261001/test_offline.py\n?? .scratch/issue1394-full9011-runner-20261001/RESULT.json\n?? .scratch/issue1394-full9011-runner-20261001/SHA256SUMS\n?? .scratch/issue1394-full9011-runner-20261001/prepared-final/ORIGINALS-AFTER.json\n?? .scratch/issue1394-full9011-runner-20261001/prepared-final/ORIGINALS-BEFORE.json\n?? .scratch/issue1394-full9011-runner-20261001/prepared-final/PREPARED.json"
+  },
+  "started_at": "2026-10-01T16:33:58.182Z",
+  "ended_at": "2026-10-01T17:01:28.071Z",
+  "process_pid": 44359,
+  "process_exit": {
+    "code": 0,
+    "signal": null
+  },
+  "external_session_id": "01a0f850-c7b0-7a91-ba74-3db637953d6b",
+  "external_session_log": "/Users/silencehan/.codex/sessions/2026/10/02/rollout-2026-10-02T00-34-01-01a0f850-c7b0-7a91-ba74-3db637953d6b.jsonl",
+  "output_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/manager/run-3",
+  "stdout_log": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/manager/run-3/codex.stdout.jsonl",
+  "stderr_log": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/manager/run-3/codex.stderr.log",
+  "events_log": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/manager/run-3/events.jsonl",
+  "prompt_sha256": "d7f4b1b7f29fb214a1f0aab488eaeaeddd2f9486a1f46d67d1de19de19634939",
+  "result": {
+    "status": "completed",
+    "summary": "#1394 六项集中修正已完成，差异留待管理者收包；47 项纯离线测试及精确 Root 输入 gate 通过。",
+    "findings": [
+      "S/Q/Controller/HTTP/audit 与原库均 NOT_RUN；未打开已有 SQLite，未创建正式运行路径。",
+      "真实运行门可由 Root 后续审定；严格峰值仍为 UNMEASURED，full_resource_capacity=false，C/整图未完成。",
+      "产物目录：.scratch/issue1394-full9011-runner-20261001/；完整摘要见 RESULT.json，全部文件 SHA 见 SHA256SUMS。",
+      "runner.py SHA256：4f4de764283a69d696cf7d729ca7c190db110f6e4eeab152cf42391331681835",
+      "runtime.py SHA256：733a004e0c77b2d8164ef7779ba99ce47b07cbbb0a8d8d0aa2748544231f9191",
+      "evidence.py SHA256：b1a299e47cb312c522ecc4db88848ed040d911f707b2a0d31fe11ee6808647be",
+      "test_offline.py SHA256：b05cfaa9df1c6b66a207c2cdc3e31a824a33244a7f893a0e5fec3609db3b8067",
+      "RESULT.json SHA256：1ec0680bf00f1609222cdc260b57e2ca65cd7eba48951e56813240c3b3b2ed70"
+    ],
+    "validation": [
+      "python3 -B .scratch/issue1394-full9011-runner-20261001/test_offline.py：退出码 0，47 项通过。",
+      "runner.py prepare --output .scratch/issue1394-full9011-runner-20261001/prepared-final：退出码 0，完整9011材料通过，原件首末身份一致。",
+      "runner.py gate --prepared .scratch/issue1394-full9011-runner-20261001/prepared-final：退出码 0，GATE_PASSED，S_Q_NOT_RUN。",
+      "git diff --check：退出码 0；未 commit、push、merge 或切分支。"
+    ]
+  },
+  "failure_reason": null
+}

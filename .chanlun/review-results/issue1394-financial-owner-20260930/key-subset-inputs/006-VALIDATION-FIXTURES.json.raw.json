@@ -1,0 +1,7 @@
+{
+  "schema_revision": "issue1394-verbatim-utf8-artifact/1",
+  "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/VALIDATION-FIXTURES.json",
+  "source_bytes": 632,
+  "source_sha256": "c6e978f3f3eb8a99e8d6de411572478b665c51b6d77a3aff3fb07dbf4bad589a",
+  "content_utf8": "{\n  \"s_session/profiles/testonly_tick_1_1_ohlc.json\": {\n    \"bytes\": 409,\n    \"sha256\": \"2cd50e43e659dc87498eebba76d88deb4cde276cd51c47fa0c083b07dffbdcfc\"\n  },\n  \"s_session/profiles/ohlc_integer_tb02a_v1.json\": {\n    \"bytes\": 468,\n    \"sha256\": \"482250254133ba120afdd5cd428d1a32d4e5cb40cd7876c556b7007320e599d6\"\n  },\n  \"s_session/tests/fixtures/tb01c/query-resources.json\": {\n    \"bytes\": 571,\n    \"sha256\": \"36b188ae42be8e24e7fdbb44e7d3a7068200f7c942f50975337d07595ac62e64\"\n  },\n  \"s_session/catalog/signed-catalog.json\": {\n    \"bytes\": 84259,\n    \"sha256\": \"938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069\"\n  }\n}\n"
+}

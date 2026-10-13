@@ -337,7 +337,61 @@ CREATE TABLE s_delivery_refs (
 EXPECTED_V2 = _expected_schema(LEGACY_SCHEMA + CONTROL_SCHEMA)
 EXPECTED_OHLC = _expected_schema(LEGACY_SCHEMA + tb02.SCHEMA)
 EXPECTED_V2_OHLC = _expected_schema(LEGACY_SCHEMA + CONTROL_SCHEMA + tb02.SCHEMA)
-EXPECTED_SQL = _expected_sql(LEGACY_SCHEMA + CONTROL_SCHEMA + tb02.SCHEMA)
+
+# #1394：新库固定私有 changes-only/1 的显式单行登记表；无该表的旧库继续旧 full 域。
+# 两个域各自都是「已知协议模式」，不存在第三种；未知模式/缺行/多行/结构不符一律拒绝。
+STORAGE_FORMAT_SCHEMA = """
+CREATE TABLE s_storage_format (
+ singleton INTEGER PRIMARY KEY CHECK(singleton=1), storage_format TEXT NOT NULL);
+"""
+STORAGE_FORMAT_TABLE = "s_storage_format"
+STORAGE_FORMAT_CHANGES_ONLY = "changes-only/1"
+STORAGE_FORMAT_LEGACY = "legacy-full/0"
+
+# #1394 第二段：新库固定私有 evidence-graph/2 的三表（登记 + 不可变节点 + 根映射）。
+# 无此三表 = 旧库整块域（`batches.canonical_bytes` 存完整规范字节）；有此三表 = 图域。
+# 三表同生同灭，缺一即模式门拒绝；未知 graph_format 亦然。两域都是已知协议模式，无第三种。
+EVIDENCE_GRAPH_SCHEMA = """
+CREATE TABLE s_evidence_format (
+ singleton INTEGER PRIMARY KEY CHECK(singleton=1), graph_format TEXT NOT NULL);
+CREATE TABLE s_evidence_nodes (
+ node_id BLOB PRIMARY KEY, node_kind INTEGER NOT NULL, payload BLOB NOT NULL,
+ expanded_length INTEGER NOT NULL);
+CREATE TABLE s_evidence_roots (
+ root_key TEXT PRIMARY KEY, node_id BLOB NOT NULL, slot_ids BLOB NOT NULL,
+ expanded_length INTEGER NOT NULL, content_sha256 TEXT NOT NULL);
+"""
+EVIDENCE_GRAPH_TABLES = ("s_evidence_format", "s_evidence_nodes", "s_evidence_roots")
+# 当前物理表示：批次 + Delta 原件 + 结构事实三列原件同图（#1394 第二段）。
+EVIDENCE_GRAPH_FORMAT = "evidence-graph/3"
+# 上一版（只有 batch 走私有图，Delta/事实仍在行内整块列）：**只读**兼容，不混代、不迁移。
+EVIDENCE_GRAPH_FORMAT_V2 = "evidence-graph/2"
+EVIDENCE_ROOT_PREFIX = "batch/"
+EVIDENCE_DELTA_ROOT_PREFIX = "delta/"
+EVIDENCE_FACT_ROOT_PREFIX = "fact/"
+EVIDENCE_NODE_LEAF = 0
+EVIDENCE_NODE_SEQ = 1
+
+# 组合枚举：核心（legacy / v2 控制面）× 结构事实表 × Delta 域登记 × 证据图登记。
+_CORE_SCHEMAS = (LEGACY_SCHEMA, LEGACY_SCHEMA + CONTROL_SCHEMA)
+_FACT_SCHEMAS = ("", tb02.SCHEMA)
+_FORMAT_SCHEMAS = ("", STORAGE_FORMAT_SCHEMA)
+_GRAPH_SCHEMAS = ("", EVIDENCE_GRAPH_SCHEMA)
+EXPECTED_SCHEMAS = tuple(
+    _expected_schema(core + facts + fmt + graph)
+    for core in _CORE_SCHEMAS
+    for facts in _FACT_SCHEMAS
+    for fmt in _FORMAT_SCHEMAS
+    for graph in _GRAPH_SCHEMAS)
+# 包含各已声明表及其隐式索引；新私有图模式也受同一事前界限和后续严格模式核验约束。
+MAX_SCHEMA_OBJECTS = max(
+    sum(1 + len(indexes) for _columns, indexes in schema.values())
+    for schema in EXPECTED_SCHEMAS)
+EXPECTED_LEGACY_FORMAT = _expected_schema(LEGACY_SCHEMA + STORAGE_FORMAT_SCHEMA)
+EXPECTED_V2_OHLC_FORMAT = _expected_schema(
+    LEGACY_SCHEMA + CONTROL_SCHEMA + tb02.SCHEMA + STORAGE_FORMAT_SCHEMA)
+EXPECTED_SQL = _expected_sql(
+    LEGACY_SCHEMA + CONTROL_SCHEMA + tb02.SCHEMA + STORAGE_FORMAT_SCHEMA + EVIDENCE_GRAPH_SCHEMA)
 
 
 def _published_axes(rule_revision):
@@ -353,7 +407,7 @@ def _published_axes(rule_revision):
 
 
 def _validate_schema(rows, tables):
-    if tables not in (EXPECTED_LEGACY, EXPECTED_V2, EXPECTED_OHLC, EXPECTED_V2_OHLC):
+    if tables not in EXPECTED_SCHEMAS:
         raise ValueError("S 权威表/列/PK/UNIQUE/NOT NULL 与已知协议模式不符")
     if any(kind not in ("table", "index") for kind, *_rest in rows):
         raise ValueError("S 权威模式包含未声明视图/触发器")
@@ -362,6 +416,264 @@ def _validate_schema(rows, tables):
     for kind, name, _table, sql in rows:
         if kind == "table" and re.sub(r"\s+", "", sql).rstrip(";") != EXPECTED_SQL[name]:
             raise ValueError("S 权威表 SQL/约束定义与协议不符")
+
+
+def storage_mode(tables):
+    """Delta 域的唯一入口：无登记表 = 旧 full 域；有表 = 恰一行且为本程序唯一声明值。
+
+    这里不做二次尝试：模式读不出来就是拒绝，不存在「旧全量核验失败再试稀疏」的降级通道。
+    """
+    if STORAGE_FORMAT_TABLE not in tables:
+        return STORAGE_FORMAT_LEGACY
+    rows = tables[STORAGE_FORMAT_TABLE]
+    if len(rows) != 1:
+        raise ValueError("私有格式登记必须恰一行（缺行/多行一律拒绝）")
+    row = rows[0]
+    if row["singleton"] != 1 or row["storage_format"] != STORAGE_FORMAT_CHANGES_ONLY:
+        raise ValueError("未知/损坏的 S 私有存储模式（只认旧 full 域与 changes-only/1）")
+    return STORAGE_FORMAT_CHANGES_ONLY
+
+
+def evidence_mode(tables):
+    """证据图物理域的唯一入口：三表齐 = 出 graph_format 值；三表缺 = 旧整块域。
+
+    与 Delta 域同纪律：不二次尝试，模式读不出来就拒绝；表不齐/多行/未知值一律拒绝。
+    两个已知版本都返回：`evidence-graph/3`（批次+Delta+事实同图）与只读兼容的
+    `evidence-graph/2`（只有批次走图）。同一个名字下不得换存储含义，故版本是显式值。
+    """
+    present = tuple(name for name in EVIDENCE_GRAPH_TABLES if name in tables)
+    if not present:
+        return None
+    if len(present) != len(EVIDENCE_GRAPH_TABLES):
+        raise ValueError("私有证据图表不齐全（三表必须同生）")
+    rows = tables[EVIDENCE_GRAPH_TABLES[0]]
+    if len(rows) != 1:
+        raise ValueError("私有图格式登记必须恰一行（缺行/多行一律拒绝）")
+    row = rows[0]
+    if row["singleton"] != 1 or row["graph_format"] not in (
+            EVIDENCE_GRAPH_FORMAT, EVIDENCE_GRAPH_FORMAT_V2):
+        raise ValueError(
+            "未知/损坏的 S 私有证据图格式（只认 evidence-graph/2 与 evidence-graph/3）")
+    return row["graph_format"]
+
+
+def evidence_sources(tables, mode, deadline=None):
+    """图域的独立还原：逐根给出**完整展开字节**，并核节点内容寻址、根闭包与命名空间一致性。
+
+    不复用 Rust 侧结论：节点 id = sha256(kind || payload)、根展开逐字节重算，再核
+    `expanded_length` 与 `content_sha256`。批次根另核公开身份 `batch-<sha256(展开字节)>`；
+    Delta/事实根另核「恰有一条对应逻辑记录」。旧整块域（mode=None）返回 None。
+    """
+    if mode is None:
+        return None
+    nodes = {}
+    for row in tables["s_evidence_nodes"]:
+        _deadline(deadline)
+        node_id, payload, kind = row["node_id"], row["payload"], row["node_kind"]
+        if type(node_id) is not bytes or len(node_id) != 32:
+            raise ValueError("证据图节点 id 必须是 32 字节")
+        if kind not in (EVIDENCE_NODE_LEAF, EVIDENCE_NODE_SEQ):
+            raise ValueError("证据图节点种类未声明")
+        if type(payload) is not bytes:
+            raise ValueError("证据图节点负载必须是 BLOB")
+        if type(row["expanded_length"]) is not int or row["expanded_length"] < 0:
+            raise ValueError("证据图节点长度必须是非负整数")
+        if kind == EVIDENCE_NODE_LEAF and row["expanded_length"] != len(payload):
+            raise ValueError("证据图叶声明长度与实际不符")
+        if hashlib.sha256(bytes([kind]) + payload).digest() != node_id:
+            raise ValueError("证据图节点同 ID 异内容（内容寻址不符）")
+        nodes[node_id] = (kind, payload, row["expanded_length"])
+    by_key, seen, touched = {}, set(), set()
+    frame_cache = _EvidenceFrames()
+    delta_generations = set()
+    if mode == EVIDENCE_GRAPH_FORMAT:
+        delta_generations = {row["generation"] for row in tables.get("structure_deltas", ())}
+    fact_objects = {row["object_id"] for row in tables.get("structure_facts", ())} \
+        if mode == EVIDENCE_GRAPH_FORMAT else set()
+    for row in tables["s_evidence_roots"]:
+        _deadline(deadline)
+        key = row["root_key"]
+        if type(key) is not str or key in seen:
+            raise ValueError("证据图根 key 未声明或重复")
+        seen.add(key)
+        if mode == EVIDENCE_GRAPH_FORMAT_V2 and not key.startswith(EVIDENCE_ROOT_PREFIX):
+            raise ValueError("evidence-graph/2 未声明该根命名空间（只有 batch 走私有图）")
+        if key.startswith(EVIDENCE_ROOT_PREFIX):
+            record = key[len(EVIDENCE_ROOT_PREFIX):]
+            if not record:
+                raise ValueError("证据图根缺逻辑记录标识")
+        elif key.startswith(EVIDENCE_DELTA_ROOT_PREFIX):
+            record = key[len(EVIDENCE_DELTA_ROOT_PREFIX):]
+            generation = _int_text(record, "Delta 私有根代数", minimum=1)
+            if generation not in delta_generations:
+                raise ValueError("Delta 私有根没有对应 Delta 行（不可达残留）")
+        elif key.startswith(EVIDENCE_FACT_ROOT_PREFIX):
+            record = key[len(EVIDENCE_FACT_ROOT_PREFIX):]
+            if record not in fact_objects:
+                raise ValueError("事实私有根没有对应结构事实行（不可达残留）")
+        else:
+            raise ValueError("证据图根不在已声明命名空间（batch/delta/fact）")
+        if row["node_id"] not in nodes:
+            raise ValueError("证据图根引用了不存在的节点")
+        slots_raw = row["slot_ids"]
+        if type(slots_raw) is not bytes or len(slots_raw) % 32:
+            raise ValueError("证据图根参数槽列非 32 字节倍数")
+        slots = []
+        for offset in range(0, len(slots_raw), 32):
+            slot_id = slots_raw[offset:offset + 32]
+            slot = nodes.get(slot_id)
+            if slot is None or slot[0] != EVIDENCE_NODE_LEAF:
+                raise ValueError("证据图根参数槽必须指向存在的叶节点")
+            slots.append(slot[1])
+            touched.add(slot_id)
+        expanded = _evidence_expand(nodes, row["node_id"], slots, touched, deadline, frame_cache)
+        if len(expanded) != row["expanded_length"]:
+            raise ValueError("证据图根展开长度与登记不符")
+        digest = hashlib.sha256(expanded).hexdigest()
+        if digest != row["content_sha256"]:
+            raise ValueError("证据图根展开字节与登记摘要不符")
+        if key.startswith(EVIDENCE_ROOT_PREFIX):
+            if "batch-" + digest != record:
+                raise ValueError("证据图根展开字节与公开批次身份不符")
+        by_key[key] = expanded
+    if touched != nodes.keys():
+        raise ValueError("证据图存在不可达节点")
+    return by_key
+
+
+def evidence_batch_sources(tables, deadline=None):
+    """批次根的独立还原（公开批次身份 → 完整规范字节）；旧整块域返回 None。"""
+    sources = evidence_sources(tables, evidence_mode(tables), deadline)
+    if sources is None:
+        return None
+    return {key[len(EVIDENCE_ROOT_PREFIX):]: value for key, value in sources.items()
+            if key.startswith(EVIDENCE_ROOT_PREFIX)}
+
+
+def materialize_graph_originals(tables, mode, sources, delimiter=""):
+    """把 Delta 原件与结构事实三列原件从私有根放回同一入口（行内列必须是空占位）。
+
+    还原后下游全部既有判据（内层头与外层列一致、逐代目录证据、封存批次对拍）逐字不变。
+    只改本次捕获的 typed 行副本；不修改物理行，也不改动公开字段名。
+    """
+    if mode != EVIDENCE_GRAPH_FORMAT:
+        return
+    for row in tables["structure_deltas"]:
+        key = EVIDENCE_DELTA_ROOT_PREFIX + str(row["generation"])
+        expanded = sources.get(key)
+        if expanded is None:
+            raise ValueError(f"Delta 私有根缺失：{key}")
+        if row["delta_json"] != delimiter:
+            raise ValueError("图域 delta 行仍带整块原文（与私有根混写）")
+        row["delta_json"] = expanded.decode("utf-8")
+    for row in tables.get("structure_facts", ()):
+        key = EVIDENCE_FACT_ROOT_PREFIX + row["object_id"]
+        expanded = sources.get(key)
+        if expanded is None:
+            raise ValueError(f"事实私有根缺失：{key}")
+        for column in ("payload_json", "input_refs_json", "source_coords_json"):
+            if row[column] != delimiter:
+                raise ValueError("图域结构事实行仍带整块原文（与私有根混写）")
+        payload, refs, coords = parse_json(expanded.decode("utf-8"), list)
+        if len((payload, refs, coords)) != 3 or not all(
+                type(item) is str for item in (payload, refs, coords)):
+            raise ValueError("事实私有根展开必须是三列精确文本")
+        row["payload_json"], row["input_refs_json"], row["source_coords_json"] = \
+            payload, refs, coords
+
+
+# #1394：仅本次捕获内复用分量；这是可放弃的私有暂存，不改变 Q 资源配置或准入预算。
+_EVIDENCE_FRAMES_MAX_BYTES = 8 * 1024 * 1024
+
+
+class _EvidenceFrames:
+    """已逐行验证节点原件后，复用不依赖槽值的 SEQ 分量。
+
+    容量包含 helper、字典、key、分量容器及每个 tag/value 的 Python 对象开销。
+    每项另按一整个单项字典收费，保守覆盖字典扩容空槽；共享对象重复计量。
+    放不下就只返回本次分量，不保留；不会改变该节点及后续根的合法性。
+    """
+    __slots__ = ("frames", "remaining")
+
+    def __init__(self):
+        self.frames = {}
+        self.remaining = max(0, _EVIDENCE_FRAMES_MAX_BYTES - sys.getsizeof(self)
+                             - sys.getsizeof(self.frames)
+                             - sys.getsizeof(_EVIDENCE_FRAMES_MAX_BYTES))
+
+    def decode(self, node_id, payload, deadline):
+        cached = self.frames.get(node_id)
+        if cached is not None:
+            return cached
+        frames, index = [], 0
+        charge = sys.getsizeof({None: None}) + sys.getsizeof(node_id)
+        while index < len(payload):
+            _deadline(deadline)
+            marker = payload[index]
+            if marker == 0:
+                if index + 5 > len(payload):
+                    raise ValueError("证据图字面分量长度字段截断")
+                size = int.from_bytes(payload[index + 1:index + 5], "big")
+                if index + 5 + size > len(payload):
+                    raise ValueError("证据图字面分量内容截断")
+                frame = ("lit", payload[index + 5:index + 5 + size])
+                index += 5 + size
+            elif marker == 1:
+                if index + 33 > len(payload):
+                    raise ValueError("证据图引用分量截断")
+                frame = ("node", payload[index + 1:index + 33])
+                index += 33
+            elif marker == 2:
+                if index + 3 > len(payload):
+                    raise ValueError("证据图参数槽分量截断")
+                frame = ("slot", int.from_bytes(payload[index + 1:index + 3], "big"))
+                index += 3
+            else:
+                raise ValueError("证据图分量标签未声明")
+            frames.append(frame)
+            if charge <= self.remaining:
+                charge += sys.getsizeof(frame) + sys.getsizeof(frame[0]) + sys.getsizeof(frame[1])
+        charge += sys.getsizeof(frames)
+        if charge <= self.remaining:
+            self.frames[node_id] = frames
+            self.remaining -= charge
+        return frames
+
+
+def _evidence_expand(nodes, root, slots, touched, deadline=None, frame_cache=None):
+    """逐节点核不含参数槽的长度；实际根字节另按当前槽值核完整长度和 Hash。"""
+    out, slot_bytes = bytearray(), 0
+    if frame_cache is None:
+        frame_cache = _EvidenceFrames()
+    stack = [("node", root)]
+    while stack:
+        _deadline(deadline)
+        tag, value = stack.pop()
+        if tag == "lit":
+            out += value
+        elif tag == "slot":
+            if value >= len(slots):
+                raise ValueError("证据图参数槽越界")
+            out += slots[value]
+            slot_bytes += len(slots[value])
+        elif tag == "close":
+            node_id, start, slots_at_open = value
+            without_slots = len(out) - start - (slot_bytes - slots_at_open)
+            if without_slots != nodes[node_id][2]:
+                raise ValueError("证据图节点声明长度与不含参数槽的实际展开不符")
+        else:
+            node = nodes.get(value)
+            if node is None:
+                raise ValueError("证据图节点缺失")
+            touched.add(value)
+            kind, payload, _length = node
+            if kind == EVIDENCE_NODE_LEAF:
+                out += payload
+                continue
+            frames = frame_cache.decode(value, payload, deadline)
+            stack.append(("close", (value, len(out), slot_bytes)))
+            stack.extend(reversed(frames))
+    return bytes(out)
 
 
 def capture(conn, max_bytes=None, deadline=None):
@@ -374,7 +686,7 @@ max_bytes 计实际 Python 捕获对象大小的保守增量（含每行/每值�
     if max_bytes is not None:
         count, schema_bytes = conn.execute(
             "SELECT COUNT(*),COALESCE(SUM(length(CAST(sql AS BLOB))),0) FROM sqlite_schema").fetchone()
-        if count > 2*len(EXPECTED_V2_OHLC) or schema_bytes > min(max_bytes, 128*1024):
+        if count > MAX_SCHEMA_OBJECTS or schema_bytes > min(max_bytes, 128*1024):
             raise QueryBudgetExceeded("当前模式元数据超过捕获界限")
     schema_rows, schema = _schema(conn)
     _validate_schema(schema_rows, schema)
@@ -602,8 +914,14 @@ def _same_keys(actual, expected, name):
         raise ValueError(name + " 与独立持久索引/封存内容不一致")
 
 
-def _sealed_generation(row, entry, gen, frontier, meta, binding, active, observations, raw, h, pool, *, _parse_pool=None, _active_keys=None):
-    """验证当前代封存原件的内部关系；返回可逐字绑定源的规范集合，非当前库健康结论。"""
+def _sealed_generation(row, entry, gen, frontier, meta, binding, active, observations, raw, h, pool, mode, *, _parse_pool=None, _active_keys=None):
+    """验证当前代封存原件的内部关系；返回可逐字绑定源的规范集合，非当前库健康结论。
+
+    mode 决定本代 Delta 的判据：旧 full 域的 Delta 仍是完整活动集/完整三族；
+    changes-only 域的 Delta 只含本代新生与首次发布，故这里不重述完整集比较
+    （「精确等于首次发布集」由 verify 用独立索引另行核定）。
+    """
+    changes_only = mode != STORAGE_FORMAT_LEGACY
     seq_range, evidence, delta = (parse_json(row[k]) for k in ("seq_range_json", "catalog_evidence_json", "delta_json"))
     header = {k: row[k] for k in ("session_id", "catalog_revision", "base_cut", "next_cut", "index_frontier", "catalog_run_status")}
     header.update(generation=str(gen), input_frontier=str(frontier), seq_range=seq_range, catalog_evidence=evidence)
@@ -664,12 +982,13 @@ def _sealed_generation(row, entry, gen, frontier, meta, binding, active, observa
             for key in ("batch_id", "first_known_generation", "first_known_cut", "published_generation"):
                 value[key] = previous[key]
         upserts.append(value)
-    _same_keys(sets["upserts"], _intern_set(upserts, h, "upserts/batch", pool,
-                                          _verified_previous=verified_previous), "upserts/batch")
+    batch_object_keys = _intern_set(upserts, h, "upserts/batch", pool,
+                                    _verified_previous=verified_previous)
+    if not changes_only:
+        _same_keys(sets["upserts"], batch_object_keys, "upserts/batch")
     witnesses = [dict(w, slot=h["_num_to_str"](w["slot"]),
                       merged_source_index=h["_num_to_str"](w["merged_source_index"]),
                       raw_bars=h["_project_raw_bars"](w["raw_bars"])) for w in batch["witnesses"]]
-    _same_keys(sets["witnesses"], _intern_set(witnesses, h, "witnesses/batch", pool), "witnesses/batch")
     relations = list(batch["relations"])
     relations.extend({"subject": r["new_object_id"], "relation_type": "replaces", "object": r["old_object_id"]}
                      for r in delta["replaces"])
@@ -677,7 +996,9 @@ def _sealed_generation(row, entry, gen, frontier, meta, binding, active, observa
         if item["supersedes_revision"] is not None:
             relations.append({"subject": item["identity_key"]+"@"+item["revision"], "relation_type": "supersedes",
                               "object": item["identity_key"]+"@"+item["supersedes_revision"]})
-    _same_keys(sets["relations"], _intern_set(relations, h, "relations/batch", pool), "relations/batch")
+    if not changes_only:
+        _same_keys(sets["witnesses"], _intern_set(witnesses, h, "witnesses/batch", pool), "witnesses/batch")
+        _same_keys(sets["relations"], _intern_set(relations, h, "relations/batch", pool), "relations/batch")
     firsts, records = {}, []
     for ob in batch["observations"]:
         oid = h["_observation_id"](ob)
@@ -687,8 +1008,21 @@ def _sealed_generation(row, entry, gen, frontier, meta, binding, active, observa
                 original[key] = h["_num_or_none_to_str"](original[key])
             observations[oid] = firsts[oid] = original
         records.append(observations[oid])
-    _same_keys(sets["observations"], _intern_set(records, h, "observations/首封存版本", pool), "observations/首封存版本")
+    if changes_only:
+        # 本代 Delta 只含本代首次封存的观察；旧观察保留首次 batch（records 仍是完整首版集）。
+        _same_keys(sets["observations"], _intern_set(firsts.values(), h, "observations/本代首次", pool),
+                   "observations/本代首次")
+    else:
+        _same_keys(sets["observations"], _intern_set(records, h, "observations/首封存版本", pool), "observations/首封存版本")
     return {"header": header, "sets": sets, "first_observations": firsts,
+            "batch_object_keys": batch_object_keys,
+            "batch_family_keys": {
+                "witnesses": _intern_set(witnesses, h, "witnesses/封存原件", pool),
+                "relations": _intern_set(relations, h, "relations/封存原件及派生边", pool),
+                "observations": _intern_set(records, h, "observations/封存原件", pool),
+            },
+            "delta_upserts": delta["upserts"] if changes_only else [],
+            "delta_withdrawals": delta["withdrawals"] if changes_only else [],
             "delta_public": zlib.compress(row["delta_json"].encode("utf-8"), 1),
             "raw_keys": _intern_set([_raw_wire(item) for item in batch["raw_events"]], h, "raw_history/batch", pool),
             "batch": {key: batch[key] for key in ("profile_id", "profile_hash", "protocol_revision",
@@ -701,7 +1035,10 @@ def project_delta(proof, index):
 
 
 def _verify_control(tables, meta, raw, deltas, batches, deadline=None):
-    names = set(tables) - set(EXPECTED_LEGACY) - {"raw_ohlc", "structure_facts"}
+    # 私有格式登记不是控制表：它不参与协议标记判定，也不得被读成 v2 控制面。
+    # #1394 第二段：证据图三表同属私有物理层，同样不参与协议标记判定。
+    names = (set(tables) - set(EXPECTED_LEGACY)
+             - {STORAGE_FORMAT_TABLE, "raw_ohlc", "structure_facts"} - set(EVIDENCE_GRAPH_TABLES))
     if not names:
         if "protocol_revision" in meta:
             raise ValueError("协议标记存在但控制表缺失")
@@ -935,6 +1272,8 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
     _deadline(deadline)
     tables = _typed_rows(image, deadline)
     meta = dict((r["key"], r["value"]) for r in tables["meta"])
+    # #1394：Delta 域由私有登记表唯一决定；模式损坏（缺行/多行/未知值）在任何代比较之前拒绝。
+    mode = storage_mode(tables)
     generation = h["_validate_required_meta"](meta)
     epoch = _int_text(meta.get("writer_epoch"), "meta.writer_epoch")
     previous_epoch, previous_generation = None, 0
@@ -953,7 +1292,34 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
     raw_rows = _raw_rows(tables, meta)
     _verify_raw(raw_rows, deadline)
     raw = [_raw_wire(row) for row in raw_rows]
-    batches = {r["batch_id"]: r for r in tables["batches"]}
+    # #1394 第二段：图域三类大原件（批次、Delta、结构事实）都只能由私有根无损展开；此处把
+    # 还原字节放回同一入口（`canonical_bytes` 与三列原文），下游全部既有判据逐字不变。
+    evidence_version = evidence_mode(tables)
+    graph_sources = evidence_sources(tables, evidence_version, deadline)
+    if graph_sources is not None:
+        materialize_graph_originals(tables, evidence_version, graph_sources)
+        batch_sources = {key[len(EVIDENCE_ROOT_PREFIX):]: value
+                         for key, value in graph_sources.items()
+                         if key.startswith(EVIDENCE_ROOT_PREFIX)}
+    else:
+        batch_sources = None
+    batches = {}
+    for row in tables["batches"]:
+        entry = dict(row)
+        if batch_sources is not None:
+            if entry["canonical_bytes"]:
+                raise ValueError("图域批次仍带整块字节（与私有根混写），拒绝读取")
+            source = batch_sources.get(entry["batch_id"])
+            if source is None:
+                raise ValueError("图域批次缺私有根（引用不完整）")
+            if entry["byte_len"] != len(source):
+                raise ValueError("图域批次 byte_len 与私有根展开长度不符")
+            entry["canonical_bytes"] = source
+        batches[entry["batch_id"]] = entry
+    if batch_sources is not None:
+        for batch_id in batch_sources:
+            if batch_id not in batches:
+                raise ValueError("证据图根没有对应批次行（不可达残留）")
     deltas = tables["structure_deltas"]
     if len(deltas) != generation:
         raise ValueError("已发布代链断裂或存在未来 Delta")
@@ -978,7 +1344,7 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
                 raise ValueError("旧未发布 profile 没有可核来源")
 
     # memo是进程内已核源的派生集合；每次捕获完整typed材料后才允许比对原字节。
-    context = canonical((image["schema_rows"], image["schema"], binding,
+    context = canonical((image["schema_rows"], image["schema"], binding, mode,
                          [(key, meta.get(key)) for key in ("session_id", "catalog_revision", "rule_revision",
                           "scope", "profile_definition", "input_profile")]))
     previous_entries = memo.get("entries", []) if memo is not None and memo.get("context") == context else []
@@ -1072,7 +1438,7 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
             # 一处源变化后，后续first-known/首版observation依赖全部重新建立。
             reusable = False
             certificate = _sealed_generation(row, entry, gen, frontier, meta, binding, active,
-                                             original_observations, raw, h, pool, _parse_pool=_parse_pool,
+                                             original_observations, raw, h, pool, mode, _parse_pool=_parse_pool,
                                              _active_keys=active_keys)
             if memo is not None:
                 certificate["delta_columns"] = row_columns
@@ -1095,6 +1461,7 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
         # 无论命中memo与否，独立索引生命周期和全raw前缀均来自本次完整typed捕获。
         for item in raw[prev_frontier+1:frontier+1]:
             effective_sources[item["source_coord"]] = {key: item[key] for key in tb02.REF_FIELDS}
+        base_active = dict(active)  # 本代开始前的完整活动集（供 Delta 腿独立重建）
         for obj in births[gen]:
             if obj["kind"] in tb02.KINDS:
                 by_source, source_bars = tb02.validate_sources(obj, effective_sources)
@@ -1145,20 +1512,52 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
         current_objects = frozenset(active_keys.values())
         if len(current_objects) != len(active):
             raise ValueError("objects/独立索引 含重复成员")
-        _same_keys(sets["upserts"], current_objects, "objects/独立索引")
+        if mode == STORAGE_FORMAT_CHANGES_ONLY:
+            # 三方强相等：① 封存 full batch 正规化 ② 独立索引 born/death ③ base active + 本代 Delta。
+            # 旧实现假定「Delta upserts == 完整活动集」，本域不成立，但完整结果核验不得取消。
+            _same_keys(certificate["batch_object_keys"], current_objects, "objects/封存批次活动集")
+            delta_state = dict(base_active)
+            for record in certificate["delta_upserts"]:
+                oid = record["object_id"]
+                if oid in delta_state:
+                    raise ValueError("Delta upsert 覆盖既有活动身份（同 ID 异内容不得吞掉）")
+                delta_state[oid] = record
+            for withdrawal in certificate["delta_withdrawals"]:
+                if delta_state.pop(withdrawal["object_id"], None) is None:
+                    raise ValueError("Delta 撤回无活动前件")
+            _same_keys(_intern_set(list(delta_state.values()), h, "objects/Delta活动集", pool),
+                       current_objects, "objects/Delta活动集")
+            born_keys = _intern_set(
+                [dict(obj, withdrawn_generation=None, withdrawal_reason=None, superseded_by=None,
+                      lifecycle="active") for obj in births[gen]],
+                h, "objects/本代首次", pool)
+            _same_keys(sets["upserts"], born_keys, "upserts/本代首次")
+        else:
+            _same_keys(sets["upserts"], current_objects, "objects/独立索引")
         _same_keys(sets["withdrawals"], _intern_set(withdrawals, h, "withdrawals", pool), "withdrawals")
         _same_keys(sets["replaces"], _intern_set(replaces, h, "replaces", pool), "replaces")
         _same_keys(certificate["raw_keys"], frozenset(raw_keys[:frontier+1]), "raw_history/batch")
         _same_keys(sets["raw_history_added"], frozenset(raw_keys[prev_frontier+1:frontier+1]), "raw_history_added")
         for table in ("witnesses", "relations", "observations"):
             added = sets[table]
+            batch_members = certificate["batch_family_keys"][table]
+            for key in batch_members:
+                published = stored[table].get(key)
+                if published is None or published > gen:
+                    raise ValueError(table + " 封存原件内容/发布代与独立索引不一致")
             for key in added:
                 published = stored[table].get(key)
                 if published is None or published > gen:
                     raise ValueError(table + " 内容/发布代与独立索引不一致")
                 if key not in seen[table] and published != gen:
                     raise ValueError(table + " 首次出现代与持久发布代不一致")
-            if not born[table][gen] <= added:
+            if mode == STORAGE_FORMAT_CHANGES_ONLY:
+                # 本代 Delta 精确等于本代首次发布集：漏 birth 与伪旧 member 都拒绝。
+                if added != frozenset(born[table][gen]):
+                    raise ValueError(table + " 本代 Delta 不等于本代首次发布集（漏 birth 或伪旧 member）")
+                if not born[table][gen] <= batch_members:
+                    raise ValueError(table + " 封存原件缺本代首次成员")
+            elif not born[table][gen] <= added:
                 raise ValueError(table + " 含该代没有发布的幽灵端点")
             seen[table].update(added)
         verified_deltas.append(header)

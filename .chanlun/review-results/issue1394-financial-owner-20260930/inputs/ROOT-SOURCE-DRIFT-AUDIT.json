@@ -1,0 +1,52 @@
+{
+  "schema_revision": "issue1394-root-source-drift-audit/1",
+  "ticket": 1394,
+  "manifest_sha256": "6e4264ba8a6b682794ca5445dcef111c3c0d77be5b742f3850a832835e34e2e1",
+  "file_records_verified": 24,
+  "result_sha256": "0bda820fbf3eefe6fd7145f0acbb75f0b2e2909406bae99cdbee3dc660a5b9d7",
+  "source_head": "909ccff13abaed83be3c939ab7459d52ff4afee5",
+  "rust_source_files_compared": 523,
+  "s_session_files_compared": 79,
+  "current_product_attempt_only": 4,
+  "invalid_or_inconclusive_attempts_retained": [
+    1,
+    2,
+    3
+  ],
+  "economic_status": "PASS_REBASED_PREPARE",
+  "selected_object_unchanged": "formal old/new selected query and raw successful test assertions",
+  "commit_delta": 1,
+  "stage_before_recovery": {
+    "economic": 21,
+    "reader": 1161
+  },
+  "stage_after_recovery": 0,
+  "job_first": {
+    "elapsed_ms": 52301,
+    "max_elapsed_ms": "43110000",
+    "max_total_requests": "958",
+    "nodes": "2026",
+    "records": "900",
+    "requests": "197",
+    "staged_exposure": "147456",
+    "started": true,
+    "stopped": null,
+    "wire_bytes": "6577398"
+  },
+  "job_second": {
+    "elapsed_ms": 52833,
+    "max_elapsed_ms": "43110000",
+    "max_total_requests": "958",
+    "nodes": "2026",
+    "records": "918",
+    "requests": "198",
+    "staged_exposure": "147456",
+    "started": true,
+    "stopped": null,
+    "wire_bytes": "6615805"
+  },
+  "same_absolute_deadline": true,
+  "original_frozen_limits_changed": false,
+  "source_drift_images_remaining_live": 0,
+  "proof_domain": "subset400/1307 cache holes with real S advance and Rust test-child/HFS; not all-cold download or formal E/B Unix/CLI"
+}

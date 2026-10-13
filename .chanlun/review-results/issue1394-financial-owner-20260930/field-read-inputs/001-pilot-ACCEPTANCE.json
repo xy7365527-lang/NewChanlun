@@ -1,0 +1,70 @@
+{
+  "kind": "READONLY_DIAGNOSTIC_ONLY",
+  "baseline_head": "dc425df7b7bbe98d16fe3bb963a7b3e530e5f6f9",
+  "baseline_rust_tree": "c60452f606202ed6b4754ce29bd17698d115ed32",
+  "candidate_source": "rust/src/bin/s_session_v3/source_audit.rs",
+  "candidate_source_sha256": "aa5ee2c0261e7487446c9991559e028d87475a405c741fe5b331b74b0c11e3b5",
+  "candidate_patch_sha256": "f5d9348d991adf0b9b17635596537a9299b27ec0d91504ff599bb7936eed2f31",
+  "diagnostic_patch_sha256": "e18ffbaefceb9c577f00c92bfed9edb8821e498afce481f9a90011f0f8d13ff3",
+  "observer_module_sha256": "bb97f4451769854603ffdba431eba36e8d2a967b3acc9558d40444db4de16d46",
+  "observer_testbin_sha256": "16f66083fab18b69a1fac5f98847ee84402391703a6c52de68d5ec3ae4f147aa",
+  "baseline_array_probe": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/PROBE.json",
+  "candidate_probe": "/Users/silencehan/Projects/NewChanlun-1394-field-audit-20261002/.scratch/field-release-owned-20261002/PROBE.json",
+  "candidate_probe_sha256": "e62fcada6c13514eb1da847daeef9cb432b12bb0ebdf582277a56dc1551d53cf",
+  "source_three_file_sha256": {
+    "s.sqlite": "050562e2db766cc3d6d94e42bf43f0e21fe3a336d6c9d5b8adcc0e887959f9c1",
+    "s.sqlite-wal": "9b1565422a3c45c03bb068ede25c199548072d6695c1b33b01ce2a851449671b",
+    "s.sqlite-shm": "0c58b51d09bfd39725a1fc4d8d63f3713e9ce6533dd899f45fa2be7d16633aca"
+  },
+  "source_bytes_dev_inode_unchanged_after_run": true,
+  "source_db_wal_mtime_unchanged_after_run": true,
+  "owned_db_wal_sha_mtime_unchanged_after_run": true,
+  "raw": 28,
+  "published_cuts": 27,
+  "input_status": {
+    "Committed": 27,
+    "AcceptedPending": 1
+  },
+  "full_returned_state_exact_equal": true,
+  "fingerprint_sha256": "42444317d86a03e066867bdfccfd0bb9f07010a1a2655483fdc377b7a115b8a0",
+  "all_963_phase_events_equal": true,
+  "overlay_reads_writes_equal": true,
+  "unique_source_digests_equal": true,
+  "baseline_sql_reads": [
+    8090429,
+    8090429
+  ],
+  "candidate_sql_reads": [
+    7753079,
+    7753079
+  ],
+  "baseline_f_calls": [
+    3400571,
+    3400571
+  ],
+  "candidate_f_calls": [
+    3400571,
+    3400571
+  ],
+  "sql_delta_each": 337350,
+  "sql_reduction_fraction": 0.041697418023197534,
+  "baseline_elapsed_ns": [
+    "11182987417",
+    "11144998917"
+  ],
+  "candidate_elapsed_ns": [
+    "10671285250",
+    "10631571042"
+  ],
+  "wall_attribution": "UNMEASURED across separate runs / OS load",
+  "heap_peak": "UNMEASURED",
+  "rss_peak": "UNMEASURED",
+  "not_run": [
+    "S/Q",
+    "HTTP/Driver",
+    "pending restore",
+    "9011 replay",
+    "new controller freeze"
+  ],
+  "diagnostic_patch_reverse_check": "passed; diagnostic-only changes outside candidate"
+}

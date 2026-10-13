@@ -301,7 +301,7 @@ pub(super) fn original_request(
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
         )
         .map_err(|_| "StorageUnavailable：Voice 原消息绑定缺失".to_owned())?;
-    let request = validate_envelope(strict_json(raw.as_bytes())?, super::store::SCHEMA)?;
+    let request = validate_envelope(strict_json(raw.as_bytes())?, config.revision()?)?;
     config.authorized(&request)?;
     let actual = json!({"source_namespace":request["source_namespace"],"source_epoch":request["source_epoch"],"message_id":request["message_id"],"payload_hash":request["payload_hash"]});
     if origin != &actual

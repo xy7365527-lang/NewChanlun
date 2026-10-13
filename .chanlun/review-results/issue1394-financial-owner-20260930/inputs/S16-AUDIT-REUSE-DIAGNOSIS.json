@@ -1,0 +1,252 @@
+{
+  "schema_revision": "issue1394-s16-audit-reuse-diagnosis/1",
+  "issue": 1394,
+  "scope": "existing C, read-only hot-path diagnosis",
+  "base_head": "ba6e0472f3d2c6531ec7355f643e5299e2c230ad",
+  "product_root": "/Users/silencehan/Projects/NewChanlun-1394-content-v3",
+  "status": "diagnosis_complete_no_implementation",
+  "source_bindings": [
+    {
+      "file": "rust/src/bin/s_session_v3/state.rs",
+      "sha256": "a6e8eec65cb62438d4b939ced768b9fb0726d2f1643bc8bab48838aa66c4833e",
+      "matches_base": true
+    },
+    {
+      "file": "rust/src/bin/s_session_v3/history.rs",
+      "sha256": "f9020f6b9542102fe0c2e80ada9efc3c4fbaf435dbc0530a992ff121520ce06f",
+      "matches_base": true
+    },
+    {
+      "file": "rust/src/bin/s_session_v3/source_audit.rs",
+      "sha256": "00287450b1d203361f08cdad5563b6584812b8d628ab9a8a7e3c3ea42c868196",
+      "matches_base": true
+    },
+    {
+      "file": "rust/src/bin/s_session_v3/catalog_evidence.rs",
+      "sha256": "42835e16d2eafc7b4da4cbc9f2bd8361698c2ccb5081f10b93966cfc08777312",
+      "matches_base": true
+    },
+    {
+      "file": "rust/src/bin/s_session_v3/object_index.rs",
+      "sha256": "f8fb1b0d35bfbc515c3ca2406eb26d4c302666601b167be7c54b31901465f619",
+      "matches_base": true
+    },
+    {
+      "file": "rust/src/bin/s_session_v3/aux_index.rs",
+      "sha256": "6a2f2d73c6e8d576ced4f0a9364f5dd1dc4a3611656ca5ada3de892e90464826",
+      "matches_base": true
+    },
+    {
+      "file": "rust/src/bin/s_session_v2/content_store.rs",
+      "sha256": "ac0756cb7b035eca119273f5026fa49903bf53c19147ceef235ed0a074cd6375",
+      "matches_base": true
+    },
+    {
+      "file": "rust/src/s_content.rs",
+      "sha256": "db7770a693bf3e8a31be1f2edec9aff600114e913bd6be6ec99fe3b732ed4561",
+      "matches_base": true
+    },
+    {
+      "file": "rust/src/s_content/job.rs",
+      "sha256": "f1ec4f6b417f6f86f7d2e24df06cd03c313279360d2ea5181766d284940a1b1e",
+      "matches_base": true
+    },
+    {
+      "file": "rust/src/bin/s_session_v3/audit_budget.rs",
+      "sha256": "54248ef39d6e1cdbe8fee1990f872d594018ebeaa39a5d7ffb3c9e0a712a69d4",
+      "matches_base": true
+    },
+    {
+      "file": ".chanlun/review-results/issue1394-content-v3-20260916/APPROVED-SOURCE.md",
+      "sha256": "fab912c6ebe3613969d65fc924368a1d5c9b343f0c3f7a123241645413771d30",
+      "matches_base": true
+    }
+  ],
+  "shadow_evidence": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-s16-phase-shadow-20261001/.scratch/s16-phase-shadow-20261001/RESULT.md",
+      "sha256": "89e0e7b2d48e73034fe727aa13b8ef59d6c329cd69bc601043aa1af119df8669",
+      "bytes": 5436
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-s16-phase-shadow-20261001/.scratch/s16-phase-shadow-20261001/RESULT.json",
+      "sha256": "b194d8ab71f27ffbdf6cf0e520090374217a6895dbfd97ff2a5d52bd2b303d0b",
+      "bytes": 13941
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-s16-phase-shadow-20261001/.scratch/s16-phase-shadow-20261001/PHASE-SUMMARY.json",
+      "sha256": "162a27313f0f888710e87f0521026bcdccf055c2eeabba49073cabf70b52399c",
+      "bytes": 7106
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-s16-phase-shadow-20261001/.scratch/s16-phase-shadow-20261001/MANIFEST.json",
+      "sha256": "a78741be8d1d6f9133bbf571231650d9e33d940d8706b0b7eb3ff69af33a7ccd",
+      "bytes": 26183
+    }
+  ],
+  "observed_summary": {
+    "fresh1": {
+      "audit_before_accept": {
+        "elapsed_ns": 3922545917,
+        "exclusive_counts": {
+          "overlay_derived_put": 179322,
+          "overlay_put": 179322,
+          "overlay_put_body_bytes": 7152166,
+          "overlay_read": 780434,
+          "overlay_read_body_bytes": 29059732,
+          "overlay_read_found": 780434,
+          "store_read": 576246,
+          "store_read_body_bytes": 28929660,
+          "store_read_found": 576246
+        },
+        "thread_F_inclusive": 6502761
+      },
+      "audit_before_begin": {
+        "elapsed_ns": 3966964417,
+        "exclusive_counts": {
+          "overlay_derived_put": 179322,
+          "overlay_put": 179322,
+          "overlay_put_body_bytes": 7152166,
+          "overlay_read": 780434,
+          "overlay_read_body_bytes": 29059732,
+          "overlay_read_found": 780434,
+          "store_read": 576246,
+          "store_read_body_bytes": 28929660,
+          "store_read_found": 576246
+        },
+        "thread_F_inclusive": 6503144
+      },
+      "audit_before_prepare": {
+        "elapsed_ns": 3977082000,
+        "exclusive_counts": {
+          "overlay_derived_put": 179322,
+          "overlay_put": 179322,
+          "overlay_put_body_bytes": 7152166,
+          "overlay_read": 780434,
+          "overlay_read_body_bytes": 29059732,
+          "overlay_read_found": 780434,
+          "store_read": 576246,
+          "store_read_body_bytes": 28929660,
+          "store_read_found": 576246
+        },
+        "thread_F_inclusive": 6503144
+      },
+      "handle_total": {
+        "elapsed_ns": 13418850083,
+        "exclusive_counts": {
+          "store_put": 18,
+          "store_put_body_bytes": 631,
+          "store_put_exists": 18,
+          "store_read": 18,
+          "store_read_body_bytes": 631,
+          "store_read_found": 18
+        },
+        "thread_F_inclusive": 22019063
+      },
+      "sql_final_commit": {
+        "elapsed_ns": 37358875,
+        "exclusive_counts": {},
+        "thread_F_inclusive": 0
+      },
+      "three_audits_observed_fraction_of_handle": 0.8843225954982151
+    },
+    "fresh2": {
+      "audit_before_accept": {
+        "elapsed_ns": 3975270084,
+        "exclusive_counts": {
+          "overlay_derived_put": 179322,
+          "overlay_put": 179322,
+          "overlay_put_body_bytes": 7152166,
+          "overlay_read": 780434,
+          "overlay_read_body_bytes": 29059732,
+          "overlay_read_found": 780434,
+          "store_read": 576246,
+          "store_read_body_bytes": 28929660,
+          "store_read_found": 576246
+        },
+        "thread_F_inclusive": 6502761
+      },
+      "audit_before_begin": {
+        "elapsed_ns": 3952913500,
+        "exclusive_counts": {
+          "overlay_derived_put": 179322,
+          "overlay_put": 179322,
+          "overlay_put_body_bytes": 7152166,
+          "overlay_read": 780434,
+          "overlay_read_body_bytes": 29059732,
+          "overlay_read_found": 780434,
+          "store_read": 576246,
+          "store_read_body_bytes": 28929660,
+          "store_read_found": 576246
+        },
+        "thread_F_inclusive": 6503144
+      },
+      "audit_before_prepare": {
+        "elapsed_ns": 3971460083,
+        "exclusive_counts": {
+          "overlay_derived_put": 179322,
+          "overlay_put": 179322,
+          "overlay_put_body_bytes": 7152166,
+          "overlay_read": 780434,
+          "overlay_read_body_bytes": 29059732,
+          "overlay_read_found": 780434,
+          "store_read": 576246,
+          "store_read_body_bytes": 28929660,
+          "store_read_found": 576246
+        },
+        "thread_F_inclusive": 6503144
+      },
+      "handle_total": {
+        "elapsed_ns": 13466313875,
+        "exclusive_counts": {
+          "store_put": 18,
+          "store_put_body_bytes": 631,
+          "store_put_exists": 18,
+          "store_read": 18,
+          "store_read_body_bytes": 631,
+          "store_read_found": 18
+        },
+        "thread_F_inclusive": 22019063
+      },
+      "sql_final_commit": {
+        "elapsed_ns": 40672292,
+        "exclusive_counts": {},
+        "thread_F_inclusive": 0
+      },
+      "three_audits_observed_fraction_of_handle": 0.883660055562161
+    }
+  },
+  "joint_digest_counts_root_verified": {
+    "unique": 31366,
+    "repeat": 1325314,
+    "scope": "SQLite plus overlay requests, not disk IO"
+  },
+  "conclusion": "Same-read CheckedFrame propagation can remove adjacent persistent-read duplicate F; narrow recommendation is unmetered HashReader branch only, retain all three audits and real rereads. No 9011 prediction. Cross-read frame cache is prohibited by current NodeSource contract.",
+  "minimal_product_diff": [
+    "rust/src/bin/s_session_v2/content_store.rs read_node/ReadStore checked_read",
+    "rust/src/bin/s_session_v3/history.rs HashReader checked_read budget=None only"
+  ],
+  "metered_path": "unchanged in narrow recommendation; any later expansion requires source-specific precheck/prepare/F/receipt ordering and SQLite vs MemoryNodes bad-frame tests",
+  "contract_lines": {
+    "current_byte_match": "APPROVED-SOURCE.md:65",
+    "reuse_context": "APPROVED-SOURCE.md:286",
+    "capture_and_audit": "APPROVED-SOURCE.md:292",
+    "metering": "APPROVED-SOURCE.md:301-305",
+    "no_cross_read_frames": "rust/src/s_content.rs:421-422"
+  },
+  "not_done": [
+    "product edits",
+    "tests/probes/build",
+    "services",
+    "9011",
+    "resource values/schema",
+    "GOAL events",
+    "main/push"
+  ],
+  "limitations": [
+    "Source/loop diagnosis does not attribute every F call or combined duplicate to SQLite",
+    "No proof of runtime improvement or 9011 completion",
+    "Cross-read audit cache requires separately approved capture/context and transient-memory accounting boundary"
+  ],
+  "markdown_sha256": "6aa05bac0f1eb6b8e2a93a6594e498fec1e619b81a35b9fe5169a7b6f6364a96"
+}

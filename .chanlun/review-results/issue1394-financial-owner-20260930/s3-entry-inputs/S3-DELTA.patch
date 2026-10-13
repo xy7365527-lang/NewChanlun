@@ -1,0 +1,138 @@
+diff --git a/rust/src/bin/s_session_v3/writer_cli.rs b/rust/src/bin/s_session_v3/writer_cli.rs
+index 3d9ede4a37..06d58bfb71 100644
+--- a/rust/src/bin/s_session_v3/writer_cli.rs
++++ b/rust/src/bin/s_session_v3/writer_cli.rs
+@@ -434,9 +434,41 @@ fn serve_authorization(resources: &SResources) -> Result<(), String> {
+     })
+ }
+ 
++/// Controller 的私有环境声明绑定 child 实际 load 的规范字节，防止文件检查间改值又恢复。
++/// 独立 CLI 未声明时仍按其显式资源文件；此声明不引入资源默认值或新公开配置字段。
++fn verify_control_resource_digest(
++    resources: &SResources,
++    expected: Option<&str>,
++) -> Result<(), String> {
++    let Some(expected) = expected else {
++        return Ok(());
++    };
++    if expected.len() != 64
++        || !expected
++            .bytes()
++            .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
++    {
++        return Err(err("S_CONTROL_RESOURCE_SHA256 必须为规范小写 SHA256"));
++    }
++    if resources.digest() != expected {
++        return Err(err(
++            "实际加载的资源规范 SHA256 与 S_CONTROL_RESOURCE_SHA256 不匹配",
++        ));
++    }
++    Ok(())
++}
++
+ /// 全部参数/资源核验后，先持唯一写锁、完整审计/profile/clock/pending，再监听。
+ fn serve(options: ServeOptions) -> Result<Option<Value>, String> {
+     let resources = SResources::load(&options.resources)?;
++    let expected = match std::env::var("S_CONTROL_RESOURCE_SHA256") {
++        Ok(value) => Some(value),
++        Err(std::env::VarError::NotPresent) => None,
++        Err(std::env::VarError::NotUnicode(_)) => {
++            return Err(err("S_CONTROL_RESOURCE_SHA256 必须为规范 UTF-8 SHA256"));
++        }
++    };
++    verify_control_resource_digest(&resources, expected.as_deref())?;
+     let clock = v2::ClockPlan::load(&options.clock)?;
+     checked_profile(&options.profile)?;
+     serve_authorization(&resources)?;
+@@ -540,6 +572,36 @@ mod tests {
+     use std::os::unix::ffi::OsStrExt;
+     use std::time::{SystemTime, UNIX_EPOCH};
+ 
++    #[test]
++    fn private_control_digest_binds_loaded_canonical_resources_and_rejects_invalid_declarations() {
++        let limits: serde_json::Map<String, Value> = GATE_FIELDS
++            .into_iter()
++            .map(|key| (key.into(), json!("1")))
++            .collect();
++        let wire = json!({"schema_revision":RESOURCES_REVISION,"s_resources":limits});
++        let resources = SResources::parse(canonical_json(&wire).as_bytes()).unwrap();
++        verify_control_resource_digest(&resources, None).unwrap();
++        verify_control_resource_digest(&resources, Some(resources.digest())).unwrap();
++        let pretty = serde_json::to_string_pretty(&wire).unwrap();
++        let same = SResources::parse(pretty.as_bytes()).unwrap();
++        verify_control_resource_digest(&same, Some(resources.digest())).unwrap();
++        for invalid in [
++            "".to_string(),
++            "0".repeat(63),
++            "0".repeat(65),
++            "g".repeat(64),
++            "A".repeat(64),
++        ] {
++            let error = verify_control_resource_digest(&resources, Some(&invalid)).unwrap_err();
++            assert!(error.contains("规范小写 SHA256"), "{error}");
++        }
++        let mut changed = wire;
++        changed["s_resources"]["queue_capacity"] = json!("2");
++        let changed = SResources::parse(canonical_json(&changed).as_bytes()).unwrap();
++        let error = verify_control_resource_digest(&changed, Some(resources.digest())).unwrap_err();
++        assert!(error.contains("不匹配"), "{error}");
++    }
++
+     #[test]
+     fn ready_nonce_is_in_hashed_s3_payload_and_preserves_full_reply_identity() {
+         let payload = json!({"op":"ready"});
+diff --git a/s_session/s_service_control.py b/s_session/s_service_control.py
+index 5c8d1d2dcc..c597d1e293 100644
+--- a/s_session/s_service_control.py
++++ b/s_session/s_service_control.py
+@@ -415,6 +415,10 @@ class Controller:
+             self.validate_resource_identity(resource_identity, command, deadline, require_current=True)
+         instance_id = str(uuid.uuid4())
+         environment = dict(os.environ if environment is None else environment)
++        # 私有声明只由本次已核冻结原件产生，ambient 值不能替代它或串到旧服务/Q。
++        environment.pop("S_CONTROL_RESOURCE_SHA256", None)
++        if resource_identity is not None:
++            environment["S_CONTROL_RESOURCE_SHA256"] = resource_identity["sha256"]
+         instance_key = "SESSION_CONTROL_INSTANCE_ID" if self.socket_service == "owner" else "S_CONTROL_INSTANCE_ID"
+         environment[instance_key] = instance_id
+         with (self.state_dir / (service + ".log")).open("ab") as log:
+diff --git a/s_session/tests/test_tb01c_s3_service_control.py b/s_session/tests/test_tb01c_s3_service_control.py
+index d5dd92389c..2deb39e9e6 100644
+--- a/s_session/tests/test_tb01c_s3_service_control.py
++++ b/s_session/tests/test_tb01c_s3_service_control.py
+@@ -357,6 +357,35 @@ class S3LifecycleTests(unittest.TestCase):
+             finally:
+                 controller.close()
+ 
++    def test_private_resource_digest_comes_only_from_verified_s3_identity_and_never_old_launcher(self):
++        for revision in ("s-launcher/3", "s-launcher/2"):
++            with self.subTest(revision=revision), tempfile.TemporaryDirectory(prefix="s3-child-digest-") as directory:
++                config = self.config(directory, revision)
++                controller = control.Controller(config, Path(directory) / "state")
++                deadline = time.monotonic() + 2
++                environment = {"S_CONTROL_RESOURCE_SHA256": "f" * 64, "PRESERVE": "owned"}
++                identity = controller.freeze_s_resources(deadline) if revision == "s-launcher/3" else None
++                command = [config["binary"], "serve"]
++                if identity is not None:
++                    command += ["--protocol-revision", "s-session/3", "--resource-config", identity["path"]]
++                child = Mock(pid=234567, **{"poll.return_value": None})
++                try:
++                    with patch.object(control, "process_identity", return_value="owned argv"), \
++                         patch.object(control.subprocess, "Popen", return_value=child) as spawn:
++                        controller.start_process("s", command, environment, deadline=deadline,
++                                                 resource_identity=identity)
++                    actual = spawn.call_args.kwargs["env"]
++                    self.assertEqual(actual["PRESERVE"], "owned")
++                    self.assertEqual(environment["S_CONTROL_RESOURCE_SHA256"], "f" * 64)
++                    if identity is None:
++                        self.assertNotIn("S_CONTROL_RESOURCE_SHA256", actual)
++                    else:
++                        self.assertEqual(actual["S_CONTROL_RESOURCE_SHA256"], identity["sha256"])
++                        record = json.loads(controller.record_path("s").read_text())
++                        self.assertEqual(record["resource_identity"]["sha256"], actual["S_CONTROL_RESOURCE_SHA256"])
++                finally:
++                    controller.close()
++
+ 
+ if __name__ == "__main__":
+     unittest.main()

@@ -1,0 +1,18 @@
+{
+  "schema_revision": "testonly-1394-published-cache-provenance/1",
+  "ticket": 1394,
+  "exported_utc": "2026-09-30T06:29:23.941737+00:00",
+  "source_db": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-owner-volume-20260930/owners/e/e.db",
+  "source_db_sha256_before": "cd12d71743622991ad1066d1ff201a2f6a691b02cf1e2064d713f3d7d40fe038",
+  "source_db_sha256_after": "cd12d71743622991ad1066d1ff201a2f6a691b02cf1e2064d713f3d7d40fe038",
+  "source_st_dev": 16777249,
+  "source_manifest_hash": "2016c7ffba5338d9ee4ed32f513984dc284b5663429e3983e51f9a1d33cdc40b",
+  "source_writer_epoch": "2",
+  "source_commit_seq": null,
+  "source_acceptance_logs": "acceptance-raw/INDEX.json",
+  "cache_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/acceptance-raw/published-cache.json",
+  "cache_sha256": "6219f3af68b78ac9eed0e314d1aeacb984c0a61556c59ce0fee39261ceda7efa",
+  "cache_bytes": 238006,
+  "nodes": 1307,
+  "scope": "从具名实际已发布库只读导出；下次初始化仍须核全部frame和完整闭包、每经济操作仍当次读取S并累计验证，不是全矩阵或冷导入证明"
+}

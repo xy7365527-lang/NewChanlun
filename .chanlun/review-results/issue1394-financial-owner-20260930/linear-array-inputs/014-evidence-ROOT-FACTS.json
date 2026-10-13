@@ -1,0 +1,46 @@
+{
+  "status": "PASS_BOUNDED_ROOT_RECOMPUTED_LINEAR_ARRAY_PILOT",
+  "integration_commit": "f57015506656bb32eebd5987a9996ded7a95280b",
+  "integration_rust_tree": "c60452f606202ed6b4754ce29bd17698d115ed32",
+  "fixed6_production_test_files_equal_reviewed": true,
+  "checks": [
+    {
+      "repeat": 0,
+      "all_four_members_and_all_cut_fields_equal": true,
+      "fingerprint": "42444317d86a03e066867bdfccfd0bb9f07010a1a2655483fdc377b7a115b8a0",
+      "markers_equal": 963,
+      "candidate_audit_ns": 11182987417,
+      "baseline_audit_ns": 11468526542,
+      "SQL_baseline": 8792023,
+      "SQL_candidate": 8090429,
+      "SQL_reduction": 701594,
+      "F_baseline": 3402722,
+      "F_candidate": 3400571
+    },
+    {
+      "repeat": 1,
+      "all_four_members_and_all_cut_fields_equal": true,
+      "fingerprint": "42444317d86a03e066867bdfccfd0bb9f07010a1a2655483fdc377b7a115b8a0",
+      "markers_equal": 963,
+      "candidate_audit_ns": 11144998917,
+      "baseline_audit_ns": 11495750583,
+      "SQL_baseline": 8792023,
+      "SQL_candidate": 8090429,
+      "SQL_reduction": 701594,
+      "F_baseline": 3402722,
+      "F_candidate": 3400571
+    }
+  ],
+  "retained_candidate_binary_actual_path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/candidate-release-testbin",
+  "retained_candidate_binary_SHA": "e62213072f6c095702064f34ad1a8b388d3d0aeaadbde42e36967a2d0675a97f",
+  "old_acceptance_binary_path_removed_only_owned_generated": true,
+  "full_source_clone_state": "raw28/cuts27/AcceptedPending1; not pre-input28cut27",
+  "stages_data_same_semantics": true,
+  "cross_time_wall_causality": "UNMEASURED",
+  "heap_RSS_peaks": "UNMEASURED",
+  "physical_S_handle": "UNMEASURED",
+  "complete9011": false,
+  "C_complete": false,
+  "main_merged": false,
+  "pushed": false
+}

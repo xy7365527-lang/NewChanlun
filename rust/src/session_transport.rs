@@ -2,6 +2,9 @@
 //!
 //! 输送线程只解帧和排队；权威 handler 在调用线程串行执行。
 //! 本模块不打开数据库、不恢复领域状态、不分派跨域事务。调用者先核域前件并持锁。
+//!
+//! #1394 C §5.6.1：读/写暴露带观测回调的入口（[`read_frame_observed`]／[`write_frame_observed`]），
+//! 让 job 记账按**实际发生的字节**在错误判定之前回调；[`read_frame`] 的原签名与行为保持不变。
 use crate::session_protocol::{canonical_json, strict_json};
 use serde_json::{json, Value};
 use std::fmt;
@@ -66,6 +69,38 @@ pub fn process_lock(db: &Path, domain_name: &str) -> Result<File, String> {
 pub struct Job {
     pub envelope: Value,
     pub result: mpsc::SyncSender<Value>,
+}
+/// Trusted in-process metadata from the I/O thread. Never serialized into the
+/// public envelope, payload hash, request bytes, receipt or economic image.
+struct TimedJob {
+    job: Job,
+    response_deadline: Instant,
+}
+trait QueuedJob: Send {
+    fn result(&self) -> &mpsc::SyncSender<Value>;
+}
+impl QueuedJob for Job {
+    fn result(&self) -> &mpsc::SyncSender<Value> {
+        &self.result
+    }
+}
+impl QueuedJob for TimedJob {
+    fn result(&self) -> &mpsc::SyncSender<Value> {
+        &self.job.result
+    }
+}
+fn legacy_job(envelope: Value, result: mpsc::SyncSender<Value>, _: Instant) -> Job {
+    Job { envelope, result }
+}
+fn timed_job(
+    envelope: Value,
+    result: mpsc::SyncSender<Value>,
+    response_deadline: Instant,
+) -> TimedJob {
+    TimedJob {
+        job: Job { envelope, result },
+        response_deadline,
+    }
 }
 // #1374 TestOnly：默认完全关闭，记录输送阶段且不进入公共回复或权威数据库。
 // 每连接最多2048条读事件；只存长度/摘要/OS状态，不存原始业务内容。
@@ -286,16 +321,84 @@ fn read_chunk(
     stream.read(bytes)
 }
 
+/// 帧观测口：唯一读循环与分块写循环共用的计费与期限钩子（#1394 C §5.6.1）。
+///
+/// 调用时序（读、写一致）：
+/// 1. 每次**真正 I/O 之前** `before_io`：job 层在这里拒绝已停止或已过绝对期限的连接，避免开工；
+/// 2. 每次底层读/写成功返回 `n>0` 之后、**任何** max/JSON/schema 判断之前 `after_bytes`，
+///    按实际 `n` 字节回调。错误路径（坏 JSON、validate 拒绝、超单帧上限、EOF 或超时前的前缀、
+///    部分写后失败）不会撤回首字节——它们在错误返回之前已经逐次回调过。
+///
+/// [`NoObserver`] 什么都不做，[`read_frame`] 用它保持原有签名与行为。
+pub trait FrameObserver {
+    fn before_io(&mut self) -> Result<(), String>;
+    fn after_bytes(&mut self, bytes: &[u8]) -> Result<(), String>;
+}
+
+/// 不记账的观测口：[`read_frame`] 的默认行为。
+pub struct NoObserver;
+
+impl FrameObserver for NoObserver {
+    fn before_io(&mut self) -> Result<(), String> {
+        Ok(())
+    }
+
+    fn after_bytes(&mut self, _bytes: &[u8]) -> Result<(), String> {
+        Ok(())
+    }
+}
+
+/// 固定写块上界：每次真正写最多这么多字节，不把整个 body 交给一次 `write`。
+pub const WRITE_CHUNK_BYTES: usize = 4096;
+
+/// 逐块写目标：真实实现是 [`UnixStream`]；测试可注入确定复现的部分写与失败。
+/// 本 trait 只抽「一次真正写」这一块，期限、分块上界与计费口径仍在 [`write_frame_observed`] 里统一。
+pub trait FrameSink {
+    /// 一次真正写：返回实际写入字节数；`Err`/`0` 都如实返回，不得伪装成部分进度。
+    fn write_some(&mut self, chunk: &[u8]) -> std::io::Result<usize>;
+
+    /// 下一次真正写之前的等待上限（真实 socket 用它设 `SO_SNDTIMEO`）；默认不动作。
+    fn set_chunk_timeout(&mut self, remaining: Duration) -> std::io::Result<()> {
+        let _ = remaining;
+        Ok(())
+    }
+}
+
+impl FrameSink for UnixStream {
+    fn write_some(&mut self, chunk: &[u8]) -> std::io::Result<usize> {
+        self.write(chunk)
+    }
+
+    fn set_chunk_timeout(&mut self, remaining: Duration) -> std::io::Result<()> {
+        self.set_write_timeout(Some(remaining))
+    }
+}
+
 pub fn read_frame(
     stream: &mut UnixStream,
     max: usize,
     deadline: Instant,
     validate: EnvelopeValidator,
 ) -> Result<Value, String> {
+    read_frame_observed(stream, max, deadline, validate, &mut NoObserver)
+}
+
+/// 带观测回调的唯一读循环：解析、EOF、超时与单帧约束与 [`read_frame`] 完全一致。
+///
+/// 每次底层成功读到的 `n>0` 字节在 max/JSON/schema 判断之前先经 `observer.after_bytes`；
+/// 已读前缀之后的 EOF/IO 错误不会漏账（前缀在各自成功读到的那一刻已回调）。
+pub fn read_frame_observed(
+    stream: &mut UnixStream,
+    max: usize,
+    deadline: Instant,
+    validate: EnvelopeValidator,
+    observer: &mut dyn FrameObserver,
+) -> Result<Value, String> {
     let mut trace = ReadTrace::start(stream);
     let mut bytes = Vec::new();
     let mut chunk = [0u8; 4096];
     loop {
+        observer.before_io()?;
         let remaining = deadline
             .checked_duration_since(Instant::now())
             .ok_or("TransportTimeout：请求读期限")?;
@@ -324,6 +427,8 @@ pub fn read_frame(
         if n == 0 {
             break;
         }
+        // 先按实际读到的字节回调（含随后会触发 max/JSON/schema 错误的这一块），再判上限。
+        observer.after_bytes(&chunk[..n])?;
         if bytes.len() + n > max {
             return Err("SchemaUnsupported：frame字节超过已声明界限".into());
         }
@@ -338,9 +443,48 @@ pub fn read_frame(
     }
     Ok(value)
 }
-pub fn enqueue_before_deadline(
-    tx: &mpsc::SyncSender<Job>,
-    mut job: Job,
+
+/// 带观测回调的分块写：每次真正写成功 `n>0` 字节后、在做任何后续判断之前按**实际 n** 回调。
+///
+/// 写入按固定小上界（[`WRITE_CHUNK_BYTES`]）分块，不一次写完整 body；部分写后失败时，
+/// 已成功写出的前缀不会被撤回（调用方必须先收起已回调的账，再处理错误）。
+pub fn write_frame_observed(
+    sink: &mut dyn FrameSink,
+    body: &[u8],
+    deadline: Instant,
+    observer: &mut dyn FrameObserver,
+) -> Result<(), String> {
+    let mut sent = 0;
+    while sent < body.len() {
+        observer.before_io()?;
+        let remaining = deadline
+            .checked_duration_since(Instant::now())
+            .filter(|left| !left.is_zero())
+            .ok_or("TransportTimeout：请求写期限")?;
+        sink.set_chunk_timeout(remaining)
+            .map_err(|e| format!("TransportUnavailable：{e}"))?;
+        let end = (sent + WRITE_CHUNK_BYTES).min(body.len());
+        let n = sink
+            .write_some(&body[sent..end])
+            .map_err(|e| format!("TransportUnavailable：{e}"))?;
+        if n == 0 {
+            return Err("TransportUnavailable：写入返回 0 字节".into());
+        }
+        if n > end - sent {
+            return Err("TransportUnavailable：写入返回数超过本次请求长度".into());
+        }
+        observer.after_bytes(&body[sent..sent + n])?;
+        sent += n;
+    }
+    Ok(())
+}
+
+pub fn enqueue_before_deadline(tx: &mpsc::SyncSender<Job>, job: Job, deadline: Instant) -> bool {
+    enqueue_before_deadline_inner(tx, job, deadline)
+}
+fn enqueue_before_deadline_inner<T>(
+    tx: &mpsc::SyncSender<T>,
+    mut job: T,
     deadline: Instant,
 ) -> bool {
     loop {
@@ -363,11 +507,30 @@ pub fn enqueue_before_deadline(
 }
 
 pub fn io_connection(
-    mut stream: UnixStream,
+    stream: UnixStream,
     tx: mpsc::SyncSender<Job>,
     bounds: TransportBounds,
     count: Arc<AtomicUsize>,
     validate: EnvelopeValidator,
+) {
+    io_connection_inner(stream, tx, bounds, count, validate, legacy_job)
+}
+fn io_connection_with_deadline(
+    stream: UnixStream,
+    tx: mpsc::SyncSender<TimedJob>,
+    bounds: TransportBounds,
+    count: Arc<AtomicUsize>,
+    validate: EnvelopeValidator,
+) {
+    io_connection_inner(stream, tx, bounds, count, validate, timed_job)
+}
+fn io_connection_inner<T: Send + 'static>(
+    mut stream: UnixStream,
+    tx: mpsc::SyncSender<T>,
+    bounds: TransportBounds,
+    count: Arc<AtomicUsize>,
+    validate: EnvelopeValidator,
+    make_job: fn(Value, mpsc::SyncSender<Value>, Instant) -> T,
 ) {
     struct Release(Arc<AtomicUsize>);
     impl Drop for Release {
@@ -382,11 +545,8 @@ pub fn io_connection(
         Ok(e) => {
             let response_deadline = Instant::now() + bounds.response;
             let (reply_tx, reply_rx) = mpsc::sync_channel(1);
-            let job = Job {
-                envelope: e,
-                result: reply_tx,
-            };
-            if !enqueue_before_deadline(&tx, job, response_deadline) {
+            let job = make_job(e, reply_tx, response_deadline);
+            if !enqueue_before_deadline_inner(&tx, job, response_deadline) {
                 return;
             }
             // 已入actor后，回包超期只结束此连接；不能撤销/重复权威工作。
@@ -425,10 +585,33 @@ pub fn serve_unix(
     validate: EnvelopeValidator,
     mut handler: impl FnMut(&Value) -> Value,
 ) -> Result<(), String> {
+    serve_unix_inner(socket, bounds, validate, legacy_job, |job: &Job| {
+        handler(&job.envelope)
+    })
+}
+/// New economic domain only: deliver the I/O thread's original response
+/// deadline to the actor as trusted memory context. It is never wire data.
+pub fn serve_unix_with_deadline(
+    socket: &Path,
+    bounds: TransportBounds,
+    validate: EnvelopeValidator,
+    mut handler: impl FnMut(&Value, Instant) -> Value,
+) -> Result<(), String> {
+    serve_unix_inner(socket, bounds, validate, timed_job, |job: &TimedJob| {
+        handler(&job.job.envelope, job.response_deadline)
+    })
+}
+fn serve_unix_inner<T: QueuedJob + 'static>(
+    socket: &Path,
+    bounds: TransportBounds,
+    validate: EnvelopeValidator,
+    make_job: fn(Value, mpsc::SyncSender<Value>, Instant) -> T,
+    mut handler: impl FnMut(&T) -> Value,
+) -> Result<(), String> {
     // 不擅自unlink既有socket：SIGKILL残留由监督器核路径/PID后清理。
     let listener = UnixListener::bind(socket)
         .map_err(|e| format!("TransportUnavailable：socket绑定失败 {e}"))?;
-    let (tx, rx) = mpsc::sync_channel::<Job>(bounds.queue);
+    let (tx, rx) = mpsc::sync_channel::<T>(bounds.queue);
     let count = Arc::new(AtomicUsize::new(0));
     let accept_bounds = bounds.clone();
     std::thread::spawn(move || {
@@ -450,12 +633,12 @@ pub fn serve_unix(
             let t = tx.clone();
             let b = accept_bounds.clone();
             let c = count.clone();
-            std::thread::spawn(move || io_connection(stream, t, b, c, validate));
+            std::thread::spawn(move || io_connection_inner(stream, t, b, c, validate, make_job));
         }
     });
     for job in rx {
-        let out = handler(&job.envelope);
-        let _ = job.result.try_send(out);
+        let out = handler(&job);
+        let _ = job.result().try_send(out);
     }
     Ok(())
 }
@@ -516,5 +699,35 @@ mod tests {
         assert!(started.elapsed() >= Duration::from_millis(30));
         assert!(started.elapsed() < Duration::from_millis(500));
         sender.shutdown(std::net::Shutdown::Write).unwrap();
+    }
+
+    #[test]
+    fn queued_unix_job_keeps_ingress_response_deadline_in_actor() {
+        let bounds = TransportBounds {
+            frame: 4096,
+            read: Duration::from_millis(100),
+            write: Duration::from_millis(100),
+            response: Duration::from_millis(10),
+            queue: 1,
+            connections: 1,
+        };
+        let (mut client, server) = UnixStream::pair().unwrap();
+        let (tx, rx) = mpsc::sync_channel::<TimedJob>(1);
+        let count = Arc::new(AtomicUsize::new(1));
+        let thread = std::thread::spawn(move || {
+            io_connection_with_deadline(server, tx, bounds, count, value_only)
+        });
+        client.write_all(b"{\"op\":\"probe\"}\n").unwrap();
+        client.shutdown(std::net::Shutdown::Write).unwrap();
+        let job = rx.recv_timeout(Duration::from_millis(100)).unwrap();
+        assert_eq!(job.job.envelope["op"], "probe");
+        // Receipt proves enqueue completed. Delay handler work for twice the
+        // response window after admission; a fresh now()+10ms would be wrong.
+        std::thread::sleep(Duration::from_millis(20));
+        assert!(Instant::now() >= job.response_deadline);
+        let local_reset = Instant::now() + Duration::from_millis(10);
+        assert!(local_reset > Instant::now());
+        assert!(job.job.result.try_send(json!({"ok":true})).is_err());
+        thread.join().unwrap();
     }
 }
