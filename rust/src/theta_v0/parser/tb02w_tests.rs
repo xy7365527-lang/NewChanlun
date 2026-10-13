@@ -705,7 +705,9 @@ fn tb02w_three_way_batch_incremental_restore_bit_exact() {
 
 /// 长缺口笔链上逐笔增量、在每个切点存检查点（全量结果 + 安全边界）后恢复续到完整输入，
 /// 与无中断全量逐位相同；须覆盖「最早未封闭候选落在末个已确认段之前」的深边界切点。
-/// `from_full`（无边界）与全量的差异只计数不断言：#1344 失效语义下其漏扫面实测为零（见收据）。
+/// `from_full`（无边界）与全量的差异在本语料上只计数不断言，计数为零不说明无边界恢复安全：
+/// 独审 W1 在 99 笔上实测 `from_full` 发散（评审 25760 切点中 24 处），euf 边界的必要性由
+/// `tb02w_w1_checkpoint_boundary_is_necessary` 锁住。
 #[test]
 fn tb02w_checkpoint_restore_long_gappy_bit_exact() {
     let cfg = ThetaConfig::default().parse;
