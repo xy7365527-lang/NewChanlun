@@ -13,6 +13,10 @@
 //! 期待值与 S0 oracle 冻结稿 `final_scan_lean_ref` 一致）：Zn 外缘 + last+2 续扫（UP/DOWN）、
 //! 续扫锚 seed 相切 +1 与两单元连接段（E4）、D-A 方向判据（不交替输入）。
 //!
+//! `break_up` 只对拍已结算中枢（#1419 根裁定 r2 R4）：未结算中枢的离开方向未定义，reference 两侧都写
+//! 占位值 `true`，S 事实层另行发布 `breakUp=false` 且 `breakUp_defined=false`。fixture 的
+//! `meta.break_up_scope = "settled_only"` 声明这条范围，本文件读它并据此跳过，Lean 侧改范围时这里会红。
+//!
 //! ## 认识论（formalization-validity-domain 231号）
 //!
 //! L0：bit-exact 确认「rust 实装忠实于 Lean 形式化 / reference Python」。非 L2 行情有效断言。
@@ -50,9 +54,16 @@ struct FixtureV0V1 {
     v0_zg: Tick,
 }
 
+/// fixture `meta`（只取对拍范围声明）。
+#[derive(Debug, Deserialize)]
+struct FixtureMeta {
+    break_up_scope: String,
+}
+
 /// 完整 fixture（CenterConstruct.lean refV1FixtureJson 镜像）。
 #[derive(Debug, Deserialize)]
 struct CenterFixture {
+    meta: FixtureMeta,
     three_unsettled: Vec<FixtureZs>,
     four_extend: Vec<FixtureZs>,
     five_settled_break: Vec<FixtureZs>,
@@ -65,10 +76,16 @@ struct CenterFixture {
 
 fn load_fixture() -> CenterFixture {
     let raw = include_str!("fixtures/theta_v0_center_parity.json");
-    serde_json::from_str(raw).expect("fixture 必须是 Lean #eval 导出的合法 JSON")
+    let fx: CenterFixture =
+        serde_json::from_str(raw).expect("fixture 必须是 Lean #eval 导出的合法 JSON");
+    assert_eq!(
+        fx.meta.break_up_scope, "settled_only",
+        "Lean 导出声明的 break_up 对拍范围变了，本文件的跳过规则须同步（#1419 R4）"
+    );
+    fx
 }
 
-/// rust RefZhongshu == fixture 中 Lean 导出 RefZhongshu（逐字段 bit-exact）。
+/// rust RefZhongshu == fixture 中 Lean 导出 RefZhongshu（逐字段 bit-exact；`break_up` 只比已结算中枢）。
 fn assert_zs_eq(rust: &RefZhongshu, lean: &FixtureZs, ctx: &str) {
     assert_eq!(rust.zd, lean.zd, "{ctx}: zd 漂移");
     assert_eq!(rust.zg, lean.zg, "{ctx}: zg 漂移");
@@ -82,7 +99,9 @@ fn assert_zs_eq(rust: &RefZhongshu, lean: &FixtureZs, ctx: &str) {
         rust.break_index, lean.break_index,
         "{ctx}: break_index 漂移"
     );
-    assert_eq!(rust.break_up, lean.break_up, "{ctx}: break_up 漂移");
+    if lean.settled {
+        assert_eq!(rust.break_up, lean.break_up, "{ctx}: break_up 漂移");
+    }
 }
 
 // ── fixture 三 case 的 rust 输入（必须与 Lean refSeg0..refSeg4Break 同价位编码）─────

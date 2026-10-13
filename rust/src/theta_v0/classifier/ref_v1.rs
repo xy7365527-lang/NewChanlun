@@ -66,7 +66,8 @@ pub struct RefZhongshu {
     pub settled: bool,
     /// 结算时离开核心的段下标（未结算 = -1）。
     pub break_index: i64,
-    /// 离开方向 true=up / false=down（未结算 = true，对齐 reference 默认 ""→防御 up）。
+    /// 离开方向 true=up / false=down（未结算 = true，对齐 reference 默认 ""→防御 up）。未结算时的值是
+    /// 占位、无语义：Lean 夹具对拍只比已结算中枢（#1419 根裁定 r2 R4）。
     pub break_up: bool,
     /// 外缘上界 GG（seed 三段与延伸段中的 Zn 聚合 max，★#1419 S3）。
     pub gg: Tick,

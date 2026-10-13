@@ -346,7 +346,9 @@ theorem centersOfWithOuter_nontrivial :
   - `count`：构成段数 `end - start + 1`。
   - `settled`：是否已结算（`j < n`——延伸后仍有后续段离开核心则结算）。
   - `breakIndex`：结算时离开核心的段下标（未结算 = -1，用 `Int`）。
-  - `breakUp`：离开方向（reference `break_direction` "up"/"down" 的布尔编码，true=up）。
+  - `breakUp`：离开方向（reference `break_direction` "up"/"down" 的布尔编码，true=up）。未结算时
+    离开方向未定义，本 reference 沿用占位编码 `true`，不带语义（#1419 根裁定 r2 R4：S 事实层对未结算
+    中枢发布 `breakUp=false` 且 `breakUp_defined=false`；§ 5.5.4 导出的夹具只对拍已结算中枢的 breakUp）。
   - `gg/dd`：外缘上下界（seed 三段与弱接触延伸段中的 **Zn** 聚合 `max/min`；★#1419 S3）。
 -/
 structure RefZhongshu where
@@ -618,8 +620,9 @@ theorem witness_ref_settled_break_up :
 
     期待值取自 S0 oracle 冻结稿 `.chanlun/review-results/issue1419-tb02e-20261013/worked-examples.json`
     的 `streams.*.final_scan_lean_ref`（口径 `ZN_OUTER_C_RESUME`），不从本文件函数推出。oracle 对未结算
-    中枢的 `breakUp` 记「未定义」；本文件沿用 refStep 的既有编码（未结算 ⟹ true），该表示待根裁定
-    （S0 R4），故下列 witness 不锁未结算中枢的 breakUp。
+    中枢的 `breakUp` 记「未定义」。根裁定 r2 R4 已定：S 事实层对未结算中枢发布 `breakUp=false` 且
+    `breakUp_defined=false`；本 reference 保留 refStep 的占位编码（未结算 ⟹ true），下列 witness 不锁
+    未结算中枢的 breakUp，§ 5.5.4 夹具在 `meta.break_up_scope` 里声明对拍只比已结算中枢的 breakUp。
 -/
 
 /-- 端点序列 → 相连段序列（`u_k = P_k → P_{k+1}`，方向由端点升降定；S0 工作例编码）。 -/
@@ -724,13 +727,19 @@ open Lean (Json) in
   - `v0_v1_interval`：v0/v1 核心区间对照（裁决 v0 错）。
   - ★#1419 S3 判别例（§ 5.5.3b）：`e2_up_zn_c_resume` / `e2_down_zn_c_resume`（Zn 外缘 + last+2 续扫）、
     `e4_tangent_seed_connector`（续扫锚 seed 相切 +1、两单元连接段）、`zn_direction_not_parity`（D-A）。
+
+  `break_up` 的对拍范围（#1419 根裁定 r2 R4）：只比 `settled = true` 的中枢。未结算中枢的 `break_up`
+  是 reference 占位编码（`true`），导出照实写出，但不参与对拍；`meta.break_up_scope = "settled_only"`
+  声明这一点，rust 侧对拍读该字段并据此跳过。
 -/
 def refV1FixtureJson : Json :=
   Json.mkObj [
     ("meta", Json.mkObj [
       ("source", Json.str "formal/Origin/CenterConstruct.lean #eval refZhongshusFromComponents (machine-exported)"),
       ("epistemic_level", Json.str "L0"),
-      ("note", Json.str "reference v1 中枢语义 bit-exact Lean machine-checked; 非 L2 经验断言")
+      ("note", Json.str "reference v1 中枢语义 bit-exact Lean machine-checked; 非 L2 经验断言"),
+      ("break_up_scope", Json.str "settled_only"),
+      ("break_up_note", Json.str "未结算中枢的 break_up 是 reference 占位编码（true），不参与对拍；S 事实层对未结算中枢发布 breakUp=false 且 breakUp_defined=false（#1419 根裁定 r2 R4）")
     ]),
     ("three_unsettled", Json.arr
       ((refZhongshusFromComponents [refSeg0, refSeg1, refSeg2]).map refZhongshuJson).toArray),
