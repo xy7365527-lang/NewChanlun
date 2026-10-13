@@ -624,13 +624,15 @@ ZD < ZG（严格，Z-2）
 | R27 | `rust/tests/fixtures/theta_v0_center_parity.json` | 已重导出：旧三例数值逐字不变，新增四个判别例 | `0cff16b33a` |
 | R28 | `recursive_tower.rs:148` `interval_cache`、`:320` `envelope()`、`:775` `project_to_units` | 新增：走势区间缓存（全部子走势极值）；上级投影单元取走势区间；`pipeline.rs` 投影证书神谕 = 缓存 vs 递归 `rmove.lo()/hi()` | `ee739fbea6` |
 | R29 | `nest_lifecycle/window.rs:345` 活动窗区间 | 新增：行进中上级单元区间取窗口全部单元极值 | `ee739fbea6` |
+| R30 | `rust/src/bin/s_session_v2/tb02e.rs:82` `member_stroke_extremes`、`:111` `units_from_segments` | 新增（根裁定 L3）：S 写者读 CC-013 时，L0 单元区间取成员笔（`stroke_refs` ∩ `construction.stroke_indices`）方向极值，与塔的 `segment.rs` `make_segment` 标准化同值；成员笔缺 ref 以 `TB02E_INPUT_CONTRACT` 拒。真实 BTC 判别夹具锁住，几何端点变异体 Rust/Py/JS 三侧全红 | `ecc9b196d3` |
 | L9 | `formal/Origin/CenterConstruct.lean:395` `znAgg`、`:415` `extendWeak` | 已落（`comps` 带方向） | `0cff16b33a` |
 | L10 | `CenterConstruct.lean:452` `refStep` seed 外缘 | 已落 | `0cff16b33a` |
 | L11 | `formal/Origin/CenterConstruction.lean:108` `isZn`、`:133` `computeGG`、`:137` `computeDD` | 已落；外缘包含核心改经「首段恒为 `Zn`」两条引理证明 | `0cff16b33a` |
 | L12 | `formal/Formal/RecursiveConstruction.lean:56` `Move.interval`、`:60` `listInterval`；`formal/Origin/PromQual.lean:292` `shiftMove_interval` | 新增：走势区间对 `subs` 取极值（空 `subs` 记 `(0,0)`，与 Rust `RMove::lo/hi` 同口径），平移保区间改互递归证明 | `ee739fbea6` |
 | L13 | `formal/Formal/RecursiveConstruction.lean:126` `CenterDerivedAt`、`:275` `deriveWindowCenter3` | **未改**，过渡态见 §9.5 | — |
 | L14 | `formal/Formal/DivergenceNesting.lean:436` `OpenTail.currentExtreme`、`:654` `positiveDownTail` | 已落（根裁定 D-J2 第 4 点）：当前极值取走势区间（复用 `Move.interval`），去掉中枢外缘 `foldr min 0`／`foldr max 0` 哨兵；正价下行判别例：`DD = 10`、观察价 5 ⟹ 创新低 | `399c3a3bac` |
-| P16 | `s_session/s_tb02_contract.py` `validate_center_payload`、`validate_center_links`；`s_session/browser/tb01c-client.js` 同名 JS 版 | 已落（schema `s-center/1` v1.2）：Q 与浏览器复核 `Zn` 只用方向相等、核心严格 `<`，`break_up` 只按区间位置判；非 UPGRADE 中枢每个成员恰一条 `member_of` 边（E4）；Python 与 JS 对共享语料逐条对拍完整拒因 | `aeed7ee037`、`9b7e29a054` |
+| L15 | `formal/Origin/CenterConstruction.lean:52` `segHigh`、`:56` `segLow`（取 `Segment.startPrice/endPrice` 两端价） | **未改，登记对齐义务**（根裁定 L3）：Lean `Segment` 只有端点、无成员笔；须在定义处写明「端点价即标准化后的段内极值」为定义前提，或让 `Segment` 带成员笔再取极值。归 Lean 跟进票，见 `xianduan.md` §15 X-24 | — |
+| P16 | `s_session/s_tb02_contract.py` `validate_center_payload`、`validate_center_links`、`:1195` `_member_extremes`、`:1205` `_segment_units`；`s_session/browser/tb01c-client.js` 同名 JS 版（`:821` `memberExtremes`、`:827` `segmentUnits`） | 已落（schema `s-center/1` v1.3）：Q 与浏览器复核 `Zn` 只用方向相等、核心严格 `<`，`break_up` 只按区间位置判；非 UPGRADE 中枢每个成员恰一条 `member_of` 边（E4）；L0 单元区间取成员笔方向极值（根裁定 L3，`xianduan.md` §8「段区间」）；Python 与 JS 对共享语料逐条对拍完整拒因 | `aeed7ee037`、`9b7e29a054`、`ecc9b196d3` |
 
 S 事实层其余落点：seed 唯一判定 `center.rs` `seed_facts`（`639c063769`）、共用扫描内核 `recursive_tower.rs` `scan_center_facts` 与 `center_scan.rs`（`bd1d3aa0ad`）、S 写者 `rust/src/bin/s_session_v2/tb02e.rs`（`10f951889b`）。
 
@@ -674,6 +676,7 @@ S 事实层其余落点：seed 唯一判定 `center.rs` `seed_facts`（`639c0637
   - §3、§9.6：补 L14（`OpenTail.currentExtreme` 改取走势区间，根裁定 D-J2 第 4 点）
   - §9.6：P16 改已落，补 S 事实层落点（seed 判定、扫描内核、S 写者）
   - §9.6：表头改「每行行号对其提交列」（#1419 schema v1.1 复核 N2）；P16 补 schema v1.2 的 E4 门与完整拒因对拍
+  - §9.6：根裁定 L3（L0 单元区间 = 成员笔方向极值，正本 `xianduan.md` §8）——新增 R30（S 写者）、L15（Lean `segHigh`/`segLow` 对齐义务，未改）；P16 改 schema v1.3
 - 2026-10-13: **v2.1 [#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478) S-7 落码补齐与 §4.1 端点**（#1323 grilling，代理依用户授权裁定、根复核）
   - §3：G/D 行改为 S 事实层按 `Zn` 实现、`Center`／`CenterFull` 不加字段；§3 末加「落码补齐」
   - §4.1：加端点条款（回抽段为连接段，Lean 管边界）与退场条件；§5.4 加一句 `Zn` 落码后结论不变

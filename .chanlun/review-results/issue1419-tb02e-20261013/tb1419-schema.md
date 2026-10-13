@@ -1,4 +1,8 @@
-# #1419 TB-02-E schema v1.2（冻结，2026-10-14：合同复核 PASS_SCHEMA_V1_1_FREEZE，`tb1419-review-r2/schema-v1.1/RESULT.json` 4726a10e…，冻结时按 E1–E4 改措辞，不改语义）
+# #1419 TB-02-E schema v1.3（2026-10-14：v1.2 冻结稿 + 根裁定 L3 一句改动；v1.2 冻结依据：合同复核 PASS_SCHEMA_V1_1_FREEZE，`tb1419-review-r2/schema-v1.1/RESULT.json` 4726a10e…，冻结时按 E1–E4 改措辞）
+
+## v1.2 → v1.3 差异（根裁定 `tb1419-impl/ROOT-RULING-1419-L3.md` sha256 cce5a83f…）
+1. §1 完成单元区间由「几何端点 `sort(stroke_refs[0].start_price, geometric_end.price)`」改为「成员笔方向极值」：`stroke_refs` 中下标属于 `construction.stroke_indices` 的笔，取其全部端价的 `[min, max]`。理由：#804 同一判定只有一个输入值，生产 parser `make_segment`（`segment.rs:687-726`）已取成员笔极值；与 r2 第 1 条「走势区间 = 全部子走势极值」同一原则落到 L0；原文 `078:58`／`:60`（线段标准化）。真实 BTC 尾 49,995 根上 72 段有 39 段起点、22 段终点不是段内极值，几何端点口径使 S 写者 9 个 cut 全部被输入合同拒绝。其余条款不变。
+
 
 ## v1.1 → v1.2 差异（冻结措辞，复核 E1–E4，不改语义）
 1. E1：§6 C4 改为「`break_up ≠ breaks_upward(break_unit, ZD, ZG)`（按区间位置判，不读 `direction`）」；L0 向上突破的单元是下行单元，反之亦然，读 `direction` 会拒全部合法结算。
@@ -31,7 +35,7 @@
 - 所有 wire 整数仍为十进制文本；对象 id 机制不改（`tb02a_facts.rs:79-88`）。外层 payload 键与段族同形：`schema_revision, semantic_version, policy_version, view_role, object_generation, slot, data`。
 
 ## 1 输入合同（S 写者，fail-closed）
-- 完成单元 = 同 cut `CC-013.segment` 且 `result ∈ {CASE_ONE, CASE_TWO}`，按段起笔序；区间 = `sort(stroke_refs[0].start_price, geometric_end.price)`，方向 = `construction.direction`。不用 stroke_refs 求段高低（PREP §3）。
+- 完成单元 = 同 cut `CC-013.segment` 且 `result ∈ {CASE_ONE, CASE_TWO}`，按段起笔序；区间 = 成员笔方向极值：`stroke_refs` 中下标属于 `construction.stroke_indices` 的笔，取其全部端价的 `[min, max]`（v1.3，根裁定 L3）；方向 = `construction.direction`。不用几何端点（段端点可以不是段内极值，`078:42`），也不用全部 `stroke_refs`（它覆盖到 observed_through，会越过段端，PREP §3）；成员笔缺 `stroke_refs` 条目即输入不合同。
 - 完成单元必须首尾相连（前段末笔 + 1 = 后段起笔）且与同次 parser `layer.segments` 经 `segment_to_unit` 的结果逐位相等（区间、方向、个数）；任一不符 ⟹ 本 cut 提交失败，不发布任何 TB-02-E 对象。
 - 至多一个尾随的未完成段（起笔 = 末个完成段末笔 + 1，`result ∉ {CASE_ONE, CASE_TWO}`）作进行中单元，记 `UNIT_NOT_COMPLETED`；完成单元之间夹非完成段 ⟹ 同上整 cut 失败。
 - 扫描中任何 seed 尝试的 `exclusion_reason = NOT_ALTERNATING` ⟹ 同上整 cut 失败（L0 段恒交替，出现即输入不合同）。
