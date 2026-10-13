@@ -1,0 +1,144 @@
+# #1414 / TB-02-D 最终整体独审（两轮报告索引与全文）
+
+> 名分：工作草稿，活期绑定 [#1414](https://github.com/xy7365527-lang/NewChanlun/issues/1414)（`docs/agents/generation-constitution.md` §5）。本文件是关票门第 7 项“评审面 == 关票面”的仓内载体。
+>
+> 审查者是独立审查工位 `/root/tb1414_final_surface_review`（Python 逐行审由其子工位 `py_line_review` 完成），独立于作者与根。本文件由入仓附件起草工位按根裁定汇编：下面两段是两轮 `REVIEW.md` 的**逐字节全文**，放在四个反引号的围栏里，围栏行本身不属于原文；起草工位没有改动、删节或评论原文。原文中的本机绝对路径与旧提交编号（首轮用的是 C1–C6 六提交编号）只作历史记录。
+>
+> 核对方法：取围栏内的内容（不含首尾两行围栏），其 bytes 与 SHA256 应等于下表所列原件。
+
+## 结论
+
+首轮 `FAIL_WITH_FINDINGS`：概念层通过，唯一阻断 B1 是新 CI 步用 `discover` 会收进需要 S 写者二进制的 `test_tb02d_projection_cache.py`。按根选定修法改为显式五模块、更正注释与报告后，增量复审 r2 为 `PASS_FINAL_COMMIT_SURFACE_READY_PENDING_RUNTIME_CHECKS`：B1 已消除，五提交逐个自洽，提交面可进入 S 静止后的根本机实跑与逐提交编译。实跑收据到达前，整体验收、CI 与合入仍 PENDING；本审查不裁整图、不关票。各轮非阻断项（FS-N1–FS-N8、R2-N1–R2-N3）的处置见 `ACCEPTANCE-REPORT.md` §8、§10。
+
+## 原件
+
+归档根 `CTRL-20261012` 的历史定位是 `/private/tmp/goal1323-native-20261012`（本机临时目录）；完整收据另见 `EVIDENCE-INDEX.json` 的 `acceptance.final_independent_review`。
+
+| 轮次 | 原件（CTRL-20261012 相对路径） | bytes | SHA256 | 结论文件 RESULT.json | 绑定 BINDING.json |
+|---|---|---:|---|---|---|
+| r1 首轮 | `tb1414-explicit-composite-review/final-surface/REVIEW.md` | 13794 | `1149a14bd331f652c96fca2d1286c8728cf2cc900a3efaa2b3c4c8665fae9db8` | `24f9332d47cb3048910c48ceb8f5ae9c0c0ceeb3aa6222add21e28b8f919acf1`（FAIL_WITH_FINDINGS） | `47caee9123858a9f31c8d98f61db3899ad81c74c08e04433f2c63d41982fb675` |
+| r2 复审 | `tb1414-explicit-composite-review/final-surface/r2/REVIEW.md` | 7416 | `3165f21d94fbcce52034498d566d71a90c0defd3c0178113071ebeca741c8dee` | `c055481d64a9fca17a3c80741c76050b4ba9f87556e85c8b9f64b96b8a0053f7`（PASS_FINAL_COMMIT_SURFACE_READY_PENDING_RUNTIME_CHECKS） | `f6327077651ccff687ba5572a4c7296d06c9b2668db531ea53c23dabee0be3a7` |
+
+r1 审的提交面清单 SHA256 为 `30e3a205ffa5…`，r2 审的是 `eecc02fdd693…`。本文件与 `ACCEPTANCE-REPORT.md`、`EVIDENCE-INDEX.json` 中按 R2-N1、R2-N2 补写的文字属于 r2 之后的纯文档改动（关票门第 7 项豁免）。
+
+## r1 首轮全文（逐字）
+
+````markdown
+# #1414 / TB-02-D 提交面最终整体独审
+
+> 名分：独立审查工位 `/root/tb1414_final_surface_review` 的审查报告（独立于作者与根），工作草稿。只读 worktree，未 stage/commit/push，未构建、未跑测试或产品；仅做小文件读、git 只读命令、内存编译/AST、`node --check`、`rustfmt --check` 与少量 gh 只读查询。Python 逐行审由子工位 `py_line_review` 完成（`work-A/FINDINGS.md`），本人复核其阻断项后采纳。
+
+## 结论
+
+**FAIL_WITH_FINDINGS。阻断 1 项（B1），非阻断 8 项。** 概念层质询通过：SECOND 同向笔、任意分型、独立方向性包含、strict 首笔封口、065 笔破坏与段破坏分立，均与 `.chanlun/definitions/xianduan.md` 及博文正本一致，未见矛盾。工程层的唯一阻断在 C5：新增的 CI 步会把 `test_tb02d_projection_cache.py` 拉进 discover，而该测试需要 Rust 写者二进制，CI 下必然 ERROR；同时 C5 注释和 C6 报告都把它说成已进 CI。
+
+B1 的修法只需改 `ci.yml`（C5）与报告（C6），不触碰 35 件运行来源字节，已跑的三 fresh 证据仍覆盖产品与测试代码。修后需对改动字节做一次小范围复审。其余 44 件（C1–C4 与 run-package、EVIDENCE-INDEX）本审不要求改动。
+
+## 提交面身份（已核）
+
+- 清单 `COMMIT-SURFACE.json` SHA256 = `30e3a205ffa5f3f18f969ab8902b65db6dd6e0737703abad6449647445fccbee`，与指派一致。
+- worktree HEAD `f95a7f3ebc0ce84ec2d2f8a8d71b5030b19f89b9`，分支 `codex/1414-second-sequence-20261012`，暂存区为空；`git status --porcelain=v1 -uall` 恰 46 路径，与清单逐一相同，无清单外路径（子工位报 34 项是未加 `-uall` 时目录折叠的计数，非漂移）。
+- 46/46 件 bytes、SHA256、HEAD 原值（或 ABSENT）、git 状态全部与清单一致（`byte-check.json`）。分提交计数 C1 5 / C2 8 / C3 19 / C4 4 / C5 1 / C6 9。
+- 运行来源集 `run-package/CURRENT-SOURCES.json`（`6e984f6b…`）中 531 个 worktree 路径现值全部相等（含 4,254,944 B 的 release 二进制；这只是当前文件身份，不替代根的 D1 补跑），6 个 helper 副本 SHA 与其登记值相等。
+- 远端 `main` 仍是 `f95a7f3`（gh 只读），未前进；#1414 票面 OPEN（`issue1414-live.json`）。
+
+## 阻断发现
+
+**B1 · HIGH · C5（连带 C6）· `test_tb02d_projection_cache.py` 在新 CI 步下必然报错**
+
+- `.github/workflows/ci.yml:304` 执行 `unittest discover -s s_session/tests -p 'test_tb02d_*.py'`，匹配到 `s_session/tests/test_tb02d_projection_cache.py`。
+- 该文件 `:12` 导入 `tb01c_query_tests as base`，`:17` 的 `ProjectionCacheTests(base.QueryTests)` 继承基类 31 个测试并自带 14 个。基类 `tb01c_query_tests.py:44-48` 的 `setUpClass` 经 `:60` 用 `subprocess.run([str(BINARY), "init", ...])` 建库；`BINARY` 在 `:29` 默认 `None`，只有 `__main__` 带 `--binary` 时赋值（`test_tb02d_projection_cache.py:331-332`）。discover 不走 `__main__`，于是执行名为 `None` 的程序，`FileNotFoundError`，整类 ERROR，步骤退出码 1。文件内无 `load_tests`、`setUpClass` 覆盖或 skip 守卫。
+- `s-observer` job 不构建 Rust，CI 里补不出二进制。
+- 冒称：`ci.yml:293`「这些测试只用标准库与 node」不成立；`ACCEPTANCE-REPORT.md:195` 称该步「覆盖 contract、discovery、projection_cache、validate_once、parse_pool、key_reuse 六个文件」不成立。CI-WIRING 第 3 条早已指出「收据里没有对最终字节执行这条完整 discover 命令的记录」，本项即该缺口的实际后果。
+- 建议修法（只动 C5/C6）：把 discover 换成显式模块清单，只跑不依赖二进制的五个文件，例如 `cd s_session/tests && python -B -m unittest -v test_tb02d_contract test_tb02d_discovery test_tb02d_validate_once test_tb02d_parse_pool test_tb02d_key_reuse`；projection_cache 要么在构建了 `--features s_session` 二进制的 job 里以 `--binary` 方式单独执行（需先确认它对解释器版本的依赖），要么照实写为「未进 CI」并说明理由。改测试文件加 skip 会改动运行来源字节，须根另行裁定，不建议。修后以本机 CPython 3.14.6 先跑一遍最终命令并留收据，再复审 `ci.yml` 与报告的改动字节。
+
+## 非阻断发现
+
+**N1 · MEDIUM · 生产解析器的 strict 语义变更波及面超出 S 会话，且最终 Rust 字节没有全量 cargo test 收据。** `rust/src/theta_v0/parser/feature_seq.rs:666-683` 的 `frozen_first` 改变了所有 `FeatureSeqState` 使用者的结果（`IncrSegments` 经 `theta_v0/classifier/streaming.rs:42` 进入 classifier，`divide_segments` 进入 `bin/tangency_probe.rs`、`parser/profile.rs`）。语义上它落实 `067:170/196`【答疑】「被第一笔封闭才是第一种」，属票面 AC1「strict 封闭按已裁语义」，判在范围内、无概念矛盾；但 core 实现记录只有靶向运行（D 测 5 项、旧 C parser 8 项；bin 过滤一轮 >360 s 后 TERM，`tb1414-core-freeze/IMPLEMENTATION.md:22`），没有 `cargo test --all-targets` 与 `--lib --features backtest_bin` 对最终字节的结果。根须在 G5/CI 前跑全量。另建议另开文档票（可并入 #813 线）把「首笔 c 冻结」写进 `xianduan.md` §4 及其受影响代码清单，与已登记的行号漂移一并处理。
+
+**N2 · MEDIUM · 非 observe 生产路径的分配成本上升，未测。** `feature_seq.rs:299-397` 的 `second_sequence` 现在对每个缺口候选构建完整证据（`FeatureElement` 含 `Vec`、steps、clone），`:728` 每次非 provisional 求值再整体 clone 进 `self.second`；默认 `second_seq_scan_window=0`（无限，`theta_v0/config.rs:65`），无分型的单调段会在增量路径上重复全扫。语义不变，成本未在生产负载上测量。建议后续票只在 observe 时构建证据；现在改会作废运行证据，不在本提交面处理。
+
+**N3 · LOW · C2 单独检出时 bin 测试必红。** `rust/src/bin/s_session_v2/tb02c.rs:388-435` 新测试起 `python3` 调 `s_tb02_contract`，C2 时 Python 合同仍是 HEAD 版、不认 `s-segment/2`，故 `cargo test --features s_session --bin s_structure_session` 在 C2 失败（`s_structure_session.rs:4345/4445` 两处既有 python3 对拍预计同样受影响）。逐 commit 只要求可编译，C2 仍可声明可编译，但提交说明须把「Rust bin 测试在 C2 与 C3 之间不保证通过」写明，COMMIT-PLAN 目前只提 Python 合同测试；或合并 C2+C3。
+
+**N4 · LOW · 子工位 F-2：** `s_session/s_tb02_contract.py:383` 先 `evidence.get("scope")` 后做形状检查，非 dict evidence 抛 `AttributeError`，不在 `s_readonly_server.py:984/:1074` 的捕获列表，客户端拿到断连而非 503；仍是失败关闭。修改会动运行来源字节，留后续票。
+
+**N5 · LOW · `tb02d_verify.py` 有三处子集式比较。** `:46` 用 `set(expected) <= set(members)`（ORACLE-DESIGN 已声明 FIRST 全集另列），`:49`、`:58` 以实际对象的键遍历预期，实际缺键不报。合同校验器另行约束键集，判非阻断。
+
+**N6 · LOW · `test_tb02d_snapshot_validate_once.cjs`、`test_tb02d_strict_clone.cjs` 以 `test_` 命名但必须带外部归档参数。** 逐行审：二者只读、`wx` 写输出、先后核源 SHA、比较新旧实现的接受集与错误文本，未发现缺陷；`strict_clone` 依赖的导出标记在现行 client 中恰出现 1 次。风险只在未来有人按 glob 跑它们；`ci.yml:294` 与报告 §8 已注明。
+
+**N7 · LOW · 机器特定路径进入 git 历史。** `run-package/remaining-harness.py:13,80`、`explicit_composite.py:12,15`、`reuse_state.py:41,46` 及 `CURRENT-SOURCES.json` 555 个键含本机用户目录、外卷名与 `/tmp` venv；`tb02d_harness.py:78` 的 socket 固定 `/private/tmp/`（仅 macOS）；`ORACLE-DESIGN.md:23` 引仓外工作稿。均非凭据，报告已披露。全部新增与改动文件未发现凭据、令牌或私钥。
+
+**N8 · LOW · CI 安全扫描的表述需校准。** CodeQL 工作流当前为 `disabled_manually`（#1107，gh 只读核得），run-package `.py` 现在不会产生 CodeQL 增量，报告「会进入 CodeQL Python 扫描面」只在重新启用后成立。DevSkim 零新增门预计因 JSON/MD 中的 SHA-256 触发 DS173237 而变红，处理按 #1404 `CI-DELTA.md` 先例或登记基线，由根定（G7）。
+
+## 必须覆盖项的逐项结论
+
+1. **逐行代码审。** Rust：`feature_seq.rs`、`segment.rs`、`mod.rs`、`tb02c_tests.rs`、`tb02d_tests.rs`、`tb02a_facts.rs`、`tb02c.rs`、`s_structure_session.rs` 全部 diff 逐行读过；SECOND 同向与起点（`from_stroke_idx+1`）、任意分型、合并检测与旧 `apply_inclusion` 一致；`break_facts`（`segment.rs:317`）按 065:44/46 的 `j≥i+2` 枚举（earlier 同向笔、later 自 earlier+3 起的反向笔）正确；`new_segment_formed/segment_broken` 的 `false` 与 `null + scan_complete=false` 区分、终结证书准入条件与 JS/Python 合同一致；未引入新扫描 cap。s_session 产品与测试：JS client、`index.html`、`tb01c_http_capture.cjs`、`test_tb01c_browser.cjs`、`test_tb02c_contract.cjs`、README 由本人逐行审；Python 五件产品与六个新测试由子工位逐行审（`work-A/SEEN.json`）。Snapshot 删去的 5 行确由 `validateTB02CutSources`（client `:496-504`）以同一组校验覆盖，不是放宽。round G 三件运行脚本 `tb02d_harness.py`、`tb02d_runtime.py`、`tb02d_verify.py` 与 `test_tb02d_snapshot_validate_once.cjs` 的当前字节已逐行审：进程组回收、超时、来源快照绑定、收据断言均成立，`collect_core` 内无嵌套 SIGALRM，发现仅 N5、N6、N7 三条低级项。这补上了 INVENTORY 指出的逐行审收据缺口。
+2. **逐提交自洽。** C1 只含夹具与设计文档，Rust 未变。C2 的 `tb02d_tests.rs` 与 `tb02c.rs` 以 `include_str!("../../../../s_session/tests/fixtures/tb02d/…")` 引 C1 夹具，路径解析到仓根正确，故 C1 必须在前；C2 可编译、bin 测试红（N3）。C3 的测试不依赖 C4 脚本（导入闭包已核）。C4 依赖 C3 的 client/合同与既有 `tb02a_runtime`、`tb02c_compare`。C5 有 B1。C6 为纯文档与证据副本。需根实跑的清单见 RESULT.json。
+3. **CI 改动。** 固定 3.14.6 可取得（`actions/python-versions` 有 `3.14.6-27283001424`）；导入闭包只有标准库与仓内模块；Linux x86-64 上若 `getsizeof` 布局不同，`_layout_matches()` 返回 False，池停用，`test_tb02d_parse_pool.py` 的 4 个方法（`:117`、`:154`、`:169`、`:243`）**失败而非跳过**，诊断行先打印 `False`，属期望行为；按 LP64 同构推断应一致，未实测。前置 3.11 步骤不受影响。唯一的硬错误是 B1。
+4. **报告与索引可追溯性。** `EVIDENCE-INDEX.json` 中 168 条带路径收据全部现场存在且 bytes/SHA 相等（`evidence-index-trace.json`，大件 0 条需仅 stat）。`ACCEPTANCE-REPORT.md` 88 个 12 位 SHA 前缀中 84 个落在索引，2 个是 git commit（`f95a7f3`、`efc1ddc4`，后者为基线祖先），2 个 observed 字节（`8fa0d286…`、`59c56bce…`）经索引内 RUN-OC 收据可回绑。三臂 EXIT、RESULT、query-oracle 七 cut、browser、normal-recovery、EXECUTION、CONTROLLER-EXIT、SOURCE-POSTCHECK、DEPENDENCY-POST、COMPOSITE-COMPARISON-RESULT 的数值与报告逐项一致，且与实际独审 RESULT `07495bf9…`、根签收 `c8d6171a…` 一致。D1–D4 写作延后未重算，整体独审、逐 commit 编译、CI、合入写作 PENDING，未称裁整图或关票，observed PASS 未冒充 pure。唯一冒称是 B1 中 §8 对 projection_cache 进 CI 的描述。
+5. **run-package 名分。** 判为合宪：宪法 §5 把 review-results 定为绑定票的工作草稿，仓内已有同型先例 `.chanlun/review-results/issue1392-tb02b-20260914/tools/run-faults-r2-original.py`。不会被误当代码执行：pytest `testpaths=["tests"]`，CI unittest 只发现 `s_session/tests`，仓内 CI 无 ruff/mypy 等全仓 Python 检查，CodeQL 停用，`remaining-driver.py`/`remaining-harness.py` 带连字符不可被 import。§1 机械判据会把零调用 `.py` 判孤儿，与 §5 存在字面张力，但 §5 专管 review-results；可选在 run-package 加一行 README 说明。
+6. **注释票号与原文回查。** 新增注释均带 `#1414`，无 TODO/FIXME。抽查 `065:44/46`（界 :56 前、无注）、`067:38/46`（界 :62 前、无注）、`067:170/196`（界后，属【答疑】，代码注释未标答疑级，报告与 ORACLE-DESIGN 已标）、`078:54`、`065:20`、`071:42`、`077:62` 逐字可回查；`081:110` 在界 :78 之后，ORACLE-DESIGN 判为续排作者正文，与 `bi.md` 正本一致。未发现伪引文。
+7. **范围。** 46 路径 = 36 件 + `ci.yml` + 9 个新文件，均可追到 #1414 的冻结轮次或根裁定，未混入非 #1414 改动。跨片触碰依票面「允许本叶补齐该外部行为必需的同一 R2 owner 支持」，判未越界；N1 提示 strict 语义的实际波及面。
+8. **安全。** 无凭据；机器特定值见 N7。
+
+## 已执行的只读检查
+
+字节与状态核对（46/46）；531 项运行来源现值核对；Python 21 件在 CPython 3.11.15 与 3.14.6 下内存编译无语法错误；JS 8 件 `node --check` 通过；6 个改动 Rust 文件 `rustfmt --check --edition 2021` 无差异；`.gitattributes` 不对新增文件启用 LFS；`s_tb02_contract` 等产品模块无第三方导入；EVIDENCE-INDEX 168 条收据回溯；OUT 与 CTRL 小收据数值回读；gh 只读：#1414 票面、远端 main SHA、CodeQL 工作流状态、python-versions 发布标签。
+````
+
+## r2 复审全文（逐字）
+
+````markdown
+# #1414 / TB-02-D 提交面整体独审复审（r2，增量）
+
+> 名分：独立审查工位 `/root/tb1414_final_surface_review` 对首轮（`final-surface/`，RESULT `24f9332d47cb…`，FAIL_WITH_FINDINGS）的增量复审，工作草稿。只读 worktree，未 stage/commit/push，未构建、未跑测试；只做小文件读、git 只读命令、AST 导入闭包、`actionlint` 与 YAML 解析。
+
+## 结论
+
+**PASS_FINAL_COMMIT_SURFACE_READY_PENDING_RUNTIME_CHECKS。** 首轮唯一阻断 B1 已消除，三件改动字节没有引入新冒称，五提交切分每个提交都能独立成立，其余 43 件与首轮逐字节相同。本轮新增 3 条 LOW 非阻断项，都不涉及提交面上的代码字节。提交面可以进入 S 静止后的根实跑与逐提交编译（见 RESULT.json 清单）；这些实跑收据到达之前，整体验收、CI、合入仍是 PENDING。
+
+## 身份核对
+
+- 新清单 `COMMIT-SURFACE.json`（schema 2）SHA256 `eecc02fdd693ad1ff0bd6965936120d770eff4fa9376474a266467f2cb711a76`，其 `supersedes` 指向首轮清单 `30e3a205…`；`COMMIT-PLAN.md` SHA256 `381e2d735bee98a13fff821f594ef0901d9b2bb1e03ed0acaf5192c8c0c5534f`。
+- worktree HEAD 仍为 `f95a7f3ebc0ce84ec2d2f8a8d71b5030b19f89b9`，暂存区为空，`git status --porcelain=v1 -uall` 仍是 46 路径且与清单一致。46/46 件 bytes、SHA256、HEAD 原值和状态全部与新清单相符（`r2/byte-check.json`）。
+- 与首轮相比只有三件变化，SHA 与指派一致：`.github/workflows/ci.yml` `5f60ab1b…`（17834 B），`ACCEPTANCE-REPORT.md` `1522aece…`（37300 B），`EVIDENCE-INDEX.json` `eef1c2c8…`（91928 B）。其余 43 件与首轮逐字节相同，35 件运行来源未动。
+- 提交归属映射：原 C2 的 8 件与原 C3 的 19 件合为新 C2（27 件），原 C1/C4/C5/C6 依次成为 C1/C3/C4/C5。COMMIT-PLAN 各行文件集与清单逐提交相等（5/27/4/1/9）。
+
+## B1 是否消除
+
+**已消除。**
+
+- `ci.yml` 相对 HEAD 只增 18 行、不删行，与 `ci.yml.proposed.diff` 的增删行逐行相同，`actionlint 1.7.12` 0 条发现，YAML 可解析。新步骤为 `working-directory: s_session/tests`，执行 `python -B -m unittest -v test_tb02d_contract test_tb02d_discovery test_tb02d_validate_once test_tb02d_parse_pool test_tb02d_key_reuse`。`s-observer` job 没有 `defaults`，因此该相对目录以仓根为基准。
+- 五个模块的静态导入闭包只有 `test_tb02c_contract.py`、`s_readonly_server.py` 与五者本身，外加标准库，没有未解析的第三方依赖。它们和 `test_tb02c_contract.py` 都不含 `BINARY`、`QueryTests`、`tb01c_query_tests` 或 `--binary`。仓内路径都由 `Path(__file__)` 推出，不依赖 cwd；同目录兄弟模块靠 `-m unittest` 放进 `sys.path` 的 cwd 解析。诊断行的 `sys.path.insert(0, '..')` 指向 `s_session`，`_query_integrity()` 按 `__file__` 加载，可以运行。导入的名字中没有 TestCase 子类，不会重复收集测试。
+- 注释已更正：`ci.yml` 第 290–297 行写明五个模块只用标准库、仓内模块与 node，并写明 projection_cache 因 `setUpClass` 需要 `--binary` 写者二进制、本 job 不构建 Rust 而不进 CI，由本机单独实跑留收据。
+- 报告已更正：§8 照实写明 projection_cache 未进 CI 及原因，行号 `:12`、`:17`、`tb01c_query_tests.py:44-48/:60/:29`、`:331-332`、`:333` 均与源码一致，并承认上一版说法错误、由 FS-B1 查出；§10 增列“未进 CI，只有本机 `--binary` 收据可作锁，待补”；§11 与 `EVIDENCE-INDEX.json` 的 `ci.not_in_ci` 同步写为 PENDING。
+- `--binary` 入口的限制：§8 写明该入口“在 `:333` 只选 `test_projection_*` 方法”，事实正确，见 R2-N1。
+
+## FS-N1–FS-N8 披露
+
+报告 §10 与索引 `limitations` 逐条照录了首轮 FS-N1 到 FS-N8，严重级、文件行号与首轮 RESULT 一致。FS-N3 的处置写为“原 C2 与 C3 合并”，这与新切分相符。FS-N1、FS-N2、FS-N4 写明留给根实跑或后续票，没有写成已解决。报告给实际运行独审的编号加 `AR-` 前缀，给首轮独审的编号加 `FS-` 前缀。正文中未带前缀的 `N1–N8` 已全部替换，索引另设 `finding_id_prefixes` 作说明，唯一遗漏见 R2-N2。
+
+## 五提交逐个自洽
+
+- **C1（5）**：夹具、生成器与设计文档，不被任何测试收集器匹配，Rust 未变，基线可编译。
+- **C2（27）**：`tb02d_tests.rs` 与 `tb02c.rs` 的 `include_str!` 引用 C1 夹具，C1 在前，依赖已满足。`tb02c.rs:388-435` 与 `s_structure_session.rs:4345/4445` 起 `python3` 调用的 `s_tb02_contract` 同在本提交，首轮 FS-N3 的中间红因此不复存在。本提交的 Python/JS 测试只依赖本提交文件与基线文件，不依赖 C3 的运行脚本，也不依赖 C1 夹具（已 grep）。projection_cache 依赖的 `tb01c_query_tests.py` 是基线文件。是否可编译须按 G5 实测。
+- **C3（4）**：运行脚本依赖 C2 的读口/client、C1 夹具，以及基线 `tb02a_runtime`、`tb02c_compare`、`s_service_control`，都已在前面的提交或基线中。Rust 未变。
+- **C4（1）**：CI 引用的五个模块都在 C2，Rust 未变。
+- **C5（9）**：两份报告与 run-package 七件，纯文档与证据副本，适用豁免。
+
+COMMIT-PLAN 声明 C1–C3 共 36 件，加 C4、C5 共 46 件，与实际一致。
+
+## 新冒称检查
+
+报告新增的事实都核实无误。首轮的 REVIEW、RESULT、BINDING 三件 SHA 前缀正确。“46 件字节与清单一致”“逐行审只发现 FS-N5–N7”“`test_tb02d_contract.py:46` 起 node”“parse_pool 四处断言 `:117/:154/:169/:243`”“CodeQL disabled_manually”都与首轮收据或源码一致。D1–D4 仍写延后未重算；整体复审、本机实跑、逐 commit 编译、CI、合入都写 PENDING；没有称裁整图或关票。`EVIDENCE-INDEX.json` 中 175 条带路径收据全部现场存在，bytes/SHA 相等（`r2/evidence-index-trace.json`），其中包括新增的首轮独审 6 件收据。
+
+## 本轮新增非阻断发现
+
+**R2-N1 · LOW · `--binary` 入口只覆盖 14 个自有测试，这一点写得不够显式。** §8 只说入口“只选 `test_projection_*`”，没有写出数量，也没有说明从 `tb01c_query_tests.QueryTests` 继承来的 31 个测试不经此入口运行；`ci.yml` 注释和索引 `ci.not_in_ci` 也没提这一点。#1414 在 C2 中改了 `s_query.py`、`s_query_integrity.py`、`s_readonly_server.py`，而那 31 个 TB-01-C Q 测试只有本机 `tb01c_query_tests.py --binary` 一个入口，不在 CI。在控制区小文件里我没有找到它们对最终字节的运行收据。建议根把它加入实跑清单（已列入 RESULT）。补写这条说明属于纯文档改动，可在落盘终审时一并完成。
+
+**R2-N2 · LOW · 索引 `limitations` 第 2 条仍写“（N1）”，没有带前缀。** 按内容它指浏览器 30 秒余量，应为 `AR-N1`；报告正文已正确写为 AR-N1。是否改由根决定，改动属于 C5 纯文档。
+
+**R2-N3 · LOW · 提交面之外：`PR-DRAFT.md`（`d77d3002…`）已过期。** 审查顺序仍是六段式，验证段仍写“实际独审 PENDING”，也没有反映 projection_cache 未进 CI。G6 开 PR 前须按五提交和现状重写。
+
+首轮 FS-N1 到 FS-N8 仍然有效，按报告 §10 的披露处理。
+````

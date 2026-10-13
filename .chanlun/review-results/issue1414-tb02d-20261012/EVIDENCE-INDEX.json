@@ -1,0 +1,2991 @@
+{
+ "schema": "tb1414-evidence-index/1",
+ "ticket": 1414,
+ "execution_unit": "TB-02-D",
+ "parent_refs": {
+  "parent": 1360,
+  "spec": 1340,
+  "map": 1323
+ },
+ "document_status": "LIMITED_ACCEPTANCE_RUNTIME_CHECKS_PASS_WITH_KNOWN_BASELINE_EXCEPTION_PENDING_CI_AND_MERGE",
+ "naming": "工作草稿，活期绑定 #1414（docs/agents/generation-constitution.md §5）；本索引不自哈希，由 git 追踪提供固定版本。",
+ "generated": "2026-10-13（+08:00），入仓附件起草工位；只读小收据与目录计数，未读 core/DB/HAR 正文，未构建、未运行测试；实际独审结论按根全文接受后录入；2026-10-13 提交工位按根令补录本机实跑结论（RUNTIME-CHECKS-RESULT 2f7d2f3f…）、D1–D4 重算结果与 3 个既有红口径，只改本索引与 ACCEPTANCE-REPORT.md，未改其它入仓字节",
+ "scope": {
+  "covered": "#1414 已裁有限完整前缀域：14 个双向手算工作例（hand-oracle.json）与 second_open_up/second_open_down 两个 40 根自然 OHLC 输入",
+  "not_covered": [
+   "#1344/TB-02-W 一般扫描窗口、51 项以上与 continuation",
+   "CC012/013/014 全轴（目录仍声明 not_implemented）",
+   "G006 广泛桥",
+   "TB07 全历史恢复",
+   "#1360/#1340/#1323 整项义务"
+  ]
+ },
+ "archive_roots": {
+  "REPO": {
+   "description": "本仓 git 树；条目用仓内相对路径",
+   "identity_rule": "仓内相对路径 + 基线或最终 commit"
+  },
+  "CTRL-20261012": {
+   "description": "#1414 控制与准备工作区：各工位冻结目录、独审收据、根决定、运行包",
+   "historical_locator": "/private/tmp/goal1323-native-20261012",
+   "durability": "本机临时目录，非持久；本索引对它的引用只在该目录或其归档包可取得时可复核",
+   "identity_rule": "root + relative_path + bytes + sha256 共同标识；historical_locator 只作历史定位"
+  },
+  "OUT-REMAINING-20261013": {
+   "description": "remaining attempt 2 的三 fresh 与两对比较输出",
+   "historical_locator": "/Volumes/AgentStorage/issue1414-remaining-explicit-pure-candidate-20261013",
+   "durability": "本机外接卷",
+   "identity_rule": "同上"
+  }
+ },
+ "baseline": {
+  "commit": "f95a7f3ebc0ce84ec2d2f8a8d71b5030b19f89b9",
+  "description": "PR #1473 合入 TB-02-C 的 merge；读取时 HEAD == 本地 origin/main == 远端 main",
+  "branch": "codex/1414-second-sequence-20261012",
+  "branch_upstream_note": "upstream 被设为 origin/main；推送须显式写远端分支名"
+ },
+ "signed_spec": {
+  "root": "REPO",
+  "path": ".chanlun/review-results/issue1339-r2-spec-20260909/",
+  "spec_commit": "efc1ddc4d6c015f4f8c6d44f904d704a88308b46",
+  "spec_commit_is_ancestor_of_baseline": true,
+  "manifest_sha256": "38e3176b6dfff456b8e3704410401c3bedddf0671751464bb9ea5b829e460260"
+ },
+ "reviewed_source_snapshot": {
+  "base": "f95a7f3ebc0ce84ec2d2f8a8d71b5030b19f89b9",
+  "changed_files_count": 36,
+  "changed_files": [
+   {
+    "path": "rust/src/bin/s_session_v2/tb02a_facts.rs",
+    "git_state": "tracked_modified",
+    "bytes": 20887,
+    "sha256": "13cc1dbe1f2a89a51b5f56e1b422de223cea8a8ccf535242f50b8d76cb0310ce",
+    "head_sha256": "7f380710679182677ef65c1f95e0e172e54a391def38dc850aed588dca667153",
+    "adoption_round": "A",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "rust/src/bin/s_session_v2/tb02c.rs",
+    "git_state": "tracked_modified",
+    "bytes": 18638,
+    "sha256": "b21f7cd934e3fef02e59ee608fc919931dd3f29c7e07f404dfe147525a83274e",
+    "head_sha256": "3c7a134287dbf047ab3b1cc8ae94040a6338cf43cc7e7f6bbe7ea2e9dd4f9f3b",
+    "adoption_round": "A",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "rust/src/bin/s_structure_session.rs",
+    "git_state": "tracked_modified",
+    "bytes": 295409,
+    "sha256": "86bce11fe4f5b3fd9aeafbcd432a253b242b4a7f8cbd86659dc108edda38436e",
+    "head_sha256": "84a36ad8c725a7395df9d3c6eafd22d8795c9501b73fd1496ca6285d48fa3d4c",
+    "adoption_round": "A",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "rust/src/theta_v0/parser/feature_seq.rs",
+    "git_state": "tracked_modified",
+    "bytes": 41879,
+    "sha256": "c6be31cac864b682c105518d873982f3853de5e9624f90a6d24e513916eddc84",
+    "head_sha256": "ef8cdca9920345d2798c56d2e02e9ccc699678fcc4d6b131b206b942b69ce86a",
+    "adoption_round": "A",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "rust/src/theta_v0/parser/mod.rs",
+    "git_state": "tracked_modified",
+    "bytes": 31137,
+    "sha256": "9f9e2fe22573ac461156c46448d06a6fb6ba2e6cc268f97cc0d891189e455052",
+    "head_sha256": "f87a6ad56a886514f1520a252ab16050053bbf86648bed298189510d706f41c1",
+    "adoption_round": "A",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "rust/src/theta_v0/parser/segment.rs",
+    "git_state": "tracked_modified",
+    "bytes": 81418,
+    "sha256": "6ace0b509cfd11927e2ef56e153ebbe51eeac58758ebe857a0173a933c8a8c45",
+    "head_sha256": "c9ebbab5ab168400bdbf80426e6b6cf222157ae7637d23090ad902c15c87ee44",
+    "adoption_round": "A",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "rust/src/theta_v0/parser/tb02c_tests.rs",
+    "git_state": "tracked_modified",
+    "bytes": 9184,
+    "sha256": "8c841d436410bc88abc94d4e97462dd899d4356649436453fdad869d24787ea5",
+    "head_sha256": "1d6fe23744705a0f84f3f8fc6548f49fbc48ba2f741d3af407c6f515f1d5e5c7",
+    "adoption_round": "A",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/README.md",
+    "git_state": "tracked_modified",
+    "bytes": 22074,
+    "sha256": "cc78d3febcf57b3f92d1d0420538b473cc50d6fc1bad7290a9acc3a7f8642ede",
+    "head_sha256": "c3f9d42a8428a856ebf7f86bede4c75346b432b403601cc1d46acaf97f4dffcb",
+    "adoption_round": "C",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/browser/index.html",
+    "git_state": "tracked_modified",
+    "bytes": 53081,
+    "sha256": "a37797bf68fce1b0b2a6d7626c5fb305301d41aff8e12474a824d9c0e4144800",
+    "head_sha256": "d58004c37ef758d0f45248b751b79395f5f48ee3cbe67dbd5337166d8918fa0f",
+    "adoption_round": "E",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/browser/tb01c-client.js",
+    "git_state": "tracked_modified",
+    "bytes": 83223,
+    "sha256": "083f424d9ad9d2e4e6402f44a2e1b9cfe5ae9bb377053df91fc0ae2ffe132822",
+    "head_sha256": "ccfbe677f3a87fac9d2efd9bcc150ceabf14853a087601c023b21388f2d43331",
+    "adoption_round": "J",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/s_query.py",
+    "git_state": "tracked_modified",
+    "bytes": 27589,
+    "sha256": "56ff64df53ec13487fb0d6f475e71a6eb5448b7d4329add395f4b460f13ac25c",
+    "head_sha256": "048478fdab43716a413fdafc68e0b7316451d3db9b3499cbddb6da463a66e322",
+    "adoption_round": "D",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/s_query_integrity.py",
+    "git_state": "tracked_modified",
+    "bytes": 76619,
+    "sha256": "b17ffe94db4fb993873b3c530332536a3aeb7315c04aff4d71fa2b6889c79ddb",
+    "head_sha256": "c59986a97fb0d3702bc198da5e7ee6215490769149e7934eac4f2f78be548df3",
+    "adoption_round": "H",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/s_readonly_server.py",
+    "git_state": "tracked_modified",
+    "bytes": 57003,
+    "sha256": "1f62a9f1e4a5e521c88d8225898bfac32dd3639d5ae92e644eedf75681a5238e",
+    "head_sha256": "0c4fc9527058b5b4c87984122cef8e7034fe0c356c39308bc463bf0b1d644545",
+    "adoption_round": "D",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/s_tb02_contract.py",
+    "git_state": "tracked_modified",
+    "bytes": 56140,
+    "sha256": "e32266329866e7321bca1bfd5ad3d921bd66d682de739e77afc4830fcbf0fc53",
+    "head_sha256": "6d6bf0dc5b6cd66180ea5bd10b85bfd94a9d6e559377032d38d95d52e83b692f",
+    "adoption_round": "H",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/tests/tb01c_http_capture.cjs",
+    "git_state": "tracked_modified",
+    "bytes": 24545,
+    "sha256": "41042b3392fec8cf2cfd75bd9b040ff00f9e19337d98ae31420fd270cc0bd369",
+    "head_sha256": "cc0e3dc134deda93fcc64b6d6e2807a1e403ea509f81afbab882b8ff239c7397",
+    "adoption_round": "C",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/tests/test_tb01c_browser.cjs",
+    "git_state": "tracked_modified",
+    "bytes": 37923,
+    "sha256": "4039a9fa6227a8d4a15a3a3d282ca9dc929c8f3f2917c92f7e1fbd5ef73b49a4",
+    "head_sha256": "8233afd5ee4527de2c84f2f51b6108b10421ac22179df90f98927a16bef39bab",
+    "adoption_round": "C",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/tests/test_tb02c_contract.cjs",
+    "git_state": "tracked_modified",
+    "bytes": 3994,
+    "sha256": "fe6a887e2b12dd7c61c4c26357b2f92b829dc30aa8429dfe9d61fb29162266c8",
+    "head_sha256": "938a6e126b9e92f1a45e97e2cac9149a21a9789c9fc6571cf35927ce3eb617fd",
+    "adoption_round": "A",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/tests/test_tb02c_verifier.py",
+    "git_state": "tracked_modified",
+    "bytes": 3391,
+    "sha256": "aa2a94f7b373ddb93ad3f1e4b23244d0bf11dc9fff9f9326ced011c88b6fccec",
+    "head_sha256": "06dee7e0a8bfd30a5faf724207f966037808e78fe88ff384b2b3a096a975ecbd",
+    "adoption_round": "A",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": ".chanlun/review-results/issue1414-tb02d-20261012/ORACLE-DESIGN.md",
+    "git_state": "untracked_new",
+    "bytes": 8388,
+    "sha256": "173b87cdde685a3bbfed16aaf245221efa2e7033930022b43fca1b445d1320e3",
+    "head_sha256": null,
+    "adoption_round": "B",
+    "in_running_current_sources": false,
+    "equals_running_current_sources": false
+   },
+   {
+    "path": "rust/src/theta_v0/parser/tb02d_tests.rs",
+    "git_state": "untracked_new",
+    "bytes": 9752,
+    "sha256": "cfb74f1c4dd7506cdd8f77136c0ece887377737b882bd016387746cfd8f12d4f",
+    "head_sha256": null,
+    "adoption_round": "A",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/tests/fixtures/tb02d/MANIFEST.json",
+    "git_state": "untracked_new",
+    "bytes": 634,
+    "sha256": "f056451baa3a149f6cdf4b7ad92538666234f817b4271587c166056a0d37f3ae",
+    "head_sha256": null,
+    "adoption_round": "B",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/tests/fixtures/tb02d/generate-input.py",
+    "git_state": "untracked_new",
+    "bytes": 17730,
+    "sha256": "a8ef0768d2f626d671f26d2e4d832d3635dbc1f708d2cbba5ee5bd416b3cdd16",
+    "head_sha256": null,
+    "adoption_round": "B",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/tests/fixtures/tb02d/hand-oracle.json",
+    "git_state": "untracked_new",
+    "bytes": 460835,
+    "sha256": "9140b7827d958f3e558100c124abe9f31f314f63b7e3e7295759dddfc239e454",
+    "head_sha256": null,
+    "adoption_round": "B",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/tests/fixtures/tb02d/raw-ledger.json",
+    "git_state": "untracked_new",
+    "bytes": 88194,
+    "sha256": "8040caa6ab4e10a7fcc374ec6e71c6a28af9553fb16fa452a727bccd7b6bc377",
+    "head_sha256": null,
+    "adoption_round": "B",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/tests/tb02d_browser.cjs",
+    "git_state": "untracked_new",
+    "bytes": 7170,
+    "sha256": "a3d32f0be360851a54a8e9e978445dcafcda6805f3e110b572c69a338277803d",
+    "head_sha256": null,
+    "adoption_round": "I",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/tests/tb02d_harness.py",
+    "git_state": "untracked_new",
+    "bytes": 14394,
+    "sha256": "d774494f00ccc017af18f03c6dcf3a70499e08819157272656103311a0bd1a47",
+    "head_sha256": null,
+    "adoption_round": "G",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/tests/tb02d_runtime.py",
+    "git_state": "untracked_new",
+    "bytes": 7115,
+    "sha256": "e17fd1f6fecc86753d46dd04290803278286d285b130d02f900aeaded0ac5aa4",
+    "head_sha256": null,
+    "adoption_round": "G",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/tests/tb02d_verify.py",
+    "git_state": "untracked_new",
+    "bytes": 7565,
+    "sha256": "8ad780b8ec90cc6111d13f027c3a9a5fbc7d149f44bb879048e04f68b923107f",
+    "head_sha256": null,
+    "adoption_round": "G",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/tests/test_tb02d_contract.py",
+    "git_state": "untracked_new",
+    "bytes": 8176,
+    "sha256": "33beb369e3b0ba078222e2efa1b0937b13335ffffa86732d1b0186a442b3171e",
+    "head_sha256": null,
+    "adoption_round": "A",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/tests/test_tb02d_discovery.py",
+    "git_state": "untracked_new",
+    "bytes": 4203,
+    "sha256": "b634615102b0d3f4c6adbbbd86707bc128cac862776281569587d51a83bd0f20",
+    "head_sha256": null,
+    "adoption_round": "D",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/tests/test_tb02d_key_reuse.py",
+    "git_state": "untracked_new",
+    "bytes": 16043,
+    "sha256": "e75f298b8dc527e35b8c6e934adb71853a2101d98e3ccf0cbd0971b2c4588ab3",
+    "head_sha256": null,
+    "adoption_round": "H",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/tests/test_tb02d_parse_pool.py",
+    "git_state": "untracked_new",
+    "bytes": 18199,
+    "sha256": "c0a4d830d0aa9cadea82a06f6c128541a153573e1d60fb8d866b0a4c553d3748",
+    "head_sha256": null,
+    "adoption_round": "H",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/tests/test_tb02d_projection_cache.py",
+    "git_state": "untracked_new",
+    "bytes": 18742,
+    "sha256": "acc20fcdc782034356c5d0d49c6c3a4bb79eaa2746bdc8676644aa6aed6f2059",
+    "head_sha256": null,
+    "adoption_round": "D",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/tests/test_tb02d_snapshot_validate_once.cjs",
+    "git_state": "untracked_new",
+    "bytes": 6601,
+    "sha256": "9033330eb9242a0a9648c266d58937b8613fb1afd20dc90eaee9fa0dd1ac31da",
+    "head_sha256": null,
+    "adoption_round": "E",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/tests/test_tb02d_strict_clone.cjs",
+    "git_state": "untracked_new",
+    "bytes": 8814,
+    "sha256": "66caa9aeb8fe5953d4084feeb9e0c67b1c51005672c5a659bf253b431597c244",
+    "head_sha256": null,
+    "adoption_round": "F",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   },
+   {
+    "path": "s_session/tests/test_tb02d_validate_once.py",
+    "git_state": "untracked_new",
+    "bytes": 12676,
+    "sha256": "0298ce0fc796c4df91a497646f1154299ca35f1ca98c82ccf4ea6aa6f0960897",
+    "head_sha256": null,
+    "adoption_round": "H",
+    "in_running_current_sources": true,
+    "equals_running_current_sources": true
+   }
+  ],
+  "pending_additions": [
+   {
+    "path": ".github/workflows/ci.yml",
+    "git_state": "tracked_modified_ADOPTED_BY_ROOT",
+    "base_sha256": "dcee555aae331c833fd23e66573c87822d4008c8edb815e5394ff5bb98010082",
+    "proposal_sha256": "5f60ab1bc92386c10811b78ff81f2da0d9f81fb6e831b8b28af9037d10ca42c9",
+    "proposal_bytes": 17834,
+    "note": "根采纳；FS-B1 修正后改为显式五模块；复审 r2 判 B1 已消除"
+   },
+   {
+    "path": ".chanlun/review-results/issue1414-tb02d-20261012/ACCEPTANCE-REPORT.md",
+    "git_state": "new",
+    "note": "报告实体，不在运行来源集"
+   },
+   {
+    "path": ".chanlun/review-results/issue1414-tb02d-20261012/EVIDENCE-INDEX.json",
+    "git_state": "new",
+    "note": "本文件，不自哈希"
+   },
+   {
+    "path": ".chanlun/review-results/issue1414-tb02d-20261012/FINAL-INDEPENDENT-REVIEW.md",
+    "git_state": "new",
+    "note": "两轮整体独审报告全文的索引文件（C5）"
+   },
+   {
+    "path": ".chanlun/review-results/issue1414-tb02d-20261012/run-package/",
+    "git_state": "new_ADOPTED_BY_ROOT",
+    "note": "七件，见 run_package.in_repo_copies"
+   }
+  ],
+  "final_commit_check": "PENDING（入仓时）：提交工位在 C1–C5 提交后以 git ls-tree/git show 的字节逐项重核 47 件，收据在 CTRL-20261012:tb1414-commit-pr/；本索引随 C5 提交，不回写"
+ },
+ "running_current_sources": {
+  "entry": {
+   "id": "SRC-CURRENT",
+   "root": "CTRL-20261012",
+   "relative_path": "tb1414-explicit-composite-preparation/CURRENT-SOURCES.json",
+   "bytes": 96887,
+   "sha256": "6e984f6b8c5848880db2f3c56e15140c5b0de16c7ad00ba1a4d4363a357ada5e",
+   "role": "attempt 2 冻结的运行来源集"
+  },
+  "members": 555,
+  "composition": {
+   "formal_repo_paths": 531,
+   "ijson_dependency_files": 18,
+   "run_package_helpers": 6
+  },
+  "equality_with_changed_files": "35/36 逐项相等；唯一不在集的是 ORACLE-DESIGN.md（工作草稿文档，不参与运行）",
+  "postcheck": "OUT-REMAINING-20261013:SOURCE-POSTCHECK.json 来源 555 项零失配（见 execution.postchecks）"
+ },
+ "oracle": {
+  "design": ".chanlun/review-results/issue1414-tb02d-20261012/ORACLE-DESIGN.md",
+  "fixtures": [
+   "s_session/tests/fixtures/tb02d/MANIFEST.json",
+   "s_session/tests/fixtures/tb02d/generate-input.py",
+   "s_session/tests/fixtures/tb02d/hand-oracle.json",
+   "s_session/tests/fixtures/tb02d/raw-ledger.json"
+  ],
+  "manifest_sha256": "f056451baa3a149f6cdf4b7ad92538666234f817b4271587c166056a0d37f3ae",
+  "hand_oracle_sha256": "9140b7827d958f3e558100c124abe9f31f314f63b7e3e7295759dddfc239e454",
+  "provenance": "先于实现冻结；MANIFEST 由 core 独审（ADOPT-A-REVIEW）引用"
+ },
+ "in_repo_comparator": {
+  "path": "s_session/tests/tb02c_compare.py",
+  "function": "compare_exact_traces",
+  "baseline_blob": "a70208e89a23e668b72e53c2389cede85dd1616b",
+  "sha256": "96c7bb453aa2d89d5d71d2b95ad3e67ccd9ef2fd0d4734ca2a1cf6cefa785c56",
+  "changed_by_this_delivery": false,
+  "note": "两对比较由运行包 remaining-harness.py 导入该仓内函数执行；比较器本身在基线已入仓"
+ },
+ "adoption_rounds": [
+  {
+   "round": "A",
+   "name": "核心 SECOND/strict/事实向量与 TB-02-C 适配",
+   "receipts": [
+    {
+     "id": "ADOPT-A-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-core-freeze/INDEPENDENT-REVIEW.md",
+     "bytes": 5098,
+     "sha256": "93c23702a28d61dc9d56e2a7d5a00d43639379b5b7216bc0c73a18d92e695a43",
+     "role": "代码独审"
+    },
+    {
+     "id": "ADOPT-A-CHECKS",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-core-freeze/INDEPENDENT-CHECKS-REVIEWED-SHA256.json",
+     "bytes": 1639,
+     "sha256": "95f384e889ef820bcc038978c55820d9377c76d290800f345121f0eb397a901f",
+     "role": "独审绑定的逐文件 SHA"
+    }
+   ]
+  },
+  {
+   "round": "B",
+   "name": "独立 oracle 夹具与设计",
+   "receipts": [],
+   "note": "MANIFEST 由 ADOPT-A-REVIEW 引用；ORACLE-DESIGN.md 不在运行来源集"
+  },
+  {
+   "round": "C",
+   "name": "GET /api/discover",
+   "receipts": [
+    {
+     "id": "ADOPT-C-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-core-freeze/DISCOVERY-INDEPENDENT-REVIEW.md",
+     "bytes": 7004,
+     "sha256": "2e7aa4579815978c7629893dc480094ad8afe1ea867119798a2f8296730a31f1",
+     "role": "代码独审"
+    },
+    {
+     "id": "ADOPT-C-RESULT",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-core-freeze/DISCOVERY-INDEPENDENT-RESULT.json",
+     "bytes": 1441,
+     "sha256": "90092e9daeacebd58439e263a368decc844d7606b74d0e609109e094452334cd",
+     "role": "独审结论",
+     "recorded_status": "PASS"
+    }
+   ]
+  },
+  {
+   "round": "D",
+   "name": "分页完整投影单槽缓存",
+   "receipts": [
+    {
+     "id": "ADOPT-D-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-core-freeze/PROJECTION-INDEPENDENT-REVIEW.md",
+     "bytes": 4469,
+     "sha256": "08e0575f80357a0b26ee27c2250d84a345050becf30cc3e982e469e61289a2bd",
+     "role": "代码独审"
+    },
+    {
+     "id": "ADOPT-D-BINDING",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-core-freeze/PROJECTION-INDEPENDENT-BINDING.json",
+     "bytes": 934,
+     "sha256": "f8b09888774295735e4973ed9db5d5b2e9297424d31aa88e4428bd0a56ad6bea",
+     "role": "独审绑定"
+    }
+   ]
+  },
+  {
+   "round": "E",
+   "name": "Snapshot 删 5 行重复校验",
+   "receipts": [
+    {
+     "id": "ADOPT-E-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-snapshot-validate-once-freeze/SNAPSHOT-VALIDATE-ONCE-INDEPENDENT-REVIEW.md",
+     "bytes": 2599,
+     "sha256": "4898f724d1805f992b8fdb0309ad1341c9df0cd0d9c0e9c7f8f840e2a8c4b435",
+     "role": "代码独审"
+    }
+   ],
+   "gap": "test_tb02d_snapshot_validate_once.cjs 当前字节未见逐行代码审收据"
+  },
+  {
+   "round": "F",
+   "name": "严格 clone",
+   "receipts": [
+    {
+     "id": "ADOPT-F-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-strict-clone-freeze/STRICT-CLONE-INDEPENDENT-REVIEW.md",
+     "bytes": 5057,
+     "sha256": "0570678cc1cda632f1895485e5f44c828c1d4db74baf52027ebdab13ea3af474",
+     "role": "代码独审"
+    },
+    {
+     "id": "ADOPT-F-BINDING",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-strict-clone-freeze/STRICT-CLONE-INDEPENDENT-BINDING.json",
+     "bytes": 2782,
+     "sha256": "2ab1e84b6a9b96d6f5167c8969e8afe28ff93efea7e11ade1cb6e785f9df35be",
+     "role": "独审绑定",
+     "recorded_status": "PASS"
+    }
+   ]
+  },
+  {
+   "round": "G",
+   "name": "正式运行脚本 tb02d_{harness,runtime,verify}.py",
+   "receipts": [
+    {
+     "id": "ADOPT-G-EARLY-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-core-freeze/RUNTIME-INDEPENDENT-REVIEW.md",
+     "bytes": 8739,
+     "sha256": "af97b58105bb6ae2d828911b82287e9c2264441ced5633cde3f4b830daf211ed",
+     "role": "早期版本代码独审"
+    },
+    {
+     "id": "ADOPT-G-READY-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-r4-supplement-freeze/SUPPLEMENT-READY-INDEPENDENT-REVIEW.md",
+     "bytes": 5996,
+     "sha256": "1d206d8b8322d82c1e40bef017e8fd031d5e2522eb30433dd1a62b821c1db569",
+     "role": "定版的 CURRENT 身份绑定"
+    },
+    {
+     "id": "ADOPT-G-ARM900-AUTHORITY",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-full-client-offline/ARM-DEADLINE-AUTHORITY-INDEPENDENT-REVIEW.md",
+     "bytes": 4345,
+     "sha256": "2a94e22f85eb13c7ca3a5a68281654a260dd2cf4396cd80fbfac3aa82692f2ff",
+     "role": "整臂调度窗 300→900 的来源独审"
+    }
+   ],
+   "gap": "当前精确字节未见逐行代码审收据"
+  },
+  {
+   "round": "H",
+   "name": "累计五文件正式采纳（validate-once→canonical→wire→identity→parse-pool→key-reuse）",
+   "receipts": [
+    {
+     "id": "ADOPT-H-CANONICAL-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-canonical-review/INDEPENDENT-RESULT.json",
+     "bytes": 2152,
+     "sha256": "d16333af55721fb8d812ea8cfef5851b78d9254c685fcac045a7ae695806b758",
+     "role": "候选代码独审",
+     "recorded_status": "PASS_CODE_CORRECTNESS_ONLY"
+    },
+    {
+     "id": "ADOPT-H-IDENTITY-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-identity-candidate/independent-review/INDEPENDENT-RESULT.json",
+     "bytes": 1608,
+     "sha256": "78ff4af8c4a9cb709a887d2ad6bf14309ac617a11abfa779e014529fefb2f06f",
+     "role": "候选代码独审",
+     "recorded_status": "PASS_CODE_CORRECTNESS_ONLY"
+    },
+    {
+     "id": "ADOPT-H-VALIDATE-ONCE-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-core-freeze/SINGLE-FACT-VALIDATION-INDEPENDENT-REVIEW.md",
+     "bytes": 4160,
+     "sha256": "ab1e2ad1e98aa19b3aab760e513f3fce717eb4e630566c8580a1edba8aef9510",
+     "role": "方案A 独审（中间版本，已被累计采纳覆盖）"
+    },
+    {
+     "id": "ADOPT-H-ROOT-DECISION",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-key-reuse-adoption-plan/ROOT-ADOPTION-DECISION.json",
+     "bytes": 2452,
+     "sha256": "10df2090721b38afeba150baad01c246cdbe4fce23644013722b8ee5b10354da",
+     "role": "根采纳决定",
+     "recorded_status": "ROOT_APPROVED_FORMAL_FIVE_FILE_ADOPTION"
+    },
+    {
+     "id": "ADOPT-H-PATCH-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-key-reuse-adoption-plan/independent-review/RESULT.json",
+     "bytes": 3196,
+     "sha256": "9961036739bcd22256c8c9dae5d015b1416a026061729aa62436e0a072a613ff",
+     "role": "累计补丁与自足测试独审",
+     "recorded_status": "PASS_SCOPED_PORTABILITY_AND_CUMULATIVE_PATCH"
+    },
+    {
+     "id": "ADOPT-H-MANIFEST",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-key-reuse-adoption-plan/formal-adoption/MANIFEST.json",
+     "bytes": 6640,
+     "sha256": "b34d8fb2f021049154b643d47c364d9c1cc85b582f867c0feb22790026dd2906",
+     "role": "正式采纳执行清单",
+     "recorded_status": "APPLIED_FIVE_FILES_POSTCHECK_PASS_PENDING_MAPPING_REVIEW"
+    },
+    {
+     "id": "ADOPT-H-DELIVERY",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-key-reuse-adoption-plan/formal-adoption/DELIVERY.md",
+     "bytes": 2033,
+     "sha256": "3df03fd13e10f97c4332392ad4202a665cfc9c8f0b3d1295f7efbbba3db04e9c",
+     "role": "采纳执行说明"
+    },
+    {
+     "id": "ADOPT-H-MAPPING-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-key-reuse-adoption-plan/formal-adoption-review/RESULT.json",
+     "bytes": 3821,
+     "sha256": "a902a64064130ee45896cebd8e462581e49deb0206e04f6ba6a7796a434e8da1",
+     "role": "映射独审",
+     "recorded_status": "PASS_FORMAL_FIVE_FILE_MAPPING"
+    }
+   ]
+  },
+  {
+   "round": "I",
+   "name": "browser readiness runner（pure 版）",
+   "receipts": [
+    {
+     "id": "ADOPT-I-STATIC-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-browser-readiness-candidate/independent-review/RESULT.json",
+     "bytes": 2101,
+     "sha256": "f82a61d334b0bfd81d7c82e265db0d873ebc5af006982b0a012d22c264ba6c3c",
+     "role": "候选静态独审",
+     "recorded_status": "PASS_STATIC_BROWSER_READINESS_CANDIDATE"
+    }
+   ],
+   "adopted_with": "J"
+  },
+  {
+   "round": "J",
+   "name": "pure codepoint Client",
+   "receipts": [
+    {
+     "id": "ADOPT-J-STATIC-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-codepoint-compare-independent-review/RESULT.json",
+     "bytes": 698,
+     "sha256": "0c1c8157cd65e324c515bde9d087ea867018d68000ac2279d0b816ca6a51e20a",
+     "role": "静态独审",
+     "recorded_status": "PASS_STATIC_PROPOSED_DELTA_PENDING_FINITE"
+    },
+    {
+     "id": "ADOPT-J-FINITE-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-codepoint-compare-independent-review/FINITE-RESULT.json",
+     "bytes": 2216,
+     "sha256": "c40fdca3b6322a960c24346075ce83b25f46c47d6bb3084c08665023c424b558",
+     "role": "有限独审",
+     "recorded_status": "PASS_FINITE_LOCAL_COST_OBSERVED"
+    },
+    {
+     "id": "ADOPT-IJ-AUTHORIZATION",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-pure-codepoint-adoption-preparation/ROOT-ADOPTION-AUTHORIZATION.json",
+     "bytes": 2775,
+     "sha256": "ec8d19958260664db307e537a2c170aacf18c90dc280cefad125632b1cf83804",
+     "role": "根两文件采纳授权",
+     "recorded_status": "ROOT_APPROVED_TB1414_TWO_FILE_ADOPTION_ONCE"
+    },
+    {
+     "id": "ADOPT-IJ-BINDING",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-pure-codepoint-adoption-preparation/actual-adoption/ACTUAL-BINDING.json",
+     "bytes": 6372,
+     "sha256": "03053f40f22a39fe2ad507bf87b1d2c6068884fc2fd6d610f80a0a2671b1dfaa",
+     "role": "实际采纳绑定",
+     "recorded_status": "PASS_EXACT_TWO_FILE_ADOPTION_AND_POSTCHECK_PENDING_INDEPENDENT_MAPPING_REVIEW"
+    },
+    {
+     "id": "ADOPT-IJ-POSTCHECK",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-pure-codepoint-adoption-preparation/actual-adoption/POSTCHECK.json",
+     "bytes": 2518,
+     "sha256": "557eb459947f2e3e316d0620e997a97b3ebeb76b1a50b35c4eb9b8f997b37043",
+     "role": "采纳后核",
+     "recorded_status": "PASS_EXACT_TWO_FILE_MAPPING_NOT_RUNTIME_ACCEPTANCE"
+    },
+    {
+     "id": "ADOPT-IJ-MAPPING-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-pure-codepoint-adoption-preparation/actual-adoption/independent/RESULT.json",
+     "bytes": 7874,
+     "sha256": "9e7833a8740851cc7c658d27164328e16a238d2183622ef6a955faaf72716743",
+     "role": "映射独审（只证映射，不证运行）",
+     "recorded_status": "PASS_VERIFIED_EXACT_TWO_FILE_ACTUAL_ADOPTION_MAPPING_NOT_RUNTIME_ACCEPTANCE"
+    }
+   ]
+  }
+ ],
+ "historical_runs": [
+  {
+   "id": "RUN-R1",
+   "status": "FAIL",
+   "summary": "cut31 /api/state 503 QueryBudgetExceeded",
+   "receipts": [],
+   "note": "原件在外卷 issue1414-formal-r1-20261012，本索引未绑定 SHA；失败史保留"
+  },
+  {
+   "id": "RUN-R2",
+   "status": "FAIL",
+   "summary": "300.950 秒窗内 35 输入",
+   "receipts": [],
+   "note": "原件在外卷，本索引未绑定 SHA"
+  },
+  {
+   "id": "RUN-R3",
+   "status": "FAIL",
+   "summary": "首臂触 300 秒，96Q",
+   "receipts": [],
+   "note": "原件在外卷，本索引未绑定 SHA"
+  },
+  {
+   "id": "RUN-R4",
+   "status": "FAIL",
+   "summary": "窗 900；120Q 后 collect_core 30 秒窗超时",
+   "receipts": [
+    {
+     "id": "RUN-R4-OUTCOME",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-formal-r4-window900-freeze/ACTUAL-R4-OUTCOME.md",
+     "bytes": 6271,
+     "sha256": "186cd22ea5ea19c7f853790cc594087dd0c74e4c41720993cb790a9fd5bb455d",
+     "role": "作者结果报告"
+    }
+   ],
+   "reuse": "120Q/80 收据经补充继承"
+  },
+  {
+   "id": "RUN-R4-SUPPLEMENT",
+   "status": "FAIL",
+   "summary": "219 记录后正式 launcher start 时 Q /api/ready 503",
+   "receipts": [
+    {
+     "id": "RUN-R4S-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-r4-supplement-freeze/ACTUAL-INDEPENDENT-REVIEW.md",
+     "bytes": 3299,
+     "sha256": "738027374c2abec489102d7e9a3311cf0b85925ec58e35978a21b27ae06129be",
+     "role": "实际独审"
+    }
+   ],
+   "reuse": "219 行 core（后被 strict221 取代）"
+  },
+  {
+   "id": "DIAG-COLD40",
+   "status": "canonical/identity/parse-pool 三次 FAIL（原 5 秒门 503）；key-reuse 首次通过原 ready 门",
+   "receipts": [
+    {
+     "id": "DIAG-CANONICAL-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-canonical-candidate/validation-freeze/CANDIDATE-ACTUAL-INDEPENDENT-REVIEW.md",
+     "bytes": 4174,
+     "sha256": "851b59eb74d84c039fba9455e6cd36f8f646a0a51215716fa0ef5a41ae7dac52",
+     "role": "冷40 诊断实际独审"
+    },
+    {
+     "id": "DIAG-IDENTITY-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-identity-candidate/validation-freeze/CANDIDATE-ACTUAL-INDEPENDENT-REVIEW.md",
+     "bytes": 3940,
+     "sha256": "c0dcc6998f627c653588a939b8fa07812d27a2ad91a5ac1b90eceb1e1714352f",
+     "role": "冷40 诊断实际独审"
+    },
+    {
+     "id": "DIAG-KEY-REUSE-PLAN",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-key-reuse-candidate/validation-freeze/PLAN.json",
+     "bytes": 2524,
+     "sha256": "38a768b522f526be16f789cceefe5efcc9cb2b2e0a38f563b95caa794925226f",
+     "role": "key-reuse 运行包 PLAN"
+    }
+   ],
+   "unresolved": "parse-pool 冷40 诊断收据只有前缀 b8d92b50，未能回绑完整路径与 SHA",
+   "reuse": "支撑 H 轮采纳决定，不是矩阵验收"
+  },
+  {
+   "id": "RUN-KR-SUPPLEMENT-R1",
+   "status": "FAIL_VERIFIED_NEW_RUNTIME_METADATA_INTERFACE",
+   "receipts": [
+    {
+     "id": "RUN-KR1-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-r4-key-reuse-supplement-freeze/ACTUAL-INDEPENDENT-REVIEW.md",
+     "bytes": 2840,
+     "sha256": "68672dcf28ec3ace870e5e8ccd73d7f7d511c26c31490affe59a947250e4823e",
+     "role": "实际独审"
+    }
+   ],
+   "reuse": "无"
+  },
+  {
+   "id": "RUN-KR-SUPPLEMENT-R2",
+   "status": "整体 FAIL（浏览器 goto networkidle 超时）",
+   "receipts": [
+    {
+     "id": "RUN-KR2-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-r4-key-reuse-supplement-r2-freeze/ACTUAL-INDEPENDENT-REVIEW.md",
+     "bytes": 3315,
+     "sha256": "89d3138d7de1e8aaf4f22526cf8399b8bb203ad001767bc08a58d5065d6500b1",
+     "role": "实际独审"
+    },
+    {
+     "id": "RUN-KR2-CHECK",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-r4-key-reuse-supplement-r2-freeze/ACTUAL-INDEPENDENT-CHECK.json",
+     "bytes": 66581,
+     "sha256": "cd9679367e639b6e5d3d3926c07fd5cb0e6765e8cb162a0d7bba2f95b29adbbf",
+     "role": "实际独审核验",
+     "recorded_status": "FAIL_VERIFIED_FINITE_PROGRESS_BROWSER_NAVIGATION_TIMEOUT"
+    }
+   ],
+   "reuse": "4 个真实 Q 完整 raw 对拍、S epoch1→2 正常恢复、七 cut oracle 叶子（经首 composite 采用）"
+  },
+  {
+   "id": "RUN-BROWSER-ONLY",
+   "status": "整体 FAIL（浏览器完整提交超时）",
+   "receipts": [
+    {
+     "id": "RUN-BO-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-browser-only-completion-preparation/ACTUAL-INDEPENDENT-REVIEW.md",
+     "bytes": 6958,
+     "sha256": "02f9da493f04c3374000826aa4f468f77c30ff43e1462598a312cb9af83d6882",
+     "role": "实际独审"
+    },
+    {
+     "id": "RUN-BO-CHECK",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-browser-only-completion-preparation/ACTUAL-INDEPENDENT-CHECK.json",
+     "bytes": 25337,
+     "sha256": "ad2296b9f4c831aa7cde0310ac69dc5a9ab8b7ca1fffb1b03b53e600290c314b",
+     "role": "实际独审核验",
+     "recorded_status": "INDEPENDENT_ACTUAL_FINITE_FAIL_BROWSER_COMPLETE_COMMIT_TIMEOUT_AND_DECLARED_PYTHON_SYMLINK_GUARD"
+    }
+   ],
+   "reuse": "strict221 core c0dbe0db…/1456959869B 与 sealed DB/WAL/SHM、17 表、四恢复转移"
+  },
+  {
+   "id": "RUN-HOIST-OBSERVED",
+   "status": "FAIL",
+   "summary": "final40 wait10000 超时；Chrome post 跨期身份 FAIL",
+   "receipts": [],
+   "note": "原件在外卷，本索引未绑定 SHA"
+  },
+  {
+   "id": "RUN-OBSERVED-CODEPOINT",
+   "status": "PASS（仅属 observed Client 8fa0d286… 与 runner 59c56bce…，不是本交付的 pure 字节）",
+   "receipts": [
+    {
+     "id": "RUN-OC-RESULT",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-codepoint-completion-freeze-r1/actual-independent/RESULT.json",
+     "bytes": 20485,
+     "sha256": "8cf04d06a0708f5e8b45a48572af82b236f03510625ccd16f7a936fd66326dbf",
+     "role": "实际独审结论",
+     "recorded_status": "PASS_VERIFIED_ACTUAL_OBSERVED_CODEPOINT_BROWSER_COMPLETION_NOT_COMPOSITE_RELEASE"
+    },
+    {
+     "id": "RUN-OC-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-codepoint-completion-freeze-r1/actual-independent/REVIEW.md",
+     "bytes": 3336,
+     "sha256": "636341d09b1b51d950c99553fbc697d01d372f772df2c9cdc9cd5629af100a8c",
+     "role": "实际独审报告"
+    }
+   ],
+   "reuse": "首 composite 的浏览器层"
+  }
+ ],
+ "first_composite": {
+  "contract": "explicit-four-layer-observed-composite/1",
+  "layers": [
+   "RUN-KR-SUPPLEMENT-R2 的 4Q/恢复/7cut",
+   "RUN-BROWSER-ONLY 的 strict221 与 sealed 三件",
+   "RUN-OBSERVED-CODEPOINT 的浏览器",
+   "ADOPT-IJ 两文件采纳映射"
+  ],
+  "core": {
+   "sha256": "c0dbe0db7e6670b53fb1d1f89f722c28c56858c31b93639cbc952e77ffddfb3b",
+   "bytes": 1456959869,
+   "records": 221
+  },
+  "inheritance": {
+   "inherited_reconstructed_records": 139,
+   "new_reconstructed_records": 0,
+   "whole_new_single_run_all221_collected_claim": false,
+   "source": "COMP-DRAFT"
+  },
+  "receipts": [
+   {
+    "id": "COMP-DRAFT",
+    "root": "CTRL-20261012",
+    "relative_path": "tb1414-explicit-composite-preparation/COMPOSITE-DRAFT.json",
+    "bytes": 11867,
+    "sha256": "d08eb70651f8375c281c1d977d7ed3112a849a259017e532cfb0fd78ebe4ab45",
+    "role": "composite payload",
+    "recorded_status": "COMPLETE_EXPLICIT_COMPOSITE_PAYLOAD_PENDING_DETACHED_RELEASE"
+   },
+   {
+    "id": "COMP-AGGREGATE-REVIEW",
+    "root": "CTRL-20261012",
+    "relative_path": "tb1414-explicit-composite-review/aggregate/r2/RESULT.json",
+    "bytes": 13319,
+    "sha256": "91e91ca8215a6e27098b7e15b25d7ed1e44ea0813178fab11c8962c69a2ac780",
+    "role": "aggregate 独审",
+    "recorded_status": "VERIFIED_COMPLETE_COMPOSITE"
+   },
+   {
+    "id": "COMP-SOURCE-MAPPING",
+    "root": "CTRL-20261012",
+    "relative_path": "tb1414-explicit-composite-preparation/SOURCE-MAPPING-DRAFT.json",
+    "bytes": 7815,
+    "sha256": "1aa99a727837eba196309c8405fa8d88f3abff8b91c9b53fa229d46eb8a042cb",
+    "role": "三来源映射草稿"
+   },
+   {
+    "id": "COMP-SOURCE-MAPPING-REVIEW",
+    "root": "CTRL-20261012",
+    "relative_path": "tb1414-explicit-composite-review/source-mapping/r2/RESULT.json",
+    "bytes": 5906,
+    "sha256": "f740e3b822e15a5214f9ff04c4e99aec9adb3dd235d3a289a9d358c4182270b6",
+    "role": "三来源映射独审",
+    "recorded_status": "PASS_EXACT_THREE_SOURCE_MAPPING"
+   },
+   {
+    "id": "COMP-ROOT-RELEASE",
+    "root": "CTRL-20261012",
+    "relative_path": "tb1414-explicit-composite-root-release/ROOT-RELEASE.json",
+    "bytes": 1801,
+    "sha256": "13c68f4881c9183dc36c9478180c1d865cec18cfa3871e7d62f7feda64fb66be",
+    "role": "根 detached release（明写非 pure 运行验收、非执行授权、非 TB-02-D 完成）",
+    "recorded_status": "ROOT_ACCEPTED_EXPLICIT_FIRST_COMPOSITE"
+   }
+  ]
+ },
+ "remaining_package": {
+  "receipts": [
+   {
+    "id": "PKG-PLAN",
+    "root": "CTRL-20261012",
+    "relative_path": "tb1414-explicit-composite-preparation/PLAN.json",
+    "bytes": 53522,
+    "sha256": "1e5d62f9a9ee593d53fd62eceaf981fb6665d367d374e857287826741b1e3793",
+    "role": "运行计划",
+    "recorded_status": "ROOT_DETACHED_RELEASE_AND_RESOURCES_BOUND_FINAL_PLAN_PENDING_PACKAGE_REVIEW_AND_ONCE_AUTHORIZATION"
+   },
+   {
+    "id": "PKG-FINAL-BINDING",
+    "root": "CTRL-20261012",
+    "relative_path": "tb1414-explicit-composite-preparation/FINAL-PACKAGE-BINDING.json",
+    "bytes": 53507,
+    "sha256": "a51e1fff57dcc58cda0151056bfb8dfb7fd9cab2d3a6bb34fa68965372dd6b91",
+    "role": "最终包绑定（含 6 个 helper 的 SHA）",
+    "recorded_status": "FINAL_PACKAGE_FROZEN_PENDING_INDEPENDENT_PACKAGE_REVIEW_AND_ROOT_ONCE_AUTHORIZATION"
+   },
+   {
+    "id": "PKG-FINAL-REVIEW",
+    "root": "CTRL-20261012",
+    "relative_path": "tb1414-explicit-composite-review/final-package/r3/RESULT.json",
+    "bytes": 11192,
+    "sha256": "541d1d7210648aaa7a9b632e3b3f850556f044802455bb593f147d963c8f3e29",
+    "role": "最终包独审（绑定 SRC-CURRENT）",
+    "recorded_status": "PASS_FINAL_REMAINING_PACKAGE_READY_FOR_ROOT_AUTHORIZATION"
+   },
+   {
+    "id": "PKG-RESOURCE-SELECTION",
+    "root": "CTRL-20261012",
+    "relative_path": "tb1414-explicit-composite-root-release/ROOT-RESOURCE-SELECTION.json",
+    "bytes": 579,
+    "sha256": "45349471a62b9175052304441cafb033ab0b81a74e2d34014ebcf91826a09e83",
+    "role": "根资源选择",
+    "recorded_status": "ROOT_SELECTED_REMAINING_RESOURCES_NOT_EXECUTION_AUTHORIZATION"
+   },
+   {
+    "id": "PKG-SLOT-2",
+    "root": "CTRL-20261012",
+    "relative_path": "tb1414-explicit-composite-root-release/ROOT-REMAINING-SLOT-2.json",
+    "bytes": 1906,
+    "sha256": "f4e97071ac4125ca1915b62733097446e17a5642cf570f260bca9905e90130f1",
+    "role": "根资源槽分配",
+    "recorded_status": "ROOT_ASSIGNED_EXCLUSIVE_TB1414_REMAINING_WHILE_S86_R5_SAFELY_PAUSED"
+   },
+   {
+    "id": "PKG-ATTEMPT-1-FAILURE",
+    "root": "CTRL-20261012",
+    "relative_path": "tb1414-explicit-composite-root-release/ATTEMPT-1-FAILURE.json",
+    "bytes": 1771,
+    "sha256": "ee81322170217dd03f832d1c108da071a68ad2a3cd1610151f9885cee67ae8cb",
+    "role": "attempt 1 依赖预检失败，无 OUT、无产品副作用；授权已消耗",
+    "recorded_status": "ATTEMPT_1_FAILED_PRE_EXECUTION_DEPENDENCY_GATE_NO_OUTPUT_NO_PRODUCT"
+   },
+   {
+    "id": "PKG-ATTEMPT-2-AUTHORIZATION",
+    "root": "CTRL-20261012",
+    "relative_path": "tb1414-explicit-composite-preparation/ROOT-REMAINING-AUTHORIZATION.json",
+    "bytes": 4088,
+    "sha256": "9a027504f1c8eb1ffb7a15b64f1c105ee8742c2b8abec011e51667c6838ab7af",
+    "role": "attempt 2 根授权",
+    "recorded_status": "ROOT_APPROVED_REMAINING_MATRIX_ONCE"
+   },
+   {
+    "id": "PKG-LAUNCH-2",
+    "root": "CTRL-20261012",
+    "relative_path": "tb1414-remaining-execution-launch-2/LAUNCH.json",
+    "bytes": 1139,
+    "sha256": "4ad159d597717069c1b0c610cfbf2b2914c9a7c62b460952900e3376a29f3c57",
+    "role": "attempt 2 启动记录",
+    "recorded_status": "CONTROLLER_LAUNCHED_PENDING_EXIT"
+   },
+   {
+    "id": "PKG-CONTROLLER-EXIT",
+    "root": "CTRL-20261012",
+    "relative_path": "tb1414-remaining-execution-launch-2/CONTROLLER-EXIT.json",
+    "bytes": 1310,
+    "sha256": "470ec8ed41684df33c14a7c423dc506a757d6215e000cf71484f7969e035aeba",
+    "role": "controller 退出回执",
+    "recorded_status": "CONTROLLER_WAIT_COMPLETED"
+   }
+  ]
+ },
+ "execution": {
+  "attempt": 2,
+  "receipts": [
+   {
+    "id": "EXEC",
+    "root": "OUT-REMAINING-20261013",
+    "relative_path": "EXECUTION.json",
+    "bytes": 388,
+    "sha256": "a1c811c58707c81327ac31d17f5bed176c2a9389a7247141b6b2bcb5ebffd084",
+    "role": "执行汇总"
+   },
+   {
+    "id": "EXEC-RUN-PLAN",
+    "root": "OUT-REMAINING-20261013",
+    "relative_path": "RUN-PLAN.json",
+    "bytes": 23714,
+    "sha256": "ccd30b40993c9e9eebae257bce4a42b1a992edc410d953ba05eba6fe3edb95d6",
+    "role": "运行计划副本"
+   },
+   {
+    "id": "EXEC-PACKAGE-BINDING",
+    "root": "OUT-REMAINING-20261013",
+    "relative_path": "PACKAGE-BINDING.json",
+    "bytes": 2388,
+    "sha256": "a839c08783f5509b89f2260eacd71c2716430386f353f238bed058025986e915",
+    "role": "包绑定副本"
+   },
+   {
+    "id": "EXEC-DEPENDENCY-PRE",
+    "root": "OUT-REMAINING-20261013",
+    "relative_path": "DEPENDENCY-PRE.json",
+    "bytes": 8479,
+    "sha256": "1cacbc3933e4bdbc73b16727ed4b2f76ff1639f9a0086f327c1195ebbb0f77e8",
+    "role": "依赖前核"
+   },
+   {
+    "id": "EXEC-DEPENDENCY-POST",
+    "root": "OUT-REMAINING-20261013",
+    "relative_path": "DEPENDENCY-POST.json",
+    "bytes": 9071,
+    "sha256": "3b0cd8e2f32a3708809cdc7e517eb768fc89f940e123fdbd59597b5287b751e5",
+    "role": "依赖后核",
+    "recorded_status": "PASS"
+   },
+   {
+    "id": "EXEC-SOURCE-POSTCHECK",
+    "root": "OUT-REMAINING-20261013",
+    "relative_path": "SOURCE-POSTCHECK.json",
+    "bytes": 151,
+    "sha256": "2389a0194385ce366c281d3bc251989f3da3fc77d0f289520ba921bc8ed8d000",
+    "role": "来源与证据后核"
+   }
+  ],
+  "embedded_values": {
+   "controller": {
+    "status": "CONTROLLER_WAIT_COMPLETED",
+    "exit_code": 0,
+    "controller_waited_and_reaped": true,
+    "elapsed_monotonic_seconds": 1136.9786725410086
+   },
+   "execution": {
+    "cause": null,
+    "elapsed_seconds": 1136.473757982254
+   },
+   "completed_fresh_arms": [
+    "second_open_up-b",
+    "second_open_down-a",
+    "second_open_down-b"
+   ],
+   "source_postcheck": {
+    "count": 555,
+    "mismatches": [],
+    "evidence_count": 141,
+    "evidence_mismatches": [],
+    "dependency_mismatches": [],
+    "matrix_mismatches": []
+   },
+   "dependency_post_status": "PASS"
+  },
+  "arms": [
+   {
+    "arm": "second_open_up-b",
+    "port": 18982,
+    "receipts": [
+     {
+      "id": "second_open_up-b/EXIT",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_up-b/EXIT.json",
+      "bytes": 16,
+      "sha256": "3e42a2ad3dbeab9d1167d20261ad6305bdea31103ffc09c30f25558345966de2",
+      "role": "臂退出码"
+     },
+     {
+      "id": "second_open_up-b/WRAPPER-CLEANUP",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_up-b/WRAPPER-CLEANUP.json",
+      "bytes": 437,
+      "sha256": "202d72bbec3a1160ea15955c127cc3967aa6b5836341c0b01d01d97ced21b73b",
+      "role": "wrapper 清理核验"
+     },
+     {
+      "id": "second_open_up-b/RESULT",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_up-b/evidence/RESULT.json",
+      "bytes": 1017,
+      "sha256": "52e09f7139bd3d0319179ca5b547f64394195a3c123cac86305e6d438b50d07e",
+      "role": "运行时通用结果",
+      "recorded_status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER"
+     },
+     {
+      "id": "second_open_up-b/QUERY-ORACLE",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_up-b/evidence/query-oracle.json",
+      "bytes": 373,
+      "sha256": "2e000eaaa188a1c87ff6df95c1a8b83a5dbf26d4daf14e6479b9161fb8572bfe",
+      "role": "七 cut oracle",
+      "recorded_status": "passed"
+     },
+     {
+      "id": "second_open_up-b/NORMAL-RECOVERY",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_up-b/evidence/normal-recovery.json",
+      "bytes": 2768,
+      "sha256": "d5e92a35e2049ff3875e1f8db8be0d3a857cc39c67895fe2ce676a6643597528",
+      "role": "正常恢复"
+     },
+     {
+      "id": "second_open_up-b/BROWSER-RESULT",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_up-b/evidence/browser/RESULT.json",
+      "bytes": 89,
+      "sha256": "c80eb996e16eaaa11bdf044a1aac813b737845625bdb5b5b1756396fe7fa8a7d",
+      "role": "浏览器结果",
+      "recorded_status": "passed"
+     },
+     {
+      "id": "second_open_up-b/BROWSER-COMMAND",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_up-b/evidence/browser-command.json",
+      "bytes": 556,
+      "sha256": "32895c7fd6d7bfb25457b5c3037fe22ec1126956f6c136a777dfe2311f3daa53",
+      "role": "浏览器命令"
+     },
+     {
+      "id": "second_open_up-b/BROWSER-READINESS",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_up-b/evidence/browser/READINESS-DIAGNOSTICS.json",
+      "bytes": 7809,
+      "sha256": "1ea542cf9ded44a4e16bf1ee929f730be910b6b88482dde8cfd2b6b2998960fd",
+      "role": "浏览器就绪诊断"
+     },
+     {
+      "id": "second_open_up-b/HTTP-SESSION",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_up-b/evidence/http/SESSION.json",
+      "bytes": 1640,
+      "sha256": "09f3d819296faef6f1bf2239e46cf37879e2f57422e770b11acfe863a53ad9a2",
+      "role": "HTTP 采集会话"
+     }
+    ],
+    "screenshots": [
+     {
+      "id": "second_open_up-b/PNG-CC-011",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_up-b/evidence/browser/CC-011.png",
+      "bytes": 91004,
+      "sha256": "972f07195601fecae396fe8ac0f8964ee720803ee73dba49f4662ee74e827ca1",
+      "role": "截图"
+     },
+     {
+      "id": "second_open_up-b/PNG-CC-012",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_up-b/evidence/browser/CC-012.png",
+      "bytes": 91429,
+      "sha256": "9455cd64e97720c08bd99f45ada534b5c9bf6bb91c650127b08c0e12ef7345f1",
+      "role": "截图"
+     },
+     {
+      "id": "second_open_up-b/PNG-CC-013",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_up-b/evidence/browser/CC-013.png",
+      "bytes": 96317,
+      "sha256": "509c7e78ebb0b0d37d6544b051b921679c4ec9e21a051f2bb632eeabc7196170",
+      "role": "截图"
+     },
+     {
+      "id": "second_open_up-b/PNG-CC-014",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_up-b/evidence/browser/CC-014.png",
+      "bytes": 96298,
+      "sha256": "ae216559427b8b6a2841c3df0699328812b328c83fc26e57b7d0fd1863254771",
+      "role": "截图"
+     },
+     {
+      "id": "second_open_up-b/PNG-developing",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_up-b/evidence/browser/developing.png",
+      "bytes": 98105,
+      "sha256": "ce97f1f64d5a1f02c882a5e705efd81f90160a4ab57b3e4a62cbe9d2cac75fa6",
+      "role": "截图"
+     }
+    ],
+    "embedded_values": {
+     "exit": {
+      "exit": 0
+     },
+     "input_count": 40,
+     "core_records": 221,
+     "http_commands_count": 124,
+     "http_rejections_count": 0,
+     "query_oracle": {
+      "status": "passed",
+      "case": "second_open_up",
+      "cuts": 40,
+      "oracle_cuts": {
+       "15": "NO_FIRST",
+       "26": "NO_FIRST",
+       "27": "PENDING_CASE_TWO",
+       "31": "PENDING_CASE_TWO",
+       "38": "PENDING_CASE_TWO",
+       "39": "CASE_TWO",
+       "40": "CASE_TWO"
+      },
+      "scope": "frozen named cuts of actual Q; full natural prefix traces separately captured and compared"
+     },
+     "normal_recovery": {
+      "states": [
+       "stopped",
+       "recovered",
+       "ready"
+      ],
+      "epoch": [
+       "1",
+       "2"
+      ]
+     },
+     "browser": {
+      "status": "passed",
+      "cuts": [
+       "27",
+       "40"
+      ],
+      "page_errors": [],
+      "browser_version": "154.0.8037.99"
+     },
+     "runtime_cleanup_errors": [],
+     "wrapper_cleanup": {
+      "passed": true,
+      "port_connect_errno": 61,
+      "socket_absent": true
+     }
+    },
+    "observations_for_review": [
+     "evidence/RESULT.json 通用字段为 status=CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER、semantic_oracle=not_evaluated、browser=not_evaluated；oracle 与浏览器结论分别在 query-oracle.json 与 browser/RESULT.json",
+     "停止回执警告：q: 进程命令暂不可读，不能确认完整参数；s: PID 已复用或进程命令改变，拒绝采用旧记录"
+    ],
+    "large_artifacts_not_read": [
+     "evidence/semantic-core.jsonl",
+     "session.sqlite(-wal/-shm)",
+     "evidence/database-backup.sqlite",
+     "evidence/browser/network.har",
+     "evidence/events.jsonl",
+     "messages.jsonl"
+    ],
+    "observations_resolved_by": "ACTUAL-REVIEW N2（not_evaluated 为过时初值标签，非门项）与 N3（PID 警告为退出瞬时观测，回收证据充分）"
+   },
+   {
+    "arm": "second_open_down-a",
+    "port": 18983,
+    "receipts": [
+     {
+      "id": "second_open_down-a/EXIT",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-a/EXIT.json",
+      "bytes": 16,
+      "sha256": "3e42a2ad3dbeab9d1167d20261ad6305bdea31103ffc09c30f25558345966de2",
+      "role": "臂退出码"
+     },
+     {
+      "id": "second_open_down-a/WRAPPER-CLEANUP",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-a/WRAPPER-CLEANUP.json",
+      "bytes": 436,
+      "sha256": "dda756bfc40d5aaa56a20046ddd16efc3b004646a694c6103ce5de9cf544382b",
+      "role": "wrapper 清理核验"
+     },
+     {
+      "id": "second_open_down-a/RESULT",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-a/evidence/RESULT.json",
+      "bytes": 1016,
+      "sha256": "8de421f35c94efa1908d5622e863aaab4702ecf6deeeb340ca4c1a367a2f6e58",
+      "role": "运行时通用结果",
+      "recorded_status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER"
+     },
+     {
+      "id": "second_open_down-a/QUERY-ORACLE",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-a/evidence/query-oracle.json",
+      "bytes": 375,
+      "sha256": "e951973182d77a974631d1332ff7e193b0549480ae2e5829b13e2f3a1f91f943",
+      "role": "七 cut oracle",
+      "recorded_status": "passed"
+     },
+     {
+      "id": "second_open_down-a/NORMAL-RECOVERY",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-a/evidence/normal-recovery.json",
+      "bytes": 2776,
+      "sha256": "1bab0061ea0eb00ae27b54030c5c93bcf56a700ec79ffaa019a892385eb0d956",
+      "role": "正常恢复"
+     },
+     {
+      "id": "second_open_down-a/BROWSER-RESULT",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-a/evidence/browser/RESULT.json",
+      "bytes": 89,
+      "sha256": "c80eb996e16eaaa11bdf044a1aac813b737845625bdb5b5b1756396fe7fa8a7d",
+      "role": "浏览器结果",
+      "recorded_status": "passed"
+     },
+     {
+      "id": "second_open_down-a/BROWSER-COMMAND",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-a/evidence/browser-command.json",
+      "bytes": 558,
+      "sha256": "c9b726bb1b7e2e865b1c632a56dd960c602af50dc528bd204b68dc36ed632ae1",
+      "role": "浏览器命令"
+     },
+     {
+      "id": "second_open_down-a/BROWSER-READINESS",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-a/evidence/browser/READINESS-DIAGNOSTICS.json",
+      "bytes": 7810,
+      "sha256": "bc7161830465ddb60baf2b596ccad8f03760aba8eb340ddeec6a1733aec883a1",
+      "role": "浏览器就绪诊断"
+     },
+     {
+      "id": "second_open_down-a/HTTP-SESSION",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-a/evidence/http/SESSION.json",
+      "bytes": 1640,
+      "sha256": "e8b965c5c168105e2f9cb45692ca80b1abed6bf7da302abe7d396ae7414f7af3",
+      "role": "HTTP 采集会话"
+     }
+    ],
+    "screenshots": [
+     {
+      "id": "second_open_down-a/PNG-CC-011",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-a/evidence/browser/CC-011.png",
+      "bytes": 90968,
+      "sha256": "86a141f51e614330239150261fed0ed50cf3a0f05a454013d3a0582a38196fa1",
+      "role": "截图"
+     },
+     {
+      "id": "second_open_down-a/PNG-CC-012",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-a/evidence/browser/CC-012.png",
+      "bytes": 91785,
+      "sha256": "701bff479fc5953a2a43e208347e0344d1fa2f1105527b283ed2876e8c406df4",
+      "role": "截图"
+     },
+     {
+      "id": "second_open_down-a/PNG-CC-013",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-a/evidence/browser/CC-013.png",
+      "bytes": 96602,
+      "sha256": "e404a1a50a260eefad92e03e13add07ffbf44290dcf46d70c3a7a630d2cbb587",
+      "role": "截图"
+     },
+     {
+      "id": "second_open_down-a/PNG-CC-014",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-a/evidence/browser/CC-014.png",
+      "bytes": 96586,
+      "sha256": "919fdfb5c9b2dc1b61bef71815d9c5f351c44c3a23b598f08b37af9f4bac3734",
+      "role": "截图"
+     },
+     {
+      "id": "second_open_down-a/PNG-developing",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-a/evidence/browser/developing.png",
+      "bytes": 98091,
+      "sha256": "305277df5dbcf60ed0945d26b62a4320a8c90fb54071b799178a85b2a68c8b6e",
+      "role": "截图"
+     }
+    ],
+    "embedded_values": {
+     "exit": {
+      "exit": 0
+     },
+     "input_count": 40,
+     "core_records": 221,
+     "http_commands_count": 124,
+     "http_rejections_count": 0,
+     "query_oracle": {
+      "status": "passed",
+      "case": "second_open_down",
+      "cuts": 40,
+      "oracle_cuts": {
+       "15": "NO_FIRST",
+       "26": "NO_FIRST",
+       "27": "PENDING_CASE_TWO",
+       "31": "PENDING_CASE_TWO",
+       "38": "PENDING_CASE_TWO",
+       "39": "CASE_TWO",
+       "40": "CASE_TWO"
+      },
+      "scope": "frozen named cuts of actual Q; full natural prefix traces separately captured and compared"
+     },
+     "normal_recovery": {
+      "states": [
+       "stopped",
+       "recovered",
+       "ready"
+      ],
+      "epoch": [
+       "1",
+       "2"
+      ]
+     },
+     "browser": {
+      "status": "passed",
+      "cuts": [
+       "27",
+       "40"
+      ],
+      "page_errors": [],
+      "browser_version": "154.0.8037.99"
+     },
+     "runtime_cleanup_errors": [],
+     "wrapper_cleanup": {
+      "passed": true,
+      "port_connect_errno": 61,
+      "socket_absent": true
+     }
+    },
+    "observations_for_review": [
+     "evidence/RESULT.json 通用字段为 status=CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER、semantic_oracle=not_evaluated、browser=not_evaluated；oracle 与浏览器结论分别在 query-oracle.json 与 browser/RESULT.json",
+     "停止回执警告：q: 进程命令暂不可读，不能确认完整参数；s: PID 已复用或进程命令改变，拒绝采用旧记录"
+    ],
+    "large_artifacts_not_read": [
+     "evidence/semantic-core.jsonl",
+     "session.sqlite(-wal/-shm)",
+     "evidence/database-backup.sqlite",
+     "evidence/browser/network.har",
+     "evidence/events.jsonl",
+     "messages.jsonl"
+    ],
+    "observations_resolved_by": "ACTUAL-REVIEW N2（not_evaluated 为过时初值标签，非门项）与 N3（PID 警告为退出瞬时观测，回收证据充分）"
+   },
+   {
+    "arm": "second_open_down-b",
+    "port": 18984,
+    "receipts": [
+     {
+      "id": "second_open_down-b/EXIT",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-b/EXIT.json",
+      "bytes": 16,
+      "sha256": "3e42a2ad3dbeab9d1167d20261ad6305bdea31103ffc09c30f25558345966de2",
+      "role": "臂退出码"
+     },
+     {
+      "id": "second_open_down-b/WRAPPER-CLEANUP",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-b/WRAPPER-CLEANUP.json",
+      "bytes": 435,
+      "sha256": "b66286678d4838db2acb88ef6b1c6baeecf8f4620a5cfcd87135874afca04e07",
+      "role": "wrapper 清理核验"
+     },
+     {
+      "id": "second_open_down-b/RESULT",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-b/evidence/RESULT.json",
+      "bytes": 1015,
+      "sha256": "36db89e9b86dc883018ed963d56c8fb297625a70bf4b7951847b644e84ccbbdb",
+      "role": "运行时通用结果",
+      "recorded_status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER"
+     },
+     {
+      "id": "second_open_down-b/QUERY-ORACLE",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-b/evidence/query-oracle.json",
+      "bytes": 375,
+      "sha256": "e951973182d77a974631d1332ff7e193b0549480ae2e5829b13e2f3a1f91f943",
+      "role": "七 cut oracle",
+      "recorded_status": "passed"
+     },
+     {
+      "id": "second_open_down-b/NORMAL-RECOVERY",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-b/evidence/normal-recovery.json",
+      "bytes": 2774,
+      "sha256": "e60265b1e2edc4922d259d5b36a0e15d95cd3cdcbfd5c574832113f56d286f96",
+      "role": "正常恢复"
+     },
+     {
+      "id": "second_open_down-b/BROWSER-RESULT",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-b/evidence/browser/RESULT.json",
+      "bytes": 89,
+      "sha256": "c80eb996e16eaaa11bdf044a1aac813b737845625bdb5b5b1756396fe7fa8a7d",
+      "role": "浏览器结果",
+      "recorded_status": "passed"
+     },
+     {
+      "id": "second_open_down-b/BROWSER-COMMAND",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-b/evidence/browser-command.json",
+      "bytes": 558,
+      "sha256": "75b30f7ff5c13b7d81fd7a15b094480d6ce9c3de0a748c14e6f576166ce27999",
+      "role": "浏览器命令"
+     },
+     {
+      "id": "second_open_down-b/BROWSER-READINESS",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-b/evidence/browser/READINESS-DIAGNOSTICS.json",
+      "bytes": 7811,
+      "sha256": "6fc92e8272b17e197569e19d3191d32ab9302c1dc83e47320247a955baa37cc2",
+      "role": "浏览器就绪诊断"
+     },
+     {
+      "id": "second_open_down-b/HTTP-SESSION",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-b/evidence/http/SESSION.json",
+      "bytes": 1639,
+      "sha256": "aaf590cc2490c2085ab08e354cddaeefb9c153c0e12e661b520dfd0ca0af19c3",
+      "role": "HTTP 采集会话"
+     }
+    ],
+    "screenshots": [
+     {
+      "id": "second_open_down-b/PNG-CC-011",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-b/evidence/browser/CC-011.png",
+      "bytes": 90968,
+      "sha256": "86a141f51e614330239150261fed0ed50cf3a0f05a454013d3a0582a38196fa1",
+      "role": "截图"
+     },
+     {
+      "id": "second_open_down-b/PNG-CC-012",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-b/evidence/browser/CC-012.png",
+      "bytes": 91785,
+      "sha256": "701bff479fc5953a2a43e208347e0344d1fa2f1105527b283ed2876e8c406df4",
+      "role": "截图"
+     },
+     {
+      "id": "second_open_down-b/PNG-CC-013",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-b/evidence/browser/CC-013.png",
+      "bytes": 96602,
+      "sha256": "e404a1a50a260eefad92e03e13add07ffbf44290dcf46d70c3a7a630d2cbb587",
+      "role": "截图"
+     },
+     {
+      "id": "second_open_down-b/PNG-CC-014",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-b/evidence/browser/CC-014.png",
+      "bytes": 96586,
+      "sha256": "919fdfb5c9b2dc1b61bef71815d9c5f351c44c3a23b598f08b37af9f4bac3734",
+      "role": "截图"
+     },
+     {
+      "id": "second_open_down-b/PNG-developing",
+      "root": "OUT-REMAINING-20261013",
+      "relative_path": "second_open_down-b/evidence/browser/developing.png",
+      "bytes": 98091,
+      "sha256": "305277df5dbcf60ed0945d26b62a4320a8c90fb54071b799178a85b2a68c8b6e",
+      "role": "截图"
+     }
+    ],
+    "embedded_values": {
+     "exit": {
+      "exit": 0
+     },
+     "input_count": 40,
+     "core_records": 221,
+     "http_commands_count": 124,
+     "http_rejections_count": 0,
+     "query_oracle": {
+      "status": "passed",
+      "case": "second_open_down",
+      "cuts": 40,
+      "oracle_cuts": {
+       "15": "NO_FIRST",
+       "26": "NO_FIRST",
+       "27": "PENDING_CASE_TWO",
+       "31": "PENDING_CASE_TWO",
+       "38": "PENDING_CASE_TWO",
+       "39": "CASE_TWO",
+       "40": "CASE_TWO"
+      },
+      "scope": "frozen named cuts of actual Q; full natural prefix traces separately captured and compared"
+     },
+     "normal_recovery": {
+      "states": [
+       "stopped",
+       "recovered",
+       "ready"
+      ],
+      "epoch": [
+       "1",
+       "2"
+      ]
+     },
+     "browser": {
+      "status": "passed",
+      "cuts": [
+       "27",
+       "40"
+      ],
+      "page_errors": [],
+      "browser_version": "154.0.8037.99"
+     },
+     "runtime_cleanup_errors": [],
+     "wrapper_cleanup": {
+      "passed": true,
+      "port_connect_errno": 61,
+      "socket_absent": true
+     }
+    },
+    "observations_for_review": [
+     "evidence/RESULT.json 通用字段为 status=CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER、semantic_oracle=not_evaluated、browser=not_evaluated；oracle 与浏览器结论分别在 query-oracle.json 与 browser/RESULT.json",
+     "停止回执警告：q: 进程命令暂不可读，不能确认完整参数；s: PID 已复用或进程命令改变，拒绝采用旧记录"
+    ],
+    "large_artifacts_not_read": [
+     "evidence/semantic-core.jsonl",
+     "session.sqlite(-wal/-shm)",
+     "evidence/database-backup.sqlite",
+     "evidence/browser/network.har",
+     "evidence/events.jsonl",
+     "messages.jsonl"
+    ],
+    "observations_resolved_by": "ACTUAL-REVIEW N2（not_evaluated 为过时初值标签，非门项）与 N3（PID 警告为退出瞬时观测，回收证据充分）"
+   }
+  ]
+ },
+ "comparisons": {
+  "receipt": {
+   "id": "CMP",
+   "root": "OUT-REMAINING-20261013",
+   "relative_path": "COMPOSITE-COMPARISON-RESULT.json",
+   "bytes": 2543,
+   "sha256": "0d0624c9232725f96a9d28e0baff1a5b7a44458cebf100bfebb11ac3e38677fb",
+   "role": "两对原字节比较",
+   "recorded_status": "PASS"
+  },
+  "method_impl": "in_repo_comparator.compare_exact_traces",
+  "status": "PASS",
+  "pairs": [
+   {
+    "case": "second_open_up",
+    "status": "PASS",
+    "expected_records": 221,
+    "compared_records": 221,
+    "compared_bytes": 1456959869,
+    "method": "exact_bytes_and_strict_jsonl",
+    "excluded_fields": [],
+    "identity_renaming": [],
+    "sha256": [
+     "c0dbe0db7e6670b53fb1d1f89f722c28c56858c31b93639cbc952e77ffddfb3b",
+     "c0dbe0db7e6670b53fb1d1f89f722c28c56858c31b93639cbc952e77ffddfb3b"
+    ],
+    "pair": "首 composite ↔ second_open_up-b"
+   },
+   {
+    "case": "second_open_down",
+    "status": "PASS",
+    "expected_records": 221,
+    "compared_records": 221,
+    "compared_bytes": 1461830301,
+    "method": "exact_bytes_and_strict_jsonl",
+    "excluded_fields": [],
+    "identity_renaming": [],
+    "sha256": [
+     "bc6b6afd4502c13ea63ca29a86283782050c7a899ed664c68609ddc9939d7f1d",
+     "bc6b6afd4502c13ea63ca29a86283782050c7a899ed664c68609ddc9939d7f1d"
+    ],
+    "pair": "second_open_down-a ↔ second_open_down-b"
+   }
+  ],
+  "first_side_anchor": {
+   "composite": "COMP-DRAFT",
+   "root_release": "COMP-ROOT-RELEASE",
+   "aggregate_review": "COMP-AGGREGATE-REVIEW",
+   "source_mapping": "COMP-SOURCE-MAPPING",
+   "source_mapping_review": "COMP-SOURCE-MAPPING-REVIEW"
+  },
+  "rebinding": "second_open_up 两侧 SHA 与首 composite 独审封值 c0dbe0db…/1456959869B 相同；回绑结论以实际独审为准"
+ },
+ "run_package": {
+  "naming": "绑定 #1414 的工作草稿证据副本（宪法 §5 记账层产物），不是代码：不被任何构建、测试或运行入口调用，不得修改或执行；票关后随本目录归档出仓",
+  "decision": "ADOPTED_BY_ROOT（2026-10-13 根裁定）：七件按原字节入仓",
+  "in_repo_copies": [
+   {
+    "path": ".chanlun/review-results/issue1414-tb02d-20261012/run-package/remaining-driver.py",
+    "bytes": 15261,
+    "sha256": "595fa4c00937c63c58b07a90df18903678829877f4333ca15307c2335879355c",
+    "copied_from": "CTRL-20261012:tb1414-explicit-composite-preparation/remaining-driver.py"
+   },
+   {
+    "path": ".chanlun/review-results/issue1414-tb02d-20261012/run-package/remaining-harness.py",
+    "bytes": 10504,
+    "sha256": "34de93a4dd3a1988cf718d929f01c8407e28ec48158a5f1889ecaa1dc37cc5fb",
+    "copied_from": "CTRL-20261012:tb1414-explicit-composite-preparation/remaining-harness.py"
+   },
+   {
+    "path": ".chanlun/review-results/issue1414-tb02d-20261012/run-package/explicit_composite.py",
+    "bytes": 20653,
+    "sha256": "179c81de2e1f03597319b5aaa02046cb47ef8d58ee672e2948733df1b96f9929",
+    "copied_from": "CTRL-20261012:tb1414-explicit-composite-preparation/explicit_composite.py"
+   },
+   {
+    "path": ".chanlun/review-results/issue1414-tb02d-20261012/run-package/dependency_identity.py",
+    "bytes": 15239,
+    "sha256": "9a159a9d504dfcfde71c0c2c0dabba18ec57fd70ba6df28a8c2919d669502e9e",
+    "copied_from": "CTRL-20261012:tb1414-explicit-composite-preparation/dependency_identity.py"
+   },
+   {
+    "path": ".chanlun/review-results/issue1414-tb02d-20261012/run-package/reuse_state.py",
+    "bytes": 10722,
+    "sha256": "337a3c0a35629625948e731588c598b4fa0462c28933cd5a530ebed71ee9dc7e",
+    "copied_from": "CTRL-20261012:tb1414-explicit-composite-preparation/reuse_state.py"
+   },
+   {
+    "path": ".chanlun/review-results/issue1414-tb02d-20261012/run-package/completion_io.py",
+    "bytes": 11738,
+    "sha256": "b43db7f6fb274cc1c65567dedc53786188db1937a243db6f9735c0c4a6bff350",
+    "copied_from": "CTRL-20261012:tb1414-explicit-composite-preparation/completion_io.py"
+   },
+   {
+    "path": ".chanlun/review-results/issue1414-tb02d-20261012/run-package/CURRENT-SOURCES.json",
+    "bytes": 96887,
+    "sha256": "6e984f6b8c5848880db2f3c56e15140c5b0de16c7ad00ba1a4d4363a357ada5e",
+    "copied_from": "CTRL-20261012:tb1414-explicit-composite-preparation/CURRENT-SOURCES.json"
+   }
+  ],
+  "helpers": [
+   {
+    "id": "PKG-HELPER-remaining-driver.py",
+    "root": "CTRL-20261012",
+    "relative_path": "tb1414-explicit-composite-preparation/remaining-driver.py",
+    "bytes": 15261,
+    "sha256": "595fa4c00937c63c58b07a90df18903678829877f4333ca15307c2335879355c",
+    "role": "运行包执行物"
+   },
+   {
+    "id": "PKG-HELPER-remaining-harness.py",
+    "root": "CTRL-20261012",
+    "relative_path": "tb1414-explicit-composite-preparation/remaining-harness.py",
+    "bytes": 10504,
+    "sha256": "34de93a4dd3a1988cf718d929f01c8407e28ec48158a5f1889ecaa1dc37cc5fb",
+    "role": "运行包执行物"
+   },
+   {
+    "id": "PKG-HELPER-explicit_composite.py",
+    "root": "CTRL-20261012",
+    "relative_path": "tb1414-explicit-composite-preparation/explicit_composite.py",
+    "bytes": 20653,
+    "sha256": "179c81de2e1f03597319b5aaa02046cb47ef8d58ee672e2948733df1b96f9929",
+    "role": "运行包执行物"
+   },
+   {
+    "id": "PKG-HELPER-dependency_identity.py",
+    "root": "CTRL-20261012",
+    "relative_path": "tb1414-explicit-composite-preparation/dependency_identity.py",
+    "bytes": 15239,
+    "sha256": "9a159a9d504dfcfde71c0c2c0dabba18ec57fd70ba6df28a8c2919d669502e9e",
+    "role": "运行包执行物"
+   },
+   {
+    "id": "PKG-HELPER-reuse_state.py",
+    "root": "CTRL-20261012",
+    "relative_path": "tb1414-explicit-composite-preparation/reuse_state.py",
+    "bytes": 10722,
+    "sha256": "337a3c0a35629625948e731588c598b4fa0462c28933cd5a530ebed71ee9dc7e",
+    "role": "运行包执行物"
+   },
+   {
+    "id": "PKG-HELPER-completion_io.py",
+    "root": "CTRL-20261012",
+    "relative_path": "tb1414-explicit-composite-preparation/completion_io.py",
+    "bytes": 11738,
+    "sha256": "b43db7f6fb274cc1c65567dedc53786188db1937a243db6f9735c0c4a6bff350",
+    "role": "运行包执行物"
+   }
+  ],
+  "out_freeze_copies": [
+   {
+    "id": "PKG-FREEZE-remaining-driver.py",
+    "root": "OUT-REMAINING-20261013",
+    "relative_path": "freeze/remaining-driver.py",
+    "bytes": 15261,
+    "sha256": "595fa4c00937c63c58b07a90df18903678829877f4333ca15307c2335879355c"
+   },
+   {
+    "id": "PKG-FREEZE-remaining-harness.py",
+    "root": "OUT-REMAINING-20261013",
+    "relative_path": "freeze/remaining-harness.py",
+    "bytes": 10504,
+    "sha256": "34de93a4dd3a1988cf718d929f01c8407e28ec48158a5f1889ecaa1dc37cc5fb"
+   },
+   {
+    "id": "PKG-FREEZE-explicit_composite.py",
+    "root": "OUT-REMAINING-20261013",
+    "relative_path": "freeze/explicit_composite.py",
+    "bytes": 20653,
+    "sha256": "179c81de2e1f03597319b5aaa02046cb47ef8d58ee672e2948733df1b96f9929"
+   },
+   {
+    "id": "PKG-FREEZE-dependency_identity.py",
+    "root": "OUT-REMAINING-20261013",
+    "relative_path": "freeze/dependency_identity.py",
+    "bytes": 15239,
+    "sha256": "9a159a9d504dfcfde71c0c2c0dabba18ec57fd70ba6df28a8c2919d669502e9e"
+   },
+   {
+    "id": "PKG-FREEZE-reuse_state.py",
+    "root": "OUT-REMAINING-20261013",
+    "relative_path": "freeze/reuse_state.py",
+    "bytes": 10722,
+    "sha256": "337a3c0a35629625948e731588c598b4fa0462c28933cd5a530ebed71ee9dc7e"
+   },
+   {
+    "id": "PKG-FREEZE-completion_io.py",
+    "root": "OUT-REMAINING-20261013",
+    "relative_path": "freeze/completion_io.py",
+    "bytes": 11738,
+    "sha256": "b43db7f6fb274cc1c65567dedc53786188db1937a243db6f9735c0c4a6bff350"
+   },
+   {
+    "id": "PKG-FREEZE-CURRENT-SOURCES.json",
+    "root": "OUT-REMAINING-20261013",
+    "relative_path": "freeze/CURRENT-SOURCES.json",
+    "bytes": 96887,
+    "sha256": "6e984f6b8c5848880db2f3c56e15140c5b0de16c7ad00ba1a4d4363a357ada5e"
+   },
+   {
+    "id": "PKG-FREEZE-PLAN.json",
+    "root": "OUT-REMAINING-20261013",
+    "relative_path": "freeze/PLAN.json",
+    "bytes": 53522,
+    "sha256": "1e5d62f9a9ee593d53fd62eceaf981fb6665d367d374e857287826741b1e3793"
+   },
+   {
+    "id": "PKG-FREEZE-ROOT-REMAINING-AUTHORIZATION.json",
+    "root": "OUT-REMAINING-20261013",
+    "relative_path": "freeze/ROOT-REMAINING-AUTHORIZATION.json",
+    "bytes": 4088,
+    "sha256": "9a027504f1c8eb1ffb7a15b64f1c105ee8742c2b8abec011e51667c6838ab7af"
+   }
+  ],
+  "current_sources": "SRC-CURRENT",
+  "covered_by": [
+   "PKG-FINAL-BINDING（逐个 helper SHA）",
+   "PKG-FINAL-REVIEW（经 SRC-CURRENT 绑定）",
+   "ACTUAL-REVIEW（核得 OUT freeze 9 件 = 准备目录现件 = 授权所绑 SHA）"
+  ],
+  "machine_bound": "含本机绝对路径（worktree、/Volumes 外卷、/tmp runtime venv），不能从干净 checkout 运行"
+ },
+ "acceptance": {
+  "actual_independent_review_of_remaining": {
+   "location": "CTRL-20261012:tb1414-explicit-composite-review/actual-remaining/",
+   "receipts": [
+    {
+     "id": "ACTUAL-REVIEW",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-explicit-composite-review/actual-remaining/REVIEW.md",
+     "bytes": 13546,
+     "sha256": "87a739e1070818d6abadb72dc04b4113e8711b4077953f28461ecfaeb8602edc",
+     "role": "实际独审报告"
+    },
+    {
+     "id": "ACTUAL-RESULT",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-explicit-composite-review/actual-remaining/RESULT.json",
+     "bytes": 10874,
+     "sha256": "07495bf945fe3c0356ad5cdfdd1c009174e8bea0c65c77750615d03119ff56b8",
+     "role": "实际独审结论"
+    },
+    {
+     "id": "ACTUAL-BINDING",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-explicit-composite-review/actual-remaining/BINDING.json",
+     "bytes": 13393,
+     "sha256": "10db30c823dbd9c3062352a0c41fdeb090fdb29129d7172c9f37c16bac1d01e1",
+     "role": "实际独审绑定"
+    },
+    {
+     "id": "ACTUAL-CHECK",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-explicit-composite-review/actual-remaining/CHECK.json",
+     "bytes": 17673,
+     "sha256": "bf03e78895f4c86d3130609611a14326c602a9b76de21a1d3948b9d8950cc48c",
+     "role": "108 项核验"
+    },
+    {
+     "id": "ACTUAL-SOURCE-RECHECK",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-explicit-composite-review/actual-remaining/SOURCE-RECHECK.json",
+     "bytes": 480,
+     "sha256": "b64f7ba3d52bb74a9e3712a9bbf9efbf7d827e45bf8349a5a69006471a25c0cf",
+     "role": "来源重算"
+    },
+    {
+     "id": "ACTUAL-LIVE-RESOURCE-CHECK",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-explicit-composite-review/actual-remaining/LIVE-RESOURCE-CHECK.json",
+     "bytes": 1757,
+     "sha256": "18b2f1007ec2c1900dea812c9b1ed97c7e41d3b213930a9a7ee7e5ffd11e689e",
+     "role": "升级只读端口/进程复核"
+    }
+   ],
+   "status": "PASS_WITH_DEFERRED_LARGE_REHASH",
+   "tb02d_limited_acceptance": "ACCEPTED",
+   "scope": "TB-02-D（#1414）三fresh UP/b→DOWN/a→DOWN/b 与两对221原字节比较；不裁整图",
+   "whole_map_ruled": false,
+   "blocking_findings": [],
+   "non_blocking_findings": [
+    {
+     "id": "N1",
+     "title": "browser30帽余量薄"
+    },
+    {
+     "id": "N2",
+     "title": "RESULT.json not_evaluated为过时标签（根线索①）"
+    },
+    {
+     "id": "N3",
+     "title": "PID复用警告为退出瞬时观测（根线索②）"
+    },
+    {
+     "id": "N4",
+     "title": "browser requestfailed 24/17/25"
+    },
+    {
+     "id": "N5",
+     "title": "Chrome主文件ctime前后变化"
+    }
+   ],
+   "deferred_large_rehash": [
+    {
+     "id": "D1",
+     "status": "REHASHED_PASS",
+     "item": "rust/target/release/s_structure_session 4254944B及三臂快照0003",
+     "rehash_done": true,
+     "indirect_support": [
+      "driver SOURCE-POSTCHECK 555零失配(运行内重算)",
+      "harness validate_source_binding逐臂快照=manifest=CURRENT",
+      "运行时结束前源复核(CAPTURED前提)",
+      "现lstat五字段=SOURCE-IDENTITIES"
+     ],
+     "status_at_actual_review": "DEFERRED_LARGE_REHASH",
+     "rehash_result_by_class": {
+      "D1.binary": {
+       "PASS": 1
+      },
+      "D1.snapshot": {
+       "PASS": 3
+      }
+     }
+    },
+    {
+     "id": "D2",
+     "status": "REHASHED_PASS",
+     "item": "UP锚core与三fresh semantic-core(1.46GB级)",
+     "rehash_done": true,
+     "indirect_support": [
+      "compare_exact_traces运行内双侧全字节sha与221布局",
+      "sha[0]=c0dbe0db…=first_composite.core_sha256(verify_comparison_binding)",
+      "锚core lstat现场=已审stamp",
+      "fresh大小=compared_bytes"
+     ],
+     "status_at_actual_review": "DEFERRED_LARGE_REHASH",
+     "rehash_result_by_class": {
+      "D2.anchor-core": {
+       "PASS": 1
+      },
+      "D2.fresh-core": {
+       "PASS": 3
+      }
+     }
+    },
+    {
+     "id": "D3",
+     "status": "REHASHED_PASS_WITH_BASELINES",
+     "item": "HAR、session.sqlite/WAL、database-backup、>1MiB committed-candidate/响应体",
+     "rehash_done": true,
+     "indirect_support": [
+      "browser断言运行内完成，txt/PNG/RESULT已核",
+      "372份Q小收据全数核",
+      "public候选已入被逐字节比较的core"
+     ],
+     "status_at_actual_review": "DEFERRED_LARGE_REHASH",
+     "rehash_result_by_class": {
+      "D3.committed-candidate": {
+       "PASS": 318
+      },
+      "D3.response-body": {
+       "PASS": 243
+      },
+      "D3.response-raw": {
+       "PASS": 243
+      },
+      "D3.har": {
+       "BASELINE_RECORDED": 3
+      },
+      "D3.sqlite": {
+       "BASELINE_RECORDED": 3
+      },
+      "D3.sqlite-wal": {
+       "BASELINE_RECORDED": 3
+      },
+      "D3.database-backup": {
+       "BASELINE_RECORDED": 3
+      }
+     }
+    },
+    {
+     "id": "D4",
+     "status": "REHASHED_PASS",
+     "item": "node 121304480B正文",
+     "rehash_done": true,
+     "indirect_support": [
+      "DEPENDENCY-PRE/POST full receipt equality含sha与stat"
+     ],
+     "status_at_actual_review": "DEFERRED_LARGE_REHASH",
+     "rehash_result_by_class": {
+      "D4.node": {
+       "PASS": 1
+      }
+     }
+    }
+   ],
+   "deferred_owner": "根，在 S 静止后补跑；补跑前不得写成已重算",
+   "deferred_rehash_result": {
+    "performed": "2026-10-13，S 静止后按根授权补跑（本机实跑第 7 项）",
+    "authorization": {
+     "id": "ROOT-REHASH-AUTHORIZATION",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-post-acceptance/ROOT-REHASH-AUTHORIZATION.json",
+     "bytes": 1214,
+     "sha256": "06bb139e1a1ace63acd5a04571b067685a3fddcb7bf1bb1bcaadb8c1e9ba7c2f",
+     "role": "根授权"
+    },
+    "script": {
+     "id": "DEFERRED-REHASH-SCRIPT",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-post-acceptance/deferred_rehash.py",
+     "bytes": 23582,
+     "sha256": "5f6738ca951fe5b8ff1ab42b17c52dc5653b8626fe7cf2880458e470234def34",
+     "role": "重算脚本"
+    },
+    "receipt": {
+     "id": "DEFERRED-REHASH-FULL",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-runtime-checks/rehash/DEFERRED-REHASH-execute-full.json",
+     "bytes": 952106,
+     "sha256": "4305c0a0fa22de829fb7bf87b1134295f6d163d722a8d3cd26fba506c04d5836",
+     "role": "全量重算收据"
+    },
+    "status": "PASS_WITH_BASELINES",
+    "items": 825,
+    "bytes": 15491333530,
+    "totals": {
+     "BASELINE_RECORDED": 12,
+     "PASS": 813
+    },
+    "fail_or_error": 0,
+    "baseline_recorded_meaning": "HAR、session.sqlite、WAL、database-backup 各 3 件：运行内无 SHA 收据，本次只记首个基线 SHA，不称 PASS，也不能证明与运行当时相同"
+   },
+   "actual_verification_summary": {
+    "checks_passed": "108/108",
+    "q_receipts_checked": 372,
+    "snapshot_small_rehash_per_arm": 104,
+    "current_sources_small_rehash": "554/555(二进制延后)",
+    "frozen_evidence_small_rehash": "141/141",
+    "pure_identity": {
+     "client": "083f424d9ad9d2e4e6402f44a2e1b9cfe5ae9bb377053df91fc0ae2ffe132822",
+     "runner": "a3d32f0be360851a54a8e9e978445dcafcda6805f3e110b572c69a338277803d",
+     "runtime": "e17fd1f6fecc86753d46dd04290803278286d285b130d02f900aeaded0ac5aa4"
+    },
+    "per_arm_timing": {
+     "second_open_up-b": {
+      "arm_seconds": 351.36,
+      "query_max_seconds": 7.146,
+      "collect_core_upper_seconds": 31.3,
+      "oracle_seconds": 7.51,
+      "browser_seconds_mtime": 28.941,
+      "browser_elapsed_ms": 28747,
+      "browser_cap_margin_seconds": 1.059,
+      "browser_requestfailed_not_gate": 24
+     },
+     "second_open_down-a": {
+      "arm_seconds": 357.38,
+      "query_max_seconds": 7.344,
+      "collect_core_upper_seconds": 34.87,
+      "oracle_seconds": 7.71,
+      "browser_seconds_mtime": 29.349,
+      "browser_elapsed_ms": 29166,
+      "browser_cap_margin_seconds": 0.651,
+      "browser_requestfailed_not_gate": 17
+     },
+     "second_open_down-b": {
+      "arm_seconds": 358.63,
+      "query_max_seconds": 7.282,
+      "collect_core_upper_seconds": 34.37,
+      "oracle_seconds": 7.81,
+      "browser_seconds_mtime": 29.294,
+      "browser_elapsed_ms": 29108,
+      "browser_cap_margin_seconds": 0.706,
+      "browser_requestfailed_not_gate": 25
+     }
+    }
+   },
+   "root_acceptance": {
+    "receipt": {
+     "id": "ROOT-ACTUAL-ACCEPTANCE",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-explicit-composite-root-release/ROOT-ACTUAL-ACCEPTANCE.json",
+     "bytes": 3114,
+     "sha256": "c8d6171af117cf64cc24dc78025172024ec1509c2b1f4b11bc20d9e8f0d89e23",
+     "role": "根签收"
+    },
+    "status": "ROOT_ACCEPTED_TB02D_REMAINING_ACTUAL_WITH_DEFERRED_LARGE_REHASH",
+    "accepted_at_utc": "2026-10-13T01:10:27.788140+00:00"
+   }
+  },
+  "final_independent_review": {
+   "status": "ROUND2_PASS_FINAL_COMMIT_SURFACE_READY_PENDING_RUNTIME_CHECKS",
+   "round1": {
+    "location": "CTRL-20261012:tb1414-explicit-composite-review/final-surface/",
+    "receipts": [
+     {
+      "id": "FS-REVIEW",
+      "root": "CTRL-20261012",
+      "relative_path": "tb1414-explicit-composite-review/final-surface/REVIEW.md",
+      "bytes": 13794,
+      "sha256": "1149a14bd331f652c96fca2d1286c8728cf2cc900a3efaa2b3c4c8665fae9db8",
+      "role": "整体独审报告"
+     },
+     {
+      "id": "FS-RESULT",
+      "root": "CTRL-20261012",
+      "relative_path": "tb1414-explicit-composite-review/final-surface/RESULT.json",
+      "bytes": 7920,
+      "sha256": "24f9332d47cb3048910c48ceb8f5ae9c0c0ceeb3aa6222add21e28b8f919acf1",
+      "role": "整体独审结论"
+     },
+     {
+      "id": "FS-BINDING",
+      "root": "CTRL-20261012",
+      "relative_path": "tb1414-explicit-composite-review/final-surface/BINDING.json",
+      "bytes": 16340,
+      "sha256": "47caee9123858a9f31c8d98f61db3899ad81c74c08e04433f2c63d41982fb675",
+      "role": "整体独审绑定"
+     },
+     {
+      "id": "FS-BYTE-CHECK",
+      "root": "CTRL-20261012",
+      "relative_path": "tb1414-explicit-composite-review/final-surface/byte-check.json",
+      "bytes": 12897,
+      "sha256": "62e50c689919a0c32f5dfd098b67590dcea39488db6fc53fdebf99b2aab0fdb2",
+      "role": "46 件字节核对"
+     },
+     {
+      "id": "FS-EVIDENCE-INDEX-TRACE",
+      "root": "CTRL-20261012",
+      "relative_path": "tb1414-explicit-composite-review/final-surface/evidence-index-trace.json",
+      "bytes": 66785,
+      "sha256": "cad576cfc918c0371bf97a8ae13fed58098a041ac55aa27f7c71abe0cd2580dd",
+      "role": "索引收据回溯"
+     },
+     {
+      "id": "FS-ISSUE-LIVE",
+      "root": "CTRL-20261012",
+      "relative_path": "tb1414-explicit-composite-review/final-surface/issue1414-live.json",
+      "bytes": 8248,
+      "sha256": "7774efd502f26fbd0d72117f8250fd021b3cca97a7a3bae429d666c87fc799d4",
+      "role": "票面只读快照"
+     }
+    ],
+    "status": "FAIL_WITH_FINDINGS",
+    "reviewed_commit_surface_sha256": "30e3a205ffa5f3f18f969ab8902b65db6dd6e0737703abad6449647445fccbee",
+    "concept_layer": "PASS（SECOND同向笔/任意分型/独立方向性包含/strict首笔封口/065笔破坏与段破坏分立，与 xianduan.md 及博文正本一致）",
+    "blocking": [
+     {
+      "id": "B1",
+      "severity": "HIGH",
+      "title": "新CI步 discover 拉入 test_tb02d_projection_cache.py，其 setUpClass 需 Rust 写者二进制，BINARY=None 必然 ERROR；ci.yml与报告冒称其已进CI",
+      "locations": [
+       ".github/workflows/ci.yml:293",
+       ".github/workflows/ci.yml:304",
+       "s_session/tests/test_tb02d_projection_cache.py:12",
+       "s_session/tests/test_tb02d_projection_cache.py:17",
+       "s_session/tests/test_tb02d_projection_cache.py:331-332",
+       "s_session/tests/tb01c_query_tests.py:29",
+       "s_session/tests/tb01c_query_tests.py:44-48",
+       "s_session/tests/tb01c_query_tests.py:60",
+       ".chanlun/review-results/issue1414-tb02d-20261012/ACCEPTANCE-REPORT.md:195"
+      ],
+      "fix_applied": "根选定修法：ci.yml 改为在 s_session/tests 下显式运行 test_tb02d_contract/discovery/validate_once/parse_pool/key_reuse 五个模块；test_tb02d_projection_cache.py 不进 CI，以本机 --binary 单独实跑留收据（S 静止后由根执行）；改正 ci.yml 注释与 ACCEPTANCE-REPORT §8；测试文件未改",
+      "rereview": "RESOLVED（r2）"
+     }
+    ],
+    "non_blocking": [
+     {
+      "id": "N1",
+      "severity": "MEDIUM",
+      "title": "strict首笔冻结改变全部 FeatureSeqState 使用者结果（classifier streaming/backtest/probe）；最终Rust字节无全量 cargo test 收据；xianduan.md 未记该细化",
+      "locations": [
+       "rust/src/theta_v0/parser/feature_seq.rs:666-683",
+       "rust/src/theta_v0/classifier/streaming.rs:42"
+      ]
+     },
+     {
+      "id": "N2",
+      "severity": "MEDIUM",
+      "title": "非observe生产路径 second_sequence 构建完整证据并整体clone，默认无限窗口，成本未测",
+      "locations": [
+       "rust/src/theta_v0/parser/feature_seq.rs:299-397",
+       "rust/src/theta_v0/parser/feature_seq.rs:728"
+      ]
+     },
+     {
+      "id": "N3",
+      "severity": "LOW",
+      "title": "C2 单独检出时 s_session bin 测试必红（python3 调 HEAD 版合同）；提交说明须写明或合并C2+C3",
+      "locations": [
+       "rust/src/bin/s_session_v2/tb02c.rs:388-435",
+       "rust/src/bin/s_structure_session.rs:4345",
+       "rust/src/bin/s_structure_session.rs:4445"
+      ]
+     },
+     {
+      "id": "N4",
+      "severity": "LOW",
+      "title": "子工位F-2：evidence.get 先于形状检查，非dict evidence 抛 AttributeError 致断连而非503（仍失败关闭）",
+      "locations": [
+       "s_session/s_tb02_contract.py:383",
+       "s_session/s_readonly_server.py:984",
+       "s_session/s_readonly_server.py:1074"
+      ]
+     },
+     {
+      "id": "N5",
+      "severity": "LOW",
+      "title": "tb02d_verify 三处子集式比较",
+      "locations": [
+       "s_session/tests/tb02d_verify.py:46",
+       "s_session/tests/tb02d_verify.py:49",
+       "s_session/tests/tb02d_verify.py:58"
+      ]
+     },
+     {
+      "id": "N6",
+      "severity": "LOW",
+      "title": "两个 test_ 命名的离线探针需外部参数",
+      "locations": [
+       "s_session/tests/test_tb02d_snapshot_validate_once.cjs:12",
+       "s_session/tests/test_tb02d_strict_clone.cjs:12"
+      ]
+     },
+     {
+      "id": "N7",
+      "severity": "LOW",
+      "title": "机器特定绝对路径入 git 历史（非凭据，已披露）",
+      "locations": [
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/remaining-harness.py:13",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/explicit_composite.py:12",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/reuse_state.py:41",
+       "s_session/tests/tb02d_harness.py:78",
+       ".chanlun/review-results/issue1414-tb02d-20261012/ORACLE-DESIGN.md:23"
+      ]
+     },
+     {
+      "id": "N8",
+      "severity": "LOW",
+      "title": "CodeQL 工作流 disabled_manually（#1107），run-package 当前无 CodeQL 增量；DevSkim DS173237 预计变红，按 #1404 先例处理"
+     }
+    ],
+    "root_checks_after_S_quiescent": [
+     "修 B1（只改 ci.yml 与 ACCEPTANCE-REPORT §8，必要时 EVIDENCE-INDEX）并更新 COMMIT-SURFACE；对改动字节做小范围复审",
+     "本机 CPython 3.14.6 实跑修后的 TB-02-D CI 命令并留收据；另以 python3 -B s_session/tests/test_tb02d_projection_cache.py --binary <s_structure_session> 跑 projection_cache",
+     "按 s-observer 原步骤在 3.11 实跑：unittest discover test_tb01c_*/test_tb02a_*/test_tb02c_*（装 requirements-tb02c.txt）、node s_session/tests/test_tb01c_browser.cjs、node --test s_session/tests/test_tb02c_contract.cjs",
+     "cargo fmt --all -- --check；cargo check --all-targets；cargo check --features backtest_bin --all-targets；cargo check --features s_session --bin s_structure_session",
+     "cargo test --all-targets（全量，覆盖 tb02d_tests 与 classifier/backtest 等 parser 消费者，N1）；cargo test --locked --features s_session --bin s_structure_session；cargo test --lib --features backtest_bin；记录耗时（core 实现期曾有 >360s TIMEOUT）",
+     "python3 -B s_session/tests/fixtures/tb02d/generate-input.py 自检；再 --output 到临时目录，核生成的 raw-ledger/hand-oracle/MANIFEST 与冻结字节一致",
+     "D1–D4 大件重算（release 二进制与三臂快照、四份 semantic-core、HAR/DB/WAL/backup、node）",
+     "G2 复核：HEAD、git status -uall、36 件 SHA、531 项 CURRENT-SOURCES、origin/main 未前进",
+     "逐 commit：每次 git diff --cached --name-only 对清单；C2 起 fmt/check 三项记录可编译；C2 的 bin 测试红按 N3 写入提交说明或合并 C2+C3；全部提交后用 git show <commit>:<path> 逐项重核 path→SHA",
+     "以本审实体替换 FINAL-INDEPENDENT-REVIEW.md 模板（或根决定的落盘方式）；B1 修复后的复审结论一并入仓",
+     "PR 后核 DevSkim/CodeQL 实际增量（N8），按先例写 CI-DELTA.md；CI 红照实写去向"
+    ]
+   },
+   "round2": {
+    "location": "CTRL-20261012:tb1414-explicit-composite-review/final-surface/r2/",
+    "receipts": [
+     {
+      "id": "FS2-REVIEW",
+      "root": "CTRL-20261012",
+      "relative_path": "tb1414-explicit-composite-review/final-surface/r2/REVIEW.md",
+      "bytes": 7416,
+      "sha256": "3165f21d94fbcce52034498d566d71a90c0defd3c0178113071ebeca741c8dee",
+      "role": "复审报告"
+     },
+     {
+      "id": "FS2-RESULT",
+      "root": "CTRL-20261012",
+      "relative_path": "tb1414-explicit-composite-review/final-surface/r2/RESULT.json",
+      "bytes": 6869,
+      "sha256": "c055481d64a9fca17a3c80741c76050b4ba9f87556e85c8b9f64b96b8a0053f7",
+      "role": "复审结论"
+     },
+     {
+      "id": "FS2-BINDING",
+      "root": "CTRL-20261012",
+      "relative_path": "tb1414-explicit-composite-review/final-surface/r2/BINDING.json",
+      "bytes": 16077,
+      "sha256": "f6327077651ccff687ba5572a4c7296d06c9b2668db531ea53c23dabee0be3a7",
+      "role": "复审绑定"
+     },
+     {
+      "id": "FS2-BYTE-CHECK",
+      "root": "CTRL-20261012",
+      "relative_path": "tb1414-explicit-composite-review/final-surface/r2/byte-check.json",
+      "bytes": 14917,
+      "sha256": "19911a9c3a17445f579271e4311d5fabfd8ed5a57dae1eff8420675b41a01acd",
+      "role": "46 件字节核对"
+     },
+     {
+      "id": "FS2-EVIDENCE-INDEX-TRACE",
+      "root": "CTRL-20261012",
+      "relative_path": "tb1414-explicit-composite-review/final-surface/r2/evidence-index-trace.json",
+      "bytes": 45193,
+      "sha256": "4f5c41820ee327f8850bc76c2733de83737ee5afaf52f267acb8f4e71d5bb352",
+      "role": "索引收据回溯"
+     }
+    ],
+    "status": "PASS_FINAL_COMMIT_SURFACE_READY_PENDING_RUNTIME_CHECKS",
+    "reviewed_commit_surface_sha256": "eecc02fdd693ad1ff0bd6965936120d770eff4fa9376474a266467f2cb711a76",
+    "reviewed_commit_plan_sha256": "381e2d735bee98a13fff821f594ef0901d9b2bb1e03ed0acaf5192c8c0c5534f",
+    "b1": "RESOLVED",
+    "blocking": [],
+    "non_blocking": [
+     {
+      "id": "R2-N1",
+      "severity": "LOW",
+      "title": "--binary 入口只覆盖 projection_cache 的 14 个自有测试，继承的 31 个 TB-01-C QueryTests 不经此入口；报告只写“只选 test_projection_*”，未写数量与继承测试的去处；C2 改了 Q 产品文件而 tb01c_query_tests 无最终字节收据",
+      "disposition": "ACCEPTANCE-REPORT §8/§10/§11 与本索引 ci.not_in_ci 写明 --binary 入口只覆盖 14 个自有测试，继承的 31 个 TB-01-C Q 测试另以 tb01c_query_tests.py --binary 实跑，收据 PENDING（2026-10-13 已补：projection_cache 14 个、tb01c_query_tests 31 个均 OK，见 runtime_checks 第 3 项）"
+     },
+     {
+      "id": "R2-N2",
+      "severity": "LOW",
+      "title": "EVIDENCE-INDEX limitations[1] 仍写未加前缀的（N1），应为 AR-N1",
+      "disposition": "limitations[1] 已改为 AR-N1"
+     },
+     {
+      "id": "R2-N3",
+      "severity": "LOW",
+      "title": "提交面外 PR-DRAFT.md（d77d3002…）过期：六段审查顺序、实际独审 PENDING、未反映 projection_cache 未进CI；G6 前须重写",
+      "disposition": "PR-DRAFT.md 已按五提交与两轮独审结论重写（提交面外）"
+     },
+     {
+      "id": "FS-N1..FS-N8",
+      "severity": "MEDIUM×2/LOW×6",
+      "title": "首轮非阻断项仍开，已在报告 §10 披露",
+      "disposition": "首轮非阻断项仍开，见 limitations"
+     }
+    ],
+    "root_checks_after_S_quiescent": [
+     "G2 复核（按新清单 eecc02fd…）：HEAD=f95a7f3；git status -uall 恰 46 路径；46 件 SHA=清单；531 项 CURRENT-SOURCES 现值相等；origin/main 未前进或其影响已裁",
+     "本机 CPython 3.14.6 逐字执行 CI 新步骤并留收据：cd s_session/tests && python -VV && python -B -c \"import sys; sys.path.insert(0, '..'); import s_readonly_server as s; print('tb02d_parse_pool_layout_matches', s._query_integrity()._CanonicalParsePool._layout_matches())\" && python -B -m unittest -v test_tb02d_contract test_tb02d_discovery test_tb02d_validate_once test_tb02d_parse_pool test_tb02d_key_reuse",
+     "python3 -B s_session/tests/test_tb02d_projection_cache.py --binary <s_structure_session>（14 个自有测试）",
+     "python3 -B s_session/tests/tb01c_query_tests.py --binary <s_structure_session>（31 个 TB-01-C Q 测试；C2 改了 Q 产品文件，R2-N1）",
+     "按 s-observer 原步骤在 3.11 实跑：unittest discover test_tb01c_*/test_tb02a_*/test_tb02c_*（先装 requirements-tb02c.txt）、node s_session/tests/test_tb01c_browser.cjs、node --test s_session/tests/test_tb02c_contract.cjs",
+     "cargo fmt --all -- --check；cargo check --all-targets；cargo check --features backtest_bin（按 ci.yml 原形式）；cargo check --features s_session --bin s_structure_session",
+     "cargo test --all-targets（全量，覆盖 parser 的 classifier/backtest 消费者，FS-N1）；cargo test --locked --features s_session --bin s_structure_session；cargo test --lib --features backtest_bin；记录耗时",
+     "python3 -B s_session/tests/fixtures/tb02d/generate-input.py 自检；再 --output 到临时目录，核 raw-ledger/hand-oracle/MANIFEST 与冻结字节一致",
+     "D1–D4 大件重算（release 二进制与三臂快照、四份 semantic-core、HAR/DB/WAL/backup、node）",
+     "逐提交（五个）：C1(5)→C2(27)→C3(4)→C4(1)→C5(9)，每次 git diff --cached --name-only 对清单；C2 后记录 cargo fmt/check 三项可编译（C1/C3/C4 Rust 未变，C5 纯文档豁免）；可选在 C2 后跑 s_session bin 测试确认 FS-N3 已消；全部提交后 git show <commit>:<path> 逐项重核 46 件 SHA",
+     "FINAL-INDEPENDENT-REVIEW.md 落盘：首轮 + r2 两轮实体（根定方式）；如补 R2-N1/R2-N2 文字，属 C5 纯文档改动并记录",
+     "G6 前重写 PR-DRAFT.md（五提交、实际独审已接受、projection_cache 未进CI、FS/R2 已知限制）（R2-N3）",
+     "PR 后核 DevSkim 增量（预计 DS173237）按 #1404 先例写 CI-DELTA.md 或登记基线；CI 红照实写去向；合入须用户对具体 PR 号与 head SHA 批准"
+    ]
+   },
+   "in_repo_copy": {
+    "path": ".chanlun/review-results/issue1414-tb02d-20261012/FINAL-INDEPENDENT-REVIEW.md",
+    "content": "逐字节收录 FS-REVIEW 与 FS2-REVIEW 全文的索引文件；围栏内内容的 SHA256 等于两份原件",
+    "note": "r2 之后按 R2-N1/R2-N2 补写的报告与索引文字属纯文档改动"
+   }
+  },
+  "runtime_checks": {
+   "location": "CTRL-20261012:tb1414-runtime-checks/",
+   "receipt": {
+    "id": "RUNTIME-CHECKS-RESULT",
+    "root": "CTRL-20261012",
+    "relative_path": "tb1414-runtime-checks/RUNTIME-CHECKS-RESULT.json",
+    "bytes": 114622,
+    "sha256": "2f7d2f3f391b5119f87506b7fcb2c7c613ac732e81819fdb127b5d910b17de5e",
+    "role": "本机实跑汇总"
+   },
+   "status": "PASS_WITH_KNOWN_BASELINE_EXCEPTION",
+   "status_meaning": "R2 root_checks_after_S_quiescent 中本工位所列 8 项全部执行；除 main 自 d8810bff97（#1392）起的 3 个既有红（获批基线例外，与 #1414 改动无关）外无失败，无 #1414 新增失败；D1–D4 为 PASS_WITH_BASELINES；worktree 47 件字节与 git status 每步不变。",
+   "checklist_source": "复审 r2 RESULT（c055481d…）root_checks_after_S_quiescent",
+   "commit_surface_checked": "COMMIT-SURFACE schema 3（d5bc7a9c…，47 件）",
+   "worktree_head": "f95a7f3ebc0ce84ec2d2f8a8d71b5030b19f89b9",
+   "items": [
+    {
+     "no": 1,
+     "name": "G2 复核",
+     "verdict": "PASS",
+     "finding": "HEAD f95a7f3、暂存区空、git status -uall 恰 47 路径，47 件 SHA/bytes/状态码＝COMMIT-SURFACE d5bc7a9c；CURRENT-SOURCES 555 项现值全等（worktree 531/531、外部 24/24）；release 二进制 9f2a9f52…1d30＝CURRENT-SOURCES 登记值；本地 origin/main 与远端 ls-remote main 均＝f95a7f3（未前进）",
+     "receipts": [
+      {
+       "id": "01a-g2-current-sources",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/01a-g2-current-sources/RECEIPT.json",
+       "bytes": 4307,
+       "sha256": "dee885cc0e1d08364fd2a1c536543e7940a7ccea5cb74ceb2229e840f6c9ae64",
+       "role": "G2：钉住输入、CURRENT-SOURCES 现值、release 二进制 SHA",
+       "exit_code": 0
+      },
+      {
+       "id": "01b-g2-commit-surface",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/01b-g2-commit-surface/RECEIPT.json",
+       "bytes": 3698,
+       "sha256": "9b7519881407fa43e39cab0b8ae6fe6d69385ad7e362e7935b5786fcb037dbd5",
+       "role": "G2：HEAD、暂存区空、status 47 路径、47 件 SHA＝COMMIT-SURFACE d5bc7a9c",
+       "exit_code": 0
+      },
+      {
+       "id": "01c-g2-remote-main",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/01c-g2-remote-main/RECEIPT.json",
+       "bytes": 3341,
+       "sha256": "ae1cf0c30c3b89ae78b6ebfe377881d6e3948d299393186247a64e340bce30e1",
+       "role": "G2：只读 ls-remote 核远端 main 是否前进（不 fetch、不写 refs）",
+       "exit_code": 0
+      }
+     ]
+    },
+    {
+     "no": 2,
+     "name": "CI 新增 TB-02-D 步骤 @CPython 3.14.6（逐字）",
+     "verdict": "PASS",
+     "finding": "python -VV＝3.14.6；tb02d_parse_pool_layout_matches True；五模块 Ran 35 tests OK（0 skip）",
+     "receipts": [
+      {
+       "id": "02-ci-tb02d-py3146",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/02-ci-tb02d-py3146/RECEIPT.json",
+       "bytes": 8079,
+       "sha256": "3dce71338514424c880e4e1ff130cccd4dc3313e06d70731d6da9fe1a6250703",
+       "role": "ci.yml s-observer 步 10（TB-02-D，working-directory s_session/tests）run 文本逐字，bash --noprofile --norc -eo pipefail；python=/tmp/tb1414-runtime-venv（CPython 3.14.6）",
+       "exit_code": 0
+      }
+     ]
+    },
+    {
+     "no": 3,
+     "name": "--binary 两组（release 二进制 9f2a9f52…＝CURRENT-SOURCES，未重建）",
+     "verdict": "PASS",
+     "finding": "test_tb02d_projection_cache.py Ran 14 OK；tb01c_query_tests.py Ran 31 OK",
+     "receipts": [
+      {
+       "id": "03a-projection-cache-binary",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/03a-projection-cache-binary/RECEIPT.json",
+       "bytes": 5962,
+       "sha256": "ff9414c8ac7ec63af858dfbb55e6cd9552afb38c244789c18b220b66df2f191b",
+       "role": "R2 清单：projection_cache 14 个自有测试，--binary=worktree release 二进制（SHA 9f2a9f52…1d30＝CURRENT-SOURCES，见 01a）",
+       "exit_code": 0
+      },
+      {
+       "id": "03b-tb01c-query-tests-binary",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/03b-tb01c-query-tests-binary/RECEIPT.json",
+       "bytes": 6606,
+       "sha256": "1f07dd74ddbc73ccadb25e424bcd48df70610ef2a3219dd3f6156fd4487d3bba",
+       "role": "R2 清单（R2-N1）：tb01c_query_tests 31 个 TB-01-C Q 测试，--binary=worktree release 二进制（SHA 9f2a9f52…1d30）；unittest -v 由 parse_known_args 透传",
+       "exit_code": 0
+      }
+     ]
+    },
+    {
+     "no": 4,
+     "name": "s-observer 原步骤 @Python 3.11.15 + Node 22.23.1（逐字）",
+     "verdict": "PASS",
+     "finding": "test_tb01c_* Ran 56 OK；test_tb02a_* Ran 9 OK；pip 装 ijson 3.5.1；test_tb02c_* Ran 14 OK；test_tb01c_browser.cjs 41 cases failed 0；node --test test_tb02c_contract.cjs pass 6 fail 0。git status＋47 件不变；04-after-s-observer-06-08 的 tool_verdict FAIL 仅因 gitignored .pyc 副产物（见 disclosures）",
+     "receipts": [
+      {
+       "id": "04a-create-venv311",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/04a-create-venv311/RECEIPT.json",
+       "bytes": 3363,
+       "sha256": "15edd7f5fa1e0036a3fc4abef970f2d92dd5d041a7d6a7782aae9fd1d0504e1a",
+       "role": "setup-python 3.11 的本机等价：用 uv 管理的 CPython 3.11.15 新建隔离 venv（不写全局 3.11）",
+       "exit_code": 0
+      },
+      {
+       "id": "04b-s-observer-03-tb01c",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/04b-s-observer-03-tb01c/RECEIPT.json",
+       "bytes": 7148,
+       "sha256": "f24d7cec67bf9cb2654c57356a72ecca6ad25592702025c39ce488377f925710",
+       "role": "ci.yml s-observer 步 3 逐字；python=venv311（CPython 3.11.15）",
+       "exit_code": 0
+      },
+      {
+       "id": "04c-s-observer-04-tb02a",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/04c-s-observer-04-tb02a/RECEIPT.json",
+       "bytes": 5194,
+       "sha256": "eb616719c79ec31b1b8a682cc6b7dc302dd2f188d8ff545d1b6affec14cf5016",
+       "role": "ci.yml s-observer 步 4 逐字；python=venv311（CPython 3.11.15）",
+       "exit_code": 0
+      },
+      {
+       "id": "04d-s-observer-05-pip-install",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/04d-s-observer-05-pip-install/RECEIPT.json",
+       "bytes": 4436,
+       "sha256": "846d3b038da336719744824c7383d1e0067b590bd281a9f35ba3c90e68255984",
+       "role": "ci.yml s-observer 步 5 逐字（pip 装 requirements-tb02c.txt：ijson==3.5.1）；装入隔离 venv311",
+       "exit_code": 0
+      },
+      {
+       "id": "04-s-observer-06-tb02c-py",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/04-s-observer-06-tb02c-py/RECEIPT.json",
+       "bytes": 6094,
+       "sha256": "fcc9f9cd588c603131c320cd1c29bcb37df8d0276c6ef63ea1102f60786ce009",
+       "role": "ci.yml s-observer 步 06 逐字；python=venv311（CPython 3.11.15+ijson 3.5.1），node=v22.23.1",
+       "exit_code": 0
+      },
+      {
+       "id": "04-s-observer-07-tb01c-browser-node",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/04-s-observer-07-tb01c-browser-node/RECEIPT.json",
+       "bytes": 4615,
+       "sha256": "1c556db3d2085163ff20579c13e2b6467c03b118896047229730b754ba545e95",
+       "role": "ci.yml s-observer 步 07 逐字；python=venv311（CPython 3.11.15+ijson 3.5.1），node=v22.23.1",
+       "exit_code": 0
+      },
+      {
+       "id": "04-s-observer-08-tb02c-contract-node",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/04-s-observer-08-tb02c-contract-node/RECEIPT.json",
+       "bytes": 4557,
+       "sha256": "a048f83221b5747139c4e1bd6bfd1620d4b8acbb2da5159bf097e0b06f9663be",
+       "role": "ci.yml s-observer 步 08 逐字；python=venv311（CPython 3.11.15+ijson 3.5.1），node=v22.23.1",
+       "exit_code": 0
+      }
+     ]
+    },
+    {
+     "no": 5,
+     "name": "cargo fmt/check/test",
+     "verdict": "FAIL_KNOWN_BASELINE_EXCEPTION_ONLY",
+     "finding": "fmt --check PASS；check --all-targets PASS；check --all-targets --features backtest_bin PASS；check --features s_session --bin s_structure_session PASS；test --locked --features s_session --bin s_structure_session PASS（81 passed/1 ignored，473s）；test --all-targets exit 101（lib 2955 passed/3 failed/161 ignored，cargo 于 lib 失败后停）；test --lib --features backtest_bin exit 101（2961 passed/3 failed/161 ignored）；test --all-targets --no-fail-fast exit 101（55 targets，3141 passed/3 failed/172 ignored，仅 lib）。三处失败均且仅为 known_baseline_exception 的 3 个；#1414 新增 tb02d 5 个 lib 测试全过；无 #1414 新增失败",
+     "receipts": [
+      {
+       "id": "05a-cargo-fmt-check",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/05a-cargo-fmt-check/RECEIPT.json",
+       "bytes": 3325,
+       "sha256": "375720e735f405f86b821f8ce4cb0f8ba2d41e421ea57ac21064dcc9164488e0",
+       "role": "ci.yml rust-check 步 7 的核心命令（rustup component add 本机不适用：Homebrew 工具链自带 rustfmt 1.9.0）",
+       "exit_code": 0
+      },
+      {
+       "id": "05b-cargo-check-all-targets",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/05b-cargo-check-all-targets/RECEIPT.json",
+       "bytes": 7000,
+       "sha256": "677800f3f964f659c0ef707b3a6713ea072896a3af940e5f9bae422e590c327c",
+       "role": "ci.yml rust-check 步 5：cargo check --all-targets（CI job env CARGO_INCREMENTAL=0）",
+       "exit_code": 0
+      },
+      {
+       "id": "05c-cargo-check-all-targets-backtest-bin",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/05c-cargo-check-all-targets-backtest-bin/RECEIPT.json",
+       "bytes": 9585,
+       "sha256": "6a477904ab23879a9f8106aded6ac6408f6307b31b7d7c9d2bdb727d76c11ae5",
+       "role": "ci.yml rust-check 步 6 原形式：cargo check --all-targets --features backtest_bin",
+       "exit_code": 0
+      },
+      {
+       "id": "05d-cargo-check-s-session-bin",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/05d-cargo-check-s-session-bin/RECEIPT.json",
+       "bytes": 4894,
+       "sha256": "607348360958392d9c42f200143fb5a4e8066881da00be304ff4142a0be5cd54",
+       "role": "R2 清单第三项 cargo check：cargo check --features s_session --bin s_structure_session",
+       "exit_code": 0
+      },
+      {
+       "id": "05e-cargo-test-all-targets",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/05e-cargo-test-all-targets/RECEIPT.json",
+       "bytes": 8838,
+       "sha256": "36a565eecc04a7f30e4002b621aa080821391c7c97b5cd523f571ec66e8f3854",
+       "role": "R2 清单 cargo test --all-targets 全量（ci.yml 步 9 同命令，本机未加 --jobs 1 与 telemetry 包装）；与 #1394 诊断并行，耗时仅指示",
+       "exit_code": 101
+      },
+      {
+       "id": "05f-cargo-test-s-session-bin",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/05f-cargo-test-s-session-bin/RECEIPT.json",
+       "bytes": 7281,
+       "sha256": "ffa068dd351b79ca22a07b853d1de2f36a031cf958bc682951b1be069335b1a6",
+       "role": "R2 清单：cargo test --locked --features s_session --bin s_structure_session（ci.yml 步 10 同命令，本机未加 --jobs 1/telemetry）；05e 失败已证为基线既有后补跑",
+       "exit_code": 0
+      },
+      {
+       "id": "05g-cargo-test-lib-backtest-bin",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/05g-cargo-test-lib-backtest-bin/RECEIPT.json",
+       "bytes": 8499,
+       "sha256": "f1f89c67b577e9ea15f3a852c1d35e3814e5556b4fd7b76bad376de24745b759",
+       "role": "R2 清单：cargo test --lib --features backtest_bin（ci.yml 步 11 同命令，本机未加 --jobs 1/telemetry）；预计含 3 个既有红",
+       "exit_code": 101
+      },
+      {
+       "id": "05h-cargo-test-all-targets-no-fail-fast",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/05h-cargo-test-all-targets-no-fail-fast/RECEIPT.json",
+       "bytes": 20967,
+       "sha256": "d00e6037a66e05ea9f150e86ed7561773ff6ae80b6ea5a166fe408d3ea521b80",
+       "role": "根令补跑：cargo test --all-targets --no-fail-fast，补齐 05e 中 lib 失败后未执行的 bins/tests/benches/examples；新增失败（3 个既有红之外）按 #1414 阻断",
+       "exit_code": 101
+      }
+     ]
+    },
+    {
+     "no": 6,
+     "name": "oracle 夹具再生逐字节对拍",
+     "verdict": "PASS",
+     "finding": "generate-input.py 自检 exit 0；--output 到 regen/tb02d，raw-ledger.json（8040caa6…）、hand-oracle.json（9140b782…）、MANIFEST.json（f056451b…）与 worktree 冻结字节 cmp 全等；两次自检 stdout 相同",
+     "receipts": [
+      {
+       "id": "06a-oracle-generator-selfcheck",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/06a-oracle-generator-selfcheck/RECEIPT.json",
+       "bytes": 4340,
+       "sha256": "ea3de73db1b1de669383120cf056342aa30ed14e1c90f670cf25c125e0c9b2d7",
+       "role": "R2 清单：python3 -B s_session/tests/fixtures/tb02d/generate-input.py 自检（不写文件）；python3=homebrew CPython 3.14.6",
+       "exit_code": 0
+      },
+      {
+       "id": "06b-oracle-generator-output-tmp",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/06b-oracle-generator-output-tmp/RECEIPT.json",
+       "bytes": 4386,
+       "sha256": "619997c4022ca9a23c912b243aabd158c3ae02b53dc3a90c8aff2ea95c6dec17",
+       "role": "R2 清单：--output 到 /private/tmp 新目录（regen/tb02d），不写 worktree",
+       "exit_code": 0
+      },
+      {
+       "id": "06c-oracle-regen-byte-compare",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/06c-oracle-regen-byte-compare/RECEIPT.json",
+       "bytes": 5490,
+       "sha256": "803c2b9ae846dad7c8bb94797a2536a0b4c2483af66744aaf80941e08c447b80",
+       "role": "再生三件与 worktree 冻结字节逐字节 cmp，并核自检两次 stdout 相同",
+       "exit_code": 0
+      }
+     ]
+    },
+    {
+     "no": 7,
+     "name": "D1–D4 大件重算",
+     "verdict": "PASS_WITH_BASELINES",
+     "finding": "dry-run DRY_RUN_READY 825 件；D1.binary 冒烟 PASS（9 字段身份前后不变）；全量 825 件 15,491,333,530 B、25.9s：813 PASS（D1.binary 1、D1.snapshot 3、D2.anchor-core 1、D2.fresh-core 3、D3.committed-candidate 318、D3.response-body 243、D3.response-raw 243、D4.node 1）＋12 BASELINE_RECORDED（HAR/session.sqlite/WAL/database-backup 各 3，运行内无 SHA 收据，只记首个基线，不称 PASS），0 FAIL/ERROR",
+     "receipts": [
+      {
+       "id": "07a-rehash-dry-run",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/07a-rehash-dry-run/RECEIPT.json",
+       "bytes": 3776,
+       "sha256": "9e88a0d9fc63d93ee65ce3dddca0b53f5b0866702a764ec597ad4d7e73328efc",
+       "role": "计划步 1：再跑 dry-run（只 lstat，不开大件），收据写本目录 rehash/",
+       "exit_code": 0
+      },
+      {
+       "id": "07b-rehash-smoke-D1-binary",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/07b-rehash-smoke-D1-binary/RECEIPT.json",
+       "bytes": 3928,
+       "sha256": "9ab51479b748e6b9ed6ca885b30f9c796d4a6d0198fe57f9dab3fbe2fc59926e",
+       "role": "计划步 2：--execute --classes D1.binary 冒烟（按根令命令，仅加 --out 把收据写到本目录）",
+       "exit_code": 0
+      },
+      {
+       "id": "07c-rehash-full",
+       "root": "CTRL-20261012",
+       "relative_path": "tb1414-runtime-checks/steps/07c-rehash-full/RECEIPT.json",
+       "bytes": 3920,
+       "sha256": "fa3f614cc41e3453fcd9a59ab1c3b0476e9345a3489a1cd049f583c1b1a332bc",
+       "role": "计划步 3：冒烟 PASS 后全量 --execute（825 件，约 14.43 GiB），收据写本目录 rehash/；与 6f99b36 诊断编译并行",
+       "exit_code": 0
+      }
+     ]
+    },
+    {
+     "no": 8,
+     "name": "每项结束核 worktree 字节未变（git status 与 47 件 SHA）",
+     "verdict": "PASS",
+     "finding": "全部 21 次核对 git_status_and_47_sha=PASS；release 二进制 9 字段身份全程不变；tool_verdict=FAIL 的 3 份（04-after-s-observer-06-08、05f-after-s-session-test、09-final-vs-start）仅因 gitignored .pyc 副产物（disclosures 第 1 条）",
+     "receipts": []
+    }
+   ],
+   "deviations_from_ci": [
+    "本机 macOS arm64（Darwin 25.6.0）／bash 3.2.57，CI 为 ubuntu-latest／bash 5；run 文本以 bash --noprofile --norc -eo pipefail -c 执行（同 Actions 默认 bash 选项）",
+    "cargo test 按 R2 清单形式运行，未加 ci.yml 的 --jobs 1 与 run-cargo-with-telemetry.sh 包装（只影响并行度与遥测）；保留 CI job env CARGO_INCREMENTAL=0",
+    "rustup component add rustfmt 未执行：Homebrew 工具链（cargo/rustc 1.98.0）自带 rustfmt 1.9.0",
+    "ci.yml 步 8（TB-02-C member source binding 单测）未单独跑，已被 05f 全量 s_session bin 覆盖（stdout 第 5 行 ok）",
+    "setup-python 3.11 以 uv 管理的 CPython 3.11.15 新建隔离 venv 代替（版本不替换）；3.14.6 用 /tmp/tb1414-runtime-venv（homebrew CPython 3.14.6，含 ijson 3.5.1，TB-02-D 五模块不用它）；Node 用 v22.23.1"
+   ],
+   "disclosures": [
+    "gitignored 字节码副产物（不入 git status、未删除）：s-observer 步 6 中 test_tb02c_verifier.py:57 以 python -O 无 -B 起子进程，新增 5 个 cpython-311.opt-1.pyc（s_session/__pycache__/{s_query_integrity,s_readonly_server,s_tb02_contract}、s_session/tests/__pycache__/{tb02c_verify,test_tb02c_verifier}）；05f s_session bin 测试经 tb02c.rs:435、s_structure_session.rs:4345/4445 起 python3（3.14.6）无 -B 子进程，重写 3 个既有 cpython-314.pyc（s_query_integrity、s_readonly_server、s_tb02_contract）。全量对比见 worktree-checks/09-final-vs-start.json；CI 同样会产生",
+    "诊断步 05e7 作废：共享 CARGO_TARGET_DIR 下 git archive 源文件 mtime＝提交时间早于已有产物，cargo 判新鲜并复用 d8810bff 的测试二进制（Finished 0.11s、filtered 3098 为证）；已由 05e8/05e9 全新独立 target 重做",
+    "耗时仅为指示：与 #1394 诊断工位并行，且 05e6–05e9 诊断编译与 07c 全量重算部分并行",
+    "05e 原命令下 cargo 在 lib 失败后停止，其余 targets 未执行；05h --no-fail-fast 补齐：55 个 target 有结果，合计 3141 passed/3 failed/172 ignored，仅 --lib 失败且只有上述 3 个"
+   ]
+  },
+  "known_baseline_exception": {
+   "tests": [
+    "theta_v0::backtest::tick::tests::seam_btc_tick_bars_yield_non_trivial_structure（tick.rs:422「笔应非空」）",
+    "theta_v0::backtest::tick::tests::calibration_sweep_finds_non_collapsed_segments（tick.rs:483，各 gap strokes=0）",
+    "theta_v0::backtest::l3_delta_r_alpha::tests::m3_partition_synthetic_holds（l3_delta_r_alpha.rs:2541，合成鞅 ledger 为空）"
+   ],
+   "classification": "main 自 d8810bff97（feat(#1392) publish strict new-bi facts with incremental parsing，2026-09-14）起的既有红，与 #1414 改动无关；#1414 沿用获批基线例外，不另开票",
+   "evidence": {
+    "baseline_f95a7f3_red": "steps/05e3-diag-baseline-f95a7f3-3-tests（git archive f95a7f3 rust/+s_session/，tar 0d5d82f1…，全新独立 CARGO_TARGET_DIR；失败文本与分支逐字相同，仅线程号与 filtered 数不同）",
+    "origin_parent_6f99b36_green": "steps/05e8-diag-commit-6f99b36-3-tests-fresh-target（全新 target，3 passed）",
+    "origin_d8810bff_red": "steps/05e9-diag-commit-d8810bff-3-tests-fresh-target（全新 target，3 FAILED）；05e6 为共享 target 下同结论的先行运行",
+    "main_ci_f95a7f3": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/38201220739（rust-check「cargo test — default targets」失败，2950 passed/3 failed/161 ignored，同 3 测试；见 steps/05e4、05e5）",
+    "main_ci_8619a20f": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/37545808487（同红）",
+    "main_ci_6f99b36_green": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34812146236",
+    "mechanism_boundary": "parse_layer（rust/src/theta_v0/parser/mod.rs:168-182）先由 stroke::build_stroke_facts_with_positions 产笔，再交 segment::divide_segments_with_tail；#1414 改动（feature_seq.rs FeatureSeqState strict 首笔冻结/第二序列、segment.rs 事实向量、mod.rs 仅加 #[cfg(test)] mod tb02d_tests）全在段层，结构上不改变笔数 ⟹「笔为空」不是 #1414 的教义效果。它在 #1392 严格新笔下是教义效果还是缺陷，属 #1392/#1343/#1405 线，本工位未裁"
+   },
+   "policy_sources": [
+    "https://github.com/xy7365527-lang/NewChanlun/issues/1392#issuecomment-6027480656（main 8619a20f，CI 37545808487：三个同价域失败归 #1343/#1405 后续一般域，未改数据/断言/ignore 修绿）",
+    "https://github.com/xy7365527-lang/NewChanlun/issues/1404#issuecomment-6117508188（main f95a7f3e，CI 38201220739：三失败与获批基线逐字一致，按明确例外接受）"
+   ],
+   "policy_sources_receipt": "steps/05e10-diag-gh-exception-comments",
+   "evidence_root": "CTRL-20261012:tb1414-runtime-checks/",
+   "owner_followup": "#1343/#1405",
+   "user_confirmation_for_this_pr": "PENDING：#1392/#1404 的例外是用户对当时具体 PR 的批准；#1414 合入时须由用户就本 PR 一并确认"
+  },
+  "ac_status": {
+   "AC1": {
+    "actual_runtime_review": "LIMITED_ACCEPTED（D1–D4 延后）",
+    "final_review": "提交面复审 r2 通过（未逐条裁 AC）",
+    "runtime_checks": "无新增失败：#1414 新增的 5 个 tb02d 库测试随全量通过；夹具再生逐字节相同；D1–D4 重算 PASS_WITH_BASELINES（只记补到的证据，不是新裁定）",
+    "overall": "PENDING：PR 上的 CI 与合入批准"
+   },
+   "AC2": {
+    "actual_runtime_review": "NOT_IN_SCOPE（代码与合同裁定）",
+    "final_review": "提交面复审 r2 通过（未逐条裁 AC）",
+    "runtime_checks": "TB-02-D 五模块 35 个测试与 --binary 两组 14+31 个测试通过；cargo test 只有 3 个既有红（只记补到的证据，不是新裁定）",
+    "overall": "PENDING：PR 上的 CI 与合入批准"
+   },
+   "AC3": {
+    "actual_runtime_review": "LIMITED_ACCEPTED（D1–D4 延后）",
+    "final_review": "提交面复审 r2 通过（未逐条裁 AC）",
+    "runtime_checks": "s_session bin 81 passed/1 ignored；D3 中 804 件候选与响应大件 PASS，HAR/DB/WAL/备份 12 件只记基线（只记补到的证据，不是新裁定）",
+    "overall": "PENDING：PR 上的 CI 与合入批准"
+   },
+   "AC4": {
+    "actual_runtime_review": "LIMITED_ACCEPTED（D1–D4 延后）",
+    "final_review": "提交面复审 r2 通过（未逐条裁 AC）",
+    "runtime_checks": "s-observer 原步骤与 --binary 两组通过；D1 二进制与三臂快照 4 件 PASS（只记补到的证据，不是新裁定）",
+    "overall": "PENDING：PR 上的 CI 与合入批准"
+   },
+   "AC5": {
+    "actual_runtime_review": "LIMITED_ACCEPTED（D2 全量重算延后）",
+    "final_review": "提交面复审 r2 通过（未逐条裁 AC）",
+    "runtime_checks": "生成器两次自检一致、再生三件逐字节相同；D2 锚 core 与三份 fresh core 重算 PASS（只记补到的证据，不是新裁定）",
+    "overall": "PENDING：PR 上的 CI 与合入批准"
+   }
+  },
+  "per_commit_compilability": "PENDING：C2 提交后由提交工位在独立 target 实测 cargo check，记入 CTRL-20261012:tb1414-commit-pr/；C1、C3、C4 不改 Rust；C5 纯文档豁免；本索引随 C5 提交，不回写",
+  "ci": {
+   "origin_main": "PENDING",
+   "run": "PENDING",
+   "expected_rust_check": "预计在「cargo test — default targets」步因 3 个既有红失败，并跳过其后 s_session bin 与 --lib --features backtest_bin 两步；本机结果见 runtime_checks 第 5 项"
+  },
+  "merge": "PENDING：需要用户对具体 PR 号与 head SHA 的明确批准",
+  "close_ticket": "PENDING：合入 main 后按关票门另写声明，需要用户批准",
+  "devskim_codeql_delta": "DevSkim PENDING；CodeQL 工作流当前 disabled_manually（#1107），本次无 CodeQL 增量（FS-N8）",
+  "commit_split": "五个提交（原 C2+C3 合并，FS-N3）；见交付准备 COMMIT-PLAN.md",
+  "post_review_doc_only_update": {
+   "since": "复审 r2（RESULT c055481d…，审过的提交面 eecc02fd…，46 件）",
+   "changed_paths": [
+    ".chanlun/review-results/issue1414-tb02d-20261012/ACCEPTANCE-REPORT.md",
+    ".chanlun/review-results/issue1414-tb02d-20261012/EVIDENCE-INDEX.json"
+   ],
+   "added_paths": [
+    ".chanlun/review-results/issue1414-tb02d-20261012/FINAL-INDEPENDENT-REVIEW.md"
+   ],
+   "exemption": "关票门第 7 项：评审完成后仅纯文档/注释提交豁免（docs/agents/delivery-discipline.md:21）",
+   "evidence": "交付准备 COMMIT-SURFACE.json schema 4 对复审 r2 byte-check.json（19911a9c…，46 件）逐项比对：其余 44 件 path/bytes/SHA256 相同，变化只在上列 C5 文档"
+  }
+ },
+ "limitations": [
+  "实际运行独审只覆盖 TB-02-D 三 fresh 与两对比较，不裁整图；D1–D4 已在本机补跑（PASS_WITH_BASELINES），但 HAR、session.sqlite、WAL、database-backup 共 12 件运行内无 SHA 收据，只能记首个基线",
+  "浏览器 30 秒帽余量 0.65–1.06 秒（AR-N1），重跑有翻转风险",
+  "同次解析池只在 CPython 3.14.6 / 64 位实测布局下启用；其它解释器上自动停用，冷读成本回到旧水平，原 5 秒门是否仍过未测",
+  "性能数字只属所测输入与解释器（Python 3.14.6 runtime venv、Chrome 154.0.8037.99、macOS 本机），不外推",
+  "core、DB/WAL/SHM、HAR 只按 SHA 索引或未索引；SHA 只证拿到的是当时那份，不单独证明内容正确或可取得",
+  "CTRL-20261012 是本机临时目录；跨机器完整复验依赖归档可取得性",
+  "首 composite 的 221 行含继承重构 139 行，whole_new_single_run_all221_collected_claim=false",
+  "test_tb02d_projection_cache.py 的 14 个自有测试与其继承的 31 个 TB-01-C Q 测试（tb01c_query_tests.py）都不在 CI；本机 --binary 实跑已在最终字节上通过，之后的改动只能靠手动重跑锁住（R2-N1）",
+  "FS-N1：strict 首笔冻结（feature_seq.rs:666-683）改变所有 FeatureSeqState 使用者（classifier streaming、tangency_probe、profile）；最终 Rust 字节无 cargo test --all-targets 与 --lib --features backtest_bin 全量收据，待根补跑；xianduan.md 未记该细化（现状：本机实跑已补全量收据，--all-targets --no-fail-fast 3141 passed/3 failed/172 ignored，--lib --features backtest_bin 2961 passed/3 failed/161 ignored，失败只有 3 个既有红）",
+  "FS-N2：非 observe 生产路径 second_sequence 构建完整证据并整体 clone，默认无限窗口，成本未测",
+  "FS-N3：原 C2 单独检出时 s_session bin 测试必红；已在提交计划中合并原 C2 与 C3",
+  "FS-N4：s_tb02_contract.py:383 非 dict evidence 抛 AttributeError，客户端得到断连而非 503（仍失败关闭），留后续票",
+  "FS-N5：tb02d_verify.py:46/49/58 三处子集式比较",
+  "FS-N6：两个 test_ 命名的离线探针需外部参数",
+  "FS-N7：机器特定绝对路径进入 git 历史（run-package、tb02d_harness.py:78、ORACLE-DESIGN.md:23），非凭据",
+  "FS-N8：CodeQL 当前停用；DevSkim 预计因 DS173237 误报变红"
+ ],
+ "claims_not_made": [
+  "不声称 #1414 已完成、已合入或 CI 已绿",
+  "不把 observed 浏览器 PASS 改称 pure 字节已通过",
+  "不把作者自检称为独审",
+  "不把 3 个既有红称为通过，也不称其由 #1414 修复或引入",
+  "不把 D3 的 12 件 BASELINE_RECORDED 称为 PASS"
+ ],
+ "finding_id_prefixes": {
+  "AR-": "实际运行独审 actual-remaining 的 N1–N5（本索引内 actual_independent_review_of_remaining 中保留原 id）",
+  "FS-": "整体独审首轮 final-surface 的 B1 与 N1–N8（本索引内 final_independent_review 中保留原 id）",
+  "R2-": "整体独审复审 r2 的 N1–N3（本索引内 final_independent_review.round2 中保留原 id R2-N*）"
+ },
+ "ci": {
+  "job": "s-observer",
+  "interpreter": "CPython 3.14.6（actions/setup-python@v5）",
+  "working_directory": "s_session/tests",
+  "command": "python -B -m unittest -v test_tb02d_contract test_tb02d_discovery test_tb02d_validate_once test_tb02d_parse_pool test_tb02d_key_reuse",
+  "not_in_ci": [
+   {
+    "path": "s_session/tests/test_tb02d_projection_cache.py",
+    "reason": "继承 tb01c_query_tests.QueryTests，setUpClass 需 --binary 传入的 S 写者二进制；s-observer 不构建 Rust",
+    "lock": "本机 python3 -B s_session/tests/test_tb02d_projection_cache.py --binary <s_structure_session>：该入口（:333）只选 test_projection_*，只覆盖 14 个自有测试；本机实跑 Ran 14 OK（runtime_checks 第 3 项，steps/03a-projection-cache-binary）"
+   },
+   {
+    "path": "s_session/tests/tb01c_query_tests.py（31 个 TB-01-C Q 测试，被 projection_cache 继承）",
+    "reason": "setUpClass 需 --binary 的 S 写者二进制；基线既有文件，本交付未改，但 C2 改了其所测的 s_query.py、s_query_integrity.py、s_readonly_server.py",
+    "lock": "本机 python3 -B s_session/tests/tb01c_query_tests.py --binary <s_structure_session>（:545-550）对最终字节实跑：Ran 31 OK（runtime_checks 第 3 项，steps/03b-tb01c-query-tests-binary，R2-N1）"
+   },
+   {
+    "path": "s_session/tests/test_tb02d_snapshot_validate_once.cjs",
+    "reason": "离线对照探针，需外部归档参数"
+   },
+   {
+    "path": "s_session/tests/test_tb02d_strict_clone.cjs",
+    "reason": "离线对照探针，需外部归档参数"
+   },
+   {
+    "path": "s_session/tests/tb02d_harness.py, tb02d_runtime.py, tb02d_verify.py, tb02d_browser.cjs",
+    "reason": "正式运行验收脚本，靠具名运行证据"
+   }
+  ],
+  "local_receipt_of_final_command": "本机 CPython 3.14.6 逐字执行：解析池布局匹配 True，五模块 Ran 35 tests OK、0 skip（runtime_checks 第 2 项，steps/02-ci-tb02d-py3146）",
+  "ci_result": "PENDING"
+ }
+}
