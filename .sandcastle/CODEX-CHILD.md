@@ -2,7 +2,7 @@
 
 本入口绑定 #1456。它供当前 Codex 原生子代理管理单次 Sandcastle/Codex CLI 工蜂：主控派任务，管理子代理启动、等待或停止实际工蜂，再将结果回传。管理子代理 ID、父任务 ID 与外部 Codex session ID 分别记录；外部进程没有因此注册为 Codex App 的原生 child。
 
-旧 `main.mts` 和常驻拾取队列仍是各自已有入口。本入口只处理显式指定的 ticket、工作区和版本，使用 Sandcastle 原生 Codex provider，模型为已指定的 `gpt-6-astra`、`xhigh`。它不经过 PrimeAgent，不改变全局模型、队列或合入设置。
+旧 `main.mts` 和常驻拾取队列仍是各自已有入口。本入口只处理显式指定的 ticket、工作区和版本，使用 Sandcastle 原生 Codex provider，模型为 `claude-opus-5-5`、推理档 `xhigh`，经本机 CLIProxyLocal（provider `cliproxy-local`，`http://127.0.0.1:8318/v1`）路由到它的 OAuth 订阅认证，与主控同模型；不经 `mf/`、`yd/` 等中转前缀。模型名含 `/` 或 provider 不是 `cliproxy-local` 时，入口在启动前失败。它不经过 PrimeAgent，不改变全局模型、队列或合入设置。
 
 ## 单次运行
 
@@ -24,7 +24,7 @@ node --import tsx .sandcastle/codex-child.mts \
 
 在当前 Codex 协作工具中，新管理工位用 `spawn_agent`；给已结束的工位分派下一项工作用 `followup_task`，并核实工位重新运行。`send_message` 只传递消息，不会启动已结束工位的新轮次；消息投递成功不能作为任务已开工的证据。
 
-本入口的本地执行层使用 Sandcastle 的 `noSandbox`，内层通过 Codex `read-only` 或 `workspace-write` 执行。专用工作区固定任务对象，但这不是 Docker 隔离，也不限制所有宿主文件读取；提示中的任务范围仍须管理者审定。入口收紧 SDK 默认权限并禁用自动合并，不加载项目 `.sandcastle/.env`，拒绝带项目 `.codex/config.toml` 的工作区。认证沿用 Codex 官方已登录配置，保留现有网络代理路由；不能把认证内容或代理值写入提示、日志或报告。
+本入口的本地执行层使用 Sandcastle 的 `noSandbox`，内层通过 Codex `read-only` 或 `workspace-write` 执行。专用工作区固定任务对象，但这不是 Docker 隔离，也不限制所有宿主文件读取；提示中的任务范围仍须管理者审定。入口收紧 SDK 默认权限并禁用自动合并，不加载项目 `.sandcastle/.env`，拒绝带项目 `.codex/config.toml` 的工作区。命令带 `--ignore-user-config`，不读用户 `config.toml`，所以入口用 `-c` 显式给出 `model_provider="cliproxy-local"` 和该 provider 的完整定义（与用户配置逐项相同）。CLIProxy 的客户端密钥只经环境变量 `CLIPROXY_LOCAL_KEY` 透传给 Codex 进程：进程环境没有时，在 macOS 上用 `launchctl getenv` 取一次，仍取不到就在启动任何进程前失败，提示只含变量名。上游认证由 CLIProxy 的 OAuth 认证文件承担；工蜂执行的 shell 按 `shell_environment_policy.inherit="core"` 只继承核心变量。保留现有网络代理路由；不能把密钥、认证内容或代理值写入提示、日志或报告，运行记录（`state.json`、`events.jsonl`、`result.json`）只记模型名与 provider 名。
 
 每次输出目录必须尚不存在。入口写出 `state.json`、`events.jsonl`、原始输出与 `result.json`，后者绑定前后版本、实际退出状态和外部会话。运行完成与任务审查通过是两件事：即使外部工蜂正常退出，仍须读取结果中的发现并解决阻断项。取消或失败保留工作区与证据，管理者负责后续处置。
 
