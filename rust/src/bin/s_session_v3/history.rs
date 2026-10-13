@@ -3777,6 +3777,10 @@ mod tests {
         }
     }
 
+    // #1394 整合（根裁定 A）：本用例经 with_overlay_prototype 注入 OwnedBudget，history 的 text()
+    // 因此走 Owned 文本路径（FIN 905ffa559a 起经 bj::read_text）；该路径只在 s_allocation_json_testonly
+    // 构建存在，默认构建按设计拒绝。与同模块同类用例同门；CI 另有一步按该 feature 执行。
+    #[cfg(feature = "s_allocation_json_testonly")]
     #[test]
     fn closed_owner_bin_facade_dispatches_complete_codec_surface() {
         use sc::capture_allocation::{CaptureSlab, OwnedBudget};
