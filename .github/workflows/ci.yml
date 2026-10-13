@@ -287,6 +287,8 @@ jobs:
         run: node s_session/tests/test_tb01c_browser.cjs
       - name: TB-02-C observer contract tests
         run: node --test s_session/tests/test_tb02c_contract.cjs
+      - name: TB-02-E observer center contract tests (#1419)
+        run: node --test s_session/tests/test_tb02e_contract.cjs
       # #1414：TB-02-D 单元测试固定 CPython 3.14.6。s_query_integrity.py 的同次解析池只在
       #   3.14.6 / 64 位、实测 dict 布局匹配时启用；test_tb02d_parse_pool 的播种、命中与容量
       #   断言绑定该布局，其它解释器上池自动停用、断言失败而不是跳过。上面 3.11 的步骤不变，
@@ -305,6 +307,8 @@ jobs:
           python -VV
           python -B -c "import sys; sys.path.insert(0, '..'); import s_readonly_server as s; print('tb02d_parse_pool_layout_matches', s._query_integrity()._CanonicalParsePool._layout_matches())"
           python -B -m unittest -v test_tb02d_contract test_tb02d_discovery test_tb02d_validate_once test_tb02d_parse_pool test_tb02d_key_reuse
+          # #1419：TB-02-E 中枢合同（共享语料；Python 与 node 逐条对拍结论与原因码），只用标准库与 node。
+          python -B -m unittest -v test_tb02e_contract
 
   fixture-drift:
     # #265（#245 裁定）：Lean 源 → parity fixture 双向闭环的 CI 腿。

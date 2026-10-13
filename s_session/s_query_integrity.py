@@ -346,7 +346,8 @@ def _published_axes(rule_revision):
         "s2-axis-quantifiers": tb02.LEGACY_AXES,
         "s2-axis-quantifiers+new-bi/1": tb02.BI_AXES,
         "s2-axis-quantifiers+new-bi/1+segment-first/1": tb02.FIRST_SEGMENT_AXES,
-        "s2-axis-quantifiers+new-bi/1+segment-second/1": tb02.AXES,
+        tb02.SEGMENT_SECOND_RULE: tb02.SEGMENT_SECOND_AXES,
+        tb02.CENTER_RULE: tb02.CENTER_AXES,
     }
     # 未识别规则保持原有的完整轴要求，不退到旧规则的较小集合。
     return known.get(rule_revision, tb02.AXES)
@@ -1121,6 +1122,7 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
             tb02.keys(header["catalog_evidence"].get("axes"), _published_axes(meta["rule_revision"]), "cut规则目录轴")
             tb02.validate_axes(header["catalog_evidence"].get("axes"), set(active))
             tb02.validate_segment_links(list(active.values()), header["catalog_evidence"]["axes"])
+            tb02.validate_center_links(list(active.values()), header["catalog_evidence"]["axes"])
             revision_evidence = header["catalog_evidence"]["axes"]["CC-056"]["evidence"]
             revision_refs = [{key: item[key] for key in tb02.REF_FIELDS} for item in raw[prev_frontier+1:frontier+1] if int(item["revision"]) > 1]
             _same(revision_evidence["raw_revisions"], revision_refs, h, "CC056.raw_revisions")

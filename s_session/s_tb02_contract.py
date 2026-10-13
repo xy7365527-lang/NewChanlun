@@ -17,6 +17,14 @@ KINDS += SEGMENT_KINDS
 AXES += ("CC-011", "CC-012", "CC-013")
 FIRST_SEGMENT_AXES = AXES
 AXES += ("CC-014",)
+SEGMENT_SECOND_AXES = AXES
+SEGMENT_SECOND_RULE = "s2-axis-quantifiers+new-bi/1+segment-second/1"
+# #1419 TB-02-E：新规则修订只追加中枢族与三轴；旧规则 cut 仍按旧轴集严格读取。
+CENTER_RULE = SEGMENT_SECOND_RULE + "+center-seed/1"
+CENTER_KINDS = ("CC-016.center_seed_attempt", "CC-016.center", "CC-017.center_roles", "CC-022.unit_assignment", "CC-055.center_relation", "CC-055.center_change", "CC-056.center_version")
+KINDS += CENTER_KINDS
+AXES += ("CC-016", "CC-017", "CC-022")
+CENTER_AXES = AXES
 
 FACT_COLUMNS = ("object_id", "object_revision", "kind", "batch_id", "fact_key", "payload_json", "input_refs_json", "source_coords_json", "first_known_generation", "first_known_cut", "published_generation", "withdrawn_generation", "withdrawal_reason", "superseded_by")
 FACT_FIELDS = ("object_id", "object_revision", "kind", "batch_id", "fact_key", "payload", "input_refs", "source_coords", "first_known_generation", "first_known_cut", "published_generation", "withdrawn_generation", "withdrawal_reason", "superseded_by", "lifecycle")
@@ -130,6 +138,8 @@ def _validate_payload_fields(kind, p):
     """内部字段门；调用方须在同次调用先完成此原树的 wire_tree。"""
     if kind in SEGMENT_KINDS:
         validate_segment_payload(kind, p)
+    elif kind in CENTER_KINDS:
+        validate_center_payload(kind, p)
     elif kind in BI_KINDS:
         validate_bi_payload(kind, p)
     elif kind == KINDS[0]:
@@ -321,14 +331,16 @@ def _validate_fact(value, meta=None, raw=None, *, _identity_hash=None):
     if source_coords != [ref["source_coord"] for ref in references]:
         raise ValueError("事实源坐标与扁平输入引用不一一对应")
     p, kind = value["payload"], value["kind"]
-    slot = p["slot"] if kind in BI_KINDS + SEGMENT_KINDS else p["incoming"]["source_coord"] if kind == KINDS[0] else p["group_anchor"] if kind == KINDS[1] else p["window"] if kind == KINDS[2] else "TB-02-A"
+    slot = p["slot"] if kind in BI_KINDS + SEGMENT_KINDS + CENTER_KINDS else p["incoming"]["source_coord"] if kind == KINDS[0] else p["group_anchor"] if kind == KINDS[1] else p["window"] if kind == KINDS[2] else "TB-02-A"
     if value["fact_key"] != canonical([kind, slot]).decode():
         raise ValueError("fact_key 与真实语义槽不符")
     if meta is not None:
         if kind in SEGMENT_KINDS:
-            expected_schema = "s-segment/2" if meta["rule_revision"] == "s2-axis-quantifiers+new-bi/1+segment-second/1" else "s-segment/1" if meta["rule_revision"] == "s2-axis-quantifiers+new-bi/1+segment-first/1" else None
+            expected_schema = "s-segment/2" if meta["rule_revision"] in (SEGMENT_SECOND_RULE, CENTER_RULE) else "s-segment/1" if meta["rule_revision"] == "s2-axis-quantifiers+new-bi/1+segment-first/1" else None
             if p["schema_revision"] != expected_schema:
                 raise ValueError("段合同与cut规则版本不符")
+        if kind in CENTER_KINDS and meta["rule_revision"] != CENTER_RULE:
+            raise _e("RULE_MIX", "s-center/1 对象出现在旧规则 cut")
         identity = {key: value[key] for key in ("kind", "fact_key", "payload", "input_refs")}
         identity.update(profile_id=meta["profile_id"], rule_revision=meta["rule_revision"])
         digest = (hashlib.sha256(canonical(identity)).hexdigest() if _identity_hash is None
@@ -373,15 +385,21 @@ def validate_sources(value, effective):
 
 
 def validate_axes(axes, object_ids=None):
-    keys(axes, AXES if "CC-014" in axes else FIRST_SEGMENT_AXES if "CC-011" in axes else BI_AXES if "CC-008" in axes else LEGACY_AXES, "catalog.axes")
+    keys(axes, CENTER_AXES if "CC-016" in axes else SEGMENT_SECOND_AXES if "CC-014" in axes else FIRST_SEGMENT_AXES if "CC-011" in axes else BI_AXES if "CC-008" in axes else LEGACY_AXES, "catalog.axes")
     for cid, value in axes.items():
         keys(value, ("impl_status", "proof_status", "run_status", "evidence"), cid)
         if value["impl_status"] not in ("implemented", "not_implemented") or value["proof_status"] != "not_proved" or value["run_status"] not in ("run", "waiting", "not_run"):
             raise ValueError("逐轴实现/证明/运行状态不符")
         evidence = value["evidence"]
         base = ("scope", "object_ids", "waiting_reasons", "raw_revisions", "withdrawals", "replaces") if cid == "CC-056" else ("scope", "object_ids", "waiting_reasons")
+        center_scoped = evidence.get("scope") == "TB-02-E"
         scoped = evidence.get("scope") == "TB-02-D"
-        keys(evidence, base + (("delivered_subobligations", "deferred_subobligations") if scoped else ()), cid + ".evidence")
+        keys(evidence, base + (("delivered_subobligations", "deferred_subobligations") if scoped or center_scoped else ()), cid + ".evidence")
+        if center_scoped:
+            if evidence["delivered_subobligations"] != TB02E_DELIVERED or evidence["deferred_subobligations"] != TB02E_DEFERRED:
+                raise ValueError("中枢子义务范围不符")
+            if value["impl_status"] != "not_implemented":
+                raise ValueError("有限交付冒称全轴完成")
         if scoped:
             if evidence["delivered_subobligations"] != ["finite_complete_prefix_strict_second", "independent_stroke_and_segment_break_facts"] or evidence["deferred_subobligations"] != ["general_equal_identity", "general_scan_continuation", "global_G006_bridge"]:
                 raise ValueError("第二种子义务范围不符")
@@ -399,7 +417,7 @@ def validate_axes(axes, object_ids=None):
             actual_change = any(evidence[name] for name in ("raw_revisions", "withdrawals", "replaces"))
             if value["run_status"] != ("run" if actual_change else "not_run"):
                 raise ValueError("修订轴状态与实际修订/撤回/替代证据不一致")
-        if evidence["scope"] != ("TB-02-D" if "CC-014" in axes and cid in ("CC-011", "CC-012", "CC-013", "CC-014") else "TB-02-C" if cid in ("CC-011", "CC-012", "CC-013") else "TB-02-A"):
+        if evidence["scope"] != ("TB-02-E" if cid in ("CC-016", "CC-017", "CC-022") else "TB-02-D" if "CC-014" in axes and cid in ("CC-011", "CC-012", "CC-013", "CC-014") else "TB-02-C" if cid in ("CC-011", "CC-012", "CC-013") else "TB-02-A"):
             raise ValueError("逐轴证据范围不符")
         ids = strings(evidence["object_ids"], "axis.object_ids")
         if len(ids) != len(set(ids)) or (object_ids is not None and not set(ids) <= object_ids):
@@ -906,3 +924,459 @@ def validate_bi_payload(kind, p):
         strings(data["version_causes"], "version_causes")
         strings(data["waiting_reasons"], "waiting_reasons")
         known(data["known_at"])
+
+
+# ── #1419 TB-02-E 中枢事实（schema `s-center/1`，tb1419-schema.md v1）─────────────────────────────
+# 只验类型、身份、引用闭合与跨对象一致；中枢判定本身由 S 写者的共用扫描内核给出。每个拒绝以稳定原因码
+# `TB02E_<CODE>:` 开头，浏览器端 tb01c-client.js 对同一语料给出同一原因码（test_tb02e_contract 逐条对拍）。
+CENTER_TUPLE = ("s-center/1", "center-seed/1", "strict_seed_zn_outer_c_resume", "main")
+TB02E_DELIVERED = ["l0_strict_seed_vector_and_core_order", "zn_outer_inner_roles_with_contributors", "c_resume_assignment_and_connectors"]
+TB02E_DEFERRED = ["global_G009_upper_levels_1429", "ge9_upgrade_1429", "third_class_and_break_1434", "expansion_newborn_1424", "connector_upper_construction_1429"]
+_ROLE_LAYOUT = (("CORE", ("ZD", "ZG")), ("OUTER", ("DD", "GG")), ("INNER_EXTREMA", ("D", "G")))
+# 角色 → (单元行里取 lo=2 / hi=3, 极值方向)；ZD/ZG 在 seed 三单元上取，其余在 Zn 上取（020:52）。
+_ROLE_RULE = {"ZD": (2, max), "ZG": (3, min), "DD": (2, min), "GG": (3, max), "D": (2, max), "G": (3, min)}
+_WAIT_REASONS = ("NO_LEFT_CENTER_IN_WINDOW", "SEED_NOT_YET_EVALUABLE", "UPGRADE_PENDING_TB02H", "UNIT_NOT_COMPLETED")
+
+
+def _e(code, message):
+    return ValueError("TB02E_" + code + ": " + message)
+
+
+def _need(ok, code, message):
+    if not ok:
+        raise _e(code, message)
+
+
+def _keys_e(value, expected, name):
+    _need(type(value) is dict and set(value) == set(expected), "SHAPE", name + " 字段缺失/多余")
+
+
+def _int_e(value, name, minimum=None):
+    try:
+        return integer(value, name, minimum)
+    except ValueError as err:
+        raise _e("SHAPE", str(err)) from None
+
+
+def _text_e(value, name):
+    _need(type(value) is str and value != "", "SHAPE", name + " 必须是非空文本")
+    return value
+
+
+def _unit_anchor(unit_id):
+    _need(type(unit_id) is str and re.fullmatch(r"segment:[1-9][0-9]*:(?:0|[1-9][0-9]*)", unit_id) is not None, "IDENTITY", "单元身份须为 segment:<代>:<锚>")
+    return unit_id[len("segment:"):]
+
+
+def _known_e(k):
+    _keys_e(k, ("generation", "input_frontier", "receipt_id", "received_at", "semantic_commit_ns"), "known_at")
+    _int_e(k["generation"], "generation", 1)
+    _int_e(k["input_frontier"], "input_frontier", -1)
+    for name in ("receipt_id", "received_at"):
+        if k[name] is not None:
+            _text_e(k[name], name)
+    if k["semantic_commit_ns"] is not None:
+        _int_e(k["semantic_commit_ns"], "semantic_commit_ns", 0)
+
+
+def _completed_unit(u, name):
+    _keys_e(u, ("unit_id", "unit_object_id", "direction", "lo", "hi"), name)
+    _unit_anchor(u["unit_id"])
+    _text_e(u["unit_object_id"], name + ".unit_object_id")
+    _need(u["direction"] in ("UP", "DOWN"), "SHAPE", name + ".direction 未声明")
+    _need(_int_e(u["lo"], name + ".lo") < _int_e(u["hi"], name + ".hi"), "UNIT", name + " 区间须 lo<hi")
+
+
+def _id_list(xs, name):
+    _need(type(xs) is list and all(type(x) is str and x for x in xs), "SHAPE", name + " 须为文本数组")
+    _need(len(xs) == len(set(xs)), "SHAPE", name + " 重复")
+    return xs
+
+
+def _witness_ok(contributors, witness):
+    return witness == (contributors if len(contributors) >= 2 else [])
+
+
+def validate_center_payload(kind, p):
+    """单对象门：外层元组、严格 keys、身份与对象内一致性（schema v1 §3）。"""
+    _keys_e(p, ("schema_revision", "semantic_version", "policy_version", "view_role", "object_generation", "slot", "data"), "中枢合同")
+    _need((p["schema_revision"], p["semantic_version"], p["policy_version"], p["view_role"]) == CENTER_TUPLE, "VERSION", "中枢规则/范围版本不符")
+    _int_e(p["object_generation"], "object_generation", 1)
+    d = p["data"]
+    if kind == CENTER_KINDS[0]:
+        _keys_e(d, ("entity_id", "units", "vector", "ZD", "ZG", "core_order", "result", "exclusion_reason", "center_id", "known_at"), kind)
+        units = d["units"]
+        _need(type(units) is list and len(units) == 3, "SHAPE", "seed 须恰三单元")
+        for u in units:
+            _completed_unit(u, "seed.unit")
+        _need(len({u["unit_id"] for u in units}) == 3, "SHAPE", "seed 单元重复")
+        anchor = _unit_anchor(units[0]["unit_id"])
+        _need(d["entity_id"] == "seed_attempt:" + anchor, "IDENTITY", "seed 尝试身份未绑定首单元")
+        v = d["vector"]
+        _keys_e(v, ("completed", "consecutive", "same_level", "alternating", "strict"), "seed.vector")
+        _need(all(type(v[x]) is bool for x in ("completed", "consecutive", "same_level", "alternating")) and (v["strict"] is None or type(v["strict"]) is bool), "SHAPE", "Bool⁵ 错型")
+        _need(d["exclusion_reason"] != "NOT_ALTERNATING" and v["alternating"], "NOT_ALTERNATING", "L0 段恒交替，NOT_ALTERNATING 一律拒")
+        _need(v["completed"] and v["consecutive"] and v["same_level"], "VECTOR", "已发布的 seed 尝试须三单元完成、相连、同级")
+        _need((v["strict"] is None) == (not v["completed"]), "VECTOR", "strict 仅在未完成时为 null")
+        lows = [int(u["lo"]) for u in units]
+        highs = [int(u["hi"]) for u in units]
+        for name, want, attr in (("ZD", max(lows), "lo"), ("ZG", min(highs), "hi")):
+            e = d[name]
+            _keys_e(e, ("value", "contributors", "same_price_witness"), "seed." + name)
+            _need(_int_e(e["value"], name) == want, "CORE_VALUE", name + " 值与 seed 三单元不符")
+            _id_list(e["contributors"], name + ".contributors")
+            _need(e["contributors"] == [u["unit_id"] for u in units if int(u[attr]) == want], "CONTRIBUTORS", name + " 贡献成员缺失或不符")
+            _need(_witness_ok(e["contributors"], e["same_price_witness"]), "WITNESS", name + " 同价见证不符")
+        zd, zg = int(d["ZD"]["value"]), int(d["ZG"]["value"])
+        order = "ZD<ZG" if zd < zg else "ZD=ZG" if zd == zg else "ZD>ZG"
+        _need(d["core_order"] == order, "CORE_ORDER", "核心序三叶与 ZD/ZG 不符")
+        _need(v["strict"] == (order == "ZD<ZG"), "VECTOR", "strict 位与核心序不符")
+        _need(d["result"] in ("FORMED", "EXCLUDED"), "SHAPE", "seed 结果未声明")
+        formed = d["result"] == "FORMED"
+        _need(formed == (v["strict"] is True), "RESULT", "FORMED 须五位全真")
+        if formed:
+            _need(d["exclusion_reason"] is None, "EXCLUSION_REASON", "成立的 seed 不得带排除原因")
+            _need(d["center_id"] == "center:" + anchor, "IDENTITY", "成立的 seed 须指向同锚中枢")
+        else:
+            _need(d["exclusion_reason"] == ("TANGENT_ZD_EQ_ZG" if order == "ZD=ZG" else "INVERTED_ZD_GT_ZG"), "EXCLUSION_REASON", "相切/倒置缺原因或原因不符")
+            _need(d["center_id"] is None, "RESULT", "不成立的 seed 不得指向中枢")
+        _known_e(d["known_at"])
+    elif kind == CENTER_KINDS[1]:
+        _keys_e(d, ("entity_id", "entity_revision", "seed_attempt_id", "seed_units", "zn_direction", "members", "zn_members", "status", "settled", "break_unit", "break_up", "break_up_defined", "resume_anchor", "next_tested_unit", "roles_id", "formed_known_at", "settled_known_at"), kind)
+        members = _id_list(d["members"], "members")
+        _need(len(members) >= 3, "MEMBERS", "中枢至少 seed 三单元")
+        for m in members:
+            _unit_anchor(m)
+        anchor = _unit_anchor(members[0])
+        _need(d["entity_id"] == "center:" + anchor and d["seed_attempt_id"] == "seed_attempt:" + anchor and d["roles_id"] == "roles:" + d["entity_id"], "IDENTITY", "中枢身份未绑定 seed 首单元")
+        _int_e(d["entity_revision"], "entity_revision", 1)
+        _need(d["seed_units"] == members[:3], "MEMBERS", "members 须以 seed 三单元开头")
+        _need(d["break_unit"] is None or d["break_unit"] not in members, "CONNECTOR_AS_MEMBER", "突破段不得是成员")
+        zn = _id_list(d["zn_members"], "zn_members")
+        _need(zn[:1] == members[:1] and all(z in members for z in zn), "ZN", "Zn 成员须含首单元且属成员")
+        _need(d["zn_direction"] in ("UP", "DOWN"), "SHAPE", "zn_direction 未声明")
+        _need(d["status"] in ("EXTENDING", "SETTLED", "UPGRADE_PENDING_TB02H"), "SHAPE", "中枢状态未声明")
+        _need((d["status"] == "UPGRADE_PENDING_TB02H") == (len(members) >= 9), "UPGRADE", "≥9 成员须且只须标 UPGRADE_PENDING_TB02H")
+        _need(type(d["settled"]) is bool and type(d["break_up"]) is bool and type(d["break_up_defined"]) is bool, "SHAPE", "结算位错型")
+        settled = d["settled"]
+        if d["status"] != "UPGRADE_PENDING_TB02H":
+            _need((d["status"] == "SETTLED") == settled, "SETTLEMENT", "状态与 settled 不符")
+        _need((d["break_unit"] is not None) == settled and (d["resume_anchor"] is not None) == settled and (d["settled_known_at"] is not None) == settled, "SETTLEMENT", "结算位与突破段/续扫锚/结算时点不一致")
+        _need(d["break_up_defined"] == settled, "BREAK_UP_UNDEFINED", "未结算中枢 break_up_defined 须为 false（R4）")
+        if not settled:
+            _need(d["break_up"] is False, "BREAK_UP_UNDEFINED", "未结算中枢 break_up 须为 false（R4）")
+            if d["next_tested_unit"] is not None:
+                _unit_anchor(d["next_tested_unit"])
+                _need(d["next_tested_unit"] not in members, "NEXT_TESTED", "待测单元不得是成员")
+        else:
+            _unit_anchor(d["break_unit"])
+            _need(d["next_tested_unit"] is None, "NEXT_TESTED", "结算后不再有待测延伸单元")
+            ra = d["resume_anchor"]
+            _keys_e(ra, ("after_unit_id", "offset"), "resume_anchor")
+            _need(ra["after_unit_id"] == members[-1] and ra["offset"] == "2", "RESUME_ANCHOR", "续扫锚须为 {末成员, 2}（R8）")
+            _known_e(d["settled_known_at"])
+        _known_e(d["formed_known_at"])
+    elif kind == CENTER_KINDS[2]:
+        _keys_e(d, ("entity_id", "entity_revision", "center_id", "roles", "previous", "known_at"), kind)
+        _need(type(d["center_id"]) is str and d["center_id"].startswith("center:") and d["entity_id"] == "roles:" + d["center_id"], "IDENTITY", "角色身份未绑定中枢")
+        revision = _int_e(d["entity_revision"], "entity_revision", 1)
+        _validate_roles(d["roles"])
+        if d["previous"] is not None:
+            _keys_e(d["previous"], ("entity_revision", "roles"), "previous")
+            _need(_int_e(d["previous"]["entity_revision"], "previous.entity_revision", 1) < revision, "SHAPE", "previous 修订号须小于当前")
+            _validate_roles(d["previous"]["roles"])
+        _known_e(d["known_at"])
+    elif kind == CENTER_KINDS[3]:
+        _keys_e(d, ("entity_id", "unit", "status", "center_id", "left_center_id", "right_center_id", "right_pending", "reason", "seed_from_self", "known_at"), kind)
+        u = d["unit"]
+        completed = not (type(u) is dict and "completed" in u)
+        if completed:
+            _completed_unit(u, "assignment.unit")
+        else:
+            _keys_e(u, ("unit_id", "unit_object_id", "completed"), "assignment.unit")
+            _unit_anchor(u["unit_id"])
+            _text_e(u["unit_object_id"], "unit_object_id")
+            _need(u["completed"] is False, "SHAPE", "进行中单元 completed 须为 false")
+        _need(d["entity_id"] == "assign:" + u["unit_id"], "IDENTITY", "归属身份未绑定单元")
+        _need(d["seed_from_self"] in ("FORMED", "FAILED", "NOT_EVALUATED"), "SHAPE", "seed_from_self 未声明")
+        _need(type(d["right_pending"]) is bool, "SHAPE", "right_pending 错型")
+        status = d["status"]
+        if status == "CENTER_MEMBER":
+            ok = d["center_id"] is not None and d["left_center_id"] is None and d["right_center_id"] is None and not d["right_pending"] and d["reason"] is None
+        elif status == "CONNECTOR":
+            ok = d["center_id"] is None and d["left_center_id"] is not None and (d["right_center_id"] is not None) != d["right_pending"] and d["reason"] is None
+        elif status == "NOT_YET_ASSIGNED":
+            ok = d["reason"] in _WAIT_REASONS and d["center_id"] is None and d["left_center_id"] is None and d["right_center_id"] is None and not d["right_pending"]
+        else:
+            ok = False
+        _need(ok, "ASSIGNMENT", "归属三值须恰一且字段与状态一致")
+        _need(completed != (d["reason"] == "UNIT_NOT_COMPLETED"), "ASSIGNMENT", "UNIT_NOT_COMPLETED 当且仅当单元进行中")
+        if not completed:
+            _need(d["seed_from_self"] == "NOT_EVALUATED", "ASSIGNMENT", "进行中单元未被评估过 seed")
+        _known_e(d["known_at"])
+    elif kind == CENTER_KINDS[4]:
+        _keys_e(d, ("source_id", "relation_kind", "target_id", "version", "witness_object_id"), kind)
+        for name in ("source_id", "target_id", "witness_object_id"):
+            _text_e(d[name], name)
+        _need(d["relation_kind"] in ("member_of", "connects_left", "connects_right", "attempted_from"), "SHAPE", "未声明中枢关系")
+        _int_e(d["version"], "version", 1)
+    elif kind == CENTER_KINDS[5]:
+        _keys_e(d, ("entity_id", "change", "before", "after", "known_at", "object_id"), kind)
+        _text_e(d["entity_id"], "entity_id")
+        _need(d["change"] in ("formed", "member_added", "roles_updated", "settled", "upgrade_pending", "withdrawn"), "SHAPE", "未声明中枢变化")
+        withdrawn = d["change"] == "withdrawn"
+        _need((d["after"] is None) == withdrawn and (d["object_id"] is None) == withdrawn and (d["before"] is None) == (d["change"] == "formed"), "SHAPE", "变化前后件与变化种类不符")
+        if d["object_id"] is not None:
+            _text_e(d["object_id"], "object_id")
+        _known_e(d["known_at"])
+    elif kind == CENTER_KINDS[6]:
+        _keys_e(d, ("input_frontier", "known_at", "scan_cursor", "waiting_reasons", "delivered_scope", "deferred_scope"), kind)
+        _int_e(d["input_frontier"], "input_frontier", -1)
+        _known_e(d["known_at"])
+        _need(type(d["waiting_reasons"]) is list and all(r in _WAIT_REASONS for r in d["waiting_reasons"]), "SHAPE", "等待原因未声明")
+        _need(d["delivered_scope"] == "l0_strict_seed_zn_roles_c_resume_assignment" and d["deferred_scope"] == TB02E_DEFERRED, "SCOPE", "中枢交付范围不符")
+        c = d["scan_cursor"]
+        _keys_e(c, ("state", "center_id", "seed_start_unit_id", "awaiting_unit_id", "awaiting_after_unit_id", "awaiting_offset"), "scan_cursor")
+        if c["state"] == "EXTENDING":
+            _need(type(c["center_id"]) is str and c["center_id"].startswith("center:") and c["seed_start_unit_id"] is None, "SCAN_CURSOR", "EXTENDING 须指中枢且无 seed 起点")
+        else:
+            _need(c["state"] == "SEEKING_SEED" and c["center_id"] is None, "SCAN_CURSOR", "游标状态未声明")
+            if c["seed_start_unit_id"] is not None:
+                _unit_anchor(c["seed_start_unit_id"])
+        if c["awaiting_unit_id"] is not None:
+            _unit_anchor(c["awaiting_unit_id"])
+            _need(c["awaiting_after_unit_id"] is None and c["awaiting_offset"] is None, "SCAN_CURSOR", "等待单元与实体锚恰一组")
+        else:
+            _need(_int_e(c["awaiting_offset"], "awaiting_offset", 1) >= 1, "SCAN_CURSOR", "awaiting_offset 须 ≥1")
+            if c["awaiting_after_unit_id"] is not None:
+                _unit_anchor(c["awaiting_after_unit_id"])
+    else:
+        raise _e("CANDIDATE_KIND", "未声明的中枢 kind（不发 candidate）")
+    slot = ([d["source_id"], d["relation_kind"], d["target_id"]] if kind == CENTER_KINDS[4]
+            else [d["known_at"]["generation"], d["entity_id"], d["change"]] if kind == CENTER_KINDS[5]
+            else "TB-02-E" if kind == CENTER_KINDS[6] else d["entity_id"])
+    _need(p["slot"] == slot, "SLOT", "中枢语义槽身份不符")
+
+
+def _validate_roles(roles):
+    _keys_e(roles, [r for r, _ in _ROLE_LAYOUT], "roles")
+    for role, names in _ROLE_LAYOUT:
+        _need(type(roles[role]) is dict and set(roles[role]) == set(names), "ROLES_SHAPE", role + " 角色缺变量或混入他角色变量（D/G 不得冒充核心）")
+        for name in names:
+            v = roles[role][name]
+            _keys_e(v, ("value", "contributors", "same_price_witness", "frozen", "null_reason"), name)
+            _need(v["frozen"] is (role == "CORE"), "ROLES_SHAPE", "只有核心冻结")
+            contributors = _id_list(v["contributors"], name + ".contributors")
+            if v["value"] is None:
+                _need(role != "CORE" and v["null_reason"] == "UPGRADE_PENDING_TB02H" and not contributors, "ROLE_NULL", "只有 ≥9 的动态变量可为 null 且须带原因")
+            else:
+                _int_e(v["value"], name)
+                _need(v["null_reason"] is None, "ROLE_NULL", "有值变量不得带 null 原因")
+                _need(len(contributors) >= 1, "CONTRIBUTORS", name + " 缺贡献成员")
+            _need(_witness_ok(contributors, v["same_price_witness"]), "WITNESS", name + " 同价见证不符")
+    val = {name: roles[role][name]["value"] for role, names in _ROLE_LAYOUT for name in names}
+    _need(int(val["ZD"]) < int(val["ZG"]), "ROLE_ORDER", "核心须 ZD<ZG")
+    if val["DD"] is not None and val["GG"] is not None:
+        _need(int(val["DD"]) <= int(val["ZD"]) and int(val["ZG"]) <= int(val["GG"]), "ROLE_ORDER", "须 DD≤ZD<ZG≤GG")
+    _need((val["DD"] is None) == (val["GG"] is None) == (val["D"] is None) == (val["G"] is None), "ROLE_NULL", "动态四变量须同时有值或同时置 null")
+
+
+def validate_center_rule(records, rule_revision):
+    """规则修订与中枢族互斥：中枢对象只在中枢规则 cut 出现；跨版本混用拒绝。"""
+    center_rule = rule_revision == CENTER_RULE
+    for r in records:
+        if r["kind"] in CENTER_KINDS or r["kind"].startswith(("CC-016.", "CC-017.", "CC-022.")):
+            _need(center_rule, "RULE_MIX", "s-center/1 对象出现在旧规则 cut")
+            _need(r["payload"].get("schema_revision") == "s-center/1", "RULE_MIX", "中枢 kind 混用旧 tuple")
+        elif r["kind"] in SEGMENT_KINDS:
+            _need(not center_rule or r["payload"].get("schema_revision") == "s-segment/2", "RULE_MIX", "中枢规则 cut 的段对象须为 s-segment/2")
+
+
+def _segment_units(records):
+    """同 cut CC-013.segment → (完成单元序 [(unit_id, object_id, lo, hi, direction)], 进行中 unit_id 集)。"""
+    rows = []
+    for r in records:
+        if r["kind"] != "CC-013.segment":
+            continue
+        d = r["payload"]["data"]
+        done = d["result"] in ("CASE_ONE", "CASE_TWO")
+        start = int(d["construction"]["start_stroke"])
+        if done:
+            a, b = int(d["stroke_refs"][0]["start_price"]), int(d["geometric_end"]["price"])
+            rows.append((start, d["entity_id"], r["object_id"], min(a, b), max(a, b), d["construction"]["direction"], True))
+        else:
+            rows.append((start, d["entity_id"], r["object_id"], None, None, None, False))
+    rows.sort()
+    completed = [row[1:6] for row in rows if row[6]]
+    pending = {row[1]: row[2] for row in rows if not row[6]}
+    return completed, pending
+
+
+def _validate_scan_cursor(versions, completed, pending, pos, centers, attempts):
+    """游标与中枢/尝试/单元一致（schema v1.1 §3 位置约定、§6 游标条目；根裁定 D-J2 第 1 点）。"""
+    _need(len(versions) == 1, "SCAN_CURSOR", "每 cut 恰一个中枢版本对象")
+    cur = versions[0]["payload"]["data"]["scan_cursor"]
+    n = len(completed)
+    _need(len(pending) <= 1, "SCAN_CURSOR", "至多一个进行中单元")
+    ip = next(iter(pending), None)
+
+    def unit_at(k):
+        return completed[k][0] if 0 <= k < n else ip if k == n else None
+
+    last = centers[-1] if centers else None
+    if last is not None and not last["settled"]:
+        _need(cur["state"] == "EXTENDING" and cur["center_id"] == last["entity_id"] and cur["seed_start_unit_id"] is None, "SCAN_CURSOR", "末中枢开放时游标须 EXTENDING 指末中枢")
+        wait = pos[last["members"][-1]] + 1
+    else:
+        s = pos[last["members"][-1]] + 2 if last is not None else 0
+        while s < n and attempts.get("seed_attempt:" + _unit_anchor(completed[s][0]), {}).get("result") == "EXCLUDED":
+            s += 1
+        _need(cur["state"] == "SEEKING_SEED" and cur["center_id"] is None and cur["seed_start_unit_id"] == unit_at(s), "SCAN_CURSOR", "SEEKING_SEED 起点须为续扫锚经 EXCLUDED 尝试推进后的位置")
+        wait = s + 2
+    if wait == n and ip is not None:
+        want = (ip, None, None)
+    else:
+        _need(wait > n - 1, "SCAN_CURSOR", "等待位置不得落在已完成单元上")
+        want = (None, completed[-1][0] if n else None, str(wait - (n - 1)))
+    _need((cur["awaiting_unit_id"], cur["awaiting_after_unit_id"], cur["awaiting_offset"]) == want, "SCAN_CURSOR", "等待位置的实体锚不符")
+    if last is not None and not last["settled"]:
+        _need(last["next_tested_unit"] == want[0], "SCAN_CURSOR", "游标与中枢 next_tested_unit 不一致")
+
+
+def validate_center_links(records, axes=None):
+    """跨对象门（schema v1 §1/§3/§6）：单元来源、成员连续、续扫锚、连接段、归属恰一、角色取值与贡献、目录轴绑定。"""
+    by_kind = {k: [r for r in records if r["kind"] == k] for k in CENTER_KINDS}
+    if not any(by_kind.values()):
+        return
+    for r in records:
+        if r["kind"].startswith(("CC-016.", "CC-017.", "CC-022.")) and r["kind"] not in CENTER_KINDS:
+            raise _e("CANDIDATE_KIND", "未声明的中枢 kind（不发 candidate）")
+    completed, pending = _segment_units(records)
+    pos = {u[0]: i for i, u in enumerate(completed)}
+    seg = {u[0]: u for u in completed}
+
+    def check_unit(u):
+        if "completed" in u:
+            _need(pending.get(u["unit_id"]) == u["unit_object_id"], "UNIT_SOURCE", "进行中单元未绑定同 cut 段对象")
+            return
+        _need(u["unit_id"] in seg, "MEMBER_NOT_COMPLETED", "单元不是同 cut 已完成段")
+        s = seg[u["unit_id"]]
+        _need((u["unit_object_id"], int(u["lo"]), int(u["hi"]), u["direction"]) == (s[1], s[2], s[3], s[4]), "UNIT_SOURCE", "单元区间/方向/对象与同 cut CC-013 不符")
+
+    attempts = {r["payload"]["data"]["entity_id"]: r["payload"]["data"] for r in by_kind[CENTER_KINDS[0]]}
+    for a in attempts.values():
+        for u in a["units"]:
+            check_unit(u)
+        ids = [u["unit_id"] for u in a["units"]]
+        _need([pos[i] for i in ids] == list(range(pos[ids[0]], pos[ids[0]] + 3)), "SEED_LINK", "seed 三单元须在完成单元序中相连")
+    roles = {r["payload"]["data"]["center_id"]: r["payload"]["data"] for r in by_kind[CENTER_KINDS[2]]}
+    centers = sorted((r["payload"]["data"] for r in by_kind[CENTER_KINDS[1]]), key=lambda c: pos.get(c["members"][0], -1))
+    assignments = {}
+    for r in by_kind[CENTER_KINDS[3]]:
+        d = r["payload"]["data"]
+        check_unit(d["unit"])
+        _need(d["unit"]["unit_id"] not in assignments, "ASSIGNMENT_CONSISTENCY", "单元归属重复")
+        assignments[d["unit"]["unit_id"]] = d
+    _need(set(assignments) == set(seg) | set(pending), "ASSIGNMENT_CONSISTENCY", "每个单元须恰一归属")
+    member_of = {}
+    for c in centers:
+        for m in c["members"]:
+            _need(m in seg, "MEMBER_NOT_COMPLETED", "成员不是同 cut 已完成段")
+        first = pos[c["members"][0]]
+        _need([pos[m] for m in c["members"]] == list(range(first, first + len(c["members"]))), "MEMBERS", "成员须在完成单元序中连续")
+        seed = attempts.get(c["seed_attempt_id"])
+        _need(seed is not None and seed["result"] == "FORMED" and [u["unit_id"] for u in seed["units"]] == c["seed_units"] and seed["center_id"] == c["entity_id"], "SEED_LINK", "中枢须由同 cut 成立的 seed 尝试支撑")
+        upgrade = c["status"] == "UPGRADE_PENDING_TB02H"
+        for m in c["members"]:
+            a = assignments.get(m)
+            want = ("NOT_YET_ASSIGNED", "UPGRADE_PENDING_TB02H") if upgrade else ("CENTER_MEMBER", None)
+            if a is not None and a["status"] == "CONNECTOR":
+                raise _e("CONNECTOR_AS_MEMBER", "连接段被列为中枢成员")
+            _need(a is not None and (a["status"], a["reason"]) == want and (upgrade or a["center_id"] == c["entity_id"]), "ASSIGNMENT_CONSISTENCY", "成员归属与中枢成员表不一致")
+            member_of[m] = c["entity_id"]
+        units = [seg[m] for m in c["members"]]
+        zn = [m for m, u in zip(c["members"], units) if u[4] == units[0][4]]
+        _need(c["zn_members"] == zn and c["zn_direction"] == units[0][4], "ZN", "Zn 成员须是与首单元同向的全部成员")
+        if c["settled"]:
+            nxt = first + len(c["members"])
+            _need(nxt < len(completed) and completed[nxt][0] == c["break_unit"], "BREAK_UNIT", "突破段须是末成员后的下一个完成单元")
+            seed_units = [seg[m] for m in c["members"][:3]]
+            zd, zg = max(u[2] for u in seed_units), min(u[3] for u in seed_units)
+            b = completed[nxt]
+            up = True if b[2] > zg else False if b[3] < zd else b[3] > zg
+            _need(c["break_up"] is up, "BREAK_UP", "break_up 与突破段方向不符（C4）")
+        rd = roles.get(c["entity_id"])
+        _need(rd is not None and rd["entity_id"] == c["roles_id"], "ROLES_LINK", "中枢缺同 cut 角色对象")
+        allowed = {"ZD": c["members"][:3], "ZG": c["members"][:3], "DD": zn, "GG": zn, "D": zn, "G": zn}
+        for role, names in _ROLE_LAYOUT:
+            for name in names:
+                v = rd["roles"][role][name]
+                if v["value"] is None:
+                    _need(upgrade, "ROLE_NULL", "非 ≥9 中枢的动态变量不得为 null")
+                    continue
+                attr, pick = _ROLE_RULE[name]
+                values = [seg[m][attr] for m in allowed[name]]
+                want = pick(values)
+                _need(int(v["value"]) == want, "ROLE_VALUE", name + " 值不是允许成员集上的极值（D/G 不得冒充核心）")
+                expected = [m for m in allowed[name] if seg[m][attr] == want]
+                _need(v["contributors"] == expected, "CONTRIBUTORS", name + " 贡献成员缺失或不在允许集")
+    for a, b in zip(centers, centers[1:]):
+        a_last, b_first = pos[a["members"][-1]], pos[b["members"][0]]
+        _need(b_first != a_last + 1, "PLUS_ONE_REUSE", "下一中枢首成员是上一中枢末成员的下一个单元（+1 复用）")
+        _need(b_first > a_last + 1 and a["settled"], "RESUME_ANCHOR", "下一中枢首成员早于续扫锚或上一中枢未结算")
+        for k in range(a_last + 1, b_first):
+            x = assignments[completed[k][0]]
+            _need((x["status"], x["left_center_id"], x["right_center_id"]) == ("CONNECTOR", a["entity_id"], b["entity_id"]), "CONNECTOR", "两中枢之间的单元须全是 CONNECTOR(A→B)")
+        for k in range(a_last + 2, b_first):
+            t = attempts.get("seed_attempt:" + _unit_anchor(completed[k][0]))
+            _need(t is not None and t["result"] == "EXCLUDED", "RESUME_GAP", "续扫锚到下一中枢之间的单元须有不成立的 seed 尝试")
+    upgrade_members = {m for c in centers if c["status"] == "UPGRADE_PENDING_TB02H" for m in c["members"]}
+    for uid, a in assignments.items():
+        if a["status"] == "CENTER_MEMBER":
+            _need(member_of.get(uid) == a["center_id"] and uid not in upgrade_members, "ASSIGNMENT_CONSISTENCY", "CENTER_MEMBER 指向的中枢不含该单元")
+        if a["status"] == "CONNECTOR":
+            _need(uid not in member_of, "CONNECTOR_AS_MEMBER", "连接段被列为中枢成员")
+        if a["reason"] == "UPGRADE_PENDING_TB02H":
+            _need(uid in upgrade_members, "ASSIGNMENT_CONSISTENCY", "UPGRADE_PENDING_TB02H 归属的单元不属任何 UPGRADE 中枢")
+    by_center = {c["entity_id"]: c for c in centers}
+    for r in by_kind[CENTER_KINDS[4]]:
+        d = r["payload"]["data"]
+        if d["relation_kind"] == "member_of":
+            target = by_center.get(d["target_id"])
+            _need(target is not None and target["status"] != "UPGRADE_PENDING_TB02H" and d["source_id"] in target["members"], "MEMBER_EDGE", "member_of 只能从非 UPGRADE 中枢的成员指向该中枢")
+    _validate_scan_cursor(by_kind[CENTER_KINDS[6]], completed, pending, pos, centers, attempts)
+    if axes is not None and "CC-016" in axes:
+        ids = lambda *kinds: sorted(r["object_id"] for r in records if r["kind"] in kinds)
+        for axis, kinds in (("CC-016", CENTER_KINDS[:2]), ("CC-017", CENTER_KINDS[2:3]), ("CC-022", CENTER_KINDS[3:4])):
+            _need(sorted(axes[axis]["evidence"]["object_ids"]) == ids(*kinds), "AXIS_BINDING", axis + " 目录证据未绑定实际中枢对象")
+
+
+def validate_center_cut(records, rule_revision, axes=None):
+    """语料与离线核对用的整 cut 门：candidate 类 kind → 单对象 → 规则修订 → 跨对象，顺序与 JS 端一致。"""
+    for r in records:
+        if r["kind"].startswith(("CC-016.", "CC-017.", "CC-022.")) and r["kind"] not in CENTER_KINDS:
+            raise _e("CANDIDATE_KIND", "未声明的中枢 kind（不发 candidate）")
+    for r in records:
+        if r["kind"] in CENTER_KINDS:
+            validate_payload(r["kind"], r["payload"])
+    validate_center_rule(records, rule_revision)
+    validate_center_links(records, axes)
+
+
+def expand_center_corpus(corpus):
+    """把语料差分展开为 (name, expected, rule_revision, records, axes)。"""
+    bases = {c["name"]: c for c in corpus["cases"] if c["base"] is None}
+    for case in corpus["cases"]:
+        if case["base"] is None:
+            yield case["name"], case["expected"], case["rule_revision"], case["records"], case["axes"]
+            continue
+        base = bases[case["base"]]
+        records, seen = [], set()
+        for r in base["records"]:
+            oid = r["object_id"]
+            if oid in case["remove"]:
+                continue
+            records.append(case["replace"][oid] if oid in case["replace"] and oid not in seen else r)
+            seen.add(oid)
+        records.extend(case["add"])
+        yield case["name"], case["expected"], case["rule_revision"], records, case["axes"] if case["axes"] is not None else base["axes"]
