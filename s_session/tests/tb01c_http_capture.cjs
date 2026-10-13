@@ -145,7 +145,7 @@ class Capture {
     need(url.origin === this.base.origin && !url.search && !url.hash && !url.username && !url.password,
       '请求必须留在声明的同一 loopback origin');
     const method = options.method || 'GET';
-    need((url.pathname === '/api/state' && method === 'GET') ||
+    need((url.pathname === '/api/discover' && method === 'GET') ||
       (['/api/v2/snapshot', '/api/v2/watch'].includes(url.pathname) && method === 'POST'), '请求路由或方法未授权');
     need(++context.requests <= LIMITS.requests, '命令请求数量达到上限');
     const body = Buffer.from(options.body || '', 'utf8');
@@ -292,11 +292,11 @@ class Capture {
         candidate: this.committedFiles.get(command.client) || null} : null;
       let discovery;
       if (command.op === 'load') {
-        const response = await this.fetch(context, '/api/state');
+        const response = await this.fetch(context, '/api/discover');
         need(response.ok, '发现请求不是成功 HTTP 响应');
-        discovery = API.parse(new TextDecoder('utf-8', {fatal: true}).decode(await response.arrayBuffer()));
-        need(discovery.ok === true, '发现回执未成功'); identity(discovery.cut);
-        // GET 仅发现 v2 身份；完整 cut 始终由生产 Client 固定分页取得。
+        discovery = API.parseDiscovery(API.parse(new TextDecoder('utf-8', {fatal: true}).decode(await response.arrayBuffer())));
+        need(discovery.protocol_revision === 's-session/2', '正式v2采集器拒绝legacy发现');
+        // GET只取已核发现身份，完整cut仍由生产Client固定分页取得。
       }
       this.check(context);
       const remainingMs = Math.floor(context.deadline - performance.now());

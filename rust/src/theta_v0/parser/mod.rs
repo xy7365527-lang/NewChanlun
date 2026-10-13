@@ -632,3 +632,6 @@ mod tests {
         assert!(saw_confirmation_recompute, "夹具未覆盖形成后封口确认重算");
     }
 }
+
+#[cfg(test)]
+mod tb02d_tests;

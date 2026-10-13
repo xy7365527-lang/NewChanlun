@@ -1,5 +1,6 @@
 """#1372：固定 cut 分页/有界 Watch；Q 不写 S 存储，不要求 S socket 存活。"""
 
+import copy
 import hashlib
 import json
 import os
@@ -52,12 +53,14 @@ class AuditReader:
         self.identity = None
         self.cached = None
         self.cached_version = None
+        self._projection_slot = None
         self.use_memo = use_memo
         self.memo = {} if use_memo else None
         self.seam = seam or (lambda _name: None)
         self.stats = {"captures": 0, "cache_hits": 0}
 
     def close(self):
+        self._projection_slot = None
         self.cached = self.cached_version = None
         self.memo = {} if self.use_memo else None
         if self.connection is not None:
@@ -99,6 +102,8 @@ class AuditReader:
             self.seam("after_first_read")
             v1 = conn.execute("PRAGMA data_version").fetchone()[0]
             candidate = self.cached is not None and self.cached_version == v0 == v1
+            if not candidate:
+                self._projection_slot = None
             image = None if candidate else self.audit.capture(conn, self.resources["max_capture_bytes"], deadline)
             conn.rollback()
             self.seam("after_transaction")
@@ -110,14 +115,17 @@ class AuditReader:
                 return self.cached
             if candidate:
                 # 候选版本未被夹持：从新的完整读事务重新捕获，不重标旧图像。
+                self._projection_slot = None
                 self.cached = self.cached_version = None
                 conn.set_progress_handler(None, 0)
                 if _retried or time.monotonic() > deadline:
                     raise self.audit.QueryBudgetExceeded("并发提交阻止无变化缓存复用；本次未完成")
                 return self.capture_verified(deadline, True)
+            self._projection_slot = None
             self.cached = self.cached_version = None
             self.stats["captures"] += 1
         except Exception as exc:
+            self._projection_slot = None
             if conn.in_transaction:
                 conn.rollback()
             self.cached = self.cached_version = None
@@ -152,6 +160,34 @@ class AuditReader:
         if v0 == v1 == v2 == v3 and self._identity() == identity and retained_bytes <= allowance:
             self.cached, self.cached_version = proof, v3
         return proof
+
+    def discard_projection(self) -> None:
+        """清除worker私有投影槽；不改变已核proof或原查询预算。"""
+        self._projection_slot = None
+
+    def _project_fixed_cut(self, proof, generation, mode):
+        """#1414：仅当前已核proof周期内的私有单槽；响应方必须隔离返回页。"""
+        slot = self._projection_slot
+        key = (generation, mode)
+        if (proof is self.cached and slot is not None and slot["proof"] is proof
+                and slot["key"] == key):
+            return slot["projection"], slot["digest"]
+        self._projection_slot = None
+        del slot  # 替槽前释放旧派生引用，不让两份整投影常驻。
+        # 不接管判据失败：始终由唯一完整算法构造，所有异常照常传播。
+        projection, digest = project_fixed_cut(proof, generation, mode, self.h)
+        if proof is self.cached:
+            slot = {"proof": proof, "key": key, "projection": projection, "digest": digest}
+            allowance = min(self.resources["max_capture_bytes"],
+                            self.resources["max_cache_bytes"] // self.resources["max_query_workers"])
+            try:
+                # 同对象去重，计入原proof、memo、派生值、键、摘要和容器；不另授时间预算。
+                self.audit.object_bytes((proof, self.memo, slot), allowance)
+            except self.audit.ObjectCapacityExceeded:
+                pass  # 仅不留派生缓存；本次完整投影仍遵守原查询/响应预算。
+            else:
+                self._projection_slot = slot
+        return projection, digest
 
 
 def _integer(raw, name, invalid, positive=False):
@@ -275,7 +311,7 @@ def _token(projection, digest, capture_digest, page_size, offset, audit):
     return result
 
 
-def snapshot_page(proof, request, resources, h):
+def snapshot_page(proof, request, resources, h, *, projection_provider=None):
     audit, invalid = h["_query_integrity"](), h["InvalidQuery"]
     if "snapshot_token" in request:
         if set(request) != {"op", "snapshot_token"}:
@@ -309,7 +345,8 @@ def snapshot_page(proof, request, resources, h):
         raise invalid("history_mode 不符")
     if page_size > resources["max_page_size"]:
         raise audit.QueryBudgetExceeded("page_size 超出事前上限")
-    projection, digest = project_fixed_cut(proof, generation, mode, h)
+    projection, digest = (projection_provider(proof, generation, mode) if projection_provider is not None
+                          else project_fixed_cut(proof, generation, mode, h))
     issued = token["issued_capture_digest"] if token else proof["capture_digest"]
     expected_token = _token(projection, digest, issued, page_size, offset, audit)
     if token is not None and token != expected_token:
@@ -319,9 +356,10 @@ def snapshot_page(proof, request, resources, h):
     end = min(offset + page_size, len(projection["rows"]))
     done = end == len(projection["rows"])
     next_token = None if done else _token(projection, digest, issued, page_size, end, audit)
-    return dict(projection, rows=projection["rows"][offset:end], offset=str(offset), done=done,
+    # 只复制这一页与公开metadata，私有完整projection不能从可变响应泄漏。
+    return copy.deepcopy(dict(projection, rows=projection["rows"][offset:end], offset=str(offset), done=done,
                 next_token=next_token, cut_projection_digest=digest,
-                validated_capture_digest=proof["capture_digest"])
+                validated_capture_digest=proof["capture_digest"]))
 
 
 def cursor_at(proof, generation, h):
@@ -376,7 +414,7 @@ class ClientLeases:
                 lease["delivered"] = max(lease["delivered"], int(cursor["after_generation"]))
 
 
-def watch_page(proof, request, resources, h, leases):
+def watch_page(proof, request, resources, h, leases, *, projection_provider=None):
     audit, invalid = h["_query_integrity"](), h["InvalidQuery"]
     if set(request) != {"op", "cursor", "max_batches", "client_id"}:
         raise invalid("Watch 请求完整字段不符")
@@ -395,8 +433,9 @@ def watch_page(proof, request, resources, h, leases):
     _integer(cursor["session_generation"], "cursor.session_generation", invalid, True)
     head = proof["generation"]
     policy = proof["protocol"]["delivery_policy"]
-    current, digest = project_fixed_cut(proof, head, "RecomputedWithRevision", h)
-    output = {"deltas": [], "next_cursor": cursor, "observed_head": current["fixed_cut"],
+    current, digest = (projection_provider(proof, head, "RecomputedWithRevision") if projection_provider is not None
+                       else project_fixed_cut(proof, head, "RecomputedWithRevision", h))
+    output = {"deltas": [], "next_cursor": cursor, "observed_head": copy.deepcopy(current["fixed_cut"]),
               "delivery_frontier": {key: str(policy[key]) if type(policy[key]) is int else policy[key]
                                     for key in ("policy_revision", "retain_generations", "first_available_generation", "head_generation")},
               "has_more": False, "gap": None, "validated_capture_digest": proof["capture_digest"]}
@@ -417,8 +456,8 @@ def watch_page(proof, request, resources, h, leases):
         missing_range = {"from_generation": str(after+1), "to_generation": str(head)}
     if reason is not None:
         output["gap"] = {"requested_identity": cursor, "reason": reason, "missing_range": missing_range,
-                         "rebuild": current["fixed_cut"],
-                         "snapshot_token": _token(current, digest, proof["capture_digest"], resources["max_page_size"], 0, audit)}
+                         "rebuild": copy.deepcopy(current["fixed_cut"]),
+                         "snapshot_token": copy.deepcopy(_token(current, digest, proof["capture_digest"], resources["max_page_size"], 0, audit))}
         return output
     for index in range(after, min(head, after+maximum)):
         delta = h["_project_wire_integers"](audit.project_delta(proof, index))

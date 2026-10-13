@@ -51,3 +51,16 @@ test('真实cut1段逻辑slot不被页面当成见证整数', () => {
   assert.doesNotThrow(() => context.validateExactRecords({slot:'0'}));
   assert.throws(() => context.validateExactRecords({slot:'seed:1:empty'}));
 });
+
+// #1414：新版本的逻辑slot也不能作为见证整数解析。
+test('D版本逻辑slot及CC014实际对象映射', () => {
+  const {htmlContext} = require('./test_tb01c_browser.cjs');
+  const {context, elements} = htmlContext();
+  const p = structuredClone(fixture);
+  Object.assign(p, {schema_revision:'s-segment/2',semantic_version:'segment-second/1',policy_version:'seed_closed_strict_second'});
+  assert.doesNotThrow(() => context.validateExactRecords(p));
+  context.currentState = {catalog:{items:[{id:'CC-014',evidence:{scope:'TB-02-D',object_ids:['segment-o'],waiting_reasons:[]}}]}};
+  require('node:vm').runInContext('currentState = globalThis.currentState',context);
+  context.renderObjects({objects:[{object_id:'segment-o',kind:'CC-013.segment',payload:p,input_refs:[],source_coords:[],lifecycle:'active'}],withdrawn_objects:[],relations:[],structure_cut:'cut-1',history_mode:'AsKnown'},'CC-014');
+  assert.ok(elements.get('objects').innerHTML.includes('segment-o'));
+});

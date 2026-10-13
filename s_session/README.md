@@ -75,7 +75,7 @@ curl --fail http://127.0.0.1:18787/api/state
 # 浏览器打开 http://127.0.0.1:18787/
 ```
 
-`start` 顺序启动 S/Q；`start-s` 在数据库不存在时先按配置初始化 v2，再启动 Unix socket 服务。Q 使用 SQLite `mode=ro`，不依赖 S socket，不写 S 库。GET `/api/ready` 经完整存储核验后只返回当前 cut、Q epoch 和控制 nonce，避免完整状态增长超出控制回执上限；它不接受历史或其他查询参数。GET `/api/state` 保留完整状态/发现读口；公共头 POST 为 `/api/v2/snapshot` 和 `/api/v2/watch`。控制器把 PID、启动时间、完整命令和本次实例 nonce 一起核对后才返回 Ready；`status` 的 running 仅表示登记进程仍匹配。
+`start` 顺序启动 S/Q；`start-s` 在数据库不存在时先按配置初始化 v2，再启动 Unix socket 服务。Q 使用 SQLite `mode=ro`，不依赖 S socket，不写 S 库。GET `/api/ready` 经完整存储核验后只返回当前 cut、Q epoch 和控制 nonce，避免完整状态增长超出控制回执上限；它不接受历史或其他查询参数。GET `/api/state` 保留完整状态读口；GET `/api/discover` 从同一次完整存储核验返回有限的协议、会话/化身及明确profile，拒绝查询参数；页面和HTTP采集器使用共享严格解析后进入v2固定分页，发现与分页共享原字节/期限。仅已核legacy标记允许页面走原v1读取，发现失败不降级。公共头 POST 为 `/api/v2/snapshot` 和 `/api/v2/watch`。控制器把 PID、启动时间、完整命令和本次实例 nonce 一起核对后才返回 Ready；`status` 的 running 仅表示登记进程仍匹配。
 
 手工输送可取一份冻结原请求，不能自行更换消息身份重试：
 

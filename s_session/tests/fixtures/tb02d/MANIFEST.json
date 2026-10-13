@@ -1,0 +1,13 @@
+{
+  "schema": "tb02d-fixture-manifest/1",
+  "ticket": 1414,
+  "baseline": "f95a7f3ebc0ce84ec2d2f8a8d71b5030b19f89b9",
+  "case_count": 14,
+  "artifacts": {
+    "raw-ledger.json": "8040caa6ab4e10a7fcc374ec6e71c6a28af9553fb16fa452a727bccd7b6bc377",
+    "hand-oracle.json": "9140b7827d958f3e558100c124abe9f31f314f63b7e3e7295759dddfc239e454"
+  },
+  "generator_sha256": "a8ef0768d2f626d671f26d2e4d832d3635dbc1f708d2cbba5ee5bd416b3cdd16",
+  "provenance": "先冻结ORACLE-DESIGN.md笔级账；仅由手算端点生成，未导入生产输出",
+  "scope": "纯整数有限几何自检；不是生产测试、独立评审或端到端验收"
+}
