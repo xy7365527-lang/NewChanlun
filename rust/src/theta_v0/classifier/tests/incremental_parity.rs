@@ -591,8 +591,10 @@ fn chain_certificate_book_classify_fnv1a_golden() {
     // （birth_closed 38→33），链簿字节流随之漂移（教义性收紧，非回归）。
     // #1419 S1 诚实更新（旧值 1019647215966295227）：R8 续扫自 last_member+2 + 夹具 120→160 段
     // （见本测试开头），链簿字节流随之改写（口径回归）。
+    // #1419 S2 诚实更新（旧值 7694977913360723439）：中枢外缘只聚合 Zn ⟹ 中枢 DD/GG、中心定理二
+    // 关系与上级单元区间随之改写（口径回归；探针 birth_closed 52→46、skip_edges 148→174）。
     assert_eq!(
-            digest, 7694977913360723439,
+            digest, 4402318454792566968,
             "链簿产出漂移须诚实更新 golden（probe={probe:?} certs={} heads={} pan_rooted={pan_rooted}）",
             book.certificates().len(),
             heads.len()

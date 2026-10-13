@@ -54,7 +54,7 @@
 use std::rc::Rc;
 
 use super::super::types::{Center, Direction, Stroke, Tick};
-use super::center::{classify_relation, CenterRelation, UnitRange};
+use super::center::{classify_relation, is_zn, CenterRelation, UnitRange};
 use super::decompose::{center_own_dir_at, MoveBlock};
 use super::descend::RMove;
 
@@ -286,6 +286,13 @@ impl LeveledMove {
     }
 
     /// 外缘 `(lo, hi)` 的 **O(1)** 取回（stage 09 O(n²) 真修，本域 #H1）。
+    ///
+    /// ★#1419 S2（Zn 外缘）：下文「`center.dd == rmove.lo()` 逐字段相等」只在外缘聚合全部成员时成立。
+    /// 中枢外缘改为只聚合 Zn 后，本函数对 Compose 返回本窗中枢的 Zn 外缘 [DD,GG]，与 `rmove.lo()/hi()`
+    /// （全部 subs 区间）在「非 Zn 成员越出 Zn 极值」的窗口上分叉。上级单元区间（`project_to_units`
+    /// 全量与增量两路）统一取本函数，与 Lean `Formal.RecursiveConstruction.Move.interval`（compose 由
+    /// 其中枢外缘合成）一致；`rmove.lo()/hi()` 的消费方（背驰、回拉不创新低等）仍读全部 subs 区间。
+    /// 两种走势区间并存是本片引入的分叉，待根裁定取哪一种（#1419 S2-a）。
     ///
     /// `rmove.lo()/hi()`（descend.rs）对 `Compose` 变体**递归整棵子树**取 min/max——frontier 走势每 bar
     /// 重投影且其子树随窗口延伸增长 O(n) ⟹ project_to_units_resume 退化 O(n²)（400K profile 1238ms
@@ -519,15 +526,19 @@ pub fn detect_centers_windowed_resume(
         match build(&units[i], &units[i + 1], &units[i + 2]) {
             Some(seed) => {
                 // Step2 extension（中心定理一，PDF §5）：u_j 区间触及冻结核心 [ZD,ZG]（闭区间相交
-                // `d_j <= ZG ∧ g_j >= ZD`）⟹ 同一中枢延伸——end/DD/GG 吸收，核心不动。
+                // `d_j <= ZG ∧ g_j >= ZD`）⟹ 同一中枢延伸——end 吸收，核心不动；DD/GG 只吸收 Zn
+                // 成员（★#1419 S2，`is_zn` 判与 seed 首单元同向，`020-第20课.md:52`「n遍历中枢中所有Zn」），
+                // 非 Zn 成员进中枢但不改外缘。延伸判据本身只读核心，与 Zn 无关。
                 // Step3 non-extension：`d_j > ZG ∨ g_j < ZD` ⟹ 停止延伸、中枢结算；u_j 为突破段，
                 // 下一 seed 自 u_{j+1} 起（★#1419 R8，见本循环末 `i` 的赋值）。
                 let mut c = seed;
                 let mut j = i + 3;
                 while j < units.len() && units[j].lo <= c.zg && units[j].hi >= c.zd {
                     c.end_index = units[j].end_index;
-                    c.dd = c.dd.min(units[j].lo);
-                    c.gg = c.gg.max(units[j].hi);
+                    if is_zn(&units[j], &units[i]) {
+                        c.dd = c.dd.min(units[j].lo);
+                        c.gg = c.gg.max(units[j].hi);
+                    }
                     j += 1;
                 }
                 let n = j - i;
@@ -553,6 +564,9 @@ pub fn detect_centers_windowed_resume(
                     // 继承 seed 三段交（子中枢围绕同一核心），外缘/坐标由子窗段聚合。升级本身经塔
                     // 现有 compose 路径涌现：≥3 个围绕同核心的子中枢在上一级 detect 中 seed
                     // （center_from_window 几何判据保留最终裁决权——零跨级注入，B-III 已拒）。
+                    // ★#1419 过渡态（根裁定 D-I）：子窗 dd/gg 仍聚合子窗**全部**单元，与上方 <9 窗口的
+                    // Zn 外缘不同；退场条件 = #1429 落 R7/R22（≥9 升级语义重做）时子窗外缘一并改 Zn。
+                    // S 写者不发布 ≥9 窗口（D5），不会出现 S 与塔两种外缘并存。
                     let k = n / 3;
                     for t in 0..k {
                         let s = i + t * 3;
@@ -752,14 +766,18 @@ pub fn project_to_units(moves: &[LeveledMove], blocks: &[MoveBlock]) -> Vec<Unit
             } else {
                 Some(&moves[idx - 1])
             };
-            // 全量投影是 mod.rs:1400 debug_assert 神谕的一侧——保留递归 `rmove.lo()/hi()`（非热路径，
-            // 每 bar 仅 test 编译调一次），作 envelope() O(1) 增量投影的独立 bit-exact 对照面。
+            // 全量投影是 pipeline.rs `projected_units` debug_assert 神谕的一侧（守 truncate/resume 前缀机制）。
+            // ★#1419 S2：区间与增量投影同取 [`LeveledMove::envelope`]（Compose = 本窗中枢 [DD,GG]）。中枢外缘
+            // 改 Zn 后它与递归 `rmove.lo()/hi()`（全部 subs 区间）不再恒等；上级单元按 Lean
+            // `Formal.RecursiveConstruction.Move.interval`（compose 由其中枢外缘合成）取中枢外缘，两种
+            // 走势区间的分叉待根裁定（#1419 S2-a，见 envelope 文档）。
+            let (lo, hi) = m.envelope();
             UnitRange {
                 start_index: m.start_index,
                 end_index: m.end_index,
                 direction: center_own_dir_at(blocks, idx).unwrap_or_else(|| m.fold_direction(prev)),
-                lo: m.rmove.lo(),
-                hi: m.rmove.hi(),
+                lo,
+                hi,
             }
         })
         .collect()
@@ -3196,18 +3214,20 @@ mod tests {
         // 1 个延伸中枢，多级塔须组间 non-extension 分离——首段 d>ZG 终止前组延伸；
         // 三组外缘共同重叠 [152,180] 非空 ⟹ L2 几何中枢成立）。★#1419 R8：组间各插一个连接段
         // （c1=[51,54] 在核心_1 之上、c2=[151,154] 在核心_2 之上），结算后被跳过、不进任何窗口。
+        // ★#1419 S2（Zn 外缘）：外缘只聚合与组首段同向（↑）的第 1、3 段，组宽极值放在 ↑ 段上；
+        // 旧夹具把宽极值放在中间 ↓ 段（非 Zn），Zn 口径下三组外缘 [0,50]/[55,160]/[155,300] 不再共同重叠。
         let ranges = [
-            (0, 50),
-            (40, 200),
-            (40, 50), // 组1 核心 [40,50]，外缘 [0,200]
+            (0, 200),
+            (40, 50),
+            (40, 60), // 组1 核心 [40,50]，Zn 外缘 [0,200]
             (51, 54), // c1：lo=51>50 non-ext，突破段（连接段）
-            (55, 150),
             (52, 180),
-            (55, 160),  // 组2 核心 [55,150]，外缘 [52,180]
+            (55, 150),
+            (55, 160),  // 组2 核心 [55,150]，Zn 外缘 [52,180]
             (151, 154), // c2：lo=151>150 non-ext
-            (155, 300),
-            (152, 280),
-            (155, 290), // 组3 核心 [155,280]，外缘 [152,300]
+            (152, 300),
+            (155, 280),
+            (155, 290), // 组3 核心 [155,280]，Zn 外缘 [152,300]
         ];
         let units: Vec<UnitRange> = ranges
             .iter()

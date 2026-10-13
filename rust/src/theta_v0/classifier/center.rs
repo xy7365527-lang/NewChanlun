@@ -165,16 +165,36 @@ fn compute_zd(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Tick {
     a.lo.max(b.lo).max(c.lo)
 }
 
-/// 外缘上沿 `computeGG s1 s2 s3`（契约锚 `Origin.CenterConstruction.computeGG`）：三段 hi 取 max。
-/// `pub(super)`：#95 CarriedOnly 投影（level_view V3）需按同一公式算外缘，禁止公式重抄漂移。
-pub(super) fn compute_gg(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Tick {
-    a.hi.max(b.hi.max(c.hi))
+/// Zn 判定（★#1419 D-A，全仓唯一一份）：`u` 与 seed 第一单元**方向相等** ⟺ `u` 是 Zn。
+///
+/// 原文 `020-第20课.md:52`【正文】：「与中枢方向一致的次级别走势类型称为Z走势段……GG=max(gn)……
+/// DD=min(dn)，n遍历中枢中所有Zn」——中枢方向由形成它的首段定（回升形成的中枢由向上的次级别走势
+/// 确定），故判据取「与 seed 首单元同向」。L0 端点相连交替时即位次奇偶（第 1、3、5…段）；上级输入
+/// 方向不保证交替，两种判据在那里分歧，按 D-A 取方向（Lean `CenterConstruct.lean` 同拍带方向）。
+/// seed 外缘（`compute_gg/compute_dd`）与延伸外缘（`recursive_tower::detect_centers_windowed_resume`）
+/// 都只经本谓词判 Zn。
+pub(super) fn is_zn(u: &UnitRange, seed_first: &UnitRange) -> bool {
+    u.direction == seed_first.direction
 }
 
-/// 外缘下沿 `computeDD s1 s2 s3`（契约锚 `Origin.CenterConstruction.computeDD`）：三段 lo 取 min。
-/// `pub(super)`：同 `compute_gg`（#95）。
+/// 外缘上沿 `computeGG s1 s2 s3`（契约锚 `Origin.CenterConstruction.computeGG`）：seed 三段中 **Zn** 的
+/// hi 取 max（★#1419 S2：`a` 恒为 Zn，`b`/`c` 经 [`is_zn`] 判）。L0 端点相连交替时 Zn = {a, c}，中间段
+/// 两端点分别是 a、c 的端点 ⟹ 与三段 max 恒等（性质测试 `center_scan_1419`）。
+/// `pub(super)`：#95 CarriedOnly 投影（level_view V3）需按同一公式算外缘，禁止公式重抄漂移。
+pub(super) fn compute_gg(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Tick {
+    [b, c]
+        .into_iter()
+        .filter(|u| is_zn(u, a))
+        .fold(a.hi, |gg, u| gg.max(u.hi))
+}
+
+/// 外缘下沿 `computeDD s1 s2 s3`（契约锚 `Origin.CenterConstruction.computeDD`）：seed 三段中 **Zn** 的
+/// lo 取 min（★#1419 S2，同 `compute_gg`）。`pub(super)`：同 `compute_gg`（#95）。
 pub(super) fn compute_dd(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Tick {
-    a.lo.min(b.lo.min(c.lo))
+    [b, c]
+        .into_iter()
+        .filter(|u| is_zn(u, a))
+        .fold(a.lo, |dd, u| dd.min(u.lo))
 }
 
 /// 三段方向交替判定（契约锚 `Origin.CenterComplete.DirAlternates`，CenterComplete.lean:61-62）。
@@ -223,7 +243,7 @@ pub fn third_spans_core(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> bool {
 /// [前两段核心非空 ∧ 第三段贯穿]，故不再单列第三段判据支（声明膨胀禁止）。
 ///
 /// 任一支不成立 ⟹ 返回 `None`（非中枢，不静默造退化中枢）。成立 ⟹ 核心取**全三段**
-/// `[compute_zd(a,b,c), compute_zg(a,b,c)]`，外缘取**三段** dd/gg。
+/// `[compute_zd(a,b,c), compute_zg(a,b,c)]`，外缘取 seed 三段中 **Zn** 的 dd/gg（★#1419 S2）。
 ///
 /// 边界条件（结论翻转）：方向交替用严格异向；全三段核心非空用**严格**开口径（`ZD_B<ZG_B` 才成立，
 /// `ZD_B==ZG_B` 单点核心**不**成立）——#321 裁定（2026-07-26 用户裁决）：原弱口径（闭区间含单点）
@@ -250,7 +270,7 @@ pub fn center_from_segments(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Opti
     if zd >= zg {
         return None;
     }
-    // 两支全成立 ⟹ 真中枢。核心 = 全三段 [zd,zg]（口径 B）；外缘 = 三段 dd/gg。
+    // 两支全成立 ⟹ 真中枢。核心 = 全三段 [zd,zg]（口径 B）；外缘 = seed 三段中 Zn 的 dd/gg（#1419 S2）。
     Some(Center {
         zd,
         zg,
@@ -272,7 +292,8 @@ pub fn center_from_segments(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Opti
 /// 非省略完整判据：上级单元根本无 §6.1 意义的方向交替维度。
 ///
 /// 核心 = 全三段 `[compute_zd(a,b,c), compute_zg(a,b,c)]`（口径 B，637号——全三段重叠部分非空 ⟺
-/// 三段有共同重叠，第三段贯穿已吸收进核心非空）；外缘 = 三段 dd/gg。核心非空须**严格** `ZD_B<ZG_B`
+/// 三段有共同重叠，第三段贯穿已吸收进核心非空）；外缘 = seed 三段中 Zn 的 dd/gg（★#1419 S2：上级
+/// 单元方向取自 Move 趋势裁决，不保证交替，Zn 按 [`is_zn`] 判方向）。核心非空须**严格** `ZD_B<ZG_B`
 /// ——核心空或单点（`ZD_B>=ZG_B`）⟹ `None`（#321 裁定，2026-07-26 用户裁决：单点核心不成立，与
 /// #290 裁定 B / Python 严格口径三方对齐；原弱口径为实现者自选、原文未涉及端点口径）。
 ///
