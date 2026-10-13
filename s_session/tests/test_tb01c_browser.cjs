@@ -671,6 +671,43 @@ async function run() {
     );
     assert.equal(expired, 1, "命中缓存仍守读取期限");
   });
+  // #1394 整合（根裁定 (4)）：v2/v3 共用的 validate-once 命中时按首验 charge 次数原样重放、再调一次 check。
+  await test("validate-once命中按首验次数重放charge并再调check（v2普通值，与v3共用一套）", async () => {
+    const key = require.resolve(clientPath),
+      saved = require.cache[key];
+    delete require.cache[key];
+    const fresh = require(clientPath);
+    require.cache[key] = saved;
+    const s = sp.states["4"],
+      snap = s.snapshot;
+    const state = {
+      catalog: copy(s.catalog),
+      snapshot: {
+        ...copy(snap),
+        rule_revision: snap.rule_revision || snap.catalog_evidence.rule_revision,
+      },
+      cut: Object.fromEntries(
+        ["session_id", "generation", "structure_cut", "catalog_revision", "index_frontier"].map(
+          (k) => [k, snap[k]],
+        ),
+      ),
+    };
+    const run = async () => {
+      let checks = 0,
+        charges = 0;
+      await fresh.Q3.validateState(
+        state,
+        "s-session/2",
+        () => checks++,
+        () => charges++,
+      );
+      return { checks, charges };
+    };
+    const first = await run(),
+      second = await run();
+    assert(first.checks > 1 && first.charges > 0, "首验必须逐条走完并计费");
+    assert.deepEqual(second, { checks: 1, charges: first.charges });
+  });
   // #1394 整合（根裁定 A）：q3-values 普通值 field() 快路径的锁。对照 oracle 是旧实现（entries() 对普通值
   // 每次按 UTF-8 重排全部键），只存在于本测试里，不在生产路径上（#799）。图值走真实 Reader.entries：
   // 用 s-content-v3 编码同一对象，Reader 的已核载入结果在测试里预置（不走网络），field() 的图值分支原样。

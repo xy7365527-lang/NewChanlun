@@ -1432,12 +1432,14 @@
         }
       }
     }
-    // #1394 整合（根裁定，与 #1414 validate_once 同一原则）：s-session/2 的同一 State 只完整验证一次。
-    // LegacyClient.collect 先经页面钩子、再自己各调一次 validateState，两次入参只差 cut 的表示与
-    // rule_revision 的取值来源；TB-02-D cut40 上两遍合计约 32–35 s，超过 30 s 读取期限。
-    // 缓存键 = 协议 + validateState 实际读取的全部输入（catalog、snapshot、cut 的五个同 cut 键）的规范
-    // 字节 SHA-256：任一字节变化即重验。只记通过，失败不记；命中时仍调一次 check() 守读取期限；判据一字
-    // 不改。只对 s-session/2 的普通 JSON 入参启用，v3 图值与其 charge 计费路径照旧逐次验证。
+    // #1394 整合（根裁定 (1)，(4) 扩到 v3；与 #1414 validate_once 同一原则）：同一 State 只完整验证一次。
+    // s-session/2：LegacyClient.collect 先经页面钩子、再自己各调一次，两次入参只差 cut 的表示与
+    // rule_revision 的取值来源（TB-02-D cut40 上两遍合计约 32–35 s，超过 30 s 读取期限）；
+    // s-session/3：Q3.Client 采集先自己调一次、再经页面钩子调一次，是同一 state。
+    // 缓存键 = 协议 + validateState 实际读取的全部输入（catalog、snapshot、cut 的五个同 cut 键）的内容
+    // 编码的 SHA-256：普通值逐值编码；Reader 支持的图值取它已核的内容引用（kind、root、extent），root 是
+    // Merkle 内容摘要，任一字节变化即换根。任一内容变化即换键重验。只记通过，失败不记；命中时按首验的
+    // charge 次数原样重放（v3 的记录计费与预算判定不被缓存吃掉），再调一次 check() 守读取期限；判据一字不改。
     const ONCE_CUT_KEYS = [
       "session_id",
       "generation",
@@ -1455,22 +1457,62 @@
       return proto === null || Object.getPrototypeOf(proto) === null;
     }
     const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
+    // 无 Reader 的 Value 只是普通值的包装；Reader 支持的图值返回 null（不可当普通容器展开）。
+    const plainOf = (value) =>
+      value instanceof V.Value ? (value.reader ? null : value.plain) : value;
+    // 带类型标签的内容编码：不同类型、不同结构不会编成同一串；不可编码的值抛出，交给完整验证。
+    function onceShape(value) {
+      if (value instanceof V.Value) {
+        if (value.reader) {
+          const ref = value.ref;
+          return [
+            "ref",
+            ref.kind,
+            ref.root,
+            ref.extent === null ? "" : String(ref.extent),
+          ];
+        }
+        return onceShape(value.plain);
+      }
+      if (value === null) return ["null"];
+      if (typeof value === "boolean") return ["bool", value ? "1" : "0"];
+      if (typeof value === "string") return ["text", value];
+      if (V.isNumber(value)) return ["number", value.token];
+      if (Array.isArray(value)) {
+        const items = ["array"];
+        for (let i = 0; i < value.length; i++) {
+          need(own(value, i), "稀疏数组不进缓存");
+          items.push(onceShape(value[i]));
+        }
+        return items;
+      }
+      need(plainRecord(value), "不可编码值不进缓存");
+      const fields = ["object"];
+      for (const key of Object.keys(value).sort())
+        fields.push([key, onceShape(value[key])]);
+      return fields;
+    }
     async function onceKey(state, protocol) {
-      if (protocol !== "s-session/2" || !plainRecord(state)) return null;
-      if (!["catalog", "snapshot", "cut"].every((k) => own(state, k)))
+      if (protocol !== "s-session/2" && protocol !== "s-session/3") return null;
+      const root = plainOf(state);
+      if (
+        !plainRecord(root) ||
+        !["catalog", "snapshot", "cut"].every((k) => own(root, k))
+      )
         return null;
-      const cut = state.cut;
+      const cut = plainOf(root.cut);
       if (!plainRecord(cut) || !ONCE_CUT_KEYS.every((k) => own(cut, k)))
         return null;
       try {
-        return await api.sha256({
+        return await api.sha256([
+          "q3-validate-once/1",
           protocol,
-          catalog: state.catalog,
-          snapshot: state.snapshot,
-          cut: Object.fromEntries(ONCE_CUT_KEYS.map((k) => [k, cut[k]])),
-        });
+          onceShape(root.catalog),
+          onceShape(root.snapshot),
+          onceShape(Object.fromEntries(ONCE_CUT_KEYS.map((k) => [k, cut[k]]))),
+        ]);
       } catch {
-        return null; // 无规范字节的入参不进缓存，交给完整验证去拒绝。
+        return null; // 无规范内容编码的入参不进缓存，交给完整验证去拒绝。
       }
     }
     async function validateStateOnce(
@@ -1481,15 +1523,20 @@
     ) {
       const key = await onceKey(state, protocol);
       if (key !== null && validatedOnce.has(key)) {
-        const binding = validatedOnce.get(key);
+        const entry = validatedOnce.get(key);
         validatedOnce.delete(key);
-        validatedOnce.set(key, binding);
+        validatedOnce.set(key, entry);
+        for (let n = 0; n < entry.charges; n++) charge();
         check();
-        return binding;
+        return entry.binding;
       }
-      const binding = await validateState(state, protocol, check, charge);
+      let charges = 0;
+      const binding = await validateState(state, protocol, check, () => {
+        charges++;
+        charge();
+      });
       if (key !== null) {
-        validatedOnce.set(key, binding);
+        validatedOnce.set(key, { binding, charges });
         while (validatedOnce.size > ONCE_CAPACITY)
           validatedOnce.delete(validatedOnce.keys().next().value);
       }
@@ -2228,7 +2275,8 @@
             index_frontier: fixedWire.index_frontier,
           },
           state = of({ ok: true, catalog, snapshot, cut });
-        await validateState(
+        // 与页面钩子共用同一 validate-once 入口：同一 state 只完整验证一次（根裁定 (4)）。
+        await validateStateOnce(
           state,
           "s-session/3",
           () => this.check(b),
