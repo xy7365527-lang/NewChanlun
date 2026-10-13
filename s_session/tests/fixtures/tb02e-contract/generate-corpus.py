@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""#1419 TB-02-E：Q/JS 合同共享语料（schema v1.2）。只用标准库整数算术，不导入项目代码。
+"""#1419 TB-02-E：Q/JS 合同共享语料（schema v1.3）。只用标准库整数算术，不导入项目代码。
 
 合法 cut 由段层端点按定义直算（seed=三单元交替且 max(低)<min(高)；延伸=闭区间相交；Zn=与 seed 首单元同向；
 结算后自 last+2 续扫；归属按根裁定 D9/D-G/D-I 与 r2 R2/R3/R6），再按 schema v1 投影成 wire 对象。反例是对合法
@@ -82,9 +82,11 @@ def cut(stream, k, windows=None, attempts=None):
     records = []
     for u in units:
         a, b = endpoints[u["k"]], endpoints[u["k"] + 1]
+        # schema v1.3 §1：单元区间取成员笔（stroke_refs ∩ construction.stroke_indices）的方向极值；合法 cut 用单笔段，几何端点即极值。
         records.append({"kind": "CC-013.segment", "object_id": f"obj-seg-{u['k']}", "payload": {"schema_revision": "s-segment/2", "data": {
-            "entity_id": uid(u["k"]), "result": "CASE_ONE", "construction": {"start_stroke": str(3 * u["k"]), "direction": u["dir"]},
-            "stroke_refs": [{"start_price": str(a)}], "geometric_end": {"price": str(b)}}}})
+            "entity_id": uid(u["k"]), "result": "CASE_ONE",
+            "construction": {"start_stroke": str(3 * u["k"]), "direction": u["dir"], "stroke_indices": [str(3 * u["k"])]},
+            "stroke_refs": [{"stroke_index": str(3 * u["k"]), "start_price": str(a), "end_price": str(b)}], "geometric_end": {"price": str(b)}}}})
     if has_pending:
         records.append({"kind": "CC-013.segment", "object_id": f"obj-seg-{n}", "payload": {"schema_revision": "s-segment/2", "data": {
             "entity_id": uid(n), "result": "NO_FIRST", "construction": {"start_stroke": str(3 * n), "direction": None},
@@ -308,7 +310,22 @@ def main():
     add("member_edge_missing_settled", "MEMBER_EDGE_COUNT", UP, drop_edge(3))
     add("member_edge_missing_open_newest", "MEMBER_EDGE_COUNT", UP, drop_edge(12))
     add("member_edge_duplicate", "MEMBER_EDGE_COUNT", UP, lambda c: c["records"].append(dict(copy.deepcopy(next(r for r in c["records"] if r["object_id"] == "obj-rel-0")), object_id="obj-rel-0-dup")))
-    json.dump({"schema": "tb02e-contract-corpus/1", "ticket": 1419, "schema_doc": "tb1419-schema.md v1.2（冻结，E1–E4）",
+    # schema v1.3 §1（根裁定 ROOT-RULING-1419-L3）判别例：u0 = 三根成员笔 12→30→10→40，几何端点区间 [12,40]，成员笔极值 [10,40]
+    # （起点不是段内极值，真实 BTC 上 39/72 段如此）。中枢对象照 [10,40] ⟹ 接受；单元按几何端点写成 lo=12 ⟹ UNIT_SOURCE。
+    # stroke_refs 另挂一根越过段端的观察笔（下标不在 construction.stroke_indices），其低点 5 不得进单元区间。
+    def three_stroke_u0(c):
+        seg0 = next(r for r in c["records"] if r["object_id"] == "obj-seg-0")["payload"]["data"]
+        seg0["construction"]["stroke_indices"] = ["0", "1", "2"]
+        seg0["stroke_refs"] = [{"stroke_index": "0", "start_price": "12", "end_price": "30"}, {"stroke_index": "1", "start_price": "30", "end_price": "10"},
+                               {"stroke_index": "2", "start_price": "10", "end_price": "40"}, {"stroke_index": "3", "start_price": "40", "end_price": "5"}]
+    add("unit_interval_member_extremes_not_geometric", "ACCEPT", UP, three_stroke_u0)
+
+    def geometric_lo(c):
+        three_stroke_u0(c)
+        find(c, "CC-016.center_seed_attempt", "seed_attempt:1:10")["units"][0].update(lo="12")
+    add("unit_interval_geometric_endpoint_rejected", "UNIT_SOURCE", UP, geometric_lo)
+    add("unit_member_stroke_missing_ref", "UNIT_SOURCE", UP, lambda c: next(r for r in c["records"] if r["object_id"] == "obj-seg-1")["payload"]["data"].update(stroke_refs=[]))
+    json.dump({"schema": "tb02e-contract-corpus/1", "ticket": 1419, "schema_doc": "tb1419-schema.md v1.3（v1.2 + 根裁定 L3：单元区间 = 成员笔方向极值）",
                "provenance": "generate-corpus.py 按定义直算段层合法 cut，反例为其补丁；不读生产输出", "cases": cases},
               sys.stdout, ensure_ascii=False, separators=(",", ":"))
     sys.stdout.write("\n")

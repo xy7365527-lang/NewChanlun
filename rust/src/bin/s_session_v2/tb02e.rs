@@ -77,10 +77,37 @@ fn wire_int(v: &Value, name: &str) -> Result<i64, String> {
         .ok_or_else(|| format!("TB02E_INPUT_CONTRACT：CC-013 字段 {name} 不是十进制文本"))
 }
 
-/// 输入合同（schema v1 §1）：同 cut `CC-013.segment` 按起笔排序，除末个外都须完成且首尾相连；完成单元的
-/// 区间（`sort(stroke_refs[0].start_price, geometric_end.price)`）与方向（`construction.direction`）须与同次
-/// parser `layer.segments` 经塔同一投影的结果逐位相等。任一不符 ⟹ `Err(TB02E_INPUT_CONTRACT 收据)`，
-/// 收据逐条列 `{check, position, expected, actual}`（根裁定 D-J 第 5 点）。
+/// 完成段成员笔的方向极值：`stroke_refs` 中下标属于 `construction.stroke_indices` 的笔，取全部笔端价的
+/// `[min, max]`（schema v1.3 §1）。成员笔缺 `stroke_refs` 条目 ⟹ 输入合同失败。
+fn member_stroke_extremes(d: &Value) -> Result<(i64, i64), String> {
+    let members = d["construction"]["stroke_indices"]
+        .as_array()
+        .ok_or("TB02E_INPUT_CONTRACT：CC-013 缺 construction.stroke_indices")?;
+    let mut extremes: Option<(i64, i64)> = None;
+    for m in members {
+        let r = d["stroke_refs"]
+            .as_array()
+            .and_then(|refs| refs.iter().find(|r| r["stroke_index"] == *m))
+            .ok_or_else(|| {
+                format!("TB02E_INPUT_CONTRACT：成员笔 {m} 不在 CC-013 stroke_refs 中")
+            })?;
+        let (s, e) = (
+            wire_int(&r["start_price"], "stroke_refs.start_price")?,
+            wire_int(&r["end_price"], "stroke_refs.end_price")?,
+        );
+        let (lo, hi) = extremes.unwrap_or((s.min(e), s.max(e)));
+        extremes = Some((lo.min(s).min(e), hi.max(s).max(e)));
+    }
+    extremes.ok_or_else(|| "TB02E_INPUT_CONTRACT：完成段没有成员笔".to_string())
+}
+
+/// 输入合同（schema v1.3 §1）：同 cut `CC-013.segment` 按起笔排序，除末个外都须完成且首尾相连；完成单元的
+/// 区间 = 成员笔（`stroke_refs` 中下标属于 `construction.stroke_indices` 的笔）的方向极值
+/// `[min(笔低), max(笔高)]`，方向 = `construction.direction`，须与同次 parser `layer.segments` 经塔同一投影的结果
+/// 逐位相等。不取几何端点（`stroke_refs[0].start_price`／`geometric_end.price`）：真实数据上段端点可以不是段内极值，
+/// 塔经 `make_segment` 取的是成员笔极值（`078:58`／`:60` 标准化；根裁定 `ROOT-RULING-1419-L3`，#804 同一判定只有一个
+/// 输入值）。也不取全部 `stroke_refs`：它延伸到 observed_through，会越过段端。任一不符 ⟹
+/// `Err(TB02E_INPUT_CONTRACT 收据)`，收据逐条列 `{check, position, expected, actual}`（根裁定 D-J 第 5 点）。
 pub(super) fn units_from_segments(
     segment_objects: &[Value],
     layer_segments: &[Segment],
@@ -114,12 +141,8 @@ pub(super) fn units_from_segments(
                 &d["geometric_end"]["stroke_index"],
                 "geometric_end.stroke_index",
             )?;
-            (
-                a.min(b),
-                a.max(b),
-                Some(end),
-                if b > a { "UP" } else { "DOWN" },
-            )
+            let (lo, hi) = member_stroke_extremes(&d)?;
+            (lo, hi, Some(end), if b > a { "UP" } else { "DOWN" })
         } else {
             (0, 0, None, "")
         };
@@ -1218,6 +1241,74 @@ mod tests {
         assert!(nonvacuous > 0, "冻结 raw 须有完成段（非真空）");
     }
 
+    /// schema v1.3 §1（根裁定 ROOT-RULING-1419-L3）真实数据判别例：BTC 尾 5 万根前 600 根上的 CC-013 输入合同字段与
+    /// 生产塔 L0 单元（夹具来源见其 provenance）。有段的几何端点不是段内极值；输入合同取成员笔方向极值，与塔逐位相同
+    /// 才接纳——改回几何端点即在这些段上整 cut 拒绝（变异体收据见 #1419 收尾报告）。
+    #[test]
+    fn tb02e_real_btc_unit_interval_is_member_stroke_extremes() {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../../s_session/tests/fixtures/tb02e-real/btc-tail50k-first600.json"
+        ))
+        .unwrap();
+        let objects: Vec<Value> = fixture["segments"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| json!({"kind":r["kind"],"object_id":r["object_id"],"payload_json":r["payload"].to_string(),"source_coords_json":"[]"}))
+            .collect();
+        let tower: Vec<Segment> = fixture["tower_units"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|u| {
+                let (lo, hi) = (u["lo"].as_i64().unwrap(), u["hi"].as_i64().unwrap());
+                let up = u["dir"] == "UP";
+                Segment {
+                    direction: if up { Direction::Up } else { Direction::Down },
+                    start_index: u["start_index"].as_u64().unwrap() as usize,
+                    end_index: u["end_index"].as_u64().unwrap() as usize,
+                    start_price: if up { lo } else { hi },
+                    end_price: if up { hi } else { lo },
+                }
+            })
+            .collect();
+        let inputs = units_from_segments(&objects, &tower).unwrap_or_else(|e| panic!("{e}"));
+        let got: Vec<(i64, i64)> = inputs
+            .completed
+            .iter()
+            .map(|u| (u.range.unwrap().lo, u.range.unwrap().hi))
+            .collect();
+        let want: Vec<(i64, i64)> = tower
+            .iter()
+            .map(|s| {
+                (
+                    s.start_price.min(s.end_price),
+                    s.start_price.max(s.end_price),
+                )
+            })
+            .collect();
+        assert_eq!(got, want);
+        assert!(inputs.in_progress.is_some());
+        // 判别：这些段的几何端点区间与塔（成员笔极值）不同。
+        let disc: Vec<usize> =
+            serde_json::from_value(fixture["discriminating_units"].clone()).unwrap();
+        assert!(!disc.is_empty());
+        for k in disc {
+            let d = &fixture["segments"][k]["payload"]["data"];
+            let a: i64 = d["stroke_refs"][0]["start_price"]
+                .as_str()
+                .unwrap()
+                .parse()
+                .unwrap();
+            let b: i64 = d["geometric_end"]["price"]
+                .as_str()
+                .unwrap()
+                .parse()
+                .unwrap();
+            assert_ne!((a.min(b), a.max(b)), want[k], "单元 {k} 不是判别例");
+        }
+    }
+
     /// S0 oracle 六条流（`worked-examples.json` 的 `streams.*.endpoints`）。
     const STREAMS: [(&str, &[i64]); 6] = [
         ("UP", &UP),
@@ -1300,8 +1391,10 @@ mod tests {
         let n = endpoints.len() - 1;
         (0..n)
             .map(|k| json!({"kind":"CC-013.segment","object_id":format!("obj-seg-{k}"),"payload":{"schema_revision":"s-segment/2","data":{
-                "entity_id":seg(k),"result":"CASE_ONE","construction":{"start_stroke":(3 * k).to_string(),"direction":if endpoints[k + 1] > endpoints[k] {"UP"} else {"DOWN"}},
-                "stroke_refs":[{"start_price":endpoints[k].to_string()}],"geometric_end":{"price":endpoints[k + 1].to_string()}}}}))
+                "entity_id":seg(k),"result":"CASE_ONE","construction":{"start_stroke":(3 * k).to_string(),"direction":if endpoints[k + 1] > endpoints[k] {"UP"} else {"DOWN"},
+                    "stroke_indices":[(3 * k).to_string()]},
+                "stroke_refs":[{"stroke_index":(3 * k).to_string(),"start_price":endpoints[k].to_string(),"end_price":endpoints[k + 1].to_string()}],
+                "geometric_end":{"price":endpoints[k + 1].to_string()}}}}))
             .chain(std::iter::once(json!({"kind":"CC-013.segment","object_id":format!("obj-seg-{n}"),"payload":{"schema_revision":"s-segment/2","data":{
                 "entity_id":seg(n),"result":"NO_FIRST","construction":{"start_stroke":(3 * n).to_string(),"direction":null},
                 "stroke_refs":[{"start_price":endpoints[n].to_string()}],"geometric_end":null}}})))

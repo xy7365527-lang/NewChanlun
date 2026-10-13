@@ -816,14 +816,22 @@
       } else if (SEGMENT_KINDS.includes(r.kind)) needE(!centerRule || r.payload.schema_revision === "s-segment/2", "RULE_MIX", "中枢规则 cut 的段对象须为 s-segment/2");
     }
   }
+  // 完成段成员笔的方向极值（schema v1.3 §1，根裁定 ROOT-RULING-1419-L3；与 s_tb02_contract._member_extremes 对称）：
+  // stroke_refs 中下标属于 construction.stroke_indices 的笔，取全部笔端价的 [min, max]；不取几何端点，也不取全部 stroke_refs。
+  function memberExtremes(d) {
+    const refs = new Map(d.stroke_refs.map(r => [r.stroke_index, r])), members = d.construction.stroke_indices;
+    needE(members.length > 0 && members.every(m => refs.has(m)), "UNIT_SOURCE", "完成段成员笔不在同对象 stroke_refs 中");
+    const prices = members.flatMap(m => [BigInt(refs.get(m).start_price), BigInt(refs.get(m).end_price)]);
+    return [prices.reduce((a, b) => (b < a ? b : a)), prices.reduce((a, b) => (b > a ? b : a))];
+  }
   function segmentUnits(records) {
     const rows = [];
     for (const r of records) {
       if (r.kind !== "CC-013.segment") continue;
       const d = r.payload.data, done = ["CASE_ONE", "CASE_TWO"].includes(d.result), start = BigInt(d.construction.start_stroke);
       if (done) {
-        const a = BigInt(d.stroke_refs[0].start_price), b = BigInt(d.geometric_end.price);
-        rows.push([start, d.entity_id, r.object_id, a < b ? a : b, a < b ? b : a, d.construction.direction, true]);
+        const [lo, hi] = memberExtremes(d);
+        rows.push([start, d.entity_id, r.object_id, lo, hi, d.construction.direction, true]);
       } else rows.push([start, d.entity_id, r.object_id, null, null, null, false]);
     }
     rows.sort((x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0));

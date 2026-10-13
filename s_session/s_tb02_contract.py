@@ -1192,6 +1192,16 @@ def validate_center_rule(records, rule_revision):
             _need(not center_rule or r["payload"].get("schema_revision") == "s-segment/2", "RULE_MIX", "中枢规则 cut 的段对象须为 s-segment/2")
 
 
+def _member_extremes(d):
+    """完成段成员笔的方向极值（schema v1.3 §1，根裁定 ROOT-RULING-1419-L3）：stroke_refs 中下标属于
+    construction.stroke_indices 的笔，取全部笔端价的 [min, max]；不取几何端点，也不取全部 stroke_refs（会越过段端）。"""
+    refs = {r["stroke_index"]: r for r in d["stroke_refs"]}
+    members = d["construction"]["stroke_indices"]
+    _need(len(members) > 0 and all(m in refs for m in members), "UNIT_SOURCE", "完成段成员笔不在同对象 stroke_refs 中")
+    prices = [int(refs[m][k]) for m in members for k in ("start_price", "end_price")]
+    return min(prices), max(prices)
+
+
 def _segment_units(records):
     """同 cut CC-013.segment → (完成单元序 [(unit_id, object_id, lo, hi, direction)], 进行中 unit_id 集)。"""
     rows = []
@@ -1202,8 +1212,8 @@ def _segment_units(records):
         done = d["result"] in ("CASE_ONE", "CASE_TWO")
         start = int(d["construction"]["start_stroke"])
         if done:
-            a, b = int(d["stroke_refs"][0]["start_price"]), int(d["geometric_end"]["price"])
-            rows.append((start, d["entity_id"], r["object_id"], min(a, b), max(a, b), d["construction"]["direction"], True))
+            lo, hi = _member_extremes(d)
+            rows.append((start, d["entity_id"], r["object_id"], lo, hi, d["construction"]["direction"], True))
         else:
             rows.append((start, d["entity_id"], r["object_id"], None, None, None, False))
     rows.sort()
