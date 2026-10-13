@@ -311,7 +311,7 @@ def main():
     add("member_edge_missing_open_newest", "MEMBER_EDGE_COUNT", UP, drop_edge(12))
     add("member_edge_duplicate", "MEMBER_EDGE_COUNT", UP, lambda c: c["records"].append(dict(copy.deepcopy(next(r for r in c["records"] if r["object_id"] == "obj-rel-0")), object_id="obj-rel-0-dup")))
     # schema v1.3 §1（根裁定 ROOT-RULING-1419-L3）判别例：u0 = 三根成员笔 12→30→10→40，几何端点区间 [12,40]，成员笔极值 [10,40]
-    # （起点不是段内极值，真实 BTC 上 39/72 段如此）。中枢对象照 [10,40] ⟹ 接受；单元按几何端点写成 lo=12 ⟹ UNIT_SOURCE。
+    # （起点不是段内极值，真实 BTC 上 32/72 段如此）。中枢对象照 [10,40] ⟹ 接受；单元按几何端点写成 lo=12 ⟹ UNIT_SOURCE。
     # stroke_refs 另挂一根越过段端的观察笔（下标不在 construction.stroke_indices），其低点 5 不得进单元区间。
     def three_stroke_u0(c):
         seg0 = next(r for r in c["records"] if r["object_id"] == "obj-seg-0")["payload"]["data"]
