@@ -1,4 +1,5 @@
 // #1371 R10：实际同源HTTP，TestOnly只控制交付末代及单字段响应变换；DOM是模拟。
+// #1394 整合（根裁定，同 r12）：页面加载时引用 TB01C.TB02_KINDS（#1404/#1414），三处模拟页面上下文与正式页面一样先注入同一客户端。
 async function runR10() {
  const fs=require('fs'),vm=require('vm'),assert=require('assert');
  const base=process.argv[3], out=process.argv[4], root=process.argv[5];
@@ -7,7 +8,7 @@ async function runR10() {
  function context(){
    const els=new Map();function el(){return {innerHTML:'',textContent:'',value:'0',placeholder:'',checked:false,classList:{toggle(){}},addEventListener(){},focus(){},scrollIntoView(){}}}
    const document={getElementById(id){if(!els.has(id))els.set(id,el());return els.get(id)},querySelector(){return el()},createElement(){let x=el();Object.defineProperty(x,'innerHTML',{get(){return this.textContent}});return x}};
-   const c=vm.createContext({document,structuredClone,console});vm.runInContext(source,c);return {c,els};
+   const c=vm.createContext({document,TB01C:require(require('path').resolve(root,'s_session/browser/tb01c-client.js')),structuredClone,console});vm.runInContext(source,c);return {c,els};
  }
  async function get(path){const response=await fetch(base+path);const text=await response.text();results.http.push({url:base+path,status:response.status,body:text});assert.equal(response.status,200);return JSON.parse(text)}
  function stateOf(c){return JSON.parse(vm.runInContext('JSON.stringify({cursor:lastAppliedGen,binding:sessionBinding,state:currentState,objects:[...appliedObjects],withdrawn:[...appliedWithdrawn],witnesses:[...appliedWitnesses],relations:[...appliedRelations],observations:[...appliedObservations],raw:[...appliedRawHistory]})',c))}
@@ -51,7 +52,7 @@ async function runR11() {
       flags,classList:{toggle(k,v){flags[k]=v}},addEventListener(){},focus(){},scrollIntoView(){}};}
     const document={getElementById(id){if(!els.has(id))els.set(id,element());return els.get(id)},
       querySelector(q){return this.getElementById(q)},createElement(){const e=element();Object.defineProperty(e,'innerHTML',{get(){return this.textContent}});return e}};
-    const c=vm.createContext({document,structuredClone,console});vm.runInContext(source,c);return {c,els};
+    const c=vm.createContext({document,TB01C:require(require('path').resolve(root,'s_session/browser/tb01c-client.js')),structuredClone,console});vm.runInContext(source,c);return {c,els};
   }
   function snapshot(c) {return JSON.parse(vm.runInContext('JSON.stringify({currentState,lastAppliedGen,sessionBinding,historyMode,objects:[...appliedObjects],withdrawn:[...appliedWithdrawn],witnesses:[...appliedWitnesses],relations:[...appliedRelations],observations:[...appliedObservations],raw:[...appliedRawHistory]})',c));}
   function ui(els) {return Object.fromEntries([...els].map(([k,v])=>[k,{html:v.innerHTML,text:v.textContent,value:v.value,flags:v.flags}]));}
@@ -207,7 +208,7 @@ const script=fs.readFileSync(root+'/s_session/browser/index.html','utf8').match(
 function ctx() {
  const els=new Map();function el(){return {innerHTML:'',textContent:'',value:'0',placeholder:'',checked:false,classList:{toggle(){}},addEventListener(){},focus(){},scrollIntoView(){}}}
  const document={getElementById(id){if(!els.has(id))els.set(id,el());return els.get(id)},querySelector(){return el()},createElement(){let x=el();Object.defineProperty(x,'innerHTML',{get(){return this.textContent}});return x}};
- const c=vm.createContext({document,structuredClone,console});vm.runInContext(script,c);return {c,els};
+ const c=vm.createContext({document,TB01C:require(require('path').resolve(root,'s_session/browser/tb01c-client.js')),structuredClone,console});vm.runInContext(script,c);return {c,els};
 }
 function fetcher(c,fn){c.fetch=async url=>({ok:true,status:200,json:async()=>structuredClone(await fn(url))});}
 function stateFetch(url){const match=url.match(/^\/api\/state\?as_of=(\d+)$/);assert(match,'必须取指定cut：'+url);return states[match[1]];}
