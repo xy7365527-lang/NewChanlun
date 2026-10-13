@@ -631,3 +631,6 @@ mod tests {
 
 #[cfg(test)]
 mod tb02d_tests;
+
+#[cfg(test)]
+mod tb02w_tests;
