@@ -203,7 +203,7 @@ pub struct SecondSequenceFacts {
 }
 
 /// 笔的特征序列高低（= max/min(start_price, end_price)）。
-fn stroke_high_low(s: &Stroke) -> (Tick, Tick) {
+pub(super) fn stroke_high_low(s: &Stroke) -> (Tick, Tick) {
     if s.start_price >= s.end_price {
         (s.start_price, s.end_price)
     } else {
@@ -291,7 +291,7 @@ fn has_any_fractal(elements: &[(Tick, Tick)]) -> bool {
 /// 对 elements 尾部做包含处理或追加（bit-exact 对齐 Python `_apply_inclusion`，:193-218）。
 ///
 /// 方向性合并：`effective_up = dir_state != Down` → `max/max`；否则 `min/min`。返回新 dir_state。
-fn apply_inclusion(
+pub(super) fn apply_inclusion(
     elements: &mut Vec<(Tick, Tick)>,
     h: Tick,
     l: Tick,
@@ -358,6 +358,7 @@ pub(super) fn second_seq_has_fractal(
 /// 处理与分型检查、后做越界检查（越界取该笔原始极值、严格不等）：先成分型 ⟹ `CONFIRMED`；
 /// 原方向价格先严格越过 P ⟹ `KILLED_BY_NEW_EXTREME`（078:52，候选作废、不复活，失效即停）；
 /// 已知前缀末端皆无 ⟹ `OPEN_AT_PREFIX_END`。预算 `scan_window` 只决定扫描覆盖，耗尽时语义为空。
+/// 续扫与恢复用同一折叠的 K1 游标 [`super::second_fold::SecondFoldCursor`]，结果逐位相同。
 pub(super) fn second_sequence(
     strokes: &[Stroke],
     seg_dir: Direction,
@@ -365,138 +366,16 @@ pub(super) fn second_sequence(
     candidate_extreme: Tick,
     scan_window: u32,
 ) -> SecondSequenceFacts {
-    let mut elements = Vec::new();
-    let mut dir_state = match seg_dir {
-        Direction::Up => Some(Direction::Down),
-        Direction::Down => None,
-    };
-    let from = from_stroke_idx.saturating_add(1);
-    let end = if scan_window == 0 {
-        strokes.len()
-    } else {
-        from.saturating_add(scan_window as usize).min(strokes.len())
-    };
-    let mut facts = SecondSequenceFacts {
-        raw_elements: vec![],
-        standard: vec![],
-        steps: vec![],
-        checks: vec![],
-        from_stroke: from,
-        through_stroke: from_stroke_idx,
-        input_stroke_count: strokes.len(),
-        resource_truncated: false,
-        matched: None,
-        candidate_extreme,
-        breach_watermark: None,
-        semantic_state: None,
-        killed_by: None,
-        coverage: ScanCoverage::Complete,
-    };
-    for (i, sk) in strokes.iter().enumerate().take(end).skip(from) {
-        facts.through_stroke = i;
-        if sk.direction != seg_dir {
-            continue;
-        }
-        let (high, low) = stroke_high_low(sk);
-        // #1344：越界看该笔原始极值（不是包含合并后的元素），水位只作记账。
-        let reach = match seg_dir {
-            Direction::Up => high,
-            Direction::Down => low,
-        };
-        facts.breach_watermark = Some(match (facts.breach_watermark, seg_dir) {
-            (None, _) => reach,
-            (Some(w), Direction::Up) => w.max(reach),
-            (Some(w), Direction::Down) => w.min(reach),
-        });
-        let incoming = FeatureElement {
-            high,
-            low,
-            stroke_idx: i,
-            stroke_indices: vec![i],
-        };
-        let before = facts.standard.last().cloned();
-        facts.raw_elements.push(incoming.clone());
-        let previous_len = elements.len();
-        let merge_direction = if dir_state == Some(Direction::Down) {
-            "DOWN"
-        } else {
-            "UP"
-        };
-        if elements.is_empty() {
-            elements.push((high, low));
-        } else {
-            dir_state = apply_inclusion(&mut elements, high, low, dir_state);
-        }
-        let merge = previous_len == elements.len();
-        let mut stroke_indices = if merge {
-            facts.standard.pop().unwrap().stroke_indices
-        } else {
-            vec![]
-        };
-        stroke_indices.push(i);
-        let (high, low) = *elements.last().unwrap();
-        let after = FeatureElement {
-            high,
-            low,
-            stroke_idx: i,
-            stroke_indices,
-        };
-        facts.standard.push(after.clone());
-        facts.steps.push(FeatureStep {
-            incoming,
-            before,
-            after,
-            action: if merge { "merge" } else { "append" },
-            merge_direction: merge.then_some(merge_direction),
-            scope: "SECOND_SEQUENCE",
-        });
-        let n = facts.standard.len();
-        if n >= 3 {
-            let es = [
-                facts.standard[n - 3].clone(),
-                facts.standard[n - 2].clone(),
-                facts.standard[n - 1].clone(),
-            ];
-            let check = SecondCheck {
-                top_fractal: es[1].high > es[0].high && es[1].high > es[2].high,
-                bottom_fractal: es[1].low < es[0].low && es[1].low < es[2].low,
-                elements: es,
-                through_stroke: i,
-            };
-            facts.checks.push(check.clone());
-            if check.top_fractal || check.bottom_fractal {
-                facts.matched = Some(check);
-                facts.semantic_state = Some(SecondTerminal::Confirmed);
-                return facts;
-            }
-        }
-        // #1344 第二问：分型检查之后才看越界；被包含并入前一元素的笔不是独立第三元素，
-        // 但它的新高/新低照样触发失效（078:52「直接新高或新低」）。
-        let breached = match seg_dir {
-            Direction::Up => reach > candidate_extreme,
-            Direction::Down => reach < candidate_extreme,
-        };
-        if breached {
-            facts.killed_by = Some(SecondKill {
-                stroke_idx: i,
-                price: reach,
-                candidate_extreme,
-                comparison: match seg_dir {
-                    Direction::Up => ">",
-                    Direction::Down => "<",
-                },
-            });
-            facts.semantic_state = Some(SecondTerminal::KilledByNewExtreme);
-            return facts;
-        }
-    }
-    facts.resource_truncated = end < strokes.len();
-    if facts.resource_truncated {
-        facts.coverage = ScanCoverage::IncompleteResourceBound;
-    } else {
-        facts.semantic_state = Some(SecondTerminal::OpenAtPrefixEnd);
-    }
-    facts
+    // #1420：折叠本体在 `second_fold`（K1 游标与本入口共用同一步进函数）。
+    super::second_fold::fold_uninterrupted(
+        strokes,
+        super::second_fold::SecondCandidateId {
+            seg_dir,
+            b_stroke: from_stroke_idx,
+            candidate_extreme,
+        },
+        scan_window,
+    )
 }
 
 /// 延续模式（Python `extend_mode`）。
