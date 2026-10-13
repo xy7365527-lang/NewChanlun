@@ -403,23 +403,38 @@
     const slot = kind === SEGMENT_KINDS[3] ? [d.source_id, d.relation_kind, d.target_id] : kind === SEGMENT_KINDS[4] ? [d.known_at.generation, d.entity_id, d.change] : kind === SEGMENT_KINDS[5] ? (v2 ? "TB-02-D" : "TB-02-C") : d.entity_id;
     need(equal(p.slot, slot), "段语义槽身份不符");
   }
+  // #1405（#1343）：新笔合同两代并存——s-new-bi/1 旧对象按 AsKnown 保留；s-new-bi/2 端点带极值根集
+  // 首末 raw 序位，同型只有 KEEP/REPLACE 并带同价证据，policy_version 并列记录 raw 间隔门与同价策略。
+  const SAME_PRICE_KEEP_EVIDENCE = "same_kind_equal_price_keep_earlier";
+  const BI_VERSIONS = {
+    "s-new-bi/1": ["new-bi-dual-coordinate/1", "standard_raw_gap_3"],
+    "s-new-bi/2": ["new-bi-dual-coordinate/2", "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1"],
+  };
+  const RETIRED_SAME_PRICE_WAITING = ["raw_extreme_identity_tie", "actual_extreme_mapping_missing", "same_kind_endpoint_identity_tie", "earlier_endpoint_identity_unsettled"];
   function validateBiPayload(kind, p) {
     keys(p, ["schema_revision", "semantic_version", "policy_version", "view_role", "object_generation", "slot", "data"], "新笔合同");
-    need(p.schema_revision === "s-new-bi/1" && p.semantic_version === "new-bi-dual-coordinate/1" && p.policy_version === "standard_raw_gap_3" && p.view_role === "main", "新笔规则/政策版本不符");
+    const version = Object.hasOwn(BI_VERSIONS, p.schema_revision) ? BI_VERSIONS[p.schema_revision] : null;
+    need(version !== null && p.semantic_version === version[0] && p.policy_version === version[1] && p.view_role === "main", "新笔规则/政策版本不符");
+    const v2 = p.schema_revision === "s-new-bi/2";
     integer(p.object_generation, true);
     const d = p.data;
+    function waiting(value) { texts(value); need(!v2 || !value.some(w => RETIRED_SAME_PRICE_WAITING.includes(w)), "同价域退役的等待态在 v2 对象复现"); }
     function endpoint(e) {
-      keys(e, ["kind", "merged_index", "group_anchor", "price", "extreme_roots", "raw_position", "source_coords", "sealed_at", "waiting_reasons"], "新笔端点");
+      keys(e, ["kind", "merged_index", "group_anchor", "price", "extreme_roots", ...(v2 ? ["raw_first", "raw_last"] : ["raw_position"]), "source_coords", "sealed_at", "waiting_reasons"], "新笔端点");
       need(["TOP", "BOTTOM"].includes(e.kind), "端点类型不符"); integer(e.merged_index); integer(e.group_anchor); signed(e.price);
-      coordinates(e.extreme_roots); coordinates(e.source_coords); texts(e.waiting_reasons);
+      coordinates(e.extreme_roots); coordinates(e.source_coords); waiting(e.waiting_reasons);
       need(e.extreme_roots.every(c => e.source_coords.includes(c)), "实际根缺原始来源");
-      for (const k of ["raw_position", "sealed_at"]) if (e[k] !== null) integer(e[k]);
+      if (v2) {
+        const first = integer(e.raw_first), last = integer(e.raw_last);
+        need(e.extreme_roots.length > 0 && last >= first && last - first >= BigInt(e.extreme_roots.length - 1), "极值根集与首末 raw 序位不闭合");
+      } else if (e.raw_position !== null) integer(e.raw_position);
+      if (e.sealed_at !== null) integer(e.sealed_at);
     }
     function conditions(c) {
       keys(c, ["merged_gap", "raw_between_actual_extrema", "top_price", "bottom_price", "vector", "failed_conditions", "waiting_reasons"], "新笔完整条件");
-      integer(c.merged_gap); if (c.raw_between_actual_extrema !== null) integer(c.raw_between_actual_extrema); signed(c.top_price); signed(c.bottom_price);
-      need(Array.isArray(c.vector) && c.vector.length === 3 && c.vector.every(v => v === null || typeof v === "boolean"), "条件向量缺位/错型");
-      texts(c.failed_conditions); texts(c.waiting_reasons);
+      integer(c.merged_gap); if (v2 || c.raw_between_actual_extrema !== null) integer(c.raw_between_actual_extrema); signed(c.top_price); signed(c.bottom_price);
+      need(Array.isArray(c.vector) && c.vector.length === 3 && c.vector.every(v => typeof v === "boolean" || (!v2 && v === null)), "条件向量缺位/错型");
+      texts(c.failed_conditions); waiting(c.waiting_reasons);
     }
     function known(k) {
       keys(k, ["generation", "input_frontier", "receipt_id", "received_at", "semantic_commit_ns"], "新笔获知时点");
@@ -427,11 +442,20 @@
     }
     if (kind === BI_KINDS[0]) endpoint(d);
     else if ([BI_KINDS[1], BI_KINDS[2]].includes(kind)) {
-      keys(d, ["old", "new", "endpoint_kind_pair", "conditions", "comparison", "selection", "retained_anchors", "waiting_reasons"], "端点对");
+      keys(d, ["old", "new", "endpoint_kind_pair", "conditions", "comparison", "selection", "retained_anchors", ...(v2 ? ["evidence"] : []), "waiting_reasons"], "端点对");
       endpoint(d.old); endpoint(d.new); need(d.endpoint_kind_pair === d.old.kind + "/" + d.new.kind, "端点分域标签不符");
-      if (kind === BI_KINDS[1]) { need(d.old.kind !== d.new.kind, "异型请求实际同型"); conditions(d.conditions); need(d.comparison === null && d.selection === null, "异型域混入同型选择"); }
-      else need(d.old.kind === d.new.kind && d.conditions === null && ["LT", "EQ", "GT"].includes(d.comparison) && ["KEEP", "REPLACE", "UNDETERMINED"].includes(d.selection), "同型域混入假条件或未声明取舍");
-      coordinates(d.retained_anchors); texts(d.waiting_reasons);
+      if (kind === BI_KINDS[1]) { need(d.old.kind !== d.new.kind, "异型请求实际同型"); conditions(d.conditions); need(d.comparison === null && d.selection === null && (!v2 || equal(d.evidence, [])), "异型域混入同型选择"); }
+      else {
+        need(d.old.kind === d.new.kind && d.conditions === null && ["LT", "EQ", "GT"].includes(d.comparison) && (v2 ? ["KEEP", "REPLACE"] : ["KEEP", "REPLACE", "UNDETERMINED"]).includes(d.selection), "同型域混入假条件或未声明取舍");
+        if (v2) {
+          // 一个比较器三输出（#1343 Q1）：严格更强 ⟹ REPLACE；更弱或同价 ⟹ KEEP 在先者。
+          const stronger = d.comparison === (d.old.kind === "TOP" ? "GT" : "LT");
+          need(d.selection === (stronger ? "REPLACE" : "KEEP"), "同型取舍与价格比较不闭合");
+          need(equal(d.retained_anchors, [stronger ? d.new.group_anchor : d.old.group_anchor]), "同型保留锚不符取舍");
+          need(equal(d.evidence, d.comparison === "EQ" ? [SAME_PRICE_KEEP_EVIDENCE] : []), "同价保留在先者的证据缺失或混入");
+        }
+      }
+      coordinates(d.retained_anchors); if (v2) texts(d.evidence); waiting(d.waiting_reasons);
     } else if (kind === BI_KINDS[3]) {
       keys(d, ["identity_anchor", "start", "end", "formation", "confirmation", "entity_id", "entity_revision", "state", "formed_known_at", "confirmed_known_at", "formed_evidence", "version_causes"], "新笔实体");
       integer(d.identity_anchor); integer(d.entity_revision, true); text(d.entity_id); endpoint(d.start); endpoint(d.end); conditions(d.formation); conditions(d.formed_evidence); known(d.formed_known_at); texts(d.version_causes);
@@ -447,10 +471,14 @@
     } else if (kind === BI_KINDS[5]) {
       keys(d, ["entity_id", "change", "before", "after", "known_at", "event_at", "causes", "object_id"], "新笔变化");
       text(d.entity_id); need(["formed", "extended", "endpoint_replaced", "confirmed", "source_or_boundary_updated", "withdrawn"].includes(d.change), "未声明变化"); known(d.known_at); signed(d.event_at); texts(d.causes);
-      for (const k of ["before", "after"]) if (d[k] !== null) validateBiPayload(BI_KINDS[3], {...p, slot:d[k].entity_id, object_generation:d[k].entity_id.split(":")[1], data:d[k]});
+      for (const k of ["before", "after"]) if (d[k] !== null) {
+        // after 与本事件同版本；before 是先前已发布对象，按其自身代际形状校验（AsKnown）。
+        const schema = k === "after" ? p.schema_revision : (object(d[k].start) && Object.hasOwn(d[k].start, "raw_first") ? "s-new-bi/2" : "s-new-bi/1");
+        validateBiPayload(BI_KINDS[3], {...p, schema_revision:schema, semantic_version:BI_VERSIONS[schema][0], policy_version:BI_VERSIONS[schema][1], slot:d[k].entity_id, object_generation:d[k].entity_id.split(":")[1], data:d[k]});
+      }
     } else {
       keys(d, ["input_frontier", "version_causes", "identity_basis", "classification_obligation", "waiting_reasons", "known_at"], "新笔版本");
-      integer(d.input_frontier, false, true); texts(d.version_causes); texts(d.waiting_reasons); known(d.known_at);
+      integer(d.input_frontier, false, true); texts(d.version_causes); waiting(d.waiting_reasons); known(d.known_at);
     }
     const slot = kind === BI_KINDS[0] ? "fx:" + p.object_generation + ":" + d.group_anchor :
       [BI_KINDS[1], BI_KINDS[2]].includes(kind) ? [p.object_generation, d.old.group_anchor, d.new.group_anchor] :
@@ -938,5 +966,5 @@
       return this.#commit(candidate, budget, {kind: "watch", batches: page.deltas.length, hasMore: page.has_more});
     }
   }
-  return Object.freeze({TB02_KINDS: Object.freeze(TB02_KINDS), validateSegmentPayload, Client, DEFAULTS, FAMILIES, ORDER, orderFor, parseDiscovery, readDiscovery, validateTyped, validateTB02ShapeRefs, validateTB02Axes, validateTB02Raw, validateTB02Catalog, validateTB02CutSources, TB02_CATALOG, canonical, parse, sha256, rowsOf, cursorOf});
+  return Object.freeze({TB02_KINDS: Object.freeze(TB02_KINDS), validateSegmentPayload, validateBiPayload, Client, DEFAULTS, FAMILIES, ORDER, orderFor, parseDiscovery, readDiscovery, validateTyped, validateTB02ShapeRefs, validateTB02Axes, validateTB02Raw, validateTB02Catalog, validateTB02CutSources, TB02_CATALOG, canonical, parse, sha256, rowsOf, cursorOf});
 });

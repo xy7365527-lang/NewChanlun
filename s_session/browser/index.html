@@ -410,7 +410,7 @@ function validateExactRecords(records) {
     if (!v || typeof v !== "object") return;
     for (const [k, x] of Object.entries(v)) {
       // #1392/#1404：新笔/段 payload.slot 是逻辑身份；见证 slot 仍按整数核对。
-      const logicalSlot = k === "slot" && (v.schema_revision === "s-new-bi/1" || ["s-segment/1", "s-segment/2"].includes(v.schema_revision));
+      const logicalSlot = k === "slot" && (["s-new-bi/1", "s-new-bi/2"].includes(v.schema_revision) || ["s-segment/1", "s-segment/2"].includes(v.schema_revision));
       if (integerKeys.has(k) && x !== null && !logicalSlot) decimal(x);
       walk(x);
     }

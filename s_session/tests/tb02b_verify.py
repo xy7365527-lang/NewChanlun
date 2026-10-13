@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""#1392：只读真实 S 库→公共 Q 投影→冻结手算账簿；本项不冒充 launcher/GUI。"""
+"""#1392/#1405：只读真实 S 库→公共 Q 投影→冻结手算账簿；本项不冒充 launcher/GUI。"""
 import argparse
 from contextlib import closing
 import json
@@ -12,8 +12,15 @@ sys.path.insert(0, str(ROOT))
 import s_readonly_server as reader
 
 
+BI_POLICY = "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1"
+
+
 def check_snapshot(snapshot, expected):
     objects = snapshot["objects"]
+    # #1405：新代际发布的新笔对象一律是 s-new-bi/2，policy_version 两段并列（raw 间隔门;同价策略）。
+    for o in objects:
+        if o["kind"] in ("CC-008.endpoint", "CC-008.new_bi_pair", "CC-009.same_kind", "CC-010.bi", "CC-056.version"):
+            assert (o["payload"]["schema_revision"], o["payload"]["policy_version"]) == ("s-new-bi/2", BI_POLICY), o["kind"]
     pairs = [o["payload"]["data"] for o in objects if o["kind"] == "CC-008.new_bi_pair"]
     bis = [o["payload"]["data"] for o in objects if o["kind"] == "CC-010.bi"]
     if "pair" in expected:
@@ -27,11 +34,14 @@ def check_snapshot(snapshot, expected):
     if "strokes" in expected:
         actual = [[int(b["start"]["extreme_roots"][0]), int(b["end"]["extreme_roots"][0])] for b in bis]
         assert actual == expected["strokes"], (actual, expected["strokes"])
-    if "ambiguous_root_anchor" in expected:
+    if "extreme_region" in expected:
+        # #1343 Q2：多根同价组的端点身份是极值根集，条件 2 读其首末 raw 序位；不是等待态。
+        region = expected["extreme_region"]
         endpoints = [o["payload"]["data"] for o in objects if o["kind"] == "CC-008.endpoint"]
-        endpoint = next(e for e in endpoints if e["group_anchor"] == str(expected["ambiguous_root_anchor"]))
-        assert endpoint["extreme_roots"] == list(map(str, expected["ambiguous_roots"]))
-        assert endpoint["raw_position"] is None and "raw_extreme_identity_tie" in endpoint["waiting_reasons"]
+        endpoint = next(e for e in endpoints if e["group_anchor"] == str(region["anchor"]))
+        assert endpoint["extreme_roots"] == list(map(str, region["roots"]))
+        assert (endpoint["raw_first"], endpoint["raw_last"]) == (str(region["raw_first"]), str(region["raw_last"]))
+        assert endpoint["waiting_reasons"] == []
     if "confirmed" in expected:
         assert [b["state"] == "CONFIRMED" for b in bis] == expected["confirmed"]
     if "same_pair" in expected:
@@ -40,8 +50,13 @@ def check_snapshot(snapshot, expected):
         found = [p for p in same if p["old"]["group_anchor"] == a and p["new"]["group_anchor"] == b]
         assert len(found) == 1 and found[0]["selection"] == expected["selection"]
         assert found[0]["conditions"] is None
+        if "comparison" in expected:
+            assert found[0]["comparison"] == expected["comparison"]
         if "retained_anchors" in expected:
             assert found[0]["retained_anchors"] == list(map(str, expected["retained_anchors"]))
+        # #1343 Q1：同价保留在先者只记证据，不是等待态。
+        assert found[0]["evidence"] == expected.get("evidence", [])
+        assert found[0]["waiting_reasons"] == []
 
 
 def verify(database, case=None, node=None):

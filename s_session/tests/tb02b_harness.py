@@ -89,7 +89,7 @@ def prepare(output, binary, python, node, playwright_module, port_base, result_r
     plan = {'schema': 'tb02b-runtime-plan/1', 'normalization': '无字段剔除、无身份重命名；诊断耗时/PID从采集起单列。语义核心逐字段硬比较。',
             'fixture_sha256': {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in (ledger_path, oracle_path)},
             'expected_tables': sorted(re.findall(r'CREATE TABLE(?: IF NOT EXISTS)? (\w+)', __import__('s_query_integrity').LEGACY_SCHEMA + __import__('s_query_integrity').CONTROL_SCHEMA + __import__('s_query_integrity').tb02.SCHEMA)),
-            'binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'rule': 'new-bi-dual-coordinate/1',
+            'binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'rule': 'new-bi-dual-coordinate/2',
             'fault_boundaries': ['持久Begin后', '不可变批次后', '对象/关系/变化/索引提交前', '提交后回执前'], 'runs': runs}
     dump(output / 'RUN-PLAN.json', plan)
     return plan
