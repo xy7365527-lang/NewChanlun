@@ -611,7 +611,7 @@ ZD < ZG（严格，Z-2）
 - **同一例外的第二处**（[#1419](https://github.com/xy7365527-lang/NewChanlun/issues/1419) 根裁定 r2 第 2 条，2026-10-14）：Lean `formal/Formal/RecursiveConstruction.lean:126` `CenterDerivedAt`（及其构造性 witness `deriveWindowCenter3`，`:275`）把窗口中枢的 `dd`/`gg` 定为三段的 min/max。那里的 `Move.compose` 不带方向，表达不了 `Zn`；它与 ≥9 段子窗外缘同属上级单元的过渡态，退场条件相同（#1429 落上级 `Zn` 聚合时同拍改），**不另占配额**。
 - **代码指针**：塔 ≥9 段分支 `recursive_tower.rs:566` 注释带 #1419 D-I；<9 段窗口的 `Zn` 外缘已落码（§9.6），S 事实层对 ≥9 段窗口内单元记 `NOT_YET_ASSIGNED`、等待原因 `UPGRADE_PENDING_TB02H`（#1419 D-I）。
 
-### 9.6 #1419 落码状态（2026-10-14，分支 `codex/1419-center-seed-20261013`，行号以提交 `ee739fbea6` 为准）
+### 9.6 #1419 落码状态（2026-10-14，分支 `codex/1419-center-seed-20261013`，每行行号对其「提交」列）
 
 | # | 位置 | 状态 | 提交 |
 |---|---|---|---|
@@ -630,7 +630,7 @@ ZD < ZG（严格，Z-2）
 | L12 | `formal/Formal/RecursiveConstruction.lean:56` `Move.interval`、`:60` `listInterval`；`formal/Origin/PromQual.lean:292` `shiftMove_interval` | 新增：走势区间对 `subs` 取极值（空 `subs` 记 `(0,0)`，与 Rust `RMove::lo/hi` 同口径），平移保区间改互递归证明 | `ee739fbea6` |
 | L13 | `formal/Formal/RecursiveConstruction.lean:126` `CenterDerivedAt`、`:275` `deriveWindowCenter3` | **未改**，过渡态见 §9.5 | — |
 | L14 | `formal/Formal/DivergenceNesting.lean:436` `OpenTail.currentExtreme`、`:654` `positiveDownTail` | 已落（根裁定 D-J2 第 4 点）：当前极值取走势区间（复用 `Move.interval`），去掉中枢外缘 `foldr min 0`／`foldr max 0` 哨兵；正价下行判别例：`DD = 10`、观察价 5 ⟹ 创新低 | `399c3a3bac` |
-| P16 | `s_session/s_tb02_contract.py` `validate_center_payload`、`validate_center_links`；`s_session/browser/tb01c-client.js` 同名 JS 版 | 已落（schema `s-center/1` v1.1）：Q 与浏览器复核 `Zn` 只用方向相等、核心严格 `<`，Python 与 JS 对共享语料逐条对拍原因码 | `aeed7ee037` |
+| P16 | `s_session/s_tb02_contract.py` `validate_center_payload`、`validate_center_links`；`s_session/browser/tb01c-client.js` 同名 JS 版 | 已落（schema `s-center/1` v1.2）：Q 与浏览器复核 `Zn` 只用方向相等、核心严格 `<`，`break_up` 只按区间位置判；非 UPGRADE 中枢每个成员恰一条 `member_of` 边（E4）；Python 与 JS 对共享语料逐条对拍完整拒因 | `aeed7ee037`、`9b7e29a054` |
 
 S 事实层其余落点：seed 唯一判定 `center.rs` `seed_facts`（`639c063769`）、共用扫描内核 `recursive_tower.rs` `scan_center_facts` 与 `center_scan.rs`（`bd1d3aa0ad`）、S 写者 `rust/src/bin/s_session_v2/tb02e.rs`（`10f951889b`）。
 
@@ -673,6 +673,7 @@ S 事实层其余落点：seed 唯一判定 `center.rs` `seed_facts`（`639c0637
   - §9：R21、L9 处置补 D-A；§9.5 补 Lean `CenterDerivedAt` 并入同一例外、补代码指针；新增 §9.6 落码状态（含新增 R28、R29、L12、L13）
   - §3、§9.6：补 L14（`OpenTail.currentExtreme` 改取走势区间，根裁定 D-J2 第 4 点）
   - §9.6：P16 改已落，补 S 事实层落点（seed 判定、扫描内核、S 写者）
+  - §9.6：表头改「每行行号对其提交列」（#1419 schema v1.1 复核 N2）；P16 补 schema v1.2 的 E4 门与完整拒因对拍
 - 2026-10-13: **v2.1 [#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478) S-7 落码补齐与 §4.1 端点**（#1323 grilling，代理依用户授权裁定、根复核）
   - §3：G/D 行改为 S 事实层按 `Zn` 实现、`Center`／`CenterFull` 不加字段；§3 末加「落码补齐」
   - §4.1：加端点条款（回抽段为连接段，Lean 管边界）与退场条件；§5.4 加一句 `Zn` 落码后结论不变
