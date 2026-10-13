@@ -974,12 +974,27 @@ impl IncrSegments {
     /// skip 历史——全量结果不记录哪些段曾跳过 SecondKind 候选。故恢复态设 `None`，首次 append 仅
     /// 1 段回退。**仅在恢复前缀无 unsealed 候选时 bit-exact 安全**。#1344：已失效（非末笔触发）的
     /// 候选不复活，不构成 unsealed，在此前提内可安全恢复（tb02w_tests 锁）。生产路径是 `empty()` + 逐 bar
-    /// `append`（skip 历史跨 append 持久累积），**不经** `from_full`（当前无生产调用者）。若未来要
-    /// 在有 unsealed 前缀处恢复，须同时持久化/重建 `earliest_unsealed_from`。
+    /// `append`（skip 历史跨 append 持久累积），**不经** `from_full`（当前无生产调用者）。在有 unsealed
+    /// 前缀处恢复须带检查点边界，用 [`Self::from_checkpoint`]。
     pub fn from_full(
         segments: &[Segment],
         pending_start: Option<usize>,
         strokes: &[Stroke],
+    ) -> Self {
+        Self::from_checkpoint(segments, pending_start, strokes, None)
+    }
+
+    /// #1420（xianduan §5.1）：从全量结果 + 检查点安全边界恢复增量状态。
+    ///
+    /// `earliest_unsealed_from` 取自存检查点时的 [`Self::earliest_unsealed_from`]：最早未封闭第二种
+    /// 候选（`OPEN_AT_PREFIX_END` 或预算耗尽）所在段起点，随确认/失效前移；失效候选不复活，不入边界。
+    /// 带边界恢复后续扫，与同一完整输入的无中断全量逐位相同（对任意切点成立，tb02w 三路锁）；
+    /// `from_full` 是边界为空的特例。单个候选的续扫用 `second_fold::SecondFoldCursor`（K1）。
+    pub fn from_checkpoint(
+        segments: &[Segment],
+        pending_start: Option<usize>,
+        strokes: &[Stroke],
+        earliest_unsealed_from: Option<usize>,
     ) -> Self {
         // 重建 end_array_idx：段端 = strokes[s1].end_index，找 s1 在 strokes 中的位置。
         let mut end_indices: Vec<usize> = Vec::with_capacity(segments.len());
@@ -1009,7 +1024,7 @@ impl IncrSegments {
             strokes_len: strokes.len(),
             confirmed_len,
             last_stroke: strokes.last().copied(),
-            earliest_unsealed_from: None,
+            earliest_unsealed_from,
         }
     }
 

@@ -407,13 +407,14 @@ fn cand(sign: i64, b: usize, p: i64) -> SecondCandidateId {
     }
 }
 
-/// 末笔改写：同向延伸前的暂态（末笔回撤 1 tick）。
+/// 末笔改写：同向延伸前的暂态（末笔终点回缩到半程，至少 1 tick）。
 fn wobble_tail(ss: &[Stroke]) -> Vec<Stroke> {
     let mut w = ss.to_vec();
     if let Some(last) = w.last_mut() {
+        let back = ((last.end_price - last.start_price).abs() / 2).max(1);
         last.end_price += match last.direction {
-            Direction::Up => -1,
-            Direction::Down => 1,
+            Direction::Up => -back,
+            Direction::Down => back,
         };
     }
     w
@@ -605,5 +606,153 @@ fn tb02w_k1_resume_and_restore_equal_uninterrupted_fold() {
     assert!(
         seen.iter().all(|&k| k > 0),
         "语料须覆盖确认、失效、未决与预算耗尽四类：{seen:?}"
+    );
+}
+
+// ─── 三路逐位对拍：批处理 / 增量 / 恢复（票面验收二，xianduan §5.1）──────────────────────────
+
+/// 偶发大跳的交替笔链（制造缺口候选与深回退），构造思路同 `segment.rs` 的 `gappy_strokes`。
+fn gappy_prices(seed: u64, strokes: usize) -> Vec<i64> {
+    let mut state = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+    let mut next = move |lo: i64, hi: i64| {
+        state = state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        lo + ((state >> 33) as i64).rem_euclid(hi - lo + 1)
+    };
+    let mut price = 100_000i64;
+    let mut prices = vec![price];
+    for i in 0..strokes {
+        let amp = if next(0, 9) < 2 {
+            next(400, 900)
+        } else {
+            next(60, 300)
+        };
+        price += if i % 2 == 0 { amp } else { -amp };
+        prices.push(price);
+    }
+    prices
+}
+
+/// 同一完整输入上：批处理（无中断全量）、增量（逐笔 append，含末笔延伸、回缩与撤尾的暂态输入）、
+/// 恢复（任一前缀的全量结果 + 检查点安全边界，再续到完整输入）三者线段与 pending 逐位相同。
+/// 预算 0（无限）与 5（耗尽常态化）、两个方向都跑。
+#[test]
+fn tb02w_three_way_batch_incremental_restore_bit_exact() {
+    let mut corpora: Vec<Vec<i64>> = [
+        CONFIRMED,
+        KILLED,
+        OPEN,
+        SAME_STROKE,
+        TOUCH,
+        MERGED_KILL,
+        KILLED_THEN_B,
+    ]
+    .iter()
+    .map(|p| p.to_vec())
+    .collect();
+    corpora.push(evidence_at_item_51());
+    corpora.push(skip_bait());
+    for seed in 1..=5u64 {
+        corpora.push(random_prices(seed, 40 + (seed as usize % 3) * 15));
+        corpora.push(gappy_prices(seed, 50 + (seed as usize % 3) * 10));
+    }
+    let mut restores = 0usize;
+    for window in [0u32, 5] {
+        let mut theta = ThetaConfig::default();
+        theta.parse.second_seq_scan_window = window;
+        let cfg = theta.parse;
+        let batch = |s: &[Stroke]| segment::divide_segments_with_tail(s, &cfg);
+        for sign in [1, -1] {
+            for (ci, prices) in corpora.iter().enumerate() {
+                let ss = chain(prices, sign);
+                let label = format!("corpus{ci} sign={sign} window={window}");
+                let full = batch(&ss);
+                let mut inc = segment::IncrSegments::default();
+                let mut checkpoints = Vec::new();
+                for n in 0..=ss.len() {
+                    let w = wobble_tail(&ss[..n]);
+                    // 新笔先以未走完的暂态出现，再延伸到实值；随后同长度回缩再复原（仅末笔改写）。
+                    for input in [&w[..], &ss[..n], &w[..], &ss[..n]] {
+                        inc = inc.append(input, &cfg);
+                        assert_eq!(inc.to_result_vec(), batch(input), "{label} tail@{n}");
+                    }
+                    if n >= 2 {
+                        // 撤尾：生产（parse_layer_from_compact_facts）不复用旧段缓存，自空状态重建。
+                        let r = wobble_tail(&ss[..n - 1]);
+                        inc = segment::IncrSegments::empty().append(&r, &cfg);
+                        assert_eq!(inc.to_result_vec(), batch(&r), "{label} retract@{n}");
+                        inc = inc.append(&ss[..n], &cfg);
+                    }
+                    let (segs, pending) = inc.to_result_vec();
+                    assert_eq!((segs.clone(), pending), batch(&ss[..n]), "{label}@{n}");
+                    checkpoints.push((segs, pending, inc.earliest_unsealed_from()));
+                }
+                assert_eq!(inc.to_result_vec(), full, "{label} incremental");
+                for (p, (segs, pending, euf)) in checkpoints.into_iter().enumerate() {
+                    let restored =
+                        segment::IncrSegments::from_checkpoint(&segs, pending, &ss[..p], euf)
+                            .append(&ss, &cfg);
+                    assert_eq!(restored.to_result_vec(), full, "{label} restore@{p}");
+                    restores += 1;
+                }
+            }
+        }
+    }
+    assert!(restores > 1000, "恢复切点覆盖不足：{restores}");
+}
+
+/// 长缺口笔链上逐笔增量、在每个切点存检查点（全量结果 + 安全边界）后恢复续到完整输入，
+/// 与无中断全量逐位相同；须覆盖「最早未封闭候选落在末个已确认段之前」的深边界切点。
+/// `from_full`（无边界）与全量的差异只计数不断言：#1344 失效语义下其漏扫面实测为零（见收据）。
+#[test]
+fn tb02w_checkpoint_restore_long_gappy_bit_exact() {
+    let cfg = ThetaConfig::default().parse;
+    let mut restores = 0usize;
+    let mut deep = 0usize;
+    let mut boundary_needed = 0usize;
+    for seed in [0xC0FF_EE12_3456_789Au64, 7, 11] {
+        for sign in [1, -1] {
+            let ss = chain(&gappy_prices(seed, 300), sign);
+            let full = segment::divide_segments_with_tail(&ss, &cfg);
+            let mut inc = segment::IncrSegments::default();
+            for p in 0..=ss.len() {
+                inc = inc.append(&ss[..p], &cfg);
+                let (segs, pending) = inc.to_result_vec();
+                let euf = inc.earliest_unsealed_from();
+                let last_end = segs
+                    .last()
+                    .and_then(|g| ss.iter().position(|s| s.end_index == g.end_index));
+                if euf.is_some_and(|e| last_end.is_some_and(|k| e < k)) {
+                    deep += 1;
+                }
+                let restored =
+                    segment::IncrSegments::from_checkpoint(&segs, pending, &ss[..p], euf)
+                        .append(&ss, &cfg);
+                assert_eq!(
+                    restored.to_result_vec(),
+                    full,
+                    "seed={seed} sign={sign} restore@{p}"
+                );
+                restores += 1;
+                let unbounded =
+                    segment::IncrSegments::from_full(&segs, pending, &ss[..p]).append(&ss, &cfg);
+                if unbounded.to_result_vec() != full {
+                    boundary_needed += 1;
+                }
+            }
+            assert_eq!(
+                inc.to_result_vec(),
+                full,
+                "seed={seed} sign={sign} incremental"
+            );
+        }
+    }
+    eprintln!(
+        "checkpoint boundary: restores={restores} deep={deep} from_full_diverged={boundary_needed}"
+    );
+    assert!(
+        deep > 0,
+        "覆盖为零：从未出现深边界切点，安全边界未被实际检验"
     );
 }
