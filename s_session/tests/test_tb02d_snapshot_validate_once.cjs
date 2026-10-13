@@ -1,4 +1,7 @@
 // #1414：真实已归档Snapshot的HTML旧/新校验对照；不启动DB/服务/浏览器。
+// #1394 整合（根裁定）：客户端是 FIN 的 Q3 结构，页面 validateState 为 async。本探针只改载入方式与
+// await——旧页面配自己的旧客户端（--baseline-client，同一结构，按其路径 require），两侧逐次 await；
+// 判据断言（含旧新拒绝文案逐字相同）不变。
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
@@ -9,16 +12,16 @@ const {performance} = require('node:perf_hooks');
 const args = Object.fromEntries(process.argv.slice(2).reduce((pairs, value, i, values) => {
   if (i % 2 === 0) pairs.push([value.replace(/^--/, ''), values[i + 1]]); return pairs;
 }, []));
-for (const key of ['baseline-html', 'candidate', 'candidate-sha', 'output']) assert.ok(args[key], 'missing ' + key);
+for (const key of ['baseline-html', 'baseline-client', 'candidate', 'candidate-sha', 'output']) assert.ok(args[key], 'missing ' + key);
 const root = path.resolve(__dirname, '..');
 const html = path.join(root, 'browser/index.html');
 const client = path.join(root, 'browser/tb01c-client.js');
-const API = require(client);
+const API = require(client), OLD_API = require(path.resolve(args['baseline-client']));
 const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
-const sourcePaths = [args['baseline-html'], html, client, args.candidate];
+const sourcePaths = [args['baseline-html'], args['baseline-client'], html, client, args.candidate];
 const before = Object.fromEntries(sourcePaths.map(p => [p, hash(fs.readFileSync(p))]));
 assert.equal(before[args.candidate], args['candidate-sha']);
-function hooks(filename) {
+function hooks(filename, API) {
   const elements = new Map();
   function element() { return {innerHTML: '', textContent: '', value: '3', checked: true, disabled: false,
     classList: {toggle() {}}, addEventListener() {}, focus() {}, scrollIntoView() {}}; }
@@ -31,7 +34,8 @@ function hooks(filename) {
   assert.equal(vm.runInContext('typedKinds === TB01C.TB02_KINDS', context), true);
   return context.validateState;
 }
-const oldValidate = hooks(args['baseline-html']), newValidate = hooks(html);
+(async () => {
+const oldValidate = hooks(args['baseline-html'], OLD_API), newValidate = hooks(html, API);
 const archived = JSON.parse(fs.readFileSync(args.candidate, 'utf8'));
 const state = archived.state;
 assert.equal(state.snapshot.generation, '40');
@@ -47,7 +51,7 @@ const result = {scope: 'one saved cut40 HTML validateState pair plus targeted co
   candidate_sha256: before[args.candidate], source_before: before, tests: [], valid_pair: {},
   cut: state.snapshot.generation, families: Object.fromEntries(['objects','withdrawn_objects','witnesses','relations','observations','raw_history'].map(k => [k, state.snapshot[k].length]))};
 for (const [name, validate] of [['old', oldValidate], ['new', newValidate]]) {
-  const start = performance.now(); const returned = validate(state, 's-session/2');
+  const start = performance.now(); const returned = await validate(state, 's-session/2');
   result.valid_pair[name] = {elapsed_ms: performance.now() - start, accepted: true};
   assert.equal(returned, undefined);
 }
@@ -80,7 +84,7 @@ const mutations = [
 for (const [name, build] of mutations) {
   const value = freeze(build()), errors = [];
   for (const validate of [oldValidate, newValidate]) {
-    let error; try { validate(value, 's-session/2'); } catch (e) { error = String(e.message); }
+    let error; try { await validate(value, 's-session/2'); } catch (e) { error = String(e.message); }
     assert.ok(error, name + ' must reject'); errors.push(error);
   }
   assert.equal(errors[0], errors[1], name + ' error changed');
@@ -93,3 +97,4 @@ result.valid_pair.interpretation = 'single ordered pair, no warmup/repetitions; 
 result.status = 'PASS';
 fs.writeFileSync(args.output, JSON.stringify(result, null, 2) + '\n', {flag: 'wx'});
 console.log(JSON.stringify({status: result.status, tests: result.tests.length, cut: result.cut, families: result.families, valid_pair: result.valid_pair}));
+})().catch((e) => { console.error(e); process.exitCode = 1; });
