@@ -39,6 +39,14 @@
 //! Python 含 `TAIL_WINDOW=7` / `MAX_SECOND_SEQ_SCAN=50`（O(n²) 性能妥协，**非缠论可导**）。
 //! 本文件**不复制**这些常数。扫描窗口若需作 config 字段 `parse.second_seq_scan_window`
 //! （default 0 = 无限全扫，bit-exact 优先于性能），显式标 `[设计选择,默认值]`，不进缠论核心。
+//!
+//! ## 失效语义（#1344 裁定，xianduan §5.1；#1420 实现）
+//!
+//! 「出现分型即确认」只是三态之一：第二种候选的语义终点 = 分型或越界先到者。原方向价格先严格
+//! 越过候选极值 P（`078-第78课.md:52`「线段C没有形成第二特征序列的分型又直接新高或新低了……
+//! 线段A、B、C加起来只能算是一个线段」）⟹ `KILLED_BY_NEW_EXTREME`，候选作废、不复活；同一笔内
+//! 先判分型、后判越界。扫描窗口名分 = 调度预算 `second-seq-scan-budget/1`（不是语义）：耗尽只产
+//! `INCOMPLETE_RESOURCE_BOUND`，不产否定。本文件与 segment 状态机共用 `feature_seq` 同一判定。
 
 use super::super::types::{Direction, Stroke, Tick};
 use super::feature_seq::second_seq_has_fractal;
@@ -94,7 +102,8 @@ fn has_any_feature_fractal(std_feat: &[Interval]) -> bool {
 /// Python bit-exact 交叉验证不是同一算法（`[10,20]` 含 `[12,18]` 向上应得 `[12,20]`，
 /// 外包络仍得 `[10,20]`，会增删后续分型）。
 ///
-/// 返回：第二特征序列出现分型 ⟹ `true`（确认终结）；否则 `false`（未确认，留 tail）。
+/// 返回：第二特征序列先于越界出现分型 ⟹ `true`（确认终结）；否则 `false`（越界失效或尚未
+/// 确认，留 tail）。`candidate_extreme` = 首特征序列分型极值 P（#1344）。
 ///
 /// ★诚实（Lead #84 点1）：默认全扫描（无 TAIL_WINDOW/MAX_SCAN 截断）——bit-exact 优先于
 /// 性能。窗口截断若需作 config（不硬编码 Python 的 50）。
