@@ -10,7 +10,8 @@ use super::feature_seq::{
     SECOND_SEQ_SCAN_BUDGET_POLICY,
 };
 use super::second_fold::{
-    FoldResumeError, SecondCandidateId, SecondFoldCursor, SECOND_FOLD_CURSOR_SCHEMA,
+    FoldResumeError, SecondCandidateId, SecondFoldCursor, SecondFoldStore,
+    SECOND_FOLD_CURSOR_SCHEMA,
 };
 use super::*;
 
@@ -754,5 +755,205 @@ fn tb02w_checkpoint_restore_long_gappy_bit_exact() {
     assert!(
         deep > 0,
         "覆盖为零：从未出现深边界切点，安全边界未被实际检验"
+    );
+}
+
+// ─── K1 线形与 S 调度簿（tb02c 片：跨 cut 续扫、预算追加与恢复）──────────────────────────
+
+fn wire_text(v: serde_json::Value) -> serde_json::Value {
+    use serde_json::Value;
+    match v {
+        Value::Number(n) => Value::String(n.to_string()),
+        Value::Array(a) => Value::Array(a.into_iter().map(wire_text).collect()),
+        Value::Object(m) => Value::Object(m.into_iter().map(|(k, x)| (k, wire_text(x))).collect()),
+        x => x,
+    }
+}
+
+fn store_corpora() -> Vec<Vec<i64>> {
+    let mut corpora: Vec<Vec<i64>> = [
+        CONFIRMED,
+        KILLED,
+        OPEN,
+        SAME_STROKE,
+        MERGED_KILL,
+        KILLED_THEN_B,
+    ]
+    .iter()
+    .map(|p| p.to_vec())
+    .collect();
+    corpora.push(evidence_at_item_51());
+    for seed in 1..=6u64 {
+        corpora.push(random_prices(seed, 30 + (seed as usize % 3) * 10));
+        corpora.push(gappy_prices(seed, 40));
+    }
+    corpora
+}
+
+/// S 线形（数字转十进制文本）存出的游标，在同一输入上自 b 笔重折叠核验通过、与原游标相等，
+/// 下一 cut 续扫等于无中断折叠；线形被改则不采纳，续扫退回重折叠，结果仍相同。
+#[test]
+fn tb02w_k1_wire_restore_verifies_then_resumes() {
+    let mut verified_nonempty = 0usize;
+    for sign in [1, -1] {
+        for (ci, prices) in store_corpora().iter().enumerate() {
+            let ss = chain(prices, sign);
+            for b in 0..ss.len() {
+                let seg_dir = ss[b].direction.flip();
+                let (hi, lo) = (
+                    ss[b].start_price.max(ss[b].end_price),
+                    ss[b].start_price.min(ss[b].end_price),
+                );
+                let c = SecondCandidateId {
+                    seg_dir,
+                    b_stroke: b,
+                    candidate_extreme: if seg_dir == Direction::Up { hi } else { lo },
+                };
+                for window in [0u32, 5] {
+                    let full = second_sequence(&ss, seg_dir, b, c.candidate_extreme, window);
+                    for p in (b + 1)..ss.len() {
+                        let label = format!("corpus{ci} sign={sign} b={b} w={window} p={p}");
+                        let mut cur = SecondFoldCursor::new(c, window);
+                        cur.resume(&ss[..p]).unwrap();
+                        let wire = wire_text(cur.to_wire());
+                        let (restored, verified, _) =
+                            SecondFoldCursor::from_wire(&wire, &ss[..p]).unwrap();
+                        assert!(verified, "{label}");
+                        assert_eq!(restored, cur, "{label}");
+                        verified_nonempty += usize::from(cur.state.consumed_len > 0);
+                        let mut next = restored;
+                        assert_eq!(next.resume(&ss).unwrap(), full, "{label} resume");
+                        if cur.state.consumed_len > 0 {
+                            let mut forged = wire.clone();
+                            forged["consumed_digest"] = serde_json::json!("0000000000000000");
+                            let (mut f, ok, _) =
+                                SecondFoldCursor::from_wire(&forged, &ss[..p]).unwrap();
+                            assert!(!ok, "{label}: 篡改的线形不得采纳");
+                            assert_eq!(
+                                f.budget_granted, cur.budget_granted,
+                                "{label}: 保留累计预算"
+                            );
+                            assert_eq!(f.resume(&ss).unwrap(), full, "{label} forged");
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        verified_nonempty > 1000,
+        "核验覆盖不足：{verified_nonempty}"
+    );
+}
+
+fn round(
+    ss: &[Stroke],
+    budget: u32,
+    wires: &[serde_json::Value],
+) -> (
+    (Vec<Segment>, Option<usize>, segment::SegmentFacts),
+    Vec<serde_json::Value>,
+    (usize, usize),
+) {
+    let mut store = SecondFoldStore::new(budget);
+    for w in wires {
+        store.restore(w);
+    }
+    let cfg = ThetaConfig::default().parse;
+    let (segs, pending, facts, store) = segment::divide_segments_with_facts_store(ss, &cfg, store);
+    for c in &facts.candidates {
+        if let Some(s) = &c.second {
+            let id = SecondCandidateId {
+                seg_dir: ss[c.start_stroke].direction,
+                b_stroke: s.from_stroke - 1,
+                candidate_extreme: s.candidate_extreme,
+            };
+            assert!(store.cursor(&id).is_some(), "第二种候选必经游标簿");
+        }
+    }
+    let next = store.checkpoint().into_iter().map(wire_text).collect();
+    ((segs, pending, facts), next, store.round_counts())
+}
+
+fn has_bound(facts: &segment::SegmentFacts) -> bool {
+    facts.candidates.iter().any(|c| {
+        c.second
+            .as_ref()
+            .is_some_and(|s| s.coverage == ScanCoverage::IncompleteResourceBound)
+    })
+}
+
+/// S 每 cut 一轮：预算 0 时，逐 cut 经 K1 线形带入上一轮游标的划分与无游标批处理逐位相同；
+/// 预算耗尽的候选在下一轮先追加预算再续扫，同一完整输入上若干轮后与预算 0 逐位相同，不会永久停在
+/// INCOMPLETE；A-ST-048-01 的第 51 项证据第二轮即确认。
+#[test]
+fn tb02w_store_rounds_match_batch_and_grant_exhausted_cursors() {
+    let cfg = ThetaConfig::default().parse;
+    let (mut verified, mut grants) = (0usize, 0usize);
+    for sign in [1, -1] {
+        for (ci, prices) in store_corpora().iter().enumerate() {
+            let ss = chain(prices, sign);
+            let mut wires = vec![];
+            for n in 0..=ss.len() {
+                let (got, next, (v, granted)) = round(&ss[..n], 0, &wires);
+                assert_eq!(
+                    got,
+                    segment::divide_segments_with_facts(&ss[..n], &cfg),
+                    "corpus{ci} sign={sign} cut@{n}"
+                );
+                assert_eq!((v, granted), (0, 0), "预算 0 无调度相关游标");
+                assert!(next.is_empty(), "预算 0 的检查点为空");
+                wires = next;
+            }
+            // 预算 5、输入逐笔增长、每 cut 一轮（同 S）：已判定线段始终是同前缀预算 0 结果的前缀，
+            // 无耗尽候选时逐位相同；输入走完后继续调度，至多 len/5+2 轮与预算 0 逐位相同。
+            let mut wires = vec![];
+            for n in 0..=ss.len() {
+                let (got, next, (v, g)) = round(&ss[..n], 5, &wires);
+                let base = segment::divide_segments_with_facts(&ss[..n], &cfg);
+                let label = format!("corpus{ci} sign={sign} budget5 cut@{n}");
+                assert!(
+                    got.0.len() <= base.0.len() && got.0[..] == base.0[..got.0.len()],
+                    "{label}: 已判定线段须是预算 0 的前缀"
+                );
+                if !has_bound(&got.2) {
+                    assert_eq!(got, base, "{label}");
+                }
+                verified += v;
+                grants += g;
+                wires = next;
+            }
+            let target = segment::divide_segments_with_facts(&ss, &cfg);
+            let mut rounds = 0;
+            loop {
+                let (got, next, (v, g)) = round(&ss, 5, &wires);
+                rounds += 1;
+                verified += v;
+                grants += g;
+                if !has_bound(&got.2) {
+                    assert_eq!(got, target, "corpus{ci} sign={sign}: 续扫完毕须等于预算 0");
+                    break;
+                }
+                assert!(
+                    rounds <= ss.len() / 5 + 2,
+                    "corpus{ci} sign={sign}: 续扫不收敛"
+                );
+                wires = next;
+            }
+        }
+        let ss = chain(&evidence_at_item_51(), sign);
+        let (first, wires, _) = round(&ss, 50, &[]);
+        assert!(
+            first.0.is_empty() && has_bound(&first.2),
+            "sign={sign}: 第一轮预算耗尽"
+        );
+        let (second, _, (_, granted)) = round(&ss, 50, &wires);
+        assert_eq!(granted, 1, "sign={sign}: 第二轮对耗尽游标追加预算");
+        assert_eq!(second, segment::divide_segments_with_facts(&ss, &cfg));
+        assert_eq!(second.2.candidates[0].result, "CASE_TWO");
+    }
+    assert!(
+        verified > 100 && grants > 20,
+        "跨轮核验/追加覆盖不足：verified={verified} grants={grants}"
     );
 }

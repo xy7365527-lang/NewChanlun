@@ -156,7 +156,8 @@ fn find_overlap_start(strokes: &[Stroke], from: usize) -> Option<usize> {
     None
 }
 
-pub const CONSTRUCTION_RULE: &str = "segment-second/1";
+/// #1420：第二种候选三态终点（078:52 失效）改变段语义 ⟹ 新语义版本；旧版对象不回改。
+pub const CONSTRUCTION_RULE: &str = "segment-second/2";
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ConstructionFact {
@@ -437,6 +438,10 @@ fn record_candidate(
         && second.as_ref().is_some_and(|s| {
             s.semantic_state == Some(super::feature_seq::SecondTerminal::KilledByNewExtreme)
         });
+    // #1420：预算耗尽的候选封住本段（含假设转折点试探中遇到的），其扫描事实即本段的等待依据。
+    let resource_bound = second
+        .as_ref()
+        .is_some_and(|s| s.resource_truncated && s.matched.is_none());
     let result = if invalid {
         "FAILED_GEOMETRY"
     } else if end.is_some() {
@@ -447,7 +452,7 @@ fn record_candidate(
         }
     } else if killed {
         "KILLED_CASE_TWO"
-    } else if deferred {
+    } else if deferred || resource_bound {
         "PENDING_CASE_TWO"
     } else {
         "NO_FIRST"
@@ -459,7 +464,7 @@ fn record_candidate(
         vec![]
     } else if killed {
         vec!["second_candidate_killed_by_new_extreme"]
-    } else if deferred {
+    } else if deferred || resource_bound {
         vec![if second.as_ref().is_some_and(|s| s.resource_truncated) {
             "second_sequence_resource_bound"
         } else {
@@ -757,7 +762,7 @@ pub fn divide_segments_with_tail(
     strokes: &[Stroke],
     config: &ParseConfig,
 ) -> (Vec<Segment>, Option<usize>) {
-    let (segments, tail, _) = divide_segments_core(strokes, config, false);
+    let (segments, tail, _) = divide_segments_core(strokes, config, false, &mut None);
     (segments, tail)
 }
 
@@ -766,13 +771,30 @@ pub fn divide_segments_with_facts(
     strokes: &[Stroke],
     config: &ParseConfig,
 ) -> (Vec<Segment>, Option<usize>, SegmentFacts) {
-    divide_segments_core(strokes, config, true)
+    divide_segments_core(strokes, config, true, &mut None)
+}
+
+/// #1420：同 [`divide_segments_with_facts`]，第二种候选经 S 层游标簿（K1）折叠并带回簿。
+pub fn divide_segments_with_facts_store(
+    strokes: &[Stroke],
+    config: &ParseConfig,
+    store: super::second_fold::SecondFoldStore,
+) -> (
+    Vec<Segment>,
+    Option<usize>,
+    SegmentFacts,
+    super::second_fold::SecondFoldStore,
+) {
+    let mut slot = Some(store);
+    let (segments, pending, facts) = divide_segments_core(strokes, config, true, &mut slot);
+    (segments, pending, facts, slot.unwrap_or_default())
 }
 
 fn divide_segments_core(
     strokes: &[Stroke],
     config: &ParseConfig,
     observe: bool,
+    store: &mut Option<super::second_fold::SecondFoldStore>,
 ) -> (Vec<Segment>, Option<usize>, SegmentFacts) {
     let mut facts = SegmentFacts::default();
     let mut segments = Vec::new();
@@ -805,6 +827,7 @@ fn divide_segments_core(
         TAIL_WINDOW,
         config.second_seq_scan_window,
     );
+    feat.set_second_store(store.take());
     if observe {
         feat.observe();
     }
@@ -884,6 +907,7 @@ fn divide_segments_core(
             min_seg,
         );
     }
+    *store = feat.take_second_store();
     (segments, pending_start, facts)
 }
 

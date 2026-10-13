@@ -347,6 +347,7 @@ def _published_axes(rule_revision):
         "s2-axis-quantifiers+new-bi/1": tb02.BI_AXES,
         "s2-axis-quantifiers+new-bi/1+segment-first/1": tb02.FIRST_SEGMENT_AXES,
         "s2-axis-quantifiers+new-bi/1+segment-second/1": tb02.AXES,
+        "s2-axis-quantifiers+new-bi/1+segment-second/2": tb02.AXES,
     }
     # 未识别规则保持原有的完整轴要求，不退到旧规则的较小集合。
     return known.get(rule_revision, tb02.AXES)
