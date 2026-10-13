@@ -120,7 +120,7 @@ pub(super) fn build(
     frontier: i64,
     semantic_commit_ns: Option<String>,
     store: &SecondFoldStore,
-) -> (Vec<Value>, Vec<Value>) {
+) -> Result<(Vec<Value>, Vec<Value>), String> {
     let generation = tb02b::fact_basis(all_events);
     let latest = raw
         .values()
@@ -203,16 +203,21 @@ pub(super) fn build(
             sources.clone(),
         );
         let second_sequence = c.second.as_ref().map(|_| format!("second:{entity}"));
-        let second_object = c.second.as_ref().map(|second| {
+        let second_object = c.second.as_ref().map(|second| -> Result<_, String> {
             let sequence = second_sequence.as_ref().unwrap();
             let up = bi.start.kind == "BOTTOM";
+            // 不变式：S 的第二种候选必经游标簿折叠；破坏时返回错误、整次推进失败，不 panic。
             let cursor = store
                 .cursor(&SecondCandidateId {
                     seg_dir: if up { Direction::Up } else { Direction::Down },
                     b_stroke: second.from_stroke - 1,
                     candidate_extreme: second.candidate_extreme,
                 })
-                .expect("S 的第二种候选必经游标簿折叠");
+                .ok_or_else(|| {
+                    format!(
+                        "IdentityConflict：第二种候选 {sequence} 不在游标簿（S 不变式破坏）"
+                    )
+                })?;
             let seq_data = json!({"entity_id":sequence,"segment_id":entity,"role":"SECOND_SEQUENCE",
                 "direction":if up {"UP"}else{"DOWN"},
                 "member_direction":if up {"UP"}else{"DOWN"},
@@ -223,8 +228,8 @@ pub(super) fn build(
                     "budget":{"policy":SECOND_SEQ_SCAN_BUDGET_POLICY,"granted":cursor.budget_granted},
                     "cursor":cursor.to_wire()},
                 "second_sequence_status":second_status(second.semantic_state)});
-            add(&mut b, KINDS[1], json!(sequence), generation, seq_data, sources.clone())
-        });
+            Ok(add(&mut b, KINDS[1], json!(sequence), generation, seq_data, sources.clone()))
+        }).transpose()?;
         let prior = old.get(&entity);
         let geometric_end = c.end_stroke.map(|i| {
             let end = &strokes.strokes[i].end;
@@ -361,7 +366,7 @@ pub(super) fn build(
         "scan_cursors":store.checkpoint()}),
         all_sources,
     );
-    (b.objects, relations)
+    Ok((b.objects, relations))
 }
 
 #[cfg(test)]
@@ -413,7 +418,8 @@ mod tests {
             27,
             None,
             &store,
-        );
+        )
+        .unwrap();
         let mut members = 0;
         for object in objects.iter().filter(|o| o["kind"] == KINDS[3]) {
             let payload: Value =
@@ -494,7 +500,8 @@ mod tests {
                 rows.len() as i64 - 1,
                 None,
                 &store,
-            );
+            )
+            .unwrap();
             let records: Vec<Value> = objects.iter().map(|o|json!({"kind":o["kind"],"object_id":o["object_id"],"payload":serde_json::from_str::<Value>(o["payload_json"].as_str().unwrap()).unwrap(),"source_coords":serde_json::from_str::<Value>(o["source_coords_json"].as_str().unwrap()).unwrap()})).collect();
             projected.push(json!({"case":name,"objects":records}));
         }
@@ -521,5 +528,73 @@ mod tests {
             "{}",
             String::from_utf8_lossy(&output.stderr)
         );
+    }
+    /// #1420 独审 INFO：第二种候选不在游标簿是 S 不变式破坏；`build` 返回 IdentityConflict 错误，
+    /// 不 panic（会话路径上 panic 会带走整个 S 进程）。同一输入配真游标簿照常成功。
+    #[test]
+    fn tb02c_missing_cursor_is_an_error_not_a_panic() {
+        let ledger: Value = serde_json::from_str(include_str!(
+            "../../../../s_session/tests/fixtures/tb02d/raw-ledger.json"
+        ))
+        .unwrap();
+        let mut exercised = 0;
+        for values in ledger["cases"].as_object().unwrap().values() {
+            let rows = values.as_array().unwrap();
+            let bars: Vec<Bar> = rows
+                .iter()
+                .enumerate()
+                .map(|(i, row)| Bar {
+                    source_index: i,
+                    timestamp: i as i64,
+                    open: row["open"].as_i64().unwrap(),
+                    high: row["high"].as_i64().unwrap(),
+                    low: row["low"].as_i64().unwrap(),
+                    close: row["close"].as_i64().unwrap(),
+                    volume: 1.0,
+                    untradable: false,
+                })
+                .collect();
+            let (_, facts, store) =
+                newchan_rust::theta_v0::parser::parse_layer_with_inclusion_facts_store(
+                    &bars,
+                    &ThetaConfig::default(),
+                    SecondFoldStore::new(round_budget()),
+                );
+            let segment_facts = facts.segment_facts.as_ref().unwrap();
+            if !segment_facts.candidates.iter().any(|c| c.second.is_some()) {
+                continue;
+            }
+            let raw: BTreeMap<i64, Value> = rows.iter().enumerate().map(|(i,row)| (i as i64,json!({
+                "identity_key":format!("raw-{i}"),"payload_hash":sha256_hex(canonical_json(row).as_bytes()),
+                "receipt_id":format!("receipt-{i}"),"event_id":format!("bar-{i}"),"input_revision":"1","revision":1,"seq":i,"source_coord":i.to_string(),"received_at":"2000-01-01T00:00:00Z"
+            }))).collect();
+            let n = rows.len() as i64;
+            let cut = format!("cut-{n}");
+            let empty = SecondFoldStore::new(round_budget());
+            for (book, ok) in [(&empty, false), (&store, true)] {
+                let result = build(
+                    segment_facts,
+                    facts.stroke_facts.as_ref().unwrap(),
+                    &raw,
+                    &[],
+                    &[],
+                    n,
+                    &cut,
+                    n - 1,
+                    None,
+                    book,
+                );
+                match (ok, result) {
+                    (true, Ok(_)) => {}
+                    (false, Err(error)) => assert!(
+                        error.starts_with("IdentityConflict：") && error.contains("不在游标簿"),
+                        "{error}"
+                    ),
+                    (_, other) => panic!("ok={ok} 得 {:?}", other.map(|_| ())),
+                }
+            }
+            exercised += 1;
+        }
+        assert!(exercised > 0, "须至少一例含第二种候选");
     }
 }
