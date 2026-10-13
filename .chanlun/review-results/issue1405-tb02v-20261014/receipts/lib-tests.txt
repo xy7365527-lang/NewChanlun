@@ -1,0 +1,16 @@
+# cargo test --lib（commit 355c1d8b46，基线同族 #1419 收据 2955 过 / 3 败 / 161 忽略）
+
+thread 'theta_v0::backtest::l3_delta_r_alpha::tests::m3_partition_synthetic_holds' (11293474) panicked at src/theta_v0/backtest/l3_delta_r_alpha.rs:2541:9:
+合成鞅 3000 bar 产非空 ledger（否则测试空转）
+
+
+failures:
+    theta_v0::backtest::l3_delta_r_alpha::tests::m3_partition_synthetic_holds
+    theta_v0::backtest::tick::tests::calibration_sweep_finds_non_collapsed_segments
+
+test result: FAILED. 2960 passed; 2 failed; 162 ignored; 0 measured; 0 filtered out; finished in 80.41s
+
+error: test failed, to rerun pass `--lib`
+
+# 终版 head 定点（tb02 / issue1392 / seam_btc_tick）
+test result: ok. 36 passed; 0 failed; 1 ignored; 0 measured; 3087 filtered out; finished in 16.82s

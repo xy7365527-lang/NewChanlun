@@ -1,0 +1,101 @@
+{
+ "head": "1f90227633",
+ "method": "work/mutate.py 从 HEAD 的 stroke.rs 做确定替换 → cargo test --lib -- tb02 issue1392 seam_btc_tick + --ignored tb02v_btc_tail50k → git checkout 还原",
+ "mutants": {
+  "M1_eq_replaces": {
+   "mutation": "删掉 KEEP 分支：同型同价改取后者（REPLACE）",
+   "failed_tests": [
+    "theta_v0::parser::stroke::tests::tb02v_checkpoint_equal_price_keeps_tail_then_replace_extends ",
+    "theta_v0::parser::stroke::tb02v_tests::tb02v_six_witnesses_through_production_entry ",
+    "theta_v0::parser::stroke::tests::tb02b_frozen_raw_ledger_and_sparse_source_coordinates ",
+    "theta_v0::parser::stroke::tb02v_tests::tb02v_btc_tail50k_reading_and_prefix_ladder "
+   ],
+   "killed": true,
+   "receipt": "receipts/mutants/M1_eq_replaces.out"
+  },
+  "M1b_eq_no_evidence": {
+   "mutation": "同价仍 KEEP 但不记 same_kind_equal_price_keep_earlier 证据",
+   "failed_tests": [
+    "theta_v0::parser::stroke::tests::tb02v_checkpoint_equal_price_keeps_tail_then_replace_extends ",
+    "theta_v0::parser::stroke::tb02v_tests::tb02v_six_witnesses_through_production_entry ",
+    "theta_v0::parser::stroke::tests::tb02b_frozen_raw_ledger_and_sparse_source_coordinates ",
+    "theta_v0::parser::stroke::tb02v_tests::tb02v_tied_root_order_and_designation_do_not_change_vectors_or_strokes "
+   ],
+   "killed": true,
+   "receipt": "receipts/mutants/M1b_eq_no_evidence.out"
+  },
+  "M2_single_root_earliest": {
+   "mutation": "改回单根 raw_position：多根组只取最早根",
+   "failed_tests": [
+    "theta_v0::parser::stroke::tests::tb02v_threshold_crossing_roots_use_extreme_region ",
+    "theta_v0::parser::stroke::tests::tb02b_strict_replacement_before_first_stroke_keeps_all_roots ",
+    "theta_v0::parser::stroke::tests::tb02b_false_pair_allows_later_unique_stronger_endpoint ",
+    "theta_v0::parser::stroke::tb02v_tests::tb02v_tied_root_order_and_designation_do_not_change_vectors_or_strokes ",
+    "theta_v0::parser::stroke::tb02v_tests::tb02v_six_witnesses_through_production_entry ",
+    "theta_v0::parser::stroke::tests::tb02b_frozen_raw_ledger_and_sparse_source_coordinates ",
+    "theta_v0::parser::stroke::tb02v_tests::tb02v_btc_tail50k_reading_and_prefix_ladder "
+   ],
+   "killed": true,
+   "receipt": "receipts/mutants/M2_single_root_earliest.out"
+  },
+  "M2b_single_root_latest": {
+   "mutation": "改回单根 raw_position：多根组只取最晚根",
+   "failed_tests": [
+    "theta_v0::parser::stroke::tests::tb02b_false_pair_allows_later_unique_stronger_endpoint ",
+    "theta_v0::parser::stroke::tests::tb02v_threshold_crossing_roots_use_extreme_region ",
+    "theta_v0::parser::stroke::tests::tb02b_strict_replacement_before_first_stroke_keeps_all_roots ",
+    "theta_v0::parser::stroke::tb02v_tests::tb02v_tied_root_order_and_designation_do_not_change_vectors_or_strokes ",
+    "theta_v0::parser::stroke::tb02v_tests::tb02v_six_witnesses_through_production_entry ",
+    "theta_v0::parser::stroke::tests::tb02b_frozen_raw_ledger_and_sparse_source_coordinates ",
+    "theta_v0::parser::stroke::tb02v_tests::tb02v_btc_tail50k_reading_and_prefix_ladder "
+   ],
+   "killed": true,
+   "receipt": "receipts/mutants/M2b_single_root_latest.out"
+  },
+  "M3_restore_blocked": {
+   "mutation": "恢复 blocked：同价置全局冻结位、弹尾笔、其后直通",
+   "failed_tests": [
+    "theta_v0::parser::stroke::tests::tb02v_checkpoint_equal_price_keeps_tail_then_replace_extends ",
+    "theta_v0::parser::stroke::tb02v_tests::tb02v_six_witnesses_through_production_entry ",
+    "theta_v0::parser::stroke::tests::tb02b_frozen_raw_ledger_and_sparse_source_coordinates ",
+    "theta_v0::parser::stroke::tb02v_tests::tb02v_tied_root_order_and_designation_do_not_change_vectors_or_strokes ",
+    "theta_v0::backtest::tick::tests::seam_btc_tick_bars_yield_non_trivial_structure ",
+    "theta_v0::parser::stroke::tb02v_tests::tb02v_btc_tail50k_reading_and_prefix_ladder "
+   ],
+   "killed": true,
+   "receipt": "receipts/mutants/M3_restore_blocked.out"
+  },
+  "MD1_restore_shape_gate": {
+   "mutation": "恢复 TB-02-A 发布门：三组窗口任一组多根即跳过 CC-006",
+   "failed_tests": [
+    "tests::tb02a_three_groups_with_equal_roots_publish_shape_with_root_set "
+   ],
+   "killed": true,
+   "method": "work/mutate_d.py → cargo test --features s_session --bin s_structure_session -- tb02a → apply.py 还原"
+  },
+  "MD2_group_request_waits_on_tie": {
+   "mutation": "CC-005 组请求重新把 equal_extreme_identity 计为未定理由",
+   "failed_tests": [
+    "tests::tb02a_three_groups_with_equal_roots_publish_shape_with_root_set "
+   ],
+   "killed": true,
+   "method": "work/mutate_d.py → cargo test --features s_session --bin s_structure_session -- tb02a → apply.py 还原"
+  },
+  "MD3_step_request_waits_on_tie": {
+   "mutation": "CC-004 步骤请求重新把 equal_extreme_identity 计为未定理由",
+   "failed_tests": [
+    "tests::tb02a_three_groups_with_equal_roots_publish_shape_with_root_set "
+   ],
+   "killed": true,
+   "method": "work/mutate_d.py → cargo test --features s_session --bin s_structure_session -- tb02a → apply.py 还原"
+  },
+  "MD4_old_knowledge_domain": {
+   "mutation": "知识域退回旧值 established_direction_without_extreme_identity_competition",
+   "failed_tests": [
+    "tests::tb02a_three_groups_with_equal_roots_publish_shape_with_root_set "
+   ],
+   "killed": true,
+   "method": "work/mutate_d.py → cargo test --features s_session --bin s_structure_session -- tb02a → apply.py 还原"
+  }
+ }
+}
