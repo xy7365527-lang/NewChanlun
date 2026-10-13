@@ -443,8 +443,8 @@ fn delete_staged_rows(
         .map_err(io)?;
     let mut removed = 0u64;
     for digest in digests {
-        removed += u64::try_from(delete.execute(params![&digest[..], token]).map_err(io)?)
-            .map_err(io)?;
+        removed +=
+            u64::try_from(delete.execute(params![&digest[..], token]).map_err(io)?).map_err(io)?;
     }
     Ok(removed)
 }
@@ -836,7 +836,8 @@ pub(super) fn import_peer_refs(
             let nodes = std::mem::take(&mut self.pending);
             // peer 导入失败由调用方 `discard_unpublished` 清掉本操作全部暂存，不用逐块回滚清单。
             let mut written = Vec::new();
-            self.stage.put_batch_budgeted(self.job, &nodes, &mut written)
+            self.stage
+                .put_batch_budgeted(self.job, &nodes, &mut written)
         }
     }
     impl NodeSource for Import<'_, '_> {
@@ -1044,8 +1045,11 @@ mod batch_tests {
             assert!(insert_staging_batch(&tx, "stg-me", &chunk).is_err());
         }
         assert_eq!(rows(&c, "content_staging"), 2, "失败块一行不留");
-        c.execute("DELETE FROM content_staging WHERE digest=?1", params![&dc[..]])
-            .unwrap();
+        c.execute(
+            "DELETE FROM content_staging WHERE digest=?1",
+            params![&dc[..]],
+        )
+        .unwrap();
         let tx = c.transaction().unwrap();
         let inserted = insert_staging_batch(&tx, "stg-me", &chunk).unwrap();
         tx.commit().unwrap();

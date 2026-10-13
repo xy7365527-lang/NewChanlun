@@ -144,7 +144,9 @@ fn vector_seq_leaves(nodes: &BTreeMap<String, (u8, Vec<u8>)>, seq_root: &str) ->
     let mut out = Vec::new();
     let mut stack = vec![seq_root.to_string()];
     while let Some(root) = stack.pop() {
-        let (t, body) = nodes.get(&root).unwrap_or_else(|| panic!("向量缺节点 {root}"));
+        let (t, body) = nodes
+            .get(&root)
+            .unwrap_or_else(|| panic!("向量缺节点 {root}"));
         match *t {
             tag::SEQ_EMPTY => assert!(body.is_empty(), "空序列 body 必须为空"),
             tag::SEQ_LEAF => {
@@ -170,7 +172,9 @@ fn vector_seq_closure(
     let mut out = BTreeMap::new();
     let mut stack = vec![seq_root.to_string()];
     while let Some(root) = stack.pop() {
-        let (t, body) = nodes.get(&root).unwrap_or_else(|| panic!("向量缺节点 {root}"));
+        let (t, body) = nodes
+            .get(&root)
+            .unwrap_or_else(|| panic!("向量缺节点 {root}"));
         out.insert(root, (*t, body.clone()));
         if *t == tag::SEQ_BRANCH {
             stack.push(hex_root(&body[40..72]));
@@ -239,16 +243,12 @@ fn sequence_ops_match_approved_independent_vector() {
         for cut in 0..=n {
             let (head, tail) = sequence_split(&mut full_store, &full, cut).expect("split");
             let mut oracle = MemoryNodes::new();
-            let head_root = s_content::write_sequence(
-                &mut oracle,
-                &expected_leaves[..cut as usize],
-            )
-            .expect("oracle head");
-            let tail_root = s_content::write_sequence(
-                &mut oracle,
-                &expected_leaves[cut as usize..],
-            )
-            .expect("oracle tail");
+            let head_root =
+                s_content::write_sequence(&mut oracle, &expected_leaves[..cut as usize])
+                    .expect("oracle head");
+            let tail_root =
+                s_content::write_sequence(&mut oracle, &expected_leaves[cut as usize..])
+                    .expect("oracle tail");
             assert_eq!(head.root(), head_root, "{name} cut={cut} 左段根");
             assert_eq!(tail.root(), tail_root, "{name} cut={cut} 右段根");
             assert_eq!(head.count(), cut, "{name} cut={cut} 左段计数");
@@ -263,7 +263,9 @@ fn sequence_ops_match_approved_independent_vector() {
 
 #[test]
 fn sequence_ops_match_write_sequence_oracle_across_shapes() {
-    for n in [0u64, 1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 33, 64, 65, 100] {
+    for n in [
+        0u64, 1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 33, 64, 65, 100,
+    ] {
         let leaf_list = leaves(n);
         let mut oracle_store = MemoryNodes::new();
         let oracle_root = s_content::write_sequence(&mut oracle_store, &leaf_list).expect("oracle");
@@ -501,7 +503,10 @@ fn sequence_ops_write_only_reachable_nodes() {
     .expect("concat");
     assert_eq!(merged.root(), full_root);
     let mut allowed = closure(&mut store, &[merged.root()]);
-    allowed.insert(root_string(&SequenceRef::empty().root()), (tag::SEQ_EMPTY, Vec::new()));
+    allowed.insert(
+        root_string(&SequenceRef::empty().root()),
+        (tag::SEQ_EMPTY, Vec::new()),
+    );
     let mut extra = Vec::new();
     for (digest, t, body) in store.iter() {
         let key = root_string(digest);
@@ -553,7 +558,10 @@ fn sequence_ops_write_only_reachable_nodes() {
     .expect("split");
     let mut covered = closure(&mut store2, &[head.root()]);
     covered.extend(closure(&mut store2, &[tail.root()]));
-    covered.insert(root_string(&SequenceRef::empty().root()), (tag::SEQ_EMPTY, Vec::new()));
+    covered.insert(
+        root_string(&SequenceRef::empty().root()),
+        (tag::SEQ_EMPTY, Vec::new()),
+    );
     for (digest, t, body) in store2.iter() {
         let key = root_string(digest);
         if before2.contains(&key) {
@@ -689,12 +697,8 @@ fn sequence_rejects_wrong_nodes_and_lengths() {
 
     // 拆分越界
     expect_shape(
-        sequence_split(
-            &mut store5,
-            &SequenceRef::from_parts_unchecked(root5, 5),
-            6,
-        )
-        .expect_err("越界拆分"),
+        sequence_split(&mut store5, &SequenceRef::from_parts_unchecked(root5, 5), 6)
+            .expect_err("越界拆分"),
         "拆分越界",
     );
     // 期望叶数本身超出 2^63-1
@@ -781,7 +785,10 @@ impl NodeSink for BudgetStore {
         if self.writes > self.write_cap {
             return Err(CodecError::new(
                 BUDGET_CODE,
-                format!("写预算 {} 已耗尽（第 {} 次写）", self.write_cap, self.writes),
+                format!(
+                    "写预算 {} 已耗尽（第 {} 次写）",
+                    self.write_cap, self.writes
+                ),
             ));
         }
         let actual = frame(t, body);
@@ -917,8 +924,7 @@ fn sequence_ops_read_and_write_scale_with_height() {
     for depth in [10u32, 20, 30, 50] {
         let (nodes, root) = perfect_chain(leaf_digest(0), depth);
         let mut store = BudgetStore::new(nodes, 4096, 4096);
-        let seq =
-            SequenceRef::from_parts_unchecked(root, 1u64 << depth);
+        let seq = SequenceRef::from_parts_unchecked(root, 1u64 << depth);
         let grown = sequence_append(&mut store, &seq, &leaf_digest(1)).expect("append");
         assert_eq!(grown.count(), (1u64 << depth) + 1);
         let bound = 8 * (depth as u64 + 2);

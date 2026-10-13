@@ -127,7 +127,9 @@ impl Family {
             let (id, generation, record) = project(r).map_err(|e| e.to_string())?;
             let g = generation.ok_or("StorageUnavailable：索引缺出生代")?;
             if identity(&record, name)? != id {
-                return Err(format!("StorageUnavailable：{name} 独立索引身份与其记录不一致"));
+                return Err(format!(
+                    "StorageUnavailable：{name} 独立索引身份与其记录不一致"
+                ));
             }
             if result.records.contains_key(&id) {
                 return Err(format!("StorageUnavailable：{name} 重复身份"));
@@ -318,24 +320,24 @@ impl AuditWalk {
                 continue;
             }
             // 未发生撤回的对象不做任何深拷贝：直接借共享投影比对。
-            let at_previous: std::borrow::Cow<'_, Value> = if record["withdrawn_generation"].is_null()
-            {
-                std::borrow::Cow::Borrowed(record.as_ref())
-            } else {
-                let Ok(withdrawn) = number(record, "withdrawn_generation") else {
-                    return false;
-                };
-                if withdrawn <= generation {
+            let at_previous: std::borrow::Cow<'_, Value> =
+                if record["withdrawn_generation"].is_null() {
                     std::borrow::Cow::Borrowed(record.as_ref())
                 } else {
-                    let mut projected = record.as_ref().clone();
-                    for key in ["withdrawn_generation", "withdrawal_reason", "superseded_by"] {
-                        projected[key] = Value::Null;
+                    let Ok(withdrawn) = number(record, "withdrawn_generation") else {
+                        return false;
+                    };
+                    if withdrawn <= generation {
+                        std::borrow::Cow::Borrowed(record.as_ref())
+                    } else {
+                        let mut projected = record.as_ref().clone();
+                        for key in ["withdrawn_generation", "withdrawal_reason", "superseded_by"] {
+                            projected[key] = Value::Null;
+                        }
+                        projected["lifecycle"] = json!("active");
+                        std::borrow::Cow::Owned(projected)
                     }
-                    projected["lifecycle"] = json!("active");
-                    std::borrow::Cow::Owned(projected)
-                }
-            };
+                };
             let same = old
                 .objects
                 .get(id)

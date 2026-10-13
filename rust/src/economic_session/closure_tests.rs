@@ -3,10 +3,7 @@
 //! 由“诚实伪 S”按协议（摘要升序、显式游标、按字节预算贪心装块）供块，再逐项篡改。每个负例都核：
 //! 拒绝；本次尝试写下的暂存全部回滚（stage 恢复到尝试前）；不回落逐片路径。
 use super::*;
-use crate::s_content::{
-    job::Existing,
-    MemoryNodes, NodeSink, Value as V,
-};
+use crate::s_content::{job::Existing, MemoryNodes, NodeSink, Value as V};
 use crate::session_protocol::canonical_json;
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -32,7 +29,12 @@ fn pins_with(resources: Value) -> SourcePins {
     .unwrap()
 }
 fn pins() -> SourcePins {
-    pins_with(resources_json("100000000", "1000000", "100000000", "100000000"))
+    pins_with(resources_json(
+        "100000000",
+        "1000000",
+        "100000000",
+        "100000000",
+    ))
 }
 fn job_for(pins: &SourcePins) -> Job {
     Job::new(
@@ -88,7 +90,10 @@ fn basis() -> (MemoryNodes, ContentRef) {
         ("input_frontier".into(), s("3")),
         ("seq_range".into(), V::Array(vec![s("0"), s("3")])),
         ("catalog_run_status".into(), s("ok")),
-        ("catalog_evidence".into(), V::Object(vec![("run".into(), s("r"))])),
+        (
+            "catalog_evidence".into(),
+            V::Object(vec![("run".into(), s("r"))]),
+        ),
     ]);
     let basis = V::Object(vec![
         ("kind".into(), s("FinancialBasis")),
@@ -167,7 +172,11 @@ impl FakeS {
         self.calls += 1;
         assert_eq!(request["schema_revision"], "s-financial-closure/1");
         assert_eq!(request.as_object().unwrap().len(), 5);
-        let budget: u64 = request["max_reply_bytes"].as_str().unwrap().parse().unwrap();
+        let budget: u64 = request["max_reply_bytes"]
+            .as_str()
+            .unwrap()
+            .parse()
+            .unwrap();
         let start = match request["after"].as_str().unwrap() {
             "" => 0,
             after => {
@@ -330,7 +339,11 @@ fn assert_rejected_and_rolled_back(
     let error = result.expect_err("必须拒绝");
     assert!(error.contains(needle), "错误 {error:?} 不含 {needle:?}");
     assert!(error.contains("闭包尝试已回滚"), "{error}");
-    assert_eq!(stage_set(stage), stage_set(before), "本尝试写下的暂存须全部回滚");
+    assert_eq!(
+        stage_set(stage),
+        stage_set(before),
+        "本尝试写下的暂存须全部回滚"
+    );
 }
 
 #[test]
@@ -369,21 +382,28 @@ fn tampered_body_or_tag_is_rejected_and_the_attempt_rolled_back() {
         let mut job = job_for(&pins);
         let mut stage = half_stage(&s);
         let before = stage.clone();
-        let result = run(&mut s, &mut stage, &mut job, plan(9000), &pins, &mut |n, _, mut r| {
-            if n == 3 {
-                let at = r["nodes"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .position(|v| v["body_hex"].as_str().unwrap().len() >= 2)
-                    .unwrap();
-                let node = &mut r["nodes"][at];
-                let old = node[field].as_str().unwrap().to_owned();
-                let flipped = if old.starts_with('0') { "1" } else { "0" };
-                node[field] = json!(format!("{flipped}{}", &old[1..]));
-            }
-            Ok(r)
-        });
+        let result = run(
+            &mut s,
+            &mut stage,
+            &mut job,
+            plan(9000),
+            &pins,
+            &mut |n, _, mut r| {
+                if n == 3 {
+                    let at = r["nodes"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .position(|v| v["body_hex"].as_str().unwrap().len() >= 2)
+                        .unwrap();
+                    let node = &mut r["nodes"][at];
+                    let old = node[field].as_str().unwrap().to_owned();
+                    let flipped = if old.starts_with('0') { "1" } else { "0" };
+                    node[field] = json!(format!("{flipped}{}", &old[1..]));
+                }
+                Ok(r)
+            },
+        );
         assert_rejected_and_rolled_back(result, "MissingDependency：", &stage, &before);
     }
 }
@@ -396,26 +416,40 @@ fn cursor_overlap_and_skip_are_rejected() {
     let mut job = job_for(&pins);
     let mut stage = MemStage::default();
     let before = stage.clone();
-    let result = run(&mut s, &mut stage, &mut job, plan(9000), &pins, &mut |n, s, mut r| {
-        if n == 2 {
-            let cursor = sc::parse_root(r["after"].as_str().unwrap()).unwrap();
-            let repeated = s.node(&cursor);
-            r["nodes"].as_array_mut().unwrap().insert(0, repeated);
-        }
-        Ok(r)
-    });
+    let result = run(
+        &mut s,
+        &mut stage,
+        &mut job,
+        plan(9000),
+        &pins,
+        &mut |n, s, mut r| {
+            if n == 2 {
+                let cursor = sc::parse_root(r["after"].as_str().unwrap()).unwrap();
+                let repeated = s.node(&cursor);
+                r["nodes"].as_array_mut().unwrap().insert(0, repeated);
+            }
+            Ok(r)
+        },
+    );
     assert_rejected_and_rolled_back(result, "严格升序", &stage, &before);
 
     // 跳过：第 2 块丢掉首节点，其余照旧（total 不变）→ 末块 done 与累计数不符。
     let mut s = FakeS::new();
     let mut job = job_for(&pins);
     let mut stage = MemStage::default();
-    let result = run(&mut s, &mut stage, &mut job, plan(9000), &pins, &mut |n, _, mut r| {
-        if n == 2 {
-            r["nodes"].as_array_mut().unwrap().remove(0);
-        }
-        Ok(r)
-    });
+    let result = run(
+        &mut s,
+        &mut stage,
+        &mut job,
+        plan(9000),
+        &pins,
+        &mut |n, _, mut r| {
+            if n == 2 {
+                r["nodes"].as_array_mut().unwrap().remove(0);
+            }
+            Ok(r)
+        },
+    );
     assert_rejected_and_rolled_back(result, "done 与 total 不符", &stage, &before);
 }
 
@@ -551,14 +585,21 @@ fn session_failure_mid_stream_keeps_the_retry_prefix_and_rolls_back() {
     let mut job = job_for(&pins);
     let mut stage = MemStage::default();
     let before = stage.clone();
-    let result = run(&mut s, &mut stage, &mut job, plan(9000), &pins, &mut |n, _, r| {
-        if n == 3 {
-            // 会话失效或 anchor 漂移时，S 客户端子进程非零退出；类型化原因不可传。
-            Err("MissingDependency：财务 reader 非成功退出".into())
-        } else {
-            Ok(r)
-        }
-    });
+    let result = run(
+        &mut s,
+        &mut stage,
+        &mut job,
+        plan(9000),
+        &pins,
+        &mut |n, _, r| {
+            if n == 3 {
+                // 会话失效或 anchor 漂移时，S 客户端子进程非零退出；类型化原因不可传。
+                Err("MissingDependency：财务 reader 非成功退出".into())
+            } else {
+                Ok(r)
+            }
+        },
+    );
     let error = result.as_ref().unwrap_err().clone();
     assert!(
         error.starts_with("MissingDependency：财务 reader 非成功退出"),
@@ -600,7 +641,12 @@ fn caps_reject_without_leaving_a_half_import() {
     for (resources, needle) in [
         // total 超过 Job 节点帽：首块即停。
         (
-            resources_json("100000000", &(total - 1).to_string(), "100000000", "100000000"),
+            resources_json(
+                "100000000",
+                &(total - 1).to_string(),
+                "100000000",
+                "100000000",
+            ),
             "超过 Job max_total_nodes",
         ),
         // 节点字节帽：accept_node 停止。
@@ -635,7 +681,10 @@ fn frozen_plan_is_derived_from_reader_resources_only() {
     assert_eq!(plan.reply_bytes, 827_022);
     assert_eq!(plan.max_chunks, 2 * (64_307_200 / 827_022) + 1);
     r.job_limits.max_total_wire_bytes = 134_217_728;
-    assert_eq!(ClosurePlan::frozen(&r).max_chunks, 2 * (134_217_728 / 827_022) + 1);
+    assert_eq!(
+        ClosurePlan::frozen(&r).max_chunks,
+        2 * (134_217_728 / 827_022) + 1
+    );
 }
 
 /// 真实 `content_store::Stage`（固定 HFS+ 载体、8 倍页规则、物理对账）上的同一组语义：每块一个事务、
@@ -660,15 +709,22 @@ fn real_stage_on_hfs_carrier_commits_chunks_and_rolls_back_attempts() {
             let mut stage =
                 content_store::Stage::new(&mut c, &db, limits, format!("stg-{label}")).unwrap();
             let mut s = FakeS::new();
-            run(&mut s, &mut stage, &mut job, plan(9000), &pins, &mut |n, _, mut r| {
-                if n == tamper_at {
-                    if label == "session-failure" {
-                        return Err("MissingDependency：财务 reader 非成功退出".into());
+            run(
+                &mut s,
+                &mut stage,
+                &mut job,
+                plan(9000),
+                &pins,
+                &mut |n, _, mut r| {
+                    if n == tamper_at {
+                        if label == "session-failure" {
+                            return Err("MissingDependency：财务 reader 非成功退出".into());
+                        }
+                        r["nodes"][0]["tag"] = json!("ff");
                     }
-                    r["nodes"][0]["tag"] = json!("ff");
-                }
-                Ok(r)
-            })
+                    Ok(r)
+                },
+            )
         };
         let error = result.expect_err("必须拒绝");
         assert!(error.contains("闭包尝试已回滚"), "{error}");
@@ -679,7 +735,8 @@ fn real_stage_on_hfs_carrier_commits_chunks_and_rolls_back_attempts() {
     let mut s = FakeS::new();
     let mut job = new_job(&c, &db, limits);
     {
-        let mut stage = content_store::Stage::new(&mut c, &db, limits, "stg-honest".into()).unwrap();
+        let mut stage =
+            content_store::Stage::new(&mut c, &db, limits, "stg-honest".into()).unwrap();
         run(&mut s, &mut stage, &mut job, plan(9000), &pins, &mut honest).unwrap();
     }
     assert_eq!(rows(&c, "content_staging") as usize, s.digests.len());
@@ -688,7 +745,11 @@ fn real_stage_on_hfs_carrier_commits_chunks_and_rolls_back_attempts() {
     let root = s.root.clone();
     report["publish"] = json!(publish(&mut c, &db, std::slice::from_ref(&root), &mut job).unwrap());
     assert_eq!(rows(&c, "content_staging"), 0);
-    assert_eq!(rows(&c, "content_nodes") as usize, s.digests.len(), "发布搬运恰为根闭包");
+    assert_eq!(
+        rows(&c, "content_nodes") as usize,
+        s.digests.len(),
+        "发布搬运恰为根闭包"
+    );
     // 发布后再来一次带多余节点的尝试：闭包节点都已公开（跳过），多余节点被写入后又被回滚。
     let (y, ty, by) = s.stranger();
     s.store.put(y, ty, &by).unwrap();
@@ -701,7 +762,10 @@ fn real_stage_on_hfs_carrier_commits_chunks_and_rolls_back_attempts() {
         run(&mut s, &mut stage, &mut job, plan(9000), &pins, &mut honest)
     };
     let error = result.expect_err("多余节点必须拒绝");
-    assert!(error.contains("根不可达节点") && error.contains("已回滚 1 行"), "{error}");
+    assert!(
+        error.contains("根不可达节点") && error.contains("已回滚 1 行"),
+        "{error}"
+    );
     assert_eq!(rows(&c, "content_staging"), 0);
     report["extra_node"] = json!({"error":error});
     if let Ok(out) = std::env::var("CLOSURE_REPLICA_OUT") {
@@ -733,7 +797,9 @@ fn post_commit_checkpoint_failure_rolls_back_the_committed_chunk_and_keeps_peer_
         out
     };
     let digests = |rows: &Rows| -> BTreeSet<NodeDigest> {
-        rows.keys().map(|d| NodeDigest::try_from(&d[..]).unwrap()).collect()
+        rows.keys()
+            .map(|d| NodeDigest::try_from(&d[..]).unwrap())
+            .collect()
     };
     let db = std::path::PathBuf::from(std::env::var("CLOSURE_CARRIER_DB").unwrap());
     let pins = pins();
@@ -760,25 +826,39 @@ fn post_commit_checkpoint_failure_rolls_back_the_committed_chunk_and_keeps_peer_
         let mut probe = FakeS::new();
         let mut job = job_for(&pins);
         let mut mem = MemStage::default();
-        run(&mut probe, &mut mem, &mut job, plan(9000), &pins, &mut |_, _, r| {
-            chunks.push(
-                r["nodes"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .map(|v| sc::parse_root(v["root"].as_str().unwrap()).unwrap())
-                    .collect(),
-            );
-            Ok(r)
-        })
+        run(
+            &mut probe,
+            &mut mem,
+            &mut job,
+            plan(9000),
+            &pins,
+            &mut |_, _, r| {
+                chunks.push(
+                    r["nodes"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|v| sc::parse_root(v["root"].as_str().unwrap()).unwrap())
+                        .collect(),
+                );
+                Ok(r)
+            },
+        )
         .unwrap();
     }
-    let new_in = |i: usize| chunks[i].iter().filter(|d| !peer_nodes.contains(*d)).count();
+    let new_in = |i: usize| {
+        chunks[i]
+            .iter()
+            .filter(|d| !peer_nodes.contains(*d))
+            .count()
+    };
     let peer_in = |i: usize| chunks[i].iter().filter(|d| peer_nodes.contains(*d)).count();
     // 第 k 块（从 1 起）：k ≥ 2，本块有新行且有 peer 行；没有这样的块就退到「第 1..=k 块里有 peer 行」。
     let k = (2..=chunks.len())
         .find(|&k| new_in(k - 1) > 0 && peer_in(k - 1) > 0)
-        .or_else(|| (2..=chunks.len()).find(|&k| new_in(k - 1) > 0 && (0..k).any(|i| peer_in(i) > 0)))
+        .or_else(|| {
+            (2..=chunks.len()).find(|&k| new_in(k - 1) > 0 && (0..k).any(|i| peer_in(i) > 0))
+        })
         .expect("须有一块既有新行、之前（含本块）又有 peer 行");
     let new_rows_through_k: usize = (0..k).map(new_in).sum();
     let overlap = peer_nodes.intersection(&closure).count();
@@ -817,21 +897,28 @@ fn post_commit_checkpoint_failure_rolls_back_the_committed_chunk_and_keeps_peer_
     let mut s = FakeS::new();
     let result = {
         let mut stage = content_store::Stage::new(&mut c, &db, limits, token.clone()).unwrap();
-        run(&mut s, &mut stage, &mut job, plan(9000), &pins, &mut |n, _, r| {
-            if n == k {
-                let rd = rusqlite::Connection::open_with_flags(
-                    &db,
-                    rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-                )
-                .unwrap();
-                rd.execute_batch("BEGIN").unwrap();
-                let _: i64 = rd
-                    .query_row("SELECT count(*) FROM content_staging", [], |q| q.get(0))
+        run(
+            &mut s,
+            &mut stage,
+            &mut job,
+            plan(9000),
+            &pins,
+            &mut |n, _, r| {
+                if n == k {
+                    let rd = rusqlite::Connection::open_with_flags(
+                        &db,
+                        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+                    )
                     .unwrap();
-                reader = Some(rd);
-            }
-            Ok(r)
-        })
+                    rd.execute_batch("BEGIN").unwrap();
+                    let _: i64 = rd
+                        .query_row("SELECT count(*) FROM content_staging", [], |q| q.get(0))
+                        .unwrap();
+                    reader = Some(rd);
+                }
+                Ok(r)
+            },
+        )
     };
     assert!(reader.is_some(), "注入点须已到达");
     drop(reader.take());
@@ -848,14 +935,20 @@ fn post_commit_checkpoint_failure_rolls_back_the_committed_chunk_and_keeps_peer_
         "暂存残留 {} 行本尝试写下的行（第 {k} 块提交后失败）：{error}",
         residue.len()
     );
-    assert_eq!(after, peer_rows, "先前 peer 导入的行逐行不变（摘要、tag、body、stage）");
+    assert_eq!(
+        after, peer_rows,
+        "先前 peer 导入的行逐行不变（摘要、tag、body、stage）"
+    );
     let removed: usize = error
         .split("已回滚 ")
         .nth(1)
         .and_then(|t| t.split(' ').next())
         .and_then(|n| n.parse().ok())
         .unwrap_or_else(|| panic!("错误尾部须写回滚行数：{error}"));
-    assert_eq!(removed, new_rows_through_k, "回滚恰为第 1..={k} 块的新行（含已提交的第 {k} 块）");
+    assert_eq!(
+        removed, new_rows_through_k,
+        "回滚恰为第 1..={k} 块的新行（含已提交的第 {k} 块）"
+    );
     let nodes_published: i64 = c
         .query_row("SELECT count(*) FROM content_nodes", [], |r| r.get(0))
         .unwrap();
@@ -867,7 +960,15 @@ fn post_commit_checkpoint_failure_rolls_back_the_committed_chunk_and_keeps_peer_
     let mut honest_s = FakeS::new();
     {
         let mut stage = content_store::Stage::new(&mut c, &db, limits, token.clone()).unwrap();
-        run(&mut honest_s, &mut stage, &mut job, plan(9000), &pins, &mut honest).unwrap();
+        run(
+            &mut honest_s,
+            &mut stage,
+            &mut job,
+            plan(9000),
+            &pins,
+            &mut honest,
+        )
+        .unwrap();
     }
     let healed = staging(&c);
     let want: BTreeSet<NodeDigest> = closure.union(&peer_nodes).copied().collect();

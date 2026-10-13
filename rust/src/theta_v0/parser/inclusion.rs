@@ -2287,10 +2287,7 @@ mod tests {
             };
             // 借用视图逐字段 ≡ 既有完整输出（`step_fact`）。
             assert_eq!(view.action, fact.action, "{label}：步 {index} action");
-            assert_eq!(
-                view.incoming, fact.incoming,
-                "{label}：步 {index} incoming"
-            );
+            assert_eq!(view.incoming, fact.incoming, "{label}：步 {index} incoming");
             assert_eq!(
                 view.acc_before, fact.acc_before,
                 "{label}：步 {index} acc_before"
@@ -2299,10 +2296,7 @@ mod tests {
                 view.acc_after, fact.acc_after,
                 "{label}：步 {index} acc_after"
             );
-            assert_eq!(
-                view.contains, fact.contains,
-                "{label}：步 {index} contains"
-            );
+            assert_eq!(view.contains, fact.contains, "{label}：步 {index} contains");
             match (view.evidence, fact.direction_evidence.as_ref()) {
                 (None, None) => {}
                 (Some(shared), Some(full)) => {
@@ -2394,7 +2388,12 @@ mod tests {
     #[test]
     fn shared_step_handles_survive_later_appends() {
         let mut state = IncrFactsState::empty();
-        for bar in [bar(0, 20, 10), bar(1, 24, 14), bar(2, 22, 16), bar(3, 23, 15)] {
+        for bar in [
+            bar(0, 20, 10),
+            bar(1, 24, 14),
+            bar(2, 22, 16),
+            bar(3, 23, 15),
+        ] {
             state.append(bar);
         }
         assert!(!state.degraded());
@@ -2464,7 +2463,10 @@ mod tests {
             state.append(*bar);
         }
         assert!(!state.degraded());
-        assert!(matches!(state.shared_step(0), Ok(Some(_))), "在域内必须借出视图");
+        assert!(
+            matches!(state.shared_step(0), Ok(Some(_))),
+            "在域内必须借出视图"
+        );
         assert!(
             matches!(state.shared_step(state.step_count()), Ok(None)),
             "索引不存在 = Ok(None)"
@@ -2493,7 +2495,10 @@ mod tests {
         // 既有展开入口不受新接口影响：仍按既定契约回落全量入口。
         assert_eq!(
             degraded.step_fact(0),
-            process_inclusion_with_facts(&degraded_bars).steps.first().cloned()
+            process_inclusion_with_facts(&degraded_bars)
+                .steps
+                .first()
+                .cloned()
         );
     }
 
@@ -2681,7 +2686,12 @@ mod tests {
     #[test]
     fn shared_group_handles_survive_later_appends() {
         let mut state = IncrFactsState::empty();
-        for bar in [bar(0, 20, 10), bar(1, 24, 14), bar(2, 22, 16), bar(3, 23, 15)] {
+        for bar in [
+            bar(0, 20, 10),
+            bar(1, 24, 14),
+            bar(2, 22, 16),
+            bar(3, 23, 15),
+        ] {
             state.append(bar);
         }
         assert!(!state.degraded());
@@ -2709,10 +2719,7 @@ mod tests {
                 .expect("共享态可用")
                 .expect("组 1 在域内");
             assert!(view.direction_evidence.is_some(), "组 1 应带方向证据");
-            assert!(
-                view.confirmation_evidence.is_some(),
-                "组 1 已被后组封口"
-            );
+            assert!(view.confirmation_evidence.is_some(), "组 1 已被后组封口");
             (
                 view.direction_evidence.map(Rc::clone),
                 view.members.to_vec(),
@@ -2724,14 +2731,8 @@ mod tests {
             .shared_group(last)
             .expect("共享态可用")
             .expect("末组在域内");
-        assert!(
-            tail_view.direction_evidence.is_some(),
-            "末组应带方向证据"
-        );
-        assert!(
-            tail_view.confirmation_evidence.is_none(),
-            "末组尚未封口"
-        );
+        assert!(tail_view.direction_evidence.is_some(), "末组应带方向证据");
+        assert!(tail_view.confirmation_evidence.is_none(), "末组尚未封口");
         // 尾链句柄与成员表同源：首锚在 `bar.source_index`，尾链 = members[1..]。
         assert_eq!(tail_0.materialize(), members_0[1..].to_vec());
         assert_eq!(tail_1.materialize(), members_1[1..].to_vec());

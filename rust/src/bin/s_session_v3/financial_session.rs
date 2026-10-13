@@ -159,7 +159,10 @@ fn exact(value: &Value, fields: &[&str], what: &str) -> Result<(), String> {
         .as_object()
         .ok_or_else(|| invalid(format!("{what}必须是JSON对象")))?;
     if object.len() != fields.len() || object.keys().any(|k| !fields.contains(&k.as_str())) {
-        return Err(invalid(format!("{what}字段必须exact为 {}", fields.join(","))));
+        return Err(invalid(format!(
+            "{what}字段必须exact为 {}",
+            fields.join(",")
+        )));
     }
     Ok(())
 }
@@ -433,7 +436,10 @@ impl Custody {
             return Err(missing("托管哈希期间DB或WAL改变"));
         }
         Ok(Self {
-            db: db.to_str().ok_or_else(|| invalid("--db不是UTF-8"))?.to_owned(),
+            db: db
+                .to_str()
+                .ok_or_else(|| invalid("--db不是UTF-8"))?
+                .to_owned(),
             main: HashedFile {
                 sha256: main_sha,
                 stat: main_stat,
@@ -455,7 +461,10 @@ fn control_bytes(c: &Connection) -> Result<Vec<u8>, String> {
     let mut out = Vec::new();
     for (label, sql) in [
         ("meta", "SELECT key,value FROM meta ORDER BY key"),
-        ("s_protocol_meta", "SELECT * FROM s_protocol_meta ORDER BY singleton"),
+        (
+            "s_protocol_meta",
+            "SELECT * FROM s_protocol_meta ORDER BY singleton",
+        ),
         ("raw_events", "SELECT COALESCE(MAX(seq),-1) FROM raw_events"),
     ] {
         out.extend_from_slice(label.as_bytes());
@@ -561,7 +570,8 @@ fn connection_sqlite_bytes(conn: &Connection) -> (i64, i64, i64) {
     let status = |op: i32| -> i64 {
         let (mut cur, mut hi) = (0, 0);
         // SAFETY: 句柄属于存活连接；只读统计，不重置。
-        let rc = unsafe { rusqlite::ffi::sqlite3_db_status(conn.handle(), op, &mut cur, &mut hi, 0) };
+        let rc =
+            unsafe { rusqlite::ffi::sqlite3_db_status(conn.handle(), op, &mut cur, &mut hi, 0) };
         if rc == 0 {
             i64::from(cur)
         } else {
@@ -709,7 +719,9 @@ enum IoFault {
 impl IoFault {
     fn text(&self, what: &str) -> String {
         match self {
-            Self::TimedOut => incomplete("SessionClientTimeout", format!("{what}超过本请求整体截止")),
+            Self::TimedOut => {
+                incomplete("SessionClientTimeout", format!("{what}超过本请求整体截止"))
+            }
             Self::Closed => invalid(format!("{what}：对端提前关闭")),
             Self::Other(e) => invalid(format!("{what}：{e}")),
         }
@@ -914,12 +926,8 @@ impl Session {
         let main_stat = custody_first.main.stat.clone();
         let wal_stat = custody_first.wal.as_ref().map(|w| w.stat.clone());
         let t = Instant::now();
-        let mut source = capture::session_open_source(
-            &db,
-            r.max_capture_bytes,
-            r.startup_timeout_ms,
-            deadline,
-        )?;
+        let mut source =
+            capture::session_open_source(&db, r.max_capture_bytes, r.startup_timeout_ms, deadline)?;
         let open_ms = ms(t);
         let t = Instant::now();
         let cap = capture::session_capture(
@@ -1074,7 +1082,8 @@ impl Session {
 
     /// R4：主库与 WAL 的身份与 stat 等于启动值（显式比较）。
     fn check_stat(&self) -> Result<(), String> {
-        if FileStat::of(&self.db).map_err(|e| missing(format!("R4：{}", bare(&e))))? != self.main_stat
+        if FileStat::of(&self.db).map_err(|e| missing(format!("R4：{}", bare(&e))))?
+            != self.main_stat
         {
             return Err(missing("R4：主库身份或stat改变"));
         }
@@ -1129,7 +1138,9 @@ impl Session {
             return Err(Fault::Inconsistent(missing("R5：首读后data_version改变")));
         }
         if control != self.control {
-            return Err(Fault::Inconsistent(missing("R6：控制原件与启动K0逐字节不同")));
+            return Err(Fault::Inconsistent(missing(
+                "R6：控制原件与启动K0逐字节不同",
+            )));
         }
         super::financial_reader::check_current_control(&tx, &self.audited)
             .map_err(|e| bound.sql("R6", e))?;
@@ -1158,7 +1169,9 @@ impl Session {
         tx.rollback().map_err(|e| bound.sql("R5", e))?;
         let v2 = capture::version(&self.source).map_err(|e| bound.sql("R5", e))?;
         if v2 != v_star {
-            return Err(Fault::Inconsistent(missing("R5：ROLLBACK后data_version改变")));
+            return Err(Fault::Inconsistent(missing(
+                "R5：ROLLBACK后data_version改变",
+            )));
         }
         Ok(())
     }
@@ -1252,8 +1265,12 @@ impl Session {
         }
         let command = header["command"].as_str().unwrap_or_default().to_owned();
         // R7：客户端二进制与 --db 身份。
-        let dev = header["db_dev"].as_str().and_then(|s| s.parse::<u64>().ok());
-        let ino = header["db_ino"].as_str().and_then(|s| s.parse::<u64>().ok());
+        let dev = header["db_dev"]
+            .as_str()
+            .and_then(|s| s.parse::<u64>().ok());
+        let ino = header["db_ino"]
+            .as_str()
+            .and_then(|s| s.parse::<u64>().ok());
         if header["binary_sha256"].as_str() != Some(self.binary_sha256.as_str()) {
             return Err(self.invalidate(missing("R7：客户端二进制SHA不等于会话启动回执")));
         }
@@ -1289,7 +1306,10 @@ impl Session {
         bytes.push(b'\n');
         t.serve_us = us(s);
         if bytes.len() as u64 > self.resources.max_reply_bytes {
-            return Err(incomplete("SessionReplyBytes", "回复超过会话 max_reply_bytes"));
+            return Err(incomplete(
+                "SessionReplyBytes",
+                "回复超过会话 max_reply_bytes",
+            ));
         }
         let p = Instant::now();
         if let Err(f) = self.post_check() {
@@ -1352,10 +1372,9 @@ impl Session {
             }
             self.counts.requests += 1;
             if self.counts.requests > self.resources.max_requests {
-                return Err(self.invalidate(incomplete(
-                    "SessionRequests",
-                    "会话请求数超过 max_requests",
-                )));
+                return Err(
+                    self.invalidate(incomplete("SessionRequests", "会话请求数超过 max_requests"))
+                );
             }
             let max = usize::try_from(self.resources.max_request_bytes).unwrap_or(usize::MAX);
             let body = match read_frame(&mut stream, max, deadline) {
@@ -1498,7 +1517,9 @@ impl Session {
             "db_ino":self.main_stat.ino.to_string()});
         self.counts.requests += 1;
         if self.counts.requests > self.resources.max_requests {
-            return Err(self.invalidate(incomplete("SessionRequests", "会话请求数超过 max_requests")));
+            return Err(
+                self.invalidate(incomplete("SessionRequests", "会话请求数超过 max_requests"))
+            );
         }
         self.handle(&header, body, deadline, &mut Timing::default())
     }
@@ -1690,7 +1711,13 @@ fn create_new(dir: &Path, name: &str) -> Result<std::fs::File, String> {
         .map_err(|e| invalid(format!("建{name}：{e}")))
 }
 /// 启动阶段失败或被 SIGTERM 打断时的 FINAL（尚无会话，只能给出这些）。
-fn startup_final(db: &Path, shutdown: &str, error: Option<&str>, log: &Path, refused: u64) -> Vec<u8> {
+fn startup_final(
+    db: &Path,
+    shutdown: &str,
+    error: Option<&str>,
+    log: &Path,
+    refused: u64,
+) -> Vec<u8> {
     let last = Custody::observe(db, None);
     let fin = json!({"schema":FINAL_SCHEMA,"status":"FAIL","shutdown":shutdown,"abnormal_shutdown":true,
         "ready":false,"error":error,
@@ -1745,8 +1772,12 @@ pub(super) fn serve(args: &[String]) -> Result<(), String> {
             .try_clone()
             .map_err(|e| invalid(format!("socket复制：{e}")))?;
         let log = log.clone();
-        let (db, receipts, log_path, socket) =
-            (db.clone(), receipts.clone(), log_path.clone(), socket.clone());
+        let (db, receipts, log_path, socket) = (
+            db.clone(),
+            receipts.clone(),
+            log_path.clone(),
+            socket.clone(),
+        );
         let max_request = usize::try_from(resources.max_request_bytes).unwrap_or(usize::MAX);
         std::thread::spawn(move || -> u64 {
             let mut refused = 0u64;
@@ -1794,8 +1825,13 @@ pub(super) fn serve(args: &[String]) -> Result<(), String> {
     let mut session = match started {
         Ok(session) => session,
         Err(e) => {
-            let bytes =
-                startup_final(&db, "startup-failed", Some(&e), &log_path, refused_before_ready);
+            let bytes = startup_final(
+                &db,
+                "startup-failed",
+                Some(&e),
+                &log_path,
+                refused_before_ready,
+            );
             write_final(&receipts, &bytes);
             let _ = std::fs::remove_file(&socket);
             return Err(e);
@@ -1925,7 +1961,11 @@ pub(super) fn client(args: &[String]) -> Result<(), String> {
 /// `financial-serve-stop --protocol-revision s-session/3 --session <socket>`：会话处理完在飞请求后
 /// 优雅停机，落 FINAL.json 并把同一字节回给本命令；FINAL 非 PASS 时以失败退出。
 pub(super) fn stop(args: &[String]) -> Result<(), String> {
-    let flags = parse_flags(args, &["--protocol-revision", "--session"], "financial-serve-stop")?;
+    let flags = parse_flags(
+        args,
+        &["--protocol-revision", "--session"],
+        "financial-serve-stop",
+    )?;
     let sha = self_sha256()?;
     let mut stream = connect(&flags.0["--session"])?;
     let deadline = Instant::now() + Duration::from_millis(CLIENT_WAIT_MS);

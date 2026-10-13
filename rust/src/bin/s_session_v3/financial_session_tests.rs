@@ -55,7 +55,9 @@ fn cold(f: &Fixture, command: &str, request: &Value) -> Result<Vec<u8>, String> 
     let tx = conn.transaction().unwrap();
     super::super::financial_reader::check_markers(&tx)?;
     let out = match command {
-        "financial-basis-ref" => super::super::financial_reader::basis_ref_with(&tx, request, None)?,
+        "financial-basis-ref" => {
+            super::super::financial_reader::basis_ref_with(&tx, request, None)?
+        }
         "financial-closure" => super::super::financial_reader::closure_with(
             &tx,
             request,
@@ -154,11 +156,18 @@ fn session_replies_are_byte_identical_to_cold_path() {
         let mut requests = vec![
             ("financial-basis-ref", query(&[])),
             ("financial-basis-ref", query(&ids[..1])),
-            ("financial-basis-ref", query(&[ids[1].clone(), ids[0].clone()])),
+            (
+                "financial-basis-ref",
+                query(&[ids[1].clone(), ids[0].clone()]),
+            ),
         ];
         let total = {
-            let first =
-                cold(&f, "financial-content", &ask(&anchor, objects_path(), "items", 0, 1)).unwrap();
+            let first = cold(
+                &f,
+                "financial-content",
+                &ask(&anchor, objects_path(), "items", 0, 1),
+            )
+            .unwrap();
             strict_json(&first).unwrap()["total"]
                 .as_str()
                 .unwrap()
@@ -166,24 +175,54 @@ fn session_replies_are_byte_identical_to_cold_path() {
                 .unwrap()
         };
         for offset in 0..total {
-            requests.push(("financial-content", ask(&anchor, objects_path(), "items", offset, 1)));
+            requests.push((
+                "financial-content",
+                ask(&anchor, objects_path(), "items", offset, 1),
+            ));
         }
-        requests.push(("financial-content", ask(&anchor, objects_path(), "items", 0, total)));
         requests.push((
             "financial-content",
-            ask(&anchor, json!([{"field":"snapshot"},{"field":"raw_history"}]), "items", 0, 2),
+            ask(&anchor, objects_path(), "items", 0, total),
         ));
         requests.push((
             "financial-content",
-            ask(&anchor, json!([{"field":"snapshot"},{"field":"session_id"}]), "bytes", 0, 5),
+            ask(
+                &anchor,
+                json!([{"field":"snapshot"},{"field":"raw_history"}]),
+                "items",
+                0,
+                2,
+            ),
         ));
         requests.push((
             "financial-content",
-            ask(&anchor, json!([{"field":"snapshot"},{"field":"objects"},{"index":"0"}]), "items", 0, 3),
+            ask(
+                &anchor,
+                json!([{"field":"snapshot"},{"field":"session_id"}]),
+                "bytes",
+                0,
+                5,
+            ),
         ));
         requests.push((
             "financial-content",
-            ask(&anchor, json!([{"field":"pending_revision"}]), "value", 0, 1),
+            ask(
+                &anchor,
+                json!([{"field":"snapshot"},{"field":"objects"},{"index":"0"}]),
+                "items",
+                0,
+                3,
+            ),
+        ));
+        requests.push((
+            "financial-content",
+            ask(
+                &anchor,
+                json!([{"field":"pending_revision"}]),
+                "value",
+                0,
+                1,
+            ),
         ));
         for (command, request) in &requests {
             let warm = s.handle_for_test(command, &body(request));
@@ -215,8 +254,14 @@ fn r7_binary_sha_or_db_identity_mismatch_invalidates() {
         let reply = s.handle(&header, &body(&query(&[])), far(), &mut Timing::default());
         assert_refused(&reply, "MissingDependency：R7");
         assert!(s.stale_reason().is_some());
-        assert_refused(&s.handle_for_test("financial-basis-ref", &body(&query(&[]))), "会话已失效");
-        assert_eq!(finish_json(&mut s, Shutdown::Graceful, None)["status"], "FAIL");
+        assert_refused(
+            &s.handle_for_test("financial-basis-ref", &body(&query(&[]))),
+            "会话已失效",
+        );
+        assert_eq!(
+            finish_json(&mut s, Shutdown::Graceful, None)["status"],
+            "FAIL"
+        );
     }
 }
 
@@ -225,11 +270,20 @@ fn r4_wal_mtime_change_without_content_change_invalidates() {
     let mut f = Fixture::new();
     publish(&mut f, 1);
     let mut s = start(&f, Consistency::A);
-    assert!(s.handle_for_test("financial-basis-ref", &body(&query(&[]))).is_ok());
+    assert!(s
+        .handle_for_test("financial-basis-ref", &body(&query(&[])))
+        .is_ok());
     let before = std::fs::read(wal(&f)).unwrap();
     touch(&wal(&f));
-    assert_eq!(std::fs::read(wal(&f)).unwrap(), before, "touch must not change WAL bytes");
-    assert_refused(&s.handle_for_test("financial-basis-ref", &body(&query(&[]))), "R4：WAL身份或stat改变");
+    assert_eq!(
+        std::fs::read(wal(&f)).unwrap(),
+        before,
+        "touch must not change WAL bytes"
+    );
+    assert_refused(
+        &s.handle_for_test("financial-basis-ref", &body(&query(&[]))),
+        "R4：WAL身份或stat改变",
+    );
     // F8：失效后的拒绝文本只有一层类别前缀。
     assert_eq!(
         s.handle_for_test("financial-basis-ref", &body(&query(&[]))),
@@ -237,8 +291,14 @@ fn r4_wal_mtime_change_without_content_change_invalidates() {
     );
     let fin = finish_json(&mut s, Shutdown::Graceful, None);
     assert_eq!(fin["status"], "FAIL");
-    assert_eq!(fin["custody_equal"], false, "custody includes WAL stat (mtime)");
-    assert_eq!(fin["custody_last"]["wal"]["sha256"], fin["custody_first"]["wal"]["sha256"]);
+    assert_eq!(
+        fin["custody_equal"], false,
+        "custody includes WAL stat (mtime)"
+    );
+    assert_eq!(
+        fin["custody_last"]["wal"]["sha256"],
+        fin["custody_first"]["wal"]["sha256"]
+    );
 }
 
 #[test]
@@ -247,7 +307,10 @@ fn r4_main_db_mtime_change_invalidates() {
     publish(&mut f, 1);
     let mut s = start(&f, Consistency::A);
     touch(&f.db_path());
-    assert_refused(&s.handle_for_test("financial-basis-ref", &body(&query(&[]))), "R4：主库身份或stat改变");
+    assert_refused(
+        &s.handle_for_test("financial-basis-ref", &body(&query(&[]))),
+        "R4：主库身份或stat改变",
+    );
     assert!(s.stale_reason().is_some());
 }
 
@@ -258,7 +321,9 @@ fn db_replaced_by_new_inode_invalidates() {
     publish(&mut f, 1);
     for via_client_identity in [false, true] {
         let mut s = start(&f, Consistency::A);
-        assert!(s.handle_for_test("financial-basis-ref", &body(&query(&[]))).is_ok());
+        assert!(s
+            .handle_for_test("financial-basis-ref", &body(&query(&[])))
+            .is_ok());
         let db = f.db_path();
         let copy = sibling(&db, ".replacement");
         std::fs::copy(&db, &copy).unwrap();
@@ -272,13 +337,22 @@ fn db_replaced_by_new_inode_invalidates() {
             let reply = s.handle(&header, &body(&query(&[])), far(), &mut Timing::default());
             assert_refused(&reply, "R7：客户端--db身份与会话不同");
         } else {
-            assert_refused(&s.handle_for_test("financial-basis-ref", &body(&query(&[]))), "R4：主库身份或stat改变");
+            assert_refused(
+                &s.handle_for_test("financial-basis-ref", &body(&query(&[]))),
+                "R4：主库身份或stat改变",
+            );
         }
         assert!(s.stale_reason().is_some());
         let fin = finish_json(&mut s, Shutdown::Graceful, None);
         assert_eq!(fin["custody_equal"], false);
-        assert_eq!(fin["custody_last"]["main"]["sha256"], fin["custody_first"]["main"]["sha256"]);
-        assert_ne!(fin["custody_last"]["main"]["st_ino"], fin["custody_first"]["main"]["st_ino"]);
+        assert_eq!(
+            fin["custody_last"]["main"]["sha256"],
+            fin["custody_first"]["main"]["sha256"]
+        );
+        assert_ne!(
+            fin["custody_last"]["main"]["st_ino"],
+            fin["custody_first"]["main"]["st_ino"]
+        );
     }
 }
 
@@ -288,20 +362,29 @@ fn external_commit_invalidates_and_each_later_layer_also_detects_it() {
     publish(&mut f, 1);
     let mut s = start(&f, Consistency::A);
     publish(&mut f, 2);
-    assert_refused(&s.handle_for_test("financial-basis-ref", &body(&query(&[]))), "MissingDependency：R4");
+    assert_refused(
+        &s.handle_for_test("financial-basis-ref", &body(&query(&[]))),
+        "MissingDependency：R4",
+    );
     assert!(s.stale_reason().is_some());
     let fin = finish_json(&mut s, Shutdown::Graceful, None);
     assert_eq!(fin["custody_equal"], false, "末次托管看见提交");
     let mut s = start(&f, Consistency::A);
     publish(&mut f, 3);
     rebaseline_stat(&mut s);
-    assert_refused(&s.handle_for_test("financial-basis-ref", &body(&query(&[]))), "R5：");
+    assert_refused(
+        &s.handle_for_test("financial-basis-ref", &body(&query(&[]))),
+        "R5：",
+    );
     assert!(s.stale_reason().is_some());
     let mut s = start(&f, Consistency::A);
     publish(&mut f, 4);
     rebaseline_stat(&mut s);
     rebaseline_version(&mut s);
-    assert_refused(&s.handle_for_test("financial-basis-ref", &body(&query(&[]))), "R6：控制原件");
+    assert_refused(
+        &s.handle_for_test("financial-basis-ref", &body(&query(&[]))),
+        "R6：控制原件",
+    );
     assert!(s.stale_reason().is_some());
 }
 
@@ -341,7 +424,10 @@ fn deadline_never_downgrades_a_real_inconsistency() {
     let reply = s.handle_at("financial-basis-ref", &body(&query(&[])), expired);
     assert_refused(&reply, "Incomplete/SessionRequestDeadline");
     assert!(s.stale_reason().is_none());
-    assert_refused(&s.handle_for_test("financial-basis-ref", &body(&query(&[]))), "R6：控制原件与启动K0逐字节不同");
+    assert_refused(
+        &s.handle_for_test("financial-basis-ref", &body(&query(&[]))),
+        "R6：控制原件与启动K0逐字节不同",
+    );
     assert!(s.stale_reason().is_some());
 }
 
@@ -355,12 +441,19 @@ fn source_fault_classification_is_typed() {
     let bound = SourceBound::install(&s.source, Instant::now() - Duration::from_millis(1)).unwrap();
     let heavy = "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<200000) \
                  SELECT sum(x) FROM c";
-    let e = s.source.query_row(heavy, [], |r| r.get::<_, i64>(0)).unwrap_err();
+    let e = s
+        .source
+        .query_row(heavy, [], |r| r.get::<_, i64>(0))
+        .unwrap_err();
     assert!(matches!(bound.sql("R6", e), Fault::Incomplete(_)));
     SourceBound::remove(&s.source);
     // 未到期的 SQLite 失败（坏 SQL）：分型为“不一致”。
     let bound = SourceBound::install(&s.source, far()).unwrap();
-    let e = s.source.prepare("SELECT no_such_column FROM meta").err().unwrap();
+    let e = s
+        .source
+        .prepare("SELECT no_such_column FROM meta")
+        .err()
+        .unwrap();
     match bound.sql("R6", e) {
         Fault::Inconsistent(text) => assert!(text.starts_with("MissingDependency：R6："), "{text}"),
         other => panic!("{other:?}"),
@@ -368,7 +461,11 @@ fn source_fault_classification_is_typed() {
     SourceBound::remove(&s.source);
     // 到期之后才发生、但与中断无关的失败：同样是“不一致”（不按墙钟改判）。
     let bound = SourceBound::install(&s.source, Instant::now() - Duration::from_millis(1)).unwrap();
-    let e = s.source.prepare("SELECT no_such_column FROM meta").err().unwrap();
+    let e = s
+        .source
+        .prepare("SELECT no_such_column FROM meta")
+        .err()
+        .unwrap();
     assert!(matches!(bound.sql("R6", e), Fault::Inconsistent(_)));
     SourceBound::remove(&s.source);
 }
@@ -381,17 +478,32 @@ fn variant_b_byte_gate_detects_content_change_that_spares_control_rows() {
     let mut a = start(&f, Consistency::A);
     let mut b = start(&f, Consistency::B);
     // 保留原件只在 B；用确定性的容量记账断言（堆差读数在并行测试进程里会被其他线程扰动）。
-    assert!(b.receipt()["retained_original_accounted_bytes"].as_str().unwrap().parse::<u64>().unwrap() > 0);
+    assert!(
+        b.receipt()["retained_original_accounted_bytes"]
+            .as_str()
+            .unwrap()
+            .parse::<u64>()
+            .unwrap()
+            > 0
+    );
     assert_eq!(a.receipt()["retained_original_accounted_bytes"], "0");
-    assert_eq!(a.receipt()["retained"]["retained_original_image_heap_bytes"], "0");
+    assert_eq!(
+        a.receipt()["retained"]["retained_original_image_heap_bytes"],
+        "0"
+    );
     corrupt_one_snapshot_node(&mut f);
     for s in [&mut a, &mut b] {
         rebaseline_stat(s);
         rebaseline_version(s);
     }
-    assert!(a.handle_for_test("financial-basis-ref", &body(&query(&[]))).is_ok());
+    assert!(a
+        .handle_for_test("financial-basis-ref", &body(&query(&[])))
+        .is_ok());
     assert!(a.stale_reason().is_none());
-    assert_refused(&b.handle_for_test("financial-basis-ref", &body(&query(&[]))), "B：");
+    assert_refused(
+        &b.handle_for_test("financial-basis-ref", &body(&query(&[]))),
+        "B：",
+    );
     assert!(b.stale_reason().is_some());
 }
 
@@ -401,20 +513,35 @@ fn empty_writes_do_not_invalidate() {
     publish(&mut f, 1);
     for consistency in [Consistency::A, Consistency::B] {
         let mut s = start(&f, consistency);
-        let first = s.handle_for_test("financial-basis-ref", &body(&query(&[]))).unwrap();
-        let stats = (FileStat::of(&f.db_path()).unwrap(), FileStat::optional(&wal(&f)).unwrap());
+        let first = s
+            .handle_for_test("financial-basis-ref", &body(&query(&[])))
+            .unwrap();
+        let stats = (
+            FileStat::of(&f.db_path()).unwrap(),
+            FileStat::optional(&wal(&f)).unwrap(),
+        );
         f.conn.execute_batch("BEGIN IMMEDIATE; COMMIT;").unwrap();
         f.conn
             .execute("UPDATE meta SET value=value WHERE key='generation'", [])
             .unwrap();
         assert_eq!(
-            (FileStat::of(&f.db_path()).unwrap(), FileStat::optional(&wal(&f)).unwrap()),
+            (
+                FileStat::of(&f.db_path()).unwrap(),
+                FileStat::optional(&wal(&f)).unwrap()
+            ),
             stats,
             "SQLite wrote no page for the no-op write"
         );
-        assert_eq!(s.handle_for_test("financial-basis-ref", &body(&query(&[]))).unwrap(), first);
+        assert_eq!(
+            s.handle_for_test("financial-basis-ref", &body(&query(&[])))
+                .unwrap(),
+            first
+        );
         assert!(s.stale_reason().is_none());
-        assert_eq!(finish_json(&mut s, Shutdown::Graceful, None)["status"], "PASS");
+        assert_eq!(
+            finish_json(&mut s, Shutdown::Graceful, None)["status"],
+            "PASS"
+        );
     }
 }
 
@@ -429,46 +556,87 @@ fn anchor_mismatch_default_rejects_only_the_request() {
     wrong["writer_epoch"] = json!("2");
     let bad = ask(&wrong, objects_path(), "items", 0, 1);
     let reply = s.handle_for_test("financial-content", &body(&bad));
-    assert_eq!(reply, cold(&f, "financial-content", &bad), "same refusal as cold path");
-    assert_refused(&reply, "MissingDependency：财务anchor与本片当前控制元组不同");
+    assert_eq!(
+        reply,
+        cold(&f, "financial-content", &bad),
+        "same refusal as cold path"
+    );
+    assert_refused(
+        &reply,
+        "MissingDependency：财务anchor与本片当前控制元组不同",
+    );
     let mut q = query(&[]);
     q["writer_epoch"] = json!("2");
-    assert_refused(&s.handle_for_test("financial-basis-ref", &body(&q)), "writer epoch不是当前值");
+    assert_refused(
+        &s.handle_for_test("financial-basis-ref", &body(&q)),
+        "writer epoch不是当前值",
+    );
     assert!(s.stale_reason().is_none());
     let good = ask(&anchor, objects_path(), "items", 0, 1);
-    assert_eq!(s.handle_for_test("financial-content", &body(&good)), cold(&f, "financial-content", &good));
+    assert_eq!(
+        s.handle_for_test("financial-content", &body(&good)),
+        cold(&f, "financial-content", &good)
+    );
 }
 
 #[test]
 fn anchor_mismatch_strict_policy_invalidates_but_other_refusals_do_not() {
     let mut f = Fixture::new();
     publish(&mut f, 1);
-    let mut s =
-        start_with(&f, resources(), Consistency::A, AnchorMismatch::InvalidateSession).unwrap();
+    let mut s = start_with(
+        &f,
+        resources(),
+        Consistency::A,
+        AnchorMismatch::InvalidateSession,
+    )
+    .unwrap();
     assert_eq!(s.receipt()["anchor_mismatch_policy"], "invalidate-session");
-    assert_refused(&s.handle_for_test("financial-basis-ref", b"{"), "FinancialReadInvalid");
     assert_refused(
-        &s.handle_for_test("financial-basis-ref", &body(&query(&["absent-object".into()]))),
+        &s.handle_for_test("financial-basis-ref", b"{"),
+        "FinancialReadInvalid",
+    );
+    assert_refused(
+        &s.handle_for_test(
+            "financial-basis-ref",
+            &body(&query(&["absent-object".into()])),
+        ),
         "请求对象不在当前活动快照",
     );
     assert_refused(
-        &s.handle_for_test("financial-basis-ref", &body(&query(&["a".into(), "a".into()]))),
+        &s.handle_for_test(
+            "financial-basis-ref",
+            &body(&query(&["a".into(), "a".into()])),
+        ),
         "object_ids重复",
     );
     assert!(s.stale_reason().is_none());
     let mut wrong = s.receipt()["anchor"].clone();
     wrong["structure_cut"] = json!("cut-0");
     assert_refused(
-        &s.handle_for_test("financial-content", &body(&ask(&wrong, objects_path(), "items", 0, 1))),
+        &s.handle_for_test(
+            "financial-content",
+            &body(&ask(&wrong, objects_path(), "items", 0, 1)),
+        ),
         "财务anchor与本片当前控制元组不同",
     );
     assert!(s.stale_reason().is_some());
-    assert_refused(&s.handle_for_test("financial-basis-ref", &body(&query(&[]))), "会话已失效");
-    let mut s =
-        start_with(&f, resources(), Consistency::A, AnchorMismatch::InvalidateSession).unwrap();
+    assert_refused(
+        &s.handle_for_test("financial-basis-ref", &body(&query(&[]))),
+        "会话已失效",
+    );
+    let mut s = start_with(
+        &f,
+        resources(),
+        Consistency::A,
+        AnchorMismatch::InvalidateSession,
+    )
+    .unwrap();
     let mut q = query(&[]);
     q["session_id"] = json!("other");
-    assert_refused(&s.handle_for_test("financial-basis-ref", &body(&q)), "writer epoch不是当前值");
+    assert_refused(
+        &s.handle_for_test("financial-basis-ref", &body(&q)),
+        "writer epoch不是当前值",
+    );
     assert!(s.stale_reason().is_some());
 }
 
@@ -502,7 +670,9 @@ fn retained_cap_counts_copy_and_audited_state_only() {
     assert!(start_with(&f, roomy, Consistency::A, ANCHOR_MISMATCH_POLICY).is_ok());
     let mut tiny = resources();
     tiny.retained_bytes = 1;
-    let e = start_with(&f, tiny, Consistency::A, ANCHOR_MISMATCH_POLICY).err().unwrap();
+    let e = start_with(&f, tiny, Consistency::A, ANCHOR_MISMATCH_POLICY)
+        .err()
+        .unwrap();
     assert!(e.starts_with("Incomplete/SessionRetained"), "{e}");
 }
 
@@ -524,7 +694,10 @@ fn retained_audited_state_is_positive_single_threaded() {
     assert!(first > 0 && second > 0, "{first} {second}");
     // 进程内第一次审计另含只初始化一次的进程级静态（之后的审计复用），所以第二次不大于第一次，
     // 差额是一个小常量。生产会话每次都是新进程的第一次审计，复制品七次启动读数相差 < 0.5%。
-    assert!(second <= first && first - second <= 32 * 1024, "{first} {second}");
+    assert!(
+        second <= first && first - second <= 32 * 1024,
+        "{first} {second}"
+    );
     // B 的原件镜像堆为正，且不低于容量记账的一半（记账按容量，堆差含分配器取整）。
     let b = start(&f, Consistency::B);
     let image = b.receipt()["retained"]["retained_original_image_heap_bytes"]
@@ -546,12 +719,16 @@ fn startup_resource_caps_and_custody_refuse_to_start() {
     publish(&mut f, 1);
     let mut r = resources();
     r.max_capture_bytes = 1024;
-    let e = start_with(&f, r, Consistency::A, ANCHOR_MISMATCH_POLICY).err().unwrap();
+    let e = start_with(&f, r, Consistency::A, ANCHOR_MISMATCH_POLICY)
+        .err()
+        .unwrap();
     assert!(e.contains("Incomplete/CaptureBytes"), "{e}");
     let mut r = resources();
     r.startup_timeout_ms = 1;
     std::thread::sleep(Duration::from_millis(2));
-    let e = start_with(&f, r, Consistency::A, ANCHOR_MISMATCH_POLICY).err().unwrap();
+    let e = start_with(&f, r, Consistency::A, ANCHOR_MISMATCH_POLICY)
+        .err()
+        .unwrap();
     assert!(e.contains("Deadline"), "{e}");
     let custody = Custody::observe(&f.db_path(), None).unwrap();
     let start_custody = |c: Custody| {
@@ -596,18 +773,33 @@ fn request_caps_reject_without_invalidating_except_request_count() {
     let mut r = resources();
     r.max_reply_bytes = 64;
     let mut s = start_with(&f, r, Consistency::A, ANCHOR_MISMATCH_POLICY).unwrap();
-    assert_refused(&s.handle_for_test("financial-basis-ref", &body(&query(&[]))), "Incomplete/SessionReplyBytes");
+    assert_refused(
+        &s.handle_for_test("financial-basis-ref", &body(&query(&[]))),
+        "Incomplete/SessionReplyBytes",
+    );
     assert!(s.stale_reason().is_none());
     let mut r = resources();
     r.max_requests = 2;
     let mut s = start_with(&f, r, Consistency::A, ANCHOR_MISMATCH_POLICY).unwrap();
-    assert!(s.handle_for_test("financial-basis-ref", &body(&query(&[]))).is_ok());
-    assert!(s.handle_for_test("financial-basis-ref", &body(&query(&[]))).is_ok());
-    assert_refused(&s.handle_for_test("financial-basis-ref", &body(&query(&[]))), "Incomplete/SessionRequests");
+    assert!(s
+        .handle_for_test("financial-basis-ref", &body(&query(&[])))
+        .is_ok());
+    assert!(s
+        .handle_for_test("financial-basis-ref", &body(&query(&[])))
+        .is_ok());
+    assert_refused(
+        &s.handle_for_test("financial-basis-ref", &body(&query(&[]))),
+        "Incomplete/SessionRequests",
+    );
     assert!(s.stale_reason().is_some());
 }
 
-fn over_socket(s: &mut Session, command: &'static str, binary: &'static str, payload: Vec<u8>) -> (Reply, Value) {
+fn over_socket(
+    s: &mut Session,
+    command: &'static str,
+    binary: &'static str,
+    payload: Vec<u8>,
+) -> (Reply, Value) {
     let (server, client) = UnixStream::pair().unwrap();
     let db = (s.main_stat.dev, s.main_stat.ino);
     let peer = std::thread::spawn(move || exchange(client, command, binary, db, &payload, far()));
@@ -643,13 +835,23 @@ fn socket_frames_stop_and_final_report_counts_custody_and_log() {
         let (server, client) = UnixStream::pair().unwrap();
         let db = (s.main_stat.dev, s.main_stat.ino);
         let payload = body(&q);
-        let peer = std::thread::spawn(move || exchange(client, "financial-content", TEST_BINARY, db, &payload, far()));
+        let peer = std::thread::spawn(move || {
+            exchange(
+                client,
+                "financial-content",
+                TEST_BINARY,
+                db,
+                &payload,
+                far(),
+            )
+        });
         assert!(matches!(s.serve_connection(server, &mut log), Conn::Done));
         assert!(peer.join().unwrap().is_ok());
     }
     let (server, mut client) = UnixStream::pair().unwrap();
     let peer = std::thread::spawn(move || {
-        let header = json!({"schema_revision":REQUEST_SCHEMA,"command":"stop","binary_sha256":TEST_BINARY});
+        let header =
+            json!({"schema_revision":REQUEST_SCHEMA,"command":"stop","binary_sha256":TEST_BINARY});
         write_frame(&mut client, canonical_json(&header).as_bytes(), far()).unwrap();
         read_reply(&mut client, far())
     });
@@ -705,7 +907,9 @@ fn slow_client_is_cut_at_the_overall_deadline() {
     let peer = std::thread::spawn(move || {
         let header = json!({"schema_revision":REQUEST_SCHEMA,"command":"financial-basis-ref",
             "binary_sha256":TEST_BINARY,"db_dev":dev.to_string(),"db_ino":ino.to_string()});
-        let mut frame = (canonical_json(&header).len() as u32).to_be_bytes().to_vec();
+        let mut frame = (canonical_json(&header).len() as u32)
+            .to_be_bytes()
+            .to_vec();
         frame.extend_from_slice(canonical_json(&header).as_bytes());
         client.write_all(&frame).unwrap();
         let payload = body(&query(&[]));
@@ -722,7 +926,10 @@ fn slow_client_is_cut_at_the_overall_deadline() {
     let mut log = Vec::new();
     assert!(matches!(s.serve_connection(server, &mut log), Conn::Done));
     let took = started.elapsed();
-    assert!(took >= Duration::from_millis(700) && took < Duration::from_millis(3000), "{took:?}");
+    assert!(
+        took >= Duration::from_millis(700) && took < Duration::from_millis(3000),
+        "{took:?}"
+    );
     let line = strict_json(&log).unwrap();
     assert_eq!(line["client_timeout"], true);
     assert_eq!(line["delivered"], false);
@@ -736,14 +943,25 @@ fn slow_client_is_cut_at_the_overall_deadline() {
     drop(client);
     assert_eq!(s.counts.client_timeouts, 2);
     assert!(s.stale_reason().is_none());
-    assert!(s.handle_for_test("financial-basis-ref", &body(&query(&[]))).is_ok());
+    assert!(s
+        .handle_for_test("financial-basis-ref", &body(&query(&[])))
+        .is_ok());
 }
 
 /// F3：READY 之前的连接一律拒绝（读完对端帧再回 NotReady）。
 #[test]
 fn connections_before_ready_are_refused() {
     let (server, client) = UnixStream::pair().unwrap();
-    let peer = std::thread::spawn(move || exchange(client, "financial-basis-ref", TEST_BINARY, (1, 2), b"{}", far()));
+    let peer = std::thread::spawn(move || {
+        exchange(
+            client,
+            "financial-basis-ref",
+            TEST_BINARY,
+            (1, 2),
+            b"{}",
+            far(),
+        )
+    });
     let (command, timed_out) = refuse_before_ready(server, 193_120);
     assert_eq!(command, "financial-basis-ref");
     assert!(!timed_out);
@@ -789,18 +1007,32 @@ fn resource_and_custody_documents_are_exact() {
         f(&mut v);
         Custody::from_json(&v).is_err()
     };
-    assert!(mutate(&|v| v["schema_revision"] = json!("s-financial-session-custody/1")));
+    assert!(mutate(
+        &|v| v["schema_revision"] = json!("s-financial-session-custody/1")
+    ));
     assert!(mutate(&|v| v["extra"] = json!("x")));
     assert!(mutate(&|v| v["db"] = json!("relative/s.sqlite")));
     assert!(mutate(&|v| v["main"]["sha256"] = json!("A".repeat(64))));
     assert!(mutate(&|v| v["main"]["st_ino"] = json!("042")));
     assert!(mutate(&|v| v["main"]["st_ino"] = json!(42)));
     assert!(mutate(&|v| v["main"]["st_size"] = json!("-1")));
-    assert!(mutate(&|v| v["main"]["st_size"] = json!("18446744073709551616")));
-    assert!(mutate(&|v| v.as_object_mut().unwrap().remove("shm").map(|_| ()).unwrap()));
+    assert!(mutate(
+        &|v| v["main"]["st_size"] = json!("18446744073709551616")
+    ));
+    assert!(mutate(&|v| v
+        .as_object_mut()
+        .unwrap()
+        .remove("shm")
+        .map(|_| ())
+        .unwrap()));
     assert!(mutate(&|v| v["shm"]["sha256"] = json!("a".repeat(64))));
     assert!(mutate(&|v| v["main"] = Value::Null));
-    assert!(mutate(&|v| v["wal"].as_object_mut().unwrap().remove("st_ctime_ns").map(|_| ()).unwrap()));
+    assert!(mutate(&|v| v["wal"]
+        .as_object_mut()
+        .unwrap()
+        .remove("st_ctime_ns")
+        .map(|_| ())
+        .unwrap()));
 }
 
 #[test]
@@ -813,15 +1045,61 @@ fn error_prefixes_are_not_nested() {
 #[test]
 fn cli_grammars_are_exact() {
     let v = |xs: &[&str]| xs.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-    let ok = v(&["s", "financial-content", "--protocol-revision", "s-session/3", "--db", "/d", "--session", "/s"]);
+    let ok = v(&[
+        "s",
+        "financial-content",
+        "--protocol-revision",
+        "s-session/3",
+        "--db",
+        "/d",
+        "--session",
+        "/s",
+    ]);
     assert!(parse_flags(&ok, &["--protocol-revision", "--db", "--session"], "c").is_ok());
     for bad in [
-        v(&["s", "financial-content", "--protocol-revision", "s-session/3", "--db", "/d", "--db", "/s"]),
-        v(&["s", "financial-content", "--protocol-revision", "s-session/2", "--db", "/d", "--session", "/s"]),
-        v(&["s", "financial-content", "--protocol-revision", "s-session/3", "--db", "--session", "/s", "x"]),
-        v(&["s", "financial-content", "--protocol-revision", "s-session/3", "--db", "/d"]),
+        v(&[
+            "s",
+            "financial-content",
+            "--protocol-revision",
+            "s-session/3",
+            "--db",
+            "/d",
+            "--db",
+            "/s",
+        ]),
+        v(&[
+            "s",
+            "financial-content",
+            "--protocol-revision",
+            "s-session/2",
+            "--db",
+            "/d",
+            "--session",
+            "/s",
+        ]),
+        v(&[
+            "s",
+            "financial-content",
+            "--protocol-revision",
+            "s-session/3",
+            "--db",
+            "--session",
+            "/s",
+            "x",
+        ]),
+        v(&[
+            "s",
+            "financial-content",
+            "--protocol-revision",
+            "s-session/3",
+            "--db",
+            "/d",
+        ]),
     ] {
-        assert!(parse_flags(&bad, &["--protocol-revision", "--db", "--session"], "c").is_err(), "{bad:?}");
+        assert!(
+            parse_flags(&bad, &["--protocol-revision", "--db", "--session"], "c").is_err(),
+            "{bad:?}"
+        );
     }
     assert!(Consistency::parse("a").is_ok() && Consistency::parse("b").is_ok());
     assert!(Consistency::parse("A").is_err());
@@ -858,10 +1136,19 @@ fn spawn_serve(
     r.retained_bytes = 1 << 32;
     std::fs::write(work.join("resources.json"), canonical_json(&r.to_json())).unwrap();
     let custody = Custody::observe(db, None).unwrap();
-    std::fs::write(work.join("custody.json"), canonical_json(&custody.to_json())).unwrap();
+    std::fs::write(
+        work.join("custody.json"),
+        canonical_json(&custody.to_json()),
+    )
+    .unwrap();
     let socket = socket_dir.join("s.sock");
     let mut child = Command::new(binary)
-        .args(["financial-serve", "--protocol-revision", "s-session/3", "--db"])
+        .args([
+            "financial-serve",
+            "--protocol-revision",
+            "s-session/3",
+            "--db",
+        ])
         .arg(db)
         .arg("--socket")
         .arg(&socket)
@@ -886,10 +1173,19 @@ fn spawn_serve(
     std::io::BufReader::new(child.stdout.take().unwrap())
         .read_line(&mut line)
         .unwrap();
-    let ready = strict_json(line.strip_prefix("READY ").expect("READY line").trim_end().as_bytes()).unwrap();
+    let ready = strict_json(
+        line.strip_prefix("READY ")
+            .expect("READY line")
+            .trim_end()
+            .as_bytes(),
+    )
+    .unwrap();
     let startup = std::fs::read(receipts.join("STARTUP.json")).unwrap();
     assert_eq!(startup.last(), Some(&b'\n'));
-    assert_eq!(ready["startup_receipt_sha256"], sha_hex(&startup[..startup.len() - 1]));
+    assert_eq!(
+        ready["startup_receipt_sha256"],
+        sha_hex(&startup[..startup.len() - 1])
+    );
     assert_eq!(strict_json(&startup).unwrap(), ready["startup_receipt"]);
     Served {
         child,
@@ -898,10 +1194,17 @@ fn spawn_serve(
         receipts,
     }
 }
-fn cli_call(binary: &Path, db: &Path, socket: Option<&Path>, command: &str, request: &[u8]) -> (bool, Vec<u8>, Vec<u8>) {
+fn cli_call(
+    binary: &Path,
+    db: &Path,
+    socket: Option<&Path>,
+    command: &str,
+    request: &[u8],
+) -> (bool, Vec<u8>, Vec<u8>) {
     use std::process::{Command, Stdio};
     let mut cmd = Command::new(binary);
-    cmd.args([command, "--protocol-revision", "s-session/3", "--db"]).arg(db);
+    cmd.args([command, "--protocol-revision", "s-session/3", "--db"])
+        .arg(db);
     if let Some(socket) = socket {
         cmd.arg("--session").arg(socket);
     }
@@ -918,11 +1221,23 @@ fn cli_call(binary: &Path, db: &Path, socket: Option<&Path>, command: &str, requ
 }
 fn pre_ready_probe(socket: &Path) -> Reply {
     let stream = UnixStream::connect(socket).unwrap();
-    exchange(stream, "financial-basis-ref", TEST_BINARY, (0, 0), b"{}", far())
+    exchange(
+        stream,
+        "financial-basis-ref",
+        TEST_BINARY,
+        (0, 0),
+        b"{}",
+        far(),
+    )
 }
 fn stop_cli(binary: &Path, served: Served) -> (std::process::ExitStatus, Value, Value) {
     let out = std::process::Command::new(binary)
-        .args(["financial-serve-stop", "--protocol-revision", "s-session/3", "--session"])
+        .args([
+            "financial-serve-stop",
+            "--protocol-revision",
+            "s-session/3",
+            "--session",
+        ])
         .arg(&served.socket)
         .env_clear()
         .output()
@@ -953,7 +1268,13 @@ fn cli_fixture_ready_stop_and_sigterm() {
     std::fs::create_dir(&work).unwrap();
     let served = spawn_serve(&binary, &db, &work, &short_socket_dir("a"), "a", |_| {});
     let request = body(&query(&[]));
-    let (ok, warm, err) = cli_call(&binary, &db, Some(&served.socket), "financial-basis-ref", &request);
+    let (ok, warm, err) = cli_call(
+        &binary,
+        &db,
+        Some(&served.socket),
+        "financial-basis-ref",
+        &request,
+    );
     assert!(ok, "{}", String::from_utf8_lossy(&err));
     let (ok, cold_reply, _) = cli_call(&binary, &db, None, "financial-basis-ref", &request);
     assert!(ok);
@@ -964,7 +1285,13 @@ fn cli_fixture_ready_stop_and_sigterm() {
     let mut chunks = 0;
     loop {
         let ask = body(&closure_ask(&anchor, json!([]), &after, 6000));
-        let (ok, warm, err) = cli_call(&binary, &db, Some(&served.socket), "financial-closure", &ask);
+        let (ok, warm, err) = cli_call(
+            &binary,
+            &db,
+            Some(&served.socket),
+            "financial-closure",
+            &ask,
+        );
         assert!(ok, "{}", String::from_utf8_lossy(&err));
         let (ok, cold_reply, err) = cli_call(&binary, &db, None, "financial-closure", &ask);
         assert!(ok, "{}", String::from_utf8_lossy(&err));
@@ -985,7 +1312,13 @@ fn cli_fixture_ready_stop_and_sigterm() {
     let work = db.parent().unwrap().join("cli-b");
     std::fs::create_dir(&work).unwrap();
     let mut served = spawn_serve(&binary, &db, &work, &short_socket_dir("b"), "a", |_| {});
-    let (ok, _, _) = cli_call(&binary, &db, Some(&served.socket), "financial-basis-ref", &request);
+    let (ok, _, _) = cli_call(
+        &binary,
+        &db,
+        Some(&served.socket),
+        "financial-basis-ref",
+        &request,
+    );
     assert!(ok);
     // SAFETY: 向自己启动的子进程发 SIGTERM。
     unsafe { libc::kill(served.child.id() as libc::pid_t, libc::SIGTERM) };
@@ -1010,21 +1343,43 @@ fn cli_replica_replays_r5_byte_identical() {
     let env = |k: &str| std::env::var(k).unwrap_or_else(|_| panic!("缺 {k}"));
     let binary = PathBuf::from(env("S3_FINANCIAL_CLI_BIN"));
     let db = PathBuf::from(env("S3_SESSION_REPLICA_DB"));
-    assert!(!db.to_string_lossy().contains("S-carrier"), "绝不打开 r5 原件");
-    assert_eq!(file_sha256(&db, None).unwrap(), env("S3_SESSION_REPLICA_MAIN_SHA256"));
+    assert!(
+        !db.to_string_lossy().contains("S-carrier"),
+        "绝不打开 r5 原件"
+    );
+    assert_eq!(
+        file_sha256(&db, None).unwrap(),
+        env("S3_SESSION_REPLICA_MAIN_SHA256")
+    );
     let r5 = PathBuf::from(env("S3_SESSION_R5_RUN"));
     let work = PathBuf::from(env("S3_SESSION_WORK"));
     let mut probe = None;
-    let served = spawn_serve(&binary, &db, &work, &short_socket_dir("r5"), "a", |socket| {
-        probe = Some(pre_ready_probe(socket));
-    });
+    let served = spawn_serve(
+        &binary,
+        &db,
+        &work,
+        &short_socket_dir("r5"),
+        "a",
+        |socket| {
+            probe = Some(pre_ready_probe(socket));
+        },
+    );
     assert_eq!(probe.unwrap(), Err(missing(NOT_READY)));
     let mut labels = vec![("financial-basis-ref", "S-discovery-basis".to_string())];
     labels.extend((0..27).map(|i| ("financial-content", format!("S-support-request-{i}"))));
     let (mut compared, mut identical) = (0, 0);
     for (command, label) in labels {
-        let request = strict_json(&std::fs::read(r5.join("s-query").join(format!("{label}.request.json"))).unwrap()).unwrap();
-        let (ok, reply, err) = cli_call(&binary, &db, Some(&served.socket), command, canonical_json(&request).as_bytes());
+        let request = strict_json(
+            &std::fs::read(r5.join("s-query").join(format!("{label}.request.json"))).unwrap(),
+        )
+        .unwrap();
+        let (ok, reply, err) = cli_call(
+            &binary,
+            &db,
+            Some(&served.socket),
+            command,
+            canonical_json(&request).as_bytes(),
+        );
         assert!(ok, "{label}: {}", String::from_utf8_lossy(&err));
         if let Ok(reference) = std::fs::read(r5.join(format!("{label}.stdout"))) {
             compared += 1;
@@ -1065,9 +1420,18 @@ fn walk_closure(s: &mut Session, f: &Fixture, path: Value, budget: u64) -> Vec<V
     let mut replies = Vec::new();
     loop {
         let request = closure_ask(&anchor, path.clone(), &after, budget);
-        let warm = s.handle_for_test("financial-closure", &body(&request)).unwrap();
-        assert_eq!(warm, cold(f, "financial-closure", &request).unwrap(), "会话块与冷路径逐字节相同");
-        assert!(warm.len() as u64 <= budget, "块含末尾 LF 不超过 max_reply_bytes");
+        let warm = s
+            .handle_for_test("financial-closure", &body(&request))
+            .unwrap();
+        assert_eq!(
+            warm,
+            cold(f, "financial-closure", &request).unwrap(),
+            "会话块与冷路径逐字节相同"
+        );
+        assert!(
+            warm.len() as u64 <= budget,
+            "块含末尾 LF 不超过 max_reply_bytes"
+        );
         let reply = strict_json(&warm).unwrap();
         after = reply["next"].as_str().unwrap().to_owned();
         let done = reply["done"] == true;
@@ -1118,7 +1482,11 @@ fn closure_chunks_are_exactly_the_basis_closure_and_match_cold_path() {
     let fin = finish_json(&mut s, Shutdown::Graceful, None);
     assert_eq!(fin["status"], "PASS");
     assert_eq!(fin["closure_table"]["nodes"], total.to_string());
-    let table_bytes: u64 = fin["retained_final"]["closure_table_bytes"].as_str().unwrap().parse().unwrap();
+    let table_bytes: u64 = fin["retained_final"]["closure_table_bytes"]
+        .as_str()
+        .unwrap()
+        .parse()
+        .unwrap();
     assert!(table_bytes >= 32 * total as u64);
     assert_eq!(fin["retained_startup"]["closure_table_bytes"], "0");
 }
@@ -1148,7 +1516,12 @@ fn closure_of_a_path_carries_the_proof_from_the_basis_root() {
     sc::verify(&mut store, &target).expect("目标闭包完整");
     let whole = walk_closure(&mut s, &f, json!([]), 4000);
     assert!(
-        whole[0]["total"].as_str().unwrap().parse::<usize>().unwrap() > store.len(),
+        whole[0]["total"]
+            .as_str()
+            .unwrap()
+            .parse::<usize>()
+            .unwrap()
+            > store.len(),
         "子路径闭包小于整根闭包"
     );
     // 会话只留一张表：最后一次请求的键。
@@ -1165,44 +1538,86 @@ fn closure_rejects_bad_cursor_budget_fields_and_anchor_without_invalidating() {
     let mut s = start(&f, Consistency::A);
     let anchor = s.receipt()["anchor"].clone();
     let first = strict_json(
-        &s.handle_for_test("financial-closure", &body(&closure_ask(&anchor, json!([]), "", 1 << 20)))
-            .unwrap(),
+        &s.handle_for_test(
+            "financial-closure",
+            &body(&closure_ask(&anchor, json!([]), "", 1 << 20)),
+        )
+        .unwrap(),
     )
     .unwrap();
     assert_eq!(first["done"], true, "大预算一块取完");
     let last = first["next"].as_str().unwrap().to_owned();
     let stranger = sc::root_string(&[7u8; 32]);
     for (request, needle) in [
-        (closure_ask(&anchor, json!([]), &stranger, 4000), "after 游标不在该闭包内"),
-        (closure_ask(&anchor, json!([]), &last, 4000), "after 之后已无闭包节点"),
-        (closure_ask(&anchor, json!([]), "sc1-XYZ", 4000), "FinancialReadInvalid"),
-        (closure_ask(&anchor, json!([]), "", 120), "Incomplete/ClosureReplyBytes"),
-        (closure_ask(&anchor, json!([{"field":"no-such-field"}]), "", 4000), "FinancialReadInvalid"),
+        (
+            closure_ask(&anchor, json!([]), &stranger, 4000),
+            "after 游标不在该闭包内",
+        ),
+        (
+            closure_ask(&anchor, json!([]), &last, 4000),
+            "after 之后已无闭包节点",
+        ),
+        (
+            closure_ask(&anchor, json!([]), "sc1-XYZ", 4000),
+            "FinancialReadInvalid",
+        ),
+        (
+            closure_ask(&anchor, json!([]), "", 120),
+            "Incomplete/ClosureReplyBytes",
+        ),
+        (
+            closure_ask(&anchor, json!([{"field":"no-such-field"}]), "", 4000),
+            "FinancialReadInvalid",
+        ),
     ] {
-        assert_refused(&s.handle_for_test("financial-closure", &body(&request)), needle);
-        assert_refused(&cold(&f, "financial-closure", &request).map_err(|e| e), needle);
+        assert_refused(
+            &s.handle_for_test("financial-closure", &body(&request)),
+            needle,
+        );
+        assert_refused(
+            &cold(&f, "financial-closure", &request).map_err(|e| e),
+            needle,
+        );
     }
     let mut zero = closure_ask(&anchor, json!([]), "", 4000);
     zero["max_reply_bytes"] = json!("0");
-    assert_refused(&s.handle_for_test("financial-closure", &body(&zero)), "FinancialReadInvalid");
+    assert_refused(
+        &s.handle_for_test("financial-closure", &body(&zero)),
+        "FinancialReadInvalid",
+    );
     let mut extra = closure_ask(&anchor, json!([]), "", 4000);
     extra["limit"] = json!("10");
-    assert_refused(&s.handle_for_test("financial-closure", &body(&extra)), "字段必须exact");
+    assert_refused(
+        &s.handle_for_test("financial-closure", &body(&extra)),
+        "字段必须exact",
+    );
     let mut old = closure_ask(&anchor, json!([]), "", 4000);
     old["schema_revision"] = json!("s-financial-closure/0");
-    assert_refused(&s.handle_for_test("financial-closure", &body(&old)), "财务闭包版本不符");
+    assert_refused(
+        &s.handle_for_test("financial-closure", &body(&old)),
+        "财务闭包版本不符",
+    );
     let mut drifted = anchor.clone();
     drifted["commit_ns"] = json!("1");
     assert_refused(
-        &s.handle_for_test("financial-closure", &body(&closure_ask(&drifted, json!([]), "", 4000))),
+        &s.handle_for_test(
+            "financial-closure",
+            &body(&closure_ask(&drifted, json!([]), "", 4000)),
+        ),
         "财务anchor与本片当前控制元组不同",
     );
     assert!(s.stale_reason().is_none(), "请求级拒绝不使会话失效");
     let again = s
-        .handle_for_test("financial-closure", &body(&closure_ask(&anchor, json!([]), "", 1 << 20)))
+        .handle_for_test(
+            "financial-closure",
+            &body(&closure_ask(&anchor, json!([]), "", 1 << 20)),
+        )
         .unwrap();
     assert_eq!(strict_json(&again).unwrap(), first, "同一请求同一回复");
-    assert_eq!(finish_json(&mut s, Shutdown::Graceful, None)["status"], "PASS");
+    assert_eq!(
+        finish_json(&mut s, Shutdown::Graceful, None)["status"],
+        "PASS"
+    );
 }
 
 #[test]
@@ -1214,8 +1629,14 @@ fn closure_table_cap_and_retained_gate_refuse_only_the_request() {
     let mut s = start_with(&f, small, Consistency::A, ANCHOR_MISMATCH_POLICY).unwrap();
     let anchor = s.receipt()["anchor"].clone();
     let ask_all = body(&closure_ask(&anchor, json!([]), "", 1 << 20));
-    assert_refused(&s.handle_for_test("financial-closure", &ask_all), "Incomplete/SessionClosureNodes");
-    assert!(s.closure.is_none() && s.retained.closure_table == 0, "超帽不留半张表");
+    assert_refused(
+        &s.handle_for_test("financial-closure", &ask_all),
+        "Incomplete/SessionClosureNodes",
+    );
+    assert!(
+        s.closure.is_none() && s.retained.closure_table == 0,
+        "超帽不留半张表"
+    );
     assert!(s.stale_reason().is_none());
     assert!(s
         .handle_for_test("financial-basis-ref", &body(&query(&object_ids(&mut f))))
@@ -1223,7 +1644,10 @@ fn closure_table_cap_and_retained_gate_refuse_only_the_request() {
 
     let mut s = start(&f, Consistency::A);
     s.resources.retained_bytes = s.retained.total() + 64;
-    assert_refused(&s.handle_for_test("financial-closure", &ask_all), "Incomplete/SessionRetained");
+    assert_refused(
+        &s.handle_for_test("financial-closure", &ask_all),
+        "Incomplete/SessionRetained",
+    );
     assert!(s.closure.is_none() && s.retained.closure_table == 0);
     s.resources.retained_bytes = 1 << 34;
     let ok = s.handle_for_test("financial-closure", &ask_all).unwrap();
@@ -1247,14 +1671,26 @@ fn closure_stream_stops_when_the_source_changes() {
     let mut s = start(&f, Consistency::A);
     let anchor = s.receipt()["anchor"].clone();
     let first = strict_json(
-        &s.handle_for_test("financial-closure", &body(&closure_ask(&anchor, json!([]), "", 3000)))
-            .unwrap(),
+        &s.handle_for_test(
+            "financial-closure",
+            &body(&closure_ask(&anchor, json!([]), "", 3000)),
+        )
+        .unwrap(),
     )
     .unwrap();
     assert_eq!(first["done"], false);
     touch(&wal(&f));
     let next = closure_ask(&anchor, json!([]), first["next"].as_str().unwrap(), 3000);
-    assert_refused(&s.handle_for_test("financial-closure", &body(&next)), "R4：WAL身份或stat改变");
-    assert_refused(&s.handle_for_test("financial-closure", &body(&next)), "会话已失效");
-    assert_eq!(finish_json(&mut s, Shutdown::Graceful, None)["status"], "FAIL");
+    assert_refused(
+        &s.handle_for_test("financial-closure", &body(&next)),
+        "R4：WAL身份或stat改变",
+    );
+    assert_refused(
+        &s.handle_for_test("financial-closure", &body(&next)),
+        "会话已失效",
+    );
+    assert_eq!(
+        finish_json(&mut s, Shutdown::Graceful, None)["status"],
+        "FAIL"
+    );
 }

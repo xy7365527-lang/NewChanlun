@@ -65,8 +65,11 @@ pub(super) fn create_db(db: &Path) -> Connection {
         [store::SCHEMA_V2],
     )
     .unwrap();
-    tx.execute("INSERT INTO content_meta VALUES(1,?1)", [sc::CONTENT_FORMAT])
-        .unwrap();
+    tx.execute(
+        "INSERT INTO content_meta VALUES(1,?1)",
+        [sc::CONTENT_FORMAT],
+    )
+    .unwrap();
     tx.commit().unwrap();
     c
 }
@@ -106,14 +109,25 @@ pub(super) fn publish(
     let allocated_after_commit = content_store::allocated(db).map_err(|e| e.to_string())?;
     let actual = content_store::reconcile_final(c, db, job, &grant, before, ceiling)
         .map_err(|e| e.to_string())?;
-    Ok(json!({"publish_in_tx_ms":publish_ms,"commit_ms":commit_ms,"total_ms":ms(t),
+    Ok(
+        json!({"publish_in_tx_ms":publish_ms,"commit_ms":commit_ms,"total_ms":ms(t),
         "page_count_in_tx":pages_in_tx,"wal_st_blocks_after_commit":wal_after_commit,
         "allocated_after_commit_before_checkpoint":allocated_after_commit,
-        "allocated_before":before,"actual_growth":actual,"ceiling":ceiling}))
+        "allocated_before":before,"actual_growth":actual,"ceiling":ceiling}),
+    )
 }
-fn audit(c: &Connection, db: &Path, structure: &Value, evidence: &Value, k: usize, limits: JobLimits) -> Value {
+fn audit(
+    c: &Connection,
+    db: &Path,
+    structure: &Value,
+    evidence: &Value,
+    k: usize,
+    limits: JobLimits,
+) -> Value {
     let mut job = new_job(c, db, limits);
-    let history: Vec<Value> = (0..k).map(|_| json!({"witness":{"structure":evidence}})).collect();
+    let history: Vec<Value> = (0..k)
+        .map(|_| json!({"witness":{"structure":evidence}}))
+        .collect();
     let image = json!({"history":history,"recorded":[]});
     let t = Instant::now();
     let result = content_store::verify_image(c, &image, structure, &mut job);
@@ -169,8 +183,14 @@ fn replica_closure_on_fixed_carrier() {
         let t = Instant::now();
         let imported = {
             let mut stage =
-                content_store::Stage::new(&mut c, &db, limits, format!("stg-replica-{mode}")).unwrap();
-            content_store::import_peer_refs(&peer, std::slice::from_ref(&root), &mut stage, &mut job)
+                content_store::Stage::new(&mut c, &db, limits, format!("stg-replica-{mode}"))
+                    .unwrap();
+            content_store::import_peer_refs(
+                &peer,
+                std::slice::from_ref(&root),
+                &mut stage,
+                &mut job,
+            )
         };
         report["peer_import"] = json!({"wall_ms":ms(t),"error":imported.err().map(|e| e.to_string()),
             "job":snapshot(&job)});

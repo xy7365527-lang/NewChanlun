@@ -15,10 +15,10 @@
 //! 丢弃旧车道——不跨库、不跨规则、不跨档案复用。
 
 use super::*;
-use newchan_rust::theta_v0::parser::inclusion::{IncrFactsState, InclusionGroupFact};
+use newchan_rust::theta_v0::parser::inclusion::{InclusionGroupFact, IncrFactsState};
+use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
-use std::cell::RefCell;
 
 /// 输入指纹：稳定前缀判定只比「解析真正吃进去的 6 个字段」。
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -143,11 +143,16 @@ impl Lane {
         cut: &str,
         frontier: i64,
     ) -> (Vec<Value>, Vec<Value>) {
-        let current_refs: Vec<_> = raw.iter()
+        let current_refs: Vec<_> = raw
+            .iter()
             .map(|(coord, event)| (*coord, tb02a_facts::raw_ref(event)))
             .collect();
-        let common = self.source_refs.iter().zip(&current_refs)
-            .take_while(|(old, current)| old == current).count();
+        let common = self
+            .source_refs
+            .iter()
+            .zip(&current_refs)
+            .take_while(|(old, current)| old == current)
+            .count();
         if common < self.source_refs.len() {
             let mut from = self.source_refs[common].0;
             if let Some((coord, _)) = current_refs.get(common) {
@@ -253,7 +258,6 @@ impl LaneGuard {
         }
         self.lane.as_mut().expect("刚建立")
     }
-
 }
 
 impl Drop for LaneGuard {

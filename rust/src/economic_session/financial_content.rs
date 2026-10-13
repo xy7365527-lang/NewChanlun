@@ -1026,7 +1026,10 @@ fn download_closure(
         if count > declared {
             return Err(invalid("闭包节点数超过 total"));
         }
-        let last = received.last().copied().ok_or_else(|| invalid("闭包块为空"))?;
+        let last = received
+            .last()
+            .copied()
+            .ok_or_else(|| invalid("闭包块为空"))?;
         let next = text(&reply, "next")?;
         if next != sc::root_string(&last) {
             return Err(invalid("闭包 next 不是本块末节点"));
@@ -1038,7 +1041,9 @@ fn download_closure(
             return Err(invalid("闭包 done 与 total 不符"));
         }
         // 回滚清单交给批量写自己追加：块事务一提交即登记，提交后步骤失败也不漏（r2，独审 N1）。
-        stage.put_batch_budgeted(job, &batch, inserted).map_err(codec)?;
+        stage
+            .put_batch_budgeted(job, &batch, inserted)
+            .map_err(codec)?;
         if done {
             return Ok(received);
         }
@@ -1110,9 +1115,7 @@ fn import_closure(
         }
         let extra = member.hit.iter().filter(|hit| !**hit).count();
         if extra > 0 {
-            return Err(format!(
-                "IdentityConflict：闭包流含 {extra} 个根不可达节点"
-            ));
+            return Err(format!("IdentityConflict：闭包流含 {extra} 个根不可达节点"));
         }
         Ok(verified)
     })();
@@ -1120,9 +1123,9 @@ fn import_closure(
         Ok(verified) => Ok(verified),
         Err(error) => Err(match stage.discard_staged(&inserted) {
             Ok(removed) => format!("{error}（闭包尝试已回滚 {removed} 行暂存）"),
-            Err(cleanup) => format!(
-                "{error}（闭包尝试回滚失败，留待 discard_unpublished/recover：{cleanup}）"
-            ),
+            Err(cleanup) => {
+                format!("{error}（闭包尝试回滚失败，留待 discard_unpublished/recover：{cleanup}）")
+            }
         }),
     }
 }
@@ -1372,11 +1375,11 @@ fn test_discard(nodes: &mut sc::MemoryNodes, digests: &[NodeDigest]) -> u64 {
 }
 
 #[cfg(test)]
-#[path = "closure_tests.rs"]
-mod closure_tests;
-#[cfg(test)]
 #[path = "closure_replica_tests.rs"]
 mod closure_replica_tests;
+#[cfg(test)]
+#[path = "closure_tests.rs"]
+mod closure_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1462,7 +1465,13 @@ mod tests {
         assert!(pins.session.is_none());
         assert_eq!(
             pins.reader_args("financial-content"),
-            ["financial-content", "--protocol-revision", "s-session/3", "--db", "/frozen/db"]
+            [
+                "financial-content",
+                "--protocol-revision",
+                "s-session/3",
+                "--db",
+                "/frozen/db"
+            ]
         );
         let warm = pins.clone().with_session("/tmp/s1394/s.sock").unwrap();
         assert_eq!(

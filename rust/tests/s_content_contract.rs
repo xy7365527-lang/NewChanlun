@@ -7,10 +7,10 @@
 //!
 //! 向量文件是已批准输入（sha256 见下），不是本实现自己产出的期望值。
 
+use newchan_rust::s_content::job::CheckedFrame;
 use newchan_rust::s_content::{
     self, code, ContentRef, JsonValue, Kind, MemoryNodes, NodeRead, NodeSource, NumberToken, Value,
 };
-use newchan_rust::s_content::job::CheckedFrame;
 use serde_json::Value as J;
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -26,11 +26,13 @@ const EXPECTED_RENDERABLE: usize = 22;
 #[test]
 fn root_text_all_byte_values_preserve_canonical_encoding() {
     for offset in 0..=u8::MAX {
-        let digest: s_content::NodeDigest =
-            std::array::from_fn(|i| offset.wrapping_add(i as u8));
+        let digest: s_content::NodeDigest = std::array::from_fn(|i| offset.wrapping_add(i as u8));
         let expected = format!(
             "sc1-{}",
-            digest.iter().map(|b| format!("{b:02x}")).collect::<String>()
+            digest
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect::<String>()
         );
         let actual = s_content::root_string(&digest);
         assert_eq!(actual.as_bytes(), expected.as_bytes());
@@ -59,7 +61,9 @@ fn checked_frame_rejects_bad_bytes_and_read_gate_binds_requested_digest() {
     let mut corrupted = MemoryNodes::new();
     corrupted.insert_unchecked(requested, s_content::tag::NULL, vec![1]);
     assert_eq!(
-        s_content::verify(&mut corrupted, &reference).expect_err("坏原件须拒").code(),
+        s_content::verify(&mut corrupted, &reference)
+            .expect_err("坏原件须拒")
+            .code(),
         code::NODE_DIGEST
     );
 
@@ -68,8 +72,15 @@ fn checked_frame_rejects_bad_bytes_and_read_gate_binds_requested_digest() {
         fn read(&mut self, _: &s_content::NodeDigest) -> Result<NodeRead, s_content::CodecError> {
             Ok(NodeRead::Missing)
         }
-        fn checked_read(&mut self, _: &s_content::NodeDigest) -> Result<Option<CheckedFrame>, s_content::CodecError> {
-            Ok(Some(CheckedFrame::checked(&self.0, s_content::tag::BOOL_TRUE, vec![])?))
+        fn checked_read(
+            &mut self,
+            _: &s_content::NodeDigest,
+        ) -> Result<Option<CheckedFrame>, s_content::CodecError> {
+            Ok(Some(CheckedFrame::checked(
+                &self.0,
+                s_content::tag::BOOL_TRUE,
+                vec![],
+            )?))
         }
     }
     assert_eq!(
@@ -84,16 +95,24 @@ fn checked_frame_rejects_bad_bytes_and_read_gate_binds_requested_digest() {
 fn template_batch_rechecks_root_claims_and_json_inner_flavor() {
     use s_content::NodeSink;
     let mut nodes = MemoryNodes::new();
-    let root = s_content::write_template(&mut nodes, &Value::Object(vec![
-        ("batch".into(), Value::BatchSelf),
-    ])).unwrap().content_ref();
+    let root = s_content::write_template(
+        &mut nodes,
+        &Value::Object(vec![("batch".into(), Value::BatchSelf)]),
+    )
+    .unwrap()
+    .content_ref();
     s_content::verify_template_many(&mut nodes, [root.clone(), root.clone()]).unwrap();
     assert!(s_content::verify_many(&mut nodes, [root.clone()]).is_err());
-    let wrong = ContentRef { extent: Some(2), ..root.clone() };
+    let wrong = ContentRef {
+        extent: Some(2),
+        ..root.clone()
+    };
     assert!(s_content::verify_template_many(&mut nodes, [root.clone(), wrong]).is_err());
     let batch = s_content::write_template(&mut nodes, &Value::BatchSelf).unwrap();
     let digest = s_content::frame(s_content::tag::JSON_TEXT, &batch.digest);
-    nodes.put(digest, s_content::tag::JSON_TEXT, &batch.digest).unwrap();
+    nodes
+        .put(digest, s_content::tag::JSON_TEXT, &batch.digest)
+        .unwrap();
     let inner = s_content::content_ref_of(&mut nodes, &s_content::root_string(&digest)).unwrap();
     // 第一次Value上下文通过不能让第二次JsonInner上下文复用成通过。
     assert!(s_content::verify_template_many(&mut nodes, [batch.content_ref(), inner]).is_err());
@@ -135,7 +154,8 @@ fn node_index(vectors: &J) -> HashMap<String, (u8, Vec<u8>)> {
         .iter()
         .map(|record| {
             let root = record["root"].as_str().expect("root").to_string();
-            let tag = u8::from_str_radix(record["tag"].as_str().expect("tag"), 16).expect("tag 十六进制");
+            let tag =
+                u8::from_str_radix(record["tag"].as_str().expect("tag"), 16).expect("tag 十六进制");
             let body = hex_to_bytes(record["body_hex"].as_str().expect("body_hex"));
             (root, (tag, body))
         })
@@ -257,10 +277,7 @@ struct VectorStore {
 }
 
 impl NodeSource for VectorStore {
-    fn read(
-        &mut self,
-        digest: &s_content::NodeDigest,
-    ) -> Result<NodeRead, s_content::CodecError> {
+    fn read(&mut self, digest: &s_content::NodeDigest) -> Result<NodeRead, s_content::CodecError> {
         Ok(match self.nodes.get(&s_content::root_string(digest)) {
             Some((tag, body)) => NodeRead::Found {
                 tag: *tag,
@@ -286,8 +303,8 @@ fn positive_vectors_roots_render_and_node_set() {
         let value = value_from_expr(&case["expression"]);
         let built = if case["expression"]["t"].as_str() == Some("batch_self") {
             // 占位只能走显式模板上下文的写入入口。
-            let err = s_content::write_value(&mut store, &value)
-                .expect_err("占位不得写进通用公开逻辑值");
+            let err =
+                s_content::write_value(&mut store, &value).expect_err("占位不得写进通用公开逻辑值");
             assert_eq!(err.code(), code::TEMPLATE_PLACEHOLDER, "{name}");
             s_content::write_template(&mut store, &value)
                 .unwrap_or_else(|e| panic!("{name}：模板上下文写入失败 {e}"))
@@ -381,11 +398,7 @@ fn invalid_encoded_roots_are_rejected_in_both_modes() {
         assert_eq!(err.code(), want, "{name}");
         let err = s_content::verify_template(&mut store, &reference)
             .expect_err(&format!("{name}：模板核验必须拒绝"));
-        assert_eq!(
-            err.code(),
-            want,
-            "{name}：模板上下文不得放行该非法图"
-        );
+        assert_eq!(err.code(), want, "{name}：模板上下文不得放行该非法图");
     }
 }
 
@@ -481,10 +494,7 @@ struct CountingNodes {
 }
 
 impl NodeSource for CountingNodes {
-    fn read(
-        &mut self,
-        digest: &s_content::NodeDigest,
-    ) -> Result<NodeRead, s_content::CodecError> {
+    fn read(&mut self, digest: &s_content::NodeDigest) -> Result<NodeRead, s_content::CodecError> {
         self.reads += 1;
         if self.reads > self.limit {
             return Err(s_content::CodecError::new(
@@ -763,8 +773,8 @@ fn utf8_across_block_boundary_is_checked() {
 fn json_context_reuse_is_checked_per_context() {
     // 同一数组摘要：模板上下文合法；进入 json_text 内部必须拒绝。
     let mut store = MemoryNodes::new();
-    let array =
-        s_content::write_template(&mut store, &Value::Array(vec![Value::BatchSelf])).expect("模板数组");
+    let array = s_content::write_template(&mut store, &Value::Array(vec![Value::BatchSelf]))
+        .expect("模板数组");
     assert!(s_content::verify_template(&mut store, &array.content_ref()).is_ok());
     let json_text = s_content::frame(s_content::tag::JSON_TEXT, &array.digest);
     store.insert_unchecked(json_text, s_content::tag::JSON_TEXT, array.digest.to_vec());

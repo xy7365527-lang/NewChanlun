@@ -3939,8 +3939,20 @@ mod owner_retention {
 
 #[cfg(test)]
 impl ControlFacts {
- pub(super) fn overlay_ab_control_signature(&self)->serde_json::Value {
-  let mut headers=self.headers.iter().map(|((generation,batch),h)|(*generation,batch.as_str(),h.commit_ns.as_str(),h.consumed)).collect::<Vec<_>>();headers.sort();
-  serde_json::json!({"session_generation":self.session_generation.as_str(),"clock_plan_hash":self.clock_plan_hash.as_str(),"headers":headers})
- }
+    pub(super) fn overlay_ab_control_signature(&self) -> serde_json::Value {
+        let mut headers = self
+            .headers
+            .iter()
+            .map(|((generation, batch), h)| {
+                (
+                    *generation,
+                    batch.as_str(),
+                    h.commit_ns.as_str(),
+                    h.consumed,
+                )
+            })
+            .collect::<Vec<_>>();
+        headers.sort();
+        serde_json::json!({"session_generation":self.session_generation.as_str(),"clock_plan_hash":self.clock_plan_hash.as_str(),"headers":headers})
+    }
 }

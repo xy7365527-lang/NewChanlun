@@ -411,8 +411,18 @@ pub(super) fn read_indexed_history_for_audit_captured_with_records_admitted<'a>(
     records: Option<&mut NativeRecordFields<'_>>,
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
 ) -> Result<IndexedHistory, String> {
-    read_indexed_history_for_sealed_ordinary_audit(tx, raw, control, deadline, max_render_bytes,
-        budget, capture, records, work, None)
+    read_indexed_history_for_sealed_ordinary_audit(
+        tx,
+        raw,
+        control,
+        deadline,
+        max_render_bytes,
+        budget,
+        capture,
+        records,
+        work,
+        None,
+    )
 }
 
 pub(super) fn read_indexed_history_for_sealed_ordinary_audit<'a>(

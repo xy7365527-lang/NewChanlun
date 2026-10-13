@@ -106,22 +106,33 @@ fn checked_read_matches_old_acceptance_at_f_deadline_boundary() {
                 Box::new(move || {
                     now + Duration::from_millis(u64::from(frame_calls_on_thread() > before))
                 }),
-            ).unwrap();
+            )
+            .unwrap();
             let outcome = if metered {
                 let mut reader = MeteredSource::new(&mut job, &mut source);
-                if checked { reader.checked_read(&digest).map(|_| ()) }
-                else { reader.read(&digest).map(|_| ()) }
+                if checked {
+                    reader.checked_read(&digest).map(|_| ())
+                } else {
+                    reader.read(&digest).map(|_| ())
+                }
             } else {
                 let mut reader = JobNodeSource::new(&mut job, &mut source);
-                if checked { reader.checked_read(&digest).map(|_| ()) }
-                else { reader.read(&digest).map(|_| ()) }
+                if checked {
+                    reader.checked_read(&digest).map(|_| ())
+                } else {
+                    reader.read(&digest).map(|_| ())
+                }
             };
             assert_eq!(frame_calls_on_thread() - before, 1, "每次读取只核一次 F");
             let snapshot = job.snapshot();
             assert_eq!(snapshot.nodes, 1, "旧读与已核读都须在 F 后保留计账");
             assert_eq!(snapshot.node_bytes, framed(0));
             if metered {
-                assert_eq!(outcome.unwrap_err().code(), DEADLINE, "post precheck 旧行为");
+                assert_eq!(
+                    outcome.unwrap_err().code(),
+                    DEADLINE,
+                    "post precheck 旧行为"
+                );
                 assert_eq!(snapshot.stopped, Some(DEADLINE));
             } else {
                 outcome.unwrap();

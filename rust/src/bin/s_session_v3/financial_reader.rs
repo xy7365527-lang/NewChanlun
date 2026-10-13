@@ -84,14 +84,12 @@ fn field(key: &str) -> PathStep {
 /// duplicate never falls through to the legacy financial-basis reader.
 fn db_arg(args: &[String]) -> Result<&Path, String> {
     if args.len() != 6
-        || args
-            .get(1)
-            .is_none_or(|s| {
-                !matches!(
-                    s.as_str(),
-                    "financial-basis-ref" | "financial-content" | "financial-closure"
-                )
-            })
+        || args.get(1).is_none_or(|s| {
+            !matches!(
+                s.as_str(),
+                "financial-basis-ref" | "financial-content" | "financial-closure"
+            )
+        })
     {
         return Err(invalid(
             "新财务命令只接受 --protocol-revision s-session/3 与 --db <路径>",

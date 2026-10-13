@@ -44,19 +44,28 @@ fn exact_field_set_matches_individual_paths_with_bounded_reads() {
     store.reads = 0;
     let fields = lookup_object_fields(&mut store, &root, &keys).unwrap();
     assert_eq!(fields.values().cloned().collect::<Vec<_>>(), singles);
-    eprintln!("field reads: individual={individual_reads}, exact={}", store.reads);
+    eprintln!(
+        "field reads: individual={individual_reads}, exact={}",
+        store.reads
+    );
     // 根、每个序列节点、字段、键与值头；不得展开1024元素的值子树。
     assert!(store.reads <= 12 * keys.len() + 4, "{} reads", store.reads);
     assert!(store.reads * 4 < individual_reads);
     let subset = newchan_rust::s_content::path::lookup_object_fields_subset(
-        &mut store, &root, &[keys[19], keys[0]],
-    ).unwrap();
+        &mut store,
+        &root,
+        &[keys[19], keys[0]],
+    )
+    .unwrap();
     assert_eq!(subset.len(), 2);
     assert_eq!(subset[keys[0]], singles[0]);
     assert_eq!(subset[keys[19]], singles[19]);
     assert!(newchan_rust::s_content::path::lookup_object_fields_subset(
-        &mut store, &root, &["absent"],
-    ).is_err());
+        &mut store,
+        &root,
+        &["absent"],
+    )
+    .is_err());
     assert!(lookup_object_fields(&mut store, &root, &keys[..19]).is_err());
     let mut wrong = keys.clone();
     wrong[0] = "wrong";
@@ -81,15 +90,24 @@ fn exact_field_set_matches_individual_paths_with_bounded_reads() {
         assert!(lookup_object_fields(&mut store, &bad, &keys).is_err());
     }
     store.read_cap = Some(store.reads + 5);
-    assert_eq!(lookup_object_fields(&mut store, &root, &keys).unwrap_err().code(), BUDGET_CODE);
+    assert_eq!(
+        lookup_object_fields(&mut store, &root, &keys)
+            .unwrap_err()
+            .code(),
+        BUDGET_CODE
+    );
 }
 
 #[test]
 fn bulk_fields_reject_hash_valid_but_noncanonical_sequence() {
     let mut store = MeteredStore::new();
     let names = (0..20).map(|n| format!("key-{n:02}")).collect::<Vec<_>>();
-    let root = write_value(&mut store, &Value::Object(names.iter().map(|k|
-        (k.clone(), Value::Null)).collect())).unwrap().content_ref();
+    let root = write_value(
+        &mut store,
+        &Value::Object(names.iter().map(|k| (k.clone(), Value::Null)).collect()),
+    )
+    .unwrap()
+    .content_ref();
     let (_, object_body) = store.inner.get(&root.digest().unwrap()).unwrap();
     let mut object_body = object_body.to_vec();
     let seq: NodeDigest = object_body[8..40].try_into().unwrap();
@@ -103,14 +121,19 @@ fn bulk_fields_reject_hash_valid_but_noncanonical_sequence() {
     object_body[8..40].copy_from_slice(&digest);
     let digest = frame(tag::OBJECT, &object_body);
     store.put(digest, tag::OBJECT, &object_body).unwrap();
-    let bad = ContentRef { root: newchan_rust::s_content::root_string(&digest), ..root };
+    let bad = ContentRef {
+        root: newchan_rust::s_content::root_string(&digest),
+        ..root
+    };
     let keys = names.iter().map(String::as_str).collect::<Vec<_>>();
     assert!(lookup_object_fields(&mut store, &bad, &keys).is_err());
     assert!(newchan_rust::s_content::path::lookup_object_fields_subset(
-        &mut store, &bad, &[keys[0], keys[19]],
-    ).is_err());
+        &mut store,
+        &bad,
+        &[keys[0], keys[19]],
+    )
+    .is_err());
 }
-
 
 fn hex_of(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
@@ -211,10 +234,7 @@ fn big_placeholder_array(bits: u32) -> (MeteredStore, ContentRef) {
     body.extend_from_slice(&seq.root());
     let array = frame(tag::ARRAY, &body);
     store.put(array, tag::ARRAY, &body).expect("写数组节点");
-    (
-        store,
-        ContentRef::new(Kind::Array, &array, Some(count)),
-    )
+    (store, ContentRef::new(Kind::Array, &array, Some(count)))
 }
 
 #[test]
@@ -271,7 +291,9 @@ fn nested_field_index_and_json_text_lookup_follow_actual_nodes() {
     // 返回的引用与既有核验器对拍：公开值可核，占位只在模板上下文可核。
     verify(&mut store, &second).expect("字符串元素是公开逻辑值");
     assert_eq!(
-        verify(&mut store, &batch).expect_err("公开上下文拒绝占位").code(),
+        verify(&mut store, &batch)
+            .expect_err("公开上下文拒绝占位")
+            .code(),
         code::TEMPLATE_PLACEHOLDER
     );
     verify_template(&mut store, &batch).expect("模板上下文接受占位");
@@ -296,10 +318,7 @@ fn nested_field_index_and_json_text_lookup_follow_actual_nodes() {
     let inner = lookup_path(
         &mut with_text,
         &reference,
-        &[
-            PathStep::Field("view".to_string()),
-            PathStep::JsonText,
-        ],
+        &[PathStep::Field("view".to_string()), PathStep::JsonText],
     )
     .expect("显式进入文本视图");
     assert_eq!(inner.kind, Kind::Object);
@@ -411,7 +430,10 @@ fn lookup_rejects_missing_out_of_range_and_wrong_step_kind() {
         lookup_path(
             &mut store,
             &reference,
-            &[PathStep::Field("observations".to_string()), PathStep::JsonText],
+            &[
+                PathStep::Field("observations".to_string()),
+                PathStep::JsonText
+            ],
         )
         .expect_err("数组不是文本视图")
         .code(),
@@ -539,13 +561,9 @@ fn declared_count_overflow_and_shape_mismatch_are_rejected() {
     store.insert_unchecked(object, tag::OBJECT, object_body.clone());
     let reference = ContentRef::new(Kind::Object, &object, Some(1));
     assert_eq!(
-        lookup_path(
-            &mut store,
-            &reference,
-            &[PathStep::Field("a".to_string())],
-        )
-        .expect_err("字段叶标签不符必须拒")
-        .code(),
+        lookup_path(&mut store, &reference, &[PathStep::Field("a".to_string())],)
+            .expect_err("字段叶标签不符必须拒")
+            .code(),
         code::SEQUENCE_SHAPE
     );
 }
@@ -557,35 +575,21 @@ fn replace_touches_only_the_named_path_and_keeps_old_root_readable() {
         ("batch_id".to_string(), Value::BatchSelf),
         ("keep".to_string(), number("1")),
     ]);
-    let built = write_template(
-        &mut store,
-        &Value::Array(vec![shared.clone(), shared]),
-    )
-    .expect("写共享子树模板");
+    let built = write_template(&mut store, &Value::Array(vec![shared.clone(), shared]))
+        .expect("写共享子树模板");
     let old_root = built.content_ref();
     let id = batch_id(0xab);
 
-    let before_left = lookup_path(
-        &mut store,
-        &old_root,
-        &[PathStep::Index(0)],
-    )
-    .expect("旧根左子树");
-    let before_right = lookup_path(
-        &mut store,
-        &old_root,
-        &[PathStep::Index(1)],
-    )
-    .expect("旧根右子树");
+    let before_left =
+        lookup_path(&mut store, &old_root, &[PathStep::Index(0)]).expect("旧根左子树");
+    let before_right =
+        lookup_path(&mut store, &old_root, &[PathStep::Index(1)]).expect("旧根右子树");
     assert_eq!(before_left.root, before_right.root, "同一子树在两点共享");
 
     let new_root = replace_batch_placeholder(
         &mut store,
         &old_root,
-        &[
-            PathStep::Index(1),
-            PathStep::Field("batch_id".to_string()),
-        ],
+        &[PathStep::Index(1), PathStep::Field("batch_id".to_string())],
         &id,
     )
     .expect("定点替换第二份子树");
@@ -597,29 +601,21 @@ fn replace_touches_only_the_named_path_and_keeps_old_root_readable() {
     let replaced = lookup_path(
         &mut store,
         &new_root,
-        &[
-            PathStep::Index(1),
-            PathStep::Field("batch_id".to_string()),
-        ],
+        &[PathStep::Index(1), PathStep::Field("batch_id".to_string())],
     )
     .expect("新根指定路径");
     assert_eq!(replaced.kind, Kind::String);
     assert_eq!(replaced.extent, Some(id.len() as u64));
     // 同一下标 0 的共享子树不动（逐位同一个根）。
-    let after_left = lookup_path(
-        &mut store,
-        &new_root,
-        &[PathStep::Index(0)],
-    )
-    .expect("新根左子树");
-    assert_eq!(after_left.root, before_left.root, "未指定路径的共享子树不得重建");
+    let after_left = lookup_path(&mut store, &new_root, &[PathStep::Index(0)]).expect("新根左子树");
+    assert_eq!(
+        after_left.root, before_left.root,
+        "未指定路径的共享子树不得重建"
+    );
     let still = lookup_path(
         &mut store,
         &new_root,
-        &[
-            PathStep::Index(0),
-            PathStep::Field("batch_id".to_string()),
-        ],
+        &[PathStep::Index(0), PathStep::Field("batch_id".to_string())],
     )
     .expect("未指定路径仍是占位");
     assert_eq!(still.kind, Kind::TemplateBatch);
@@ -628,10 +624,7 @@ fn replace_touches_only_the_named_path_and_keeps_old_root_readable() {
     let old_still = lookup_path(
         &mut store,
         &old_root,
-        &[
-            PathStep::Index(1),
-            PathStep::Field("batch_id".to_string()),
-        ],
+        &[PathStep::Index(1), PathStep::Field("batch_id".to_string())],
     )
     .expect("旧根仍指向占位");
     assert_eq!(old_still.kind, Kind::TemplateBatch);
@@ -867,10 +860,7 @@ fn json_text_inner_placeholder_and_nested_view_are_rejected() {
         lookup_path(
             &mut store,
             &reference,
-            &[
-                PathStep::JsonText,
-                PathStep::Field("a".to_string()),
-            ],
+            &[PathStep::JsonText, PathStep::Field("a".to_string()),],
         )
         .expect_err("文本视图深层占位必须拒")
         .code(),
@@ -924,13 +914,9 @@ fn large_shared_array_point_replacement_stays_bounded() {
     let writes_before = store.writes;
     store.read_cap = Some(reads_before + bound);
     store.write_cap = Some(writes_before + bound);
-    let replaced = replace_batch_placeholder(
-        &mut store,
-        &reference,
-        &[PathStep::Index(count - 1)],
-        &id,
-    )
-    .expect("大数组定点替换");
+    let replaced =
+        replace_batch_placeholder(&mut store, &reference, &[PathStep::Index(count - 1)], &id)
+            .expect("大数组定点替换");
     let reads = store.reads - reads_before;
     let writes = store.writes - writes_before;
     assert!(reads <= bound, "读次数 {reads} 超过仪表上限 {bound}");
@@ -945,12 +931,7 @@ fn large_shared_array_point_replacement_stays_bounded() {
         store.inner.len()
     );
 
-    let last = lookup_path(
-        &mut store,
-        &replaced,
-        &[PathStep::Index(count - 1)],
-    )
-    .expect("新位置");
+    let last = lookup_path(&mut store, &replaced, &[PathStep::Index(count - 1)]).expect("新位置");
     assert_eq!(last.kind, Kind::String);
     assert_eq!(last.extent, Some(id.len() as u64));
     let first = lookup_path(&mut store, &replaced, &[PathStep::Index(0)]).expect("未动位置");
@@ -971,10 +952,13 @@ fn large_shared_array_point_replacement_stays_bounded() {
     assert_eq!(object.extent, Some(2));
     let reads_before = store.reads;
     store.read_cap = Some(reads_before + bound);
-    let found = lookup_path(&mut store, &object, &[PathStep::Field("zz".to_string())])
-        .expect("定位大字段");
+    let found =
+        lookup_path(&mut store, &object, &[PathStep::Field("zz".to_string())]).expect("定位大字段");
     let reads = store.reads - reads_before;
-    assert!(reads <= bound, "字段查找读次数 {reads} 超过仪表上限 {bound}");
+    assert!(
+        reads <= bound,
+        "字段查找读次数 {reads} 超过仪表上限 {bound}"
+    );
     store.read_cap = None;
     assert_eq!(found.kind, Kind::Array);
     assert_eq!(found.extent, Some(1u64 << BITS));
