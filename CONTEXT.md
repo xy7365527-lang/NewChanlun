@@ -27,6 +27,13 @@ _Avoid_: 设置第二个重操作 owner；以旧入口或另一套判据接管�
 **频率门：开不开这个重看频率**（同上，裁定四）：`049:74`「真正能产生总体利润的，**还与操作的频率有关**」——容量与活跃度是两个量，装得下不等于发信号。信号频率过低的级别**根本不开重**。在案代价：`analysis/recursive_position_experiment.md` §5.2b 实测 OKLO 各级买点 1964/297/18/2、再下一级 **0 次**，而配额把 **51.6%** 绑在那一级上；单修此项 **+96.1pp**。
 **扩张走换档，不挪钱**（同上，裁定五）：重的钱会自己长大（ADR 0013 裁定四闸门后扩量），而容量不长 ⟹ **撞容量是成功的必然产物**。处置＝**换档**（ADR 0010 `:25` 已裁的机制）：原级别留满容量继续做，溢出部分在上一级开新重 ⟹ **N 重是长出来的，不是设计出来的**（`079:44` 五阶段、`040:20`「可以一直延伸下去」）。空仓的重**不**把钱释放给别的重——闲置由频率门在开重那一刻拦掉，不在运行中拦。
 
+**共同资金上限（Common Cap）**（2026-10-13 [#1349](https://github.com/xy7365527-lang/NewChanlun/issues/1349) 裁定，[ADR 0029](docs/adr/0029-common-cap-contention-policy.md)）:
+全部重的毛锁额（数量×限价+费用尾，净省不计）加既有责任不得超过的人工具名数额，带版本与有效期、绑定场所 profile；数值由用户随激活签署，不设默认。注入/取出/改额都是新版本；取出只限空闲部分。它是 ADR 0024 裁定五「毛 cap 管杠杆暴露」的参数来源，不是账户权益。
+
+**资金时点（Slot）**（同上）:
+同一 S 稳定点提交的全部资金申请的集合。同点争用按整 slot 原子等待：全体放得下才一起授信，否则整体等待；等待无时钟时限，失效只来自申请者自己的结构事实或政策版本到期；后来 slot 不越过；跨 slot 次序取 S 稳定点的结构顺序（显式选择，不是默认 FIFO）。
+_Avoid_: 与「模拟批（Simulation Batch）」混用——slot 是同一稳定点的资金申请集合，模拟批是同一 bar 的外效集合。
+
 **成本下降速率（Cost-decline rate）**（2026-08-14 编排者裁定，[ADR 0022](docs/adr/0022-acceptance-criterion-parameters.md)）：闸门前验收只问一件事——**成本降得稳不稳**。定义＝每次操作（成本落袋事件）的相对降幅 `(C_before−C_after)/C_before` ÷ 占用时间（自上次事件起），与 `049:74`【正文】利润率「每次操作的平均利润／需要占用资金的平均时间」同形。**费后口径**（扣手续费与资金费率，同 ADR 0015 裁定四）；**通过 ＝ 单边 95% 下界 > 0**（按月分块 block bootstrap；事件数 ≥ 30 且月块 ≥ 12，不足则「结构性稀疏，判不出」）。中位数/分位数只作报告不作门。窗口纪律＝下界不用点估计／≥3 个互不重叠窗／每窗各自过线／合计覆盖 ≥50% 全史。**频率不合成**——两道独立门：频率管开重（ADR 0016 裁定四）、速率管验收。闸门后判据（净头寸价值）参数暂缺，待生产首次触达闸门后再定（触达后、启用前先定参数）。
 _Avoid_: 拿中位数/点估计当验收门（N-6 判例：擦线处失效）；把频率乘进速率合成验收标量（抹平两个正交失败模式）；参数落盘前重算任何旧实验（ADR 0015 裁定六）；在零样本下硬编闸门后判据的数字。
 
@@ -48,6 +55,13 @@ _Avoid_: 仓位、持仓、头寸（这些是数量/暴露，不是实体）；"
 **⚠️ 已知错位（2026-08-01 登记，编排者裁定保留现名不改）**：本词是本仓自造——**「声部」在缠论全语料（110 课 + chan99 + 天道）0 命中**。而在赋格里，声部恰恰是**贯穿全曲的持久线**，对应的是上条的**重**，不是本条这个一次性实体。缠师给一次性实体的词是「买卖操作」（`049-第49课.md:60`【正文】「完成一次该级别的买卖操作，等待下一个买点出现」）。
 **⟹ 不得由赋格比喻推理声部的性质**（比喻里持久的东西在本仓是一次性的）。保留现名的理由是重命名代价：[#283](https://github.com/xy7365527-lang/NewChanlun/issues/283) 机械改名 `ShortDiff`→`ReverseOpen` 的实伤是"改名后按旧名检索的人查不到它还活着"。
 **推论层用词对照（2026-08-01 [#845](https://github.com/xy7365527-lang/NewChanlun/issues/845) 裁定五，[ADR 0012](docs/adr/0012-inference-layer-document-naming.md)）**：`analysis/` 与 `docs/` 推论层文档中的「声部（voice）」**多指本仓的「重」**（持久筹码层），非本词条这个一次性实体。判据是它锚哪句原文——`analysis/recursive_regularization_theory.md` §2.1 对照表把「声部」定义为「一个操作级别上的独立资金/筹码层」并锚 `040-第40课.md:20`「每一重都对应着一定的资金与筹码」⟹ 那是「重」。**援引推论层前先对词。** 上条禁令因此**只管本词条**：推论层讲「重」的那些命题不受其约束（它们用对了赋格比喻、用错了本仓的词），但仍须按 [ADR 0012](docs/adr/0012-inference-layer-document-naming.md) 裁定一重过推理链。成因是一次实误报——[#844](https://github.com/xy7365527-lang/NewChanlun/issues/844) 据词面把这里报成了冲突（X3）。
+
+**退出授权（Exit Authorization）**（2026-10-13 [#1352](https://github.com/xy7365527-lang/NewChanlun/issues/1352) 裁定，[ADR 0030](docs/adr/0030-exit-authorization-and-liability-retirement.md)）:
+结束一个 Voice 持仓的具名许可，来源三类且互不兜底：结构事实（卖点成立或买入理由失效，`031-第31课.md:26`【正文】）、具名系统风险条件（系统自设，用户签署清单版本）、用户手动/急停。范围随来源类定；跨重急停不是仲裁，是范围内每重各自退出。风险与手动不得记成卖点。
+_Avoid_: 把「出场判定」节 typed exit 里的 `RiskExit` 当作具名系统风险条件来源（前者是旧 theta_v0 出场裁决的标签，不自动成为新架构授权）。
+
+**责任退休（Liability Retirement）**（同上）:
+一个 Voice 的外部责任在四条件齐备时进入的状态：订单全部终态、持仓归零、费用（含费用尾）结清、无 Pending。退休释放共同占用；迟到事实在同一 Voice 重开责任，永不挂新 Voice。
 
 **证书（Certificate, γ）**:
 经区间套 + 背驰**确认成立**的买卖点。确认发生在证书成立层；出场层只消费已确认证书。
@@ -254,6 +268,20 @@ _Avoid_: 把本点自身 source_index 塞进锚（伪阳性唯一性）；三类
 **「生产」拆三义（three meanings of production）**:
 **π 引擎**指 canonical `run_theta_v0_pi`/π fill 的策略与执行家族本体；**最小生产路径 CLI** 指 `theta_backtest` 用仓内数据加载、π 引擎与内部 fill 串成的可运行闭环，它证明 CLI 可驱动引擎，但不等于交易场所集成；**NT 真生产**指 NautilusTrader 的 Backtest/Live runtime、真实 portfolio/order 生命周期与 broker adapter 驱动同一策略。三者须按全名使用，不以裸称“生产”互相替代。
 
+**场所 profile（Venue Profile）**（2026-10-13 [#1351](https://github.com/xy7365527-lang/NewChanlun/issues/1351) 裁定，[ADR 0028](docs/adr/0028-first-capability-verification-profile.md)）:
+一次能力验证或目标生产部署所绑定的具名范围 = ⟨environment, venue, dex, account, endpoint, credential_scope, execution_form, allowed_actions, evidence_class, authorization⟩ 及版本。任一字段变更即新版本；environment 与 execution_form 不得在版本内切换。凭据只记作用域与来源，不记值。首个能力验证 profile 为 `P1-hl-testnet` v1（Hyperliquid testnet 主 DEX）。
+_Avoid_: 把 profile 当场所选定（ADR 0021「暂不选定」仍有效）；把 `xyz` 等 builder DEX 并入 v1 的证据射程（同 profile 的 v2 另起）。
+
+**证据类（Evidence Class）**（同上）:
+profile 产出证据的归类：`simulation`（确定性回放/受控模拟）、`experiment`（独立实验部署）、`production`（目标生产部署）。低类证据不得被读为高类有效；目标生产部署首次新发送前须按 TB-09 重核（SPEC `:372`）。
+_Avoid_: 行文裸称「production」——按上条「生产」拆三义的规矩写全名；枚举值 `production` 只指目标生产部署。
+
+**已知前沿（Known Frontier）**（2026-10-13 [#1353](https://github.com/xy7365527-lang/NewChanlun/issues/1353) 裁定一，[ADR 0033](docs/adr/0033-history-simulation-bar-batch-model.md)）:
+历史模拟中第 t 根 bar 适用的订单集合 ＝ t−1 收盘时已输出并经准入的集合；收盘才知道的信息只作用于下一边界。是 ADR 0018 裁定四「撤单不得用预算到期 bar」在多重上的形式。
+
+**模拟批（Simulation Batch）**（同上）:
+同一 bar 内全部外效的集合；批内各重各自独立判定、不排序、不互占资金，批内真实先后声明为未知；双跑只比较批级终态。依据 ADR 0013 裁定一／ADR 0014 裁定二：重间不需要次序。
+
 ### 出场判定
 
 **谓词（Predicate, P_j）**:
@@ -305,3 +333,19 @@ _Avoid_: 不区分毛/净地说"仓位大小"
 **亏损往返（Losing Round-trip）**:
 买回价 > 卖出价的短差往返。记账口径（2026-07-27 #367 项四裁定）：**如实入账**——现金门分两族：货透支（holding<0）=记账错误照拒不误；现金变负（free<0）由真实亏损造成 = 放行入账。桶现金为负的语义 = 短差累计倒贴、主仓成本基承担（成本升高的账本表达），影子账（报告层）含负如实呈现。
 _Avoid_: "被拒的往返不记账"（旧口径，系统性偏乐观已废）
+
+**本金批次（Principal Batch）**（2026-10-13 [#1348](https://github.com/xy7365527-lang/NewChanlun/issues/1348) 裁定一，[ADR 0031](docs/adr/0031-principal-batches-phase-predicate-corporate-actions.md)；教义正本 `.chanlun/definitions/sanjieduan.md`）:
+一重的本金 P 是其已授权来源真实自有投入的分批之和，只增不减；利润资本化 A 与提取 W 不动 P。空头重的批即投入保证金 M。与 E 侧共同责任界 `baseline.amount` 是不同量。
+
+**阶段事件史 / 扩量资格（Phase Events / Growth Eligibility）**（同上，裁定三）:
+`TStage` latch 只投影 campaign 内达标事件史（AsKnown 不回填）；扩量资格由唯一谓词按当前真实成本 K 与已退本金计算，latch 不得作其输入。两者是历史事实与当前准入两个对象，不是同一判断的两档。
+
+**Typed NotComputable**（同上，裁定二／四）:
+分母为零或定义域外时的正式输出形态——带 `status/reason` 与可保留的绝对量（整数），不填 0、∞，不换分母。单位量在 q>0 时只以整数对 `{K, q}` 给出，不做除法。
+
+**投影清单（Projection Manifest）**（2026-10-13 [#1350](https://github.com/xy7365527-lang/NewChanlun/issues/1350) 裁定一，[ADR 0032](docs/adr/0032-fill-allocation-policy.md)）:
+命令投影时冻结的参与集合、`projection_kind`（`per_leg` / `netted`）与 `tie_break_order`；外效到重的分配路径由它选定，不由运行时判据回落。`netted` 下按冻结请求量比例、以累计函数差分唯一分配；`per_leg` 下只认来源逐腿归属。完整历史模拟与它共用 `projection_kind` 的定义（ADR 0033）。
+
+**外效分配政策版本（Fill Allocation Policy Version）**（同上）:
+`(fill_allocation_policy_id, manifest_hash, policy_revision)` 三元组随每条 allocation 持久；更正与重放引用原版本的逆规则，换版本只能是显式迁移事件。
+_Avoid_: 与 RD-11 资金准入的 `allocation_policy_id`（#1394）混称「分配政策」——那是另一个 id 空间。

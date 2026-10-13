@@ -72,6 +72,8 @@
 3. **Hyperliquid 或 Binance 的隔离机制发生变更** —— 尤其 HIP-3 规范对部署者权力的约束（时间锁／赔付／限速）若增补，裁定三整表要重看
 4. **★账目与执行切换件（#937 四裁，2026-08-17）** —— 本 ADR 任一重启条件触发时，**同步执行**已裁未生效的三件：① 验收口径净→毛（[#937](https://github.com/xy7365527-lang/NewChanlun/issues/937) 问 1 条件式）；② `VOICE_EXEC` 臂从 `#[cfg(test)]` 提为生产门 + `sep_legs` 从只读镜像转记账主源——**两件一次性切换，不留中间态**（#937 问 4，#799）；③ `买卖点alpha2.pdf` p22-24 名分激活为 §11 对账分账本侧的数学正当性来源（问 2，完全对冲点例外）。**记忆载体就是本条**——重启时读 ADR 0021 必读裁定五，四裁自动带出
 
+> **2026-10-13 补记（[#1351](https://github.com/xy7365527-lang/NewChanlun/issues/1351)，[ADR 0028](0028-first-capability-verification-profile.md)）**：首个能力验证范围已定为 testnet profile `P1-hl-testnet` v1（Hyperliquid 主 DEX，可下单不可划转，Netting）；TB-08 认领时只读重读 testnet 余额，读不到可用余额即退回确定性回放与受控模拟，不为此在主网存款。**不构成本 ADR 重启**——生产场所仍未选定，隔离零实测的降级原样保留，`xyz` 等 builder DEX 不在 v1。另：[#1319](https://github.com/xy7365527-lang/NewChanlun/issues/1319) 2026-08-31 只读查到编排者主钱包在 testnet 已注资，裁定二所记 faucet 阻塞只对全新钱包成立。
+
 ## 有效域（引本 ADR 必须一并引）
 
 1. **所有场所侧读数均为 2026-08-07～08 的快照**，深度读数**样本量=1、单一时点**。
