@@ -215,7 +215,7 @@ ZD < ZG（严格，Z-2）
 
 **落码补齐（[#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478) 裁定一，2026-10-13）**：GG/DD 的「n 遍历所有 Zn」此前只落在正本；生产塔（`recursive_tower.rs:524-527`）、旧线（`rust/src/zhongshu.rs:72-87`、`src/newchan/a_zhongshu_v1.py:100-101`／`:108-109`）与 Lean（`CenterConstruct.lean:408-417` `extendWeak`、`:442-443` seed）都对**全部**成员单元取极值，seed 三段同样全取（`center.rs:170`／`:176` `compute_gg`／`compute_dd`）。分歧只出现在末成员为非 `Zn` 单元时：端点相连、方向交替的序列里，内部非 `Zn` 单元的两端是相邻 `Zn` 的端点，被覆盖；只有末非 `Zn` 成员的远端不属任何 `Zn`。按 #793 这是 #812 受影响代码清单的缺项，不是新分歧；本轮没有生产实测读数反对 `Zn` 口径，生产代码不行使否决权。**落地**：塔与 Lean 并入 [#1419](https://github.com/xy7365527-lang/NewChanlun/issues/1419) 的共用扫描（R8）批次，同拍改、同一次基线重生成；**不允许出现「S 发 `Zn` 外缘、塔留全单元外缘」的中间态**（同一量两种值，#804）。`Zn` 判别：与 seed 第一单元**方向相等**的成员（[#1419](https://github.com/xy7365527-lang/NewChanlun/issues/1419) D-A）。端点相连、方向交替的 L0 序列上，它等价于「与第一单元的序号差 `(j−i)` 为偶数」；上级输入方向不保证交替，两种判法在那里分歧，以方向为准——Rust `center::is_zn` 与 Lean `isZn`／`znAgg` 是同一判据（#804）。清单见 §9 R21–R27、L9–L11、P14–P16，落码状态见 §9.6。元教训同 Z-6 订正：承重的是「数哪些段」。
 
-**中枢外缘不是走势区间**（[#1419](https://github.com/xy7365527-lang/NewChanlun/issues/1419) 根裁定 r2 第 1 条，2026-10-14）：`GG`/`DD` 只数 `Zn`；**走势**的区间——走势的高低点、创新高／新低、背驰比较、上级投影单元的 `[lo, hi]`——取该走势全部子走势的价格极值。末成员为非 `Zn` 反向段时，它的端点就是走势的实际极值，却不进中枢外缘。`Zn` 落码之前二者在本仓恒等，塔的 O(1) 区间读取（`LeveledMove::envelope`）曾借这个恒等去读中枢 `dd/gg`；现改读构造期缓存的走势区间，Lean `Formal.RecursiveConstruction.Move.interval` 同拍改为对 `subs` 取极值（§9.6 R28、R29、L12）。
+**中枢外缘不是走势区间**（[#1419](https://github.com/xy7365527-lang/NewChanlun/issues/1419) 根裁定 r2 第 1 条，2026-10-14）：`GG`/`DD` 只数 `Zn`；**走势**的区间——走势的高低点、创新高／新低、背驰比较、上级投影单元的 `[lo, hi]`——取该走势全部子走势的价格极值。末成员为非 `Zn` 反向段时，它的端点就是走势的实际极值，却不进中枢外缘。`Zn` 落码之前二者在本仓恒等，塔的 O(1) 区间读取（`LeveledMove::envelope`）曾借这个恒等去读中枢 `dd/gg`；现改读构造期缓存的走势区间，Lean `Formal.RecursiveConstruction.Move.interval` 同拍改为对 `subs` 取极值，背驰嵌套里「创新高／新低」的参照 `OpenTail.currentExtreme` 也改读走势区间（§9.6 R28、R29、L12、L14）。
 
 ---
 
@@ -629,6 +629,7 @@ ZD < ZG（严格，Z-2）
 | L11 | `formal/Origin/CenterConstruction.lean:108` `isZn`、`:133` `computeGG`、`:137` `computeDD` | 已落；外缘包含核心改经「首段恒为 `Zn`」两条引理证明 | `0cff16b33a` |
 | L12 | `formal/Formal/RecursiveConstruction.lean:56` `Move.interval`、`:60` `listInterval`；`formal/Origin/PromQual.lean:292` `shiftMove_interval` | 新增：走势区间对 `subs` 取极值（空 `subs` 记 `(0,0)`，与 Rust `RMove::lo/hi` 同口径），平移保区间改互递归证明 | `ee739fbea6` |
 | L13 | `formal/Formal/RecursiveConstruction.lean:126` `CenterDerivedAt`、`:275` `deriveWindowCenter3` | **未改**，过渡态见 §9.5 | — |
+| L14 | `formal/Formal/DivergenceNesting.lean:436` `OpenTail.currentExtreme`、`:654` `positiveDownTail` | 已落（根裁定 D-J2 第 4 点）：当前极值取走势区间（复用 `Move.interval`），去掉中枢外缘 `foldr min 0`／`foldr max 0` 哨兵；正价下行判别例：`DD = 10`、观察价 5 ⟹ 创新低 | `399c3a3bac` |
 | P16 | `s_session/s_tb02_contract.py` `validate_center_payload` | 未落：随 S 写者／Q 合同片 | — |
 
 ## 10. 本次推翻的旧结算（订正表）
@@ -668,6 +669,7 @@ ZD < ZG（严格，Z-2）
   - §3：`Zn` 判别改为方向相等（D-A），注明 L0 交替时等价于序号差为偶；加「中枢外缘不是走势区间」
   - §6.1：加落码现状（塔与 `ref_v1.rs` 改 C、旧线归 TB-10）
   - §9：R21、L9 处置补 D-A；§9.5 补 Lean `CenterDerivedAt` 并入同一例外、补代码指针；新增 §9.6 落码状态（含新增 R28、R29、L12、L13）
+  - §3、§9.6：补 L14（`OpenTail.currentExtreme` 改取走势区间，根裁定 D-J2 第 4 点）
 - 2026-10-13: **v2.1 [#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478) S-7 落码补齐与 §4.1 端点**（#1323 grilling，代理依用户授权裁定、根复核）
   - §3：G/D 行改为 S 事实层按 `Zn` 实现、`Center`／`CenterFull` 不加字段；§3 末加「落码补齐」
   - §4.1：加端点条款（回抽段为连接段，Lean 管边界）与退场条件；§5.4 加一句 `Zn` 落码后结论不变
