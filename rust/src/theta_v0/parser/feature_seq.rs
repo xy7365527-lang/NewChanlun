@@ -416,8 +416,8 @@ pub struct FeatureSeqState {
     /// #88 frontier 修复：本段扫描期间是否跳过过**尚可改判**的 SecondKind 候选。`reset` 清零
     /// （每段独立），跳过时置真（段内累积）。增量层 `IncrSegments::append` 读此标志把 seg_start 记入
     /// `earliest_unsealed_from`（检查点安全边界）。#1344：`OPEN_AT_PREFIX_END` 与预算耗尽的候选
-    /// 未来可确认或失效 ⟹ 置真；`KILLED_BY_NEW_EXTREME` 不复活 ⟹ 不置真——唯一例外是失效笔仍是
-    /// 输入末笔（末笔可改写，失效尚可撤销）。
+    /// 未来可确认或失效 ⟹ 置真；`KILLED_BY_NEW_EXTREME` 不复活 ⟹ 不置真——例外是失效笔仍是
+    /// 输入末笔（末笔可改写，失效尚可撤销）；`CONFIRMED` 的确认笔仍是输入末笔时同理置真（#1420）。
     skipped_secondkind: bool,
     /// #1420 / A-ST-048-01：已遇预算耗尽的候选。预算耗尽不是否定，本段之后的候选一律不判，
     /// 直到该候选在新输入上解出（增量层每次 append 新建状态机，故只在单次扫描内生效）。
@@ -728,7 +728,17 @@ impl FeatureSeqState {
                 self.second = second.clone();
             }
             match second.as_ref().map(|s| (s.semantic_state, s)) {
-                None | Some((Some(SecondTerminal::Confirmed), _)) => {}
+                None => {}
+                Some((Some(SecondTerminal::Confirmed), s)) => {
+                    // #1420（K1 等价条件：末笔可改写）：确认笔仍是输入末笔时，确认尚可撤销 ⟹
+                    // 本段保持 unsealed，与失效同一规则（三路锁 tb02w_three_way 的末笔回缩反例）。
+                    if s.matched
+                        .as_ref()
+                        .is_some_and(|m| m.through_stroke + 1 >= strokes.len())
+                    {
+                        self.skipped_secondkind = true;
+                    }
+                }
                 Some((Some(SecondTerminal::KilledByNewExtreme), s)) => {
                     // #1344：失效候选作废、不复活（078:52），段继续；失效笔仍是输入末笔时末笔可改写，
                     // 失效尚可撤销 ⟹ 本段保持 unsealed，否则失效终局，检查点安全边界前移。
