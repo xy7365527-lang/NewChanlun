@@ -630,7 +630,9 @@ ZD < ZG（严格，Z-2）
 | L12 | `formal/Formal/RecursiveConstruction.lean:56` `Move.interval`、`:60` `listInterval`；`formal/Origin/PromQual.lean:292` `shiftMove_interval` | 新增：走势区间对 `subs` 取极值（空 `subs` 记 `(0,0)`，与 Rust `RMove::lo/hi` 同口径），平移保区间改互递归证明 | `ee739fbea6` |
 | L13 | `formal/Formal/RecursiveConstruction.lean:126` `CenterDerivedAt`、`:275` `deriveWindowCenter3` | **未改**，过渡态见 §9.5 | — |
 | L14 | `formal/Formal/DivergenceNesting.lean:436` `OpenTail.currentExtreme`、`:654` `positiveDownTail` | 已落（根裁定 D-J2 第 4 点）：当前极值取走势区间（复用 `Move.interval`），去掉中枢外缘 `foldr min 0`／`foldr max 0` 哨兵；正价下行判别例：`DD = 10`、观察价 5 ⟹ 创新低 | `399c3a3bac` |
-| P16 | `s_session/s_tb02_contract.py` `validate_center_payload` | 未落：随 S 写者／Q 合同片 | — |
+| P16 | `s_session/s_tb02_contract.py` `validate_center_payload`、`validate_center_links`；`s_session/browser/tb01c-client.js` 同名 JS 版 | 已落（schema `s-center/1` v1.1）：Q 与浏览器复核 `Zn` 只用方向相等、核心严格 `<`，Python 与 JS 对共享语料逐条对拍原因码 | `aeed7ee037` |
+
+S 事实层其余落点：seed 唯一判定 `center.rs` `seed_facts`（`639c063769`）、共用扫描内核 `recursive_tower.rs` `scan_center_facts` 与 `center_scan.rs`（`bd1d3aa0ad`）、S 写者 `rust/src/bin/s_session_v2/tb02e.rs`（`10f951889b`）。
 
 ## 10. 本次推翻的旧结算（订正表）
 
@@ -670,6 +672,7 @@ ZD < ZG（严格，Z-2）
   - §6.1：加落码现状（塔与 `ref_v1.rs` 改 C、旧线归 TB-10）
   - §9：R21、L9 处置补 D-A；§9.5 补 Lean `CenterDerivedAt` 并入同一例外、补代码指针；新增 §9.6 落码状态（含新增 R28、R29、L12、L13）
   - §3、§9.6：补 L14（`OpenTail.currentExtreme` 改取走势区间，根裁定 D-J2 第 4 点）
+  - §9.6：P16 改已落，补 S 事实层落点（seed 判定、扫描内核、S 写者）
 - 2026-10-13: **v2.1 [#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478) S-7 落码补齐与 §4.1 端点**（#1323 grilling，代理依用户授权裁定、根复核）
   - §3：G/D 行改为 S 事实层按 `Zn` 实现、`Center`／`CenterFull` 不加字段；§3 末加「落码补齐」
   - §4.1：加端点条款（回抽段为连接段，Lean 管边界）与退场条件；§5.4 加一句 `Zn` 落码后结论不变
