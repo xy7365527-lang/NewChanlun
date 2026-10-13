@@ -1,5 +1,8 @@
 //! #1394 C §5.7: owner supplied storage and job for the current S financial basis.
 //! The transport fields are temporary; only `FinancialBasisEvidence` enters an image.
+//! #1394 第三问选项 A 候选：经会话读取（`SourcePins.session`）时，缺节点改走 `financial-closure`
+//! 闭包分块导入（`import_closure`），无会话时仍是逐片 `download`；两者由冻结 manifest 决定、
+//! 互不兜底（#799）。导入后的判据不变：同一 `verify_local` 从根完整核验，另核回复流恰为该闭包。
 
 use super::{finance_transport, financial_reader_resources::FinancialReaderResources};
 use crate::s_content::{
@@ -190,6 +193,20 @@ pub(super) trait FinancialStage: NodeSource {
         tag: u8,
         body: &[u8],
     ) -> Result<(), CodecError>;
+    /// #1394 第三问选项 A：一块节点一次预留、一个事务、一次 checkpoint；调用方已对每个节点经
+    /// `Job::accept_node` 核 F 并计节点账，实现再核 F 与同根冲突。本块新写入的摘要（已在本地者跳过、
+    /// 不追加）在块事务提交时即追加到调用方的回滚清单 `inserted`，先于 checkpoint、对账、载体上限等
+    /// 提交后步骤：这些步骤失败返回 `Err` 时，已提交的行仍在清单里（r2，独审 N1）。块事务未提交即
+    /// 失败时不追加。不得在调用前预登记整块摘要：块里已在本地的节点（如同一 stage 先前 peer 导入的行）
+    /// 不属于本次写入，回滚不能删它们。
+    fn put_batch_budgeted(
+        &mut self,
+        job: &mut Job,
+        nodes: &[(NodeDigest, u8, Vec<u8>)],
+        inserted: &mut Vec<NodeDigest>,
+    ) -> Result<(), CodecError>;
+    /// 闭包尝试失败时删去该尝试写下的暂存行（只限给定摘要与本 stage）；返回删除行数。
+    fn discard_staged(&mut self, digests: &[NodeDigest]) -> Result<u64, CodecError>;
 }
 
 #[derive(Clone, Debug)]
@@ -360,6 +377,18 @@ pub(super) fn read_current(
     stage: &mut dyn FinancialStage,
 ) -> Result<VerifiedBasis, String> {
     let pins = SourcePins::from_structure(structure)?;
+    read_current_pins(&pins, object_ids, shared_job, operation_deadline, stage)
+}
+
+/// `read_current` 的主体，pins 由调用方给。生产入口只经 `read_current`（`from_structure` 恒无会话，
+/// 待 §5.7:321 `reader_session` 字段裁定后接线）；会话 pins（`with_session`）目前只由测试与复制品实测给出。
+pub(super) fn read_current_pins(
+    pins: &SourcePins,
+    object_ids: &[String],
+    shared_job: &mut Job,
+    operation_deadline: Instant,
+    stage: &mut dyn FinancialStage,
+) -> Result<VerifiedBasis, String> {
     if shared_job.snapshot().limits != pins.resources.job_limits {
         return Err("IdentityConflict：shared Job 限额与冻结 reader_resources 不符".into());
     }
@@ -375,7 +404,7 @@ pub(super) fn read_current(
         if Instant::now() >= operation_deadline {
             return Err("Incomplete：经济操作期限已过".into());
         }
-        match read_once(&pins, object_ids, shared_job, operation_deadline, stage) {
+        match read_once(pins, object_ids, shared_job, operation_deadline, stage) {
             Err(error)
                 if error.starts_with("MissingDependency：财务 reader 非成功退出")
                     || error.starts_with("MissingDependency：财务anchor") =>
@@ -417,6 +446,8 @@ fn read_once(
     if root.kind != Kind::Object || root.extent != Some(7) {
         return Err(invalid("basis_ref 非七字段对象"));
     }
+    // 读法由冻结 pins 决定：经会话 → 闭包分块；冷路径 → 逐片。失败不换读法。
+    let closure = pins.session.is_some();
     let snapshot = from_ref(&reply["snapshot_ref"])?;
     if snapshot.kind != Kind::Object || snapshot.extent != Some(20) {
         return Err(invalid("snapshot_ref 非二十字段对象"));
@@ -463,11 +494,24 @@ fn read_once(
         "index_frontier":scalar_string(&mut independent,
             &map_ref(&snapshot_fields, "index_frontier")?)?,
         "commit_ns":reply["commit_ns"],"basis_ref":reply["basis_ref"]});
-    import_proof(&proof, stage, job)?;
+    // 闭包模式不单独暂存 proof：proof 节点都在 basis 根的闭包里，随闭包流到达并接受同一成员核验；
+    // proof 本身已在上面的独立 MemoryNodes 上核完头部与选中对象。
+    if !closure {
+        import_proof(&proof, stage, job)?;
+    }
     // One complete check on a cached root. Missing nodes trigger retrieval and
     // a new check; any rows visited by the failed attempt stay charged.
     let mut result = match verify_local(pins, &evidence, &mut StoreSource(stage), job) {
         Ok(verified) => verified,
+        Err(error) if error.contains(sc::code::NODE_MISSING) && closure => {
+            let plan = ClosurePlan::frozen(&pins.resources);
+            let mut fetch = |request: &Value, job: &mut Job| {
+                pins.call("financial-closure", request, job, deadline)
+            };
+            import_closure(
+                &mut fetch, pins, &evidence, &root, &anchor, plan, job, deadline, stage,
+            )?
+        }
         Err(error) if error.contains(sc::code::NODE_MISSING) => {
             download(pins, &root, &anchor, job, deadline, stage)?;
             verify_local(pins, &evidence, &mut StoreSource(stage), job)?
@@ -865,6 +909,225 @@ pub(super) fn verify_evidence(
     Ok(verified)
 }
 
+// ===== #1394 第三问选项 A：financial-closure 客户端（闭包分块导入） =====
+
+const CLOSURE_REPLY: [&str; 9] = [
+    "anchor",
+    "path",
+    "after",
+    "target_ref",
+    "total",
+    "nodes",
+    "next",
+    "done",
+    "ok",
+];
+
+/// 闭包分块参数：块大小（每块回复字节预算）与块数帽。生产值只由冻结 reader_resources 派生，
+/// 不新增冻结字段（`frozen`）；测试可直接构造。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct ClosurePlan {
+    /// 请求的 `max_reply_bytes`：S 返回的块（规范回复 JSON 加末尾 LF）不超过它。
+    pub reply_bytes: u64,
+    /// 一次闭包读取最多发出的块请求数；超过即 Incomplete，不再请求。
+    pub max_chunks: u64,
+}
+impl ClosurePlan {
+    /// 块大小 = 冻结 `max_reply_bytes`（即 `finance_transport` 对每次回复执行的同一上限）。
+    /// 块数帽 = 2·⌊max_total_wire_bytes / max_reply_bytes⌋ + 1：S 按摘要升序装满每块（下一节点装不下
+    /// 才断块），故任意相邻两块字节和大于块大小，k 块的回复总字节大于 ⌊k/2⌋·块大小；而回复总字节
+    /// 不超过 Job 的 wire 帽。块数超过此帽只可能是 S 未装满块，拒绝。
+    pub(super) fn frozen(resources: &FinancialReaderResources) -> Self {
+        let reply_bytes = resources.max_reply_bytes;
+        Self {
+            reply_bytes,
+            max_chunks: (resources.job_limits.max_total_wire_bytes / reply_bytes)
+                .saturating_mul(2)
+                .saturating_add(1),
+        }
+    }
+}
+
+/// 经 `fetch`（生产 = `SourcePins::call("financial-closure")`，每块一个 S 客户端子进程、45 s 单次期限、
+/// 回复帽与 wire 照实计费）以显式游标逐块取回 basis 根的完整闭包。每块：回复 exact 九字段且逐字绑定
+/// 请求（anchor、path、after），target_ref 等于 basis_ref，total 不变；节点非空、按摘要严格升序并大于
+/// 游标；每个节点经 `Job::accept_node` 重算 F 并计节点账；next 等于本块末节点；done 当且仅当累计数
+/// 等于 total。整块交给 `put_batch_budgeted`（一块一个事务）。返回收到的升序摘要；本尝试写下的
+/// 暂存摘要在每块事务提交时即追加到 `inserted`（含该块提交后步骤失败的情形），供失败时回滚。
+/// 完整性与成员关系由调用方随后的完整核验证明。
+#[allow(clippy::too_many_arguments)]
+fn download_closure(
+    fetch: &mut dyn FnMut(&Value, &mut Job) -> Result<Value, String>,
+    root: &ContentRef,
+    anchor: &Value,
+    plan: ClosurePlan,
+    job: &mut Job,
+    deadline: Instant,
+    stage: &mut dyn FinancialStage,
+    inserted: &mut Vec<NodeDigest>,
+) -> Result<Vec<NodeDigest>, String> {
+    let mut received: Vec<NodeDigest> = Vec::new();
+    let mut total: Option<u64> = None;
+    let mut after = String::new();
+    let mut chunks = 0u64;
+    loop {
+        job.pre_io_check().map_err(codec)?;
+        if Instant::now() >= deadline {
+            return Err("Incomplete：经济操作期限已过".into());
+        }
+        if chunks >= plan.max_chunks {
+            return Err(format!(
+                "Incomplete：闭包块数达到块数帽 {} 仍未完成",
+                plan.max_chunks
+            ));
+        }
+        chunks += 1;
+        let request = json!({"schema_revision":"s-financial-closure/1","anchor":anchor,
+            "path":[],"after":after,"max_reply_bytes":plan.reply_bytes.to_string()});
+        let reply = fetch(&request, job)?;
+        exact(&reply, &CLOSURE_REPLY)?;
+        if reply["ok"] != true
+            || reply["anchor"] != *anchor
+            || reply["path"] != json!([])
+            || reply["after"] != json!(after)
+        {
+            return Err("IdentityConflict：闭包回复未逐字绑定请求".into());
+        }
+        if from_ref(&reply["target_ref"])? != *root {
+            return Err("IdentityConflict：闭包目标根不是 basis_ref".into());
+        }
+        let declared = canonical_number(&reply["total"], true, "total")?;
+        if *total.get_or_insert(declared) != declared {
+            return Err("IdentityConflict：闭包 total 改变".into());
+        }
+        if declared > job.snapshot().limits.max_total_nodes {
+            return Err(format!(
+                "Incomplete：闭包 total {declared} 超过 Job max_total_nodes"
+            ));
+        }
+        let raw = reply["nodes"]
+            .as_array()
+            .ok_or_else(|| invalid("闭包 nodes 非数组"))?;
+        if raw.is_empty() {
+            return Err(invalid("闭包块为空"));
+        }
+        let mut batch = Vec::with_capacity(raw.len());
+        for value in raw {
+            let node = ProofNode::from_json(value).map_err(codec)?;
+            let (digest, tag, body) = node_parts(&node)?;
+            if received.last().is_some_and(|prior| *prior >= digest) {
+                return Err(invalid("闭包节点未按摘要严格升序，或与游标重叠"));
+            }
+            job.accept_node(&digest, tag, &body).map_err(codec)?;
+            received.push(digest);
+            batch.push((digest, tag, body));
+        }
+        let count = u64::try_from(received.len()).map_err(invalid)?;
+        if count > declared {
+            return Err(invalid("闭包节点数超过 total"));
+        }
+        let last = received.last().copied().ok_or_else(|| invalid("闭包块为空"))?;
+        let next = text(&reply, "next")?;
+        if next != sc::root_string(&last) {
+            return Err(invalid("闭包 next 不是本块末节点"));
+        }
+        let done = reply["done"]
+            .as_bool()
+            .ok_or_else(|| invalid("闭包 done 非布尔"))?;
+        if done != (count == declared) {
+            return Err(invalid("闭包 done 与 total 不符"));
+        }
+        // 回滚清单交给批量写自己追加：块事务一提交即登记，提交后步骤失败也不漏（r2，独审 N1）。
+        stage.put_batch_budgeted(job, &batch, inserted).map_err(codec)?;
+        if done {
+            return Ok(received);
+        }
+        after = next.to_owned();
+    }
+}
+
+/// 成员核验读源：包住本地 stage，记录完整核验实际读到的每个节点是否在收到的闭包流里。
+struct ClosureMembership<'a> {
+    inner: &'a mut dyn FinancialStage,
+    received: &'a [NodeDigest],
+    hit: Vec<bool>,
+    outside: Option<NodeDigest>,
+}
+impl NodeSource for ClosureMembership<'_> {
+    fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+        let read = self.inner.read(digest)?;
+        if matches!(read, NodeRead::Found { .. }) {
+            match self.received.binary_search(digest) {
+                Ok(index) => self.hit[index] = true,
+                Err(_) => {
+                    self.outside.get_or_insert(*digest);
+                }
+            }
+        }
+        Ok(read)
+    }
+}
+
+/// 一次闭包尝试：分块导入，再用同一 `verify_local` 从根完整核验（records 照旧计、节点按 Job 去重），
+/// 并要求核验读到的节点集与收到的闭包流逐个相同（不多、不少）。任一步失败：回滚本尝试写下的
+/// 暂存行，原错误前缀不变（`read_current` 的重读判据只看前缀），回滚结果附在错误尾部。
+#[allow(clippy::too_many_arguments)]
+fn import_closure(
+    fetch: &mut dyn FnMut(&Value, &mut Job) -> Result<Value, String>,
+    pins: &SourcePins,
+    evidence: &Value,
+    root: &ContentRef,
+    anchor: &Value,
+    plan: ClosurePlan,
+    job: &mut Job,
+    deadline: Instant,
+    stage: &mut dyn FinancialStage,
+) -> Result<VerifiedBasis, String> {
+    let mut inserted = Vec::new();
+    let attempt = (|| {
+        let received = download_closure(
+            fetch,
+            root,
+            anchor,
+            plan,
+            job,
+            deadline,
+            &mut *stage,
+            &mut inserted,
+        )?;
+        let mut member = ClosureMembership {
+            inner: &mut *stage,
+            hit: vec![false; received.len()],
+            received: &received,
+            outside: None,
+        };
+        let verified = verify_local(pins, evidence, &mut member, job)?;
+        if let Some(digest) = member.outside {
+            return Err(format!(
+                "IdentityConflict：闭包流缺少根可达节点 {}",
+                sc::root_string(&digest)
+            ));
+        }
+        let extra = member.hit.iter().filter(|hit| !**hit).count();
+        if extra > 0 {
+            return Err(format!(
+                "IdentityConflict：闭包流含 {extra} 个根不可达节点"
+            ));
+        }
+        Ok(verified)
+    })();
+    match attempt {
+        Ok(verified) => Ok(verified),
+        Err(error) => Err(match stage.discard_staged(&inserted) {
+            Ok(removed) => format!("{error}（闭包尝试已回滚 {removed} 行暂存）"),
+            Err(cleanup) => format!(
+                "{error}（闭包尝试回滚失败，留待 discard_unpublished/recover：{cleanup}）"
+            ),
+        }),
+    }
+}
+// ===== financial-closure 客户端结束 =====
+
 fn page_limit(resources: &FinancialReaderResources, kind: Kind) -> u64 {
     // Purely derived from the frozen per-reply byte ceiling, without a service default.
     let divisor = if matches!(kind, Kind::String | Kind::Number) {
@@ -1062,6 +1325,59 @@ fn download(
     Ok(())
 }
 
+/// TestOnly：内存 stage 的批量写＝逐节点 `put_budgeted`（已存在者跳过），只供无物理载体的单测。
+#[cfg(test)]
+fn test_put_batch(
+    stage: &mut dyn FinancialStage,
+    job: &mut Job,
+    nodes: &[(NodeDigest, u8, Vec<u8>)],
+    inserted: &mut Vec<NodeDigest>,
+) -> Result<(), CodecError> {
+    for (digest, tag, body) in nodes {
+        if sc::frame(*tag, body) != *digest {
+            return Err(CodecError::new(sc::code::NODE_DIGEST, "batch digest"));
+        }
+        match stage.read(digest)? {
+            NodeRead::Found {
+                tag: old_tag,
+                body: old_body,
+            } if old_tag != *tag || old_body != *body => {
+                return Err(CodecError::new(sc::code::SINK, "same digest conflict"))
+            }
+            NodeRead::Found { .. } => (),
+            NodeRead::Missing => {
+                stage.put_budgeted(job, *digest, *tag, body)?;
+                inserted.push(*digest);
+            }
+        }
+    }
+    Ok(())
+}
+/// TestOnly：从内存节点表删去给定摘要（MemoryNodes 无删除口，按剩余节点重建）。
+#[cfg(test)]
+fn test_discard(nodes: &mut sc::MemoryNodes, digests: &[NodeDigest]) -> u64 {
+    use crate::s_content::NodeSink;
+    let drop: BTreeSet<NodeDigest> = digests.iter().copied().collect();
+    let mut kept = sc::MemoryNodes::new();
+    let mut removed = 0;
+    for (digest, tag, body) in nodes.iter() {
+        if drop.contains(digest) {
+            removed += 1;
+        } else {
+            kept.put(*digest, tag, body).unwrap();
+        }
+    }
+    *nodes = kept;
+    removed
+}
+
+#[cfg(test)]
+#[path = "closure_tests.rs"]
+mod closure_tests;
+#[cfg(test)]
+#[path = "closure_replica_tests.rs"]
+mod closure_replica_tests;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1089,6 +1405,17 @@ mod tests {
             let grant = job.reserve_staged(allocated)?;
             self.0.put(digest, tag, body)?;
             job.reconcile(&grant, allocated)
+        }
+        fn put_batch_budgeted(
+            &mut self,
+            job: &mut Job,
+            nodes: &[(NodeDigest, u8, Vec<u8>)],
+            inserted: &mut Vec<NodeDigest>,
+        ) -> Result<(), CodecError> {
+            test_put_batch(self, job, nodes, inserted)
+        }
+        fn discard_staged(&mut self, digests: &[NodeDigest]) -> Result<u64, CodecError> {
+            Ok(test_discard(&mut self.0, digests))
         }
     }
     fn resources() -> Value {
@@ -1698,6 +2025,17 @@ mod fresh_small_tests {
             let grant = job.reserve_staged(bytes)?;
             self.0.put(digest, tag, body)?;
             job.reconcile(&grant, bytes)
+        }
+        fn put_batch_budgeted(
+            &mut self,
+            job: &mut Job,
+            nodes: &[(NodeDigest, u8, Vec<u8>)],
+            inserted: &mut Vec<NodeDigest>,
+        ) -> Result<(), CodecError> {
+            super::test_put_batch(self, job, nodes, inserted)
+        }
+        fn discard_staged(&mut self, digests: &[NodeDigest]) -> Result<u64, CodecError> {
+            Ok(super::test_discard(&mut self.0, digests))
         }
     }
     #[test]

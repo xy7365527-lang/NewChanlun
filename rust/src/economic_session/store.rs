@@ -51,6 +51,9 @@ CREATE TABLE book(k TEXT PRIMARY KEY CHECK(k='book'),json TEXT NOT NULL) STRICT;
 CREATE TABLE messages(k TEXT PRIMARY KEY,payload_hash TEXT NOT NULL,receipt_key TEXT NOT NULL,request_json TEXT NOT NULL) STRICT;
 CREATE TABLE receipts(k TEXT PRIMARY KEY,json TEXT NOT NULL) STRICT;
 "#;
+/// TestOnly：#1394 第三问选项 A 的载体实测按 `init` 同一 DDL 建库（不写经济历史行）。
+#[cfg(test)]
+pub(crate) const TEST_DOMAIN_SQL: &str = SQL;
 /// `/2` 域新增的内容表。公开节点的身份就是 §5.2 的 F(tag,body) 摘要，不可变；
 /// 暂存按 `stage` 分组，只由 content_store 的发布钩子在同一经济事务内搬入公开表。
 pub(crate) const CONTENT_SQL: &str = r#"

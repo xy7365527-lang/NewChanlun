@@ -6,6 +6,10 @@
 //! read-only session (`financial_session.rs`), never audits locally and never falls back to
 //! this cold path. The session serves through the same `basis_ref_with`/`content_with`
 //! with the one `state::audit` it ran at startup on its audited capture.
+//! #1394 第三问选项 A 候选（financial-closure，待用户批准 §5.7 新读模式的 exact 字段）：`closure_with`
+//! 由冷路径与会话共用；对同一已审 anchor，按 basis_ref 下某路径的目标根，用同一 `lookup_path` 与
+//! `sc::verify` 枚举「路径证明 ∪ 目标完整闭包」，按摘要升序以显式游标 `after` 与每块字节预算
+//! `max_reply_bytes` 分块返回。块边界只由请求与已审状态决定，冷路径与会话逐字节相同。
 
 use super::*;
 use newchan_rust::s_content::{
@@ -36,6 +40,14 @@ const CONTENT_FIELDS: [&str; 6] = [
     "offset",
     "limit",
 ];
+const CLOSURE_FIELDS: [&str; 5] = [
+    "schema_revision",
+    "anchor",
+    "path",
+    "after",
+    "max_reply_bytes",
+];
+pub(super) const CLOSURE_SCHEMA: &str = "s-financial-closure/1";
 const ANCHOR_FIELDS: [&str; 7] = [
     "session_id",
     "session_generation",
@@ -74,7 +86,12 @@ fn db_arg(args: &[String]) -> Result<&Path, String> {
     if args.len() != 6
         || args
             .get(1)
-            .is_none_or(|s| !matches!(s.as_str(), "financial-basis-ref" | "financial-content"))
+            .is_none_or(|s| {
+                !matches!(
+                    s.as_str(),
+                    "financial-basis-ref" | "financial-content" | "financial-closure"
+                )
+            })
     {
         return Err(invalid(
             "新财务命令只接受 --protocol-revision s-session/3 与 --db <路径>",
@@ -148,6 +165,16 @@ pub(super) fn run(args: &[String]) -> Result<(), String> {
     let out = match args[1].as_str() {
         "financial-basis-ref" => basis_ref(&tx, &request)?,
         "financial-content" => content(&tx, &request, sc::MAX_FRAME_LEN)?,
+        // 冷路径：每次调用一张临时闭包表（随进程丢弃），不设表帽；会话路径的表帽与保留记账见
+        // `financial_session`。两者回复由同一 `closure_with` 决定，只有资源拒绝点不同。
+        "financial-closure" => closure_with(
+            &tx,
+            &request,
+            None,
+            &mut None,
+            ClosureBounds::UNBOUNDED,
+            &mut ClosureStats::default(),
+        )?,
         _ => unreachable!(),
     };
     println!("{}", canonical_json(&out));
@@ -617,6 +644,238 @@ pub(super) fn content_with(
         "done":fragment.done,"ok":true}),
     )
 }
+
+// ===== #1394 第三问选项 A：financial-closure（子树闭包批量导出；待用户批准 exact 字段） =====
+
+/// 闭包表的资源界。会话：`max_nodes` = 会话资源 `max_closure_nodes`，`max_table_bytes` = `retained_bytes`
+/// 扣除启动保留量后的余额（闭包表计入 R9 保留门）。冷路径一次调用一张临时表、随进程丢弃，不设界。
+/// 资源界只决定拒绝点，不改变任何回复字节。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct ClosureBounds {
+    pub max_nodes: u64,
+    pub max_table_bytes: u64,
+}
+impl ClosureBounds {
+    pub(super) const UNBOUNDED: Self = Self {
+        max_nodes: u64::MAX,
+        max_table_bytes: u64::MAX,
+    };
+}
+
+/// 一张闭包表：键为 `{anchor,path}` 的规范 JSON，值为「从 basis 根到目标的路径证明 ∪ 目标完整闭包」
+/// 的升序摘要。会话至多保留一张（换键先丢旧表再建），不持有读事务，可由同一输入确定性重建。
+pub(super) struct ClosureTable {
+    key: String,
+    target: ContentRef,
+    digests: Vec<sc::NodeDigest>,
+}
+impl ClosureTable {
+    /// 计入 R9 的保留字节：摘要数组容量 + 键 + 表头。
+    pub(super) fn retained_bytes(&self) -> u64 {
+        let bytes = self
+            .digests
+            .capacity()
+            .saturating_mul(std::mem::size_of::<sc::NodeDigest>())
+            .saturating_add(self.key.capacity())
+            .saturating_add(std::mem::size_of::<Self>());
+        u64::try_from(bytes).unwrap_or(u64::MAX)
+    }
+    pub(super) fn nodes(&self) -> u64 {
+        u64::try_from(self.digests.len()).unwrap_or(u64::MAX)
+    }
+}
+
+/// 只写会话日志的计时与规模，不进回复。
+#[derive(Default, Clone, Copy, Debug)]
+pub(super) struct ClosureStats {
+    pub enumerated: bool,
+    pub enumerate_us: u64,
+    pub nodes: u64,
+}
+
+fn closure_refusal(kind: &str, message: impl std::fmt::Display) -> String {
+    format!("Incomplete/{kind}：{message}")
+}
+
+/// 枚举读源：只记录经 `HashReader`（逐节点核 F）实际读到的不同摘要；超过表帽即停止枚举。
+struct Recording<'a, 'b> {
+    inner: &'a mut history::HashReader<'b>,
+    seen: BTreeSet<sc::NodeDigest>,
+    max_nodes: u64,
+    over: bool,
+}
+impl sc::NodeSource for Recording<'_, '_> {
+    fn read(&mut self, digest: &sc::NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+        let read = sc::NodeSource::read(&mut *self.inner, digest)?;
+        if matches!(read, sc::NodeRead::Found { .. })
+            && self.seen.insert(*digest)
+            && u64::try_from(self.seen.len()).unwrap_or(u64::MAX) > self.max_nodes
+        {
+            self.over = true;
+            return Err(sc::CodecError::new(sc::code::SINK, "闭包表超过表帽"));
+        }
+        Ok(read)
+    }
+}
+
+fn hex_lower(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        out.push(char::from(DIGITS[usize::from(byte >> 4)]));
+        out.push(char::from(DIGITS[usize::from(byte & 15)]));
+    }
+    out
+}
+
+/// `financial-closure`：冷路径（`audited=None`，本事务一次完整 `state::audit`）与会话（启动那一次
+/// 审计结果）共用。anchor 判据与 `content_with` 相同；路径证明与闭包用同一 `lookup_path`/`sc::verify`
+/// 在同一 `HashReader` 上取得；每个出块节点再核一次 F(tag, body) = 摘要。块 = `after` 之后按摘要升序
+/// 的最长前缀，使规范回复 JSON 加末尾 LF 不超过请求的 `max_reply_bytes`；首节点即装不下则拒绝本次。
+pub(super) fn closure_with(
+    tx: &Transaction<'_>,
+    request: &Value,
+    audited: Option<&state::AuditedState>,
+    table: &mut Option<ClosureTable>,
+    bounds: ClosureBounds,
+    stats: &mut ClosureStats,
+) -> Result<Value, String> {
+    exact(request, &CLOSURE_FIELDS)?;
+    if request["schema_revision"] != CLOSURE_SCHEMA {
+        return Err(invalid("SchemaUnsupported：财务闭包版本不符"));
+    }
+    let anchor = &request["anchor"];
+    exact(anchor, &ANCHOR_FIELDS)?;
+    let claimed = ContentRef::from_transport_json(&anchor["basis_ref"]).map_err(invalid)?;
+    let path = fragment::parse_path(&request["path"]).map_err(invalid)?;
+    let after = match request["after"].as_str() {
+        Some("") => None,
+        Some(root) => Some(sc::parse_root(root).map_err(invalid)?),
+        None => return Err(invalid("after须为文本")),
+    };
+    let budget = positive(
+        required(request, "max_reply_bytes").map_err(invalid)?,
+        "max_reply_bytes",
+    )
+    .map_err(invalid)?;
+    let budget = u64::try_from(budget).map_err(invalid)?;
+    let owned;
+    let audited = match audited {
+        Some(audited) => audited,
+        None => {
+            owned = state::audit(tx)?;
+            &owned
+        }
+    };
+    let mut source = content_store::ReadStore::new(tx).map_err(invalid)?;
+    let mut graph = history::HashReader::new(&mut source);
+    let actual = current_basis(tx, audited, &mut graph)?;
+    if claimed != actual.root || *anchor != actual.anchor() {
+        return Err(missing(ANCHOR_NOT_CURRENT));
+    }
+    let key = canonical_json(&json!({"anchor":anchor,"path":request["path"]}));
+    if table.as_ref().map(|t| t.key.as_str()) != Some(key.as_str()) {
+        // 任一时刻至多一张表：先丢旧表再枚举新表。
+        *table = None;
+        let started = std::time::Instant::now();
+        let mut recording = Recording {
+            inner: &mut graph,
+            seen: BTreeSet::new(),
+            max_nodes: bounds.max_nodes,
+            over: false,
+        };
+        let built = match lookup_path(&mut recording, &actual.root, &path) {
+            Ok(target) => sc::verify(&mut recording, &target).map(|_| target),
+            Err(e) => Err(e),
+        };
+        if recording.over {
+            return Err(closure_refusal(
+                "SessionClosureNodes",
+                format!("闭包表超过 max_closure_nodes {}", bounds.max_nodes),
+            ));
+        }
+        let target = built.map_err(invalid)?;
+        let mut digests: Vec<sc::NodeDigest> = recording.seen.into_iter().collect();
+        digests.shrink_to_fit();
+        let candidate = ClosureTable {
+            key,
+            target,
+            digests,
+        };
+        if candidate.retained_bytes() > bounds.max_table_bytes {
+            return Err(closure_refusal(
+                "SessionRetained",
+                format!(
+                    "闭包表保留字节 {} 超过剩余保留额度 {}",
+                    candidate.retained_bytes(),
+                    bounds.max_table_bytes
+                ),
+            ));
+        }
+        stats.enumerated = true;
+        stats.enumerate_us = u64::try_from(started.elapsed().as_micros()).unwrap_or(u64::MAX);
+        *table = Some(candidate);
+    }
+    let index = table.as_ref().ok_or_else(|| invalid("闭包表缺失"))?;
+    // 已审副本在会话内不可变：同键必同目标。仍逐次重查一遍路径，不把表当成目标的来源。
+    if lookup_path(&mut graph, &actual.root, &path).map_err(invalid)? != index.target {
+        return Err(missing("同一 anchor 与 path 的目标根改变"));
+    }
+    let digests = &index.digests;
+    let start = match after {
+        None => 0,
+        Some(cursor) => digests
+            .binary_search(&cursor)
+            .map(|i| i + 1)
+            .map_err(|_| invalid("after 游标不在该闭包内"))?,
+    };
+    if start >= digests.len() {
+        return Err(invalid("after 之后已无闭包节点"));
+    }
+    let mut reply = json!({"anchor":anchor,"path":request["path"],"after":request["after"],
+        "target_ref":index.target.to_transport_json(),"total":digests.len().to_string(),
+        "nodes":[],"next":sc::root_string(&digests[start]),"done":false,"ok":true});
+    // 末尾 LF 计入；占位 next 与真实值等长，done 由 false 改为 true 只会变短。
+    let mut used = u64::try_from(canonical_json(&reply).len()).map_err(invalid)? + 1;
+    let mut nodes = Vec::new();
+    let mut end = start;
+    while end < digests.len() {
+        let digest = digests[end];
+        let (tag, body) = match sc::NodeSource::read(&mut graph, &digest).map_err(invalid)? {
+            sc::NodeRead::Found { tag, body } => (tag, body),
+            sc::NodeRead::Missing => return Err(missing("已审副本缺闭包节点")),
+        };
+        if sc::frame(tag, &body) != digest {
+            return Err(invalid("闭包节点 F(tag,body) 与摘要不符"));
+        }
+        let node = ProofNode {
+            root: sc::root_string(&digest),
+            tag: format!("{tag:02x}"),
+            body_hex: hex_lower(&body),
+        }
+        .to_json();
+        let size = u64::try_from(canonical_json(&node).len()).map_err(invalid)?
+            + u64::from(!nodes.is_empty());
+        if used.saturating_add(size) > budget {
+            break;
+        }
+        used += size;
+        nodes.push(node);
+        end += 1;
+    }
+    if nodes.is_empty() {
+        return Err(closure_refusal(
+            "ClosureReplyBytes",
+            "单个闭包节点超过请求的 max_reply_bytes",
+        ));
+    }
+    stats.nodes = u64::try_from(nodes.len()).unwrap_or(u64::MAX);
+    reply["nodes"] = Value::Array(nodes);
+    reply["next"] = json!(sc::root_string(&digests[end - 1]));
+    reply["done"] = json!(end == digests.len());
+    Ok(reply)
+}
+// ===== financial-closure 结束 =====
 
 #[cfg(test)]
 mod tests {

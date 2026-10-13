@@ -20,6 +20,10 @@
 //! 显式比较得出的不一致（不论是否已过截止）→ 本请求 MissingDependency，会话 stale 并拒绝之后所有请求；
 //! 只有本请求的 SQLite 读取确被期限中断或 busy 等待耗尽，才算“未完成”只拒本次。请求内从不重审、
 //! 从不回落冷路径。停止：`financial-serve-stop` 优雅停机写 FINAL；SIGTERM 尽力写 FINAL 并标非正常停机。
+//!
+//! #1394 第三问选项 A 候选（financial-closure，待用户批准 §5.7 新读模式 exact 字段）：第三条财务命令
+//! 照走同一 R7/R2–R6 夹持与 R8 已审副本短事务，经冷路径同一 `closure_with` 供块；会话至多保留一张
+//! 闭包表（摘要升序），表帽为资源 `max_closure_nodes`，表字节计入 R9 保留门（`retained_bytes`）。
 use super::*;
 use newchan_rust::s_content as sc;
 use newchan_rust::session_protocol::{canonical_json, positive, required, strict_json};
@@ -79,8 +83,8 @@ impl Consistency {
     }
 }
 
-const RESOURCES_SCHEMA: &str = "s-financial-session-resources/2";
-const RESOURCE_FIELDS: [&str; 8] = [
+const RESOURCES_SCHEMA: &str = "s-financial-session-resources/3";
+const RESOURCE_FIELDS: [&str; 9] = [
     "schema_revision",
     "startup_timeout_ms",
     "retained_bytes",
@@ -89,6 +93,7 @@ const RESOURCE_FIELDS: [&str; 8] = [
     "max_reply_bytes",
     "request_timeout_ms",
     "max_capture_bytes",
+    "max_closure_nodes",
 ];
 const CUSTODY_SCHEMA: &str = "s-financial-session-custody/2";
 const CUSTODY_FIELDS: [&str; 5] = ["schema_revision", "db", "main", "wal", "shm"];
@@ -203,7 +208,8 @@ fn sha_hex(bytes: &[u8]) -> String {
 }
 
 /// R9：会话资源（全部显式正整数，规范十进制文本；无默认、无无限量）。
-/// `retained_bytes` 只管私有副本 P 与审计状态（B 另加保留原件）的保留字节，不管进程足迹。
+/// `retained_bytes` 只管私有副本 P 与审计状态（B 另加保留原件）及闭包表的保留字节，不管进程足迹。
+/// `max_closure_nodes` 是 financial-closure 闭包表的摘要数上限（会话至多一张表）。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct SessionResources {
     pub startup_timeout_ms: u64,
@@ -213,6 +219,7 @@ pub(super) struct SessionResources {
     pub max_reply_bytes: u64,
     pub request_timeout_ms: u64,
     pub max_capture_bytes: u64,
+    pub max_closure_nodes: u64,
 }
 impl SessionResources {
     pub(super) fn from_json(value: &Value) -> Result<Self, String> {
@@ -232,6 +239,7 @@ impl SessionResources {
             max_reply_bytes: n("max_reply_bytes")?,
             request_timeout_ms: n("request_timeout_ms")?,
             max_capture_bytes: n("max_capture_bytes")?,
+            max_closure_nodes: n("max_closure_nodes")?,
         };
         if resources.max_request_bytes > u64::from(u32::MAX)
             || resources.max_reply_bytes > u64::from(u32::MAX) - 1
@@ -248,7 +256,8 @@ impl SessionResources {
             "max_request_bytes":self.max_request_bytes.to_string(),
             "max_reply_bytes":self.max_reply_bytes.to_string(),
             "request_timeout_ms":self.request_timeout_ms.to_string(),
-            "max_capture_bytes":self.max_capture_bytes.to_string()})
+            "max_capture_bytes":self.max_capture_bytes.to_string(),
+            "max_closure_nodes":self.max_closure_nodes.to_string()})
     }
 }
 
@@ -574,6 +583,8 @@ struct Retained {
     copy_stmt: i64,
     audited_state: i64,
     original_image: i64,
+    /// financial-closure 闭包表（摘要数组容量 + 键 + 表头）；启动时为 0。
+    closure_table: i64,
 }
 impl Retained {
     fn total(&self) -> u64 {
@@ -583,6 +594,7 @@ impl Retained {
             self.copy_stmt,
             self.audited_state,
             self.original_image,
+            self.closure_table,
         ]
         .iter()
         .map(|n| u64::try_from(*n).unwrap_or(0))
@@ -597,10 +609,11 @@ impl Retained {
             "audited_copy_sqlite_stmt_bytes":self.copy_stmt.to_string(),
             "audited_state_heap_bytes":self.audited_state.to_string(),
             "retained_original_image_heap_bytes":self.original_image.to_string(),
+            "closure_table_bytes":self.closure_table.to_string(),
             "total_bytes":self.total().to_string()})
     }
 }
-const RETAINED_METHOD: &str = "total = P 的 sqlite3_db_status(CACHE_USED+SCHEMA_USED+STMT_USED) + 审计状态堆 + （仅 B）保留原件镜像堆；审计状态堆 = state::audit(&tx) 前后 Δmalloc_zone_statistics(NULL).size_in_use − Δsqlite3_memory_used；原件镜像堆 = capture_image 前后同一差值。启动单线程，读数可复现；ri_phys_footprint 只作观测，不当门";
+const RETAINED_METHOD: &str = "total = P 的 sqlite3_db_status(CACHE_USED+SCHEMA_USED+STMT_USED) + 审计状态堆 + （仅 B）保留原件镜像堆 + financial-closure 闭包表（摘要数组容量+键+表头，建表时核门）；审计状态堆 = state::audit(&tx) 前后 Δmalloc_zone_statistics(NULL).size_in_use − Δsqlite3_memory_used；原件镜像堆 = capture_image 前后同一差值。启动单线程，读数可复现；ri_phys_footprint 只作观测，不当门";
 
 fn observed_json() -> Value {
     let heap = heap_probe().ok();
@@ -811,6 +824,7 @@ struct Timing {
     gate_bytes: u64,
     serve_us: u64,
     post_us: u64,
+    closure: super::financial_reader::ClosureStats,
 }
 
 /// 启动参数（CLI 与测试共用）。`binary_sha256` 由 CLI 取自身自哈希。
@@ -863,6 +877,8 @@ pub(super) struct Session {
     started: Instant,
     receipt: Value,
     receipt_sha256: String,
+    /// financial-closure 的唯一一张闭包表（换键即丢旧表）。
+    closure: Option<super::financial_reader::ClosureTable>,
 }
 
 /// 一次请求的结果：回复字节，或拒绝原因（会话是否因此失效记在 `Session::stale`）。
@@ -958,6 +974,7 @@ impl Session {
             } else {
                 0
             },
+            closure_table: 0,
         };
         if !retained.valid() {
             return Err(missing("sqlite3_db_status 读数失败"));
@@ -998,12 +1015,13 @@ impl Session {
             started,
             receipt: Value::Null,
             receipt_sha256: String::new(),
+            closure: None,
         };
         session.post_check().map_err(Fault::text)?;
         session.receipt = json!({
             "schema":STARTUP_SCHEMA,
             "status":"READY",
-            "candidate":"#1394 DESIGN-R6 c2 r2；待 APPROVED-SOURCE §5.7 多请求一致性修订裁定",
+            "candidate":"#1394 DESIGN-R6 c2 r2 + 第三问选项 A financial-closure；待 APPROVED-SOURCE §5.7 多请求一致性修订与闭包读模式裁定",
             "consistency":session.consistency.name(),
             "anchor_mismatch_policy":session.anchor_policy.name(),
             "binary_sha256":session.binary_sha256,
@@ -1151,6 +1169,7 @@ impl Session {
         command: &str,
         request: &Value,
         deadline: Instant,
+        stats: &mut super::financial_reader::ClosureStats,
     ) -> Result<Value, String> {
         let query_only: i64 = self
             .audited_copy
@@ -1174,6 +1193,18 @@ impl Session {
             )
             .map_err(invalid)?;
         let audited = &self.audited;
+        // 闭包表计入 R9：表可用的保留额度 = retained_bytes − 启动保留量（不含旧表；换键先丢旧表）。
+        let bounds = super::financial_reader::ClosureBounds {
+            max_nodes: self.resources.max_closure_nodes,
+            max_table_bytes: self.resources.retained_bytes.saturating_sub(
+                Retained {
+                    closure_table: 0,
+                    ..self.retained.clone()
+                }
+                .total(),
+            ),
+        };
+        let table = &mut self.closure;
         let out = (|| {
             let tx = self.audited_copy.transaction().map_err(invalid)?;
             super::financial_reader::check_markers(&tx)?;
@@ -1187,9 +1218,21 @@ impl Session {
                     sc::MAX_FRAME_LEN,
                     Some(audited),
                 ),
+                "financial-closure" => super::financial_reader::closure_with(
+                    &tx,
+                    request,
+                    Some(audited),
+                    table,
+                    bounds,
+                    stats,
+                ),
                 _ => Err(invalid("未知财务命令")),
             }
         })();
+        self.retained.closure_table = self
+            .closure
+            .as_ref()
+            .map_or(0, |t| i64::try_from(t.retained_bytes()).unwrap_or(i64::MAX));
         self.audited_copy
             .progress_handler(0, None::<fn() -> bool>)
             .map_err(invalid)?;
@@ -1231,7 +1274,7 @@ impl Session {
         }
         let request = strict_json(body).map_err(invalid)?;
         let s = Instant::now();
-        let out = match self.serve_audited(&command, &request, deadline) {
+        let out = match self.serve_audited(&command, &request, deadline, &mut t.closure) {
             Ok(out) => out,
             Err(e) => {
                 if super::financial_reader::is_request_binding_mismatch(&e)
@@ -1300,7 +1343,10 @@ impl Session {
                 return Err(self.invalidate(e));
             }
             if header["schema_revision"] != REQUEST_SCHEMA
-                || !matches!(command.as_str(), "financial-basis-ref" | "financial-content")
+                || !matches!(
+                    command.as_str(),
+                    "financial-basis-ref" | "financial-content" | "financial-closure"
+                )
             {
                 return Err(self.invalidate(invalid("请求帧头版本或命令不符")));
             }
@@ -1371,7 +1417,9 @@ impl Session {
             "request_bytes":request_bytes.to_string(),"reply_bytes":reply_bytes.to_string(),
             "us":{"pre_stat":t.pre_stat_us.to_string(),"source":t.source_us.to_string(),
                   "gate":t.gate_us.to_string(),"serve":t.serve_us.to_string(),
-                  "post":t.post_us.to_string(),"write":us(w).to_string(),"total":us(accepted).to_string()},
+                  "post":t.post_us.to_string(),"write":us(w).to_string(),"total":us(accepted).to_string(),
+                  "closure_enumerate":t.closure.enumerate_us.to_string()},
+            "closure_enumerated":t.closure.enumerated,"closure_nodes":t.closure.nodes.to_string(),
             "gate_rows":t.gate_rows.to_string(),"gate_bytes":t.gate_bytes.to_string(),
             "stale":self.stale.is_some()});
         if log
@@ -1422,8 +1470,14 @@ impl Session {
                 "refused_before_ready":c.refused_before_ready.to_string(),
                 "client_timeouts":c.client_timeouts.to_string()},
             "requests_log":requests_log.map(log_digest),
-            "retained_startup":self.retained.json(),
+            "retained_startup":Retained {
+                closure_table: 0,
+                ..self.retained.clone()
+            }
+            .json(),
             "retained_final":retained_final.json(),
+            "closure_table":self.closure.as_ref().map(|t| json!({"nodes":t.nodes().to_string(),
+                "retained_bytes":t.retained_bytes().to_string()})),
             "observed":observed_json(),
             "wall_ms":format!("{:.3}", ms(self.started)),
         });
@@ -1839,13 +1893,16 @@ pub(super) fn exchange(
     read_reply(&mut stream, deadline)
 }
 
-/// 客户端：`<financial-basis-ref|financial-content> --protocol-revision s-session/3 --db <db>
+/// 客户端：`<financial-basis-ref|financial-content|financial-closure> --protocol-revision s-session/3 --db <db>
 /// --session <socket>`。只转发 stdin 原字节、自身二进制 SHA 与 --db 的 (dev, ino)，把回复原字节
 /// 写到 stdout；会话拒绝即以其原因失败；从不本地审计、从不回落冷路径。
 pub(super) fn client(args: &[String]) -> Result<(), String> {
     let command = args.get(1).map(String::as_str).unwrap_or_default();
-    if !matches!(command, "financial-basis-ref" | "financial-content") {
-        return Err(invalid("会话客户端只接受两条财务命令"));
+    if !matches!(
+        command,
+        "financial-basis-ref" | "financial-content" | "financial-closure"
+    ) {
+        return Err(invalid("会话客户端只接受三条财务命令"));
     }
     let flags = parse_flags(
         args,

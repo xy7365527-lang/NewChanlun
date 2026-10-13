@@ -134,7 +134,11 @@ pub(super) fn dispatch(args: &[String]) -> Result<bool, String> {
     if positions.is_empty() {
         if matches!(
             cmd,
-            "financial-basis-ref" | "financial-content" | "financial-serve" | "financial-serve-stop"
+            "financial-basis-ref"
+                | "financial-content"
+                | "financial-closure"
+                | "financial-serve"
+                | "financial-serve-stop"
         ) {
             return Err("VersionUnsupported：新财务命令必须显式选择 s-session/3".into());
         }
@@ -162,7 +166,11 @@ pub(super) fn dispatch(args: &[String]) -> Result<bool, String> {
         }
         return Ok(true);
     }
-    if matches!(cmd, "financial-basis-ref" | "financial-content") && value == PROTOCOL_REVISION {
+    if matches!(
+        cmd,
+        "financial-basis-ref" | "financial-content" | "financial-closure"
+    ) && value == PROTOCOL_REVISION
+    {
         financial_reader::run(args)?;
         return Ok(true);
     }
@@ -181,7 +189,7 @@ pub(super) fn dispatch(args: &[String]) -> Result<bool, String> {
     }
     if cmd != "init" {
         return Err(format!(
-            "VersionUnsupported：{SELECTOR} 目前只适用于 init 或 s-session/3 query-serve/serve/advance/recover/financial-basis-ref/financial-content/financial-serve/financial-serve-stop；`{cmd}` 尚未接线，拒绝执行"
+            "VersionUnsupported：{SELECTOR} 目前只适用于 init 或 s-session/3 query-serve/serve/advance/recover/financial-basis-ref/financial-content/financial-closure/financial-serve/financial-serve-stop；`{cmd}` 尚未接线，拒绝执行"
         ));
     }
     if value == PROTOCOL_REVISION {

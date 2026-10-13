@@ -22,6 +22,7 @@ fn resources() -> SessionResources {
         max_reply_bytes: 827_022,
         request_timeout_ms: 45_000,
         max_capture_bytes: 1 << 32,
+        max_closure_nodes: 1 << 20,
     }
 }
 
@@ -55,6 +56,14 @@ fn cold(f: &Fixture, command: &str, request: &Value) -> Result<Vec<u8>, String> 
     super::super::financial_reader::check_markers(&tx)?;
     let out = match command {
         "financial-basis-ref" => super::super::financial_reader::basis_ref_with(&tx, request, None)?,
+        "financial-closure" => super::super::financial_reader::closure_with(
+            &tx,
+            request,
+            None,
+            &mut None,
+            super::super::financial_reader::ClosureBounds::UNBOUNDED,
+            &mut Default::default(),
+        )?,
         _ => super::super::financial_reader::content_with(&tx, request, sc::MAX_FRAME_LEN, None)?,
     };
     let mut bytes = canonical_json(&out).into_bytes();
@@ -949,10 +958,29 @@ fn cli_fixture_ready_stop_and_sigterm() {
     let (ok, cold_reply, _) = cli_call(&binary, &db, None, "financial-basis-ref", &request);
     assert!(ok);
     assert_eq!(warm, cold_reply);
+    // #1394 第三问选项 A：financial-closure 的 8 参会话客户端与 6 参冷 CLI 逐块逐字节相同。
+    let anchor = served.ready["startup_receipt"]["anchor"].clone();
+    let mut after = String::new();
+    let mut chunks = 0;
+    loop {
+        let ask = body(&closure_ask(&anchor, json!([]), &after, 6000));
+        let (ok, warm, err) = cli_call(&binary, &db, Some(&served.socket), "financial-closure", &ask);
+        assert!(ok, "{}", String::from_utf8_lossy(&err));
+        let (ok, cold_reply, err) = cli_call(&binary, &db, None, "financial-closure", &ask);
+        assert!(ok, "{}", String::from_utf8_lossy(&err));
+        assert_eq!(warm, cold_reply, "闭包块会话与冷 CLI 逐字节相同");
+        chunks += 1;
+        let reply = strict_json(&warm).unwrap();
+        if reply["done"] == true {
+            break;
+        }
+        after = reply["next"].as_str().unwrap().to_owned();
+    }
+    assert!(chunks > 1);
     let (status, fin, _) = stop_cli(&binary, served);
     assert!(status.success());
     assert_eq!(fin["status"], "PASS");
-    assert_eq!(fin["counts"]["served"], "1");
+    assert_eq!(fin["counts"]["served"], (1 + chunks).to_string());
 
     let work = db.parent().unwrap().join("cli-b");
     std::fs::create_dir(&work).unwrap();
@@ -1010,4 +1038,223 @@ fn cli_replica_replays_r5_byte_identical() {
     assert_eq!(fin["status"], "PASS");
     assert_eq!(fin["counts"]["refused_before_ready"], "1");
     assert_eq!(fin["counts"]["served"], "28");
+}
+
+// ---------------- #1394 第三问选项 A：financial-closure ----------------
+
+fn closure_ask(anchor: &Value, path: Value, after: &str, budget: u64) -> Value {
+    json!({"schema_revision":"s-financial-closure/1","anchor":anchor,"path":path,"after":after,
+        "max_reply_bytes":budget.to_string()})
+}
+fn node_parts(v: &Value) -> (sc::NodeDigest, u8, Vec<u8>) {
+    let node = newchan_rust::s_content::fragment::ProofNode::from_json(v).unwrap();
+    let digest = sc::parse_root(&node.root).unwrap();
+    let tag = u8::from_str_radix(&node.tag, 16).unwrap();
+    let body = node
+        .body_hex
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|p| u8::from_str_radix(std::str::from_utf8(p).unwrap(), 16).unwrap())
+        .collect();
+    (digest, tag, body)
+}
+/// 逐块取完一个闭包（经会话），每块与冷路径逐字节相同；返回全部回复。
+fn walk_closure(s: &mut Session, f: &Fixture, path: Value, budget: u64) -> Vec<Value> {
+    let anchor = s.receipt()["anchor"].clone();
+    let mut after = String::new();
+    let mut replies = Vec::new();
+    loop {
+        let request = closure_ask(&anchor, path.clone(), &after, budget);
+        let warm = s.handle_for_test("financial-closure", &body(&request)).unwrap();
+        assert_eq!(warm, cold(f, "financial-closure", &request).unwrap(), "会话块与冷路径逐字节相同");
+        assert!(warm.len() as u64 <= budget, "块含末尾 LF 不超过 max_reply_bytes");
+        let reply = strict_json(&warm).unwrap();
+        after = reply["next"].as_str().unwrap().to_owned();
+        let done = reply["done"] == true;
+        replies.push(reply);
+        if done {
+            return replies;
+        }
+    }
+}
+
+#[test]
+fn closure_chunks_are_exactly_the_basis_closure_and_match_cold_path() {
+    let mut f = Fixture::new();
+    publish(&mut f, 1);
+    publish(&mut f, 2);
+    publish(&mut f, 3);
+    let mut s = start(&f, Consistency::A);
+    let budget = 3000;
+    let replies = walk_closure(&mut s, &f, json!([]), budget);
+    assert!(replies.len() > 3, "小预算须分成多块：{}", replies.len());
+    let root = sc::ContentRef::from_transport_json(&s.receipt()["anchor"]["basis_ref"]).unwrap();
+    let total: usize = replies[0]["total"].as_str().unwrap().parse().unwrap();
+    let mut store = sc::MemoryNodes::new();
+    let mut previous: Option<sc::NodeDigest> = None;
+    for (i, reply) in replies.iter().enumerate() {
+        assert_eq!(reply["target_ref"], root.to_transport_json());
+        assert_eq!(reply["total"], total.to_string());
+        assert_eq!(reply["done"], i + 1 == replies.len());
+        let nodes = reply["nodes"].as_array().unwrap();
+        assert!(!nodes.is_empty());
+        for v in nodes {
+            let (digest, tag, body) = node_parts(v);
+            assert!(previous.is_none_or(|p| p < digest), "全程按摘要严格升序");
+            previous = Some(digest);
+            sc::NodeSink::put(&mut store, digest, tag, &body).unwrap();
+        }
+        assert_eq!(reply["next"], sc::root_string(&previous.unwrap()));
+        // 贪心装块：非末块再加下一块首节点（含逗号）即超预算。
+        if let Some(following) = replies.get(i + 1) {
+            let used = canonical_json(reply).len() as u64 + 1;
+            let first = canonical_json(&following["nodes"][0]).len() as u64 + 1;
+            assert!(used + first > budget, "块未装满：{used}+{first}<={budget}");
+        }
+    }
+    assert_eq!(store.len(), total);
+    let verified = sc::verify(&mut store, &root).expect("收到的节点足以完整核验 basis 根");
+    assert_eq!(verified.nodes, total, "不多不少：闭包流恰为根闭包");
+    let fin = finish_json(&mut s, Shutdown::Graceful, None);
+    assert_eq!(fin["status"], "PASS");
+    assert_eq!(fin["closure_table"]["nodes"], total.to_string());
+    let table_bytes: u64 = fin["retained_final"]["closure_table_bytes"].as_str().unwrap().parse().unwrap();
+    assert!(table_bytes >= 32 * total as u64);
+    assert_eq!(fin["retained_startup"]["closure_table_bytes"], "0");
+}
+
+#[test]
+fn closure_of_a_path_carries_the_proof_from_the_basis_root() {
+    let mut f = Fixture::new();
+    publish(&mut f, 1);
+    publish(&mut f, 2);
+    let mut s = start(&f, Consistency::A);
+    let replies = walk_closure(&mut s, &f, objects_path(), 4000);
+    let root = sc::ContentRef::from_transport_json(&s.receipt()["anchor"]["basis_ref"]).unwrap();
+    let target = sc::ContentRef::from_transport_json(&replies[0]["target_ref"]).unwrap();
+    let mut store = sc::MemoryNodes::new();
+    for reply in &replies {
+        for v in reply["nodes"].as_array().unwrap() {
+            let (d, t, b) = node_parts(v);
+            sc::NodeSink::put(&mut store, d, t, &b).unwrap();
+        }
+    }
+    let path = newchan_rust::s_content::fragment::parse_path(&objects_path()).unwrap();
+    assert_eq!(
+        newchan_rust::s_content::path::lookup_path(&mut store, &root, &path).unwrap(),
+        target,
+        "块内含从 basis 根到目标的路径证明"
+    );
+    sc::verify(&mut store, &target).expect("目标闭包完整");
+    let whole = walk_closure(&mut s, &f, json!([]), 4000);
+    assert!(
+        whole[0]["total"].as_str().unwrap().parse::<usize>().unwrap() > store.len(),
+        "子路径闭包小于整根闭包"
+    );
+    // 会话只留一张表：最后一次请求的键。
+    assert_eq!(
+        s.closure.as_ref().unwrap().nodes().to_string(),
+        whole[0]["total"].as_str().unwrap()
+    );
+}
+
+#[test]
+fn closure_rejects_bad_cursor_budget_fields_and_anchor_without_invalidating() {
+    let mut f = Fixture::new();
+    publish(&mut f, 1);
+    let mut s = start(&f, Consistency::A);
+    let anchor = s.receipt()["anchor"].clone();
+    let first = strict_json(
+        &s.handle_for_test("financial-closure", &body(&closure_ask(&anchor, json!([]), "", 1 << 20)))
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(first["done"], true, "大预算一块取完");
+    let last = first["next"].as_str().unwrap().to_owned();
+    let stranger = sc::root_string(&[7u8; 32]);
+    for (request, needle) in [
+        (closure_ask(&anchor, json!([]), &stranger, 4000), "after 游标不在该闭包内"),
+        (closure_ask(&anchor, json!([]), &last, 4000), "after 之后已无闭包节点"),
+        (closure_ask(&anchor, json!([]), "sc1-XYZ", 4000), "FinancialReadInvalid"),
+        (closure_ask(&anchor, json!([]), "", 120), "Incomplete/ClosureReplyBytes"),
+        (closure_ask(&anchor, json!([{"field":"no-such-field"}]), "", 4000), "FinancialReadInvalid"),
+    ] {
+        assert_refused(&s.handle_for_test("financial-closure", &body(&request)), needle);
+        assert_refused(&cold(&f, "financial-closure", &request).map_err(|e| e), needle);
+    }
+    let mut zero = closure_ask(&anchor, json!([]), "", 4000);
+    zero["max_reply_bytes"] = json!("0");
+    assert_refused(&s.handle_for_test("financial-closure", &body(&zero)), "FinancialReadInvalid");
+    let mut extra = closure_ask(&anchor, json!([]), "", 4000);
+    extra["limit"] = json!("10");
+    assert_refused(&s.handle_for_test("financial-closure", &body(&extra)), "字段必须exact");
+    let mut old = closure_ask(&anchor, json!([]), "", 4000);
+    old["schema_revision"] = json!("s-financial-closure/0");
+    assert_refused(&s.handle_for_test("financial-closure", &body(&old)), "财务闭包版本不符");
+    let mut drifted = anchor.clone();
+    drifted["commit_ns"] = json!("1");
+    assert_refused(
+        &s.handle_for_test("financial-closure", &body(&closure_ask(&drifted, json!([]), "", 4000))),
+        "财务anchor与本片当前控制元组不同",
+    );
+    assert!(s.stale_reason().is_none(), "请求级拒绝不使会话失效");
+    let again = s
+        .handle_for_test("financial-closure", &body(&closure_ask(&anchor, json!([]), "", 1 << 20)))
+        .unwrap();
+    assert_eq!(strict_json(&again).unwrap(), first, "同一请求同一回复");
+    assert_eq!(finish_json(&mut s, Shutdown::Graceful, None)["status"], "PASS");
+}
+
+#[test]
+fn closure_table_cap_and_retained_gate_refuse_only_the_request() {
+    let mut f = Fixture::new();
+    publish(&mut f, 1);
+    let mut small = resources();
+    small.max_closure_nodes = 10;
+    let mut s = start_with(&f, small, Consistency::A, ANCHOR_MISMATCH_POLICY).unwrap();
+    let anchor = s.receipt()["anchor"].clone();
+    let ask_all = body(&closure_ask(&anchor, json!([]), "", 1 << 20));
+    assert_refused(&s.handle_for_test("financial-closure", &ask_all), "Incomplete/SessionClosureNodes");
+    assert!(s.closure.is_none() && s.retained.closure_table == 0, "超帽不留半张表");
+    assert!(s.stale_reason().is_none());
+    assert!(s
+        .handle_for_test("financial-basis-ref", &body(&query(&object_ids(&mut f))))
+        .is_ok());
+
+    let mut s = start(&f, Consistency::A);
+    s.resources.retained_bytes = s.retained.total() + 64;
+    assert_refused(&s.handle_for_test("financial-closure", &ask_all), "Incomplete/SessionRetained");
+    assert!(s.closure.is_none() && s.retained.closure_table == 0);
+    s.resources.retained_bytes = 1 << 34;
+    let ok = s.handle_for_test("financial-closure", &ask_all).unwrap();
+    let table = s.retained.closure_table;
+    assert!(table > 0 && s.retained.total() > table as u64);
+    // 换键（子路径）先丢旧表：保留量是新表的字节，不是两表之和。
+    s.handle_for_test(
+        "financial-closure",
+        &body(&closure_ask(&anchor, objects_path(), "", 1 << 20)),
+    )
+    .unwrap();
+    assert!(s.retained.closure_table < table);
+    assert!(!ok.is_empty() && s.stale_reason().is_none());
+}
+
+#[test]
+fn closure_stream_stops_when_the_source_changes() {
+    let mut f = Fixture::new();
+    publish(&mut f, 1);
+    publish(&mut f, 2);
+    let mut s = start(&f, Consistency::A);
+    let anchor = s.receipt()["anchor"].clone();
+    let first = strict_json(
+        &s.handle_for_test("financial-closure", &body(&closure_ask(&anchor, json!([]), "", 3000)))
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(first["done"], false);
+    touch(&wal(&f));
+    let next = closure_ask(&anchor, json!([]), first["next"].as_str().unwrap(), 3000);
+    assert_refused(&s.handle_for_test("financial-closure", &body(&next)), "R4：WAL身份或stat改变");
+    assert_refused(&s.handle_for_test("financial-closure", &body(&next)), "会话已失效");
+    assert_eq!(finish_json(&mut s, Shutdown::Graceful, None)["status"], "FAIL");
 }
