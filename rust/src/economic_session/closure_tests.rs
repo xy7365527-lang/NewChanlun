@@ -23,9 +23,7 @@ fn pins_with(resources: Value) -> SourcePins {
     SourcePins::from_structure(&json!({"binary":"/frozen/s","binary_sha256":"0".repeat(64),
         "db":"/frozen/db","session_id":SID,"session_generation":"1","writer_epoch":"1",
         "reader_revision":"s-financial-basis/3","content_format":"s-content/1",
-        "reader_resources":resources}))
-    .unwrap()
-    .with_session("/tmp/s1394/s.sock")
+        "reader_resources":resources,"reader_session":"/tmp/s1394/s.sock"}))
     .unwrap()
 }
 fn pins() -> SourcePins {

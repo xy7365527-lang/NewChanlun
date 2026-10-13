@@ -140,7 +140,8 @@ fn structure() -> Value {
     json!({"binary":env("CLOSURE_S_BINARY"),"binary_sha256":env("CLOSURE_S_SHA256"),
         "db":env("CLOSURE_S_DB"),"session_id":env("CLOSURE_SESSION_ID"),
         "session_generation":"1","writer_epoch":"1","reader_revision":"s-financial-basis/3",
-        "content_format":"s-content/1","reader_resources":resources})
+        "content_format":"s-content/1","reader_resources":resources,
+        "reader_session":env("CLOSURE_SOCKET")})
 }
 fn write_report(report: &Value) {
     std::fs::write(
@@ -161,10 +162,7 @@ fn replica_closure_on_fixed_carrier() {
     let mode = env("CLOSURE_REPLICA_MODE");
     let db = PathBuf::from(env("CLOSURE_EB_DB"));
     let structure = structure();
-    let pins = SourcePins::from_structure(&structure)
-        .unwrap()
-        .with_session(&env("CLOSURE_SOCKET"))
-        .unwrap();
+    let pins = SourcePins::from_structure(&structure).unwrap();
     let limits = pins.resources.job_limits;
     let started = Instant::now();
     let mut report = json!({"schema":"issue1394-closure-candidate-replica/1","mode":mode,

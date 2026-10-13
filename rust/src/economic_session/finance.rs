@@ -78,7 +78,8 @@ pub(super) fn validate_config(m: &Value) -> Result<(), String> {
             "producer_epoch",
         ],
     )?;
-    // structure 的 exact 形状按子合同版本分派：`/1` 六字段逐字保持，`/2` 九字段。
+    // structure 的 exact 形状按子合同版本分派：`/1` 六字段逐字保持，`/2` 十字段（#1394 A6 2.4：
+    // 增 `reader_session`；A6-1 不升 `/3`，旧九字段 `/2` manifest 因此被拒）。
     let structure: &[&str] = if revision == REV_V2 {
         &[
             "binary",
@@ -90,6 +91,7 @@ pub(super) fn validate_config(m: &Value) -> Result<(), String> {
             "reader_revision",
             "content_format",
             "reader_resources",
+            "reader_session",
         ]
     } else {
         &[
@@ -125,6 +127,8 @@ pub(super) fn validate_config(m: &Value) -> Result<(), String> {
         super::financial_reader_resources::FinancialReaderResources::from_json(
             &f["structure"]["reader_resources"],
         )?;
+        // A6 第4节：冻结读法与 `SourcePins::from_structure` 同一判定。
+        super::financial_content::Reading::from_json(&f["structure"]["reader_session"])?;
     }
     Ok(())
 }

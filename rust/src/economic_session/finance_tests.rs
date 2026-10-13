@@ -800,6 +800,16 @@ fn versioned_new_domain_is_explicit_and_does_not_rewrite_old_tables() {
             "max_store_bytes":"10485760"
         }
     });
+    // #1394 A6 2.4（A6-1 不升 /3）：`/2` structure exact 十字段；缺 `reader_session` 的九字段旧形状
+    // 拒绝，值只取 null 或短绝对 socket 路径，与 `SourcePins::from_structure` 同一判定。
+    assert!(validate_config(&m).is_err(), "九字段 /2 structure 须拒绝");
+    for bad in [json!("relative.sock"), json!(1)] {
+        m["finance"]["structure"]["reader_session"] = bad;
+        assert!(validate_config(&m).is_err());
+    }
+    m["finance"]["structure"]["reader_session"] = json!("/tmp/s1394/s.sock");
+    assert!(validate_config(&m).is_ok());
+    m["finance"]["structure"]["reader_session"] = json!(null);
     assert!(validate_config(&m).is_ok());
     let new_db = f.dir.join("new-e.db");
     m["e"]["db"] = json!(new_db);

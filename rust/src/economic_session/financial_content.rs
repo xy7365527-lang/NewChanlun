@@ -1,8 +1,10 @@
 //! #1394 C §5.7: owner supplied storage and job for the current S financial basis.
 //! The transport fields are temporary; only `FinancialBasisEvidence` enters an image.
-//! #1394 第三问选项 A 候选：经会话读取（`SourcePins.session`）时，缺节点改走 `financial-closure`
-//! 闭包分块导入（`import_closure`），无会话时仍是逐片 `download`；两者由冻结 manifest 决定、
-//! 互不兜底（#799）。导入后的判据不变：同一 `verify_local` 从根完整核验，另核回复流恰为该闭包。
+//! #1394 A6（APPROVED-SOURCE §5.7 修订记录 r2）第4节：读法由冻结 `finance.structure.reader_session`
+//! 决定且只由它决定（`Reading`）。socket → `SessionClosure`：全部 S 读取带 `--session`，缺节点只走
+//! `financial-closure` 闭包分块导入（`import_closure`）；`null` → `ColdFragment`：缺节点只走逐片
+//! `download`（A6 第5节退场前）。两者互不兜底（#799）。导入后的判据不变：同一 `verify_local` 从根
+//! 完整核验，另核回复流恰为该闭包。冷 6 参 `financial-closure` 是 #804 对拍臂，E/B 不发（A6 第6节）。
 
 use super::{finance_transport, financial_reader_resources::FinancialReaderResources};
 use crate::s_content::{
@@ -22,7 +24,8 @@ use std::{
     time::Instant,
 };
 
-const STRUCTURE: [&str; 9] = [
+/// §5.7:321 经 #1394 A6 2.4 修订：exact 十字段（A6-1：`tb03b-finance/2` 不升版本）。
+const STRUCTURE: [&str; 10] = [
     "binary",
     "binary_sha256",
     "db",
@@ -32,6 +35,7 @@ const STRUCTURE: [&str; 9] = [
     "reader_revision",
     "content_format",
     "reader_resources",
+    "reader_session",
 ];
 const BASIS_REPLY: [&str; 12] = [
     "schema_revision",
@@ -218,10 +222,43 @@ pub(super) struct SourcePins {
     pub session_generation: String,
     pub writer_epoch: String,
     pub resources: FinancialReaderResources,
-    /// #1394 DESIGN-R6 c2 候选：S 财务只读会话的 socket；`None` 为冷路径。生产来源应是
-    /// finance.structure 的 `reader_session` 字段，而该字段改动 §5.7:321 的 exact 九字段，
-    /// 属待裁的协议修订；裁定前 `from_structure` 恒为 `None`，只有 `with_session` 能设置。
-    pub session: Option<String>,
+    /// 冻结 `reader_session` 决定的唯一读法；只有 `from_structure` 能设置。
+    pub reading: Reading,
+}
+
+/// #1394 A6 第4节：一个冻结 finance manifest 只认一种读法。选择在冻结时完成，运行中不切换；
+/// 一种读法失败即返回错误，不改走另一种（#799）。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum Reading {
+    /// `reader_session` 为 socket 路径：全部 S 读取带 `--session`，缺节点只走 `financial-closure`。
+    SessionClosure(String),
+    /// `reader_session` 为 `null`：冷路径，缺节点只走逐片 `financial-content`（A6 第5节退场前）。
+    ColdFragment,
+}
+impl Reading {
+    /// `reader_session` 的值（A6 2.4）：JSON `null`，或不超过 103 字节的绝对 socket 路径。
+    /// 父目录权限是运行时事实，在读时核；这里只核冻结值本身，离线审计因此不依赖会话目录仍在。
+    /// `finance::validate_config` 调同一函数，两处是同一判定（#804）。
+    pub(super) fn from_json(value: &Value) -> Result<Self, String> {
+        match value {
+            Value::Null => Ok(Self::ColdFragment),
+            Value::String(socket) => {
+                let path = Path::new(socket);
+                // macOS sockaddr_un.sun_path 含结尾 NUL 共 104 字节。
+                if !path.is_absolute()
+                    || socket.len() > 103
+                    || socket.contains('\0')
+                    || path.file_name().is_none()
+                {
+                    return Err(invalid(
+                        "reader_session 须为 null 或不超过103字节的绝对 socket 路径",
+                    ));
+                }
+                Ok(Self::SessionClosure(socket.clone()))
+            }
+            _ => Err(invalid("reader_session 须为 null 或字符串")),
+        }
+    }
 }
 impl SourcePins {
     pub(super) fn from_structure(value: &Value) -> Result<Self, String> {
@@ -252,19 +289,10 @@ impl SourcePins {
             session_generation: text(value, "session_generation")?.to_owned(),
             writer_epoch: text(value, "writer_epoch")?.to_owned(),
             resources: FinancialReaderResources::from_json(&value["reader_resources"])?,
-            session: None,
+            reading: Reading::from_json(&value["reader_session"])?,
         })
     }
-    /// 经会话读取：S 客户端进程照旧逐次启动、计次计字节并受 45 s 单次期限，只多 `--session`。
-    #[allow(dead_code)] // 待 reader_session 字段（§5.7:321 修订）裁定后由 from_structure 接线
-    pub(super) fn with_session(mut self, socket: &str) -> Result<Self, String> {
-        // macOS sockaddr_un.sun_path 含结尾 NUL 共 104 字节。
-        if !Path::new(socket).is_absolute() || socket.len() > 103 {
-            return Err(invalid("reader_session 必须是短于104字节的绝对路径"));
-        }
-        self.session = Some(socket.to_owned());
-        Ok(self)
-    }
+    /// 会话读法下 S 客户端进程照旧逐次启动、计次计字节并受单次期限，只多 `--session`。
     fn reader_args<'a>(&'a self, command: &'a str) -> Vec<&'a str> {
         let mut args = vec![
             command,
@@ -273,7 +301,7 @@ impl SourcePins {
             "--db",
             self.db.as_str(),
         ];
-        if let Some(socket) = &self.session {
+        if let Reading::SessionClosure(socket) = &self.reading {
             args.extend(["--session", socket.as_str()]);
         }
         args
@@ -380,8 +408,8 @@ pub(super) fn read_current(
     read_current_pins(&pins, object_ids, shared_job, operation_deadline, stage)
 }
 
-/// `read_current` 的主体，pins 由调用方给。生产入口只经 `read_current`（`from_structure` 恒无会话，
-/// 待 §5.7:321 `reader_session` 字段裁定后接线）；会话 pins（`with_session`）目前只由测试与复制品实测给出。
+/// `read_current` 的主体，pins 由调用方给。生产入口只经 `read_current`；读法由 pins 的冻结
+/// `reader_session` 决定（A6 第4节）。
 pub(super) fn read_current_pins(
     pins: &SourcePins,
     object_ids: &[String],
@@ -446,8 +474,6 @@ fn read_once(
     if root.kind != Kind::Object || root.extent != Some(7) {
         return Err(invalid("basis_ref 非七字段对象"));
     }
-    // 读法由冻结 pins 决定：经会话 → 闭包分块；冷路径 → 逐片。失败不换读法。
-    let closure = pins.session.is_some();
     let snapshot = from_ref(&reply["snapshot_ref"])?;
     if snapshot.kind != Kind::Object || snapshot.extent != Some(20) {
         return Err(invalid("snapshot_ref 非二十字段对象"));
@@ -494,28 +520,31 @@ fn read_once(
         "index_frontier":scalar_string(&mut independent,
             &map_ref(&snapshot_fields, "index_frontier")?)?,
         "commit_ns":reply["commit_ns"],"basis_ref":reply["basis_ref"]});
-    // 闭包模式不单独暂存 proof：proof 节点都在 basis 根的闭包里，随闭包流到达并接受同一成员核验；
+    // 会话读法不单独暂存 proof：proof 节点都在 basis 根的闭包里，随闭包流到达并接受同一成员核验；
     // proof 本身已在上面的独立 MemoryNodes 上核完头部与选中对象。
-    if !closure {
+    if pins.reading == Reading::ColdFragment {
         import_proof(&proof, stage, job)?;
     }
-    // One complete check on a cached root. Missing nodes trigger retrieval and
-    // a new check; any rows visited by the failed attempt stay charged.
+    // One complete check on a cached root. Missing nodes trigger retrieval by the one
+    // frozen reading and a new check; any rows visited by the failed attempt stay charged.
+    // 读法在冻结时已定（A6 第4节）：这里按 `Reading` 分派，失败直接返回，不换读法（#799）。
     let mut result = match verify_local(pins, &evidence, &mut StoreSource(stage), job) {
         Ok(verified) => verified,
-        Err(error) if error.contains(sc::code::NODE_MISSING) && closure => {
-            let plan = ClosurePlan::frozen(&pins.resources);
-            let mut fetch = |request: &Value, job: &mut Job| {
-                pins.call("financial-closure", request, job, deadline)
-            };
-            import_closure(
-                &mut fetch, pins, &evidence, &root, &anchor, plan, job, deadline, stage,
-            )?
-        }
-        Err(error) if error.contains(sc::code::NODE_MISSING) => {
-            download(pins, &root, &anchor, job, deadline, stage)?;
-            verify_local(pins, &evidence, &mut StoreSource(stage), job)?
-        }
+        Err(error) if error.contains(sc::code::NODE_MISSING) => match &pins.reading {
+            Reading::SessionClosure(_) => {
+                let plan = ClosurePlan::frozen(&pins.resources);
+                let mut fetch = |request: &Value, job: &mut Job| {
+                    pins.call("financial-closure", request, job, deadline)
+                };
+                import_closure(
+                    &mut fetch, pins, &evidence, &root, &anchor, plan, job, deadline, stage,
+                )?
+            }
+            Reading::ColdFragment => {
+                download(pins, &root, &anchor, job, deadline, stage)?;
+                verify_local(pins, &evidence, &mut StoreSource(stage), job)?
+            }
+        },
         Err(error) => return Err(error),
     };
     if result.snapshot_ref != snapshot {
@@ -1434,7 +1463,7 @@ mod tests {
         json!({"binary":binary,"binary_sha256":hash,"db":db,
             "session_id":"s-session-testonly-001","session_generation":"1","writer_epoch":"1",
             "reader_revision":"s-financial-basis/3","content_format":"s-content/1",
-            "reader_resources":resources()})
+            "reader_resources":resources(),"reader_session":null})
     }
     fn test_job(existing: u64) -> Job {
         Job::new(
@@ -1462,7 +1491,7 @@ mod tests {
         let pins =
             SourcePins::from_structure(&structure("/frozen/s", "/frozen/db", &"0".repeat(64)))
                 .unwrap();
-        assert!(pins.session.is_none());
+        assert_eq!(pins.reading, Reading::ColdFragment);
         assert_eq!(
             pins.reader_args("financial-content"),
             [
@@ -1473,7 +1502,13 @@ mod tests {
                 "/frozen/db"
             ]
         );
-        let warm = pins.clone().with_session("/tmp/s1394/s.sock").unwrap();
+        let mut warm_structure = structure("/frozen/s", "/frozen/db", &"0".repeat(64));
+        warm_structure["reader_session"] = json!("/tmp/s1394/s.sock");
+        let warm = SourcePins::from_structure(&warm_structure).unwrap();
+        assert_eq!(
+            warm.reading,
+            Reading::SessionClosure("/tmp/s1394/s.sock".into())
+        );
         assert_eq!(
             warm.reader_args("financial-basis-ref"),
             [
@@ -1486,8 +1521,70 @@ mod tests {
                 "/tmp/s1394/s.sock"
             ]
         );
-        assert!(pins.clone().with_session("relative.sock").is_err());
-        assert!(pins.with_session(&format!("/{}", "x".repeat(103))).is_err());
+    }
+    /// #1394 A6 2.4、第4节：`reader_session` 必须出现，只取 JSON `null` 或不超过 103 字节的绝对
+    /// socket 路径；读法只由它决定——socket 时全部 S 读取带 `--session`，`null` 时走冷路径。
+    #[test]
+    fn reader_session_is_required_and_alone_decides_the_reading() {
+        let with = |value: Value| {
+            let mut s = structure("/frozen/s", "/frozen/db", &"0".repeat(64));
+            s["reader_session"] = value;
+            s
+        };
+        let mut nine = with(Value::Null);
+        nine.as_object_mut().unwrap().remove("reader_session");
+        assert!(
+            SourcePins::from_structure(&nine).is_err(),
+            "缺 reader_session 的九字段旧形状须被十字段 exact 拒绝"
+        );
+        let cold = SourcePins::from_structure(&with(Value::Null)).unwrap();
+        assert_eq!(
+            cold.reader_args("financial-basis-ref"),
+            [
+                "financial-basis-ref",
+                "--protocol-revision",
+                "s-session/3",
+                "--db",
+                "/frozen/db"
+            ]
+        );
+        let socket = "/tmp/s1394/s.sock";
+        let warm = SourcePins::from_structure(&with(json!(socket))).unwrap();
+        for command in ["financial-basis-ref", "financial-closure"] {
+            assert_eq!(
+                warm.reader_args(command),
+                [
+                    command,
+                    "--protocol-revision",
+                    "s-session/3",
+                    "--db",
+                    "/frozen/db",
+                    "--session",
+                    socket
+                ]
+            );
+        }
+        let edge = format!("/{}", "x".repeat(102));
+        assert!(
+            SourcePins::from_structure(&with(json!(edge))).is_ok(),
+            "103 字节恰可用"
+        );
+        for bad in [
+            json!("relative.sock"),
+            json!(format!("/{}", "x".repeat(103))),
+            json!(""),
+            json!("/"),
+            json!("/tmp/a\u{0}b"),
+            json!(1),
+            json!(true),
+            json!({}),
+            json!([]),
+        ] {
+            assert!(
+                SourcePins::from_structure(&with(bad.clone())).is_err(),
+                "{bad}"
+            );
+        }
     }
     #[test]
     fn page_binding_rejects_malformed_source_even_with_valid_nodes() {
@@ -2065,7 +2162,7 @@ mod fresh_small_tests {
             "db":inputs["source_db"],"session_id":inputs["session_id"],
             "session_generation":inputs["session_generation"],"writer_epoch":inputs["writer_epoch"],
             "reader_revision":"s-financial-basis/3","content_format":"s-content/1",
-            "reader_resources":resources});
+            "reader_resources":resources,"reader_session":null});
         let limits = JobLimits::from_canonical_json(&resources["job_limits"]).unwrap();
         let mut job = Job::new(
             limits,
@@ -2318,7 +2415,7 @@ mod fresh_small_tests {
         let structure = json!({"binary":inputs["binary"],"binary_sha256":inputs["binary_sha256"],
             "db":db,"session_id":long_id,"session_generation":"1","writer_epoch":"1",
             "reader_revision":"s-financial-basis/3","content_format":"s-content/1",
-            "reader_resources":resources});
+            "reader_resources":resources,"reader_session":null});
         let original_db = Sha256::digest(std::fs::read(&db).unwrap());
         let conn =
             rusqlite::Connection::open_with_flags(&db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
