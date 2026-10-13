@@ -1,12 +1,12 @@
 # 中枢（Zhongshu / Center / 缠中说禅走势中枢）
 
 > 正本：本文件是 中枢 的教义正本。
-> 最后裁定：[#812](https://github.com/xy7365527-lang/NewChanlun/issues/812)（2026-07-31）
-> 受影响代码清单：本文件 §9（Rust / Lean / Python 三侧，点名到行号）
+> 最后裁定：[#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478)（2026-10-13，S-7 落码补齐与 §4.1 端点）；此前 [#812](https://github.com/xy7365527-lang/NewChanlun/issues/812)（2026-07-31）
+> 受影响代码清单：本文件 §9（Rust / Lean / Python 三侧，点名到行号；#1478 补齐 R21–R27、L9–L11、P14–P16 与 §9.0 行号订正，工作草稿副本 `.chanlun/review-results/issue1323-grilling-20261013/1478-AFFECTED-CODE.md`，票关后随归档出仓）
 
-**版本**: v2.0（#812 全量重写，覆盖 v1.4）
-**状态**: 已裁定（Z-1…Z-8 八组 + 附①附② + S-1…S-7，共 17 条）
-**最后更新**: 2026-07-31
+**版本**: v2.1（2026-10-13 落 #1478；v2.0 为 #812 全量重写，覆盖 v1.4）
+**状态**: 已裁定（Z-1…Z-8 八组 + 附①附② + S-1…S-7，共 17 条；#1478 补 S-7 落码与 §4.1 端点条款）
+**最后更新**: 2026-10-13
 **原文依据**: 第 17、18、19、20、21、24、27、28、29、30、32、33、34、35、37、38、43、49、57、59、63、64、69、83、84、92、101、102 课（博文，`docs/chanlun/text/blog/`）
 
 **引用纪律**：本文件所有承重引文均标 `文件:行号`，出处一律为 `docs/chanlun/text/blog/` 下的缠师原始博文（一级权威）。《市场天道》**只在它改动过的地方**有信息量，不作独立佐证（[#825](https://github.com/xy7365527-lang/NewChanlun/issues/825)）。
@@ -202,7 +202,7 @@ ZD < ZG（严格，Z-2）
 | 符号 | 语义 | 遍历范围 | 本仓地位 |
 |---|---|---|---|
 | `GG` / `DD` | 最高的高 / 最低的低 = **外缘** | 所有 `Zn`（随延伸更新） | **中枢的组成部分**——中心定理二全靠它俩 |
-| `G` / `D` | 最低的高 / 最高的低 = **随延伸更新的核心** | 所有 `Zn` | **原文定义后零使用；本仓不实现，将来出现消费者再补** |
+| `G` / `D` | 最低的高 / 最高的低 = **随延伸更新的核心** | 所有 `Zn` | ~~原文定义后零使用；本仓不实现，将来出现消费者再补~~ **消费者已由 SPEC [#1340](https://github.com/xy7365527-lang/NewChanlun/issues/1340) CC-017 出现：在 S 事实层按 `Zn` 计算并发布（[#1419](https://github.com/xy7365527-lang/NewChanlun/issues/1419)）；Rust `Center`（R18）与 Lean `CenterFull`（L8）不加字段**（[#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478) 裁定三） |
 | `ZG` / `ZD` | **冻结在最初两段的核心** | 只有最初两个 `Zn` | 中枢本体，**冻结不随延伸变**（[#819](https://github.com/xy7365527-lang/NewChanlun/issues/819)） |
 
 ⟹ **`[D, G]` 与 `[ZD, ZG]` 不是一回事**：一个随延伸更新，一个冻结在最初两段。**缠师同时定义了这两套。**
@@ -211,7 +211,9 @@ ZD < ZG（严格，Z-2）
 
 > 「关键是中枢，而不是围绕中枢的瞬间波动。」
 
-**`G`/`D` 不逼三侧补字段**：三方（博文、chan99、《市场天道》）均为「定义后零使用」的死符号（[#824](https://github.com/xy7365527-lang/NewChanlun/issues/824) 查实）；本仓仅 `a_center_v0.py` 一处在算，Rust `Center`（`types.rs:122-133`，仅 zd/zg/dd/gg）与 Lean `CenterFull`（`CenterFull.lean:53-59`，仅 core/dd/gg）均无该两字段。**正本与原文完备对齐**（避免日后有人翻到第 20 课问「为什么漏了两个符号」），同时不为无消费者的量付实现成本。
+**`G`/`D` 不逼三侧补字段**：三方（博文、chan99、《市场天道》）均为「定义后零使用」的死符号（[#824](https://github.com/xy7365527-lang/NewChanlun/issues/824) 查实）；本仓仅 `a_center_v0.py` 一处在算，Rust `Center`（`types.rs:122-133`，仅 zd/zg/dd/gg）与 Lean `CenterFull`（`CenterFull.lean:53-59`，仅 core/dd/gg）均无该两字段。**正本与原文完备对齐**（避免日后有人翻到第 20 课问「为什么漏了两个符号」），同时不为无消费者的量付实现成本。**⟹ [#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478) 订正（2026-10-13）**：「无消费者」已不成立——SPEC [#1340](https://github.com/xy7365527-lang/NewChanlun/issues/1340) CC-017 要求 S 事实层发布 G/D，故 G/D 由 S 事实层按 `Zn` 计算（[#1419](https://github.com/xy7365527-lang/NewChanlun/issues/1419)）；「不逼三侧补字段」的结论不变：`Center`（`types.rs:125`，main `465174240b`）与 `CenterFull` 仍不加字段，G/D 只活在 S 事实层。
+
+**落码补齐（[#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478) 裁定一，2026-10-13）**：GG/DD 的「n 遍历所有 Zn」此前只落在正本；生产塔（`recursive_tower.rs:524-527`）、旧线（`rust/src/zhongshu.rs:72-87`、`src/newchan/a_zhongshu_v1.py:100-101`／`:108-109`）与 Lean（`CenterConstruct.lean:408-417` `extendWeak`、`:442-443` seed）都对**全部**成员单元取极值，seed 三段同样全取（`center.rs:170`／`:176` `compute_gg`／`compute_dd`）。分歧只出现在末成员为非 `Zn` 单元时：端点相连、方向交替的序列里，内部非 `Zn` 单元的两端是相邻 `Zn` 的端点，被覆盖；只有末非 `Zn` 成员的远端不属任何 `Zn`。按 #793 这是 #812 受影响代码清单的缺项，不是新分歧；本轮没有生产实测读数反对 `Zn` 口径，生产代码不行使否决权。**落地**：塔与 Lean 并入 [#1419](https://github.com/xy7365527-lang/NewChanlun/issues/1419) 的共用扫描（R8）批次，同拍改、同一次基线重生成；**不允许出现「S 发 `Zn` 外缘、塔留全单元外缘」的中间态**（同一量两种值，#804）。`Zn` 判别：与 seed 第一单元同向的成员，即与第一单元的序号差 `(j−i)` 为偶数。清单见 §9 R21–R27、L9–L11、P14–P16。元教训同 Z-6 订正：承重的是「数哪些段」。
 
 ---
 
@@ -228,6 +230,10 @@ ZD < ZG（严格，Z-2）
 **延伸期间 `[ZD, ZG]` 冻结不变**；`GG`/`DD` 随延伸吸收。
 
 **★ 中心定理一的「不重叠」不足以终结中枢**——必须配上「没回来」，见 §5（S-3）。
+
+**端点条款（[#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478) 裁定二，2026-10-13；原文未讲的端点，按权威分层由 Lean 管）**：`020:56` 的延伸测试对象是 `Zn` 的 `[dn, gn]`。对端点相连、方向交替的单元序列，内部非 `Zn` 单元恒重叠（`Zn_{k+1}` 重叠 ⟹ 其前的非 `Zn` 单元重叠），所以「测全部单元」与「只测 `Zn`」在成员集上只差一处：向 `Zn` 方向离开时停在核心之外的那段回抽。原文没讲它的归属 ⟹ 采 Lean 全单元口径（`extendWeak`，塔同）：**该回抽段为连接段（突破段）**，前中枢末成员是它之前的 `Zn`，下一中枢自它后一单元起扫（Z-5 `last + 2` 不变）。
+
+**退场条件**：① 日后找到原文依据推翻本端点，或 [#1434](https://github.com/xy7365527-lang/NewChanlun/issues/1434)（三类点）／[#1424](https://github.com/xy7365527-lang/NewChanlun/issues/1424)（中枢关系）实测出与原文语义冲突的读数 ⟹ 改 Lean 定义并同拍改塔；② 上级单元（端点不相连、方向交替无保证，[#1429](https://github.com/xy7365527-lang/NewChanlun/issues/1429)）上两种测试若给出不同成员集，须另裁。L0 上两种测试的等价性由对拍测试锁（#804 ①）。**代价照实**：全单元口径使上升趋势中两中枢之间的 L0 连接段是一段向下的回抽；`Zn` 口径会让该回抽成为前中枢末成员、下一中枢换向起扫，两者给出不同的下一中枢。缠论直觉站在哪边原文未定，这正是退场条件①要接住的。
 
 ### 4.2 新生（趋势）
 
@@ -335,7 +341,7 @@ ZD < ZG（严格，Z-2）
 
 ### 5.4 「冲出去又回来」的那一段算中枢成员
 
-进外缘 `GG`/`DD`，**不动核心 `[ZD, ZG]`**。依据：第 20 课定义 `GG`/`DD` 时逐字写「n 遍历中枢中所有 Zn」，外缘本就要吃掉延伸期内所有波动极值；`030-第30课.md:150` 是 `ZG/ZD` 与 `GG/DD` 的分工声明。
+进外缘 `GG`/`DD`，**不动核心 `[ZD, ZG]`**。依据：第 20 课定义 `GG`/`DD` 时逐字写「n 遍历中枢中所有 Zn」，外缘本就要吃掉延伸期内所有波动极值；`030-第30课.md:150` 是 `ZG/ZD` 与 `GG/DD` 的分工声明。（#1478 按 `Zn` 落码后结论不变：内部回抽单元的极值就是相邻 `Zn` 的端点，仍进外缘。）
 
 ### 5.5 一类点与三类点的分工
 
@@ -479,6 +485,30 @@ ZD < ZG（严格，Z-2）
 
 **核实基线**：commit `e87a3612f5`（2026-07-31）。行号逐条 `sed`/`grep` 核过；与裁定评论所记不一致的已当场更正并在「备注」列标 **★行号订正**。
 
+### 9.0 行号订正（[#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478)，2026-10-13，基线 main `465174240b`）
+
+下表只订正位置，处置不变；下方各表的旧行号保留在案。R6、R12、R20 未重核，待实施票认领时以 `git show` 为准。
+
+| # | 旧位置（`e87a3612f5`） | 新位置（main `465174240b`） |
+|---|---|---|
+| R1 | `center.rs:13` | 未漂（`:13`） |
+| R2 | `center.rs:204-206` | 「Lean 侧跟进留对方线」两处：`center.rs:238`／`:282` |
+| R3 | `center.rs:274` | `center.rs:312` `classify_relation` |
+| R4 | `recursive_tower.rs:66` | `recursive_tower.rs:84` `UPGRADE_TOTAL_SEGMENTS` |
+| R5 | `recursive_tower.rs:747` | `recursive_tower.rs:524`（延伸 `while`） |
+| R7 | `recursive_tower.rs:757-804` | `recursive_tower.rs:553-578` |
+| R8 | `recursive_tower.rs:804` | `recursive_tower.rs:581`（`i = j`） |
+| R9 | `recursive_tower.rs:772` | `recursive_tower.rs:549` |
+| R10 | `mod.rs:527-532` | `compose_level` 迁到 `recursive_tower.rs:391`（`:397` `is_l0` 分派、`:434` 现存断言 `debug_assert_eq!(centers.len(), cp_ownership.len())`）；旧 `centers_w` 断言在 `rust/src` 已无命中 |
+| R11 | `mod.rs:521-522`／`:460` | `pipeline.rs:367` `classify_level(units, is_l0)`；units 来源 `pipeline.rs:565`／`:575`（`segment_to_unit` 在 `:140`） |
+| R13 | `signal.rs:570` | `signal.rs:293` `judge_third_cert` |
+| R14 | `signal.rs:650` | `signal.rs:363` `trend_third_class_in_c` |
+| R15 | `center_lifecycle.rs:564-593` | 推进循环起于 `center_lifecycle.rs:566` |
+| R16 | `zhongshu.rs:224` | 未漂（`:224`） |
+| R17 | `zhongshu.rs:143` | 未漂（`:143`） |
+| R18 | `types.rs:122-133` | `types.rs:125`（`pub struct Center {`） |
+| R19 | `decompose.rs:56` | `decompose.rs:71` `fold_rel` |
+
 ### 9.1 Rust
 
 | # | 位置 | 现状 | 处置 | 依据 | 备注 |
@@ -503,6 +533,13 @@ ZD < ZG（严格，Z-2）
 | R18 | `rust/src/theta_v0/types.rs:122-133` `struct Center` | 仅 `zd/zg/dd/gg`，无 `G`/`D` | **不动**（不逼补字段） | S-7 ③ | |
 | R19 | `rust/src/theta_v0/classifier/decompose.rs:56` `fold_rel` | 「不允许盘整+盘整」 | **不在本票**——归 [#827](https://github.com/xy7365527-lang/NewChanlun/issues/827) 裁属构造还是读法 | S-6 | |
 | R20 | `rust/src/theta_v0/parser/segment.rs:442-445` / `:737-741`、`parser/stroke.rs:457`、`types.rs:30` | 方向无条件交替的地基 | **不动**（Z-3 可达性论证的承重点） | Z-3 | |
+| R21 | `rust/src/theta_v0/classifier/recursive_tower.rs:525-527`（延伸循环体，`while` 在 `:524`） | `c.dd`／`c.gg` 对全部延伸单元取极值 | **改**：仅 `Zn`（`(j−i)` 偶数位）参与 | S-7（[#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478)） | 并入 [#1419](https://github.com/xy7365527-lang/NewChanlun/issues/1419) R8 批次，与 L9 同拍 |
+| R22 | `rust/src/theta_v0/classifier/recursive_tower.rs:553-578` | ≥9 段升级子窗 dd/gg 对子窗全部单元取极值 | **改**：仅 `Zn` | S-7（#1478） | 归 [#1429](https://github.com/xy7365527-lang/NewChanlun/issues/1429)（≥9 段，#1419 显式延后） |
+| R23 | `rust/src/theta_v0/classifier/center.rs:170`／`:176` `compute_gg`／`compute_dd`（调用点 `:257-258` `center_from_segments`、`:294-295` `center_from_window`） | seed 外缘三段全取 | **改**：取第 1、3 段；端点相连时值不变，仍须改，以免上级输入不相连时出错 | S-7（#1478） | #1419 |
+| R24 | `rust/src/zhongshu.rs:72-87` | 旧线「max(所有段)」 | 随 TB-10 收编或退役；不参准入 | S-7（#1478） | TB-10 |
+| R25 | `rust/src/theta_v0/classifier/ref_v1.rs:150-151`（seed `max3`／`min3`）、`:157-158`（延伸聚合） | Lean 参考实现的 Rust 镜像，全单元 | **改**：与 L9／L10 同拍（parity 契约） | S-7（#1478） | #1419 同拍；**★清单新增**（工位草稿漏列） |
+| R26 | `rust/src/theta_v0/classifier/center.rs:312` `classify_relation` | 中心定理二消费 dd/gg | 以 `Zn` 外缘为输入；`Zn` 外缘落地前 [#1424](https://github.com/xy7365527-lang/NewChanlun/issues/1424) 不得验收 | S-7（#1478） | [#1424](https://github.com/xy7365527-lang/NewChanlun/issues/1424) |
+| R27 | `rust/tests/fixtures/theta_v0_center_parity.json` | 机器导出 fixture | 与 R8 同一次 regen | S-7（#1478） | #1419 |
 
 ### 9.2 Lean
 
@@ -516,6 +553,9 @@ ZD < ZG（严格，Z-2）
 | L6 | `formal/Origin/CenterConstruct.lean:429` / `:459` 续扫锚 `i = endE + 2`（原 A 口径 `max(jOut-2, end)`） | A 口径 | **改为 C**。**已落地 = [#1296](https://github.com/xy7365527-lang/NewChanlun/issues/1296)**（`refStep` 结算后续扫锚 `endE + 2` 跳过突破段；Rust `ref_v1.rs`/`zhongshu.rs` 与 Python `a_zhongshu_v1.py` 同拍归后续票） | Z-5 | **★清单新增**——裁定只写「Lean 族」，此处点名到行；[#1296](https://github.com/xy7365527-lang/NewChanlun/issues/1296) 落地后原 `:419`/`:448` 漂到 `:429`/`:459` |
 | L7 | `formal/Origin/CenterConstruct.lean:408-417` `extendWeak` | 延伸**无段数上限** | **补 ≥9 段升级重切**（三侧同步，否则 parity 断言必红）。**登记不可行 = [#1296](https://github.com/xy7365527-lang/NewChanlun/issues/1296)**（三侧同步硬前置未满足：Rust R6/R7/R8 与 Python P13 未落本票，Lean 单侧实装会使 `theta_v0_center_parity` bit-exact 契约在 9+ 段输入上红；已在本文件 `extendWeak` doc 显式登记，待三侧同步批次） | S-4 / Z-4 | [#1296](https://github.com/xy7365527-lang/NewChanlun/issues/1296) 落地后原 `:398-407` 漂到 `:408-417` |
 | L8 | `formal/Origin/CenterFull.lean:53-59` `CenterFull` | 字段 `core/dd/gg`，无 `G`/`D` | **不动** | S-7 ③ | |
+| L9 | `formal/Origin/CenterConstruct.lean:408-417` `extendWeak`（聚合在 `:417`） | 对每个重叠 comp 聚合 gg/dd | **改**：仅 `Zn`（奇偶位） | S-7（[#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478)） | 与 R21 同拍（[#1419](https://github.com/xy7365527-lang/NewChanlun/issues/1419)） |
+| L10 | `formal/Origin/CenterConstruct.lean:442-443`（`refStep` 的 `gg0 := max3 h1 h2 h3`／`dd0 := min3 l1 l2 l3`） | seed 外缘三段全取 | **改**：`max(g₁,g₃)`／`min(d₁,d₃)`；`:70-71` 的 doc 注释同步 | S-7（#1478） | #1419 同拍；**★行号订正**：工位草稿记 `:70-71`，那两行是 doc 注释，代码在 `:442-443` |
+| L11 | `formal/Origin/CenterConstruction.lean:104`／`:108` `computeGG`／`computeDD` | 三段全取 | **改**：取第 1、3 段（与 R23 对应） | S-7（#1478） | #1419 同拍；**★清单新增** |
 
 ### 9.3 Python
 
@@ -534,6 +574,9 @@ ZD < ZG（严格，Z-2）
 | P11 | `src/newchan/a_buypoint_score.py:45` | `from newchan.a_ph_zhongshu import ...` | 随 P10 改名 | Z-7 | |
 | P12 | PH-中枢的全部引用方（`grep -rl a_ph_zhongshu --include=*.py`，实测 **16 个**）：`analysis/` 8 个（`oklo_ph_driver.py`、`hk700_settle_ladder.py`、`mos_ph_sensitivity.py`、`brn_settle_ladder.py`、`qqq_soxx_settle.py`、`mos_sellpoint_settle.py`、`mos_ph_driver.py`、`meituan_settle_ladder.py`）+ `scripts/` 5 个（`mos_ratio_ph.py`、`tencent_zhongshu_force.py`、`tencent_three_gates_ph.py`、`dual_settle_scan.py`、`settle_backtest.py`）+ `tests/test_ph_zhongshu.py` + `src/newchan/a_zhongshu_force.py` + P11 | 引用 + 结论用「中枢」一词 | 随 P10 改名 + 结论标注「此处『中枢』非缠论中枢」 | Z-7 | 裁定写「`analysis/` 下约 8 个」——`analysis/` 侧数目正确（恰 8），但**全仓引用面是 16 个**，★清单扩面。行号未逐个点（改名票扫描时落） |
 | P13 | ≥9 段升级重切的 Python 实现 | **未找到**（[#823](https://github.com/xy7365527-lang/NewChanlun/issues/823) 查实关键词全域零命中） | 三侧同步落地时须新增，否则同一段行情三侧数出不同个数的中枢 | S-4 / Z-4 | |
+| P14 | `src/newchan/a_zhongshu_v1.py:79-80`（字段注释「max(所有段的 high)」）、`:100-101`（seed）、`:108-109`（延伸聚合） | 全段聚合 | 随 TB-10 收编或退役 | S-7（[#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478)） | TB-10；**★行号订正**：工位草稿记 `:79-100` |
+| P15 | `src/newchan/a_center_v0.py:78-80`／`:159` | **唯一按 `Zn` 算的实现**（死码） | 登记；不升正本 | S-7（#1478） | — |
+| P16 | `s_session/s_tb02_contract.py`（新增 `validate_center_payload`） | 无 | 校验 GG/DD/G/D 与 `Zn` 成员一致 | S-7（#1478） | [#1419](https://github.com/xy7365527-lang/NewChanlun/issues/1419) |
 
 ### 9.4 下游实施票
 
@@ -542,6 +585,11 @@ ZD < ZG（严格，Z-2）
 | [#485](https://github.com/xy7365527-lang/NewChanlun/issues/485) 高级别三类点产出链修复 | **下游实施落点**，已接 `blocked_by #812`；其三段修复只覆盖三类点产出链，**范围需扩到塔侧中枢结算判据**（R5），否则收敛后仍是两份实现 |
 | [#827](https://github.com/xy7365527-lang/NewChanlun/issues/827) 操作分解层在架构里的位置 | 同级别分解、升级的跨层结构、`fold_rel`（R19） |
 | PH-中枢改名票（待开） | P10–P12，排在本正本落盘之后 |
+| [#1419](https://github.com/xy7365527-lang/NewChanlun/issues/1419) TB-02-E 中枢事实 | [#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478) 裁定一：R21／R23／R25／R27／L9／L10／L11 与 R8 同批、Lean 同拍、同一次基线重生成；对拍锁加「`Zn` 外缘」；E2 期待值 DD=10；u8 记 CONNECTOR、右端 pending（PREP D9） |
+| [#1424](https://github.com/xy7365527-lang/NewChanlun/issues/1424) TB-02-F 中枢关系 | `classify_relation` 以 `Zn` 外缘为输入；`Zn` 外缘落地前不得验收（R26） |
+| [#1429](https://github.com/xy7365527-lang/NewChanlun/issues/1429) TB-02-H | ≥9 段子窗 `Zn` 聚合（R22）；§4.1 端点条款退场条件②（上级单元） |
+| [#1434](https://github.com/xy7365527-lang/NewChanlun/issues/1434) 三类点 | §4.1 端点条款退场条件①的实测入口 |
+| TB-10 旧入口收编／退役 | R24、P14 |
 
 **代价照实（合并声明）**：Z-5（续扫锚）与 S-3（破坏判据）都会改变中枢个数，走势类型与买卖点随之变，**回测基线全部重跑**（同一批，不额外新增一次）。
 
@@ -580,6 +628,10 @@ ZD < ZG（严格，Z-2）
 
 **更新日志**
 
+- 2026-10-13: **v2.1 [#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478) S-7 落码补齐与 §4.1 端点**（#1323 grilling，代理依用户授权裁定、根复核）
+  - §3：G/D 行改为 S 事实层按 `Zn` 实现、`Center`／`CenterFull` 不加字段；§3 末加「落码补齐」
+  - §4.1：加端点条款（回抽段为连接段，Lean 管边界）与退场条件；§5.4 加一句 `Zn` 落码后结论不变
+  - §9：新增 §9.0 行号订正表、R21–R27、L9–L11、P14–P16；§9.4 加 #1419／#1424／#1429／#1434／TB-10
 - 2026-07-31: **v2.0 [#812](https://github.com/xy7365527-lang/NewChanlun/issues/812) 教义正本全量重写**（覆盖 v1.4）
   - 落 17 条裁定：Z-1…Z-8 + 附①附② + S-1…S-7
   - 新增：固定三行头、递归基条款、循环定义破解 +「成交笔 ≠ 缠论笔」防误用注、四指标分工、升级阈值（含「须有波动」前置）、中枢破坏 ≡ 三类点 + 三条推论、续扫锚、不设候选态、不区分形态排除句、PH-中枢排除句、受影响代码清单（Rust 20 / Lean 8 / Python 13）
