@@ -4,7 +4,7 @@
 
 ## 结论
 
-生产新笔状态机已按 #1343 裁定处理同价：相邻同型同价保留在先者（只记证据，不是等待态）；多根组端点以极值根集合为身份，条件 2 的 raw 间隔按极值区计；`blocked`、直通与同价弹笔整体退役。真实 BTC 1m 尾 5 万根从 0 笔 0 段变为 **4,016 笔 / 72 段**，笔序列指纹 `4fd87a7e429962ac` 与 #1343 的 Python 复算逐项相同；`tick::seam_btc_tick_bars_yield_non_trivial_structure` 转绿。S 发布合同升 `s-new-bi/2`、会话规则升 `…+new-bi/2+…`，正式会话入口 + HTTP 公共查询 + 真 Chrome 页面三层都能读到组锚、极值根集、`raw_first`/`raw_last`、两段 policy 与同价 KEEP 证据。按根裁定 B，TB-02-A 里同一「同价 = 未定」前提的三处（CC-004/CC-005 请求、CC-006 发布门）一并退役。`cargo test --lib` 只剩两个基线既有红，均已分诊且与同价取法无关。
+生产新笔状态机已按 #1343 裁定处理同价：相邻同型同价保留在先者（只记证据，不是等待态）；多根组端点以极值根集合为身份，条件 2 的 raw 间隔按极值区计；`blocked`、直通与同价弹笔整体退役。真实 BTC 1m 尾 5 万根从 0 笔 0 段变为 **4,016 笔 / 72 段**，笔序列指纹 `4fd87a7e429962ac` 与 #1343 的 Python 复算逐项相同；`tick::seam_btc_tick_bars_yield_non_trivial_structure` 转绿。S 发布合同升 `s-new-bi/2`、会话规则升 `…+new-bi/2+…`，正式会话入口 + HTTP 公共查询 + 真 Chrome 页面三层都能读到组锚、极值根集、`raw_first`/`raw_last`、两段 policy 与同价 KEEP 证据。按根裁定 B，TB-02-A 里同一「同价 = 未定」前提的三处（CC-004/CC-005 请求、CC-006 发布门）一并退役。HEAD `ac9ef97c03` 实测 `cargo test --lib` 2960 过 / 2 败 / 162 忽略，失败集恰为两个基线既有红，均已分诊且与同价取法无关；D 片曾让 bsp 白名单因行号漂移多出一个红（独立评审查出），已在 `c823155175` 重锚。
 
 ## 提交
 
@@ -15,7 +15,10 @@
 | C1 | `1bfb91a0e1` | 正式会话入口验证脚本 `s_session/tests/tb02v_runtime.py`；`stroke_tb02v_tests.rs` rustfmt 订正 |
 | C2 | `12d1f1223f` | 会话级 `RULE_REVISION` → `s2-axis-quantifiers+new-bi/2+segment-second/1`；`RULE_CONTRACTS` 按会话规则绑定合同代际；顺序敏感测试按 #1419/#1420 同款修正 |
 | D | `93e9097915` | TB-02-A 退役同价「选根」门（根裁定 B）；知识域升级；TB-02-A 手算账簿 v2 与 `check_root_set` |
-| E | 本提交 | 本报告与收据 |
+| E | `199b820c9d` | 本报告与收据（初版） |
+| F | `c823155175` | bsp 白名单随 `tb02a_facts.rs` 行号漂移重锚 237/247/273 → 231/241/267（D 片删窗口请求块后整体上移 6 行，构造与理由不变） |
+| G | `ac9ef97c03` | 会话规则→新笔合同代际绑定的执行点反例：py `validate_fact`、js `validateTB02Candidate` 各两条（new-bi/2 会话拒 `s-new-bi/1` 对象，及反向），拒因同为「新笔合同与cut规则版本不符」；为此导出 `validateTB02Candidate` |
+| H | 本提交 | 按独立评审订正本报告与收据 |
 
 ## 验收矩阵
 
@@ -26,9 +29,13 @@
 | 3 | seam_btc_tick 转绿；另两红实测分诊 | seam 转绿（不改断言、不改夹具）；另两红见「红项分诊」 | `receipts/lib-tests.txt` |
 | 4 | 前缀不回退与 full ≡ 增量 | 六见证逐前缀通过；九切点阶梯全过（已确认前缀逐字段相同、末笔起点相同、终点只延伸且严格更强、从不 pop），每个切点增量 `StrokeFacts` 与全量重建逐位相同 | `receipts/tail50k.txt` 的 `TB02V_LADDER` 行 |
 | 5 | 选择无关 / A/B 同值 / 双进程哈希 | 160 例随机多根输入打乱并列根到达序，`StrokeFacts`（根集按集合比）逐位不变；每个异型对的间隔 = 对两端任意指定并列根取最小（尾 5 万根 9,016 对零不符）；无同价单根输入极值区读数与单根序位同值，tb02b 账簿其余 14 例 v1 期望不变；两个新进程重放哈希相等 | `tb02v_tied_root_order…`、`tb02v_single_root…`、`tb02v_replay_hash…` |
-| 6 | 变异体 | 9/9 全杀：删 KEEP 分支、同价不记证据、单根最早/最晚、恢复 blocked、恢复 TB-02-A 门、组/步骤请求重新等待、旧知识域 | `receipts/mutants.json` |
+| 6 | 变异体 | Rust 9/9 全杀：删 KEEP 分支、同价不记证据、单根最早/最晚、恢复 blocked、恢复 TB-02-A 门、组/步骤请求重新等待、旧知识域。合同变异（独立评审九个）在 G 片后 7/9 杀：C3（删 py 会话规则绑定）只红两条新 py 反例、C8（删 js 绑定）只红两条新 js 反例；存活的 C5（近似等价）与 C9（js `before` 代际分派，同会话不混代时不可达）是评审登记的 INFO | `receipts/mutants.json`、`receipts/contract-mutants.json` |
 | 7 | 正式会话入口 + 公共查询 + 浏览器 | real_C 27 根：会话 27 cut PASS（三轮：B 片、C2、D）；根批的一次浏览器槽 PASS（2 分 16 秒，0 page error，五轴页面原件字段齐全，进程/端口已回收） | `receipts/session-realC.json`、`receipts/browser.json`、`receipts/browser-excerpts.md`、`receipts/browser-final.png` |
-| 8 | 失败集 / fmt / all-targets / DevSkim | lib 2960 过 / 2 败 / 162 忽略（基线 2955/3/161 的子集）；fmt 净；`--all-targets` 默认、`backtest_bin`、`s_session` 三档能编；S 二进制 81/0；DevSkim 预登记见 `DEVSKIM-PREDELTA.md`，CI 增量待根开 PR 后按 #1404 先例补 | `receipts/lib-tests.txt`、`receipts/s-session-bin.txt` |
+| 8 | 失败集 / fmt / all-targets / DevSkim | HEAD `ac9ef97c03` lib 2960 过 / 2 败 / 162 忽略，失败集恰为 m3 / calibration（基线 2955/3/161 的子集；`199b820c9d` 曾为 2959/3/162，多出的 bsp 红已由 F 片重锚）；py 合同十模块全过（`test_tb02b_contract` 14 例），node 四文件 36/36；fmt 净；`--all-targets` 默认、`backtest_bin`、`s_session` 三档能编；S 二进制 81/0；DevSkim 预登记见 `DEVSKIM-PREDELTA.md`，CI 增量待根开 PR 后按 #1404 先例补 | `receipts/lib-tests.txt`、`receipts/s-session-bin.txt` |
+
+## 逐提交可编译声明
+
+五个代码提交 `355c1d8b46`／`1f90227633`／`1bfb91a0e1`／`12d1f1223f`／`93e9097915` 各自 `cargo check --all-targets --features s_session` 0 错，由独立评审逐提交实跑（`tb1405-review/runs/per-commit-check.txt`，已 touch 全部文件排除 cargo 误判 fresh）。`c823155175` 只改 `bsp.rs` 测试模块内三个字符串字面量，`ac9ef97c03` 不动 Rust，二者之上的 lib 测试目标在 HEAD 实编实跑（`receipts/lib-tests.txt`）。`199b820c9d` 与本提交只含文档与收据。
 
 ## 实施中自定的形状（根已逐条采纳）
 
@@ -65,7 +72,7 @@ catalog evidence 计数照实变化（real_C 27 根，终 cut）：CC-006 local_
 | `s_session/tests/tb02b_harness.py`/`tb02b_verify.py` | 规则串、新字段 | #1394 同段改动 |
 | `rust/src/theta_v0/parser/mod.rs` | :166 注释、:611 测试 | #1420 有改动但不同 hunk |
 
-合入前义务：rebase 到 #1394 之后把 v2 新笔校验与知识域两代移植进 `q3-typed.js`；`RULE_CONTRACTS`（py/js）与 `_published_axes` 合入最终组合规则串；按根要求重生成受规则串影响的夹具。
+合入前义务：rebase 到 #1394 之后把 v2 新笔校验与知识域两代移植进 `q3-typed.js`；`RULE_CONTRACTS`（py/js）与 `_published_axes` 合入最终组合规则串；按根要求重生成受规则串影响的夹具；**bsp 白名单再重锚一次**——#1394 整合分支（`origin/codex/1394-integration-20261013` @ `0c6f73b0d5`）已把 `tb02a_facts.rs` 这组锚收成 `:564` 一处，rebase 时以它为准、丢弃本票 F 片的三行，按 rebase 后实报行号核 `no_stray_bsp_binding_rewrites_outside_registry` 转绿。
 
 ## 陈旧但未改（登记）
 
@@ -78,4 +85,5 @@ catalog evidence 计数照实变化（real_C 27 根，终 cut）：CC-006 local_
 
 - 尾 5 万根读数锁是 `#[ignore]` 外部数据测试（数据 3.5 MB 不入仓），CI 不跑；入仓的常跑锁是六见证、选择无关、单根同值、双进程哈希与 tb02b 账簿。
 - 浏览器只跑了根批的一次（real_C 27 根，D 片之前的二进制）；D 片的 TB-02-A 改动经正式会话 + HTTP 公共查询（含 JS 客户端校验）验证，未再起浏览器。
+- 独立评审 INFO：那一次浏览器跑在 B 片 `1f90227633` 的二进制上，会话规则仍是 `s2-axis-quantifiers+new-bi/1+segment-second/1`，对象却是 `s-new-bi/2`；终版 `RULE_CONTRACTS` 绑定会拒这个组合（G 片的 `new-bi/1 会话 cut 里出现 s-new-bi/2 对象被拒` 正锁此例）。页面字段可见性证据（组锚、极值根集、`raw_first`/`raw_last`、两段 policy、KEEP 证据、退役等待原因零出现）仍有效；终版合同状态由 r3 轮（`93e9097915` 工作区，规则 new-bi/2，正式会话 + HTTP + JS 客户端校验）承担。
 - 未开 PR、未跑 CI；DevSkim 实际增量待 CI SARIF。
