@@ -139,5 +139,12 @@ class ContractTest(unittest.TestCase):
         self.reject('CC-055.change_event', bad)
 
 
+class RuleBindingTest(unittest.TestCase):
+    def test_session_rule_binds_bi_and_segment_contract_generations(self):
+        self.assertEqual(c.RULE_CONTRACTS['s2-axis-quantifiers+new-bi/2+segment-second/1'], ('s-new-bi/2', 's-segment/2'))
+        self.assertEqual(c.RULE_CONTRACTS['s2-axis-quantifiers+new-bi/1+segment-second/1'], ('s-new-bi/1', 's-segment/2'))
+        self.assertEqual(c.RULE_CONTRACTS['s2-axis-quantifiers+new-bi/1'], ('s-new-bi/1', None))
+
+
 if __name__ == '__main__':
     unittest.main()

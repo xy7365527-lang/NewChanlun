@@ -410,6 +410,12 @@
     "s-new-bi/1": ["new-bi-dual-coordinate/1", "standard_raw_gap_3"],
     "s-new-bi/2": ["new-bi-dual-coordinate/2", "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1"],
   };
+  const RULE_CONTRACTS = {
+    "s2-axis-quantifiers+new-bi/1": ["s-new-bi/1", null],
+    "s2-axis-quantifiers+new-bi/1+segment-first/1": ["s-new-bi/1", "s-segment/1"],
+    "s2-axis-quantifiers+new-bi/1+segment-second/1": ["s-new-bi/1", "s-segment/2"],
+    "s2-axis-quantifiers+new-bi/2+segment-second/1": ["s-new-bi/2", "s-segment/2"],
+  };
   const RETIRED_SAME_PRICE_WAITING = ["raw_extreme_identity_tie", "actual_extreme_mapping_missing", "same_kind_endpoint_identity_tie", "earlier_endpoint_identity_unsettled"];
   function validateBiPayload(kind, p) {
     keys(p, ["schema_revision", "semantic_version", "policy_version", "view_role", "object_generation", "slot", "data"], "新笔合同");
@@ -578,7 +584,8 @@
     need(await sha256(validateTB02Catalog(state.catalog)) === TB02_CATALOG.public_static_sha256, "完整冻结目录静态列摘要不符"); check();
     if (fixed.cut_generation !== "0") {
       const byRule = {"s2-axis-quantifiers": LEGACY_TB02_AXES, "s2-axis-quantifiers+new-bi/1": BI_AXES,
-        "s2-axis-quantifiers+new-bi/1+segment-first/1": FIRST_SEGMENT_AXES, "s2-axis-quantifiers+new-bi/1+segment-second/1": TB02_AXES};
+        "s2-axis-quantifiers+new-bi/1+segment-first/1": FIRST_SEGMENT_AXES, "s2-axis-quantifiers+new-bi/1+segment-second/1": TB02_AXES,
+        "s2-axis-quantifiers+new-bi/2+segment-second/1": TB02_AXES};
       keys(fixed.catalog_evidence.axes, byRule[fixed.rule_revision] || TB02_AXES, "cut规则目录轴");
     }
     const bound = validateTB02CutSources(state.snapshot);
@@ -602,7 +609,10 @@
     for (const record of [...state.snapshot.objects, ...state.snapshot.withdrawn_objects]) {
       let digestValue;
       if (TB02_KINDS.includes(record.kind)) {
-        if (SEGMENT_KINDS.includes(record.kind)) need(record.payload.schema_revision === (fixed.rule_revision === "s2-axis-quantifiers+new-bi/1+segment-second/1" ? "s-segment/2" : fixed.rule_revision === "s2-axis-quantifiers+new-bi/1+segment-first/1" ? "s-segment/1" : null), "段合同与cut规则版本不符");
+        // #1405：会话级 rule_revision 绑定笔/段两族合同代际；旧规则会话只读（AsKnown）。
+        const [biSchema, segmentSchema] = Object.hasOwn(RULE_CONTRACTS, fixed.rule_revision) ? RULE_CONTRACTS[fixed.rule_revision] : [null, null];
+        if (SEGMENT_KINDS.includes(record.kind)) need(record.payload.schema_revision === segmentSchema, "段合同与cut规则版本不符");
+        if (BI_KINDS.includes(record.kind)) need(record.payload.schema_revision === biSchema, "新笔合同与cut规则版本不符");
         const identity = Object.fromEntries(["kind", "fact_key", "payload", "input_refs"].map(k => [k, record[k]]));
         identity.profile_id = fixed.profile_id; identity.rule_revision = fixed.rule_revision;
         digestValue = await sha256(identity);

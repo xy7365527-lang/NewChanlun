@@ -64,6 +64,7 @@ else:
         self.assertEqual(audit._published_axes('s2-axis-quantifiers+new-bi/1'), contract.BI_AXES)
         self.assertNotIn('CC-011', audit._published_axes('s2-axis-quantifiers+new-bi/1'))
         self.assertEqual(audit._published_axes('s2-axis-quantifiers+new-bi/1+segment-first/1'), contract.FIRST_SEGMENT_AXES)
+        self.assertEqual(audit._published_axes('s2-axis-quantifiers+new-bi/2+segment-second/1'), contract.AXES)
         self.assertEqual(audit._published_axes('unrecognized-rule'), contract.AXES)
 
 
