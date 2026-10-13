@@ -1,6 +1,21 @@
 //! #1392：同次生产新笔证据的持久投影；不重新求值判据。
+//!
+//! #1405（#1343）：发布合同升 `s-new-bi/2`——端点带极值根集首末 raw 序位
+//! （`raw_first`/`raw_last`），同型取舍只有 KEEP/REPLACE 并带 `evidence`，`policy_version`
+//! 并列记录 raw 间隔门与同价策略。旧 `s-new-bi/1` 对象按 AsKnown 保留，不回填。
 use super::*;
-use newchan_rust::theta_v0::parser::stroke::{StrokeFacts, RULE};
+use newchan_rust::theta_v0::parser::stroke::{StrokeFacts, RULE, SAME_PRICE_POLICY};
+
+/// #1405：新笔发布合同版本（端点/同型取舍的形状随 #1343 改变）。
+const SCHEMA_REVISION: &str = "s-new-bi/2";
+/// raw 间隔门（`new_stroke_min_gap = 3`，bi.md §7 条件 2）。
+const RAW_GAP_POLICY: &str = "standard_raw_gap_3";
+
+/// #1343 Q5：`policy_version` 两段并列——raw 间隔门 `;` 同价策略；规则版本另在
+/// `semantic_version`（= [`RULE`]）。
+fn policy_version() -> String {
+    format!("{RAW_GAP_POLICY};{SAME_PRICE_POLICY}")
+}
 
 pub(super) const KINDS: &[&str] = &[
     "CC-008.endpoint",
@@ -21,7 +36,7 @@ fn wire(v: Value) -> Value {
     }
 }
 fn payload(slot: Value, generation: i64, data: Value) -> Value {
-    json!({"schema_revision":"s-new-bi/1","semantic_version":RULE,"policy_version":"standard_raw_gap_3",
+    json!({"schema_revision":SCHEMA_REVISION,"semantic_version":RULE,"policy_version":policy_version(),
         "view_role":"main","object_generation":generation.to_string(),"slot":slot,"data":wire(data)})
 }
 fn add(
@@ -255,9 +270,10 @@ pub(super) fn build(
                 entity.clone(),
             ));
         }
-        for (_, member) in
-            raw.range(bi.start.extreme_roots[0] as i64..=bi.end.extreme_roots[0] as i64)
-        {
+        // #1343 Q2：成员范围覆盖两端完整极值区——起点极值区首根 ..= 终点极值区末根。
+        let first = *bi.start.extreme_roots.iter().min().expect("极值根集非空");
+        let last = *bi.end.extreme_roots.iter().max().expect("极值根集非空");
+        for (_, member) in raw.range(first as i64..=last as i64) {
             edges.push((
                 format!(
                     "raw:{}@{}",
@@ -280,6 +296,8 @@ pub(super) fn build(
             );
             relations.push(json!({"subject":source,"relation_type":kind,"object":target}));
         }
+        // 事件时点取终点极值区首根的 ts，只作代表（多根同价时不进任何判据，#1343 Q2）。
+        let event_root = *bi.end.extreme_roots.iter().min().expect("极值根集非空");
         for change in changes {
             add(
                 &mut b,
@@ -287,7 +305,7 @@ pub(super) fn build(
                 json!([gen.to_string(), entity, change]),
                 generation,
                 json!({"entity_id":entity,"change":change,"before":old,"after":data,"known_at":known,
-                    "event_at":raw[&(bi.end.extreme_roots[0] as i64)]["ts"],"causes":[RULE],"object_id":id}),
+                    "event_at":raw[&(event_root as i64)]["ts"],"causes":[RULE],"object_id":id}),
                 sources.clone(),
             );
         }
