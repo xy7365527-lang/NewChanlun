@@ -233,7 +233,7 @@ ZD < ZG（严格，Z-2）
 
 **端点条款（[#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478) 裁定二，2026-10-13；原文未讲的端点，按权威分层由 Lean 管）**：`020:56` 的延伸测试对象是 `Zn` 的 `[dn, gn]`。对端点相连、方向交替的单元序列，内部非 `Zn` 单元恒重叠（`Zn_{k+1}` 重叠 ⟹ 其前的非 `Zn` 单元重叠），所以「测全部单元」与「只测 `Zn`」在成员集上只差一处：向 `Zn` 方向离开时停在核心之外的那段回抽。原文没讲它的归属 ⟹ 采 Lean 全单元口径（`extendWeak`，塔同）：**该回抽段为连接段（突破段）**，前中枢末成员是它之前的 `Zn`，下一中枢自它后一单元起扫（Z-5 `last + 2` 不变）。
 
-**退场条件**：① 日后找到原文依据推翻本端点，或 [#1434](https://github.com/xy7365527-lang/NewChanlun/issues/1434)（三类点）／[#1424](https://github.com/xy7365527-lang/NewChanlun/issues/1424)（中枢关系）实测出与原文语义冲突的读数 ⟹ 改 Lean 定义并同拍改塔；② 上级单元（端点不相连、方向交替无保证，[#1429](https://github.com/xy7365527-lang/NewChanlun/issues/1429)）上两种测试若给出不同成员集，须另裁。L0 上两种测试的等价性由对拍测试锁（#804 ①）。**代价照实**：全单元口径使上升趋势中两中枢之间的 L0 连接段是一段向下的回抽；`Zn` 口径会让该回抽成为前中枢末成员、下一中枢换向起扫，两者给出不同的下一中枢。缠论直觉站在哪边原文未定，这正是退场条件①要接住的。
+**退场条件**：① 日后找到原文依据推翻本端点，或 [#1434](https://github.com/xy7365527-lang/NewChanlun/issues/1434)（三类点）／[#1424](https://github.com/xy7365527-lang/NewChanlun/issues/1424)（中枢关系）实测出与原文语义冲突的读数 ⟹ 改 Lean 定义并同拍改塔；② 上级单元（端点不相连、方向交替无保证，[#1429](https://github.com/xy7365527-lang/NewChanlun/issues/1429)）上两种测试若给出不同成员集，须另裁。L0 上「全单元测试」与「`Zn` 测试 ＋ 本端点条款」等价，由对拍测试锁（#804 ①）。**代价照实**：全单元口径使上升趋势中两中枢之间的 L0 连接段是一段向下的回抽；`Zn` 口径会让该回抽成为前中枢末成员、下一中枢换向起扫，两者给出不同的下一中枢。缠论直觉站在哪边原文未定，这正是退场条件①要接住的。
 
 ### 4.2 新生（趋势）
 
@@ -534,7 +534,7 @@ ZD < ZG（严格，Z-2）
 | R19 | `rust/src/theta_v0/classifier/decompose.rs:56` `fold_rel` | 「不允许盘整+盘整」 | **不在本票**——归 [#827](https://github.com/xy7365527-lang/NewChanlun/issues/827) 裁属构造还是读法 | S-6 | |
 | R20 | `rust/src/theta_v0/parser/segment.rs:442-445` / `:737-741`、`parser/stroke.rs:457`、`types.rs:30` | 方向无条件交替的地基 | **不动**（Z-3 可达性论证的承重点） | Z-3 | |
 | R21 | `rust/src/theta_v0/classifier/recursive_tower.rs:525-527`（延伸循环体，`while` 在 `:524`） | `c.dd`／`c.gg` 对全部延伸单元取极值 | **改**：仅 `Zn`（`(j−i)` 偶数位）参与 | S-7（[#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478)） | 并入 [#1419](https://github.com/xy7365527-lang/NewChanlun/issues/1419) R8 批次，与 L9 同拍 |
-| R22 | `rust/src/theta_v0/classifier/recursive_tower.rs:553-578` | ≥9 段升级子窗 dd/gg 对子窗全部单元取极值 | **改**：仅 `Zn` | S-7（#1478） | 归 [#1429](https://github.com/xy7365527-lang/NewChanlun/issues/1429)（≥9 段，#1419 显式延后） |
+| R22 | `rust/src/theta_v0/classifier/recursive_tower.rs:553-578` | ≥9 段升级子窗 dd/gg 对子窗全部单元取极值 | **改**：仅 `Zn` | S-7（#1478） | 归 [#1429](https://github.com/xy7365527-lang/NewChanlun/issues/1429)（≥9 段，#1419 显式延后）；过渡态见 §9.5 |
 | R23 | `rust/src/theta_v0/classifier/center.rs:170`／`:176` `compute_gg`／`compute_dd`（调用点 `:257-258` `center_from_segments`、`:294-295` `center_from_window`） | seed 外缘三段全取 | **改**：取第 1、3 段；端点相连时值不变，仍须改，以免上级输入不相连时出错 | S-7（#1478） | #1419 |
 | R24 | `rust/src/zhongshu.rs:72-87` | 旧线「max(所有段)」 | 随 TB-10 收编或退役；不参准入 | S-7（#1478） | TB-10 |
 | R25 | `rust/src/theta_v0/classifier/ref_v1.rs:150-151`（seed `max3`／`min3`）、`:157-158`（延伸聚合） | Lean 参考实现的 Rust 镜像，全单元 | **改**：与 L9／L10 同拍（parity 契约） | S-7（#1478） | #1419 同拍；**★清单新增**（工位草稿漏列） |
@@ -594,6 +594,16 @@ ZD < ZG（严格，Z-2）
 **代价照实（合并声明）**：Z-5（续扫锚）与 S-3（破坏判据）都会改变中枢个数，走势类型与买卖点随之变，**回测基线全部重跑**（同一批，不额外新增一次）。
 
 ---
+
+
+### 9.5 #804 例外：≥9 段子窗外缘的过渡态（[#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478)，2026-10-13）
+
+[#1419](https://github.com/xy7365527-lang/NewChanlun/issues/1419) 落地后到 [#1429](https://github.com/xy7365527-lang/NewChanlun/issues/1429) 落 R22 之前，塔内同一个量（中枢外缘 `GG`/`DD`）有两种取法：不足 9 段的中枢按 `Zn`，≥9 段重切出的子中枢仍按全单元。这是总缝规则（[#804](https://github.com/xy7365527-lang/NewChanlun/issues/804)）下的一条例外，按举证门登记：
+
+- **实质**：≥9 段升级子窗按每 3 段重切，奇数号子窗的首单元与父 seed 反向，「子窗的 `Zn` 以谁为参照」原文未讲、Lean 未定，须由 #1429 裁定后才有可落的单一口径；
+- **范围**：S 事实层不发布 ≥9 段的子中枢（#1419 D5），过渡态只存在于塔内，不进入 S 发布、不参与 R2 生产准入；
+- **退场条件**：#1429 落 R22（子窗 `Zn` 聚合）时消失，同拍改 Lean；
+- **配额**：占全仓 #804 例外配额 1/3。
 
 ## 10. 本次推翻的旧结算（订正表）
 

@@ -356,7 +356,7 @@ P2 在同序列上可给出 `{[0,4]}`（一段 5 笔）—— P2 能出 5 笔段
    - **第二种**（有缺口）：**须**从分型极值点开始的**同向笔**序列（`078:54`「方向和原线段一致」）出现分型才终结，且**只要有分型就可以**（`067:46`），并**必须严格按包含关系处理**（`078:54`）
 5. 结算锚验证：新段前三笔必须重叠（相切边界未裁，§6）
 6. **缺口封闭做 `strict` 档**（§4）
-7. **第二特征序列扫描窗口未裁**（族I `50` / theta_v0 无限，§5.1）
+7. **第二特征序列扫描窗口：已裁**（[#1344](https://github.com/xy7365527-lang/NewChanlun/issues/1344)，§5.1）——语义终点三态；族I `50` 为待收编/退役旧入口
 
 **实现**: `src/newchan/a_segment_v1.py :: segments_from_strokes_v1`；`rust/src/segment.rs`（现役生产）；`rust/src/theta_v0/parser/segment.rs`（theta_v0）
 
@@ -442,7 +442,7 @@ P2 在同序列上可给出 `{[0,4]}`（一段 5 笔）—— P2 能出 5 笔段
 | X-14 | `src/newchan/a_segment_v0.py:162` `<` vs `rust/src/theta_v0/parser/segment.rs:116` `<=` | 统一相切边界 | **原文未表态** ⟹ `[新缠论:选择]`；且 Lean 侧 `Claim10:471-474` 已登记同型分歧并明写「不擅自裁定」（§6） | **#813 新增待裁项（未收口）** |
 | X-15 | G-4 与「D-5」的口径一致性 | 收口 | 考据未拿到 D-5 票面，只给了三条结构对齐点（§4） | **#813 待办（不假装已对齐）** |
 | X-16 | `rust/src/theta_v0/parser/feature_seq.rs:143-153` `SecondSequenceFacts`、`:299-396` `second_sequence`（`:395` `resource_truncated`）；`parser/segment.rs:264/:444/:474/:491` | 补 `KILLED_BY_NEW_EXTREME` 与越界水位；`resource_truncated` 语义保留，失效时为 false；读取处识别失效态。`:298` 文档的带票号注释随本次提交落（零行为变更） | #1344 第一/三问 | **归 TB-02-W [#1420](https://github.com/xy7365527-lang/NewChanlun/issues/1420)** |
-| X-17 | `rust/src/theta_v0/parser/segment.rs:765-783`（`:775-776` 级联复活注释）、`:806-812` | 失效候选不得由回退/`from_full` 复活；恢复按 K1 游标 | #1344 第一/四问 | **归 #1420** |
+| X-17 | `rust/src/theta_v0/parser/segment.rs:924-936`（`earliest_unsealed_from`，级联复活注释 `:928-930`）、`:1036-1040`（`append` 的 `confirmed_bound` 回退）、`:961-966`（`from_full` 不重建跳过史） | 失效候选不得由回退/`from_full` 复活；恢复按 K1 游标 | #1344 第一/四问 | **归 #1420** |
 | X-18 | `formal/Phase2/Claim10_SegmentV1.lean:46-47/:184-185`、`formal/Origin/SegmentFeatureComplete.lean`（未逐行读） | 补「候选失效」形式定义，或明写有效域 | #1344 第一问 | 归 #1420 或 Lean 跟进票 |
 | X-19 | `rust/src/theta_v0/config.rs:54-57/:65` `second_seq_scan_window`、`parser/second_kind.rs:37-41/:109-111`、`parser/feature_seq.rs:278-311/:596-613` | 名分 = 调度预算（不是语义）；补失效语义说明；旧扫描与「提前停≡全扫」性质测试换含失效的 oracle | #1344 第一/四问 | 归 #1420 |
 | X-20 | `src/newchan/orchestrator/recursive.py:1`（自称「口径 A 正式路径」）、`src/newchan/a_segment_v1.py:369/:372-399`（参考实现 50 窗）；`s_session/tests/fixtures/tb02d/` | Python 侧登记 TB-10 旧入口、名分对照不进准入；tb02d 夹具审计是否含越界先于分型的输入 | #1344 第三/五问 | TB-10；夹具审计归 #1420 |
@@ -458,7 +458,7 @@ P2 在同序列上可给出 `{[0,4]}`（一段 5 笔）—— P2 能出 5 笔段
 | V-1 | **未跑 Lean** —— §0.2／§0.4／§3 的 Lean 侧结论**全是源码推导**，零 `lake build`／`lake env lean` 验证 | **归 #813 待办** |
 | V-2 | **未跑任何 harness** —— §1／§1.1／§4 三组读数**全为出处考据，非复现** | **归 #813 待办** |
 | V-3 | **OKLO 数据从未入库**（`_xcheck_oklo_strokes.json` 全仓 0 命中）⟹ 「406 vs 237」与「70%」两组读数**无复现路径** | **作废（§1），不再跟进** |
-| V-4 | **「7→∞ 输出不变」仓内无可跑 harness** —— `rust/src/theta_v0/parser/profile.rs:104`（`:103` `#[ignore]`）只测 0/50/200 | **G-5b 已撤票；若日后要裁 G-5a 须新建 harness** |
+| V-4 | **「7→∞ 输出不变」仓内无可跑 harness** —— `rust/src/theta_v0/parser/profile.rs:104`（`:103` `#[ignore]`）只测 0/50/200 | **G-5b 已撤票；G-5a 已裁（#1344），harness 缺口仍在** |
 | V-5 | **`071:42` + `078:54`「分界点两侧禁包含」在生产落没落，未核完**（Lean Phase2 侧已落 `Claim10_SegmentV1.lean:269-271`，生产侧只查到 v1 的 reset 机制「隐式规避」） | **归 #813 待办** |
 | V-6 | **未核 `frontend/`、`trading_system/`、`prototypes/`、NT 适配层** ⟹ §2.1／§4 可达性断言的**覆盖边界** | **无人跟进**（须新开票；与 `bi.md` v2.0 U-13 同一件） |
 | V-7 | `formal/Origin/SegmentFeatureComplete.lean`（47 处命中）**只读了 2 行** ⟹ 判据层完整版到底写了什么，**未读** | **归 #813 待办**（X-2 的前置：不知道它写了什么就不知道该不该接） |
@@ -485,5 +485,5 @@ P2 在同序列上可给出 `{[0,4]}`（一段 5 笔）—— P2 能出 5 笔段
 - **正本口径 ＝ P2（特征序列法）**，`[旧缠论]`
 - **P1 降为参考实现**（`[新缠论:选择]`，不进正式管线）
 - **P3 判违规**，但**它正是 Lean 管线现在接的那一套**（`Pipeline.lean:137`）⟹ **形式化层与正本口径当前不一致**，归 SPEC（X-1／X-2／X-3）
-- **三项未裁**：相切边界（§6）／第二特征序列扫描窗口 G-5a（§5.1）／G-4 与 D-5 的一致性（§4）
+- **两项未裁**：相切边界（§6）／G-4 与 D-5 的一致性（§4）；G-5a 已由 [#1344](https://github.com/xy7365527-lang/NewChanlun/issues/1344) 收口（§5.1）
 - **一切段数读数须在笔侧切新笔后重出**（§14）

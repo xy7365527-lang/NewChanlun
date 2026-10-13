@@ -68,4 +68,4 @@ TB-08-A/B/C [#1382](https://github.com/xy7365527-lang/NewChanlun/issues/1382)/[#
 
 ## 溯源标签
 
-全部 `[新缠论:选择]`。缠师原文对程序化执行场所无论述；`.chanlun/definitions/qujiantao.md:447`（#817）已定「参数……按场所与执行系统给，不入正本」。
+全部 `[新缠论:选择]`。缠师原文对程序化执行场所无论述；`.chanlun/definitions/qujiantao.md:462`（§5 正本硬条款，#817）已定「参数……按场所与执行系统给，不入正本」。

@@ -11,8 +11,8 @@
 | Rust | `rust/src/theta_v0/parser/feature_seq.rs:299-396` | main `465174240b` | `second_sequence` 加「分型检查后、越界检查」分支与提前返回 | #1420 |
 | Rust | `rust/src/theta_v0/parser/feature_seq.rs:395` | main `465174240b` | `resource_truncated` 语义保留；失效时为 false | #1420 |
 | Rust | `rust/src/theta_v0/parser/segment.rs:264/:444/:474/:491` | main `465174240b` | `second` 字段、`PENDING_CASE_TWO`、`matched`、`resource_truncated` 的读取处识别失效态 | #1420 |
-| Rust | `rust/src/theta_v0/parser/segment.rs:765-783` | main `465174240b` | `earliest_unsealed_from` 回退：失效候选不复活；`:775-776` 级联复活注释改引 #1344 | #1420 |
-| Rust | `rust/src/theta_v0/parser/segment.rs:806-812` | main `465174240b` | `from_full` 不重建跳过史的限制，改为按 K1 游标恢复 | #1420 |
+| Rust | `rust/src/theta_v0/parser/segment.rs:924-936`、`:1036-1040` | main `465174240b` | `earliest_unsealed_from` 字段与 `append` 的 `confirmed_bound` 回退：失效候选不复活；`:928-930` 级联复活注释改引 #1344 | #1420 |
+| Rust | `rust/src/theta_v0/parser/segment.rs:961-966` | main `465174240b` | `from_full` 不重建跳过史的限制，改为按 K1 游标恢复 | #1420 |
 | Rust | `rust/src/theta_v0/parser/feature_seq.rs:278-311/:596-613/:834-879` | main `465174240b` | 旧扫描实现与「提前停 ≡ 全扫」性质测试换含失效的 oracle | #1420 |
 | Rust | `rust/src/theta_v0/parser/second_kind.rs:37-41/:109-111` | main `465174240b` | 补失效语义说明 | #1420 |
 | Rust | `rust/src/theta_v0/config.rs:54-57/:65` | main `465174240b` | `second_seq_scan_window` 名分 ＝ 调度预算（不是语义），文档注明 | #1420 |
