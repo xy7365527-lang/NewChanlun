@@ -4,10 +4,11 @@
 > 最后裁定：[#1342](https://github.com/xy7365527-lang/NewChanlun/issues/1342)（2026-10-13，初始方向与全包含前缀）
 > 受影响代码清单：见正文「#1342 受影响代码清单」（工作草稿副本 `.chanlun/review-results/issue1323-grilling-20261013/1342-AFFECTED-CODE.md`，票关后随归档出仓）
 
-**版本**: v1.5
+**版本**: v1.6
 **状态**: 已结算
-**最后更新**: 2026-10-13
+**最后更新**: 2026-10-14
 **变更**:
+- v1.6 补录 [#1343](https://github.com/xy7365527-lang/NewChanlun/issues/1343)：组内极值根是**集合**（按到达序），组锚≠极值根且极值根可多根；集合语义进笔的 raw 间隔（见 `bi.md` §7.1），本文件不另立判据
 - v1.5 落 [#1342](https://github.com/xy7365527-lang/NewChanlun/issues/1342)：初始方向改为「等待首个 raw 非包含严格对」（W）；新增「未定前缀的输出与身份」节与受影响代码清单；未结算问题 3 关闭
 - v1.0 初版
 - v1.1 尝试用等价性证明结算方向判定问题（已回退）
@@ -150,6 +151,7 @@
 
 - **合并后 bar 保留组内首根原始序号**：每根 merged bar 的原始序号锚 = 该合并组内**第一根**原始 K 的序号（Rust 实装 `rust/src/theta_v0/parser/inclusion.rs:23/:57` 的 `merge()` 保留 `acc.source_index`；教义 ADR `chanlun/escalate/adr-chain-confirmation-and-invariant-identity-20260722.md:19` 裁定 3：「合并组锚 = 组内首根序号，非极值发生根」）。这些锚**严格递增** ⟹ 第 i 组覆盖原始序号 `[src_i, src_{i+1})`，成员集合与双向映射可二分推出（数学上没丢信息）。
 - **组锚的单一来源**：Rust 侧 `merged_group_anchor`（`inclusion.rs:171`）已是「原始序号 → 组锚」的统一入口（自称「单一来源、禁第二查法」，生产消费者在案）。此前缺的是「原始序号 → 组号（merged 下标）」一步——已由稠密标注补上。
+- **极值根集合（#1343）**：每组的 `high_sources`/`low_sources` 是取到组极值的成员集合（`inclusion.rs:673-675/:690-702` 建组即以首根为元素、归并只替换不清空，故对已成组非空）。多根并列是事实不是等待态；`equal_extreme_identity` 只作证据标签，不得作为任何准入门。消费口径（raw 间隔取极值区）在 `bi.md` §7.1，本文件不重复定义（#799：同一判断只有一份）。
 
 ### 三形态载体关系（SPEC #847 S9，以 bit-exact 对拍为准）
 
@@ -168,7 +170,7 @@
 - **观察载体**：逐 raw 原件 + `direction_state=Undetermined` + cut / first_known；不输出 envelope（它不是任何已裁方向下的合并结果）。
 - **身份变化**：方向出现后，原始身份永久保留；新建或修订的组对象显式 `replaces` 被替代的未定记录；旧 cut 不回填，旧 AsKnown 返回旧对象。组锚 = 组内首根 raw 序号，内部极值发生根另记（见上文「组锚与序号关系」）。
 - **版本**：初始化政策版本、raw 修订、结构版本、object revision 分开记；只改政策也须新规则版本。
-- **不在本票**：同价极值身份（RD-02 [#1343](https://github.com/xy7365527-lang/NewChanlun/issues/1343)）。
+- **不在本票但已裁**：同价极值身份（RD-02 [#1343](https://github.com/xy7365527-lang/NewChanlun/issues/1343)，2026-10-14）——集合语义，见 `bi.md` §7.1。
 
 ## #1342 受影响代码清单（基线 main `465174240b`）
 
