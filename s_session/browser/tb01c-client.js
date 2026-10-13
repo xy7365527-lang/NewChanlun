@@ -42,9 +42,16 @@
   }
   function digest(value) { need(typeof value === "string" && /^[a-f0-9]{64}$/.test(value), "SHA-256 文本不规范"); }
   function utf8Compare(a, b) {
-    const aa = encoder.encode(scalar(a)), bb = encoder.encode(scalar(b));
-    for (let i = 0; i < Math.min(aa.length, bb.length); i++) if (aa[i] !== bb[i]) return aa[i] < bb[i] ? -1 : 1;
-    return Math.sign(aa.length - bb.length);
+    // UTF-8字典序与合法Unicode标量序相同；先完整验证两参数，保留首错顺序。
+    scalar(a); scalar(b);
+    let ai = 0, bi = 0;
+    while (ai < a.length && bi < b.length) {
+      const aa = a.codePointAt(ai), bb = b.codePointAt(bi);
+      if (aa !== bb) return aa < bb ? -1 : 1;
+      ai += aa > 0xffff ? 2 : 1;
+      bi += bb > 0xffff ? 2 : 1;
+    }
+    return ai < a.length ? 1 : bi < b.length ? -1 : 0;
   }
   function canonical(value) {
     if (value === null || typeof value === "boolean") return JSON.stringify(value);
@@ -54,7 +61,26 @@
     return "{" + Object.keys(value).sort(utf8Compare).map(k => JSON.stringify(scalar(k)) + ":" + canonical(value[k])).join(",") + "}";
   }
   const equal = (a, b) => canonical(a) === canonical(b);
-  const clone = value => parse(canonical(value));
+  // #1414：保留 canonical→parse 的严格值域与新树语义，避免中间规范字符串。
+  function clone(value, depth = 0) {
+    need(depth <= 128, "JSON 嵌套超过浏览器界限");
+    if (value === null || typeof value === "boolean") return value;
+    if (typeof value === "string") return scalar(value);
+    if (Array.isArray(value)) {
+      const out = [], length = value.length;
+      // 原 map/join 将唯一空槽编码为 []；其余含空槽数组由 parse 拒绝。
+      if (length === 1 && !(0 in value)) return out;
+      for (let i = 0; i < length; i++) {
+        need(i in value, "JSON 非法值；v2 整数必须使用精确文本");
+        out.push(clone(value[i], depth + 1));
+      }
+      return out;
+    }
+    need(object(value), "v2 JSON 数值必须在源头投影为精确文本");
+    const out = Object.create(null);
+    for (const key of Object.keys(value).sort(utf8Compare)) out[scalar(key)] = clone(value[key], depth + 1);
+    return out;
+  }
   // JSON.parse 会丢失重复键和整数精度；只有单个字符串 token 借用其转义解码。
   function parse(source) {
     let p = 0;
@@ -114,6 +140,8 @@
   const SEGMENT_KINDS = ["CC-011.segment_seed", "CC-012.feature_sequence", "CC-013.segment", "CC-055.segment_relation", "CC-055.segment_change", "CC-056.segment_version", "CC-011.seed_candidate"];
   TB02_KINDS.push(...SEGMENT_KINDS);
   TB02_AXES.push("CC-011", "CC-012", "CC-013");
+  const FIRST_SEGMENT_AXES = [...TB02_AXES];
+  TB02_AXES.push("CC-014");
   // 由 signed-catalog.json 的全部公共静态列生成；对应漂移锁逐值重算，不是新分类语义。
   const TB02_CATALOG = Object.freeze({"catalog_revision":"s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)","source_sha256":"76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c","ids":["CC-001","CC-002","CC-003","CC-004","CC-005","CC-006","CC-007","CC-008","CC-009","CC-010","CC-011","CC-012","CC-013","CC-014","CC-015","CC-016","CC-017","CC-018","CC-019","CC-020","CC-021","CC-022","CC-023","CC-024","CC-025","CC-026","CC-027","CC-028","CC-029","CC-030","CC-031","CC-032","CC-033","CC-034","CC-035","CC-036","CC-037","CC-038","CC-039","CC-040","CC-041","CC-042","CC-043","CC-044","CC-045","CC-046","CC-047","CC-048","CC-049","CC-050","CC-051","CC-052","CC-053","CC-054","CC-055","CC-056","CC-057","CC-058","CC-059","CC-060","CC-061","CC-062","LC-01","LC-02","LC-03","LC-04","LC-05","LC-06","LC-07","LC-08","LC-09","LC-10","ST-001","ST-002","ST-003","ST-004","ST-005","ST-006","ST-007","ST-008","ST-009","ST-010","ST-011","ST-012","ST-013","ST-014","ST-015","ST-016","ST-017","ST-018","ST-019","ST-020","ST-021","ST-022","ST-023","ST-024","ST-025","ST-026","ST-027","ST-028","ST-029","ST-030","ST-031","ST-032","ST-033","ST-034","ST-035","ST-036","ST-037","ST-038","ST-043","ST-044","ST-045","ST-046","ST-047","ST-048"],"public_static_sha256":"974299745db38c9b83de3ccbd1e5fc8aab93d58037fd6ef5c1667509d6da8de2"});
   function signed(value) {
@@ -209,7 +237,8 @@
   }
   function validateSegmentPayload(kind, p) {
     keys(p, ["schema_revision", "semantic_version", "policy_version", "view_role", "object_generation", "slot", "data"], "段合同");
-    need(p.schema_revision === "s-segment/1" && p.semantic_version === "segment-seed-first/1" && p.policy_version === "seed_closed_first_no_gap" && p.view_role === "main", "段规则/范围版本不符");
+    const v2 = p.schema_revision === "s-segment/2";
+    need(p.schema_revision === (v2 ? "s-segment/2" : "s-segment/1") && p.semantic_version === (v2 ? "segment-second/1" : "segment-seed-first/1") && p.policy_version === (v2 ? "seed_closed_strict_second" : "seed_closed_first_no_gap") && p.view_role === "main", "段规则/范围版本不符");
     integer(p.object_generation, true);
     const d = p.data, refs = new Map();
     function known(k) {
@@ -248,19 +277,34 @@
       need((kind === SEGMENT_KINDS[0]) === equal(d.construction.vector,[true,true,true,true]), "未满足完整条件的候选冒充seed");
     } else if (kind === SEGMENT_KINDS[1]) {
       keys(d, ["entity_id", "segment_id", "role", "direction", "member_direction", "facts", "stroke_refs", "scan", "second_sequence_status"], kind);
-      need(d.role === "FIRST_SEQUENCE" && ["UP", "DOWN"].includes(d.member_direction) && ["NOT_APPLICABLE", "WAITING_FOLLOWUP"].includes(d.second_sequence_status), "FIRST角色/后续片边界不符"); direction(d.direction);
+      const second = v2 && d.role === "SECOND_SEQUENCE";
+      need((v2 ? ["FIRST_SEQUENCE", "SECOND_SEQUENCE"] : ["FIRST_SEQUENCE"]).includes(d.role) && ["UP", "DOWN"].includes(d.member_direction) && (second ? ["PENDING", "CONFIRMED"] : v2 ? ["NOT_APPLICABLE", "PENDING", "CONFIRMED"] : ["NOT_APPLICABLE", "WAITING_FOLLOWUP"]).includes(d.second_sequence_status), "序列角色/适用性不符"); direction(d.direction);
       keys(d.scan, ["from_stroke", "through_stroke", "input_stroke_count", "resource_truncated", "tail_cache_window"], "扫描范围");
       for (const [k,v] of Object.entries(d.scan)) if (k !== "resource_truncated") integer(v);
       need(typeof d.scan.resource_truncated === "boolean", "截断状态错型");
-      const f = d.facts; keys(f, ["raw_elements", "standard", "steps", "checks"], "FIRST事实");
-      for (const v of Object.values(f)) need(Array.isArray(v), "FIRST事实集合错型");
+      const f = d.facts; keys(f, ["raw_elements", "standard", "steps", "checks", ...(second ? ["from_stroke", "through_stroke", "input_stroke_count", "resource_truncated", "matched"] : [])], "序列事实");
+      for (const k of ["raw_elements", "standard", "steps", "checks"]) need(Array.isArray(f[k]), "序列事实集合错型");
+      if (second) {
+        integer(f.from_stroke); integer(f.through_stroke, false, true); integer(f.input_stroke_count);
+        need(typeof f.resource_truncated === "boolean" && d.scan.tail_cache_window === "0" && ["through_stroke", "input_stroke_count", "resource_truncated"].every(k => f[k] === d.scan[k]), "SECOND扫描边界不符");
+      }
       [...f.raw_elements, ...f.standard].forEach(element);
       for (const s of f.steps) {
         keys(s, ["incoming", "before", "after", "action", "merge_direction", "scope"], "包含步骤"); element(s.incoming); element(s.after); if (s.before !== null) element(s.before);
-        need(["append", "merge", "turn_boundary"].includes(s.action) && s.scope === (s.action === "turn_boundary" ? "TURN_HYPOTHESIS" : "SAME_SEQUENCE"), "包含跨作用域/动作未声明");
+        need((second ? ["append", "merge"] : ["append", "merge", "turn_boundary"]).includes(s.action) && s.scope === (second ? "SECOND_SEQUENCE" : s.action === "turn_boundary" ? "TURN_HYPOTHESIS" : "SAME_SEQUENCE"), "包含跨作用域/动作未声明");
         need(s.action === "merge" ? ["UP", "DOWN"].includes(s.merge_direction) : s.merge_direction === null, "方向性包含缺见证");
       }
+      function secondCheck(c) {
+        keys(c, ["elements", "top_fractal", "bottom_fractal", "through_stroke"], "SECOND分型见证");
+        need(Array.isArray(c.elements) && c.elements.length === 3, "SECOND分型窗口缺元素"); c.elements.forEach(element);
+        need(typeof c.top_fractal === "boolean" && typeof c.bottom_fractal === "boolean", "SECOND分型错型"); indices([c.through_stroke]);
+      }
+      if (second) {
+        need((f.matched === null) === (d.second_sequence_status === "PENDING"), "SECOND命中与状态不符");
+        if (f.matched !== null) { secondCheck(f.matched); need(f.checks.some(c => equal(c, f.matched)) && (f.matched.top_fractal || f.matched.bottom_fractal), "SECOND命中未绑定检查"); }
+      }
       for (const c of f.checks) {
+        if (second) { secondCheck(c); continue; }
         keys(c, ["elements", "first_fractal", "gap", "gap_closed_by_c", "provisional", "turn_hypothesis_pair"], "分型见证");
         need(Array.isArray(c.elements) && c.elements.length === 3, "分型窗口缺元素"); c.elements.forEach(element);
         need(equal(c.turn_hypothesis_pair, c.first_fractal ? c.elements.slice(0,2).map(e => e.stroke_idx) : null), "假设转折点两侧未绑定a/b元素");
@@ -269,18 +313,61 @@
         need((c.first_fractal || c.gap === null) && (c.gap === true || c.gap_closed_by_c === null), "不适用条件虚填布尔");
       }
     } else if (kind === SEGMENT_KINDS[2]) {
-      keys(d, ["entity_id", "entity_revision", "seed_id", "sequence_id", "sequence_object_id", "construction", "result", "waiting_reasons", "termination_attempts", "geometric_end", "trigger_stroke", "formed_known_at", "terminated_known_at", "stroke_refs"], kind);
+      keys(d, ["entity_id", "entity_revision", "seed_id", "sequence_id", "sequence_object_id", "construction", "result", "waiting_reasons", "termination_attempts", "geometric_end", "trigger_stroke", "formed_known_at", "terminated_known_at", "stroke_refs", ...(v2 ? ["second_sequence_id", "second_sequence_object_id", "strict", "fact_vector"] : [])], kind);
       integer(d.entity_revision, true); construction(d.construction); texts(d.waiting_reasons); known(d.formed_known_at);
       need(Array.isArray(d.termination_attempts), "终结准入见证错型");
       for (const a of d.termination_attempts) {
         keys(a, ["end_stroke", "trigger_stroke", "minimum_count_met", "construction"], "终结准入见证");
         indices([a.end_stroke]); indices([a.trigger_stroke]); need(typeof a.minimum_count_met === "boolean", "最小笔数条件错型"); construction(a.construction);
       }
-      need(["NO_FIRST", "CASE_ONE", "PENDING_CASE_TWO", "FAILED_GEOMETRY"].includes(d.result), "冒称交付第二种终结");
-      if (d.result === "CASE_ONE") {
+      need(["NO_FIRST", "CASE_ONE", "PENDING_CASE_TWO", "FAILED_GEOMETRY", ...(v2 ? ["CASE_TWO"] : [])].includes(d.result), "冒称交付第二种终结");
+      if (["CASE_ONE", "CASE_TWO"].includes(d.result)) {
         known(d.terminated_known_at); const e = d.geometric_end;
         keys(e, ["stroke_index", "group_anchor", "extreme_roots", "price"], "几何段端"); indices([e.stroke_index]); indices([d.trigger_stroke]); coordinates(e.extreme_roots); integer(e.group_anchor); signed(e.price);
       } else need(d.geometric_end === null && d.trigger_stroke === null && d.terminated_known_at === null, "发展态虚填终结");
+      if (v2) {
+        const strict = d.strict;
+        if (strict !== null) {
+          keys(strict, ["elements", "raw_gap", "gap_closed_by_c", "effective_case", "closure_operator", "closure_left", "closure_right"], "strict事实");
+          need(Array.isArray(strict.elements) && strict.elements.length === 3, "strict缺FIRST窗口"); strict.elements.forEach(element);
+          need(typeof strict.raw_gap === "boolean" && (strict.raw_gap ? typeof strict.gap_closed_by_c === "boolean" : strict.gap_closed_by_c === null), "strict适用性不符");
+          need(["CASE_ONE", "CASE_TWO"].includes(strict.effective_case) && ["<=", ">="].includes(strict.closure_operator), "strict规则未声明"); signed(strict.closure_left); signed(strict.closure_right);
+          const a = strict.elements[0], c = strict.elements[2], up = strict.closure_operator === "<=";
+          need(equal([strict.closure_operator, strict.closure_left, strict.closure_right], up ? ["<=", c.low, a.high] : [">=", c.high, a.low]), "strict比较未绑定FIRST元素");
+        }
+        const terminated = ["CASE_ONE", "CASE_TWO"].includes(d.result);
+        need(!terminated || strict !== null && strict.effective_case === d.result, "终结缺适用strict对象");
+        need((d.second_sequence_id === null) === (d.second_sequence_object_id === null), "SECOND身份/对象缺位");
+        if (d.second_sequence_id !== null) { need(d.second_sequence_id === "second:" + d.entity_id, "SECOND身份未绑定候选"); text(d.second_sequence_object_id); }
+        need(!["CASE_TWO", "PENDING_CASE_TWO"].includes(d.result) || d.second_sequence_id !== null, "第二种缺SECOND引用");
+        const b = d.fact_vector;
+        keys(b, ["stroke_broken", "new_segment_formed", "segment_broken", "stroke_break_witness", "scan_from_stroke", "scan_through_stroke", "scan_complete", "termination_witness"], "独立破坏事实");
+        need(["stroke_broken", "scan_complete"].every(k => typeof b[k] === "boolean") && ["new_segment_formed", "segment_broken"].every(k => b[k] === null || typeof b[k] === "boolean"), "破坏事实错型");
+        integer(b.scan_from_stroke); integer(b.scan_through_stroke, false, true);
+        need((b.new_segment_formed === true) === terminated && b.segment_broken === b.new_segment_formed && (b.new_segment_formed === null) === !b.scan_complete, "段破坏适用性不符");
+        const certificate = b.termination_witness;
+        need((certificate !== null) === (b.new_segment_formed === true), "段破坏缺同次终结证书");
+        if (certificate !== null) {
+          keys(certificate, ["kind", "strict", "second_match", "construction", "minimum_count_met", "through_stroke"], "终结证书");
+          need(certificate.kind === d.result && equal(certificate.strict, strict) && equal(certificate.construction, d.construction), "终结证书未绑定同次strict/几何");
+          construction(certificate.construction);
+          need(certificate.minimum_count_met === true && equal(certificate.construction.vector, [true,true,true,true]) && certificate.through_stroke === d.trigger_stroke, "终结证书缺有效准入/实际前沿");
+          indices([certificate.through_stroke]);
+          const match = certificate.second_match;
+          need((match !== null) === (certificate.kind === "CASE_TWO"), "终结证书SECOND适用性不符");
+          if (match !== null) {
+            keys(match, ["elements", "top_fractal", "bottom_fractal", "through_stroke"], "SECOND终结证书");
+            need(Array.isArray(match.elements) && match.elements.length === 3 && typeof match.top_fractal === "boolean" && typeof match.bottom_fractal === "boolean" && (match.top_fractal || match.bottom_fractal), "终结证书缺任意分型见证");
+            match.elements.forEach(element); indices([match.through_stroke]);
+          }
+        }
+        const w = b.stroke_break_witness;
+        need((w !== null) === b.stroke_broken, "笔破坏缺独立见证");
+        if (w !== null) {
+          keys(w, ["earlier_stroke", "later_stroke", "earlier_price", "later_price", "comparison"], "笔破坏见证");
+          indices([w.earlier_stroke, w.later_stroke]); signed(w.earlier_price); signed(w.later_price); need(["<=", ">="].includes(w.comparison), "笔破坏比较未声明");
+        }
+      }
     } else if (kind === SEGMENT_KINDS[3]) {
       keys(d, ["source_id", "relation_kind", "target_id", "version", "witness_object_id"], kind); Object.values(d).forEach(text); need(["member_of", "derived_from"].includes(d.relation_kind), "段关系未声明");
     } else if (kind === SEGMENT_KINDS[4]) {
@@ -289,12 +376,12 @@
       for (const k of ["before", "after"]) if (d[k] !== null) validateSegmentPayload(SEGMENT_KINDS[2], {...p, slot:d[k].entity_id, object_generation:d[k].entity_id.split(":")[1], data:d[k]});
     } else {
       keys(d, ["input_frontier", "waiting_reasons", "known_at", "delivered_scope", "deferred_scope"], kind); integer(d.input_frontier, false, true); known(d.known_at); texts(d.waiting_reasons);
-      need(d.delivered_scope === "seed_and_no_gap_first_kind" && equal(d.deferred_scope, ["second_kind", "general_equal_identity"]), "段交付范围不符");
+      need(d.delivered_scope === (v2 ? "seed_strict_first_and_finite_second" : "seed_and_no_gap_first_kind") && equal(d.deferred_scope, v2 ? ["general_equal_identity", "general_scan_continuation", "global_G006_bridge"] : ["second_kind", "general_equal_identity"]), "段交付范围不符");
     }
     if ([...SEGMENT_KINDS.slice(0,3), SEGMENT_KINDS[6]].includes(kind)) {
       if (kind === SEGMENT_KINDS[1]) {
         const expected = `segment:${p.object_generation}:${refs.get(d.scan.from_stroke).start_anchor}`;
-        need(d.segment_id === expected && d.entity_id === "first:" + expected && d.direction !== d.member_direction, "FIRST身份/反向成员不符");
+        need(d.segment_id === expected && d.entity_id === (d.role === "SECOND_SEQUENCE" ? "second:" : "first:") + expected && ((d.direction === d.member_direction) === (d.role === "SECOND_SEQUENCE")), "FIRST身份/反向成员不符");
       } else {
         const anchor = refs.size ? refs.get(d.construction.start_stroke).start_anchor : "empty";
         const expected = `${[SEGMENT_KINDS[0], SEGMENT_KINDS[6]].includes(kind) ? "seed" : "segment"}:${p.object_generation}:${anchor}`;
@@ -308,7 +395,7 @@
         }
       }
     }
-    const slot = kind === SEGMENT_KINDS[3] ? [d.source_id, d.relation_kind, d.target_id] : kind === SEGMENT_KINDS[4] ? [d.known_at.generation, d.entity_id, d.change] : kind === SEGMENT_KINDS[5] ? "TB-02-C" : d.entity_id;
+    const slot = kind === SEGMENT_KINDS[3] ? [d.source_id, d.relation_kind, d.target_id] : kind === SEGMENT_KINDS[4] ? [d.known_at.generation, d.entity_id, d.change] : kind === SEGMENT_KINDS[5] ? (v2 ? "TB-02-D" : "TB-02-C") : d.entity_id;
     need(equal(p.slot, slot), "段语义槽身份不符");
   }
   function validateBiPayload(kind, p) {
@@ -456,10 +543,33 @@
   }
   async function validateTB02Candidate(state, fixed, check) {
     need(await sha256(validateTB02Catalog(state.catalog)) === TB02_CATALOG.public_static_sha256, "完整冻结目录静态列摘要不符"); check();
+    if (fixed.cut_generation !== "0") {
+      const byRule = {"s2-axis-quantifiers": LEGACY_TB02_AXES, "s2-axis-quantifiers+new-bi/1": BI_AXES,
+        "s2-axis-quantifiers+new-bi/1+segment-first/1": FIRST_SEGMENT_AXES, "s2-axis-quantifiers+new-bi/1+segment-second/1": TB02_AXES};
+      keys(fixed.catalog_evidence.axes, byRule[fixed.rule_revision] || TB02_AXES, "cut规则目录轴");
+    }
     const bound = validateTB02CutSources(state.snapshot);
+    const active = new Map(state.snapshot.objects.map(r => [r.object_id, r]));
+    for (const r of active.values()) {
+      if (r.kind !== "CC-013.segment" || r.payload.schema_revision !== "s-segment/2") continue;
+      const d = r.payload.data;
+      need(d.second_sequence_id !== null || d.fact_vector.scan_complete, "未完成扫描缺SECOND资源证据");
+      for (const [prefix, role] of [["sequence", "FIRST_SEQUENCE"], ["second_sequence", "SECOND_SEQUENCE"]]) {
+        const oid = d[prefix + "_object_id"]; if (oid === null) continue;
+        const q = active.get(oid);
+        need(q && q.kind === "CC-012.feature_sequence" && q.payload.schema_revision === "s-segment/2", "段引用缺同cut序列对象");
+        const v = q.payload.data;
+        need(v.entity_id === d[prefix + "_id"] && v.segment_id === d.entity_id && v.role === role, "段序列引用身份/角色不符");
+        need(q.source_coords.every(c => r.source_coords.includes(c)), "段缺序列实际来源");
+        if (role === "FIRST_SEQUENCE" && d.strict !== null) need(v.facts.checks.some(c => equal(c.elements, d.strict.elements)), "strict未绑定FIRST检查");
+        if (role === "SECOND_SEQUENCE") need(d.fact_vector.scan_complete !== (v.facts.resource_truncated && v.facts.matched === null), "段事实可知性未绑定SECOND扫描证据");
+        if (role === "SECOND_SEQUENCE" && d.result === "CASE_TWO") need(v.second_sequence_status === "CONFIRMED" && equal(d.fact_vector.termination_witness.second_match, v.facts.matched), "第二种终结证书未绑定同次SECOND命中");
+      }
+    }
     for (const record of [...state.snapshot.objects, ...state.snapshot.withdrawn_objects]) {
       let digestValue;
       if (TB02_KINDS.includes(record.kind)) {
+        if (SEGMENT_KINDS.includes(record.kind)) need(record.payload.schema_revision === (fixed.rule_revision === "s2-axis-quantifiers+new-bi/1+segment-second/1" ? "s-segment/2" : fixed.rule_revision === "s2-axis-quantifiers+new-bi/1+segment-first/1" ? "s-segment/1" : null), "段合同与cut规则版本不符");
         const identity = Object.fromEntries(["kind", "fact_key", "payload", "input_refs"].map(k => [k, record[k]]));
         identity.profile_id = fixed.profile_id; identity.rule_revision = fixed.rule_revision;
         digestValue = await sha256(identity);
@@ -475,18 +585,27 @@
     }
   }
   function validateTB02Axes(axes, records = null) {
-    keys(axes, Object.hasOwn(axes, "CC-011") ? TB02_AXES : Object.hasOwn(axes, "CC-008") ? BI_AXES : LEGACY_TB02_AXES, "逐 cut 类型目录");
+    keys(axes, Object.hasOwn(axes, "CC-014") ? TB02_AXES : Object.hasOwn(axes, "CC-011") ? FIRST_SEGMENT_AXES : Object.hasOwn(axes, "CC-008") ? BI_AXES : LEGACY_TB02_AXES, "逐 cut 类型目录");
     const ids = records === null ? null : new Set(records.map(r => r.object_id));
     for (const [cid, axis] of Object.entries(axes)) {
       keys(axis, ["impl_status", "proof_status", "run_status", "evidence"], "目录轴");
       need(["implemented", "not_implemented"].includes(axis.impl_status) && axis.proof_status === "not_proved" && ["run", "waiting", "not_run"].includes(axis.run_status), "目录轴名分不符");
-      keys(axis.evidence, cid === "CC-056" ? ["scope", "object_ids", "waiting_reasons", "raw_revisions", "withdrawals", "replaces"] : ["scope", "object_ids", "waiting_reasons"], "目录轴证据");
+      const scoped = axis.evidence.scope === "TB-02-D";
+      keys(axis.evidence, [...(cid === "CC-056" ? ["scope", "object_ids", "waiting_reasons", "raw_revisions", "withdrawals", "replaces"] : ["scope", "object_ids", "waiting_reasons"]), ...(scoped ? ["delivered_subobligations", "deferred_subobligations"] : [])], "目录轴证据");
+      if (scoped) {
+        need(equal(axis.evidence.delivered_subobligations, ["finite_complete_prefix_strict_second", "independent_stroke_and_segment_break_facts"]) && equal(axis.evidence.deferred_subobligations, ["general_equal_identity", "general_scan_continuation", "global_G006_bridge"]), "第二种子义务范围不符");
+        need(!["CC-012", "CC-013", "CC-014"].includes(cid) || axis.impl_status === "not_implemented", "有限交付冒称全轴完成");
+      }
       if (cid === "CC-056") {
         for (const name of ["raw_revisions", "withdrawals", "replaces"]) need(Array.isArray(axis.evidence[name]), "修订轴缺完整原件");
         need(axis.run_status === (["raw_revisions", "withdrawals", "replaces"].some(k => axis.evidence[k].length > 0) ? "run" : "not_run"), "修订轴状态与事实不符");
-      } need(axis.evidence.scope === (["CC-011", "CC-012", "CC-013"].includes(cid) ? "TB-02-C" : "TB-02-A"), "目录轴范围不符");
+      } need(axis.evidence.scope === (Object.hasOwn(axes, "CC-014") && ["CC-011", "CC-012", "CC-013", "CC-014"].includes(cid) ? "TB-02-D" : ["CC-011", "CC-012", "CC-013"].includes(cid) ? "TB-02-C" : "TB-02-A"), "目录轴范围不符");
       texts(axis.evidence.object_ids); texts(axis.evidence.waiting_reasons);
       need(new Set(axis.evidence.object_ids).size === axis.evidence.object_ids.length && (!ids || axis.evidence.object_ids.every(id => ids.has(id))), "目录引用缺失/重复");
+    }
+    if (Object.hasOwn(axes, "CC-014")) {
+      need(equal(axes["CC-014"].evidence.object_ids, axes["CC-013"].evidence.object_ids), "CC014未绑定CC013对象");
+      if (records !== null) { const byId = new Map(records.map(r => [r.object_id, r])); need(axes["CC-014"].evidence.object_ids.every(id => byId.get(id)?.kind === "CC-013.segment"), "CC014引用非段对象"); }
     }
   }
   function validateTB02Raw(record) {
@@ -506,6 +625,46 @@
     need(fixed.history_mode === "AsKnown" ? fixed.as_of_generation === fixed.cut_generation :
       fixed.history_mode === "RecomputedWithRevision" && fixed.as_of_generation === null, "历史模式与指定 cut 不符");
     if (gen > 0n) need(object(fixed.catalog_evidence) && fixed.catalog_evidence.rule_revision === fixed.rule_revision, "固定 cut 规则修订与目录证据不符");
+  }
+  function parseDiscovery(value) {
+    need(object(value) && value.ok === true, "发现回执未成功");
+    if (value.protocol_revision === null) {
+      keys(value, ["ok", "protocol_revision", "producer_epoch"], "legacy发现");
+      integer(value.producer_epoch, true);
+      return clone(value);
+    }
+    keys(value, ["ok", "protocol_revision", "cut", "snapshot", "producer_epoch"], "v2发现");
+    need(value.protocol_revision === "s-session/2", "发现协议不支持");
+    keys(value.cut, ["session_id", "session_generation"], "发现会话");
+    keys(value.snapshot, ["profile_id"], "发现profile");
+    text(value.cut.session_id); integer(value.cut.session_generation, true); integer(value.producer_epoch, true);
+    need(["testonly_tick_1_1_ohlc", "ohlc_integer_tb02a_v1"].includes(value.snapshot.profile_id), "发现profile不支持");
+    return clone(value);
+  }
+  async function readDiscovery(fetcher) {
+    // 与后续load共享绝对期限及已耗字节；不为身份发现另开可叠加预算。
+    const budget = {deadline: performance.now() + DEFAULTS.timeoutMs, bytes: 0};
+    const abort = new AbortController(), timer = setTimeout(() => abort.abort(), DEFAULTS.timeoutMs);
+    let reader;
+    try {
+      const response = await fetcher("/api/discover", {signal: abort.signal, cache: "no-store"});
+      need(response.ok, "发现请求不是成功 HTTP 响应");
+      need(response.body && typeof response.body.getReader === "function", "缺少发现响应字节流");
+      reader = response.body.getReader(); const chunks = [];
+      while (true) {
+        need(performance.now() < budget.deadline, "发现超过本次读取总期限");
+        const {done, value} = await reader.read();
+        need(performance.now() < budget.deadline, "发现超过本次读取总期限");
+        if (done) break;
+        budget.bytes += value.byteLength;
+        need(budget.bytes <= DEFAULTS.replyBytes && budget.bytes <= DEFAULTS.totalBytes, "发现响应达到字节界限");
+        chunks.push(value);
+      }
+      const bytes = new Uint8Array(budget.bytes); let offset = 0;
+      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+      return {discovery: parseDiscovery(parse(new TextDecoder("utf-8", {fatal: true}).decode(bytes))), budget};
+    } catch (error) { if (reader) await reader.cancel().catch(() => {}); throw error; }
+    finally { if (reader) reader.releaseLock(); clearTimeout(timer); }
   }
   function orderFor(profileId) { return profileId === "ohlc_integer_tb02a_v1" ? "s-record-order/2" : ORDER; }
   function cursorOf(fixed) {
@@ -622,19 +781,20 @@
       const unsigned = {...token}; delete unsigned.token_checksum;
       need(await sha256(unsigned) === token.token_checksum, "分页 token checksum 不符");
     }
-    async collect({identity, mode, generation = null, token = null, expectedFixed = null}, budget) {
+    async collect({identity, mode, generation = null, token = null, expectedFixed = null, expectedProfile = null}, budget) {
       const expectedOrder = expectedFixed ? orderFor(expectedFixed.profile_id) : (identity.order_version || this.requestOrder || ORDER);
       const payload = token ? {op: "snapshot", snapshot_token: token} : {op: "snapshot", ...identityOf(identity), scope: SCOPE,
         history_mode: mode, as_of_generation: generation, page_size: String(this.limits.pageSize), order_version: expectedOrder};
       if (generation !== null) integer(generation);
       if (token) { validateFixed(expectedFixed); await this.validateToken(token, expectedFixed, token.cut_projection_digest, 0); }
-      const rows = [], seen = new Set(), objectIds = new Set(); let base = null, next = payload, issued = token?.issued_capture_digest;
+      const rows = [], seen = new Set(), objectIds = new Set(); let base = null, baseCanonical = null, next = payload, issued = token?.issued_capture_digest;
       for (let pageNumber = 0; ; pageNumber++) {
         need(pageNumber < this.limits.maxPages, "分页数达到浏览器界限，未验证");
         const envelope = await this.request(identity, next, budget), page = envelope.payload;
         keys(page, PAGE, "Snapshot 页"); validateFixed(page.fixed_cut);
         need(sameIdentity(envelope, identity) && sameIdentity(page.fixed_cut, identity), "Snapshot 响应会话/化身不符");
         need(page.fixed_cut.history_mode === mode && (generation === null || page.fixed_cut.cut_generation === generation), "Snapshot 不属于请求的模式/cut");
+        if (expectedProfile !== null) need(page.fixed_cut.profile_id === expectedProfile, "Snapshot profile与发现不符");
         if (expectedFixed) need(equal(page.fixed_cut, expectedFixed), "重建页不属于 Gap 声明的固定切面");
         need(equal(page.scope, SCOPE) && equal(page.omissions, []) && page.order_version === expectedOrder && page.order_version === orderFor(page.fixed_cut.profile_id), "Snapshot scope/omissions/order 不符");
         digest(page.cut_projection_digest); digest(page.validated_capture_digest);
@@ -644,7 +804,11 @@
           BigInt(page.counts.total) <= BigInt(this.limits.maxRows), "完整计数不符或达到浏览器行数界限");
         need(page.offset === String(rows.length) && typeof page.done === "boolean" && Array.isArray(page.rows), "分页 offset/done/rows 无效");
         const metadata = Object.fromEntries(["fixed_cut", "catalog", "counts", "scope", "omissions", "order_version", "cut_projection_digest"].map(k => [k, page[k]]));
-        if (base) need(equal(base, metadata), "跨页固定切面/目录/计数/摘要变化"); else { base = clone(metadata); issued ||= page.validated_capture_digest; }
+        if (base) {
+          // #1414：base是本次collect私有clone，分页内不写；仍逐页完整规范化当前metadata。
+          baseCanonical ??= canonical(base);
+          need(baseCanonical === canonical(metadata), "跨页固定切面/目录/计数/摘要变化");
+        } else { base = clone(metadata); issued ||= page.validated_capture_digest; }
         const rest = BigInt(page.counts.total) - BigInt(rows.length);
         const expectedLength = rest < BigInt(this.limits.pageSize) ? Number(rest) : this.limits.pageSize;
         need(rest >= 0n && page.rows.length === expectedLength && page.done === (rest === BigInt(page.rows.length)), "分页截断/提前结束/空转");
@@ -672,14 +836,20 @@
     #commit(candidate, budget, event) {
       this.check(budget); this.#committed = candidate; this.onCommit(candidate, event); return candidate;
     }
-    async load(discovery, mode = "RecomputedWithRevision", generation = null) {
+    async load(discovery, mode = "RecomputedWithRevision", generation = null, discoveryBudget = null) {
       const budget = this.begin(); // 无效的新请求也使旧响应失效，不能事后覆盖错误状态。
-      need(object(discovery) && object(discovery.cut), "缺少 v2 发现身份");
+      if (discoveryBudget !== null) {
+        need(object(discoveryBudget) && Number.isFinite(discoveryBudget.deadline) && Number.isSafeInteger(discoveryBudget.bytes) && discoveryBudget.bytes >= 0, "发现预算无效");
+        budget.deadline = Math.min(budget.deadline, discoveryBudget.deadline); budget.bytes = discoveryBudget.bytes;
+        need(budget.bytes <= this.limits.totalBytes, "发现已达到总字节界限"); this.check(budget);
+      }
+      discovery = parseDiscovery(discovery);
+      need(discovery.protocol_revision === "s-session/2", "v2消费者拒绝legacy发现");
       const identity = identityOf(discovery.cut); text(identity.session_id); integer(identity.session_generation, true);
-      this.requestOrder = orderFor(discovery.snapshot?.profile_id);
+      this.requestOrder = orderFor(discovery.snapshot.profile_id);
       need(mode === "AsKnown" || mode === "RecomputedWithRevision", "历史模式无效");
       if (mode === "AsKnown") integer(generation);
-      const candidate = await this.collect({identity, mode, generation}, budget);
+      const candidate = await this.collect({identity, mode, generation, expectedProfile: discovery.snapshot.profile_id}, budget);
       return this.#commit(candidate, budget, {kind: "snapshot"});
     }
     applyBatch(snapshot, delta) {
@@ -763,5 +933,5 @@
       return this.#commit(candidate, budget, {kind: "watch", batches: page.deltas.length, hasMore: page.has_more});
     }
   }
-  return Object.freeze({TB02_KINDS: Object.freeze(TB02_KINDS), validateSegmentPayload, Client, DEFAULTS, FAMILIES, ORDER, orderFor, validateTyped, validateTB02ShapeRefs, validateTB02Axes, validateTB02Raw, validateTB02Catalog, validateTB02CutSources, TB02_CATALOG, canonical, parse, sha256, rowsOf, cursorOf});
+  return Object.freeze({TB02_KINDS: Object.freeze(TB02_KINDS), validateSegmentPayload, Client, DEFAULTS, FAMILIES, ORDER, orderFor, parseDiscovery, readDiscovery, validateTyped, validateTB02ShapeRefs, validateTB02Axes, validateTB02Raw, validateTB02Catalog, validateTB02CutSources, TB02_CATALOG, canonical, parse, sha256, rowsOf, cursorOf});
 });

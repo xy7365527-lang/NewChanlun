@@ -131,6 +131,27 @@ pub struct FeatureSequenceFacts {
     pub checks: Vec<FeatureCheck>,
 }
 
+/// #1414：SECOND 的独立包含作用域与任意分型见证。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SecondCheck {
+    pub elements: [FeatureElement; 3],
+    pub top_fractal: bool,
+    pub bottom_fractal: bool,
+    pub through_stroke: usize,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SecondSequenceFacts {
+    pub raw_elements: Vec<FeatureElement>,
+    pub standard: Vec<FeatureElement>,
+    pub steps: Vec<FeatureStep>,
+    pub checks: Vec<SecondCheck>,
+    pub from_stroke: usize,
+    pub through_stroke: usize,
+    pub input_stroke_count: usize,
+    pub resource_truncated: bool,
+    pub matched: Option<SecondCheck>,
+}
+
 /// 笔的特征序列高低（= max/min(start_price, end_price)）。
 fn stroke_high_low(s: &Stroke) -> (Tick, Tick) {
     if s.start_price >= s.end_price {
@@ -269,47 +290,110 @@ pub(super) fn second_seq_has_fractal(
     from_stroke_idx: usize,
     scan_window: u32,
 ) -> bool {
-    let mut elements: Vec<(Tick, Tick)> = Vec::new();
-    // Python: dir_state = "DOWN" if seg_dir=="up" else None（注意：与主序列相反！）。
-    let mut dir_state: Option<Direction> = match seg_dir {
+    second_sequence(strokes, seg_dir, from_stroke_idx, scan_window)
+        .matched
+        .is_some()
+}
+
+/// #1414：判定与证据来自同一遍扫描，正证据提前停，不把窗口耗尽当否定。
+fn second_sequence(
+    strokes: &[Stroke],
+    seg_dir: Direction,
+    from_stroke_idx: usize,
+    scan_window: u32,
+) -> SecondSequenceFacts {
+    let mut elements = Vec::new();
+    let mut dir_state = match seg_dir {
         Direction::Up => Some(Direction::Down),
         Direction::Down => None,
     };
-    let end_idx = if scan_window == 0 {
+    let from = from_stroke_idx.saturating_add(1);
+    let end = if scan_window == 0 {
         strokes.len()
     } else {
-        (from_stroke_idx + 1 + scan_window as usize).min(strokes.len())
+        from.saturating_add(scan_window as usize).min(strokes.len())
     };
-    let mut i = from_stroke_idx + 1;
-    while i < end_idx {
-        let sk = &strokes[i];
+    let mut facts = SecondSequenceFacts {
+        raw_elements: vec![],
+        standard: vec![],
+        steps: vec![],
+        checks: vec![],
+        from_stroke: from,
+        through_stroke: from_stroke_idx,
+        input_stroke_count: strokes.len(),
+        resource_truncated: false,
+        matched: None,
+    };
+    for (i, sk) in strokes.iter().enumerate().take(end).skip(from) {
+        facts.through_stroke = i;
         if sk.direction != seg_dir {
-            i += 1;
             continue;
         }
-        let (h, l) = stroke_high_low(sk);
-        if elements.is_empty() {
-            elements.push((h, l));
+        let (high, low) = stroke_high_low(sk);
+        let incoming = FeatureElement {
+            high,
+            low,
+            stroke_idx: i,
+            stroke_indices: vec![i],
+        };
+        let before = facts.standard.last().cloned();
+        facts.raw_elements.push(incoming.clone());
+        let previous_len = elements.len();
+        let merge_direction = if dir_state == Some(Direction::Down) {
+            "DOWN"
         } else {
-            dir_state = apply_inclusion(&mut elements, h, l, dir_state);
+            "UP"
+        };
+        if elements.is_empty() {
+            elements.push((high, low));
+        } else {
+            dir_state = apply_inclusion(&mut elements, high, low, dir_state);
         }
-        // 尾部三元组提前终止：elements 尾三元组成任意分型 → 确认（等价 has_any_fractal 前缀判定）。
-        let n = elements.len();
+        let merge = previous_len == elements.len();
+        let mut stroke_indices = if merge {
+            facts.standard.pop().unwrap().stroke_indices
+        } else {
+            vec![]
+        };
+        stroke_indices.push(i);
+        let (high, low) = *elements.last().unwrap();
+        let after = FeatureElement {
+            high,
+            low,
+            stroke_idx: i,
+            stroke_indices,
+        };
+        facts.standard.push(after.clone());
+        facts.steps.push(FeatureStep {
+            incoming,
+            before,
+            after,
+            action: if merge { "merge" } else { "append" },
+            merge_direction: merge.then_some(merge_direction),
+            scope: "SECOND_SEQUENCE",
+        });
+        let n = facts.standard.len();
         if n >= 3 {
-            let (a_h, a_l) = elements[n - 3];
-            let (b_h, b_l) = elements[n - 2];
-            let (c_h, c_l) = elements[n - 1];
-            // 顶分型：b_h 严格高于左右 hi；底分型：b_l 严格低于左右 lo（同 has_any_fractal）。
-            if b_h > a_h && b_h > c_h {
-                return true;
-            }
-            if b_l < a_l && b_l < c_l {
-                return true;
+            let es = [
+                facts.standard[n - 3].clone(),
+                facts.standard[n - 2].clone(),
+                facts.standard[n - 1].clone(),
+            ];
+            let check = SecondCheck {
+                top_fractal: es[1].high > es[0].high && es[1].high > es[2].high,
+                bottom_fractal: es[1].low < es[0].low && es[1].low < es[2].low,
+                elements: es,
+                through_stroke: i,
+            };
+            facts.checks.push(check.clone());
+            if check.top_fractal || check.bottom_fractal {
+                facts.matched = Some(check);
+                return facts;
             }
         }
-        i += 1;
     }
-    false
+    facts.resource_truncated = end < strokes.len();
+    facts
 }
 
 /// 延续模式（Python `extend_mode`）。
@@ -327,6 +411,8 @@ pub enum ExtendMode {
 pub struct TriggerHit {
     pub k: usize,
     pub gap_second: bool,
+    /// 实际终结证据的前沿，与几何端 k-1 分开。
+    pub through_stroke: usize,
 }
 
 /// 增量特征序列状态机（bit-exact 移植 Python `_FeatureSeqState`，:269-433）。
@@ -351,6 +437,10 @@ pub struct FeatureSeqState {
     /// 增量层 `IncrSegments::append` 读此标志把 seg_start 记入 `earliest_unsealed_from`。
     skipped_secondkind: bool,
     facts: Option<FeatureSequenceFacts>,
+    second: Option<SecondSequenceFacts>,
+    // #1414 / 067:196：同b的首次FIRST c，不能吸收后来的封闭而倒改第一种。
+    frozen_first: std::collections::BTreeMap<usize, [FeatElem; 3]>,
+    frozen_first_facts: std::collections::BTreeMap<usize, [FeatureElement; 3]>,
     provisional: bool,
 }
 
@@ -376,6 +466,9 @@ impl FeatureSeqState {
             second_seq_window,
             skipped_secondkind: false,
             facts: None,
+            second: None,
+            frozen_first: Default::default(),
+            frozen_first_facts: Default::default(),
             provisional: false,
         }
     }
@@ -391,6 +484,9 @@ impl FeatureSeqState {
         self.skip_until_stroke = -1;
         self.seg_dir = seg_dir;
         self.skipped_secondkind = false;
+        self.second = None;
+        self.frozen_first.clear();
+        self.frozen_first_facts.clear();
         if self.facts.is_some() {
             self.facts = Some(FeatureSequenceFacts::default());
         }
@@ -405,6 +501,10 @@ impl FeatureSeqState {
         self.facts.clone().unwrap_or_default()
     }
 
+    pub fn second_facts(&self) -> Option<SecondSequenceFacts> {
+        self.second.clone()
+    }
+
     /// #88：本段扫描期间是否跳过过 SecondKind 候选（unsealed 起点信号，增量层读取）。
     pub fn skipped_secondkind(&self) -> bool {
         self.skipped_secondkind
@@ -413,6 +513,8 @@ impl FeatureSeqState {
     /// 标记跳过 stroke_idx <= 此值的分型（Python `skip_trigger`，:295-301）。
     pub fn skip_trigger(&mut self, stroke_idx: usize) {
         self.skip_until_stroke = stroke_idx as i64;
+        self.frozen_first.retain(|k, _| *k > stroke_idx);
+        self.frozen_first_facts.retain(|k, _| *k > stroke_idx);
     }
 
     /// 增量添加一个反向笔，包含处理遵循71课"假设转折点"（bit-exact Python `append`，:303-350）。
@@ -561,9 +663,14 @@ impl FeatureSeqState {
             if (b_stroke as i64) <= self.skip_until_stroke {
                 continue;
             }
-            let (a_h, a_l) = (self.std[i - 1].high, self.std[i - 1].low);
-            let (b_h, b_l) = (self.std[i].high, self.std[i].low);
-            let (c_h, c_l) = (self.std[i + 1].high, self.std[i + 1].low);
+            let window = self.frozen_first.get(&b_stroke).copied().unwrap_or([
+                self.std[i - 1],
+                self.std[i],
+                self.std[i + 1],
+            ]);
+            let (a_h, a_l) = (window[0].high, window[0].low);
+            let (b_h, b_l) = (window[1].high, window[1].low);
+            let (c_h, c_l) = (window[2].high, window[2].low);
             let (is_fractal, mut has_gap) =
                 is_fractal_and_gap(a_h, a_l, b_h, b_l, c_h, c_l, self.seg_dir);
             let raw_gap = has_gap;
@@ -571,19 +678,28 @@ impl FeatureSeqState {
                 Direction::Up => c_l <= a_h,
                 Direction::Down => c_h >= a_l,
             });
+            if is_fractal && raw_gap && !self.provisional {
+                self.frozen_first.entry(b_stroke).or_insert(window);
+            }
             if let Some(f) = &mut self.facts {
+                let elements = self.frozen_first_facts.get(&b_stroke).cloned().unwrap_or([
+                    f.standard[i - 1].clone(),
+                    f.standard[i].clone(),
+                    f.standard[i + 1].clone(),
+                ]);
+                if is_fractal && raw_gap && !self.provisional {
+                    self.frozen_first_facts
+                        .entry(b_stroke)
+                        .or_insert(elements.clone());
+                }
                 let check = FeatureCheck {
-                    elements: [
-                        f.standard[i - 1].clone(),
-                        f.standard[i].clone(),
-                        f.standard[i + 1].clone(),
-                    ],
+                    elements,
                     first_fractal: is_fractal,
                     gap: is_fractal.then_some(raw_gap),
                     gap_closed_by_c,
                     provisional: self.provisional,
                     turn_hypothesis_pair: is_fractal
-                        .then_some([f.standard[i - 1].stroke_idx, f.standard[i].stroke_idx]),
+                        .then_some([window[0].stroke_idx, window[1].stroke_idx]),
                 };
                 if f.checks.last() != Some(&check) {
                     f.checks.push(check);
@@ -603,9 +719,15 @@ impl FeatureSeqState {
                 }
             }
             // 有缺口须第二特征序列出现分型才确认（Python :424-427）。
-            if has_gap
-                && !second_seq_has_fractal(strokes, self.seg_dir, b_stroke, self.second_seq_window)
-            {
+            let second = has_gap
+                .then(|| second_sequence(strokes, self.seg_dir, b_stroke, self.second_seq_window));
+            let through_stroke = second.as_ref().map_or(window[2].stroke_idx, |s| {
+                s.through_stroke.max(window[2].stroke_idx)
+            });
+            if !self.provisional {
+                self.second = second.clone();
+            }
+            if second.as_ref().is_some_and(|s| s.matched.is_none()) {
                 // #88 frontier：跳过的 SecondKind 候选未来可复活 ⟹ 本段 seg_start unsealed，
                 // 增量层必须回退到其前重扫（第二序列 scan_window=0 无限 ⟹ 任意早的候选都可复活）。
                 self.skipped_secondkind = true;
@@ -615,6 +737,7 @@ impl FeatureSeqState {
             return Some(TriggerHit {
                 k: b_stroke,
                 gap_second: has_gap,
+                through_stroke,
             });
         }
         None
@@ -787,6 +910,7 @@ mod tests {
             hit,
             Some(TriggerHit {
                 k: 3,
+                through_stroke: 5,
                 gap_second: false
             })
         );

@@ -930,9 +930,29 @@ class Handler(BaseHTTPRequestHandler):
 
     def _verified_read(self, kind, as_of, after_generation):
         audit = _query_integrity()
+        query_reader = None
         try:
-            proof = self.server.query_reader().capture_verified()
-            if kind in ("ready", "state", "catalog", "snapshot"):
+            query_reader = self.server.query_reader()
+            proof = query_reader.capture_verified()
+            if kind == "discover":
+                # #1414：从同一次完整核验的proof只投影发现身份，不构造整份state。
+                meta, protocol = proof["meta"], proof["protocol"]
+                if protocol is None:
+                    if "protocol_revision" in meta:
+                        raise ValueError("legacy发现与协议标记冲突")
+                    payload = {"protocol_revision": None}
+                else:
+                    if protocol["protocol_revision"] != "s-session/2" or meta.get("protocol_revision") != "s-session/2":
+                        raise ValueError("未支持的发现协议")
+                    if type(meta["session_id"]) is not str or not meta["session_id"]:
+                        raise ValueError("发现会话身份缺失")
+                    _query_module("s_query")._integer(protocol["session_generation"], "session_generation", ValueError, True)
+                    if meta["profile_id"] not in ("testonly_tick_1_1_ohlc", "ohlc_integer_tb02a_v1"):
+                        raise ValueError("未支持的发现profile")
+                    payload = {"protocol_revision": "s-session/2",
+                               "cut": {"session_id": meta["session_id"], "session_generation": protocol["session_generation"]},
+                               "snapshot": {"profile_id": meta["profile_id"]}}
+            elif kind in ("ready", "state", "catalog", "snapshot"):
                 state = audit.project_state(proof, as_of, globals())
                 if proof["protocol"] is not None:
                     state["cut"]["session_generation"] = proof["protocol"]["session_generation"]
@@ -954,10 +974,16 @@ class Handler(BaseHTTPRequestHandler):
                 raise audit.QueryBudgetExceeded("完整 legacy 响应超过回复上限")
             self._send_bytes(body)
         except InvalidQuery as exc:
+            if query_reader is not None:
+                query_reader.discard_projection()
             self._send_json({"ok": False, "error": "InvalidQuery", "detail": str(exc)}, 400)
         except audit.QueryBudgetExceeded as exc:
+            if query_reader is not None:
+                query_reader.discard_projection()
             self._send_json({"ok": False, "status": "Incomplete", "error": "QueryBudgetExceeded", "detail": str(exc)}, 503)
         except (sqlite3.Error, ValueError, TypeError, UnicodeError, KeyError, IndexError, OSError, RecursionError) as exc:
+            if query_reader is not None:
+                query_reader.discard_projection()
             self._send_json({"ok": False, "error": "StorageUnavailable", "detail": str(exc)}, 503)
 
     def do_POST(self):
@@ -969,8 +995,11 @@ class Handler(BaseHTTPRequestHandler):
             return
         audit, query = _query_integrity(), _query_module("s_query")
         envelope, proof, header_verified = None, None, False
+        query_reader = None
 
         def error_reply(payload, status):
+            if query_reader is not None:
+                query_reader.discard_projection()
             if header_verified:
                 bound = proof if proof is not None and proof.get("protocol") is not None else None
                 payload = dict(payload, identity_binding="verified_current_capture" if bound else "request_echo_unverified")
@@ -1013,20 +1042,23 @@ class Handler(BaseHTTPRequestHandler):
             operation = "snapshot" if self.path.endswith("snapshot") else "watch"
             if payload.get("op") != operation:
                 raise InvalidQuery("路径与 op 不一致")
-            proof = self.server.query_reader().capture_verified()
+            query_reader = self.server.query_reader()
+            proof = query_reader.capture_verified()
             if proof["protocol"] is None:
                 raise ValueError("v2 查询需要完整协议存储")
             if operation == "snapshot":
                 if (envelope["session_id"], envelope["session_generation"]) != (proof["meta"]["session_id"], proof["protocol"]["session_generation"]):
                     raise InvalidQuery("公共头 session/化身与查询目标不符")
-                result = query.snapshot_page(proof, payload, self.server.resources, globals())
+                result = query.snapshot_page(proof, payload, self.server.resources, globals(),
+                                             projection_provider=query_reader._project_fixed_cut)
             else:
                 cursor = payload.get("cursor")
                 if type(cursor) is not dict:
                     raise InvalidQuery("Watch cursor 必须是对象")
                 if (envelope["session_id"], envelope["session_generation"]) != (cursor.get("session_id"), cursor.get("session_generation")):
                     raise InvalidQuery("公共头与 Watch cursor 身份不一致")
-                result = query.watch_page(proof, payload, self.server.resources, globals(), self.server.leases)
+                result = query.watch_page(proof, payload, self.server.resources, globals(), self.server.leases,
+                                          projection_provider=query_reader._project_fixed_cut)
             result = dict(result, ok=True)
             response = query.response_envelope(envelope, result, proof, self.server.producer_epoch, audit)
             body = audit.canonical(response)
@@ -1075,6 +1107,15 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"ok": False, "error": "browser file not found"}, 404)
             except OSError as e:
                 self._send_json({"ok": False, "error": "browser unreadable", "detail": str(e)}, 503)
+            return
+        if path == "/api/discover":
+            if query:
+                self._send_json({"ok": False, "error": "InvalidQuery", "detail": "发现读口不接受查询参数"}, 400)
+                return
+            if not hasattr(self.server, "query_reader"):
+                self._send_json({"ok": False, "error": "QueryNotConfigured"}, 503)
+                return
+            self._verified_read("discover", None, None)
             return
         if path == "/api/ready":
             if query:

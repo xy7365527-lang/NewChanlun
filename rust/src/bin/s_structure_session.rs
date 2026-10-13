@@ -60,7 +60,7 @@ use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde_json::{json, Value};
 
 /// CC-006 验收合同修订（SPEC-COVERAGE-INPUT.json `/classification_axes/5`）。
-const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/1+segment-first/1";
+const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/1+segment-second/1";
 
 /// S 唯一结构写者的默认 writer_epoch（可经 `--writer-epoch` / `recover` 换代）。
 const DEFAULT_WRITER_EPOCH: &str = "1";

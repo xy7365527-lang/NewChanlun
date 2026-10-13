@@ -162,7 +162,7 @@ function ensureV2(discovery) {
     rebuildCommittedFromState(state);
     syncModeUI(state.snapshot.history_mode === "AsKnown" ? "asof" : "current", state.snapshot);
     renderAllFromState(state);
-    v2Discovery = {cut: {session_id: candidate.cursor.session_id, session_generation: candidate.cursor.session_generation}, snapshot: {profile_id: candidate.projection.fixed_cut.profile_id}};
+    v2Discovery = {...v2Discovery, cut: {session_id: candidate.cursor.session_id, session_generation: candidate.cursor.session_generation}, snapshot: {profile_id: candidate.projection.fixed_cut.profile_id}};
     renderStatus("", "");
     document.getElementById("stream-cursor").textContent =
       `v2 已验证 ${candidate.cursor.base_cut} · session ${candidate.cursor.session_id} · 化身 ${candidate.cursor.session_generation}`;
@@ -174,12 +174,12 @@ function ensureV2(discovery) {
   document.getElementById("btn-stream").textContent = "读取新批次（v2 Watch）";
   document.getElementById("btn-live").classList.toggle("hidden", false);
 }
-async function loadV2(mode, generation, epoch) {
+async function loadV2(mode, generation, epoch, discoveryBudget = null) {
   v2Busy = true; v2Polling();
   try {
     const normalized = mode === "asof" ? "AsKnown" : "RecomputedWithRevision";
     if (mode !== "asof" && mode !== "current") throw new Error("未知状态查询模式");
-    await v2Client.load(v2Discovery, normalized, mode === "asof" ? generation : null);
+    await v2Client.load(v2Discovery, normalized, mode === "asof" ? generation : null, discoveryBudget);
   } catch (error) { if (epoch === pageEpoch) v2Failure(error); }
   finally { if (epoch === pageEpoch) { v2Busy = false; v2Polling(); } }
 }
@@ -309,7 +309,7 @@ function renderObjects(snap, catalogId = selectedCatalogId) {
     ` · 活动实例 ${objects.length} / 撤回 ${(snap.withdrawn_objects || []).length}`;
   const evidence = currentState?.catalog?.items?.find(item => item.id === catalogId)?.evidence;
   const cards = objects.map(o => renderObjectCard(o, snap, "")).join("") || `<div class="muted">该目录项在当前 cut 无活动实例；请查看目录证据与等待原因。</div>`;
-  document.getElementById("objects").innerHTML = cards + (["TB-02-A", "TB-02-C"].includes(evidence?.scope) ? `<details><summary>${esc(catalogId)} 本 cut 完整证据与等待原因</summary>${renderFactValue(evidence)}</details>` : "");
+  document.getElementById("objects").innerHTML = cards + (["TB-02-A", "TB-02-C", "TB-02-D"].includes(evidence?.scope) ? `<details><summary>${esc(catalogId)} 本 cut 完整证据与等待原因</summary>${renderFactValue(evidence)}</details>` : "");
 }
 function renderWithdrawn(snap) {
   const withdrawn = snap.withdrawn_objects;
@@ -357,7 +357,7 @@ function renderCatalog(cat) {
     const impl = r.implementation_status === "implemented"
       ? `<span class="pill impl">implemented</span>` : `<span class="pill notimpl">not_implemented</span>`;
     const run = r.run_status === "run" ? `<span class="pill run">run</span>` : `<span class="pill notimpl">${esc(r.run_status)}</span>`;
-    const entry = (r.id === "CC-006" || (["TB-02-A", "TB-02-C"].includes(r.evidence?.scope) && Array.isArray(r.evidence.object_ids)))
+    const entry = (r.id === "CC-006" || (["TB-02-A", "TB-02-C", "TB-02-D"].includes(r.evidence?.scope) && Array.isArray(r.evidence.object_ids)))
       ? `<button type="button" data-catalog-id="${escAttr(r.id)}">查看 ${esc(r.id)} 实例（结构）</button>`
       : esc(r.id);
     return `<tr><td>${entry}</td><td>${esc(r.kind)}</td><td>${esc(r.title)}</td>` +
@@ -410,7 +410,7 @@ function validateExactRecords(records) {
     if (!v || typeof v !== "object") return;
     for (const [k, x] of Object.entries(v)) {
       // #1392/#1404：新笔/段 payload.slot 是逻辑身份；见证 slot 仍按整数核对。
-      const logicalSlot = k === "slot" && (v.schema_revision === "s-new-bi/1" || v.schema_revision === "s-segment/1");
+      const logicalSlot = k === "slot" && (v.schema_revision === "s-new-bi/1" || ["s-segment/1", "s-segment/2"].includes(v.schema_revision));
       if (integerKeys.has(k) && x !== null && !logicalSlot) decimal(x);
       walk(x);
     }
@@ -444,11 +444,6 @@ function validateSource(snap, protocol = "s-session/1") {
 function validateTB02Snapshot(snap, cat) {
   TB01C.validateTB02Catalog(cat);
   TB01C.validateTB02CutSources(snap);
-  for (const record of [...snap.objects, ...snap.withdrawn_objects]) {
-    if (typedKinds.includes(record.kind)) TB01C.validateTyped(record);
-    else TB01C.validateTB02ShapeRefs(record);
-  }
-  snap.raw_history.forEach(TB01C.validateTB02Raw);
   const axes = snap.catalog_evidence.axes;
   if (snap.generation !== "0") TB01C.validateTB02Axes(axes, snap.objects);
   for (const item of cat.items) {
@@ -573,14 +568,17 @@ async function load(mode = "current", asOfGen) {
   if (v2Detected) return loadV2(mode, asOfGen, epoch);
   try {
     const request = stateRequest(mode, asOfGen);
-    const state = await fetchJson(request.url);
-    if (epoch !== pageEpoch) return; // 晚到响应不覆盖新请求
-    if (state && state.cut && Object.hasOwn(state.cut, "session_generation")) {
-      // discovery 不安装 legacy 全量状态；发现 v2 后只走固定 token 分页。
+    if (typeof TB01C === "undefined") throw new Error("发现校验模块未加载");
+    const {discovery, budget} = await TB01C.readDiscovery(fetch.bind(globalThis));
+    if (epoch !== pageEpoch) return;
+    if (discovery.protocol_revision === "s-session/2") {
       v2Detected = true;
-      ensureV2(state);
-      return await loadV2(mode, asOfGen, epoch);
+      ensureV2(discovery);
+      return await loadV2(mode, asOfGen, epoch, budget);
     }
+    // 只有同次已核proof明确legacy才按原v1接口读取；错误不作为分派条件。
+    const state = await fetchJson(request.url);
+    if (epoch !== pageEpoch) return;
     validateRequestedState(state, request); // 先核本次请求及整份 state，再提交渲染
     syncModeUI(mode, state.snapshot);
     renderAllFromState(state);
@@ -812,8 +810,9 @@ document.getElementById("btn-current").addEventListener("click", () => load("cur
 document.getElementById("btn-asof").addEventListener("click", () => {
   const g = document.getElementById("asof-input").value.trim();
   if (g === "" || !/^\d+$/.test(g)) {
+    // 即使v2尚未发现，较新的非法输入也使在途发现与Client读取失效。
+    beginRequest(); if (v2Client) v2Client.cancel(); v2Busy = false;
     if (v2Detected) {
-      beginRequest(); if (v2Client) v2Client.cancel(); v2Busy = false;
       v2Failure(new Error("AsKnown 输入必须是规范十进制整数且 >= 0")); return;
     }
     renderStatus("AsKnown 输入必须是规范十进制整数且 >= 0", "err-box");

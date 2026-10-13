@@ -21,6 +21,10 @@ class QueryBudgetExceeded(RuntimeError):
     """未取得完整健康证明；不是持久损坏，也不能返回半份成功切面。"""
 
 
+class ObjectCapacityExceeded(QueryBudgetExceeded):
+    """object_bytes 的纯容量拒绝；不包含deadline或完整性失败。"""
+
+
 # 与正式 S v1 DDL 同一列/约束；v2 的控制表由其显式版本另行登记。
 _tb02_spec = importlib.util.spec_from_file_location("s_tb02_contract", Path(__file__).with_name("s_tb02_contract.py"))
 tb02 = importlib.util.module_from_spec(_tb02_spec)
@@ -91,15 +95,154 @@ def _nonfinite(value):
     raise ValueError("持久 JSON 含非有限数")
 
 
-def parse_json(raw, expected=dict):
+def parse_json(raw, expected=dict, *, require_canonical=False):
     if type(raw) not in (str, bytes):
         raise ValueError("持久 JSON 类型损坏")
     result = json.loads(raw, object_pairs_hook=_pairs_unique, parse_constant=_nonfinite)
     if type(result) not in (expected if type(expected) is tuple else (expected,)):
         raise ValueError("持久 JSON 形状损坏")
     # 同时拒绝转义孤立代理码点；规范字节必须可表示为 UTF-8。
-    canonical(result)
+    encoded = canonical(result)
+    if require_canonical and raw != encoded.decode("utf-8"):
+        raise ValueError("事实 JSON 列不是封存规范字节")
     return result
+
+
+def _parse_canonical_json(raw, expected=dict):
+    """#1414：同次严格解析复用规范编码，仍逐字核每份事实列原串。"""
+    return parse_json(raw, expected, require_canonical=True)
+
+
+class _CanonicalParsePool:
+    """#1414：仅本次verify的只读三列树；当前索引播种，batch只查不增。
+
+    原str由image持有，成功fact的树由wires持有；正在校验的fact最多三根
+    尚未入wires。固定计数仅供受控诊断，不进入proof/memo，不接受回调。
+    清池不消除proof内部共享别名，所有消费者必须保持嵌套树只读。
+    """
+    __slots__ = ("_entries", "_mode", "_limit", "seeded", "hits", "misses",
+                 "strict_calls", "disabled_reason", "peak_metadata", "peak_resize_metadata")
+    _LIMIT = 1024 * 1024
+    _POLICY = "strict-canonical/1"
+    # 绑定CPython 3.14.6、64位、只插入无删除的general-key dict实测布局。
+    _LAYOUT = ((0, 64), (5, 224), (10, 352), (21, 632), (42, 1168),
+               (85, 2264), (170, 4688), (341, 9304), (682, 18512),
+               (1365, 36952), (2730, 73808), (5461, 147544), (10922, 294992))
+
+    @staticmethod
+    def _layout_matches():
+        return (sys.implementation.name == "cpython" and sys.version_info[:3] == (3, 14, 6)
+                and sys.maxsize == 2**63 - 1
+                and sys.getsizeof((str, "", dict, "strict-canonical/1")) == 80
+                and sys.getsizeof({}) == 64 and sys.getsizeof({0: None}) == 224
+                and sys.getsizeof(dict.fromkeys(range(6))) == 352)
+
+    def __init__(self, *, _limit=None):
+        self._entries = {}
+        self._mode = "seed"
+        self._limit = self._LIMIT if _limit is None else min(self._LIMIT, max(0, _limit))
+        self.seeded = self.hits = self.misses = self.strict_calls = 0
+        self.disabled_reason = None
+        self.peak_metadata = self.peak_resize_metadata = 0
+        if not self._layout_matches():
+            self._disable("layout")
+
+    def _fixed_bytes(self):
+        # 包含slots对象及8个至多64位的计数/限额值；重复小整数也保守按份计。
+        # mode/reason/policy/type均为已存在常量，不在池内新建。
+        return sys.getsizeof(self) + 8 * 36
+
+    def metadata_bound(self):
+        return self._fixed_bytes() + sys.getsizeof(self._entries) + 80 * len(self._entries)
+
+    def _disable(self, reason):
+        self._entries.clear()
+        self._mode = "disabled"
+        self.disabled_reason = reason
+
+    def seal(self):
+        if self._mode == "seed":
+            self._mode = "read"
+
+    def close(self):
+        self._entries.clear()
+        self._mode = "closed"
+
+    def parse(self, source, expected):
+        eligible = (self._mode in ("seed", "read") and type(source) is str
+                    and (expected is dict or expected is list))
+        if eligible:
+            key = (type(source), source, expected, self._POLICY)
+            if key in self._entries:
+                self.hits += 1
+                return self._entries[key]
+        self.misses += 1
+        self.strict_calls += 1
+        value = _parse_canonical_json(source, expected)
+        if not eligible or self._mode != "seed":
+            return value
+        count = len(self._entries) + 1
+        current_size = sys.getsizeof(self._entries)
+        expected_current = next(size for maximum, size in self._LAYOUT if len(self._entries) <= maximum)
+        if current_size != expected_current:
+            self._disable("layout")
+            return value
+        # 9419为只算dict+key的上界；本实现另外计slots/计数，实际更早截止。
+        next_size = next((size for maximum, size in self._LAYOUT if count <= maximum), None)
+        proposed = self._fixed_bytes() + (next_size or self._LIMIT) + 80 * count
+        if count > 9419 or proposed > self._limit:
+            self._disable("capacity")  # 全清退，不让任意前缀被误称完整索引覆盖。
+            return value
+        self._entries[key] = value
+        if sys.getsizeof(self._entries) != next_size:
+            self._disable("layout")
+            return value
+        self.seeded += 1
+        self.peak_metadata = max(self.peak_metadata, proposed)
+        self.peak_resize_metadata = max(self.peak_resize_metadata,
+                                       proposed + (current_size if next_size != current_size else 0))
+        return value
+
+
+def _project_canonical_fact(row, meta, raw, *, _parse_pool=None):
+    """#1414：仅本次私有严格解析原树绑定；不接收外部片段/hasher。"""
+    materials = {}
+
+    def parse_material(source, expected):
+        value = (_parse_canonical_json(source, expected) if _parse_pool is None
+                 else _parse_pool.parse(source, expected))
+        materials[id(value)] = (value, source)
+        return value
+
+    def hash_identity(identity):
+        fields = (
+            ("fact_key", b'{"fact_key":'),
+            ("input_refs", b',"input_refs":'),
+            ("kind", b',"kind":'),
+            ("payload", b',"payload":'),
+            ("profile_id", b',"profile_id":'),
+            ("rule_revision", b',"rule_revision":'),
+        )
+        if tuple(sorted(identity)) != tuple(key for key, _prefix in fields):
+            raise ValueError("identity 规范片段字段与当前合同不一致")
+        digest = hashlib.sha256()
+        for key, prefix in fields:
+            digest.update(prefix)
+            if key in ("payload", "input_refs"):
+                material = materials.get(id(identity[key]))
+                if material is None or material[0] is not identity[key]:
+                    raise ValueError("identity 规范片段与本次严格解析原树不一致")
+                # source已由当前调用或本次verify池的strict parser绑定canonical；
+                # 池命中仍逐完整原str/类型/expected/策略核，原str不可变。
+                # 解析至此只走本次私有只读validator；不把树交给外部callback。
+                digest.update(material[1].encode("utf-8"))
+            else:
+                digest.update(tb02.canonical(identity[key]))
+        digest.update(b"}")
+        return digest.hexdigest()
+
+    return tb02._project_fact(row, parse_json, meta=meta, raw=raw,
+                              parse_canonical=parse_material, _identity_hash=hash_identity)
 
 
 def _deadline(deadline):
@@ -119,7 +262,7 @@ def object_bytes(value, limit=None, deadline=None):
         seen.add(identity)
         total += sys.getsizeof(item)
         if limit is not None and total > limit:
-            raise QueryBudgetExceeded("已解码图像超过事前字节上限")
+            raise ObjectCapacityExceeded("已解码图像超过事前字节上限")
         if type(item) is dict:
             pending.extend(item.keys())
             pending.extend(item.values())
@@ -202,7 +345,8 @@ def _published_axes(rule_revision):
     known = {
         "s2-axis-quantifiers": tb02.LEGACY_AXES,
         "s2-axis-quantifiers+new-bi/1": tb02.BI_AXES,
-        "s2-axis-quantifiers+new-bi/1+segment-first/1": tb02.AXES,
+        "s2-axis-quantifiers+new-bi/1+segment-first/1": tb02.FIRST_SEGMENT_AXES,
+        "s2-axis-quantifiers+new-bi/1+segment-second/1": tb02.AXES,
     }
     # 未识别规则保持原有的完整轴要求，不退到旧规则的较小集合。
     return known.get(rule_revision, tb02.AXES)
@@ -413,12 +557,28 @@ def _verify_raw(rows, deadline=None):
             raise ValueError("raw 规范事件字节/hash/receipt 不闭合")
 
 
-def _record_set(records, h, name):
+def _record_set(records, h, name, *, _verified_previous=None):
     result = set()
     for record in records:
         if type(record) is not dict:
             raise ValueError(name + " 成员不是对象")
-        key = canonical(h["_legacy_payload_projection"](record))
+        key = None
+        # 两个受控upserts调用已完成独立typed验证；id仅定位，全记录才判等。
+        if _verified_previous is not None and record.get("kind") in tb02.KINDS:
+            active, active_keys = _verified_previous
+            oid = record["object_id"]
+            previous = active.get(oid)
+            previous_key = active_keys.get(oid)
+            if previous is not None and previous_key is not None:
+                try:
+                    same_record = record == previous
+                except RecursionError:
+                    # 无新增限深：仅优化比较失败，仍执行同一原完整编码。
+                    same_record = False
+                if same_record:
+                    key = previous_key
+        if key is None:
+            key = canonical(h["_legacy_payload_projection"](record))
         if key in result:
             raise ValueError(name + " 含重复成员")
         result.add(key)
@@ -432,8 +592,9 @@ def _same(actual, expected, h, name):
         raise ValueError(name + " 与独立持久索引/封存内容不一致")
 
 
-def _intern_set(records, h, name, pool):
-    return frozenset(pool.setdefault(key, key) for key in _record_set(records, h, name))
+def _intern_set(records, h, name, pool, *, _verified_previous=None):
+    return frozenset(pool.setdefault(key, key) for key in
+                     _record_set(records, h, name, _verified_previous=_verified_previous))
 
 
 def _same_keys(actual, expected, name):
@@ -441,7 +602,7 @@ def _same_keys(actual, expected, name):
         raise ValueError(name + " 与独立持久索引/封存内容不一致")
 
 
-def _sealed_generation(row, entry, gen, frontier, meta, binding, active, observations, raw, h, pool):
+def _sealed_generation(row, entry, gen, frontier, meta, binding, active, observations, raw, h, pool, *, _parse_pool=None, _active_keys=None):
     """验证当前代封存原件的内部关系；返回可逐字绑定源的规范集合，非当前库健康结论。"""
     seq_range, evidence, delta = (parse_json(row[k]) for k in ("seq_range_json", "catalog_evidence_json", "delta_json"))
     header = {k: row[k] for k in ("session_id", "catalog_revision", "base_cut", "next_cut", "index_frontier", "catalog_run_status")}
@@ -471,11 +632,15 @@ def _sealed_generation(row, entry, gen, frontier, meta, binding, active, observa
             raise ValueError("目录计数不属于非负 i64")
     if row["catalog_run_status"] != ("run" if batch["objects"] else "not_run"):
         raise ValueError("目录运行状态与封存结果不符")
-    sets = {name: _intern_set(delta[name], h, name, pool) for name in
-            ("upserts", "withdrawals", "replaces", "witnesses", "relations", "observations", "raw_history_added")}
+    # 借用现有容器，sealed期间二者不写；不建立跨代额外arena。
+    verified_previous = None if _active_keys is None else (active, _active_keys)
+    sets = {name: _intern_set(delta[name], h, name, pool,
+                             _verified_previous=verified_previous if name == "upserts" else None)
+            for name in ("upserts", "withdrawals", "replaces", "witnesses", "relations", "observations", "raw_history_added")}
     upserts = []
     ohlc = meta.get("profile_id") == tb02.PROFILE
     if ohlc:
+        tb02.keys(batch.get("catalog_axes"), _published_axes(meta["rule_revision"]), "cut规则目录轴")
         tb02.validate_axes(batch.get("catalog_axes"), {obj["object_id"] for obj in batch["objects"]})
         if canonical(evidence.get("axes")) != canonical(batch["catalog_axes"]):
             raise ValueError("每代目录九轴与原 batch 不一致")
@@ -487,8 +652,7 @@ def _sealed_generation(row, entry, gen, frontier, meta, binding, active, observa
                 raise ValueError("旧域批次包含新 typed 对象")
             internal = set(tb02.FACT_COLUMNS) - {"batch_id", "withdrawn_generation", "withdrawal_reason", "superseded_by"}
             tb02.keys(obj, internal, "batch.typed_object")
-            value = tb02.project_fact(dict(obj, batch_id=batch_id, withdrawn_generation=None, withdrawal_reason=None, superseded_by=None), parse_json)
-            tb02.validate_fact(value, meta, raw)
+            value = _project_canonical_fact(dict(obj, batch_id=batch_id, withdrawn_generation=None, withdrawal_reason=None, superseded_by=None), meta, raw, _parse_pool=_parse_pool)
         else:
             values = (obj["object_id"], obj["object_revision"], obj["kind"], batch_id,
                       obj["branch"], obj["dir_ab"], obj["dir_bc"], obj["window_start"], obj["window_mid"], obj["window_end"],
@@ -500,7 +664,8 @@ def _sealed_generation(row, entry, gen, frontier, meta, binding, active, observa
             for key in ("batch_id", "first_known_generation", "first_known_cut", "published_generation"):
                 value[key] = previous[key]
         upserts.append(value)
-    _same_keys(sets["upserts"], _intern_set(upserts, h, "upserts/batch", pool), "upserts/batch")
+    _same_keys(sets["upserts"], _intern_set(upserts, h, "upserts/batch", pool,
+                                          _verified_previous=verified_previous), "upserts/batch")
     witnesses = [dict(w, slot=h["_num_to_str"](w["slot"]),
                       merged_source_index=h["_num_to_str"](w["merged_source_index"]),
                       raw_bars=h["_project_raw_bars"](w["raw_bars"])) for w in batch["witnesses"]]
@@ -757,6 +922,15 @@ def _verify_control(tables, meta, raw, deltas, batches, deadline=None):
 
 
 def verify(image, h, deadline=None, memo=None):
+    """公开入口保持原签名；任何退出都清退本次私有解析池。"""
+    parse_pool = _CanonicalParsePool()
+    try:
+        return _verify_image(image, h, deadline, memo, parse_pool)
+    finally:
+        parse_pool.close()
+
+
+def _verify_image(image, h, deadline, memo, _parse_pool):
     """一次处理全 typed 索引；各代只做该 batch/Delta 和该代变化的关联。"""
     _deadline(deadline)
     tables = _typed_rows(image, deadline)
@@ -841,9 +1015,7 @@ def verify(image, h, deadline=None, memo=None):
                 first, withdrawn = row["first_known_generation"], row["withdrawn_generation"]
                 if withdrawn is not None and withdrawn <= first:
                     raise ValueError("对象生命周期非法")
-                value = tb02.project_fact(row, parse_json) if table == "structure_facts" else h["_project_object_row"](tuple(row.values()))
-                if table == "structure_facts":
-                    tb02.validate_fact(value, meta, raw)
+                value = _project_canonical_fact(row, meta, raw, _parse_pool=_parse_pool) if table == "structure_facts" else h["_project_object_row"](tuple(row.values()))
                 births[first].append(value)
                 if withdrawn is not None:
                     deaths[withdrawn].append(value)
@@ -859,6 +1031,7 @@ def verify(image, h, deadline=None, memo=None):
                 value["detail"] = parse_json(row["detail_json"])
             wires["objects" if table in object_tables else table].append((row["published_generation"], value))
 
+    _parse_pool.seal()  # 只准当前完整索引播种；后续batch未命中不登记。
     stored, born, seen = {}, {}, {}
     for table in ("witnesses", "relations", "observations"):
         stored[table], born[table], seen[table] = {}, defaultdict(set), set()
@@ -899,7 +1072,8 @@ def verify(image, h, deadline=None, memo=None):
             # 一处源变化后，后续first-known/首版observation依赖全部重新建立。
             reusable = False
             certificate = _sealed_generation(row, entry, gen, frontier, meta, binding, active,
-                                             original_observations, raw, h, pool)
+                                             original_observations, raw, h, pool, _parse_pool=_parse_pool,
+                                             _active_keys=active_keys)
             if memo is not None:
                 certificate["delta_columns"] = row_columns
                 certificate["batch_source"] = zlib.compress(entry["canonical_bytes"], 1)
@@ -944,7 +1118,9 @@ def verify(image, h, deadline=None, memo=None):
             if obj["superseded_by"] is not None:
                 replaces.append({"old_object_id": obj["object_id"], "new_object_id": obj["superseded_by"]})
         if meta.get("profile_id") == tb02.PROFILE:
+            tb02.keys(header["catalog_evidence"].get("axes"), _published_axes(meta["rule_revision"]), "cut规则目录轴")
             tb02.validate_axes(header["catalog_evidence"].get("axes"), set(active))
+            tb02.validate_segment_links(list(active.values()), header["catalog_evidence"]["axes"])
             revision_evidence = header["catalog_evidence"]["axes"]["CC-056"]["evidence"]
             revision_refs = [{key: item[key] for key in tb02.REF_FIELDS} for item in raw[prev_frontier+1:frontier+1] if int(item["revision"]) > 1]
             _same(revision_evidence["raw_revisions"], revision_refs, h, "CC056.raw_revisions")
@@ -1018,6 +1194,7 @@ def verify(image, h, deadline=None, memo=None):
         if any(meta[key] != last[dkey] for key, dkey in (("index_frontier", "index_frontier"),
                ("structure_cut", "next_cut"), ("last_advance_frontier", "input_frontier"))):
             raise ValueError("meta 与末代 Delta 根元组不一致")
+    _parse_pool.close()  # 控制链、摘要、proof计量之前释放全部额外源引用。
     protocol = _verify_control(tables, meta, raw, verified_deltas, decoded_batches, deadline)
     digest = capture_digest(image, verified_delta_entries=next_entries if memo is not None else None)
     _deadline(deadline)

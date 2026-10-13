@@ -144,24 +144,33 @@ fn tb02c_closed_seed_touch_and_gap_remain_distinct() {
         let (_, _, facts) =
             segment::divide_segments_with_facts(&chain(&prices), &ThetaConfig::default().parse);
         let c = &facts.candidates[0];
-        assert_eq!(c.result, "PENDING_CASE_TWO");
-        assert_eq!(c.end_stroke, None);
+        // #1414 已承接 strict：保留 raw gap，c 封闭转 CASE_ONE。
+        let closed = prices[6] <= 10;
+        assert_eq!(
+            c.result,
+            if closed {
+                "CASE_ONE"
+            } else {
+                "PENDING_CASE_TWO"
+            }
+        );
+        assert_eq!(c.end_stroke, closed.then_some(2));
         assert_eq!(c.first.checks.last().unwrap().gap, Some(true));
-        assert!(c.waiting_reasons.contains(&"second_kind_out_of_scope"));
+        assert_eq!(c.strict.as_ref().unwrap().gap_closed_by_c, Some(closed));
     }
 }
 
 #[test]
 fn tb02c_waiting_witness_stops_at_its_scan_frontier() {
-    // 有原 gap、c 封闭；后续输入不能混进早先 cursor=5 的等待见证。
+    // #1414 有原 gap、c 封闭走第一种；后续输入不能混进 cursor=5 的见证。
     let (_, _, facts) = segment::divide_segments_with_facts(
         &chain(&[0, 10, 5, 20, 12, 18, 8, 16, 9]),
         &ThetaConfig::default().parse,
     );
     let c = &facts.candidates[0];
-    assert_eq!(c.result, "PENDING_CASE_TWO");
+    assert_eq!(c.result, "CASE_ONE");
     assert_eq!(c.observed_through, 5);
-    assert_eq!(c.construction.stroke_indices, vec![0, 1, 2, 3, 4, 5]);
+    assert_eq!(c.construction.stroke_indices, vec![0, 1, 2]);
     assert!(c.termination_attempts.iter().all(|a| a
         .construction
         .stroke_indices

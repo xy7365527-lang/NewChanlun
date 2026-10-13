@@ -156,7 +156,7 @@ fn find_overlap_start(strokes: &[Stroke], from: usize) -> Option<usize> {
     None
 }
 
-pub const CONSTRUCTION_RULE: &str = "segment-seed-first/1";
+pub const CONSTRUCTION_RULE: &str = "segment-second/1";
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ConstructionFact {
@@ -261,6 +261,9 @@ pub struct SegmentCandidateFact {
     pub seed: ConstructionFact,
     pub construction: ConstructionFact,
     pub first: super::feature_seq::FeatureSequenceFacts,
+    pub second: Option<super::feature_seq::SecondSequenceFacts>,
+    pub strict: Option<StrictGapFact>,
+    pub fact_vector: BreakFacts,
     pub observed_through: usize,
     pub result: &'static str,
     pub waiting_reasons: Vec<&'static str>,
@@ -268,6 +271,90 @@ pub struct SegmentCandidateFact {
     pub trigger_stroke: Option<usize>,
     pub termination_attempts: Vec<SegmentEndCheck>,
 }
+/// #1414 G4：明确绑定 FIRST a/b 缺口与 c；不增加 later-FIRST 封闭门。
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct StrictGapFact {
+    pub elements: [super::feature_seq::FeatureElement; 3],
+    pub raw_gap: bool,
+    pub gap_closed_by_c: Option<bool>,
+    pub effective_case: &'static str,
+    pub closure_operator: &'static str,
+    pub closure_left: Tick,
+    pub closure_right: Tick,
+}
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct StrokeBreakWitness {
+    pub earlier_stroke: usize,
+    pub later_stroke: usize,
+    pub earlier_price: Tick,
+    pub later_price: Tick,
+    pub comparison: &'static str,
+}
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct BreakFacts {
+    pub stroke_broken: bool,
+    pub new_segment_formed: Option<bool>,
+    pub segment_broken: Option<bool>,
+    pub stroke_break_witness: Option<StrokeBreakWitness>,
+    pub scan_from_stroke: usize,
+    pub scan_through_stroke: usize,
+    pub scan_complete: bool,
+    pub termination_witness: Option<TerminationWitness>,
+}
+/// 同次准入证书；new_segment_formed/segment_broken 由证书存在导出，不由结果标签反填。
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct TerminationWitness {
+    pub kind: &'static str,
+    pub strict: StrictGapFact,
+    pub second_match: Option<super::feature_seq::SecondCheck>,
+    pub construction: ConstructionFact,
+    pub minimum_count_met: bool,
+    pub through_stroke: usize,
+}
+
+/// #1414，065:44/46：独立枚举 gi 与 dj（或 di 与 gj），j >= i+2。
+/// 原文正文已核；不用段终结结果反填笔破坏事实。
+fn break_facts(
+    strokes: &[Stroke],
+    start: usize,
+    through: usize,
+    termination_witness: Option<TerminationWitness>,
+    incomplete: bool,
+) -> BreakFacts {
+    let formed = termination_witness.is_some();
+    let dir = strokes[start].direction;
+    let mut witness = None;
+    'outer: for earlier in (start..=through).step_by(2) {
+        for later in ((earlier + 3)..=through).step_by(2) {
+            let a = strokes[earlier].end_price;
+            let b = strokes[later].end_price;
+            if match dir {
+                Direction::Up => b <= a,
+                Direction::Down => b >= a,
+            } {
+                witness = Some(StrokeBreakWitness {
+                    earlier_stroke: earlier,
+                    later_stroke: later,
+                    earlier_price: a,
+                    later_price: b,
+                    comparison: if dir == Direction::Up { "<=" } else { ">=" },
+                });
+                break 'outer;
+            }
+        }
+    }
+    BreakFacts {
+        stroke_broken: witness.is_some(),
+        new_segment_formed: (formed || !incomplete).then_some(formed),
+        segment_broken: (formed || !incomplete).then_some(formed),
+        stroke_break_witness: witness,
+        scan_from_stroke: start,
+        scan_through_stroke: through,
+        scan_complete: formed || !incomplete,
+        termination_witness,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct SegmentEndCheck {
     pub end_stroke: usize,
@@ -311,27 +398,64 @@ fn record_candidate(
             });
         }
     }
-    // #1404 只交付无gap第一种。保留原始gap，不能把旧 strict 封闭改写成无gap。
-    let deferred = active_check.is_some_and(|c| c.gap == Some(true));
+    let second = feat.second_facts();
+    let observed_through = second
+        .as_ref()
+        .map_or(cursor, |s| cursor.max(s.through_stroke));
+    let strict = active_check.map(|c| {
+        let up = strokes[start].direction == Direction::Up;
+        StrictGapFact {
+            elements: c.elements.clone(),
+            raw_gap: c.gap == Some(true),
+            gap_closed_by_c: c.gap_closed_by_c,
+            effective_case: if c.gap == Some(true) && c.gap_closed_by_c != Some(true) {
+                "CASE_TWO"
+            } else {
+                "CASE_ONE"
+            },
+            closure_operator: if up { "<=" } else { ">=" },
+            closure_left: if up {
+                c.elements[2].low
+            } else {
+                c.elements[2].high
+            },
+            closure_right: if up {
+                c.elements[0].high
+            } else {
+                c.elements[0].low
+            },
+        }
+    });
+    let deferred = strict
+        .as_ref()
+        .is_some_and(|c| c.effective_case == "CASE_TWO");
     let invalid = attempts
         .last()
         .is_some_and(|a| !a.construction.valid() || !a.minimum_count_met);
     let result = if invalid {
         "FAILED_GEOMETRY"
+    } else if end.is_some() {
+        if deferred {
+            "CASE_TWO"
+        } else {
+            "CASE_ONE"
+        }
     } else if deferred {
         "PENDING_CASE_TWO"
-    } else if end.is_some() {
-        "CASE_ONE"
     } else {
         "NO_FIRST"
     };
-    let end = end.filter(|_| !deferred && !invalid);
+    let end = end.filter(|_| !invalid);
     // 等待/失败事实只能引用同次实际扫描到的笔，不能借未来输入扩张见证。
-    let built = construction(strokes, start, end.map_or(cursor + 1, |e| e + 1));
+    let built = construction(strokes, start, end.map_or(observed_through + 1, |e| e + 1));
     let mut waiting_reasons = if invalid || end.is_some() {
         vec![]
     } else if deferred {
-        vec!["second_kind_out_of_scope"]
+        vec![if second.as_ref().is_some_and(|s| s.resource_truncated) {
+            "second_sequence_resource_bound"
+        } else {
+            "no_second_fractal_in_current_prefix"
+        }]
     } else if first.standard.len() < 3 {
         vec!["fewer_than_three_standard_elements"]
     } else {
@@ -345,16 +469,45 @@ fn record_candidate(
             }
         }
     }
+    let termination_witness = end.and_then(|e| {
+        let strict = strict.clone()?;
+        let second_match = second.as_ref().and_then(|s| s.matched.clone());
+        let constructed = construction(strokes, start, e + 1);
+        let minimum_count_met = e - start + 1 >= min_seg;
+        (constructed.valid()
+            && minimum_count_met
+            && (strict.effective_case == "CASE_ONE" || second_match.is_some()))
+        .then_some(TerminationWitness {
+            kind: strict.effective_case,
+            strict,
+            second_match,
+            construction: constructed,
+            minimum_count_met,
+            through_stroke: observed_through,
+        })
+    });
+    let incomplete = second
+        .as_ref()
+        .is_some_and(|s| s.resource_truncated && s.matched.is_none());
     facts.candidates.push(SegmentCandidateFact {
         start_stroke: start,
         seed: construction(strokes, start, (start + 3).min(strokes.len())),
         construction: built,
         first,
-        observed_through: cursor,
+        second,
+        strict,
+        fact_vector: break_facts(
+            strokes,
+            start,
+            observed_through,
+            termination_witness,
+            incomplete,
+        ),
+        observed_through,
         result,
         waiting_reasons,
         end_stroke: end,
-        trigger_stroke: end.map(|_| cursor),
+        trigger_stroke: end.map(|_| observed_through),
         termination_attempts: attempts,
     });
 }
@@ -673,7 +826,7 @@ fn divide_segments_core(
         if observe && end_stroke >= seg_start {
             attempts.push(SegmentEndCheck {
                 end_stroke,
-                trigger_stroke: cursor,
+                trigger_stroke: hit.through_stroke.max(cursor),
                 minimum_count_met: end_stroke - seg_start >= min_seg.saturating_sub(1),
                 construction: construction(strokes, seg_start, end_stroke + 1),
             });
