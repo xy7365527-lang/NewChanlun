@@ -2388,7 +2388,7 @@ fn advance_core(
             frontier,
             v2::commit_time(&conn, context)?,
             &second_store,
-        );
+        )?;
         objects.extend(segments);
         relations.extend(edges);
     }
