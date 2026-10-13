@@ -42,7 +42,8 @@ use crate::theta_v0::types::{Center, Direction, Segment, Tick};
 /// prefix）后自然稳定。无成立窗口 ⟹ `resume_from == start_i`（无中枢可回退，续进语义不变）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct WindowScanCursor {
-    /// 已扫描到的游标位置（退出点；`units[..consumed]` 的扫描路径已确定）。
+    /// 已扫描到的游标位置（退出点；`units[..consumed]` 的扫描路径已确定）。结算窗口之后已越过其突破段
+    /// （★#1419 R8：下一 seed 自 last_member+2）；开放窗口不越过末尾，恒 `consumed <= units.len()`。
     pub consumed: usize,
     /// ★frontier 修复锚：本次扫描最后一个成立窗口的起点（`win[0]`）。下次 resume 起点用此
     /// （而非 `consumed`）⟹ 最后一个（frontier）中枢重算。无成立窗口 ⟹ == 本次 `start_i`

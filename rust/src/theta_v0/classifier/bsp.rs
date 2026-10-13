@@ -758,7 +758,9 @@ mod tests {
             // 2026-08-29 #1285：集成探针 quasi_second_probe_runs_on_production_tower
             // （+94 行）⟹ 夹具点随迁 1626 → 1720，重核内容不变（source_index 过滤），
             // 同条目重登记。
-            "theta_v0/classifier/tests/pipeline_geometry.rs:1720",
+            // 2026-10-13 #1419 S1：R8 连接段夹具（B2 / 类二买测试改调 three_group_segments，
+            // −23 行）⟹ 夹具点随迁 1720 → 1697，重核内容不变（source_index 过滤），同条目重登记。
+            "theta_v0/classifier/tests/pipeline_geometry.rs:1697",
             // 「时刻分组键」过滤（spec §12 语义，合法契约非泄漏，非身份 join，不入本族）。
             // （2026-08-16 #903/#919 注释与 fmt ⟹ +2 漂移，七处再重锚，内容不变。）
             // （2026-08-16 #993 fixture 修复 ⟹ signal.rs 测试区再位移，七处夹具点重锚，内容不变。

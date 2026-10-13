@@ -3482,31 +3482,39 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════
 
     /// R5 塔层批量丢弃实例逐只落码：一次重扫产出 m=2 窗口（窗1 = units[0..2] 被 u3 判
-    /// non-extension 关闭；窗2 = units[3..5] + 虚拟单元延伸吸收）⟹ 批内非末窗（窗1）
-    /// 进 `drops`，末窗正常产出。m=1 时 `drops` 恒为空追加。
+    /// non-extension 关闭；u3 是突破段（连接段）；窗2 = units[4..6] + 虚拟单元延伸吸收）⟹ 批内
+    /// 非末窗（窗1）进 `drops`，末窗正常产出。m=1 时 `drops` 恒为空追加。
     #[test]
     fn r5_scan_active_window_records_batch_dropped_windows() {
         let mut units = l0_units_seed();
-        // 窗2 seed：方向交替（Down/Up/Down）+ 核心 [135,145] 非空；u3 整体高于窗1 核心
-        // 上沿 120 ⟹ 对窗1 是 non-extension 哨兵，窗1 关闭、扫描从 u3 续进。
+        // u3 [121,128] 整体高于窗1 核心上沿 120 ⟹ 对窗1 是 non-extension 哨兵，窗1 关闭；★#1419 R8
+        // （#812 Z-5）：u3 是突破段（连接段），下一 seed 自 last_member+2 = u4 起（旧夹具让 u3 兼任窗2
+        // 首单元，只在旧 B 口径下成立）。窗2 seed：方向交替（Down/Up/Down）+ 核心 [135,145] 非空。
         units.extend_from_slice(&[
             UnitRange {
                 start_index: 30,
                 end_index: 40,
                 direction: Direction::Down,
-                lo: 130,
-                hi: 150,
+                lo: 121,
+                hi: 128,
             },
             UnitRange {
                 start_index: 40,
                 end_index: 50,
-                direction: Direction::Up,
-                lo: 135,
+                direction: Direction::Down,
+                lo: 130,
                 hi: 150,
             },
             UnitRange {
                 start_index: 50,
                 end_index: 60,
+                direction: Direction::Up,
+                lo: 135,
+                hi: 150,
+            },
+            UnitRange {
+                start_index: 60,
+                end_index: 70,
                 direction: Direction::Down,
                 lo: 130,
                 hi: 145,
@@ -3515,18 +3523,18 @@ mod tests {
         // 虚拟单元 [138,142] 与窗2 核心 [135,145] 相交 ⟹ 窗2 延伸吸收（守卫 3 通过）。
         let l0_frontier = ActiveSegmentFrontier {
             direction: Direction::Down,
-            start_index: 60,
+            start_index: 70,
             start_price: 142,
             extreme: 138,
-            extreme_at: 70,
+            extreme_at: 80,
         };
         let mut drops = Vec::new();
         let outcome = active_l1_window_frontier(&units, Some(&l0_frontier), 0, &mut drops);
         let frontier = outcome.frontier().expect("末窗吸收虚拟单元 ⟹ 产出");
         assert_eq!(
             (frontier.start_index, frontier.end_index),
-            (30, 70),
-            "末窗 = units[3..5] + 虚拟单元"
+            (40, 80),
+            "末窗 = units[4..6] + 虚拟单元"
         );
         assert_eq!(
             drops,

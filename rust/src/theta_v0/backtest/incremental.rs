@@ -871,12 +871,15 @@ mod tests {
     }
 
     /// fixture2（#1404）：三笔构造有效的交替线段，簇间上移使上级外缘最终分离。
-    /// raw170 重扫产两个窗口；raw266 有三个上级输入但无中枢，触发空投影早停。
     /// 原9K随机夹具在完整段构造准入后仅剩一层，已不能承担这两项覆盖。
+    /// ★#1419 R8（#812 Z-5，续扫自 last_member+2）：突破段不再兼任下一中枢 seed 首段，每个上级
+    /// 中枢多吃一个连接单元 ⟹ 旧 12 簇 / take(267) 版的空投影早停（旧 raw266）推迟出夹具尾
+    /// （empty_break=0）。簇数 12→14、截断 267→316 后实测：raw204–207 间首个 T>1 重扫，raw314
+    /// 起「上级输入 ≥3 但无中枢」触发空投影早停（读数 T==1=239 / T>1=2 / empty_break=4）。
     #[test]
     fn a3_oracle_pop_rescan_empty() {
         let mut knots = vec![0i64];
-        for j in 0..12 {
+        for j in 0..14 {
             let base = 8 * j;
             knots.extend([base + 10, base + 4, base + 20, base + 8, base + 16, base]);
         }
@@ -890,7 +893,7 @@ mod tests {
         }
         let bars: Vec<Bar> = prices
             .into_iter()
-            .take(267)
+            .take(316)
             .enumerate()
             .map(|(i, price)| Bar {
                 source_index: i,
