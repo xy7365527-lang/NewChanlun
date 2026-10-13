@@ -671,6 +671,105 @@ async function run() {
     );
     assert.equal(expired, 1, "命中缓存仍守读取期限");
   });
+  // #1394 整合（根裁定 A）：q3-values 普通值 field() 快路径的锁。对照 oracle 是旧实现（entries() 对普通值
+  // 每次按 UTF-8 重排全部键），只存在于本测试里，不在生产路径上（#799）。图值走真实 Reader.entries：
+  // 用 s-content-v3 编码同一对象，Reader 的已核载入结果在测试里预置（不走网络），field() 的图值分支原样。
+  await test("Q3值层普通值field快路径与旧实现及图值同结果同错误文案", async () => {
+    const V = API.Q3.V,
+      C = require(path.join(root, "s_session/browser/s-content-v3.js"));
+    const utf8 = (s) => V.cmp(s, s); // V.cmp 对两侧做同一 UTF-8 判据（含孤立代理项）
+    async function oldField(value, key) {
+      utf8(key);
+      value = V.of(value);
+      await value.check();
+      V.need(value.kind === "object", "要求对象");
+      let previous = null;
+      for (const k of Object.keys(value.plain).sort(V.cmp)) {
+        utf8(k);
+        V.need(previous === null || V.cmp(previous, k) < 0, "对象键重复/顺序错误");
+        previous = k;
+        if (k === key) return V.of(value.plain[k]);
+      }
+      throw new Error("缺完整字段：" + key);
+    }
+    const outcome = async (run) => {
+      try {
+        return { ok: await run() };
+      } catch (e) {
+        return { error: String(e.message) };
+      }
+    };
+    const bad = "a\uD800";
+    const values = [
+      { a: "1", b: { c: null }, d: ["x", true] },
+      { z: "1", "é": "2", "中": "3", "𝄞": "4", "": "5" },
+      {},
+      { [bad]: "x", a: "y" },
+      { "\uDC00": "x" },
+      ["x"],
+      "s",
+      null,
+    ];
+    const keys = ["a", "b", "d", "z", "é", "中", "𝄞", "", "missing", bad];
+    for (const value of values)
+      for (const key of keys) {
+        const fresh = await outcome(() => V.of(value).field(key)),
+          old = await outcome(() => oldField(value, key));
+        const label = "快路径与旧实现不一致：" + JSON.stringify([value, key]);
+        assert.equal(fresh.error, old.error, label);
+        if (!("error" in old)) assert.ok(fresh.ok.plain === old.ok.plain, label);
+      }
+    const message = async (value, key) =>
+      (await outcome(() => V.of(value).field(key))).error;
+    assert.equal(await message({ [bad]: "x", a: "y" }, "a"), "孤立 Unicode 代理项");
+    assert.equal(await message({ a: "1" }, "b"), "缺完整字段：b");
+    assert.equal(await message(["x"], "a"), "要求对象");
+    assert.equal(await message({ [bad]: "x" }, "missing"), "孤立 Unicode 代理项", "键非法先于缺字段");
+    assert.equal(await message({ a: "1" }, bad), "孤立 Unicode 代理项", "参数键先判");
+    for (const value of values) {
+      if (value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).some((k) => {
+        try { utf8(k); return false; } catch { return true; }
+      })) {
+        await assert.rejects(async () => C.encode(C.fromPlain(value)), Error, "含孤立代理项键的对象不能编成图值");
+        continue;
+      }
+      const built = await C.encode(C.fromPlain(value)),
+        graph = await C.GraphView.create([...built.nodes]),
+        reader = new V.Reader({
+          anchor: { kind: "projection", projection_ref: built.ref },
+          request: async () => {
+            throw new Error("本锁不走网络");
+          },
+          check: () => {},
+          accept: async () => {},
+          store: async () => {},
+          limit: 1024,
+        });
+      if (built.ref.kind === "object")
+        reader.values.set(
+          built.ref.root,
+          Promise.resolve({
+            items: [...graph.entries(built.ref)].map((e) => ({ key: e.key, value_ref: e.value_ref })),
+            graphs: [graph],
+          }),
+        );
+      const graphValue = reader.value(built.ref);
+      for (const key of keys) {
+        const plain = await outcome(() => V.of(value).field(key)),
+          viaGraph = await outcome(() => graphValue.field(key));
+        if ("error" in plain) {
+          assert.deepEqual(viaGraph, plain, "图值错误文案不同：" + JSON.stringify([value, key]));
+          continue;
+        }
+        assert.ok("ok" in viaGraph, "图值取不到普通值取得到的字段：" + JSON.stringify([value, key]));
+        assert.equal(
+          viaGraph.ok.ref.root,
+          (await C.encode(C.fromPlain(plain.ok.plain))).ref.root,
+          "图值字段与普通值字段内容不同：" + JSON.stringify([value, key]),
+        );
+      }
+    }
+  });
   async function setup() {
     const server = fakeServer(f),
       commits = [];

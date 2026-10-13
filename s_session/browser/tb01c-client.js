@@ -1897,7 +1897,7 @@ if (typeof module !== 'object' || !module.exports) {
   return Object.freeze({LIMIT_FIELDS, parseLimits, validateConfig, Job});
 });
 
-/* exact source q3-values.js SHA256 fc270895062e3f28f92da1534f44642d59801980b12efb3f811382bfddc06bb1 */
+/* exact source q3-values.js SHA256 2d881fd06f538218ac73291fde4ba6ea0bb5679ba8480c6c6f047e2e3f84fe4e */
 /* #1394：现有 Q3 消费者的私有值访问器。普通值与图值共用字段/位置遍历。 */
 (function (root, factory) {
   const common = typeof module === "object" && module.exports;
@@ -1922,7 +1922,8 @@ if (typeof module !== 'object' || !module.exports) {
   function isNumber(v) {
     return !!v?.[NUMBER];
   }
-  function utf8(s) {
+  // 文本合法性（含孤立代理项）的唯一判据；utf8() 在其后编码，field() 快路径只判不编码。
+  function wellFormed(s) {
     need(typeof s === "string", "要求 UTF-8 文本");
     for (let i = 0; i < s.length; i++) {
       let c = s.charCodeAt(i);
@@ -1931,6 +1932,9 @@ if (typeof module !== 'object' || !module.exports) {
         need(c >= 0xdc00 && c <= 0xdfff, "孤立 Unicode 代理项");
       } else need(c < 0xdc00 || c > 0xdfff, "孤立 Unicode 代理项");
     }
+  }
+  function utf8(s) {
+    wellFormed(s);
     return encoder.encode(s);
   }
   function cmp(a, b) {
@@ -2033,6 +2037,17 @@ if (typeof module !== 'object' || !module.exports) {
     }
     async field(key) {
       utf8(key);
+      if (!this.reader) {
+        // #1394 整合（根裁定 A）：普通值按自有属性直接取字段。旧路径每取一个字段都经 entries() 把全部键
+        // 按 UTF-8 重排、每次比较都编码（剖析：TextEncoder.encode 53%、cmp 12%）。JS 对象键不会重复，
+        // entries() 的顺序断言对普通值恒真；其余检查与先后次序不变：参数键 → 对象类型 → 全部键的孤立
+        // 代理项 → 缺字段。图值路径不变。
+        await this.check();
+        need(this.kind === "object", "要求对象");
+        for (const k of Object.keys(this.plain)) wellFormed(k);
+        if (Object.hasOwn(this.plain, key)) return Value.of(this.plain[key]);
+        throw new Error("缺完整字段：" + key);
+      }
       for await (const e of this.entries()) if (e.key === key) return e.value;
       throw new Error("缺完整字段：" + key);
     }

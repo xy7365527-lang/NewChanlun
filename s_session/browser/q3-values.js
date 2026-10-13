@@ -22,7 +22,8 @@
   function isNumber(v) {
     return !!v?.[NUMBER];
   }
-  function utf8(s) {
+  // 文本合法性（含孤立代理项）的唯一判据；utf8() 在其后编码，field() 快路径只判不编码。
+  function wellFormed(s) {
     need(typeof s === "string", "要求 UTF-8 文本");
     for (let i = 0; i < s.length; i++) {
       let c = s.charCodeAt(i);
@@ -31,6 +32,9 @@
         need(c >= 0xdc00 && c <= 0xdfff, "孤立 Unicode 代理项");
       } else need(c < 0xdc00 || c > 0xdfff, "孤立 Unicode 代理项");
     }
+  }
+  function utf8(s) {
+    wellFormed(s);
     return encoder.encode(s);
   }
   function cmp(a, b) {
@@ -133,6 +137,17 @@
     }
     async field(key) {
       utf8(key);
+      if (!this.reader) {
+        // #1394 整合（根裁定 A）：普通值按自有属性直接取字段。旧路径每取一个字段都经 entries() 把全部键
+        // 按 UTF-8 重排、每次比较都编码（剖析：TextEncoder.encode 53%、cmp 12%）。JS 对象键不会重复，
+        // entries() 的顺序断言对普通值恒真；其余检查与先后次序不变：参数键 → 对象类型 → 全部键的孤立
+        // 代理项 → 缺字段。图值路径不变。
+        await this.check();
+        need(this.kind === "object", "要求对象");
+        for (const k of Object.keys(this.plain)) wellFormed(k);
+        if (Object.hasOwn(this.plain, key)) return Value.of(this.plain[key]);
+        throw new Error("缺完整字段：" + key);
+      }
       for await (const e of this.entries()) if (e.key === key) return e.value;
       throw new Error("缺完整字段：" + key);
     }
