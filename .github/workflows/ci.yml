@@ -258,10 +258,15 @@ jobs:
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --bin s_structure_session --jobs 1
 
       # #1394 C：内容编码在 s_session feature 下供多个 owner 共用；只测 S bin 不会执行库测试。
+      # #1394 整合 C-1：本步与下一步不依赖「default targets」与 s_session bin 两步的结果；
+      #   已登记的默认域既有红会让这两步被跳过，故照本文件既有写法加 if: always()。
+      #   job 结论仍由失败的那一步决定，本条不掩盖它。
       - name: cargo test — 完整内容编码与共享图校验（#1394）
+        if: always()
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --lib --jobs 1 s_content
 
       - name: cargo test — 内容向量、持久序列与累计资源（#1394）
+        if: always()
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --test s_content_contract --test s_content_sequence --test s_content_job --test s_content_path --jobs 1
 
       - name: cargo test — backtest_bin feature（econ_oddeven_diagnosis.rs 仅在此 feature 下编译）
