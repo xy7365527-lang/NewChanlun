@@ -63,7 +63,7 @@ fn row(i: usize, blob: usize) -> V {
     ])
 }
 /// 七字段 FinancialBasis；objects 里有跨 4096 字节块的大字符串，六族都是数组。
-fn basis() -> (MemoryNodes, ContentRef) {
+pub(super) fn basis() -> (MemoryNodes, ContentRef) {
     let rows = |n: usize, base: usize, blob: usize| {
         V::Array((0..n).map(|i| row(base + i, blob)).collect())
     };
@@ -106,7 +106,7 @@ fn basis() -> (MemoryNodes, ContentRef) {
     let root = sc::write_value(&mut store, &basis).unwrap().content_ref();
     (store, root)
 }
-fn evidence(root: &ContentRef) -> Value {
+pub(super) fn evidence(root: &ContentRef) -> Value {
     json!({"schema_revision":"s-financial-evidence/1","content_format":"s-content/1",
         "kind":"FinancialBasisEvidence","session_id":SID,"session_generation":"1","writer_epoch":"1",
         "pending_revision":false,"commit_ns":"77","basis_ref":root.to_transport_json()})
@@ -118,7 +118,7 @@ fn anchor(root: &ContentRef) -> Value {
 fn hexed(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
-fn node_json(digest: &NodeDigest, tag: u8, body: &[u8]) -> Value {
+pub(super) fn node_json(digest: &NodeDigest, tag: u8, body: &[u8]) -> Value {
     json!({"root":sc::root_string(digest),"tag":format!("{tag:02x}"),"body_hex":hexed(body)})
 }
 

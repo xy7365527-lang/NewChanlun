@@ -20,6 +20,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     io::Read,
+    os::unix::fs::{MetadataExt, PermissionsExt},
     path::Path,
     time::Instant,
 };
@@ -259,6 +260,15 @@ impl Reading {
             _ => Err(invalid("reader_session 须为 null 或字符串")),
         }
     }
+    /// 缺节点命令只认本读法那一条（A6 第4、6节）：会话读法不发逐片 `financial-content`；冷读法
+    /// 不发 `financial-closure`（无会话的冷 6 参是 #804 对拍臂，不参与准入）。
+    fn refuses(&self, command: &str) -> bool {
+        matches!(
+            (self, command),
+            (Self::SessionClosure(_), "financial-content")
+                | (Self::ColdFragment, "financial-closure")
+        )
+    }
 }
 impl SourcePins {
     pub(super) fn from_structure(value: &Value) -> Result<Self, String> {
@@ -342,6 +352,29 @@ impl SourcePins {
         }
         Ok(())
     }
+    /// A6 2.4：会话 socket 的父目录须为本 euid 所有、无组/其他权限位（与 S 侧 `prepare_socket`
+    /// 同一条件）。这是运行时事实，与 binary SHA 一样在读时、发出任何 S 读取之前核。
+    fn check_session_dir(&self) -> Result<(), String> {
+        let Reading::SessionClosure(socket) = &self.reading else {
+            return Ok(());
+        };
+        let parent = Path::new(socket)
+            .parent()
+            .ok_or_else(|| invalid("reader_session 父目录缺失"))?;
+        let meta = std::fs::symlink_metadata(parent)
+            .map_err(|_| missing("reader_session 父目录不可读"))?;
+        // SAFETY: 无参只读。
+        let euid = unsafe { libc::geteuid() };
+        if !meta.file_type().is_dir()
+            || meta.uid() != euid
+            || meta.permissions().mode() & 0o077 != 0
+        {
+            return Err(
+                "IdentityConflict：reader_session 父目录须为本用户所有且无组/其他权限位".into(),
+            );
+        }
+        Ok(())
+    }
     fn call(
         &self,
         command: &str,
@@ -349,6 +382,12 @@ impl SourcePins {
         job: &mut Job,
         deadline: Instant,
     ) -> Result<Value, String> {
+        // 读法门：在起 S 进程、计请求之前拒绝另一读法的命令（A6 第4、6节）。
+        if self.reading.refuses(command) {
+            return Err(format!(
+                "UnsupportedCapability：冻结读法不发出 {command}（#1394 A6 第4、6节）"
+            ));
+        }
         let args = self.reader_args(command);
         finance_transport::financial_reader(
             &self.binary,
@@ -427,6 +466,7 @@ pub(super) fn read_current_pins(
         }
     }
     pins.check_binary(shared_job, operation_deadline)?;
+    pins.check_session_dir()?;
     loop {
         shared_job.pre_io_check().map_err(codec)?;
         if Instant::now() >= operation_deadline {
@@ -1409,6 +1449,9 @@ mod closure_replica_tests;
 #[cfg(test)]
 #[path = "closure_tests.rs"]
 mod closure_tests;
+#[cfg(test)]
+#[path = "reading_tests.rs"]
+mod reading_tests;
 
 #[cfg(test)]
 mod tests {
