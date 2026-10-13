@@ -568,8 +568,8 @@ fn compact_full(bars: &[Bar], config: &ParseConfig) -> StrokeFacts {
 #[test]
 #[ignore = "外部数据：TB02V_BTC_TAIL50K=<btc_tail50k.json>；收据见 .chanlun/review-results/issue1405-*"]
 fn tb02v_btc_tail50k_reading_and_prefix_ladder() {
-    use sha2::{Digest, Sha256};
     use crate::theta_v0::env_registry::TB02V_BTC_TAIL50K;
+    use sha2::{Digest, Sha256};
     let path = std::env::var(TB02V_BTC_TAIL50K).expect("TB02V_BTC_TAIL50K=<btc_tail50k.json>");
     let bytes = std::fs::read(&path).unwrap();
     let sha: String = Sha256::digest(&bytes)
