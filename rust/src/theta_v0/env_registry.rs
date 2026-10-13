@@ -135,6 +135,10 @@ pub const NEST_GATE_SMOKE_START: &str = "NEST_GATE_SMOKE_START";
 pub const T1_PROBE_BARS: &str = "T1_PROBE_BARS";
 pub const T1_PROBE_START: &str = "T1_PROBE_START";
 
+// -- parser：#1405 TB-02-V 同价行为锁的测试脚手架（观测门）--
+pub const TB02V_BTC_TAIL50K: &str = "TB02V_BTC_TAIL50K";
+pub const TB02V_REPLAY_CHILD: &str = "TB02V_REPLAY_CHILD";
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  静态表——五列全键在案。
 // ─────────────────────────────────────────────────────────────────────────────
@@ -592,6 +596,20 @@ pub static REGISTRY: &[EnvKeyMeta] = &[
         default_arm: "未设 ⟹ issue1147-stepfail-raw-2024.jsonl",
         layer: "backtest",
     },
+    EnvKeyMeta {
+        key: TB02V_BTC_TAIL50K,
+        semantic: "#1405 真实 BTC 1m 尾 5 万根读数锁与前缀阶梯的外部数据路径（test-only，#[ignore]）",
+        kind: GateKind::Observation,
+        default_arm: "未设 ⟹ 该 ignore 测试显式运行时 expect 失败",
+        layer: "parser",
+    },
+    EnvKeyMeta {
+        key: TB02V_REPLAY_CHILD,
+        semantic: "#1405 AT-14 双新进程重放：置位时测试以子进程模式只打印 StrokeFacts 读数（test-only）",
+        kind: GateKind::Observation,
+        default_arm: "未设 ⟹ 父进程模式（派生两个新进程对拍）",
+        layer: "parser",
+    },
 ];
 
 /// 全键只读枚举（运行期可列，spec #756 C2 形状条「查询口」半条）。
@@ -620,13 +638,13 @@ mod tests {
 
     /// 表内键数锁（票 #746 面复核实数 46 + #758 issue766 补 4 + #719 补
     /// THETA_DEATH_WO_DUMP 一键 + 2026-08-16 镜像追推 CI 守卫实撞补登 #837/#841 探针五键
-    /// + #1223 探针两键）。
+    /// + #1223 探针两键 + #1405 TB-02-V 测试脚手架两键）。
     #[test]
-    fn registry_has_63_entries() {
+    fn registry_has_65_entries() {
         assert_eq!(
             REGISTRY.len(),
-            63,
-            "注册表键数漂移——新增/删除 env 键须同步登记表（票 #746 复核实数 46 + #758 issue766 补 4 + #719 补 1 + #837/#841 补 5 + #1223 补 2）"
+            65,
+            "注册表键数漂移——新增/删除 env 键须同步登记表（票 #746 复核实数 46 + #758 issue766 补 4 + #719 补 1 + #837/#841 补 5 + #1223 补 2 + #1405 补 2）"
         );
     }
 
