@@ -445,3 +445,229 @@ impl SecondFoldCursor {
             .expect("空封存态无前缀可校验，版本取自当前常量")
     }
 }
+
+// ─── K1 线形与跨轮调度（#1420 tb02c 片）─────────────────────────────────────────────────────
+//
+// 线形只携 K1 字段（不携包含步骤与检查日志）。恢复时自 b 笔重折叠已封存的 `consumed_len` 步，
+// 与线形逐字段比对（含指纹）：相符即采纳并重建单步撤销记录，不符（输入已修订、或线形被改）即
+// 自 b 笔重折叠——无论哪条路，出具的事实都等于同一输入、同额预算的无中断折叠。累计预算是唯一
+// 依赖历史的字段，恢复时照搬。
+
+fn dir_name(d: Direction) -> &'static str {
+    match d {
+        Direction::Up => "UP",
+        Direction::Down => "DOWN",
+    }
+}
+
+fn wire_int(v: &serde_json::Value) -> Option<i64> {
+    match v {
+        serde_json::Value::String(s) => s.parse().ok(),
+        serde_json::Value::Number(n) => n.as_i64(),
+        _ => None,
+    }
+}
+
+/// 数字一律转十进制文本（与 S 对象线形一致），便于逐字段比对。
+fn normalized(v: serde_json::Value) -> serde_json::Value {
+    use serde_json::Value;
+    match v {
+        Value::Number(n) => Value::String(n.to_string()),
+        Value::Array(a) => Value::Array(a.into_iter().map(normalized).collect()),
+        Value::Object(m) => Value::Object(m.into_iter().map(|(k, x)| (k, normalized(x))).collect()),
+        x => x,
+    }
+}
+
+impl SecondFoldCursor {
+    /// K1 线形（字段见模块头）。
+    pub fn to_wire(&self) -> serde_json::Value {
+        let f = &self.state.facts;
+        serde_json::json!({
+            "schema": self.schema,
+            "rule_revision": self.rule_revision,
+            "budget_policy": self.budget_policy,
+            "budget_granted": self.budget_granted,
+            "candidate": {
+                "seg_dir": dir_name(self.candidate.seg_dir),
+                "b_stroke": self.candidate.b_stroke,
+                "candidate_extreme": self.candidate.candidate_extreme,
+            },
+            "input_stroke_count": self.input_stroke_count,
+            "from_stroke": f.from_stroke,
+            "through_stroke": f.through_stroke,
+            "consumed_len": self.state.consumed_len,
+            "consumed_digest": format!("{:016x}", self.state.consumed_digest),
+            "dir_state": self.state.dir_state.map(dir_name),
+            "standard": f.standard,
+            "breach_watermark": f.breach_watermark,
+            "semantic_state": f.semantic_state,
+            "killed_by": f.killed_by,
+            "matched": f.matched,
+        })
+    }
+
+    /// 本轮预算已耗尽：未决且封存步数恰等于累计获批预算。
+    pub fn exhausted(&self) -> bool {
+        !self.state.decided()
+            && self
+                .budget_granted
+                .is_some_and(|g| self.state.consumed_len == g)
+    }
+
+    /// 自线形恢复：身份与版本取线形；已封存部分在 `strokes` 上重折叠核验，相符即采纳。
+    /// 返回 `(游标, 已核验, 上一轮已耗尽)`；未核验时游标为自 b 笔的空封存态（保留累计预算），
+    /// 续扫即重折叠。「上一轮已耗尽」是调度事实，按线形判（未决且封存步数等于累计预算）。
+    pub fn from_wire(wire: &serde_json::Value, strokes: &[Stroke]) -> Option<(Self, bool, bool)> {
+        if wire["schema"] != SECOND_FOLD_CURSOR_SCHEMA
+            || wire["rule_revision"] != SECOND_CANDIDATE_RULE_REVISION
+            || wire["budget_policy"] != SECOND_SEQ_SCAN_BUDGET_POLICY
+        {
+            return None;
+        }
+        let c = &wire["candidate"];
+        let seg_dir = match c["seg_dir"].as_str()? {
+            "UP" => Direction::Up,
+            "DOWN" => Direction::Down,
+            _ => return None,
+        };
+        let candidate = SecondCandidateId {
+            seg_dir,
+            b_stroke: usize::try_from(wire_int(&c["b_stroke"])?).ok()?,
+            candidate_extreme: wire_int(&c["candidate_extreme"])?,
+        };
+        let budget_granted = match &wire["budget_granted"] {
+            serde_json::Value::Null => None,
+            v => Some(usize::try_from(wire_int(v)?).ok()?),
+        };
+        let consumed = usize::try_from(wire_int(&wire["consumed_len"])?).ok()?;
+        let exhausted = wire["semantic_state"].is_null() && budget_granted == Some(consumed);
+        let mut cursor = SecondFoldCursor::new(candidate, 0);
+        cursor.budget_granted = budget_granted;
+        cursor.input_stroke_count = usize::try_from(wire_int(&wire["input_stroke_count"])?).ok()?;
+        let from = cursor.state.facts.from_stroke;
+        if from + consumed > strokes.len() {
+            return Some((cursor, false, exhausted));
+        }
+        let mut probe = cursor.clone();
+        for k in 0..consumed {
+            if probe.state.decided() {
+                return Some((cursor, false, exhausted));
+            }
+            if k + 1 == consumed {
+                probe.undo = Some(probe.state.capture());
+            }
+            probe.state.step(strokes, &candidate);
+        }
+        let verified = normalized(probe.to_wire()) == normalized(wire.clone());
+        Some((if verified { probe } else { cursor }, verified, exhausted))
+    }
+}
+
+/// 每候选游标的调度簿：S 每轮（cut）一份，跨轮的游标经已发布对象的 K1 线形带入。
+///
+/// 每轮获批预算 `round_budget`（笔数，0 = 无限）：新候选以它为初始预算；上一轮已耗尽的游标在本轮
+/// 先 `grant(round_budget)` 再续扫——预算耗尽只让覆盖暂缺，下一轮接着扫，不会永久停在
+/// `INCOMPLETE_RESOURCE_BOUND`。
+#[derive(Debug, Clone, Default)]
+pub struct SecondFoldStore {
+    pub round_budget: u32,
+    restored: std::collections::BTreeMap<(u8, usize, Tick), serde_json::Value>,
+    cursors: std::collections::BTreeMap<(u8, usize, Tick), SecondFoldCursor>,
+    verified: usize,
+    granted: usize,
+}
+
+fn store_key(c: &SecondCandidateId) -> (u8, usize, Tick) {
+    let d = match c.seg_dir {
+        Direction::Up => 0,
+        Direction::Down => 1,
+    };
+    (d, c.b_stroke, c.candidate_extreme)
+}
+
+impl SecondFoldStore {
+    pub fn new(round_budget: u32) -> Self {
+        SecondFoldStore {
+            round_budget,
+            ..Self::default()
+        }
+    }
+
+    /// 登记上一轮的 K1 线形（本轮首次用到该候选时才在当轮输入上核验）。身份不可读的线形丢弃。
+    pub fn restore(&mut self, wire: &serde_json::Value) {
+        let c = &wire["candidate"];
+        let dir = match c["seg_dir"].as_str() {
+            Some("UP") => Direction::Up,
+            Some("DOWN") => Direction::Down,
+            _ => return,
+        };
+        let (Some(b), Some(p)) = (wire_int(&c["b_stroke"]), wire_int(&c["candidate_extreme"]))
+        else {
+            return;
+        };
+        let Ok(b) = usize::try_from(b) else { return };
+        let key = store_key(&SecondCandidateId {
+            seg_dir: dir,
+            b_stroke: b,
+            candidate_extreme: p,
+        });
+        self.restored.insert(key, wire.clone());
+    }
+
+    /// 本轮折叠该候选：已有游标即续扫；否则自上一轮线形恢复或新建。
+    pub(super) fn fold(
+        &mut self,
+        candidate: SecondCandidateId,
+        strokes: &[Stroke],
+    ) -> SecondSequenceFacts {
+        let key = store_key(&candidate);
+        if !self.cursors.contains_key(&key) {
+            let cursor = match self
+                .restored
+                .remove(&key)
+                .and_then(|w| SecondFoldCursor::from_wire(&w, strokes))
+            {
+                Some((mut cursor, verified, exhausted)) => {
+                    self.verified += usize::from(verified);
+                    if exhausted {
+                        cursor.grant(self.round_budget);
+                        self.granted += 1;
+                    }
+                    cursor
+                }
+                None => SecondFoldCursor::new(candidate, self.round_budget),
+            };
+            self.cursors.insert(key, cursor);
+        }
+        let cursor = self.cursors.get_mut(&key).expect("上句已插入");
+        match cursor.resume(strokes) {
+            Ok(facts) => facts,
+            Err(_) => cursor.refold(strokes),
+        }
+    }
+
+    /// 本轮用到的该候选游标（供 S 写入 K1 线形）。
+    pub fn cursor(&self, candidate: &SecondCandidateId) -> Option<&SecondFoldCursor> {
+        self.cursors.get(&store_key(candidate))
+    }
+
+    /// 本 cut 的续扫检查点：只含调度相关的游标——累计预算大于每轮预算，或本轮预算已耗尽。其余
+    /// 游标下一轮以每轮预算新建即与续扫逐位相同，不必存；预算 0（无限）时恒为空。
+    pub fn checkpoint(&self) -> Vec<serde_json::Value> {
+        let round = self.round_budget as usize;
+        self.cursors
+            .values()
+            .filter(|c| {
+                c.budget_granted
+                    .is_some_and(|g| (round != 0 && g > round) || c.exhausted())
+            })
+            .map(SecondFoldCursor::to_wire)
+            .collect()
+    }
+
+    /// 诊断读数：(本轮自线形核验通过的游标数, 本轮因耗尽而追加预算的游标数)。
+    pub fn round_counts(&self) -> (usize, usize) {
+        (self.verified, self.granted)
+    }
+}

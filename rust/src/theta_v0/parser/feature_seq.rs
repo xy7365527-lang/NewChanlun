@@ -186,19 +186,14 @@ pub struct SecondSequenceFacts {
     /// 覆盖 = `INCOMPLETE_RESOURCE_BOUND` 的旧名（TB-02-D 线形保留）；失效时为 false。
     pub resource_truncated: bool,
     pub matched: Option<SecondCheck>,
-    // #1420：以下语义字段暂不进 S 线形——tb02c/合同/浏览器按新 rule_revision 另片接入，
-    // 本片不改 TB-02-D 已发布对象的键集（s_tb02_contract.py / tb01c-client.js 逐键校验）。
+    // #1420：以下语义字段随段合同 s-segment/3（rule_revision `…+segment-second/2`）进 S 线形；
+    // s-segment/2 的 TB-02-D 已发布对象不回改（合同按 schema 分支校验）。
     /// 候选极值 P：主序列分型中心元素 b 的 high（向上段）/ low（向下段）。
-    #[serde(skip_serializing)]
     pub candidate_extreme: Tick,
     /// 越界水位：已消费同向笔原始极值的最远处（向上段取 max high，向下段取 min low）。
-    #[serde(skip_serializing)]
     pub breach_watermark: Option<Tick>,
-    #[serde(skip_serializing)]
     pub semantic_state: Option<SecondTerminal>,
-    #[serde(skip_serializing)]
     pub killed_by: Option<SecondKill>,
-    #[serde(skip_serializing)]
     pub coverage: ScanCoverage,
 }
 
@@ -422,6 +417,8 @@ pub struct FeatureSeqState {
     /// #1420 / A-ST-048-01：已遇预算耗尽的候选。预算耗尽不是否定，本段之后的候选一律不判，
     /// 直到该候选在新输入上解出（增量层每次 append 新建状态机，故只在单次扫描内生效）。
     budget_blocked: bool,
+    /// #1420：S 层的每候选游标簿（K1，跨轮续扫）；`None` = 按 `second_seq_window` 无中断折叠。
+    second_store: Option<super::second_fold::SecondFoldStore>,
     facts: Option<FeatureSequenceFacts>,
     second: Option<SecondSequenceFacts>,
     // #1414 / 067:196：同b的首次FIRST c，不能吸收后来的封闭而倒改第一种。
@@ -452,6 +449,7 @@ impl FeatureSeqState {
             second_seq_window,
             skipped_secondkind: false,
             budget_blocked: false,
+            second_store: None,
             facts: None,
             second: None,
             frozen_first: Default::default(),
@@ -483,6 +481,15 @@ impl FeatureSeqState {
 
     pub fn observe(&mut self) {
         self.facts = Some(FeatureSequenceFacts::default());
+    }
+
+    /// #1420：挂上游标簿后，第二种候选经簿内 K1 游标折叠（预算 = 游标累计获批预算）。
+    pub fn set_second_store(&mut self, store: Option<super::second_fold::SecondFoldStore>) {
+        self.second_store = store;
+    }
+
+    pub fn take_second_store(&mut self) -> Option<super::second_fold::SecondFoldStore> {
+        self.second_store.take()
     }
 
     pub fn facts(&self) -> FeatureSequenceFacts {
@@ -712,14 +719,22 @@ impl FeatureSeqState {
                 Direction::Up => b_h,
                 Direction::Down => b_l,
             };
-            let second = has_gap.then(|| {
-                second_sequence(
+            let second = has_gap.then(|| match self.second_store.as_mut() {
+                Some(store) => store.fold(
+                    super::second_fold::SecondCandidateId {
+                        seg_dir: self.seg_dir,
+                        b_stroke,
+                        candidate_extreme,
+                    },
+                    strokes,
+                ),
+                None => second_sequence(
                     strokes,
                     self.seg_dir,
                     b_stroke,
                     candidate_extreme,
                     self.second_seq_window,
-                )
+                ),
             });
             let through_stroke = second.as_ref().map_or(window[2].stroke_idx, |s| {
                 s.through_stroke.max(window[2].stroke_idx)
@@ -756,12 +771,13 @@ impl FeatureSeqState {
                     self.skipped_secondkind = true;
                     continue;
                 }
-                Some((None, _)) => {
+                Some((None, s)) => {
                     // A-ST-048-01 / G-007：预算耗尽不是否定——不得把它当「无分型」跳过去判后续候选。
+                    // 假设转折点试探（provisional）同理：「不成转折、合并了事」也是据否定作的结构决定，
+                    // 故试探中遇到也封住本段，并留下该候选的扫描事实（调度锁 window 5 反例）。
                     self.skipped_secondkind = true;
-                    if !self.provisional {
-                        self.budget_blocked = true;
-                    }
+                    self.budget_blocked = true;
+                    self.second = Some(s.clone());
                     return None;
                 }
             }

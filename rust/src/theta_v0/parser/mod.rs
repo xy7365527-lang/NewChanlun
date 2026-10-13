@@ -200,8 +200,24 @@ pub fn parse_layer_with_inclusion_facts(
     config: &ThetaConfig,
 ) -> (ParseLayer, inclusion::InclusionFacts) {
     let mut facts = inclusion::process_inclusion_with_facts(bars);
-    let layer = parse_layer_from_facts(&mut facts, &config.parse);
+    let layer = parse_layer_from_facts(&mut facts, &config.parse, &mut None);
     (layer, facts)
+}
+
+/// #1420：同 [`parse_layer_with_inclusion_facts`]，第二种候选经 S 层游标簿（K1，跨轮续扫与恢复）折叠。
+pub fn parse_layer_with_inclusion_facts_store(
+    bars: &[Bar],
+    config: &ThetaConfig,
+    store: second_fold::SecondFoldStore,
+) -> (
+    ParseLayer,
+    inclusion::InclusionFacts,
+    second_fold::SecondFoldStore,
+) {
+    let mut facts = inclusion::process_inclusion_with_facts(bars);
+    let mut slot = Some(store);
+    let layer = parse_layer_from_facts(&mut facts, &config.parse, &mut slot);
+    (layer, facts, slot.unwrap_or_default())
 }
 
 // #1392：包含状态、新笔扫描 checkpoint 和分型尾部缓存共同推进。
@@ -329,14 +345,22 @@ fn parse_layer_from_compact_facts(
 fn parse_layer_from_facts(
     facts: &mut inclusion::InclusionFacts,
     config: &super::config::ParseConfig,
+    store: &mut Option<second_fold::SecondFoldStore>,
 ) -> ParseLayer {
     let merged = &facts.merged;
     let fractals = fractal::detect_fractals(merged);
     let stroke_facts = stroke::build_stroke_facts(facts, config);
     let strokes = stroke_facts.production_strokes();
     facts.stroke_facts = Some(stroke_facts);
-    let (segments, pending_start, segment_facts) =
-        segment::divide_segments_with_facts(&strokes, config);
+    let (segments, pending_start, segment_facts) = match store.take() {
+        Some(s) => {
+            let (segments, pending, f, s) =
+                segment::divide_segments_with_facts_store(&strokes, config, s);
+            *store = Some(s);
+            (segments, pending, f)
+        }
+        None => segment::divide_segments_with_facts(&strokes, config),
+    };
     facts.segment_facts = Some(segment_facts);
     let tail = tail::build_tail(merged, &fractals, &strokes, &segments, pending_start);
     ParseLayer {
