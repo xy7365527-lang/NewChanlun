@@ -3646,12 +3646,36 @@ mod tests {
         let error = audit_generated(&mut s, &forged, &raw, tb02a::PROFILE, &rule).unwrap_err();
         assert!(error.contains("合并值不是同cut组事实"), "{error}");
     }
+    /// #1394 整合（根裁定 B）：原名 witness_original_bytes_are_bound_even_if_reference_metadata_is_unchanged。
+    /// FIN 04e8a7f48b 新增的 CC004 incoming 与原始 OHLC 绑定（source_pending.rs）先于见证检查执行，
+    /// 只改 raw[0].high（引用元数据不变）现在由它拒绝、走不到见证检查；按实际走到的检查改名并精确匹配
+    /// 其文案。见证绑定由下一用例单独锁住。
     #[test]
-    fn witness_original_bytes_are_bound_even_if_reference_metadata_is_unchanged() {
+    fn raw_ohlc_tamper_with_unchanged_reference_is_rejected_by_cc004_incoming_binding() {
         let (mut s, state, mut raw, rule) = fixture();
         raw[0]["high"] = json!("999999");
         let error = audit_generated(&mut s, &state, &raw, tb02a::PROFILE, &rule).unwrap_err();
-        assert!(error.contains("raw_bars不是同cut真实原始成员"), "{error}");
+        assert_eq!(
+            error,
+            "SourceAuditInvalid：CC004 incoming/槽位/OHLC不是同cut原始来源"
+        );
+    }
+    /// #1394 整合（根裁定 B）：见证 raw_bars 绑定完整原始事件字节。只改 raw[0] 的 raw_text——它不在
+    /// 引用元数据（RawReference 八字段）里，也不在 CC004 比对的 OHLC 五字段投影里，所以引用绑定与 CC004
+    /// 绑定都成立，只有见证 raw_bars 与同 cut 原始成员的完整字节不符。端到端走生产 audit_generated。
+    #[test]
+    fn witness_original_bytes_are_bound_even_if_reference_metadata_and_ohlc_are_unchanged() {
+        let (mut s, state, mut raw, rule) = fixture();
+        let text = raw[0]["raw_text"]
+            .as_str()
+            .expect("原始账带 raw_text")
+            .to_string();
+        raw[0]["raw_text"] = json!(format!("{text} 篡改"));
+        let error = audit_generated(&mut s, &state, &raw, tb02a::PROFILE, &rule).unwrap_err();
+        assert_eq!(
+            error,
+            "SourceAuditInvalid：见证raw_bars不是同cut真实原始成员"
+        );
     }
 }
 
