@@ -355,7 +355,7 @@ theorem type1_from_trend_divergence (b : Type1BSPWithNesting) :
   由后续真实走势决定（L2/L3，不由本 L0 声称，formalization-validity-domain）。
 -/
 
-open Formal.RecursiveConstruction (CandidateMove classifyMove MoveState)
+open Formal.RecursiveConstruction (CandidateMove classifyMove MoveState Move)
 open Formal.RecursiveConstruction.MoveState
 open Formal.CenterTrichotomy (MoveOutcome)
 
@@ -424,15 +424,20 @@ def flip : Direction → Direction
   | Direction.down => Direction.up
 
 /--
-  ★候选走势沿原方向的当前极值（未完成走势已出现的最高/最低：上=外缘 gg 最大，
-  下=外缘 dd 最小；空中枢回退 0）。★#1419 r2：`Move.interval` 已改对子走势取极值、不再用此 foldr 哨兵，
-  本函数是中枢外缘口径的「当前极值」，未随之改动（走势区间与中枢外缘之分见 zhongshu.md §3）。
-  这是「创出新极值」判定的客观参照——创新极值 ⟺ 观测价严格越过此极值。
+  ★候选走势沿原方向的当前极值（未完成走势已出现的最高/最低）：取该走势的**走势区间**
+  （`Move.interval`，全部子走势的价格极值）的上沿/下沿。这是「创出新极值」判定的客观参照——
+  创新极值 ⟺ 观测价严格越过此极值。
+
+  ★#1419 根裁定 D-J2 第 4 点：旧定义取中枢外缘 `gg`/`dd`，并以 `foldr max 0`/`foldr min 0` 起算——
+  与 `Move.interval` 旧缺陷同款，正价下行方向恒为 0（见下方 `positiveDownTail` 判别例）；且新高/新低
+  落在走势区间而非中枢外缘（zhongshu.md §3「中枢外缘不是走势区间」）。现把候选走势视作
+  `Move.compose subs centers level`，复用已修的 `Move.interval`（空 `subs` 记 `(0, 0)`，同口径）。
 -/
 def OpenTail.currentExtreme (t : OpenTail) : Int :=
+  let iv := (Move.compose t.candidate.subs t.candidate.centers t.candidate.level).interval
   match t.origDir with
-  | Direction.up => (t.candidate.centers.map (·.gg)).foldr max 0
-  | Direction.down => (t.candidate.centers.map (·.dd)).foldr min 0
+  | Direction.up => iv.2
+  | Direction.down => iv.1
 
 /-- 观测价是否真越过原方向极值（「创出顺 t.origDir 新极值」的客观判据，L0）。 -/
 def beyondExtreme (t : OpenTail) (p : Int) : Bool :=
@@ -627,10 +632,11 @@ structure RawExtEvent (t : OpenTail) where
 def RawExtEvent.branchOf {t : OpenTail} (ω : RawExtEvent t) : ExtBranch :=
   if ω.makesNewExtreme then divergenceBroken else divergenceHolds
 
-/-- 删前件自查见证用的未完成走势：单中枢 + 上方向 + 背驰未确认（pending）。 -/
+/-- 删前件自查见证用的未完成走势：单中枢 + 上方向 + 背驰未确认（pending）。子走势 上[0,3] 下[1,3] 上[1,2]
+    的走势区间 = [0,3]（与中枢外缘 [0,3] 此处恰好相同）。 -/
 def sampleOpenTail : OpenTail :=
   { candidate :=
-      { subs := []
+      { subs := [Move.segment Direction.up 0 3, Move.segment Direction.down 1 3, Move.segment Direction.up 1 2]
         centers := [⟨0, 1, 2, 3, by decide, by decide, by decide⟩]
         level := 1
         divergenceConfirmed := false
@@ -639,8 +645,30 @@ def sampleOpenTail : OpenTail :=
     origDir := Direction.up
     pending_only := rfl }
 
-/-- 见证：上方向下该走势的当前极值 = 外缘 gg = 3。 -/
+/-- 见证：上方向下该走势的当前极值 = 走势区间上沿 = 3。 -/
 example : sampleOpenTail.currentExtreme = 3 := by decide
+
+/-- ★#1419 D-J2 判别例（正价下行）：子走势 下[10,40] 上[20,40] 下[15,35]，中枢 DD=10、ZD=20、ZG=35、GG=40；
+    走势区间 = [10,40]。下行方向当前极值 = 10，观察价 5 低于它 ⟹ 创新低。旧定义 `foldr min 0` 给出 0，
+    会把 5 判为未越过。 -/
+def positiveDownTail : OpenTail :=
+  { candidate :=
+      { subs := [Move.segment Direction.down 10 40, Move.segment Direction.up 20 40,
+                 Move.segment Direction.down 15 35]
+        centers := [⟨10, 20, 35, 40, by decide, by decide, by decide⟩]
+        level := 1
+        divergenceConfirmed := false
+        settled := false
+        settled_sound := rfl }
+    origDir := Direction.down
+    pending_only := rfl }
+
+example : positiveDownTail.currentExtreme = 10 := by decide
+
+example : beyondExtreme positiveDownTail 5 = true := by decide
+
+/-- 旧定义在同一输入上的取值（中枢外缘 `dd` 以 `foldr min 0` 起算）= 0，把观察价 5 判为未越过——这正是被修掉的缺陷。 -/
+example : (positiveDownTail.candidate.centers.map (·.dd)).foldr min 0 = 0 ∧ ¬ (5 < (0 : Int)) := by decide
 
 /-- 删前件自查反例：观测价 4 已真创新极值，但裸事件谎报 makesNewExtreme = false ⟹
     裸分支判定落入 holds（背驰成立）——与客观判据（破坏/延续）相反。 -/
