@@ -309,6 +309,10 @@ jobs:
         run: node s_session/tests/test_tb01c_browser.cjs
       - name: TB-02-C observer contract tests
         run: node --test s_session/tests/test_tb02c_contract.cjs
+      # #1394 C-2 裁定 1：v3（s-session/3）validate-once 锁。完整 Q3 客户端套件约 10.5 分钟不进 CI，
+      #   只把这条锁连同其判据（钩子不再验、重载命中重放计费、Reader 根变化必重验）单独成套执行。
+      - name: Q3 v3 validate-once lock (#1394)
+        run: node --test s_session/tests/test_q3_v3_validate_once.cjs
       # #1414：TB-02-D 单元测试固定 CPython 3.14.6。s_query_integrity.py 的同次解析池只在
       #   3.14.6 / 64 位、实测 dict 布局匹配时启用；test_tb02d_parse_pool 的播种、命中与容量
       #   断言绑定该布局，其它解释器上池自动停用、断言失败而不是跳过。上面 3.11 的步骤不变，
