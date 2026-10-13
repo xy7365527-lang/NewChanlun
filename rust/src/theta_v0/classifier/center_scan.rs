@@ -17,9 +17,18 @@
 //!
 //! 等待原因 `UNIT_NOT_COMPLETED`/`SEED_NOT_YET_EVALUABLE` 是 S0 oracle 提议名，按 r2 R1 并入 D-J schema 独审定名。
 
-use super::super::types::{Center, Tick};
+use super::super::types::{Center, Segment, Tick};
 use super::center::{breaks_upward, is_zn, CenterRoles, RoleVar, SeedFacts, UnitRange};
 use super::recursive_tower::{scan_center_facts, WinMeta, WindowScanCursor};
+
+/// 生产塔 L0 的单元列表：同一层已确认线段逐个经塔同一投影（`pipeline::segment_to_unit`）。S 事实层用它与
+/// 已发布的 `CC-013.segment` 逐位对账（schema v1 §1 输入合同），保证与塔扫描同一输入（#804 L3）。
+pub fn l0_units(segments: &[Segment]) -> Vec<UnitRange> {
+    segments
+        .iter()
+        .map(super::pipeline::segment_to_unit)
+        .collect()
+}
 
 /// 扫描事件接收方。`WANTS_FACTS == false` 时扫描不计算 [`SeedFacts`]。
 pub trait ScanSink {

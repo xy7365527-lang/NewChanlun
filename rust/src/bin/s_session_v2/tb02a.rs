@@ -257,6 +257,7 @@ pub(super) fn project(o: &Value) -> Result<Value, String> {
             | "CC-054.knowledge_state"
     ) && !tb02b::KINDS.contains(&kind)
         && !tb02c::KINDS.contains(&kind)
+        && !tb02e::KINDS.contains(&kind)
     {
         return Err("StorageUnavailable：未知结构事实kind".into());
     }

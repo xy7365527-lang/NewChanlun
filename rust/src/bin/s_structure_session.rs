@@ -45,6 +45,8 @@ mod tb02a_facts;
 mod tb02b;
 #[path = "s_session_v2/tb02c.rs"]
 mod tb02c;
+#[path = "s_session_v2/tb02e.rs"]
+mod tb02e;
 use std::path::{Path, PathBuf};
 
 #[cfg(test)]
@@ -60,7 +62,7 @@ use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde_json::{json, Value};
 
 /// CC-006 验收合同修订（SPEC-COVERAGE-INPUT.json `/classification_axes/5`）。
-const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/1+segment-second/1";
+const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/1+segment-second/1+center-seed/1";
 
 /// S 唯一结构写者的默认 writer_epoch（可经 `--writer-epoch` / `recover` 换代）。
 const DEFAULT_WRITER_EPOCH: &str = "1";
@@ -2385,8 +2387,23 @@ fn advance_core(
             frontier,
             v2::commit_time(&conn, context)?,
         );
+        // #1419 TB-02-E：同 cut 段对象经输入合同（schema v1 §1）核成塔 L0 同一单元列表后发布中枢事实；
+        // 不符 ⟹ 本 cut 整体失败（根裁定 D-J 第 5 点），错误串即逐位不符收据。
+        let units = tb02e::units_from_segments(&segments, &layer.segments)?;
+        let (centers, center_edges) = tb02e::build(
+            &units,
+            &raw_by_coord,
+            &all_events,
+            &read_active_objects(&conn)?,
+            gen,
+            &structure_cut,
+            frontier,
+            v2::commit_time(&conn, context)?,
+        )?;
         objects.extend(segments);
         relations.extend(edges);
+        objects.extend(centers);
+        relations.extend(center_edges);
     }
 
     // 去重：同一 (kind, window, reason) 只发布一次。
@@ -4358,6 +4375,78 @@ mod tests {
                 String::from_utf8_lossy(&out.stderr)
             );
         }
+    }
+
+    /// #1419 根裁定 D-J 第 5 点：输入合同不符（注入塔侧 L0 单元 0 的 hi+1）⟹ 该 cut 整体被拒，错误串带逐位
+    /// 不符收据；零 TB-02-E 对象发布；前一 cut 的 TB-02-E 对象与结构 cut 不变。去掉注入后同一输入正常推进。
+    #[test]
+    fn tb02e_input_contract_mismatch_rejects_whole_cut_and_keeps_previous_facts() {
+        let ledger: Value = serde_json::from_slice(
+            &std::fs::read(fixture("tests/fixtures/tb02c/raw-ledger.json")).unwrap(),
+        )
+        .unwrap();
+        let rows = ledger["cases"]["first_up"].as_array().unwrap();
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let accept = |count: usize| {
+            let prices: Vec<_> = rows[..count]
+                .iter()
+                .map(|r| (r["low"].as_i64().unwrap(), r["high"].as_i64().unwrap()))
+                .collect();
+            let mut input = ohlc_input(&prices, false);
+            for (i, row) in rows[..count].iter().enumerate() {
+                for key in ["open", "close"] {
+                    input["events"][i][key] = json!(row[key].as_i64().unwrap().to_string());
+                }
+            }
+            accept_ohlc(&files, &input);
+        };
+        accept(rows.len() - 1);
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let center_facts = |snap: &Value| -> Vec<Value> {
+            snap["objects"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|o| tb02e::KINDS.contains(&o["kind"].as_str().unwrap()))
+                .cloned()
+                .collect()
+        };
+        let before = snapshot_of(&files, None);
+        assert!(
+            !center_facts(&before).is_empty(),
+            "前一 cut 须已有 TB-02-E 对象"
+        );
+        accept(rows.len());
+        tb02e::INJECT_LAYER_HI_DELTA.with(|c| c.set(Some((0, 1))));
+        let err = advance_core(&files.db(), DEFAULT_WRITER_EPOCH, None).unwrap_err();
+        tb02e::INJECT_LAYER_HI_DELTA.with(|c| c.set(None));
+        assert!(err.starts_with("TB02E_INPUT_CONTRACT"), "{err}");
+        assert!(
+            err.contains(r#""check":"hi""#) && err.contains(r#""completed_index":"0""#),
+            "收据须逐位指出不符：{err}"
+        );
+        let after = snapshot_of(&files, None);
+        assert_eq!(
+            after["structure_cut"], before["structure_cut"],
+            "被拒 cut 不得提交"
+        );
+        assert_eq!(
+            center_facts(&after),
+            center_facts(&before),
+            "前一 cut 的 TB-02-E 对象须不变"
+        );
+        cmd_recover(&files.db(), "2").unwrap();
+        advance_core(&files.db(), "2", None).unwrap();
+        let fixed = snapshot_of(&files, None);
+        assert_ne!(fixed["structure_cut"], before["structure_cut"]);
+        assert!(
+            center_facts(&fixed)
+                .iter()
+                .any(|o| o["kind"] == "CC-022.unit_assignment"
+                    && o["payload"]["data"]["unit"].get("lo").is_some()),
+            "去注入后须发布完成单元的归属"
+        );
     }
 
     /// 显式 (event_id, source_coord, open, high, low, close) 的 OHLC 输入；业务身份由 event_id
@@ -6898,19 +6987,23 @@ mod tests {
         cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
 
         let s = snapshot_of(&files, None);
-        // 见证 raw_bars.supersedes_revision 必须是规范十进制字符串（不 Number 中转）。
-        let mut saw_supersedes: Option<String> = None;
+        // 见证 raw_bars.supersedes_revision 必须是规范十进制字符串（不 Number 中转）。见证按 object_id（内容 hash，
+        // 含 RULE_REVISION）排序，故按集合核对，不依赖哪个见证排在最后（#1419 升规则修订后顺序改变）。
+        let mut saw_supersedes = std::collections::BTreeSet::new();
         for w in s["witnesses"].as_array().unwrap() {
             for rb in w["raw_bars"].as_array().unwrap() {
                 if let Some(sup) = rb.get("supersedes_revision") {
                     if !sup.is_null() {
                         assert!(sup.is_string(), "supersedes_revision 应为字符串：{sup}");
-                        saw_supersedes = Some(sup.as_str().unwrap().to_string());
+                        saw_supersedes.insert(sup.as_str().unwrap().to_string());
                     }
                 }
             }
         }
-        assert_eq!(saw_supersedes.as_deref(), Some("9007199254740993"));
+        assert!(
+            saw_supersedes.contains("9007199254740993"),
+            "第二次 >2^53 修订的 supersedes 须精确往返：{saw_supersedes:?}"
+        );
         // raw_history 的 supersedes_revision 同样为字符串。
         for r in s["raw_history"].as_array().unwrap() {
             if r["supersedes_revision"] != Value::Null {
