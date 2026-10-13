@@ -1,6 +1,6 @@
 # #1414 / TB-02-D 验收报告
 
-> 名分：工作草稿，活期绑定 [#1414](https://github.com/xy7365527-lang/NewChanlun/issues/1414)（`docs/agents/generation-constitution.md` §5）。状态：`LIMITED_ACCEPTANCE_P2_RERUN_ACCEPTED_PENDING_INCREMENTAL_REVIEW_CI_AND_MERGE`。PR #1477 审查意见 P2 已在合入前修正（提交 `aa4039cc`、`179412c3`）；修正后的新字节完成四臂 fresh 再验收，实际运行独审为 `PASS_TB02D_P2_RERUN_ACTUAL_ACCEPTED`，根已签收（`ROOT_ACCEPTS_TB02D_P2_RERUN_ACTUAL`，deferred 为空）。**TB-02-D 有限验收在新字节上成立；不裁整图。** 新提交面的增量整体独审、PR 上的 CI、合入与关票仍 PENDING。787f5cf 字节上的旧运行证据按根裁定 ROOT-RULING（`600207e3a2f2`）降为历史证据（§11），原名分不改。
+> 名分：工作草稿，活期绑定 [#1414](https://github.com/xy7365527-lang/NewChanlun/issues/1414)（`docs/agents/generation-constitution.md` §5）。状态：`LIMITED_ACCEPTANCE_P2_RERUN_ACCEPTED_INCREMENTAL_REVIEW_PASSED_PENDING_RECHECK_AND_MERGE`。PR #1477 审查意见 P2 已在合入前修正（提交 `aa4039cc`、`179412c3`）；修正后的新字节完成四臂 fresh 再验收，实际运行独审为 `PASS_TB02D_P2_RERUN_ACTUAL_ACCEPTED`，根已签收（`ROOT_ACCEPTS_TB02D_P2_RERUN_ACTUAL`，deferred 为空）。**TB-02-D 有限验收在新字节上成立；不裁整图。** C5 报告提交 `cea15bd7` 的增量整体独审为 `PASS_INCREMENTAL_SURFACE_READY_FOR_MERGE_REQUEST`（阻断 0），PR 上的 CI 与 DevSkim 增量已按实测登记（§8、同目录 `CI-DELTA.md`）；本登记提交的轻量增量复核、审查线程、合入与关票仍 PENDING。787f5cf 字节上的旧运行证据按根裁定 ROOT-RULING（`600207e3a2f2`）降为历史证据（§11），原名分不改。
 >
 > 证据定位：仓外证据写成「归档根:相对路径」加 SHA256 前 12 位，完整 bytes/SHA256 与逻辑 ID 见同目录 `EVIDENCE-INDEX.json`（下称“索引”）。`CTRL-20261012` 是控制与准备工作区，`OUT-P2-RERUN-20261013` 是本次再验收的运行输出，`OUT-REMAINING-20261013` 是 attempt 2 的历史输出；三者都在仓外，本机绝对路径只在索引里作定位。本报告中关于 P2 再验收的数字与 SHA 都由起草工位从 OUT、启动目录、前门、授权与准备包实物重算（OUT 87354 个文件全量只读哈希），不取自旧报告。
 
@@ -12,15 +12,15 @@ P2 的内容是：CC-012 SECOND 对象的 `scan` 有四个字段取自第二特�
 
 再验收按原 full runtime 跑完四臂 UP/a → UP/b → DOWN/a → DOWN/b：controller exit 0，1492.13 秒；四臂 EXIT 0，各 40 输入、124 个真实 Q、221 条 core、七 cut oracle passed、cut27/40 浏览器 passed、正常恢复 equal；两对 UP/a↔UP/b、DOWN/a↔DOWN/b 用原比较器逐字节 PASS；来源 552 件与证据 27 件后核零失配，依赖后核 PASS（§7.3–§7.8）。上一轮延后的大件这次都有运行内 SHA 收据，并经独审当场重算（§7.9）。
 
-| AC（票面原文缩写） | 主要证据 | 实际运行独审（P2 新字节，已签收） | 本机检查（新字节；CI 与合入 PENDING） |
+| AC（票面原文缩写） | 主要证据 | 实际运行独审（P2 新字节，已签收） | 本机检查与 CI（新字节；合入 PENDING） |
 |---|---|---|---|
-| AC1 第二序列取正确同向笔、接受规定分型；独立包含与 strict 封闭按已裁语义 | 手算 14 个双向工作例与 `tb02d_tests.rs`；四臂七 cut oracle；浏览器 CC-012 含 FIRST_SEQUENCE/SECOND_SEQUENCE/matched；SECOND `scan.from_stroke`=4 | 成立：四臂 oracle 七 cut 取值一致且 passed；SECOND 扫描范围三口径一致 | TB-02-D 五模块 40 个测试通过；库测试收据按 ROOT-RULING 复用（库字节自 787f5cf 未变，§8） |
-| AC2 只用完整已知前缀或有效终结证据；不设新扫描 cap；不以预算耗尽否定 | `false` / `null + scan_complete=false` 的区分（§3） | 不在实际运行独审范围（属代码与合同裁定） | 五模块 40 个、`--binary` 两组 14+31 个测试通过；`cargo test` 只有 3 个既有红（§12） |
+| AC1 第二序列取正确同向笔、接受规定分型；独立包含与 strict 封闭按已裁语义 | 手算 14 个双向工作例与 `tb02d_tests.rs`；四臂七 cut oracle；浏览器 CC-012 含 FIRST_SEQUENCE/SECOND_SEQUENCE/matched；SECOND `scan.from_stroke`=4 | 成立：四臂 oracle 七 cut 取值一致且 passed；SECOND 扫描范围三口径一致 | TB-02-D 五模块 40 个测试通过（本机与 `cea15bd7` 的 CI `s-observer` 相同）；库测试收据按 ROOT-RULING 复用（库字节自 787f5cf 未变，§8） |
+| AC2 只用完整已知前缀或有效终结证据；不设新扫描 cap；不以预算耗尽否定 | `false` / `null + scan_complete=false` 的区分（§3） | 不在实际运行独审范围（属代码与合同裁定） | 五模块 40 个、`--binary` 两组 14+31 个测试通过；`cargo test` 与 `cea15bd7` 的 CI `rust-check` 都只有 3 个既有红（§8、§12） |
 | AC3 笔破坏与段破坏各自并存；一般扫描、超 50 与 continuation 归 TB-02-W | `fact_vector`；浏览器 CC-014 含 fact_vector，cut27 developing 同时含 stroke_broken 与 segment_broken | 成立：四臂浏览器业务断言全部通过 | s_session bin 81 passed/1 ignored |
 | AC4 正式会话入口运行非真空输入；读公共查询/变化；浏览器核对 | 四臂各 40 输入、124 个公共/恢复查询、共 496 份 Q 收据、浏览器 cut27/40 | 成立：四臂 exit 0，Q 收据全为 `captured_validated_commit`，`page_errors=[]` | s-observer 原步骤与 `--binary` 两组通过 |
 | AC5 独立 oracle；同输入新进程重放与所改持久边界恢复对拍 | hand-oracle（`9140b7827d95`）；正常恢复；两对 `compare_exact_traces` | 成立：恢复 equal、epoch 1→2；两对 221 记录逐字节 PASS；大件按运行内收据重算一致 | 生成器自检与夹具再生收据属历史证据（夹具字节未变，§11） |
 
-最右栏只记本机检查补到的证据，不是对 AC 的新裁定；新提交面的增量整体独审尚未进行。
+最右栏只记本机检查与 CI 补到的证据，不是对 AC 的新裁定。`cea15bd7` 提交面的增量整体独审已通过（§12）。
 
 ## 2. 范围
 
@@ -46,13 +46,13 @@ P2 的内容是：CC-012 SECOND 对象的 `scan` 有四个字段取自第二特�
 
 ## 4. 基线、来源与提交面
 
-基线 commit `f95a7f3ebc0ce84ec2d2f8a8d71b5030b19f89b9`（PR #1473 合入 TB-02-C 的 merge），分支 `codex/1414-second-sequence-20261012`，当前 HEAD 与远端分支同为 `179412c33d52`，worktree 干净。已签来源是仓内 `.chanlun/review-results/issue1339-r2-spec-20260909/`（落于 `efc1ddc4d6c0`，是基线祖先），规范清单 SHA256 `38e3176b6dff`。
+基线 commit `f95a7f3ebc0ce84ec2d2f8a8d71b5030b19f89b9`（PR #1473 合入 TB-02-C 的 merge），分支 `codex/1414-second-sequence-20261012`。P2 再验收在 HEAD `179412c33d52`、worktree 干净时执行；C5 报告随 `cea15bd735bc` 入仓，本版随其后的第九个提交入仓。已签来源是仓内 `.chanlun/review-results/issue1339-r2-spec-20260909/`（落于 `efc1ddc4d6c0`，是基线祖先），规范清单 SHA256 `38e3176b6dff`。
 
-基线之后共七个提交：原五个（`28704548` oracle、`212d7758` 核心与合同、`2e03303c` 运行脚本、`f7b46579` CI、`787f5cf1` 文档与证据），以及 P2 两个（`aa4039cc` 修正、`179412c3` 补 L1/L2 测试）。本报告随第八个提交（C5 重写）入仓，提交后须以 `git show <commit>:<path>` 的字节逐项重核。
+基线之后共七个提交：原五个（`28704548` oracle、`212d7758` 核心与合同、`2e03303c` 运行脚本、`f7b46579` CI、`787f5cf1` 文档与证据），以及 P2 两个（`aa4039cc` 修正、`179412c3` 补 L1/L2 测试）。第八个提交 `cea15bd7` 入仓 C5 重写，其提交后字节重核由增量整体独审完成（§12）。本版随第九个提交入仓，只改本目录 `ACCEPTANCE-REPORT.md`、`EVIDENCE-INDEX.json`、`FINAL-INDEPENDENT-REVIEW.md` 并新增 `CI-DELTA.md`，登记 PR 上的 CI 与 DevSkim 实测并收录增量整体独审。
 
 代码与夹具面是 36 个路径（18 个修改、18 个新增），逐件 path/bytes/SHA256 见索引 `reviewed_source_snapshot.changed_files`。其中 35 件与本次再验收冻结的运行来源集 SRC-CURRENT-P2（`CTRL-20261012:tb1414-p2-rerun-preparation/CURRENT-SOURCES.json`，`7f473be69bf7`，552 项 = 531 个正式仓内路径 + 18 个 ijson 依赖文件 + 3 个运行包 helper）逐项相等；唯一不在集的是 `ORACLE-DESIGN.md`（工作草稿文档，不参与运行）。P2 两个提交只改了 5 件：`rust/src/bin/s_session_v2/tb02c.rs`、`s_session/s_tb02_contract.py`、`s_session/browser/tb01c-client.js`、`s_session/tests/tb02d_verify.py`、`s_session/tests/test_tb02d_contract.py`；`rust/` 下 `src/bin/` 以外（即库）零改动。
 
-最终提交面在 36 件之外还有：`.github/workflows/ci.yml`（TB-02-D Python 测试接线，§8）、本目录 `ACCEPTANCE-REPORT.md`、`EVIDENCE-INDEX.json`、`FINAL-INDEPENDENT-REVIEW.md`，以及 `run-package/` 七件证据副本（§9）；共 47 个路径。
+最终提交面在 36 件之外还有：`.github/workflows/ci.yml`（TB-02-D Python 测试接线，§8）、本目录 `ACCEPTANCE-REPORT.md`、`EVIDENCE-INDEX.json`、`FINAL-INDEPENDENT-REVIEW.md`、`CI-DELTA.md`，以及 `run-package/` 七件证据副本（§9）；共 48 个路径（`CI-DELTA.md` 由第九个提交新增）。
 
 两对比较所用的 `compare_exact_traces` 在基线已入仓：`s_session/tests/tb02c_compare.py`（`96c7bb453aa2`），本交付未改动；四臂快照与 CURRENT 都绑定这份原件。
 
@@ -204,9 +204,9 @@ attempt 2 的 HAR、session.sqlite、WAL 与 database-backup 运行内没有 SHA
 
 ## 8. 自动化测试与 CI
 
-**已在 CI 的面。** `rust/src/theta_v0/parser/tb02d_tests.rs` 经 `parser/mod.rs` 的 `#[cfg(test)] mod tb02d_tests;` 挂入库测试，由现有 `cargo test --all-targets` 执行；`tb02c.rs` 内的 bin 测试（含 14 个冻结例投影进 Python 合同）由现有 `--features s_session --bin s_structure_session` 步骤执行；随改动同步的 `test_tb01c_browser.cjs`、`test_tb02c_contract.cjs` 与 `test_tb02c_*.py` 已在 `s-observer` job 中。PR 上的 `rust-check` 预计与 main 一样，在「cargo test — default targets」步因 §12 的 3 个既有红失败，并跳过其后的 s_session bin 与 `--lib --features backtest_bin` 两步。
+**已在 CI 的面。** `rust/src/theta_v0/parser/tb02d_tests.rs` 经 `parser/mod.rs` 的 `#[cfg(test)] mod tb02d_tests;` 挂入库测试，由现有 `cargo test --all-targets` 执行；`tb02c.rs` 内的 bin 测试（含 14 个冻结例投影进 Python 合同）由现有 `--features s_session --bin s_structure_session` 步骤执行；随改动同步的 `test_tb01c_browser.cjs`、`test_tb02c_contract.cjs` 与 `test_tb02c_*.py` 已在 `s-observer` job 中。PR 上的 `rust-check` 实测与 main 一样，在「cargo test — default targets」步失败并跳过其后的 s_session bin 与 `--lib --features backtest_bin` 两步：`cea15bd7`（run 38397240254）为 2955 passed/3 failed/161 ignored，失败恰为 §12 的 3 个既有红；`179412c3`（run 38387197713）另多一个 `incremental_tower_scaling_dominates_full_synthetic` 计时红（n=400 增量/全量比 0.723，门 < 0.7）。该测试在 debug 构建下测墙钟比值，库字节在 `787f5cf1`、`aa4039cc`、`179412c3`、`cea15bd7` 上逐字节相同，同字节在 `aa4039cc` 与 `cea15bd7` 上通过，且它不走本 PR 改过的分段与特征序列代码，因此判为计时抖动；0.7 门不放宽，建议另开票跟踪（`CI-DELTA.md`）。因 bin 全量一步被跳过，`cea15bd7` 字节的 s_session bin 全量读数只有增量整体独审在本机那次（81 passed/0 failed/1 ignored）。
 
-**本交付新增接线（`.github/workflows/ci.yml`）。** `s-observer` 末尾新增固定 CPython 3.14.6 的 setup 步与测试步，在 `s_session/tests` 下执行 `python -B -m unittest -v test_tb02d_contract test_tb02d_discovery test_tb02d_validate_once test_tb02d_parse_pool test_tb02d_key_reuse`，只跑不需要 S 写者二进制的五个模块，执行前先打印解释器版本与解析池布局是否匹配。固定 3.14.6 的原因是同次解析池只在该解释器的实测 dict 布局下启用，`test_tb02d_parse_pool.py` 的布局断言在其它解释器上会失败而不是跳过。P2 没有改 `ci.yml`。**CI 实际结论 PENDING。** 本机 CPython 3.14.6 在 HEAD `179412c3` 的测试字节上逐字执行这条命令：解析池布局匹配为 `True`，五模块 40 个测试 OK（`CTRL-20261012:tb1414-p2-fix/c2/steps/11-ci-tb02d-py3146`）。
+**本交付新增接线（`.github/workflows/ci.yml`）。** `s-observer` 末尾新增固定 CPython 3.14.6 的 setup 步与测试步，在 `s_session/tests` 下执行 `python -B -m unittest -v test_tb02d_contract test_tb02d_discovery test_tb02d_validate_once test_tb02d_parse_pool test_tb02d_key_reuse`，只跑不需要 S 写者二进制的五个模块，执行前先打印解释器版本与解析池布局是否匹配。固定 3.14.6 的原因是同次解析池只在该解释器的实测 dict 布局下启用，`test_tb02d_parse_pool.py` 的布局断言在其它解释器上会失败而不是跳过。P2 没有改 `ci.yml`。**CI 实测：** `cea15bd7` 的 `s-observer`（run 38397240254）成功，CPython 3.14.6 下解析池布局匹配 `True`，五模块 Ran 40 OK；同次 `test` 与 `fixture-drift` 也成功。此前本机 CPython 3.14.6 在 HEAD `179412c3` 的测试字节上逐字执行这条命令，结果相同（`CTRL-20261012:tb1414-p2-fix/c2/steps/11-ci-tb02d-py3146`）。
 
 **新字节的本机检查。** P2 修正与第二提交在独立 target 上取得（`tb1414-p2-fix/`、`tb1414-p2-fix/c2/`）：`cargo fmt --check` 通过；release 构建得写者 `58a135103968`；`cargo test --features s_session --bin s_structure_session` 81 passed/1 ignored；五模块 38→40 个；`test_tb02d_projection_cache.py --binary` 14 个；`tb01c_query_tests.py --binary` 31 个；s-observer 原步骤（CPython 3.11.15 + Node 22）TB-01-C 56、TB-02-A 9、TB-02-C 14 个 Python 测试与浏览器协议、合同 node 测试（6 过 0 败）全部通过。
 
@@ -216,7 +216,7 @@ attempt 2 的 HAR、session.sqlite、WAL 与 database-backup 运行内没有 SHA
 
 **不进 CI 的面。** `test_tb02d_snapshot_validate_once.cjs` 与 `test_tb02d_strict_clone.cjs` 是需要外部归档参数的离线对照探针（缺参即断言失败），不是 CI 单元测试。`tb02d_{harness,runtime,verify}.py` 与 `tb02d_browser.cjs` 是正式运行验收脚本，靠 §7 的具名运行证据；`tb02d_harness.py` 把 socket 固定在 `/private/tmp/`，只适用于 macOS 本机验收。浏览器 runner 的 30 秒帽余量只有 0.44–0.62 秒（P2R-N1），在查清耗时分布之前不宜搬进 CI，上限也不放宽。
 
-**DevSkim 与 CodeQL。** 本目录 JSON/Markdown 与 `run-package/` 中的 SHA-256 字符串预计新增 DS173237 密钥规则误报（TB-02-C 先例记录在 `issue1404-tb02c-20261007/CI-DELTA.md`）；CodeQL 工作流当前为 `disabled_manually`（#1107），`run-package/` 中的 `.py` 只在它重新启用后才进入扫描面（FS-N8）。DevSkim 零新增门预计因此变红，按 #1404 先例写 `CI-DELTA.md` 或登记基线，由根定；实际增量 PENDING。
+**DevSkim 与 CodeQL。** DevSkim 门在 main 上本就红（main 自身对 `.github/devskim-baseline.json` 有 33443 条基线外告警），PR 归因只看相对 main 实测 SARIF 的差集。`cea15bd7`（run 38397240180）相对 main 按 #1404 先例的多重集口径新增 1173 条、消失 0 条：DS173237 1163 条，命中值全是 SHA-256 或本仓 git 对象号；另有 DS117838 5 条（路径名含 key 的「路径 → SHA」行）、DS162092 3 条本机 loopback、DS197836 1 条（把 `runtime` 中的 time 当作时间值）与 DS172411 1 条固定回调提示。全部是误报或提示，需修 0 条；逐项见同目录 `CI-DELTA.md`，按 #1404 先例（`issue1404-tb02c-20261007/CI-DELTA.md`）登记，未改基线。CodeQL 工作流当前为 `disabled_manually`（#1107），`run-package/` 中的 `.py` 只在它重新启用后才进入扫描面（FS-N8）。
 
 ## 9. 运行包证据副本（`run-package/`）
 
@@ -257,7 +257,7 @@ attempt 2 的 HAR、session.sqlite、WAL 与 database-backup 运行内没有 SHA
 - **FS-N5（LOW）** `tb02d_verify.py` 的 FIRST 成员用子集比较，以实际对象的键遍历预期；合同校验器另行约束键集。
 - **FS-N6（LOW）** 两个 `test_` 命名的离线探针必须带外部归档参数。
 - **FS-N7（LOW）** 机器特定绝对路径进入 git 历史（`run-package/`、`tb02d_harness.py` 的 socket、`ORACLE-DESIGN.md` 引仓外工作稿），未发现凭据、令牌或私钥。
-- **FS-N8（LOW）** CodeQL 当前停用；DevSkim 零新增门预计因 DS173237 变红（§8）。
+- **FS-N8（LOW）** CodeQL 当前停用；DevSkim 零新增门实测为红（main 上本就红），PR 增量全部是误报或提示，需修 0 条（§8、`CI-DELTA.md`）。
 
 另有两条包独审的 LOW 已在本次运行中消解或只涉及说明：PK-L1（README 写“清除 CARGO_*/RUST*”，代码只剥五个前缀；偏差只会失败关闭，实测 `stripped_environment_keys=[]`）、PK-L3（driver 只核独审各件 SHA 不变，不核内容对应本包；根授权已绑定包独审三件）。
 
@@ -296,19 +296,20 @@ D1–D4 补跑在根授权（`06bb139e1a1a`）下执行，收据 `CTRL-20261012:
 
 ### 11.5 787f5cf 提交面的两轮整体独审
 
-首轮 `final-surface`（REVIEW `1149a14bd331`、RESULT `24f9332d47cb`、BINDING `47caee912385`）为 `FAIL_WITH_FINDINGS`，唯一阻断 FS-B1（新 CI 步用 `discover` 会收进需要写者二进制的 `test_tb02d_projection_cache.py`）已改为显式五模块；复审 r2（REVIEW `3165f21d94fb`、RESULT `c055481d64a9`、BINDING `f6327077651c`）为 `PASS_FINAL_COMMIT_SURFACE_READY_PENDING_RUNTIME_CHECKS`。两轮审的是 787f5cf 时的提交面；全文仍逐字收录在 `FINAL-INDEPENDENT-REVIEW.md` 的历史节。新提交面需要新的增量整体独审（§12）。
+首轮 `final-surface`（REVIEW `1149a14bd331`、RESULT `24f9332d47cb`、BINDING `47caee912385`）为 `FAIL_WITH_FINDINGS`，唯一阻断 FS-B1（新 CI 步用 `discover` 会收进需要写者二进制的 `test_tb02d_projection_cache.py`）已改为显式五模块；复审 r2（REVIEW `3165f21d94fb`、RESULT `c055481d64a9`、BINDING `f6327077651c`）为 `PASS_FINAL_COMMIT_SURFACE_READY_PENDING_RUNTIME_CHECKS`。两轮审的是 787f5cf 时的提交面；全文仍逐字收录在 `FINAL-INDEPENDENT-REVIEW.md` 的历史节。`cea15bd7` 提交面的增量整体独审已完成（§12）。
 
 ## 12. 验收状态与待办
 
 - P2 实际运行独审：**完成**，`PASS_TB02D_P2_RERUN_ACTUAL_ACCEPTED`，核查脚本 174 项全过，阻断 0、延后 0（REVIEW `48c3fc552f3c`、RESULT `2c53227fe2e3`、BINDING `7d76eaf76be9`）；全文见 `FINAL-INDEPENDENT-REVIEW.md`。
 - 根签收：**完成**，`ROOT_ACCEPTS_TB02D_P2_RERUN_ACTUAL`（`49dc3b93dfb8`，2026-10-13T12:06:07Z），deferred 为空，五条非阻断项随附。
-- 新提交面（含本次 C5 重写与 run-package 替换）的增量整体独审：**PENDING**。
-- PR 上的 CI 结论：**PENDING**；`rust-check` 预计因下列 3 个既有红失败（§8）。DevSkim 增量：**PENDING**。
+- `cea15bd7` 提交面（787f5cf1 之后的 `aa4039cc`、`179412c3`、`cea15bd7`，含 C5 重写与 run-package 替换）的增量整体独审：**完成**，`PASS_INCREMENTAL_SURFACE_READY_FOR_MERGE_REQUEST`，阻断 0，审查者 `/root/tb1394_r6_contract`（此前未参与 #1414；REVIEW `c6b0adf14e10`、RESULT `8d8d2a800b60`、BINDING `1b82b5dc3acd`）。两条 MEDIUM 要求随合入请求登记 CI 实测（IR-M1）与 DevSkim 增量（IR-M2），由本版 §8 与 `CI-DELTA.md` 登记；IR-L1 指出的提交前自述已在 §4 与索引 `commits` 订正；IR-L2（跨对象 `facts.from_stroke == strict.elements[1]+1` 未锁）留后续；IR-N1 是 `test_tb02c_compare` 依赖 ijson 的环境项。全文见 `FINAL-INDEPENDENT-REVIEW.md`。
+- 本登记提交（第九个提交）的轻量增量复核：**PENDING**。增量整体独审只绑定 `cea15bd7`，任何新提交都要对改动文件做一次轻量增量复核。
+- PR 上的 CI 结论：**已实测登记**。`cea15bd7`（run 38397240254）的 `rust-check` 只因下列 3 个既有红失败，`test`、`s-observer`、`fixture-drift` 成功；`179412c3` 上 `incremental_tower_scaling_dominates_full_synthetic` 的计时红判为抖动，0.7 门不放宽，建议另开票跟踪（§8）。DevSkim 增量：**已登记**，需修 0 条（`CI-DELTA.md`）。本登记提交自身的 CI：**PENDING**。
 - 审查线程回复与 resolve：**PENDING**。
 - 合入 main：**PENDING**，需要用户对具体 PR 号与新 head SHA 的明确批准。
 - 关票：**PENDING**，合入 main 后按关票门另写声明，需要用户批准。
 
-**3 个既有红（获批基线例外，不是 #1414 引入）**：`theta_v0::backtest::tick::tests::seam_btc_tick_bars_yield_non_trivial_structure`、`theta_v0::backtest::tick::tests::calibration_sweep_finds_non_collapsed_segments`、`theta_v0::backtest::l3_delta_r_alpha::tests::m3_partition_synthetic_holds`。证据链：基线 `f95a7f3` 的归档源码在全新独立 target 下同样是这 3 个失败，失败文本逐字相同；`d8810bff97`（#1392 的 feat 提交）在全新 target 下 3 个失败，其父 `6f99b36` 全过；main CI [38201220739](https://github.com/xy7365527-lang/NewChanlun/actions/runs/38201220739)（`f95a7f3`）与 [37545808487](https://github.com/xy7365527-lang/NewChanlun/actions/runs/37545808487)（`8619a20f`）同红（证据在历史收据 `tb1414-runtime-checks/steps/05e*`）。机制边界：失败断言是「笔为空」，而 `parse_layer` 先产笔再分段（`rust/src/theta_v0/parser/mod.rs:168-182`），#1414 只改段层，P2 只改 bin、合同与测试，结构上都不改笔数。口径沿用 [#1392 关票评论](https://github.com/xy7365527-lang/NewChanlun/issues/1392#issuecomment-6027480656) 与 [#1404 关票评论](https://github.com/xy7365527-lang/NewChanlun/issues/1404#issuecomment-6117508188) 登记的获批基线例外，后续归 [#1343](https://github.com/xy7365527-lang/NewChanlun/issues/1343)/[#1405](https://github.com/xy7365527-lang/NewChanlun/issues/1405)；本交付不改数据、断言或 ignore 来修绿。这两份例外是用户对当时具体 PR 的批准，#1414 合入时仍须用户就本 PR 一并确认。
+**3 个既有红（获批基线例外，不是 #1414 引入）**：`theta_v0::backtest::tick::tests::seam_btc_tick_bars_yield_non_trivial_structure`、`theta_v0::backtest::tick::tests::calibration_sweep_finds_non_collapsed_segments`、`theta_v0::backtest::l3_delta_r_alpha::tests::m3_partition_synthetic_holds`。证据链：基线 `f95a7f3` 的归档源码在全新独立 target 下同样是这 3 个失败，失败文本逐字相同；`d8810bff97`（#1392 的 feat 提交）在全新 target 下 3 个失败，其父 `6f99b36` 全过；main CI [38201220739](https://github.com/xy7365527-lang/NewChanlun/actions/runs/38201220739)（`f95a7f3`）与 [37545808487](https://github.com/xy7365527-lang/NewChanlun/actions/runs/37545808487)（`8619a20f`）同红（证据在历史收据 `tb1414-runtime-checks/steps/05e*`）；PR head `cea15bd7` 的 run [38397240254](https://github.com/xy7365527-lang/NewChanlun/actions/runs/38397240254) 失败的也恰是这 3 个（`CI-DELTA.md`）。机制边界：失败断言是「笔为空」，而 `parse_layer` 先产笔再分段（`rust/src/theta_v0/parser/mod.rs:168-182`），#1414 只改段层，P2 只改 bin、合同与测试，结构上都不改笔数。口径沿用 [#1392 关票评论](https://github.com/xy7365527-lang/NewChanlun/issues/1392#issuecomment-6027480656) 与 [#1404 关票评论](https://github.com/xy7365527-lang/NewChanlun/issues/1404#issuecomment-6117508188) 登记的获批基线例外，后续归 [#1343](https://github.com/xy7365527-lang/NewChanlun/issues/1343)/[#1405](https://github.com/xy7365527-lang/NewChanlun/issues/1405)；本交付不改数据、断言或 ignore 来修绿。这两份例外是用户对当时具体 PR 的批准，#1414 合入时仍须用户就本 PR 一并确认。
 
 关票声明（合入 main 后才能填写）：
 

@@ -7,9 +7,10 @@
   "spec": 1340,
   "map": 1323
  },
- "document_status": "LIMITED_ACCEPTANCE_P2_RERUN_ACCEPTED_PENDING_INCREMENTAL_REVIEW_CI_AND_MERGE",
+ "document_status": "LIMITED_ACCEPTANCE_P2_RERUN_ACCEPTED_INCREMENTAL_REVIEW_PASSED_PENDING_RECHECK_AND_MERGE",
  "naming": "工作草稿，活期绑定 #1414（docs/agents/generation-constitution.md §5）；本索引不自哈希，由 git 追踪提供固定版本。",
  "generated": "2026-10-13（+08:00），C5 重写起草工位；P2 再验收的数字与 SHA 全部由 OUT、启动目录、前门、授权与准备包实物重算（tools/facts.py、tools/inventory.py，OUT 87354 文件全量只读哈希）；历史部分取自上一版索引并逐条复核当前字节；未构建、未运行产品或测试",
+ "revised": "2026-10-13（+08:00），第九个提交：登记 PR #1477 上 cea15bd7 的 CI 与 DevSkim 实测（同目录 CI-DELTA.md），收录 cea15bd7 提交面的增量整体独审，订正 commits 与 ci 的提交前自述；数字与 SHA 取自增量整体独审目录实物并重算，未构建、未运行产品或测试",
  "scope": {
   "covered": "#1414 已裁有限完整前缀域：14 个双向手算工作例（hand-oracle.json）与 second_open_up/second_open_down 两个 40 根自然 OHLC 输入",
   "not_covered": [
@@ -63,8 +64,8 @@
  },
  "commits": {
   "branch": "codex/1414-second-sequence-20261012",
-  "head": "179412c33d526a0716ce0bafcb03bdf22084cdc8",
-  "remote_head": "179412c33d526a0716ce0bafcb03bdf22084cdc8",
+  "head": "cea15bd735bc351cde21a2d734f77c020d26555f",
+  "remote_head": "cea15bd735bc351cde21a2d734f77c020d26555f",
   "worktree_clean": true,
   "base_to_head": [
    {
@@ -94,9 +95,13 @@
    {
     "commit": "179412c33d526a0716ce0bafcb03bdf22084cdc8",
     "subject": "test(s_session): 锁住身份锚的整数精度与空笔引用拒绝（#1414 PR #1477 P2）"
+   },
+   {
+    "commit": "cea15bd735bc351cde21a2d734f77c020d26555f",
+    "subject": "docs: 按 P2 修正后四臂再验收更新 TB-02-D 交付证据（#1414 PR #1477）"
    }
   ],
-  "pending": "C5 报告重写提交（本草稿）待提交；提交后须以 git show 字节逐项重核"
+  "pending": "第九个提交（登记 CI 与 DevSkim 增量、收录增量整体独审）随本版入仓，提交号见 git 历史；增量整体独审只绑定 cea15bd7，本提交对改动文件的轻量增量复核 PENDING"
  },
  "reviewed_source_snapshot": {
   "base": "f95a7f3ebc0ce84ec2d2f8a8d71b5030b19f89b9",
@@ -3545,7 +3550,108 @@
     "请用户批准合入（PR 号 + 新 head）"
    ]
   },
-  "incremental_final_review_of_new_surface": "PENDING（根 next 第 2 项：增量整体独审；本草稿不预填）",
+  "incremental_final_review_of_new_surface": {
+   "location": "CTRL-20261012:tb1414-incremental-surface-review/",
+   "receipts": [
+    {
+     "id": "IR-REVIEW.md",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-incremental-surface-review/REVIEW.md",
+     "bytes": 13202,
+     "sha256": "c6b0adf14e108d95b17916dd95e85d9ab99f4ec0f5c1bde813faa8d8d6520c5a",
+     "role": "增量整体独审报告"
+    },
+    {
+     "id": "IR-RESULT.json",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-incremental-surface-review/RESULT.json",
+     "bytes": 8854,
+     "sha256": "8d8d2a800b60eeb4970628581ef397021b2a6e7c0fa08da8bf6981cb2501c917",
+     "role": "结论"
+    },
+    {
+     "id": "IR-BINDING.json",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-incremental-surface-review/BINDING.json",
+     "bytes": 9800,
+     "sha256": "1b82b5dc3acd57385165289b32846bc78a7434e772497fa96f9a74c82ea0b2f8",
+     "role": "绑定"
+    }
+   ],
+   "status": "PASS_INCREMENTAL_SURFACE_READY_FOR_MERGE_REQUEST",
+   "reviewer": "/root/tb1394_r6_contract",
+   "independent_of_note": "此前未参与 #1414",
+   "subject": {
+    "head": "cea15bd735bc351cde21a2d734f77c020d26555f",
+    "increment_from": "787f5cf1fe84b1c27970e1da8093e3e2f1dd06e5",
+    "increment": [
+     "aa4039cc177e420043a7b1a7c413c32c679505f3",
+     "179412c33d526a0716ce0bafcb03bdf22084cdc8",
+     "cea15bd735bc351cde21a2d734f77c020d26555f"
+    ],
+    "paths_vs_main": 47
+   },
+   "blocking_findings": [],
+   "merge_request_must_carry": [
+    "IR-M1",
+    "IR-M2"
+   ],
+   "findings": [
+    {
+     "id": "IR-M1",
+     "severity": "MEDIUM",
+     "blocking": false,
+     "title": "CI 实际结论未登记（含 179412c3 上 tower_scaling 0.723 的计时红）",
+     "disposition": "已登记于 CI-DELTA.md 与报告 §8、§12；0.7 门不放宽，计时抖动建议另开票跟踪，本提交不开票"
+    },
+    {
+     "id": "IR-M2",
+     "severity": "MEDIUM",
+     "blocking": false,
+     "title": "DevSkim 增量未登记",
+     "disposition": "按 #1404 先例登记于 CI-DELTA.md，未改基线；需修 0 条"
+    },
+    {
+     "id": "IR-L1",
+     "severity": "LOW",
+     "blocking": false,
+     "title": "仓内自述停在提交前",
+     "disposition": "提交后重核已由该审完成；本版顺带订正报告 §4 与本索引 commits、ci"
+    },
+    {
+     "id": "IR-L2",
+     "severity": "LOW",
+     "blocking": false,
+     "title": "跨对象 facts.from_stroke == strict.elements[1]+1 未锁",
+     "disposition": "TRIAGE 已列可选，留后续"
+    },
+    {
+     "id": "IR-N1",
+     "severity": "note",
+     "blocking": false,
+     "title": "test_tb02c_compare 依赖 ijson",
+     "disposition": "环境项；CI 先装 requirements-tb02c.txt"
+    }
+   ],
+   "carried_non_blocking": [
+    "P2R-N1",
+    "P2R-N2",
+    "P2R-N3",
+    "P2R-N4",
+    "P2R-N5",
+    "FS-N1",
+    "FS-N2",
+    "FS-N3",
+    "FS-N4",
+    "FS-N5",
+    "FS-N6",
+    "FS-N7",
+    "FS-N8"
+   ],
+   "scope_note": "本审绑定 cea15bd7；任何新提交（含登记 CI-DELTA 或改报告）需对新增文件做轻量增量复核",
+   "recheck_of_ninth_commit": "PENDING",
+   "full_text": "FINAL-INDEPENDENT-REVIEW.md「增量整体独审全文（逐字）」"
+  },
   "local_checks_on_new_bytes": {
    "fix_result": {
     "path": "/private/tmp/goal1323-native-20261012/tb1414-p2-fix/RESULT.json",
@@ -3817,35 +3923,490 @@
   "ac_status": {
    "AC1": {
     "actual_rerun_review": "ACCEPTED（四臂七 cut oracle 取值一致且 passed；浏览器 CC-012 FIRST/SECOND/matched；SECOND scan.from_stroke=4）",
-    "overall": "PENDING：增量整体独审、PR 上的 CI 与合入批准"
+    "overall": "PENDING：第九个提交的轻量增量复核与合入批准（增量整体独审已 PASS；cea15bd7 的 CI 只有 3 个既有红；DevSkim 需修 0 条）"
    },
    "AC2": {
     "actual_rerun_review": "NOT_IN_SCOPE（代码与合同裁定）；本地：TB-02-D 五模块 40 个测试、--binary 14+31 个测试通过",
-    "overall": "PENDING：增量整体独审、PR 上的 CI 与合入批准"
+    "overall": "PENDING：第九个提交的轻量增量复核与合入批准（增量整体独审已 PASS；cea15bd7 的 CI 只有 3 个既有红；DevSkim 需修 0 条）"
    },
    "AC3": {
     "actual_rerun_review": "ACCEPTED（四臂浏览器业务断言通过；cut27 developing 同含 stroke_broken/segment_broken）",
-    "overall": "PENDING：增量整体独审、PR 上的 CI 与合入批准"
+    "overall": "PENDING：第九个提交的轻量增量复核与合入批准（增量整体独审已 PASS；cea15bd7 的 CI 只有 3 个既有红；DevSkim 需修 0 条）"
    },
    "AC4": {
     "actual_rerun_review": "ACCEPTED（四臂 exit 0，496 份 Q 收据全为 captured_validated_commit，page_errors=[]）",
-    "overall": "PENDING：增量整体独审、PR 上的 CI 与合入批准"
+    "overall": "PENDING：第九个提交的轻量增量复核与合入批准（增量整体独审已 PASS；cea15bd7 的 CI 只有 3 个既有红；DevSkim 需修 0 条）"
    },
    "AC5": {
     "actual_rerun_review": "ACCEPTED（正常恢复 equal、epoch 1→2；UP/a↔UP/b、DOWN/a↔DOWN/b 两对 221 记录逐字节 PASS；大件全部运行内收据并经独审重算）",
-    "overall": "PENDING：增量整体独审、PR 上的 CI 与合入批准"
+    "overall": "PENDING：第九个提交的轻量增量复核与合入批准（增量整体独审已 PASS；cea15bd7 的 CI 只有 3 个既有红；DevSkim 需修 0 条）"
    }
   },
-  "per_commit_compilability": "aa4039cc：fmt/release build/s_session bin 测试本机通过（tb1414-p2-fix/steps）；179412c3 只改测试文件；C5 纯文档；原五提交的逐提交结论见 historical_787f5cf",
+  "per_commit_compilability": "aa4039cc：fmt/release build/s_session bin 测试本机通过（tb1414-p2-fix/steps）；179412c3 只改测试文件；C5 纯文档；原五提交的逐提交结论见 historical_787f5cf；第九个提交纯文档",
   "ci": {
-   "origin_main": "PENDING",
-   "run": "PENDING",
-   "expected_rust_check": "预计在「cargo test — default targets」步因 3 个既有红失败，并跳过其后 s_session bin 与 --lib --features backtest_bin 两步；本机结果见 runtime_checks 第 5 项"
+   "pr": 1477,
+   "origin_main": "f95a7f3ebc0ce84ec2d2f8a8d71b5030b19f89b9（PR base；增量整体独审读取时 main 未移动）",
+   "run": "38397240254（cea15bd7）",
+   "in_repo_report": ".chanlun/review-results/issue1414-tb02d-20261012/CI-DELTA.md",
+   "by_commit": {
+    "cea15bd7": {
+     "ci_run": 38397240254,
+     "rust_check": "failure：default targets 2955 passed/3 failed/161 ignored，仅 3 个既有红；tower_scaling ok；其后 s_session bin 全量与 backtest_bin 两步未执行",
+     "test": "success",
+     "s_observer": "success；TB-02-D 五模块 Ran 40 OK，CPython 3.14.6，解析池布局 True",
+     "fixture_drift": "success"
+    },
+    "179412c3": {
+     "ci_run": 38387197713,
+     "rust_check": "failure：2954 passed/4 failed/161 ignored；3 个既有红 + incremental_tower_scaling_dominates_full_synthetic（incremental_parity.rs:1481，n=400 增量/全量比 0.723，门 < 0.7）",
+     "completed_at": "2026-10-13T11:07:51Z"
+    },
+    "aa4039cc": {
+     "ci_run": 38385269425,
+     "rust_check": "failure：2955 passed/3 failed/161 ignored，仅 3 个既有红；tower_scaling ok"
+    },
+    "787f5cf1": {
+     "ci_run": 38344720471,
+     "rust_check": "failure：2955 passed/3 failed/161 ignored，仅 3 个既有红；tower_scaling ok"
+    },
+    "main_f95a7f3e": {
+     "ci_run": 38201220739,
+     "rust_check": "failure：2950 passed/3 failed/161 ignored，仅 3 个既有红；tower_scaling ok"
+    }
+   },
+   "tower_scaling": {
+    "test": "theta_v0::classifier::tests::incremental_parity::incremental_tower_scaling_dominates_full_synthetic",
+    "reading_179412c3": {
+     "full_times": [
+      0.022835876,
+      0.055169834,
+      0.158452076
+     ],
+     "inc_times": [
+      0.007753032,
+      0.015372816,
+      0.114501623
+     ],
+     "ratio_n400": 0.723,
+     "gate": "< 0.7"
+    },
+    "judgement": "计时抖动，非 #1414 引入",
+    "grounds": [
+     "库字节在 787f5cf1、aa4039cc、179412c3、cea15bd7 四提交逐字节相同；P2 在 rust/ 下只改 src/bin/s_session_v2/tb02c.rs 一行",
+     "该测试直接构造带合成段的 ParseLayer 调 classify/classify_incremental，不走本 PR 改过的分段与特征序列代码；git diff f95a7f3e cea15bd7 -- rust/src/theta_v0/classifier 为空，classifier 不引用 FeatureSeqState",
+     "同字节在 aa4039cc 与 cea15bd7 上通过，main 与 787f5cf1 上也通过；它是 debug 构建下 n=400 的墙钟比值门"
+    ],
+    "gate_relaxed": false,
+    "followup": "建议另开票跟踪该计时测试的抖动；本提交不开票"
+   },
+   "report_commit_timing": "cea15bd7 committer 12:24:59Z 晚于 179412c3 rust-check 完成（11:07:51Z），早于 cea15bd7 自身 rust-check 完成（12:33:30Z）",
+   "receipts": [
+    {
+     "id": "IR-CI-RUNS.json",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-incremental-surface-review/ci/CI-RUNS.json",
+     "bytes": 3411,
+     "sha256": "c8caa3c022624079c85988ffc69e82f8bf238f767511744277c95c3feb9508d8",
+     "role": "CI 读数汇总（gh 只读 GET）"
+    },
+    {
+     "id": "IR-CI-rust-check-cea15bd7",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-incremental-surface-review/ci/rust-check-cea15bd7-run38397240254-job115295473313.log",
+     "bytes": 899106,
+     "sha256": "74c95167258f8589ee9b97aadb81b69f21482ac27fa925c872af4a1b331cb653",
+     "role": "rust-check 作业日志"
+    },
+    {
+     "id": "IR-CI-rust-check-179412c3",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-incremental-surface-review/ci/rust-check-179412c3-run38387197713-job115261791575.log",
+     "bytes": 898574,
+     "sha256": "af93267c684e447ef98e988a54b01bc66058ece7664b79353495875ae2ba5ec5",
+     "role": "rust-check 作业日志（tower_scaling 0.723）"
+    },
+    {
+     "id": "IR-CI-rust-check-aa4039cc",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-incremental-surface-review/ci/rust-check-aa4039cc-run38385269425-job115255377178.log",
+     "bytes": 892637,
+     "sha256": "ee4e2c6b53788b0a00a5ae667b88887bb50a9b6d4674214491f18cfb04f95b04",
+     "role": "rust-check 作业日志"
+    },
+    {
+     "id": "IR-CI-s-observer-cea15bd7",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-incremental-surface-review/ci/s-observer-cea15bd7-run38397240254-job115295473111.log",
+     "bytes": 63516,
+     "sha256": "473d8b98b88efbf2ca6ee55ba57ec38081b3f9e2fd2de07b495674427ca0e86b",
+     "role": "s-observer 作业日志"
+    },
+    {
+     "id": "CI-rust-check-787f5cf1",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-commit-pr/ci-rust-check-115123329353.log",
+     "bytes": 1587707,
+     "sha256": "653b73fc91a2dda3d521a2680d7cb44014d5efdf46c0781b746638c71be2c4eb",
+     "role": "rust-check 作业日志（上一轮取得）"
+    },
+    {
+     "id": "CI-rust-check-main-f95a7f3e",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-commit-pr/ci-main-f95a7f3-rust-check-114654853529.log",
+     "bytes": 1154100,
+     "sha256": "b5b88d23b969f4969dee60e12e6dd210344435dd0f0374da8db2e4849251c9cd",
+     "role": "rust-check 作业日志（上一轮取得）"
+    }
+   ],
+   "ninth_commit_ci": "PENDING"
   },
   "merge": "PENDING：需要用户对具体 PR 号与新 head SHA 的明确批准",
   "close_ticket": "PENDING：合入 main 后按关票门另写声明，需要用户批准",
-  "devskim_codeql_delta": "DevSkim PENDING；CodeQL 工作流当前 disabled_manually（#1107），本次无 CodeQL 增量（FS-N8）",
-  "commit_split": "原五提交 + P2 两提交（aa4039cc、179412c3）+ C5 报告重写（待提交）"
+  "devskim_codeql_delta": {
+   "in_repo_report": ".chanlun/review-results/issue1414-tb02d-20261012/CI-DELTA.md",
+   "route": "按 #1404 先例以 CI-DELTA.md 登记，未改 .github/devskim-baseline.json；若改为登记基线，键含行号，须在最终 head 上生成",
+   "scanner": "devskim 1.0.90+fb2d676ce4",
+   "baseline_file": {
+    "path": ".github/devskim-baseline.json",
+    "sha256": "df25ff2ec9a0898de03a4450fc3506444f08100ca0657a32665086991e202595",
+    "findings": 8201,
+    "changed_by_pr": false
+   },
+   "sarif_not_in_repo": [
+    {
+     "head": "cea15bd735bc351cde21a2d734f77c020d26555f",
+     "devskim_run": 38397240180,
+     "artifact": "devskim-sarif",
+     "results": 42903,
+     "bytes": 136917470,
+     "sha256": "45087a1f845c03c59d5b2d57f1f40a0ea5a040ef6e7791835b569498cb5e74f3",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-incremental-surface-review/devskim/cea15bd7-38397240180/devskim-results.sarif"
+    },
+    {
+     "head": "787f5cf1fe84b1c27970e1da8093e3e2f1dd06e5",
+     "devskim_run": 38344720431,
+     "artifact": "devskim-sarif",
+     "results": 42552,
+     "bytes": 136654664,
+     "sha256": "61910412d7b2a71604231a6773edc4fc811810613fd7c7ca559199f991a41ac8",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-incremental-surface-review/devskim/787f5cf1-38344720431/devskim-results.sarif"
+    },
+    {
+     "head": "f95a7f3ebc0ce84ec2d2f8a8d71b5030b19f89b9",
+     "devskim_run": 38201220747,
+     "artifact": "devskim-sarif",
+     "results": 41730,
+     "bytes": 136032044,
+     "sha256": "a96283895b71d031499eccb8c20a3a2591255943f169335fff1ebc5fb1a44455",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-incremental-surface-review/devskim/main-f95a7f3e-38201220747/devskim-results.sarif"
+    }
+   ],
+   "gate_view": {
+    "out_of_baseline": {
+     "cea15bd7": 34616,
+     "787f5cf1": 34265,
+     "main_f95a7f3e": 33443,
+     "fixed_since_baseline_each": 14
+    },
+    "note": "main 自身对基线已有 33443 条基线外告警，DevSkim 门在 main 上本就红；PR 归因只能看相对 main 实测 SARIF 的差集",
+    "cea_vs_787": {
+     "added_keys": 600,
+     "removed_keys": 249
+    },
+    "cea_vs_main": {
+     "added_keys": 1176,
+     "removed_keys": 3
+    },
+    "787_vs_main": {
+     "added_keys": 825,
+     "removed_keys": 3
+    }
+   },
+   "multiset_view_precedent_1404": {
+    "cea_vs_787": {
+     "added": 393,
+     "removed": 42,
+     "added_by_rule_path": [
+      [
+       "DS173237",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/EVIDENCE-INDEX.json",
+       306
+      ],
+      [
+       "DS173237",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/PLAN.json",
+       56
+      ],
+      [
+       "DS173237",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/ROOT-P2-RERUN-AUTHORIZATION.json",
+       12
+      ],
+      [
+       "DS173237",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/REBUILD-RECEIPT.json",
+       11
+      ],
+      [
+       "DS173237",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/CURRENT-SOURCES.json",
+       8
+      ]
+     ],
+     "removed_by_rule_path": [
+      [
+       "DS173237",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/EVIDENCE-INDEX.json",
+       25
+      ],
+      [
+       "DS173237",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/CURRENT-SOURCES.json",
+       11
+      ],
+      [
+       "DS173237",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/explicit_composite.py",
+       4
+      ],
+      [
+       "DS173237",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/reuse_state.py",
+       2
+      ]
+     ]
+    },
+    "cea_vs_main": {
+     "added": 1173,
+     "removed": 0,
+     "added_by_rule_path": [
+      [
+       "DS173237",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/CURRENT-SOURCES.json",
+       547
+      ],
+      [
+       "DS173237",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/EVIDENCE-INDEX.json",
+       531
+      ],
+      [
+       "DS173237",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/PLAN.json",
+       56
+      ],
+      [
+       "DS173237",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/ROOT-P2-RERUN-AUTHORIZATION.json",
+       12
+      ],
+      [
+       "DS173237",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/REBUILD-RECEIPT.json",
+       11
+      ],
+      [
+       "DS117838",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/CURRENT-SOURCES.json",
+       5
+      ],
+      [
+       "DS173237",
+       "error",
+       "s_session/tests/fixtures/tb02d/MANIFEST.json",
+       4
+      ],
+      [
+       "DS162092",
+       "note",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/remaining-driver.py",
+       2
+      ],
+      [
+       "DS197836",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/remaining-driver.py",
+       1
+      ],
+      [
+       "DS172411",
+       "note",
+       "s_session/browser/tb01c-client.js",
+       1
+      ],
+      [
+       "DS173237",
+       "error",
+       "s_session/tests/fixtures/tb02d/generate-input.py",
+       1
+      ],
+      [
+       "DS173237",
+       "error",
+       "s_session/tests/fixtures/tb02d/hand-oracle.json",
+       1
+      ],
+      [
+       "DS162092",
+       "note",
+       "s_session/tests/tb02d_runtime.py",
+       1
+      ]
+     ],
+     "removed_by_rule_path": []
+    },
+    "787_vs_main": {
+     "added": 822,
+     "removed": 0,
+     "added_by_rule_path": [
+      [
+       "DS173237",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/CURRENT-SOURCES.json",
+       550
+      ],
+      [
+       "DS173237",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/EVIDENCE-INDEX.json",
+       250
+      ],
+      [
+       "DS117838",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/CURRENT-SOURCES.json",
+       5
+      ],
+      [
+       "DS173237",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/explicit_composite.py",
+       4
+      ],
+      [
+       "DS173237",
+       "error",
+       "s_session/tests/fixtures/tb02d/MANIFEST.json",
+       4
+      ],
+      [
+       "DS162092",
+       "note",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/remaining-driver.py",
+       2
+      ],
+      [
+       "DS173237",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/reuse_state.py",
+       2
+      ],
+      [
+       "DS197836",
+       "error",
+       ".chanlun/review-results/issue1414-tb02d-20261012/run-package/remaining-driver.py",
+       1
+      ],
+      [
+       "DS172411",
+       "note",
+       "s_session/browser/tb01c-client.js",
+       1
+      ],
+      [
+       "DS173237",
+       "error",
+       "s_session/tests/fixtures/tb02d/generate-input.py",
+       1
+      ],
+      [
+       "DS173237",
+       "error",
+       "s_session/tests/fixtures/tb02d/hand-oracle.json",
+       1
+      ],
+      [
+       "DS162092",
+       "note",
+       "s_session/tests/tb02d_runtime.py",
+       1
+      ]
+     ],
+     "removed_by_rule_path": []
+    }
+   },
+   "line_migrations_cea_vs_787": [
+    "DS162092 .chanlun/review-results/issue1414-tb02d-20261012/run-package/remaining-driver.py 101→185",
+    "DS162092 .chanlun/review-results/issue1414-tb02d-20261012/run-package/remaining-driver.py 156→241",
+    "DS197836 .chanlun/review-results/issue1414-tb02d-20261012/run-package/remaining-driver.py 170→255",
+    "DS172411 s_session/browser/tb01c-client.js 647→652",
+    "DS172411 s_session/browser/tb01c-client.js 742→747"
+   ],
+   "main_findings_migrated_by_pr": [
+    "DS162092 s_session/s_readonly_server.py 1193→1234",
+    "DS172411 s_session/browser/tb01c-client.js 583→747",
+    "DS173237 s_session/browser/tb01c-client.js 118→146"
+   ],
+   "ds173237_hex40_git_objects": {
+    "179412c33d526a0716ce0bafcb03bdf22084cdc8": "commit",
+    "212d775866582712901e72b98c4a97c9a8b0bfee": "commit",
+    "28704548de167af12276c3794d621092a5282fd0": "commit",
+    "2e03303cc3eaacecc2406b6e91231873f6ada0fc": "commit",
+    "787f5cf1fe84b1c27970e1da8093e3e2f1dd06e5": "commit",
+    "a70208e89a23e668b72e53c2389cede85dd1616b": "blob",
+    "aa4039cc177e420043a7b1a7c413c32c679505f3": "commit",
+    "efc1ddc4d6c015f4f8c6d44f904d704a88308b46": "commit",
+    "f7b46579bd50b0506229fa866dbd86d69a0bb8ff": "commit",
+    "f95a7f3ebc0ce84ec2d2f8a8d71b5030b19f89b9": "commit"
+   },
+   "verdict_by_rule": {
+    "DS173237": "误报：命中值均为 64 位 SHA-256 或 40 位 git 对象号（证据指纹），非凭据；不需修",
+    "DS117838": "误报：CURRENT-SOURCES.json 中文件名含 key（key.rs/key_truth.rs/key_reuse.py/two_pass_evidence.rs）的路径→SHA-256 映射；不需修",
+    "DS162092": "提示（note）：本机 loopback 127.0.0.1，位于一次性运行包或本机验收脚本，非生产外放；不需修",
+    "DS197836": "误报：snippet「sha256'] == expected_runtime」把 runtime 中的 time 当作时间值；实为比较源集合 SHA；不需修",
+    "DS172411": "提示（note）：setTimeout 传入固定箭头函数 () => abort.abort()，无不可信字符串求值；不需修"
+   },
+   "needs_fix": [],
+   "codeql": "工作流当前 disabled_manually（#1107），本次无 CodeQL 增量（FS-N8）",
+   "scope": "固定 cea15bd7 head；第九个提交新增的 SHA 字符串会在下一次 DevSkim 运行中产生新的 DS173237 命中，不在本结论内",
+   "receipts": [
+    {
+     "id": "IR-DEVSKIM-DELTA.json",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-incremental-surface-review/devskim/DEVSKIM-DELTA.json",
+     "bytes": 13775,
+     "sha256": "c948d9ee1c1dd8c27a42d0ac6994f30ed80af33d0dc64f8d06973ec46dc9dc0f",
+     "role": "DevSkim 增量汇总与逐规则判定"
+    },
+    {
+     "id": "IR-DEVSKIM-KEYS.tsv",
+     "root": "CTRL-20261012",
+     "relative_path": "tb1414-incremental-surface-review/devskim/DEVSKIM-KEYS.tsv",
+     "bytes": 568435,
+     "sha256": "85d0f5c473972c14f8b2983e25076e70c8ac3d71f7f82bfc95aa5f2ede826b25",
+     "role": "逐键清单与判定（2028 行）"
+    }
+   ]
+  },
+  "commit_split": "原五提交 + P2 两提交（aa4039cc、179412c3）+ C5 报告重写（cea15bd7）+ CI 与 DevSkim 登记（第九个提交，本版）"
  },
  "run_package": {
   "naming": "绑定 #1414 的工作草稿证据副本（宪法 §5 记账层产物），不是代码：不被任何构建、测试或运行入口调用，不得修改或执行；票关后随本目录归档出仓",
@@ -6187,14 +6748,18 @@
   "性能数字只属所测输入与解释器（Python 3.14.6 runtime venv、Chrome 154.0.8037.99、macOS 本机），不外推",
   "SHA 只证拿到的是当时那份文件；CTRL-20261012 是本机临时目录，跨机器复验依赖归档可取得",
   "test_tb02d_projection_cache.py 的 14 个与 tb01c_query_tests.py 的 31 个测试不在 CI，只有本机 --binary 收据",
-  "整体独审首轮 FS-N1–FS-N8 仍有效（库与合同的已知限制，P2 未改其事实）；FS-N7 的机器路径同样适用于新 run-package"
+  "整体独审首轮 FS-N1–FS-N8 仍有效（库与合同的已知限制，P2 未改其事实）；FS-N7 的机器路径同样适用于新 run-package",
+  "incremental_tower_scaling_dominates_full_synthetic 是 debug 构建下 n=400 的墙钟比值门（< 0.7），179412c3 上读 0.723；判为计时抖动依据库字节四提交相同、同字节在 aa4039cc 与 cea15bd7 上通过，未做重复测量分布，建议另开票跟踪",
+  "DevSkim 增量结论固定 cea15bd7 head（CI-DELTA.md）；后续提交新增的 SHA 字符串会产生新的 DS173237 命中，需按同口径另核"
  ],
  "claims_not_made": [
   "不声称 #1414 已完成、已合入或 CI 已绿",
   "不把作者自检称为独审",
   "不把 3 个既有红称为通过，也不称其由 #1414 修复或引入",
   "不把 787f5cf 字节的历史证据当作新字节的运行证据",
-  "不预填尚未发生的增量整体独审"
+  "不预填第九个提交的轻量增量复核与其 CI 结论",
+  "不声称 DevSkim 门已绿，也不声称已登记 DevSkim 基线",
+  "不声称 tower_scaling 计时测试的抖动已查清或其 0.7 门可放宽"
  ],
  "finding_id_prefixes": {
   "AR-": "实际运行独审 actual-remaining 的 N1–N5（本索引内 actual_independent_review_of_remaining 中保留原 id）",
@@ -6202,7 +6767,8 @@
   "R2-": "整体独审复审 r2 的 N1–N3（本索引内 final_independent_review.round2 中保留原 id R2-N*）",
   "P2R-": "P2 实际运行独审 actual-rerun-review 的 N1–N5",
   "FX-": "P2 修正独审 fix-review 的 L1–L2（已由 179412c3 处理）",
-  "PK-": "P2 再验收包独审 rerun-package-review 的 L1–L3"
+  "PK-": "P2 再验收包独审 rerun-package-review 的 L1–L3",
+  "IR-": "增量整体独审 incremental-surface-review 的 M1–M2、L1–L2、N1"
  },
  "ci": {
   "job": "s-observer",
@@ -6234,6 +6800,7 @@
    }
   ],
   "local_receipt_of_final_command": "本机 CPython 3.14.6：五模块 Ran 40 tests OK、解析池布局匹配 True（tb1414-p2-fix/c2/steps/11-ci-tb02d-py3146，HEAD 179412c3 的测试字节）",
-  "ci_result": "PENDING"
+  "ci_result": "cea15bd7（run 38397240254）：s-observer success，本命令在 CPython 3.14.6 下打印解析池布局 True，五模块 Ran 40 tests OK；rust-check 只因 3 个既有红失败（见 acceptance.ci 与 CI-DELTA.md）",
+  "ci_receipt": "CTRL-20261012:tb1414-incremental-surface-review/ci/s-observer-cea15bd7-run38397240254-job115295473111.log"
  }
 }

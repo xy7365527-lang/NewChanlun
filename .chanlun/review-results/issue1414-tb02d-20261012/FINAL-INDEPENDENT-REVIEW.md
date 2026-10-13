@@ -1,14 +1,18 @@
-# #1414 / TB-02-D 独立审查（P2 再验收实际运行独审与历史整体独审）
+# #1414 / TB-02-D 独立审查（P2 再验收实际运行独审、增量整体独审与历史整体独审）
 
 > 名分：工作草稿，活期绑定 [#1414](https://github.com/xy7365527-lang/NewChanlun/issues/1414)（`docs/agents/generation-constitution.md` §5）。本文件是关票门第 7 项“评审面 == 关票面”的仓内载体。
 >
 > 本文件由 C5 重写起草工位汇编。现行部分是 P2 修正后新字节的实际运行独审：审查者 `/root/tb1414_pr_p2_triage`，独立于 `/root/tb1414_p2_fix`、`root`。下面的 `REVIEW.md` 全文放在四个反引号的围栏里，围栏行本身不属于原文；起草工位没有改动、删节或评论原文。历史部分是 787f5cf 提交面的两轮整体独审，逐字取自本文件上一版，按根裁定 ROOT-RULING（`600207e3a2f2`）只作历史记录。
 >
+> 第九个提交（登记 CI 与 DevSkim 增量）追加了 `cea15bd7` 提交面的增量整体独审：审查者 `/root/tb1394_r6_contract`，此前未参与 #1414。它的 `REVIEW.md` 全文同样放在四个反引号的围栏里，起草工位没有改动、删节或评论原文；本文件此前已有的逐字收录节与历史节一字未动。
+>
 > 核对方法：取围栏内的内容（不含首尾两行围栏），其 bytes 与 SHA256 应等于下表所列原件。
 
 ## 结论
 
-P2 修正后的新字节（写者 `58a135103968`，HEAD `179412c33d52`）上，四臂 fresh 与两对 221 行比较的实际运行独审为 `PASS_TB02D_P2_RERUN_ACTUAL_ACCEPTED`：阻断 0，非阻断 5，延后 0。根已签收 `ROOT_ACCEPTS_TB02D_P2_RERUN_ACTUAL`（2026-10-13T12:06:07Z），deferred 为空，五条非阻断项随附。本裁定只覆盖 TB-02-D 的 P2 新字节四臂与两对比较，不裁整图、不裁合入。新提交面的增量整体独审尚未进行（PENDING），不在本文件预填。
+P2 修正后的新字节（写者 `58a135103968`，HEAD `179412c33d52`）上，四臂 fresh 与两对 221 行比较的实际运行独审为 `PASS_TB02D_P2_RERUN_ACTUAL_ACCEPTED`：阻断 0，非阻断 5，延后 0。根已签收 `ROOT_ACCEPTS_TB02D_P2_RERUN_ACTUAL`（2026-10-13T12:06:07Z），deferred 为空，五条非阻断项随附。本裁定只覆盖 TB-02-D 的 P2 新字节四臂与两对比较，不裁整图、不裁合入。
+
+C5 报告提交 `cea15bd7` 的提交面增量整体独审（`787f5cf1` → `cea15bd7`）为 `PASS_INCREMENTAL_SURFACE_READY_FOR_MERGE_REQUEST`，阻断 0。它要求合入请求随附两条 CI 事实（IR-M1 rust-check 实测、IR-M2 DevSkim 增量），已由第九个提交的 `CI-DELTA.md` 与 `ACCEPTANCE-REPORT.md` §8、§12 登记。该审只绑定 `cea15bd7`；第九个提交改了本目录四个文档文件，对这些文件的轻量增量复核 PENDING。
 
 ## 现行独审字段
 
@@ -53,6 +57,36 @@ P2 修正后的新字节（写者 `58a135103968`，HEAD `179412c33d52`）上，�
 - PID 退出警告措辞与 wrapper 只核 PID
 - requestfailed 计数 25/16/19/15 不在门内
 - Chrome 主文件 ctime 变化在合同内
+
+## 增量整体独审（`787f5cf1` → `cea15bd7`）
+
+完整收据另见 `EVIDENCE-INDEX.json` 的 `acceptance.incremental_final_review_of_new_surface`、`acceptance.ci` 与 `acceptance.devskim_codeql_delta`。
+
+| 字段 | 值 |
+|---|---|
+| `incremental_surface_review.location` | `CTRL-20261012:tb1414-incremental-surface-review/` |
+| `incremental_surface_review.review_md.bytes` | 13202 |
+| `incremental_surface_review.review_md.sha256` | `c6b0adf14e108d95b17916dd95e85d9ab99f4ec0f5c1bde813faa8d8d6520c5a` |
+| `incremental_surface_review.result_json.bytes` | 8854 |
+| `incremental_surface_review.result_json.sha256` | `8d8d2a800b60eeb4970628581ef397021b2a6e7c0fa08da8bf6981cb2501c917` |
+| `incremental_surface_review.binding_json.bytes` | 9800 |
+| `incremental_surface_review.binding_json.sha256` | `1b82b5dc3acd57385165289b32846bc78a7434e772497fa96f9a74c82ea0b2f8` |
+| `incremental_surface_review.reviewer` | `/root/tb1394_r6_contract`（此前未参与 #1414） |
+| `incremental_surface_review.subject` | HEAD `cea15bd735bc351cde21a2d734f77c020d26555f`；增量 `aa4039cc`、`179412c3`、`cea15bd7`（自 `787f5cf1`）；相对 main 47 路径 |
+| `incremental_surface_review.status` | `PASS_INCREMENTAL_SURFACE_READY_FOR_MERGE_REQUEST` |
+| `incremental_surface_review.blocking` | `[]` |
+| `incremental_surface_review.merge_request_must_carry` | IR-M1、IR-M2 |
+| `incremental_surface_review.scope_note` | 本审绑定 `cea15bd7`；任何新提交（含登记 CI-DELTA 或改报告）需对新增文件做轻量增量复核 |
+
+发现（据 RESULT.json 摘录，文字有压缩；末栏为第九个提交的处理）：
+
+| ID | 级别 | 发现 | 审查给出的处置 | 第九个提交的处理 |
+|---|---|---|---|---|
+| IR-M1 | MEDIUM，非阻断 | CI 实际结论未登记；漏登 `179412c3` 上 tower_scaling 0.723 的计时红 | 合入请求随附 `ci/CI-RUNS.json`；计时测试抖动另开票，不得悄悄放宽 0.7 门 | 登记于 `CI-DELTA.md` 与报告 §8、§12；0.7 门不放宽，建议另开票跟踪，本提交不开票 |
+| IR-M2 | MEDIUM，非阻断 | DevSkim 增量未登记 | 按 `DEVSKIM-DELTA.json` 登记；CI-DELTA.md 或基线由根定，基线须在最终 head 生成 | 按 #1404 先例登记于 `CI-DELTA.md`，未改基线；需修 0 条 |
+| IR-L1 | LOW | 仓内自述停在提交前（报告 HEAD、索引 `commits.head`、`ci.ci_result`、提交后重核待办） | 本审已完成提交后重核；不要求为此再提交 | 随本次登记一并订正报告 §4 与索引 `commits`、`ci` |
+| IR-L2 | LOW | 跨对象 `facts.from_stroke == strict.elements[1]+1` 未锁 | TRIAGE 已列可选，留后续 | 留后续 |
+| IR-N1 | note | `test_tb02c_compare` 依赖 ijson | 环境项；CI 先装 `requirements-tb02c.txt` | 无改动 |
 
 ## P2 的前置独审
 
@@ -172,6 +206,110 @@ DEPENDENCY-PRE 与 POST 都是 PASS，没有 mismatch 或 error。python、node�
 - 升级只读的 ps 与端口复核 → LIVE-RESOURCE-CHECK.json。
 
 没有启动 Q、S、浏览器、runtime 或构建，没有改 OUT、包或 worktree；OUT 的文件数与最晚 mtime 在审查前后不变，worktree 干净。没有 commit/push/PR。
+````
+
+## 增量整体独审全文（逐字）
+
+````markdown
+# #1414 / PR #1477 增量提交面整体独审（787f5cf1 → cea15bd7）
+
+审查人：`/root/tb1394_r6_contract`（此前未参与 #1414）。对象：worktree `/Users/silencehan/.codex/worktrees/goal1323-tb1414/NewChanlun`，分支 `codex/1414-second-sequence-20261012`，HEAD `cea15bd735bc351cde21a2d734f77c020d26555f`（工作区干净；`origin/main` 与 merge-base 均为 `f95a7f3ebc0ce84ec2d2f8a8d71b5030b19f89b9`，main 未移动）。增量为 `aa4039cc`（修正）、`179412c3`（测试）、`cea15bd7`（报告）三个提交。只读：未改 worktree、未提交、未在 GitHub 写任何东西；GitHub 只做 GET（check-runs、作业日志、`gh run download` 取 SARIF 工件）。
+
+## 结论
+
+**`PASS_INCREMENTAL_SURFACE_READY_FOR_MERGE_REQUEST`，阻断 0。** 修正、测试与报告三层都对得上；概念层与原文一致，代码层两侧门同序同文案并被变异测试证实能拦住字符串取锚与 Number 精度两种错法，报告层 121 处抽样与 OUT 全量清点全部相符，三份「全文（逐字）」逐字等于原件。
+
+合入请求必须随附两条 CI 事实，它们在报告里仍写作 PENDING 或「预计」（IR-M1、IR-M2，均非阻断、均无需改码）：
+
+1. `179412c3` 那次 rust-check 多出一个红：`incremental_tower_scaling_dominates_full_synthetic` 比值 0.723 对门 0.7。它是计时抖动：库字节在 787f5cf1、aa4039cc、179412c3、cea15bd7 四个提交上逐字节相同（P2 只改 `rust/src/bin/` 下的 `tb02c.rs`），该测试在其中三次和 main 上都通过，cea15bd7 的运行 38397240254 又只剩 3 个既有红。
+2. DevSkim：cea15bd7 相对 787f5cf1 与相对 main 的新增告警全部是误报或 loopback/固定回调提示，**无一需修**；门在 main 上本来就红（main 自身 33443 条基线外），处置走 CI-DELTA.md 还是登记基线由根定。
+
+## 概念层
+
+正本未改：`067`、`078` 两课博文与 `.chanlun/definitions/xianduan.md` 相对 main 无改动。修正落的是 067:38【正文】「从该分型最高点开始的向下一笔开始的序列」与 078:54「方向是和原线段一致」（xianduan.md §3 G-3，:131-150）：库内 `second_sequence`（`feature_seq.rs:298-330`）早已取 `from = b+1`、只收与原线段同向的笔，P2 修的是发布面——`tb02c.rs:163` SECOND 的 `scan.from_stroke` 由 `scan.from_stroke` 改为 `second.from_stroke`，与另外四个已取自 `second` 的字段对齐；FIRST（:146）仍是 `c.start_stroke`。身份锚取 `stroke_refs` 中数值最小的笔号：refs 由 `stroke_refs()` 从 `c.start_stroke` 到 `observed_through` 升序枚举，最小值恒为段起笔，与 Rust 侧段身份 `strokes[c.start_stroke].identity_anchor`（:140）同源。
+
+#799/#804：同一锚规则同时服务 FIRST 与 SECOND，锁是严格等值与严格大于，没有宽严两档，也没有按级别分叉的判据。未锁的跨对象关系 `facts.from_stroke == strict.elements[1]+1` 仍只由 Rust 构造保证（IR-L2，TRIAGE 已列为可选）。
+
+## 代码层
+
+`wire()`（`tb02c.rs:18`）把一切 JSON 数字转为 `n.to_string()`，`stroke_index` 是 `usize`，所以 refs 的键是规范十进制文本，两侧按文本等值比较可靠。
+
+Python `s_tb02_contract.py`：refs 键经 `integer(...,0)` 校验并拒重复；:592 `if not refs` 先拒空，:595 `min(refs, key=int)` 取锚，:596 FIRST 锁 `scan.from_stroke == 锚`，:604 SECOND 四字段等于 facts 且 `int(scan.from_stroke) > int(锚)`，:773 身份由 `refs[segment_start]` 推出。JS `tb01c-client.js` :286-294 同序：先 `refs.size > 0`，再 BigInt reduce 取最小，再 FIRST 锁、SECOND 锁；拒绝文案逐字相同，`test_empty_stroke_refs_rejected_by_both_sides` 断言了两侧同一道门同一文案。`tb02d_verify.py:71` 新增已发布 scan 四字段对 oracle `second_scan` 的比对。下游读者（rg）只有上述三处与合同测试，`tb02d_browser.cjs` 只匹配角色文本，object_id 级联已由 TRIAGE §6 说明。
+
+在 `git archive cea15bd7` 导出副本上做了两次变异：把 JS 取锚与 SECOND 比较改成 `Number`，`test_identity_anchor_keeps_precision_above_2_53` 失败；把 Python 改成 `min(refs)`（字符串序），`test_identity_anchor_is_numeric_minimum_of_decimal_text` 出错。两条新锁都确实拦得住它们要拦的错法。
+
+## 测试读数（导出副本，本机）
+
+| 项 | 结果 |
+|---|---|
+| TB-02-D 五模块（CPython 3.14.6，CI 同命令） | Ran 40，OK |
+| `test_tb02c_*.py`（runtime venv 3.14.6 + ijson 3.5.1） | Ran 14，OK（系统 Python 缺 ijson 时 `test_tb02c_compare` 导入失败，属环境；CI 先装 `requirements-tb02c.txt`） |
+| `node --test test_tb02c_contract.cjs` | 6 过 0 败 |
+| `cargo test --locked --offline --features s_session --bin s_structure_session`（nice 10，独立 target `/private/tmp/tb1414-incr-review-target`） | 81 passed，0 failed，1 ignored，471.74 s；含 `tb02d_all_frozen_cases_project_into_strict_read_contracts` |
+| 变异：JS Number / Python 字符串取锚 | 各被对应测试拦截 |
+
+CI 上的 rust-check 在「default targets」失败后不再执行 s_session bin 全量与 backtest_bin 两步，所以上面这次 bin 全量是对 cea15bd7 字节的唯一一次全量 bin 读数。
+
+## CI 实际结论
+
+| 提交 | 运行 | rust-check default targets | s-observer | DevSkim |
+|---|---|---|---|---|
+| cea15bd7 | 38397240254 / 38397240180 | 2955 过、3 败（3 个既有红），tower_scaling ok | 成功；TB-02-D 五模块 Ran 40 OK，3.14.6，布局 True | 红 |
+| 179412c3 | 38387197713 / 38387197687 | 2954 过、**4 败**：3 个既有红 + tower_scaling（0.723 ≥ 0.7） | 成功 | 红 |
+| aa4039cc | 38385269425 / 38385269384 | 2955 过、3 败，tower_scaling ok | 成功 | 红 |
+| 787f5cf1 | 38344720471 / 38344720431 | 3 个既有红，tower_scaling ok | 成功 | 红 |
+| main f95a7f3e | 38201220739 / 38201220747 | 3 个既有红，tower_scaling ok | 成功 | 红 |
+
+tower_scaling 的判定依据：该测试（`incremental_parity.rs:1422-1484`）直接构造带合成段的 `ParseLayer` 调 `classify`/`classify_incremental`，不走本 PR 改过的分段与特征序列代码；`git diff f95a7f3e cea15bd7 -- rust/src/theta_v0/classifier` 为空，classifier 不引用 `FeatureSeqState`；它对 debug 构建下 n=400 的墙钟比值设 0.7 门，179412c3 那次 full 0.158 s、inc 0.115 s。报告提交于 12:24:59Z，晚于 179412c3 的 rust-check 完成（11:07:51Z），却仍写「预计与 main 一样因 3 个既有红失败」「CI 实际结论 PENDING」（ACCEPTANCE-REPORT.md:207、:306），漏登了这次多出的红。作业日志存 `ci/`，汇总在 `ci/CI-RUNS.json`。
+
+## DevSkim 增量（三份 SARIF 实物）
+
+三次运行的 `devskim-sarif` 工件已下载到 `devskim/`，扫描器均为 `devskim 1.0.90+fb2d676ce4`。按 `scripts/devskim_sarif_gate.sh` 原样对 `.github/devskim-baseline.json`（8201 键，本 PR 未改）跑门：cea15bd7 基线外 34616、787f5cf1 34265、main 33443，三者「Fixed since baseline」都是 14。门在 main 上本就红，PR 归因只能看相对 main 实测 SARIF 的差集。
+
+| 比较 | 门口径（规则\|路径\|行） | #1404 先例口径（多重集，忽略行列） |
+|---|---|---|
+| cea15bd7 vs 787f5cf1 | +600 / −249 | +393 / −42，全部 DS173237 |
+| cea15bd7 vs main | +1176 / −3 | +1173 / −0 |
+| 787f5cf1 vs main | +825 / −3 | +822 / −0（与根当时记录的 822 相符） |
+
+增量里的非 DS173237 项全是行号迁移，多重集口径下增删都是 0：
+
+| 规则 | 路径 | 787f5cf1 → cea15bd7 | 成因 |
+|---|---|---|---|
+| DS162092 | run-package/remaining-driver.py | 101 → 185（`connect_ex(('127.0.0.1',…))`） | 驱动整体替换（595fa4c00937 → ab80440cdebd），同一语句下移 |
+| DS162092 | run-package/remaining-driver.py | 156 → 241（`s.bind(('127.0.0.1',…))`） | 同上 |
+| DS197836 | run-package/remaining-driver.py | 170 → 255（`runplan['source_sha256'] == expected_runtime`） | 同上 |
+| DS172411 | s_session/browser/tb01c-client.js | 647 → 652、742 → 747（`setTimeout(() => abort.abort(), …)`） | aa4039cc 在 :244 后加 1 行、:286 后加 4 行 |
+
+DS173237 增减 595+244 个键（相对 main 1164 个）逐条取 cea15bd7/787f5cf1 源行核对：命中值全部是 64 位 SHA-256 或 40 位十六进制，后者 10 个值逐个 `git cat-file` 为本仓 commit 或 blob；字段名只有 sha256 类、commit/head/base 类与「文件路径 → SHA」映射，没有 token/secret/password/key 类字段。相对 main 另有 DS117838（Critical）5 条：CURRENT-SOURCES.json 中路径含 `key`（`key.rs`、`key_truth.rs`、`key_reuse.py`、`two_pass_evidence.rs`）的「路径 → SHA」行；DS162092 两条在一次性驱动、一条在本机验收脚本 `tb02d_runtime.py:98`（`http://127.0.0.1:` 浏览器地址）；DS197836 是把 `runtime` 里的 time 当成时间值；DS172411 的回调是固定箭头函数。判定：**全部误报或提示，需修 0 条**。main 已有的三条（`s_readonly_server.py` 1193→1234、`tb01c-client.js` 583→747、118→146）只随 PR 下移。
+
+若根选择登记基线：键含行号，`EVIDENCE-INDEX.json` 与 run-package 每改一次就整体迁移（170→255 即一例），只能在最终 head 上生成；#1404 先例的 CI-DELTA.md 用多重集口径，对迁移不敏感。逐键清单与判定见 `devskim/DEVSKIM-KEYS.tsv`（2028 行），汇总见 `devskim/DEVSKIM-DELTA.json`。
+
+## 报告层
+
+`scratch/sample_report.py` 对报告所列数字与 SHA 重算实物 121 处，全部相符：依据材料 20 件 SHA（TRIAGE、ROOT-RULING、两版 schema、修正独审、实际运行独审三件、根签收、包独审三件、P2-fix 与 C2 结果、PREPARATION-BINDING、CONTROLLER-EXIT、SECOND-SCAN-Q-CHECK、HISTORICAL-RECEIPT-VERIFY、负例）；OUT 七小件 SHA；run-package 七件的 HEAD blob SHA 与字节数，以及与 OUT `freeze/`、CTRL 原件逐件相等（28 处）；新字节 10 件身份与写者二进制（`58a135103968`，4254944 B）；两对比较的状态、字节、记录数与两侧 SHA；EXECUTION 1491.73 s 与四份大件收据 SHA；SOURCE-POSTCHECK 552/27/零失配；PACKAGE-BINDING 12 项；DEPENDENCY-POST PASS；两臂大件收据值与 stat 字节（不读内容）；四臂 CC-011/CC-012 截图 SHA；四臂浏览器窗 mtime 口径 29.53/29.50/29.56/29.38 s；前门 23.3 s 与 19:23:2x；controller 19:26:51.152–19:51:43.289、1492.13 s、exit 0；根签收 12:06:07Z、deferred 为空。OUT 全量 stat 清点为 87354 文件、28,687,713,979 B，与报告一致。
+
+`FINAL-INDEPENDENT-REVIEW.md` 中三份「全文（逐字）」作为连续子串逐字等于原件：实际运行独审 REVIEW（`48c3fc552f3c`，12095 B）、r1（`1149a14bd331`）、r2（`3165f21d94fb`）；787f5cf1 版从 r1 起的历史节整段原样保留。报告 §10 的限制、§11 的历史降级与 §12 的 3 个既有红登记都与 ROOT-RULING 和根签收一致。
+
+## 提交面
+
+相对 main 恰 47 路径（19 M、28 A），与报告口径一致；本增量 17 个文件，`rust/` 下只有 `tb02c.rs` 一行。run-package 移出 `completion_io.py`、`explicit_composite.py`、`reuse_state.py`，加入 PLAN、授权、前门收据，名分仍是绑定 #1414 的工作草稿证据副本。密钥模式无命中（DevSkim 结论见上），无会话导出或工具残留，HAR/DB 只在报告文字中被引用。
+
+## 发现
+
+| ID | 级别 | 发现 | 处置 |
+|---|---|---|---|
+| IR-M1 | MEDIUM（须登记，非阻断） | 报告 §8、§12 仍写 CI PENDING 与「预计 3 个既有红」，漏登 179412c3 上 tower_scaling 0.723 的计时红；cea15bd7 的实际结论（只剩 3 个既有红、TB-02-D 五模块 CI 40 OK）也未入报告 | 合入请求随附 `ci/CI-RUNS.json` 的事实；该计时测试的抖动另开票跟踪，不得悄悄放宽 0.7 门 |
+| IR-M2 | MEDIUM（须登记，非阻断） | DevSkim 增量在报告中仍为 PENDING | 用 `devskim/DEVSKIM-DELTA.json` 登记；CI-DELTA.md 或登记基线由根定，基线须在最终 head 生成 |
+| IR-L1 | LOW | 仓内自述停在提交前：报告 :49「当前 HEAD 与远端分支同为 179412c33d52」，索引 `commits.head=179412c3`、`ci.ci_result=PENDING`、:99 的提交后重核待办 | 提交后重核已由本审完成；不要求为此再提交 |
+| IR-L2 | LOW | 合同未锁跨对象 `facts.from_stroke == strict.elements[1]+1` | TRIAGE 已列可选，留后续 |
+| IR-N1 | note | `test_tb02c_compare` 依赖 ijson，系统 Python 缺包时导入失败 | 环境项；CI 已先装依赖 |
+
+照旧随附：P2R-N1–N5（浏览器 30 s 帽余量 0.44–0.62 s 等）与 FS-N1–FS-N8，本增量未改变其事实。若根为登记 CI-DELTA 或修正报告再提交，HEAD 会变，本审只绑定 `cea15bd7`，新提交需要一次针对该文件的轻量增量复核。
+
+## 读取边界
+
+未读 semantic-core（约 1.46 GB）、HAR、session.sqlite、WAL、database-backup 的内容，大件只读收据与 stat 字节；未跑全量测试、服务或浏览器；未用 `git worktree add`，导出副本经 `git archive` 落在本目录。
 ````
 
 ## 历史：787f5cf 提交面的两轮整体独审
