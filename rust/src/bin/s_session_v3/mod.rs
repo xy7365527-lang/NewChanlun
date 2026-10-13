@@ -440,7 +440,8 @@ pub(super) fn init_v3(
     meta_set(&tx, "platform", std::env::consts::OS)?;
     meta_set(&tx, "writer_epoch", DEFAULT_WRITER_EPOCH)?;
     meta_set(&tx, "advance_state", "idle")?;
-    meta_set(&tx, "rule_revision", RULE_REVISION)?;
+    // #1394 整合 W-2：v3 只发布 TB-02-A/B，写自己的规则修订（见 `V3_RULE_REVISION`）。
+    meta_set(&tx, "rule_revision", V3_RULE_REVISION)?;
     meta_set(
         &tx,
         "scope",

@@ -291,7 +291,11 @@ impl<'a> Generated<'a> {
                 &self.requests,
             )?);
         }
+        // #1394 整合 W-3：v3 只发布 TB-02-A/B，目录轴表取它自己规则修订的那张（13 轴）。
+        // 不按输入的 `rule_revision` 选：身份配方里的修订是参数，目录覆盖面是 v3 写者的属性。
         let axes_value = crate::tb02a_facts::catalog_axes(
+            crate::tb02a_facts::CatalogAxisTable::for_rule_revision(crate::V3_RULE_REVISION)
+                .expect("v3 写者的规则修订必有目录轴表"),
             &projection,
             self.all_events,
             previous_frontier,
@@ -1601,7 +1605,7 @@ mod tests {
     use crate::{
         canonical_bytes_of_value, cmd_advance, compute_diff, delta_storage, load_batch_bytes,
         meta_get_opt, open_db, read_effective_events, read_stored_objects,
-        verified_root_raw_events, DEFAULT_WRITER_EPOCH,
+        verified_root_raw_events, StoredObjects, DEFAULT_WRITER_EPOCH,
     };
     use newchan_rust::s_content::{render_canonical, MemoryNodes};
     use serde_json::json;
@@ -1826,6 +1830,81 @@ mod tests {
             .unwrap_err();
         assert!(error.contains("拒绝Plain兜底"));
         assert!(!memo.bound && memo.seq.is_none());
+    }
+
+    /// #1394 整合 W-3：合并后 oracle 是 main 的 v2 写者，它在 TB-02-A/B 之外另发布 TB-02-C/D
+    /// （`tb02c::KINDS` 对象及其关系边）并写 17 轴目录；v3 只发布 TB-02-A/B、写 13 轴目录。
+    fn is_tb02ab_object(object: &Value) -> bool {
+        !object["kind"]
+            .as_str()
+            .is_some_and(|kind| crate::tb02c::KINDS.contains(&kind))
+    }
+
+    /// 已存身份读集限制到 TB-02-A/B（与 [`restrict_oracle_to_tb02ab`] 同一对象口径）。
+    fn tb02ab_stored(stored: StoredObjects) -> StoredObjects {
+        StoredObjects {
+            active: stored.active.into_iter().filter(is_tb02ab_object).collect(),
+            identities: stored
+                .identities
+                .into_iter()
+                .filter(|(_, object)| is_tb02ab_object(object))
+                .collect(),
+        }
+    }
+
+    /// 把 oracle 封存批次限制到 TB-02-A/B：
+    ///
+    /// - `objects` 去掉 `tb02c::KINDS` 的对象（其余对象次序不变）；
+    /// - `relations` 去掉与被去掉的 `CC-055.segment_relation` 对象逐项同三元组的关系边
+    ///   （tb02c 每发一条关系边就同时发一条同 source/kind/target 的见证对象）；
+    /// - `catalog_axes` 在限制后的对象上用 v3 那张 13 轴表重算，withdrawals/replaces 由调用方
+    ///   在限制后的对象与已存身份上跑同一生产 diff 得到（旧身份空间）。目录函数本就与生产共用
+    ///   （见模块头），对拍的仍是「同一批输入」；不重算就等于拿 17 轴目录对 13 轴写者。
+    fn restrict_oracle_to_tb02ab(
+        oracle: &mut OracleGeneration,
+        previous_frontier: i64,
+        withdrawals: &[Value],
+        replaces: &[Value],
+    ) {
+        let objects = oracle.batch["objects"].as_array().expect("oracle objects");
+        let mut segment_edges = std::collections::BTreeSet::new();
+        for object in objects {
+            if object["kind"] == "CC-055.segment_relation" {
+                let payload: Value = serde_json::from_str(
+                    object["payload_json"].as_str().expect("段关系载荷是文本"),
+                )
+                .expect("段关系载荷 JSON");
+                let data = &payload["data"];
+                segment_edges.insert(canonical_bytes_of_value(&json!({
+                    "subject": data["source_id"],
+                    "relation_type": data["relation_kind"],
+                    "object": data["target_id"],
+                })));
+            }
+        }
+        let kept: Vec<Value> = objects
+            .iter()
+            .filter(|object| is_tb02ab_object(object))
+            .cloned()
+            .collect();
+        let relations: Vec<Value> = oracle.batch["relations"]
+            .as_array()
+            .expect("oracle relations")
+            .iter()
+            .filter(|relation| !segment_edges.contains(&canonical_bytes_of_value(relation)))
+            .cloned()
+            .collect();
+        let axes = crate::tb02a_facts::catalog_axes(
+            crate::tb02a_facts::CatalogAxisTable::NewBi,
+            &kept,
+            &oracle.all_events,
+            previous_frontier,
+            withdrawals,
+            replaces,
+        );
+        oracle.batch["objects"] = Value::Array(kept);
+        oracle.batch["relations"] = Value::Array(relations);
+        oracle.batch["catalog_axes"] = axes;
     }
 
     /// 一代 oracle：封存批次原件（完整生成态）+ 同一读集的真实两账。
@@ -2299,7 +2378,8 @@ mod tests {
             let oracle_db = OracleDb::new();
             oracle_db.accept(&rows[..prefix]);
             let previous_frontier = oracle_db.advance();
-            let oracle = oracle_db.read();
+            let mut oracle = oracle_db.read();
+            restrict_oracle_to_tb02ab(&mut oracle, previous_frontier, &[], &[]);
             assert_eq!(oracle.generation, 1, "前缀 {prefix}: 首代");
             let mut store = MemoryNodes::new();
             let mut runtime = GenerationRuntime::new(
@@ -2345,7 +2425,8 @@ mod tests {
         input["events"][2]["revision"] = json!("2");
         accept_ohlc(&oracle_db.files, &input);
         let previous_frontier = oracle_db.advance();
-        let oracle = oracle_db.read();
+        let mut oracle = oracle_db.read();
+        restrict_oracle_to_tb02ab(&mut oracle, previous_frontier, &[], &[]);
         assert_eq!(oracle.generation, 1, "修订后首代");
         let b2_revisions: Vec<i64> = oracle
             .all_events
@@ -2403,16 +2484,29 @@ mod tests {
         let oracle_db = OracleDb::new();
         oracle_db.accept(&rows[..8]);
         let first_frontier = oracle_db.advance();
-        let oracle_first = oracle_db.read();
+        let mut oracle_first = oracle_db.read();
+        restrict_oracle_to_tb02ab(&mut oracle_first, first_frontier, &[], &[]);
         assert_eq!(oracle_first.generation, 1);
         // 第二次 advance 之前抓旧状态身份读集：与旧目录轴调用同一读面。
         let conn = open_db(&oracle_db.files.db()).expect("打开 oracle 库");
         let mode = delta_storage::read_mode(&conn).expect("读 Delta 域模式");
-        let stored_before = read_stored_objects(&conn).expect("读已存身份");
+        let stored_before = tb02ab_stored(read_stored_objects(&conn).expect("读已存身份"));
         drop(conn);
         oracle_db.accept(&rows[..14]);
         let second_frontier = oracle_db.advance();
-        let oracle_second = oracle_db.read();
+        let mut oracle_second = oracle_db.read();
+        {
+            let objects: Vec<Value> = oracle_second.batch["objects"]
+                .as_array()
+                .expect("gen2 objects")
+                .iter()
+                .filter(|object| is_tb02ab_object(object))
+                .cloned()
+                .collect();
+            let (_, withdrawals, replaces) =
+                compute_diff(&objects, &stored_before, mode).expect("生产 diff（TB-02-A/B）");
+            restrict_oracle_to_tb02ab(&mut oracle_second, second_frontier, &withdrawals, &replaces);
+        }
         assert_eq!(oracle_second.generation, 2);
 
         let mut store = MemoryNodes::new();

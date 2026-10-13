@@ -92,7 +92,18 @@ use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde_json::{json, Value};
 
 /// CC-006 验收合同修订（SPEC-COVERAGE-INPUT.json `/classification_axes/5`）。
+///
+/// v2 结构写者（本文件 `init_core`/`accept_core`/`advance_core`）的规则修订：它发布 TB-02-A…D。
 const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/1+segment-second/1";
+
+/// #1394 整合 W-2：`s-session/3`（v3）写者的规则修订。v3 只发布 TB-02-A/B 对象（包含、分型、
+/// 新笔），不声明 `segment-second`；它冻结在 FIN 线与 S86 r6 库所用的值，新二进制因此仍能
+/// 接收这些库，v3 对象身份配方里的规则修订也不变。
+///
+/// 两个常量对应两个规则修订、各配自己发布的对象集与目录轴表
+/// （[`tb02a_facts::CatalogAxisTable`]），由各写者按自己的修订选定，不是同一判断的宽严两档
+/// （#799）。退场条件：v3 承载 TB-02-C/D 的新票落地即与 [`RULE_REVISION`] 合并为一个常量。
+const V3_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/1";
 
 /// S 唯一结构写者的默认 writer_epoch（可经 `--writer-epoch` / `recover` 换代）。
 const DEFAULT_WRITER_EPOCH: &str = "1";
@@ -3359,6 +3370,8 @@ fn advance_core(
         let (_, withdrawals, replaces) =
             compute_diff(&objects, &read_stored_objects(&conn)?, mode)?;
         batch_json["catalog_axes"] = tb02a_facts::catalog_axes(
+            tb02a_facts::CatalogAxisTable::for_rule_revision(RULE_REVISION)
+                .expect("v2 写者的规则修订必有目录轴表"),
             &objects,
             &all_events,
             previous_frontier,

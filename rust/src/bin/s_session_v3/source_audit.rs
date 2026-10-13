@@ -2105,7 +2105,9 @@ mod tests {
         let effective = read_effective_events(&raw).unwrap();
         let get = |k| meta_get_opt(&c, k).unwrap().unwrap();
         let profile_hash = get("profile_hash");
-        let rule = get("rule_revision");
+        // #1394 整合 W-2：本夹具借 v2 的 `init_test_db` 建库取原始账，但跑的是 v3 生成；规则修订
+        // 取 v3 写者自己的（v2 写者合并后是 `…+segment-second/1`，它进对象身份配方，冻结轨迹随之变）。
+        let rule = crate::V3_RULE_REVISION.to_string();
         let catalog = get("catalog_revision");
         let scope = serde_json::from_str(&get("scope")).unwrap();
         let mut store = MemoryNodes::default();

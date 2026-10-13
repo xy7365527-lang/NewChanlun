@@ -940,7 +940,47 @@ fn raw_bar(raw: &Value) -> Value {
     json!({"source_coord":raw["source_coord"],"open":raw["open"],"high":raw["high"],"low":raw["low"],"close":raw["close"]})
 }
 
+/// #1394 整合 W-3：目录轴表随规则修订走——每个写者按自己发布的对象集声明目录。
+///
+/// v3（[`crate::V3_RULE_REVISION`]）只发布 TB-02-A/B，取 13 轴（与 FIN 线逐字同口径）；
+/// v2 写者（[`crate::RULE_REVISION`]）另发布 TB-02-C/D，取 17 轴（main #1392/#1404 口径）。
+/// 两张表各对应一个规则修订、由调用方按自己的修订选定，不存在「一张判不出再换另一张」
+/// 的兜底（#799）。退场条件同 `V3_RULE_REVISION`：v3 承载 TB-02-C/D 后只剩一张表。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum CatalogAxisTable {
+    /// `s2-axis-quantifiers+new-bi/1`：CC-001…010、CC-054、CC-055、CC-056（13 轴）。
+    NewBi,
+    /// `s2-axis-quantifiers+new-bi/1+segment-second/1`：另加 CC-011…014（17 轴）。
+    SegmentSecond,
+}
+
+impl CatalogAxisTable {
+    pub(super) fn for_rule_revision(rule_revision: &str) -> Option<Self> {
+        match rule_revision {
+            crate::V3_RULE_REVISION => Some(Self::NewBi),
+            crate::RULE_REVISION => Some(Self::SegmentSecond),
+            _ => None,
+        }
+    }
+
+    /// 写入顺序即目录轴顺序。
+    pub(super) fn axes(self) -> &'static [&'static str] {
+        match self {
+            Self::NewBi => &[
+                "CC-001", "CC-002", "CC-003", "CC-004", "CC-005", "CC-006", "CC-007", "CC-008",
+                "CC-009", "CC-010", "CC-054", "CC-055", "CC-056",
+            ],
+            Self::SegmentSecond => &[
+                "CC-001", "CC-002", "CC-003", "CC-004", "CC-005", "CC-006", "CC-007", "CC-008",
+                "CC-009", "CC-010", "CC-011", "CC-012", "CC-013", "CC-014", "CC-054", "CC-055",
+                "CC-056",
+            ],
+        }
+    }
+}
+
 pub(super) fn catalog_axes<'a>(
+    table: CatalogAxisTable,
     objects: &[Value],
     raw: impl Into<crate::v3::business_json::RawEventsView<'a>>,
     previous_frontier: i64,
@@ -953,10 +993,7 @@ pub(super) fn catalog_axes<'a>(
         .iter()
         .find(|o| o["kind"] == "CC-054.knowledge_state")
         .map(|o| serde_json::from_str::<Value>(o["payload_json"].as_str().unwrap()).unwrap());
-    for axis in [
-        "CC-001", "CC-002", "CC-003", "CC-004", "CC-005", "CC-006", "CC-007", "CC-008", "CC-009",
-        "CC-010", "CC-011", "CC-012", "CC-013", "CC-014", "CC-054", "CC-055", "CC-056",
-    ] {
+    for &axis in table.axes() {
         let kind = match axis {
             "CC-001" | "CC-002" | "CC-003" | "CC-004" => "CC-004.inclusion_step",
             "CC-005" => "CC-005.inclusion_group",
@@ -970,6 +1007,8 @@ pub(super) fn catalog_axes<'a>(
             "CC-012" => "CC-012.feature_sequence",
             "CC-013" | "CC-014" => "CC-013.segment",
             "CC-055" => "CC-055.",
+            // 13 轴表只有 `CC-056.version`（FIN 口径）；17 轴表另收 `CC-056.segment_version`。
+            "CC-056" if table == CatalogAxisTable::NewBi => "CC-056.version",
             "CC-056" => "CC-056.",
             _ => "",
         };
