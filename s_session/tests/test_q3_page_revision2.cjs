@@ -262,14 +262,22 @@ const delta4 = {
   structure_cut: "cut-4",
   deltas: watch.deltas.filter((d) => d.generation === "4"),
 };
+// #1414：页面先读发现回执，只有明确 legacy 才读 /api/state；替身按此协议补 /api/discover。
+const legacyDiscovery = () =>
+  new Response(
+    JSON.stringify({ ok: true, protocol_revision: null, producer_epoch: "1" }),
+  );
 async function run(source = null) {
   const trials = [];
   for (let turns = 0; turns <= 12; turns++) {
-    const fetch = async () => ({
-      ok: true,
-      status: 200,
-      json: async () => structuredClone(a1),
-    });
+    const fetch = async (url) =>
+      url === "/api/discover"
+        ? legacyDiscovery()
+        : {
+            ok: true,
+            status: 200,
+            json: async () => structuredClone(a1),
+          };
     let { context, elements } = htmlContext({ TB01C: API, fetch });
     if (source) {
       context = vm.createContext({
@@ -376,11 +384,14 @@ test("legacy stream所有0..40真实微任务调度拒旧Delta/cursor安装，�
     a1 = JSON.parse(records.a1.body);
   const { context } = htmlContext({
     TB01C: API,
-    fetch: async () => ({
-      ok: true,
-      status: 200,
-      json: async () => structuredClone(a1),
-    }),
+    fetch: async (url) =>
+      url === "/api/discover"
+        ? legacyDiscovery()
+        : {
+            ok: true,
+            status: 200,
+            json: async () => structuredClone(a1),
+          },
   });
   await vm.runInContext('load("asof","1")', context);
   assert.equal(

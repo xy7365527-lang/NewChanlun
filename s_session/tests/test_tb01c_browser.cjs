@@ -35,7 +35,10 @@ function htmlContext(extra = {}) {
       checked: true,
       disabled: false,
       classList: { toggle() {} },
-      addEventListener() {},
+      handlers: {},
+      addEventListener(name, fn) {
+        this.handlers[name] = fn;
+      },
       focus() {},
       scrollIntoView() {},
     };
@@ -60,6 +63,7 @@ function htmlContext(extra = {}) {
   };
   const context = vm.createContext({
     document,
+    TB01C: API,
     structuredClone,
     console,
     setTimeout,
@@ -332,6 +336,9 @@ function sparseDelta(sp, gen) {
 }
 function sparseDiscovery(sp) {
   return {
+    ok: true,
+    protocol_revision: "s-session/2",
+    producer_epoch: "2",
     cut: {
       session_id: sparseState(sp, "3").snapshot.session_id,
       session_generation: "1",
@@ -578,7 +585,11 @@ async function run() {
     deltas: sp.deltas.map((d) => d.generation),
   };
   const discovery = {
+    ok: true,
+    protocol_revision: "s-session/2",
+    producer_epoch: "2",
     cut: { session_id: f.a3.snapshot.session_id, session_generation: "1" },
+    snapshot: { profile_id: f.a3.snapshot.profile_id },
   };
   async function test(name, fn) {
     try {
@@ -969,8 +980,7 @@ async function run() {
   });
   await test("正式HTML发现v2后从分页安装，无legacy状态混入", async () => {
     const server = fakeServer(f),
-      discoveryState = copy(f.a3);
-    discoveryState.cut.session_generation = "1";
+      discoveryState = copy(discovery);
     let legacyReads = 0;
     const wrappedAPI = {
       ...API,
@@ -987,9 +997,9 @@ async function run() {
     const { context } = htmlContext({
       TB01C: wrappedAPI,
       fetch: async (url) => {
-        assert.equal(url, "/api/state");
+        assert.equal(url, "/api/discover");
         legacyReads++;
-        return { ok: true, status: 200, json: async () => discoveryState };
+        return new Response(JSON.stringify(discoveryState), { status: 200 });
       },
     });
     await vm.runInContext('load("current")', context);
@@ -1001,6 +1011,102 @@ async function run() {
     await vm.runInContext("applyStream()", context);
     assert.equal(vm.runInContext("lastAppliedGen", context), "4");
     assert.equal(legacyReads, 1);
+  });
+  await test('严格发现拒绝缺失或错误协议身份profile且不发分页', async () => {
+    const {client, server} = await setup(), before = canonical(client.committed), count = server.requests.length;
+    const changes = [d=>{delete d.ok;}, d=>{d.ok=false;}, d=>{delete d.protocol_revision;}, d=>{d.protocol_revision='s-session/3';},
+      d=>{delete d.cut.session_id;}, d=>{d.cut.session_id='';}, d=>{d.cut.session_generation='01';}, d=>{d.cut.session_generation=1;},
+      d=>{d.cut.session_generation=null;}, d=>{d.cut.session_generation='0';}, d=>{delete d.snapshot;},
+      d=>{d.snapshot.profile_id='';}, d=>{d.snapshot.profile_id='unknown-order1';}, d=>{d.snapshot.extra='x';}, d=>{d.extra='x';}];
+    for (const change of changes) {
+      const value=copy(discovery);change(value);
+      assert.throws(()=>API.parseDiscovery(value));await assert.rejects(client.load(value));
+      assert.equal(server.requests.length,count);assert.equal(canonical(client.committed),before);
+    }
+    const legacy={ok:true,protocol_revision:null,producer_epoch:'2'};
+    assert.deepEqual(copy(API.parseDiscovery(legacy)),legacy);await assert.rejects(client.load(legacy));
+  });
+  await test('第一页profile即使同order1也必须与发现逐字相同', async () => {
+    const {client,server}=await setup(),before=canonical(client.committed);
+    server.mutate=page=>{page.fixed_cut.profile_id='unknown-order1';};
+    await assert.rejects(client.load(discovery),/profile与发现不符/);assert.equal(canonical(client.committed),before);
+    server.mutate=page=>{page.fixed_cut.session_generation='2';};
+    await assert.rejects(client.load(discovery),/会话\/化身/);assert.equal(canonical(client.committed),before);
+  });
+  await test('发现读取坏JSON重复字段503和8MiB超界全部拒绝', async () => {
+    for(const response of [new Response('{broken'),new Response('{"ok":true,"ok":true}'),
+      new Response('{}',{status:503}),new Response('x'.repeat(API.DEFAULTS.replyBytes+1))]) {
+      await assert.rejects(API.readDiscovery(async()=>response));
+    }
+    const got=await API.readDiscovery(async()=>new Response(JSON.stringify(discovery)));
+    assert.deepEqual(copy(got.discovery),discovery);assert(got.budget.bytes>0);
+  });
+  await test('发现与分页共享绝对期限和总字节界不重置', async () => {
+    const {client,server}=await setup(),before=canonical(client.committed),count=server.requests.length;
+    await assert.rejects(client.load(discovery,'RecomputedWithRevision',null,{deadline:performance.now()-1,bytes:1}),/总期限/);
+    assert.equal(server.requests.length,count);
+    await assert.rejects(client.load(discovery,'RecomputedWithRevision',null,{deadline:performance.now()+30000,bytes:client.limits.totalBytes}),/字节界限/);
+    assert.equal(canonical(client.committed),before);
+  });
+  await test('HTML仅明确legacy正常分派，坏发现不回退state或安装旧身份', async () => {
+    const legacy={ok:true,protocol_revision:null,producer_epoch:'2'};
+    for (const response of [new Response('{}',{status:503}), new Response('{broken'), new Response(JSON.stringify({...discovery,snapshot:{profile_id:'bad'}}))]) {
+      const urls=[];const {context}=htmlContext({fetch:async url=>{urls.push(url);return response;}});
+      await vm.runInContext('load("current")',context);assert.deepEqual(urls,['/api/discover']);
+      assert.equal(vm.runInContext('v2Detected',context),false);assert.equal(vm.runInContext('currentState',context),null);
+    }
+    const urls=[];const {context}=htmlContext({fetch:async url=>{urls.push(url);return new Response(JSON.stringify(url==='/api/discover'?legacy:f.a3));}});
+    await vm.runInContext('load("asof","3")',context);assert.deepEqual(urls,['/api/discover','/api/state?as_of=3']);
+    assert(vm.runInContext('currentState',context),vm.runInContext('document.getElementById("status-section").innerHTML',context));assert.equal(vm.runInContext('currentState.snapshot.generation',context),'3');assert.equal(vm.runInContext('v2Detected',context),false);
+  });
+  await test('非法AsKnown输入失效在途发现且不初始化迟到身份', async () => {
+    for (const invalid of ['', 'invalid', '-1']) {
+      let release, created=0, loads=0;
+      const pending=new Promise(resolve=>{release=resolve;});
+      const {context,elements}=htmlContext({fetch:()=>{throw new Error('network forbidden');},
+        TB01C:{...API, readDiscovery:()=>pending, Client:class {constructor(){created++;} async load(){loads++;}}}});
+      const first=vm.runInContext('load("current")',context);await Promise.resolve();
+      const before=vm.runInContext('pageEpoch',context);
+      context.document.getElementById('asof-input').value=invalid;elements.get('btn-asof').handlers.click();
+      assert(vm.runInContext('pageEpoch',context)>before);
+      release({discovery:copy(discovery),budget:{deadline:performance.now()+30000,bytes:198}});await first;
+      assert.equal(created,0);assert.equal(loads,0);assert.equal(vm.runInContext('v2Detected',context),false);
+      assert.equal(vm.runInContext('v2Client',context),null);assert.equal(vm.runInContext('v2Discovery',context),null);
+      assert.equal(vm.runInContext('currentState',context),null);
+    }
+    for (const detected of [false,true]) {
+      let cancelled=0;const {context,elements}=htmlContext();
+      context.pendingClient={cancel(){cancelled++;}};
+      vm.runInContext('v2Client=pendingClient; v2Detected='+detected,context);
+      context.document.getElementById('asof-input').value='invalid';elements.get('btn-asof').handlers.click();
+      assert.equal(cancelled,1);assert.equal(vm.runInContext('pageEpoch',context),1);
+    }
+  });
+  await test('实际HTTP采集类仅discover后完整分页，503坏profile与legacy保留旧提交', async () => {
+    const {Capture}=require('./tb01c_http_capture.cjs');
+    const temporary=fs.mkdtempSync(path.join(require('node:os').tmpdir(),'tb1414-discovery-helper-'));
+    try {
+      const capture=new Capture('http://127.0.0.1:18840',path.join(temporary,'capture')), server=fakeServer(f), urls=[];
+      let fail=null;capture.reply=async()=>{};
+      capture.fetch=async(context,url,options)=>{
+        capture.check(context);context.requests++;urls.push(url);
+        if(url==='/api/discover')return new Response(JSON.stringify(fail?.body||discovery),{status:fail?.status||200});
+        return server.fetch(url,options);
+      };
+      async function command(id){
+        const directory=path.join(capture.output,'commands',id);fs.mkdirSync(directory);fs.mkdirSync(path.join(directory,'http'));
+        await capture.execute({command:{id,client:'history',op:'load'},directory,enqueuedAt:new Date().toISOString(),enqueuedMono:performance.now()});
+        return JSON.parse(fs.readFileSync(path.join(directory,'RESULT.json')));
+      }
+      assert.equal((await command('good')).result,'captured_validated_commit');
+      const before=canonical(capture.client('history').committed);assert(urls.includes('/api/v2/snapshot'));
+      for(const [i,bad] of [{status:503,body:{ok:false}},{body:{...discovery,snapshot:{profile_id:'bad'}}},
+        {body:{ok:true,protocol_revision:null,producer_epoch:'2'}}].entries()){
+        fail=bad;urls.length=0;const result=await command('bad-'+i);
+        assert.equal(result.result,'not_verified');assert.equal(result.committed_changed,false);
+        assert.equal(canonical(capture.client('history').committed),before);assert.deepEqual(urls,['/api/discover']);
+      }
+    } finally {fs.rmSync(temporary,{recursive:true,force:true});}
   });
   // —— #1394：浏览器 red 反例的修复回归（真实 S 前缀 + changes-only/1 稀疏增量） ——
   await test("真实稀疏反例：原版按本代upserts核轴引用必红，改按本代完整活动集成立", async () => {
@@ -1313,8 +1419,11 @@ async function run() {
       });
       // 该自建S以session_generation=1初始化；纯state投影未附Q discovery字段。
       await client.load({
-        ...state,
-        cut: { ...state.cut, session_generation: "1" },
+        ok: true,
+        protocol_revision: "s-session/2",
+        producer_epoch: "2",
+        cut: { session_id: state.cut.session_id, session_generation: "1" },
+        snapshot: { profile_id: state.snapshot.profile_id },
       });
       return client;
     }

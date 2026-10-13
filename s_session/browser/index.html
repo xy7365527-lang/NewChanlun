@@ -836,6 +836,7 @@
             );
             renderAllFromState(state);
             v2Discovery = {
+              ...v2Discovery,
               cut: {
                 session_id: candidate.cursor.session_id,
                 session_generation: candidate.cursor.session_generation,
@@ -862,7 +863,7 @@
           "读取新批次（v2 Watch）";
         document.getElementById("btn-live").classList.toggle("hidden", false);
       }
-      async function loadV2(mode, generation, epoch) {
+      async function loadV2(mode, generation, epoch, discoveryBudget = null) {
         v2Busy = true;
         v2Polling();
         try {
@@ -874,6 +875,7 @@
             v2Discovery,
             normalized,
             mode === "asof" ? generation : null,
+            discoveryBudget,
           );
         } catch (error) {
           if (epoch === pageEpoch) v2Failure(error);
@@ -990,20 +992,7 @@
           .map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`)
           .join("");
       }
-      const typedKinds = [
-        "CC-008.endpoint",
-        "CC-008.new_bi_pair",
-        "CC-009.same_kind",
-        "CC-010.bi",
-        "CC-055.relation",
-        "CC-055.change_event",
-        "CC-056.version",
-      ].concat([
-        "CC-004.inclusion_step",
-        "CC-005.inclusion_group",
-        "CC-007.fractal_description",
-        "CC-054.knowledge_state",
-      ]);
+      const typedKinds = TB01C.TB02_KINDS;
       function rawPriceText(row) {
         return row.schema_revision === "s-ohlc/1"
           ? ["open", "high", "low", "close"]
@@ -1148,7 +1137,7 @@
           `<div class="muted">该目录项在当前 cut 无活动实例；请查看目录证据与等待原因。</div>`;
         document.getElementById("objects").innerHTML =
           cards +
-          (evidence?.scope === "TB-02-A"
+          (["TB-02-A", "TB-02-C", "TB-02-D"].includes(evidence?.scope)
             ? `<details><summary>${esc(catalogId)} 本 cut 完整证据与等待原因</summary>${renderFactValue(evidence)}</details>`
             : "");
       }
@@ -1243,7 +1232,7 @@
                 : `<span class="pill notimpl">${esc(r.run_status)}</span>`;
             const entry =
               r.id === "CC-006" ||
-              (r.evidence?.scope === "TB-02-A" &&
+              (["TB-02-A", "TB-02-C", "TB-02-D"].includes(r.evidence?.scope) &&
                 Array.isArray(r.evidence.object_ids))
                 ? `<button type="button" data-catalog-id="${escAttr(r.id)}">查看 ${esc(r.id)} 实例（结构）</button>`
                 : esc(r.id);
@@ -1355,13 +1344,12 @@
         function walk(v) {
           if (!v || typeof v !== "object") return;
           for (const [k, x] of Object.entries(v)) {
-            // #1392：新笔 payload.slot 是逻辑身份；见证 slot 才是整数，身份由新笔合同逐类核对。
-            if (
-              integerKeys.has(k) &&
-              x !== null &&
-              !(k === "slot" && v.schema_revision === "s-new-bi/1")
-            )
-              decimal(x);
+            // #1392/#1404：新笔/段 payload.slot 是逻辑身份；见证 slot 仍按整数核对。
+            const logicalSlot =
+              k === "slot" &&
+              (v.schema_revision === "s-new-bi/1" ||
+                ["s-segment/1", "s-segment/2"].includes(v.schema_revision));
+            if (integerKeys.has(k) && x !== null && !logicalSlot) decimal(x);
             walk(x);
           }
         }
@@ -1739,18 +1727,20 @@
         if (v2Detected) return loadV2(mode, asOfGen, epoch);
         try {
           const request = stateRequest(mode, asOfGen);
+          if (typeof TB01C === "undefined")
+            throw new Error("发现校验模块未加载");
+          const { discovery, budget } = await TB01C.readDiscovery(
+            fetch.bind(globalThis),
+          );
+          if (epoch !== pageEpoch) return;
+          if (discovery.protocol_revision === "s-session/2") {
+            v2Detected = true;
+            ensureV2(discovery);
+            return await loadV2(mode, asOfGen, epoch, budget);
+          }
+          // 只有同次已核proof明确legacy才按原v1接口读取；错误不作为分派条件。
           const state = await fetchJson(request.url);
           if (epoch !== pageEpoch) return; // 晚到响应不覆盖新请求
-          if (
-            state &&
-            state.cut &&
-            Object.hasOwn(state.cut, "session_generation")
-          ) {
-            // discovery 不安装 legacy 全量状态；发现 v2 后只走固定 token 分页。
-            v2Detected = true;
-            ensureV2(state);
-            return await loadV2(mode, asOfGen, epoch);
-          }
           await validateRequestedState(state, request); // 先核本次请求及整份 state，再提交渲染
           if (epoch !== pageEpoch) return;
           syncModeUI(mode, state.snapshot);
@@ -2147,10 +2137,11 @@
       document.getElementById("btn-asof").addEventListener("click", () => {
         const g = document.getElementById("asof-input").value.trim();
         if (g === "" || !/^\d+$/.test(g)) {
+          // 即使v2尚未发现，较新的非法输入也使在途发现与Client读取失效。
+          beginRequest();
+          if (v2Client) v2Client.cancel();
+          v2Busy = false;
           if (v2Detected) {
-            beginRequest();
-            if (v2Client) v2Client.cancel();
-            v2Busy = false;
             v2Failure(new Error("AsKnown 输入必须是规范十进制整数且 >= 0"));
             return;
           }

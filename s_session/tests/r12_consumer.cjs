@@ -34,7 +34,8 @@ async function context() {
     querySelector(q) { return this.getElementById(q); },
     createElement() { const e = element(); Object.defineProperty(e, 'innerHTML', {get() { return this.textContent; }}); return e; }
   };
-  const c = vm.createContext({document, structuredClone, console});
+  // 页面类型清单直接引用客户端 TB01C.TB02_KINDS（#1404/#1414）；与正式页面同样先载入同一客户端。
+  const c = vm.createContext({document, TB01C: require(path.join(root, 's_session/browser/tb01c-client.js')), structuredClone, console});
   vm.runInContext(source, c);
   c.seed = structuredClone(a3);
   await vm.runInContext('validateState(seed)',c); vm.runInContext(' rebuildCommittedFromState(seed); syncModeUI("asof",seed.snapshot); renderAllFromState(seed)',c);
