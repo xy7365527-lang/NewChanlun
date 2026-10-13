@@ -10,8 +10,23 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 
-export const MODEL = "gpt-6-astra";
+/** 经本机 CLIProxyLocal 的 OAuth 订阅路由；不带 mf/、yd/ 等中转前缀（用户 2026-10-13 指示）。 */
+export const MODEL = "claude-opus-5-5";
 export const EFFORT = "xhigh";
+/** 命令带 --ignore-user-config，不读用户 config.toml；provider 由下方具名定义经 -c 显式给出。 */
+export const MODEL_PROVIDER = "cliproxy-local";
+/** CLIProxy 客户端密钥所在的环境变量名。只传变量名；值不进命令、提示、日志或运行记录。 */
+export const PROVIDER_KEY_ENV = "CLIPROXY_LOCAL_KEY";
+/** 与用户 ~/.codex/config.toml 的 [model_providers.cliproxy-local] 逐项相同。 */
+export const PROVIDER_DEFINITION = {
+  name: "CLIProxyAPI Local",
+  base_url: "http://127.0.0.1:8318/v1",
+  wire_api: "responses",
+  supports_websockets: false,
+  supports_standalone_web_search: false,
+  requires_openai_auth: true,
+  env_key: PROVIDER_KEY_ENV,
+} as const;
 export type ChildMode = "review" | "execute";
 export type ChildStatus = "running" | "completed" | "failed" | "cancelled";
 /** 输出渠道等监督设施失败属于 failed，不冒充管理者主动取消。 */
@@ -59,6 +74,7 @@ export interface ChildRecord {
   mode: ChildMode;
   model: typeof MODEL;
   effort: typeof EFFORT;
+  model_provider: typeof MODEL_PROVIDER;
   sandbox_backend: "no-sandbox";
   codex_sandbox: "read-only" | "workspace-write";
   approval_policy: "never";
@@ -170,11 +186,29 @@ export function preflightCheckout(options: ChildOptions): CheckoutSnapshot {
   return before;
 }
 
-/** 只透传启动/认证定位所需环境，不提取认证，不加载项目 .env，不转发 API/GitHub 密钥。 */
+/** 失败即停：模型不得带中转前缀，provider 只能是本机 CLIProxy。 */
+export function assertRoute(model: string = MODEL, provider: string = MODEL_PROVIDER): void {
+  if (model.includes("/")) throw new Error("模型名不得含 /：禁止 mf/、yd/ 等中转前缀，只接受 CLIProxy 的 OAuth 直连模型名");
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(model)) throw new Error("模型名格式无效");
+  if (provider !== "cliproxy-local") throw new Error("model_provider 只能是 cliproxy-local");
+}
+
+/** --ignore-user-config 下给 Codex 的 provider 覆盖项；只含变量名，不含密钥值。 */
+export function providerOverrides(): string[] {
+  assertRoute();
+  const toml = (value: string | boolean) => typeof value === "boolean" ? String(value) : JSON.stringify(value);
+  return [
+    `model_provider=${toml(MODEL_PROVIDER)}`,
+    ...Object.entries(PROVIDER_DEFINITION).map(([key, value]) => `model_providers.${MODEL_PROVIDER}.${key}=${toml(value)}`),
+  ];
+}
+
+/** 只透传启动/认证定位所需环境与 CLIProxy 客户端密钥变量，不提取认证，不加载项目 .env，不转发 API/GitHub 密钥。 */
 export function workerEnvironment(source: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const result: Record<string, string> = {};
   for (const key of [
     "PATH", "HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "CODEX_HOME",
+    PROVIDER_KEY_ENV,
     // 路由沿用宿主；不打印代理地址，也不把环境写入运行记录。
     "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy",
   ]) {
@@ -184,9 +218,30 @@ export function workerEnvironment(source: NodeJS.ProcessEnv = process.env): Reco
   return result;
 }
 
+export type KeyLookup = (name: string) => string | undefined;
+
+/** macOS 上 launchd 会话环境里的值；取不到返回 undefined，不抛出也不记录输出。 */
+export function launchctlGetenv(name: string): string | undefined {
+  if (process.platform !== "darwin") return undefined;
+  try {
+    const value = execFileSync("launchctl", ["getenv", name], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    return value || undefined;
+  } catch { return undefined; }
+}
+
+/** 进程环境没有密钥时向 launchctl 取一次；仍取不到即在启动前失败。提示只含变量名。 */
+export function providerEnvironment(env: Record<string, string>, lookup: KeyLookup = launchctlGetenv): Record<string, string> {
+  if (env[PROVIDER_KEY_ENV]) return env;
+  const value = lookup(PROVIDER_KEY_ENV);
+  if (!value) throw new Error(`缺少 ${PROVIDER_KEY_ENV}：进程环境与 launchctl 均未提供，工蜂无法连本机 CLIProxy（提示不含值）`);
+  return { ...env, [PROVIDER_KEY_ENV]: value };
+}
+
 /** SDK 0.12 的 codex() 忽略 dangerouslySkipPermissions=false；在调用边界做精确、失败即停的适配。 */
 export async function boundedCodex(mode: ChildMode, schemaPath: string, env = workerEnvironment()): Promise<AgentProvider> {
   // 根 package 为 CommonJS、Sandcastle 只导出 ESM；显式动态导入，不改变全仓模块制。
+  assertRoute();
+  const overrides = providerOverrides();
   const { codex } = await import("@ai-hero/sandcastle");
   const provider = codex(MODEL, {
     effort: EFFORT,
@@ -198,7 +253,8 @@ export async function boundedCodex(mode: ChildMode, schemaPath: string, env = wo
       if (options.resumeSession || options.forkSession) throw new Error("一次性工蜂入口不允许隐式 resume/fork");
       const built = provider.buildPrintCommand({ ...options, dangerouslySkipPermissions: false });
       const bypass = " --dangerously-bypass-approvals-and-sandbox";
-      if (!built.command.startsWith("codex exec --json ") || built.command.split(bypass).length !== 2 || built.stdin !== options.prompt) {
+      if (!built.command.startsWith("codex exec --json ") || built.command.split(bypass).length !== 2
+        || !built.command.includes(` -m ${shellQuote(MODEL)}`) || built.stdin !== options.prompt) {
         throw new Error("Sandcastle codex() 命令契约已变，拒绝猜测权限替换");
       }
       const sandbox = mode === "review" ? "read-only" : "workspace-write";
@@ -207,8 +263,11 @@ export async function boundedCodex(mode: ChildMode, schemaPath: string, env = wo
         .replace(bypass, ` --sandbox ${sandbox} --ignore-user-config --color never`)
         + ` --output-schema ${shellQuote(schemaPath)}`
         + ` -c 'sandbox_workspace_write.network_access=false' -c 'web_search="disabled"'`
-        + ` -c 'shell_environment_policy.inherit="core"' --disable multi_agent -`;
+        + ` -c 'shell_environment_policy.inherit="core"'`
+        + overrides.map((override) => ` -c ${shellQuote(override)}`).join("")
+        + ` --disable multi_agent -`;
       if (/dangerously|danger-full-access|--full-auto|on-request/.test(command)) throw new Error("检测到不允许的权限参数");
+      if (/(^|[\s'"])(mf|yd)\//.test(command)) throw new Error("命令出现中转前缀，拒绝运行");
       return { command, stdin: built.stdin };
     },
   };
@@ -440,6 +499,8 @@ export async function runCodexChild(
     signal?: AbortSignal;
     onState?: (record: ChildRecord) => void;
     env?: Record<string, string>;
+    /** 靶向测试注入 launchctl 查找；CLI 不暴露替代密钥来源。 */
+    keyLookup?: KeyLookup;
     /** 靶向测试查找等待窗口；CLI 不暴露替代 session 来源。 */
     sessionFinder?: (id: string) => Promise<string | undefined>;
     writeLog?: ProcessObservation["writeLog"];
@@ -455,7 +516,7 @@ export async function runCodexChild(
     schema_version: 1, run_id: randomUUID(), ticket: options.ticket,
     parent_thread_id: options.parentThreadId, manager_agent_id: options.managerAgentId,
     manager_kind: "codex_native_subagent", worker_kind: "sandcastle_external_codex", native_subagent: false,
-    status: "running", mode: options.mode, model: MODEL, effort: EFFORT,
+    status: "running", mode: options.mode, model: MODEL, effort: EFFORT, model_provider: MODEL_PROVIDER,
     sandbox_backend: "no-sandbox", codex_sandbox: options.mode === "review" ? "read-only" : "workspace-write",
     approval_policy: "never", automatic_claim: false, automatic_push: false, automatic_merge: false,
     checkout_preserved: true, expected_head: options.expectedHead,
@@ -511,7 +572,8 @@ export async function runCodexChild(
     writeFileSync(join(outputDir, "prompt.md"), prompt, { flag: "wx", mode: 0o600 });
     const schemaPath = join(outputDir, "output.schema.json");
     writeFileSync(schemaPath, JSON.stringify(OUTPUT_SCHEMA), { flag: "wx", mode: 0o600 });
-    const env = workerEnvironment(control.env ?? process.env);
+    // 密钥缺失在任何进程启动前失败；env 只交给子进程，不进入 record。
+    const env = providerEnvironment(workerEnvironment(control.env ?? process.env), control.keyLookup);
     provider = await boundedCodex(options.mode, schemaPath, env);
     transcript = new CodexTranscript(provider);
     const command = provider.buildPrintCommand({ prompt, dangerouslySkipPermissions: false });

@@ -6,12 +6,15 @@ import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFile
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
-  boundedCodex, CodexTranscript, preflightCheckout, runCodexChild, workerEnvironment,
+  assertRoute, boundedCodex, CodexTranscript, MODEL, MODEL_PROVIDER, preflightCheckout, providerEnvironment,
+  providerOverrides, PROVIDER_KEY_ENV, runCodexChild, workerEnvironment,
   type ChildOptions,
 } from "./codex-child.ts";
 
 const goodResult = { status: "completed", summary: "已完成限定审阅", findings: [], validation: ["只读检查"] };
 const sessionId = "12345678-1234-1234-1234-123456789abc";
+/** 夹具密钥值；断言它进入工蜂环境但不出现在任何运行记录里。 */
+const fixtureKey = "fixture-cliproxy-key-value-not-real";
 
 function git(root: string, ...args: string[]): string {
   return execFileSync("git", ["-C", root, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
@@ -39,7 +42,11 @@ function fixture() {
     checkout, controllerCheckout: controller, expectedHead: git(checkout, "rev-parse", "HEAD"),
     mode: "review", promptFile, outputDir: join(dir, "output"), idleTimeoutSeconds: 2, timeoutSeconds: 10,
   };
-  const env = { ...process.env, PATH: bin + ":" + process.env.PATH, HOME: home, CODEX_HOME: codexHome };
+  // 测试不依赖宿主密钥：显式给夹具值，宿主真实值不会流入夹具进程。
+  const env: Record<string, string> = {
+    ...process.env as Record<string, string>, PATH: bin + ":" + process.env.PATH, HOME: home, CODEX_HOME: codexHome,
+    [PROVIDER_KEY_ENV]: fixtureKey,
+  };
   function fake(body: string) {
     const file = join(bin, "codex");
     const prologue = `#!${process.execPath}\n`
@@ -62,7 +69,7 @@ function assertStoppedAndUnlocked(result: Awaited<ReturnType<typeof runCodexChil
   assert.ok(!existsSync(lock));
 }
 
-test("SDK bypass 被精确收紧，prompt 不进入 argv，模型和推理档固定", async () => {
+test("SDK bypass 被精确收紧，prompt 不进入 argv，模型、推理档与 CLIProxy provider 固定", async () => {
   for (const mode of ["review", "execute"] as const) {
     const provider = await boundedCodex(mode, "/tmp/schema's.json");
     const command = provider.buildPrintCommand({ prompt: "$(touch /tmp/never-run) `pwd`", dangerouslySkipPermissions: true });
@@ -70,17 +77,59 @@ test("SDK bypass 被精确收紧，prompt 不进入 argv，模型和推理档固
     assert.ok(command.command.startsWith("codex -a never exec --json --sandbox "));
     assert.ok(command.command.includes(mode === "review" ? "--sandbox read-only" : "--sandbox workspace-write"));
     assert.ok(command.command.includes("--ignore-user-config"));
-    assert.ok(command.command.includes("'gpt-6-astra'"));
+    assert.ok(command.command.includes(" -m 'claude-opus-5-5'"));
     assert.ok(command.command.includes('model_reasoning_effort="xhigh"'));
     assert.ok(command.command.includes("network_access=false"));
+    // --ignore-user-config 不读用户 provider；入口必须显式给出 cliproxy-local 的完整定义。
+    for (const override of [
+      `model_provider="cliproxy-local"`,
+      `model_providers.cliproxy-local.name="CLIProxyAPI Local"`,
+      `model_providers.cliproxy-local.base_url="http://127.0.0.1:8318/v1"`,
+      `model_providers.cliproxy-local.wire_api="responses"`,
+      `model_providers.cliproxy-local.supports_websockets=false`,
+      `model_providers.cliproxy-local.supports_standalone_web_search=false`,
+      `model_providers.cliproxy-local.requires_openai_auth=true`,
+      `model_providers.cliproxy-local.env_key="CLIPROXY_LOCAL_KEY"`,
+    ]) assert.ok(command.command.includes(` -c '${override}'`), override);
+    assert.ok(command.command.endsWith(" --disable multi_agent -"));
+    assert.ok(!/(^|[\s'"])(mf|yd)\//.test(command.command));
     assert.ok(!/dangerously|danger-full-access|merge-to-head|prime-agent|touch/.test(command.command));
     assert.throws(() => provider.buildPrintCommand({ prompt: "x", dangerouslySkipPermissions: false, resumeSession: "old" }), /resume\/fork/);
   }
 });
 
-test("认证沿用目录，环境只留白名单，不转发密钥或自动续跑配置", () => {
-  const env = workerEnvironment({ PATH: "/bin", HOME: "/home/u", CODEX_HOME: "/auth-location", GH_TOKEN: "fixture", OPENAI_API_KEY: "fixture", CODEX_THREAD_ID: "another", BASH_ENV: "/unsafe" });
-  assert.deepEqual(env, { PATH: "/bin", HOME: "/home/u", CODEX_HOME: "/auth-location", NO_COLOR: "1" });
+test("认证沿用目录，环境只留白名单与 CLIProxy 密钥变量，不转发其他密钥或自动续跑配置", () => {
+  const env = workerEnvironment({ PATH: "/bin", HOME: "/home/u", CODEX_HOME: "/auth-location", GH_TOKEN: "fixture", OPENAI_API_KEY: "fixture", CODEX_THREAD_ID: "another", BASH_ENV: "/unsafe", CLIPROXY_LOCAL_KEY: fixtureKey });
+  assert.deepEqual(env, { PATH: "/bin", HOME: "/home/u", CODEX_HOME: "/auth-location", CLIPROXY_LOCAL_KEY: fixtureKey, NO_COLOR: "1" });
+});
+
+test("路由门：模型不得带 mf/、yd/ 等中转前缀，provider 只能是 cliproxy-local", () => {
+  assert.equal(MODEL, "claude-opus-5-5");
+  assert.equal(MODEL_PROVIDER, "cliproxy-local");
+  assert.doesNotThrow(() => assertRoute());
+  for (const model of ["mf/claude-opus-5-5", "yd/claude-opus-5-5", "any/claude-opus-5-5"]) {
+    assert.throws(() => assertRoute(model), /中转前缀/);
+  }
+  assert.throws(() => assertRoute("claude opus"), /格式无效/);
+  for (const provider of ["openai", "mf", "cliproxy"]) assert.throws(() => assertRoute(MODEL, provider), /cliproxy-local/);
+  assert.equal(providerOverrides()[0], 'model_provider="cliproxy-local"');
+  assert.ok(providerOverrides().every((item) => !item.includes(fixtureKey)));
+});
+
+test("密钥：进程环境已有则不查 launchctl；缺失时只查一次；仍缺失则提示不含值", () => {
+  let calls = 0;
+  const present = providerEnvironment({ PATH: "/bin", CLIPROXY_LOCAL_KEY: fixtureKey }, () => { calls += 1; return "other"; });
+  assert.equal(present.CLIPROXY_LOCAL_KEY, fixtureKey);
+  assert.equal(calls, 0);
+  const fromLaunchd = providerEnvironment({ PATH: "/bin" }, (name) => { calls += 1; assert.equal(name, PROVIDER_KEY_ENV); return fixtureKey; });
+  assert.equal(fromLaunchd.CLIPROXY_LOCAL_KEY, fixtureKey);
+  assert.equal(calls, 1);
+  assert.throws(() => providerEnvironment({ PATH: "/bin" }, () => { calls += 1; return undefined; }), (error: Error) => {
+    assert.match(error.message, /CLIPROXY_LOCAL_KEY/);
+    assert.ok(!error.message.includes(fixtureKey));
+    return true;
+  });
+  assert.equal(calls, 2);
 });
 
 test("保留大小写代理路由环境，但不传 API/GitHub 密钥", () => {
@@ -185,10 +234,50 @@ test("真实子进程：直接 SDK provider 完成，保存 session/parent 映�
     assert.ok(readFileSync(join(f.dir, "worker-env.json"), "utf8").includes("HTTPS_PROXY"));
     assert.ok(!readFileSync(join(f.options.outputDir, "result.json"), "utf8").includes(route));
     assert.ok(!readFileSync(join(f.options.outputDir, "events.jsonl"), "utf8").includes(route));
+    // CLIProxy 密钥只进工蜂环境，不进 argv 和任何运行记录。
+    assert.ok(JSON.parse(readFileSync(join(f.dir, "worker-env.json"), "utf8")).includes(PROVIDER_KEY_ENV));
+    const argv: string[] = JSON.parse(readFileSync(join(f.dir, "argv.json"), "utf8"));
+    assert.ok(argv.includes("claude-opus-5-5") && argv.includes('model_provider="cliproxy-local"'));
+    assert.ok(!argv.some((item) => item.includes(fixtureKey)));
+    for (const file of ["state.json", "events.jsonl", "result.json", "prompt.md", "codex.stdout.jsonl", "codex.stderr.log"]) {
+      assert.ok(!readFileSync(join(f.options.outputDir, file), "utf8").includes(fixtureKey), file);
+    }
+    assert.equal(result.model, "claude-opus-5-5");
+    assert.equal(result.model_provider, "cliproxy-local");
     assert.ok(readFileSync(join(f.dir, "received-prompt.md"), "utf8").includes("$(touch"));
     assert.ok(!existsSync(join(f.dir, "injection")));
     assert.equal(git(f.options.checkout, "status", "--porcelain"), "");
     assert.equal(git(f.options.checkout, "rev-parse", "HEAD"), f.options.expectedHead);
+  } finally { f.clean(); }
+});
+
+test("进程环境缺密钥时只向 launchctl 取一次；取到则运行，记录里没有值", async () => {
+  const f = fixture();
+  try {
+    f.fake("capture(); session(); complete();");
+    const { [PROVIDER_KEY_ENV]: _omitted, ...env } = f.env;
+    let calls = 0;
+    const result = await runCodexChild(f.options, { env, keyLookup: () => { calls += 1; return fixtureKey; } });
+    assert.equal(result.status, "completed", result.failure_reason ?? "");
+    assert.equal(calls, 1);
+    assert.ok(JSON.parse(readFileSync(join(f.dir, "worker-env.json"), "utf8")).includes(PROVIDER_KEY_ENV));
+    for (const file of ["state.json", "events.jsonl", "result.json"]) {
+      assert.ok(!readFileSync(join(f.options.outputDir, file), "utf8").includes(fixtureKey), file);
+    }
+  } finally { f.clean(); }
+});
+
+test("密钥在进程环境与 launchctl 都缺失：启动前失败，不开进程，提示不含值", async () => {
+  const f = fixture();
+  try {
+    f.fake("capture(); session(); complete();");
+    const { [PROVIDER_KEY_ENV]: _omitted, ...env } = f.env;
+    const result = await runCodexChild(f.options, { env, keyLookup: () => undefined });
+    assert.equal(result.status, "failed");
+    assert.equal(result.process_pid, null);
+    assert.match(result.failure_reason ?? "", /缺少 CLIPROXY_LOCAL_KEY/);
+    assert.ok(!existsSync(join(f.dir, "argv.json")));
+    assert.equal(JSON.parse(readFileSync(join(f.options.outputDir, "result.json"), "utf8")).status, "failed");
   } finally { f.clean(); }
 });
 
