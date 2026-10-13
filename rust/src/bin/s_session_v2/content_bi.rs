@@ -2810,6 +2810,97 @@ mod tests {
         );
     }
 
+    /// #1394 整合 W-4（#804 对拍锁）：TB-02-B 新笔事实在 v2（`tb02b::build`，合并后即 main 版、
+    /// #1392 定稿）与 v3（本模块 `content_bi`）各有一份生产实现，判的是同一件事。本用例在 main
+    /// 冻结的三份原始账上逐代续接地跑两侧，并用 [`assert_parity`] 逐字段对拍：TB-02-B 手工账
+    /// 18 例与 TB-02-C 2 例逐前缀；TB-02-D 14 例（28–48 根）取四分点前缀续接（1/4、1/2、3/4、全长）。
+    /// 任何一侧改了判据而另一侧没跟，这里先红。
+    ///
+    /// TB-02-D 不逐前缀是耗时取舍：debug 下单代开销随前缀长度超线性增长（实测 TB-02-C 28 根逐前缀
+    /// 约 32 秒/例），14 例 × 全部前缀会把本用例拉到半小时以上；四分点续接仍让两侧都走「上一代
+    /// 已发布对象 + 多根追加」这条输入。
+    ///
+    /// 两侧收到同一份输入（同一 parser 事实、同一有效账、同一到达序）；行的 open/close 按本夹具
+    /// 既有口径取 H/L 中值（新笔事实只读 H/L 与原始引用，与冻结账给的 open/close 无关）。
+    #[test]
+    fn parity_lock_804_on_frozen_tb02bcd_raw_ledgers() {
+        let load = |path: &str| -> Value {
+            serde_json::from_slice(
+                &std::fs::read(crate::tests::fixture(path)).expect("读冻结原始账"),
+            )
+            .expect("冻结原始账是 JSON")
+        };
+        // (例名, 原始行, 是否逐前缀)
+        let mut cases: Vec<(String, Vec<Value>, bool)> = Vec::new();
+        for case in load("tests/fixtures/tb02b/raw-ledger.json")["cases"]
+            .as_array()
+            .expect("TB-02-B cases")
+        {
+            cases.push((
+                format!("tb02b/{}", case["case_id"].as_str().expect("case_id")),
+                case["raw_bars"].as_array().expect("raw_bars").clone(),
+                true,
+            ));
+        }
+        for (ledger_name, path, every_prefix) in [
+            ("tb02c", "tests/fixtures/tb02c/raw-ledger.json", true),
+            ("tb02d", "tests/fixtures/tb02d/raw-ledger.json", false),
+        ] {
+            for (name, rows) in load(path)["cases"].as_object().expect("cases") {
+                cases.push((
+                    format!("{ledger_name}/{name}"),
+                    rows.as_array().expect("rows").clone(),
+                    every_prefix,
+                ));
+            }
+        }
+        assert_eq!(cases.len(), 18 + 2 + 14, "三份冻结原始账的例数");
+        let mut summary = Summary::default();
+        let mut generations = 0usize;
+        for (name, bars, every_prefix) in &cases {
+            let rows: Vec<Row> = bars
+                .iter()
+                .enumerate()
+                .map(|(seq, bar)| Row {
+                    coord: bar["raw_index"].as_i64().expect("raw_index"),
+                    high: bar["high"].as_i64().expect("high"),
+                    low: bar["low"].as_i64().expect("low"),
+                    revision: 1,
+                    seq: seq as i64,
+                })
+                .collect();
+            let len = rows.len();
+            let prefixes: Vec<usize> = if *every_prefix {
+                (1..=len).collect()
+            } else {
+                vec![len / 4, len / 2, len * 3 / 4, len]
+            };
+            let started = std::time::Instant::now();
+            let mut harness = Harness::new();
+            let mut previous: Option<Generation> = None;
+            for prefix in prefixes {
+                let generation = run_generation(
+                    &mut harness,
+                    &rows[..prefix],
+                    previous.as_ref(),
+                    &format!("{name} 前缀{prefix}"),
+                );
+                summary.observe(&generation.oracle);
+                generations += 1;
+                previous = Some(generation);
+            }
+            eprintln!("#804 对拍 {name}: {len} 根，{:?}", started.elapsed());
+        }
+        assert!(generations > cases.len(), "逐代续接对拍不是假空");
+        for kind in KINDS {
+            assert!(
+                summary.kinds.contains(kind),
+                "冻结原始账对拍必须覆盖 kind {kind}（实际 {:?}）",
+                summary.kinds
+            );
+        }
+    }
+
     /// 相同输入的暖 memo / 冷 memo 必须给出同一批根（身份只由内容决定）。
     #[test]
     fn warm_and_cold_memos_give_identical_roots() {
