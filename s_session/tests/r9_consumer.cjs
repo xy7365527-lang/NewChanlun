@@ -66,8 +66,16 @@ async function runR11() {
     evidence.http.push({url:base+path,status:r.status,body,sha256:crypto.createHash('sha256').update(body).digest('hex')});
     assert.equal(r.status,200,'实际源HTTP必须200');return JSON.parse(body);
   }
+  // #1394 整合（根裁定 (5)）：B4 后页面 load() 先经 TB01C.readDiscovery 读 /api/discover（要求带字节流的
+  // Response），只有发现回执明确 legacy 才读 /api/state。发现回执取自同一实际源 HTTP，原样转交，不经 transform。
+  async function discover(path) {
+    const r=await fetch(base+path), body=await r.text();
+    evidence.http.push({url:base+path,status:r.status,body,sha256:crypto.createHash('sha256').update(body).digest('hex')});
+    assert.equal(r.status,200,'实际源HTTP必须200');return new Response(body,{status:r.status,headers:{'content-type':'application/json'}});
+  }
   function install(c,transform,trace) {
     c.fetch=async path=>{
+      if(path==='/api/discover')return discover(path);
       const original=await get(path), delivered=await transform(path,structuredClone(original));
       trace.push({path,original,delivered:structuredClone(delivered),differences:diff(original,delivered)});
       return {ok:true,status:200,json:async()=>structuredClone(delivered)};
@@ -176,9 +184,9 @@ async function runR11() {
   // 获胜current必须是真实current来源；旧成功/失败均不能覆盖已完成的新请求。
   const current=await get('/api/state');
   for(const failure of [false,true])await record('late_'+(failure?'failure':'success'),async r=>{
-    const {c,els}=context();let resolve,reject,count=0;const old=earlierCurrent;
-    c.fetch=async path=>{assert.equal(path,'/api/state');const body=++count===1?await new Promise((res,rej)=>{resolve=res;reject=rej}):current;return {ok:true,status:200,json:async()=>structuredClone(body)}};
-    const pending=vm.runInContext('load("current")',c);await Promise.resolve();await vm.runInContext('load("current")',c);
+    const {c,els}=context();let resolve,reject,count=0,stateRequested;const old=earlierCurrent,requested=new Promise(r=>stateRequested=r);
+    c.fetch=async path=>{if(path==='/api/discover')return discover(path);assert.equal(path,'/api/state');const n=++count;if(n===1)stateRequested();const body=n===1?await new Promise((res,rej)=>{resolve=res;reject=rej}):current;return {ok:true,status:200,json:async()=>structuredClone(body)}};
+    const pending=vm.runInContext('load("current")',c);await requested;await vm.runInContext('load("current")',c);
     r.winner=snapshot(c);r.winner_ui=ui(els);assert.equal(r.winner.currentState.snapshot.history_mode,'RecomputedWithRevision');
     if(failure)reject(Error('TestOnly晚到失败'));else resolve(old);await pending;
     r.after=snapshot(c);r.ui=ui(els);assert.deepEqual(r.after,r.winner);assert.deepEqual(r.ui,r.winner_ui);
@@ -210,7 +218,8 @@ function ctx() {
  const document={getElementById(id){if(!els.has(id))els.set(id,el());return els.get(id)},querySelector(){return el()},createElement(){let x=el();Object.defineProperty(x,'innerHTML',{get(){return this.textContent}});return x}};
  const c=vm.createContext({document,TB01C:require(require('path').resolve(root,'s_session/browser/tb01c-client.js')),structuredClone,console});vm.runInContext(script,c);return {c,els};
 }
-function fetcher(c,fn){c.fetch=async url=>({ok:true,status:200,json:async()=>structuredClone(await fn(url))});}
+const legacyDiscovery=api.discover?api.discover.body:JSON.stringify({protocol_revision:null,ok:true,producer_epoch:'1'});
+function fetcher(c,fn){c.fetch=async url=>url==='/api/discover'?new Response(legacyDiscovery,{status:200}):({ok:true,status:200,json:async()=>structuredClone(await fn(url))});}
 function stateFetch(url){const match=url.match(/^\/api\/state\?as_of=(\d+)$/);assert(match,'必须取指定cut：'+url);return states[match[1]];}
 const output={};
 async function test(name,fn){await fn();output[name]='断言通过';}
@@ -271,8 +280,9 @@ async function test(name,fn){await fn();output[name]='断言通过';}
    await vm.runInContext('applyStream()',c);assert.equal(vm.runInContext('JSON.stringify(sessionBinding)',c),before);
    fetcher(c,url=>url.startsWith('/api/delta')?JSON.parse(api.gap.body):stateFetch(url));
    await vm.runInContext('applyStream()',c);assert.equal(vm.runInContext('lastAppliedGen',c),'7');
-   let resolve,count=0;fetcher(c,url=>++count===1?new Promise(r=>resolve=r):current);
-   const a=vm.runInContext('load("current")',c);await Promise.resolve();const b=vm.runInContext('load("current")',c);await b;resolve(earlierCurrent);await a;
+   let resolve,count=0,stateRequested;const requested=new Promise(r=>stateRequested=r);
+   fetcher(c,url=>{if(++count===1){stateRequested();return new Promise(r=>resolve=r);}return current;});
+   const a=vm.runInContext('load("current")',c);await requested;const b=vm.runInContext('load("current")',c);await b;resolve(earlierCurrent);await a;
    assert.equal(vm.runInContext('currentState.snapshot.generation',c),'7');
    assert.equal(vm.runInContext('currentState.snapshot.history_mode',c),'RecomputedWithRevision');
    assert.equal(vm.runInContext('currentState.snapshot.as_of_generation',c),null);
