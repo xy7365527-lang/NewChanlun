@@ -51,8 +51,7 @@ def prepare(output, binary, python, node, playwright_module, port_base):
     runs = []
     for case, bars in cases.items():
         for arm in ('a', 'b'):
-            if case == 'second_open_up' and arm == 'a':
-                continue
+            # #1414 P2：新字节四臂全部 fresh；旧版跳过 UP/a 是为首 composite 锚让位，该锚已降为历史证据。
             directory = output / f'{case}-{arm}'
             directory.mkdir()
             sid = 'tb02d-' + case
@@ -137,7 +136,7 @@ def execute(plan, output):
                         cleanup.append({'action':'stop-'+service,'error':repr(exc)})
                 dump(directory/'INTERRUPTED.json', {'cause':repr(cause),'cleanup':cleanup})
                 raise
-    # Three fresh captures only. Composite comparison is a separate explicit gate.
+    # Four fresh captures only. Pair comparison is a separate explicit gate in the driver.
 
 
 def validate_source_binding(plan, run):

@@ -1,0 +1,367 @@
+{
+  "schema": "tb1414-p2-rerun-four-fresh/1",
+  "status": "AUTHOR_PREPARED_PENDING_PACKAGE_REVIEW_PREGATE_REBUILD_AND_ROOT_ONCE_AUTHORIZATION",
+  "issue": 1414,
+  "pr": 1477,
+  "root_ruling": {
+    "path": "/private/tmp/goal1323-native-20261012/tb1414-pr-p2-triage/ROOT-RULING.json",
+    "sha256": "600207e3a2f29cd3a107f1153bad3db19082f7bff7c7a895f7e9273ea9a6315b"
+  },
+  "fix_commits": [
+    "aa4039cc177e420043a7b1a7c413c32c679505f3",
+    "179412c33d526a0716ce0bafcb03bdf22084cdc8"
+  ],
+  "fix_review": {
+    "path": "/private/tmp/goal1323-native-20261012/tb1414-pr-p2-triage/fix-review/RESULT.json",
+    "sha256": "a4a630aba25ccc3e2b6c8b6074daf2c5bac085f03fdb0b9e9919a82bafe988a1"
+  },
+  "repo": "/Users/silencehan/.codex/worktrees/goal1323-tb1414/NewChanlun",
+  "repo_head": "179412c33d526a0716ce0bafcb03bdf22084cdc8",
+  "branch": "codex/1414-second-sequence-20261012",
+  "output": "/Volumes/AgentStorage/issue1414-p2-rerun-20261013",
+  "port_base": 18990,
+  "runs": [
+    {
+      "case": "second_open_up",
+      "arm": "a",
+      "port": 18990,
+      "directory": "/Volumes/AgentStorage/issue1414-p2-rerun-20261013/second_open_up-a",
+      "socket": "/private/tmp/tb1414-3d7cd093b26cb0f8.sock"
+    },
+    {
+      "case": "second_open_up",
+      "arm": "b",
+      "port": 18991,
+      "directory": "/Volumes/AgentStorage/issue1414-p2-rerun-20261013/second_open_up-b",
+      "socket": "/private/tmp/tb1414-37324e23db9b5e35.sock"
+    },
+    {
+      "case": "second_open_down",
+      "arm": "a",
+      "port": 18992,
+      "directory": "/Volumes/AgentStorage/issue1414-p2-rerun-20261013/second_open_down-a",
+      "socket": "/private/tmp/tb1414-fab12ee8bfc3a176.sock"
+    },
+    {
+      "case": "second_open_down",
+      "arm": "b",
+      "port": 18993,
+      "directory": "/Volumes/AgentStorage/issue1414-p2-rerun-20261013/second_open_down-b",
+      "socket": "/private/tmp/tb1414-616f74b39cba4989.sock"
+    }
+  ],
+  "resource_candidates": {
+    "output": "/Volumes/AgentStorage/issue1414-p2-rerun-20261013",
+    "port_base": 18990,
+    "ports": [
+      18990,
+      18991,
+      18992,
+      18993
+    ],
+    "sockets": [
+      "/private/tmp/tb1414-3d7cd093b26cb0f8.sock",
+      "/private/tmp/tb1414-37324e23db9b5e35.sock",
+      "/private/tmp/tb1414-fab12ee8bfc3a176.sock",
+      "/private/tmp/tb1414-616f74b39cba4989.sock"
+    ],
+    "only_candidate_not_reserved": true,
+    "precheck": {
+      "path": "/private/tmp/goal1323-native-20261012/tb1414-p2-rerun-preparation/RESOURCE-PRECHECK.json",
+      "sha256": "ddb397b1917c4ac355467800a38cd8d9bbcf1514077ee75b26f8ffd5c34fc1e9"
+    },
+    "note": "输出/端口/socket 只是候选，未创建、未探测、未保留；根若改选，须重生 PLAN 并重审"
+  },
+  "dependencies": {
+    "python": "/tmp/tb1414-runtime-venv/bin/python",
+    "python_resolved": "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+    "python_sha256": "b502cb4c5b46b8d4192ec6bcb600ce8922f1afc396fcf646e8765c6eba74a0bf",
+    "ijson_version": "3.5.1",
+    "node": "/Users/silencehan/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+    "node_version": "v24.19.0",
+    "node_sha256": "743cbaf12bd9323937b85f6297d8182b086526510c9f9c5875fa74d2aad9072d",
+    "playwright_module": "/Users/silencehan/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright",
+    "playwright_version": "1.62.1",
+    "playwright_package_sha256": "ca170ec143a88ed3043ac953eb3b2377b2b97304104f4e1e23316684ce2c35af",
+    "browser": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "browser_sha256": "764f5f6ee523e6d52caf6e56ce7501e932c4f6e52d06d267887cb7ea70350102",
+    "browser_version_from_prior_actual_launch": "154.0.8037.99",
+    "browser_not_launched_in_preparation": true
+  },
+  "environment_overrides": {
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "TB02D_CHROMIUM_EXECUTABLE": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+  },
+  "declared_python_dependency": {
+    "path": "/tmp/tb1414-runtime-venv/bin/python",
+    "link_stamp": [
+      16777230,
+      332421500,
+      10,
+      1791780941820938173,
+      1791780941820951673,
+      40960
+    ],
+    "readlink": "python3.14",
+    "resolved_path": "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+    "target_stamp": [
+      16777230,
+      191861852,
+      52448,
+      1782750281009839451,
+      1782750281009921214,
+      32768
+    ],
+    "sha256": "b502cb4c5b46b8d4192ec6bcb600ce8922f1afc396fcf646e8765c6eba74a0bf"
+  },
+  "declared_chrome_dependency": {
+    "path": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "sha256": "764f5f6ee523e6d52caf6e56ce7501e932c4f6e52d06d267887cb7ea70350102",
+    "contract": "named-chrome-object-content-endpoints/1"
+  },
+  "exact_python_declaration_authority": {
+    "path": "/tmp/goal1323-native-20261012/tb1414-codepoint-completion-freeze-r1/PLAN.json",
+    "sha256": "cda454fd8dae89b046f6a140d6e7bea7823b0d674020abded20a6e072f1a75c5"
+  },
+  "runtime_dependency_contract": "original four dependency SHA gates retained plus declared alias and namedChrome pre/post receipt; not failure fallback",
+  "dependency_precheck": {
+    "path": "/private/tmp/goal1323-native-20261012/tb1414-p2-rerun-preparation/DEPENDENCY-PRECHECK.json",
+    "sha256": "9e201c6742e2dd29d1774726c5ccb9460554c8d50a6bfb88bef969fd76275081"
+  },
+  "limits_seconds": {
+    "arm": 900,
+    "collect_core": 120,
+    "frozen_oracle": 180,
+    "oracle_node": 120,
+    "query": 30,
+    "browser": 30,
+    "browser_cleanup": 5
+  },
+  "unchanged_additional_limits": {
+    "s_input_seconds": 10,
+    "launcher_seconds": 22,
+    "capture_seconds": 2,
+    "verify_seconds": 5,
+    "startup_seconds": 10,
+    "worker_bytes": 134217728,
+    "existing_without_memo_worker_bytes": 268435456,
+    "max_capture_bytes": 268435456,
+    "two_worker_cache_bytes": 268435456,
+    "runtime_cleanup_seconds": 5,
+    "controller_stop_seconds": 30
+  },
+  "writer_binary": {
+    "path": "/Users/silencehan/.codex/worktrees/goal1323-tb1414/NewChanlun/rust/target/release/s_structure_session",
+    "expected_sha256": "58a135103968efcb9c06533a6d169897c282c67784c0ed05daa9ee7dccddc95d",
+    "expected_bytes": 4254944,
+    "expectation_source": {
+      "path": "/private/tmp/goal1323-native-20261012/tb1414-p2-fix/artifacts/s_structure_session",
+      "sha256": "58a135103968efcb9c06533a6d169897c282c67784c0ed05daa9ee7dccddc95d",
+      "built_by": {
+        "path": "/private/tmp/goal1323-native-20261012/tb1414-p2-fix/steps/05b-cargo-build-release-s-session/RECEIPT.json",
+        "sha256": "2ca5c5a268e2563acce7f0d7bbc21be15b7768147e238f70817d2d9fbdff7198"
+      }
+    },
+    "rebuild": {
+      "cwd": "/Users/silencehan/.codex/worktrees/goal1323-tb1414/NewChanlun/rust",
+      "argv": [
+        "cargo",
+        "build",
+        "--release",
+        "--locked",
+        "--features",
+        "s_session",
+        "--bin",
+        "s_structure_session"
+      ],
+      "env_overrides": {
+        "CARGO_TARGET_DIR": "/Users/silencehan/.codex/worktrees/goal1323-tb1414/NewChanlun/rust/target",
+        "CARGO_INCREMENTAL": "0"
+      },
+      "timeout_seconds": 1800,
+      "toolchain": {
+        "cargo": "cargo 1.98.0 (797e8a9bc 2026-08-05) (Homebrew)",
+        "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18) (Homebrew)"
+      }
+    },
+    "pregate_script": {
+      "path": "/private/tmp/goal1323-native-20261012/tb1414-p2-rerun-preparation/pregate_rebuild.py",
+      "sha256": "b90c836e35d0438a069b18446b11e5a9711a0e9991d3df68c9a59ed3548ec056"
+    },
+    "pregate_receipt_dir_candidate": "/private/tmp/goal1323-native-20261012/tb1414-p2-rerun-pregate",
+    "note": "harness 读 worktree 路径；CURRENT 按该路径绑定新字节。执行前门重建并核等于期望；重建前 driver 的来源门必然失败关闭"
+  },
+  "matrix_reference": {
+    "path": "/tmp/goal1323-native-20261012/tb1414-formal-r4-window900-freeze/TEST-MATRIX.json",
+    "sha256": "622c8547a467663bcaa9c9c1ece0bdc5fa9f2aafdc1726e496f1505a7bc4a688"
+  },
+  "expected_inputs_per_fresh": 40,
+  "expected_public_queries_per_fresh": 124,
+  "expected_core_records": 221,
+  "expected_oracle_cuts": [
+    "15",
+    "26",
+    "27",
+    "31",
+    "38",
+    "39",
+    "40"
+  ],
+  "expected_browser_recovery_cuts": [
+    "27",
+    "40"
+  ],
+  "final_compare": {
+    "comparator": "tb02c_compare.compare_exact_traces",
+    "layout": "remaining-harness.expected_layout(40)",
+    "method": "exact_bytes_and_strict_jsonl",
+    "excluded_fields": [],
+    "identity_renaming": [],
+    "pairs": [
+      [
+        "second_open_up",
+        "a",
+        "b"
+      ],
+      [
+        "second_open_down",
+        "a",
+        "b"
+      ]
+    ]
+  },
+  "first_failure": "stop remaining arms; preserve all results; no retry",
+  "fresh_runtime": "/Users/silencehan/.codex/worktrees/goal1323-tb1414/NewChanlun/s_session/tests/tb02d_runtime.py",
+  "fresh_runtime_sha256": "e17fd1f6fecc86753d46dd04290803278286d285b130d02f900aeaded0ac5aa4",
+  "fresh_runtime_is_original_full_runtime": true,
+  "large_artifact_receipts": {
+    "files": [
+      "evidence/browser/network.har",
+      "session.sqlite",
+      "session.sqlite-wal",
+      "evidence/database-backup.sqlite"
+    ],
+    "receipt": "<run>/LARGE-ARTIFACT-SHA256.json",
+    "timing": "每臂 cleanup_run 之后（无论成败）",
+    "business_gate": false,
+    "basis": "TRIAGE §8.5；attempt 2 的 12 件 HAR/DB/WAL/backup 运行内无 SHA 收据，事后只能记基线"
+  },
+  "historical_first_composite": {
+    "status": "HISTORICAL_787F5CF_EVIDENCE_NOT_USED",
+    "ruling": {
+      "path": "/private/tmp/goal1323-native-20261012/tb1414-pr-p2-triage/ROOT-RULING.json",
+      "sha256": "600207e3a2f29cd3a107f1153bad3db19082f7bff7c7a895f7e9273ea9a6315b"
+    },
+    "removed": [
+      "remaining-driver.gate_first",
+      "explicit_composite.verify_explicit_first",
+      "explicit_composite.verify_comparison_binding",
+      "PLAN.first_composite / first_composite_current_fact",
+      "remaining-harness 跳过 UP/a",
+      "包 helper explicit_composite.py / reuse_state.py / completion_io.py"
+    ],
+    "reason": "首 composite 锚 core c0dbe0db… 与 UP/b 旧 core 逐字节相同，携带旧 SECOND scan.from_stroke 字节；ROOT-RULING 定其只作 787f5cf 字节历史证据，新字节以 UP/a↔UP/b 两次 fresh 对拍替代"
+  },
+  "current_sources_sha256": "7f473be69bf773edb75c9cbb3db7d9a3d4b69ae618956ad74ada553b0d0a527a",
+  "current_sources_count": 552,
+  "source_domain_counts": {
+    "formal_product": 531,
+    "ijson_dependency_closure": 18,
+    "package_helpers": 3
+  },
+  "source_enumeration_receipt": {
+    "path": "/private/tmp/goal1323-native-20261012/tb1414-p2-rerun-preparation/SOURCE-ENUMERATION.json",
+    "sha256": "3f9ab1396e0e57d68269abf45e307b87bac86b7c06aa5bed40792271fb1c9dcc"
+  },
+  "source_binding_policy": "完整清单成员与逐项 SHA 相等；计数取自本包 CURRENT（552），不继承旧 555；每臂仍由原 harness 生成实际源/输入快照并由原 validate_source_binding 逐项验字节",
+  "package_helpers": [
+    "remaining-driver.py",
+    "remaining-harness.py",
+    "dependency_identity.py"
+  ],
+  "authorization_contract": {
+    "file": "ROOT-P2-RERUN-AUTHORIZATION.json",
+    "status": "ROOT_APPROVED_P2_RERUN_FOUR_FRESH_ONCE",
+    "required": [
+      "output == PLAN.output",
+      "plan_sha256",
+      "scripts（remaining-driver.py/remaining-harness.py/CURRENT-SOURCES.json/dependency_identity.py 四件且仅此四件）",
+      "runs == [[case,arm,port,socket]×4]",
+      "independent_review（路径→SHA）",
+      "binary_rebuild_receipt {path,sha256}（前门 PASS 收据）"
+    ]
+  },
+  "template": {
+    "plan": {
+      "path": "/private/tmp/goal1323-native-20261012/tb1414-explicit-composite-preparation/PLAN.json",
+      "sha256": "1e5d62f9a9ee593d53fd62eceaf981fb6665d367d374e857287826741b1e3793"
+    },
+    "remaining-driver.py": {
+      "path": "/private/tmp/goal1323-native-20261012/tb1414-explicit-composite-preparation/remaining-driver.py",
+      "sha256": "595fa4c00937c63c58b07a90df18903678829877f4333ca15307c2335879355c"
+    },
+    "remaining-harness.py": {
+      "path": "/private/tmp/goal1323-native-20261012/tb1414-explicit-composite-preparation/remaining-harness.py",
+      "sha256": "34de93a4dd3a1988cf718d929f01c8407e28ec48158a5f1889ecaa1dc37cc5fb"
+    },
+    "dependency_identity.py": {
+      "path": "/private/tmp/goal1323-native-20261012/tb1414-explicit-composite-preparation/dependency_identity.py",
+      "sha256": "9a159a9d504dfcfde71c0c2c0dabba18ec57fd70ba6df28a8c2919d669502e9e"
+    },
+    "final_package_binding": {
+      "path": "/private/tmp/goal1323-native-20261012/tb1414-explicit-composite-preparation/FINAL-PACKAGE-BINDING.json",
+      "sha256": "a51e1fff57dcc58cda0151056bfb8dfb7fd9cab2d3a6bb34fa68965372dd6b91"
+    },
+    "current_sources": {
+      "path": "/private/tmp/goal1323-native-20261012/tb1414-explicit-composite-preparation/CURRENT-SOURCES.json",
+      "sha256": "6e984f6b8c5848880db2f3c56e15140c5b0de16c7ad00ba1a4d4363a357ada5e"
+    }
+  },
+  "frozen_evidence": {
+    "/private/tmp/goal1323-native-20261012/tb1414-pr-p2-triage/ROOT-RULING.json": "600207e3a2f29cd3a107f1153bad3db19082f7bff7c7a895f7e9273ea9a6315b",
+    "/private/tmp/goal1323-native-20261012/tb1414-pr-p2-triage/TRIAGE.md": "defacc9b0c1b28afa6a52ddde5e8682cb61f6f623ed1e6971c4561cc994bbe76",
+    "/private/tmp/goal1323-native-20261012/tb1414-pr-p2-triage/RESULT.json": "38f640707eb58963327a865b4f8be37f1bfff50e4e1bea7b26a0e6e988fad2ff",
+    "/private/tmp/goal1323-native-20261012/tb1414-pr-p2-triage/fix-review/RESULT.json": "a4a630aba25ccc3e2b6c8b6074daf2c5bac085f03fdb0b9e9919a82bafe988a1",
+    "/private/tmp/goal1323-native-20261012/tb1414-pr-p2-triage/fix-review/REVIEW.md": "dcfc1b8d8bb23b3ea820908ca07770d772291d97ae3c4046249e95d5e2703b23",
+    "/private/tmp/goal1323-native-20261012/tb1414-pr-p2-triage/fix-review/BINDING.json": "1e72e48bc7e463c86914d3cf919c8a88ae5c671fda73f509e4cce33bafc558c0",
+    "/private/tmp/goal1323-native-20261012/tb1414-p2-fix/RESULT.json": "e8ba29e919c267b903d670b03bd77e22585e31cfa3a2a32491f447dfaa064994",
+    "/private/tmp/goal1323-native-20261012/tb1414-p2-fix/CURRENT-SOURCES.candidate.json": "147ff9b1dae147252e8c6cfc07cefe03d169b374545513bc0308df974533249e",
+    "/private/tmp/goal1323-native-20261012/tb1414-p2-fix/c2/C2-RESULT.json": "c8649f3297ba7205f8dfae6a692f8df319e89dcb17bfac040f098d98b34ecc79",
+    "/private/tmp/goal1323-native-20261012/tb1414-p2-fix/steps/00-tool-versions/RECEIPT.json": "bde4bd59a2bdd5de9edd52635cb229799c0451f498fe71f20c194be6f88aa585",
+    "/private/tmp/goal1323-native-20261012/tb1414-p2-fix/steps/05b-cargo-build-release-s-session/RECEIPT.json": "2ca5c5a268e2563acce7f0d7bbc21be15b7768147e238f70817d2d9fbdff7198",
+    "/private/tmp/goal1323-native-20261012/tb1414-p2-fix/artifacts/s_structure_session": "58a135103968efcb9c06533a6d169897c282c67784c0ed05daa9ee7dccddc95d",
+    "/private/tmp/goal1323-native-20261012/tb1414-schema.md": "03ef2c2ace7e8531715ba5696a56980b7d4351047cbf8a1a2893f7c8f015b365",
+    "/private/tmp/goal1323-native-20261012/tb1414-schema.v1-before-p2.md": "c44d7091d85685dcf5a91745077dcd657fe686c0629da568a86b679263bbd831",
+    "/private/tmp/goal1323-native-20261012/tb1414-explicit-composite-preparation/PLAN.json": "1e5d62f9a9ee593d53fd62eceaf981fb6665d367d374e857287826741b1e3793",
+    "/private/tmp/goal1323-native-20261012/tb1414-codepoint-completion-freeze-r1/PLAN.json": "cda454fd8dae89b046f6a140d6e7bea7823b0d674020abded20a6e072f1a75c5",
+    "/private/tmp/goal1323-native-20261012/tb1414-explicit-composite-preparation/EXACT-INTEGER-AUDIT.json": "5d813289878b19146b303cedea47fa91c2f29138a81a881604222cb8f123c223",
+    "/private/tmp/goal1323-native-20261012/tb1414-explicit-composite-preparation/EXACT-DEPENDENCY-PRECHECK.json": "222bd50c0c918a06962a86fd40ff839d532defcd5a9343a4acb771f39336e65e",
+    "/Volumes/AgentStorage/issue1414-remaining-explicit-pure-candidate-20261013/DEPENDENCY-POST.json": "3b0cd8e2f32a3708809cdc7e517eb768fc89f940e123fdbd59597b5287b751e5",
+    "/private/tmp/goal1323-native-20261012/tb1414-p2-rerun-preparation/SOURCE-ENUMERATION.json": "3f9ab1396e0e57d68269abf45e307b87bac86b7c06aa5bed40792271fb1c9dcc",
+    "/private/tmp/goal1323-native-20261012/tb1414-p2-rerun-preparation/SOURCE-IDENTITIES.json": "594b7e37c78a98d3c0430555ef4817248b19f9b7354b7b71e776eb3fe975e6af",
+    "/private/tmp/goal1323-native-20261012/tb1414-p2-rerun-preparation/DEPENDENCY-PRECHECK.json": "9e201c6742e2dd29d1774726c5ccb9460554c8d50a6bfb88bef969fd76275081",
+    "/private/tmp/goal1323-native-20261012/tb1414-p2-rerun-preparation/RESOURCE-PRECHECK.json": "ddb397b1917c4ac355467800a38cd8d9bbcf1514077ee75b26f8ffd5c34fc1e9",
+    "/private/tmp/goal1323-native-20261012/tb1414-p2-rerun-preparation/pregate_rebuild.py": "b90c836e35d0438a069b18446b11e5a9711a0e9991d3df68c9a59ed3548ec056",
+    "/private/tmp/goal1323-native-20261012/tb1414-p2-rerun-preparation/freeze_sources.py": "29bf92f7fd0496002d8fbd47b5cbfc3629eff097c4bfa4a5600f1c7bd0f9a158",
+    "/private/tmp/goal1323-native-20261012/tb1414-p2-rerun-preparation/prechecks.py": "87efd1720917febe48bdfe9dbb928f932e64228ee08f05cdc70364bccb997d68",
+    "/private/tmp/goal1323-native-20261012/tb1414-p2-rerun-preparation/make_plan.py": "021d7ae4efec423ec9e56731d17ff1c003a9878960659e62fea71f13882ae2e9"
+  },
+  "execution_pregates": [
+    "新包独立审 PASS（PLAN/四执行物/pregate/CURRENT/frozen_evidence/负例/与模板差异）",
+    "根授权一次前门重建：S 安全静止下运行 pregate_rebuild.py --execute --receipt-dir <新目录>，收据 PASS_REBUILT_WRITER_MATCHES_EXPECTED 且 worktree release 二进制 SHA=58a13510…；不等即停，由根另裁，不重试",
+    "根一次具名执行授权 ROOT-P2-RERUN-AUTHORIZATION.json 置于本包目录，绑定 PLAN/四执行物/重建收据/独审/四臂资源",
+    "S 安全静止；现场复核 OUT 不存在、18990–18993 可绑、四 socket 不存在；driver 自身再核一次",
+    "driver --execute：来源 552 件与 frozen_evidence 逐项、四依赖 SHA 与具名契约、harness 实际源/二进制、矩阵与自然输入"
+  ],
+  "actual_execution_authorized": false,
+  "root_authorization_exists": false,
+  "draft_cannot_launch": true,
+  "pending_required": [
+    "新包独立审",
+    "根授权前门重建与 PASS 收据",
+    "根一次具名执行授权",
+    "S 安全静止与资源现场复核",
+    "四臂 fresh 真实运行（40 输入/124Q/strict221/七 cut oracle/27-40 browser/正常恢复/全后核）与两对原 221 比较",
+    "实际运行独审、根签收；随后重写 ACCEPTANCE-REPORT/EVIDENCE-INDEX、整体独审、CI；不裁整图、不合入、不关票"
+  ]
+}

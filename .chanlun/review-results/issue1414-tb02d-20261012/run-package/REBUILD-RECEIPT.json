@@ -1,0 +1,83 @@
+{
+  "schema": "tb1414-p2-writer-rebuild/1",
+  "status": "PASS_REBUILT_WRITER_MATCHES_EXPECTED",
+  "plan_sha256": "4a097a2c30c971cfd8fa86a1eb69d837346c21cb657733c50ea76ac07d96e680",
+  "script_sha256": "b90c836e35d0438a069b18446b11e5a9711a0e9991d3df68c9a59ed3548ec056",
+  "rebuild": {
+    "cwd": "/Users/silencehan/.codex/worktrees/goal1323-tb1414/NewChanlun/rust",
+    "argv": [
+      "cargo",
+      "build",
+      "--release",
+      "--locked",
+      "--features",
+      "s_session",
+      "--bin",
+      "s_structure_session"
+    ],
+    "env_overrides": {
+      "CARGO_TARGET_DIR": "/Users/silencehan/.codex/worktrees/goal1323-tb1414/NewChanlun/rust/target",
+      "CARGO_INCREMENTAL": "0"
+    },
+    "timeout_seconds": 1800,
+    "toolchain": {
+      "cargo": "cargo 1.98.0 (797e8a9bc 2026-08-05) (Homebrew)",
+      "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18) (Homebrew)"
+    }
+  },
+  "stripped_environment_keys": [],
+  "toolchain": {
+    "cargo": "cargo 1.98.0 (797e8a9bc 2026-08-05) (Homebrew)",
+    "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18) (Homebrew)"
+  },
+  "repo_head_before": "179412c33d526a0716ce0bafcb03bdf22084cdc8",
+  "repo_head_after": "179412c33d526a0716ce0bafcb03bdf22084cdc8",
+  "tracked_clean_before": true,
+  "tracked_clean_after": true,
+  "exit_code": 0,
+  "failure": null,
+  "elapsed_seconds": 23.277824878692627,
+  "binary_before": {
+    "path": "/Users/silencehan/.codex/worktrees/goal1323-tb1414/NewChanlun/rust/target/release/s_structure_session",
+    "exists": true,
+    "bytes": 4254944,
+    "sha256": "9f2a9f5299dd96ffccd4dd814903854f4a9432923900d7a53d5feb17f8381d30",
+    "stamp": [
+      16777230,
+      332415658,
+      4254944,
+      1791780094827615659,
+      1791780094839504731,
+      33261
+    ]
+  },
+  "binary_after": {
+    "path": "/Users/silencehan/.codex/worktrees/goal1323-tb1414/NewChanlun/rust/target/release/s_structure_session",
+    "sha256": "58a135103968efcb9c06533a6d169897c282c67784c0ed05daa9ee7dccddc95d",
+    "bytes": 4254944
+  },
+  "binary_after_stamp": [
+    16777230,
+    333144614,
+    4254944,
+    1791890600189979969,
+    1791890600205189984,
+    33261
+  ],
+  "expected": {
+    "sha256": "58a135103968efcb9c06533a6d169897c282c67784c0ed05daa9ee7dccddc95d",
+    "bytes": 4254944,
+    "source": {
+      "path": "/private/tmp/goal1323-native-20261012/tb1414-p2-fix/artifacts/s_structure_session",
+      "sha256": "58a135103968efcb9c06533a6d169897c282c67784c0ed05daa9ee7dccddc95d",
+      "built_by": {
+        "path": "/private/tmp/goal1323-native-20261012/tb1414-p2-fix/steps/05b-cargo-build-release-s-session/RECEIPT.json",
+        "sha256": "2ca5c5a268e2563acce7f0d7bbc21be15b7768147e238f70817d2d9fbdff7198"
+      }
+    }
+  },
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "7db5651a71654fc54ad948c9593dafafd51c20b440542e73f0e77dbdace00b70",
+  "no_retry": true,
+  "driver_started": false
+}

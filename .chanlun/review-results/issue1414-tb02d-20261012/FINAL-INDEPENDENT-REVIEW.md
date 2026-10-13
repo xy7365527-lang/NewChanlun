@@ -1,25 +1,187 @@
-# #1414 / TB-02-D 最终整体独审（两轮报告索引与全文）
+# #1414 / TB-02-D 独立审查（P2 再验收实际运行独审与历史整体独审）
 
 > 名分：工作草稿，活期绑定 [#1414](https://github.com/xy7365527-lang/NewChanlun/issues/1414)（`docs/agents/generation-constitution.md` §5）。本文件是关票门第 7 项“评审面 == 关票面”的仓内载体。
 >
-> 审查者是独立审查工位 `/root/tb1414_final_surface_review`（Python 逐行审由其子工位 `py_line_review` 完成），独立于作者与根。本文件由入仓附件起草工位按根裁定汇编：下面两段是两轮 `REVIEW.md` 的**逐字节全文**，放在四个反引号的围栏里，围栏行本身不属于原文；起草工位没有改动、删节或评论原文。原文中的本机绝对路径与旧提交编号（首轮用的是 C1–C6 六提交编号）只作历史记录。
+> 本文件由 C5 重写起草工位汇编。现行部分是 P2 修正后新字节的实际运行独审：审查者 `/root/tb1414_pr_p2_triage`，独立于 `/root/tb1414_p2_fix`、`root`。下面的 `REVIEW.md` 全文放在四个反引号的围栏里，围栏行本身不属于原文；起草工位没有改动、删节或评论原文。历史部分是 787f5cf 提交面的两轮整体独审，逐字取自本文件上一版，按根裁定 ROOT-RULING（`600207e3a2f2`）只作历史记录。
 >
 > 核对方法：取围栏内的内容（不含首尾两行围栏），其 bytes 与 SHA256 应等于下表所列原件。
 
 ## 结论
 
-首轮 `FAIL_WITH_FINDINGS`：概念层通过，唯一阻断 B1 是新 CI 步用 `discover` 会收进需要 S 写者二进制的 `test_tb02d_projection_cache.py`。按根选定修法改为显式五模块、更正注释与报告后，增量复审 r2 为 `PASS_FINAL_COMMIT_SURFACE_READY_PENDING_RUNTIME_CHECKS`：B1 已消除，五提交逐个自洽，提交面可进入 S 静止后的根本机实跑与逐提交编译。实跑收据到达前，整体验收、CI 与合入仍 PENDING；本审查不裁整图、不关票。各轮非阻断项（FS-N1–FS-N8、R2-N1–R2-N3）的处置见 `ACCEPTANCE-REPORT.md` §8、§10。
+P2 修正后的新字节（写者 `58a135103968`，HEAD `179412c33d52`）上，四臂 fresh 与两对 221 行比较的实际运行独审为 `PASS_TB02D_P2_RERUN_ACTUAL_ACCEPTED`：阻断 0，非阻断 5，延后 0。根已签收 `ROOT_ACCEPTS_TB02D_P2_RERUN_ACTUAL`（2026-10-13T12:06:07Z），deferred 为空，五条非阻断项随附。本裁定只覆盖 TB-02-D 的 P2 新字节四臂与两对比较，不裁整图、不裁合入。新提交面的增量整体独审尚未进行（PENDING），不在本文件预填。
 
-## 原件
+## 现行独审字段
 
-归档根 `CTRL-20261012` 的历史定位是 `/private/tmp/goal1323-native-20261012`（本机临时目录）；完整收据另见 `EVIDENCE-INDEX.json` 的 `acceptance.final_independent_review`。
+归档根 `CTRL-20261012` 的历史定位是 `/private/tmp/goal1323-native-20261012`（本机临时目录）；完整收据另见 `EVIDENCE-INDEX.json` 的 `acceptance.actual_rerun_review` 与 `acceptance.root_acceptance`。
+
+| 字段 | 值 |
+|---|---|
+| `actual_rerun_review.location` | `CTRL-20261012:tb1414-pr-p2-triage/actual-rerun-review/` |
+| `actual_rerun_review.review_md.bytes` | 12095 |
+| `actual_rerun_review.review_md.sha256` | `48c3fc552f3cd4085d4118ef90ffc568f18b92390f0263f8c308a210be2aa34e` |
+| `actual_rerun_review.result_json.bytes` | 4637 |
+| `actual_rerun_review.result_json.sha256` | `2c53227fe2e3966d6bd7c7c1deeb49183e0bd493201479dce88dab5bdebecfc4` |
+| `actual_rerun_review.binding_json.bytes` | 17597 |
+| `actual_rerun_review.binding_json.sha256` | `7d76eaf76be9d648af9f5b33827c5810050e4f7b5b6e5aab0f1e6345addb8c0f` |
+| `actual_rerun_review.status` | `PASS_TB02D_P2_RERUN_ACTUAL_ACCEPTED` |
+| `actual_rerun_review.blocking_findings` | `[]` |
+| `actual_rerun_review.non_blocking_findings` | N1, N2, N3, N4, N5（本仓记为 P2R-N1–N5，见下表） |
+| `actual_rerun_review.deferred` | `[]` |
+| `actual_rerun_review.checks.check_actual_p2` | 174/174 |
+| `actual_rerun_review.checks.large_recheck` | PASS，16 件 + 4 份 core，读 7,007,878,532 B |
+| `root_acceptance.path` | `CTRL-20261012:tb1414-p2-rerun-root-release/ROOT-P2-ACTUAL-ACCEPTANCE.json` |
+| `root_acceptance.bytes` | 4627 |
+| `root_acceptance.sha256` | `49dc3b93dfb81ddc61b50bb9ef6bfa90cfa1ec5695a55e5f13c6f3359b8c0ce1` |
+| `root_acceptance.status` | `ROOT_ACCEPTS_TB02D_P2_RERUN_ACTUAL` |
+| `root_acceptance.accepted_at_utc` | `2026-10-13T12:06:07.712319+00:00` |
+| `root_acceptance.deferred` | `[]` |
+
+非阻断发现（RESULT 原文）：
+
+| ID | 内容 |
+|---|---|
+| N1 | 浏览器30s帽余量0.44–0.62s，较attempt 2的0.65–1.06s更薄；耗时去向未定位；帽值不得静默放宽 |
+| N2 | RESULT.json semantic_oracle/browser not_evaluated 标签过时（同上次线索一） |
+| N3 | PID退出观测警告措辞与wrapper只核PID的残余同族风险（同上次线索二） |
+| N4 | requestfailed 25/16/19/15，不在门内，无pageerror；HAR只做SHA未分析 |
+| N5 | Chrome主文件ctime变化，在已声明合同内；整bundle未验证 |
+
+根签收随附的非阻断项（原文）：
+
+- 浏览器 30 s 帽余量 0.44–0.62 s，再跑或进 CI 前须先查清耗时分布，不得悄悄放宽上限
+- RESULT not_evaluated 标签过时
+- PID 退出警告措辞与 wrapper 只核 PID
+- requestfailed 计数 25/16/19/15 不在门内
+- Chrome 主文件 ctime 变化在合同内
+
+## P2 的前置独审
+
+两份前置独审都由同一独立工位完成，结论与发现见 `ACCEPTANCE-REPORT.md` §6、§7.1–§7.2，原件不在本文件逐字收录：
+
+| 独审 | REVIEW.md | RESULT.json | BINDING.json | 结论 |
+|---|---|---|---|---|
+| P2 修正（`aa4039cc`） | `dcfc1b8d8bb2` | `a4a630aba25c` | `1e72e48bc7e4` | `PASS_P2_FIX_READY_FOR_FRESH_RERUN`；FX-L1/FX-L2 由 `179412c3` 处理 |
+| 再验收包 | `eb9beae33abb` | `c0caf1e5c3ea` | `432425c2039e` | `PASS_P2_RERUN_PACKAGE_READY_FOR_ROOT_AUTHORIZATION`；PK-L1–PK-L3 为 LOW |
+
+## P2 实际运行独审全文（逐字）
+
+````markdown
+# #1414 P2 修正后四臂 fresh 实际运行独立审查
+
+结论为 `PASS_TB02D_P2_RERUN_ACTUAL_ACCEPTED`。P2 修正后的新字节在 UP/a、UP/b、DOWN/a、DOWN/b 四臂上按授权 PLAN 和原全部成功门真实跑完；两对 221 记录用原比较器逐字节比较，均为 PASS。已发布的 SECOND `scan.from_stroke` 在 Q 安装状态、Q 原始响应和浏览器卡片中都是 4，且等于 `facts.from_stroke`。上次延后的大件全部按运行内收据当场重算，结果一致，本次不再有延后项。没有阻断项。本裁定只覆盖 TB-02-D 的 P2 新字节四臂与两对比较，不裁整图。
+
+审查人 `/root/tb1414_pr_p2_triage`，独立于作者与根。审查对象：OUT `/Volumes/AgentStorage/issue1414-p2-rerun-20261013`，授权 `ROOT-P2-RERUN-AUTHORIZATION.json`（`5be5cb41…`），前门重建收据 `tb1414-p2-rerun-pregate-1/REBUILD-RECEIPT.json`（`4b6265d7…`），启动记录 `tb1414-p2-rerun-launch-1/`。审查标准沿用 `tb1414-explicit-composite-review/actual-remaining/REVIEW.md`。本审核查脚本 `check_actual_p2.py` 输出 CHECK.json，174 项全过。
+
+## 授权、前门、冻结与时序
+
+授权文件现场重算为 `5be5cb41…`，各字段如下：
+
+- status 为 `ROOT_APPROVED_P2_RERUN_FOUR_FRESH_ONCE`，output 等于 PLAN 的 OUT；
+- plan_sha256 为 `4a097a2c…`，与现件一致；
+- preparation_binding 为 `21aa94c4…`；
+- 四个执行物的 SHA 与准备目录现件逐件相同；
+- runs 四元组等于 PLAN.runs；
+- independent_review 共 5 件，现场 SHA 都没变；
+- binary_rebuild_receipt 为 `4b6265d7…`；
+- calls=1，no_retry 与 first_failure_stop 都为 true。
+
+前门收据 status 为 `PASS_REBUILT_WRITER_MATCHES_EXPECTED`，plan、script、rebuild、toolchain 都与 PLAN 相同。HEAD 构建前后都是 `179412c3…`，已跟踪文件前后都干净，exit 0，没有剥离任何环境变量，构建耗时 23.3s。二进制从 `9f2a9f52…` 变为 `58a13510…`（4254944 B），build stdout/stderr 的 SHA 与收据一致，目录里只有三件文件。worktree 二进制现在的 SHA 与 lstat 六字段都等于收据中的 `binary_after_stamp`。上次包审记下的 L2（在 worktree target 中能否重建出同一字节）由这次实测解决：逐字节相同。
+
+OUT/freeze 中的 7 件（PLAN、授权、四个执行物、REBUILD-RECEIPT）都与原件 SHA 相同。PACKAGE-BINDING 的 12 项也逐件相等（6 件包、1 件前门收据、5 件独审）。准备目录自本人包审以来只新增了授权文件，其余文件逐件未变。
+
+时序如下：前门收据 19:23:20，根签名 19:26:35，controller 启动 19:26:51，OUT 中最早的文件 19:26:51.5，OUT 中最晚的文件 19:51:43.281，controller 结束 19:51:43.290（都是 +08:00）。OUT 共 87354 个文件，没有晚于运行结束时刻的。CONTROLLER-EXIT 记录 exit 0、waited_and_reaped、无终止信号，耗时 1492.13s；controller、supervisor 的 stdout/stderr/log 都是 0 字节。EXECUTION.json 的 cause 为 null，四臂都在 completed_fresh 中，总耗时 1491.73s。
+
+## 逐臂成功门
+
+四臂同构，都满足以下各项：
+
+- EXIT 为 `{"exit":0}`；RESULT 状态为 `CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER`，input_count 40，core_records 221，cleanup.errors 为空；stdout 与 RESULT 相同；6 个 stderr 都是 0 字节。
+- 40 条 ingest 的 operation 为 0..39，全部 Received。messages 与 clock 的 SHA 等于矩阵 historical_generated_inputs；prepared 三件等于 RUN-PLAN 记录。
+- 124 条 bounded_query 的命令序列逐项等于矩阵 public 120 条加 recovery 4 条，deadline 都是 30。四臂共 496 份 Q 收据全部为 `captured_validated_commit`，且 full_state_installed、sources_unchanged 都为 true。
+- query-oracle 为 passed，七个 cut 15/26/27/31/38/39/40 依次为 NO_FIRST、NO_FIRST、PENDING_CASE_TWO、PENDING_CASE_TWO、PENDING_CASE_TWO、CASE_TWO、CASE_TWO。本次 oracle 由新的 `tb02d_verify.py`（`1dc3de9a…`，各臂快照已绑定）执行，它包含新增的「已发布 scan 四字段对 oracle second_scan」比对（`:71`）；passed 即表示这条比对在各 cut 上通过。
+- browser/RESULT 为 passed，cuts 为 ["27","40"]，page_errors 为空。READINESS 记录 failure=false、cleanup_errors 0、pageerror 0，五张 PNG 齐全。txt 中的业务字符串全部在场：CC-012 有 FIRST_SEQUENCE、SECOND_SEQUENCE、matched；CC-013 有 CASE_TWO、geometric_end、terminated_known_at；CC-014 有 fact_vector；developing（切到 27 AsKnown）有 PENDING_CASE_TWO、stroke_broken、segment_broken。
+- **SECOND 卡片 `scan.from_stroke` 为 4，不是 0。** 四臂 cut40 的 CC-012.txt 中，SECOND_SEQUENCE 卡片在 scan 下的 from_stroke 值都是 `4`（三张 FIRST 卡分别为 0、3、6）。该卡的对象 id 等于 Q 中 cut40 的 SECOND 对象（UP `obj-0e8992b5…`，DOWN `obj-ac711b69…`）。cut27 developing 卡引用的 `second_sequence_object_id` 等于 Q 中 cut27 的 SECOND 对象（UP `obj-fc50c198…`，DOWN `obj-cdf49837…`）。旧字节下 UP cut27 的 SECOND 对象是 `obj-736ad23a…`，这次不同，正说明新字节生效。
+- 正常恢复：equal=true，cuts [27,40]，epoch 1→2 且 epoch_transitioned，start 回到 ready，generation 40，writer_epoch 2。6 条控制事件 exit 都是 0。
+- 资源回收：WRAPPER-CLEANUP passed；S/Q 的登记 PID 在 ps 中无行，端口 errno 61，socket 不存在；wrapper-stop-s/q 都走已停路径（无 signal，process_identity 等于登记）；运行时停机记录的 PID 等于登记，信号为 SIGTERM。stop-q/stop-s 的退出观测警告措辞与上次相同，属已知过渡现象，见发现 3。
+
+## 窗与帽
+
+| 臂 | 整臂 | 单Q最大 | Q合计 | collect_core上界 | oracle | browser（mtime/内计） | 距30s余量 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| UP/a | 350.3s | 7.06s | 223.0s | 31.4s | 7.4s | 29.53/29.35s | **0.47s** |
+| UP/b | 352.6s | 7.20s | 224.1s | 34.1s | 7.6s | 29.50/29.32s | **0.50s** |
+| DOWN/a | 360.6s | 7.39s | 229.6s | 34.5s | 7.6s | 29.56/29.38s | **0.44s** |
+| DOWN/b | 358.9s | 7.28s | 228.7s | 34.6s | 7.7s | 29.38/29.20s | **0.62s** |
+
+所有窗与帽都在限内：arm900、collect120、oracle180（oracle 内 node 帽 120）、query30、browser30。没有出现 browser_cleanup 事件，所以 +5 回收分支没有触发。浏览器余量 0.44–0.62s，比 attempt 2 的 0.65–1.06s 更薄，见发现 1。
+
+## 两对比较
+
+PAIR-COMPARISON-RESULT 为 PASS，比较对为 UP/a↔UP/b 与 DOWN/a↔DOWN/b，fresh_runs 是四臂的固定顺序。比较器是原 `tests/tb02c_compare.compare_exact_traces`（`96c7bb45…`，CURRENT 与各臂快照都已绑定），布局为 `expected_layout(40)` 共 221 行，method 为 `exact_bytes_and_strict_jsonl`，`excluded_fields=[]`，`identity_renaming=[]`。
+
+- UP 一对：两侧 sha 都是 `5e85f955…`，1456959869 B。
+- DOWN 一对：两侧 sha 都是 `0696fb1f…`，1461830301 B。
+
+compared_bytes 等于两侧文件的实际大小。结果中不含旧锚 `c0dbe0db`，OUT 里也没有 COMPOSITE-COMPARISON-RESULT。UP core 的字节数与旧锚相同而 sha 不同：修正把 `"0"` 换成了 `"4"`，长度不变，内容变了，与预期一致。
+
+## 新字节确为本次运行来源
+
+- 四臂的 source-before-run MANIFEST 各 105 项，逐项等于 RUN-PLAN.source_sha256（102 项）加 prepared（3 项）。RUN-PLAN 等于 CURRENT 中运行时子集加二进制。本审对 4×105 份快照字节（包括 4MB 的二进制副本 0003）全部重算，无一不符。
+- 快照与 CURRENT 中的身份：client `d8ae4af5…`、合同 `7d138949…`、`tb02d_verify.py` `1dc3de9a…`、runner `a3d32f0b…`、runtime `e17fd1f6…`、比较器 `96c7bb45…`、写者 `58a13510…`。http/SESSION.json 在 helper 启动时记下的 client 也是 `d8ae4af5…`。
+- `tb02c.rs` 不在运行时快照域内。它的身份 `25181131…` 由三处同时成立：`git show 179412c3:` 的 blob、worktree 现件与 CURRENT 三者相等；前门正是在这个 HEAD 上重建出 `58a13510…`；运行内 SOURCE-POSTCHECK 为 552/27 零失配。
+- 本审现场重算 CURRENT 全部 552 件（包括二进制）与 frozen_evidence 全部 27 件：零失配。
+
+## 已发布的 SECOND 扫描范围
+
+三个口径独立核对，都成立：
+
+1. **Q 安装状态**（`committed-candidate.json`，cut c 对应 `known-(c-1)`）：四臂在 cut 27、31、38、39、40 都恰有一个 SECOND 对象，`scan.from_stroke` 为 "4"，scan 的四个字段等于 facts 的四个字段，也等于 hand-oracle 中 `second_scan` 的 wire 值（through 为 5/6/7/8/8，input 为 6/7/8/9/9，resource_truncated 为 false），状态为 PENDING/PENDING/PENDING/CONFIRMED/CONFIRMED。
+2. **Q 原始响应体**（`raw_q_second.py` → RAW-Q-SECOND-CHECK.json）：抽查 known-26、known-39、after-normal-27、after-normal-40，cut27 与 cut40 的 SECOND 对象 scan 等于 facts，from 都是 4；恢复前后是同一对象。
+3. **浏览器**：见逐臂成功门，cut40 卡片显示 4，cut27 引用同一对象。
+
+## 大件：按运行内收据直接重算，不再延后
+
+四臂各自的 `LARGE-ARTIFACT-SHA256.json` 都存在，errors 为空，business_gate=false，identity_stable 全为 true，收据 SHA 等于 EXECUTION 中的记录。本审（`rehash_large.py` → LARGE-RECHECK.json）重算了 16 件 HAR/DB/WAL/backup：SHA、字节数和 lstat 五字段都等于收据，读取期间身份稳定。同一 case 的两臂 `session.sqlite` 与 database-backup 字节相同，WAL 与 HAR 不同。另外重算了四份 semantic-core，SHA 等于 PAIR 中的记录、大小等于 compared_bytes；写者二进制与四份快照 0003 都是 `58a13510…`。共读 7,007,878,532 B，结果 PASS。
+
+## 依赖与现场资源
+
+DEPENDENCY-PRE 与 POST 都是 PASS，没有 mismatch 或 error。python、node、playwright 三项前后收据全等。Chrome 只有 ctime 前后不同，这在已声明的 `named-chrome-object-content-endpoints/1` 合同之内，与上次相同。
+
+升级只读复核（LIVE-RESOURCE-CHECK.json）：18990–18993 都是 ECONNREFUSED，四个 socket 都不存在，ps 中没有本次运行的 S/Q/runtime/driver/helper/runner 进程。69 行自动化 Chrome 都是本次运行前就已存在的常驻或其他工位进程，最早 10-11 19:25、最晚 10-13 06:26；19:22–19:52 之间启动的一个都没有。核查命令自身的 2 行已排除。
+
+## 发现
+
+阻断：无。
+
+非阻断：
+
+1. **浏览器 30s 帽余量进一步变薄**，只有 0.44–0.62s（内计 29.20–29.38s）；attempt 2 是 0.65–1.06s，codepoint observed 是 29.14s。这是系统性贴帽，再跑或进 CI 有翻转风险。前 128 个事件之后的 244 个被丢弃，耗时去向仍然不可见。建议在下一次需要该运行之前先做定位；帽值不得静默放宽。
+2. RESULT.json 中 `semantic_oracle`/`browser` 的 `not_evaluated` 标签已过时，原因同上次线索一，四臂相同。交付文案不要单独引用这两个字段。
+3. PID 退出观测警告措辞与 wrapper 只核 PID 的残余同族风险，同上次线索二，不阻断。
+4. 浏览器 requestfailed 计数为 25/16/19/15，不在门内，也没有伴随 pageerror。HAR 本次只做了 SHA 重算，没有打开分析。
+5. Chrome 主文件 ctime 变化，在已声明合同之内；整 bundle 未验证。
+
+## 实际所做
+
+全部只读：
+
+- `check_actual_p2.py` → CHECK.json：174 项全过；
+- `rehash_large.py` → LARGE-RECHECK.json：PASS，读 7.0GB；
+- `raw_q_second.py` → RAW-Q-SECOND-CHECK.json：PASS（第二次以文件形式重跑，输出逐字节相同；比对时用过一个 `/tmp` 临时文件，已删除）；
+- 内联重算 CURRENT 与 frozen_evidence → SOURCE-RECHECK.json：零失配；
+- 升级只读的 ps 与端口复核 → LIVE-RESOURCE-CHECK.json。
+
+没有启动 Q、S、浏览器、runtime 或构建，没有改 OUT、包或 worktree；OUT 的文件数与最晚 mtime 在审查前后不变，worktree 干净。没有 commit/push/PR。
+````
+
+## 历史：787f5cf 提交面的两轮整体独审
+
+下面两轮审查的对象是 787f5cf 时的五提交提交面（审查者 `/root/tb1414_final_surface_review`，Python 逐行审由其子工位 `py_line_review` 完成）。按 ROOT-RULING，它们只作历史记录；新提交面需要新的增量整体独审。首轮 `FAIL_WITH_FINDINGS`，唯一阻断 B1 已改为显式五模块；复审 r2 为 `PASS_FINAL_COMMIT_SURFACE_READY_PENDING_RUNTIME_CHECKS`。两轮的非阻断项 FS-N1–FS-N8 仍记在 `ACCEPTANCE-REPORT.md` §10。
 
 | 轮次 | 原件（CTRL-20261012 相对路径） | bytes | SHA256 | 结论文件 RESULT.json | 绑定 BINDING.json |
 |---|---|---:|---|---|---|
 | r1 首轮 | `tb1414-explicit-composite-review/final-surface/REVIEW.md` | 13794 | `1149a14bd331f652c96fca2d1286c8728cf2cc900a3efaa2b3c4c8665fae9db8` | `24f9332d47cb3048910c48ceb8f5ae9c0c0ceeb3aa6222add21e28b8f919acf1`（FAIL_WITH_FINDINGS） | `47caee9123858a9f31c8d98f61db3899ad81c74c08e04433f2c63d41982fb675` |
 | r2 复审 | `tb1414-explicit-composite-review/final-surface/r2/REVIEW.md` | 7416 | `3165f21d94fbcce52034498d566d71a90c0defd3c0178113071ebeca741c8dee` | `c055481d64a9fca17a3c80741c76050b4ba9f87556e85c8b9f64b96b8a0053f7`（PASS_FINAL_COMMIT_SURFACE_READY_PENDING_RUNTIME_CHECKS） | `f6327077651ccff687ba5572a4c7296d06c9b2668db531ea53c23dabee0be3a7` |
-
-r1 审的提交面清单 SHA256 为 `30e3a205ffa5…`，r2 审的是 `eecc02fdd693…`。本文件与 `ACCEPTANCE-REPORT.md`、`EVIDENCE-INDEX.json` 中按 R2-N1、R2-N2 补写的文字属于 r2 之后的纯文档改动（关票门第 7 项豁免）。
 
 ## r1 首轮全文（逐字）
 

@@ -1,0 +1,65 @@
+{
+  "status": "ROOT_APPROVED_P2_RERUN_FOUR_FRESH_ONCE",
+  "output": "/Volumes/AgentStorage/issue1414-p2-rerun-20261013",
+  "plan_sha256": "4a097a2c30c971cfd8fa86a1eb69d837346c21cb657733c50ea76ac07d96e680",
+  "preparation_binding_sha256": "21aa94c410cbc763d6231428ab2271c293ec4581c5f02dffa2ff4c5f5e8dd273",
+  "scripts": {
+    "remaining-driver.py": "ab80440cdebd6a79a294ee68a44967df4f0f75724e48029eab7b2fe7a4f3ac4d",
+    "remaining-harness.py": "a4934a122db5dc27aa42d59902f95ba0f4ccca04e971c89bf19c4e8f3b5ee7e9",
+    "CURRENT-SOURCES.json": "7f473be69bf773edb75c9cbb3db7d9a3d4b69ae618956ad74ada553b0d0a527a",
+    "dependency_identity.py": "9a159a9d504dfcfde71c0c2c0dabba18ec57fd70ba6df28a8c2919d669502e9e"
+  },
+  "runs": [
+    [
+      "second_open_up",
+      "a",
+      18990,
+      "/private/tmp/tb1414-3d7cd093b26cb0f8.sock"
+    ],
+    [
+      "second_open_up",
+      "b",
+      18991,
+      "/private/tmp/tb1414-37324e23db9b5e35.sock"
+    ],
+    [
+      "second_open_down",
+      "a",
+      18992,
+      "/private/tmp/tb1414-fab12ee8bfc3a176.sock"
+    ],
+    [
+      "second_open_down",
+      "b",
+      18993,
+      "/private/tmp/tb1414-616f74b39cba4989.sock"
+    ]
+  ],
+  "independent_review": {
+    "/private/tmp/goal1323-native-20261012/tb1414-pr-p2-triage/rerun-package-review/RESULT.json": "c0caf1e5c3eac0f04df8fc1f5894b1145981a762d927f29e74c649c50ba1591e",
+    "/private/tmp/goal1323-native-20261012/tb1414-pr-p2-triage/rerun-package-review/REVIEW.md": "eb9beae33abb94fb829b3bc5fb3023fe9bfda8c1e438d4cd741d95710bcd61b3",
+    "/private/tmp/goal1323-native-20261012/tb1414-pr-p2-triage/rerun-package-review/BINDING.json": "432425c2039e7d5fb6f8ebb229a6b68217219683e7770efecc90cf85cb0d0233",
+    "/private/tmp/goal1323-native-20261012/tb1414-pr-p2-triage/fix-review/RESULT.json": "a4a630aba25ccc3e2b6c8b6074daf2c5bac085f03fdb0b9e9919a82bafe988a1",
+    "/private/tmp/goal1323-native-20261012/tb1414-pr-p2-triage/ROOT-RULING.json": "600207e3a2f29cd3a107f1153bad3db19082f7bff7c7a895f7e9273ea9a6315b"
+  },
+  "binary_rebuild_receipt": {
+    "path": "/private/tmp/goal1323-native-20261012/tb1414-p2-rerun-pregate-1/REBUILD-RECEIPT.json",
+    "sha256": "4b6265d757f1925ae2c9d31154fce8677fbc9b8b31aff8645d9c5c706fb23caf"
+  },
+  "slot": {
+    "checked_wall": 1791890754,
+    "competitors": "escalated ps: no s_structure_session/cargo/rustc/run_s86/remaining-driver/tb02d/hdiutil/headless rows; closure-review worker paused heavy load at root request; ports 18990–18993 refused; OUT and 4 sockets absent; load avg ~9–10 (resident Chrome, same as attempt-2 conditions)"
+  },
+  "launch": {
+    "launcher": "/private/tmp/goal1323-native-20261012/finance/long-r4-S86-serve-execution-preparation-r5/launch_detached.py",
+    "launch_dir": "/private/tmp/goal1323-native-20261012/tb1414-p2-rerun-launch-1",
+    "python": "/tmp/tb1414-runtime-venv/bin/python"
+  },
+  "calls": 1,
+  "no_retry": true,
+  "first_failure_stop": true,
+  "required_sandbox_permissions": "require_escalated",
+  "scope": "#1414 PR #1477 P2修正后新字节（HEAD 179412c3、写者58a13510…）一次性四臂fresh：UP/a→UP/b→DOWN/a→DOWN/b，对拍UP/a↔UP/b、DOWN/a↔DOWN/b；原full runtime与全部窗/帽不变；首失败停、不重试。不裁整图。",
+  "root_full_review_read": true,
+  "signed_at_utc": "2026-10-13T11:26:35.164137+00:00"
+}
