@@ -599,6 +599,78 @@ async function run() {
       result.cases.push({ name, passed: false, error: error.stack });
     }
   }
+  // #1394 整合（根裁定）：s-session/2 的同一 State 只完整验证一次；锁住 LegacyClient.collect 的两种真实
+  // 入参形状（页面钩子：cut 五键、rule 取自 snapshot/目录证据；collect：State 原形、cut 六键、rule 取自
+  // fixed_cut）。check() 每条记录调一次，命中缓存只调一次，借此观察是否重验。新载一份客户端，缓存不受
+  // 本文件其他用例影响。
+  await test("s-session/2同一State只完整验证一次、内容变化必重验、失败不缓存", async () => {
+    const key = require.resolve(clientPath),
+      saved = require.cache[key];
+    delete require.cache[key];
+    const fresh = require(clientPath);
+    require.cache[key] = saved;
+    const shapes = (s) => {
+      const snap = s.snapshot,
+        rule = snap.rule_revision || snap.catalog_evidence.rule_revision;
+      const page = {
+        catalog: copy(s.catalog),
+        snapshot: { ...copy(snap), rule_revision: rule },
+        cut: Object.fromEntries(
+          ["session_id", "generation", "structure_cut", "catalog_revision", "index_frontier"].map(
+            (k) => [k, snap[k]],
+          ),
+        ),
+      };
+      const collect = {
+        ok: true,
+        catalog: copy(s.catalog),
+        snapshot: { ...copy(snap), rule_revision: rule },
+        cut: { ...page.cut, session_generation: "1" },
+      };
+      return { page, collect };
+    };
+    const checks = async (state) => {
+      let n = 0;
+      await fresh.Q3.validateState(state, "s-session/2", () => n++);
+      return n;
+    };
+    const s5 = shapes(sp.states["5"]),
+      s4 = shapes(sp.states["4"]);
+    assert(sp.states["5"].snapshot.profile_id === "ohlc_integer_tb02a_v1");
+    const full = await checks(s5.page);
+    assert(full > 1, "首验必须逐条走完 State（实际 check " + full + " 次）");
+    assert.equal(await checks(s5.collect), 1, "collect 形状的同一 State 不得重验");
+    assert.equal(await checks(copy(s5.page)), 1, "内容相同的新对象按内容命中");
+    assert(
+      (await checks(s4.page)) > 1,
+      "不同 State 必须完整验证",
+    );
+    const changed = copy(s5.collect);
+    changed.snapshot.objects[0].object_id = "obj-" + "0".repeat(64);
+    for (let round = 0; round < 2; round++)
+      await assert.rejects(
+        () => fresh.Q3.validateState(changed, "s-session/2"),
+        Error,
+        "内容变化必重验且失败不缓存（第" + (round + 1) + "次）",
+      );
+    const rule = copy(s5.page);
+    rule.snapshot.rule_revision = "s2-axis-quantifiers+new-bi/1+segment-second/1";
+    await assert.rejects(
+      () => fresh.Q3.validateState(rule, "s-session/2"),
+      Error,
+      "只改 rule_revision 也必须重验",
+    );
+    let expired = 0;
+    await assert.rejects(
+      () =>
+        fresh.Q3.validateState(s5.page, "s-session/2", () => {
+          expired++;
+          throw new Error("读取期限已过");
+        }),
+      /读取期限已过/,
+    );
+    assert.equal(expired, 1, "命中缓存仍守读取期限");
+  });
   async function setup() {
     const server = fakeServer(f),
       commits = [];

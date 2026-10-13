@@ -3093,7 +3093,7 @@ if (typeof module !== 'object' || !module.exports) {
     TB02_KINDS: Object.freeze(TB02_KINDS), BI_KINDS, SEGMENT_KINDS: Object.freeze(SEGMENT_KINDS)});
 });
 
-/* exact source q3-consumer.js SHA256 47c6ea69171e44b0df50c1c2beb2d7b1cb7d9624f81bdbfe3d2ccf1b70821177 */
+/* exact source q3-consumer.js SHA256 ecff8b24e8e69047d0dac13d9aefea6d9b70ec3662e3f90f5b8983f148f411ff */
 /* #1394：Q3完整消费者；只供既有tb01c页面调用，没有产品路由或默认资源。 */
 (function (root, factory) {
   const common = typeof module === "object" && module.exports;
@@ -4528,6 +4528,69 @@ if (typeof module !== 'object' || !module.exports) {
         }
       }
     }
+    // #1394 整合（根裁定，与 #1414 validate_once 同一原则）：s-session/2 的同一 State 只完整验证一次。
+    // LegacyClient.collect 先经页面钩子、再自己各调一次 validateState，两次入参只差 cut 的表示与
+    // rule_revision 的取值来源；TB-02-D cut40 上两遍合计约 32–35 s，超过 30 s 读取期限。
+    // 缓存键 = 协议 + validateState 实际读取的全部输入（catalog、snapshot、cut 的五个同 cut 键）的规范
+    // 字节 SHA-256：任一字节变化即重验。只记通过，失败不记；命中时仍调一次 check() 守读取期限；判据一字
+    // 不改。只对 s-session/2 的普通 JSON 入参启用，v3 图值与其 charge 计费路径照旧逐次验证。
+    const ONCE_CUT_KEYS = [
+      "session_id",
+      "generation",
+      "structure_cut",
+      "catalog_revision",
+      "index_frontier",
+    ];
+    const ONCE_CAPACITY = 2;
+    const validatedOnce = new Map();
+    // 普通对象（任一 realm 的 Object.prototype 或 null 原型）；Value 包装与数组不算。
+    function plainRecord(value) {
+      if (value === null || typeof value !== "object" || Array.isArray(value))
+        return false;
+      const proto = Object.getPrototypeOf(value);
+      return proto === null || Object.getPrototypeOf(proto) === null;
+    }
+    const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
+    async function onceKey(state, protocol) {
+      if (protocol !== "s-session/2" || !plainRecord(state)) return null;
+      if (!["catalog", "snapshot", "cut"].every((k) => own(state, k)))
+        return null;
+      const cut = state.cut;
+      if (!plainRecord(cut) || !ONCE_CUT_KEYS.every((k) => own(cut, k)))
+        return null;
+      try {
+        return await api.sha256({
+          protocol,
+          catalog: state.catalog,
+          snapshot: state.snapshot,
+          cut: Object.fromEntries(ONCE_CUT_KEYS.map((k) => [k, cut[k]])),
+        });
+      } catch {
+        return null; // 无规范字节的入参不进缓存，交给完整验证去拒绝。
+      }
+    }
+    async function validateStateOnce(
+      state,
+      protocol = "s-session/3",
+      check = () => {},
+      charge = () => {},
+    ) {
+      const key = await onceKey(state, protocol);
+      if (key !== null && validatedOnce.has(key)) {
+        const binding = validatedOnce.get(key);
+        validatedOnce.delete(key);
+        validatedOnce.set(key, binding);
+        check();
+        return binding;
+      }
+      const binding = await validateState(state, protocol, check, charge);
+      if (key !== null) {
+        validatedOnce.set(key, binding);
+        while (validatedOnce.size > ONCE_CAPACITY)
+          validatedOnce.delete(validatedOnce.keys().next().value);
+      }
+      return binding;
+    }
     async function validateDelta(outer, charge = () => {}) {
       outer = of(outer);
       await keys(outer, [...D, "delta"], "Delta外层");
@@ -5837,7 +5900,7 @@ if (typeof module !== 'object' || !module.exports) {
     }
     return Object.freeze({
       Client,
-      validateState,
+      validateState: validateStateOnce,
       validateTB02Catalog: (catalog) => catalogValidate(catalog, null),
       validateDelta,
       comparePublication,
