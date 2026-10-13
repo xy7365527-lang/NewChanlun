@@ -1,5 +1,6 @@
 """#1392/#1405 新笔公共合同的结构、版本和分域拒绝测试；不是结构 oracle。"""
 import copy
+import hashlib
 import importlib.util
 from pathlib import Path
 import unittest
@@ -139,7 +140,45 @@ class ContractTest(unittest.TestCase):
         self.reject('CC-055.change_event', bad)
 
 
+# #1405：会话规则→新笔合同代际绑定的拒因；js 侧 test_tb02b_contract.cjs 断言同一句原文。
+BI_RULE_MISMATCH = '新笔合同与cut规则版本不符'
+RULE_NEW_BI_2 = 's2-axis-quantifiers+new-bi/2+segment-second/1'
+RULE_NEW_BI_1 = 's2-axis-quantifiers+new-bi/1+segment-second/1'
+
+
+def endpoint_fact(generation, rule):
+    """完整 typed 端点对象；内容身份按所在 cut 的会话规则闭合，使合同代际绑定成为唯一可能的拒因。"""
+    top = endpoint('TOP', '5', '13', ['5', '6'], '5', '6', ['4', '5', '6', '7'])
+    data = top if generation == 2 else as_v1(top, '5')
+    payload = dict(**(V2 if generation == 2 else V1), view_role='main', object_generation='1', slot='fx:1:5', data=data)
+    kind = 'CC-008.endpoint'
+    value = dict(object_id=None, object_revision='1', kind=kind, batch_id='batch-1',
+                 fact_key=c.canonical([kind, payload['slot']]).decode(), payload=payload, input_refs=[], source_coords=[],
+                 first_known_generation='1', first_known_cut='cut-1', published_generation='1',
+                 withdrawn_generation=None, withdrawal_reason=None, superseded_by=None, lifecycle='active')
+    meta = dict(profile_id=c.PROFILE, rule_revision=rule)
+    identity = {key: value[key] for key in ('kind', 'fact_key', 'payload', 'input_refs')}
+    identity.update(meta)
+    value['object_id'] = 'obj-' + hashlib.sha256(c.canonical(identity)).hexdigest()
+    return value, meta
+
+
 class RuleBindingTest(unittest.TestCase):
+    def assert_bi_rule_mismatch(self, generation, rule):
+        value, meta = endpoint_fact(generation, rule)
+        with self.assertRaises(ValueError) as caught:
+            c.validate_fact(value, meta)
+        self.assertEqual(str(caught.exception), BI_RULE_MISMATCH)
+
+    def test_new_bi_2_session_cut_rejects_new_bi_1_object(self):
+        c.validate_fact(*endpoint_fact(1, RULE_NEW_BI_1))
+        self.assert_bi_rule_mismatch(1, RULE_NEW_BI_2)
+
+    def test_new_bi_1_session_cut_rejects_new_bi_2_object(self):
+        # B 片浏览器那一轮正是此组合（会话规则 new-bi/1、对象 s-new-bi/2）；终版绑定须拒。
+        c.validate_fact(*endpoint_fact(2, RULE_NEW_BI_2))
+        self.assert_bi_rule_mismatch(2, RULE_NEW_BI_1)
+
     def test_session_rule_binds_bi_and_segment_contract_generations(self):
         self.assertEqual(c.RULE_CONTRACTS['s2-axis-quantifiers+new-bi/2+segment-second/1'],
                          ('s-new-bi/2', 's-segment/2', 'established_direction_with_extreme_root_sets'))

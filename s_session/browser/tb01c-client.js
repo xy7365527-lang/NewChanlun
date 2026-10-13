@@ -981,5 +981,5 @@
       return this.#commit(candidate, budget, {kind: "watch", batches: page.deltas.length, hasMore: page.has_more});
     }
   }
-  return Object.freeze({TB02_KINDS: Object.freeze(TB02_KINDS), validateSegmentPayload, validateBiPayload, Client, DEFAULTS, FAMILIES, ORDER, orderFor, parseDiscovery, readDiscovery, validateTyped, validateTB02ShapeRefs, validateTB02Axes, validateTB02Raw, validateTB02Catalog, validateTB02CutSources, TB02_CATALOG, canonical, parse, sha256, rowsOf, cursorOf});
+  return Object.freeze({TB02_KINDS: Object.freeze(TB02_KINDS), validateSegmentPayload, validateBiPayload, Client, DEFAULTS, FAMILIES, ORDER, orderFor, parseDiscovery, readDiscovery, validateTyped, validateTB02ShapeRefs, validateTB02Axes, validateTB02Raw, validateTB02Catalog, validateTB02CutSources, validateTB02Candidate, TB02_CATALOG, canonical, parse, sha256, rowsOf, cursorOf});
 });
