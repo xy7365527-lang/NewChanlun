@@ -1860,7 +1860,7 @@ fn validate_source_with_owner(
     Ok(())
 }
 
-// ===== #1394 DESIGN-R6 c2：财务只读会话的启动捕获与变体 B 原件字节门（候选，待 §5.7 修订裁定）=====
+// ===== #1394 DESIGN-R6 c2：财务只读会话的启动捕获（A6 r2 §2.1；原件字节门已按 A6-2 删除）=====
 // 只复用本文件既有的 open_source/validate_source/version/pin_first_read/capture_image/import_image；
 // 判据不另写。活源连接由会话持有（同连接 data_version 夹持只在这一条连接上比较）。
 
@@ -1873,30 +1873,6 @@ pub(super) struct SessionCapture {
     /// 捕获镜像的实测堆字节：`capture_image` 前后 Δ(全部 malloc zone 在用) − Δ(SQLite 自记)。
     pub image_heap_bytes: i64,
     pub control: Vec<u8>,
-    pub original: Option<SessionOriginal>,
-}
-
-/// 变体 B 保留的被审原件镜像；只在本模块内逐字节比较，不对外开放内容。
-pub(super) struct SessionOriginal {
-    image: Image,
-}
-impl SessionOriginal {
-    pub(super) fn captured_bytes(&self) -> u64 {
-        self.image.captured_bytes
-    }
-}
-
-/// 变体 B 每次字节门的计数（行数与本次重新捕获的原件记账字节）。
-pub(super) struct SessionGate {
-    pub rows: u64,
-    pub captured_bytes: u64,
-}
-
-/// 变体 B 字节门的失败分型：`Changed` 是逐字节比较得出的真实差异；`Capture` 是重新捕获本身失败
-/// （SQLite 中断、busy、模式核验失败等），由调用方按本请求是否真被中断再分“未完成”或“失效”。
-pub(super) enum GateFault {
-    Changed(String),
-    Capture(String),
 }
 
 /// 活源连接：同 Q3 `open_source`（READ_ONLY|NO_MUTEX、query_only=ON、read_uncommitted=OFF、单值长度限）。
@@ -1924,7 +1900,6 @@ pub(super) fn session_capture(
     path: &Path,
     max_capture_bytes: u64,
     deadline: Instant,
-    keep_original: bool,
     control: impl FnOnce(&Connection) -> Result<Vec<u8>, String>,
     heap: impl Fn() -> Result<(u64, i64), String>,
 ) -> Result<SessionCapture, String> {
@@ -1969,12 +1944,7 @@ pub(super) fn session_capture(
         .map_err(sql_err)?;
     let digest = image.digest;
     let captured_bytes = image.captured_bytes;
-    let original = if keep_original {
-        Some(SessionOriginal { image })
-    } else {
-        drop(image);
-        None
-    };
+    drop(image);
     Ok(SessionCapture {
         db,
         versions,
@@ -1982,72 +1952,9 @@ pub(super) fn session_capture(
         captured_bytes,
         image_heap_bytes: i64::try_from(image_heap).unwrap_or(i64::MAX),
         control,
-        original,
     })
 }
 
-fn same_cell(a: CellView<'_>, b: CellView<'_>) -> bool {
-    match (a, b) {
-        (CellView::Null, CellView::Null) => true,
-        (CellView::Integer(x), CellView::Integer(y)) => x == y,
-        (CellView::Text(x), CellView::Text(y)) => x.as_bytes() == y.as_bytes(),
-        (CellView::Blob(x), CellView::Blob(y)) => x == y,
-        _ => false,
-    }
-}
-
-/// 变体 B 字节门：在调用方的新短读事务里用同一 `capture_image` 重新捕获全部持久表原件，与启动时被审
-/// 的那份镜像逐表、逐列名、逐 rowid、逐行逐单元逐字节比较（含模式头），另核捕获摘要。
-/// 全表是审计所消费原件的超集；任何差异或捕获失败都由调用方按 MissingDependency 处理。
-pub(super) fn session_original_unchanged(
-    tx: &Transaction<'_>,
-    original: &SessionOriginal,
-    max_capture_bytes: u64,
-    deadline: Instant,
-) -> Result<SessionGate, GateFault> {
-    let fresh = capture_image(tx, max_capture_bytes, deadline).map_err(GateFault::Capture)?;
-    let old = &original.image;
-    let changed = || GateFault::Changed("原件与已审捕获逐字节不同".into());
-    if fresh.header[..] != old.header[..] || fresh.tables.len() != old.tables.len() {
-        return Err(changed());
-    }
-    let mut rows = 0u64;
-    for (x, y) in fresh.tables.iter().zip(old.tables.iter()) {
-        if x.name.as_str() != y.name.as_str()
-            || x.columns.len() != y.columns.len()
-            || x.columns
-                .iter()
-                .zip(y.columns.iter())
-                .any(|(a, b)| a.as_str() != b.as_str())
-            || x.rows.len() != y.rows.len()
-        {
-            return Err(changed());
-        }
-        match (&x.rowids, &y.rowids) {
-            (None, None) => {}
-            (Some(a), Some(b)) if a[..] == b[..] => {}
-            _ => return Err(changed()),
-        }
-        for (r1, r2) in x.rows.iter().zip(y.rows.iter()) {
-            if r1.len() != r2.len()
-                || r1
-                    .iter()
-                    .zip(r2.iter())
-                    .any(|(a, b)| !same_cell(a.view(), b.view()))
-            {
-                return Err(changed());
-            }
-            rows += 1;
-        }
-    }
-    if fresh.digest != old.digest {
-        return Err(changed());
-    }
-    Ok(SessionGate {
-        rows,
-        captured_bytes: fresh.captured_bytes,
-    })
-}
 // ===== #1394 c2 会话段结束 =====
 
 #[cfg(test)]

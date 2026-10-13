@@ -1,12 +1,12 @@
 //! #1394 C §5.7: current S3 financial source and independently proved fragments.
 //! A CLI invocation owns one read-only transaction. The economic owner carries the
 //! frozen reader_resources Job across invocations; this S process does not mint it.
-//! #1394 DESIGN-R6 c2 candidate (pending the §5.7 multi-request consistency ruling): the
+//! #1394 DESIGN-R6 c2 (APPROVED-SOURCE §5.7 revision record A6 r2, `0e620363…`): the
 //! explicit 8-argument `--session <socket>` grammar only forwards stdin to a long-lived
 //! read-only session (`financial_session.rs`), never audits locally and never falls back to
 //! this cold path. The session serves through the same `basis_ref_with`/`content_with`
 //! with the one `state::audit` it ran at startup on its audited capture.
-//! #1394 第三问选项 A 候选（financial-closure，待用户批准 §5.7 新读模式的 exact 字段）：`closure_with`
+//! #1394 第三问选项 A（financial-closure，A6 r2 §3，用户已批）：`closure_with`
 //! 由冷路径与会话共用；对同一已审 anchor，按 basis_ref 下某路径的目标根，用同一 `lookup_path` 与
 //! `sc::verify` 枚举「路径证明 ∪ 目标完整闭包」，按摘要升序以显式游标 `after` 与每块字节预算
 //! `max_reply_bytes` 分块返回。块边界只由请求与已审状态决定，冷路径与会话逐字节相同。
@@ -163,8 +163,11 @@ pub(super) fn run(args: &[String]) -> Result<(), String> {
     let out = match args[1].as_str() {
         "financial-basis-ref" => basis_ref(&tx, &request)?,
         "financial-content" => content(&tx, &request, sc::MAX_FRAME_LEN)?,
-        // 冷路径：每次调用一张临时闭包表（随进程丢弃），不设表帽；会话路径的表帽与保留记账见
-        // `financial_session`。两者回复由同一 `closure_with` 决定，只有资源拒绝点不同。
+        // #1394 A6 r2 §6 接线条款：冷 6 参 financial-closure 是 #799 限定词 3 的已声明独立对照臂
+        // （ADR-0005），只用于 #804 同输入同输出对拍——同一请求经会话 8 参与冷 6 参须逐块逐字节相同。
+        // 它不参与准入：任何冻结 manifest 不能选它为读法，E/B 只以带 --session 的 8 参发起
+        // financial-closure；它的回复不进经济 image、Job 账、暂存表或任何准入判定，失败不触发经济侧动作。
+        // 每次调用一张临时闭包表（随进程丢弃），不设表帽；会话路径的表帽与保留记账见 `financial_session`。
         "financial-closure" => closure_with(
             &tx,
             &request,
@@ -220,17 +223,10 @@ impl Basis {
     }
 }
 
-/// Exact text of the two request-binding refusals; the c2 session classifies them by
-/// whole-string equality (never by substring), see `is_request_binding_mismatch`.
+/// Exact text of the two request-binding refusals (anchor / basis-ref session identity). The c2
+/// session rejects only the request for both, like any other request-level refusal (A6 r2 §2.2).
 const ANCHOR_NOT_CURRENT: &str = "财务anchor与本片当前控制元组不同";
 const IDENTITY_NOT_CURRENT: &str = "请求会话、化身或writer epoch不是当前值";
-
-/// True only for the two refusals that mean "the request is bound to another anchor or
-/// session identity" (content anchor / basis-ref session,generation,epoch).
-#[cfg(unix)]
-pub(super) fn is_request_binding_mismatch(error: &str) -> bool {
-    error == missing(ANCHOR_NOT_CURRENT) || error == missing(IDENTITY_NOT_CURRENT)
-}
 
 /// The current control tuple equals the last audited cut and nothing is pending. One
 /// judgment shared by the cold `current_basis` and by every c2 session request (where it

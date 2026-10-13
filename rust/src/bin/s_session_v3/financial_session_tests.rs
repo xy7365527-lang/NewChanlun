@@ -1,4 +1,4 @@
-//! #1394 DESIGN-R6 c2 会话测试锁（r2）：失效条件、anchor 两种处理、资源帽、首末托管、与冷路径逐字节相同、
+//! #1394 DESIGN-R6 c2 会话测试锁：失效条件、anchor 不符只拒本次（A6 r2 §2.2）、资源帽、首末托管、与冷路径逐字节相同、
 //! 截止分型（F4）、整体截止（F5）、换 inode（F6）、READY/停机/SIGTERM（F3）、错误前缀（F8）。
 //! 全部在真实 S3 夹具（init_v3 + 真实接纳/Begin/提交，文件库 WAL）上进行；socket 级用 socketpair。
 //! 两个 `#[ignore]` CLI 测试需要先构建 release 二进制并在允许 bind Unix socket 的环境运行。
@@ -28,23 +28,16 @@ fn resources() -> SessionResources {
 
 const TEST_BINARY: &str = "1111111111111111111111111111111111111111111111111111111111111111";
 
-fn start_with(
-    f: &Fixture,
-    resources: SessionResources,
-    consistency: Consistency,
-    anchor_policy: AnchorMismatch,
-) -> Result<Session, String> {
+fn start_with(f: &Fixture, resources: SessionResources) -> Result<Session, String> {
     Session::start(StartConfig {
         db: f.db_path(),
         resources,
         custody: Custody::observe(&f.db_path(), None).unwrap(),
-        consistency,
-        anchor_policy,
         binary_sha256: TEST_BINARY.into(),
     })
 }
-fn start(f: &Fixture, consistency: Consistency) -> Session {
-    start_with(f, resources(), consistency, ANCHOR_MISMATCH_POLICY).unwrap()
+fn start(f: &Fixture) -> Session {
+    start_with(f, resources()).unwrap()
 }
 
 /// 冷路径参照：与 `financial_reader::run` 相同的只读连接、双标记核与 `audited=None` 分支。
@@ -117,24 +110,6 @@ fn rebaseline_stat(s: &mut Session) {
 fn rebaseline_version(s: &mut Session) {
     s.v_star = capture::version(&s.source).unwrap();
 }
-fn corrupt_one_snapshot_node(f: &mut Fixture) {
-    let (digest, mut node): (Vec<u8>, Vec<u8>) = f
-        .conn
-        .query_row(
-            "SELECT n.digest,n.body FROM s_content_nodes n JOIN s_content_publications p \
-             ON n.digest=p.snapshot_root ORDER BY p.generation LIMIT 1",
-            [],
-            |r| Ok((r.get(0)?, r.get(1)?)),
-        )
-        .unwrap();
-    node[0] ^= 1;
-    f.conn
-        .execute(
-            "UPDATE s_content_nodes SET body=?1 WHERE digest=?2",
-            rusqlite::params![node, digest],
-        )
-        .unwrap();
-}
 fn finish_json(s: &mut Session, shutdown: Shutdown, log: Option<&Path>) -> Value {
     strict_json(&s.finish(shutdown, log)).unwrap()
 }
@@ -150,8 +125,8 @@ fn session_replies_are_byte_identical_to_cold_path() {
     publish(&mut f, 3);
     let ids = object_ids(&mut f);
     assert!(ids.len() >= 2);
-    for consistency in [Consistency::A, Consistency::B] {
-        let mut s = start(&f, consistency);
+    {
+        let mut s = start(&f);
         let anchor = s.receipt()["anchor"].clone();
         let mut requests = vec![
             ("financial-basis-ref", query(&[])),
@@ -242,7 +217,7 @@ fn r7_binary_sha_or_db_identity_mismatch_invalidates() {
     let mut f = Fixture::new();
     publish(&mut f, 1);
     for wrong in ["binary", "dev", "ino"] {
-        let mut s = start(&f, Consistency::A);
+        let mut s = start(&f);
         let mut header = json!({"schema_revision":REQUEST_SCHEMA,"command":"financial-basis-ref",
             "binary_sha256":TEST_BINARY,"db_dev":s.main_stat.dev.to_string(),
             "db_ino":s.main_stat.ino.to_string()});
@@ -269,7 +244,7 @@ fn r7_binary_sha_or_db_identity_mismatch_invalidates() {
 fn r4_wal_mtime_change_without_content_change_invalidates() {
     let mut f = Fixture::new();
     publish(&mut f, 1);
-    let mut s = start(&f, Consistency::A);
+    let mut s = start(&f);
     assert!(s
         .handle_for_test("financial-basis-ref", &body(&query(&[])))
         .is_ok());
@@ -305,7 +280,7 @@ fn r4_wal_mtime_change_without_content_change_invalidates() {
 fn r4_main_db_mtime_change_invalidates() {
     let mut f = Fixture::new();
     publish(&mut f, 1);
-    let mut s = start(&f, Consistency::A);
+    let mut s = start(&f);
     touch(&f.db_path());
     assert_refused(
         &s.handle_for_test("financial-basis-ref", &body(&query(&[]))),
@@ -320,7 +295,7 @@ fn db_replaced_by_new_inode_invalidates() {
     let mut f = Fixture::new();
     publish(&mut f, 1);
     for via_client_identity in [false, true] {
-        let mut s = start(&f, Consistency::A);
+        let mut s = start(&f);
         assert!(s
             .handle_for_test("financial-basis-ref", &body(&query(&[])))
             .is_ok());
@@ -360,7 +335,7 @@ fn db_replaced_by_new_inode_invalidates() {
 fn external_commit_invalidates_and_each_later_layer_also_detects_it() {
     let mut f = Fixture::new();
     publish(&mut f, 1);
-    let mut s = start(&f, Consistency::A);
+    let mut s = start(&f);
     publish(&mut f, 2);
     assert_refused(
         &s.handle_for_test("financial-basis-ref", &body(&query(&[]))),
@@ -369,7 +344,7 @@ fn external_commit_invalidates_and_each_later_layer_also_detects_it() {
     assert!(s.stale_reason().is_some());
     let fin = finish_json(&mut s, Shutdown::Graceful, None);
     assert_eq!(fin["custody_equal"], false, "末次托管看见提交");
-    let mut s = start(&f, Consistency::A);
+    let mut s = start(&f);
     publish(&mut f, 3);
     rebaseline_stat(&mut s);
     assert_refused(
@@ -377,7 +352,7 @@ fn external_commit_invalidates_and_each_later_layer_also_detects_it() {
         "R5：",
     );
     assert!(s.stale_reason().is_some());
-    let mut s = start(&f, Consistency::A);
+    let mut s = start(&f);
     publish(&mut f, 4);
     rebaseline_stat(&mut s);
     rebaseline_version(&mut s);
@@ -394,7 +369,7 @@ fn deadline_never_downgrades_a_real_inconsistency() {
     let mut f = Fixture::new();
     publish(&mut f, 1);
     // 只到期：拒本次、不失效，随后同会话的合法请求照常。
-    let mut s = start(&f, Consistency::A);
+    let mut s = start(&f);
     let expired = Instant::now() - Duration::from_millis(1);
     let reply = s.handle_at("financial-basis-ref", &body(&query(&[])), expired);
     assert_refused(&reply, "Incomplete/SessionRequestDeadline");
@@ -409,7 +384,7 @@ fn deadline_never_downgrades_a_real_inconsistency() {
     assert_refused(&reply, "R4：WAL身份或stat改变");
     assert!(s.stale_reason().is_some());
     // 到期且有他连接提交（屏蔽 R4）：R5 在第一次可被中断的读取之前做显式比较，仍失效。
-    let mut s = start(&f, Consistency::A);
+    let mut s = start(&f);
     publish(&mut f, 2);
     rebaseline_stat(&mut s);
     let reply = s.handle_at("financial-basis-ref", &body(&query(&[])), expired);
@@ -417,7 +392,7 @@ fn deadline_never_downgrades_a_real_inconsistency() {
     assert!(s.stale_reason().is_some());
     // 到期且只有控制原件变化（屏蔽 R4/R5）：K0 的读取被期限中断、差异尚未被比较出来，只拒本次；
     // 下一个按时的请求比较出差异并失效。
-    let mut s = start(&f, Consistency::A);
+    let mut s = start(&f);
     publish(&mut f, 3);
     rebaseline_stat(&mut s);
     rebaseline_version(&mut s);
@@ -436,7 +411,7 @@ fn deadline_never_downgrades_a_real_inconsistency() {
 fn source_fault_classification_is_typed() {
     let mut f = Fixture::new();
     publish(&mut f, 1);
-    let s = start(&f, Consistency::A);
+    let s = start(&f);
     // 已过截止：重查询必被 progress handler 中断，分型为“未完成”。
     let bound = SourceBound::install(&s.source, Instant::now() - Duration::from_millis(1)).unwrap();
     let heavy = "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<200000) \
@@ -471,48 +446,11 @@ fn source_fault_classification_is_typed() {
 }
 
 #[test]
-fn variant_b_byte_gate_detects_content_change_that_spares_control_rows() {
-    let mut f = Fixture::new();
-    publish(&mut f, 1);
-    publish(&mut f, 2);
-    let mut a = start(&f, Consistency::A);
-    let mut b = start(&f, Consistency::B);
-    // 保留原件只在 B；用确定性的容量记账断言（堆差读数在并行测试进程里会被其他线程扰动）。
-    assert!(
-        b.receipt()["retained_original_accounted_bytes"]
-            .as_str()
-            .unwrap()
-            .parse::<u64>()
-            .unwrap()
-            > 0
-    );
-    assert_eq!(a.receipt()["retained_original_accounted_bytes"], "0");
-    assert_eq!(
-        a.receipt()["retained"]["retained_original_image_heap_bytes"],
-        "0"
-    );
-    corrupt_one_snapshot_node(&mut f);
-    for s in [&mut a, &mut b] {
-        rebaseline_stat(s);
-        rebaseline_version(s);
-    }
-    assert!(a
-        .handle_for_test("financial-basis-ref", &body(&query(&[])))
-        .is_ok());
-    assert!(a.stale_reason().is_none());
-    assert_refused(
-        &b.handle_for_test("financial-basis-ref", &body(&query(&[]))),
-        "B：",
-    );
-    assert!(b.stale_reason().is_some());
-}
-
-#[test]
 fn empty_writes_do_not_invalidate() {
     let mut f = Fixture::new();
     publish(&mut f, 1);
-    for consistency in [Consistency::A, Consistency::B] {
-        let mut s = start(&f, consistency);
+    {
+        let mut s = start(&f);
         let first = s
             .handle_for_test("financial-basis-ref", &body(&query(&[])))
             .unwrap();
@@ -547,10 +485,10 @@ fn empty_writes_do_not_invalidate() {
 
 #[test]
 fn anchor_mismatch_default_rejects_only_the_request() {
-    assert_eq!(ANCHOR_MISMATCH_POLICY, AnchorMismatch::RejectRequest);
     let mut f = Fixture::new();
     publish(&mut f, 1);
-    let mut s = start(&f, Consistency::A);
+    let mut s = start(&f);
+    assert_eq!(s.receipt()["anchor_mismatch_policy"], "reject-request");
     let anchor = s.receipt()["anchor"].clone();
     let mut wrong = anchor.clone();
     wrong["writer_epoch"] = json!("2");
@@ -579,18 +517,12 @@ fn anchor_mismatch_default_rejects_only_the_request() {
     );
 }
 
+/// A6 r2 §2.2：anchor／会话身份不符与坏请求、缺对象、重复 id 一样只拒本次；没有使会话失效的档。
 #[test]
-fn anchor_mismatch_strict_policy_invalidates_but_other_refusals_do_not() {
+fn request_level_refusals_and_binding_mismatch_never_invalidate() {
     let mut f = Fixture::new();
     publish(&mut f, 1);
-    let mut s = start_with(
-        &f,
-        resources(),
-        Consistency::A,
-        AnchorMismatch::InvalidateSession,
-    )
-    .unwrap();
-    assert_eq!(s.receipt()["anchor_mismatch_policy"], "invalidate-session");
+    let mut s = start(&f);
     assert_refused(
         &s.handle_for_test("financial-basis-ref", b"{"),
         "FinancialReadInvalid",
@@ -609,8 +541,8 @@ fn anchor_mismatch_strict_policy_invalidates_but_other_refusals_do_not() {
         ),
         "object_ids重复",
     );
-    assert!(s.stale_reason().is_none());
-    let mut wrong = s.receipt()["anchor"].clone();
+    let anchor = s.receipt()["anchor"].clone();
+    let mut wrong = anchor.clone();
     wrong["structure_cut"] = json!("cut-0");
     assert_refused(
         &s.handle_for_test(
@@ -619,28 +551,21 @@ fn anchor_mismatch_strict_policy_invalidates_but_other_refusals_do_not() {
         ),
         "财务anchor与本片当前控制元组不同",
     );
-    assert!(s.stale_reason().is_some());
-    assert_refused(
-        &s.handle_for_test("financial-basis-ref", &body(&query(&[]))),
-        "会话已失效",
-    );
-    let mut s = start_with(
-        &f,
-        resources(),
-        Consistency::A,
-        AnchorMismatch::InvalidateSession,
-    )
-    .unwrap();
     let mut q = query(&[]);
     q["session_id"] = json!("other");
     assert_refused(
         &s.handle_for_test("financial-basis-ref", &body(&q)),
         "writer epoch不是当前值",
     );
-    assert!(s.stale_reason().is_some());
+    assert!(s.stale_reason().is_none());
+    let good = ask(&anchor, objects_path(), "items", 0, 1);
+    assert_eq!(
+        s.handle_for_test("financial-content", &body(&good)),
+        cold(&f, "financial-content", &good)
+    );
 }
 
-/// F1：保留帽只计 P 与审计状态（B 另计原件）；门只比 total；进程足迹只观测。审计状态堆是进程级堆差，
+/// F1：保留帽只计 P 与审计状态（无原件镜像，A6-2）；门只比 total；进程足迹只观测。审计状态堆是进程级堆差，
 /// 在并行测试进程里会混入其他线程的分配，所以“为正且可复现”只在单线程下断言（见
 /// `retained_audited_state_is_positive_single_threaded`，以 `--test-threads 1` 运行），读数以复制品收据为准。
 #[test]
@@ -648,7 +573,7 @@ fn retained_cap_counts_copy_and_audited_state_only() {
     let mut f = Fixture::new();
     publish(&mut f, 1);
     publish(&mut f, 2);
-    let s = start(&f, Consistency::A);
+    let s = start(&f);
     let r = &s.receipt()["retained"];
     let n = |k: &str| r[k].as_str().unwrap().parse::<i64>().unwrap();
     assert!(n("audited_copy_sqlite_cache_bytes") > 0);
@@ -667,12 +592,10 @@ fn retained_cap_counts_copy_and_audited_state_only() {
     // 帽高于读数即可启动（进程足迹不参与），1 字节即拒。
     let mut roomy = resources();
     roomy.retained_bytes = total as u64 + (512 << 20);
-    assert!(start_with(&f, roomy, Consistency::A, ANCHOR_MISMATCH_POLICY).is_ok());
+    assert!(start_with(&f, roomy).is_ok());
     let mut tiny = resources();
     tiny.retained_bytes = 1;
-    let e = start_with(&f, tiny, Consistency::A, ANCHOR_MISMATCH_POLICY)
-        .err()
-        .unwrap();
+    let e = start_with(&f, tiny).err().unwrap();
     assert!(e.starts_with("Incomplete/SessionRetained"), "{e}");
 }
 
@@ -689,8 +612,8 @@ fn retained_audited_state_is_positive_single_threaded() {
             .parse::<i64>()
             .unwrap()
     };
-    let first = reading(&start(&f, Consistency::A));
-    let second = reading(&start(&f, Consistency::A));
+    let first = reading(&start(&f));
+    let second = reading(&start(&f));
     assert!(first > 0 && second > 0, "{first} {second}");
     // 进程内第一次审计另含只初始化一次的进程级静态（之后的审计复用），所以第二次不大于第一次，
     // 差额是一个小常量。生产会话每次都是新进程的第一次审计，复制品七次启动读数相差 < 0.5%。
@@ -698,19 +621,6 @@ fn retained_audited_state_is_positive_single_threaded() {
         second <= first && first - second <= 32 * 1024,
         "{first} {second}"
     );
-    // B 的原件镜像堆为正，且不低于容量记账的一半（记账按容量，堆差含分配器取整）。
-    let b = start(&f, Consistency::B);
-    let image = b.receipt()["retained"]["retained_original_image_heap_bytes"]
-        .as_str()
-        .unwrap()
-        .parse::<i64>()
-        .unwrap();
-    let accounted = b.receipt()["retained_original_accounted_bytes"]
-        .as_str()
-        .unwrap()
-        .parse::<i64>()
-        .unwrap();
-    assert!(image > 0 && image * 2 >= accounted, "{image} {accounted}");
 }
 
 #[test]
@@ -719,16 +629,12 @@ fn startup_resource_caps_and_custody_refuse_to_start() {
     publish(&mut f, 1);
     let mut r = resources();
     r.max_capture_bytes = 1024;
-    let e = start_with(&f, r, Consistency::A, ANCHOR_MISMATCH_POLICY)
-        .err()
-        .unwrap();
+    let e = start_with(&f, r).err().unwrap();
     assert!(e.contains("Incomplete/CaptureBytes"), "{e}");
     let mut r = resources();
     r.startup_timeout_ms = 1;
     std::thread::sleep(Duration::from_millis(2));
-    let e = start_with(&f, r, Consistency::A, ANCHOR_MISMATCH_POLICY)
-        .err()
-        .unwrap();
+    let e = start_with(&f, r).err().unwrap();
     assert!(e.contains("Deadline"), "{e}");
     let custody = Custody::observe(&f.db_path(), None).unwrap();
     let start_custody = |c: Custody| {
@@ -736,8 +642,6 @@ fn startup_resource_caps_and_custody_refuse_to_start() {
             db: f.db_path(),
             resources: resources(),
             custody: c,
-            consistency: Consistency::A,
-            anchor_policy: ANCHOR_MISMATCH_POLICY,
             binary_sha256: TEST_BINARY.into(),
         })
         .err()
@@ -759,8 +663,6 @@ fn startup_resource_caps_and_custody_refuse_to_start() {
         db: f.db_path(),
         resources: resources(),
         custody: shm_differs,
-        consistency: Consistency::A,
-        anchor_policy: ANCHOR_MISMATCH_POLICY,
         binary_sha256: TEST_BINARY.into(),
     })
     .is_ok());
@@ -772,7 +674,7 @@ fn request_caps_reject_without_invalidating_except_request_count() {
     publish(&mut f, 1);
     let mut r = resources();
     r.max_reply_bytes = 64;
-    let mut s = start_with(&f, r, Consistency::A, ANCHOR_MISMATCH_POLICY).unwrap();
+    let mut s = start_with(&f, r).unwrap();
     assert_refused(
         &s.handle_for_test("financial-basis-ref", &body(&query(&[]))),
         "Incomplete/SessionReplyBytes",
@@ -780,7 +682,7 @@ fn request_caps_reject_without_invalidating_except_request_count() {
     assert!(s.stale_reason().is_none());
     let mut r = resources();
     r.max_requests = 2;
-    let mut s = start_with(&f, r, Consistency::A, ANCHOR_MISMATCH_POLICY).unwrap();
+    let mut s = start_with(&f, r).unwrap();
     assert!(s
         .handle_for_test("financial-basis-ref", &body(&query(&[])))
         .is_ok());
@@ -816,7 +718,7 @@ fn socket_frames_stop_and_final_report_counts_custody_and_log() {
     publish(&mut f, 2);
     let mut r = resources();
     r.max_request_bytes = 4096;
-    let mut s = start_with(&f, r, Consistency::A, ANCHOR_MISMATCH_POLICY).unwrap();
+    let mut s = start_with(&f, r).unwrap();
     let anchor = s.receipt()["anchor"].clone();
     let q = ask(&anchor, objects_path(), "items", 0, 2);
     let (reply, line) = over_socket(&mut s, "financial-content", TEST_BINARY, body(&q));
@@ -901,7 +803,7 @@ fn slow_client_is_cut_at_the_overall_deadline() {
     publish(&mut f, 1);
     let mut r = resources();
     r.request_timeout_ms = 800;
-    let mut s = start_with(&f, r, Consistency::A, ANCHOR_MISMATCH_POLICY).unwrap();
+    let mut s = start_with(&f, r).unwrap();
     let (server, mut client) = UnixStream::pair().unwrap();
     let (dev, ino) = (s.main_stat.dev, s.main_stat.ino);
     let peer = std::thread::spawn(move || {
@@ -1101,8 +1003,52 @@ fn cli_grammars_are_exact() {
             "{bad:?}"
         );
     }
-    assert!(Consistency::parse("a").is_ok() && Consistency::parse("b").is_ok());
-    assert!(Consistency::parse("A").is_err());
+}
+
+/// #1394 A6 r2 §2.2（A6-2 已裁）：会话一致性只有 a 一档，serve 语法里没有 `--consistency`，带上它即拒；
+/// 启动回执的 `consistency`、`anchor_mismatch_policy` 两键（r7 接口形状）恒为唯一档，不保留原件镜像。
+#[test]
+fn serve_grammar_has_no_consistency_choice() {
+    let serve = |extra: &[&str]| -> Vec<String> {
+        let mut a = vec![
+            "s",
+            "financial-serve",
+            "--protocol-revision",
+            "s-session/3",
+            "--db",
+            "/d",
+            "--socket",
+            "/s",
+            "--resources",
+            "/r",
+            "--custody",
+            "/c",
+        ];
+        a.extend_from_slice(extra);
+        a.extend_from_slice(&["--receipts", "/o"]);
+        a.into_iter().map(String::from).collect()
+    };
+    assert!(!SERVE_FLAGS.contains(&"--consistency"));
+    assert!(parse_flags(&serve(&[]), &SERVE_FLAGS, "financial-serve").is_ok());
+    for choice in ["a", "b"] {
+        assert!(
+            parse_flags(
+                &serve(&["--consistency", choice]),
+                &SERVE_FLAGS,
+                "financial-serve"
+            )
+            .is_err(),
+            "--consistency {choice}"
+        );
+    }
+    let mut f = Fixture::new();
+    publish(&mut f, 1);
+    let s = start(&f);
+    let r = s.receipt();
+    assert_eq!(r["consistency"], "a");
+    assert_eq!(r["anchor_mismatch_policy"], "reject-request");
+    assert_eq!(r["retained_original_accounted_bytes"], "0");
+    assert_eq!(r["retained"]["retained_original_image_heap_bytes"], "0");
 }
 
 // ---------------- CLI 层（真实二进制、真实 Unix socket；需 bind 权限） ----------------
@@ -1125,7 +1071,6 @@ fn spawn_serve(
     db: &Path,
     work: &Path,
     socket_dir: &Path,
-    consistency: &str,
     before_ready: impl FnOnce(&Path),
 ) -> Served {
     use std::io::BufRead;
@@ -1156,7 +1101,7 @@ fn spawn_serve(
         .arg(work.join("resources.json"))
         .arg("--custody")
         .arg(work.join("custody.json"))
-        .args(["--consistency", consistency, "--receipts"])
+        .arg("--receipts")
         .arg(&receipts)
         .env_clear()
         .stdout(Stdio::piped())
@@ -1266,7 +1211,7 @@ fn cli_fixture_ready_stop_and_sigterm() {
     let db = f.db_path();
     let work = db.parent().unwrap().join("cli-a");
     std::fs::create_dir(&work).unwrap();
-    let served = spawn_serve(&binary, &db, &work, &short_socket_dir("a"), "a", |_| {});
+    let served = spawn_serve(&binary, &db, &work, &short_socket_dir("a"), |_| {});
     let request = body(&query(&[]));
     let (ok, warm, err) = cli_call(
         &binary,
@@ -1311,7 +1256,7 @@ fn cli_fixture_ready_stop_and_sigterm() {
 
     let work = db.parent().unwrap().join("cli-b");
     std::fs::create_dir(&work).unwrap();
-    let mut served = spawn_serve(&binary, &db, &work, &short_socket_dir("b"), "a", |_| {});
+    let mut served = spawn_serve(&binary, &db, &work, &short_socket_dir("b"), |_| {});
     let (ok, _, _) = cli_call(
         &binary,
         &db,
@@ -1354,16 +1299,9 @@ fn cli_replica_replays_r5_byte_identical() {
     let r5 = PathBuf::from(env("S3_SESSION_R5_RUN"));
     let work = PathBuf::from(env("S3_SESSION_WORK"));
     let mut probe = None;
-    let served = spawn_serve(
-        &binary,
-        &db,
-        &work,
-        &short_socket_dir("r5"),
-        "a",
-        |socket| {
-            probe = Some(pre_ready_probe(socket));
-        },
-    );
+    let served = spawn_serve(&binary, &db, &work, &short_socket_dir("r5"), |socket| {
+        probe = Some(pre_ready_probe(socket));
+    });
     assert_eq!(probe.unwrap(), Err(missing(NOT_READY)));
     let mut labels = vec![("financial-basis-ref", "S-discovery-basis".to_string())];
     labels.extend((0..27).map(|i| ("financial-content", format!("S-support-request-{i}"))));
@@ -1448,7 +1386,7 @@ fn closure_chunks_are_exactly_the_basis_closure_and_match_cold_path() {
     publish(&mut f, 1);
     publish(&mut f, 2);
     publish(&mut f, 3);
-    let mut s = start(&f, Consistency::A);
+    let mut s = start(&f);
     let budget = 3000;
     let replies = walk_closure(&mut s, &f, json!([]), budget);
     assert!(replies.len() > 3, "小预算须分成多块：{}", replies.len());
@@ -1496,7 +1434,7 @@ fn closure_of_a_path_carries_the_proof_from_the_basis_root() {
     let mut f = Fixture::new();
     publish(&mut f, 1);
     publish(&mut f, 2);
-    let mut s = start(&f, Consistency::A);
+    let mut s = start(&f);
     let replies = walk_closure(&mut s, &f, objects_path(), 4000);
     let root = sc::ContentRef::from_transport_json(&s.receipt()["anchor"]["basis_ref"]).unwrap();
     let target = sc::ContentRef::from_transport_json(&replies[0]["target_ref"]).unwrap();
@@ -1535,7 +1473,7 @@ fn closure_of_a_path_carries_the_proof_from_the_basis_root() {
 fn closure_rejects_bad_cursor_budget_fields_and_anchor_without_invalidating() {
     let mut f = Fixture::new();
     publish(&mut f, 1);
-    let mut s = start(&f, Consistency::A);
+    let mut s = start(&f);
     let anchor = s.receipt()["anchor"].clone();
     let first = strict_json(
         &s.handle_for_test(
@@ -1626,7 +1564,7 @@ fn closure_table_cap_and_retained_gate_refuse_only_the_request() {
     publish(&mut f, 1);
     let mut small = resources();
     small.max_closure_nodes = 10;
-    let mut s = start_with(&f, small, Consistency::A, ANCHOR_MISMATCH_POLICY).unwrap();
+    let mut s = start_with(&f, small).unwrap();
     let anchor = s.receipt()["anchor"].clone();
     let ask_all = body(&closure_ask(&anchor, json!([]), "", 1 << 20));
     assert_refused(
@@ -1642,7 +1580,7 @@ fn closure_table_cap_and_retained_gate_refuse_only_the_request() {
         .handle_for_test("financial-basis-ref", &body(&query(&object_ids(&mut f))))
         .is_ok());
 
-    let mut s = start(&f, Consistency::A);
+    let mut s = start(&f);
     s.resources.retained_bytes = s.retained.total() + 64;
     assert_refused(
         &s.handle_for_test("financial-closure", &ask_all),
@@ -1668,7 +1606,7 @@ fn closure_stream_stops_when_the_source_changes() {
     let mut f = Fixture::new();
     publish(&mut f, 1);
     publish(&mut f, 2);
-    let mut s = start(&f, Consistency::A);
+    let mut s = start(&f);
     let anchor = s.receipt()["anchor"].clone();
     let first = strict_json(
         &s.handle_for_test(

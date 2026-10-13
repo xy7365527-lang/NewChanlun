@@ -1,27 +1,26 @@
-//! #1394 DESIGN-R6 方案 c2：长驻只读财务会话（生产候选 r2）。
+//! #1394 DESIGN-R6 方案 c2：长驻只读财务会话。
 //!
-//! **采纳闸**：本文件改变 APPROVED-SOURCE §5.7:336 明文规定的多请求一致性行为，须先有用户对
-//! §5.7 修订的裁定（A 推荐 / B 每次 basis-ref 逐字节重比原件 / C 不批）；裁定前不得进入任何正式
-//! worktree。公共协议 `s-financial-basis/3`、`s-financial-content/1` 的请求/回复字节不变。
-//! `--consistency a|b` 与 [`ANCHOR_MISMATCH_POLICY`] 是待裁的显式两档；裁定后只留一档（#799）。
+//! 依据：APPROVED-SOURCE §5.7 修订记录 A6 r2（`0e620363…`；用户第一问 A，根裁 A6-2）。会话改变的是
+//! §5.7:336 多请求一致性中审计执行的次数与位置：启动时一致捕获并完整审计一次，之后每请求以 R1–R8
+//! 证明仍是同一已审状态。一致性只有 a 一档，anchor／会话身份不符只拒本次（reject-request），两者都
+//! 没有可选档（#799）。公共协议 `s-financial-basis/3`、`s-financial-content/1` 的请求/回复字节不变。
 //!
 //! 启动（一次，在任何经济 Job 之外）：严格校验 runner 交来的写者收尾托管文档
 //! （`s-financial-session-custody/2`）并与首次托管逐项相等 → 活源连接 S（READ_ONLY|NO_MUTEX、
 //! query_only、read_uncommitted=OFF）→ 三点 data_version 夹持的一致捕获，同一读事务取控制原件 K0
 //! → 导入私有副本 P → P 上与冷路径逐字相同的 `state::audit(&tx)` → 同一 `current_basis` 取 anchor
-//! → K0 与 P 逐字节相同 → R9 保留帽（只计 P 与审计状态，B 另计保留原件；进程足迹只观测）。
+//! → K0 与 P 逐字节相同 → R9 保留帽（只计 P 与审计状态；进程足迹只观测）。
 //! socket 在启动前绑定；READY 之前到达的连接一律拒绝。启动完成后才写 STARTUP.json 并输出唯一 READY 行。
 //!
 //! 每请求（同进程、同活源连接、单请求在飞，整体截止含读请求与写回复）：R7 客户端二进制 SHA 与
 //! `--db` (dev, ino)；R4 主库/WAL 身份与 stat；R2/R3 autocommit 与只读设置；R5 同连接 data_version
 //! （BEGIN 前、首读后、ROLLBACK 后、回复前）；R6 控制原件逐字节等于 K0，并在活源短事务上跑冷路径同一
-//! `current_control` 判据；变体 B 另在同一短事务里对全部持久表原件逐字节重比（只在 financial-basis-ref）；
-//! R8 从 P 的新短事务经冷路径同一 `basis_ref_with`/`content_with`（`HashReader::new` 逐节点核验）供片。
+//! `current_control` 判据；R8 从 P 的新短事务经冷路径同一 `basis_ref_with`/`content_with`（`HashReader::new` 逐节点核验）供片。
 //! 显式比较得出的不一致（不论是否已过截止）→ 本请求 MissingDependency，会话 stale 并拒绝之后所有请求；
 //! 只有本请求的 SQLite 读取确被期限中断或 busy 等待耗尽，才算“未完成”只拒本次。请求内从不重审、
 //! 从不回落冷路径。停止：`financial-serve-stop` 优雅停机写 FINAL；SIGTERM 尽力写 FINAL 并标非正常停机。
 //!
-//! #1394 第三问选项 A 候选（financial-closure，待用户批准 §5.7 新读模式 exact 字段）：第三条财务命令
+//! #1394 第三问选项 A（financial-closure，A6 r2 §3，用户已批）：第三条财务命令
 //! 照走同一 R7/R2–R6 夹持与 R8 已审副本短事务，经冷路径同一 `closure_with` 供块；会话至多保留一张
 //! 闭包表（摘要升序），表帽为资源 `max_closure_nodes`，表字节计入 R9 保留门（`retained_bytes`）。
 use super::*;
@@ -41,47 +40,13 @@ use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-/// anchor（financial-content）或会话身份（financial-basis-ref）与会话已审状态不符时的处理。
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum AnchorMismatch {
-    /// 只拒本次请求，会话保持有效（与冷路径同一回复；不符说明请求绑定的是别的 basis，不说明源变化）。
-    RejectRequest,
-    /// 拒本次并使会话失效（DESIGN-R6 §2.3「任一条不成立」的严格读法，R7 含 anchor）。
-    InvalidateSession,
-}
-impl AnchorMismatch {
-    fn name(self) -> &'static str {
-        match self {
-            Self::RejectRequest => "reject-request",
-            Self::InvalidateSession => "invalidate-session",
-        }
-    }
-}
-/// **待裁**：默认“仅拒本次”。改为 `InvalidateSession` 即严格读法；两者都不回落、不重审。裁定后只留一档。
-pub(super) const ANCHOR_MISMATCH_POLICY: AnchorMismatch = AnchorMismatch::RejectRequest;
-
-/// §6.1 第一问的 A/B：B 在每次 financial-basis-ref 另做原件逐字节重比（显式 `--consistency b`）。
-/// **待裁**：裁定后只留一档（#799）。
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Consistency {
-    A,
-    B,
-}
-impl Consistency {
-    fn parse(value: &str) -> Result<Self, String> {
-        match value {
-            "a" => Ok(Self::A),
-            "b" => Ok(Self::B),
-            _ => Err(invalid("--consistency 只接受 a 或 b")),
-        }
-    }
-    fn name(self) -> &'static str {
-        match self {
-            Self::A => "a",
-            Self::B => "b",
-        }
-    }
-}
+/// 会话一致性的唯一档（A6 r2 §2.2，#1394）：没有 `--consistency` 参数，也没有原件字节门。启动回执
+/// 仍写 `consistency` 键，是 r7 接口 `receipt_keys_exact` 的形状；值恒为本常量。
+const SESSION_CONSISTENCY: &str = "a";
+/// anchor（financial-content）或会话身份（financial-basis-ref）与已审状态不符：只拒本次，会话保持有效，
+/// 回复与冷路径相同——不符说明请求绑定的是别的 basis，不说明源变化（A6 r2 §2.2，用户裁定
+/// `anchor_mismatch=reject-request`）。回执键 `anchor_mismatch_policy` 同上，值恒为本常量。
+const ANCHOR_MISMATCH_POLICY: &str = "reject-request";
 
 const RESOURCES_SCHEMA: &str = "s-financial-session-resources/3";
 const RESOURCE_FIELDS: [&str; 9] = [
@@ -585,14 +550,14 @@ fn connection_sqlite_bytes(conn: &Connection) -> (i64, i64, i64) {
     )
 }
 
-/// R9 保留量（F1）：只计私有副本 P 的 SQLite 堆与审计状态的保留堆；B 另计保留的原件镜像堆。
+/// R9 保留量（F1）：只计私有副本 P 的 SQLite 堆与审计状态的保留堆。会话不保留原件镜像（A6-2），
+/// `retained_original_image_heap_bytes` 恒为 0，留在回执里是 r7 接口 `retained_keys` 的形状。
 #[derive(Clone, Debug)]
 struct Retained {
     copy_cache: i64,
     copy_schema: i64,
     copy_stmt: i64,
     audited_state: i64,
-    original_image: i64,
     /// financial-closure 闭包表（摘要数组容量 + 键 + 表头）；启动时为 0。
     closure_table: i64,
 }
@@ -603,7 +568,6 @@ impl Retained {
             self.copy_schema,
             self.copy_stmt,
             self.audited_state,
-            self.original_image,
             self.closure_table,
         ]
         .iter()
@@ -618,12 +582,12 @@ impl Retained {
             "audited_copy_sqlite_schema_bytes":self.copy_schema.to_string(),
             "audited_copy_sqlite_stmt_bytes":self.copy_stmt.to_string(),
             "audited_state_heap_bytes":self.audited_state.to_string(),
-            "retained_original_image_heap_bytes":self.original_image.to_string(),
+            "retained_original_image_heap_bytes":"0",
             "closure_table_bytes":self.closure_table.to_string(),
             "total_bytes":self.total().to_string()})
     }
 }
-const RETAINED_METHOD: &str = "total = P 的 sqlite3_db_status(CACHE_USED+SCHEMA_USED+STMT_USED) + 审计状态堆 + （仅 B）保留原件镜像堆 + financial-closure 闭包表（摘要数组容量+键+表头，建表时核门）；审计状态堆 = state::audit(&tx) 前后 Δmalloc_zone_statistics(NULL).size_in_use − Δsqlite3_memory_used；原件镜像堆 = capture_image 前后同一差值。启动单线程，读数可复现；ri_phys_footprint 只作观测，不当门";
+const RETAINED_METHOD: &str = "total = P 的 sqlite3_db_status(CACHE_USED+SCHEMA_USED+STMT_USED) + 审计状态堆 + financial-closure 闭包表（摘要数组容量+键+表头，建表时核门）；审计状态堆 = state::audit(&tx) 前后 Δmalloc_zone_statistics(NULL).size_in_use − Δsqlite3_memory_used；不保留原件镜像（retained_original_image_heap_bytes 恒为 0）。启动单线程，读数可复现；ri_phys_footprint 只作观测，不当门";
 
 fn observed_json() -> Value {
     let heap = heap_probe().ok();
@@ -831,9 +795,6 @@ fn peer_uid_matches(_stream: &UnixStream) -> bool {
 struct Timing {
     pre_stat_us: u64,
     source_us: u64,
-    gate_us: u64,
-    gate_rows: u64,
-    gate_bytes: u64,
     serve_us: u64,
     post_us: u64,
     closure: super::financial_reader::ClosureStats,
@@ -844,8 +805,6 @@ pub(super) struct StartConfig {
     pub db: PathBuf,
     pub resources: SessionResources,
     pub custody: Custody,
-    pub consistency: Consistency,
-    pub anchor_policy: AnchorMismatch,
     pub binary_sha256: String,
 }
 
@@ -878,10 +837,7 @@ pub(super) struct Session {
     wal_stat: Option<FileStat>,
     control: Vec<u8>,
     binary_sha256: String,
-    original: Option<capture::SessionOriginal>,
     resources: SessionResources,
-    consistency: Consistency,
-    anchor_policy: AnchorMismatch,
     custody_first: Custody,
     retained: Retained,
     stale: Option<String>,
@@ -935,7 +891,6 @@ impl Session {
             &db,
             r.max_capture_bytes,
             deadline,
-            config.consistency == Consistency::B,
             control_bytes,
             heap_probe,
         )?;
@@ -977,11 +932,6 @@ impl Session {
             copy_schema,
             copy_stmt,
             audited_state,
-            original_image: if cap.original.is_some() {
-                cap.image_heap_bytes
-            } else {
-                0
-            },
             closure_table: 0,
         };
         if !retained.valid() {
@@ -997,10 +947,6 @@ impl Session {
                 ),
             ));
         }
-        let original_accounted = cap
-            .original
-            .as_ref()
-            .map_or(0, capture::SessionOriginal::captured_bytes);
         let mut session = Self {
             db: db.clone(),
             wal,
@@ -1012,10 +958,7 @@ impl Session {
             wal_stat,
             control: cap.control,
             binary_sha256: config.binary_sha256.clone(),
-            original: cap.original,
             resources: config.resources.clone(),
-            consistency: config.consistency,
-            anchor_policy: config.anchor_policy,
             custody_first,
             retained,
             stale: None,
@@ -1029,9 +972,9 @@ impl Session {
         session.receipt = json!({
             "schema":STARTUP_SCHEMA,
             "status":"READY",
-            "candidate":"#1394 DESIGN-R6 c2 r2 + 第三问选项 A financial-closure；待 APPROVED-SOURCE §5.7 多请求一致性修订与闭包读模式裁定",
-            "consistency":session.consistency.name(),
-            "anchor_mismatch_policy":session.anchor_policy.name(),
+            "candidate":"#1394 DESIGN-R6 c2 + 第三问选项 A financial-closure；APPROVED-SOURCE §5.7 修订记录 A6 r2（0e620363…）",
+            "consistency":SESSION_CONSISTENCY,
+            "anchor_mismatch_policy":ANCHOR_MISMATCH_POLICY,
             "binary_sha256":session.binary_sha256,
             "pid":std::process::id().to_string(),
             "db":db.display().to_string(),
@@ -1047,7 +990,7 @@ impl Session {
             "capture_digest":cap.digest.as_str(),
             "captured_bytes":cap.captured_bytes.to_string(),
             "captured_image_heap_bytes":cap.image_heap_bytes.to_string(),
-            "retained_original_accounted_bytes":original_accounted.to_string(),
+            "retained_original_accounted_bytes":"0",
             "audited_copy":{"page_count":page_count.to_string(),"page_size":page_size.to_string()},
             "retained":session.retained.json(),
             "retained_method":RETAINED_METHOD,
@@ -1105,26 +1048,20 @@ impl Session {
         self.check_stat().map_err(Fault::Inconsistent)
     }
 
-    /// R4 → R2/R3 → R5 → R6（→ B），全在活源连接 S 的一个新短读事务里；不持有跨请求事务。
-    fn check_source(&mut self, gate: bool, deadline: Instant, t: &mut Timing) -> Result<(), Fault> {
+    /// R4 → R2/R3 → R5 → R6，全在活源连接 S 的一个新短读事务里；不持有跨请求事务。
+    fn check_source(&mut self, deadline: Instant, t: &mut Timing) -> Result<(), Fault> {
         let a = Instant::now();
         self.check_stat().map_err(Fault::Inconsistent)?;
         t.pre_stat_us = us(a);
         let b = Instant::now();
         let bound = SourceBound::install(&self.source, deadline)?;
-        let checked = self.check_source_bounded(&bound, gate, deadline, t);
+        let checked = self.check_source_bounded(&bound);
         SourceBound::remove(&self.source);
         checked?;
-        t.source_us = us(b).saturating_sub(t.gate_us);
+        t.source_us = us(b);
         Ok(())
     }
-    fn check_source_bounded(
-        &mut self,
-        bound: &SourceBound,
-        gate: bool,
-        deadline: Instant,
-        t: &mut Timing,
-    ) -> Result<(), Fault> {
+    fn check_source_bounded(&mut self, bound: &SourceBound) -> Result<(), Fault> {
         let v_star = self.v_star;
         capture::validate_source(&self.source).map_err(|e| bound.sql("R2/R3", e))?;
         let v0 = capture::version(&self.source).map_err(|e| bound.sql("R5", e))?;
@@ -1144,28 +1081,6 @@ impl Session {
         }
         super::financial_reader::check_current_control(&tx, &self.audited)
             .map_err(|e| bound.sql("R6", e))?;
-        if gate {
-            let g = Instant::now();
-            let original = self
-                .original
-                .as_ref()
-                .ok_or_else(|| Fault::Inconsistent(missing("变体B缺保留原件")))?;
-            // capture_image 自带的期限检查取远期限，本请求截止只由 progress handler 中断（可分型）。
-            let far = deadline + Duration::from_secs(3600);
-            let stats = capture::session_original_unchanged(
-                &tx,
-                original,
-                self.resources.max_capture_bytes,
-                far,
-            )
-            .map_err(|f| match f {
-                capture::GateFault::Changed(e) => Fault::Inconsistent(missing(format!("B：{e}"))),
-                capture::GateFault::Capture(e) => bound.sql("B", e),
-            })?;
-            t.gate_us = us(g);
-            t.gate_rows = stats.rows;
-            t.gate_bytes = stats.captured_bytes;
-        }
         tx.rollback().map_err(|e| bound.sql("R5", e))?;
         let v2 = capture::version(&self.source).map_err(|e| bound.sql("R5", e))?;
         if v2 != v_star {
@@ -1277,8 +1192,7 @@ impl Session {
         if dev != Some(self.main_stat.dev) || ino != Some(self.main_stat.ino) {
             return Err(self.invalidate(missing("R7：客户端--db身份与会话不同")));
         }
-        let gate = self.consistency == Consistency::B && command == "financial-basis-ref";
-        match self.check_source(gate, deadline, t) {
+        match self.check_source(deadline, t) {
             Ok(()) => {}
             // F4：只有本请求的读取确被中断或 busy 耗尽才只拒本次；显式比较得出的不一致一律失效。
             Err(Fault::Incomplete(e)) => {
@@ -1291,17 +1205,8 @@ impl Session {
         }
         let request = strict_json(body).map_err(invalid)?;
         let s = Instant::now();
-        let out = match self.serve_audited(&command, &request, deadline, &mut t.closure) {
-            Ok(out) => out,
-            Err(e) => {
-                if super::financial_reader::is_request_binding_mismatch(&e)
-                    && self.anchor_policy == AnchorMismatch::InvalidateSession
-                {
-                    return Err(self.invalidate(e));
-                }
-                return Err(e);
-            }
-        };
+        // R7(b)：anchor／会话身份不符与其他请求级拒绝一样只拒本次，会话保持有效（ANCHOR_MISMATCH_POLICY）。
+        let out = self.serve_audited(&command, &request, deadline, &mut t.closure)?;
         let mut bytes = canonical_json(&out).into_bytes();
         bytes.push(b'\n');
         t.serve_us = us(s);
@@ -1435,11 +1340,11 @@ impl Session {
             "write_error":written.err().map(|e| format!("{e:?}")),
             "request_bytes":request_bytes.to_string(),"reply_bytes":reply_bytes.to_string(),
             "us":{"pre_stat":t.pre_stat_us.to_string(),"source":t.source_us.to_string(),
-                  "gate":t.gate_us.to_string(),"serve":t.serve_us.to_string(),
+                  "gate":"0","serve":t.serve_us.to_string(),
                   "post":t.post_us.to_string(),"write":us(w).to_string(),"total":us(accepted).to_string(),
                   "closure_enumerate":t.closure.enumerate_us.to_string()},
             "closure_enumerated":t.closure.enumerated,"closure_nodes":t.closure.nodes.to_string(),
-            "gate_rows":t.gate_rows.to_string(),"gate_bytes":t.gate_bytes.to_string(),
+            "gate_rows":"0","gate_bytes":"0",
             "stale":self.stale.is_some()});
         if log
             .write_all((canonical_json(&line) + "\n").as_bytes())
@@ -1597,13 +1502,13 @@ fn read_json_file(path: &Path, what: &str) -> Result<(Value, String), String> {
     Ok((value, sha_hex(&bytes)))
 }
 
-const SERVE_FLAGS: [&str; 7] = [
+/// `gate`、`gate_rows`、`gate_bytes`（requests.jsonl）恒为 "0"：原件字节门已删（A6-2），键留作 r7 接口形状。
+const SERVE_FLAGS: [&str; 6] = [
     "--protocol-revision",
     "--db",
     "--socket",
     "--resources",
     "--custody",
-    "--consistency",
     "--receipts",
 ];
 
@@ -1737,7 +1642,7 @@ fn write_final(dir: &Path, bytes: &[u8]) {
 }
 
 /// `financial-serve --protocol-revision s-session/3 --db <abs> --socket <abs> --resources <json>
-///  --custody <json> --consistency a|b --receipts <空目录>`
+///  --custody <json> --receipts <空目录>`
 ///
 /// 输出合同：stdout 只在启动完成后输出唯一一行 `READY <canonical JSON>`（`s-financial-session-ready/1`），
 /// 其中 `startup_receipt_sha256` = SHA-256(STARTUP.json 去掉末尾 LF 的字节) = SHA-256(canonical_json(回执))。
@@ -1749,7 +1654,6 @@ pub(super) fn serve(args: &[String]) -> Result<(), String> {
     let db = absolute(&f["--db"], "--db")?;
     let socket = absolute(&f["--socket"], "--socket")?;
     let receipts = absolute(&f["--receipts"], "--receipts")?;
-    let consistency = Consistency::parse(&f["--consistency"])?;
     let (resources_json, resources_file_sha256) =
         read_json_file(&absolute(&f["--resources"], "--resources")?, "会话资源")?;
     let resources = SessionResources::from_json(&resources_json)?;
@@ -1814,8 +1718,6 @@ pub(super) fn serve(args: &[String]) -> Result<(), String> {
         db: db.clone(),
         resources,
         custody,
-        consistency,
-        anchor_policy: ANCHOR_MISMATCH_POLICY,
         binary_sha256,
     });
     // 就绪转换：先让守门线程退出（此后到达的连接都在 READY 输出之后才被处理），再写回执、输出 READY。
