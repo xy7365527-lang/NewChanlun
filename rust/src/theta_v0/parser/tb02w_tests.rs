@@ -957,3 +957,74 @@ fn tb02w_store_rounds_match_batch_and_grant_exhausted_cursors() {
         "跨轮核验/追加覆盖不足：verified={verified} grants={grants}"
     );
 }
+
+// ─── 独审见证夹具（#1420 独审 tb1420-review/witnesses.json，RESULT BLOCKED_3 第③项）──────────
+
+/// 见证的笔链约定（独审 `mk_chain`）：第 i 笔 = prices[i-1]→prices[i]，start_index = 3i，
+/// end_index = 3i + 3。与本文件 `chain` 的下标约定不同；见证读数（段终点下标）依此约定。
+fn witness_chain(prices: &[i64]) -> Vec<Stroke> {
+    (1..prices.len())
+        .map(|i| {
+            let (a, b) = (prices[i - 1], prices[i]);
+            Stroke {
+                direction: if b > a {
+                    Direction::Up
+                } else {
+                    Direction::Down
+                },
+                start_index: i * 3,
+                end_index: i * 3 + 3,
+                start_price: a,
+                end_price: b,
+            }
+        })
+        .collect()
+}
+
+/// W1 价格（独审生成器 `regime_prices(5004, 160)` 前 100 个，向上）：99 笔。
+const W1_PRICES: [i64; 100] = [
+    100000, 100049, 99954, 100046, 99925, 100075, 99881, 100033, 99915, 99987, 99935, 99981, 99941,
+    99991, 99966, 99982, 99968, 99970, 99968, 99988, 99968, 99984, 99962, 99964, 99955, 99976,
+    99974, 99989, 99891, 99977, 99915, 99967, 99919, 99960, 99945, 99969, 99951, 99953, 99941,
+    99949, 99947, 99949, 99947, 99951, 99932, 99934, 99919, 99988, 99922, 101146, 99892, 99961,
+    99889, 99964, 98854, 98916, 98846, 98919, 98849, 98915, 98868, 98907, 98836, 98900, 98851,
+    98901, 98847, 98909, 98779, 98932, 98760, 98990, 98721, 99074, 98646, 99197, 98519, 99347,
+    98316, 99615, 99448, 99600, 99463, 99546, 99457, 99525, 99464, 99504, 99460, 99490, 99465,
+    99484, 99458, 99466, 99464, 99466, 99463, 99467, 99446, 99448,
+];
+
+/// 独审 W1：逐笔增量到 p = 97 存检查点（全量结果 + 安全边界 euf = 62），续扫到 q = 98、99。
+/// 带边界的 `from_checkpoint` 每步与无中断全量逐位相同；无边界的 `from_full` 在 q = 99 与全量
+/// 发散。这一条锁住 euf：`from_checkpoint` 丢弃边界（退化为 `from_full`）即红。
+#[test]
+fn tb02w_w1_checkpoint_boundary_is_necessary() {
+    let cfg = ThetaConfig::default().parse;
+    assert_eq!(cfg.second_seq_scan_window, 0);
+    let ss = witness_chain(&W1_PRICES);
+    assert_eq!(ss.len(), 99);
+    let p = 97;
+    let mut inc = segment::IncrSegments::default();
+    for n in 0..=p {
+        inc = inc.append(&ss[..n], &cfg);
+    }
+    let (segs, pending) = inc.to_result_vec();
+    let euf = inc.earliest_unsealed_from();
+    assert_eq!(euf, Some(62), "切点 p=97 须有未封闭第二种候选（深边界）");
+    let mut diverged = Vec::new();
+    for q in p..=ss.len() {
+        let batch = segment::divide_segments_with_tail(&ss[..q], &cfg);
+        let bounded = segment::IncrSegments::from_checkpoint(&segs, pending, &ss[..p], euf)
+            .append(&ss[..q], &cfg);
+        assert_eq!(bounded.to_result_vec(), batch, "from_checkpoint@q={q}");
+        let unbounded =
+            segment::IncrSegments::from_full(&segs, pending, &ss[..p]).append(&ss[..q], &cfg);
+        if unbounded.to_result_vec() != batch {
+            diverged.push(q);
+        }
+    }
+    assert_eq!(
+        diverged,
+        [99],
+        "from_full（无边界）须恰在 q=99 发散，见证 euf 边界必要"
+    );
+}
