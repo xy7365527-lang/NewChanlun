@@ -64,6 +64,22 @@ def decimal_trap_samples():
     second["slot"] = "second:segment:1:17"
     return second, first_sample(second)
 
+def bigint_trap_samples():
+    """笔号跨 2^53：按 Number 比较时 B+1 与 B 相等，取到的锚会错；按 BigInt/int 取数值最小才是段起笔 B（起点锚 17）。"""
+    B = 2 ** 53
+    second, _ = samples(); d = second["data"]
+    refs = [dict(stroke_index=str(i), entity_id=f"bi:1:{a}", start_anchor=str(a), end_anchor=str(a + 4),
+                 start_price=str(100 + a), end_price=str(200 + a), start_roots=[str(a)], end_roots=[str(a + 4)])
+            for i, a in [(B + 1, 21), (B, 17), (B + 2, 25), (B + 3, 29)]]
+    elements = [dict(high="400", low="200", stroke_idx=str(i), stroke_indices=[str(i)]) for i in (B + 1, B + 2, B + 3)]
+    check = dict(elements=elements, top_fractal=True, bottom_fractal=False, through_stroke=str(B + 3))
+    d.update(entity_id="second:segment:1:17", segment_id="segment:1:17", stroke_refs=refs,
+        scan=dict(from_stroke=str(B + 1), through_stroke=str(B + 3), input_stroke_count=str(B + 4), resource_truncated=False, tail_cache_window="0"),
+        facts=dict(raw_elements=elements, standard=elements, steps=[], checks=[check], from_stroke=str(B + 1), through_stroke=str(B + 3),
+                   input_stroke_count=str(B + 4), resource_truncated=False, matched=check))
+    second["slot"] = "second:segment:1:17"
+    return second, first_sample(second)
+
 def rebind(p, segment):
     p = copy.deepcopy(p); d = p["data"]
     identity = ("second:" if d["role"] == "SECOND_SEQUENCE" else "first:") + segment
@@ -110,6 +126,28 @@ class SecondContractTest(unittest.TestCase):
         bad_second["data"]["scan"]["from_stroke"] = bad_second["data"]["facts"]["from_stroke"] = "11"
         for p in (bad_first, bad_second, rebind(first, "segment:1:41"), rebind(second, "segment:1:41")):
             self.both("CC-012.feature_sequence", p, False)
+
+    def test_identity_anchor_keeps_precision_above_2_53(self):
+        # 审查 L1：JS 若用 Number 取最小或比较，B+1 会被当成 B，以下两件被误拒、bad_first 被误收；两侧都须按精确整数判。
+        second, first = bigint_trap_samples()
+        self.both("CC-012.feature_sequence", second)
+        self.both("CC-012.feature_sequence", first)
+        bad_first = rebind(first, "segment:1:21"); bad_first["data"]["scan"]["from_stroke"] = str(2 ** 53 + 1)
+        self.both("CC-012.feature_sequence", bad_first, False)
+
+    def reject_reasons(self, kind, p):
+        with self.assertRaises(ValueError) as caught: c.validate_payload(kind, p)
+        program = "const a=require(process.argv[1]);let s='';process.stdin.on('data',x=>s+=x);process.stdin.on('end',()=>{try{a.validateSegmentPayload(process.argv[2],JSON.parse(s))}catch(e){process.stdout.write(e.message);process.exit(3)}})"
+        result = subprocess.run(["node", "-e", program, str(ROOT / "browser/tb01c-client.js"), kind], input=json.dumps(p), text=True, capture_output=True)
+        self.assertEqual(result.returncode, 3, result.stderr)
+        return str(caught.exception), result.stdout
+
+    def test_empty_stroke_refs_rejected_by_both_sides(self):
+        # 审查 L2：空 stroke_refs 无从取身份锚；FIRST 与 SECOND 都必须在同一道门被两侧拒绝。
+        second, _ = samples()
+        for p in (second, first_sample(second)):
+            p = copy.deepcopy(p); p["data"]["stroke_refs"] = []
+            self.assertEqual(self.reject_reasons("CC-012.feature_sequence", p), ("特征序列缺段笔引用", "特征序列缺段笔引用"))
 
     def test_mixed_versions_rejected(self):
         second, _ = samples()
