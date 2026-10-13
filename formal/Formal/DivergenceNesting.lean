@@ -425,7 +425,8 @@ def flip : Direction → Direction
 
 /--
   ★候选走势沿原方向的当前极值（未完成走势已出现的最高/最低：上=外缘 gg 最大，
-  下=外缘 dd 最小；空中枢回退 0，与 `Move.interval` 的 foldr 哨兵同口径）。
+  下=外缘 dd 最小；空中枢回退 0）。★#1419 r2：`Move.interval` 已改对子走势取极值、不再用此 foldr 哨兵，
+  本函数是中枢外缘口径的「当前极值」，未随之改动（走势区间与中枢外缘之分见 zhongshu.md §3）。
   这是「创出新极值」判定的客观参照——创新极值 ⟺ 观测价严格越过此极值。
 -/
 def OpenTail.currentExtreme (t : OpenTail) : Int :=

@@ -5,9 +5,8 @@
 //!
 //! - **核心区间（frozen v1，全三段）** ↔ `Origin.CenterConstruct.refV1Interval`
 //!   / `reference_chanlun.py:119-120`：`zd = max3(c1.low,c2.low,c3.low)`、
-//!   `zg = min3(c1.high,c2.high,c3.high)`。**注意**：这与 `center.rs` 的 chan99 §6.4 派生
-//!   口径 `compute_zd/compute_zg`（**前两段** `max(d₁,d₂)/min(g₁,g₂)`）是**不同口径**——
-//!   两口径在第三段贯穿核心时重合，第三段更窄时分叉（见谱系 中枢核心区间口径分离）。
+//!   `zg = min3(c1.high,c2.high,c3.high)`。与 `center.rs` 的 `compute_zd/compute_zg` 同为全三段
+//!   （637 号口径 A→B 迁移后；★#1419 订正：本段旧文称 `center.rs` 取「前两段」，那是迁移前的口径 A）。
 //! - **弱接触延伸** ↔ `Origin.CenterConstruct.weakOverlap` / `reference:78-85`：
 //!   `component.high >= zd && component.low <= zg`（边界相切算延伸，frozen 测试口径）。
 //! - **生命周期字段（gg/dd/settled/break）** ↔ `Origin.CenterConstruct.RefZhongshu` /
@@ -37,12 +36,13 @@
 //!   `Origin.CenterConstruct` §5.5 的逐字对照实装，非主判据决策路径。
 //! - **对照什么**：`Origin.CenterConstruct.{refV1Interval,weakOverlap,RefZhongshu}` +
 //!   `reference_chanlun.py`（v1 中枢核心区间「全三段」口径）。
-//! - **与现役差在哪**：现役中枢核心区间口径在 [`super::center`]（chan99 §6.4 派生，
-//!   `compute_zd`/`compute_zg` 只取**前两段**）——两口径已 native_decide 裁定分叉
-//!   （`legacy_v0_not_correct_for_v1_reference` fixture），本文件承载「v1 正确语义」的
-//!   独立对照本体，全仓零生产调用者（仅自身 `#[cfg(test)]`）。
-//! - **禁回灌**：不得把本文件的 `RefZhongshu`/全三段口径回灌进 [`super::center`] 替换现役
-//!   chan99 §6.4 派生口径——两口径正交并置是已裁定的设计，不是待统一的分叉。
+//! - **与现役差在哪**（★#1419 订正，旧文「现役只取前两段」已过时）：核心全三段、外缘只聚合 Zn、
+//!   结算后自 `end + 2` 续扫三处与现役塔（[`super::center`] + `recursive_tower::detect_centers_windowed_resume`）
+//!   同口径；本文件不查方向交替、不做 ≥9 段升级重切，另带结算/离开方向等生命周期字段。被
+//!   `legacy_v0_not_correct_for_v1_reference` 裁错的是首尾段口径 v0，不是现役。本文件全仓零生产
+//!   调用者（仅自身 `#[cfg(test)]` 与 `rust/tests/theta_v0_center_parity.rs`）。
+//! - **禁回灌**：本文件是 Lean `refZhongshusFromComponents` 的镜像，不得被生产路径调用；现役判定只在
+//!   [`super::center`] 与共用扫描里改。
 
 use super::super::types::{Segment, Tick};
 use super::center::{compute_dd, compute_gg, is_zn, UnitRange};

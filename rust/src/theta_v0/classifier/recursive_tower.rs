@@ -138,6 +138,14 @@ pub struct LeveledMove {
     /// ★codex Q4：确定性元素身份（跨 bar 稳定，spec §13 结构映射对象身份）。
     /// 全量/增量产同 ID——`compose_level`/`compose_level_resume` 注入 ordinal。
     pub id: ElementId,
+    /// ★#1419 根裁定 r2 第 1 条：**走势区间**缓存 `(lo, hi)` = 本走势全部子走势的价格极值
+    /// （Lean `Formal.RecursiveConstruction.Move.interval`，与递归 `rmove.lo()/hi()` 同值）。
+    ///
+    /// 走势区间不是中枢外缘：中枢 GG/DD 只聚合 Zn（`center::is_zn`），走势区间取全部子走势（含
+    /// 非 Zn 的末成员——其端点就是走势的实际极值）。生产构造（[`Self::from_unit`]、[`Self::compose`]）
+    /// 一次算出并写 `Some`，[`Self::envelope`] 据此 O(1)。`None` 只出现在测试手搓的字面量里，
+    /// `envelope()` 对它回退递归 `rmove.lo()/hi()`（同值，仅慢）。
+    pub(crate) interval_cache: Option<(Tick, Tick)>,
 }
 
 /// 在按 `end_index` 升序排列的走势序列中定位 `end_index == target` 的段（leftmost）。
@@ -196,6 +204,7 @@ impl LeveledMove {
             end_index: u.end_index,
             sub_moves: Rc::new(Vec::new()),
             id,
+            interval_cache: Some((u.lo, u.hi)),
         }
     }
 
@@ -248,6 +257,13 @@ impl LeveledMove {
             !run_centers.is_empty(),
             "#897：run 载荷恒非空（末位 = 本窗口真派生中枢）"
         );
+        // ★#1419 r2 第 1 条：走势区间 = 全部子走势区间的极值（读子走势缓存，O(k)）；空 subs 记 (0,0)，
+        // 与 `RMove::lo/hi` 的 `unwrap_or(0)` 及 Lean `Move.listInterval []` 同口径。
+        let interval = subs
+            .iter()
+            .map(LeveledMove::envelope)
+            .reduce(|(lo, hi), (l, h)| (lo.min(l), hi.max(h)))
+            .unwrap_or((0, 0));
         LeveledMove {
             rmove: RMove::Compose {
                 subs: Rc::new(sub_rmoves),
@@ -258,6 +274,7 @@ impl LeveledMove {
             end_index,
             sub_moves,
             id,
+            interval_cache: Some(interval),
         }
     }
 
@@ -285,42 +302,24 @@ impl LeveledMove {
         }
     }
 
-    /// 外缘 `(lo, hi)` 的 **O(1)** 取回（stage 09 O(n²) 真修，本域 #H1）。
-    ///
-    /// ★#1419 S2（Zn 外缘）：下文「`center.dd == rmove.lo()` 逐字段相等」只在外缘聚合全部成员时成立。
-    /// 中枢外缘改为只聚合 Zn 后，本函数对 Compose 返回本窗中枢的 Zn 外缘 [DD,GG]，与 `rmove.lo()/hi()`
-    /// （全部 subs 区间）在「非 Zn 成员越出 Zn 极值」的窗口上分叉。上级单元区间（`project_to_units`
-    /// 全量与增量两路）统一取本函数，与 Lean `Formal.RecursiveConstruction.Move.interval`（compose 由
-    /// 其中枢外缘合成）一致；`rmove.lo()/hi()` 的消费方（背驰、回拉不创新低等）仍读全部 subs 区间。
-    /// 两种走势区间并存是本片引入的分叉，待根裁定取哪一种（#1419 S2-a）。
+    /// 走势区间 `(lo, hi)` 的 **O(1)** 取回（stage 09 O(n²) 真修，本域 #H1）。
     ///
     /// `rmove.lo()/hi()`（descend.rs）对 `Compose` 变体**递归整棵子树**取 min/max——frontier 走势每 bar
     /// 重投影且其子树随窗口延伸增长 O(n) ⟹ project_to_units_resume 退化 O(n²)（400K profile 1238ms
-    /// 首热点）。但外缘在 `compose` 时已算入携带的 `Center`（`center.dd/gg`）：投影契约
-    /// （`project_to_units_resume` 头 + compose_level_resume line 463）保证 `units[i] = 投影(subs_moves[i])`
-    /// ⟹ `center.dd = min(窗口 units.lo) = min(subs.rmove.lo()) = rmove.lo()`，`center.gg = rmove.hi()`
-    /// **逐字段相等**（`detect_centers_windowed_resume` 延伸吸收 `c.dd=c.dd.min(u.lo)`/升级重切
-    /// `sub_units.map(|u| u.lo).min()` 两支均聚合同一窗口 units 外缘）。故读携带 center O(1) == 递归
-    /// 深扫 bit-exact。
+    /// 首热点）。本函数读构造时一次算好的 [`Self::interval_cache`]，值与递归深扫逐字段相等。
     ///
-    /// - `Segment`：外缘 = 线段自身 `[lo,hi]`（O(1) 字段读，`rmove.lo()/hi()` 对 Segment 本已 O(1)）。
-    /// - `Compose`：读本窗中枢 `centers.last()` 的 dd/gg（#897 后载荷 = 走势类型块中枢序列，
-    ///   本窗中枢在末位；旧「恒 vec![center]」已随 M-1 落地作废）；缺 center（不该发生）
-    ///   ⟹ 回退 `rmove.lo()/hi()`（值相同，仅慢，护 bit-exact）。
+    /// ★#1419 根裁定 r2 第 1 条：本函数返回**走势区间**（全部子走势极值），不是中枢外缘。旧实现读本窗
+    /// 中枢 `centers.last()` 的 dd/gg，依赖「中枢外缘 == 全部 subs 区间」；中枢外缘改为只聚合 Zn
+    /// （#1419 S2）后该恒等不再成立，故改读缓存。消费方（上级投影单元、`fold_direction`、
+    /// `new_extreme_in_direction`、scan wire 事实）因此都按走势实际极值取数。
     ///
-    /// mod.rs:1400 的 `debug_assert!(projected_units == 全量 project_to_units)`（走递归 `rmove.lo()/hi()`）
-    /// 是本优化的**逐 bar bit-exact 神谕**：test 编译逐 bar 比对 center 读值 vs 递归深扫，任何破裂即 panic。
+    /// pipeline.rs 的 `debug_assert!(projected_units == 全量 project_to_units)`（全量一侧走递归
+    /// `rmove.lo()/hi()`）是本缓存的**逐 bar bit-exact 神谕**：test 编译逐 bar 比对缓存读值 vs 递归深扫，
+    /// 任何破裂即 panic。
     #[inline]
     pub fn envelope(&self) -> (Tick, Tick) {
-        match &self.rmove {
-            RMove::Segment { lo, hi, .. } => (*lo, *hi),
-            // #897：centers 载荷现为走势类型块中枢序列——本窗中枢 = **末位**（last），
-            // 盘整块单中枢时与旧 first 语义逐位一致。
-            RMove::Compose { centers, .. } => match centers.last() {
-                Some(c) => (c.dd, c.gg),
-                None => (self.rmove.lo(), self.rmove.hi()),
-            },
-        }
+        self.interval_cache
+            .unwrap_or_else(|| (self.rmove.lo(), self.rmove.hi()))
     }
 }
 
@@ -766,18 +765,15 @@ pub fn project_to_units(moves: &[LeveledMove], blocks: &[MoveBlock]) -> Vec<Unit
             } else {
                 Some(&moves[idx - 1])
             };
-            // 全量投影是 pipeline.rs `projected_units` debug_assert 神谕的一侧（守 truncate/resume 前缀机制）。
-            // ★#1419 S2：区间与增量投影同取 [`LeveledMove::envelope`]（Compose = 本窗中枢 [DD,GG]）。中枢外缘
-            // 改 Zn 后它与递归 `rmove.lo()/hi()`（全部 subs 区间）不再恒等；上级单元按 Lean
-            // `Formal.RecursiveConstruction.Move.interval`（compose 由其中枢外缘合成）取中枢外缘，两种
-            // 走势区间的分叉待根裁定（#1419 S2-a，见 envelope 文档）。
-            let (lo, hi) = m.envelope();
+            // 全量投影是 pipeline.rs `projected_units` debug_assert 神谕的一侧——保留递归 `rmove.lo()/hi()`
+            // （非热路径，每 bar 仅 test 编译调一次），作 envelope() 缓存增量投影的独立 bit-exact 对照面。
+            // ★#1419 r2 第 1 条：上级单元区间 = 走势区间（全部子走势极值），不是中枢 Zn 外缘。
             UnitRange {
                 start_index: m.start_index,
                 end_index: m.end_index,
                 direction: center_own_dir_at(blocks, idx).unwrap_or_else(|| m.fold_direction(prev)),
-                lo,
-                hi,
+                lo: m.rmove.lo(),
+                hi: m.rmove.hi(),
             }
         })
         .collect()
@@ -811,9 +807,9 @@ pub fn project_to_units_resume(
         } else {
             Some(&moves[idx - 1])
         };
-        // ★#H1 O(n²)→O(n) 真修：`envelope()` 读携带 center O(1)，替代 `rmove.lo()/hi()` 递归深扫整棵
-        // 子树（frontier 走势子树随窗口延伸 O(n)，每 bar 重投影 ⟹ O(n²)）。bit-exact 由 center.dd/gg
-        // == rmove.lo()/hi() 投影契约保证 + mod.rs:1400 逐 bar debug_assert 神谕守护（见 envelope() 文档）。
+        // ★#H1 O(n²)→O(n) 真修：`envelope()` 读构造时缓存的走势区间 O(1)，替代 `rmove.lo()/hi()` 递归
+        // 深扫整棵子树（frontier 走势子树随窗口延伸 O(n)，每 bar 重投影 ⟹ O(n²)）。bit-exact 由缓存 ==
+        // rmove.lo()/hi() 保证 + pipeline.rs 逐 bar debug_assert 神谕守护（见 envelope() 文档）。
         let (lo, hi) = m.envelope();
         cache.push(UnitRange {
             start_index: m.start_index,

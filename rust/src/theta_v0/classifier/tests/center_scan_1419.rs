@@ -5,6 +5,7 @@
 //! - #804 L2：同一扫描的增量（frontier 协议：pop 末窗 + 自 `resume_from` 重扫）与全量逐位相同。
 //! - Zn 外缘（#1419 S2，D-A/D-B，`020-第20课.md:52`）：DD/GG 只聚合与 seed 第一单元同向的成员；
 //!   L0 端点相连交替三段上与旧三段外缘恒等，延伸期的非 Zn 成员不再改外缘。
+//! - 走势区间 ≠ 中枢外缘（#1419 根裁定 r2 第 1 条）：上级走势的区间取全部子走势极值，中枢外缘只数 Zn。
 //!
 //! 期待值取自独立工作例（`tb1419-prep/worked-examples.json` 的 UP/DOWN 流，与
 //! `.chanlun/review-results/issue1419-tb02e-20261013/` 的 oracle 冻结稿交叉核），不从被测函数推出。
@@ -14,7 +15,9 @@ use super::super::super::types::{Center, Direction, Tick};
 use super::super::center::{
     center_from_segments, center_from_window, compute_dd, compute_gg, UnitRange,
 };
-use super::super::recursive_tower::detect_centers_windowed_resume;
+use super::super::recursive_tower::{
+    compose_level, detect_centers_windowed_resume, project_to_units, ElementId, LeveledMove,
+};
 
 type Build = fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center>;
 
@@ -399,5 +402,48 @@ fn zn_upper_level_uses_direction_not_parity() {
     assert_eq!(
         rows(&extended, center_from_window),
         vec![((0, 4), 20, 30, 10, 60)]
+    );
+}
+
+// ── #1419 根裁定 r2 第 1 条：走势区间与中枢外缘分开 ─────────────────────────────────────
+
+/// UP K12：中枢 A = u0..u7，Zn = ↑{u0,u2,u4,u6} ⟹ 外缘 [10,40]；但走势 A 的末成员 u7 ↓[5,25] 的低点 5
+/// 是走势的实际极值 ⟹ 走势区间 [5,40]。上级投影单元、`envelope()` 缓存与递归 `rmove.lo()/hi()` 三者
+/// 都取走势区间（S2 时 `envelope()` 读中枢外缘，此处给 [10,40]）。
+#[test]
+fn r2_move_interval_is_all_sub_extremes_not_center_outer() {
+    let units = up_cut(12);
+    let moves: Vec<LeveledMove> = units
+        .iter()
+        .enumerate()
+        .map(|(i, u)| {
+            LeveledMove::from_unit(
+                u,
+                ElementId {
+                    level: 0,
+                    ordinal: i as u64,
+                },
+            )
+        })
+        .collect();
+    let (centers, upper, _) = compose_level(&units, &moves, true, 1);
+    assert_eq!(
+        (centers[0].dd, centers[0].gg),
+        (10, 40),
+        "中枢 A 外缘只数 Zn"
+    );
+    assert_eq!(
+        upper[0].envelope(),
+        (5, 40),
+        "走势 A 区间含非 Zn 末成员 u7 的低点"
+    );
+    for m in &upper {
+        assert_eq!(m.envelope(), (m.rmove.lo(), m.rmove.hi()), "缓存 == 递归");
+    }
+    let projected = project_to_units(&upper, &[]);
+    assert_eq!(
+        (projected[0].lo, projected[0].hi),
+        (5, 40),
+        "上级单元 = 走势区间"
     );
 }

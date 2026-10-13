@@ -3149,6 +3149,79 @@ mod tests {
         );
     }
 
+    /// ★#1419（R8 + 根裁定 r2 第 1 条）守卫：**末 confirmed 单元是突破段**。中枢 A = units[0..2]（核心
+    /// [105,120]）被 u3 ↓[121,128] 结算；R8 下下一 seed 自 last+2 = 4 起，u3 不属于任何中枢、也不得作
+    /// seed 首单元 ⟹ 虚拟单元无处可并，末窗仍是已结算的 A ⟹ 拒绝（不得把虚拟单元拼进 A，也不得越界）。
+    #[test]
+    fn r8_active_window_rejects_when_last_unit_is_breakout() {
+        let mut units = l0_units_seed();
+        units.push(UnitRange {
+            start_index: 30,
+            end_index: 40,
+            direction: Direction::Down,
+            lo: 121,
+            hi: 128,
+        });
+        let l0_frontier = ActiveSegmentFrontier {
+            direction: Direction::Up,
+            start_index: 40,
+            start_price: 121,
+            extreme: 140,
+            extreme_at: 50,
+        };
+        let outcome = active_l1_window_frontier(&units, Some(&l0_frontier), 0, &mut Vec::new());
+        assert_eq!(outcome, ActiveWindowOutcome::LowerFrontierNotAbsorbed);
+    }
+
+    /// ★#1419 R8 判别：突破段 u3 之后只有一个 confirmed 单元 u4 再接虚拟单元。旧 B 口径（自突破段续扫）
+    /// 会以 (u3,u4,虚拟) ↓↑↓ 核心 [123,128] 成 seed、产出活动窗；R8 自 last+2 = u4 起只剩两个单元，
+    /// 不成 seed ⟹ 拒绝。
+    #[test]
+    fn r8_active_window_breakout_never_seeds_with_frontier() {
+        let mut units = l0_units_seed();
+        units.push(UnitRange {
+            start_index: 30,
+            end_index: 40,
+            direction: Direction::Down,
+            lo: 121,
+            hi: 128,
+        });
+        units.push(UnitRange {
+            start_index: 40,
+            end_index: 50,
+            direction: Direction::Up,
+            lo: 122,
+            hi: 135,
+        });
+        let l0_frontier = ActiveSegmentFrontier {
+            direction: Direction::Down,
+            start_index: 50,
+            start_price: 130,
+            extreme: 123,
+            extreme_at: 60,
+        };
+        let outcome = active_l1_window_frontier(&units, Some(&l0_frontier), 0, &mut Vec::new());
+        assert_eq!(outcome, ActiveWindowOutcome::LowerFrontierNotAbsorbed);
+    }
+
+    /// ★#1419 根裁定 r2 第 1 条：活动窗区间 = 走势区间。中枢 A（Zn = ↑）外缘 [100,125]；虚拟单元
+    /// ↓[95,118] 与核心 [105,120] 相交、被吸收但非 Zn ⟹ 中枢外缘不变，活动 L1 单元区间取窗口全部单元
+    /// 极值 [95,125]（与该窗 compose 后的 `rmove.lo()/hi()`、`lower_legs_from` 同口径）。
+    #[test]
+    fn r2_active_window_interval_is_move_interval_not_zn_outer() {
+        let units = l0_units_seed();
+        let l0_frontier = ActiveSegmentFrontier {
+            direction: Direction::Down,
+            start_index: 30,
+            start_price: 118,
+            extreme: 95,
+            extreme_at: 40,
+        };
+        let outcome = active_l1_window_frontier(&units, Some(&l0_frontier), 0, &mut Vec::new());
+        let frontier = outcome.frontier().expect("虚拟单元被吸收");
+        assert_eq!((frontier.lo, frontier.hi), (95, 125));
+    }
+
     /// Q3 未产出时的原因码逐条可达（禁以「不知道」结账）。
     #[test]
     fn q3_active_l1_window_frontier_reason_codes() {

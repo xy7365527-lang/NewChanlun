@@ -176,7 +176,8 @@ fn classify_tower_depth_ge1_true_nesting() {
     // 三组 up-down-up（每组 → 一个 L1 走势；组间连接段见夹具），三个 L1 走势外缘重叠成 L2 中枢。
     // ★task #142 延伸语义诚实重算（同 end_to_end_second_buy_via_l1_l2_geometric 推导）：三组
     // 核心分离（组B 首段 hi=115<ZD_A=120、组C 首段 lo=115>ZG_B=114 ⟹ non-extension，PDF §5
-    // Step3），外缘 O_A=[110,150]/O_B=[80,125]/O_C=[112,148] 共同相交 ⟹ L2 核心 [112,125] 非空。
+    // Step3），三个 L1 走势区间 O_A=[110,150]/O_B=[80,125]/O_C=[112,148] 共同相交 ⟹ L2 核心 [112,125]
+    // 非空（组B 中枢 Zn 外缘为 [80,115]，走势区间含非 Zn 高点 125，见 [`three_group_segments`]）。
     // ★#1419 R8：组间各插一个连接段，见 [`three_group_segments`]。
     let segments = three_group_segments();
     let closes = three_group_closes();
@@ -591,10 +592,11 @@ fn chain_certificate_book_classify_fnv1a_golden() {
     // （birth_closed 38→33），链簿字节流随之漂移（教义性收紧，非回归）。
     // #1419 S1 诚实更新（旧值 1019647215966295227）：R8 续扫自 last_member+2 + 夹具 120→160 段
     // （见本测试开头），链簿字节流随之改写（口径回归）。
-    // #1419 S2 诚实更新（旧值 7694977913360723439）：中枢外缘只聚合 Zn ⟹ 中枢 DD/GG、中心定理二
-    // 关系与上级单元区间随之改写（口径回归；探针 birth_closed 52→46、skip_edges 148→174）。
+    // #1419 S2 曾诚实更新为 4402318454792566968：当时上级单元区间取中枢 Zn 外缘。#1419 根裁定 r2
+    // 第 1 条把走势区间与中枢外缘分开（上级单元取全部子走势极值）后回到 S1 的值——本夹具上链簿的漂移
+    // 全部来自上级单元区间，L0 中枢外缘改 Zn 本身不改链簿（探针 birth_closed 46→52、skip_edges 174→148）。
     assert_eq!(
-            digest, 4402318454792566968,
+            digest, 7694977913360723439,
             "链簿产出漂移须诚实更新 golden（probe={probe:?} certs={} heads={} pan_rooted={pan_rooted}）",
             book.certificates().len(),
             heads.len()
@@ -1073,7 +1075,8 @@ fn incremental_tower_preserves_b2_second_buy() {
     let cfg = ThetaConfig::default();
     // ★task #142 延伸语义诚实重算（同 end_to_end_second_buy_via_l1_l2_geometric 推导）：三组
     // 核心分离（组B 首段 hi=115<ZD_A=120、组C 首段 lo=115>ZG_B=114 ⟹ non-extension，PDF §5
-    // Step3），外缘 O_A=[110,150]/O_B=[80,125]/O_C=[112,148] 共同相交 ⟹ L2 核心 [112,125] 非空。
+    // Step3），三个 L1 走势区间 O_A=[110,150]/O_B=[80,125]/O_C=[112,148] 共同相交 ⟹ L2 核心 [112,125]
+    // 非空（组B 中枢 Zn 外缘为 [80,115]，走势区间含非 Zn 高点 125，见 [`three_group_segments`]）。
     // ★#1419 R8：组间各插一个连接段，见 [`three_group_segments`]（组B 坐标 +4）。
     let segments = three_group_segments();
     let closes = three_group_closes();

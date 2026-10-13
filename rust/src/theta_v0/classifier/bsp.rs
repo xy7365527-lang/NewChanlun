@@ -760,7 +760,9 @@ mod tests {
             // 同条目重登记。
             // 2026-10-13 #1419 S1：R8 连接段夹具（B2 / 类二买测试改调 three_group_segments，
             // −23 行）⟹ 夹具点随迁 1720 → 1697，重核内容不变（source_index 过滤），同条目重登记。
-            "theta_v0/classifier/tests/pipeline_geometry.rs:1697",
+            // 2026-10-14 #1419 根裁定 r2 第 1 条：B2 夹具注释区分中枢外缘与走势区间（+1 行）⟹
+            // 1697 → 1698，重核内容不变，同条目重登记。
+            "theta_v0/classifier/tests/pipeline_geometry.rs:1698",
             // 「时刻分组键」过滤（spec §12 语义，合法契约非泄漏，非身份 join，不入本族）。
             // （2026-08-16 #903/#919 注释与 fmt ⟹ +2 漂移，七处再重锚，内容不变。）
             // （2026-08-16 #993 fixture 修复 ⟹ signal.rs 测试区再位移，七处夹具点重锚，内容不变。
