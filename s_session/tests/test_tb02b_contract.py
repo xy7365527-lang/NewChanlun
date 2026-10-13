@@ -141,9 +141,19 @@ class ContractTest(unittest.TestCase):
 
 class RuleBindingTest(unittest.TestCase):
     def test_session_rule_binds_bi_and_segment_contract_generations(self):
-        self.assertEqual(c.RULE_CONTRACTS['s2-axis-quantifiers+new-bi/2+segment-second/1'], ('s-new-bi/2', 's-segment/2'))
-        self.assertEqual(c.RULE_CONTRACTS['s2-axis-quantifiers+new-bi/1+segment-second/1'], ('s-new-bi/1', 's-segment/2'))
-        self.assertEqual(c.RULE_CONTRACTS['s2-axis-quantifiers+new-bi/1'], ('s-new-bi/1', None))
+        self.assertEqual(c.RULE_CONTRACTS['s2-axis-quantifiers+new-bi/2+segment-second/1'],
+                         ('s-new-bi/2', 's-segment/2', 'established_direction_with_extreme_root_sets'))
+        self.assertEqual(c.RULE_CONTRACTS['s2-axis-quantifiers+new-bi/1+segment-second/1'],
+                         ('s-new-bi/1', 's-segment/2', 'established_direction_without_extreme_identity_competition'))
+        self.assertEqual(c.RULE_CONTRACTS['s2-axis-quantifiers+new-bi/1'][:2], ('s-new-bi/1', None))
+
+    def test_knowledge_domain_accepts_both_generations_and_rejects_others(self):
+        payload = dict(scope='TB-02-A', input_frontier='0', known_facts=['raw_ohlc', 'inclusion_trace', 'group_provenance'],
+                       waiting_reasons=[], requests=[])
+        for domain in (c.KNOWLEDGE_DOMAIN_V1, c.KNOWLEDGE_DOMAIN_V2):
+            c.validate_payload('CC-054.knowledge_state', {**payload, 'domain': domain})
+        with self.assertRaises(ValueError):
+            c.validate_payload('CC-054.knowledge_state', {**payload, 'domain': 'established_direction'})
 
 
 if __name__ == '__main__':

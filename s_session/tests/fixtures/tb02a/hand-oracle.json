@@ -1,5 +1,5 @@
 {
-  "schema": "tb02a-independent-hand-oracle-v1",
+  "schema": "tb02a-independent-hand-oracle-v2",
   "issue": 1373,
   "authorship": "逐根按正本关系式手算的常量；没有调用、导入或抓取生产实现输出作为 expected。",
   "sources": [
@@ -1446,6 +1446,32 @@
   ],
   "waiting_cases": [
     {
+      "case_id": "wait_initial_direction",
+      "waiting_raw_index": 1,
+      "direction": null,
+      "source_pair_anchor_raw_indices": null,
+      "accumulator": [
+        3,
+        10
+      ],
+      "incoming": [
+        5,
+        8
+      ],
+      "incoming_vs_accumulator": [
+        "LT",
+        "GT"
+      ],
+      "contains_acc_incoming": true,
+      "contains_incoming_acc": false,
+      "missing": [
+        "G-001:initial_direction_policy"
+      ],
+      "must_not": "不默认 UP/DOWN，不用 open/close 填初始方向，不称已有含方向成功。"
+    }
+  ],
+  "root_set_cases": [
+    {
       "case_id": "wait_equal_high",
       "waiting_raw_index": 2,
       "direction": "UP",
@@ -1478,10 +1504,52 @@
       "candidate_low_raw_indices": [
         2
       ],
-      "missing": [
-        "G-002:extremum_identity_tie_policy"
+      "resolved_by": "#1343 Q2/Q4（bi.md §7.1）：组内多根同极值时极值身份是根集合，不是未定态",
+      "evidence_label": "equal_extreme_identity",
+      "requests_complete": [
+        "CC-004.inclusion_step",
+        "CC-005.inclusion_group"
       ],
-      "must_not": "不得选择 first/last high 根，不得当无竞争成功。"
+      "knowledge_domain": "established_direction_with_extreme_root_sets",
+      "knowledge_must_not_wait": "equal_extreme_identity",
+      "as_known_v1": {
+        "case_id": "wait_equal_high",
+        "waiting_raw_index": 2,
+        "direction": "UP",
+        "source_pair_anchor_raw_indices": [
+          0,
+          1
+        ],
+        "accumulator": [
+          3,
+          10
+        ],
+        "incoming": [
+          5,
+          10
+        ],
+        "incoming_vs_accumulator": [
+          "EQ",
+          "GT"
+        ],
+        "contains_acc_incoming": true,
+        "contains_incoming_acc": false,
+        "candidate_value_only": [
+          5,
+          10
+        ],
+        "candidate_high_raw_indices": [
+          1,
+          2
+        ],
+        "candidate_low_raw_indices": [
+          2
+        ],
+        "missing": [
+          "G-002:extremum_identity_tie_policy"
+        ],
+        "must_not": "不得选择 first/last high 根，不得当无竞争成功。"
+      }
     },
     {
       "case_id": "wait_equal_low",
@@ -1516,10 +1584,52 @@
         1,
         2
       ],
-      "missing": [
-        "G-002:extremum_identity_tie_policy"
+      "resolved_by": "#1343 Q2/Q4（bi.md §7.1）：组内多根同极值时极值身份是根集合，不是未定态",
+      "evidence_label": "equal_extreme_identity",
+      "requests_complete": [
+        "CC-004.inclusion_step",
+        "CC-005.inclusion_group"
       ],
-      "must_not": "不得选择 first/last low 根，不得当无竞争成功。"
+      "knowledge_domain": "established_direction_with_extreme_root_sets",
+      "knowledge_must_not_wait": "equal_extreme_identity",
+      "as_known_v1": {
+        "case_id": "wait_equal_low",
+        "waiting_raw_index": 2,
+        "direction": "UP",
+        "source_pair_anchor_raw_indices": [
+          0,
+          1
+        ],
+        "accumulator": [
+          3,
+          10
+        ],
+        "incoming": [
+          3,
+          8
+        ],
+        "incoming_vs_accumulator": [
+          "LT",
+          "EQ"
+        ],
+        "contains_acc_incoming": true,
+        "contains_incoming_acc": false,
+        "candidate_value_only": [
+          3,
+          10
+        ],
+        "candidate_high_raw_indices": [
+          1
+        ],
+        "candidate_low_raw_indices": [
+          1,
+          2
+        ],
+        "missing": [
+          "G-002:extremum_identity_tie_policy"
+        ],
+        "must_not": "不得选择 first/last low 根，不得当无竞争成功。"
+      }
     },
     {
       "case_id": "wait_equal_both",
@@ -1555,34 +1665,53 @@
         1,
         2
       ],
-      "missing": [
-        "G-002:extremum_identity_tie_policy"
+      "resolved_by": "#1343 Q2/Q4（bi.md §7.1）：组内多根同极值时极值身份是根集合，不是未定态",
+      "evidence_label": "equal_extreme_identity",
+      "requests_complete": [
+        "CC-004.inclusion_step",
+        "CC-005.inclusion_group"
       ],
-      "must_not": "双向包含必须同时真；不得 one-hot，只能准确等待身份策略。"
-    },
-    {
-      "case_id": "wait_initial_direction",
-      "waiting_raw_index": 1,
-      "direction": null,
-      "source_pair_anchor_raw_indices": null,
-      "accumulator": [
-        3,
-        10
-      ],
-      "incoming": [
-        5,
-        8
-      ],
-      "incoming_vs_accumulator": [
-        "LT",
-        "GT"
-      ],
-      "contains_acc_incoming": true,
-      "contains_incoming_acc": false,
-      "missing": [
-        "G-001:initial_direction_policy"
-      ],
-      "must_not": "不默认 UP/DOWN，不用 open/close 填初始方向，不称已有含方向成功。"
+      "knowledge_domain": "established_direction_with_extreme_root_sets",
+      "knowledge_must_not_wait": "equal_extreme_identity",
+      "as_known_v1": {
+        "case_id": "wait_equal_both",
+        "waiting_raw_index": 2,
+        "direction": "UP",
+        "source_pair_anchor_raw_indices": [
+          0,
+          1
+        ],
+        "accumulator": [
+          3,
+          10
+        ],
+        "incoming": [
+          3,
+          10
+        ],
+        "incoming_vs_accumulator": [
+          "EQ",
+          "EQ"
+        ],
+        "contains_acc_incoming": true,
+        "contains_incoming_acc": true,
+        "candidate_value_only": [
+          3,
+          10
+        ],
+        "candidate_high_raw_indices": [
+          1,
+          2
+        ],
+        "candidate_low_raw_indices": [
+          1,
+          2
+        ],
+        "missing": [
+          "G-002:extremum_identity_tie_policy"
+        ],
+        "must_not": "双向包含必须同时真；不得 one-hot，只能准确等待身份策略。"
+      }
     }
   ],
   "relation_witnesses": [
@@ -1869,5 +1998,6 @@
     "old_cut_obligation": "修订提交后读取固定旧 cut 仍逐字段返回 before；新 cut 完整返回 after；撤回/替代关系须引用旧新真实版本身份。",
     "replay_obligation": "两新进程同完整原始输入及同修订计划，全结构化输出对拍；所改持久边界恢复同样对拍，协议身份与证据集合不能剔除。",
     "no_implementation_claim": true
-  }
+  },
+  "as_known_v1_schema": "tb02a-independent-hand-oracle-v1"
 }

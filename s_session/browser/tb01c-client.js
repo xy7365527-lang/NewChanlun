@@ -130,6 +130,8 @@
     const bytes = await crypto.subtle.digest("SHA-256", encoder.encode(source));
     return Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2, "0")).join("");
   }
+  // #1405：TB-02-A 知识域两代——旧值只在旧规则会话里 AsKnown 可读；#1343 后极值身份以根集合计。
+  const KNOWLEDGE_DOMAINS = ["established_direction_without_extreme_identity_competition", "established_direction_with_extreme_root_sets"];
   const TB02_KINDS = ["CC-004.inclusion_step", "CC-005.inclusion_group", "CC-007.fractal_description", "CC-054.knowledge_state"];
   const TB02_AXES = ["CC-001", "CC-002", "CC-003", "CC-004", "CC-005", "CC-006", "CC-007", "CC-054", "CC-056"];
   const LEGACY_TB02_AXES = [...TB02_AXES];
@@ -223,7 +225,7 @@
       }
     } else {
       keys(p, ["scope", "input_frontier", "known_facts", "waiting_reasons", "domain", "requests"], "知识状态");
-      need(p.scope === "TB-02-A" && p.domain === "established_direction_without_extreme_identity_competition" && equal(p.known_facts, ["raw_ohlc", "inclusion_trace", "group_provenance"]), "知识域/已知事实不符");
+      need(p.scope === "TB-02-A" && KNOWLEDGE_DOMAINS.includes(p.domain) && equal(p.known_facts, ["raw_ohlc", "inclusion_trace", "group_provenance"]), "知识域/已知事实不符");
       integer(p.input_frontier, false, true); texts(p.waiting_reasons); need(Array.isArray(p.requests), "逐请求集合不完整"); const ids = new Set();
       const enums = {input_quality:["SUFFICIENT", "INSUFFICIENT", "INCONSISTENT"], applicability:["IN_DOMAIN", "OUTSIDE_DOMAIN", "DOMAIN_PROOF_MISSING"], computation:["COMPLETE", "INCOMPLETE"], validity:["CURRENT", "SUPERSEDED", "WITHDRAWN"]};
       for (const r of p.requests) {
@@ -410,11 +412,13 @@
     "s-new-bi/1": ["new-bi-dual-coordinate/1", "standard_raw_gap_3"],
     "s-new-bi/2": ["new-bi-dual-coordinate/2", "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1"],
   };
+  // #1405：会话级 rule_revision 绑定（新笔合同, 段合同, TB-02-A 知识域）代际；旧规则会话只读（AsKnown）。
   const RULE_CONTRACTS = {
-    "s2-axis-quantifiers+new-bi/1": ["s-new-bi/1", null],
-    "s2-axis-quantifiers+new-bi/1+segment-first/1": ["s-new-bi/1", "s-segment/1"],
-    "s2-axis-quantifiers+new-bi/1+segment-second/1": ["s-new-bi/1", "s-segment/2"],
-    "s2-axis-quantifiers+new-bi/2+segment-second/1": ["s-new-bi/2", "s-segment/2"],
+    "s2-axis-quantifiers": [null, null, KNOWLEDGE_DOMAINS[0]],
+    "s2-axis-quantifiers+new-bi/1": ["s-new-bi/1", null, KNOWLEDGE_DOMAINS[0]],
+    "s2-axis-quantifiers+new-bi/1+segment-first/1": ["s-new-bi/1", "s-segment/1", KNOWLEDGE_DOMAINS[0]],
+    "s2-axis-quantifiers+new-bi/1+segment-second/1": ["s-new-bi/1", "s-segment/2", KNOWLEDGE_DOMAINS[0]],
+    "s2-axis-quantifiers+new-bi/2+segment-second/1": ["s-new-bi/2", "s-segment/2", KNOWLEDGE_DOMAINS[1]],
   };
   const RETIRED_SAME_PRICE_WAITING = ["raw_extreme_identity_tie", "actual_extreme_mapping_missing", "same_kind_endpoint_identity_tie", "earlier_endpoint_identity_unsettled"];
   function validateBiPayload(kind, p) {
@@ -610,9 +614,10 @@
       let digestValue;
       if (TB02_KINDS.includes(record.kind)) {
         // #1405：会话级 rule_revision 绑定笔/段两族合同代际；旧规则会话只读（AsKnown）。
-        const [biSchema, segmentSchema] = Object.hasOwn(RULE_CONTRACTS, fixed.rule_revision) ? RULE_CONTRACTS[fixed.rule_revision] : [null, null];
+        const [biSchema, segmentSchema, domain] = Object.hasOwn(RULE_CONTRACTS, fixed.rule_revision) ? RULE_CONTRACTS[fixed.rule_revision] : [null, null, null];
         if (SEGMENT_KINDS.includes(record.kind)) need(record.payload.schema_revision === segmentSchema, "段合同与cut规则版本不符");
         if (BI_KINDS.includes(record.kind)) need(record.payload.schema_revision === biSchema, "新笔合同与cut规则版本不符");
+        if (record.kind === "CC-054.knowledge_state" && domain !== null) need(record.payload.domain === domain, "TB-02-A 知识域与cut规则版本不符");
         const identity = Object.fromEntries(["kind", "fact_key", "payload", "input_refs"].map(k => [k, record[k]]));
         identity.profile_id = fixed.profile_id; identity.rule_revision = fixed.rule_revision;
         digestValue = await sha256(identity);

@@ -1,5 +1,15 @@
 //! #1373：只投影同次 parser 事实；比较与描述不参与结构/交易准入。
+//!
+//! #1405（#1343 Q2/Q4）：组内多根同极值不是未定态——端点极值身份就是根集合。
+//! `equal_extreme_identity` 只作证据标签留在步骤/组载荷里，不进任何请求的未定原因，
+//! 也不再挡依赖该组的 CC-006 窗口。
 use super::*;
+
+/// 包含层对「组内多根同极值」的证据标签（`parser::inclusion` 写入步骤事实）。
+const EQUAL_EXTREME_IDENTITY: &str = "equal_extreme_identity";
+/// #1405：TB-02-A 知识域——方向已建立，极值身份以根集合计（#1343 Q2）。
+/// 旧值 `established_direction_without_extreme_identity_competition` 只在旧规则会话里 AsKnown 可读。
+const KNOWLEDGE_DOMAIN: &str = "established_direction_with_extreme_root_sets";
 use newchan_rust::theta_v0::parser::inclusion::{InclusionDirectionEvidence, InclusionFacts};
 
 fn bar(b: &Bar) -> Value {
@@ -141,7 +151,14 @@ pub(super) fn build(
             payload,
             step.source_coords.clone(),
         );
-        let mut step_reasons = step.waiting_reasons.clone();
+        // 同价标签是证据（载荷原样保留），不是该步骤的未定原因。
+        let mut step_reasons: Vec<&str> = step
+            .waiting_reasons
+            .iter()
+            .copied()
+            .filter(|r| *r != EQUAL_EXTREME_IDENTITY)
+            .collect();
+        all_reasons.extend(&step_reasons);
         if step.direction_evidence.is_none() && step_reasons.is_empty() {
             step_reasons.push("direction_not_yet_established");
         }
@@ -151,15 +168,16 @@ pub(super) fn build(
             step_reasons,
             step.source_coords.clone(),
         ));
-        all_reasons.extend(&step.waiting_reasons);
     }
     for (index, group) in trace.groups.iter().enumerate() {
         let mut reasons = Vec::new();
         if group.direction_evidence.is_none() {
             reasons.push("direction_not_yet_established");
         }
+        // 组载荷保留同价证据标签；请求只看真实未定原因（#1343 Q2：根集合即身份）。
+        let mut labels = reasons.clone();
         if group.high_sources.len() > 1 || group.low_sources.len() > 1 {
-            reasons.push("equal_extreme_identity");
+            labels.push(EQUAL_EXTREME_IDENTITY);
         }
         let mut sources = group.members.clone();
         if let Some(e) = &group.direction_evidence {
@@ -171,7 +189,7 @@ pub(super) fn build(
         let payload = json!({"group_index":index.to_string(),"group_anchor":group.bar.source_index.to_string(),"members":coords(&group.members),
             "open":group.bar.open.to_string(),"high":group.bar.high.to_string(),"low":group.bar.low.to_string(),"close":group.bar.close.to_string(),
             "high_sources":coords(&group.high_sources),"low_sources":coords(&group.low_sources),"confirmed":group.confirmed,"confirmation_evidence":direction(&group.confirmation_evidence),
-            "direction":group.direction_evidence.as_ref().map(|e|dir_str(e.direction)),"direction_evidence":direction(&group.direction_evidence),"waiting_reasons":reasons});
+            "direction":group.direction_evidence.as_ref().map(|e|dir_str(e.direction)),"direction_evidence":direction(&group.direction_evidence),"waiting_reasons":labels});
         let slot = json!(["CC-005.inclusion_group", group.bar.source_index.to_string()]);
         let id = b.add(
             "CC-005.inclusion_group",
@@ -181,30 +199,6 @@ pub(super) fn build(
         );
         requests.push(request(slot, json!(id), reasons.clone(), sources));
         all_reasons.extend(reasons);
-    }
-    for window in trace.groups.windows(3) {
-        if window
-            .iter()
-            .any(|g| g.high_sources.len() != 1 || g.low_sources.len() != 1)
-        {
-            let anchors: Vec<usize> = window.iter().map(|g| g.bar.source_index).collect();
-            let mut sources = Vec::new();
-            for group in window {
-                sources.extend(&group.members);
-                if let Some(e) = &group.direction_evidence {
-                    sources.extend(&e.source_coords);
-                }
-                if let Some(e) = &group.confirmation_evidence {
-                    sources.extend(&e.source_coords);
-                }
-            }
-            requests.push(request(
-                json!(["CC-006.local_shape", coords(&anchors)]),
-                Value::Null,
-                vec!["equal_extreme_identity"],
-                sources,
-            ));
-        }
     }
     for shape in shapes {
         let window: Vec<usize> = ["window_start", "window_mid", "window_end"]
@@ -341,7 +335,7 @@ pub(super) fn build(
         "detail":{"tb02a":true,"source_coords":coords(&sources),"input_frontier":frontier.to_string(),"waiting_reasons":all_reasons}})).collect();
     b.add("CC-054.knowledge_state",json!(["CC-054.knowledge_state","TB-02-A"]),json!({"scope":"TB-02-A","input_frontier":frontier.to_string(),
         "known_facts":["raw_ohlc","inclusion_trace","group_provenance"],"waiting_reasons":all_reasons,
-        "domain":"established_direction_without_extreme_identity_competition","requests":requests}),sources);
+        "domain":KNOWLEDGE_DOMAIN,"requests":requests}),sources);
     b.objects.sort_by(|a, b| {
         (
             a["kind"].as_str(),
