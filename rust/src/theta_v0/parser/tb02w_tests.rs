@@ -1028,3 +1028,48 @@ fn tb02w_w1_checkpoint_boundary_is_necessary() {
         "from_full（无边界）须恰在 q=99 发散，见证 euf 边界必要"
     );
 }
+
+/// W2 价格（独审生成器 `spiky_prices(21, 40)` 前 25 个，向上）：24 笔。
+const W2_PRICES: [i64; 25] = [
+    50000, 50070, 50024, 50068, 50033, 50049, 50038, 50133, 50074, 50233, 49515, 49523, 49472,
+    49541, 49488, 49630, 49436, 49484, 49384, 49493, 49428, 49466, 49418, 49616, 49553,
+];
+
+/// 独审 W2：窗口 1 下第二种候选的试探中途预算耗尽。须报 INCOMPLETE_RESOURCE_BOUND、留待定尾，
+/// 且已判段是窗口 0 结果的前缀（耗尽不产否定、不提前封段）。窗口 0 段终点下标为 [30, 57]；
+/// 回退「试探中耗尽也阻塞封段」的修正后，窗口 1 不报耗尽并静默把第二段终点改判为 63（即红）。
+#[test]
+fn tb02w_w2_provisional_budget_exhaustion_blocks_sealing() {
+    let ss = witness_chain(&W2_PRICES);
+    assert_eq!(ss.len(), 24);
+    let mut w0 = ThetaConfig::default();
+    w0.parse.second_seq_scan_window = 0;
+    let mut w1 = ThetaConfig::default();
+    w1.parse.second_seq_scan_window = 1;
+    let (s0, p0, f0) = segment::divide_segments_with_facts(&ss, &w0.parse);
+    let (s1, p1, f1) = segment::divide_segments_with_facts(&ss, &w1.parse);
+    let ends = |segs: &[Segment]| segs.iter().map(|g| g.end_index).collect::<Vec<_>>();
+    assert_eq!(ends(&s0), [30, 57], "窗口 0 基准读数");
+    assert!(
+        !f0.candidates.iter().any(|c| c
+            .second
+            .as_ref()
+            .is_some_and(|s| s.coverage == ScanCoverage::IncompleteResourceBound)),
+        "窗口 0 不得报耗尽"
+    );
+    let _ = p0;
+    assert!(
+        f1.candidates.iter().any(|c| c
+            .second
+            .as_ref()
+            .is_some_and(|s| s.coverage == ScanCoverage::IncompleteResourceBound)),
+        "窗口 1 须报 INCOMPLETE_RESOURCE_BOUND"
+    );
+    assert!(p1.is_some(), "预算耗尽须留待定尾");
+    assert!(
+        s1.len() <= s0.len() && s1[..] == s0[..s1.len()],
+        "窗口 1 已判段须为窗口 0 前缀：w1={:?} w0={:?}",
+        ends(&s1),
+        ends(&s0)
+    );
+}
