@@ -1,0 +1,8 @@
+{
+ "M1_tower_zg_plus1_S~T_diffs": 1,
+ "M2_S_DD_minus1_S~T_diffs": 1,
+ "M2_S_DD_minus1_S~O_diffs": 1,
+ "M3_drop_tower_center0_S~T_diffs": 1,
+ "M4_geometric_unit_in_S_objects_Q": "TB02E_UNIT_SOURCE"
+}
+ALL_MUTANTS_CAUGHT True

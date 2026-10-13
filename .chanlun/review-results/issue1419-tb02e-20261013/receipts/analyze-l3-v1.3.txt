@@ -1,0 +1,10 @@
+bars=   600 strokes=   51 segs=  6 units=  6 tower_L0= 1 oracle= 1 T~O_diffs=0 extra=0 unit_mism=0 geo_differs= 4 S_input=PASS S_centers=1 S~T_compared=1 upgrade=0 S~T_diffs=0 S~O_diffs=0 Q=ACCEPT PASS=True
+bars=  1000 strokes=   80 segs= 11 units= 11 tower_L0= 2 oracle= 2 T~O_diffs=0 extra=0 unit_mism=0 geo_differs= 5 S_input=PASS S_centers=2 S~T_compared=2 upgrade=0 S~T_diffs=0 S~O_diffs=0 Q=ACCEPT PASS=True
+bars=  2000 strokes=  173 segs= 17 units= 17 tower_L0= 3 oracle= 3 T~O_diffs=0 extra=0 unit_mism=0 geo_differs= 7 S_input=PASS S_centers=3 S~T_compared=3 upgrade=0 S~T_diffs=0 S~O_diffs=0 Q=ACCEPT PASS=True
+bars=  5000 strokes=  424 segs= 24 units= 24 tower_L0= 4 oracle= 4 T~O_diffs=0 extra=0 unit_mism=0 geo_differs=11 S_input=PASS S_centers=4 S~T_compared=4 upgrade=0 S~T_diffs=0 S~O_diffs=0 Q=ACCEPT PASS=True
+bars= 10000 strokes=  773 segs= 24 units= 24 tower_L0= 4 oracle= 4 T~O_diffs=0 extra=0 unit_mism=0 geo_differs=11 S_input=PASS S_centers=4 S~T_compared=4 upgrade=0 S~T_diffs=0 S~O_diffs=0 Q=ACCEPT PASS=True
+bars= 20000 strokes= 1583 segs= 24 units= 24 tower_L0= 4 oracle= 4 T~O_diffs=0 extra=0 unit_mism=0 geo_differs=11 S_input=PASS S_centers=4 S~T_compared=4 upgrade=0 S~T_diffs=0 S~O_diffs=0 Q=ACCEPT PASS=True
+bars= 30000 strokes= 2391 segs= 24 units= 24 tower_L0= 4 oracle= 4 T~O_diffs=0 extra=0 unit_mism=0 geo_differs=11 S_input=PASS S_centers=4 S~T_compared=4 upgrade=0 S~T_diffs=0 S~O_diffs=0 Q=ACCEPT PASS=True
+bars= 40000 strokes= 3221 segs= 30 units= 30 tower_L0= 5 oracle= 5 T~O_diffs=0 extra=0 unit_mism=0 geo_differs=14 S_input=PASS S_centers=5 S~T_compared=5 upgrade=0 S~T_diffs=0 S~O_diffs=0 Q=ACCEPT PASS=True
+bars= 49995 strokes= 4016 segs= 72 units= 72 tower_L0=16 oracle=10 T~O_diffs=0 extra=0 unit_mism=0 geo_differs=35 S_input=PASS S_centers=10 S~T_compared=8 upgrade=2 S~T_diffs=0 S~O_diffs=0 Q=ACCEPT PASS=True
+ALL_CUTS_PASS True

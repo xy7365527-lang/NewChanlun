@@ -1,0 +1,15 @@
+Wed Oct 14 06:37:15 CST 2026
+test tb02e::tests::tb02e_real_btc_unit_interval_is_member_stroke_extremes ... ok
+test tb02e::tests::tb02e_empty_and_short_windows_use_window_start_anchor ... ok
+test tb02e::tests::tb02e_e4_tangent_attempt_is_published_with_reason ... ok
+test tb02e::tests::tb02e_k10_one_center_connector_pending_and_entity_anchors ... ok
+test tb02e::tests::tb02e_w9_upgrade_pending_keeps_center_and_nulls_dynamic_roles ... ok
+test tb02e::tests::tb02e_same_input_rebuilds_byte_identical ... ok
+test tb02e::tests::tb02e_inner_extrema_update_creates_roles_revision ... ok
+test tb02e::tests::tb02e_k11_k12_revision_chain_and_roles ... ok
+test tb02e::tests::tb02e_cursor_entity_anchors_match_schema_v1_1_table ... ok
+test tb02e::tests::tb02e_writer_output_passes_python_center_contract_on_all_oracle_cuts ... ok
+test tb02e::tests::tb02e_input_contract_holds_on_frozen_raw_prefixes_and_rejects_injected_mismatch ... ok
+test tests::tb02e_input_contract_mismatch_rejects_whole_cut_and_keeps_previous_facts ... ok
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 82 filtered out; finished in 7.78s
+Wed Oct 14 06:37:27 CST 2026

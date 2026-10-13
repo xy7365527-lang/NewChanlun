@@ -1,0 +1,10 @@
+bars=600 js_contract=ACCEPT
+bars=1000 js_contract=ACCEPT
+bars=2000 js_contract=ACCEPT
+bars=5000 js_contract=ACCEPT
+bars=10000 js_contract=ACCEPT
+bars=20000 js_contract=ACCEPT
+bars=30000 js_contract=ACCEPT
+bars=40000 js_contract=ACCEPT
+bars=49995 js_contract=ACCEPT
+JS_ALL_ACCEPT true

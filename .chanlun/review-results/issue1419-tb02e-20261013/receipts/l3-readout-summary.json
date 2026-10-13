@@ -1,0 +1,360 @@
+{
+ "schema": "tb1419-realdata-l3-readout/2",
+ "unit_rule": "member-stroke-extremes (schema v1.3, ROOT-RULING-1419-L3)",
+ "all_cuts_pass": true,
+ "cuts": [
+  {
+   "bars": 600,
+   "strokes": 51,
+   "segments": 6,
+   "completed_units": 6,
+   "tower_l0_centers": 1,
+   "input_contract": "PASS",
+   "geometric_interval_differs": 4,
+   "geometric_start_not_extreme": 2,
+   "geometric_end_not_extreme": 2,
+   "q_contract": "ACCEPT",
+   "pass": true,
+   "oracle": {
+    "centers": 1,
+    "settled": 1,
+    "upgrade_pending": 0,
+    "attempts": 1,
+    "excluded": 0,
+    "cursor": {
+     "state": "SEEKING_SEED",
+     "seed_start": 6,
+     "awaiting_unit": 8
+    }
+   },
+   "tower_vs_oracle_diffs": 0,
+   "s_vs_tower": {
+    "s_centers": 1,
+    "compared": 1,
+    "diffs": 0,
+    "upgrade_pending": []
+   },
+   "s_vs_oracle_diffs": 0,
+   "unit_mismatches": 0
+  },
+  {
+   "bars": 1000,
+   "strokes": 80,
+   "segments": 11,
+   "completed_units": 11,
+   "tower_l0_centers": 2,
+   "input_contract": "PASS",
+   "geometric_interval_differs": 5,
+   "geometric_start_not_extreme": 3,
+   "geometric_end_not_extreme": 2,
+   "q_contract": "ACCEPT",
+   "pass": true,
+   "oracle": {
+    "centers": 2,
+    "settled": 1,
+    "upgrade_pending": 0,
+    "attempts": 2,
+    "excluded": 0,
+    "cursor": {
+     "state": "EXTENDING",
+     "center": "B",
+     "next_unit": 11
+    }
+   },
+   "tower_vs_oracle_diffs": 0,
+   "s_vs_tower": {
+    "s_centers": 2,
+    "compared": 2,
+    "diffs": 0,
+    "upgrade_pending": []
+   },
+   "s_vs_oracle_diffs": 0,
+   "unit_mismatches": 0
+  },
+  {
+   "bars": 2000,
+   "strokes": 173,
+   "segments": 17,
+   "completed_units": 17,
+   "tower_l0_centers": 3,
+   "input_contract": "PASS",
+   "geometric_interval_differs": 7,
+   "geometric_start_not_extreme": 5,
+   "geometric_end_not_extreme": 3,
+   "q_contract": "ACCEPT",
+   "pass": true,
+   "oracle": {
+    "centers": 3,
+    "settled": 2,
+    "upgrade_pending": 0,
+    "attempts": 3,
+    "excluded": 0,
+    "cursor": {
+     "state": "EXTENDING",
+     "center": "C",
+     "next_unit": 17
+    }
+   },
+   "tower_vs_oracle_diffs": 0,
+   "s_vs_tower": {
+    "s_centers": 3,
+    "compared": 3,
+    "diffs": 0,
+    "upgrade_pending": []
+   },
+   "s_vs_oracle_diffs": 0,
+   "unit_mismatches": 0
+  },
+  {
+   "bars": 5000,
+   "strokes": 424,
+   "segments": 24,
+   "completed_units": 24,
+   "tower_l0_centers": 4,
+   "input_contract": "PASS",
+   "geometric_interval_differs": 11,
+   "geometric_start_not_extreme": 9,
+   "geometric_end_not_extreme": 6,
+   "q_contract": "ACCEPT",
+   "pass": true,
+   "oracle": {
+    "centers": 4,
+    "settled": 4,
+    "upgrade_pending": 0,
+    "attempts": 4,
+    "excluded": 0,
+    "cursor": {
+     "state": "SEEKING_SEED",
+     "seed_start": 22,
+     "awaiting_unit": 24
+    }
+   },
+   "tower_vs_oracle_diffs": 0,
+   "s_vs_tower": {
+    "s_centers": 4,
+    "compared": 4,
+    "diffs": 0,
+    "upgrade_pending": []
+   },
+   "s_vs_oracle_diffs": 0,
+   "unit_mismatches": 0
+  },
+  {
+   "bars": 10000,
+   "strokes": 773,
+   "segments": 24,
+   "completed_units": 24,
+   "tower_l0_centers": 4,
+   "input_contract": "PASS",
+   "geometric_interval_differs": 11,
+   "geometric_start_not_extreme": 9,
+   "geometric_end_not_extreme": 6,
+   "q_contract": "ACCEPT",
+   "pass": true,
+   "oracle": {
+    "centers": 4,
+    "settled": 4,
+    "upgrade_pending": 0,
+    "attempts": 4,
+    "excluded": 0,
+    "cursor": {
+     "state": "SEEKING_SEED",
+     "seed_start": 22,
+     "awaiting_unit": 24
+    }
+   },
+   "tower_vs_oracle_diffs": 0,
+   "s_vs_tower": {
+    "s_centers": 4,
+    "compared": 4,
+    "diffs": 0,
+    "upgrade_pending": []
+   },
+   "s_vs_oracle_diffs": 0,
+   "unit_mismatches": 0
+  },
+  {
+   "bars": 20000,
+   "strokes": 1583,
+   "segments": 24,
+   "completed_units": 24,
+   "tower_l0_centers": 4,
+   "input_contract": "PASS",
+   "geometric_interval_differs": 11,
+   "geometric_start_not_extreme": 9,
+   "geometric_end_not_extreme": 6,
+   "q_contract": "ACCEPT",
+   "pass": true,
+   "oracle": {
+    "centers": 4,
+    "settled": 4,
+    "upgrade_pending": 0,
+    "attempts": 4,
+    "excluded": 0,
+    "cursor": {
+     "state": "SEEKING_SEED",
+     "seed_start": 22,
+     "awaiting_unit": 24
+    }
+   },
+   "tower_vs_oracle_diffs": 0,
+   "s_vs_tower": {
+    "s_centers": 4,
+    "compared": 4,
+    "diffs": 0,
+    "upgrade_pending": []
+   },
+   "s_vs_oracle_diffs": 0,
+   "unit_mismatches": 0
+  },
+  {
+   "bars": 30000,
+   "strokes": 2391,
+   "segments": 24,
+   "completed_units": 24,
+   "tower_l0_centers": 4,
+   "input_contract": "PASS",
+   "geometric_interval_differs": 11,
+   "geometric_start_not_extreme": 9,
+   "geometric_end_not_extreme": 6,
+   "q_contract": "ACCEPT",
+   "pass": true,
+   "oracle": {
+    "centers": 4,
+    "settled": 4,
+    "upgrade_pending": 0,
+    "attempts": 4,
+    "excluded": 0,
+    "cursor": {
+     "state": "SEEKING_SEED",
+     "seed_start": 22,
+     "awaiting_unit": 24
+    }
+   },
+   "tower_vs_oracle_diffs": 0,
+   "s_vs_tower": {
+    "s_centers": 4,
+    "compared": 4,
+    "diffs": 0,
+    "upgrade_pending": []
+   },
+   "s_vs_oracle_diffs": 0,
+   "unit_mismatches": 0
+  },
+  {
+   "bars": 40000,
+   "strokes": 3221,
+   "segments": 30,
+   "completed_units": 30,
+   "tower_l0_centers": 5,
+   "input_contract": "PASS",
+   "geometric_interval_differs": 14,
+   "geometric_start_not_extreme": 12,
+   "geometric_end_not_extreme": 7,
+   "q_contract": "ACCEPT",
+   "pass": true,
+   "oracle": {
+    "centers": 5,
+    "settled": 5,
+    "upgrade_pending": 0,
+    "attempts": 5,
+    "excluded": 0,
+    "cursor": {
+     "state": "SEEKING_SEED",
+     "seed_start": 29,
+     "awaiting_unit": 31
+    }
+   },
+   "tower_vs_oracle_diffs": 0,
+   "s_vs_tower": {
+    "s_centers": 5,
+    "compared": 5,
+    "diffs": 0,
+    "upgrade_pending": []
+   },
+   "s_vs_oracle_diffs": 0,
+   "unit_mismatches": 0
+  },
+  {
+   "bars": 49995,
+   "strokes": 4016,
+   "segments": 72,
+   "completed_units": 72,
+   "tower_l0_centers": 16,
+   "input_contract": "PASS",
+   "geometric_interval_differs": 35,
+   "geometric_start_not_extreme": 32,
+   "geometric_end_not_extreme": 16,
+   "q_contract": "ACCEPT",
+   "pass": true,
+   "oracle": {
+    "centers": 10,
+    "settled": 9,
+    "upgrade_pending": 2,
+    "attempts": 11,
+    "excluded": 1,
+    "cursor": {
+     "state": "EXTENDING",
+     "center": "J",
+     "next_unit": 72
+    }
+   },
+   "tower_vs_oracle_diffs": 0,
+   "s_vs_tower": {
+    "s_centers": 10,
+    "compared": 8,
+    "diffs": 0,
+    "upgrade_pending": [
+     {
+      "first": 38,
+      "last": 53,
+      "members": 16,
+      "tower_subcenters": [
+       [
+        38,
+        40
+       ],
+       [
+        41,
+        43
+       ],
+       [
+        44,
+        46
+       ],
+       [
+        47,
+        49
+       ],
+       [
+        50,
+        53
+       ]
+      ]
+     },
+     {
+      "first": 55,
+      "last": 64,
+      "members": 10,
+      "tower_subcenters": [
+       [
+        55,
+        57
+       ],
+       [
+        58,
+        60
+       ],
+       [
+        61,
+        64
+       ]
+      ]
+     }
+    ]
+   },
+   "s_vs_oracle_diffs": 0,
+   "unit_mismatches": 0
+  }
+ ]
+}

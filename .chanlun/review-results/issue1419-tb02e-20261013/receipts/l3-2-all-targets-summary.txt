@@ -1,0 +1,120 @@
+Wed Oct 14 06:43:25 CST 2026
+d252807bdc docs(#1419): 根裁定 L3 正本落地——xianduan §8 段区间=成员笔方向极值（078:58/:60/:42 四步核）、§15 X-21～X-24；zhongshu §9.6 补 R30、L15，P16 改 v1.3；schema v1.3 入仓
+     Running unittests src/lib.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/newchan_rust-4d4e45e146cf1df5)
+test result: FAILED. 2981 passed; 3 failed; 162 ignored; 0 measured; 0 filtered out; finished in 82.80s
+     Running unittests src/bin/cp_capability_smoke.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/cp_capability_smoke-cf30c328d64b76f4)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/issue550_event_battery.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/issue550_event_battery-9b7ad270a24871b7)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p102_b_long_zero_probe.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p102_b_long_zero_probe-8bf9bfeabafd9768)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p104_trend_div_funnel.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p104_trend_div_funnel-cc977c77b03239f6)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p106_cert_forward_pnl.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p106_cert_forward_pnl-9365df3601dad382)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p107_level_funnel_audit.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p107_level_funnel_audit-bb21796c3f265d75)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p108_dparent_caliber_counterfactual.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p108_dparent_caliber_counterfactual-6ab209e02ee90f15)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p109_chain157_gate_attrition.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p109_chain157_gate_attrition-734f5aa57047d8cf)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p111_parent_divergence_validity.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p111_parent_divergence_validity-1fe85881fb897642)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p112_trend_predicate_caseaudit.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p112_trend_predicate_caseaudit-20ab6ba46393cf77)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p113_pan_caseaudit.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p113_pan_caseaudit-2bf234ed512c0bf6)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p116_turnpoint_anchor_existence.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p116_turnpoint_anchor_existence-d9b84de627fe17b0)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p117_h4_attribution.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p117_h4_attribution-42a38315a19065e3)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p117_s1a_level_recheck.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p117_s1a_level_recheck-28e471f8e017a21a)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p119_l5_decompose.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p119_l5_decompose-5aa37194cd4a8c8b)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p122_replay_profile.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p122_replay_profile-a5aa4078a634b508)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p123_fast_replay.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p123_fast_replay-047c968bdbe6bd2e)
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p124_merge.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p124_merge-3e3450e21afd72ea)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p124_shard_replay.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p124_shard_replay-39a5469bebd8f35b)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p125_endorsement_audit.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p125_endorsement_audit-affb75fc71a9cc24)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p126_d3_descending_clock.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p126_d3_descending_clock-d6d2f856428451af)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p127_skip_impact.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p127_skip_impact-1e1596cd1ad685e7)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p129_44ke_strict_skip.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p129_44ke_strict_skip-7be2e528ca18399b)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p409_pan_live_probe.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p409_pan_live_probe-1da17d7f66d0956f)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p76_case2_replay.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p76_case2_replay-7ad394ac71531a78)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p83_yield_remeasure.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p83_yield_remeasure-ffa479bddd9c4a82)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p84_failclosed_audit.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p84_failclosed_audit-32a016be86768c8d)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p86_anchor_hypothesis.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p86_anchor_hypothesis-412c1688a7aab7f7)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p89_dual_core_audit.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p89_dual_core_audit-19cf20563ce74e54)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p92_nest_replay_postruling.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p92_nest_replay_postruling-17710b664bd96c9f)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p93_invalidseed_probe.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p93_invalidseed_probe-943e290189bbe1fd)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p940_struct_input_abc.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p940_struct_input_abc-2a0a60ff1c273df5)
+test result: ok. 32 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running unittests src/bin/p944_bsp_layer_mismatch.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p944_bsp_layer_mismatch-c667a318f4e9189b)
+test result: ok. 33 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p946_seg_structure_alignment.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p946_seg_structure_alignment-d95969bd883cd392)
+test result: ok. 25 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running unittests src/bin/p95_carriedonly_ab.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p95_carriedonly_ab-5be836c8b83e522d)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p985_s8_consume_baseline.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p985_s8_consume_baseline-432f199dd9ab0cd1)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p_issue668_bsp_bridge_battery.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p_issue668_bsp_bridge_battery-3642a452996597c6)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/p_issue668_bsp_key_truth.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/p_issue668_bsp_key_truth-66b8ed177b848381)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/s2_lean_mirror_extract.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/s2_lean_mirror_extract-bdef492d686dc11a)
+test result: ok. 26 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.02s
+     Running unittests src/bin/strict_nest_check.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/strict_nest_check-395e23ef1d796450)
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/bin/tangency_probe.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/tangency_probe-c9e33c866a3ed1c5)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/bsp_predicate_lean_parity.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/bsp_predicate_lean_parity-78bc1944721c3c24)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/certificate_chain_single_source.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/certificate_chain_single_source-2c09f4bb2f615748)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+     Running tests/econ_oddeven_diagnosis.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/econ_oddeven_diagnosis-3500755c4b103185)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/issue533_p123_byte_guardrail.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/issue533_p123_byte_guardrail-a3e43438411bdcf7)
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/nest_isolation_guard.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/nest_isolation_guard-dd40c569757aa6dc)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+     Running tests/theta_pi_stream.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/theta_pi_stream-310816c8bdb30b14)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/theta_v0_07b_gating.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/theta_v0_07b_gating-81a722a86d836c69)
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/theta_v0_buy_parity.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/theta_v0_buy_parity-5ebaeab4060b0106)
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/theta_v0_center_parity.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/theta_v0_center_parity-a6c8932cf75eaa3b)
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/theta_v0_classifier_parity.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/theta_v0_classifier_parity-c8cf8ba27e6b3911)
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/theta_v0_fixture_drift.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/theta_v0_fixture_drift-abd0b3b9fff7b138)
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/theta_v0_lean_parity.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/theta_v0_lean_parity-4d4de8a321058fc9)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/theta_v0_perf_profile.rs (/private/tmp/goal1323-native-20261012/tb1419-target/debug/deps/theta_v0_perf_profile-913e9a7603cee953)
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+## failures
+test theta_v0::backtest::tick::tests::seam_btc_tick_bars_yield_non_trivial_structure ... FAILED
+test theta_v0::backtest::l3_delta_r_alpha::tests::m3_partition_synthetic_holds ... FAILED
+test theta_v0::backtest::tick::tests::calibration_sweep_finds_non_collapsed_segments ... FAILED
+error: 1 target failed:
+    `--lib`
+EXIT=101
+Wed Oct 14 06:45:46 CST 2026

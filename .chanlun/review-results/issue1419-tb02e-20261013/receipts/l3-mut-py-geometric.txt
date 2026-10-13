@@ -1,0 +1,6 @@
+== Python 几何端点变异
+ERROR: test_python_and_js_agree_case_by_case (test_tb02e_contract.CenterContractCorpus.test_python_and_js_agree_case_by_case)
+ERROR: test_python_judges_every_case_as_expected (test_tb02e_contract.CenterContractCorpus.test_python_judges_every_case_as_expected)
+FAIL: test_python_units_are_member_stroke_extremes_equal_tower (test_tb02e_real_units.RealUnitIntervals.test_python_units_are_member_stroke_extremes_equal_tower)
+Ran 7 tests in 0.081s
+FAILED (failures=1, errors=2)

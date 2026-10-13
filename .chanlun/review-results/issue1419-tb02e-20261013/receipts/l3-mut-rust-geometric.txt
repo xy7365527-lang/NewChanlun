@@ -1,0 +1,4 @@
+test tb02e::tests::tb02e_real_btc_unit_interval_is_member_stroke_extremes ... FAILED
+test result: FAILED. 11 passed; 1 failed; 0 ignored; 0 measured; 82 filtered out; finished in 7.84s
+error: test failed, to rerun pass `--bin s_structure_session`
+error: 1 target failed:

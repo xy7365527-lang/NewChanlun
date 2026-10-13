@@ -1,0 +1,8 @@
+== JS 几何端点变异
+# pass 1
+# fail 1
+FAIL: test_python_and_js_agree_case_by_case (test_tb02e_contract.CenterContractCorpus.test_python_and_js_agree_case_by_case) (case='unit_interval_member_extremes_not_geometric')
+FAIL: test_python_and_js_agree_case_by_case (test_tb02e_contract.CenterContractCorpus.test_python_and_js_agree_case_by_case) (case='unit_member_stroke_missing_ref')
+FAIL: test_js_units_are_member_stroke_extremes_equal_tower (test_tb02e_real_units.RealUnitIntervals.test_js_units_are_member_stroke_extremes_equal_tower)
+Ran 7 tests in 0.127s
+FAILED (failures=3)

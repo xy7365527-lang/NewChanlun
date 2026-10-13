@@ -1,0 +1,26 @@
+Wed Oct 14 06:54:34 CST 2026
+48e2386463 docs(#1419): 订正 L3 实测读数——按成员笔方向极值计，72 段中 32 段起点、16 段终点不是段内极值（35 段几何端点区间不同）；旧 39/22 按全部 stroke_refs 包络计、越过段端
+## py main
+----------------------------------------------------------------------
+Ran 60 tests in 1.980s
+
+OK
+## py tb02c (venv-ijson)
+----------------------------------------------------------------------
+Ran 14 tests in 0.166s
+
+OK
+Wed Oct 14 06:54:40 CST 2026
+## node test_tb02e_contract.cjs
+ℹ tests 2
+ℹ pass 2
+ℹ fail 0
+## node test_tb02c_contract.cjs
+ℹ tests 6
+ℹ pass 6
+ℹ fail 0
+## node test_tb01c_browser.cjs
+ℹ tests 1
+ℹ pass 1
+ℹ fail 0
+Wed Oct 14 06:55:00 CST 2026
