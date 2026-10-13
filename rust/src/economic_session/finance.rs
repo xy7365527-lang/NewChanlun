@@ -41,6 +41,8 @@ fn revision(m: &Value) -> Result<&'static str, String> {
     }
 }
 const LIMIT: usize = 16 * 1024 * 1024;
+/// #1349 共同资金争用政策的具名 id（ADR 0029 裁定一：整 slot 原子等待）。版本字段与失效/重组归 #1408。
+pub(super) const ALLOCATION_POLICY_ID: &str = "#1349/atomic-slot-wait/v1";
 pub(super) fn enabled(config: &Config) -> bool {
     config.manifest.get("finance").is_some_and(|v| !v.is_null())
 }
@@ -222,7 +224,7 @@ fn input(config: &Config, raw: &str) -> Result<Value, String> {
     ] {
         required(p, k)?;
     }
-    if p["allocation_policy_id"] != "#1349/unresolved-common-cap-allocation"
+    if p["allocation_policy_id"] != ALLOCATION_POLICY_ID
         || p["model"] != "TestOnlyUnleveragedCashBuy"
         || p["quantum"] != "1"
     {
@@ -913,10 +915,9 @@ fn reduce(
                 .iter()
                 .any(|s| s["state"] == "AwaitingAllocationPolicy")
             {
-                return Err(
-                    "AwaitingPolicy：#1349/unresolved-common-cap-allocation；不得让其他 slot 插队"
-                        .into(),
-                );
+                return Err(format!(
+                    "AwaitingPolicy：{ALLOCATION_POLICY_ID}；不得让其他 slot 插队"
+                ));
             }
             let closed = f
                 .get("closed_applicants")

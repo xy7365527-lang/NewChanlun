@@ -178,7 +178,7 @@
     const p=data.policy,b=data.baseline;
     keys(p,["policy_id","allocation_policy_id","cap","currency","money_unit","quantity_unit","quantum","capability_id","model","valid_through_ns"],"原资金政策");
     for(const k of ["policy_id","currency","money_unit","quantity_unit","capability_id"])text(p[k],"政策 "+k);
-    need(p.allocation_policy_id==="#1349/unresolved-common-cap-allocation" && p.model==="TestOnlyUnleveragedCashBuy" && p.quantum==="1","原 TestOnly 政策能力范围不同");
+    need(p.allocation_policy_id==="#1349/atomic-slot-wait/v1" && p.model==="TestOnlyUnleveragedCashBuy" && p.quantum==="1","原 TestOnly 政策能力范围不同");
     integer(p.cap);integer(p.valid_through_ns);
     keys(b,["responsibility_id","amount","source_ref","covered_facts"],"原责任界");text(b.responsibility_id,"责任身份");text(b.source_ref,"责任来源");integer(b.amount);
     need(Array.isArray(b.covered_facts),"原责任覆盖须数组");const facts=new Set();
@@ -403,7 +403,7 @@
       keys(s,["closed_applicants","grants","policy_id","required_total","reserve_ns","reserve_seq","retained_total","slot","slot_id","state","waiting_for"],"财务 slot");
       need(domain==="E" && !slotIds.has(s.slot_id) && ["Reserved","AwaitingAllocationPolicy"].includes(s.state),"slot 身份或状态不同");slotIds.add(s.slot_id);
       need(Array.isArray(s.grants) && Array.isArray(s.closed_applicants) && s.slot.slot_id===s.slot_id,"slot 原件不同");
-      if(s.state==="AwaitingAllocationPolicy")need(s.waiting_for==="#1349/unresolved-common-cap-allocation" && s.grants.length===0,"未决政策不能选择赢家");
+      if(s.state==="AwaitingAllocationPolicy")need(s.waiting_for==="#1349/atomic-slot-wait/v1" && s.grants.length===0,"未决政策不能选择赢家");
       need(integer(s.reserve_seq,true)<=integer(view.cut.commit_seq) && integer(s.reserve_ns)<=integer(view.commit_ns),"Reserve 晚于固定切面");
       const reserve=image.history.find(e=>e.kind==="Reserve" && e.commit_seq===s.reserve_seq);
       need(reserve && same(reserve.record,s),"slot 与历史 Reserve 不同");

@@ -123,7 +123,7 @@ impl Fixture {
         }
         let applicant_list = Value::Array(applicants.iter().map(|n| json!(n)).collect());
         let request_hash = hash(&applicant_list);
-        let data = json!({"schema_revision":REV,"kind":"TestOnly","source_id":"unit-fixture","source_epoch":"1","policy":{"policy_id":format!("TestOnly-cash-cap-{cap}"),"allocation_policy_id":"#1349/unresolved-common-cap-allocation","cap":cap,"currency":"TEST-CASH","money_unit":"TEST-CASH","quantity_unit":"TEST-UNIT","quantum":"1","capability_id":"TestOnly-no-leverage-no-venue","model":"TestOnlyUnleveragedCashBuy","valid_through_ns":"100000"},"baseline":{"responsibility_id":"existing20","amount":"20","source_ref":"TestOnly-existing-full-liability-original","covered_facts":covered},"rights":rights,"plans":plans,"slots":[{"slot_id":"slot","applicants":applicant_list,"input_end":{"kind":"ControlledInputEnd","source_id":"unit-fixture","source_epoch":"1","watermark":"2","complete_request_hash":request_hash}}]});
+        let data = json!({"schema_revision":REV,"kind":"TestOnly","source_id":"unit-fixture","source_epoch":"1","policy":{"policy_id":format!("TestOnly-cash-cap-{cap}"),"allocation_policy_id":"#1349/atomic-slot-wait/v1","cap":cap,"currency":"TEST-CASH","money_unit":"TEST-CASH","quantity_unit":"TEST-UNIT","quantum":"1","capability_id":"TestOnly-no-leverage-no-venue","model":"TestOnlyUnleveragedCashBuy","valid_through_ns":"100000"},"baseline":{"responsibility_id":"existing20","amount":"20","source_ref":"TestOnly-existing-full-liability-original","covered_facts":covered},"rights":rights,"plans":plans,"slots":[{"slot_id":"slot","applicants":applicant_list,"input_end":{"kind":"ControlledInputEnd","source_id":"unit-fixture","source_epoch":"1","watermark":"2","complete_request_hash":request_hash}}]});
         let (ip, ih) = save(&dir, "input.json", &data);
         let source = json!({"source_namespace":"test","source_epoch":"one","producer_id":"unit","producer_epoch":"1"});
         let mut auth = source.clone();
@@ -344,10 +344,7 @@ fn insufficient_cap_waits_for_exact_policy_without_selecting_winner() {
     f.prepare();
     let r = f.step(0, "Reserve", "slot");
     assert_eq!(r["record"]["state"], "AwaitingAllocationPolicy");
-    assert_eq!(
-        r["record"]["waiting_for"],
-        "#1349/unresolved-common-cap-allocation"
-    );
+    assert_eq!(r["record"]["waiting_for"], "#1349/atomic-slot-wait/v1");
     assert_eq!(r["record"]["retained_total"], "20");
     assert_eq!(r["record"]["required_total"], "90");
     assert_eq!(r["record"]["grants"], json!([]));

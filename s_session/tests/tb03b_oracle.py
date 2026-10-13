@@ -45,7 +45,8 @@ def check(manifest_path, expect="committed"):
     assert hashlib.sha256(data_raw).hexdigest() == manifest["finance"]["input_sha256"]
     data = json.loads(data_raw)
     assert data["kind"] == "TestOnly" and data["policy"]["model"] == "TestOnlyUnleveragedCashBuy"
-    assert data["policy"]["allocation_policy_id"] == "#1349/unresolved-common-cap-allocation"
+    # ADR 0029 裁定一：具名政策 id。
+    assert data["policy"]["allocation_policy_id"] == "#1349/atomic-slot-wait/v1"
     rights = {r["right_id"]: r for r in data["rights"]}
     baseline, cap = amount(data["baseline"]["amount"]), amount(data["policy"]["cap"])
     expected = {}
