@@ -1,0 +1,17 @@
+{
+  "schema": "tb02e-fixture-manifest/1",
+  "ticket": 1419,
+  "inputs": 43,
+  "cases": [
+    "min12_up",
+    "min12_down"
+  ],
+  "artifacts": {
+    "raw-ledger.json": "dd27ca6762c53cdbf8cbeaa72239f8981ba053f03148f794155180d6fe7b0b41",
+    "hand-oracle.json": "48861acbe46ea536516e03f3861288f0b367191f3355031a5c8754e5c995ad28"
+  },
+  "generator_sha256": "d99f8c278a99d1ffeb4fb159f80583d5c9cbe80fc734015936a9c2e3db416fe3",
+  "tb02d_generator_sha256": "a8ef0768d2f626d671f26d2e4d832d3635dbc1f708d2cbba5ee5bd416b3cdd16",
+  "provenance": "手算规则见生成器文档；仅由设计端点生成，未导入生产输出",
+  "scope": "根裁 D-E (B)：正式运行只到第 43 条（2 个完成段 + 进行中段），不出 seed/中枢"
+}

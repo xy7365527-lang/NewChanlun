@@ -1,0 +1,582 @@
+{
+  "schema": "tb02e-hand-oracle/1",
+  "ticket": 1419,
+  "design_points": [
+    10,
+    30,
+    20,
+    50,
+    25,
+    45,
+    15,
+    35,
+    20,
+    40,
+    28,
+    38,
+    22
+  ],
+  "res": 10,
+  "price_transform": {
+    "base": 2000,
+    "scale": 100,
+    "mirror": 100000
+  },
+  "provenance": "手算规则见生成器文档；仅由设计端点生成，未导入生产输出",
+  "scope": "根裁 D-E (B)：正式运行只到第 43 条（2 个完成段 + 进行中段），不出 seed/中枢",
+  "cut_convention": "cuts 键为已接纳 raw 条数 N；input_frontier = N−1",
+  "recovery_cuts": [
+    27,
+    43
+  ],
+  "cases": {
+    "min12_up": {
+      "direction": "UP",
+      "units": [
+        {
+          "unit_id": "segment:1:1",
+          "direction": "UP",
+          "lo": 12000,
+          "hi": 52000,
+          "completed_at_input_count": 27
+        },
+        {
+          "unit_id": "segment:1:13",
+          "direction": "DOWN",
+          "lo": 17000,
+          "hi": 52000,
+          "completed_at_input_count": 39
+        },
+        {
+          "unit_id": "segment:1:25",
+          "direction": "UP",
+          "lo": 17000,
+          "hi": 42000,
+          "completed_at_input_count": 51
+        },
+        {
+          "unit_id": "segment:1:37",
+          "direction": "DOWN",
+          "lo": 24000,
+          "hi": 42000,
+          "completed_at_input_count": 63
+        }
+      ],
+      "cuts": {
+        "26": {
+          "input_count": 26,
+          "input_frontier": "25",
+          "completed_units": [],
+          "in_progress_unit": "segment:1:1",
+          "assignments": [
+            {
+              "unit_id": "segment:1:1",
+              "completed": false,
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "UNIT_NOT_COMPLETED",
+              "seed_from_self": "NOT_EVALUATED"
+            }
+          ],
+          "scan_cursor": {
+            "awaiting_after_unit_id": null,
+            "awaiting_offset": "3",
+            "awaiting_unit_id": null,
+            "center_id": null,
+            "seed_start_unit_id": "segment:1:1",
+            "state": "SEEKING_SEED"
+          },
+          "waiting_reasons": [
+            "UNIT_NOT_COMPLETED"
+          ],
+          "center_kinds_absent": [
+            "CC-016.center_seed_attempt",
+            "CC-016.center",
+            "CC-017.center_roles",
+            "CC-055.center_relation",
+            "CC-055.center_change"
+          ]
+        },
+        "27": {
+          "input_count": 27,
+          "input_frontier": "26",
+          "completed_units": [
+            "segment:1:1"
+          ],
+          "in_progress_unit": "segment:1:13",
+          "assignments": [
+            {
+              "unit_id": "segment:1:1",
+              "completed": true,
+              "direction": "UP",
+              "lo": "12000",
+              "hi": "52000",
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "NO_LEFT_CENTER_IN_WINDOW",
+              "seed_from_self": "NOT_EVALUATED"
+            },
+            {
+              "unit_id": "segment:1:13",
+              "completed": false,
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "UNIT_NOT_COMPLETED",
+              "seed_from_self": "NOT_EVALUATED"
+            }
+          ],
+          "scan_cursor": {
+            "awaiting_after_unit_id": "segment:1:1",
+            "awaiting_offset": "2",
+            "awaiting_unit_id": null,
+            "center_id": null,
+            "seed_start_unit_id": "segment:1:1",
+            "state": "SEEKING_SEED"
+          },
+          "waiting_reasons": [
+            "NO_LEFT_CENTER_IN_WINDOW",
+            "UNIT_NOT_COMPLETED"
+          ],
+          "center_kinds_absent": [
+            "CC-016.center_seed_attempt",
+            "CC-016.center",
+            "CC-017.center_roles",
+            "CC-055.center_relation",
+            "CC-055.center_change"
+          ]
+        },
+        "38": {
+          "input_count": 38,
+          "input_frontier": "37",
+          "completed_units": [
+            "segment:1:1"
+          ],
+          "in_progress_unit": "segment:1:13",
+          "assignments": [
+            {
+              "unit_id": "segment:1:1",
+              "completed": true,
+              "direction": "UP",
+              "lo": "12000",
+              "hi": "52000",
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "NO_LEFT_CENTER_IN_WINDOW",
+              "seed_from_self": "NOT_EVALUATED"
+            },
+            {
+              "unit_id": "segment:1:13",
+              "completed": false,
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "UNIT_NOT_COMPLETED",
+              "seed_from_self": "NOT_EVALUATED"
+            }
+          ],
+          "scan_cursor": {
+            "awaiting_after_unit_id": "segment:1:1",
+            "awaiting_offset": "2",
+            "awaiting_unit_id": null,
+            "center_id": null,
+            "seed_start_unit_id": "segment:1:1",
+            "state": "SEEKING_SEED"
+          },
+          "waiting_reasons": [
+            "NO_LEFT_CENTER_IN_WINDOW",
+            "UNIT_NOT_COMPLETED"
+          ],
+          "center_kinds_absent": [
+            "CC-016.center_seed_attempt",
+            "CC-016.center",
+            "CC-017.center_roles",
+            "CC-055.center_relation",
+            "CC-055.center_change"
+          ]
+        },
+        "39": {
+          "input_count": 39,
+          "input_frontier": "38",
+          "completed_units": [
+            "segment:1:1",
+            "segment:1:13"
+          ],
+          "in_progress_unit": "segment:1:25",
+          "assignments": [
+            {
+              "unit_id": "segment:1:1",
+              "completed": true,
+              "direction": "UP",
+              "lo": "12000",
+              "hi": "52000",
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "NO_LEFT_CENTER_IN_WINDOW",
+              "seed_from_self": "NOT_EVALUATED"
+            },
+            {
+              "unit_id": "segment:1:13",
+              "completed": true,
+              "direction": "DOWN",
+              "lo": "17000",
+              "hi": "52000",
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "NO_LEFT_CENTER_IN_WINDOW",
+              "seed_from_self": "NOT_EVALUATED"
+            },
+            {
+              "unit_id": "segment:1:25",
+              "completed": false,
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "UNIT_NOT_COMPLETED",
+              "seed_from_self": "NOT_EVALUATED"
+            }
+          ],
+          "scan_cursor": {
+            "awaiting_after_unit_id": null,
+            "awaiting_offset": null,
+            "awaiting_unit_id": "segment:1:25",
+            "center_id": null,
+            "seed_start_unit_id": "segment:1:1",
+            "state": "SEEKING_SEED"
+          },
+          "waiting_reasons": [
+            "NO_LEFT_CENTER_IN_WINDOW",
+            "UNIT_NOT_COMPLETED"
+          ],
+          "center_kinds_absent": [
+            "CC-016.center_seed_attempt",
+            "CC-016.center",
+            "CC-017.center_roles",
+            "CC-055.center_relation",
+            "CC-055.center_change"
+          ]
+        },
+        "43": {
+          "input_count": 43,
+          "input_frontier": "42",
+          "completed_units": [
+            "segment:1:1",
+            "segment:1:13"
+          ],
+          "in_progress_unit": "segment:1:25",
+          "assignments": [
+            {
+              "unit_id": "segment:1:1",
+              "completed": true,
+              "direction": "UP",
+              "lo": "12000",
+              "hi": "52000",
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "NO_LEFT_CENTER_IN_WINDOW",
+              "seed_from_self": "NOT_EVALUATED"
+            },
+            {
+              "unit_id": "segment:1:13",
+              "completed": true,
+              "direction": "DOWN",
+              "lo": "17000",
+              "hi": "52000",
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "NO_LEFT_CENTER_IN_WINDOW",
+              "seed_from_self": "NOT_EVALUATED"
+            },
+            {
+              "unit_id": "segment:1:25",
+              "completed": false,
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "UNIT_NOT_COMPLETED",
+              "seed_from_self": "NOT_EVALUATED"
+            }
+          ],
+          "scan_cursor": {
+            "awaiting_after_unit_id": null,
+            "awaiting_offset": null,
+            "awaiting_unit_id": "segment:1:25",
+            "center_id": null,
+            "seed_start_unit_id": "segment:1:1",
+            "state": "SEEKING_SEED"
+          },
+          "waiting_reasons": [
+            "NO_LEFT_CENTER_IN_WINDOW",
+            "UNIT_NOT_COMPLETED"
+          ],
+          "center_kinds_absent": [
+            "CC-016.center_seed_attempt",
+            "CC-016.center",
+            "CC-017.center_roles",
+            "CC-055.center_relation",
+            "CC-055.center_change"
+          ]
+        }
+      }
+    },
+    "min12_down": {
+      "direction": "DOWN",
+      "units": [
+        {
+          "unit_id": "segment:1:1",
+          "direction": "DOWN",
+          "lo": 48000,
+          "hi": 88000,
+          "completed_at_input_count": 27
+        },
+        {
+          "unit_id": "segment:1:13",
+          "direction": "UP",
+          "lo": 48000,
+          "hi": 83000,
+          "completed_at_input_count": 39
+        },
+        {
+          "unit_id": "segment:1:25",
+          "direction": "DOWN",
+          "lo": 58000,
+          "hi": 83000,
+          "completed_at_input_count": 51
+        },
+        {
+          "unit_id": "segment:1:37",
+          "direction": "UP",
+          "lo": 58000,
+          "hi": 76000,
+          "completed_at_input_count": 63
+        }
+      ],
+      "cuts": {
+        "26": {
+          "input_count": 26,
+          "input_frontier": "25",
+          "completed_units": [],
+          "in_progress_unit": "segment:1:1",
+          "assignments": [
+            {
+              "unit_id": "segment:1:1",
+              "completed": false,
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "UNIT_NOT_COMPLETED",
+              "seed_from_self": "NOT_EVALUATED"
+            }
+          ],
+          "scan_cursor": {
+            "awaiting_after_unit_id": null,
+            "awaiting_offset": "3",
+            "awaiting_unit_id": null,
+            "center_id": null,
+            "seed_start_unit_id": "segment:1:1",
+            "state": "SEEKING_SEED"
+          },
+          "waiting_reasons": [
+            "UNIT_NOT_COMPLETED"
+          ],
+          "center_kinds_absent": [
+            "CC-016.center_seed_attempt",
+            "CC-016.center",
+            "CC-017.center_roles",
+            "CC-055.center_relation",
+            "CC-055.center_change"
+          ]
+        },
+        "27": {
+          "input_count": 27,
+          "input_frontier": "26",
+          "completed_units": [
+            "segment:1:1"
+          ],
+          "in_progress_unit": "segment:1:13",
+          "assignments": [
+            {
+              "unit_id": "segment:1:1",
+              "completed": true,
+              "direction": "DOWN",
+              "lo": "48000",
+              "hi": "88000",
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "NO_LEFT_CENTER_IN_WINDOW",
+              "seed_from_self": "NOT_EVALUATED"
+            },
+            {
+              "unit_id": "segment:1:13",
+              "completed": false,
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "UNIT_NOT_COMPLETED",
+              "seed_from_self": "NOT_EVALUATED"
+            }
+          ],
+          "scan_cursor": {
+            "awaiting_after_unit_id": "segment:1:1",
+            "awaiting_offset": "2",
+            "awaiting_unit_id": null,
+            "center_id": null,
+            "seed_start_unit_id": "segment:1:1",
+            "state": "SEEKING_SEED"
+          },
+          "waiting_reasons": [
+            "NO_LEFT_CENTER_IN_WINDOW",
+            "UNIT_NOT_COMPLETED"
+          ],
+          "center_kinds_absent": [
+            "CC-016.center_seed_attempt",
+            "CC-016.center",
+            "CC-017.center_roles",
+            "CC-055.center_relation",
+            "CC-055.center_change"
+          ]
+        },
+        "38": {
+          "input_count": 38,
+          "input_frontier": "37",
+          "completed_units": [
+            "segment:1:1"
+          ],
+          "in_progress_unit": "segment:1:13",
+          "assignments": [
+            {
+              "unit_id": "segment:1:1",
+              "completed": true,
+              "direction": "DOWN",
+              "lo": "48000",
+              "hi": "88000",
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "NO_LEFT_CENTER_IN_WINDOW",
+              "seed_from_self": "NOT_EVALUATED"
+            },
+            {
+              "unit_id": "segment:1:13",
+              "completed": false,
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "UNIT_NOT_COMPLETED",
+              "seed_from_self": "NOT_EVALUATED"
+            }
+          ],
+          "scan_cursor": {
+            "awaiting_after_unit_id": "segment:1:1",
+            "awaiting_offset": "2",
+            "awaiting_unit_id": null,
+            "center_id": null,
+            "seed_start_unit_id": "segment:1:1",
+            "state": "SEEKING_SEED"
+          },
+          "waiting_reasons": [
+            "NO_LEFT_CENTER_IN_WINDOW",
+            "UNIT_NOT_COMPLETED"
+          ],
+          "center_kinds_absent": [
+            "CC-016.center_seed_attempt",
+            "CC-016.center",
+            "CC-017.center_roles",
+            "CC-055.center_relation",
+            "CC-055.center_change"
+          ]
+        },
+        "39": {
+          "input_count": 39,
+          "input_frontier": "38",
+          "completed_units": [
+            "segment:1:1",
+            "segment:1:13"
+          ],
+          "in_progress_unit": "segment:1:25",
+          "assignments": [
+            {
+              "unit_id": "segment:1:1",
+              "completed": true,
+              "direction": "DOWN",
+              "lo": "48000",
+              "hi": "88000",
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "NO_LEFT_CENTER_IN_WINDOW",
+              "seed_from_self": "NOT_EVALUATED"
+            },
+            {
+              "unit_id": "segment:1:13",
+              "completed": true,
+              "direction": "UP",
+              "lo": "48000",
+              "hi": "83000",
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "NO_LEFT_CENTER_IN_WINDOW",
+              "seed_from_self": "NOT_EVALUATED"
+            },
+            {
+              "unit_id": "segment:1:25",
+              "completed": false,
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "UNIT_NOT_COMPLETED",
+              "seed_from_self": "NOT_EVALUATED"
+            }
+          ],
+          "scan_cursor": {
+            "awaiting_after_unit_id": null,
+            "awaiting_offset": null,
+            "awaiting_unit_id": "segment:1:25",
+            "center_id": null,
+            "seed_start_unit_id": "segment:1:1",
+            "state": "SEEKING_SEED"
+          },
+          "waiting_reasons": [
+            "NO_LEFT_CENTER_IN_WINDOW",
+            "UNIT_NOT_COMPLETED"
+          ],
+          "center_kinds_absent": [
+            "CC-016.center_seed_attempt",
+            "CC-016.center",
+            "CC-017.center_roles",
+            "CC-055.center_relation",
+            "CC-055.center_change"
+          ]
+        },
+        "43": {
+          "input_count": 43,
+          "input_frontier": "42",
+          "completed_units": [
+            "segment:1:1",
+            "segment:1:13"
+          ],
+          "in_progress_unit": "segment:1:25",
+          "assignments": [
+            {
+              "unit_id": "segment:1:1",
+              "completed": true,
+              "direction": "DOWN",
+              "lo": "48000",
+              "hi": "88000",
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "NO_LEFT_CENTER_IN_WINDOW",
+              "seed_from_self": "NOT_EVALUATED"
+            },
+            {
+              "unit_id": "segment:1:13",
+              "completed": true,
+              "direction": "UP",
+              "lo": "48000",
+              "hi": "83000",
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "NO_LEFT_CENTER_IN_WINDOW",
+              "seed_from_self": "NOT_EVALUATED"
+            },
+            {
+              "unit_id": "segment:1:25",
+              "completed": false,
+              "status": "NOT_YET_ASSIGNED",
+              "reason": "UNIT_NOT_COMPLETED",
+              "seed_from_self": "NOT_EVALUATED"
+            }
+          ],
+          "scan_cursor": {
+            "awaiting_after_unit_id": null,
+            "awaiting_offset": null,
+            "awaiting_unit_id": "segment:1:25",
+            "center_id": null,
+            "seed_start_unit_id": "segment:1:1",
+            "state": "SEEKING_SEED"
+          },
+          "waiting_reasons": [
+            "NO_LEFT_CENTER_IN_WINDOW",
+            "UNIT_NOT_COMPLETED"
+          ],
+          "center_kinds_absent": [
+            "CC-016.center_seed_attempt",
+            "CC-016.center",
+            "CC-017.center_roles",
+            "CC-055.center_relation",
+            "CC-055.center_change"
+          ]
+        }
+      }
+    }
+  }
+}

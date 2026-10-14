@@ -1,0 +1,16 @@
+Wed Oct 14 08:58:10 CST 2026
+46a2d76ea1 d
+binary sha256 38c61eeed8ba79a7…（离线 S CLI 建库，nice，不计时）
+## verify min12_up
+{"status": "passed", "case": "min12_up", "cuts": 43, "oracle_cuts": {"26": {"completed": [], "assignments": 1, "cursor": "SEEKING_SEED"}, "27": {"completed": ["segment:1:1"], "assignments": 2, "cursor": "SEEKING_SEED"}, "38": {"completed": ["segment:1:1"], "assignments": 2, "cursor": "SEEKING_SEED"}, "39": {"completed": ["segment:1:1", "segment:1:13"], "assignments": 3, "cursor": "SEEKING_SEED"}, "43": {"completed": ["segment:1:1", "segment:1:13"], "assignments": 3, "cursor": "SEEKING_SEED"}}, "scope": "frozen named cuts of actual Q（根裁 D-E (B)：无 seed/中枢的前缀）; full natural prefix traces separately captured and compared"}
+## mutate min12_up
+{"lo-1": {"cuts_mutated": 4, "all_caught": true}, "lo+100": {"cuts_mutated": 4, "all_caught": true}, "reason": {"cuts_mutated": 5, "all_caught": true}, "offset": {"cuts_mutated": 3, "all_caught": true}, "awaiting": {"cuts_mutated": 5, "all_caught": true}, "completed": {"cuts_mutated": 4, "all_caught": true}, "absent": {"cuts_mutated": 5, "all_caught": true}, "waiting": {"cuts_mutated": 4, "all_caught": true}}
+ALL_MUTANTS_CAUGHT True
+## verify min12_down
+{"status": "passed", "case": "min12_down", "cuts": 43, "oracle_cuts": {"26": {"completed": [], "assignments": 1, "cursor": "SEEKING_SEED"}, "27": {"completed": ["segment:1:1"], "assignments": 2, "cursor": "SEEKING_SEED"}, "38": {"completed": ["segment:1:1"], "assignments": 2, "cursor": "SEEKING_SEED"}, "39": {"completed": ["segment:1:1", "segment:1:13"], "assignments": 3, "cursor": "SEEKING_SEED"}, "43": {"completed": ["segment:1:1", "segment:1:13"], "assignments": 3, "cursor": "SEEKING_SEED"}}, "scope": "frozen named cuts of actual Q（根裁 D-E (B)：无 seed/中枢的前缀）; full natural prefix traces separately captured and compared"}
+## mutate min12_down
+{"lo-1": {"cuts_mutated": 4, "all_caught": true}, "lo+100": {"cuts_mutated": 4, "all_caught": true}, "reason": {"cuts_mutated": 5, "all_caught": true}, "offset": {"cuts_mutated": 3, "all_caught": true}, "awaiting": {"cuts_mutated": 5, "all_caught": true}, "completed": {"cuts_mutated": 4, "all_caught": true}, "absent": {"cuts_mutated": 5, "all_caught": true}, "waiting": {"cuts_mutated": 4, "all_caught": true}}
+ALL_MUTANTS_CAUGHT True
+## generator self-check
+{  "cases": 2,  "inputs": 43,  "cuts": [    26,    27,    38,    39,    43  ]}
+Wed Oct 14 08:58:38 CST 2026

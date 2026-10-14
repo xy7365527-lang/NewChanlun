@@ -8,7 +8,7 @@
 
 | 门 | 状态 | 由谁 |
 |---|---|---|
-| S9 正式运行验收 | **未跑**。S0b、F1a 与最小流探针已跑完（下节）；根裁 D-E 按 (B) 口径收窄正式运行覆盖面，harness/runtime/verify/浏览器脚本待实施，浏览器槽由根排 | 本工位跑，根判 |
+| S9 正式运行验收 | **脚本与冻结账已落、离线自测通过，正式四臂未跑**。按根裁 D-E (B) 收窄覆盖面（下节）；`tb02e_{harness,runtime,verify}.py`、`tb02e_browser.cjs`、`fixtures/tb02e/` 已入仓。核对器在离线 S CLI 建的真实库上两用例 5 切面全过、8 类变异全被抓（`probes/s9/OFFLINE-SELFTEST.txt`）。正式四臂与浏览器是计时运行，等 r7 S86 结束后根排槽 | 本工位跑，根判 |
 | 独立终审 | **未做**。S4 之后的增量 `1472b7bb..1bf54857` 与 `9cd64da5..48e23864` 没有独立终审过；根定于探针跑完后派审查员做 #1419 全量终审 | 根派 |
 | 合入 | 按定序在 #1394 之后，rebase 义务见末节 | 根 |
 
@@ -100,6 +100,12 @@
 - **最小流 MIN12**（根裁 (A)）：12 笔、52 根，每笔 4 根即新笔下限；按规则最少要 51 条才有 3 个完成段。离线 parser 实测与独立 oracle 逐项相同：第 51 条起 seed FORMED，ZD 17000 < ZG 42000，中枢 EXTENDING，DD 12000，GG 52000。正式会话单臂在第 48 条过帽，耗时曲线与 S0b 逐条重合，所以单条代价只随根数变、与段结构无关。
 
 **正式运行覆盖边界（根裁 D-E 取 (B)）**：S9 正式会话只跑到第 47 条以内的前缀，即 2 个完成段加 1 个进行中段。正式运行能证明的是 TB-02-E 在正式入口、公共查询与浏览器上非空（CC-022 单元归属、CC-056 版本与游标、等待原因），以及 a/b 新进程重放与恢复；**CC-016 seed 与中枢、CC-017 角色在正式运行里不出现**。E2/E3 等需要 14 段的工作例，以及 seed、角色、续扫、归属的全部断言，改由三部分承担：单元测试（`tb02e_*`、`center_scan_1419`）、oracle 全切面核对（`tb02e_writer_output_passes_python_center_contract_on_all_oracle_cuts`）、真实数据 L3（上节）。原因：S 摄入每个 cut 全量重算，代价随历史超线性。根已确认这与 #1481 阶段 0 测得的「非审计路径 ∝ g^1.56–1.84」同一根因，将另开构造降阶票，本票只登记指向；MIN12 流已冻结（`probes/min12/`），供降阶后作验收输入。服务路径上第 46 条附近的单条跳变（5.4 s → 9.5 s，三条不同的流在同一位置出现；离线 CLI 逐条调用时没有）原因未查，一并登记给该票。
+
+## S9（B）正式运行的脚本与冻结账
+
+- 输入：`s_session/tests/fixtures/tb02e/`（`generate-input.py` → `raw-ledger.json`、`hand-oracle.json`、`MANIFEST.json`），取 MIN12 前 43 根，UP 与 DOWN 镜像两个用例。手算账在第 26、27、38、39、43 条五个切面上写明：完成段与进行中段、每个单元的 CC-022 归属（成员笔极值区间、`NOT_YET_ASSIGNED` 与原因、`seed_from_self`）、CC-056 游标四元组与等待原因、中枢类 kind 缺席。生成器只用标准库与 TB-02-D 的 `raw_rows`，不导入生产代码。
+- 正式运行：`tb02e_harness.py` 照 `tb02d_harness.py` 建四臂（两用例 × a/b 新进程，端口自 18860 起，socket 前缀 `/private/tmp/tb1419e-`），逐臂调 `tb02e_runtime.py`。runtime 每条 accept/advance 后做 live 与 AsKnown 查询，全部回访；在第 27、43 条做停机恢复对拍，再用 `tb02e_verify.py` 对冻结账核对（含 Python Q 合同与 node 侧浏览器合同的整 cut 中枢门），最后起 `tb02e_browser.cjs`：末切面点 CC-022，AsKnown 第 27 条再点 CC-022，30 s 帽不放宽。harness 用 `compare_exact_traces` 比较 a/b。
+- 离线自测（不计时，不起服务）：用固定二进制的 S CLI 逐根建库，`tb02e_verify` 两用例全过，`mutate_verify.py` 8 类变异（区间 −1/+100、原因、offset、awaiting、完成段、缺席 kind、等待原因）两用例全被抓。harness 的 prepare 在临时目录试建计划通过（4 臂、43 条消息、恢复切面 27/43、轨迹布局 236 条）。
 
 ## 登记：段数在 5k–30k 根停在 24
 
