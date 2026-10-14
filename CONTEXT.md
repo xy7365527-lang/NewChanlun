@@ -158,6 +158,24 @@ _Avoid_: 简称"深度"
 索引闭窗在同一具名原始序列上的 `[min low, max high]`。独立选父链的 price-subset 由它派生、与 index-subset 并列输出；前提（同源、同版本、窗口完整、非空）不足即缺证。它是一致性证据，不是新的区间套闸门。
 _Avoid_: 用各级整段端点外缘（L）或两端端点价（E）充当价格区间；price-subset 失败时改选另一父
 
+### 内容布局
+
+**出生序累计数组（Birth-ordered Cumulative Array）**（2026-10-14 [#1489](https://github.com/xy7365527-lang/NewChanlun/issues/1489) 裁定，[ADR 0037](docs/adr/0037-s-content-bounded-layout.md)）:
+S 快照里跨代累计的六族数组按记录进入该族的代际升序、同代内按原键排列；新元素只在尾部进入，§5.2 M 树因此每代只新增 O(log n) 个序列节点。Q 行序（`s-record-order/2`）是读取时的另一次排序，与之无关。
+_Avoid_: 按内容键（subject／object_id／kind）给累计数组排序；把 Q 行序当快照数组次序
+
+**bounded-layout（有界布局）**（同上）:
+`rule_revision` 的布局组件（现 `bounded-layout/1`）：出生序累计数组 + CC-007 单元批记录（分型描述对象只出生一次）+ CC-054/056 内容不变；每代新增可达节点 Δ_R(g) 受逐代上界门约束（见下「固有事实项／开销项」）。组件正交于教义组件，各票改各自组件；v3 写者任何修订串必含它。旧库（无此组件）按 layout/1 只读，不迁移、不兜底。
+_Avoid_: 把布局版本塞进 `content_format`（§5.2 编码没变）或 `profile_hash`（输入定义没变）；写路径再产出无布局组件的库
+
+**单元批记录（Development Batch）**（同上）:
+`CC-007.development_batch`：每代一条 typed 记录，承载本 bar 对全部被跟踪分型的比较单元（S 同核产生、内容寻址、每单元只发一次）及每个分型截至本 bar 的单元序列 root。分型描述对象因此只在基础来源修订时出新版。读者只读 entry 与序列分片，不重算比较。
+_Avoid_: 把后续 bar 的比较拷进分型对象载荷；让 Q／前端／审计现场重算 order；把单元发成每单元一条记录或 observation
+
+**固有事实项 / 开销项（Inherent-fact Term / Overhead Term）**（同上）:
+每代新增可达节点 Δ_R(g) 的分解：固有事实项 u·F(g)（被跟踪分型数 × 每单元节点）由已批合同要求产生、不可削；开销项 = Δ_R − u·F(g)，是表示与布局的代价。bounded-layout 的目标与验收门是逐代上界：Δ_R(g) ≤ Σ_f(u+e+⌈log₂count_f⌉+1) + C₀_base + C_bi·bi_births + C₁·⌈log₂N⌉，五常数独立实测冻结，超界代数 0。
+_Avoid_: 把 Δ_R 整体当作可压到 O(log g) 的量；用「与 Δ_R 成正比」单独作门（未修编码也能过）；用「开销项对 g 斜率 ≈0」作门（(b) 的 e·F 与 log 项随 F 增长，按设计必不过；拟合常数会吸收旧布局病态）
+
 ### 确认结构
 
 **链（Chain）**:
