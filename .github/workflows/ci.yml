@@ -256,9 +256,13 @@ jobs:
       # 运行正式 S bin 的回归测试，不能只编译或以默认目标的通过代替。
       # 默认目标一步带着已登记的既有红（main 上 3 个），失败会让其后各步被跳过；
       #   本步此前因此从未在 CI 执行，照本文件既有写法加 if: always()。
+      # #1394 根裁定 A：v3::financial_session 依赖只在 macOS 实现的会话保留量读数（heap_probe）与
+      #   peer uid（getpeereid），Linux 上 Session::start 诚实地报 MissingDependency。这批用例在本步
+      #   --skip，由 .github/workflows/ci-macos.yml 的 macOS 作业在生产平台真跑（手动触发本 CI 时经
+      #   下方 macos-session 作业一并执行；push main 由该文件自身的 paths 过滤触发）。
       - name: cargo test — s_session 正式结构会话（#1370）
         if: always()
-        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --bin s_structure_session --jobs 1
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --bin s_structure_session --jobs 1 -- --skip v3::financial_session
 
       # #1394 C：内容编码在 s_session feature 下供多个 owner 共用；只测 S bin 不会执行库测试。
       # #1394 整合 C-1：本步与下一步不依赖「default targets」与 s_session bin 两步的结果；
@@ -292,6 +296,13 @@ jobs:
         # 本地实测 debug 全 target 55G ⟹ 14G 盘必爆）。改 --lib：backtest 模块测试（含
         # econ_oddeven_diagnosis）全在 lib 内；tests/ 与 bins 已由 default 步覆盖——零覆盖损失。
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --lib --features backtest_bin --jobs 1
+
+  # #1394 根裁定 A：手动触发本 CI 时一并执行 macOS 作业（financial_session 的 macOS 读数与
+  #   economic_session 等库测试），一次触发拿全套读数。push main 不经本作业，由 ci-macos.yml 自身的
+  #   paths 过滤决定是否运行，控制 macOS 计费。
+  macos-session:
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/ci-macos.yml
 
   s-observer:
     # #1372：执行只读观察、生命周期和取证边界回归；完整160输入/浏览器验收另存具名证据。

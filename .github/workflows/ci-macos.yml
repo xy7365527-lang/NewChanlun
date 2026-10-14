@@ -1,0 +1,68 @@
+name: CI macOS
+
+# #1394 根裁定 A：会话保留量读数（financial_session.rs 的 heap_probe：
+#   Δmalloc_zone_statistics(NULL).size_in_use − Δsqlite3_memory_used）与 peer uid（getpeereid）
+#   只在 macOS 实现。保留量读数是产品资源门（retained cap）的读数，产品不为 Linux 另设近似读数
+#   （#804：同一判定不得在两个平台有两种读数），Linux 上诚实地 MissingDependency/拒绝。
+#   因此依赖它们的 v3::financial_session（全部用例）在 ci.yml 的 Linux 步里 --skip，由本作业在
+#   生产平台 macOS 上真跑；economic_session / session_transport / session_protocol 的库测试也在
+#   这里全量执行一遍，其中的 macOS 专属分支只在这里覆盖（Linux 一侧见 ci.yml G-1 步）。
+#
+# 触发（私有库 macOS 分钟按 10 倍计费，不跟随每次 push）：
+#   - push main 且改动命中下列路径（含本文件自身）；
+#   - workflow_dispatch；
+#   - 手动触发 ci.yml 时，ci.yml 的 macos-session 作业以 workflow_call 调用本文件，一次触发拿全套读数。
+# 估时：冷缓存 debug 编译约 6–10 min，两步执行约 5–8 min（本机该模块 29 条 wall 283 s，3 核 runner 估计）。
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches: [main]
+    paths:
+      - 'rust/src/bin/s_session_v3/financial_session*'
+      - 'rust/src/economic_session/**'
+      - 'rust/src/session_transport.rs'
+      - 'rust/src/session_protocol.rs'
+      - '.github/workflows/ci-macos.yml'
+
+jobs:
+  macos-session:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: "0"
+    defaults:
+      run:
+        working-directory: rust
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # run-cargo-with-telemetry.sh 用的是 Linux 的 free/df -B1，本作业直接调用 cargo，只记录基础环境。
+      - name: Record runner and toolchain
+        run: |
+          set -x
+          echo "github_sha=$GITHUB_SHA"
+          sw_vers
+          uname -a
+          sysctl -n machdep.cpu.brand_string hw.ncpu hw.memsize
+          rustc -vV
+          cargo -V
+          df -h .
+
+      - name: Cache cargo registry + git
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-
+
+      - name: cargo test — v3::financial_session（macOS 保留量读数与 peer uid，#1394 根裁定 A）
+        run: cargo test --locked --features s_session --bin s_structure_session v3::financial_session
+
+      - name: cargo test — economic_session / session_transport / session_protocol 库测试（#1394 G-1）
+        if: always()
+        run: cargo test --locked --features s_session --lib -- economic_session session_transport session_protocol
