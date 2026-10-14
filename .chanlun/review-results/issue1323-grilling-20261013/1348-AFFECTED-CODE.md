@@ -26,7 +26,7 @@
 | Rust | `rust/src/economic_session/finance.rs:234-239` | FIN `0d8a6017` | 引用：`baseline.amount` 是 E 共同责任界，与本金 P 禁止互代，不改 | Q1 |
 | Lean | `formal/Origin/TotalWealth.lean:97` | main `465174240b` | `TWState.notional_in` 登记为非本金批次名分；不改定义 | Q1 |
 | Lean | `formal/Origin/TotalWealth.lean:140` | main `465174240b` | `advanceTo` 不改 | Q3 |
-| Lean | `formal/Origin/TotalWealth.lean:194` | main `465174240b` | `stage_rank_monotone` 不改；新增对拍义务：无费用事件时 latch 与 growth_eligible 一致 | Q3 → #1406 |
+| Lean | `formal/Origin/TotalWealth.lean:194` | main `465174240b` | `stage_rank_monotone` 不改；新增对拍义务：全域单向不变式 `growth_eligible ⇒ latch = EarningShares`（#1406 OQ-2 订正：原「无费用事件时二者一致」被回本后无费用亏损往返反证），Rust 侧 growth_eligible 另有同输入同输出锁 | Q3 → #1406 |
 | Lean | `formal/Origin/TotalWealth.lean:208` | main `465174240b` | EarningShares 不可回退（`earning_no_regress`）不改 | Q3 |
 | Lean | `formal/Origin/LedgerReconciliation.lean:467` | main `465174240b` | `hAlloc` 前件不改；不从中推本金 | Q1 |
 | Python | `s_session/economic_query.py:72` | main `465174240b` | 只透传 principal / capital_phase / unit_cost 的 typed 结构 | Q1-Q4 |

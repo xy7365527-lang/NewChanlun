@@ -10,7 +10,7 @@
 | Rust | `rust/src/economic_session/book.rs:55/70` | main `465174240b` | 原件由单目标 allocation 扩为多目标列表，每条带政策版本与 manifest_hash | Q1 |
 | Rust | `rust/src/economic_session/book.rs:225` | main `465174240b` | `du=0` 费用合法（与 #1348 同） | Q4 |
 | Rust | `rust/src/economic_session/book.rs:270` | main `465174240b` | 具名利润的费用范围核对沿原 fill 分配 | Q4 |
-| Rust | `rust/src/economic_session/book.rs:321/334/421` | main `465174240b` | apply 接受按本重分配量与费用分量；Unmatched 只留 family 不符与 per_leg 缺归属；Applied/Unmatched 记录带政策版本 | Q1,Q4,Q5 |
+| Rust | `rust/src/economic_session/book.rs:321/334/421` | main `465174240b` | apply 接受按本重分配量与费用分量；Unmatched 原因闭集 = {family 不符, per_leg 缺归属, 未声明依赖的缺开局}（#1406 OQ-3 订正：声明了开局依赖的缺开局走 E 侧 AwaitingDependency、不进 Unmatched，与 1352 清单 `:334` 行一致）；Applied/Unmatched 记录带政策版本 | Q1,Q4,Q5；#1406 |
 | Rust | `rust/src/economic_session/service.rs:130/169/179` | main `465174240b` | E 同 fact_key 核内容不变；Pending 原因增 AwaitingDependency（fee-before-fill）与前件指针；原件落盘保存 manifest 引用 | Q1,Q4 |
 | Rust | `rust/src/economic_session/service.rs:221/244/257/286` | main `465174240b` | ApplyAllocation 接受多重 Resolved、逐重 Applied；每重一收据，同内容回原收据；同事务写多重 applications | Q1 |
 | Rust | `rust/src/economic_session/voice.rs:149/166` | main `465174240b` | 跨代迟到回原 Voice 的不可变映射 | Q4,Q5 → #1421 |
@@ -19,7 +19,7 @@
 | Rust | `rust/src/theta_v0/strategy/ledger.rs:716/742` | main `465174240b` | 归属确定后才应用，不变 | Q1 |
 | Rust | `rust/src/economic_session/finance.rs:205/225` | FIN `0d8a6017` | 引用：`allocation_policy_id` 是 RD-11 准入政策 id（字段表 `:205`，取值校验 `:225`）；外效分配 id 另命名 `fill_allocation_policy_id`，不改 | Q1 |
 | Rust | `rust/src/theta_v0/strategy/exec.rs:145` | main `465174240b` | 不受影响：`ConflictKey` 是旧 NT 规划排序键，不是分配政策 | — |
-| Lean | `formal/Origin/LedgerReconciliation.lean:456/467/483` | main `465174240b` | 不改；新增义务另立文件：Σ A_i(F)=F、单调、A_i(Q)=q_i、逆规则差量恒等 | Q1,Q3,Q5 |
+| Lean | `formal/Origin/LedgerReconciliation.lean:456/467/483` | main `465174240b` | 不改；新增义务另立文件：Σ A_i(F)=F、单调、A_i(Q)=q_i、配额界 ⌊F·q_i/Q⌋ ≤ A_i(F) ≤ ⌈F·q_i/Q⌉、逆规则差量恒等（分配函数按 ADR 0032 修订节改为 Balinski–Young 配额法，#1406 OQ-1） | Q1,Q3,Q5；#1406 |
 | Python | `s_session/economic_query.py:72` | main `465174240b` | 透传多重 allocation 与政策版本 | Q1 |
 | JS | `s_session/browser/tb03a-client.js:124` | main `465174240b` | 图像键集若扩 manifest/applications 须同步 | Q1 |
 
