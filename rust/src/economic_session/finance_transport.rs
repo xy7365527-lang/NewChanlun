@@ -677,22 +677,25 @@ mod financial_reader_tests {
 
     #[test]
     fn reply_and_stderr_caps_stop_running_child_without_disclosing_stderr() {
-        let large = Script::new("/bin/cat >/dev/null; i=0; while [ \"$i\" -lt 1000 ]; do printf x; i=$((i+1)); done; exec /bin/sleep 5");
+        // #1394 G-1：原用墙钟上界（< 1 s）判「超限即杀、不等 child 自然结束」，在并发 runner 上
+        // 偶发失败。改为因果判据：child 只有自然跑完（sleep 之后）才写 finished；reader 返回前已
+        // 回收 child，所以 finished 不存在 ⟺ child 是被超限处置杀掉的。
+        let large = Script::new("/bin/cat >/dev/null; i=0; while [ \"$i\" -lt 1000 ]; do printf x; i=$((i+1)); done; /bin/sleep 10; : > \"$1\"");
+        let finished = large.dir.join("finished");
         let mut r = resources();
         r.max_reply_bytes = 10;
         let mut job = new_job(r.job_limits);
-        let started = Instant::now();
         assert!(financial_reader(
             large.binary(),
-            &[],
+            &[finished.to_str().unwrap()],
             &request(),
             &r,
             &mut job,
-            started + Duration::from_secs(2)
+            Instant::now() + Duration::from_secs(2)
         )
         .unwrap_err()
         .contains("回复超过"));
-        assert!(started.elapsed() < Duration::from_secs(1));
+        assert!(!finished.exists(), "超限后须杀掉 child，不得等它自然结束");
         assert!(job.snapshot().wire_bytes > canonical_json(&request()).len() as u128);
 
         let noisy = Script::new("printf 'PRIVATE_SECRET_123456789' >&2; exec /bin/sleep 5");
@@ -715,23 +718,41 @@ mod financial_reader_tests {
 
     #[test]
     fn earliest_absolute_deadline_kills_and_reaps_the_child() {
-        let script = Script::new("printf '%s' \"$$\" > \"$1\"; exec /bin/sleep 5");
+        // #1394 G-1：原以墙钟上界（< 900 ms）判最早期限生效，在并发 runner 上偶发失败。改用 Job 的
+        // 受控时钟：child 写出 pid（确已启动）之后，job 时钟跳过 max_elapsed_ms，使 job 期限成为
+        // 三种绝对期限中最早到期者；单次与经济操作期限都放到 child 自然结束之后。最早期限若未
+        // 生效，child 会跑完并写 finished、reader 以空回复报非期限错误。
+        let script = Script::new(
+            "printf '%s' \"$$\" > \"$1.tmp\"; mv \"$1.tmp\" \"$1\"; /bin/sleep 10; : > \"$2\"",
+        );
         let pid_file = script.dir.join("pid");
+        let finished = script.dir.join("finished");
         let mut r = resources();
-        r.request_timeout_ms = 1200;
-        let mut job = new_job(r.job_limits);
-        let start = Instant::now();
+        r.request_timeout_ms = 60_000;
+        r.job_limits.max_elapsed_ms = 60_000;
+        let started = Instant::now();
+        let expired = started + Duration::from_millis(r.job_limits.max_elapsed_ms + 1);
+        let spawned = pid_file.clone();
+        let mut job = Job::new(
+            r.job_limits,
+            Existing {
+                store_bytes: 0,
+                staged_bytes: 0,
+            },
+            Box::new(move || if spawned.exists() { expired } else { started }),
+        )
+        .unwrap();
         let error = financial_reader(
             script.binary(),
-            &[pid_file.to_str().unwrap()],
+            &[pid_file.to_str().unwrap(), finished.to_str().unwrap()],
             &request(),
             &r,
             &mut job,
-            start + Duration::from_millis(500),
+            Instant::now() + Duration::from_secs(60),
         )
         .unwrap_err();
-        assert!(error.contains("期限"));
-        assert!(start.elapsed() < Duration::from_millis(900));
+        assert!(error.contains("job_deadline"), "{error}");
+        assert!(!finished.exists(), "最早期限到期须杀掉 child");
         let pid: i32 = std::fs::read_to_string(pid_file).unwrap().parse().unwrap();
         assert_eq!(unsafe { libc::kill(pid, 0) }, -1, "child须被回收");
         assert_eq!(
@@ -766,21 +787,25 @@ mod financial_reader_tests {
             (canonical_json(&request).len() + "private-error".len()) as u128 * 2
         );
 
+        // #1394 G-1：原以墙钟上界（< 650 ms）判单次期限生效，改为因果判据：经济操作与 job 期限都
+        // 放到 child 自然结束之后，只有单次期限（200 ms）早于 child 结束；它若未生效，child 会跑完
+        // 并写 finished、reader 以空回复报非期限错误。
         r.request_timeout_ms = 200;
-        let slow = Script::new("exec /bin/sleep 5");
+        r.job_limits.max_elapsed_ms = 60_000;
+        let slow = Script::new("/bin/sleep 10; : > \"$1\"");
+        let finished = slow.dir.join("finished");
         let mut fresh = new_job(r.job_limits);
-        let start = Instant::now();
-        assert!(financial_reader(
+        let error = financial_reader(
             slow.binary(),
-            &[],
+            &[finished.to_str().unwrap()],
             &request,
             &r,
             &mut fresh,
-            start + Duration::from_secs(2)
+            Instant::now() + Duration::from_secs(60),
         )
-        .unwrap_err()
-        .contains("期限"));
-        assert!(start.elapsed() < Duration::from_millis(650));
+        .unwrap_err();
+        assert!(error.contains("绝对期限"), "{error}");
+        assert!(!finished.exists(), "单次期限到期须杀掉 child");
     }
 
     #[test]
