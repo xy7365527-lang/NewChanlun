@@ -1,0 +1,22 @@
+# F1a 开跑前背景负载
+Wed Oct 14 08:04:19 CST 2026
+ 8:04  up 3 days, 29 mins, 3 users, load averages: 7.30 7.98 9.87
+## cargo/rustc/lake/lean/S/Q（应为空）
+## CPU 前 12
+  PID  PPID  %CPU     ELAPSED COMMAND
+87900 87893 150.0 02-12:38:33 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper.app/Contents/MacOS/Google Chrome
+ 6070  6069  99.4 01-20:33:13 /Applications/Google Chrome.app/Contents/MacOS/Google Chrome --remote-debugging-port=0 --no-first-run --no-default-browser-check --disable-background-networking --disable
+88144 87893  77.2 02-12:37:56 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Go
+  439     1  65.9 03-00:26:13 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer -daemon
+88155 87893  46.5 02-12:37:56 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Go
+44493 43819  23.8 02-03:08:22 /Users/silencehan/Library/Application Support/CLIProxyLocal/bin/cli-proxy-api -config /Users/silencehan/Library/Application Support/CLIProxyLocal/config.yaml
+88175 87893  15.3 02-12:37:53 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Go
+88159 87893  14.5 02-12:37:56 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Go
+60503 87893  11.6 02-09:26:02 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Go
+88129 87893  11.1 02-12:37:58 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Go
+46781 46681  11.1 01-01:30:33 /Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/../CodexCLI.app/Contents/MacOS/codex -c features.code_mode_host=true app-server --analytics-default-enabled -c 
+46779 46681  10.7 01-01:30:34 /Applications/ChatGPT.app/Contents/Frameworks/Codex Framework.framework/Versions/155.0.8059.40/Helpers/Codex (Renderer).app/Contents/MacOS/Codex (Renderer) --type=rendere
+## Chrome
+Google Chrome 155.0.8059.40 
+428dccc1a45819d23c5db4fb37388883f8d9ba64611cbd6c42395eac4a18b6a4  /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+{"snapshot": "/Volumes/AgentStorage/issue1419-f1a-20261014/SLOT-SNAPSHOT.json", "existing": 0}

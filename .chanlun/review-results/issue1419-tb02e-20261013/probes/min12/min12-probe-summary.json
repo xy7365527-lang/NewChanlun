@@ -1,0 +1,121 @@
+{
+ "source": "/Volumes/AgentStorage/issue1419-s0b-min12-20261014/S0B-PROBE.json",
+ "caps": {
+  "arm_s": 900,
+  "collect_core_s": 120,
+  "frozen_oracle_s": 180,
+  "browser_s": 30,
+  "q_verify_ms": 5000,
+  "input_reply_ms": 10000
+ },
+ "runs": [
+  {
+   "run": "MIN12-per-bar",
+   "messages_planned": 52,
+   "bars": 52,
+   "ingest_ms": [
+    32.1,
+    31.5,
+    36.6,
+    48.5,
+    62.7,
+    75.1,
+    97.0,
+    127.2,
+    164.0,
+    176.1,
+    206.2,
+    266.8,
+    305.4,
+    343.4,
+    414.0,
+    471.7,
+    577.1,
+    605.6,
+    701.7,
+    806.7,
+    914.2,
+    986.0,
+    1074.0,
+    1200.7,
+    1332.4,
+    1416.1,
+    1547.2,
+    1721.4,
+    1883.1,
+    2016.1,
+    2221.1,
+    2339.5,
+    2527.5,
+    2659.2,
+    2860.3,
+    3100.3,
+    3256.6,
+    3445.4,
+    3631.8,
+    3950.8,
+    4199.1,
+    4367.7,
+    4617.0,
+    4893.1,
+    5215.7,
+    5420.2,
+    9470.7,
+    10001.5
+   ],
+   "ingest_total_s": 97.8,
+   "ingest_max_ms": 10001.45875,
+   "query_max_ms": 5238.203792,
+   "q_verify_ms": [
+    4.6,
+    449.5,
+    2225.2
+   ],
+   "fit_ingest_ms_vs_bars": {
+    "a_ms": 1.2430134362881629,
+    "exponent": 2.1855154052300354
+   },
+   "gate_segments": {
+    "status": "MATCH",
+    "candidate": "known-31",
+    "completed_segments": 1,
+    "designed_units": 4,
+    "endpoints_got": [
+     12000,
+     52000
+    ],
+    "endpoints_designed": [
+     12000,
+     52000,
+     17000,
+     42000,
+     24000
+    ],
+    "counts": {
+     "objects": "201",
+     "observations": "72",
+     "raw_history": "32",
+     "relations": "783",
+     "total": "1781",
+     "withdrawn_objects": "516",
+     "witnesses": "177"
+    }
+   },
+   "verdict": {
+    "reply_cap_ok": false,
+    "q_verify_cap_ok": true,
+    "arm_window_ok": true
+   },
+   "result": {
+    "status": "INCOMPLETE",
+    "sent": 48,
+    "stopped_at": 47,
+    "reason": "reply DeliveryUnknown"
+   }
+  },
+  {
+   "run": "MIN12-batched",
+   "not_run": true
+  }
+ ]
+}

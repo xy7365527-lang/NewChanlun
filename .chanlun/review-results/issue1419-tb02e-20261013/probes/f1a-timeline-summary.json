@@ -1,0 +1,203 @@
+{
+ "schema": "tb1419-f1a-timeline/1",
+ "admission_evidence": false,
+ "baseline": "tb1414-browser-budget-diagnosis DIAGNOSIS.md §0 P2 均值 29.49 s",
+ "arms": [
+  {
+   "case": "second_open_up",
+   "exit": {
+    "case": "second_open_up",
+    "exit": 0,
+    "elapsed_s": 347.4,
+    "chrome": {
+     "path": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+     "sha256": "428dccc1a45819d23c5db4fb37388883f8d9ba64611cbd6c42395eac4a18b6a4"
+    }
+   },
+   "partial": false,
+   "phases": {
+    "goto_ms": 37.76774999999998,
+    "commit_final_wait_ms": 9780.209208,
+    "asof_to_commit_ms": 4987.728458000001,
+    "measures_ms": 1.6241250000020955,
+    "context_close_ms": 164.5463329999984,
+    "browser_close_ms": 250.87570899999992,
+    "clicks": [
+     {
+      "axis": "CC-011",
+      "click_ms": 4687.143542,
+      "selection_wait_ms": 1.786707999999635,
+      "innerText_ms": 452.99354200000016,
+      "chars": 3080,
+      "screenshot_ms": 578.4894999999997
+     },
+     {
+      "axis": "CC-012",
+      "click_ms": 1507.508417000001,
+      "selection_wait_ms": 19.219582999998238,
+      "innerText_ms": 593.1633340000008,
+      "chars": 10481,
+      "screenshot_ms": 401.12983299999905
+     },
+     {
+      "axis": "CC-013",
+      "click_ms": 1360.577874999999,
+      "selection_wait_ms": 10.498833000001468,
+      "innerText_ms": 456.2832079999971,
+      "chars": 9037,
+      "screenshot_ms": 405.987000000001
+     },
+     {
+      "axis": "CC-014",
+      "click_ms": 1167.2523330000004,
+      "selection_wait_ms": 1.4960419999988517,
+      "innerText_ms": 450.0567919999994,
+      "chars": 9037,
+      "screenshot_ms": 396.5486669999991
+     },
+     {
+      "axis": "CC-013@asof",
+      "click_ms": 448.6499580000018,
+      "innerText_ms": 165.0905419999981,
+      "chars": 2765
+     }
+    ],
+    "last_mark_ms": 29544.445084
+   },
+   "page_measures": {
+    "f1:validateState": {
+     "calls": 2,
+     "total_ms": 367.4999999701977,
+     "max_ms": 260.69999998807907
+    },
+    "f1:validateTB02Candidate": {
+     "calls": 2,
+     "total_ms": 471.10000002384186,
+     "max_ms": 332.40000000596046
+    },
+    "f1:renderAllFromState": {
+     "calls": 2,
+     "total_ms": 1608.2999999821186,
+     "max_ms": 966.6999999880791
+    }
+   },
+   "readiness_elapsed_ms": 29545,
+   "q": {
+    "max_verify_ms": 4543.4,
+    "verify_deadline_ms": 5000,
+    "workers": {
+     "4465853168": {
+      "verify_n": 42,
+      "verify_max": 1183.6,
+      "verify_sum": 15856.5,
+      "cache_hit": 4282
+     },
+     "4557881040": {
+      "verify_n": 1,
+      "verify_max": 4543.4,
+      "verify_sum": 4543.4,
+      "cache_hit": 58
+     }
+    }
+   }
+  },
+  {
+   "case": "second_open_down",
+   "exit": {
+    "case": "second_open_down",
+    "exit": 0,
+    "elapsed_s": 356.3,
+    "chrome": {
+     "path": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+     "sha256": "428dccc1a45819d23c5db4fb37388883f8d9ba64611cbd6c42395eac4a18b6a4"
+    }
+   },
+   "partial": false,
+   "phases": {
+    "goto_ms": 32.37454200000002,
+    "commit_final_wait_ms": 9814.526333999998,
+    "asof_to_commit_ms": 4782.071124999999,
+    "measures_ms": 1.749374999999418,
+    "context_close_ms": 250.117374999998,
+    "browser_close_ms": 308.58887499999764,
+    "clicks": [
+     {
+      "axis": "CC-011",
+      "click_ms": 4826.617,
+      "selection_wait_ms": 2.154459000001225,
+      "innerText_ms": 459.9723749999994,
+      "chars": 3082,
+      "screenshot_ms": 493.44141599999966
+     },
+     {
+      "axis": "CC-012",
+      "click_ms": 1410.4350409999988,
+      "selection_wait_ms": 1.6201670000009472,
+      "innerText_ms": 522.6696670000019,
+      "chars": 10485,
+      "screenshot_ms": 666.9732499999991
+     },
+     {
+      "axis": "CC-013",
+      "click_ms": 1276.7216249999983,
+      "selection_wait_ms": 10.485208999998576,
+      "innerText_ms": 295.1732910000028,
+      "chars": 9039,
+      "screenshot_ms": 338.38079199999993
+     },
+     {
+      "axis": "CC-014",
+      "click_ms": 1090.0169590000005,
+      "selection_wait_ms": 1.365125000000262,
+      "innerText_ms": 288.61783300000025,
+      "chars": 9039,
+      "screenshot_ms": 330.559792
+     },
+     {
+      "axis": "CC-013@asof",
+      "click_ms": 422.0747080000001,
+      "innerText_ms": 107.3001669999976,
+      "chars": 2767
+     }
+    ],
+    "last_mark_ms": 28394.217875
+   },
+   "page_measures": {
+    "f1:validateState": {
+     "calls": 2,
+     "total_ms": 369.40000000596046,
+     "max_ms": 262.69999998807907
+    },
+    "f1:validateTB02Candidate": {
+     "calls": 2,
+     "total_ms": 473.39999997615814,
+     "max_ms": 331.19999998807907
+    },
+    "f1:renderAllFromState": {
+     "calls": 2,
+     "total_ms": 1622.0999999940395,
+     "max_ms": 986.3999999761581
+    }
+   },
+   "readiness_elapsed_ms": 28395,
+   "q": {
+    "max_verify_ms": 4510.9,
+    "verify_deadline_ms": 5000,
+    "workers": {
+     "4406344880": {
+      "verify_n": 42,
+      "verify_max": 1178.0,
+      "verify_sum": 15715.0,
+      "cache_hit": 4282
+     },
+     "4475928272": {
+      "verify_n": 1,
+      "verify_max": 4510.9,
+      "verify_sum": 4510.9,
+      "cache_hit": 58
+     }
+    }
+   }
+  }
+ ]
+}

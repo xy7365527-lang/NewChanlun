@@ -1,0 +1,182 @@
+{
+ "schema": "tb1419-min12-oracle/1",
+ "oracle": "S0 oracle_check.py scan_c（标准库，不读项目实现、不读生产输出）",
+ "units": [
+  {
+   "idx": 0,
+   "dir": "UP",
+   "from": 12000,
+   "to": 52000,
+   "lo": 12000,
+   "hi": 52000
+  },
+  {
+   "idx": 1,
+   "dir": "DOWN",
+   "from": 52000,
+   "to": 17000,
+   "lo": 17000,
+   "hi": 52000
+  },
+  {
+   "idx": 2,
+   "dir": "UP",
+   "from": 17000,
+   "to": 42000,
+   "lo": 17000,
+   "hi": 42000
+  },
+  {
+   "idx": 3,
+   "dir": "DOWN",
+   "from": 42000,
+   "to": 24000,
+   "lo": 24000,
+   "hi": 42000
+  }
+ ],
+ "cuts": {
+  "K1 输入50：2 个完成段": {
+   "centers": [],
+   "attempts": [],
+   "cursor": {
+    "state": "SEEKING_SEED",
+    "seed_start": 0,
+    "awaiting_unit": 2
+   }
+  },
+  "K2 输入51/52：3 个完成段": {
+   "centers": [
+    {
+     "id": "A",
+     "seed": [
+      0,
+      1,
+      2
+     ],
+     "zn_dir": "UP",
+     "first": 0,
+     "last": 2,
+     "count": 3,
+     "settled": false,
+     "break_unit": null,
+     "break_up": null,
+     "resume_anchor": null,
+     "next_tested_unit": 3,
+     "known_at": "K2",
+     "zn_members": [
+      0,
+      2
+     ],
+     "upgrade_pending": false,
+     "roles": {
+      "CORE": {
+       "ZD": {
+        "value": 17000,
+        "contributors": [
+         1,
+         2
+        ],
+        "same_price_witness": [
+         1,
+         2
+        ],
+        "frozen": true
+       },
+       "ZG": {
+        "value": 42000,
+        "contributors": [
+         2
+        ],
+        "same_price_witness": [],
+        "frozen": true
+       }
+      },
+      "OUTER": {
+       "DD": {
+        "value": 12000,
+        "contributors": [
+         0
+        ],
+        "same_price_witness": [],
+        "frozen": false
+       },
+       "GG": {
+        "value": 52000,
+        "contributors": [
+         0
+        ],
+        "same_price_witness": [],
+        "frozen": false
+       }
+      },
+      "INNER_EXTREMA": {
+       "D": {
+        "value": 17000,
+        "contributors": [
+         2
+        ],
+        "same_price_witness": [],
+        "frozen": false
+       },
+       "G": {
+        "value": 42000,
+        "contributors": [
+         2
+        ],
+        "same_price_witness": [],
+        "frozen": false
+       }
+      }
+     },
+     "c2_contrast_all_unit_dd": 12000,
+     "c2_contrast_all_unit_gg": 52000
+    }
+   ],
+   "attempts": [
+    {
+     "start": 0,
+     "units": [
+      0,
+      1,
+      2
+     ],
+     "known_at": "K2",
+     "vector": {
+      "completed": true,
+      "consecutive": true,
+      "same_level": true,
+      "alternating": true,
+      "strict": true
+     },
+     "ZD": {
+      "value": 17000,
+      "contributors": [
+       1,
+       2
+      ],
+      "same_price_witness": [
+       1,
+       2
+      ]
+     },
+     "ZG": {
+      "value": 42000,
+      "contributors": [
+       2
+      ],
+      "same_price_witness": []
+     },
+     "core_order": "ZD<ZG",
+     "result": "FORMED",
+     "exclusion_reason": null
+    }
+   ],
+   "cursor": {
+    "state": "EXTENDING",
+    "center": "A",
+    "next_unit": 3
+   }
+  }
+ }
+}

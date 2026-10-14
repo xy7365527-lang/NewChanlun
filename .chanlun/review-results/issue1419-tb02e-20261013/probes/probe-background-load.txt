@@ -1,0 +1,24 @@
+# 探针槽背景负载快照（根 07:54 再开槽后，S0b 开跑前）
+Wed Oct 14 07:55:29 CST 2026
+ 7:55  up 3 days, 20 mins, 3 users, load averages: 7.20 10.89 11.87
+## cargo/rustc/lake/lean/s_structure_session/s_query 进程（应为空）
+24458 46781   0.0       00:00 /bin/zsh -c R=/private/tmp/goal1323-native-20261012/tb1419-impl/receipts/closeout/probe-background-load.txt; { echo "# 探针槽背景负载快照（根 07:54 再开槽后，S0b 开跑前）"; date; uptime; echo "## cargo/rustc/la
+## CPU 前 15
+  PID  PPID  %CPU     ELAPSED COMMAND
+87900 87893 165.6 02-12:29:43 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper.app/Contents/MacOS/Google Chrome
+ 6070  6069  99.0 01-20:24:23 /Applications/Google Chrome.app/Contents/MacOS/Google Chrome --remote-debugging-port=0 --no-first-run --no-default-browser-check --disable-background-networking --disable
+24436 46781  79.1       00:00 node /Users/silencehan/Library/Application Support/Claude/Claude Extensions/ant.dir.gh.wonderwhy-er.desktopcommandermcp/dist/index.js
+  439     1  71.2 03-00:17:23 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer -daemon
+88144 87893  63.9 02-12:29:06 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Go
+24417 46781  63.2       00:00 /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node ./server.mjs
+24454 24432  62.9       00:00 /Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex app-server --listen stdio://
+24440 46781  53.1       00:00 npm exec @playwright/mcp@latest  
+24428 46781  50.6       00:00 /opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python -E /Users/silencehan/.local/bin/headroom mcp 
+88152 87893  45.6 02-12:29:06 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Go
+88155 87893  42.5 02-12:29:06 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Go
+24433 46781  35.7       00:00 /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node /Users/silencehan/.codex/plugins/cache/openai-curated-remote/codex-security/0.1.32/scripts/../mcp/server.mj
+28686     1  31.4    16:51:58 /usr/libexec/PerfPowerServices
+  709     1  30.7 03-00:17:15 /usr/libexec/trustd --agent
+  576     1  27.9 03-00:17:22 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mds_stores
+## peer_build_busy
+IDLE

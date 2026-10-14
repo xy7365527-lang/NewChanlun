@@ -8,7 +8,7 @@
 
 | 门 | 状态 | 由谁 |
 |---|---|---|
-| S9 正式运行验收（四臂、a/b 对拍、K10/K12 恢复、浏览器臂） | **未跑**。流长度（D-E）与浏览器方案（D-F）等 S0b 规模探针与 F1a 打点的读数；两探针已备好、二进制已固定，等根发「探针槽开」 | 本工位跑，根判 |
+| S9 正式运行验收 | **未跑**。S0b、F1a 与最小流探针已跑完（下节）；根裁 D-E 按 (B) 口径收窄正式运行覆盖面，harness/runtime/verify/浏览器脚本待实施，浏览器槽由根排 | 本工位跑，根判 |
 | 独立终审 | **未做**。S4 之后的增量 `1472b7bb..1bf54857` 与 `9cd64da5..48e23864` 没有独立终审过；根定于探针跑完后派审查员做 #1419 全量终审 | 根派 |
 | 合入 | 按定序在 #1394 之后，rebase 义务见末节 | 根 |
 
@@ -47,7 +47,7 @@
 | T3 | 正式会话入口跑非真空输入；公共查询与变化；浏览器核对 | **部分**：S 二进制集成测试 `tb02e_input_contract_mismatch_rejects_whole_cut_and_keeps_previous_facts` 等过；正式四臂与浏览器未跑（S9） | `receipts/l3-3-s-session.txt` |
 | T4 | 独立 oracle；同输入新进程重放；恢复对拍 | **部分**：oracle 先于实现冻结（S0）；同输入两次 build 逐字节相同；a/b 新进程对拍与 K10/K12 恢复未跑（S9） | `tb02e_same_input_rebuilds_byte_identical` |
 
-细项 A-* 的射程按计划 §1.2：线段级全部由单元、合同与 L3 证据覆盖；上级路径、≥9 子窗、三类买卖点、扩展新生按版本对象 `deferred_scope`（`global_G009_upper_levels_1429`、`ge9_upgrade_1429`、`third_class_and_break_1434`、`expansion_newborn_1424`、`connector_upper_construction_1429`）延后，目录轴 `impl_status` 保持 `not_implemented`。需要运行证据的细项（A-CC-016-03/017-03/022-03 的 a/b 重放、A-OB-008/016 的 delta 与重连、浏览器卡片）随 S9 给出。
+细项 A-* 的射程按计划 §1.2（正式运行的覆盖面另按下文「探针读数与正式运行的覆盖边界」收窄）：线段级全部由单元、合同与 L3 证据覆盖；上级路径、≥9 子窗、三类买卖点、扩展新生按版本对象 `deferred_scope`（`global_G009_upper_levels_1429`、`ge9_upgrade_1429`、`third_class_and_break_1434`、`expansion_newborn_1424`、`connector_upper_construction_1429`）延后，目录轴 `impl_status` 保持 `not_implemented`。需要运行证据的细项（A-CC-016-03/017-03/022-03 的 a/b 重放、A-OB-008/016 的 delta 与重连、浏览器卡片）随 S9 给出。
 
 本头读数（收据 `receipts/l3-*`）：
 
@@ -69,7 +69,7 @@
 | 侧 | 已落 | 登记未改（带退场条件或归属票） |
 |---|---|---|
 | Rust | R8 `recursive_tower.rs:603`；R21 `:537`；R23 `center.rs:176/184/193`；R25 `ref_v1.rs:165/172/203`；R26（输入已是 Zn 外缘）；R27 parity 夹具；R28 走势区间缓存 `recursive_tower.rs:148/320/775`；R29 `nest_lifecycle/window.rs:345`；R30 S 写者 `tb02e.rs:82/111`；`seed_facts`、`scan_center_facts`、`center_scan.rs` | R22 ≥9 子窗外缘（§9.5 #804 例外，退场 = #1429 落上级 Zn）；R24 旧线 `zhongshu.rs` 归 TB-10；X-21 `segment.rs:687-726` 不改（已是成员笔极值，L0 单元区间唯一来源） |
-| Lean | L9 `CenterConstruct.lean:395/415`；L10 `:452`；L11 `CenterConstruction.lean:108/133/137`；L12 `RecursiveConstruction.lean:56/60`、`PromQual.lean:292`；L14 `DivergenceNesting.lean:436/654` | L13 `CenterDerivedAt` 并入 §9.5 同一例外；**L15／X-24 `CenterConstruction.lean:52/56` `segHigh/segLow`**：须在定义处写明「端点价即标准化后的段内极值」为定义前提，或让 `Segment` 带成员笔——归 Lean 跟进票，**票尚未开** |
+| Lean | L9 `CenterConstruct.lean:395/415`；L10 `:452`；L11 `CenterConstruction.lean:108/133/137`；L12 `RecursiveConstruction.lean:56/60`、`PromQual.lean:292`；L14 `DivergenceNesting.lean:436/654` | L13 `CenterDerivedAt` 并入 §9.5 同一例外；**L15／X-24 `CenterConstruction.lean:52/56` `segHigh/segLow`**：须在定义处写明「端点价即标准化后的段内极值」为定义前提，或让 `Segment` 带成员笔——归 Lean 跟进票 [#1486](https://github.com/xy7365527-lang/NewChanlun/issues/1486) |
 | Python/JS | P16 `s_tb02_contract.py` `validate_center_*`、`_member_extremes:1195`、`_segment_units:1205`；`tb01c-client.js` 同名 JS（`memberExtremes:821`、`segmentUnits:827`）；`s_query_integrity.py` 中枢轴；`index.html` logicalSlot | P14 `a_zhongshu_v1.py`、P15 `a_center_v0.py` 归 TB-10 |
 | 文档 | zhongshu.md v2.2（§3「中枢外缘不是走势区间」、§6.1 落码现状、§9.5、§9.6）；xianduan.md v2.2（§8「段区间 = 成员笔方向极值」，`078:58`／`:60`／`:42` 四步核） | — |
 
@@ -90,6 +90,16 @@
 - 比较器变异四个全被抓（`receipts/mutate-l3-compare.txt`）。
 
 判别力：每个切点都有几何端点区间与成员笔极值不同的段（全量 35/72；按方向计 32 段起点、16 段终点不是段内极值），所以 9 个切点都是 v1.2 口径会拒、v1.3 口径须过的判别例。裁定前（v1.2）同一数据上 S 写者 9/9 被输入合同拒绝，那份读数留在 `receipts/REALDATA-L3.md`「v1.2 读数」节。全文、方法、产物 SHA 见 `receipts/REALDATA-L3.md`，逐切点摘要 `receipts/l3-readout-summary.json`。
+
+## 探针读数与正式运行的覆盖边界（D-E/D-F，2026-10-14）
+
+三次探针都在根开的槽内各跑一次、不重试，属树外诊断、不进准入证据。全文在本目录 `probes/`，原件在 `/Volumes/AgentStorage/issue1419-{s0b,f1a,s0b-min12}-20261014/`。计时背景：1 分钟负载 7.2–9.6，没有 cargo/rustc/lake/S/Q 在跑，背景是用户自己的 Chrome 154、agent-browser 的无头 Chrome、WindowServer、CLIProxy（`probes/probe-background-load*.txt`）。
+
+- **S0b 规模**（写者 `48e2386463` release，sha256 `38c61eee…`）：逐根单事件发送，UP 与 SHORT11 两臂都在第 48 条（下标 47）回复超过 10 s 帽。第 40–47 条耗时 4.2→5.5 s，第 46 条跳到 9.5 s，第 47 条过帽。拟合单条约 1.34·n^2.16 ms，与 TB-02-D 一致。batched 两臂作废：S 协议要求一条 ingest 只带一个事件，属探针前提错误。
+- **F1a 浏览器打点**（TB-02-D 冻结包副本，Chrome 155.0.8059.40，冻结时为 154.0.8037.99）：两臂通过，浏览器窗 29.55 s 与 28.39 s，**贴着 30 s 帽，余量 0.45 s 与 1.61 s**。时间主要花在等提交（约 14.8 s）和点击（约 9.1 s，首次点击 4.7–4.8 s）；页内 JS 只占约 2.5 s。**Q 冷 worker 首次 verify 4.5 s，贴着 5 s 期限**。帽不放宽。
+- **最小流 MIN12**（根裁 (A)）：12 笔、52 根，每笔 4 根即新笔下限；按规则最少要 51 条才有 3 个完成段。离线 parser 实测与独立 oracle 逐项相同：第 51 条起 seed FORMED，ZD 17000 < ZG 42000，中枢 EXTENDING，DD 12000，GG 52000。正式会话单臂在第 48 条过帽，耗时曲线与 S0b 逐条重合，所以单条代价只随根数变、与段结构无关。
+
+**正式运行覆盖边界（根裁 D-E 取 (B)）**：S9 正式会话只跑到第 47 条以内的前缀，即 2 个完成段加 1 个进行中段。正式运行能证明的是 TB-02-E 在正式入口、公共查询与浏览器上非空（CC-022 单元归属、CC-056 版本与游标、等待原因），以及 a/b 新进程重放与恢复；**CC-016 seed 与中枢、CC-017 角色在正式运行里不出现**。E2/E3 等需要 14 段的工作例，以及 seed、角色、续扫、归属的全部断言，改由三部分承担：单元测试（`tb02e_*`、`center_scan_1419`）、oracle 全切面核对（`tb02e_writer_output_passes_python_center_contract_on_all_oracle_cuts`）、真实数据 L3（上节）。原因：S 摄入每个 cut 全量重算，代价随历史超线性。根已确认这与 #1481 阶段 0 测得的「非审计路径 ∝ g^1.56–1.84」同一根因，将另开构造降阶票，本票只登记指向；MIN12 流已冻结（`probes/min12/`），供降阶后作验收输入。服务路径上第 46 条附近的单条跳变（5.4 s → 9.5 s，三条不同的流在同一位置出现；离线 CLI 逐条调用时没有）原因未查，一并登记给该票。
 
 ## 登记：段数在 5k–30k 根停在 24
 
@@ -117,7 +127,8 @@
 
 ## 其它登记
 
-- `tb1419-impl/comments/1478.md`、`1429.md`：依根裁定 r2 第 5 条写的票内登记草稿（过渡态与落码事实）。本工位只授权推送分支，未写 GitHub，是否已发由根核。
+- #1478、#1429 的票内登记（依根裁定 r2 第 5 条，草稿在 `tb1419-impl/comments/`）已于 2026-10-13T18:20Z 发出，根已核。
+- Lean 跟进票已开 [#1486](https://github.com/xy7365527-lang/NewChanlun/issues/1486)（L15／X-24 `segHigh/segLow` 对齐义务）。
 - 回测基线差异（D-K，附件不作验收门）：`tb1419-impl/BASELINE-DIFF-S1S2.md`，合成段流三种子；S1/S2 不改 L0 中枢窗口与核心，只改外缘与中心定理二关系，上级塔变浅、中枢变少，上级验收归 #1429/#1424。
 - S1 的 16 条变红逐条判定：`tb1419-impl/S1-FAILURE-RULINGS.md`，全部是口径回归。
 - 生产 parser 在真实 BTC 上不成笔（本分支自身）：由 #1405 修，本票不修。
@@ -125,3 +136,5 @@
 ## 收据（`receipts/`）
 
 `REALDATA-L3.md`（L3 全文）、`l3-readout-summary.json`、`analyze-l3-v1.3.txt`、`mutate-l3-compare.txt`、`js-validate-l3.txt` 及三个比较脚本（`analyze_l3.py`、`mutate_l3_compare.py`、`js_validate_l3.cjs`，路径指向仓外组合树，复跑需该树）；`l3-1-tb02e-tests.txt`、`l3-mut-{rust,py,js}-geometric.txt`、`l3-2-all-targets-summary.txt`、`l3-3-s-session.txt`、`l3-4-py-node.txt`。40 MB 的 `l3-dump.json` 与 3 MB 整数 K 线不入仓，SHA 见 `REALDATA-L3.md`。
+
+探针（`probes/`）：`S0B-RESULT.md`、`F1A-RESULT.md`、`README.md`（含订正）、`s0b-probe-summary.json`、`f1a-timeline-summary.json`、背景负载与 release 构建收据；`probes/min12/`：`MIN12-RESULT.md`、生成器 `min_gen.py`、冻结输入 `s0b-MIN12.json`、离线 parser 跑法 `min12_parser_run.py` 与逐条耗时 `parser-run-LOG.json`、oracle 读数 `ORACLE-MIN12.json`、正式会话单臂摘要 `min12-probe-summary.json`。

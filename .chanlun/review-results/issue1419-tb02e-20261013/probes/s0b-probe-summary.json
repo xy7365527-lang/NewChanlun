@@ -1,0 +1,296 @@
+{
+ "source": "/Volumes/AgentStorage/issue1419-s0b-20261014/S0B-PROBE.json",
+ "caps": {
+  "arm_s": 900,
+  "collect_core_s": 120,
+  "frozen_oracle_s": 180,
+  "browser_s": 30,
+  "q_verify_ms": 5000,
+  "input_reply_ms": 10000
+ },
+ "runs": [
+  {
+   "run": "UP-per-bar",
+   "messages_planned": 212,
+   "bars": 212,
+   "ingest_ms": [
+    99.8,
+    41.2,
+    45.7,
+    57.6,
+    68.2,
+    80.1,
+    103.6,
+    133.2,
+    165.4,
+    174.8,
+    211.9,
+    273.6,
+    304.7,
+    349.2,
+    415.4,
+    469.6,
+    569.4,
+    598.4,
+    691.4,
+    802.5,
+    910.5,
+    981.4,
+    1084.9,
+    1205.4,
+    1314.5,
+    1414.7,
+    1542.1,
+    1714.4,
+    1881.8,
+    1996.0,
+    2148.9,
+    2367.0,
+    2503.0,
+    2624.5,
+    2828.7,
+    3082.9,
+    3299.4,
+    3419.1,
+    3629.6,
+    3957.6,
+    4168.1,
+    4371.3,
+    4651.3,
+    4954.5,
+    5249.1,
+    5478.2,
+    9495.9,
+    10002.1
+   ],
+   "ingest_total_s": 97.9,
+   "ingest_max_ms": 10002.120959,
+   "query_max_ms": 5175.054125,
+   "q_verify_ms": [
+    5.8,
+    448.5,
+    2215.1
+   ],
+   "fit_ingest_ms_vs_bars": {
+    "a_ms": 1.344906951668513,
+    "exponent": 2.1619987606578563
+   },
+   "gate_segments": {
+    "status": "MATCH",
+    "candidate": "known-31",
+    "completed_segments": 1,
+    "designed_units": 14,
+    "endpoints_got": [
+     12000,
+     42000
+    ],
+    "endpoints_designed": [
+     12000,
+     42000,
+     22000,
+     37000,
+     32000,
+     40000,
+     23000,
+     27000,
+     7000,
+     17000,
+     4000,
+     14000,
+     6000,
+     11000,
+     8000
+    ],
+    "counts": {
+     "objects": "201",
+     "observations": "72",
+     "raw_history": "32",
+     "relations": "783",
+     "total": "1781",
+     "withdrawn_objects": "516",
+     "witnesses": "177"
+    }
+   },
+   "verdict": {
+    "reply_cap_ok": false,
+    "q_verify_cap_ok": true,
+    "arm_window_ok": true
+   },
+   "result": {
+    "status": "INCOMPLETE",
+    "sent": 48,
+    "stopped_at": 47,
+    "reason": "reply DeliveryUnknown"
+   }
+  },
+  {
+   "run": "UP-batched",
+   "messages_planned": 14,
+   "bars": 212,
+   "ingest_ms": [
+    2.9
+   ],
+   "ingest_total_s": 0.0,
+   "ingest_max_ms": 2.937375,
+   "query_max_ms": null,
+   "q_verify_ms": [
+    4.2
+   ],
+   "fit_ingest_ms_vs_bars": null,
+   "gate_segments": {
+    "status": "NO_CANDIDATE"
+   },
+   "verdict": {
+    "reply_cap_ok": true,
+    "q_verify_cap_ok": true,
+    "arm_window_ok": true
+   },
+   "result": {
+    "status": "FAIL",
+    "sent": 0,
+    "stopped_at": null,
+    "reason": "ValueError: S正式接纳/发布顺序或结果不符：0"
+   }
+  },
+  {
+   "run": "SHORT11-per-bar",
+   "messages_planned": 168,
+   "bars": 168,
+   "ingest_ms": [
+    39.9,
+    39.5,
+    46.0,
+    56.8,
+    68.7,
+    81.2,
+    102.6,
+    130.9,
+    166.4,
+    179.5,
+    213.4,
+    275.2,
+    309.0,
+    343.8,
+    418.3,
+    472.0,
+    571.4,
+    609.2,
+    694.9,
+    804.6,
+    917.4,
+    985.7,
+    1070.8,
+    1211.7,
+    1325.3,
+    1422.0,
+    1537.0,
+    1749.7,
+    1873.2,
+    2007.4,
+    2134.1,
+    2340.9,
+    2496.4,
+    2623.4,
+    2813.9,
+    3075.6,
+    3254.6,
+    3427.7,
+    3631.6,
+    3932.2,
+    4169.3,
+    4363.7,
+    4632.8,
+    5048.7,
+    5180.1,
+    5405.2,
+    9472.9,
+    10002.1
+   ],
+   "ingest_total_s": 97.7,
+   "ingest_max_ms": 10002.118625,
+   "query_max_ms": 5224.343417,
+   "q_verify_ms": [
+    5.2,
+    446.0,
+    2225.5
+   ],
+   "fit_ingest_ms_vs_bars": {
+    "a_ms": 1.3654514329759804,
+    "exponent": 2.1575223477547163
+   },
+   "gate_segments": {
+    "status": "MATCH",
+    "candidate": "known-31",
+    "completed_segments": 1,
+    "designed_units": 11,
+    "endpoints_got": [
+     12000,
+     42000
+    ],
+    "endpoints_designed": [
+     12000,
+     42000,
+     22000,
+     37000,
+     32000,
+     40000,
+     23000,
+     27000,
+     7000,
+     17000,
+     4000,
+     14000
+    ],
+    "counts": {
+     "objects": "201",
+     "observations": "72",
+     "raw_history": "32",
+     "relations": "783",
+     "total": "1781",
+     "withdrawn_objects": "516",
+     "witnesses": "177"
+    }
+   },
+   "verdict": {
+    "reply_cap_ok": false,
+    "q_verify_cap_ok": true,
+    "arm_window_ok": true
+   },
+   "result": {
+    "status": "INCOMPLETE",
+    "sent": 48,
+    "stopped_at": 47,
+    "reason": "reply DeliveryUnknown"
+   }
+  },
+  {
+   "run": "SHORT11-batched",
+   "messages_planned": 11,
+   "bars": 168,
+   "ingest_ms": [
+    3.1
+   ],
+   "ingest_total_s": 0.0,
+   "ingest_max_ms": 3.101375,
+   "query_max_ms": null,
+   "q_verify_ms": [
+    4.4
+   ],
+   "fit_ingest_ms_vs_bars": null,
+   "gate_segments": {
+    "status": "NO_CANDIDATE"
+   },
+   "verdict": {
+    "reply_cap_ok": true,
+    "q_verify_cap_ok": true,
+    "arm_window_ok": true
+   },
+   "result": {
+    "status": "FAIL",
+    "sent": 0,
+    "stopped_at": null,
+    "reason": "ValueError: S正式接纳/发布顺序或结果不符：0"
+   }
+  }
+ ]
+}
