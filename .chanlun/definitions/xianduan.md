@@ -468,7 +468,7 @@ P2 在同序列上可给出 `{[0,4]}`（一段 5 笔）—— P2 能出 5 笔段
 | X-21 | `rust/src/theta_v0/parser/segment.rs:687-726` `make_segment` | **不改**：已按成员笔（`strokes[s0..=s1]`）方向极值标准化起止价，是 L0 单元区间的唯一来源；注释「第78课标准化」补引 `078:58`／`:60` 行号可随下次触碰时补 | §8「段区间」 | #1419 根裁定 L3（已落） |
 | X-22 | `rust/src/bin/s_session_v2/tb02e.rs` `units_from_segments`／`member_stroke_extremes` | 输入合同读 CC-013 时取成员笔（`stroke_refs` ∩ `construction.stroke_indices`）极值，不取几何端点 | 同上；#804 同一判定只有一个输入值 | #1419（本批） |
 | X-23 | `s_session/s_tb02_contract.py` `_member_extremes`／`_segment_units`、`s_session/browser/tb01c-client.js` `memberExtremes`／`segmentUnits` | Q 与浏览器复核同取成员笔极值，拒因同文 | 同上 | #1419（本批） |
-| X-24 | `formal/Origin/CenterConstruction.lean:52-58` `segHigh`／`segLow`（取 `Segment.startPrice/endPrice` 两端价） | **Lean 对齐义务（登记，未改）**：Lean 的 `Segment` 只有端点、无成员笔，须在定义处写明「端点价即标准化后的段内极值」为定义前提（或给 `Segment` 带成员笔再取极值），使 Lean 侧与 §8「段区间」同读 | §8「段区间」；Lean 管边界 | Lean 跟进票（#1419 根裁定 L3 登记） |
+| X-24 | `formal/Origin/CenterConstruction.lean:52-58` `segHigh`／`segLow`（取 `Segment.startPrice/endPrice` 两端价） | **Lean 对齐义务（登记，未改）**：Lean 的 `Segment` 只有端点、无成员笔，须在定义处写明「端点价即标准化后的段内极值」为定义前提（或给 `Segment` 带成员笔再取极值），使 Lean 侧与 §8「段区间」同读 | §8「段区间」；Lean 管边界 | [#1486](https://github.com/xy7365527-lang/NewChanlun/issues/1486)（Lean 跟进票，#1419 根裁定 L3 登记） |
 
 **穷举方法声明**：X-1~X-14 的行号均本轮 `grep`／`sed` 逐条核实。**可达性断言（X-8／X-11）的覆盖范围 ＝ `rust/src/`＋`src/`＋`scripts/`＋`.github/`＋`formal/`，未覆盖 `frontend/`、`trading_system/`、`prototypes/`、NT 适配层** ⟹ 一律写「**已查到的有 N 处**」，不写「全部」。
 
