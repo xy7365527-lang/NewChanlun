@@ -179,7 +179,7 @@ def manifest(files):
 def main(argv):
     check = argv[1:] == ["--check"]
     raws = documents()
-    listed = sorted(list(raws) + ["HAND-ORACLE.json", "generate_fixtures.py"])
+    listed = sorted(list(raws) + ["APPORTION-ORACLE.json", "HAND-ORACLE.json", "generate_fixtures.py"])
     bad = []
     for name, raw in raws.items():
         path = HERE / name

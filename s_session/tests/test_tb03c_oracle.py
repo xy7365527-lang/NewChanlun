@@ -54,6 +54,20 @@ class OracleAgreesWithHandCalculationTests(unittest.TestCase):
                    for f in range(case["total"] + 1)]
             self.assertEqual(got, case["sequence"], case["name"])
 
+    def test_frozen_apportion_table_equals_oracle(self):
+        cmd = [sys.executable, "-B", str(ROOT / "tb03c_oracle.py"), "--apportion-table"]
+        fresh = subprocess.run(cmd, capture_output=True, check=True).stdout
+        self.assertEqual((FIXTURES / "APPORTION-ORACLE.json").read_bytes(), fresh)
+        rows = json.loads(fresh)["rows"]
+        self.assertEqual(len(rows), 2 * (6 ** 2 + 5 ** 3 + 3 ** 4))
+        for row in rows:
+            q, seq = row["weights"], row["sequence"]
+            self.assertEqual(seq[-1], q)
+            for f, (prev, cur) in enumerate(zip(seq, seq[1:]), start=1):
+                self.assertEqual(sum(cur), f)
+                self.assertTrue(all(c >= p for p, c in zip(prev, cur)))
+                self.assertTrue(all(f * w // sum(q) <= c <= -((-f * w) // sum(q)) for w, c in zip(q, cur)))
+
     def test_largest_remainder_counterexample_is_reproduced(self):
         lr = tb03c_oracle.largest_remainder
         self.assertEqual(lr(3, [1, 3, 3], [0, 1, 2]), [1, 1, 1])

@@ -259,6 +259,21 @@ def run(fixtures):
     return {"schema_revision": "tb03c-oracle-output/1", "steps": count, "mismatches": mismatches, "results": results}
 
 
+def apportion_table():
+    """小域穷举：n=2..4 的冻结请求量与两种 tie_break_order，逐累计量给出配额法分配（供生产对拍）。"""
+    import itertools
+    rows = []
+    for n, hi in ((2, 6), (3, 5), (4, 3)):
+        for weights in itertools.product(range(1, hi + 1), repeat=n):
+            for tie_rank in (list(range(n)), list(range(n))[::-1]):
+                rows.append({"weights": list(weights), "tie_rank": tie_rank,
+                             "sequence": [apportion(f, list(weights), tie_rank) for f in range(sum(weights) + 1)]})
+    return {"schema_revision": "tb03c-apportion-oracle/1", "method": "balinski-young-quota", "rows": rows}
+
+
+if __name__ == "__main__" and sys.argv[1:] == ["--apportion-table"]:
+    sys.stdout.write(json.dumps(apportion_table(), sort_keys=True, separators=(",", ":")) + "\n")
+    sys.exit(0)
 if __name__ == "__main__":
     out = run(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).resolve().parent / "fixtures" / "tb03c")
     sys.stdout.write(json.dumps(out, ensure_ascii=False, sort_keys=True, indent=1) + "\n")
