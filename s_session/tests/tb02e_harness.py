@@ -2,6 +2,9 @@
 """#1419 S9（根裁 D-E (B)）：TB-02-E 冻结计划与双新进程重放入口（照 tb02d_harness，换账簿、用例、runtime 与恢复切面）。
 
 运行输出须选已有可写外盘目录。正式运行只到第 43 条（2 个完成段 + 进行中段），不出 seed/中枢；覆盖边界见交付报告。
+
+`--browser-deferred-to 1497`（根裁 ROOT-RULING-S9-RERUN 第 3 条）：各臂 runtime 跳过真实浏览器、只写 DEFERRED 收据，
+其余门不变；比较通过时总状态记 PASS_EXCEPT_BROWSER_DEFERRED，不记 passed。不带开关时计划、命令与判据同原版。
 """
 import argparse
 import hashlib
@@ -45,7 +48,17 @@ def save_comparison(path, value):
         dump(path, value)
 
 
-def prepare(output, binary, python, node, playwright_module, port_base):
+def browser_receipt_ok(browser, deferred, inputs):
+    """浏览器收据门。deferred=None 为原判据；否则只认本 runtime 写出的 DEFERRED 收据（未执行浏览器）。"""
+    if deferred is None:
+        return not (browser['status'] != 'passed' or browser['cuts'] != [str(RECOVERY_CUTS[0]), str(inputs)] or browser['page_errors'])
+    return (browser.get('status') == 'DEFERRED' and browser.get('deferred_to') == deferred
+            and browser.get('browser_executed') is False
+            and browser.get('planned_cuts') == [str(RECOVERY_CUTS[0]), str(inputs)]
+            and bool(browser.get('reason')) and bool(browser.get('failure_evidence')))
+
+
+def prepare(output, binary, python, node, playwright_module, port_base, browser_deferred_to=None):
     output.mkdir(parents=True, exist_ok=False)
     fixture = FIXTURE / 'raw-ledger.json'
     cases = {k:v for k,v in json.loads(fixture.read_text())['cases'].items() if k in CASES}
@@ -90,6 +103,8 @@ def prepare(output, binary, python, node, playwright_module, port_base):
             dump(directory/'config.json', config)
             command = [str(python),str(ROOT/'tests/tb02e_runtime.py'),'--config',str(directory/'config.json'),'--messages',str(directory/'messages.jsonl'),
                        '--output',str(directory/'evidence'),'--node',str(node),'--playwright-module',str(playwright_module),'--case',case]
+            if browser_deferred_to is not None:
+                command += ['--browser-deferred-to', browser_deferred_to]
             runs.append({'case':case,'arm':arm,'directory':str(directory),'command':command,
                          'prepared_sha256':{str(p.resolve()):hashlib.sha256(p.read_bytes()).hexdigest()
                              for p in (directory/'config.json',directory/'messages.jsonl',directory/'clock.json')}})
@@ -97,6 +112,8 @@ def prepare(output, binary, python, node, playwright_module, port_base):
             'oracle_sha256':hashlib.sha256((FIXTURE/'hand-oracle.json').read_bytes()).hexdigest(),
             'source_sha256':frozen_sources,
             'binary_sha256':hashlib.sha256(binary.read_bytes()).hexdigest(),'normal_recovery':True,'fault_injection':False,'operation_deadline_seconds':30,'run_deadline_seconds':900,'offline_deadlines_seconds':{'collect_core':120,'frozen_oracle':180,'oracle_node':120},'scope':'two named finite OHLC cases (D-E (B) prefix, no seed/center); default resource limits unchanged','runs':runs}
+    if browser_deferred_to is not None:
+        plan['browser_deferred_to'] = '#' + browser_deferred_to
     dump(output/'RUN-PLAN.json', plan)
     return plan
 
@@ -179,6 +196,7 @@ def compare_completed(plan, output):
     if hashlib.sha256((FIXTURE/'hand-oracle.json').read_bytes()).hexdigest() != plan['oracle_sha256']:
         raise ValueError('独立冻结oracle已改变')
     cases = {k:v for k,v in json.loads(fixture.read_text())['cases'].items() if k in CASES}
+    deferred = plan.get('browser_deferred_to')
     wanted = [(case, arm) for case in cases for arm in ('a', 'b')]
     if [(run['case'], run['arm']) for run in plan['runs']] != wanted:
         raise ValueError('计划缺双向双新进程运行')
@@ -197,7 +215,7 @@ def compare_completed(plan, output):
                 or capture['input_count'] != inputs or capture['core_records'] != len(expected_layout(inputs))
                 or capture['cleanup']['errors'] or oracle['status'] != 'passed'
                 or oracle['case'] != run['case'] or oracle['cuts'] != inputs
-                or browser['status'] != 'passed' or browser['cuts'] != [str(RECOVERY_CUTS[0]), str(inputs)] or browser['page_errors']
+                or not browser_receipt_ok(browser, deferred, inputs)
                 or recovery['equal'] is not True or recovery['cuts'] != [RECOVERY_CUTS[0], inputs]):
             raise ValueError('实际运行/独立预期/浏览器/恢复收据不完整：' + str(directory))
     comparisons = []
@@ -207,11 +225,14 @@ def compare_completed(plan, output):
             Path(right['directory']) / 'evidence/semantic-core.jsonl',
             expected_layout(len(cases[left['case']])))
         comparisons.append({'case': left['case'], **result})
-    result = {'status': 'passed' if all(c['status'] == 'PASS' for c in comparisons) else 'NOT_VERIFIED',
+    passed = 'passed' if deferred is None else 'PASS_EXCEPT_BROWSER_DEFERRED'
+    result = {'status': passed if all(c['status'] == 'PASS' for c in comparisons) else 'NOT_VERIFIED',
               'comparisons': comparisons, 'scope': 'TB-02-E（D-E (B) 前缀：无 seed/中枢），非整图完成',
               'services_reexecuted': False, 'source_plan': str(output / 'RUN-PLAN.json')}
+    if deferred is not None:
+        result['browser'] = {'status': 'DEFERRED', 'deferred_to': deferred}
     save_comparison(output / 'COMPARISON-RESULT.json', result)
-    if result['status'] != 'passed':
+    if result['status'] != passed:
         raise ValueError('完整双跑尚未验真，见 COMPARISON-RESULT.json')
     return result
 
@@ -223,8 +244,12 @@ if __name__ == '__main__':
     parser.add_argument('--compare-existing', type=Path, help='只核已完成原件；依赖沿用 requirements-tb02c.txt')
     parser.add_argument('--port-base',type=int,default=18860)
     parser.add_argument('--execute',action='store_true')
+    parser.add_argument('--browser-deferred-to', choices=('1497',),
+                        help='跳过真实浏览器、写 DEFERRED 收据（根裁 S9 第 3 条，移交 #1497）；总状态 PASS_EXCEPT_BROWSER_DEFERRED')
     args = vars(parser.parse_args())
     existing = args.pop('compare_existing')
+    if existing and args['browser_deferred_to'] is not None:
+        parser.error('--browser-deferred-to 只用于新运行；--compare-existing 按 RUN-PLAN 记录判定')
     if existing:
         existing = existing.resolve()
         print(json.dumps(compare_completed(json.loads((existing / 'RUN-PLAN.json').read_text()), existing), ensure_ascii=False))
