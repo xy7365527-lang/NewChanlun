@@ -296,6 +296,7 @@ pub(super) fn second_seq_has_fractal(
 }
 
 /// #1414：判定与证据来自同一遍扫描，正证据提前停，不把窗口耗尽当否定。
+/// #1344 裁定：语义终点 = 分型或越界先到者（078:52）；本片未实现 078:52 失效条件（KILLED_BY_NEW_EXTREME），失效语义归 TB-02-W #1420。
 fn second_sequence(
     strokes: &[Stroke],
     seg_dir: Direction,

@@ -31,6 +31,8 @@
 - 报告层「成本为 0」标记线作为实现细节并入，不另立口径；
 - **遗留子项**：分红/除权进成本基的口径（原文未提，全语料留白之一），本票或另票收。
 
+> **指针（2026-10-13 [#1348](https://github.com/xy7365527-lang/NewChanlun/issues/1348)）**：上面的遗留子项已由 [ADR 0031](0031-principal-batches-phase-predicate-corporate-actions.md) 裁定五收口（现金分红净额计回收、代扣税作费用分量、除权价调整不改成本基、拆股按整数比重基）。
+
 ### 五、风险度量：总账为主、逐区为辅
 
 - 总账 `LeverageCaps`（毛/净两道，`risk.rs`）成为真实生效的验收闸：**毛 cap 管裁定一的杠杆暴露，净 cap 管裁定二的净额验收**；
@@ -42,6 +44,8 @@
 
 - funding 按腿毛敞口计、borrow 按空腿借券市值计（`gross_target_units` 同款坐标）；这是 #178 裁定三当年要的那句「蓝图明文」，**档 B（逐腿下单出口）自此取得单独立案资格**——立不立案由另一张票决定，本票只交付「口径已定」这个解锁事实；
 - 执行层现是 Netting，毛口径先落虚拟毛账层，等档 B 立案才真实——与裁定二「毛账归因、净账验收」分工同款，不是矛盾。
+
+> **指针（2026-10-13 [#1350](https://github.com/xy7365527-lang/NewChanlun/issues/1350)、[#1353](https://github.com/xy7365527-lang/NewChanlun/issues/1353)、[#1351](https://github.com/xy7365527-lang/NewChanlun/issues/1351)）**：外效分配与完整历史模拟按投影清单冻结的 `projection_kind` 区分 `per_leg`（档 B 坐标）与 `netted`（[ADR 0032](0032-fill-allocation-policy.md) 裁定一、[ADR 0033](0033-history-simulation-bar-batch-model.md) 裁定四）；首个能力验证 profile 按 Netting（[ADR 0028](0028-first-capability-verification-profile.md) 裁定三）。档 B 是否立案仍由下游票第 3 条决定，这些指针不构成立案。
 
 ## 事实勘误
 
@@ -62,6 +66,6 @@
 ## 下游票（本 ADR 只定口径，不做）
 
 1. **对账定理形式化**（裁定三形态 B）：Lean 落 `formal/Origin/`，Rust 落对账测试——AFK 实施票；
-2. **总账户 cap 参数源**（裁定五的 γ̄ / 净 cap 数值）；
+2. **总账户 cap 参数源**（裁定五的 γ̄ / 净 cap 数值）——**来源与记录形状已由 [#1349](https://github.com/xy7365527-lang/NewChanlun/issues/1349)／[ADR 0029](0029-common-cap-contention-policy.md) 裁为人工具名数额（带版本、有效期、profile 绑定）；数值仍不填，随激活由用户签署政策记录**；
 3. **档 B 立案**（裁定六解锁后）：#178 的名分由该票判「条件已补齐、可立案」；
 4. **dual_ledger.rs 引用性质核实**（本 ADR 事实勘误项）。
