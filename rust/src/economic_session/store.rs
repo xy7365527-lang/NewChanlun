@@ -100,6 +100,10 @@ impl Config {
     pub(crate) fn revision(&self) -> Result<&'static str, String> {
         domain_revision(&self.manifest)
     }
+    /// #1406：本域书账子合同版本（manifest 顶层 `book_revision`），与域版本正交。
+    pub(crate) fn book_rules(&self) -> Result<super::book::Rules, String> {
+        super::book::rules(&self.manifest)
+    }
     pub fn load(path: &Path, db: &Path, chong: Option<&str>) -> Result<Self, String> {
         let manifest = strict_json(&std::fs::read(path).map_err(err)?)?;
         if manifest["schema_revision"] != "economic-manifest/1" {
@@ -666,6 +670,10 @@ pub(crate) fn init(config: &Config) -> Result<Value, String> {
     if super::evidence::enabled(config) {
         set_meta(&tx, "voice_binding_revision", "voice-binding/1")?;
     }
+    // #1406 / 根裁定 OQ-7：书账子合同版本只由 init 显式绑定；旧域无此行。
+    if config.book_rules()? == super::book::Rules::Tb03cV1 {
+        set_meta(&tx, "book_revision", super::book::TB03C_BOOK_V1)?;
+    }
     let ns = config.clock(None, "init_ns", 0)?;
     tx.execute("INSERT INTO epochs VALUES(1,'init',?)", [&ns])
         .map_err(err)?;
@@ -849,6 +857,20 @@ pub(crate) fn audit_with_deadline(
             "IdentityConflict：Voice 存储版本未由 init 显式绑定；不得在 recover 暗迁移".into(),
         );
     }
+    let book_revision: Option<String> = c
+        .query_row("SELECT v FROM meta WHERE k='book_revision'", [], |r| {
+            r.get(0)
+        })
+        .optional()
+        .map_err(err)?;
+    if book_revision.as_deref()
+        != match config.book_rules()? {
+            super::book::Rules::Tb03cV1 => Some(super::book::TB03C_BOOK_V1),
+            super::book::Rules::Legacy => None,
+        }
+    {
+        return Err("IdentityConflict：书账版本未由 init 显式绑定；不得在 recover 暗迁移".into());
+    }
     // 内容格式登记与 Voice 版本同一条纪律：只认 init 显式绑定，recover 不暗迁移。
     let content_format: Option<String> = if revision == SCHEMA_V2 {
         c.query_row(
@@ -963,7 +985,7 @@ pub(crate) fn audit_with_deadline(
             let record = records
                 .last()
                 .ok_or("StorageUnavailable：域损坏：提交缺原件")?;
-            verify_record(record)?;
+            verify_record(record, config.book_rules()?)?;
             if config.domain == "E" {
                 if record["recorded_seq"] != seq.to_string() || record["commit_ns"] != ns {
                     return Err(
@@ -985,7 +1007,7 @@ pub(crate) fn audit_with_deadline(
                 x["history"].as_array_mut().unwrap().push(json!({"kind":"CaptureExternal","fact_key":record["fact_key"],"commit_seq":seq.to_string(),"commit_ns":ns}));
                 x
             } else {
-                apply(&previous_image, record, seq, &ns)?.0
+                apply(&previous_image, record, seq, &ns, config.book_rules()?)?.0
             };
             if image != expected {
                 return Err("StorageUnavailable：域损坏：原件重放不等于提交图像".into());
@@ -1323,9 +1345,9 @@ pub(crate) fn verify_e_copy(record: &Value, config: &Config) -> Result<(), Strin
     Ok(())
 }
 
-pub(crate) fn verify_record(r: &Value) -> Result<(), String> {
+pub(crate) fn verify_record(r: &Value, rules: super::book::Rules) -> Result<(), String> {
     let raw = required(r, "raw_utf8")?;
-    let (doc, event) = decode(raw, required(r, "json_pointer")?)?;
+    let (doc, event) = decode(raw, required(r, "json_pointer")?, rules)?;
     if r["raw_sha256"] != sha256_hex(raw.as_bytes())
         || r["event"] != event
         || r["fact_key"] != fact_key(&event)?

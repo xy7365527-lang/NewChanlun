@@ -249,6 +249,14 @@ mod tests {
     }
 
     #[test]
+    fn policy_id_is_the_quota_revision() {
+        assert_eq!(
+            FILL_ALLOCATION_POLICY_ID,
+            "frozen-manifest-proportional-cumulative/2"
+        );
+    }
+
+    #[test]
     fn tie_breaks_are_counted_for_reporting() {
         assert_eq!(apportion(3, &[1, 1, 1], &[1, 2, 0]).unwrap().tie_breaks, 2);
         assert_eq!(apportion(7, &[1, 3, 3], &[0, 1, 2]).unwrap().tie_breaks, 3);

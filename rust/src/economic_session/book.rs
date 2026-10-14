@@ -4,24 +4,45 @@ use crate::session_protocol::{
 use crate::theta_v0::strategy::ledger::{ledger_step_components, LedgerEvent};
 use serde_json::{json, Value};
 
+/// #1406 / 根裁定 OQ-7：书账子合同版本，冻结在 manifest 顶层 `book_revision`。
+/// 缺省（或 null）= 旧书账规则（#1374 的 `/1` 域与 #1394 的 `/2` 域逐字重放）；
+/// 显式只认 `tb03c-book/1`；其余值当场拒绝，无回落（#799）。
+pub(crate) const BOOK_REVISION_FIELD: &str = "book_revision";
+pub(crate) const TB03C_BOOK_V1: &str = "tb03c-book/1";
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Rules {
+    Legacy,
+    Tb03cV1,
+}
+pub(crate) fn rules(manifest: &Value) -> Result<Rules, String> {
+    match manifest.get(BOOK_REVISION_FIELD) {
+        None | Some(Value::Null) => Ok(Rules::Legacy),
+        Some(Value::String(v)) if v == TB03C_BOOK_V1 => Ok(Rules::Tb03cV1),
+        Some(_) => Err("SchemaUnsupported：书账版本只有缺省（旧规则）与 tb03c-book/1".into()),
+    }
+}
+
+#[cfg(test)]
+pub(crate) use super::tb03c_book::growth_eligible_of;
+
 pub(crate) fn hash(v: &Value) -> String {
     sha256_hex(canonical_json(v).as_bytes())
 }
 pub(crate) fn integer(v: &Value, k: &str) -> Result<i64, String> {
     parse_canonical_i64(required(v, k)?, k)
 }
-fn add(a: i64, b: i64) -> Result<i64, String> {
+pub(super) fn add(a: i64, b: i64) -> Result<i64, String> {
     a.checked_add(b)
         .ok_or("InvalidDomain：精确整数加法溢出".into())
 }
-fn sub(a: i64, b: i64) -> Result<i64, String> {
+pub(super) fn sub(a: i64, b: i64) -> Result<i64, String> {
     a.checked_sub(b)
         .ok_or("InvalidDomain：精确整数减法溢出".into())
 }
-fn reserve(pi: i64, a: i64, w: i64) -> Result<i64, String> {
+pub(super) fn reserve(pi: i64, a: i64, w: i64) -> Result<i64, String> {
     sub(sub(pi, a)?, w)
 }
-fn array<'a>(v: &'a Value, k: &str) -> Result<&'a Vec<Value>, String> {
+pub(super) fn array<'a>(v: &'a Value, k: &str) -> Result<&'a Vec<Value>, String> {
     v[k].as_array()
         .ok_or_else(|| format!("SchemaUnsupported：{k}须数组"))
 }
@@ -52,7 +73,7 @@ pub(crate) fn fact_key(event: &Value) -> Result<String, String> {
 }
 
 /// 返回从真实原件及 JSON pointer 解析的事实；绝不消费 caller 提供的经济派生量。
-pub(crate) fn decode(raw: &str, pointer: &str) -> Result<(Value, Value), String> {
+pub(crate) fn decode(raw: &str, pointer: &str, rules: Rules) -> Result<(Value, Value), String> {
     let doc = strict_json(raw.as_bytes())?;
     no_float(&doc)?;
     if doc["format"] != "neutral TestOnly economic raw originals; not production transport wire" {
@@ -146,9 +167,14 @@ pub(crate) fn decode(raw: &str, pointer: &str) -> Result<(Value, Value), String>
         }
         Ok(())
     };
+    let v1 = rules == Rules::Tb03cV1;
+    if v1 {
+        super::tb03c_book::decode_extensions(&event, pointer, &check_ref)?;
+    }
     for (index, c) in array(&event, "known_cost_components")?.iter().enumerate() {
         match required(c, "kind")? {
             "acquisition_cash" | "commission" => (),
+            k if v1 && super::tb03c_book::COMPONENT_KINDS.contains(&k) => (),
             _ => return Err("SchemaUnsupported：未声明成本分量类型".into()),
         };
         nonnegative(required(c, "canonical_amount")?, "canonical_amount")?;
@@ -222,24 +248,35 @@ pub(crate) fn decode(raw: &str, pointer: &str) -> Result<(Value, Value), String>
             integer(w, "value")
         };
         let du = integer(d, "units")?;
-        if du == 0 {
+        if du == 0 && !v1 {
             return Err("SchemaUnsupported：该受控profile要求明确数量变化".into());
         }
-        let quantity_kind = if du > 0 {
-            "settled_quantity_increase"
-        } else {
-            "settled_quantity_reduction"
-        };
-        let opposite = if du > 0 {
-            "settled_quantity_reduction"
-        } else {
-            "settled_quantity_increase"
-        };
-        if kinds.contains(opposite) {
-            return Err("IdentityConflict：同一数量变化含相反方向依据".into());
+        if v1 {
+            super::tb03c_book::check_quantity_class(&event, du)?;
         }
-        if witness_value(quantity_kind)? != du {
-            return Err("IdentityConflict：数量增减与实际依据不一致".into());
+        if du == 0 {
+            if kinds.contains("settled_quantity_increase")
+                || kinds.contains("settled_quantity_reduction")
+            {
+                return Err("IdentityConflict：零数量变化不得带数量增减依据".into());
+            }
+        } else {
+            let quantity_kind = if du > 0 {
+                "settled_quantity_increase"
+            } else {
+                "settled_quantity_reduction"
+            };
+            let opposite = if du > 0 {
+                "settled_quantity_reduction"
+            } else {
+                "settled_quantity_increase"
+            };
+            if kinds.contains(opposite) {
+                return Err("IdentityConflict：同一数量变化含相反方向依据".into());
+            }
+            if witness_value(quantity_kind)? != du {
+                return Err("IdentityConflict：数量增减与实际依据不一致".into());
+            }
         }
         for (field, kind) in [
             ("A", "completed_profit_capitalization"),
@@ -310,7 +347,7 @@ pub(crate) fn decode(raw: &str, pointer: &str) -> Result<(Value, Value), String>
 pub(crate) fn empty_image() -> Value {
     json!({"book":null,"recorded":[],"pending":[],"applied":[],"unmatched":[],"history":[]})
 }
-fn push(image: &mut Value, k: &str, v: Value) {
+pub(super) fn push(image: &mut Value, k: &str, v: Value) {
     image[k]
         .as_array_mut()
         .expect("validated image array")
@@ -323,10 +360,15 @@ pub(crate) fn apply(
     record: &Value,
     seq: i64,
     ns: &str,
+    rules: Rules,
 ) -> Result<(Value, bool), String> {
+    if rules == Rules::Tb03cV1 {
+        return super::tb03c_book::apply(image, record, seq, ns);
+    }
     let (doc, event) = decode(
         required(record, "raw_utf8")?,
         required(record, "json_pointer")?,
+        Rules::Legacy,
     )?;
     let mut next = image.clone();
     let opening = event.get("observed_existing_book").is_some();
@@ -442,7 +484,8 @@ pub(super) mod tests {
     }
     #[test]
     fn nonempty_opening_preserves_unknown_principal_and_all_known_components() {
-        let (image, unmatched) = apply(&empty_image(), &record(&document()), 1, "20").unwrap();
+        let (image, unmatched) =
+            apply(&empty_image(), &record(&document()), 1, "20", Rules::Legacy).unwrap();
         assert!(!unmatched);
         let b = &image["book"];
         assert_eq!(b["actual_quantity"], "8");
@@ -454,7 +497,7 @@ pub(super) mod tests {
         assert_eq!(b["known_cost_totals"]["acquisition_cash"], "80000");
         assert_eq!(b["unknown"]["principal_baseline"]["status"], "Unknown");
         assert_eq!(b["voice"]["status"], "MissingDependency");
-        assert!(apply(&image, &record(&document()), 2, "30")
+        assert!(apply(&image, &record(&document()), 2, "30", Rules::Legacy)
             .unwrap_err()
             .contains("IdentityConflict"));
     }
@@ -462,18 +505,20 @@ pub(super) mod tests {
     fn rejects_noncanonical_floats_duplicates_and_unreadable_source_refs() {
         let mut doc = document();
         doc["events"][0]["observed_existing_book"]["units"] = json!(8.5);
-        assert!(decode(&canonical_json(&doc), "/events/0").is_err());
+        assert!(decode(&canonical_json(&doc), "/events/0", Rules::Legacy).is_err());
         for n in ["01", "+1", "-0", "9223372036854775808"] {
             let mut doc = document();
             doc["events"][0]["observed_existing_book"]["units"] = json!(n);
-            assert!(decode(&canonical_json(&doc), "/events/0").is_err());
+            assert!(decode(&canonical_json(&doc), "/events/0", Rules::Legacy).is_err());
         }
-        assert!(decode("{\"events\":[],\"events\":[]}", "/events/0")
-            .unwrap_err()
-            .contains("duplicate"));
+        assert!(
+            decode("{\"events\":[],\"events\":[]}", "/events/0", Rules::Legacy)
+                .unwrap_err()
+                .contains("duplicate")
+        );
         let mut doc = document();
         doc["evidence_index"]["fragments"]["u"][0]["json_pointer"] = json!("/missing");
-        assert!(decode(&canonical_json(&doc), "/events/0")
+        assert!(decode(&canonical_json(&doc), "/events/0", Rules::Legacy)
             .unwrap_err()
             .contains("MissingDependency"));
     }
@@ -481,7 +526,7 @@ pub(super) mod tests {
     fn rejects_financial_and_cost_overflow_before_calling_shared_operator() {
         let mut doc = document();
         doc["events"][0]["observed_existing_book"]["Pi"] = json!(i64::MIN.to_string());
-        assert!(apply(&empty_image(), &record(&doc), 1, "20")
+        assert!(apply(&empty_image(), &record(&doc), 1, "20", Rules::Legacy)
             .unwrap_err()
             .contains("溢出"));
         let mut doc = document();
@@ -499,7 +544,7 @@ pub(super) mod tests {
             .as_array_mut()
             .unwrap()
             .push(fee);
-        assert!(apply(&empty_image(), &record(&doc), 1, "20")
+        assert!(apply(&empty_image(), &record(&doc), 1, "20", Rules::Legacy)
             .unwrap_err()
             .contains("溢出"));
     }
@@ -519,12 +564,13 @@ pub(super) mod tests {
             json!("/events/0/component_witnesses/0");
         doc["evidence_index"]["fragments"]["p"][0]["json_pointer"] =
             json!("/events/0/component_witnesses/1");
-        let (image, unmatched) = apply(&empty_image(), &record(&doc), 1, "20").unwrap();
+        let (image, unmatched) =
+            apply(&empty_image(), &record(&doc), 1, "20", Rules::Legacy).unwrap();
         assert!(unmatched);
         assert!(image["book"].is_null());
         assert_eq!(image["unmatched"].as_array().unwrap().len(), 1);
         doc["events"][0]["deltas"]["A"] = json!("1");
-        assert!(apply(&empty_image(), &record(&doc), 1, "20")
+        assert!(apply(&empty_image(), &record(&doc), 1, "20", Rules::Legacy)
             .unwrap_err()
             .contains("MissingDependency"));
     }
@@ -537,7 +583,7 @@ pub(super) mod tests {
             doc["events"].as_array_mut().unwrap().push(other);
             doc["evidence_index"]["fragments"]["u"][0]["json_pointer"] =
                 json!("/events/1/observed_existing_book/units");
-            assert!(decode(&canonical_json(&doc), "/events/0")
+            assert!(decode(&canonical_json(&doc), "/events/0", Rules::Legacy)
                 .unwrap_err()
                 .contains("IdentityConflict"));
         }
@@ -563,9 +609,9 @@ pub(super) mod tests {
                     json!(format!("/events/0/component_witnesses/{index}"));
             }
             doc["events"][0]["deltas"][field] = json!("50");
-            assert!(decode(&canonical_json(&doc), "/events/0").is_ok());
+            assert!(decode(&canonical_json(&doc), "/events/0", Rules::Legacy).is_ok());
             doc["events"][0]["deltas"][field] = json!("0");
-            assert!(decode(&canonical_json(&doc), "/events/0")
+            assert!(decode(&canonical_json(&doc), "/events/0", Rules::Legacy)
                 .unwrap_err()
                 .contains("IdentityConflict"));
         }

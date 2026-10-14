@@ -154,7 +154,11 @@ pub(super) fn bind_image(
     {
         return Err("IdentityConflict：Voice 开局事实/应用/目标不一致".into());
     }
-    let (doc, event) = decode(required(fact, "raw_utf8")?, required(fact, "json_pointer")?)?;
+    let (doc, event) = decode(
+        required(fact, "raw_utf8")?,
+        required(fact, "json_pointer")?,
+        config.book_rules()?,
+    )?;
     let quantity = if event.get("observed_existing_book").is_some() {
         integer(&event["observed_existing_book"], "units")?
     } else {

@@ -9,6 +9,7 @@ mod finance_transport;
 mod financial_reader_resources;
 mod service;
 mod store;
+mod tb03c_book;
 mod voice;
 pub use service::cli;
 

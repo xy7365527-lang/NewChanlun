@@ -98,7 +98,7 @@ fn record_from_payload(config: &Config, e: &Value) -> Result<Value, String> {
     )?;
     let raw = required(p, "raw_utf8")?;
     let pointer = required(p, "json_pointer")?;
-    let (doc, event) = decode(raw, pointer)?;
+    let (doc, event) = decode(raw, pointer, config.book_rules()?)?;
     if event["source"]["source_namespace"] != e["source_namespace"]
         || event["source"]["source_epoch"] != e["source_epoch"]
     {
@@ -230,7 +230,7 @@ fn authoritative_fact_inner(
     }
     let mut f = row(&tx, "facts", key)?.ok_or("MissingDependency：固定E权威不存在该原事实")?;
     let r = row(&tx, "receipts", key)?.ok_or("StorageUnavailable：域损坏：固定E缺原回执")?;
-    verify_record(&f)?;
+    verify_record(&f, config.book_rules()?)?;
     f["cut"] = r["cut"].clone();
     f["e_receipt"] = r;
     f["e_domain_id"] = json!("E");
@@ -387,7 +387,7 @@ fn apply_allocation_inner(
     record["b_observation"] = json!({"received_ns":received,"first_known_ns":first,"commit_ns":ns});
     record["b_origin_message"] = json!({"source_namespace":e["source_namespace"],"source_epoch":e["source_epoch"],"message_id":e["message_id"],"payload_hash":e["payload_hash"]});
     record["b_origin_request_hash"] = json!(hash(e));
-    let (next, unmatched) = apply(&image, &record, seq, &ns)?;
+    let (next, unmatched) = apply(&image, &record, seq, &ns, config.book_rules()?)?;
     if let Some(job) = import_job.as_mut() {
         let refs = super::content_store::image_refs(&next)
             .map_err(|e| format!("MissingDependency：ApplyAllocation 引用路径非法：{e}"))?;
