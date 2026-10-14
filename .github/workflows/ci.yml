@@ -272,6 +272,13 @@ jobs:
         if: always()
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --test s_content_contract --test s_content_sequence --test s_content_job --test s_content_path --jobs 1
 
+      # #1394/#1481：s_capture_native_testonly 特性下才编译的测试（2026-10-14 计：lib 26、S bin 174）此前从未编译、
+      #   从未执行（state.rs 测试调用漏传 cfg 参数，开特性即 E0061）。只跑「开特性后新增」的测试，其余同名同体测试
+      #   已在上面 s_session 步执行；新增集合为空即失败。本机端到端（四次编译加执行）约 9 min；CI 估 20–25 min。
+      - name: cargo test — s_capture_native_testonly 特性新增的测试（#1394）
+        if: always()
+        run: ../.github/scripts/run-cargo-with-telemetry.sh ../.github/scripts/test-feature-delta.sh s_capture_native_testonly
+
       # #1394 整合（根裁定 A）：v3 history 的 Owned 文本/分配原型用例只在 s_allocation_json_testonly
       #   构建编译；只编译不执行的锁按无锁计（#799），故单列一步执行。不依赖前面各步的产物。
       - name: cargo test — v3 history Owned 分配原型（s_allocation_json_testonly，#1394）

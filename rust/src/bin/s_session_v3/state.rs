@@ -2835,6 +2835,8 @@ mod transaction_material_qualification {
                     None,
                     None,
                     RetentionReport::Skip,
+                    #[cfg(feature = "s_capture_native_testonly")]
+                    None,
                     Some(scope),
                 );
                 Ok::<_, ()>(())
