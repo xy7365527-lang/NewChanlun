@@ -1,0 +1,739 @@
+{
+ "apportion_cases": [
+  {
+   "name": "q=(1,3,3) Balinski–Young 配额法（WE-7）",
+   "sequence": [
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     2,
+     1
+    ],
+    [
+     0,
+     2,
+     2
+    ],
+    [
+     0,
+     3,
+     2
+    ],
+    [
+     0,
+     3,
+     3
+    ],
+    [
+     1,
+     3,
+     3
+    ]
+   ],
+   "tie_rank": [
+    0,
+    1,
+    2
+   ],
+   "total": 7,
+   "weights": [
+    1,
+    3,
+    3
+   ]
+  },
+  {
+   "name": "q=(2,1) 并列先给冻结请求量较大者",
+   "sequence": [
+    [
+     0,
+     0
+    ],
+    [
+     1,
+     0
+    ],
+    [
+     2,
+     0
+    ],
+    [
+     2,
+     1
+    ]
+   ],
+   "tie_rank": [
+    0,
+    1
+   ],
+   "total": 3,
+   "weights": [
+    2,
+    1
+   ]
+  },
+  {
+   "name": "q=(1,1,1) tie_rank 使第三重先得",
+   "sequence": [
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     1,
+     0,
+     1
+    ],
+    [
+     1,
+     1,
+     1
+    ]
+   ],
+   "tie_rank": [
+    1,
+    2,
+    0
+   ],
+   "total": 3,
+   "weights": [
+    1,
+    1,
+    1
+   ]
+  }
+ ],
+ "book_cases": [
+  {
+   "chong_id": "chong-L1",
+   "name": "WE-1/WE-2 回本前同量回补、跨闸、退本金、模拟触闸、费用回正",
+   "phase_events": [
+    {
+     "kind": "cost_remaining_nonpositive",
+     "stable_point": "103"
+    },
+    {
+     "from": "NotEligible",
+     "kind": "growth_eligible",
+     "stable_point": "105",
+     "to": "Eligible"
+    },
+    {
+     "from": "Eligible",
+     "kind": "growth_eligible",
+     "stable_point": "106",
+     "to": "NotEligible"
+    },
+    {
+     "kind": "cost_remaining_positive",
+     "stable_point": "106"
+    }
+   ],
+   "steps": [
+    {
+     "book": {
+      "A": 0,
+      "K": 10000,
+      "P": 10000,
+      "P_recovered": 0,
+      "Pi": 0,
+      "R": 0,
+      "W": 0,
+      "cost_remaining": 10000,
+      "fees": 50,
+      "fixed_q": 10,
+      "gate": null,
+      "growth_eligible": "NotEligible",
+      "growth_enabled": "NotEligible",
+      "latch": "CostReduction",
+      "q": 10,
+      "realized_gross": 0,
+      "stable_point": "100",
+      "unit_cost": {
+       "K": 10000,
+       "q": 10
+      }
+     },
+     "label": "开局10，现金9950、佣金50，P0=10000",
+     "outcome": "Applied",
+     "pointer": "/events/0",
+     "raw": "raw/chong-L1.json"
+    },
+    {
+     "book": {
+      "K": 5224,
+      "Pi": 776,
+      "R": 776,
+      "cost_remaining": 5224,
+      "fees": 74,
+      "growth_eligible": "NotEligible",
+      "q": 6,
+      "realized_gross": 800,
+      "stable_point": "101",
+      "unit_cost": {
+       "K": 5224,
+       "q": 6
+      }
+     },
+     "label": "短差卖4，处置4800、佣金24，实现800/24",
+     "outcome": "Applied",
+     "pointer": "/events/1",
+     "raw": "raw/chong-L1.json"
+    },
+    {
+     "book": {
+      "K": 9445,
+      "cost_remaining": 9445,
+      "fees": 95,
+      "q": 10,
+      "stable_point": "102",
+      "unit_cost": {
+       "K": 9445,
+       "q": 10
+      }
+     },
+     "label": "同量回补4，现金4200、佣金21",
+     "outcome": "Applied",
+     "pointer": "/events/2",
+     "raw": "raw/chong-L1.json"
+    },
+    {
+     "book": {
+      "K": -6475,
+      "Pi": 12696,
+      "R": 12696,
+      "cost_remaining": -6475,
+      "fees": 175,
+      "gate": null,
+      "growth_eligible": "NotEligible",
+      "latch": "CostReduction",
+      "q": 6,
+      "realized_gross": 12800,
+      "stable_point": "103",
+      "unit_cost": {
+       "K": -6475,
+       "q": 6
+      }
+     },
+     "label": "短差卖4，处置16000、佣金80：正向跨闸",
+     "outcome": "Applied",
+     "pointer": "/events/3",
+     "raw": "raw/chong-L1.json"
+    },
+    {
+     "book": {
+      "K": -445,
+      "cost_remaining": -445,
+      "fees": 205,
+      "growth_eligible": "NotEligible",
+      "q": 10,
+      "stable_point": "104",
+      "unit_cost": {
+       "K": -445,
+       "q": 10
+      }
+     },
+     "label": "同量回补4，现金6000、佣金30",
+     "outcome": "Applied",
+     "pointer": "/events/4",
+     "raw": "raw/chong-L1.json"
+    },
+    {
+     "book": {
+      "K": -445,
+      "P": 10000,
+      "P_recovered": 10000,
+      "gate": "SimulatedGateReached",
+      "growth_eligible": "Eligible",
+      "growth_enabled": "AwaitingPolicy",
+      "latch": "EarningShares",
+      "q": 10,
+      "stable_point": "105"
+     },
+     "label": "退本金10000",
+     "outcome": "Applied",
+     "pointer": "/events/5",
+     "raw": "raw/chong-L1.json"
+    },
+    {
+     "book": {
+      "K": 155,
+      "cost_remaining": 155,
+      "fees": 805,
+      "gate": "SimulatedGateReached",
+      "growth_eligible": "NotEligible",
+      "growth_enabled": "NotEligible",
+      "latch": "EarningShares",
+      "q": 10,
+      "stable_point": "106",
+      "unit_cost": {
+       "K": 155,
+       "q": 10
+      }
+     },
+     "label": "迟到期间费600（du=0 fee_only）",
+     "outcome": "Applied",
+     "pointer": "/events/6",
+     "raw": "raw/chong-L1.json"
+    },
+    {
+     "book": {
+      "K": 155,
+      "fees": 805,
+      "q": 10
+     },
+     "label": "du=0 且无任何分量",
+     "outcome": "SchemaUnsupported",
+     "pointer": "/events/7",
+     "raw": "raw/chong-L1.json"
+    },
+    {
+     "book": {
+      "K": 155,
+      "q": 10
+     },
+     "label": "du=0 的成交类分量",
+     "outcome": "SchemaUnsupported",
+     "pointer": "/events/8",
+     "raw": "raw/chong-L1.json"
+    },
+    {
+     "book": {
+      "K": 155,
+      "fees": 805,
+      "q": 10
+     },
+     "label": "du≠0 却带 fee_only",
+     "outcome": "SchemaUnsupported",
+     "pointer": "/events/9",
+     "raw": "raw/chong-L1.json"
+    }
+   ]
+  },
+  {
+   "chong_id": "chong-E1",
+   "name": "WE-2b 回本后无费用的亏损往返（OQ-2 反例：资格失效而 latch 不退）",
+   "phase_events": [
+    {
+     "kind": "cost_remaining_nonpositive",
+     "stable_point": "201"
+    },
+    {
+     "from": "NotEligible",
+     "kind": "growth_eligible",
+     "stable_point": "202",
+     "to": "Eligible"
+    },
+    {
+     "from": "Eligible",
+     "kind": "growth_eligible",
+     "stable_point": "204",
+     "to": "NotEligible"
+    },
+    {
+     "kind": "cost_remaining_positive",
+     "stable_point": "204"
+    }
+   ],
+   "steps": [
+    {
+     "book": {
+      "K": 1000,
+      "P": 1000,
+      "P_recovered": 0,
+      "cost_remaining": 1000,
+      "fees": 0,
+      "growth_eligible": "NotEligible",
+      "latch": "CostReduction",
+      "q": 10,
+      "stable_point": "200"
+     },
+     "label": "开局10，现金1000，P0=1000",
+     "outcome": "Applied",
+     "pointer": "/events/0",
+     "raw": "raw/chong-E1.json"
+    },
+    {
+     "book": {
+      "K": -500,
+      "Pi": 1000,
+      "R": 1000,
+      "cost_remaining": -500,
+      "growth_eligible": "NotEligible",
+      "q": 5,
+      "realized_gross": 1000,
+      "stable_point": "201"
+     },
+     "label": "卖5，处置1500，实现1000",
+     "outcome": "Applied",
+     "pointer": "/events/1",
+     "raw": "raw/chong-E1.json"
+    },
+    {
+     "book": {
+      "K": -500,
+      "P_recovered": 1000,
+      "gate": "SimulatedGateReached",
+      "growth_eligible": "Eligible",
+      "growth_enabled": "AwaitingPolicy",
+      "latch": "EarningShares",
+      "stable_point": "202"
+     },
+     "label": "退本金1000",
+     "outcome": "Applied",
+     "pointer": "/events/2",
+     "raw": "raw/chong-E1.json"
+    },
+    {
+     "book": {
+      "K": -600,
+      "growth_eligible": "Eligible",
+      "latch": "EarningShares",
+      "q": 4,
+      "stable_point": "203"
+     },
+     "label": "卖1得100（无费用）",
+     "outcome": "Applied",
+     "pointer": "/events/3",
+     "raw": "raw/chong-E1.json"
+    },
+    {
+     "book": {
+      "K": 100,
+      "cost_remaining": 100,
+      "fees": 0,
+      "gate": "SimulatedGateReached",
+      "growth_eligible": "NotEligible",
+      "growth_enabled": "NotEligible",
+      "latch": "EarningShares",
+      "q": 5,
+      "stable_point": "204",
+      "unit_cost": {
+       "K": 100,
+       "q": 5
+      }
+     },
+     "label": "追高买回1付700（无费用）",
+     "outcome": "Applied",
+     "pointer": "/events/4",
+     "raw": "raw/chong-E1.json"
+    }
+   ]
+  },
+  {
+   "chong_id": "chong-S1",
+   "name": "WE-4 空头最小书账：cost_remaining = ΣM_b − 费后累计已实现利润",
+   "phase_events": [],
+   "steps": [
+    {
+     "book": {
+      "K": null,
+      "P": 2000,
+      "P_recovered": 0,
+      "cost_remaining": 2010,
+      "fees": 10,
+      "gate": null,
+      "growth_eligible": "NotEligible",
+      "growth_enabled": "NotEligible",
+      "latch": "CostReduction",
+      "q": 5,
+      "realized_gross": 0,
+      "stable_point": "300",
+      "unit_cost": {
+       "reason": "short_side_has_no_unit_cost",
+       "status": "NotComputable"
+      }
+     },
+     "label": "开空5，保证金批M0=2000，佣金10",
+     "outcome": "Applied",
+     "pointer": "/events/0",
+     "raw": "raw/chong-S1.json"
+    },
+    {
+     "book": {
+      "cost_remaining": 2025,
+      "fees": 25,
+      "q": 5,
+      "stable_point": "301"
+     },
+     "label": "借券费15",
+     "outcome": "Applied",
+     "pointer": "/events/1",
+     "raw": "raw/chong-S1.json"
+    },
+    {
+     "book": {
+      "Pi": 194,
+      "R": 194,
+      "cost_remaining": 1831,
+      "fees": 31,
+      "q": 3,
+      "realized_gross": 200,
+      "stable_point": "302"
+     },
+     "label": "回补空2，实现200、佣金6",
+     "outcome": "Applied",
+     "pointer": "/events/2",
+     "raw": "raw/chong-S1.json"
+    },
+    {
+     "book": {
+      "cost_remaining": 1838,
+      "fees": 38,
+      "q": 5,
+      "stable_point": "303"
+     },
+     "label": "再开空2，佣金7",
+     "outcome": "Applied",
+     "pointer": "/events/3",
+     "raw": "raw/chong-S1.json"
+    },
+    {
+     "book": {
+      "K": null,
+      "P": 2000,
+      "cost_remaining": 1858,
+      "fees": 58,
+      "growth_eligible": "NotEligible",
+      "latch": "CostReduction",
+      "q": 5,
+      "realized_gross": 200,
+      "stable_point": "304",
+      "unit_cost": {
+       "reason": "short_side_has_no_unit_cost",
+       "status": "NotComputable"
+      }
+     },
+     "label": "空头付分红20（fee_only）",
+     "outcome": "Applied",
+     "pointer": "/events/4",
+     "raw": "raw/chong-S1.json"
+    },
+    {
+     "book": {
+      "cost_remaining": 1858,
+      "q": 5
+     },
+     "label": "空头书账不收采购现金",
+     "outcome": "SchemaUnsupported",
+     "pointer": "/events/5",
+     "raw": "raw/chong-S1.json"
+    },
+    {
+     "book": {
+      "cost_remaining": 1858,
+      "q": 5
+     },
+     "label": "空头无退本金事件",
+     "outcome": "SchemaUnsupported",
+     "pointer": "/events/6",
+     "raw": "raw/chong-S1.json"
+    }
+   ]
+  },
+  {
+   "chong_id": "chong-S2",
+   "name": "WE-4b 空头开局缺保证金批",
+   "phase_events": null,
+   "steps": [
+    {
+     "label": "开空3无保证金批",
+     "outcome": "MissingDependency",
+     "pointer": "/events/0",
+     "raw": "raw/chong-S2.json"
+    }
+   ]
+  },
+  {
+   "chong_id": "chong-W1",
+   "name": "WE-6 未登记本金：资格 NotEvaluable，不把缺本金当 0",
+   "phase_events": [],
+   "steps": [
+    {
+     "book": {
+      "K": 300,
+      "P": null,
+      "P_recovered": 0,
+      "cost_remaining": 300,
+      "gate": null,
+      "growth_eligible": "NotEvaluable",
+      "growth_enabled": "NotEvaluable",
+      "latch": "CostReduction",
+      "q": 3,
+      "stable_point": "500",
+      "unit_cost": {
+       "K": 300,
+       "q": 3
+      }
+     },
+     "label": "开局3，现金300，无本金批",
+     "outcome": "Applied",
+     "pointer": "/events/0",
+     "raw": "raw/chong-W1.json"
+    },
+    {
+     "book": {
+      "K": 300,
+      "P": null,
+      "P_recovered": 0
+     },
+     "label": "无本金批时退本金",
+     "outcome": "MissingDependency",
+     "pointer": "/events/1",
+     "raw": "raw/chong-W1.json"
+    }
+   ]
+  },
+  {
+   "chong_id": "chong-W2",
+   "name": "WE-6b 开局前到达的增量（未声明依赖）终态 Unmatched",
+   "phase_events": [],
+   "steps": [
+    {
+     "label": "开局前增量",
+     "outcome": "Unmatched",
+     "pointer": "/events/0",
+     "raw": "raw/chong-W2.json"
+    },
+    {
+     "book": {
+      "K": 1002,
+      "P": null,
+      "fees": 2,
+      "growth_eligible": "NotEvaluable",
+      "q": 2,
+      "stable_point": "502"
+     },
+     "label": "开局2，现金1000、佣金2",
+     "outcome": "Applied",
+     "pointer": "/events/1",
+     "raw": "raw/chong-W2.json"
+    }
+   ]
+  },
+  {
+   "chong_id": "chong-D1",
+   "name": "WE-8 公司行动与估值",
+   "phase_events": [],
+   "steps": [
+    {
+     "book": {
+      "K": 1000,
+      "P": 1000,
+      "fixed_q": 10,
+      "q": 10,
+      "stable_point": "600"
+     },
+     "label": "开局10，现金1000，P0=1000",
+     "outcome": "Applied",
+     "pointer": "/events/0",
+     "raw": "raw/chong-D1.json"
+    },
+    {
+     "book": {
+      "K": 955,
+      "fees": 0,
+      "q": 10,
+      "stable_point": "601",
+      "unit_cost": {
+       "K": 955,
+       "q": 10
+      }
+     },
+     "label": "分红 gross50/withheld5/net45",
+     "outcome": "Applied",
+     "pointer": "/events/1",
+     "raw": "raw/chong-D1.json"
+    },
+    {
+     "book": {
+      "K": 955,
+      "fixed_q": 20,
+      "q": 20,
+      "stable_point": "602"
+     },
+     "label": "拆股2:1",
+     "outcome": "Applied",
+     "pointer": "/events/2",
+     "raw": "raw/chong-D1.json"
+    },
+    {
+     "book": {
+      "K": 955,
+      "fixed_q": 10,
+      "q": 10,
+      "stable_point": "603"
+     },
+     "label": "合股1:2",
+     "outcome": "Applied",
+     "pointer": "/events/3",
+     "raw": "raw/chong-D1.json"
+    },
+    {
+     "book": {
+      "K": 955,
+      "fixed_q": 10,
+      "q": 10
+     },
+     "label": "拆股2:3不整除且无零股处置",
+     "outcome": "Unsupported",
+     "pointer": "/events/4",
+     "raw": "raw/chong-D1.json"
+    },
+    {
+     "book": {
+      "K": 955,
+      "P": 1000,
+      "q": 10
+     },
+     "label": "除权参考价100→60（估值观察）",
+     "outcome": "SchemaUnsupported",
+     "pointer": "/events/5",
+     "raw": "raw/chong-D1.json"
+    },
+    {
+     "book": {
+      "K": 955
+     },
+     "label": "分红三值50/5/44不自洽",
+     "outcome": "IdentityConflict",
+     "pointer": "/events/6",
+     "raw": "raw/chong-D1.json"
+    },
+    {
+     "book": {
+      "K": 955,
+      "q": 10
+     },
+     "label": "浮点金额",
+     "outcome": "InvalidDomain",
+     "pointer": "/events/0",
+     "raw": "raw/chong-D1-float.json"
+    }
+   ]
+  }
+ ],
+ "projection": "book 字段只列需核的子集；K 为 null 表示空头无成本基；cost_remaining 为整数或 NotEvaluable；错误 outcome 取 typed 前缀",
+ "provenance": "手算；数字来源 #1406 备料 r2 PREP-R2.md §4.3（工作例 WE-1/2/2b/4/6/8）与 §4.3 WE-7 配额法表；空头去掉卖出现金分量（根裁定 OQ-5）。",
+ "schema_revision": "tb03c-hand-oracle/1"
+}
