@@ -1,23 +1,44 @@
-//! 正常验收的进程 Rust 分配实测，只编入 Native 测试；不改变额度或分配成败。
-//! 单测试进程使用。记录请求 layout 的实时共存值，不声称 allocator 元数据、
-//! realloc 内部暂存、SQLite C malloc、线程栈或 RSS 已包括在内。
+//! 正常验收的 Rust 分配实测，只编入 Native 测试；不改变额度或分配成败。
+//! 按线程记账：每个线程只累计自己发起的 alloc/dealloc，Window 只读开窗线程的本账，
+//! 并发测试线程的分配不会混入读数。被测路径须在开窗线程内同步完成；别的线程替本线程
+//! 释放的块记在释放方，本线程的 live 因而可能为负（读数按 i64 报告，不截断）。
+//! 记录请求 layout 的实时共存值，不声称 allocator 元数据、realloc 内部暂存、SQLite C malloc、
+//! 线程栈或 RSS 已包括在内。
 use std::alloc::{GlobalAlloc, Layout, System};
-use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
-static LIVE: AtomicUsize = AtomicUsize::new(0);
-static PEAK: AtomicUsize = AtomicUsize::new(0);
-static ALLOCATED: AtomicUsize = AtomicUsize::new(0);
-static RELEASED: AtomicUsize = AtomicUsize::new(0);
+use std::cell::Cell;
+
+#[derive(Clone, Copy)]
+struct Ledger {
+    live: i64,
+    peak: i64,
+    allocated: u64,
+    released: u64,
+}
+std::thread_local! {
+    // const 初始化且无析构：访问不分配、不注册 TLS 析构器，可在全局分配器内安全读写。
+    static LEDGER: Cell<Ledger> = const {
+        Cell::new(Ledger { live: 0, peak: 0, allocated: 0, released: 0 })
+    };
+}
 struct ObservedSystem;
 #[global_allocator]
 static ALLOCATOR: ObservedSystem = ObservedSystem;
 fn add(bytes: usize) {
-    let live = LIVE.fetch_add(bytes, Relaxed) + bytes;
-    ALLOCATED.fetch_add(bytes, Relaxed);
-    PEAK.fetch_max(live, Relaxed);
+    let _ = LEDGER.try_with(|ledger| {
+        let mut l = ledger.get();
+        l.live = l.live.wrapping_add(bytes as i64);
+        l.allocated = l.allocated.wrapping_add(bytes as u64);
+        l.peak = l.peak.max(l.live);
+        ledger.set(l);
+    });
 }
 fn sub(bytes: usize) {
-    LIVE.fetch_sub(bytes, Relaxed);
-    RELEASED.fetch_add(bytes, Relaxed);
+    let _ = LEDGER.try_with(|ledger| {
+        let mut l = ledger.get();
+        l.live = l.live.wrapping_sub(bytes as i64);
+        l.released = l.released.wrapping_add(bytes as u64);
+        ledger.set(l);
+    });
 }
 unsafe impl GlobalAlloc for ObservedSystem {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
@@ -48,28 +69,37 @@ unsafe impl GlobalAlloc for ObservedSystem {
         next
     }
 }
+fn ledger() -> Ledger {
+    LEDGER.with(Cell::get)
+}
+/// 开窗线程的本账窗口；不得跨线程移交（`!Send`），读数不含其他线程的分配。
 pub(crate) struct Window {
-    live: usize,
-    allocated: usize,
-    released: usize,
+    live: i64,
+    allocated: u64,
+    released: u64,
+    _thread_bound: std::marker::PhantomData<*const ()>,
 }
 impl Window {
     pub(crate) fn start() -> Self {
-        let live = LIVE.load(Relaxed);
-        PEAK.store(live, Relaxed);
+        let l = LEDGER.with(|ledger| {
+            let mut l = ledger.get();
+            l.peak = l.live;
+            ledger.set(l);
+            l
+        });
         Self {
-            live,
-            allocated: ALLOCATED.load(Relaxed),
-            released: RELEASED.load(Relaxed),
+            live: l.live,
+            allocated: l.allocated,
+            released: l.released,
+            _thread_bound: std::marker::PhantomData,
         }
     }
     pub(crate) fn finish(self) -> serde_json::Value {
-        let live = LIVE.load(Relaxed);
-        let peak = PEAK.load(Relaxed);
-        let allocated = ALLOCATED.load(Relaxed) - self.allocated;
-        let released = RELEASED.load(Relaxed) - self.released;
-        serde_json::json!({"scope":"进程Rust请求layout；单测试线程；含旧候选/新effects/派生状态/业务缓存实际共存，不含C malloc与allocator内部",
-            "live_before":self.live,"live_after":live,"coexistence_peak":peak,
+        let l = ledger();
+        let allocated = l.allocated.wrapping_sub(self.allocated);
+        let released = l.released.wrapping_sub(self.released);
+        serde_json::json!({"scope":"开窗线程本账的Rust请求layout（按线程记账，不含并发测试线程）；含旧候选/新effects/派生状态/业务缓存实际共存，不含C malloc与allocator内部",
+            "live_before":self.live,"live_after":l.live,"coexistence_peak":l.peak,
             "allocated_bytes":allocated,"released_bytes":released})
     }
 }

@@ -1552,9 +1552,16 @@ mod tests {
         }
     }
 
+    /// #1394：原名 cross_request_source_cache_unrelated_original_change_is_conservative_miss（a60b26586d，
+    /// 全原件超集池时代）。92eabc10f2 起池只保留 Counts 依赖三子图内的原件，无关原件不入池
+    /// （同提交 counts_subset_normal_unrelated_legal_append_keeps_complete_counts 已锁），
+    /// 绑定只逐 tuple 比对池内原件，故池外原件改变不使旧 proof 失效。按现设计改名并锁住：
+    /// 无关原件始终不入池、不假称已验证；旧 proof 依完整闭包证书继续命中；warm 与 cold
+    /// 完整 raw/cuts/index 逐项相同（audit 内断言）。
     #[test]
-    fn cross_request_source_cache_unrelated_original_change_is_conservative_miss() {
+    fn cross_request_source_cache_unrelated_original_change_outside_counts_closure_still_hits() {
         let (mut f, mut keeper) = seeded();
+        assert_eq!((keeper.cold, keeper.hits), (1, 0));
         let digest = {
             let tx = f.conn.transaction().unwrap();
             let value = sc::write_value(
@@ -1565,16 +1572,31 @@ mod tests {
             tx.commit().unwrap();
             value.digest
         };
-        audit(&mut f, &mut keeper).unwrap(); // 新增原件允许旧proof命中，并纳入新超集。
-        assert_eq!(keeper.hits, 1);
+        audit(&mut f, &mut keeper).unwrap(); // 新增原件允许旧proof命中，但不入稀疏池。
+        assert_eq!((keeper.cold, keeper.hits), (1, 1));
+        assert!(keeper
+            .pool
+            .as_ref()
+            .unwrap()
+            .originals
+            .original(&digest)
+            .is_none());
         f.conn
             .execute(
                 "UPDATE s_content_nodes SET body=x'01' WHERE digest=?1",
                 [&digest[..]],
             )
             .unwrap();
-        audit(&mut f, &mut keeper).unwrap(); // 无关原件不假称已验证，但改变仍使旧proof全miss。
-        assert_eq!((keeper.cold, keeper.hits), (2, 1));
+        audit(&mut f, &mut keeper).unwrap(); // 池外原件改变不触及任何已保留原件。
+        assert_eq!((keeper.cold, keeper.hits), (1, 2));
+        let pool = keeper.pool.as_ref().unwrap();
+        assert!(pool.originals.original(&digest).is_none());
+        assert_eq!(pool.proofs.len(), 1);
+        assert!(pool.proofs[0]
+            .dependency
+            .as_ref()
+            .unwrap()
+            .matches_state(&pool.proofs[0].key.state));
     }
 
     #[test]

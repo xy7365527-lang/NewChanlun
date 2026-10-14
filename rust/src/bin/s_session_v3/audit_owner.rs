@@ -1944,10 +1944,11 @@ fn audit_owner_q_itemized_normal_cold_growth_and_typed_limit() {
     let facts = q::Facts::cold(active.tx(), &c.originals, &c.audited, &probe).unwrap();
     let layout = memory.finish();
     let peak = probe.peak();
+    // 本账读数（allocation_probe 按线程记账）；live 可为负，按 i64 求窗口内增长。
     let layout_peak =
-        layout["coexistence_peak"].as_u64().unwrap() - layout["live_before"].as_u64().unwrap();
+        layout["coexistence_peak"].as_i64().unwrap() - layout["live_before"].as_i64().unwrap();
     assert!(
-        layout_peak <= peak as u64,
+        layout_peak <= i64::try_from(peak).unwrap(),
         "正常小样本实测不能超过其推导预留；实测本身不授准入"
     );
     assert!(peak < old_gate, "正常Q逐容器上界须低于旧整表128倍门");

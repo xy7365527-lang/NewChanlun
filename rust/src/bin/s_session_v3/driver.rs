@@ -1767,6 +1767,14 @@ mod tests {
         probe.last_required
     }
 
+    /// #1394：S7 下正常写由完整 owner 候选承载。19cae1dc09（「接通正常写入的增量审计与新代核验」）把
+    /// 完整候选的准入门由 a96cb02e01 的 no_write 改为 ready/receipt/ingest 全部固定操作，写前审核的
+    /// slot（含来源 Counts 候选）随候选在固定写前 detach_slot 真实释放，不再移交稀疏来源池；稀疏池
+    /// 只在完整候选未入选时承载（measured cap 的 source_keeper_driver_* 用例锁该路径）。本用例原先
+    /// 按旧承载者断言「写前审核封存 n−1 个 cut」，按现设计改为锁住：行与可达原件逐项等于 cold 与
+    /// ordinary；legacy＋旧池（来源池＋完整候选，与 Driver 冻结 workspace 预算同口径）＋workspace
+    /// 共享 S7；每次正常写由完整候选增量承载且来源池为空；repost 只复用完整 owner 结果、不调来源核；
+    /// 重启后首个 repost 全 cold，其无写候选在 slot 内保留来源 Counts 候选。
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn counts_subset_driver_normal_rows_append_repost_restart_and_shared_s7() {
@@ -1774,6 +1782,8 @@ mod tests {
             runtime_root_compare_reachable_bytes, runtime_root_tables,
         };
         const S7: usize = 536_870_912;
+        let phases =
+            |events: &[Value], phase: &str| events.iter().filter(|e| e["phase"] == phase).count();
         let warm_fixture = Fixture::new();
         let cold_fixture = Fixture::new();
         let ordinary_fixture = Fixture::new();
@@ -1795,8 +1805,11 @@ mod tests {
                 .conn
                 .source_keeper_for_test()
                 .as_ref()
-                .map_or(0, |k| k.retained_source_bytes());
-            let actual = warm.handle(Fixture::ingest(n)).unwrap();
+                .map_or(0, |k| k.retained_source_bytes())
+                + warm.conn.complete_retained_bytes();
+            assert_eq!(old_pool > 0, n > 1, "首个入口没有旧池，之后旧池为完整候选");
+            let (actual, events, _) = state::traced(false, || warm.handle(Fixture::ingest(n)));
+            let actual = actual.unwrap();
             assert_eq!(actual, cold.handle(Fixture::ingest(n)).unwrap());
             assert_eq!(actual, ordinary.handle(Fixture::ingest(n)).unwrap());
             let workspace =
@@ -1808,39 +1821,32 @@ mod tests {
                     .unwrap()
                     <= S7
             );
+            // 只有首代建候选时 cold；之后入口直接命中上一请求留下的完整候选。
+            assert_eq!(phases(&events, "request_history_cold"), usize::from(n == 1));
+            assert_eq!(
+                phases(&events, "owner_complete_cold_candidate"),
+                usize::from(n == 1)
+            );
+            assert!(phases(&events, "owner_complete_hit") > 0);
             let keeper_owner = warm.conn.source_keeper_for_test();
             let keeper = keeper_owner.as_ref().unwrap();
             let report = keeper.report();
-            // 写前审核只封存n-1个cut；post-COMMIT不为新head凭空生成资格。
-            assert_eq!(report["retained_counts_proofs"], n - 1);
-            if n == 1 {
-                assert_eq!(keeper.retained_source_bytes(), 0);
-                assert!(report["counts_subset_selection"].is_null());
-                assert!(report["retained_capture"].is_null());
-            } else {
-                assert_eq!(report["counts_subset_selection"]["accepted_groups"], n - 1);
-                let public_roots = report["retained_capture"]["native_codec_root_certificates"]
-                    ["public_roots"]
-                    .as_u64()
-                    .unwrap();
-                // 只保存n-1个已接纳组的三个完整根；共享根去重后只计费一次。
-                assert!((1..=3 * u64::try_from(n - 1).unwrap()).contains(&public_roots));
-                assert_eq!(
-                    report["source_cost_breakdown"]["codec_root_certificate_bytes"],
-                    43 + 32 * public_roots
-                );
-                assert_eq!(
-                    report["retained_source_cost"],
-                    report["counts_subset_selection"]["retained_source_bytes"]
-                );
-                assert_eq!(
-                    report["retained_capture"]["native_codec_root_certificates"]["template_roots"],
-                    0
-                );
-            }
+            // 写前来源候选随 slot 在固定写前释放；post-COMMIT 也不为新 head 凭空生成资格。
+            assert_eq!(report["retained_counts_proofs"], 0);
+            assert_eq!(keeper.retained_source_bytes(), 0);
+            assert!(report["counts_subset_selection"].is_null());
+            assert!(report["retained_capture"].is_null());
+            assert_eq!((keeper.hits, keeper.cold), (0, 0));
+            let complete = warm.conn.complete_report();
+            assert!(warm.conn.complete_retained_bytes() > 0);
+            assert_eq!(complete["charge"]["incremental_steps"], 3 * n);
+            assert_eq!(complete["charge"]["slot_result_capacity"], 0);
+            assert_eq!(complete["charge"]["source_pool_charge"], 0);
+            assert_eq!(complete["source_counts_preserved"], false);
             assert!(
                 crate::cache::retained_bytes()
                     .checked_add(keeper.retained_source_bytes())
+                    .and_then(|v| v.checked_add(warm.conn.complete_retained_bytes()))
                     .unwrap()
                     <= S7
             );
@@ -1855,12 +1861,17 @@ mod tests {
             runtime_root_compare_reachable_bytes(&warm.conn, &cold.conn);
             runtime_root_compare_reachable_bytes(&warm.conn, &ordinary.conn);
         }
-        let hits = warm.conn.source_keeper_for_test().as_ref().unwrap().hits;
-        // 首次repost仍执行旧来源池的cut1/2命中；第二次复用完整owner结果，不再调用来源核。
+        let held = warm.conn.complete_retained_bytes();
+        // 两次repost都只复用完整owner结果，不调用来源核，也不改动完整候选。
         for _ in 0..2 {
-            let actual = warm.handle(Fixture::ingest(3)).unwrap();
+            let (actual, events, _) = state::traced(false, || warm.handle(Fixture::ingest(3)));
+            let actual = actual.unwrap();
             assert_eq!(actual, cold.handle(Fixture::ingest(3)).unwrap());
             assert_eq!(actual, ordinary.handle(Fixture::ingest(3)).unwrap());
+            assert_eq!(phases(&events, "owner_complete_hit"), 1);
+            assert_eq!(phases(&events, "request_history_cold"), 0);
+            assert_eq!(phases(&events, "request_history_hit"), 0);
+            assert_eq!(warm.conn.complete_retained_bytes(), held);
             assert_eq!(
                 runtime_root_tables(&warm.conn, true),
                 runtime_root_tables(&cold.conn, true)
@@ -1870,10 +1881,12 @@ mod tests {
                 runtime_root_tables(&ordinary.conn, true)
             );
         }
-        assert_eq!(
-            warm.conn.source_keeper_for_test().as_ref().unwrap().hits - hits,
-            2
-        );
+        {
+            let keeper_owner = warm.conn.source_keeper_for_test();
+            let keeper = keeper_owner.as_ref().unwrap();
+            assert_eq!((keeper.hits, keeper.cold), (0, 0));
+            assert_eq!(keeper.retained_source_bytes(), 0);
+        }
         drop(warm);
         let mut restarted = Driver::open_for_serve_with_mode(
             &warm_fixture.db,
@@ -1885,6 +1898,7 @@ mod tests {
         )
         .unwrap();
         assert!(restarted.conn.source_keeper_for_test().is_none());
+        assert_eq!(restarted.conn.complete_retained_bytes(), 0);
         assert_eq!(
             restarted.handle(Fixture::ingest(3)).unwrap(),
             cold.handle(Fixture::ingest(3)).unwrap()
@@ -1906,6 +1920,10 @@ mod tests {
             ),
             (0, 3)
         );
+        // 无写候选不经固定写，来源 Counts 候选留在其 slot 内并照收费。
+        let complete = restarted.conn.complete_report();
+        assert_eq!(complete["source_counts_preserved"], true);
+        assert!(complete["charge"]["source_pool_charge"].as_u64().unwrap() > 0);
         assert_eq!(
             runtime_root_tables(&restarted.conn, true),
             runtime_root_tables(&cold.conn, true)
@@ -2019,8 +2037,10 @@ mod tests {
         assert_eq!((keeper.cold, keeper.hits), (3, 0));
     }
 
-    /// 三次真实追加，仅第3次入口拥有前次写前审核留下的非空池。
-    /// All actual rows and reachable originals must match cold Native and ordinary.
+    /// 三次真实追加；Driver 冻结 workspace 预算时旧池＝来源池＋完整 owner 候选（handle_with_request_audit）。
+    /// #1394：原断言「仅第3次入口拥有前次写前审核留下的非空来源池」按 a96cb02e01 前的承载者写成；
+    /// 19cae1dc09 起正常写由完整候选承载、写前来源候选随 slot 在固定写前释放，故第2、3次入口的
+    /// 非空旧池是完整候选，来源池恒空。All actual rows and reachable originals must match cold Native and ordinary.
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn source_keeper_driver_workspace_shares_s7_with_nonempty_old_pool_and_exact_rows() {
@@ -2055,11 +2075,13 @@ mod tests {
         let mut nonempty_shared = 0;
         for n in 1..=3 {
             let legacy = crate::cache::retained_bytes();
-            let old_pool = warm
+            let source_pool = warm
                 .conn
                 .source_keeper_for_test()
                 .as_ref()
                 .map_or(0, |k| k.retained_source_bytes());
+            assert_eq!(source_pool, 0);
+            let old_pool = source_pool + warm.conn.complete_retained_bytes();
             if old_pool > 0 {
                 nonempty_shared += 1
             }
@@ -2083,11 +2105,8 @@ mod tests {
             runtime_root_compare_reachable_bytes(&warm.conn, &ordinary.conn);
             let keeper_owner = warm.conn.source_keeper_for_test();
             let keeper = keeper_owner.as_ref().unwrap();
-            if n == 1 {
-                assert_eq!(keeper.retained_source_bytes(), 0);
-            } else {
-                assert!(keeper.retained_source_bytes() > 0);
-            }
+            assert_eq!(keeper.retained_source_bytes(), 0);
+            assert!(warm.conn.complete_retained_bytes() > 0);
             assert_eq!(
                 keeper.report()["cap"].as_u64().unwrap() as usize,
                 total.checked_sub(legacy).unwrap()
@@ -2095,13 +2114,14 @@ mod tests {
             assert!(
                 crate::cache::retained_bytes()
                     .checked_add(keeper.retained_source_bytes())
+                    .and_then(|v| v.checked_add(warm.conn.complete_retained_bytes()))
                     .unwrap()
                     <= total
             );
             eprintln!("shared workspace gen{n}: legacy={legacy} old_pool={old_pool} workspace={cost} S7={total}");
         }
         let after = content_manifest::manifest_workspace_stats();
-        assert_eq!(nonempty_shared, 1);
+        assert_eq!(nonempty_shared, 2);
         assert_eq!(after.issued - before.issued, 3);
         assert_eq!(after.rebound - before.rebound, 3);
         assert_eq!(after.overflow - before.overflow, 0);

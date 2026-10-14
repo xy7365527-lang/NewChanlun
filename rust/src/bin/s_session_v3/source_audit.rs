@@ -2854,12 +2854,29 @@ mod tests {
                 .unwrap_err()
                 .contains(message));
         }
+        // #1394（与根裁定 B / 240b061e66 同因）：FIN 04e8a7f48b 的 CC004 incoming 与原始 OHLC
+        // 五字段绑定排在见证检查之前，只改 high 现由它拒绝；见证 raw_bars 绑定的完整原始字节改由
+        // 只改 raw_text（不在 RawReference 八字段、也不在 CC004 OHLC 投影里）在 Native 臂锁住。
         let mut revised = raw.clone();
         revised[0]["high"] = json!("999999");
         let mut revised_context = NativeSourceAudit::new(&capture, (&revised).into()).unwrap();
-        assert!(run(&mut revised_context, &state, &revised)
-            .unwrap_err()
-            .contains("raw_bars不是同cut真实原始成员"));
+        let error = run(&mut revised_context, &state, &revised).unwrap_err();
+        assert_eq!(
+            error,
+            "SourceAuditInvalid：CC004 incoming/槽位/OHLC不是同cut原始来源"
+        );
+        let mut revised = raw.clone();
+        let text = revised[0]["raw_text"]
+            .as_str()
+            .expect("原始账带 raw_text")
+            .to_string();
+        revised[0]["raw_text"] = json!(format!("{text} 篡改"));
+        let mut revised_context = NativeSourceAudit::new(&capture, (&revised).into()).unwrap();
+        let error = run(&mut revised_context, &state, &revised).unwrap_err();
+        assert_eq!(
+            error,
+            "SourceAuditInvalid：见证raw_bars不是同cut真实原始成员"
+        );
         let mut revised = raw.clone();
         let revision = revised[0]["revision"].as_i64().unwrap();
         revised[0]["revision"] = json!(revision.checked_add(1).unwrap());
