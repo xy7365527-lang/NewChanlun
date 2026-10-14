@@ -1,0 +1,15 @@
+# S1 后 lib 全量：cargo test --lib（外盘目标目录，nice -n 10）
+test theta_v0::classifier::center::tests::s1424_pair_witnesses ... ok
+test theta_v0::classifier::center::tests::s1424_unit_core_position_exhaustive ... ok
+test theta_v0::classifier::center::tests::s1424_pair_leaf_monotone_when_b_outer_widens ... ok
+test theta_v0::classifier::tests::center_pair_1424::s1424_worked_examples_streams_match_oracle ... ok
+test theta_v0::classifier::tests::center_pair_1424::s1424_w12_leaf_revision_across_cuts ... ok
+test theta_v0::classifier::tests::center_pair_1424::s1424_tower_pairs_same_judgment_and_ge9_not_copied ... ok
+test theta_v0::classifier::tests::center_pair_1424::s1424_r26_zn_outer_discriminates_newbirth_from_expansion ... ok
+test theta_v0::classifier::center::tests::s1424_pair_leaf_partition_and_projection_exhaustive ... ok
+test theta_v0::classifier::center::tests::s1424_classify_relation_projection_unchanged_on_all_inputs ... ok
+test result: FAILED. 2990 passed; 3 failed; 162 ignored; 0 measured; 0 filtered out; finished in 80.35s
+    theta_v0::backtest::l3_delta_r_alpha::tests::m3_partition_synthetic_holds
+    theta_v0::backtest::tick::tests::calibration_sweep_finds_non_collapsed_segments
+    theta_v0::backtest::tick::tests::seam_btc_tick_bars_yield_non_trivial_structure
+# 3 败与 #1419 DELIVERY 基线三红逐名相同

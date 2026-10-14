@@ -1,0 +1,86 @@
+[
+ {
+  "mutant": "M1 外缘换回全单元（R26）",
+  "exit": 101,
+  "red": true,
+  "failed_tests": [
+   "theta_v0::classifier::tests::center_pair_1424::s1424_tower_pairs_same_judgment_and_ge9_not_copied",
+   "theta_v0::classifier::tests::center_pair_1424::s1424_r26_zn_outer_discriminates_newbirth_from_expansion",
+   "theta_v0::classifier::tests::center_pair_1424::s1424_w12_leaf_revision_across_cuts",
+   "theta_v0::classifier::tests::center_pair_1424::s1424_worked_examples_streams_match_oracle"
+  ],
+  "compile_error": false
+ },
+ {
+  "mutant": "M2 新生判据含等号（外缘恰等误判新生）",
+  "exit": 101,
+  "red": true,
+  "failed_tests": [
+   "theta_v0::classifier::center::tests::s1424_pair_leaf_monotone_when_b_outer_widens",
+   "theta_v0::classifier::center::tests::s1424_pair_witnesses",
+   "theta_v0::classifier::center::tests::s1424_classify_relation_projection_unchanged_on_all_inputs",
+   "theta_v0::classifier::center::tests::s1424_pair_leaf_partition_and_projection_exhaustive",
+   "theta_v0::classifier::tests::center_pair_1424::s1424_tower_pairs_same_judgment_and_ge9_not_copied",
+   "theta_v0::classifier::tests::center_pair_1424::s1424_worked_examples_streams_match_oracle"
+  ],
+  "compile_error": false
+ },
+ {
+  "mutant": "M3 核心分离改非严格（相切误判分离）",
+  "exit": 101,
+  "red": true,
+  "failed_tests": [
+   "theta_v0::classifier::center::tests::s1424_classify_relation_projection_unchanged_on_all_inputs",
+   "theta_v0::classifier::center::tests::s1424_pair_leaf_partition_and_projection_exhaustive"
+  ],
+  "compile_error": false
+ },
+ {
+  "mutant": "M4 扩展方向对调",
+  "exit": 101,
+  "red": true,
+  "failed_tests": [
+   "theta_v0::classifier::center::tests::s1424_pair_witnesses",
+   "theta_v0::classifier::center::tests::s1424_pair_leaf_monotone_when_b_outer_widens",
+   "theta_v0::classifier::center::tests::s1424_pair_leaf_partition_and_projection_exhaustive",
+   "theta_v0::classifier::tests::center_pair_1424::s1424_tower_pairs_same_judgment_and_ge9_not_copied",
+   "theta_v0::classifier::tests::center_pair_1424::s1424_w12_leaf_revision_across_cuts",
+   "theta_v0::classifier::tests::center_pair_1424::s1424_worked_examples_streams_match_oracle"
+  ],
+  "compile_error": false
+ },
+ {
+  "mutant": "M5 blanket else 归扩展",
+  "exit": 101,
+  "red": true,
+  "failed_tests": [
+   "theta_v0::classifier::center::tests::s1424_pair_witnesses",
+   "theta_v0::classifier::center::tests::s1424_classify_relation_projection_unchanged_on_all_inputs",
+   "theta_v0::classifier::center::tests::s1424_pair_leaf_partition_and_projection_exhaustive",
+   "theta_v0::classifier::tests::center_pair_1424::s1424_tower_pairs_same_judgment_and_ge9_not_copied",
+   "theta_v0::classifier::tests::center_pair_1424::s1424_worked_examples_streams_match_oracle"
+  ],
+  "compile_error": false
+ },
+ {
+  "mutant": "M6 S 照抄塔的 ≥9 子中枢（不发待定）",
+  "exit": 101,
+  "red": true,
+  "failed_tests": [
+   "theta_v0::classifier::tests::center_pair_1424::s1424_tower_pairs_same_judgment_and_ge9_not_copied",
+   "theta_v0::classifier::tests::center_pair_1424::s1424_worked_examples_streams_match_oracle"
+  ],
+  "compile_error": false
+ },
+ {
+  "mutant": "M7 相切位置归严格离开",
+  "exit": 101,
+  "red": true,
+  "failed_tests": [
+   "theta_v0::classifier::center::tests::s1424_unit_core_position_exhaustive",
+   "theta_v0::classifier::tests::center_pair_1424::s1424_tower_pairs_same_judgment_and_ge9_not_copied",
+   "theta_v0::classifier::tests::center_pair_1424::s1424_worked_examples_streams_match_oracle"
+  ],
+  "compile_error": false
+ }
+]

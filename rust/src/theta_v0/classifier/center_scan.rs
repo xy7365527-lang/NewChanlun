@@ -18,7 +18,10 @@
 //! 等待原因 `UNIT_NOT_COMPLETED`/`SEED_NOT_YET_EVALUABLE` 是 S0 oracle 提议名，按 r2 R1 并入 D-J schema 独审定名。
 
 use super::super::types::{Center, Segment, Tick};
-use super::center::{breaks_upward, is_zn, CenterRoles, RoleVar, SeedFacts, UnitRange};
+use super::center::{
+    breaks_upward, center_pair_facts, is_zn, unit_core_position, CenterPairFacts, CenterRoles,
+    RoleVar, SeedFacts, UnitCorePosition, UnitRange,
+};
 use super::recursive_tower::{scan_center_facts, WinMeta, WindowScanCursor};
 
 /// 生产塔 L0 的单元列表：同一层已确认线段逐个经塔同一投影（`pipeline::segment_to_unit`）。S 事实层用它与
@@ -250,6 +253,55 @@ pub struct UnitFacts {
     pub seed_from_self: SeedFromSelf,
 }
 
+/// CC-018 延伸测试单元在构造中的角色（★#1424）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TestedRole {
+    /// <9 窗口的延伸成员（seed 之后）。
+    ExtensionMember,
+    /// 突破段：首个严格离开冻结核心的单元，中枢在此结算。
+    BreakUnit,
+    /// ≥9 窗口的延伸成员（归属待 #1429，`UPGRADE_PENDING_TB02H`）。
+    UpgradePendingMember,
+}
+
+impl TestedRole {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            TestedRole::ExtensionMember => "EXTENSION_MEMBER",
+            TestedRole::BreakUnit => "BREAK_UNIT",
+            TestedRole::UpgradePendingMember => "UPGRADE_PENDING_MEMBER",
+        }
+    }
+}
+
+/// 一个延伸测试单元相对所属中枢冻结核心的位置（CC-018）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TestedPosition {
+    /// 单元在输入中的绝对下标。
+    pub unit: usize,
+    pub position: UnitCorePosition,
+    pub role: TestedRole,
+}
+
+/// 一对扫描相邻中枢的关系结果（CC-020）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PairOutcome {
+    /// 两端都是 <9 窗口：按 Zn 外缘判五叶。
+    Evaluated(CenterPairFacts),
+    /// 任一端是 ≥9 窗口（S 不发外缘，#1419 R3）：叶待 #1429（#1424 根裁定第 2 问）。
+    PendingUpgrade,
+}
+
+/// 一对扫描相邻中枢（窗口序号 `left`、`right = left + 1`）。
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PairFact {
+    pub left: usize,
+    pub right: usize,
+    /// 两中枢之间的连接段（A 末成员之后、B 首成员之前的全部单元）。
+    pub connectors: std::ops::Range<usize>,
+    pub outcome: PairOutcome,
+}
+
 /// 扫描停在哪里。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ScanState {
@@ -352,6 +404,83 @@ impl CenterScanFacts {
         } else {
             UnitAssignment::NotYetAssigned(WaitReason::SeedNotYetEvaluable)
         }
+    }
+
+    /// 窗口 `w` 的中枢（S 口径：核心取 seed 三单元，外缘取全部成员中的 Zn；与塔 <9 窗口的中枢逐位相同）。
+    pub fn window_center(&self, units: &[UnitRange], w: usize) -> Center {
+        let win = &self.windows[w];
+        let members = &units[win.seed_at..win.exit];
+        let roles = CenterRoles::of_members(members);
+        Center {
+            zd: roles.zd,
+            zg: roles.zg,
+            dd: roles.zn.dd,
+            gg: roles.zn.gg,
+            start_index: members[0].start_index,
+            end_index: members[members.len() - 1].end_index,
+        }
+    }
+
+    /// CC-018（★#1424）：每个窗口的延伸测试单元（seed 之后的成员 + 突破段）相对冻结核心的位置，按窗口序。
+    /// 位置与塔延伸循环读同一个 [`unit_core_position`]。
+    pub fn tested_positions(&self, units: &[UnitRange]) -> Vec<Vec<TestedPosition>> {
+        assert_eq!(units.len(), self.len, "units 必须是本次扫描的输入");
+        self.windows
+            .iter()
+            .map(|w| {
+                let roles = CenterRoles::of_members(&units[w.seed_at..w.exit]);
+                let last_tested = if w.exit < self.len {
+                    w.exit
+                } else {
+                    w.exit - 1
+                };
+                (w.seed_at + 3..=last_tested)
+                    .map(|k| {
+                        let position = unit_core_position(&units[k], roles.zd, roles.zg);
+                        let role = if k == w.exit {
+                            TestedRole::BreakUnit
+                        } else if w.upgraded {
+                            TestedRole::UpgradePendingMember
+                        } else {
+                            TestedRole::ExtensionMember
+                        };
+                        debug_assert_eq!(position.closed_overlap(), role != TestedRole::BreakUnit);
+                        TestedPosition {
+                            unit: k,
+                            position,
+                            role,
+                        }
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// CC-020（★#1424）：每对扫描相邻中枢的关系。两端都 <9 ⟹ [`center_pair_facts`]（与塔 `classify_relation`
+    /// 同一判定）；任一端 ≥9 ⟹ [`PairOutcome::PendingUpgrade`]，不照抄塔在该处的过渡态子中枢关系。
+    pub fn pair_facts(&self, units: &[UnitRange]) -> Vec<PairFact> {
+        assert_eq!(units.len(), self.len, "units 必须是本次扫描的输入");
+        self.windows
+            .windows(2)
+            .enumerate()
+            .map(|(left, pair)| {
+                let (a, b) = (&pair[0], &pair[1]);
+                let outcome = if a.upgraded || b.upgraded {
+                    PairOutcome::PendingUpgrade
+                } else {
+                    PairOutcome::Evaluated(center_pair_facts(
+                        &self.window_center(units, left),
+                        &self.window_center(units, left + 1),
+                    ))
+                };
+                PairFact {
+                    left,
+                    right: left + 1,
+                    connectors: a.exit..b.seed_at,
+                    outcome,
+                }
+            })
+            .collect()
     }
 
     /// 扫描停止处。

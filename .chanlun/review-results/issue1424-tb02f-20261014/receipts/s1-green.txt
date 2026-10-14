@@ -1,0 +1,11 @@
+# S1 绿态：实现后 cargo test --lib s1424
+test theta_v0::classifier::center::tests::s1424_pair_witnesses ... ok
+test theta_v0::classifier::center::tests::s1424_unit_core_position_exhaustive ... ok
+test theta_v0::classifier::tests::center_pair_1424::s1424_r26_zn_outer_discriminates_newbirth_from_expansion ... ok
+test theta_v0::classifier::tests::center_pair_1424::s1424_tower_pairs_same_judgment_and_ge9_not_copied ... ok
+test theta_v0::classifier::tests::center_pair_1424::s1424_w12_leaf_revision_across_cuts ... ok
+test theta_v0::classifier::tests::center_pair_1424::s1424_worked_examples_streams_match_oracle ... ok
+test theta_v0::classifier::center::tests::s1424_pair_leaf_partition_and_projection_exhaustive ... ok
+test theta_v0::classifier::center::tests::s1424_classify_relation_projection_unchanged_on_all_inputs ... ok
+test result: FAILED. 8 passed; 1 failed; 0 ignored; 0 measured; 3146 filtered out; finished in 0.18s
+# 单调性锁的计数阈值由「>100000」订正为与备料 partition_check.py(0..=6) 相同的 58212 后重跑见 s1-lib-full

@@ -54,7 +54,9 @@
 use std::rc::Rc;
 
 use super::super::types::{Center, Direction, Stroke, Tick};
-use super::center::{classify_relation, seed_facts, zn_extrema, CenterRelation, UnitRange};
+use super::center::{
+    classify_relation, seed_facts, unit_core_position, zn_extrema, CenterRelation, UnitRange,
+};
 use super::center_scan::{NoopSink, ScanSink, ScanWindow};
 use super::decompose::{center_own_dir_at, MoveBlock};
 use super::descend::RMove;
@@ -560,7 +562,9 @@ pub fn scan_center_facts<S: ScanSink>(
                 // 下一 seed 自 u_{j+1} 起（★#1419 R8，见本循环末 `i` 的赋值）。
                 let mut c = seed;
                 let mut j = i + 3;
-                while j < units.len() && units[j].lo <= c.zg && units[j].hi >= c.zd {
+                // ★#1424：闭区间相交 ⟺ CC-018 位置中间三叶，判定只读唯一一份 `unit_core_position`。
+                while j < units.len() && unit_core_position(&units[j], c.zd, c.zg).closed_overlap()
+                {
                     c.end_index = units[j].end_index;
                     j += 1;
                 }

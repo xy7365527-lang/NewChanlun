@@ -91,32 +91,40 @@ pub struct UnitRange {
     pub hi: Tick,
 }
 
-/// 中枢关系四态（契约锚 `Origin.CenterStates.classifyDevelopment`：新生(上/下)/扩展/延伸）。
+/// 中枢关系四态：[`PairLeaf`] 五叶（CC-020）合并扩展方向后的投影，供塔内消费方（趋势 run、走势块折叠、
+/// 小转大证书）使用。判据只在 [`center_pair_facts`] 写一处（★#1424 根裁定第 3 问，#804）。
 ///
-/// 中心定理二（`020-第20课.md:58`【正文】）管**核心已分离**的同级别新生中枢对——
-/// 上涨延续／下跌延续／级别扩张三态；核心重叠对属中心定理一（延伸——同一中枢继续震荡，
-/// `030-第30课.md:92`【答疑】「在一个中枢还延伸的时候，只有一个中枢」），**不**进入中心定理二的
-/// 三歧（`Formal.CenterTrichotomy.SameLevelNewCenterPair` 前件的补集；`Origin.CenterStates.
-/// classifyDevelopment` 的 `extension` 支）。
+/// 中心定理二（`020-第20课.md:58`【正文】）管**核心已严格分离**的同级别中枢对：外缘也分离 ⟹ 上涨／下跌及其
+/// 延续；外缘重叠 ⟹ 「等价于形成高级别的走势中枢」。两中枢核心没有严格分离时不进中心定理二。
 ///
-/// ★#898：扩展支写全前，`LevelExpansion` 是 `¬up ∧ ¬down` 的 else 兜底，缺核心分离前件，
-/// 把延伸（核心重叠，约 27% 相邻中枢对，探针 #894 P-2）也吞进扩展——比原文宽。
+/// ★#1424 订正（SPEC #1340 CC-020 目录 `legal_combinations_and_exclusions`）：`CoreOverlap` 只是这一对中枢的
+/// **几何**（核心相切或重叠），不是「同一中枢的延伸」——两者都是 strict seed 成立、扫描已在中间结算过的不同对象；
+/// 单元加入中枢的延伸是 CC-018（[`unit_core_position`] 中间三叶）。`030-第30课.md:92`【答疑】「在一个中枢还延伸的
+/// 时候，只有一个中枢」说的是延伸期内不该切出第二个中枢；塔现行单单元结算（两段式结算 R5 归 #1496）在
+/// 该处已先结算前中枢，故这一叶记几何事实、不断言延伸。`LevelExpansion` 是**关系**：扩展成立不等于上级中枢
+/// 对象已构造（Z-8 路径①归 #1429；`decompose::MoveBlock::level_lift` 只是塔内标注）。
+///
+/// ★#898：扩展支写全前，`LevelExpansion` 是 `¬up ∧ ¬down` 的 else 兜底，缺核心分离前件，把核心未分离的对也吞进
+/// 扩展——比原文宽。当时探针 #894 P-2 读到这类对约占相邻中枢对 27%，那是 #1419 R8（结算后自 `last+2` 续扫）
+/// 之前的读数，R8 后不再适用。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CenterRelation {
     /// 上涨延续：`next.dd > prev.gg`（外缘完全分离向上）。
     UpContinuation,
     /// 下跌延续：`next.gg < prev.dd`（外缘完全分离向下）。
     DownContinuation,
-    /// 级别扩张：核心分离 ∧ 外缘重叠（`(next.zg<prev.zd ∧ next.gg>=prev.dd) ∨
-    /// (next.zd>prev.zg ∧ next.dd<=prev.gg)`，`020:58` 原公式）——形成高级别走势中枢。
+    /// 级别扩张关系：核心严格分离 ∧ 外缘重叠（`(next.zg<prev.zd ∧ next.gg>=prev.dd) ∨
+    /// (next.zd>prev.zg ∧ next.dd<=prev.gg)`，`020:58` 原公式）。合并了 [`PairLeaf::UpExpansion`] 与
+    /// [`PairLeaf::DownExpansion`]；只是关系，上级中枢对象是否已构造另由 #1429 给出。
     LevelExpansion,
-    /// 中枢延伸：核心重叠（中心定理一）——两中枢实为同一中枢的延伸，不属中心定理二三态。
+    /// 核心未严格分离（[`PairLeaf::CoreNotStrictlySeparated`]，含核心相切）：不进中心定理二，只记几何，
+    /// 不是 CC-018 的单元延伸（见上）。
     CoreOverlap,
 }
 
 impl CenterRelation {
     /// 是否趋势延续关系（Up/DownContinuation——M-2 外缘分离判「是不是趋势」，#815 转正）。
-    /// 扩展（升一级）与延伸（中心定理一）均非趋势关系，趋势 run 在二者处一律断链。
+    /// 扩展与核心未严格分离均非趋势关系，趋势 run 在二者处一律断链。
     pub fn is_continuation(self) -> bool {
         matches!(
             self,
@@ -132,6 +140,211 @@ impl CenterRelation {
             CenterRelation::LevelExpansion | CenterRelation::CoreOverlap => None,
         }
     }
+}
+
+/// CC-020 相邻正式中枢对的发展五叶（SPEC #1340 `/classification_axes/19`，★#1424）。
+///
+/// 域：两中枢各自 `DD ≤ ZD < ZG ≤ GG`（[`pair_domain_ok`]）。域内五叶恰一（`center_pair_1424` 穷举锁）：
+/// - [`Self::CoreNotStrictlySeparated`] ⟺ `¬(B.ZG<A.ZD ∨ B.ZD>A.ZG)`（核心相切归此叶，Lean `SeparatedNewPair` 严格 `<`）；
+/// - [`Self::UpNewbirth`] ⟺ `B.DD>A.GG`；[`Self::DownNewbirth`] ⟺ `B.GG<A.DD`（`020:58`「后DD>前GG等价于上涨及其延续」
+///   「后GG<前DD，等价于下跌及其延续」）；
+/// - [`Self::UpExpansion`] ⟺ `B.ZD>A.ZG ∧ B.DD≤A.GG`；[`Self::DownExpansion`] ⟺ `B.ZG<A.ZD ∧ B.GG≥A.DD`（`020:58`
+///   「后ZG<前ZD且后GG>=前DD，或后ZD>前ZG且后DD=<前GG，则等价于形成高级别的走势中枢」；外缘恰等归扩展）。
+///
+/// 外缘 DD/GG 是 Zn 外缘（#1478 R26：`classify_relation` 以 Zn 外缘为输入）。新生不等于趋势已实现（#1426），
+/// 扩展不等于上级中枢已构造（#1429）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PairLeaf {
+    CoreNotStrictlySeparated,
+    UpNewbirth,
+    DownNewbirth,
+    UpExpansion,
+    DownExpansion,
+}
+
+impl PairLeaf {
+    /// 目录分支序。
+    pub const ALL: [PairLeaf; 5] = [
+        PairLeaf::CoreNotStrictlySeparated,
+        PairLeaf::UpNewbirth,
+        PairLeaf::DownNewbirth,
+        PairLeaf::UpExpansion,
+        PairLeaf::DownExpansion,
+    ];
+
+    /// payload 字面量（SPEC 目录分支名）。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            PairLeaf::CoreNotStrictlySeparated => "CORE_NOT_STRICTLY_SEPARATED",
+            PairLeaf::UpNewbirth => "UP_NEWBIRTH",
+            PairLeaf::DownNewbirth => "DOWN_NEWBIRTH",
+            PairLeaf::UpExpansion => "UP_EXPANSION",
+            PairLeaf::DownExpansion => "DOWN_EXPANSION",
+        }
+    }
+
+    /// 新生与扩展带方向；首叶无方向。
+    pub fn direction(self) -> Option<Direction> {
+        match self {
+            PairLeaf::UpNewbirth | PairLeaf::UpExpansion => Some(Direction::Up),
+            PairLeaf::DownNewbirth | PairLeaf::DownExpansion => Some(Direction::Down),
+            PairLeaf::CoreNotStrictlySeparated => None,
+        }
+    }
+
+    /// 投影到塔内四态（合并扩展方向）。
+    pub fn relation(self) -> CenterRelation {
+        match self {
+            PairLeaf::UpNewbirth => CenterRelation::UpContinuation,
+            PairLeaf::DownNewbirth => CenterRelation::DownContinuation,
+            PairLeaf::UpExpansion | PairLeaf::DownExpansion => CenterRelation::LevelExpansion,
+            PairLeaf::CoreNotStrictlySeparated => CenterRelation::CoreOverlap,
+        }
+    }
+}
+
+/// 端点矩阵的行列序：`DD, ZD, ZG, GG`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PairEndpoint {
+    Dd,
+    Zd,
+    Zg,
+    Gg,
+}
+
+impl PairEndpoint {
+    pub const ALL: [PairEndpoint; 4] = [
+        PairEndpoint::Dd,
+        PairEndpoint::Zd,
+        PairEndpoint::Zg,
+        PairEndpoint::Gg,
+    ];
+
+    /// payload 字面量。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            PairEndpoint::Dd => "DD",
+            PairEndpoint::Zd => "ZD",
+            PairEndpoint::Zg => "ZG",
+            PairEndpoint::Gg => "GG",
+        }
+    }
+
+    fn of(self, c: &Center) -> Tick {
+        match self {
+            PairEndpoint::Dd => c.dd,
+            PairEndpoint::Zd => c.zd,
+            PairEndpoint::Zg => c.zg,
+            PairEndpoint::Gg => c.gg,
+        }
+    }
+}
+
+/// 两个闭区间的包含关系（证据字段，不是第六叶）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Containment {
+    None,
+    AContainsB,
+    BContainsA,
+    Equal,
+}
+
+impl Containment {
+    /// payload 字面量。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Containment::None => "NONE",
+            Containment::AContainsB => "A_CONTAINS_B",
+            Containment::BContainsA => "B_CONTAINS_A",
+            Containment::Equal => "EQUAL",
+        }
+    }
+}
+
+/// 一对相邻中枢 (A=前, B=后) 的全部端点事实（★#1424，CC-020）：五叶 + 16 格端点矩阵。全仓唯一一份对判定，
+/// [`classify_relation`] 是其 `leaf` 的四态投影，S 事实层发布的 `CC-020.center_pair` 读同一结构。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct CenterPairFacts {
+    /// 五叶。
+    pub leaf: PairLeaf,
+    /// `matrix[x][y]` = `B.x` 对 `A.y` 的序，`x, y` 按 [`PairEndpoint::ALL`]。
+    pub matrix: [[std::cmp::Ordering; 4]; 4],
+}
+
+impl CenterPairFacts {
+    /// `B.x` 对 `A.y` 的序。
+    pub fn cmp(&self, b: PairEndpoint, a: PairEndpoint) -> std::cmp::Ordering {
+        self.matrix[b as usize][a as usize]
+    }
+
+    /// 核心相切：`B.ZD = A.ZG` 或 `B.ZG = A.ZD`。
+    pub fn core_tangent(&self) -> bool {
+        use std::cmp::Ordering::Equal;
+        self.cmp(PairEndpoint::Zd, PairEndpoint::Zg) == Equal
+            || self.cmp(PairEndpoint::Zg, PairEndpoint::Zd) == Equal
+    }
+
+    /// 外缘触及：`B.DD = A.GG` 或 `B.GG = A.DD`。
+    pub fn outer_touch(&self) -> bool {
+        use std::cmp::Ordering::Equal;
+        self.cmp(PairEndpoint::Dd, PairEndpoint::Gg) == Equal
+            || self.cmp(PairEndpoint::Gg, PairEndpoint::Dd) == Equal
+    }
+
+    fn containment(&self, lo: PairEndpoint, hi: PairEndpoint) -> Containment {
+        use std::cmp::Ordering::{Greater, Less};
+        let a_has_b = self.cmp(lo, lo) != Less && self.cmp(hi, hi) != Greater;
+        let b_has_a = self.cmp(lo, lo) != Greater && self.cmp(hi, hi) != Less;
+        match (a_has_b, b_has_a) {
+            (true, true) => Containment::Equal,
+            (true, false) => Containment::AContainsB,
+            (false, true) => Containment::BContainsA,
+            (false, false) => Containment::None,
+        }
+    }
+
+    /// 外缘 `[DD, GG]` 的包含关系。
+    pub fn outer_containment(&self) -> Containment {
+        self.containment(PairEndpoint::Dd, PairEndpoint::Gg)
+    }
+
+    /// 核心 `[ZD, ZG]` 的包含关系。
+    pub fn core_containment(&self) -> Containment {
+        self.containment(PairEndpoint::Zd, PairEndpoint::Zg)
+    }
+}
+
+/// CC-020 的域前件：`DD ≤ ZD < ZG ≤ GG`。生产中枢由 strict seed 与「首单元恒为 Zn」保证。
+pub fn pair_domain_ok(c: &Center) -> bool {
+    c.dd <= c.zd && c.zd < c.zg && c.zg <= c.gg
+}
+
+/// 相邻中枢对的全部端点事实（★#1424，全仓唯一一份对判定）。判据只读矩阵四格，判定顺序与 #898 的
+/// `classify_relation` 相同，所以四态投影在**任意**输入上逐位不变；[`pair_domain_ok`] 域内五叶恰一由穷举锁证明。
+///
+/// 不在此断言域前件：塔的 ≥9 升级子中枢继承母核心、外缘取子窗全单元极值（`zhongshu.md` §9.5 过渡态，Z-4 未落），
+/// 可以出现 `DD > ZD`；它们照旧经 [`classify_relation`] 投影进塔内消费方，S 事实层不发布这类对（#1424 根裁定第 2 问）。
+#[inline]
+pub fn center_pair_facts(prev: &Center, next: &Center) -> CenterPairFacts {
+    use std::cmp::Ordering::{Greater, Less};
+    use PairEndpoint::{Dd, Gg, Zd, Zg};
+    let matrix = PairEndpoint::ALL.map(|x| PairEndpoint::ALL.map(|y| x.of(next).cmp(&y.of(prev))));
+    let at = |x: PairEndpoint, y: PairEndpoint| matrix[x as usize][y as usize];
+    let leaf = if at(Dd, Gg) == Greater {
+        PairLeaf::UpNewbirth
+    } else if at(Gg, Dd) == Less {
+        PairLeaf::DownNewbirth
+    } else if at(Zg, Zd) == Less {
+        // 上一支否定给出 B.GG ≥ A.DD。
+        PairLeaf::DownExpansion
+    } else if at(Zd, Zg) == Greater {
+        // 首支否定给出 B.DD ≤ A.GG。
+        PairLeaf::UpExpansion
+    } else {
+        // ¬(B.ZG<A.ZD) ∧ ¬(B.ZD>A.ZG)：核心未严格分离（域内新生必伴核心分离，故此支恰为首叶）。
+        PairLeaf::CoreNotStrictlySeparated
+    };
+    CenterPairFacts { leaf, matrix }
 }
 
 /// 点相对中枢核心区间 `[zd,zg]` 的位置三态（契约锚 `Origin.CenterStates.CenterPosition`）。
@@ -630,27 +843,89 @@ pub fn center_from_window(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Option
     seed_facts(a, b, c).center(SeedRule::Geometric)
 }
 
-/// 判定两中枢关系（契约锚 `Origin.CenterStates.classifyDevelopment`：新生/扩展/延伸三态
-/// + `IsUpTrend`/`IsDownTrend` 外缘趋势判据；扩展支写全 = #815 M-2 裁定 + #898 落地）。
+/// 判定两中枢关系四态（契约锚 `Origin.CenterStates.classifyDevelopment` + `IsUpTrend`/`IsDownTrend`）。
 ///
-/// 中心定理二（`020-第20课.md:58`【正文】，#815 M-2 已核逐字）：
-/// - `next.dd > prev.gg → 上涨延续`（`Origin.CenterStates.IsUpTrend`，外缘完全分离向上）；
-/// - `next.gg < prev.dd → 下跌延续`（`IsDownTrend`，外缘完全分离向下）；
-/// - **核心分离 ∧ 外缘重叠 → 级别扩张**：写全为原公式 `(next.zg<prev.zd ∧ next.gg>=prev.dd)
-///   ∨ (next.zd>prev.zg ∧ next.dd<=prev.gg)`，不再由 `¬up ∧ ¬down` 兜底（在外缘重叠前件下，
-///   核心分离 ⟺ 该合取式——Lean `CenterTrichotomy.trichotomy_predicates_total` 已机器证明）；
-/// - 核心重叠 → `CoreOverlap`（中枢延伸，中心定理一，`classifyDevelopment` 的 `extension`
-///   支）——探针 #894 P-2 实测该情形占相邻中枢对约 27%，旧 else 兜底把它静默吞进扩展。
+/// ★#1424（根裁定第 3 问）：本函数是 [`center_pair_facts`] 五叶的投影（[`PairLeaf::relation`]），不另写判据；
+/// 消费方（`recursive_tower::trend_run_start`、full-trend 证书、`decompose::fold_rel`、小转大 xzd）不动。
+/// 判定顺序沿用 #898：外缘分离 ⟹ 上涨／下跌延续；核心严格分离 ∧ 外缘重叠 ⟹ 级别扩张（原公式，不由
+/// `¬up ∧ ¬down` 兜底）；其余 ⟹ 核心未严格分离（不是延伸，见 [`CenterRelation`]）。
 pub fn classify_relation(prev: &Center, next: &Center) -> CenterRelation {
-    if next.dd > prev.gg {
-        CenterRelation::UpContinuation
-    } else if next.gg < prev.dd {
-        CenterRelation::DownContinuation
-    } else if (next.zg < prev.zd && next.gg >= prev.dd) || (next.zd > prev.zg && next.dd <= prev.gg)
-    {
-        CenterRelation::LevelExpansion
+    center_pair_facts(prev, next).leaf.relation()
+}
+
+/// CC-018 单走势单元相对冻结核心 `[ZD, ZG]` 的位置五叶（SPEC #1340 `/classification_axes/17`，★#1424）。
+///
+/// 域：`ZD < ZG`（strict 中枢）、`u.lo ≤ u.hi`。闭区间重叠（中心定理一延伸，`020:56`）⟺ 中间三叶；严格离开 ⟺
+/// 首尾两叶。离开不是破坏（首回试与破坏归 #1434）。相切单独成叶。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum UnitCorePosition {
+    /// `u.hi < ZD`。
+    StrictBelow,
+    /// `u.hi = ZD`。
+    LowTouch,
+    /// `u.hi > ZD ∧ u.lo < ZG`。
+    InteriorContact,
+    /// `u.lo = ZG`。
+    HighTouch,
+    /// `u.lo > ZG`。
+    StrictAbove,
+}
+
+impl UnitCorePosition {
+    /// 目录分支序。
+    pub const ALL: [UnitCorePosition; 5] = [
+        UnitCorePosition::StrictBelow,
+        UnitCorePosition::LowTouch,
+        UnitCorePosition::InteriorContact,
+        UnitCorePosition::HighTouch,
+        UnitCorePosition::StrictAbove,
+    ];
+
+    /// payload 字面量。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            UnitCorePosition::StrictBelow => "STRICT_BELOW",
+            UnitCorePosition::LowTouch => "LOW_TOUCH",
+            UnitCorePosition::InteriorContact => "INTERIOR_CONTACT",
+            UnitCorePosition::HighTouch => "HIGH_TOUCH",
+            UnitCorePosition::StrictAbove => "STRICT_ABOVE",
+        }
+    }
+
+    /// 闭区间重叠（延伸判据）：中间三叶。
+    pub fn closed_overlap(self) -> bool {
+        matches!(
+            self,
+            UnitCorePosition::LowTouch
+                | UnitCorePosition::InteriorContact
+                | UnitCorePosition::HighTouch
+        )
+    }
+
+    /// 严格离开的一侧（按区间位置，不读单元方向）：首叶向下、尾叶向上，其余 `None`。
+    pub fn leave_side(self) -> Option<Direction> {
+        match self {
+            UnitCorePosition::StrictBelow => Some(Direction::Down),
+            UnitCorePosition::StrictAbove => Some(Direction::Up),
+            _ => None,
+        }
+    }
+}
+
+/// 单元相对冻结核心的位置（★#1424，全仓唯一一份；塔的延伸循环经 [`UnitCorePosition::closed_overlap`] 读它）。
+#[inline]
+pub fn unit_core_position(u: &UnitRange, zd: Tick, zg: Tick) -> UnitCorePosition {
+    debug_assert!(zd < zg && u.lo <= u.hi, "CC-018 域前件");
+    if u.hi < zd {
+        UnitCorePosition::StrictBelow
+    } else if u.hi == zd {
+        UnitCorePosition::LowTouch
+    } else if u.lo > zg {
+        UnitCorePosition::StrictAbove
+    } else if u.lo == zg {
+        UnitCorePosition::HighTouch
     } else {
-        CenterRelation::CoreOverlap
+        UnitCorePosition::InteriorContact
     }
 }
 
@@ -1338,5 +1613,219 @@ mod tests {
             }
         }
         assert!(n > 9_000, "穷举域非空（{n}）");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  ★#1424：CC-020 五叶 `center_pair_facts`、四态投影、CC-018 五叶 `unit_core_position`
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// #898 落地时的四态公式原样抄录（`daac6d8661` `classify_relation`），作「投影逐位不变」的对照，不调被测函数。
+    fn legacy_four_state(prev: &Center, next: &Center) -> CenterRelation {
+        if next.dd > prev.gg {
+            CenterRelation::UpContinuation
+        } else if next.gg < prev.dd {
+            CenterRelation::DownContinuation
+        } else if (next.zg < prev.zd && next.gg >= prev.dd)
+            || (next.zd > prev.zg && next.dd <= prev.gg)
+        {
+            CenterRelation::LevelExpansion
+        } else {
+            CenterRelation::CoreOverlap
+        }
+    }
+
+    /// SPEC CC-020 五叶逐叶独立求值（不走被测函数的判定链）。
+    fn leaves_by_definition(a: &Center, b: &Center) -> Vec<PairLeaf> {
+        let sep = b.zg < a.zd || b.zd > a.zg;
+        [
+            (PairLeaf::CoreNotStrictlySeparated, !sep),
+            (PairLeaf::UpNewbirth, b.dd > a.gg),
+            (PairLeaf::DownNewbirth, b.gg < a.dd),
+            (PairLeaf::UpExpansion, b.zd > a.zg && b.dd <= a.gg),
+            (PairLeaf::DownExpansion, b.zg < a.zd && b.gg >= a.dd),
+        ]
+        .into_iter()
+        .filter(|(_, holds)| *holds)
+        .map(|(leaf, _)| leaf)
+        .collect()
+    }
+
+    /// 0..=r 整数域上满足 `DD ≤ ZD < ZG ≤ GG` 的全部中枢。
+    fn domain_centers(r: Tick) -> Vec<Center> {
+        let mut out = vec![];
+        for dd in 0..=r {
+            for zd in dd..=r {
+                for zg in zd + 1..=r {
+                    for gg in zg..=r {
+                        out.push(center(dd, zd, zg, gg));
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// #1424 穷举分划锁（A-CC-020-02，#804 L1）：0..=7 域 210 个中枢、44,100 对——五叶逐叶独立求值恰一，且等于
+    /// `center_pair_facts` 的叶；方向、16 格矩阵逐格对定义；四态投影等于 #898 公式。
+    #[test]
+    fn s1424_pair_leaf_partition_and_projection_exhaustive() {
+        let cs = domain_centers(7);
+        assert_eq!(cs.len(), 210);
+        let mut counts = std::collections::BTreeMap::new();
+        for a in &cs {
+            for b in &cs {
+                let ctx = format!("A={a:?} B={b:?}");
+                let want = leaves_by_definition(a, b);
+                assert_eq!(want.len(), 1, "{ctx}: 五叶恰一");
+                let f = center_pair_facts(a, b);
+                assert_eq!(f.leaf, want[0], "{ctx}");
+                assert!(pair_domain_ok(a) && pair_domain_ok(b));
+                let ends = |c: &Center| [c.dd, c.zd, c.zg, c.gg];
+                for (x, bx) in ends(b).into_iter().enumerate() {
+                    for (y, ay) in ends(a).into_iter().enumerate() {
+                        assert_eq!(f.matrix[x][y], bx.cmp(&ay), "{ctx}: 矩阵[{x}][{y}]");
+                    }
+                }
+                let dir = match want[0] {
+                    PairLeaf::UpNewbirth | PairLeaf::UpExpansion => Some(Direction::Up),
+                    PairLeaf::DownNewbirth | PairLeaf::DownExpansion => Some(Direction::Down),
+                    PairLeaf::CoreNotStrictlySeparated => None,
+                };
+                assert_eq!(f.leaf.direction(), dir, "{ctx}");
+                assert_eq!(classify_relation(a, b), legacy_four_state(a, b), "{ctx}");
+                assert_eq!(f.leaf.relation(), legacy_four_state(a, b), "{ctx}");
+                *counts.entry(f.leaf.as_str()).or_insert(0usize) += 1;
+            }
+        }
+        // 与备料 partition_check.py 的计数逐叶相同（独立手算）。
+        assert_eq!(counts["CORE_NOT_STRICTLY_SEPARATED"], 32_790);
+        assert_eq!(counts["UP_EXPANSION"], 5_160);
+        assert_eq!(counts["DOWN_EXPANSION"], 5_160);
+        assert_eq!(counts["UP_NEWBIRTH"], 495);
+        assert_eq!(counts["DOWN_NEWBIRTH"], 495);
+    }
+
+    /// 投影在**任意**输入上逐位不变（含域外：DD>ZD、ZD≥ZG 等，塔的 ≥9 子中枢即可出现 DD>ZD）：0..=4 全部四元组两两。
+    #[test]
+    fn s1424_classify_relation_projection_unchanged_on_all_inputs() {
+        let mut quads = vec![];
+        for dd in 0..=4 {
+            for zd in 0..=4 {
+                for zg in 0..=4 {
+                    for gg in 0..=4 {
+                        quads.push(center(dd, zd, zg, gg));
+                    }
+                }
+            }
+        }
+        let mut n = 0usize;
+        for a in &quads {
+            for b in &quads {
+                assert_eq!(
+                    classify_relation(a, b),
+                    legacy_four_state(a, b),
+                    "A={a:?} B={b:?}"
+                );
+                n += 1;
+            }
+        }
+        assert_eq!(n, 390_625);
+    }
+
+    /// A 冻结、B 开放期外缘只外扩（DD 不增、GG 不减、核心不变）⟹ 叶只可能 NEWBIRTH→同向 EXPANSION（W12）。
+    #[test]
+    fn s1424_pair_leaf_monotone_when_b_outer_widens() {
+        let cs = domain_centers(6);
+        let mut moves = 0usize;
+        for a in &cs {
+            for b in &cs {
+                let l0 = center_pair_facts(a, b).leaf;
+                for b2 in cs
+                    .iter()
+                    .filter(|c| c.zd == b.zd && c.zg == b.zg && c.dd <= b.dd && c.gg >= b.gg)
+                {
+                    let l1 = center_pair_facts(a, b2).leaf;
+                    let ok = l1 == l0
+                        || (l0, l1) == (PairLeaf::UpNewbirth, PairLeaf::UpExpansion)
+                        || (l0, l1) == (PairLeaf::DownNewbirth, PairLeaf::DownExpansion);
+                    assert!(ok, "A={a:?} B={b:?}→{b2:?}: {l0:?}→{l1:?}");
+                    moves += 1;
+                }
+            }
+        }
+        // 与备料 partition_check.py 在 0..=6 域的转移计数相同（独立手算）。
+        assert_eq!(moves, 58_212);
+    }
+
+    /// 证据字段：核心相切、外缘触及、包含（W5/W6/W7 同型）。
+    #[test]
+    fn s1424_pair_witnesses() {
+        // W6：A=(10,20,35,50) B=(30,35,40,60)：核心相切 ⟹ 首叶；外缘不包含。
+        let f = center_pair_facts(&center(10, 20, 35, 50), &center(30, 35, 40, 60));
+        assert_eq!(f.leaf, PairLeaf::CoreNotStrictlySeparated);
+        assert!(f.core_tangent() && !f.outer_touch());
+        assert_eq!(f.outer_containment(), Containment::None);
+        // W5：A=(10,20,35,40) B=(2,3,8,10)：B.GG=A.DD 外缘触及 ⟹ 仍为扩展。
+        let f = center_pair_facts(&center(10, 20, 35, 40), &center(2, 3, 8, 10));
+        assert_eq!(f.leaf, PairLeaf::DownExpansion);
+        assert!(f.outer_touch() && !f.core_tangent());
+        // W7：A=(10,20,35,50) B=(5,42,48,60)：B 外缘包含 A 外缘，向上扩展。
+        let f = center_pair_facts(&center(10, 20, 35, 50), &center(5, 42, 48, 60));
+        assert_eq!(f.leaf, PairLeaf::UpExpansion);
+        assert_eq!(f.outer_containment(), Containment::BContainsA);
+        assert_eq!(f.core_containment(), Containment::None);
+        assert_eq!(
+            center_pair_facts(&center(0, 2, 5, 8), &center(0, 3, 4, 8)).outer_containment(),
+            Containment::Equal
+        );
+        assert_eq!(
+            center_pair_facts(&center(0, 2, 5, 8), &center(0, 3, 4, 8)).core_containment(),
+            Containment::AContainsB
+        );
+    }
+
+    /// CC-018 五叶穷举（A-CC-018-02）：ZD<ZG ∈ 0..=6、lo≤hi ∈ 0..=8 ⟹ 恰一叶；中间三叶 ⟺ 闭区间相交（塔延伸判据）；
+    /// 离开侧只按区间位置。
+    #[test]
+    fn s1424_unit_core_position_exhaustive() {
+        let mut n = 0usize;
+        for zd in 0..=6 {
+            for zg in zd + 1..=6 {
+                for lo in 0..=8 {
+                    for hi in lo..=8 {
+                        let u = unit(0, 1, up(), lo, hi);
+                        let defs = [
+                            (UnitCorePosition::StrictBelow, hi < zd),
+                            (UnitCorePosition::LowTouch, hi == zd),
+                            (UnitCorePosition::InteriorContact, hi > zd && lo < zg),
+                            (UnitCorePosition::HighTouch, lo == zg),
+                            (UnitCorePosition::StrictAbove, lo > zg),
+                        ];
+                        let hits: Vec<_> =
+                            defs.iter().filter(|(_, h)| *h).map(|(p, _)| *p).collect();
+                        let ctx = format!("core=[{zd},{zg}] u=[{lo},{hi}]");
+                        assert_eq!(hits.len(), 1, "{ctx}: 恰一");
+                        let p = unit_core_position(&u, zd, zg);
+                        assert_eq!(p, hits[0], "{ctx}");
+                        assert_eq!(p.closed_overlap(), lo <= zg && hi >= zd, "{ctx}");
+                        assert_eq!(
+                            p.leave_side(),
+                            if hi < zd {
+                                Some(Direction::Down)
+                            } else if lo > zg {
+                                Some(Direction::Up)
+                            } else {
+                                None
+                            },
+                            "{ctx}"
+                        );
+                        // 方向不参与位置判定。
+                        assert_eq!(unit_core_position(&unit(0, 1, down(), lo, hi), zd, zg), p);
+                        n += 1;
+                    }
+                }
+            }
+        }
+        assert!(n > 900, "{n}");
     }
 }

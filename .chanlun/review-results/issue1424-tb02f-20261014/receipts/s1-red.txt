@@ -1,0 +1,28 @@
+# S1 红态：新 API 为 todo!() 桩，classify_relation 与塔延伸循环保持 #1419 原样（07479fd501）
+# cargo test --lib s1424（CARGO_TARGET_DIR 外盘，nice -n 10，-j 6），exit=101
+test theta_v0::classifier::center::tests::s1424_pair_witnesses ... FAILED
+test theta_v0::classifier::center::tests::s1424_unit_core_position_exhaustive ... FAILED
+test theta_v0::classifier::center::tests::s1424_pair_leaf_monotone_when_b_outer_widens ... FAILED
+test theta_v0::classifier::center::tests::s1424_pair_leaf_partition_and_projection_exhaustive ... FAILED
+test theta_v0::classifier::tests::center_pair_1424::s1424_r26_zn_outer_discriminates_newbirth_from_expansion ... FAILED
+test theta_v0::classifier::tests::center_pair_1424::s1424_tower_pairs_same_judgment_and_ge9_not_copied ... FAILED
+test theta_v0::classifier::center::tests::s1424_classify_relation_projection_unchanged_on_all_inputs ... ok
+test theta_v0::classifier::tests::center_pair_1424::s1424_w12_leaf_revision_across_cuts ... FAILED
+test theta_v0::classifier::tests::center_pair_1424::s1424_worked_examples_streams_match_oracle ... FAILED
+thread 'theta_v0::classifier::center::tests::s1424_pair_witnesses' (12805062) panicked at src/theta_v0/classifier/center.rs:329:5:
+not yet implemented: #1424 S1 红态桩
+thread 'theta_v0::classifier::center::tests::s1424_unit_core_position_exhaustive' (12805063) panicked at src/theta_v0/classifier/center.rs:909:5:
+not yet implemented: #1424 S1 红态桩
+thread 'theta_v0::classifier::center::tests::s1424_pair_leaf_monotone_when_b_outer_widens' (12805060) panicked at src/theta_v0/classifier/center.rs:329:5:
+not yet implemented: #1424 S1 红态桩
+thread 'theta_v0::classifier::center::tests::s1424_pair_leaf_partition_and_projection_exhaustive' (12805061) panicked at src/theta_v0/classifier/center.rs:329:5:
+not yet implemented: #1424 S1 红态桩
+thread 'theta_v0::classifier::tests::center_pair_1424::s1424_r26_zn_outer_discriminates_newbirth_from_expansion' (12805064) panicked at src/theta_v0/classifier/center_scan.rs:433:9:
+not yet implemented: #1424 S1 红态桩
+thread 'theta_v0::classifier::tests::center_pair_1424::s1424_tower_pairs_same_judgment_and_ge9_not_copied' (12805065) panicked at src/theta_v0/classifier/center.rs:329:5:
+not yet implemented: #1424 S1 红态桩
+thread 'theta_v0::classifier::tests::center_pair_1424::s1424_w12_leaf_revision_across_cuts' (12805066) panicked at src/theta_v0/classifier/center_scan.rs:427:9:
+not yet implemented: #1424 S1 红态桩
+thread 'theta_v0::classifier::tests::center_pair_1424::s1424_worked_examples_streams_match_oracle' (12805067) panicked at src/theta_v0/classifier/center_scan.rs:427:9:
+not yet implemented: #1424 S1 红态桩
+test result: FAILED. 1 passed; 8 failed; 0 ignored; 0 measured; 3146 filtered out; finished in 0.00s
