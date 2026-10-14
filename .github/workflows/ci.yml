@@ -276,6 +276,15 @@ jobs:
         if: always()
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --test s_content_contract --test s_content_sequence --test s_content_job --test s_content_path --jobs 1
 
+      # #1394 G-1：economic_session（含 P-14 读法锁、finance、content_store、store、finance_transport）
+      #   与 session_transport / session_protocol 的库测试此前没有任何 CI 步执行。2026-10-14 在 Linux
+      #   （glibc 2.36 容器）实跑：74 过、7 忽略（需 HFS 载体或外部夹具）、0 败，无需 --skip；只在 macOS
+      #   编译的 1 条（half_close_during_large_frame_drain_observes_actual_eof）与各 macOS 专属分支由
+      #   ci-macos.yml 作业覆盖。
+      - name: cargo test — economic_session / session_transport / session_protocol 库测试（#1394 G-1）
+        if: always()
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --lib --jobs 1 -- economic_session session_transport session_protocol
+
       # #1394/#1481：s_capture_native_testonly 特性下才编译的测试（2026-10-14 计：lib 26、S bin 174）此前从未编译、
       #   从未执行（state.rs 测试调用漏传 cfg 参数，开特性即 E0061）。只跑「开特性后新增」的测试，其余同名同体测试
       #   已在上面 s_session 步执行；新增集合为空即失败。本机端到端（四次编译加执行）约 9 min；CI 估 20–25 min。
