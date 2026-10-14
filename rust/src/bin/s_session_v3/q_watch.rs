@@ -861,8 +861,9 @@ mod tests {
             JsonOwner::Owned(_) => panic!("普通oracle仅Plain"),
         }
     }
+    // TestOnly，不是产品期限（#1394 B1）：功能测试 job 的 max_elapsed_ms 放长到 600000，不随 runner 速度超期；测 job 期限的用例自带受控时钟。
     fn limits() -> JobLimits {
-        JobLimits::from_canonical_json(&json!({"max_total_wire_bytes":"16777216","max_total_node_bytes":"16777216","max_total_nodes":"100000","max_total_records":"10000","max_total_requests":"100","max_elapsed_ms":"20000","max_staged_bytes":"1048576","max_store_bytes":"33554432"})).unwrap()
+        JobLimits::from_canonical_json(&json!({"max_total_wire_bytes":"16777216","max_total_node_bytes":"16777216","max_total_nodes":"100000","max_total_records":"10000","max_total_requests":"100","max_elapsed_ms":"600000","max_staged_bytes":"1048576","max_store_bytes":"33554432"})).unwrap()
     }
     fn job() -> Job {
         Job::new(
@@ -1183,7 +1184,7 @@ mod tests {
                 *left -= n;
             }
             if let Some(expire) = &self.expire {
-                expire.store(20000, Ordering::SeqCst);
+                expire.store(limits().max_elapsed_ms, Ordering::SeqCst);
             }
             Ok(n)
         }
