@@ -38,6 +38,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # newchan_rust 依赖的 pyo3 0.23 最高支持 CPython 3.13；macos-latest 的默认 python3 已是 3.14，
+      #   pyo3-ffi 的 build script 直接拒绝（run 38504744953 两步都在编译前失败）。钉 3.12，与本机
+      #   构建所见版本一致（pyo3-build-config：version=3.12）。
+      - name: Set up Python 3.12 for pyo3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       # run-cargo-with-telemetry.sh 用的是 Linux 的 free/df -B1，本作业直接调用 cargo，只记录基础环境。
       - name: Record runner and toolchain
         run: |
@@ -48,6 +56,8 @@ jobs:
           sysctl -n machdep.cpu.brand_string hw.ncpu hw.memsize
           rustc -vV
           cargo -V
+          command -v python3
+          python3 -VV
           df -h .
 
       - name: Cache cargo registry + git
