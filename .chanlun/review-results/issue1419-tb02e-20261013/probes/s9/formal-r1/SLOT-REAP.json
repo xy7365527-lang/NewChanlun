@@ -1,0 +1,27 @@
+{
+ "at": "2026-10-14T11:33:44+0800",
+ "out": "/Volumes/AgentStorage/issue1419-s9-formal-20261014",
+ "ports": "18860-18863",
+ "socket_prefix": "/private/tmp/tb1419e-",
+ "first": {
+  "processes": [],
+  "orphan_chrome": [],
+  "listeners": [],
+  "sockets": [
+   "/private/tmp/tb1419e-9e4683d26281adcf.sock"
+  ]
+ },
+ "actions": [
+  {
+   "socket": "/private/tmp/tb1419e-9e4683d26281adcf.sock",
+   "action": "unlink"
+  }
+ ],
+ "final": {
+  "processes": [],
+  "orphan_chrome": [],
+  "listeners": [],
+  "sockets": []
+ },
+ "clean": true
+}

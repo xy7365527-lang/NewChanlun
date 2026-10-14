@@ -1,0 +1,771 @@
+{
+ "schema": "tb1419-s9-formal-result/1",
+ "round": 3,
+ "authority": "根批 07479fd501（--browser-deferred-to 1497；根裁 ROOT-RULING-S9-RERUN 第 3 条，浏览器臂移交 #1497）",
+ "ticket": "#1419 (TB-02-E)",
+ "branch": "codex/1419-center-seed-20261013",
+ "head": "07479fd501a72fe202dbc0b41a8250b6a5047841",
+ "origin_head_at_preflight": "07479fd501a72fe202dbc0b41a8250b6a5047841",
+ "worktree_clean": true,
+ "status": "PASS_EXCEPT_BROWSER_DEFERRED",
+ "status_note": "PASS_EXCEPT_BROWSER_DEFERRED：四臂其余全部门通过、a/b 对拍通过，浏览器臂未执行（DEFERRED→#1497）；不是 PASS",
+ "comparison": {
+  "status": "PASS_EXCEPT_BROWSER_DEFERRED",
+  "comparisons": [
+   {
+    "case": "min12_up",
+    "status": "PASS",
+    "expected_records": 236,
+    "compared_records": 236,
+    "compared_bytes": 1864380377,
+    "method": "exact_bytes_and_strict_jsonl",
+    "excluded_fields": [],
+    "identity_renaming": [],
+    "sha256": [
+     "f851c79adcee7a962a202ada65b4a10cf9519263a85264a61a8180c69fad68e3",
+     "f851c79adcee7a962a202ada65b4a10cf9519263a85264a61a8180c69fad68e3"
+    ]
+   },
+   {
+    "case": "min12_down",
+    "status": "PASS",
+    "expected_records": 236,
+    "compared_records": 236,
+    "compared_bytes": 1870651041,
+    "method": "exact_bytes_and_strict_jsonl",
+    "excluded_fields": [],
+    "identity_renaming": [],
+    "sha256": [
+     "2f5f22f0cee0087ea9807b0e526852fc577dda531e93e5e6899c93aa36ab234b",
+     "2f5f22f0cee0087ea9807b0e526852fc577dda531e93e5e6899c93aa36ab234b"
+    ]
+   }
+  ],
+  "scope": "TB-02-E（D-E (B) 前缀：无 seed/中枢），非整图完成",
+  "services_reexecuted": false,
+  "source_plan": "/Volumes/AgentStorage/issue1419-s9-formal-r3-20261014.noindex/RUN-PLAN.json",
+  "browser": {
+   "status": "DEFERRED",
+   "deferred_to": "#1497"
+  }
+ },
+ "arms": {
+  "min12_up-a": {
+   "verdict": "PASS（浏览器 DEFERRED→#1497）",
+   "exit": {
+    "exit": 0
+   },
+   "capture_status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+   "input_count": 43,
+   "core_records": 236,
+   "cleanup_errors": [],
+   "public_queries": 133,
+   "live_known_revisit": "43×live、43×AsKnown、43×回访全部 captured_validated_commit，回访与原 AsKnown 逐值相同",
+   "frozen_oracle": {
+    "status": "passed",
+    "cuts": 43,
+    "oracle_cuts": {
+     "26": {
+      "completed": [],
+      "assignments": 1,
+      "cursor": "SEEKING_SEED"
+     },
+     "27": {
+      "completed": [
+       "segment:1:1"
+      ],
+      "assignments": 2,
+      "cursor": "SEEKING_SEED"
+     },
+     "38": {
+      "completed": [
+       "segment:1:1"
+      ],
+      "assignments": 2,
+      "cursor": "SEEKING_SEED"
+     },
+     "39": {
+      "completed": [
+       "segment:1:1",
+       "segment:1:13"
+      ],
+      "assignments": 3,
+      "cursor": "SEEKING_SEED"
+     },
+     "43": {
+      "completed": [
+       "segment:1:1",
+       "segment:1:13"
+      ],
+      "assignments": 3,
+      "cursor": "SEEKING_SEED"
+     }
+    }
+   },
+   "normal_recovery": {
+    "equal": true,
+    "cuts": [
+     27,
+     43
+    ]
+   },
+   "browser": {
+    "status": "DEFERRED",
+    "cuts": null,
+    "page_errors": null,
+    "version": null,
+    "deferred_to": "#1497",
+    "browser_executed": false,
+    "planned_cuts": [
+     "27",
+     "43"
+    ],
+    "launched": false
+   },
+   "wall_s": 415.5,
+   "load_during": {
+    "samples": 41,
+    "load1_min_max": [
+     8.8,
+     13.21
+    ],
+    "mds_stores_pcpu_max": 15.8,
+    "mdworker_pcpu_max": 2.7,
+    "samples_with_foreign_rustc_or_test_binary": 0
+   },
+   "semantic_core_sha256": "f851c79adcee7a962a202ada65b4a10cf9519263a85264a61a8180c69fad68e3",
+   "database_backup_sha256": "368e6d6307bb508e2a8900eb1c3b8452ff8a0e54839eb6d43074d5fbbf76a414"
+  },
+  "min12_up-b": {
+   "verdict": "PASS（浏览器 DEFERRED→#1497）",
+   "exit": {
+    "exit": 0
+   },
+   "capture_status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+   "input_count": 43,
+   "core_records": 236,
+   "cleanup_errors": [],
+   "public_queries": 133,
+   "live_known_revisit": "43×live、43×AsKnown、43×回访全部 captured_validated_commit，回访与原 AsKnown 逐值相同",
+   "frozen_oracle": {
+    "status": "passed",
+    "cuts": 43,
+    "oracle_cuts": {
+     "26": {
+      "completed": [],
+      "assignments": 1,
+      "cursor": "SEEKING_SEED"
+     },
+     "27": {
+      "completed": [
+       "segment:1:1"
+      ],
+      "assignments": 2,
+      "cursor": "SEEKING_SEED"
+     },
+     "38": {
+      "completed": [
+       "segment:1:1"
+      ],
+      "assignments": 2,
+      "cursor": "SEEKING_SEED"
+     },
+     "39": {
+      "completed": [
+       "segment:1:1",
+       "segment:1:13"
+      ],
+      "assignments": 3,
+      "cursor": "SEEKING_SEED"
+     },
+     "43": {
+      "completed": [
+       "segment:1:1",
+       "segment:1:13"
+      ],
+      "assignments": 3,
+      "cursor": "SEEKING_SEED"
+     }
+    }
+   },
+   "normal_recovery": {
+    "equal": true,
+    "cuts": [
+     27,
+     43
+    ]
+   },
+   "browser": {
+    "status": "DEFERRED",
+    "cuts": null,
+    "page_errors": null,
+    "version": null,
+    "deferred_to": "#1497",
+    "browser_executed": false,
+    "planned_cuts": [
+     "27",
+     "43"
+    ],
+    "launched": false
+   },
+   "wall_s": 415.3,
+   "load_during": {
+    "samples": 41,
+    "load1_min_max": [
+     9.29,
+     18.75
+    ],
+    "mds_stores_pcpu_max": 354.5,
+    "mdworker_pcpu_max": 418.5,
+    "samples_with_foreign_rustc_or_test_binary": 0
+   },
+   "semantic_core_sha256": "f851c79adcee7a962a202ada65b4a10cf9519263a85264a61a8180c69fad68e3",
+   "database_backup_sha256": "368e6d6307bb508e2a8900eb1c3b8452ff8a0e54839eb6d43074d5fbbf76a414"
+  },
+  "min12_down-a": {
+   "verdict": "PASS（浏览器 DEFERRED→#1497）",
+   "exit": {
+    "exit": 0
+   },
+   "capture_status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+   "input_count": 43,
+   "core_records": 236,
+   "cleanup_errors": [],
+   "public_queries": 133,
+   "live_known_revisit": "43×live、43×AsKnown、43×回访全部 captured_validated_commit，回访与原 AsKnown 逐值相同",
+   "frozen_oracle": {
+    "status": "passed",
+    "cuts": 43,
+    "oracle_cuts": {
+     "26": {
+      "completed": [],
+      "assignments": 1,
+      "cursor": "SEEKING_SEED"
+     },
+     "27": {
+      "completed": [
+       "segment:1:1"
+      ],
+      "assignments": 2,
+      "cursor": "SEEKING_SEED"
+     },
+     "38": {
+      "completed": [
+       "segment:1:1"
+      ],
+      "assignments": 2,
+      "cursor": "SEEKING_SEED"
+     },
+     "39": {
+      "completed": [
+       "segment:1:1",
+       "segment:1:13"
+      ],
+      "assignments": 3,
+      "cursor": "SEEKING_SEED"
+     },
+     "43": {
+      "completed": [
+       "segment:1:1",
+       "segment:1:13"
+      ],
+      "assignments": 3,
+      "cursor": "SEEKING_SEED"
+     }
+    }
+   },
+   "normal_recovery": {
+    "equal": true,
+    "cuts": [
+     27,
+     43
+    ]
+   },
+   "browser": {
+    "status": "DEFERRED",
+    "cuts": null,
+    "page_errors": null,
+    "version": null,
+    "deferred_to": "#1497",
+    "browser_executed": false,
+    "planned_cuts": [
+     "27",
+     "43"
+    ],
+    "launched": false
+   },
+   "wall_s": 414.2,
+   "load_during": {
+    "samples": 40,
+    "load1_min_max": [
+     10.4,
+     22.72
+    ],
+    "mds_stores_pcpu_max": 508.0,
+    "mdworker_pcpu_max": 433.8,
+    "samples_with_foreign_rustc_or_test_binary": 1
+   },
+   "semantic_core_sha256": "2f5f22f0cee0087ea9807b0e526852fc577dda531e93e5e6899c93aa36ab234b",
+   "database_backup_sha256": "122031fdc14b8715d0f97e1ed9ff4a38f16883afb1cb1b8c44731e582521f6f8"
+  },
+  "min12_down-b": {
+   "verdict": "PASS（浏览器 DEFERRED→#1497）",
+   "exit": {
+    "exit": 0
+   },
+   "capture_status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+   "input_count": 43,
+   "core_records": 236,
+   "cleanup_errors": [],
+   "public_queries": 133,
+   "live_known_revisit": "43×live、43×AsKnown、43×回访全部 captured_validated_commit，回访与原 AsKnown 逐值相同",
+   "frozen_oracle": {
+    "status": "passed",
+    "cuts": 43,
+    "oracle_cuts": {
+     "26": {
+      "completed": [],
+      "assignments": 1,
+      "cursor": "SEEKING_SEED"
+     },
+     "27": {
+      "completed": [
+       "segment:1:1"
+      ],
+      "assignments": 2,
+      "cursor": "SEEKING_SEED"
+     },
+     "38": {
+      "completed": [
+       "segment:1:1"
+      ],
+      "assignments": 2,
+      "cursor": "SEEKING_SEED"
+     },
+     "39": {
+      "completed": [
+       "segment:1:1",
+       "segment:1:13"
+      ],
+      "assignments": 3,
+      "cursor": "SEEKING_SEED"
+     },
+     "43": {
+      "completed": [
+       "segment:1:1",
+       "segment:1:13"
+      ],
+      "assignments": 3,
+      "cursor": "SEEKING_SEED"
+     }
+    }
+   },
+   "normal_recovery": {
+    "equal": true,
+    "cuts": [
+     27,
+     43
+    ]
+   },
+   "browser": {
+    "status": "DEFERRED",
+    "cuts": null,
+    "page_errors": null,
+    "version": null,
+    "deferred_to": "#1497",
+    "browser_executed": false,
+    "planned_cuts": [
+     "27",
+     "43"
+    ],
+    "launched": false
+   },
+   "wall_s": 420.5,
+   "load_during": {
+    "samples": 42,
+    "load1_min_max": [
+     10.11,
+     23.28
+    ],
+    "mds_stores_pcpu_max": 407.8,
+    "mdworker_pcpu_max": 492.9,
+    "samples_with_foreign_rustc_or_test_binary": 23
+   },
+   "semantic_core_sha256": "2f5f22f0cee0087ea9807b0e526852fc577dda531e93e5e6899c93aa36ab234b",
+   "database_backup_sha256": "122031fdc14b8715d0f97e1ed9ff4a38f16883afb1cb1b8c44731e582521f6f8"
+  }
+ },
+ "ab_comparison": {
+  "min12_up": {
+   "status": "PASS",
+   "expected_records": 236,
+   "compared_records": 236,
+   "compared_bytes": 1864380377,
+   "method": "exact_bytes_and_strict_jsonl",
+   "sha256": [
+    "f851c79adcee7a962a202ada65b4a10cf9519263a85264a61a8180c69fad68e3",
+    "f851c79adcee7a962a202ada65b4a10cf9519263a85264a61a8180c69fad68e3"
+   ]
+  },
+  "min12_down": {
+   "status": "PASS",
+   "expected_records": 236,
+   "compared_records": 236,
+   "compared_bytes": 1870651041,
+   "method": "exact_bytes_and_strict_jsonl",
+   "sha256": [
+    "2f5f22f0cee0087ea9807b0e526852fc577dda531e93e5e6899c93aa36ab234b",
+    "2f5f22f0cee0087ea9807b0e526852fc577dda531e93e5e6899c93aa36ab234b"
+   ]
+  }
+ },
+ "recovery": {
+  "min12_up-a": {
+   "cuts": [
+    27,
+    43
+   ],
+   "equal": true,
+   "stop_s_s": 0.192,
+   "recover_s": 4.177,
+   "start_s_s": 4.836,
+   "before_query_max_s": 5.161,
+   "after_query_max_s": 5.04
+  },
+  "min12_up-b": {
+   "cuts": [
+    27,
+    43
+   ],
+   "equal": true,
+   "stop_s_s": 0.198,
+   "recover_s": 4.253,
+   "start_s_s": 4.826,
+   "before_query_max_s": 5.255,
+   "after_query_max_s": 5.105
+  },
+  "min12_down-a": {
+   "cuts": [
+    27,
+    43
+   ],
+   "equal": true,
+   "stop_s_s": 0.193,
+   "recover_s": 4.198,
+   "start_s_s": 4.807,
+   "before_query_max_s": 5.131,
+   "after_query_max_s": 5.078
+  },
+  "min12_down-b": {
+   "cuts": [
+    27,
+    43
+   ],
+   "equal": true,
+   "stop_s_s": 0.196,
+   "recover_s": 4.152,
+   "start_s_s": 4.938,
+   "before_query_max_s": 5.042,
+   "after_query_max_s": 5.199
+  }
+ },
+ "cross_round_identity": {
+  "min12_up semantic-core.jsonl sha256": {
+   "r1 min12_up-a": "f851c79adcee7a962a202ada65b4a10cf9519263a85264a61a8180c69fad68e3",
+   "r2 min12_up-a": "f851c79adcee7a962a202ada65b4a10cf9519263a85264a61a8180c69fad68e3",
+   "r3 min12_up-a": "f851c79adcee7a962a202ada65b4a10cf9519263a85264a61a8180c69fad68e3",
+   "r3 min12_up-b": "f851c79adcee7a962a202ada65b4a10cf9519263a85264a61a8180c69fad68e3"
+  },
+  "min12_up database-backup.sqlite sha256": {
+   "r1 min12_up-a": "368e6d6307bb508e2a8900eb1c3b8452ff8a0e54839eb6d43074d5fbbf76a414",
+   "r2 min12_up-a": "368e6d6307bb508e2a8900eb1c3b8452ff8a0e54839eb6d43074d5fbbf76a414",
+   "r3 min12_up-a": "368e6d6307bb508e2a8900eb1c3b8452ff8a0e54839eb6d43074d5fbbf76a414",
+   "r3 min12_up-b": "368e6d6307bb508e2a8900eb1c3b8452ff8a0e54839eb6d43074d5fbbf76a414"
+  },
+  "all_equal": true
+ },
+ "browser": {
+  "status": "DEFERRED",
+  "deferred_to": "#1497",
+  "launched_in_any_arm": false,
+  "receipt_planned_cuts": [
+   "27",
+   "43"
+  ],
+  "note": "各臂 browser/RESULT.json 为 runtime 写出的 DEFERRED 收据（含两轮失败原件路径与 SHA）；30 s 帽与两次点击本轮不适用"
+ },
+ "timings": {
+  "harness_elapsed_s": 1751.7,
+  "arm_wall_s": {
+   "min12_up-a": 415.5,
+   "min12_up-b": 415.3,
+   "min12_down-a": 414.2,
+   "min12_down-b": 420.5,
+   "compare_completed": 87.3
+  },
+  "ingest_max_s": {
+   "min12_up-a": 4.646,
+   "min12_up-b": 4.703,
+   "min12_down-a": 4.698,
+   "min12_down-b": 4.649
+  },
+  "ingest_cap_s": 10,
+  "query_max_s": {
+   "min12_up-a": [
+    "live-42",
+    8.127
+   ],
+   "min12_up-b": [
+    "live-42",
+    8.112
+   ],
+   "min12_down-a": [
+    "live-42",
+    8.122
+   ],
+   "min12_down-b": [
+    "live-42",
+    8.213
+   ]
+  },
+  "query_cap_s": 30,
+  "query_s_by_group": {
+   "min12_up-a": {
+    "live": {
+     "n": 43,
+     "min": 0.053,
+     "median": 1.748,
+     "max": 8.127,
+     "sum": 111.731
+    },
+    "known": {
+     "n": 43,
+     "min": 0.028,
+     "median": 1.142,
+     "max": 5.229,
+     "sum": 73.306
+    },
+    "revisit": {
+     "n": 43,
+     "min": 0.354,
+     "median": 1.428,
+     "max": 5.269,
+     "sum": 85.679
+    },
+    "before": {
+     "n": 2,
+     "min": 2.763,
+     "median": 5.161,
+     "max": 5.161,
+     "sum": 7.924
+    },
+    "after": {
+     "n": 2,
+     "min": 3.866,
+     "median": 5.04,
+     "max": 5.04,
+     "sum": 8.906
+    }
+   },
+   "min12_up-b": {
+    "live": {
+     "n": 43,
+     "min": 0.051,
+     "median": 1.729,
+     "max": 8.112,
+     "sum": 111.352
+    },
+    "known": {
+     "n": 43,
+     "min": 0.023,
+     "median": 1.135,
+     "max": 5.222,
+     "sum": 73.179
+    },
+    "revisit": {
+     "n": 43,
+     "min": 0.34,
+     "median": 1.467,
+     "max": 5.242,
+     "sum": 85.638
+    },
+    "before": {
+     "n": 2,
+     "min": 2.768,
+     "median": 5.255,
+     "max": 5.255,
+     "sum": 8.024
+    },
+    "after": {
+     "n": 2,
+     "min": 3.893,
+     "median": 5.105,
+     "max": 5.105,
+     "sum": 8.997
+    }
+   },
+   "min12_down-a": {
+    "live": {
+     "n": 43,
+     "min": 0.052,
+     "median": 1.714,
+     "max": 8.122,
+     "sum": 111.799
+    },
+    "known": {
+     "n": 43,
+     "min": 0.024,
+     "median": 1.151,
+     "max": 5.253,
+     "sum": 73.175
+    },
+    "revisit": {
+     "n": 43,
+     "min": 0.344,
+     "median": 1.438,
+     "max": 5.306,
+     "sum": 85.838
+    },
+    "before": {
+     "n": 2,
+     "min": 2.739,
+     "median": 5.131,
+     "max": 5.131,
+     "sum": 7.87
+    },
+    "after": {
+     "n": 2,
+     "min": 3.829,
+     "median": 5.078,
+     "max": 5.078,
+     "sum": 8.906
+    }
+   },
+   "min12_down-b": {
+    "live": {
+     "n": 43,
+     "min": 0.054,
+     "median": 1.756,
+     "max": 8.213,
+     "sum": 112.489
+    },
+    "known": {
+     "n": 43,
+     "min": 0.024,
+     "median": 1.15,
+     "max": 5.55,
+     "sum": 74.41
+    },
+    "revisit": {
+     "n": 43,
+     "min": 0.354,
+     "median": 1.483,
+     "max": 5.465,
+     "sum": 88.903
+    },
+    "before": {
+     "n": 2,
+     "min": 2.674,
+     "median": 5.042,
+     "max": 5.042,
+     "sum": 7.716
+    },
+    "after": {
+     "n": 2,
+     "min": 3.975,
+     "median": 5.199,
+     "max": 5.199,
+     "sum": 9.174
+    }
+   }
+  }
+ },
+ "binary": {
+  "path": "/private/tmp/goal1323-native-20261012/tb1419-impl/artifacts/s_structure_session-48e2386463",
+  "sha256": "38c61eeed8ba79a7c5ec1d74575ca46c9cf32614ded9c5d9f04294f18642245b",
+  "plan_binary_sha256": "38c61eeed8ba79a7c5ec1d74575ca46c9cf32614ded9c5d9f04294f18642245b"
+ },
+ "environment": {
+  "python": "3.14.6 (/tmp/tb1414-runtime-venv)",
+  "node": "v24.19.0",
+  "playwright": "1.62.1",
+  "harness_command_tail": [
+   "--execute",
+   "--browser-deferred-to",
+   "1497"
+  ]
+ },
+ "background_load": {
+  "preflight": {
+   "loadavg": [
+    9.125,
+    8.12548828125,
+    7.98095703125
+   ],
+   "spotlight_pcpu": {
+    "mds_stores": 3.0,
+    "mds": 0.0,
+    "mdworker_shared": 0.0
+   },
+   "forbidden_processes": [],
+   "peer_build": "IDLE",
+   "hdiutil": "无"
+  },
+  "ncpu": 28,
+  "during_run_load1_min_max": [
+   8.8,
+   23.28
+  ],
+  "chrome_total_pcpu_min_max": [
+   259.9,
+   584.3
+  ],
+  "spotlight_max": {
+   "mds_stores": 508.0,
+   "mdworker_shared": 492.9
+  },
+  "foreign_rust_activity": {
+   "samples": 26,
+   "first": "2026-10-14T12:42:22+0800",
+   "last": "2026-10-14T12:50:58+0800",
+   "identified": "别的工位的 cargo/rustc 构建与测试二进制（/Volumes/AgentStorage/cargo-targets.noindex/1424/...），开跑门检时不存在，运行中途出现"
+  },
+  "note": "门检时无 cargo/rustc/lake/S/Q/探针/浏览器验收/hdiutil 进程，cargo 锁全 IDLE，mds_stores 3%。运行中途 12:30 起 Spotlight 回升（mds_stores 最高 508%、mdworker 最高 493%），同时段 /private/tmp 下别的工位 worktree（wt-1406、wt-1424）新建大文件；12:42 起有别的工位的 rustc 构建与 cargo-targets.noindex/1424 测试二进制。这些不属本图、未动；本轮四臂计时与前两轮同量级",
+  "samples_file": "background-samples.jsonl（每 10 s）"
+ },
+ "disk": {
+  "data_free_gib_min": 20.23,
+  "stopline_gib": 15,
+  "stopline_hit": false,
+  "agentstorage_free_gib_min": 129.49,
+  "note": "数据卷 12:31 由 24.3 降到 21.6 GiB（别的工位 worktree），最低 20.2 GiB，未触停手线；本轮未向数据卷写大件"
+ },
+ "slot_reap": {
+  "path_deliver": "/private/tmp/goal1323-native-20261012/tb1419-impl/s9-formal-r3/SLOT-REAP.json",
+  "path_run": "/Volumes/AgentStorage/issue1419-s9-formal-r3-20261014.noindex/SLOT-REAP.json",
+  "clean": true,
+  "found_processes": 0,
+  "orphan_chrome": 0,
+  "listeners": 0,
+  "sockets_unlinked": [
+   "/private/tmp/tb1419e-3dd78eba1c768a67.sock",
+   "/private/tmp/tb1419e-41eba33c47b4e713.sock",
+   "/private/tmp/tb1419e-6f0159da6a766aaf.sock",
+   "/private/tmp/tb1419e-a91bacc92201148f.sock"
+  ],
+  "postcheck": "ps/lsof 复查：无 S/Q/http 捕获/浏览器残留，18860–18863 无监听，/private/tmp/tb1419e-* 无残留"
+ },
+ "run_dir": "/Volumes/AgentStorage/issue1419-s9-formal-r3-20261014.noindex",
+ "deliver_dir": "/private/tmp/goal1323-native-20261012/tb1419-impl/s9-formal-r3",
+ "harness": {
+  "rc": 0,
+  "started_at": "2026-10-14T12:21:47+0800",
+  "ended_at": "2026-10-14T12:50:59+0800",
+  "elapsed_s": 1751.7
+ },
+ "push": {
+  "commit": "07479fd501a72fe202dbc0b41a8250b6a5047841",
+  "remote": "origin codex/1419-center-seed-20261013",
+  "range": "daac6d8661..07479fd501（快进）"
+ }
+}

@@ -1,0 +1,32 @@
+{
+  "status": "DEFERRED",
+  "deferred_to": "#1497",
+  "browser_executed": false,
+  "planned_cuts": [
+    "27",
+    "43"
+  ],
+  "reason": "S9 两轮（首轮常规负载、第二轮受控负载）在同一点失败：页面取末 cut 43 的第 2 个 /api/v2/snapshot（snapshot_token 分页）落到冷 Q worker，verify 耗尽 verify_deadline_ms=5000（tests/fixtures/tb01c/query-resources.json:8）后 503 QueryBudgetExceeded，页面 10 s 提交等待超时；根判为 Q 冷校验性能缺陷，浏览器臂移交 #1497，不在 #1419 内放宽帽与期限",
+  "failure_evidence": [
+    {
+      "round": 1,
+      "arm": "min12_up-a",
+      "snapshot_503_s": 5.174,
+      "arm_dir": "/Volumes/AgentStorage/issue1419-s9-formal-20261014/min12_up-a",
+      "browser_stderr_sha256": "b5f14f100e8fe1b43d60b9e4e0d57feddf87fded2ab4fb65ab03636368f2ab81",
+      "network_har_sha256": "59d77565d76bb2e5f26c553010bc6ba011f20194d3a91587212b739d0df7fdb7",
+      "result": "/private/tmp/goal1323-native-20261012/tb1419-impl/s9-formal/RESULT.json",
+      "result_sha256": "0d8baf8f4977e1b9a0a00ea78561658a6d4941ce4f59fb5a095e1cc2d9baab00"
+    },
+    {
+      "round": 2,
+      "arm": "min12_up-a",
+      "snapshot_503_s": 5.156,
+      "arm_dir": "/Volumes/AgentStorage/issue1419-s9-formal-r2-20261014.noindex/min12_up-a",
+      "browser_stderr_sha256": "b5f14f100e8fe1b43d60b9e4e0d57feddf87fded2ab4fb65ab03636368f2ab81",
+      "network_har_sha256": "18ed86944feedac96209617b13bb73898151714d66f00bf2588d25ce2a7bd99a",
+      "result": "/private/tmp/goal1323-native-20261012/tb1419-impl/s9-formal-r2/RESULT.json",
+      "result_sha256": "52f2eae02a9395e2bdadbf11a40c7064d4222268a9603020de5159ea8afa77bc"
+    }
+  ]
+}

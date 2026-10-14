@@ -1,0 +1,96 @@
+{
+ "min12_up-a": {
+  "ran": true,
+  "exit": {
+   "exit": 1
+  },
+  "interrupted": {
+   "cause": "ValueError('正式验证失败，保留原件：/Volumes/AgentStorage/issue1419-s9-formal-20261014/min12_up-a')",
+   "cleanup": [
+    {
+     "action": "runtime-reaped",
+     "returncode": 1
+    },
+    {
+     "action": "stop-q",
+     "returncode": 0
+    },
+    {
+     "action": "stop-s",
+     "returncode": 0
+    }
+   ]
+  },
+  "capture_status": "FAIL",
+  "capture_error": "ValueError: 真实浏览器验证失败，见browser.stderr",
+  "input_count": 43,
+  "core_records": null,
+  "cleanup_errors": [],
+  "oracle": {
+   "status": "passed",
+   "cuts": 43,
+   "oracle_cuts": {
+    "26": {
+     "completed": [],
+     "assignments": 1,
+     "cursor": "SEEKING_SEED"
+    },
+    "27": {
+     "completed": [
+      "segment:1:1"
+     ],
+     "assignments": 2,
+     "cursor": "SEEKING_SEED"
+    },
+    "38": {
+     "completed": [
+      "segment:1:1"
+     ],
+     "assignments": 2,
+     "cursor": "SEEKING_SEED"
+    },
+    "39": {
+     "completed": [
+      "segment:1:1",
+      "segment:1:13"
+     ],
+     "assignments": 3,
+     "cursor": "SEEKING_SEED"
+    },
+    "43": {
+     "completed": [
+      "segment:1:1",
+      "segment:1:13"
+     ],
+     "assignments": 3,
+     "cursor": "SEEKING_SEED"
+    }
+   }
+  },
+  "recovery": {
+   "equal": true,
+   "cuts": [
+    27,
+    43
+   ]
+  },
+  "browser": {
+   "status": null,
+   "cuts": null,
+   "page_errors": null,
+   "version": null
+  }
+ },
+ "min12_up-b": {
+  "ran": false,
+  "reason": "harness execute() 在首个失败臂 min12_up-a 抛出后终止，本臂只做了 prepare（config/clock/messages），未启动"
+ },
+ "min12_down-a": {
+  "ran": false,
+  "reason": "harness execute() 在首个失败臂 min12_up-a 抛出后终止，本臂只做了 prepare（config/clock/messages），未启动"
+ },
+ "min12_down-b": {
+  "ran": false,
+  "reason": "harness execute() 在首个失败臂 min12_up-a 抛出后终止，本臂只做了 prepare（config/clock/messages），未启动"
+ }
+}

@@ -1,0 +1,17 @@
+{
+  "cause": "ValueError('正式验证失败，保留原件：/Volumes/AgentStorage/issue1419-s9-formal-r2-20261014.noindex/min12_up-a')",
+  "cleanup": [
+    {
+      "action": "runtime-reaped",
+      "returncode": 1
+    },
+    {
+      "action": "stop-q",
+      "returncode": 0
+    },
+    {
+      "action": "stop-s",
+      "returncode": 0
+    }
+  ]
+}

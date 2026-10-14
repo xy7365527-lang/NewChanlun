@@ -1,0 +1,44 @@
+{
+  "status": "FAIL",
+  "semantic_oracle": "not_evaluated",
+  "browser": "not_evaluated",
+  "input_count": 43,
+  "error": "ValueError: 真实浏览器验证失败，见browser.stderr",
+  "cleanup": {
+    "outcomes": [
+      {
+        "action": "helper-close-error-log",
+        "result": null
+      },
+      {
+        "action": "stop-q",
+        "result": {
+          "service": "q",
+          "state": "stopped",
+          "pid": 5480,
+          "signal": "SIGTERM",
+          "exit_observation_warnings": [
+            "进程命令暂不可读，不能确认完整参数"
+          ]
+        }
+      },
+      {
+        "action": "stop-s",
+        "result": {
+          "service": "s",
+          "state": "stopped",
+          "pid": 6985,
+          "signal": "SIGTERM",
+          "exit_observation_warnings": [
+            "PID 已复用或进程命令改变，拒绝采用旧记录"
+          ]
+        }
+      },
+      {
+        "action": "close-event-log",
+        "result": null
+      }
+    ],
+    "errors": []
+  }
+}

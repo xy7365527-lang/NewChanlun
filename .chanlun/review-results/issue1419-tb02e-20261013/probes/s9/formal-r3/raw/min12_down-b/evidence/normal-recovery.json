@@ -1,0 +1,89 @@
+{
+  "stop": {
+    "service": "s",
+    "state": "stopped",
+    "pid": 23518,
+    "signal": "SIGTERM",
+    "exit_observation_warnings": [
+      "PID 已复用或进程命令改变，拒绝采用旧记录"
+    ]
+  },
+  "recover": {
+    "service": "s",
+    "state": "recovered",
+    "new_epoch": "2",
+    "reply": {
+      "epoch_transitioned": true,
+      "new_epoch": "2",
+      "ok": true,
+      "previous_epoch": "1",
+      "reachable_root": {
+        "generation": "43",
+        "index_frontier": "batch-97428e3d86425b935a5a1925e02fbc5d4e222a3a6647d0b69d6451a6431b98d2",
+        "structure_cut": "cut-43"
+      },
+      "recovered_begin": null
+    },
+    "next_action": "start-s --writer-epoch 2"
+  },
+  "start": {
+    "service": "s",
+    "state": "ready",
+    "reply": {
+      "causal_refs": [
+        {
+          "message_id": "launcher-ready-2",
+          "payload_hash": "60a4a5d7d78f1ed81f040c65e546d75cacef32f766ec94b996c122e51ddf531a",
+          "source_epoch": "1",
+          "source_namespace": "testonly.ohlc.tb02e-min12_down"
+        }
+      ],
+      "control_instance_id": "7fdc4dbc-f8d2-4697-8db9-b20759714c08",
+      "message_id": "reply-01a94d3d75b6c36a7fdef7562036cc225bb3e54f8ed9cd76d2c2fff96855bbc7",
+      "payload": {
+        "advance_state": "idle",
+        "clock_plan_hash": "0b7e2bceac89632d3173ca1a73b9b6f55796cfb14e1462149539771c96d56b53",
+        "delivery_frontier": {
+          "first_available_generation": "40",
+          "head_generation": "43",
+          "min_valid_after_generation": "39",
+          "retain_generations": "4"
+        },
+        "generation": "43",
+        "index_frontier": "batch-97428e3d86425b935a5a1925e02fbc5d4e222a3a6647d0b69d6451a6431b98d2",
+        "kind": "Ready",
+        "ok": true,
+        "profile_hash": "1c11d398cd9ac43a161bc6494b196771f131fba74c42c0bf1ccb6474a8fc4d57",
+        "profile_id": "ohlc_integer_tb02a_v1",
+        "schema_revision": "s-session/2",
+        "session_generation": "1",
+        "session_id": "tb02e-min12_down",
+        "structure_cut": "cut-43",
+        "writer_epoch": "2"
+      },
+      "payload_hash": "9d3867e79ebc490e43d24cdcd9c925371108a44f3cd00f503ae70804272a39b9",
+      "producer_epoch": "2",
+      "producer_id": "S:tb02e-min12_down",
+      "schema_revision": "s-session/2",
+      "session_generation": "1",
+      "session_id": "tb02e-min12_down",
+      "source_epoch": "2",
+      "source_namespace": "s-session/replies"
+    },
+    "initialization": null,
+    "socket_cleanup": {
+      "removed_stopped_service_socket": {
+        "path": "/private/tmp/tb1419e-41eba33c47b4e713.sock",
+        "device": 16777230,
+        "inode": 335243912,
+        "uid": 501
+      },
+      "old_pid": 23518
+    }
+  },
+  "cuts": [
+    27,
+    43
+  ],
+  "equal": true
+}

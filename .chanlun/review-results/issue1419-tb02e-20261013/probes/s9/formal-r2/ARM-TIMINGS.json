@@ -1,0 +1,161 @@
+{
+ "min12_up-a": {
+  "ingest_reply_s": {
+   "n": 43,
+   "min": 0.033,
+   "median": 0.996,
+   "max": 4.699,
+   "sum": 63.675
+  },
+  "ingest_last5": [
+   [
+    39,
+    3.683
+   ],
+   [
+    40,
+    4.031
+   ],
+   [
+    41,
+    4.236
+   ],
+   [
+    42,
+    4.399
+   ],
+   [
+    43,
+    4.699
+   ]
+  ],
+  "ingest_max": [
+   42,
+   4.698725209
+  ],
+  "query_s_by_group": {
+   "live": {
+    "n": 43,
+    "min": 0.052,
+    "median": 1.734,
+    "max": 8.042,
+    "sum": 111.111
+   },
+   "known": {
+    "n": 43,
+    "min": 0.023,
+    "median": 1.152,
+    "max": 5.197,
+    "sum": 73.078
+   },
+   "revisit": {
+    "n": 43,
+    "min": 0.336,
+    "median": 1.479,
+    "max": 5.251,
+    "sum": 85.535
+   },
+   "before": {
+    "n": 2,
+    "min": 2.698,
+    "median": 5.05,
+    "max": 5.05,
+    "sum": 7.748
+   },
+   "after": {
+    "n": 2,
+    "min": 3.836,
+    "median": 5.009,
+    "max": 5.009,
+    "sum": 8.845
+   }
+  },
+  "query_max": [
+   "live-42",
+   8.041896584
+  ],
+  "controls": [
+   [
+    "start",
+    0.524
+   ],
+   [
+    "stop-s",
+    0.194
+   ],
+   [
+    "recover",
+    4.178
+   ],
+   [
+    "start-s",
+    4.852
+   ],
+   [
+    "stop-q",
+    0.15
+   ],
+   [
+    "stop-s",
+    0.154
+   ]
+  ],
+  "event_kinds": {
+   "bounded_query": 133,
+   "browser_cleanup": 1,
+   "control": 6,
+   "ingest": 43
+  },
+  "browser": {
+   "present": true,
+   "result": {
+    "_missing_or_invalid": "FileNotFoundError(2, 'No such file or directory')"
+   },
+   "t0": "2026-10-14T12:03:58.191+08:00",
+   "inner_window_s(READINESS elapsed)": 15.312,
+   "inner_margin_s": 14.688,
+   "inner_check(t0+elapsed vs READINESS mtime, s)": 0.0,
+   "outer_window_upper_bound_s(browser.stdout 创建→cleanup 首个 stop-q 开始)": 15.604,
+   "outer_margin_lower_bound_s": 14.396,
+   "phases_s": {
+    "launch_to_first_request": 5.069,
+    "wait_final_cut_network(t0→最终cut末页响应)": null,
+    "click1_CC022_final(末页响应→CC-022.txt落盘；含页面提交尾、点击、等视图、innerText)": null,
+    "screenshot1": null,
+    "asof_fill_and_submit(截图1→AsKnown首请求)": null,
+    "wait_asof_network(AsKnown首请求→末页响应)": null,
+    "click2_CC022_asof27(AsKnown末页响应→CC-022-asof.txt落盘；含页面提交尾、点击、innerText)": null,
+    "screenshot2": null,
+    "close_and_har(截图2→READINESS落盘)": null
+   },
+   "snapshot_sequences": [
+    {
+     "mode": "RecomputedWithRevision",
+     "as_of": null,
+     "requests": 2,
+     "status": [
+      200,
+      503
+     ],
+     "start": "2026-10-14T12:04:03.261+08:00",
+     "span_s": 6.04
+    }
+   ],
+   "diag_counts": {
+    "request": 5,
+    "response": 5,
+    "finished": 5,
+    "failed": 0,
+    "pageerror": 0
+   },
+   "diag_dropped": 0,
+   "diag_marks_ms": {
+    "navigation-start": 5025,
+    "domcontentloaded": 5067,
+    "load": 5068,
+    "navigation-loaded": 5068
+   },
+   "note": "READINESS 事件缓冲 128 条，点击标记若被挤掉则仅剩 HAR+mtime 推导；推导值含页面 JS 提交尾，是点击段的上界"
+  }
+ }
+}

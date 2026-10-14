@@ -1,15 +1,15 @@
 # #1419（TB-02-E）交付报告：中枢 strict seed、Zn 外缘、C 口径续扫与 S 事实层
 
-> 名分：工作草稿，绑定 [#1419](https://github.com/xy7365527-lang/NewChanlun/issues/1419)，票关后随归档出仓。实施工位 `/root/tb1394_support_r4_review`，分支 `codex/1419-center-seed-20261013`（基线 main `465174240b`，已两次合入 main，最近一次 `9cd64da5cd` 合 `65d522346f`）。本报告随本提交入仓，所述头为本提交的父提交 `48e2386463`。收据在本目录 `receipts/`，原件在仓外 `tb1419-impl/`。
+> 名分：工作草稿，绑定 [#1419](https://github.com/xy7365527-lang/NewChanlun/issues/1419)，票关后随归档出仓。实施工位 `/root/tb1394_support_r4_review`，分支 `codex/1419-center-seed-20261013`（基线 main `465174240b`，已两次合入 main，最近一次 `9cd64da5cd` 合 `65d522346f`）。本报告首版随 `e414acc49e` 入仓，代码读数对应其父提交 `48e2386463`；S9 收口版的正式运行基于头 `07479fd501`（`48e2386463..07479fd501` 不改 `rust/`、`formal/`）。收据在本目录 `receipts/`，原件在仓外 `tb1419-impl/`。
 
 ## 关票状态
 
-代码、Lean、合同与教义正本已落齐，L3（塔对 S 写者）在真实数据上 9/9 切点逐位通过。关票前还差三道门，都不在本报告里自行放行：
+代码、Lean、合同与教义正本已落齐，L3（塔对 S 写者）在真实数据上 9/9 切点逐位通过。三道门的现状如下，判定都由根作出，本报告不自行放行：
 
 | 门 | 状态 | 由谁 |
 |---|---|---|
-| S9 正式运行验收 | **脚本与冻结账已落、离线自测通过，正式四臂未跑**。按根裁 D-E (B) 收窄覆盖面（下节）；`tb02e_{harness,runtime,verify}.py`、`tb02e_browser.cjs`、`fixtures/tb02e/` 已入仓。核对器在离线 S CLI 建的真实库上两用例 5 切面全过、8 类变异全被抓（`probes/s9/OFFLINE-SELFTEST.txt`）。正式四臂与浏览器是计时运行，等 r7 S86 结束后根排槽 | 本工位跑，根判 |
-| 独立终审 | **未做**。S4 之后的增量 `1472b7bb..1bf54857` 与 `9cd64da5..48e23864` 没有独立终审过；根定于探针跑完后派审查员做 #1419 全量终审 | 根派 |
+| S9 正式运行验收 | **已过，带降级声明**。第三轮（头 `07479fd501`，harness 带 `--browser-deferred-to 1497`）四臂全部退出 0，`COMPARISON-RESULT` 总状态 `PASS_EXCEPT_BROWSER_DEFERRED`：逐条摄入与公共查询、冻结账 5 切面、两用例 × a/b 的第 27/43 条恢复对拍、a/b 新进程 `compare_exact_traces` 两对逐字节全过。**浏览器臂未过**：首轮、第二轮都在同一冷 Q verify 点失败，根裁判为性能缺陷，移交 [#1497](https://github.com/xy7365527-lang/NewChanlun/issues/1497)（Q 冷校验降阶，Blocked by #1419）。**这是关票时的降级声明**：#1419 以第三轮的四臂、对拍、恢复与冻结账证据关票，浏览器臂的帽与期限不在本票放宽。覆盖面按根裁 D-E (B) 收窄；详见「S9 正式运行结果」节 | 本工位跑，根判（已判） |
+| 独立终审 | **已做**：`/root/tb1405_independent_review` 审 `daac6d8661`，结论 `PASS_READY_FOR_PR_EXCEPT_PROBES`，八项全过、无阻断；两条 MINOR（F-1 §9.6 行号、F-2 回填 #1486）已由 `a6c9d880c0` 收 | 根派（已完成） |
 | 合入 | 按定序在 #1394 之后，rebase 义务见末节 | 根 |
 
 ## 提交
@@ -32,7 +32,12 @@
 | E4 | `9b7e29a054`、`bcd1e7db22` | 非 UPGRADE 中枢每成员恰一条 `member_of` 边；schema v1.2 入仓 |
 | L3 | `ecc9b196d3` | L0 单元区间改取成员笔方向极值（根裁定 L3，schema v1.3）；真实 BTC 判别夹具 |
 | L3 文档 | `d252807bdc`、`48e2386463` | xianduan §8「段区间」与 X-21～X-24；zhongshu §9.6 R30、L15；读数订正 |
-| 本提交 | — | 本报告与收据；CI 加跑 `test_tb02e_real_units` |
+| 报告 | `e414acc49e` | 本报告首版与收据；CI 加跑 `test_tb02e_real_units` |
+| 探针 | `46a2d76ea1` | S0b/F1a/MIN12 探针读数与 S9 (B) 覆盖边界；MIN12 冻结 |
+| S9 脚本 | `daac6d8661` | `tb02e_{harness,runtime,verify}.py`、`tb02e_browser.cjs`、`fixtures/tb02e/` 冻结账 |
+| S9 延后开关 | `07479fd501` | harness/runtime 加 `--browser-deferred-to 1497`（根裁 S9 第 3 条）与测试锁 `test_tb02e_browser_deferred.py`；不带开关时行为不变 |
+| 终审 MINOR | `a6c9d880c0` | F-1 `zhongshu.md` §9.5/§9.6 行号订正；F-2 §9.6 L15 与 `xianduan.md` X-24 回填 #1486 |
+| 本提交 | — | S9 三轮正式运行证据入仓（`probes/s9/formal-r{1,2,3}/`），本报告收口 |
 
 期间两次合入 main（`60b59b479a`、`9cd64da5cd`），无冲突。
 
@@ -44,10 +49,10 @@
 |---|---|---|---|
 | T1 | 三个连续次级单元到 strict seed 有见证，正式核心非退化 | 通过（单元、Lean、真实数据层） | `seed_facts` 小域穷举与 E1a/b/b′/c；Lean 判别夹具；真实数据 L3 seed 尝试 S 与 oracle 各 11 次逐位相同 |
 | T2 | 核心与全部动态外缘同时保留；后续成员只改适用角色；连接与未归属尾部不偷吞 | 通过（单元与合同层） | `tb02e_k10_*`、`tb02e_k11_k12_*`、`tb02e_inner_extrema_*`；Q 合同共享语料（含连接段作成员、+1 复用、D/G 冒充核心反例） |
-| T3 | 正式会话入口跑非真空输入；公共查询与变化；浏览器核对 | **部分**：S 二进制集成测试 `tb02e_input_contract_mismatch_rejects_whole_cut_and_keeps_previous_facts` 等过；正式四臂与浏览器未跑（S9） | `receipts/l3-3-s-session.txt` |
-| T4 | 独立 oracle；同输入新进程重放；恢复对拍 | **部分**：oracle 先于实现冻结（S0）；同输入两次 build 逐字节相同；a/b 新进程对拍与 K10/K12 恢复未跑（S9） | `tb02e_same_input_rebuilds_byte_identical` |
+| T3 | 正式会话入口跑非真空输入；公共查询与变化；浏览器核对 | **通过，浏览器核对降级**：S9 第三轮四臂经正式 S/Q 入口逐条摄入 43 条，每条后 live 与 AsKnown 公共查询及全量回访全部提交，回访逐值相同；S 二进制集成测试 `tb02e_input_contract_mismatch_rejects_whole_cut_and_keeps_previous_facts` 等过。浏览器核对两轮都在同一冷 Q verify 点失败（第 43 条切面第 2 个分页请求 503 `QueryBudgetExceeded`，5.174 s／5.156 s，期限 5 s），判性能缺陷移交 #1497（关票降级声明） | `probes/s9/formal-r3/`；失败原件 `probes/s9/formal-r1/`、`formal-r2/`；`receipts/l3-3-s-session.txt` |
+| T4 | 独立 oracle；同输入新进程重放；恢复对拍 | **通过**：oracle 先于实现冻结（S0），S9 冻结账 5 切面四臂全过；同输入两次 build 逐字节相同；S9 第三轮 a/b 新进程两对 `compare_exact_traces` 逐字节相同（各 236 条，1.86 GB／1.87 GB）；两用例 × a/b 第 27、43 条停机恢复前后公共结果全等（恢复切面按 (B) 取 27/43，原计划 K10/K12 不在 (B) 前缀内）；min12_up 的轨迹与库跨三轮 sha256 相同 | `probes/s9/formal-r3/`；`tb02e_same_input_rebuilds_byte_identical` |
 
-细项 A-* 的射程按计划 §1.2（正式运行的覆盖面另按下文「探针读数与正式运行的覆盖边界」收窄）：线段级全部由单元、合同与 L3 证据覆盖；上级路径、≥9 子窗、三类买卖点、扩展新生按版本对象 `deferred_scope`（`global_G009_upper_levels_1429`、`ge9_upgrade_1429`、`third_class_and_break_1434`、`expansion_newborn_1424`、`connector_upper_construction_1429`）延后，目录轴 `impl_status` 保持 `not_implemented`。需要运行证据的细项（A-CC-016-03/017-03/022-03 的 a/b 重放、A-OB-008/016 的 delta 与重连、浏览器卡片）随 S9 给出。
+细项 A-* 的射程按计划 §1.2（正式运行的覆盖面另按下文「探针读数与正式运行的覆盖边界」收窄）：线段级全部由单元、合同与 L3 证据覆盖；上级路径、≥9 子窗、三类买卖点、扩展新生按版本对象 `deferred_scope`（`global_G009_upper_levels_1429`、`ge9_upgrade_1429`、`third_class_and_break_1434`、`expansion_newborn_1424`、`connector_upper_construction_1429`）延后，目录轴 `impl_status` 保持 `not_implemented`。需要运行证据的细项中，a/b 新进程重放与恢复由 S9 第三轮给出：(B) 前缀上逐切面核对 CC-016/017 对象缺席、CC-022 归属与 CC-056 游标，每条 live 走 watch，停机恢复后重新查询。A-OB-008/016 的 delta 与重连是否逐条满足，本报告不自行判定；浏览器卡片随浏览器臂移交 #1497。
 
 本头读数（收据 `receipts/l3-*`）：
 
@@ -107,6 +112,20 @@
 - 正式运行：`tb02e_harness.py` 照 `tb02d_harness.py` 建四臂（两用例 × a/b 新进程，端口自 18860 起，socket 前缀 `/private/tmp/tb1419e-`），逐臂调 `tb02e_runtime.py`。runtime 每条 accept/advance 后做 live 与 AsKnown 查询，全部回访；在第 27、43 条做停机恢复对拍，再用 `tb02e_verify.py` 对冻结账核对（含 Python Q 合同与 node 侧浏览器合同的整 cut 中枢门），最后起 `tb02e_browser.cjs`：末切面点 CC-022，AsKnown 第 27 条再点 CC-022，30 s 帽不放宽。harness 用 `compare_exact_traces` 比较 a/b。
 - 离线自测（不计时，不起服务）：用固定二进制的 S CLI 逐根建库，`tb02e_verify` 两用例全过，`mutate_verify.py` 8 类变异（区间 −1/+100、原因、offset、awaiting、完成段、缺席 kind、等待原因）两用例全被抓。harness 的 prepare 在临时目录试建计划通过（4 臂、43 条消息、恢复切面 27/43、轨迹布局 236 条）。
 
+## S9 正式运行结果（2026-10-14，三轮）
+
+三轮都只跑一次、失败不重试，帽与期限不放宽，写者同为 `s_structure_session-48e2386463`（sha256 `38c61eee…`）。每轮的 `RUN.md`、`RESULT.json`、`SLOT-REAP.json`、门检与驱动脚本、首臂或四臂的小件原件在 `probes/s9/formal-r{1,2,3}/`。各轮 `SHA256SUMS` 是运行当时交付目录的全量清单，入仓的是其中小件，用 `shasum -a 256 -c --ignore-missing SHA256SUMS` 核。大件（每臂 HTTP 收据约 6.9 GB、`semantic-core.jsonl` 约 1.87 GB、库）留在外盘，路径与 sha256 记在各轮 `BIG-ARTIFACTS.json`。三轮回收都 `clean=true`。
+
+| 轮 | 头 | 结果 | 要点 |
+|---|---|---|---|
+| 一 | `daac6d8661` | FAIL（首臂浏览器） | min12_up-a 的摄入、查询、回访、27/43 恢复与冻结账全过；页面取第 43 条切面第 2 个分页请求，5.174 s 后得 503 `QueryBudgetExceeded`（`verify_deadline_ms=5000`），页面 10 s 提交等待超时；其余三臂未启动。运行中 1 分钟负载 9.6–18.1，Spotlight 在索引外盘收据（100–288%） |
+| 二 | `daac6d8661` | FAIL（同一点） | 依根裁定 `ROOT-RULING-S9-RERUN.md`（入仓于 `formal-r2/`）在受控环境重跑：大件写 `.noindex`，Spotlight 约 0，负载 7.3–9.1。同一请求 5.156 s 后 503；请求窗内 Q 进程单核 95–99%，看不出资源争用 |
+| 三 | `07479fd501` | `PASS_EXCEPT_BROWSER_DEFERRED` | harness 带 `--browser-deferred-to 1497`。四臂各 414–421 s，全部退出 0；两对 a/b 逐字节相同；恢复全等；浏览器未启动，各臂写 DEFERRED 收据（`deferred_to: "#1497"`，内含两轮失败原件的路径与 sha256） |
+
+第三轮读数：S 摄入回复最大 4.65–4.70 s（帽 10 s）；公共查询最大 8.11–8.21 s（live-42，帽 30 s）；恢复 `recover` 4.15–4.25 s、`start-s` 4.81–4.94 s；a/b 比较 87 s，harness 合计 1751.7 s。运行中途另有别的工位的 Spotlight 与 rustc 负载（照实记在 `formal-r3/RUN.md`），四臂用时只差 6 s。
+
+**降级声明（关票时）**：T3 的「浏览器核对」与 S9 浏览器臂不在 #1419 内满足。依根裁定 ROOT-RULING-S9-RERUN 第 3 条，两轮在同一冷 Q verify 点失败判为性能缺陷：Q 冷校验在 g=43 已贴 5 s 期限，与 #1488（S 写者构造降阶）和 S0b 的超线性同源。浏览器臂连同 30 s 帽与两次 CC-022 点击归 [#1497](https://github.com/xy7365527-lang/NewChanlun/issues/1497)（Q 冷校验降阶，Blocked by #1419），帽与期限不在本票放宽。#1419 以第三轮的四臂、a/b 对拍、恢复对拍与冻结账证据关票。
+
 ## 登记：段数在 5k–30k 根停在 24
 
 真实数据上段数从 5,000 根到 30,000 根一直是 24，这 25,000 根上没有新的已确认段。推断是某个第二种候选长期等不到分型。组合树不含 #1420 的 `078:52` 失效语义，**本票不修**，留待 #1420 合入后在合入态复测。复测入口同 L3（`tmp_tb1419_realdata_l3_dump` 的切点阶梯），比较段数序列。
@@ -129,12 +148,13 @@
    - `rust/tests/fixtures/theta_v0_center_parity.json`：Lean 导出件，只在 Lean 改动时经 `scripts/check_fixture_drift.py` 重导（退出码 1 才是真漂移，3/4/5 是工具链失败）。
    - `backtest::incremental::a3_oracle_pop_rescan_empty`：合成夹具的覆盖断言（`t_eq1 > 0`、`t_gt1 > 0`、`empty_break > 0`）依赖段层输出。本票 R8 已把它从 12 簇 / `take(267)` 调到 14 簇 / `take(316)`（读数 T==1=239 / T>1=2 / empty_break=4，理由见 `S1-FAILURE-RULINGS`）。#1420 的 `078:52` 失效语义改段层，#1420 自己也改了同文件 `:167` 起的另一个夹具。rebase 后若任一覆盖归零，照 S1 的做法扫簇数与截断长度重新取参，在测试 doc 注释写明新读数与原因；`a3_oracle_minparts_reentry` 与 chain 族 160 段锁（`skip_edges > 0`）同样复核。
    - 其它绑定会话规则串的夹具（`r12_consumer.json`、`test_tb02c_verifier.py`、`test_tb02d_*`）属各自的票，按根要求随规则串一起重生成。
-5. **合入态复跑。** rebase 后在合入态跑 all-targets、S 二进制、Python/node 合同；并用真实数据复跑一次 L3 与段数阶梯（替代本报告「基于 #1405 未合入头」的那份证据）。
+5. **合入态复跑。** rebase 后在合入态跑 all-targets、S 二进制、Python/node 合同；并用真实数据复跑一次 L3 与段数阶梯（替代本报告「基于 #1405 未合入头」的那份证据）。`zhongshu.md` §9.5/§9.6 的行号按合入态统一重锚（终审 F-1 处置建议）。S9 浏览器臂不在本票复跑，归 #1497。
 
 ## 其它登记
 
 - #1478、#1429 的票内登记（依根裁定 r2 第 5 条，草稿在 `tb1419-impl/comments/`）已于 2026-10-13T18:20Z 发出，根已核。
-- Lean 跟进票已开 [#1486](https://github.com/xy7365527-lang/NewChanlun/issues/1486)（L15／X-24 `segHigh/segLow` 对齐义务）。
+- Lean 跟进票已开 [#1486](https://github.com/xy7365527-lang/NewChanlun/issues/1486)（L15／X-24 `segHigh/segLow` 对齐义务），正本两处已回填票号（`a6c9d880c0`）。
+- 全量终审报告在仓外 `tb1419-final-review/REVIEW.md`（sha256 `9ea770eb…`），审 `daac6d8661`，`PASS_READY_FOR_PR_EXCEPT_PROBES`；F-1/F-2 已收，其余 INFO 条目照记，不需改动。
 - 回测基线差异（D-K，附件不作验收门）：`tb1419-impl/BASELINE-DIFF-S1S2.md`，合成段流三种子；S1/S2 不改 L0 中枢窗口与核心，只改外缘与中心定理二关系，上级塔变浅、中枢变少，上级验收归 #1429/#1424。
 - S1 的 16 条变红逐条判定：`tb1419-impl/S1-FAILURE-RULINGS.md`，全部是口径回归。
 - 生产 parser 在真实 BTC 上不成笔（本分支自身）：由 #1405 修，本票不修。
@@ -143,4 +163,4 @@
 
 `REALDATA-L3.md`（L3 全文）、`l3-readout-summary.json`、`analyze-l3-v1.3.txt`、`mutate-l3-compare.txt`、`js-validate-l3.txt` 及三个比较脚本（`analyze_l3.py`、`mutate_l3_compare.py`、`js_validate_l3.cjs`，路径指向仓外组合树，复跑需该树）；`l3-1-tb02e-tests.txt`、`l3-mut-{rust,py,js}-geometric.txt`、`l3-2-all-targets-summary.txt`、`l3-3-s-session.txt`、`l3-4-py-node.txt`。40 MB 的 `l3-dump.json` 与 3 MB 整数 K 线不入仓，SHA 见 `REALDATA-L3.md`。
 
-探针（`probes/`）：`S0B-RESULT.md`、`F1A-RESULT.md`、`README.md`（含订正）、`s0b-probe-summary.json`、`f1a-timeline-summary.json`、背景负载与 release 构建收据；`probes/min12/`：`MIN12-RESULT.md`、生成器 `min_gen.py`、冻结输入 `s0b-MIN12.json`、离线 parser 跑法 `min12_parser_run.py` 与逐条耗时 `parser-run-LOG.json`、oracle 读数 `ORACLE-MIN12.json`、正式会话单臂摘要 `min12-probe-summary.json`。
+探针（`probes/`）：`S0B-RESULT.md`、`F1A-RESULT.md`、`README.md`（含订正）、`s0b-probe-summary.json`、`f1a-timeline-summary.json`、背景负载与 release 构建收据；`probes/min12/`：`MIN12-RESULT.md`、生成器 `min_gen.py`、冻结输入 `s0b-MIN12.json`、离线 parser 跑法 `min12_parser_run.py` 与逐条耗时 `parser-run-LOG.json`、oracle 读数 `ORACLE-MIN12.json`、正式会话单臂摘要 `min12-probe-summary.json`。`probes/s9/`：离线自测 `OFFLINE-SELFTEST.txt` 与两个脚本；正式运行 `formal-r1/`、`formal-r2/`（含根裁定 `ROOT-RULING-S9-RERUN.md`）、`formal-r3/`（含 `raw/COMPARISON-RESULT.json`）。

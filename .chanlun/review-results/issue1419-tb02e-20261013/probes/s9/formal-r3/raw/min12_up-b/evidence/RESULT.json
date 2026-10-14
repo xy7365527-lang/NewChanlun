@@ -1,0 +1,44 @@
+{
+  "status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+  "semantic_oracle": "not_evaluated",
+  "browser": "not_evaluated",
+  "input_count": 43,
+  "core_records": 236,
+  "cleanup": {
+    "outcomes": [
+      {
+        "action": "helper-close-error-log",
+        "result": null
+      },
+      {
+        "action": "stop-q",
+        "result": {
+          "service": "q",
+          "state": "stopped",
+          "pid": 14523,
+          "signal": "SIGTERM",
+          "exit_observation_warnings": [
+            "进程命令暂不可读，不能确认完整参数"
+          ]
+        }
+      },
+      {
+        "action": "stop-s",
+        "result": {
+          "service": "s",
+          "state": "stopped",
+          "pid": 17799,
+          "signal": "SIGTERM",
+          "exit_observation_warnings": [
+            "PID 已复用或进程命令改变，拒绝采用旧记录"
+          ]
+        }
+      },
+      {
+        "action": "close-event-log",
+        "result": null
+      }
+    ],
+    "errors": []
+  }
+}

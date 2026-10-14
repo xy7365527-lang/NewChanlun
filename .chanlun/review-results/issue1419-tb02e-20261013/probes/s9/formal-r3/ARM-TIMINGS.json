@@ -1,0 +1,586 @@
+{
+ "min12_up-a": {
+  "ingest_reply_s": {
+   "n": 43,
+   "min": 0.031,
+   "median": 0.991,
+   "max": 4.646,
+   "sum": 63.268
+  },
+  "ingest_last5": [
+   [
+    39,
+    3.747
+   ],
+   [
+    40,
+    3.971
+   ],
+   [
+    41,
+    4.186
+   ],
+   [
+    42,
+    4.376
+   ],
+   [
+    43,
+    4.646
+   ]
+  ],
+  "ingest_max": [
+   42,
+   4.646333333
+  ],
+  "query_s_by_group": {
+   "live": {
+    "n": 43,
+    "min": 0.053,
+    "median": 1.748,
+    "max": 8.127,
+    "sum": 111.731
+   },
+   "known": {
+    "n": 43,
+    "min": 0.028,
+    "median": 1.142,
+    "max": 5.229,
+    "sum": 73.306
+   },
+   "revisit": {
+    "n": 43,
+    "min": 0.354,
+    "median": 1.428,
+    "max": 5.269,
+    "sum": 85.679
+   },
+   "before": {
+    "n": 2,
+    "min": 2.763,
+    "median": 5.161,
+    "max": 5.161,
+    "sum": 7.924
+   },
+   "after": {
+    "n": 2,
+    "min": 3.866,
+    "median": 5.04,
+    "max": 5.04,
+    "sum": 8.906
+   }
+  },
+  "query_max": [
+   "live-42",
+   8.127379917
+  ],
+  "controls": [
+   [
+    "start",
+    0.471
+   ],
+   [
+    "stop-s",
+    0.192
+   ],
+   [
+    "recover",
+    4.177
+   ],
+   [
+    "start-s",
+    4.836
+   ],
+   [
+    "stop-q",
+    0.16
+   ],
+   [
+    "stop-s",
+    0.157
+   ]
+  ],
+  "event_kinds": {
+   "bounded_query": 133,
+   "browser_deferred": 1,
+   "control": 6,
+   "ingest": 43
+  },
+  "browser": {
+   "present": true,
+   "deferred": true,
+   "result": {
+    "status": "DEFERRED",
+    "deferred_to": "#1497",
+    "browser_executed": false,
+    "planned_cuts": [
+     "27",
+     "43"
+    ],
+    "reason": "S9 两轮（首轮常规负载、第二轮受控负载）在同一点失败：页面取末 cut 43 的第 2 个 /api/v2/snapshot（snapshot_token 分页）落到冷 Q worker，verify 耗尽 verify_deadline_ms=5000（tests/fixtures/tb01c/query-resources.json:8）后 503 QueryBudgetExceeded，页面 10 s 提交等待超时；根判为 Q 冷校验性能缺陷，浏览器臂移交 #1497，不在 #1419 内放宽帽与期限",
+    "failure_evidence": [
+     {
+      "round": 1,
+      "arm": "min12_up-a",
+      "snapshot_503_s": 5.174,
+      "arm_dir": "/Volumes/AgentStorage/issue1419-s9-formal-20261014/min12_up-a",
+      "browser_stderr_sha256": "b5f14f100e8fe1b43d60b9e4e0d57feddf87fded2ab4fb65ab03636368f2ab81",
+      "network_har_sha256": "59d77565d76bb2e5f26c553010bc6ba011f20194d3a91587212b739d0df7fdb7",
+      "result": "/private/tmp/goal1323-native-20261012/tb1419-impl/s9-formal/RESULT.json",
+      "result_sha256": "0d8baf8f4977e1b9a0a00ea78561658a6d4941ce4f59fb5a095e1cc2d9baab00"
+     },
+     {
+      "round": 2,
+      "arm": "min12_up-a",
+      "snapshot_503_s": 5.156,
+      "arm_dir": "/Volumes/AgentStorage/issue1419-s9-formal-r2-20261014.noindex/min12_up-a",
+      "browser_stderr_sha256": "b5f14f100e8fe1b43d60b9e4e0d57feddf87fded2ab4fb65ab03636368f2ab81",
+      "network_har_sha256": "18ed86944feedac96209617b13bb73898151714d66f00bf2588d25ce2a7bd99a",
+      "result": "/private/tmp/goal1323-native-20261012/tb1419-impl/s9-formal-r2/RESULT.json",
+      "result_sha256": "52f2eae02a9395e2bdadbf11a40c7064d4222268a9603020de5159ea8afa77bc"
+     }
+    ]
+   },
+   "browser_launched": false,
+   "note": "--browser-deferred-to：浏览器未执行，无 HAR/READINESS 计时"
+  }
+ },
+ "min12_up-b": {
+  "ingest_reply_s": {
+   "n": 43,
+   "min": 0.033,
+   "median": 1.001,
+   "max": 4.703,
+   "sum": 64.026
+  },
+  "ingest_last5": [
+   [
+    39,
+    3.666
+   ],
+   [
+    40,
+    4.002
+   ],
+   [
+    41,
+    4.2
+   ],
+   [
+    42,
+    4.481
+   ],
+   [
+    43,
+    4.703
+   ]
+  ],
+  "ingest_max": [
+   42,
+   4.703082208
+  ],
+  "query_s_by_group": {
+   "live": {
+    "n": 43,
+    "min": 0.051,
+    "median": 1.729,
+    "max": 8.112,
+    "sum": 111.352
+   },
+   "known": {
+    "n": 43,
+    "min": 0.023,
+    "median": 1.135,
+    "max": 5.222,
+    "sum": 73.179
+   },
+   "revisit": {
+    "n": 43,
+    "min": 0.34,
+    "median": 1.467,
+    "max": 5.242,
+    "sum": 85.638
+   },
+   "before": {
+    "n": 2,
+    "min": 2.768,
+    "median": 5.255,
+    "max": 5.255,
+    "sum": 8.024
+   },
+   "after": {
+    "n": 2,
+    "min": 3.893,
+    "median": 5.105,
+    "max": 5.105,
+    "sum": 8.997
+   }
+  },
+  "query_max": [
+   "live-42",
+   8.112138666
+  ],
+  "controls": [
+   [
+    "start",
+    0.441
+   ],
+   [
+    "stop-s",
+    0.198
+   ],
+   [
+    "recover",
+    4.253
+   ],
+   [
+    "start-s",
+    4.826
+   ],
+   [
+    "stop-q",
+    0.156
+   ],
+   [
+    "stop-s",
+    0.156
+   ]
+  ],
+  "event_kinds": {
+   "bounded_query": 133,
+   "browser_deferred": 1,
+   "control": 6,
+   "ingest": 43
+  },
+  "browser": {
+   "present": true,
+   "deferred": true,
+   "result": {
+    "status": "DEFERRED",
+    "deferred_to": "#1497",
+    "browser_executed": false,
+    "planned_cuts": [
+     "27",
+     "43"
+    ],
+    "reason": "S9 两轮（首轮常规负载、第二轮受控负载）在同一点失败：页面取末 cut 43 的第 2 个 /api/v2/snapshot（snapshot_token 分页）落到冷 Q worker，verify 耗尽 verify_deadline_ms=5000（tests/fixtures/tb01c/query-resources.json:8）后 503 QueryBudgetExceeded，页面 10 s 提交等待超时；根判为 Q 冷校验性能缺陷，浏览器臂移交 #1497，不在 #1419 内放宽帽与期限",
+    "failure_evidence": [
+     {
+      "round": 1,
+      "arm": "min12_up-a",
+      "snapshot_503_s": 5.174,
+      "arm_dir": "/Volumes/AgentStorage/issue1419-s9-formal-20261014/min12_up-a",
+      "browser_stderr_sha256": "b5f14f100e8fe1b43d60b9e4e0d57feddf87fded2ab4fb65ab03636368f2ab81",
+      "network_har_sha256": "59d77565d76bb2e5f26c553010bc6ba011f20194d3a91587212b739d0df7fdb7",
+      "result": "/private/tmp/goal1323-native-20261012/tb1419-impl/s9-formal/RESULT.json",
+      "result_sha256": "0d8baf8f4977e1b9a0a00ea78561658a6d4941ce4f59fb5a095e1cc2d9baab00"
+     },
+     {
+      "round": 2,
+      "arm": "min12_up-a",
+      "snapshot_503_s": 5.156,
+      "arm_dir": "/Volumes/AgentStorage/issue1419-s9-formal-r2-20261014.noindex/min12_up-a",
+      "browser_stderr_sha256": "b5f14f100e8fe1b43d60b9e4e0d57feddf87fded2ab4fb65ab03636368f2ab81",
+      "network_har_sha256": "18ed86944feedac96209617b13bb73898151714d66f00bf2588d25ce2a7bd99a",
+      "result": "/private/tmp/goal1323-native-20261012/tb1419-impl/s9-formal-r2/RESULT.json",
+      "result_sha256": "52f2eae02a9395e2bdadbf11a40c7064d4222268a9603020de5159ea8afa77bc"
+     }
+    ]
+   },
+   "browser_launched": false,
+   "note": "--browser-deferred-to：浏览器未执行，无 HAR/READINESS 计时"
+  }
+ },
+ "min12_down-a": {
+  "ingest_reply_s": {
+   "n": 43,
+   "min": 0.032,
+   "median": 0.982,
+   "max": 4.698,
+   "sum": 63.16
+  },
+  "ingest_last5": [
+   [
+    39,
+    3.693
+   ],
+   [
+    40,
+    3.944
+   ],
+   [
+    41,
+    4.174
+   ],
+   [
+    42,
+    4.455
+   ],
+   [
+    43,
+    4.698
+   ]
+  ],
+  "ingest_max": [
+   42,
+   4.6977995
+  ],
+  "query_s_by_group": {
+   "live": {
+    "n": 43,
+    "min": 0.052,
+    "median": 1.714,
+    "max": 8.122,
+    "sum": 111.799
+   },
+   "known": {
+    "n": 43,
+    "min": 0.024,
+    "median": 1.151,
+    "max": 5.253,
+    "sum": 73.175
+   },
+   "revisit": {
+    "n": 43,
+    "min": 0.344,
+    "median": 1.438,
+    "max": 5.306,
+    "sum": 85.838
+   },
+   "before": {
+    "n": 2,
+    "min": 2.739,
+    "median": 5.131,
+    "max": 5.131,
+    "sum": 7.87
+   },
+   "after": {
+    "n": 2,
+    "min": 3.829,
+    "median": 5.078,
+    "max": 5.078,
+    "sum": 8.906
+   }
+  },
+  "query_max": [
+   "live-42",
+   8.121814542
+  ],
+  "controls": [
+   [
+    "start",
+    0.458
+   ],
+   [
+    "stop-s",
+    0.193
+   ],
+   [
+    "recover",
+    4.198
+   ],
+   [
+    "start-s",
+    4.807
+   ],
+   [
+    "stop-q",
+    0.162
+   ],
+   [
+    "stop-s",
+    0.157
+   ]
+  ],
+  "event_kinds": {
+   "bounded_query": 133,
+   "browser_deferred": 1,
+   "control": 6,
+   "ingest": 43
+  },
+  "browser": {
+   "present": true,
+   "deferred": true,
+   "result": {
+    "status": "DEFERRED",
+    "deferred_to": "#1497",
+    "browser_executed": false,
+    "planned_cuts": [
+     "27",
+     "43"
+    ],
+    "reason": "S9 两轮（首轮常规负载、第二轮受控负载）在同一点失败：页面取末 cut 43 的第 2 个 /api/v2/snapshot（snapshot_token 分页）落到冷 Q worker，verify 耗尽 verify_deadline_ms=5000（tests/fixtures/tb01c/query-resources.json:8）后 503 QueryBudgetExceeded，页面 10 s 提交等待超时；根判为 Q 冷校验性能缺陷，浏览器臂移交 #1497，不在 #1419 内放宽帽与期限",
+    "failure_evidence": [
+     {
+      "round": 1,
+      "arm": "min12_up-a",
+      "snapshot_503_s": 5.174,
+      "arm_dir": "/Volumes/AgentStorage/issue1419-s9-formal-20261014/min12_up-a",
+      "browser_stderr_sha256": "b5f14f100e8fe1b43d60b9e4e0d57feddf87fded2ab4fb65ab03636368f2ab81",
+      "network_har_sha256": "59d77565d76bb2e5f26c553010bc6ba011f20194d3a91587212b739d0df7fdb7",
+      "result": "/private/tmp/goal1323-native-20261012/tb1419-impl/s9-formal/RESULT.json",
+      "result_sha256": "0d8baf8f4977e1b9a0a00ea78561658a6d4941ce4f59fb5a095e1cc2d9baab00"
+     },
+     {
+      "round": 2,
+      "arm": "min12_up-a",
+      "snapshot_503_s": 5.156,
+      "arm_dir": "/Volumes/AgentStorage/issue1419-s9-formal-r2-20261014.noindex/min12_up-a",
+      "browser_stderr_sha256": "b5f14f100e8fe1b43d60b9e4e0d57feddf87fded2ab4fb65ab03636368f2ab81",
+      "network_har_sha256": "18ed86944feedac96209617b13bb73898151714d66f00bf2588d25ce2a7bd99a",
+      "result": "/private/tmp/goal1323-native-20261012/tb1419-impl/s9-formal-r2/RESULT.json",
+      "result_sha256": "52f2eae02a9395e2bdadbf11a40c7064d4222268a9603020de5159ea8afa77bc"
+     }
+    ]
+   },
+   "browser_launched": false,
+   "note": "--browser-deferred-to：浏览器未执行，无 HAR/READINESS 计时"
+  }
+ },
+ "min12_down-b": {
+  "ingest_reply_s": {
+   "n": 43,
+   "min": 0.033,
+   "median": 1.006,
+   "max": 4.649,
+   "sum": 64.382
+  },
+  "ingest_last5": [
+   [
+    39,
+    3.721
+   ],
+   [
+    40,
+    3.973
+   ],
+   [
+    41,
+    4.211
+   ],
+   [
+    42,
+    4.4
+   ],
+   [
+    43,
+    4.649
+   ]
+  ],
+  "ingest_max": [
+   42,
+   4.648729083
+  ],
+  "query_s_by_group": {
+   "live": {
+    "n": 43,
+    "min": 0.054,
+    "median": 1.756,
+    "max": 8.213,
+    "sum": 112.489
+   },
+   "known": {
+    "n": 43,
+    "min": 0.024,
+    "median": 1.15,
+    "max": 5.55,
+    "sum": 74.41
+   },
+   "revisit": {
+    "n": 43,
+    "min": 0.354,
+    "median": 1.483,
+    "max": 5.465,
+    "sum": 88.903
+   },
+   "before": {
+    "n": 2,
+    "min": 2.674,
+    "median": 5.042,
+    "max": 5.042,
+    "sum": 7.716
+   },
+   "after": {
+    "n": 2,
+    "min": 3.975,
+    "median": 5.199,
+    "max": 5.199,
+    "sum": 9.174
+   }
+  },
+  "query_max": [
+   "live-42",
+   8.213154917
+  ],
+  "controls": [
+   [
+    "start",
+    0.388
+   ],
+   [
+    "stop-s",
+    0.196
+   ],
+   [
+    "recover",
+    4.152
+   ],
+   [
+    "start-s",
+    4.938
+   ],
+   [
+    "stop-q",
+    0.177
+   ],
+   [
+    "stop-s",
+    0.16
+   ]
+  ],
+  "event_kinds": {
+   "bounded_query": 133,
+   "browser_deferred": 1,
+   "control": 6,
+   "ingest": 43
+  },
+  "browser": {
+   "present": true,
+   "deferred": true,
+   "result": {
+    "status": "DEFERRED",
+    "deferred_to": "#1497",
+    "browser_executed": false,
+    "planned_cuts": [
+     "27",
+     "43"
+    ],
+    "reason": "S9 两轮（首轮常规负载、第二轮受控负载）在同一点失败：页面取末 cut 43 的第 2 个 /api/v2/snapshot（snapshot_token 分页）落到冷 Q worker，verify 耗尽 verify_deadline_ms=5000（tests/fixtures/tb01c/query-resources.json:8）后 503 QueryBudgetExceeded，页面 10 s 提交等待超时；根判为 Q 冷校验性能缺陷，浏览器臂移交 #1497，不在 #1419 内放宽帽与期限",
+    "failure_evidence": [
+     {
+      "round": 1,
+      "arm": "min12_up-a",
+      "snapshot_503_s": 5.174,
+      "arm_dir": "/Volumes/AgentStorage/issue1419-s9-formal-20261014/min12_up-a",
+      "browser_stderr_sha256": "b5f14f100e8fe1b43d60b9e4e0d57feddf87fded2ab4fb65ab03636368f2ab81",
+      "network_har_sha256": "59d77565d76bb2e5f26c553010bc6ba011f20194d3a91587212b739d0df7fdb7",
+      "result": "/private/tmp/goal1323-native-20261012/tb1419-impl/s9-formal/RESULT.json",
+      "result_sha256": "0d8baf8f4977e1b9a0a00ea78561658a6d4941ce4f59fb5a095e1cc2d9baab00"
+     },
+     {
+      "round": 2,
+      "arm": "min12_up-a",
+      "snapshot_503_s": 5.156,
+      "arm_dir": "/Volumes/AgentStorage/issue1419-s9-formal-r2-20261014.noindex/min12_up-a",
+      "browser_stderr_sha256": "b5f14f100e8fe1b43d60b9e4e0d57feddf87fded2ab4fb65ab03636368f2ab81",
+      "network_har_sha256": "18ed86944feedac96209617b13bb73898151714d66f00bf2588d25ce2a7bd99a",
+      "result": "/private/tmp/goal1323-native-20261012/tb1419-impl/s9-formal-r2/RESULT.json",
+      "result_sha256": "52f2eae02a9395e2bdadbf11a40c7064d4222268a9603020de5159ea8afa77bc"
+     }
+    ]
+   },
+   "browser_launched": false,
+   "note": "--browser-deferred-to：浏览器未执行，无 HAR/READINESS 计时"
+  }
+ }
+}

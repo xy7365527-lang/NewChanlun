@@ -1,0 +1,438 @@
+{
+ "schema": "tb1419-s9-formal-result/1",
+ "round": 2,
+ "ruling": "ROOT-RULING-S9-RERUN.md（2026-10-14 11:55）",
+ "ticket": "#1419 (TB-02-E)",
+ "branch": "codex/1419-center-seed-20261013",
+ "head": "daac6d86616316a2c2cc7d55daf1a298de7cf0c1",
+ "worktree_clean": true,
+ "status": "FAIL",
+ "same_failure_point_as_round1": true,
+ "ruling_clause_3_applies": "第二轮仍在同一冷 verify 点失败（裁定第 3 条的触发条件成立，判定由根作出）",
+ "first_failure": {
+  "arm": "min12_up-a",
+  "stage": "browser（tb02e_browser.cjs:63 等最终 cut 43 提交，waitForFunction 10 s）",
+  "error": "page.waitForFunction: Timeout 10000ms exceeded（browser.stderr）→ runtime「真实浏览器验证失败」→ harness「正式验证失败」",
+  "cause": "页面取 cut 43 的第 2 个 /api/v2/snapshot（token 分页）请求 5.156 s 后得 HTTP 503 QueryBudgetExceeded「查询阶段达到事前时间上限」；页面未提交 cut 43",
+  "clicks_performed": 0,
+  "retried": false
+ },
+ "cold_verify_point": {
+  "request": "cut 43 页面第 2 个 /api/v2/snapshot（snapshot_token 分页，message_id query-2）",
+  "started_at": "2026-10-14T12:04:04.145+08:00",
+  "ended_at": "2026-10-14T12:04:09.300+08:00",
+  "request_total_s": 5.156,
+  "har_wait_s": 5.154,
+  "http_status": 503,
+  "error": "QueryBudgetExceeded",
+  "detail": "查询阶段达到事前时间上限",
+  "verify_s": "≥5.000（耗尽 verify_deadline_ms=5000 未完成，真实完成时间不可知）；请求总 5.156 s − 5.000 s 期限 ≈ 0.156 s 为 capture 与往返",
+  "deadline_source": "s_session/tests/fixtures/tb01c/query-resources.json:8 verify_deadline_ms=5000；Q 工作者 max_query_workers=2；抛出 s_query_integrity.py:250（_deadline）",
+  "load_during": [
+   {
+    "at": "2026-10-14T12:04:04+0800",
+    "loadavg": [
+     8.36,
+     8.23,
+     8.52
+    ],
+    "chrome_total_pcpu": 443.7,
+    "spotlight_pcpu": {
+     "mds_stores": 0.0,
+     "mds": 0.1,
+     "mdworker_shared": 0.2
+    },
+    "q_s_readonly_server_top12": [
+     {
+      "pid": 5480,
+      "pcpu": 95.3,
+      "rss_mb": 675
+     }
+    ]
+   },
+   {
+    "at": "2026-10-14T12:04:06+0800",
+    "loadavg": [
+     8.49,
+     8.26,
+     8.53
+    ],
+    "chrome_total_pcpu": 499.6,
+    "spotlight_pcpu": {
+     "mds_stores": 0.5,
+     "mds": 0.0,
+     "mdworker_shared": 0.0
+    },
+    "q_s_readonly_server_top12": [
+     {
+      "pid": 5480,
+      "pcpu": 99.1,
+      "rss_mb": 763
+     }
+    ]
+   },
+   {
+    "at": "2026-10-14T12:04:08+0800",
+    "loadavg": [
+     8.49,
+     8.26,
+     8.53
+    ],
+    "chrome_total_pcpu": 472.2,
+    "spotlight_pcpu": {
+     "mds_stores": 0.0,
+     "mds": 0.0,
+     "mdworker_shared": 0.0
+    },
+    "q_s_readonly_server_top12": [
+     {
+      "pid": 5480,
+      "pcpu": 98.8,
+      "rss_mb": 817
+     }
+    ]
+   },
+   {
+    "at": "2026-10-14T12:04:10+0800",
+    "loadavg": [
+     8.49,
+     8.26,
+     8.53
+    ],
+    "chrome_total_pcpu": 420.8,
+    "spotlight_pcpu": {
+     "mds_stores": 0.2,
+     "mds": 0.3,
+     "mdworker_shared": 0.3
+    },
+    "q_s_readonly_server_top12": []
+   }
+  ],
+  "reading": "请求窗内 1 分钟负载 8.36–8.49（28 逻辑核），Spotlight ≈0，Q 进程 s_readonly_server pid 5480 单核 95–99%、RSS 675→817 MB；即 Q 在单线程满负荷做 verify 期间耗尽 5 s，未见资源争用迹象",
+  "first_snapshot_s": 0.863
+ },
+ "round1_vs_round2": {
+  "request_total_s": [
+   5.174,
+   5.156
+  ],
+  "first_snapshot_s": [
+   0.867,
+   0.863
+  ],
+  "load1_during_run_min_max": [
+   [
+    9.62,
+    18.14
+   ],
+   [
+    7.26,
+    9.06
+   ]
+  ],
+  "spotlight_mds_stores_pcpu_max": [
+   287.6,
+   15.4
+  ],
+  "browser_inner_window_s": [
+   15.427,
+   15.312
+  ],
+  "chrome_launch_to_navigation_s": [
+   5.134,
+   5.025
+  ],
+  "ingest_max_s": [
+   4.777,
+   4.699
+  ],
+  "query_max_s": [
+   8.123,
+   8.042
+  ],
+  "harness_elapsed_s": [
+   429.7,
+   428.7
+  ],
+  "reading": "1 分钟负载由 9.6–18.1 降到 7.3–9.1、mds_stores 峰值由 288% 降到 15%（浏览器窗内 ≤1.5%），503 请求耗时只差 0.018 s；失败点不随这两项背景负载变化"
+ },
+ "binary": {
+  "path": "/private/tmp/goal1323-native-20261012/tb1419-impl/artifacts/s_structure_session-48e2386463",
+  "sha256": "38c61eeed8ba79a7c5ec1d74575ca46c9cf32614ded9c5d9f04294f18642245b",
+  "same_as_round1": true
+ },
+ "arms": {
+  "min12_up-a": {
+   "verdict": "FAIL（浏览器）",
+   "inputs": 43,
+   "capture_core_records": null,
+   "public_queries": 133,
+   "live_known_revisit": "43×live、43×AsKnown、43×回访全部 captured_validated_commit，回访与原 AsKnown 逐值相同",
+   "frozen_oracle": {
+    "status": "passed",
+    "cuts": 43,
+    "oracle_cuts": {
+     "26": {
+      "completed": [],
+      "assignments": 1,
+      "cursor": "SEEKING_SEED"
+     },
+     "27": {
+      "completed": [
+       "segment:1:1"
+      ],
+      "assignments": 2,
+      "cursor": "SEEKING_SEED"
+     },
+     "38": {
+      "completed": [
+       "segment:1:1"
+      ],
+      "assignments": 2,
+      "cursor": "SEEKING_SEED"
+     },
+     "39": {
+      "completed": [
+       "segment:1:1",
+       "segment:1:13"
+      ],
+      "assignments": 3,
+      "cursor": "SEEKING_SEED"
+     },
+     "43": {
+      "completed": [
+       "segment:1:1",
+       "segment:1:13"
+      ],
+      "assignments": 3,
+      "cursor": "SEEKING_SEED"
+     }
+    }
+   },
+   "normal_recovery": {
+    "equal": true,
+    "cuts": [
+     27,
+     43
+    ]
+   },
+   "browser": {
+    "status": "FAIL",
+    "cuts": null,
+    "page_errors": null,
+    "version": null
+   },
+   "exit": {
+    "exit": 1
+   },
+   "cleanup_errors": []
+  },
+  "min12_up-b": {
+   "verdict": "NOT_RUN"
+  },
+  "min12_down-a": {
+   "verdict": "NOT_RUN"
+  },
+  "min12_down-b": {
+   "verdict": "NOT_RUN"
+  }
+ },
+ "ab_comparison": {
+  "status": "NOT_RUN",
+  "reason": "首臂失败，harness 未进入 compare_completed，无 COMPARISON-RESULT.json"
+ },
+ "recovery": {
+  "min12_up-a": {
+   "cuts": [
+    27,
+    43
+   ],
+   "equal": true,
+   "controls_s": {
+    "recover": 4.178,
+    "start-s": 4.852,
+    "stop-s(恢复前)": 0.194
+   },
+   "before_queries_s": {
+    "n": 2,
+    "min": 2.698,
+    "median": 5.05,
+    "max": 5.05,
+    "sum": 7.748
+   },
+   "after_queries_s": {
+    "n": 2,
+    "min": 3.836,
+    "median": 5.009,
+    "max": 5.009,
+    "sum": 8.845
+   }
+  },
+  "other_arms": "NOT_RUN"
+ },
+ "browser_arm": {
+  "min12_up-a": {
+   "cap_s": 30,
+   "inner_window_s": 15.312,
+   "inner_margin_s": 14.688,
+   "outer_window_upper_bound_s": 15.604,
+   "outer_margin_lower_bound_s": 14.396,
+   "cap_hit": false,
+   "click1_final_cut_CC022_s": null,
+   "click1_note": "未到达：失败发生在第一次点击之前（等最终 cut 43 提交）",
+   "click2_asof27_CC022_s": null,
+   "click2_note": "未到达",
+   "phases_s": {
+    "Chrome 启动到 navigation-start": 5.025,
+    "goto 完成（navigation-loaded）": 5.068,
+    "snapshot#1（新查询，200）": 0.863,
+    "snapshot#2（token 分页，503）": 5.156,
+    "其后": "navigation-loaded 后 10 s 超时；elapsed 15.312 s"
+   },
+   "chrome": {
+    "path": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "version": "155.0.8059.79",
+    "sha256": "fbeec33e75ea8da7bdb6e48f987ed32f5089c49d86013046e87319f5df11c13f"
+   }
+  }
+ },
+ "timings_min12_up-a": {
+  "ingest_reply_s": {
+   "n": 43,
+   "min": 0.033,
+   "median": 0.996,
+   "max": 4.699,
+   "sum": 63.675
+  },
+  "ingest_last5": [
+   [
+    39,
+    3.683
+   ],
+   [
+    40,
+    4.031
+   ],
+   [
+    41,
+    4.236
+   ],
+   [
+    42,
+    4.399
+   ],
+   [
+    43,
+    4.699
+   ]
+  ],
+  "ingest_cap_s": 10,
+  "query_s_by_group": {
+   "live": {
+    "n": 43,
+    "min": 0.052,
+    "median": 1.734,
+    "max": 8.042,
+    "sum": 111.111
+   },
+   "known": {
+    "n": 43,
+    "min": 0.023,
+    "median": 1.152,
+    "max": 5.197,
+    "sum": 73.078
+   },
+   "revisit": {
+    "n": 43,
+    "min": 0.336,
+    "median": 1.479,
+    "max": 5.251,
+    "sum": 85.535
+   },
+   "before": {
+    "n": 2,
+    "min": 2.698,
+    "median": 5.05,
+    "max": 5.05,
+    "sum": 7.748
+   },
+   "after": {
+    "n": 2,
+    "min": 3.836,
+    "median": 5.009,
+    "max": 5.009,
+    "sum": 8.845
+   }
+  },
+  "query_max": [
+   "live-42",
+   8.041896584
+  ],
+  "query_cap_s": 30
+ },
+ "environment": {
+  "python": "3.14.6 (/tmp/tb1414-runtime-venv)",
+  "node": "v24.19.0",
+  "playwright": "1.62.1",
+  "harness_env_added": {
+   "TB02E_CHROMIUM_EXECUTABLE": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+   "PYTHONDONTWRITEBYTECODE": "1"
+  }
+ },
+ "background_load": {
+  "preflight_loadavg": [
+   7.42431640625,
+   7.93505859375,
+   8.6533203125
+  ],
+  "preflight_spotlight_pcpu": {
+   "mds_stores": 0.0,
+   "mds": 0.0,
+   "mdworker_shared": 0.0
+  },
+  "ncpu": 28,
+  "during_run_load1_min_max": [
+   7.26,
+   9.06
+  ],
+  "chrome_total_pcpu_min_max": [
+   388.2,
+   523.8
+  ],
+  "spotlight_mds_stores_pcpu_max": 15.4,
+  "note": "门检时 mds_stores 0%，无 cargo/rustc/lake/S/Q/探针/浏览器验收进程，peer cargo 锁全 IDLE。背景：用户自用 Chrome 154（GPU 进程 136–166%）、agent-browser 无头 Chrome（约 100%）、WindowServer（约 60–76%）、ChatGPT/Codex 渲染进程；大件写 .noindex 目录，Spotlight 除 12:02:10 一次 mds_stores 15.4%/mdworker 16.8%、12:03:51 一次 mdworker 12.4% 外均 <2%（浏览器窗内 ≤1.5%）",
+  "samples_file": "background-samples.jsonl（平时每 10 s，浏览器窗内每 2 s）"
+ },
+ "disk": {
+  "data_free_gib_min": 24.51,
+  "stopline_gib": 15,
+  "stopline_hit": false,
+  "agentstorage_free_gib_min": 178.01
+ },
+ "slot_reap": {
+  "path_deliver": "/private/tmp/goal1323-native-20261012/tb1419-impl/s9-formal-r2/SLOT-REAP.json",
+  "path_run": "/Volumes/AgentStorage/issue1419-s9-formal-r2-20261014.noindex/SLOT-REAP.json",
+  "clean": true,
+  "found_processes": 0,
+  "orphan_chrome": 0,
+  "listeners": 0,
+  "sockets_unlinked": [
+   "/private/tmp/tb1419e-f380b555fdebcc16.sock"
+  ],
+  "postcheck": "ps/lsof 复查：无 S/Q/http 捕获/playwright Chrome 残留，18860–18863 无监听，/private/tmp/tb1419e-* 无残留"
+ },
+ "run_dir": "/Volumes/AgentStorage/issue1419-s9-formal-r2-20261014.noindex",
+ "deliver_dir": "/private/tmp/goal1323-native-20261012/tb1419-impl/s9-formal-r2",
+ "harness": {
+  "rc": 1,
+  "started_at": "2026-10-14T11:57:06+0800",
+  "ended_at": "2026-10-14T12:04:15+0800",
+  "elapsed_s": 428.7
+ },
+ "driver_changes_vs_round1": [
+  "DELIVER/RUN 路径换为 r2 与 .noindex",
+  "门检加 mds_stores < 20% 条件",
+  "背景采样加 Spotlight 字段，平时 10 s、浏览器窗内 2 s",
+  "harness/runtime/页面脚本/帽/二进制不变"
+ ]
+}

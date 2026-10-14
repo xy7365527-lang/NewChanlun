@@ -1,0 +1,290 @@
+{
+ "min12_up-a": {
+  "ran": true,
+  "exit": {
+   "exit": 0
+  },
+  "interrupted": null,
+  "capture_status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+  "capture_error": null,
+  "input_count": 43,
+  "core_records": 236,
+  "cleanup_errors": [],
+  "oracle": {
+   "status": "passed",
+   "cuts": 43,
+   "oracle_cuts": {
+    "26": {
+     "completed": [],
+     "assignments": 1,
+     "cursor": "SEEKING_SEED"
+    },
+    "27": {
+     "completed": [
+      "segment:1:1"
+     ],
+     "assignments": 2,
+     "cursor": "SEEKING_SEED"
+    },
+    "38": {
+     "completed": [
+      "segment:1:1"
+     ],
+     "assignments": 2,
+     "cursor": "SEEKING_SEED"
+    },
+    "39": {
+     "completed": [
+      "segment:1:1",
+      "segment:1:13"
+     ],
+     "assignments": 3,
+     "cursor": "SEEKING_SEED"
+    },
+    "43": {
+     "completed": [
+      "segment:1:1",
+      "segment:1:13"
+     ],
+     "assignments": 3,
+     "cursor": "SEEKING_SEED"
+    }
+   }
+  },
+  "recovery": {
+   "equal": true,
+   "cuts": [
+    27,
+    43
+   ]
+  },
+  "browser": {
+   "status": "DEFERRED",
+   "cuts": null,
+   "page_errors": null,
+   "version": null,
+   "deferred_to": "#1497",
+   "browser_executed": false,
+   "planned_cuts": [
+    "27",
+    "43"
+   ]
+  }
+ },
+ "min12_up-b": {
+  "ran": true,
+  "exit": {
+   "exit": 0
+  },
+  "interrupted": null,
+  "capture_status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+  "capture_error": null,
+  "input_count": 43,
+  "core_records": 236,
+  "cleanup_errors": [],
+  "oracle": {
+   "status": "passed",
+   "cuts": 43,
+   "oracle_cuts": {
+    "26": {
+     "completed": [],
+     "assignments": 1,
+     "cursor": "SEEKING_SEED"
+    },
+    "27": {
+     "completed": [
+      "segment:1:1"
+     ],
+     "assignments": 2,
+     "cursor": "SEEKING_SEED"
+    },
+    "38": {
+     "completed": [
+      "segment:1:1"
+     ],
+     "assignments": 2,
+     "cursor": "SEEKING_SEED"
+    },
+    "39": {
+     "completed": [
+      "segment:1:1",
+      "segment:1:13"
+     ],
+     "assignments": 3,
+     "cursor": "SEEKING_SEED"
+    },
+    "43": {
+     "completed": [
+      "segment:1:1",
+      "segment:1:13"
+     ],
+     "assignments": 3,
+     "cursor": "SEEKING_SEED"
+    }
+   }
+  },
+  "recovery": {
+   "equal": true,
+   "cuts": [
+    27,
+    43
+   ]
+  },
+  "browser": {
+   "status": "DEFERRED",
+   "cuts": null,
+   "page_errors": null,
+   "version": null,
+   "deferred_to": "#1497",
+   "browser_executed": false,
+   "planned_cuts": [
+    "27",
+    "43"
+   ]
+  }
+ },
+ "min12_down-a": {
+  "ran": true,
+  "exit": {
+   "exit": 0
+  },
+  "interrupted": null,
+  "capture_status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+  "capture_error": null,
+  "input_count": 43,
+  "core_records": 236,
+  "cleanup_errors": [],
+  "oracle": {
+   "status": "passed",
+   "cuts": 43,
+   "oracle_cuts": {
+    "26": {
+     "completed": [],
+     "assignments": 1,
+     "cursor": "SEEKING_SEED"
+    },
+    "27": {
+     "completed": [
+      "segment:1:1"
+     ],
+     "assignments": 2,
+     "cursor": "SEEKING_SEED"
+    },
+    "38": {
+     "completed": [
+      "segment:1:1"
+     ],
+     "assignments": 2,
+     "cursor": "SEEKING_SEED"
+    },
+    "39": {
+     "completed": [
+      "segment:1:1",
+      "segment:1:13"
+     ],
+     "assignments": 3,
+     "cursor": "SEEKING_SEED"
+    },
+    "43": {
+     "completed": [
+      "segment:1:1",
+      "segment:1:13"
+     ],
+     "assignments": 3,
+     "cursor": "SEEKING_SEED"
+    }
+   }
+  },
+  "recovery": {
+   "equal": true,
+   "cuts": [
+    27,
+    43
+   ]
+  },
+  "browser": {
+   "status": "DEFERRED",
+   "cuts": null,
+   "page_errors": null,
+   "version": null,
+   "deferred_to": "#1497",
+   "browser_executed": false,
+   "planned_cuts": [
+    "27",
+    "43"
+   ]
+  }
+ },
+ "min12_down-b": {
+  "ran": true,
+  "exit": {
+   "exit": 0
+  },
+  "interrupted": null,
+  "capture_status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+  "capture_error": null,
+  "input_count": 43,
+  "core_records": 236,
+  "cleanup_errors": [],
+  "oracle": {
+   "status": "passed",
+   "cuts": 43,
+   "oracle_cuts": {
+    "26": {
+     "completed": [],
+     "assignments": 1,
+     "cursor": "SEEKING_SEED"
+    },
+    "27": {
+     "completed": [
+      "segment:1:1"
+     ],
+     "assignments": 2,
+     "cursor": "SEEKING_SEED"
+    },
+    "38": {
+     "completed": [
+      "segment:1:1"
+     ],
+     "assignments": 2,
+     "cursor": "SEEKING_SEED"
+    },
+    "39": {
+     "completed": [
+      "segment:1:1",
+      "segment:1:13"
+     ],
+     "assignments": 3,
+     "cursor": "SEEKING_SEED"
+    },
+    "43": {
+     "completed": [
+      "segment:1:1",
+      "segment:1:13"
+     ],
+     "assignments": 3,
+     "cursor": "SEEKING_SEED"
+    }
+   }
+  },
+  "recovery": {
+   "equal": true,
+   "cuts": [
+    27,
+    43
+   ]
+  },
+  "browser": {
+   "status": "DEFERRED",
+   "cuts": null,
+   "page_errors": null,
+   "version": null,
+   "deferred_to": "#1497",
+   "browser_executed": false,
+   "planned_cuts": [
+    "27",
+    "43"
+   ]
+  }
+ }
+}

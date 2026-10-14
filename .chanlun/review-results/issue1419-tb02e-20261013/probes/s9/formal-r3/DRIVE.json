@@ -1,0 +1,149 @@
+{
+ "schema": "tb1419-s9-drive/1",
+ "started_at": "2026-10-14T12:21:47+0800",
+ "run_dir": "/Volumes/AgentStorage/issue1419-s9-formal-r3-20261014.noindex",
+ "deliver_dir": "/private/tmp/goal1323-native-20261012/tb1419-impl/s9-formal-r3",
+ "snapshot": {
+  "rc": 0,
+  "stdout": "{\"snapshot\": \"/private/tmp/goal1323-native-20261012/tb1419-impl/s9-formal-r3/SLOT-SNAPSHOT.json\", \"existing\": 0}",
+  "stderr": ""
+ },
+ "harness_command": [
+  "/tmp/tb1414-runtime-venv/bin/python",
+  "/Users/silencehan/.codex/worktrees/goal1323-tb1419/NewChanlun/s_session/tests/tb02e_harness.py",
+  "--output",
+  "/Volumes/AgentStorage/issue1419-s9-formal-r3-20261014.noindex",
+  "--binary",
+  "/private/tmp/goal1323-native-20261012/tb1419-impl/artifacts/s_structure_session-48e2386463",
+  "--python",
+  "/tmp/tb1414-runtime-venv/bin/python",
+  "--node",
+  "/Users/silencehan/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+  "--playwright-module",
+  "/Users/silencehan/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright",
+  "--execute",
+  "--browser-deferred-to",
+  "1497"
+ ],
+ "harness_env_added": {
+  "TB02E_CHROMIUM_EXECUTABLE": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "PYTHONDONTWRITEBYTECODE": "1"
+ },
+ "harness_rc": 0,
+ "harness_started_at": "2026-10-14T12:21:47+0800",
+ "harness_ended_at": "2026-10-14T12:50:59+0800",
+ "harness_elapsed_s": 1751.7,
+ "reap": {
+  "out": "/Volumes/AgentStorage/issue1419-s9-formal-r3-20261014.noindex",
+  "rc": 0,
+  "stdout": "{\"reap\": \"/Volumes/AgentStorage/issue1419-s9-formal-r3-20261014.noindex/SLOT-REAP.json\", \"found\": 0, \"orphan_chrome\": 0, \"listeners\": 0, \"sockets\": 4, \"actions\": 4, \"clean\": true}",
+  "stderr": ""
+ },
+ "background_after": {
+  "at": "2026-10-14T12:51:00+0800",
+  "label": "after",
+  "loadavg": [
+   12.0458984375,
+   14.97021484375,
+   13.580078125
+  ],
+  "ncpu": 28,
+  "spotlight_pcpu": {
+   "mds_stores": 0.2,
+   "mds": 0.4,
+   "mdworker_shared": 0.0
+  },
+  "data_free_gib": 31.41,
+  "agentstorage_free_gib": 129.48,
+  "chrome_total_pcpu": 446.3,
+  "chrome_processes": 75,
+  "top": [
+   {
+    "pid": 87900,
+    "ppid": 87893,
+    "pcpu": 160.7,
+    "rss_kb": 271904,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper.app/Contents/MacOS/Google Chrome Helper --type=gpu-process --g"
+   },
+   {
+    "pid": 6070,
+    "ppid": 6069,
+    "pcpu": 100.0,
+    "rss_kb": 202624,
+    "command": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome --remote-debugging-port=0 --no-first-run --no-default-browser-check --disable-background-networking --disable-backgrounding-occluded-window"
+   },
+   {
+    "pid": 30393,
+    "ppid": 30220,
+    "pcpu": 98.8,
+    "rss_kb": 615936,
+    "command": "rustc --crate-name newchan_rust --edition=2021 src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type cdylib --crate-type rlib --emit=dep-info,metadata -"
+   },
+   {
+    "pid": 88144,
+    "ppid": 87893,
+    "pcpu": 71.0,
+    "rss_kb": 448880,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer) "
+   },
+   {
+    "pid": 439,
+    "ppid": 1,
+    "pcpu": 65.4,
+    "rss_kb": 82560,
+    "command": "/System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer -daemon"
+   },
+   {
+    "pid": 44493,
+    "ppid": 43819,
+    "pcpu": 52.8,
+    "rss_kb": 5503872,
+    "command": "/Users/silencehan/Library/Application Support/CLIProxyLocal/bin/cli-proxy-api -config /Users/silencehan/Library/Application Support/CLIProxyLocal/config.yaml"
+   },
+   {
+    "pid": 88155,
+    "ppid": 87893,
+    "pcpu": 46.5,
+    "rss_kb": 312912,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer) "
+   },
+   {
+    "pid": 88159,
+    "ppid": 87893,
+    "pcpu": 16.4,
+    "rss_kb": 187520,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer) "
+   },
+   {
+    "pid": 88175,
+    "ppid": 87893,
+    "pcpu": 16.0,
+    "rss_kb": 275328,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer) "
+   },
+   {
+    "pid": 442,
+    "ppid": 1,
+    "pcpu": 13.5,
+    "rss_kb": 113984,
+    "command": "/System/Library/CoreServices/loginwindow.app/Contents/MacOS/loginwindow console"
+   },
+   {
+    "pid": 88129,
+    "ppid": 87893,
+    "pcpu": 12.7,
+    "rss_kb": 269488,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer) "
+   },
+   {
+    "pid": 88152,
+    "ppid": 87893,
+    "pcpu": 10.4,
+    "rss_kb": 358640,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer) "
+   }
+  ]
+ },
+ "ended_at": "2026-10-14T12:51:00+0800",
+ "status": "HARNESS_EXIT_0"
+}

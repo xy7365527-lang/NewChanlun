@@ -1,0 +1,136 @@
+{
+ "git_head": "07479fd501a72fe202dbc0b41a8250b6a5047841",
+ "git_head_ok": true,
+ "git_clean": true,
+ "origin_tracking_head": "07479fd501a72fe202dbc0b41a8250b6a5047841",
+ "binary": "/private/tmp/goal1323-native-20261012/tb1419-impl/artifacts/s_structure_session-48e2386463",
+ "binary_sha256": "38c61eeed8ba79a7c5ec1d74575ca46c9cf32614ded9c5d9f04294f18642245b",
+ "binary_sha_ok": true,
+ "peer_build_busy": "IDLE",
+ "peer_build_idle": true,
+ "forbidden_processes": [],
+ "ports": "18860-18863",
+ "port_listeners": [],
+ "stale_sockets": [],
+ "run_dir_absent": true,
+ "data_free_gib": 24.4,
+ "agentstorage_free_gib": 178.01,
+ "python": "3.14.6",
+ "node": "v24.19.0",
+ "playwright": "1.62.1",
+ "chrome_path": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+ "chrome_version": "155.0.8059.79",
+ "chrome_sha256": "fbeec33e75ea8da7bdb6e48f987ed32f5089c49d86013046e87319f5df11c13f",
+ "ok": true,
+ "spotlight_pcpu": {
+  "mds_stores": 3.0,
+  "mds": 0.0,
+  "mdworker_shared": 0.0
+ },
+ "mds_stores_settled": true,
+ "background": {
+  "at": "2026-10-14T12:21:47+0800",
+  "label": "preflight",
+  "loadavg": [
+   9.125,
+   8.12548828125,
+   7.98095703125
+  ],
+  "ncpu": 28,
+  "spotlight_pcpu": {
+   "mds_stores": 3.0,
+   "mds": 0.0,
+   "mdworker_shared": 0.0
+  },
+  "data_free_gib": 24.4,
+  "agentstorage_free_gib": 178.01,
+  "chrome_total_pcpu": 458.5,
+  "chrome_processes": 75,
+  "top": [
+   {
+    "pid": 87900,
+    "ppid": 87893,
+    "pcpu": 163.7,
+    "rss_kb": 272144,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper.app/Contents/MacOS/Google Chrome Helper --type=gpu-process --g"
+   },
+   {
+    "pid": 6070,
+    "ppid": 6069,
+    "pcpu": 100.0,
+    "rss_kb": 202368,
+    "command": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome --remote-debugging-port=0 --no-first-run --no-default-browser-check --disable-background-networking --disable-backgrounding-occluded-window"
+   },
+   {
+    "pid": 12300,
+    "ppid": 12296,
+    "pcpu": 99.2,
+    "rss_kb": 26128,
+    "command": "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python oracle/tb1406_oracle.py"
+   },
+   {
+    "pid": 439,
+    "ppid": 1,
+    "pcpu": 69.6,
+    "rss_kb": 82512,
+    "command": "/System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer -daemon"
+   },
+   {
+    "pid": 88144,
+    "ppid": 87893,
+    "pcpu": 69.5,
+    "rss_kb": 456976,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer) "
+   },
+   {
+    "pid": 88155,
+    "ppid": 87893,
+    "pcpu": 46.4,
+    "rss_kb": 312176,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer) "
+   },
+   {
+    "pid": 88152,
+    "ppid": 87893,
+    "pcpu": 19.6,
+    "rss_kb": 349520,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer) "
+   },
+   {
+    "pid": 88175,
+    "ppid": 87893,
+    "pcpu": 16.4,
+    "rss_kb": 275328,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer) "
+   },
+   {
+    "pid": 88159,
+    "ppid": 87893,
+    "pcpu": 15.1,
+    "rss_kb": 186208,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer) "
+   },
+   {
+    "pid": 88129,
+    "ppid": 87893,
+    "pcpu": 12.2,
+    "rss_kb": 269168,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer) "
+   },
+   {
+    "pid": 60503,
+    "ppid": 87893,
+    "pcpu": 11.8,
+    "rss_kb": 256624,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer) "
+   },
+   {
+    "pid": 12309,
+    "ppid": 46781,
+    "pcpu": 9.9,
+    "rss_kb": 27328,
+    "command": "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python /private/tmp/goal1323-native-20261012/tb1419-impl/s9-formal-r3/s9_drive.py"
+   }
+  ]
+ }
+}

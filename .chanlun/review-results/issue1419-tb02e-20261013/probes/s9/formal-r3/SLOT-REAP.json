@@ -1,0 +1,42 @@
+{
+ "at": "2026-10-14T12:51:00+0800",
+ "out": "/Volumes/AgentStorage/issue1419-s9-formal-r3-20261014.noindex",
+ "ports": "18860-18863",
+ "socket_prefix": "/private/tmp/tb1419e-",
+ "first": {
+  "processes": [],
+  "orphan_chrome": [],
+  "listeners": [],
+  "sockets": [
+   "/private/tmp/tb1419e-3dd78eba1c768a67.sock",
+   "/private/tmp/tb1419e-41eba33c47b4e713.sock",
+   "/private/tmp/tb1419e-6f0159da6a766aaf.sock",
+   "/private/tmp/tb1419e-a91bacc92201148f.sock"
+  ]
+ },
+ "actions": [
+  {
+   "socket": "/private/tmp/tb1419e-3dd78eba1c768a67.sock",
+   "action": "unlink"
+  },
+  {
+   "socket": "/private/tmp/tb1419e-41eba33c47b4e713.sock",
+   "action": "unlink"
+  },
+  {
+   "socket": "/private/tmp/tb1419e-6f0159da6a766aaf.sock",
+   "action": "unlink"
+  },
+  {
+   "socket": "/private/tmp/tb1419e-a91bacc92201148f.sock",
+   "action": "unlink"
+  }
+ ],
+ "final": {
+  "processes": [],
+  "orphan_chrome": [],
+  "listeners": [],
+  "sockets": []
+ },
+ "clean": true
+}

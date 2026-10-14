@@ -1,0 +1,124 @@
+{
+ "git_head": "daac6d86616316a2c2cc7d55daf1a298de7cf0c1",
+ "git_head_ok": true,
+ "git_clean": true,
+ "binary": "/private/tmp/goal1323-native-20261012/tb1419-impl/artifacts/s_structure_session-48e2386463",
+ "binary_sha256": "38c61eeed8ba79a7c5ec1d74575ca46c9cf32614ded9c5d9f04294f18642245b",
+ "binary_sha_ok": true,
+ "peer_build_busy": "IDLE",
+ "peer_build_idle": true,
+ "forbidden_processes": [],
+ "ports": "18860-18863",
+ "port_listeners": [],
+ "stale_sockets": [],
+ "run_dir_absent": true,
+ "data_free_gib": 24.02,
+ "agentstorage_free_gib": 197.88,
+ "python": "3.14.6",
+ "node": "v24.19.0",
+ "playwright": "1.62.1",
+ "chrome_path": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+ "chrome_version": "155.0.8059.79",
+ "chrome_sha256": "fbeec33e75ea8da7bdb6e48f987ed32f5089c49d86013046e87319f5df11c13f",
+ "ok": true,
+ "background": {
+  "at": "2026-10-14T11:26:34+0800",
+  "label": "preflight",
+  "loadavg": [
+   9.17919921875,
+   9.2255859375,
+   9.1630859375
+  ],
+  "ncpu": 28,
+  "data_free_gib": 24.02,
+  "agentstorage_free_gib": 197.88,
+  "chrome_total_pcpu": 466.7,
+  "chrome_processes": 75,
+  "top": [
+   {
+    "pid": 87900,
+    "ppid": 87893,
+    "pcpu": 150.1,
+    "rss_kb": 273920,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper.app/Contents/MacOS/Google Chrome Helper --type=gpu-process --g"
+   },
+   {
+    "pid": 6070,
+    "ppid": 6069,
+    "pcpu": 100.0,
+    "rss_kb": 200656,
+    "command": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome --remote-debugging-port=0 --no-first-run --no-default-browser-check --disable-background-networking --disable-backgrounding-occluded-window"
+   },
+   {
+    "pid": 88144,
+    "ppid": 87893,
+    "pcpu": 68.2,
+    "rss_kb": 454608,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer) "
+   },
+   {
+    "pid": 44493,
+    "ppid": 43819,
+    "pcpu": 63.7,
+    "rss_kb": 4782544,
+    "command": "/Users/silencehan/Library/Application Support/CLIProxyLocal/bin/cli-proxy-api -config /Users/silencehan/Library/Application Support/CLIProxyLocal/config.yaml"
+   },
+   {
+    "pid": 439,
+    "ppid": 1,
+    "pcpu": 62.0,
+    "rss_kb": 82288,
+    "command": "/System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer -daemon"
+   },
+   {
+    "pid": 88155,
+    "ppid": 87893,
+    "pcpu": 50.3,
+    "rss_kb": 311584,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer) "
+   },
+   {
+    "pid": 88153,
+    "ppid": 87893,
+    "pcpu": 43.6,
+    "rss_kb": 496672,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer) "
+   },
+   {
+    "pid": 88175,
+    "ppid": 87893,
+    "pcpu": 14.9,
+    "rss_kb": 274480,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer) "
+   },
+   {
+    "pid": 88159,
+    "ppid": 87893,
+    "pcpu": 14.5,
+    "rss_kb": 185248,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer) "
+   },
+   {
+    "pid": 60503,
+    "ppid": 87893,
+    "pcpu": 10.9,
+    "rss_kb": 255456,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer) "
+   },
+   {
+    "pid": 88129,
+    "ppid": 87893,
+    "pcpu": 9.5,
+    "rss_kb": 267936,
+    "command": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/154.0.8037.99/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer) "
+   },
+   {
+    "pid": 46781,
+    "ppid": 46681,
+    "pcpu": 7.9,
+    "rss_kb": 1103296,
+    "command": "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/../CodexCLI.app/Contents/MacOS/codex -c features.code_mode_host=true app-server --analytics-default-enabled -c plugins.codex-app-tools@openai"
+   }
+  ]
+ }
+}

@@ -1,0 +1,10 @@
+AggregateError: Browser validation or cleanup failed
+    at main (/Users/silencehan/.codex/worktrees/goal1323-tb1419/NewChanlun/s_session/tests/tb02e_browser.cjs:97:11) {
+  [errors]: [
+    page.waitForFunction: Timeout 10000ms exceeded.
+        at main (/Users/silencehan/.codex/worktrees/goal1323-tb1419/NewChanlun/s_session/tests/tb02e_browser.cjs:63:16) {
+      log: [],
+      name: 'TimeoutError'
+    }
+  ]
+}

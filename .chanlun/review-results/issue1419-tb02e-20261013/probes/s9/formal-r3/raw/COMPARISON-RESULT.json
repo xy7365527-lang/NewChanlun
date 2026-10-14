@@ -1,0 +1,40 @@
+{
+  "status": "PASS_EXCEPT_BROWSER_DEFERRED",
+  "comparisons": [
+    {
+      "case": "min12_up",
+      "status": "PASS",
+      "expected_records": 236,
+      "compared_records": 236,
+      "compared_bytes": 1864380377,
+      "method": "exact_bytes_and_strict_jsonl",
+      "excluded_fields": [],
+      "identity_renaming": [],
+      "sha256": [
+        "f851c79adcee7a962a202ada65b4a10cf9519263a85264a61a8180c69fad68e3",
+        "f851c79adcee7a962a202ada65b4a10cf9519263a85264a61a8180c69fad68e3"
+      ]
+    },
+    {
+      "case": "min12_down",
+      "status": "PASS",
+      "expected_records": 236,
+      "compared_records": 236,
+      "compared_bytes": 1870651041,
+      "method": "exact_bytes_and_strict_jsonl",
+      "excluded_fields": [],
+      "identity_renaming": [],
+      "sha256": [
+        "2f5f22f0cee0087ea9807b0e526852fc577dda531e93e5e6899c93aa36ab234b",
+        "2f5f22f0cee0087ea9807b0e526852fc577dda531e93e5e6899c93aa36ab234b"
+      ]
+    }
+  ],
+  "scope": "TB-02-E（D-E (B) 前缀：无 seed/中枢），非整图完成",
+  "services_reexecuted": false,
+  "source_plan": "/Volumes/AgentStorage/issue1419-s9-formal-r3-20261014.noindex/RUN-PLAN.json",
+  "browser": {
+    "status": "DEFERRED",
+    "deferred_to": "#1497"
+  }
+}

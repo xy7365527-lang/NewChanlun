@@ -1,0 +1,28 @@
+{
+ "run_dir": "/Volumes/AgentStorage/issue1419-s9-formal-r2-20261014.noindex",
+ "arms": {
+  "min12_up-a": {
+   "evidence/semantic-core.jsonl": {
+    "bytes": 1864380377,
+    "sha256": "f851c79adcee7a962a202ada65b4a10cf9519263a85264a61a8180c69fad68e3"
+   },
+   "evidence/database-backup.sqlite": {
+    "bytes": 145342464,
+    "sha256": "368e6d6307bb508e2a8900eb1c3b8452ff8a0e54839eb6d43074d5fbbf76a414"
+   },
+   "session.sqlite": {
+    "bytes": 145342464,
+    "sha256": "50b6f02840e44530ea8233a0f8e31653a5456b345f1cfabfdf1d06511dbac1a2"
+   },
+   "session.sqlite-wal": {
+    "bytes": 9991032,
+    "sha256": "b42a9091a4fa7c22c2f7daf69fa95f3fb5ab67012da74657d23ab58bb1dd05b9"
+   },
+   "evidence/http/": {
+    "files": 26240,
+    "bytes": 6940635821,
+    "manifest_sha256": "2394be21367ccb8c8ad7008f6e1e4b1dfeb979f5e170443a307c2f867f082178"
+   }
+  }
+ }
+}

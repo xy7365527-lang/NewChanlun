@@ -1,0 +1,43 @@
+{
+  "status": "passed",
+  "case": "min12_down",
+  "cuts": 43,
+  "oracle_cuts": {
+    "26": {
+      "completed": [],
+      "assignments": 1,
+      "cursor": "SEEKING_SEED"
+    },
+    "27": {
+      "completed": [
+        "segment:1:1"
+      ],
+      "assignments": 2,
+      "cursor": "SEEKING_SEED"
+    },
+    "38": {
+      "completed": [
+        "segment:1:1"
+      ],
+      "assignments": 2,
+      "cursor": "SEEKING_SEED"
+    },
+    "39": {
+      "completed": [
+        "segment:1:1",
+        "segment:1:13"
+      ],
+      "assignments": 3,
+      "cursor": "SEEKING_SEED"
+    },
+    "43": {
+      "completed": [
+        "segment:1:1",
+        "segment:1:13"
+      ],
+      "assignments": 3,
+      "cursor": "SEEKING_SEED"
+    }
+  },
+  "scope": "frozen named cuts of actual Q（根裁 D-E (B)：无 seed/中枢的前缀）; full natural prefix traces separately captured and compared"
+}
