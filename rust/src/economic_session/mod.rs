@@ -13,6 +13,8 @@ mod voice;
 pub use service::cli;
 
 #[cfg(test)]
+mod tb03c_book_tests;
+#[cfg(test)]
 mod voice_tests;
 
 mod financial_content;
