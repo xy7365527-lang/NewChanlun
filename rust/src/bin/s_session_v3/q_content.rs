@@ -581,7 +581,7 @@ mod tests {
     fn projection_continuation_after_source_commit_carries_independent_proof_and_old_anchor() {
         let mut f = Fixture::new();
         publish(&mut f, 1);
-        let resources = q_resources::tests::resources();
+        let resources = q_resources::tests::functional_resources();
         let anchor = projection(
             &mut capture_configured(&f.db_path(), &resources, &mut job()).unwrap(),
             1,
@@ -646,7 +646,7 @@ mod tests {
     fn delta_token_rechecks_target_root_session_and_atomic_limits() {
         let mut f = Fixture::new();
         publish(&mut f, 1);
-        let resources = q_resources::tests::resources();
+        let resources = q_resources::tests::functional_resources();
         let mut capture = capture_configured(&f.db_path(), &resources, &mut job()).unwrap();
         let anchor = delta(&mut capture, 1);
         let first = first(&anchor, json!([{"field":"session_id"}]), "bytes", 0, 2);
@@ -693,7 +693,7 @@ mod tests {
             "max_atomic_delta_node_bytes",
             "max_atomic_delta_records",
         ] {
-            let mut config = q_resources::tests::input();
+            let mut config = q_resources::tests::functional_input();
             config["limits"][key] = json!("1");
             let tiny = QResources::parse(&serde_json::to_vec(&config).unwrap()).unwrap();
             let mut restricted = capture_configured(&f.db_path(), &tiny, &mut job()).unwrap();
@@ -723,7 +723,7 @@ mod tests {
     fn retained_old_projection_remains_readable_while_expired_delta_and_corrupt_state_fail() {
         let mut f = Fixture::with_retain(1);
         publish(&mut f, 1);
-        let resources = q_resources::tests::resources();
+        let resources = q_resources::tests::functional_resources();
         let mut capture = capture_configured(&f.db_path(), &resources, &mut job()).unwrap();
         let old_projection = projection(&mut capture, 1);
         let old_delta = delta(&mut capture, 1);
@@ -752,7 +752,7 @@ mod tests {
     #[test]
     fn terminal_ranges_and_strict_requests_and_full_envelope_bytes_are_bounded() {
         let f = Fixture::new();
-        let resources = q_resources::tests::resources();
+        let resources = q_resources::tests::functional_resources();
         let mut capture = capture_configured(&f.db_path(), &resources, &mut job()).unwrap();
         let anchor = capture
             .projection(0, HistoryMode::RecomputedWithRevision, &mut job())
@@ -794,7 +794,7 @@ mod tests {
             ("max_reply_bytes", bytes.len()),
             ("max_frame_bytes", request_bytes.len()),
         ] {
-            let mut config = q_resources::tests::input();
+            let mut config = q_resources::tests::functional_input();
             config["limits"][name] = json!(n.to_string());
             let exact = QResources::parse(&serde_json::to_vec(&config).unwrap()).unwrap();
             assert_eq!(
@@ -840,7 +840,7 @@ mod owned_request_tests {
     use newchan_rust::s_content::{write_value, MemoryNodes, Value as ContentValue};
     #[test]
     fn content_owned_request_borrows_path_token_and_keeps_original_owner_to_drop0() {
-        let resources = super::super::q_resources::tests::resources();
+        let resources = super::super::q_resources::tests::functional_resources();
         let mut nodes = MemoryNodes::new();
         let root = write_value(&mut nodes, &ContentValue::Object(vec![]))
             .unwrap()

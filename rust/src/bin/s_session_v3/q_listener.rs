@@ -268,7 +268,7 @@ mod tests {
     };
 
     fn resources() -> QResources {
-        let mut input = super::super::q_resources::tests::input();
+        let mut input = super::super::q_resources::tests::functional_input();
         input["limits"]["max_pending_connections"] = json!("3");
         QResources::parse(serde_json::to_vec(&input).unwrap().as_slice()).unwrap()
     }

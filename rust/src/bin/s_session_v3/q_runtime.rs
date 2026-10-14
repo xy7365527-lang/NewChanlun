@@ -1092,7 +1092,7 @@ mod tests {
         time::Duration,
     };
     pub(super) fn resources() -> Arc<QResources> {
-        let mut v = q_resources::tests::input();
+        let mut v = q_resources::tests::functional_input();
         v["limits"]["max_query_workers"] = json!("1");
         Arc::new(QResources::parse(canonical_json(&v).as_bytes()).unwrap())
     }
@@ -1310,7 +1310,7 @@ mod tests {
         use std::sync::mpsc;
         let mut f = Fixture::new();
         publish(&mut f, 1);
-        let mut config = q_resources::tests::input();
+        let mut config = q_resources::tests::functional_input();
         config["limits"]["max_query_workers"] = json!("1");
         config["limits"]["max_query_queue"] = json!("1");
         let r = Arc::new(QResources::parse(canonical_json(&config).as_bytes()).unwrap());
@@ -1631,7 +1631,7 @@ sys.stdout.buffer.write(canonical(r))"#;
     #[test]
     fn capacity_rejection_sends_bounded_503_before_reading_socket() {
         use std::sync::mpsc;
-        let mut v = q_resources::tests::input();
+        let mut v = q_resources::tests::functional_input();
         v["limits"]["max_query_workers"] = json!("1");
         v["limits"]["max_query_queue"] = json!("1");
         let rt = Runtime::new(
@@ -1670,7 +1670,7 @@ sys.stdout.buffer.write(canonical(r))"#;
     fn http_header_and_body_preserve_original_separate_sendall_timeouts() {
         let mut f = Fixture::new();
         publish(&mut f, 1);
-        let mut v = q_resources::tests::input();
+        let mut v = q_resources::tests::functional_input();
         v["limits"]["max_query_workers"] = json!("1");
         v["limits"]["socket_write_timeout_ms"] = json!("100");
         let r = Arc::new(QResources::parse(canonical_json(&v).as_bytes()).unwrap());
@@ -1903,7 +1903,7 @@ sys.stdout.buffer.write(canonical(r))"#;
                 .unwrap()
             - 4;
         for limit in [body_len - 1, body_len] {
-            let mut values = q_resources::tests::input();
+            let mut values = q_resources::tests::functional_input();
             values["limits"]["max_reply_bytes"] = json!(limit.to_string());
             let limited = QResources::parse(canonical_json(&values).as_bytes()).unwrap();
             let mut out = Out {
@@ -2100,7 +2100,7 @@ sys.stdout.buffer.write(canonical(r))"#;
     fn actual_socket_read_timeout_sends_503_and_releases_worker() {
         let mut f = Fixture::new();
         publish(&mut f, 1);
-        let mut v = q_resources::tests::input();
+        let mut v = q_resources::tests::functional_input();
         v["limits"]["max_query_workers"] = json!("1");
         v["limits"]["socket_read_timeout_ms"] = json!("20");
         let r = Arc::new(QResources::parse(canonical_json(&v).as_bytes()).unwrap());

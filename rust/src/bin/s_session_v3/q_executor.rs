@@ -481,7 +481,7 @@ mod tests {
     };
 
     fn resources(workers: u64, queue: u64, pending: u64, read_ms: u64) -> Arc<QResources> {
-        let mut input = super::super::q_resources::tests::input();
+        let mut input = super::super::q_resources::tests::functional_input();
         input["limits"]["max_query_workers"] = json!(workers.to_string());
         input["limits"]["max_query_queue"] = json!(queue.to_string());
         input["limits"]["max_pending_connections"] = json!(pending.to_string());

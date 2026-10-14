@@ -624,7 +624,7 @@ mod tests {
     use std::io::Cursor;
 
     fn resources(max_frame: u64, read_ms: u64) -> QResources {
-        let mut v = super::super::q_resources::tests::input();
+        let mut v = super::super::q_resources::tests::functional_input();
         v["limits"]["max_frame_bytes"] = json!(max_frame.to_string());
         v["limits"]["socket_read_timeout_ms"] = json!(read_ms.to_string());
         QResources::parse(serde_json::to_vec(&v).unwrap().as_slice()).unwrap()

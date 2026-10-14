@@ -2080,7 +2080,7 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
     fn actual_owned_q_reader_budget_refusal_preserves_authoritative_cache_and_retries() {
         let mut f = Fixture::new();
         publish(&mut f, 1);
-        let r = q_resources::tests::resources();
+        let r = q_resources::tests::functional_resources();
         let budget = OwnedBudget::new(50 * 1024 * 1024);
         let mut reader =
             AuditReader::new_with_allocation(f.db_path(), &r, Some(allocation_profile(&budget)));
@@ -2163,7 +2163,7 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
     fn configured_capture_binds_projection_and_full_delta_to_immutable_actual_snapshot() {
         let mut f = Fixture::new();
         publish(&mut f, 1);
-        let resources = q_resources::tests::resources();
+        let resources = q_resources::tests::functional_resources();
         let mut job = job();
         let mut captured = capture_configured(&f.db_path(), &resources, &mut job).unwrap();
         let digest = captured.capture.digest().to_string();
@@ -2226,11 +2226,11 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
         let mut f = Fixture::new();
         publish(&mut f, 1);
         publish(&mut f, 2);
-        let resources = q_resources::tests::resources();
+        let resources = q_resources::tests::functional_resources();
         let mut captured = capture_configured(&f.db_path(), &resources, &mut job()).unwrap();
         let all = captured.delta_references(0, 2, &mut job()).unwrap();
         assert!(all.usage[1].nodes > all.usage[0].nodes);
-        let mut input = q_resources::tests::input();
+        let mut input = q_resources::tests::functional_input();
         input["limits"]["max_atomic_delta_nodes"] = json!(all.usage[0].nodes.to_string());
         let limited = q_resources::QResources::parse(&serde_json::to_vec(&input).unwrap()).unwrap();
         let mut captured = capture_configured(&f.db_path(), &limited, &mut job()).unwrap();
@@ -2517,7 +2517,7 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
     fn worker_cache_reuses_only_same_connection_current_image_and_keeps_full_content() {
         let mut f = Fixture::new();
         publish(&mut f, 1);
-        let r = q_resources::tests::resources();
+        let r = q_resources::tests::functional_resources();
         let mut reader = AuditReader::new(f.db_path(), &r);
         let mut j = job();
         let cold = inspect_cached(&mut reader, &r, &mut j).unwrap();
@@ -2550,7 +2550,7 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
     fn worker_cache_races_recapture_once_and_registration_never_relabels_old_image() {
         let mut f = Fixture::new();
         publish(&mut f, 1);
-        let r = q_resources::tests::resources();
+        let r = q_resources::tests::functional_resources();
         let mut reader = AuditReader::new(f.db_path(), &r);
         inspect_cached(&mut reader, &r, &mut job()).unwrap();
         let mut fired = false;
@@ -2595,7 +2595,7 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
     fn worker_cache_detects_corruption_file_replacement_and_isolation_changes() {
         let mut f = Fixture::new();
         publish(&mut f, 1);
-        let r = q_resources::tests::resources();
+        let r = q_resources::tests::functional_resources();
         let mut reader = AuditReader::new(f.db_path(), &r);
         inspect_cached(&mut reader, &r, &mut job()).unwrap();
         let title: String = f
@@ -2662,7 +2662,7 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
             .measure(retained - 1, until(20000).unwrap())
             .unwrap_err()
             .contains("RetainedBytes"));
-        let mut input = q_resources::tests::input();
+        let mut input = q_resources::tests::functional_input();
         input["limits"]["max_cache_bytes"] = json!("1");
         let r = q_resources::QResources::parse(&serde_json::to_vec(&input).unwrap()).unwrap();
         let mut reader = AuditReader::new(f.db_path(), &r);
@@ -2672,9 +2672,9 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
         assert_eq!(reader.stats().captures, 2);
         assert_eq!(reader.stats().cache_hits, 0);
         assert_eq!(reader.stats().cached_bytes, 0);
-        let mut input = q_resources::tests::input();
+        let mut input = q_resources::tests::functional_input();
         input["limits"]["max_query_workers"] = json!("1");
-        let baseline_resources = q_resources::tests::resources();
+        let baseline_resources = q_resources::tests::functional_resources();
         let mut metered = AuditReader::new(f.db_path(), &baseline_resources);
         inspect_cached(&mut metered, &baseline_resources, &mut job()).unwrap();
         input["limits"]["max_cache_bytes"] = json!(metered.stats().cached_bytes.to_string());
@@ -2688,7 +2688,7 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
     fn worker_pool_runs_actual_cached_projection_on_one_owned_reader() {
         let mut f = Fixture::new();
         publish(&mut f, 1);
-        let mut input = q_resources::tests::input();
+        let mut input = q_resources::tests::functional_input();
         input["limits"]["max_query_workers"] = json!("1");
         let r = std::sync::Arc::new(
             q_resources::QResources::parse(&serde_json::to_vec(&input).unwrap()).unwrap(),
@@ -2766,7 +2766,7 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
         publish(&mut f, 2);
         let (revision, token) = f.accept_begin(3, ("raw-1", 10, 7, 13, 4, 9), 2);
         f.publish(&revision, &token).unwrap();
-        let r = q_resources::tests::resources();
+        let r = q_resources::tests::functional_resources();
         let expected =
             public_history_records(&mut capture_verified(&f.db_path(), limits()).unwrap());
         assert!(expected > 0);
@@ -2841,7 +2841,7 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
     fn cold_audit_limits_stop_before_verified_capture_and_failed_retries_do_not_clear_ledger() {
         let mut f = Fixture::new();
         publish(&mut f, 1);
-        let r = q_resources::tests::resources();
+        let r = q_resources::tests::functional_resources();
         let mut caps = job().snapshot().limits;
         caps.max_total_nodes = 1;
         let mut limited = Job::new(
@@ -2875,7 +2875,7 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
     fn failed_query_can_keep_verified_cache_but_never_bypasses_next_job_budget() {
         let mut f = Fixture::new();
         publish(&mut f, 1);
-        let r = q_resources::tests::resources();
+        let r = q_resources::tests::functional_resources();
         for after_budget_failure in [false, true] {
             let mut reader = AuditReader::new(f.db_path(), &r);
             let mut first = job();

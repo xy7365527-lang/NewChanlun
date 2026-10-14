@@ -941,7 +941,7 @@ mod tests {
         let mut f = Fixture::new();
         publish(&mut f, 1);
         publish(&mut f, 2);
-        let r = q_resources::tests::resources();
+        let r = q_resources::tests::functional_resources();
         let c = cursor(&f, &r, 0);
         let normal_leases = ClientLeases::new(&r);
         let normal_request = request(&c, 2, "owner-watch", &r);
@@ -990,7 +990,7 @@ mod tests {
         let mut f = Fixture::new();
         publish(&mut f, 1);
         publish(&mut f, 2);
-        let r = q_resources::tests::resources();
+        let r = q_resources::tests::functional_resources();
         let c = cursor(&f, &r, 0);
         let mut leases = ClientLeases::new(&r);
         let mut j = job();
@@ -1045,7 +1045,7 @@ mod tests {
         let mut f = Fixture::with_retain(1);
         publish(&mut f, 1);
         publish(&mut f, 2);
-        let r = q_resources::tests::resources();
+        let r = q_resources::tests::functional_resources();
         let old = cursor(&f, &r, 0);
         let mut leases = ClientLeases::new(&r);
         let mut foreign = old.clone();
@@ -1083,7 +1083,7 @@ mod tests {
             assert_eq!(leases.delivered_generation("gap"), None);
         }
         let mut f = Fixture::new();
-        let mut config = q_resources::tests::input();
+        let mut config = q_resources::tests::functional_input();
         config["limits"]["max_client_pending_batches"] = json!("1");
         let r = QResources::parse(&serde_json::to_vec(&config).unwrap()).unwrap();
         let mut leases = ClientLeases::new(&r);
@@ -1116,13 +1116,13 @@ mod tests {
         let mut f = Fixture::new();
         publish(&mut f, 1);
         publish(&mut f, 2);
-        let r = q_resources::tests::resources();
+        let r = q_resources::tests::functional_resources();
         let c = cursor(&f, &r, 0);
         let one = prepare(&f, &r, &mut ClientLeases::new(&r), &c, 1, "r", &mut job()).unwrap();
         let cap = one.body().len();
         let two = prepare(&f, &r, &mut ClientLeases::new(&r), &c, 2, "r", &mut job()).unwrap();
         assert!(two.body().len() > cap);
-        let mut config = q_resources::tests::input();
+        let mut config = q_resources::tests::functional_input();
         config["limits"]["max_reply_bytes"] = json!(cap.to_string());
         let tight = QResources::parse(&serde_json::to_vec(&config).unwrap()).unwrap();
         let mut leases = ClientLeases::new(&tight);
@@ -1204,7 +1204,7 @@ mod tests {
     fn partial_write_flush_failure_and_expired_job_preserve_lease_and_actual_wire_ledger() {
         let mut f = Fixture::new();
         publish(&mut f, 1);
-        let r = q_resources::tests::resources();
+        let r = q_resources::tests::functional_resources();
         let c = cursor(&f, &r, 0);
         for case in 0..3 {
             let tick = Arc::new(AtomicU64::new(0));
@@ -1250,7 +1250,7 @@ mod tests {
     fn forged_cursor_and_outer_identity_are_rejected_before_offer() {
         let mut f = Fixture::new();
         publish(&mut f, 1);
-        let r = q_resources::tests::resources();
+        let r = q_resources::tests::functional_resources();
         let c = cursor(&f, &r, 0);
         let mut leases = ClientLeases::new(&r);
         for (key, value) in [
@@ -1280,7 +1280,7 @@ mod tests {
     #[test]
     fn lease_trace_matches_original_python_for_backlog_rebuild_late_delivery_and_expiry() {
         use std::{path::Path, process::Command};
-        let mut config = q_resources::tests::input();
+        let mut config = q_resources::tests::functional_input();
         config["limits"]["max_client_leases"] = json!("2");
         config["limits"]["client_lease_ms"] = json!("10");
         config["limits"]["max_client_pending_batches"] = json!("2");

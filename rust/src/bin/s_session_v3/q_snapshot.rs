@@ -543,7 +543,7 @@ mod tests {
         let mut f = Fixture::new();
         publish(&mut f, 1);
         publish(&mut f, 2);
-        let r = q_resources::tests::resources();
+        let r = q_resources::tests::functional_resources();
         let mut normal = capture_verified(&f.db_path(), r.capture_limits()).unwrap();
         let p = normal
             .projection(
@@ -622,7 +622,7 @@ mod tests {
     fn real_pages_rebuild_old_cut_after_commit_and_restart_preserving_issued_digest() {
         let mut f = Fixture::new();
         publish(&mut f, 1);
-        let resources = q_resources::tests::resources();
+        let resources = q_resources::tests::functional_resources();
         let expected = fixture_projection(&f, &resources, 1);
         let wanted = plain_wire(&expected)["rows"].as_array().unwrap();
         assert!(wanted.len() > 1);
@@ -700,7 +700,7 @@ mod tests {
     #[test]
     fn zero_cut_and_original_mode_generation_combinations_are_preserved() {
         let mut f = Fixture::new();
-        let resources = q_resources::tests::resources();
+        let resources = q_resources::tests::functional_resources();
         let zero = fixture_projection(&f, &resources, 0);
         let bytes = capture_configured(&f.db_path(), &resources, &mut job())
             .unwrap()
@@ -737,7 +737,7 @@ mod tests {
     fn checksummed_forged_identity_and_root_do_not_replace_actual_cut_validation() {
         let mut f = Fixture::new();
         publish(&mut f, 1);
-        let resources = q_resources::tests::resources();
+        let resources = q_resources::tests::functional_resources();
         let expected = fixture_projection(&f, &resources, 1);
         let mut capture = capture_configured(&f.db_path(), &resources, &mut job()).unwrap();
         let bytes = capture
@@ -833,7 +833,7 @@ mod tests {
     fn full_envelope_exact_byte_limits_and_original_python_reply_recipe_match() {
         let mut f = Fixture::new();
         publish(&mut f, 1);
-        let resources = q_resources::tests::resources();
+        let resources = q_resources::tests::functional_resources();
         let expected = fixture_projection(&f, &resources, 1);
         let incoming = first(&expected, 1, "AsKnown", Value::Null);
         let request_bytes = canonical_json(&incoming).into_bytes();
@@ -871,7 +871,7 @@ sys.stdout.buffer.write(canonical(r))"#;
             ("max_frame_bytes", request_bytes.len()),
             ("max_reply_bytes", bytes.len()),
         ] {
-            let mut config = q_resources::tests::input();
+            let mut config = q_resources::tests::functional_input();
             config["limits"][name] = json!(n.to_string());
             let exact = QResources::parse(&serde_json::to_vec(&config).unwrap()).unwrap();
             let parsed = Request::parse(&request_bytes, &exact).unwrap();

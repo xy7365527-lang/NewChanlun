@@ -153,6 +153,48 @@ pub(super) mod tests {
     pub(in crate::v3) fn resources() -> QResources {
         QResources::parse(&serde_json::to_vec(&input()).unwrap()).unwrap()
     }
+    /// TestOnly，不是产品期限（#1394 B1 根裁定）：只给不测期限的功能测试用的捕获/核验期限。
+    /// 冻结的 TB-01-C 夹具在 debug 构建、并发测试线程下完整核验会超过 2 s/5 s，功能测试因此随
+    /// runner 速度红；这里把这两个绝对期限放长，让功能测试不依赖墙钟。产品期限、冻结夹具
+    /// `query-resources.json` 与上面的 `input()`/`resources()` 一字不动；核冻结值的用例与测期限
+    /// 本身的用例（`capture.rs` 受控时钟两条）继续用冻结资源。
+    pub(in crate::v3) const FUNCTIONAL_TEST_ONLY_DEADLINE_MS: u64 = 600_000;
+    /// TestOnly：冻结资源原样，只把 `capture_deadline_ms`、`verify_deadline_ms` 换成
+    /// [`FUNCTIONAL_TEST_ONLY_DEADLINE_MS`]。不是部署档，也不是产品期限。
+    pub(in crate::v3) fn functional_input() -> Value {
+        let mut value = input();
+        for key in ["capture_deadline_ms", "verify_deadline_ms"] {
+            value["limits"][key] = json!(FUNCTIONAL_TEST_ONLY_DEADLINE_MS.to_string());
+        }
+        value
+    }
+    /// TestOnly：[`functional_input`] 的解析结果，供不测期限的功能测试使用。
+    pub(in crate::v3) fn functional_resources() -> QResources {
+        QResources::parse(&serde_json::to_vec(&functional_input()).unwrap()).unwrap()
+    }
+    #[test]
+    fn functional_test_only_resources_differ_from_frozen_only_in_two_deadlines() {
+        let frozen = input();
+        let functional = functional_input();
+        for key in KEYS {
+            if matches!(key, "capture_deadline_ms" | "verify_deadline_ms") {
+                assert_eq!(functional["limits"][key], json!("600000"), "{key}");
+                assert_ne!(functional["limits"][key], frozen["limits"][key], "{key}");
+            } else {
+                assert_eq!(functional["limits"][key], frozen["limits"][key], "{key}");
+            }
+        }
+        assert_eq!(functional["schema_revision"], frozen["schema_revision"]);
+        assert_ne!(functional_resources().digest(), resources().digest());
+        #[cfg(unix)]
+        {
+            let frozen = resources().capture_limits();
+            assert_eq!(
+                (frozen.capture_deadline_ms, frozen.verify_deadline_ms),
+                (2000, 5000)
+            );
+        }
+    }
     #[test]
     fn old_eighteen_values_survive_only_in_explicit_v3_schema() {
         let resource = resources();

@@ -303,7 +303,7 @@ mod tests {
     use prepared::tests::Fixture;
     const REPLY: u64 = 262144;
     fn resources() -> q_resources::QResources {
-        let mut config = q_resources::tests::input();
+        let mut config = q_resources::tests::functional_input();
         config["limits"]["max_reply_bytes"] = json!(REPLY.to_string());
         q_resources::QResources::parse(&serde_json::to_vec(&config).unwrap()).unwrap()
     }

@@ -379,14 +379,14 @@ mod tests {
         (nodes, delta, expected)
     }
     fn resources_with(key: &str, n: u64) -> QResources {
-        let mut input = super::super::q_resources::tests::input();
+        let mut input = super::super::q_resources::tests::functional_input();
         input["limits"][key] = json!(n.to_string());
         QResources::parse(&serde_json::to_vec(&input).unwrap()).unwrap()
     }
     #[test]
     fn full_closure_includes_header_and_shared_nodes_once_with_independent_delta_caps() {
         let (mut nodes, delta, expected) = fixture();
-        let config = super::super::q_resources::tests::resources();
+        let config = super::super::q_resources::tests::functional_resources();
         let mut job = job();
         assert_eq!(
             measure(&mut nodes, &delta, &config, &mut job).unwrap(),
@@ -420,7 +420,7 @@ mod tests {
     #[test]
     fn missing_header_descendant_and_record_preflight_are_rejected() {
         let (mut nodes, delta, _) = fixture();
-        let config = super::super::q_resources::tests::resources();
+        let config = super::super::q_resources::tests::functional_resources();
         let missing = nodes
             .iter()
             .find(|(_, t, b)| *t == sc::tag::BYTES_CHUNK && *b == b"D-header-generation")
@@ -445,7 +445,7 @@ mod tests {
         )
         .unwrap_err()
         .contains("node_missing"));
-        let mut value = super::super::q_resources::tests::input();
+        let mut value = super::super::q_resources::tests::functional_input();
         value["limits"]["max_atomic_delta_records"] = Value::String("1".into());
         let limited = QResources::parse(&serde_json::to_vec(&value).unwrap()).unwrap();
         // 记录预检先于缺失正文的完整闭包读取；坏图仍绝不返回引用。
@@ -487,7 +487,7 @@ mod tests {
         let mut owner = capture
             .closed_codec_for_allocation_prototype(0, 0, None)
             .unwrap();
-        let mut configs = vec![super::super::q_resources::tests::resources()];
+        let mut configs = vec![super::super::q_resources::tests::functional_resources()];
         for (key, exact) in [
             ("max_atomic_delta_node_bytes", expected.node_bytes),
             ("max_atomic_delta_nodes", expected.nodes),

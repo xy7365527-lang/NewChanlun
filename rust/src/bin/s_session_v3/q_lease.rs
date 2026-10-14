@@ -196,7 +196,7 @@ mod tests {
     use std::time::Duration;
 
     fn with_limits(leases: u64, lease_ms: u64, pending: u64) -> QResources {
-        let mut input = super::super::q_resources::tests::input();
+        let mut input = super::super::q_resources::tests::functional_input();
         input["limits"]["max_client_leases"] = json!(leases.to_string());
         input["limits"]["client_lease_ms"] = json!(lease_ms.to_string());
         input["limits"]["max_client_pending_batches"] = json!(pending.to_string());
