@@ -156,9 +156,323 @@ fn comparisons(
     Ok(())
 }
 
-pub(super) fn audit(
+/// 单步骤当前原件核；完整前缀与请求全体性由调用方另核。
+fn step_record<'a>(
     s: &mut (impl SourceFieldStore + ?Sized),
-    objects: &[Object],
+    object: &'a Object,
+    raw: &BusinessMap<i64, Source>,
+) -> Result<(i64, Step<'a>), String> {
+    let p = payload(s, object)?;
+    exact(&p, Kind::Object, STEP.len() as u64)?;
+    let fields = SourceFields::read_subset(s, p.view(), &STEP)?;
+    let incoming = fields.get_admitted(s, "incoming")?;
+    exact(&incoming, Kind::Object, 5)?;
+    let coord = decimal(&text(s, &incoming, "source_coord")?)?;
+    let key = object.fields.text(s, "fact_key")?;
+    let parsed = parsed_json(s, key.as_bytes())?;
+    let key_coord = parsed
+        .view()
+        .index(1)
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| err("CC004槽位不是源坐标文本"))?;
+    let incoming_digest = digest(&incoming)?;
+    if decimal(key_coord)? != coord
+        || raw
+            .get(&coord)
+            .is_none_or(|source| source.bar != incoming_digest)
+    {
+        return Err(err("CC004 incoming/槽位/OHLC不是同cut原始来源"));
+    }
+    let reasons = fields.get_admitted(s, "waiting_reasons")?;
+    let reason_items = elements(s, &reasons)?;
+    let mut insufficient = false;
+    for item in &reason_items {
+        let reason = text_value(s, item, "waiting reason")?;
+        insufficient |= matches!(
+            reason.as_str(),
+            "fewer_than_three_merged_bars" | "no_subsequent_bar" | "direction_not_yet_established"
+        );
+    }
+    let incomplete = !reason_items.is_empty()
+        || fields.get_admitted(s, "direction_evidence")?.kind() == Kind::Null;
+    insufficient |= reason_items.is_empty()
+        && fields.get_admitted(s, "direction_evidence")?.kind() == Kind::Null;
+    drop(parsed);
+    Ok((
+        coord,
+        Step {
+            object,
+            fields,
+            key,
+            reasons,
+            insufficient,
+            incomplete,
+        },
+    ))
+}
+
+fn knowledge_record<'a>(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    object: &'a Object,
+    knowledge: &mut Option<(RefValue, &'a Object)>,
+) -> Result<(), String> {
+    let p = payload(s, object)?;
+    let key = object.fields.text(s, "fact_key")?;
+    let parsed = parsed_json(s, key.as_bytes())?;
+    if parsed.view().index(1).and_then(|v| v.as_str()) != Some("TB-02-A")
+        || text(s, &p, "scope")? != "TB-02-A"
+        || knowledge.replace((p, object)).is_some()
+    {
+        return Err(err("同cut CC054知识域重复或不符"));
+    }
+    Ok(())
+}
+
+fn step_sequence_record(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    step: &Step<'_>,
+    coord: &i64,
+    ordinal: usize,
+    prefix: &[i64],
+    seed: &mut Option<RefValue>,
+    unsettled: &mut bool,
+    pending: &mut sc::CodecVec<i64>,
+) -> Result<(), String> {
+    if &*step.object.sources != prefix {
+        return Err(err("CC004来源不是截至incoming的同cut完整前缀"));
+    }
+    let fields = &step.fields;
+    let action = fields.text(s, "action")?;
+    if ordinal == 0 {
+        if action != "seed"
+            || fields.get_admitted(s, "acc_after")? != fields.get_admitted(s, "incoming")?
+        {
+            return Err(err("首CC004不是原件seed"));
+        }
+        nulls(
+            s,
+            fields,
+            &["acc_before", "contains", "direction", "direction_evidence"],
+        )?;
+        for key in ["comparisons", "endpoint_order", "waiting_reasons"] {
+            let value = fields.get_admitted(s, key)?;
+            strings(s, &value, &[])?;
+        }
+        for key in ["high_sources", "low_sources"] {
+            let value = fields.get_admitted(s, key)?;
+            singleton(s, &value, *coord)?;
+        }
+        *seed = Some(fields.get_admitted(s, "incoming")?);
+    } else if action == "waiting" {
+        if !*unsettled && ordinal != 1 {
+            return Err(err("初始未定不是从首包含对开始"));
+        }
+        let seed = seed.as_ref().ok_or_else(|| err("waiting缺seed原件"))?;
+        if fields.get_admitted(s, "acc_before")? != *seed {
+            return Err(err("waiting acc_before不是本cut seed原件"));
+        }
+        nulls(s, fields, &["acc_after", "direction", "direction_evidence"])?;
+        let contains = fields.scalar(s, "contains")?;
+        if (!*unsettled && contains.view().as_bool() != Some(true))
+            || (*unsettled && !contains.view().is_null())
+        {
+            return Err(err("waiting首包含/后续未判定记录不同"));
+        }
+        strings(s, &step.reasons, &[INITIAL])?;
+        for key in ["high_sources", "low_sources"] {
+            let value = fields.get_admitted(s, key)?;
+            strings(s, &value, &[])?;
+        }
+        comparisons(s, fields, seed, !*unsettled)?;
+        s.native_codec_room(pending, 1).map_err(err)?;
+        pending.try_push(*coord).map_err(err)?;
+        *unsettled = true;
+    } else {
+        if *unsettled
+            || !matches!(
+                action.as_str(),
+                "merge" | "new_group" | "establish_direction"
+            )
+        {
+            return Err(err("CC004未定后缀中断或步骤action不符"));
+        }
+        for reason in elements(s, &step.reasons)? {
+            if text_value(s, &reason, "waiting reason")? == INITIAL {
+                return Err(err("非waiting步骤携带初始未定原因"));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn unsettled_seed_group(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    coord: i64,
+    groups: &BusinessMap<i64, Group>,
+    seed: &Option<RefValue>,
+) -> Result<(), String> {
+    let group = groups.get(&0).ok_or_else(|| err("初始未定缺seed组"))?;
+    if groups.len() != 1
+        || &*group.members != [coord]
+        || &*group.sources != [coord]
+        || group.anchor != coord
+    {
+        return Err(err("初始未定组不是唯一seed原件"));
+    }
+    let seed = seed.as_ref().expect("unsettled checked seed");
+    for key in ["open", "high", "low", "close"] {
+        if field(s, &group.payload, key)? != field(s, seed, key)? {
+            return Err(err("初始未定seed组OHLC不同"));
+        }
+    }
+    let group_fields = SourceFields::read_subset(
+        s,
+        group.payload.view(),
+        &[
+            "confirmed",
+            "direction",
+            "direction_evidence",
+            "confirmation_evidence",
+            "high_sources",
+            "low_sources",
+            "waiting_reasons",
+        ],
+    )?;
+    nulls(
+        s,
+        &group_fields,
+        &["direction", "direction_evidence", "confirmation_evidence"],
+    )?;
+    if group_fields.scalar(s, "confirmed")?.view().as_bool() != Some(false) {
+        return Err(err("初始未定seed组被声明为已确认"));
+    }
+    for key in ["high_sources", "low_sources"] {
+        let value = group_fields.get_admitted(s, key)?;
+        singleton(s, &value, coord)?;
+    }
+    let waiting_reasons = group_fields.get_admitted(s, "waiting_reasons")?;
+    strings(s, &waiting_reasons, &["direction_not_yet_established"])?;
+    Ok(())
+}
+
+fn request_record(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    request: &RefValue,
+    steps: &BusinessMap<i64, Step<'_>>,
+    step_subjects: &BusinessMap<&str, i64>,
+    requests: &mut BusinessMap<bj::TextValue, ()>,
+    bound: &mut BusinessMap<i64, ()>,
+) -> Result<(), String> {
+    exact(request, Kind::Object, 5)?;
+    let fields = SourceFields::read_subset(
+        s,
+        request.view(),
+        &[
+            "request_id",
+            "subject_id",
+            "axes",
+            "reasons",
+            "source_coords",
+        ],
+    )?;
+    let key = fields.text(s, "request_id")?;
+    let parsed = parsed_json(s, key.as_bytes())?;
+    let view = parsed.view();
+    if !canonical_matches(s, view, key.as_bytes())? || view.as_array().is_none_or(|a| a.len() != 2)
+    {
+        return Err(err("知识请求键不是规范二元槽位"));
+    }
+    s.native_map_room(requests).map_err(err)?;
+    if requests
+        .insert(s.native_text(key.as_str())?, ())
+        .map_err(err)?
+        .is_some()
+    {
+        return Err(err("同cut知识请求重复"));
+    }
+    if view.index(0).and_then(|v| v.as_str()) != Some(CC004_STEP_KIND) {
+        // 非步骤请求可共存，但不能换一个 key 重复声明同一等待主体。
+        let subject = fields.scalar(s, "subject_id")?;
+        if subject
+            .view()
+            .as_str()
+            .is_some_and(|id| step_subjects.contains_key(id))
+        {
+            return Err(err("CC004知识主体被绑定到其它请求槽位"));
+        }
+        return Ok(());
+    }
+    let coord = decimal(
+        view.index(1)
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| err("步骤请求槽位非坐标"))?,
+    )?;
+    let step = steps.get(&coord).ok_or_else(|| err("多余CC004知识请求"))?;
+    if key != step.key
+        || fields.text(s, "subject_id")? != step.object.id
+        || {
+            let sources = fields.get_admitted(s, "source_coords")?;
+            &*coords(s, &sources)? != &*step.object.sources
+        }
+        || {
+            s.native_map_room(bound).map_err(err)?;
+            bound.insert(coord, ()).map_err(err)?.is_some()
+        }
+    {
+        return Err(err("CC004知识请求key/subject/来源不一致"));
+    }
+    let reasons = fields.get_admitted(s, "reasons")?;
+    if step.reasons.extent() == Some(0)
+        && step.fields.get_admitted(s, "direction_evidence")?.kind() == Kind::Null
+    {
+        strings(s, &reasons, &["direction_not_yet_established"])?;
+    } else if reasons != step.reasons {
+        return Err(err("CC004知识请求未绑定完整reasons"));
+    }
+    let axes = fields.get_admitted(s, "axes")?;
+    exact(&axes, Kind::Object, 4)?;
+    let axes = SourceFields::read_subset(
+        s,
+        axes.view(),
+        &["input_quality", "applicability", "computation", "validity"],
+    )?;
+    for (name, want) in [
+        (
+            "input_quality",
+            if step.insufficient {
+                "INSUFFICIENT"
+            } else {
+                "SUFFICIENT"
+            },
+        ),
+        (
+            "applicability",
+            if step.incomplete {
+                "DOMAIN_PROOF_MISSING"
+            } else {
+                "IN_DOMAIN"
+            },
+        ),
+        (
+            "computation",
+            if step.incomplete {
+                "INCOMPLETE"
+            } else {
+                "COMPLETE"
+            },
+        ),
+        ("validity", "CURRENT"),
+    ] {
+        if axes.text(s, name)? != want {
+            return Err(err("CC004知识请求四轴不同"));
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn audit<'a>(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    objects: impl IntoIterator<Item = &'a Object>,
     raw: &BusinessMap<i64, Source>,
     groups: &BusinessMap<i64, Group>,
     deadline: Option<Instant>,
@@ -170,74 +484,15 @@ pub(super) fn audit(
     for object in objects {
         super::super::history::check_deadline(deadline)?;
         if object.kind == CC054_KNOWLEDGE_KIND {
-            let p = payload(s, object)?;
-            let key = object.fields.text(s, "fact_key")?;
-            let parsed = parsed_json(s, key.as_bytes())?;
-            if parsed.view().index(1).and_then(|v| v.as_str()) != Some("TB-02-A")
-                || text(s, &p, "scope")? != "TB-02-A"
-                || knowledge.replace((p, object)).is_some()
-            {
-                return Err(err("同cut CC054知识域重复或不符"));
-            }
+            knowledge_record(s, object, &mut knowledge)?;
         } else if object.kind == CC004_STEP_KIND {
-            let p = payload(s, object)?;
-            exact(&p, Kind::Object, STEP.len() as u64)?;
-            let fields = SourceFields::read_subset(s, p.view(), &STEP)?;
-            let incoming = fields.get_admitted(s, "incoming")?;
-            exact(&incoming, Kind::Object, 5)?;
-            let coord = decimal(&text(s, &incoming, "source_coord")?)?;
-            let key = object.fields.text(s, "fact_key")?;
-            let parsed = parsed_json(s, key.as_bytes())?;
-            let key_coord = parsed
-                .view()
-                .index(1)
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| err("CC004槽位不是源坐标文本"))?;
-            let incoming_digest = digest(&incoming)?;
-            if decimal(key_coord)? != coord
-                || raw
-                    .get(&coord)
-                    .is_none_or(|source| source.bar != incoming_digest)
-            {
-                return Err(err("CC004 incoming/槽位/OHLC不是同cut原始来源"));
-            }
-            let reasons = fields.get_admitted(s, "waiting_reasons")?;
-            let reason_items = elements(s, &reasons)?;
-            let mut insufficient = false;
-            for item in &reason_items {
-                let reason = text_value(s, item, "waiting reason")?;
-                insufficient |= matches!(
-                    reason.as_str(),
-                    "fewer_than_three_merged_bars"
-                        | "no_subsequent_bar"
-                        | "direction_not_yet_established"
-                );
-            }
-            let incomplete = !reason_items.is_empty()
-                || fields.get_admitted(s, "direction_evidence")?.kind() == Kind::Null;
-            insufficient |= reason_items.is_empty()
-                && fields.get_admitted(s, "direction_evidence")?.kind() == Kind::Null;
-            drop(parsed);
+            let (coord, step) = step_record(s, object, raw)?;
             s.native_map_room(&mut step_subjects).map_err(err)?;
             step_subjects
                 .insert(object.id.as_str(), coord)
                 .map_err(err)?;
             s.native_map_room(&mut steps).map_err(err)?;
-            if steps
-                .insert(
-                    coord,
-                    Step {
-                        object,
-                        fields,
-                        key,
-                        reasons,
-                        insufficient,
-                        incomplete,
-                    },
-                )
-                .map_err(err)?
-                .is_some()
-            {
+            if steps.insert(coord, step).map_err(err)?.is_some() {
                 return Err(err("同cut CC004步骤坐标重复"));
             }
         }
@@ -255,114 +510,19 @@ pub(super) fn audit(
         s.native_codec_room(&mut prefix, 1).map_err(err)?;
         prefix.try_push(*coord).map_err(err)?;
         let step = steps.get(coord).ok_or_else(|| err("raw缺当前CC004步骤"))?;
-        if &*step.object.sources != &*prefix {
-            return Err(err("CC004来源不是截至incoming的同cut完整前缀"));
-        }
-        let fields = &step.fields;
-        let action = fields.text(s, "action")?;
-        if ordinal == 0 {
-            if action != "seed"
-                || fields.get_admitted(s, "acc_after")? != fields.get_admitted(s, "incoming")?
-            {
-                return Err(err("首CC004不是原件seed"));
-            }
-            nulls(
-                s,
-                fields,
-                &["acc_before", "contains", "direction", "direction_evidence"],
-            )?;
-            for key in ["comparisons", "endpoint_order", "waiting_reasons"] {
-                let value = fields.get_admitted(s, key)?;
-                strings(s, &value, &[])?;
-            }
-            for key in ["high_sources", "low_sources"] {
-                let value = fields.get_admitted(s, key)?;
-                singleton(s, &value, *coord)?;
-            }
-            seed = Some(fields.get_admitted(s, "incoming")?);
-        } else if action == "waiting" {
-            if !unsettled && ordinal != 1 {
-                return Err(err("初始未定不是从首包含对开始"));
-            }
-            let seed = seed.as_ref().ok_or_else(|| err("waiting缺seed原件"))?;
-            if fields.get_admitted(s, "acc_before")? != *seed {
-                return Err(err("waiting acc_before不是本cut seed原件"));
-            }
-            nulls(s, fields, &["acc_after", "direction", "direction_evidence"])?;
-            let contains = fields.scalar(s, "contains")?;
-            if (!unsettled && contains.view().as_bool() != Some(true))
-                || (unsettled && !contains.view().is_null())
-            {
-                return Err(err("waiting首包含/后续未判定记录不同"));
-            }
-            strings(s, &step.reasons, &[INITIAL])?;
-            for key in ["high_sources", "low_sources"] {
-                let value = fields.get_admitted(s, key)?;
-                strings(s, &value, &[])?;
-            }
-            comparisons(s, fields, seed, !unsettled)?;
-            s.native_codec_room(&mut pending, 1).map_err(err)?;
-            pending.try_push(*coord).map_err(err)?;
-            unsettled = true;
-        } else {
-            if unsettled
-                || !matches!(
-                    action.as_str(),
-                    "merge" | "new_group" | "establish_direction"
-                )
-            {
-                return Err(err("CC004未定后缀中断或步骤action不符"));
-            }
-            for reason in elements(s, &step.reasons)? {
-                if text_value(s, &reason, "waiting reason")? == INITIAL {
-                    return Err(err("非waiting步骤携带初始未定原因"));
-                }
-            }
-        }
+        step_sequence_record(
+            s,
+            step,
+            coord,
+            ordinal,
+            &prefix,
+            &mut seed,
+            &mut unsettled,
+            &mut pending,
+        )?;
     }
     if unsettled {
-        let (coord, _) = ordered[0];
-        let group = groups.get(&0).ok_or_else(|| err("初始未定缺seed组"))?;
-        if groups.len() != 1
-            || &*group.members != [coord]
-            || &*group.sources != [coord]
-            || group.anchor != coord
-        {
-            return Err(err("初始未定组不是唯一seed原件"));
-        }
-        let seed = seed.as_ref().expect("unsettled checked seed");
-        for key in ["open", "high", "low", "close"] {
-            if field(s, &group.payload, key)? != field(s, seed, key)? {
-                return Err(err("初始未定seed组OHLC不同"));
-            }
-        }
-        let group_fields = SourceFields::read_subset(
-            s,
-            group.payload.view(),
-            &[
-                "confirmed",
-                "direction",
-                "direction_evidence",
-                "confirmation_evidence",
-                "high_sources",
-                "low_sources",
-                "waiting_reasons",
-            ],
-        )?;
-        nulls(
-            s,
-            &group_fields,
-            &["direction", "direction_evidence", "confirmation_evidence"],
-        )?;
-        if group_fields.scalar(s, "confirmed")?.view().as_bool() != Some(false) {
-            return Err(err("初始未定seed组被声明为已确认"));
-        }
-        for key in ["high_sources", "low_sources"] {
-            let value = group_fields.get_admitted(s, key)?;
-            singleton(s, &value, coord)?;
-        }
-        let waiting_reasons = group_fields.get_admitted(s, "waiting_reasons")?;
-        strings(s, &waiting_reasons, &["direction_not_yet_established"])?;
+        unsettled_seed_group(s, ordered[0].0, groups, &seed)?;
     }
     // 全部请求只读一遍，以具名step键绑定；其它形态/组请求合法共存。
     let (knowledge, knowledge_object) = knowledge.ok_or_else(|| err("同cut缺CC054知识原件"))?;
@@ -374,111 +534,14 @@ pub(super) fn audit(
     let request_array = field(s, &knowledge, "requests")?;
     for request in elements(s, &request_array)? {
         super::super::history::check_deadline(deadline)?;
-        exact(&request, Kind::Object, 5)?;
-        let fields = SourceFields::read_subset(
+        request_record(
             s,
-            request.view(),
-            &[
-                "request_id",
-                "subject_id",
-                "axes",
-                "reasons",
-                "source_coords",
-            ],
+            &request,
+            &steps,
+            &step_subjects,
+            &mut requests,
+            &mut bound,
         )?;
-        let key = fields.text(s, "request_id")?;
-        let parsed = parsed_json(s, key.as_bytes())?;
-        let view = parsed.view();
-        if !canonical_matches(s, view, key.as_bytes())?
-            || view.as_array().is_none_or(|a| a.len() != 2)
-        {
-            return Err(err("知识请求键不是规范二元槽位"));
-        }
-        s.native_map_room(&mut requests).map_err(err)?;
-        if requests
-            .insert(s.native_text(key.as_str())?, ())
-            .map_err(err)?
-            .is_some()
-        {
-            return Err(err("同cut知识请求重复"));
-        }
-        if view.index(0).and_then(|v| v.as_str()) != Some(CC004_STEP_KIND) {
-            // 非步骤请求可共存，但不能换一个 key 重复声明同一等待主体。
-            let subject = fields.scalar(s, "subject_id")?;
-            if subject
-                .view()
-                .as_str()
-                .is_some_and(|id| step_subjects.contains_key(id))
-            {
-                return Err(err("CC004知识主体被绑定到其它请求槽位"));
-            }
-            continue;
-        }
-        let coord = decimal(
-            view.index(1)
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| err("步骤请求槽位非坐标"))?,
-        )?;
-        let step = steps.get(&coord).ok_or_else(|| err("多余CC004知识请求"))?;
-        if key != step.key
-            || fields.text(s, "subject_id")? != step.object.id
-            || {
-                let sources = fields.get_admitted(s, "source_coords")?;
-                &*coords(s, &sources)? != &*step.object.sources
-            }
-            || {
-                s.native_map_room(&mut bound).map_err(err)?;
-                bound.insert(coord, ()).map_err(err)?.is_some()
-            }
-        {
-            return Err(err("CC004知识请求key/subject/来源不一致"));
-        }
-        let reasons = fields.get_admitted(s, "reasons")?;
-        if step.reasons.extent() == Some(0)
-            && step.fields.get_admitted(s, "direction_evidence")?.kind() == Kind::Null
-        {
-            strings(s, &reasons, &["direction_not_yet_established"])?;
-        } else if reasons != step.reasons {
-            return Err(err("CC004知识请求未绑定完整reasons"));
-        }
-        let axes = fields.get_admitted(s, "axes")?;
-        exact(&axes, Kind::Object, 4)?;
-        let axes = SourceFields::read_subset(
-            s,
-            axes.view(),
-            &["input_quality", "applicability", "computation", "validity"],
-        )?;
-        for (name, want) in [
-            (
-                "input_quality",
-                if step.insufficient {
-                    "INSUFFICIENT"
-                } else {
-                    "SUFFICIENT"
-                },
-            ),
-            (
-                "applicability",
-                if step.incomplete {
-                    "DOMAIN_PROOF_MISSING"
-                } else {
-                    "IN_DOMAIN"
-                },
-            ),
-            (
-                "computation",
-                if step.incomplete {
-                    "INCOMPLETE"
-                } else {
-                    "COMPLETE"
-                },
-            ),
-            ("validity", "CURRENT"),
-        ] {
-            if axes.text(s, name)? != want {
-                return Err(err("CC004知识请求四轴不同"));
-            }
-        }
     }
     if bound.len() != steps.len() {
         return Err(err("CC004缺一一绑定的知识请求"));

@@ -18,6 +18,12 @@ use newchan_rust::s_content::{
     Built, ContentRef, Kind, NodeDigest, NodeSink, NodeSource, NodeStore, Value as V,
 };
 use serde_json::{json, Value};
+#[cfg(test)]
+#[path = "source_audit_oracle.rs"]
+mod frozen_oracle;
+#[cfg(test)]
+#[path = "source_delta.rs"]
+mod source_delta;
 #[path = "source_pending.rs"]
 mod source_pending;
 #[path = "source_prefix.rs"]
@@ -1452,6 +1458,463 @@ pub(super) fn audit_generated_for_audit<'a>(
         None,
     )
 }
+
+/// 单对象同判据核：身份唯一性仍在载荷读取之前；调用方提供当前 cut 的全局索引。
+fn audit_object_record(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    record: &RefValue,
+    raw: &BusinessMap<i64, Source>,
+    producer: &Cc004Producer,
+    ids: &mut BusinessMap<bj::TextValue, ()>,
+    groups: &mut BusinessMap<i64, Group>,
+    checked_refs: &mut BusinessMap<(NodeDigest, bool), i64>,
+    mut native_sources: Option<&mut NativeSourceMemo<'_>>,
+    raw_prefix_len: usize,
+    memo_fields: bool,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+) -> Result<Object, String> {
+    let kind = if memo_fields {
+        SourceFields::read_subset(s, record.view(), &["kind"])?.text(s, "kind")?
+    } else {
+        text(s, record, "kind")?
+    };
+    let names: &[&'static str] = if kind == CC006_SHAPE_KIND {
+        &SHAPE_SOURCE_FIELDS
+    } else {
+        &TYPED_SOURCE_FIELDS
+    };
+    let fields = SourceFields::read_subset(s, record.view(), names).map_err(err)?;
+    let id = fields.text(s, "object_id").map_err(err)?;
+    s.native_map_room(ids).map_err(err)?;
+    if ids
+        .insert(s.native_text(id.as_str())?, ())
+        .map_err(err)?
+        .is_some()
+        || fields.integer(s, "object_revision").map_err(err)? != 1
+    {
+        return Err(err("对象身份重复或修订不符"));
+    }
+    let refs = s
+        .lookup_ref(
+            fields
+                .get_admitted(s, "input_refs_json")
+                .map_err(err)?
+                .view(),
+            &[PathStep::JsonText],
+        )
+        .map_err(err)?;
+    let source_ref = s
+        .lookup_ref(
+            fields
+                .get_admitted(s, "source_coords_json")
+                .map_err(err)?
+                .view(),
+            &[PathStep::JsonText],
+        )
+        .map_err(err)?;
+    let sources = source_coords(
+        s,
+        &source_ref,
+        native_sources.as_deref_mut(),
+        ParseDomain::JsonInner,
+    )?;
+    if kind == CC006_SHAPE_KIND {
+        exact(record, Kind::Object, 15)?;
+    } else {
+        exact(record, Kind::Object, 10)?;
+        if ![
+            CC004_STEP_KIND,
+            CC005_GROUP_KIND,
+            CC007_FRACTAL_KIND,
+            CC054_KNOWLEDGE_KIND,
+        ]
+        .contains(&kind.as_str())
+            && !tb02b::KINDS.contains(&kind.as_str())
+        {
+            return Err(err("未声明typed事实种类"));
+        }
+        let payload = s
+            .lookup_ref(
+                fields.get_admitted(s, "payload_json").map_err(err)?.view(),
+                &[PathStep::JsonText],
+            )
+            .map_err(err)?;
+        if payload.kind() != Kind::Object {
+            return Err(err("typed载荷不是对象"));
+        }
+        if source_references(
+            s,
+            &refs,
+            &raw,
+            false,
+            checked_refs,
+            native_sources.as_deref_mut(),
+            raw_prefix_len,
+            ParseDomain::JsonInner,
+        )? != sources
+        {
+            return Err(err("typed引用与source_coords不同"));
+        }
+        let key = fields.text(s, "fact_key").map_err(err)?;
+        let parsed_owner = parsed_json(s, key.as_bytes())?;
+        let parsed = parsed_owner.view();
+        if !canonical_matches(s, parsed, key.as_bytes())?
+            || parsed.as_array().is_none_or(|a| a.len() != 2)
+            || parsed
+                .index(0)
+                .unwrap_or(sc::capture_allocation::audit_json::JsonView::Null)
+                .as_str()
+                != Some(kind.as_str())
+        {
+            return Err(err("typed槽位种类/规范文本不符"));
+        }
+        let identity = producer
+            .typed_identity_scoped(
+                &kind,
+                &key,
+                &built(payload.view())?,
+                &built(refs.view())?,
+                s.codec_work(),
+            )
+            .map_err(err)?;
+        let expected = s
+            .native_format(format_args!(
+                "{}",
+                content_producer::object_id_display(&identity)
+            ))
+            .map_err(err)?;
+        if id != expected {
+            return Err(err("typed obj3身份与来源/载荷原件不符"));
+        }
+        if tb02b::KINDS.contains(&kind.as_str()) {
+            for (k, want) in [
+                ("schema_revision", "s-new-bi/1"),
+                (
+                    "semantic_version",
+                    newchan_rust::theta_v0::parser::stroke::RULE,
+                ),
+                ("policy_version", "standard_raw_gap_3"),
+                ("view_role", "main"),
+            ] {
+                if text(s, &payload, k)? != want {
+                    return Err(err("新笔载荷语义头不同"));
+                }
+            }
+            if digest(&field(s, &payload, "slot")?)?
+                != super::history::hash_json_in_store(
+                    s,
+                    parsed
+                        .index(1)
+                        .unwrap_or(sc::capture_allocation::audit_json::JsonView::Null),
+                    deadline,
+                    budget,
+                )?
+            {
+                return Err(err("新笔payload槽位与fact_key不同"));
+            }
+        }
+        if kind == CC005_GROUP_KIND {
+            let index = decimal(&text(s, &payload, "group_index")?)?;
+            let anchor = decimal(&text(s, &payload, "group_anchor")?)?;
+            let members_root = field(s, &payload, "members")?;
+            let members = source_coords(
+                s,
+                &members_root,
+                native_sources.as_deref_mut(),
+                ParseDomain::JsonInner,
+            )?;
+            if index < 0
+                || members.is_empty()
+                || !members.contains(&anchor)
+                || members.iter().any(|c| !raw.contains_key(c))
+            {
+                return Err(err("组成员/锚/序号不符"));
+            }
+            let mut union = copy_coords(s, &members)?;
+            for key in ["direction_evidence", "confirmation_evidence"] {
+                super::history::check_deadline(deadline)?;
+                let evidence = field(s, &payload, key)?;
+                if evidence.kind() != Kind::Null {
+                    let list = field(s, &evidence, "source_coords")?;
+                    let evidence_coords = source_coords(
+                        s,
+                        &list,
+                        native_sources.as_deref_mut(),
+                        ParseDomain::JsonInner,
+                    )?;
+                    union = union_coords(s, &union, &evidence_coords)?;
+                }
+            }
+            if &*union != &*sources {
+                return Err(err("组来源不等于成员及方向/封口依据的并集"));
+            }
+            s.native_map_room(groups).map_err(err)?;
+            if groups
+                .insert(
+                    index,
+                    Group {
+                        payload: s.native_ref_clone(&payload).map_err(err)?,
+                        members,
+                        sources: copy_source_coords(s, &sources)?,
+                        anchor,
+                    },
+                )
+                .map_err(err)?
+                .is_some()
+            {
+                return Err(err("同cut组合并序号重复"));
+            }
+        }
+    }
+    Ok(Object {
+        id,
+        kind,
+        fields,
+        refs,
+        sources,
+    })
+}
+
+/// 单形态核，依赖三组当前成员/依据/锚及原始来源。
+fn audit_shape_record(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    object: &Object,
+    raw: &BusinessMap<i64, Source>,
+    groups: &BusinessMap<i64, Group>,
+    producer: &Cc004Producer,
+    checked_refs: &mut BusinessMap<(NodeDigest, bool), i64>,
+    mut native_sources: Option<&mut NativeSourceMemo<'_>>,
+    raw_prefix_len: usize,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+) -> Result<Shape, String> {
+    let allocation = source_allocation(s)?;
+    exact(&object.refs, Kind::Array, 3)?;
+    let mut indices = [0; 3];
+    let mut highs: [bj::TextValue; 3] =
+        std::array::from_fn(|_| bj::TextValue::Plain(String::new()));
+    let mut lows: [bj::TextValue; 3] = std::array::from_fn(|_| bj::TextValue::Plain(String::new()));
+    let mut windows = std::array::from_fn::<_, 3, _>(|_| crate::content_manifest::Decimal::new(0));
+    let mut source_union = bj::new_work(allocation.as_ref());
+    for (slot, part) in elements(s, &object.refs)?.into_iter().enumerate() {
+        super::history::check_deadline(deadline)?;
+        exact(&part, Kind::Object, 3)?;
+        let part_fields = local_fields(s, &part, &["merged_index", "raw_refs", "dependency_refs"])?;
+        let index = if let Some(fields) = &part_fields {
+            fields
+                .scalar(s, "merged_index")?
+                .view()
+                .as_i64()
+                .ok_or_else(|| err("merged_index不是整数"))?
+        } else {
+            number(s, &part, "merged_index")?
+        };
+        indices[slot] = index;
+        if slot > 0 && index != indices[slot - 1] + 1 {
+            return Err(err("形态来源组不是连续三组"));
+        }
+        let group = groups
+            .get(&index)
+            .ok_or_else(|| err("形态引用没有同cut组事实"))?;
+        let raw_refs = if let Some(fields) = &part_fields {
+            fields.get_admitted(s, "raw_refs").map_err(err)?
+        } else {
+            field(s, &part, "raw_refs")?
+        };
+        let members = source_references(
+            s,
+            &raw_refs,
+            &raw,
+            true,
+            checked_refs,
+            native_sources.as_deref_mut(),
+            raw_prefix_len,
+            ParseDomain::JsonInner,
+        )?;
+        if members != group.members {
+            return Err(err("形态raw_refs不是同cut组成员"));
+        }
+        let deps = if let Some(fields) = &part_fields {
+            fields.get_admitted(s, "dependency_refs").map_err(err)?
+        } else {
+            field(s, &part, "dependency_refs")?
+        };
+        let dependency = source_references(
+            s,
+            &deps,
+            &raw,
+            true,
+            checked_refs,
+            native_sources.as_deref_mut(),
+            raw_prefix_len,
+            ParseDomain::JsonInner,
+        )?;
+        let expected = difference_coords(s, &group.sources, &members)?;
+        if &*dependency != &*expected {
+            return Err(err("形态dependency_refs不是组事实来源差集"));
+        }
+        source_union = union_coords(s, &source_union, &members)?;
+        source_union = union_coords(s, &source_union, &dependency)?;
+        windows[slot] = crate::content_manifest::Decimal::new(
+            object
+                .fields
+                .integer(s, ["window_start", "window_mid", "window_end"][slot])
+                .map_err(err)?,
+        );
+        if windows[slot].as_str() != crate::content_manifest::Decimal::new(group.anchor).as_str() {
+            return Err(err("形态窗口不等于同cut组锚"));
+        }
+        if let Some(fields) = local_fields(s, &group.payload, &["high", "low"])? {
+            highs[slot] = fields.text(s, "high")?;
+            lows[slot] = fields.text(s, "low")?;
+        } else {
+            highs[slot] = text(s, &group.payload, "high")?;
+            lows[slot] = text(s, &group.payload, "low")?;
+        }
+    }
+    if &*source_union != &*object.sources {
+        return Err(err("形态source_coords不是完整来源并集"));
+    }
+    let branch = object.fields.text(s, "branch").map_err(err)?;
+    let dir_ab = object.fields.text(s, "dir_ab").map_err(err)?;
+    let dir_bc = object.fields.text(s, "dir_bc").map_err(err)?;
+    let comparison_text = object.fields.text(s, "comparisons_json").map_err(err)?;
+    let comparisons_owner = parsed_json(s, comparison_text.as_bytes())?;
+    let comparisons = comparisons_owner.view();
+    if !canonical_matches(s, comparisons, comparison_text.as_bytes())?
+        || comparisons.as_array().is_none_or(|v| v.len() != 4)
+    {
+        return Err(err("形态比较不是规范四项"));
+    }
+    let comparisons = Built {
+        digest: super::history::hash_json_in_store(s, comparisons, deadline, budget)?,
+        kind: Kind::Array,
+        extent: Some(4),
+    };
+    let input_refs = built(object.refs.view())?;
+    let identity = producer
+        .shape_identity_scoped(
+            ShapeIdentityView {
+                branch: &branch,
+                dir_ab: &dir_ab,
+                dir_bc: &dir_bc,
+                window: windows.each_ref().map(|v| v.as_str()),
+                highs: highs.each_ref().map(|v| v.as_str()),
+                lows: lows.each_ref().map(|v| v.as_str()),
+                comparisons: &comparisons,
+                input_refs: &input_refs,
+            },
+            s.codec_work(),
+        )
+        .map_err(err)?;
+    let expected = s
+        .native_format(format_args!(
+            "{}",
+            content_producer::object_id_display(&identity)
+        ))
+        .map_err(err)?;
+    if expected != object.id {
+        return Err(err("CC006 obj3与同cut组事实身份不符"));
+    }
+    Ok(Shape { groups: indices })
+}
+
+/// 单见证核，槽位重复在形态/组原件读取之前拒绝；三槽全体性仍由贡献层核验。
+fn audit_witness_record(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    witness: &RefValue,
+    raw: &BusinessMap<i64, Source>,
+    groups: &BusinessMap<i64, Group>,
+    shapes: &BusinessMap<bj::TextValue, Shape>,
+    seen: &mut BusinessMap<(bj::TextValue, i64), ()>,
+    mut native_identity: Option<&mut NativeWitnessIdentityMemo<'_>>,
+    deadline: Option<std::time::Instant>,
+) -> Result<(bj::TextValue, i64), String> {
+    exact(witness, Kind::Object, 9)?;
+    let fields = SourceFields::read_subset(
+        s,
+        witness.view(),
+        &[
+            "witness_id",
+            "object_id",
+            "slot",
+            "merged_source_index",
+            "merged_high",
+            "merged_low",
+            "merged_open",
+            "merged_close",
+            "raw_bars",
+        ],
+    )
+    .map_err(err)?;
+    let id = fields.text(s, "witness_id").map_err(err)?;
+    let object_id = fields.text(s, "object_id").map_err(err)?;
+    let slot = fields.integer(s, "slot").map_err(err)?;
+    s.native_map_room(seen).map_err(err)?;
+    if !(0..3).contains(&slot)
+        || seen
+            .insert((s.native_text(object_id.as_str())?, slot), ())
+            .map_err(err)?
+            .is_some()
+    {
+        return Err(err("见证槽位重复/越界"));
+    }
+    let shape = shapes
+        .get(object_id.as_str())
+        .ok_or_else(|| err("见证没有同cut形态对象"))?;
+    let mi = shape.groups[slot as usize];
+    let group = groups.get(&mi).expect("shape was bound to existing groups");
+    if fields.integer(s, "merged_source_index").map_err(err)? != group.anchor {
+        return Err(err("见证锚与同cut组不同"));
+    }
+    let payload_fields = local_fields(s, &group.payload, &["high", "low", "open", "close"])?;
+    for (merged, field_name) in [
+        ("merged_high", "high"),
+        ("merged_low", "low"),
+        ("merged_open", "open"),
+        ("merged_close", "close"),
+    ] {
+        let actual = fields.get_admitted(s, merged).map_err(err)?;
+        let expected = if let Some(fields) = &payload_fields {
+            fields.get_admitted(s, field_name).map_err(err)?
+        } else {
+            field(s, &group.payload, field_name)?
+        };
+        if actual != expected {
+            return Err(err("见证合并值不是同cut组事实"));
+        }
+    }
+    let bars = fields.get_admitted(s, "raw_bars").map_err(err)?;
+    let items = elements(s, &bars)?;
+    if items.len() != group.members.len() {
+        return Err(err("见证raw_bars成员数不同"));
+    }
+    for (bar, coord) in items.iter().zip(&group.members) {
+        super::history::check_deadline(deadline)?;
+        if digest(bar)? != raw.get(coord).expect("group members were bound to raw").raw {
+            return Err(err("见证raw_bars不是同cut真实原始成员"));
+        }
+    }
+    let bars = built(bars.view())?;
+    match native_identity.as_deref_mut() {
+        Some(memo) => memo.check_identity(s, &id, &object_id, slot as usize, mi as usize, &bars)?,
+        None => {
+            let want = super::generation::witness_identity(
+                s,
+                &object_id,
+                slot as usize,
+                mi as usize,
+                &bars,
+            )?;
+            if id != want {
+                return Err(err("见证ID不符"));
+            }
+        }
+    }
+    Ok((object_id, slot))
+}
+
 fn audit_generated_in_store(
     s: &mut super::audit_store::StoreView<'_, '_>,
     state: sc::RefView<'_>,
@@ -1537,212 +2000,26 @@ fn audit_generated_in_store(
     let mut groups = bj::new_map(allocation.as_ref());
     for record in elements_ref(s, object_array.view())? {
         super::history::check_deadline(deadline)?;
-        let kind = if s.fields.is_some() {
-            SourceFields::read_subset(s, record.view(), &["kind"])?.text(s, "kind")?
-        } else {
-            text(s, &record, "kind")?
-        };
-        let names: &[&'static str] = if kind == CC006_SHAPE_KIND {
-            &SHAPE_SOURCE_FIELDS
-        } else {
-            &TYPED_SOURCE_FIELDS
-        };
-        let fields = SourceFields::read_subset(s, record.view(), names).map_err(err)?;
-        let id = fields.text(s, "object_id").map_err(err)?;
-        s.native_map_room(&mut ids).map_err(err)?;
-        if ids
-            .insert(s.native_text(id.as_str())?, ())
-            .map_err(err)?
-            .is_some()
-            || fields.integer(s, "object_revision").map_err(err)? != 1
-        {
-            return Err(err("对象身份重复或修订不符"));
-        }
-        let refs = s
-            .lookup_ref(
-                fields
-                    .get_admitted(s, "input_refs_json")
-                    .map_err(err)?
-                    .view(),
-                &[PathStep::JsonText],
-            )
-            .map_err(err)?;
-        let source_ref = s
-            .lookup_ref(
-                fields
-                    .get_admitted(s, "source_coords_json")
-                    .map_err(err)?
-                    .view(),
-                &[PathStep::JsonText],
-            )
-            .map_err(err)?;
-        let sources = source_coords(
+        let memo_fields = s.fields.is_some();
+        let object = audit_object_record(
             s,
-            &source_ref,
+            &record,
+            raw,
+            &producer,
+            &mut ids,
+            &mut groups,
+            &mut checked_refs,
             native_sources.as_deref_mut(),
-            ParseDomain::JsonInner,
+            raw_prefix.len(),
+            memo_fields,
+            deadline,
+            budget,
         )?;
-        if kind == CC006_SHAPE_KIND {
-            exact(&record, Kind::Object, 15)?;
-        } else {
-            exact(&record, Kind::Object, 10)?;
-            if ![
-                CC004_STEP_KIND,
-                CC005_GROUP_KIND,
-                CC007_FRACTAL_KIND,
-                CC054_KNOWLEDGE_KIND,
-            ]
-            .contains(&kind.as_str())
-                && !tb02b::KINDS.contains(&kind.as_str())
-            {
-                return Err(err("未声明typed事实种类"));
-            }
-            let payload = s
-                .lookup_ref(
-                    fields.get_admitted(s, "payload_json").map_err(err)?.view(),
-                    &[PathStep::JsonText],
-                )
-                .map_err(err)?;
-            if payload.kind() != Kind::Object {
-                return Err(err("typed载荷不是对象"));
-            }
-            if source_references(
-                s,
-                &refs,
-                &raw,
-                false,
-                &mut checked_refs,
-                native_sources.as_deref_mut(),
-                raw_prefix.len(),
-                ParseDomain::JsonInner,
-            )? != sources
-            {
-                return Err(err("typed引用与source_coords不同"));
-            }
-            let key = fields.text(s, "fact_key").map_err(err)?;
-            let parsed_owner = parsed_json(s, key.as_bytes())?;
-            let parsed = parsed_owner.view();
-            if !canonical_matches(s, parsed, key.as_bytes())?
-                || parsed.as_array().is_none_or(|a| a.len() != 2)
-                || parsed
-                    .index(0)
-                    .unwrap_or(sc::capture_allocation::audit_json::JsonView::Null)
-                    .as_str()
-                    != Some(kind.as_str())
-            {
-                return Err(err("typed槽位种类/规范文本不符"));
-            }
-            let identity = producer
-                .typed_identity_scoped(
-                    &kind,
-                    &key,
-                    &built(payload.view())?,
-                    &built(refs.view())?,
-                    s.codec_work(),
-                )
-                .map_err(err)?;
-            let expected = s
-                .native_format(format_args!(
-                    "{}",
-                    content_producer::object_id_display(&identity)
-                ))
-                .map_err(err)?;
-            if id != expected {
-                return Err(err("typed obj3身份与来源/载荷原件不符"));
-            }
-            if tb02b::KINDS.contains(&kind.as_str()) {
-                for (k, want) in [
-                    ("schema_revision", "s-new-bi/1"),
-                    (
-                        "semantic_version",
-                        newchan_rust::theta_v0::parser::stroke::RULE,
-                    ),
-                    ("policy_version", "standard_raw_gap_3"),
-                    ("view_role", "main"),
-                ] {
-                    if text(s, &payload, k)? != want {
-                        return Err(err("新笔载荷语义头不同"));
-                    }
-                }
-                if digest(&field(s, &payload, "slot")?)?
-                    != super::history::hash_json_in_store(
-                        s,
-                        parsed
-                            .index(1)
-                            .unwrap_or(sc::capture_allocation::audit_json::JsonView::Null),
-                        deadline,
-                        budget,
-                    )?
-                {
-                    return Err(err("新笔payload槽位与fact_key不同"));
-                }
-            }
-            if kind == CC005_GROUP_KIND {
-                let index = decimal(&text(s, &payload, "group_index")?)?;
-                let anchor = decimal(&text(s, &payload, "group_anchor")?)?;
-                let members_root = field(s, &payload, "members")?;
-                let members = source_coords(
-                    s,
-                    &members_root,
-                    native_sources.as_deref_mut(),
-                    ParseDomain::JsonInner,
-                )?;
-                if index < 0
-                    || members.is_empty()
-                    || !members.contains(&anchor)
-                    || members.iter().any(|c| !raw.contains_key(c))
-                {
-                    return Err(err("组成员/锚/序号不符"));
-                }
-                let mut union = copy_coords(s, &members)?;
-                for key in ["direction_evidence", "confirmation_evidence"] {
-                    super::history::check_deadline(deadline)?;
-                    let evidence = field(s, &payload, key)?;
-                    if evidence.kind() != Kind::Null {
-                        let list = field(s, &evidence, "source_coords")?;
-                        let evidence_coords = source_coords(
-                            s,
-                            &list,
-                            native_sources.as_deref_mut(),
-                            ParseDomain::JsonInner,
-                        )?;
-                        union = union_coords(s, &union, &evidence_coords)?;
-                    }
-                }
-                if &*union != &*sources {
-                    return Err(err("组来源不等于成员及方向/封口依据的并集"));
-                }
-                s.native_map_room(&mut groups).map_err(err)?;
-                if groups
-                    .insert(
-                        index,
-                        Group {
-                            payload: s.native_ref_clone(&payload).map_err(err)?,
-                            members,
-                            sources: copy_source_coords(s, &sources)?,
-                            anchor,
-                        },
-                    )
-                    .map_err(err)?
-                    .is_some()
-                {
-                    return Err(err("同cut组合并序号重复"));
-                }
-            }
-        }
         s.native_codec_room(&mut objects, 1).map_err(err)?;
-        objects
-            .try_push(Object {
-                id,
-                kind,
-                fields,
-                refs,
-                sources,
-            })
-            .map_err(err)?;
+        objects.try_push(object).map_err(err)?;
     }
     // #1394 r3：先绑定已发布未定事实，再核组成员与 pending 的不交完备并集。
-    let pending = source_pending::audit(s, &objects, raw, &groups, deadline)?;
+    let pending = source_pending::audit(s, objects.iter(), raw, &groups, deadline)?;
     let mut partition = bj::new_map(allocation.as_ref());
     let ordered_groups = sorted_numeric_entries(s, &groups)?;
     for (expected, (index, group)) in ordered_groups.iter().enumerate() {
@@ -1774,144 +2051,21 @@ fn audit_generated_in_store(
     super::state::trace_event("source_shapes", None);
     for object in objects.iter().filter(|o| o.kind == CC006_SHAPE_KIND) {
         super::history::check_deadline(deadline)?;
-        exact(&object.refs, Kind::Array, 3)?;
-        let mut indices = [0; 3];
-        let mut highs: [bj::TextValue; 3] =
-            std::array::from_fn(|_| bj::TextValue::Plain(String::new()));
-        let mut lows: [bj::TextValue; 3] =
-            std::array::from_fn(|_| bj::TextValue::Plain(String::new()));
-        let mut windows =
-            std::array::from_fn::<_, 3, _>(|_| crate::content_manifest::Decimal::new(0));
-        let mut source_union = bj::new_work(allocation.as_ref());
-        for (slot, part) in elements(s, &object.refs)?.into_iter().enumerate() {
-            super::history::check_deadline(deadline)?;
-            exact(&part, Kind::Object, 3)?;
-            let part_fields =
-                local_fields(s, &part, &["merged_index", "raw_refs", "dependency_refs"])?;
-            let index = if let Some(fields) = &part_fields {
-                fields
-                    .scalar(s, "merged_index")?
-                    .view()
-                    .as_i64()
-                    .ok_or_else(|| err("merged_index不是整数"))?
-            } else {
-                number(s, &part, "merged_index")?
-            };
-            indices[slot] = index;
-            if slot > 0 && index != indices[slot - 1] + 1 {
-                return Err(err("形态来源组不是连续三组"));
-            }
-            let group = groups
-                .get(&index)
-                .ok_or_else(|| err("形态引用没有同cut组事实"))?;
-            let raw_refs = if let Some(fields) = &part_fields {
-                fields.get_admitted(s, "raw_refs").map_err(err)?
-            } else {
-                field(s, &part, "raw_refs")?
-            };
-            let members = source_references(
-                s,
-                &raw_refs,
-                &raw,
-                true,
-                &mut checked_refs,
-                native_sources.as_deref_mut(),
-                raw_prefix.len(),
-                ParseDomain::JsonInner,
-            )?;
-            if members != group.members {
-                return Err(err("形态raw_refs不是同cut组成员"));
-            }
-            let deps = if let Some(fields) = &part_fields {
-                fields.get_admitted(s, "dependency_refs").map_err(err)?
-            } else {
-                field(s, &part, "dependency_refs")?
-            };
-            let dependency = source_references(
-                s,
-                &deps,
-                &raw,
-                true,
-                &mut checked_refs,
-                native_sources.as_deref_mut(),
-                raw_prefix.len(),
-                ParseDomain::JsonInner,
-            )?;
-            let expected = difference_coords(s, &group.sources, &members)?;
-            if &*dependency != &*expected {
-                return Err(err("形态dependency_refs不是组事实来源差集"));
-            }
-            source_union = union_coords(s, &source_union, &members)?;
-            source_union = union_coords(s, &source_union, &dependency)?;
-            windows[slot] = crate::content_manifest::Decimal::new(
-                object
-                    .fields
-                    .integer(s, ["window_start", "window_mid", "window_end"][slot])
-                    .map_err(err)?,
-            );
-            if windows[slot].as_str()
-                != crate::content_manifest::Decimal::new(group.anchor).as_str()
-            {
-                return Err(err("形态窗口不等于同cut组锚"));
-            }
-            if let Some(fields) = local_fields(s, &group.payload, &["high", "low"])? {
-                highs[slot] = fields.text(s, "high")?;
-                lows[slot] = fields.text(s, "low")?;
-            } else {
-                highs[slot] = text(s, &group.payload, "high")?;
-                lows[slot] = text(s, &group.payload, "low")?;
-            }
-        }
-        if &*source_union != &*object.sources {
-            return Err(err("形态source_coords不是完整来源并集"));
-        }
-        let branch = object.fields.text(s, "branch").map_err(err)?;
-        let dir_ab = object.fields.text(s, "dir_ab").map_err(err)?;
-        let dir_bc = object.fields.text(s, "dir_bc").map_err(err)?;
-        let comparison_text = object.fields.text(s, "comparisons_json").map_err(err)?;
-        let comparisons_owner = parsed_json(s, comparison_text.as_bytes())?;
-        let comparisons = comparisons_owner.view();
-        if !canonical_matches(s, comparisons, comparison_text.as_bytes())?
-            || comparisons.as_array().is_none_or(|v| v.len() != 4)
-        {
-            return Err(err("形态比较不是规范四项"));
-        }
-        let comparisons = Built {
-            digest: super::history::hash_json_in_store(s, comparisons, deadline, budget)?,
-            kind: Kind::Array,
-            extent: Some(4),
-        };
-        let input_refs = built(object.refs.view())?;
-        let identity = producer
-            .shape_identity_scoped(
-                ShapeIdentityView {
-                    branch: &branch,
-                    dir_ab: &dir_ab,
-                    dir_bc: &dir_bc,
-                    window: windows.each_ref().map(|v| v.as_str()),
-                    highs: highs.each_ref().map(|v| v.as_str()),
-                    lows: lows.each_ref().map(|v| v.as_str()),
-                    comparisons: &comparisons,
-                    input_refs: &input_refs,
-                },
-                s.codec_work(),
-            )
-            .map_err(err)?;
-        let expected = s
-            .native_format(format_args!(
-                "{}",
-                content_producer::object_id_display(&identity)
-            ))
-            .map_err(err)?;
-        if expected != object.id {
-            return Err(err("CC006 obj3与同cut组事实身份不符"));
-        }
+        let shape = audit_shape_record(
+            s,
+            object,
+            raw,
+            &groups,
+            &producer,
+            &mut checked_refs,
+            native_sources.as_deref_mut(),
+            raw_prefix.len(),
+            deadline,
+            budget,
+        )?;
         s.native_map_room(&mut shapes).map_err(err)?;
         shapes
-            .insert(
-                s.native_text(object.id.as_str())?,
-                Shape { groups: indices },
-            )
+            .insert(s.native_text(object.id.as_str())?, shape)
             .map_err(err)?;
     }
     let witness_array = field_ref(s, state, "witnesses")?;
@@ -1920,89 +2074,16 @@ fn audit_generated_in_store(
     let mut seen = bj::new_map(allocation.as_ref());
     for witness in elements(s, &witness_array)? {
         super::history::check_deadline(deadline)?;
-        exact(&witness, Kind::Object, 9)?;
-        let fields = SourceFields::read_subset(
+        audit_witness_record(
             s,
-            witness.view(),
-            &[
-                "witness_id",
-                "object_id",
-                "slot",
-                "merged_source_index",
-                "merged_high",
-                "merged_low",
-                "merged_open",
-                "merged_close",
-                "raw_bars",
-            ],
-        )
-        .map_err(err)?;
-        let id = fields.text(s, "witness_id").map_err(err)?;
-        let object_id = fields.text(s, "object_id").map_err(err)?;
-        let slot = fields.integer(s, "slot").map_err(err)?;
-        s.native_map_room(&mut seen).map_err(err)?;
-        if !(0..3).contains(&slot)
-            || seen
-                .insert((s.native_text(object_id.as_str())?, slot), ())
-                .map_err(err)?
-                .is_some()
-        {
-            return Err(err("见证槽位重复/越界"));
-        }
-        let shape = shapes
-            .get(object_id.as_str())
-            .ok_or_else(|| err("见证没有同cut形态对象"))?;
-        let mi = shape.groups[slot as usize];
-        let group = groups.get(&mi).expect("shape was bound to existing groups");
-        if fields.integer(s, "merged_source_index").map_err(err)? != group.anchor {
-            return Err(err("见证锚与同cut组不同"));
-        }
-        let payload_fields = local_fields(s, &group.payload, &["high", "low", "open", "close"])?;
-        for (merged, field_name) in [
-            ("merged_high", "high"),
-            ("merged_low", "low"),
-            ("merged_open", "open"),
-            ("merged_close", "close"),
-        ] {
-            let actual = fields.get_admitted(s, merged).map_err(err)?;
-            let expected = if let Some(fields) = &payload_fields {
-                fields.get_admitted(s, field_name).map_err(err)?
-            } else {
-                field(s, &group.payload, field_name)?
-            };
-            if actual != expected {
-                return Err(err("见证合并值不是同cut组事实"));
-            }
-        }
-        let bars = fields.get_admitted(s, "raw_bars").map_err(err)?;
-        let items = elements(s, &bars)?;
-        if items.len() != group.members.len() {
-            return Err(err("见证raw_bars成员数不同"));
-        }
-        for (bar, coord) in items.iter().zip(&group.members) {
-            super::history::check_deadline(deadline)?;
-            if digest(bar)? != raw.get(coord).expect("group members were bound to raw").raw {
-                return Err(err("见证raw_bars不是同cut真实原始成员"));
-            }
-        }
-        let bars = built(bars.view())?;
-        match native_identity.as_deref_mut() {
-            Some(memo) => {
-                memo.check_identity(s, &id, &object_id, slot as usize, mi as usize, &bars)?
-            }
-            None => {
-                let want = super::generation::witness_identity(
-                    s,
-                    &object_id,
-                    slot as usize,
-                    mi as usize,
-                    &bars,
-                )?;
-                if id != want {
-                    return Err(err("见证ID不符"));
-                }
-            }
-        }
+            &witness,
+            raw,
+            &groups,
+            &shapes,
+            &mut seen,
+            native_identity.as_deref_mut(),
+            deadline,
+        )?;
     }
     if seen.len() != shapes.len() * 3 {
         return Err(err("形态缺完整三槽见证"));
@@ -2040,7 +2121,7 @@ mod tests {
         tests::{accept_ohlc, init_test_db, located_ohlc_input, tb02b_oracle_rows, TestFiles},
     };
     use sc::MemoryNodes;
-    const STATE: &[&str] = &[
+    pub(super) const STATE: &[&str] = &[
         "generation",
         "structure_cut",
         "input_frontier",
@@ -2096,7 +2177,7 @@ mod tests {
         "merged_close",
         "raw_bars",
     ];
-    fn fixture() -> (MemoryNodes, ContentRef, Vec<Value>, String) {
+    pub(super) fn fixture() -> (MemoryNodes, ContentRef, Vec<Value>, String) {
         let files = TestFiles::new();
         init_test_db(&files);
         accept_ohlc(&files, &located_ohlc_input(&tb02b_oracle_rows()));
@@ -2946,7 +3027,7 @@ mod tests {
         );
         assert!(NativeSourceAudit::new(&owned, RawEventsView::plain(&[])).is_err());
     }
-    fn replace_field<'a>(
+    pub(super) fn replace_field<'a>(
         s: &mut dyn NodeStore,
         r: impl Into<sc::RefView<'a>>,
         names: &[&str],
@@ -3473,6 +3554,21 @@ mod tests {
     ) {
         sc::verify(s, state).unwrap();
         let none = audit_generated(s, state, raw, tb02a::PROFILE, rule).unwrap_err();
+        let original = frozen_oracle::audit_generated_in_store(
+            &mut super::super::audit_store::StoreView::for_audit(s),
+            state.into(),
+            raw.into(),
+            tb02a::PROFILE,
+            rule,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap_err();
+        assert_eq!(none, original, "#1488 旧独立 oracle 与局部核首错一致");
         let meter = Meter::default();
         let mut reader = super::super::history::HashReader::metered(s, None, None, Some(&meter));
         let some = audit_generated_metered(
