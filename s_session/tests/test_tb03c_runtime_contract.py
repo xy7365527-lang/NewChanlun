@@ -1,5 +1,6 @@
 """#1406 C7a 驱动契约负控；不启动 Rust/产品，不冒称真实恢复证据。"""
 import copy
+import io
 import json
 from pathlib import Path
 import subprocess
@@ -314,6 +315,87 @@ class RuntimeContract(unittest.TestCase):
             self.assertIs(caught.exception, original)
             self.assertIsInstance(caught.exception.__cause__, OSError)
             self.assertEqual(obj.processes, {})
+
+    def test_primary_timeout_survives_close_failure_and_never_writes_pass(self):
+        primary = subprocess.TimeoutExpired(["never-executed"], 30)
+        cleanup = OSError("mock cleanup failed")
+        with tempfile.TemporaryDirectory(prefix="c7a-combined-failure-") as temp:
+            class FakeRun:
+                output = Path(temp)
+                processes = {}
+                def execute(self):
+                    raise primary
+                def close(self):
+                    raise cleanup
+            with self.assertRaises(subprocess.TimeoutExpired) as caught:
+                runtime.execute_with_cleanup(FakeRun())
+            self.assertIs(caught.exception, primary)
+            self.assertIs(caught.exception.__cause__, cleanup)
+            receipt = json.loads((Path(temp) / "cleanup-failure.json").read_text())
+            self.assertEqual(receipt["status"], "FAIL")
+            self.assertEqual(receipt["primary"]["type"], "TimeoutExpired")
+            self.assertEqual(receipt["cleanup"]["type"], "OSError")
+            self.assertFalse((Path(temp) / "result.json").exists())
+            # 即使记录与stderr均失败，运行主异常仍不可被覆盖。
+            with patch.object(runtime, "save", side_effect=OSError("disk")), patch.object(runtime.sys, "stderr") as stderr:
+                stderr.write.side_effect = OSError("stderr")
+                with self.assertRaises(subprocess.TimeoutExpired) as caught_again:
+                    runtime.execute_with_cleanup(FakeRun())
+                self.assertIs(caught_again.exception, primary)
+
+    def test_cleanup_only_failure_blocks_pass_but_clean_run_can_pass(self):
+        for failed in (True, False):
+            with self.subTest(cleanup_failed=failed), tempfile.TemporaryDirectory(prefix="c7a-cleanup-outcome-") as temp:
+                class FakeRun:
+                    output = Path(temp)
+                    processes = {}
+                    phase = None
+                    def execute(self):
+                        return ({}, [{"synthetic_contract_observation": True}])
+                    def close(self):
+                        if failed:
+                            raise OSError("mock cleanup failed")
+                if failed:
+                    with self.assertRaises(OSError):
+                        runtime.execute_with_cleanup(FakeRun())
+                    self.assertFalse((Path(temp) / "result.json").exists())
+                    receipt = json.loads((Path(temp) / "cleanup-failure.json").read_text())
+                    self.assertIsNone(receipt["primary"])
+                    self.assertEqual(receipt["status"], "FAIL")
+                else:
+                    runtime.execute_with_cleanup(FakeRun())
+                    self.assertEqual(json.loads((Path(temp) / "result.json").read_text())["status"], "PASS_C7A_TRAJECTORY")
+
+    def test_close_retains_unreaped_handle_and_streams_for_retry(self):
+        class Fake:
+            pid = 12345
+            returncode = None
+            first = True
+            def poll(self):
+                return self.returncode
+            def terminate(self):
+                if self.first:
+                    self.first = False
+                    raise OSError("mock first terminate failed")
+                self.returncode = -15
+            def wait(self, timeout):
+                return self.returncode
+        run = runtime.Run.__new__(runtime.Run)
+        proc = Fake()
+        run.processes = {"E": proc}
+        run.streams, run.log = [io.StringIO()], io.StringIO()
+        records = []
+        run.record = records.append
+        with self.assertRaises(ValueError):
+            run.close()
+        self.assertIs(run.processes["E"], proc)
+        self.assertFalse(run.streams[0].closed)
+        self.assertFalse(run.log.closed)
+        run.close()
+        self.assertEqual(run.processes, {})
+        self.assertTrue(run.streams[0].closed)
+        self.assertTrue(run.log.closed)
+        self.assertEqual(records[-1]["exit_code"], -15)
 
 
 if __name__ == "__main__":

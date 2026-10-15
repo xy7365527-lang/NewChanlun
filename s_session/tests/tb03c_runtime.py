@@ -614,14 +614,13 @@ class Run:
         self.stop("B:chong-R1")
         snapshots = {"E": read_domain(hidden / "e.db"), "B:chong-R1": read_domain(self.node("B:chong-R1")["db"])}
         save(self.output / "final-tables.json", snapshots)
-        save(self.output / "result.json", {"status": "PASS_C7A_TRAJECTORY", "phase": self.phase, "economic": final,
-                                          "scope": "TestOnly WE-5; no FIN/2, S/gamma, browser or full #1406 acceptance"})
         return snapshots, self.samples
 
     def close(self):
         errors = []
         for domain in list(self.processes):
             proc = self.processes[domain]
+            reaped = False
             try:
                 if proc.poll() is None:
                     proc.terminate()
@@ -630,13 +629,58 @@ class Run:
                     except subprocess.TimeoutExpired:
                         proc.kill()
                         proc.wait(timeout=3)
+                reaped = proc.poll() is not None
+                require(reaped, "清理后进程仍存活")
                 self.record({"event": "cleanup-reaped", "domain": domain, "pid": proc.pid, "exit_code": proc.returncode})
-            except (OSError, subprocess.SubprocessError) as error:
+            except (OSError, ValueError, subprocess.SubprocessError) as error:
                 errors.append(str(error))
-        for stream in self.streams:
-            stream.close()
-        self.log.close()
+            finally:
+                if reaped:
+                    self.processes.pop(domain, None)
+        # 未回收句柄继续留在管理集合，保留日志/流供上层重新调用 close；不伪称清理完成。
+        if not self.processes:
+            for stream in [*self.streams, self.log]:
+                try:
+                    stream.close()
+                except OSError as error:
+                    errors.append(str(error))
         require(not errors, "本次进程清理失败 " + repr(errors))
+
+
+def save_cleanup_failure(run, primary, cleanup):
+    failure = {"status": "FAIL", "primary": None if primary is None else
+               {"type": type(primary).__name__, "error": str(primary)},
+               "cleanup": {"type": type(cleanup).__name__, "error": str(cleanup)},
+               "retained_handles": [{"domain": domain, "pid": proc.pid} for domain, proc in run.processes.items()]}
+    try:
+        save(run.output / "cleanup-failure.json", failure)
+    except Exception as evidence_error:
+        # 证据写入本身失败也不得替换运行主异常；stderr 是最后保留通道。
+        try:
+            print(json.dumps({**failure, "evidence_error": str(evidence_error)}, ensure_ascii=False), file=sys.stderr)
+        except Exception:
+            pass  # 两个证据通道均坏时仍保原异常；调用方继续失败，绝不写 PASS。
+
+
+def execute_with_cleanup(run):
+    try:
+        result = run.execute()
+    except BaseException as primary:
+        try:
+            run.close()
+        except BaseException as cleanup:
+            save_cleanup_failure(run, primary, cleanup)
+            raise primary from cleanup
+        raise
+    try:
+        run.close()
+    except BaseException as cleanup:
+        save_cleanup_failure(run, None, cleanup)
+        raise
+    # 轨迹 PASS 也必须在清理成功后才落盘；组合异常不会留下任何 PASS 收据。
+    save(run.output / "result.json", {"status": "PASS_C7A_TRAJECTORY", "phase": run.phase, "economic": result[1][-1],
+                                      "scope": "TestOnly WE-5; no FIN/2, S/gamma, browser or full #1406 acceptance"})
+    return result
 
 
 def main():
@@ -668,10 +712,7 @@ def main():
             for repeat in (1, 2):
                 name = (phase or "normal") + "-" + str(repeat)
                 run = Run(seed, case, work, output / name, binaries, phase)
-                try:
-                    tables, samples = run.execute()
-                finally:
-                    run.close()
+                tables, samples = execute_with_cleanup(run)
                 if previous_tables is not None:
                     equal(tables, previous_tables, "同输入新进程双跑十表逐字一致 " + str(phase))
                 if previous_samples is not None:
@@ -683,7 +724,7 @@ def main():
                                      "actual_resolve_kills": 4, "scope": "TestOnly WE-5 only"})
         return 0
     except Exception as error:
-        save(output / "RESULT.json", {"status": "FAIL", "error": str(error), "scope": "C7a"})
+        save(output / "RESULT.json", {"status": "FAIL", "error_type": type(error).__name__, "error": str(error), "scope": "C7a"})
         print(str(error), file=sys.stderr)
         return 1
 
