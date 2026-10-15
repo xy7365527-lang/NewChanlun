@@ -195,6 +195,466 @@ impl Lane {
     }
 }
 
+/// #1488：仅由 owner 的当前 raw 资格推进的新车道；不与旧全 fps 车道交叉复用。
+/// 新增保留容器由实际 CodecVec 持原账；既有 parser/fact 内部存储的分配闭合仍是独立责任。
+pub(super) struct DeltaLane {
+    rows: newchan_rust::s_content::CodecVec<DeltaRawRow>,
+    state: IncrFactsState,
+    facts: tb02a_facts::FactCache,
+    binding: Option<crate::v3::audit_owner::RawAdvanceBinding>,
+    prefix: usize,
+    poisoned: bool,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct DeltaRawRow {
+    pub ordinal: usize,
+    pub bar: Bar,
+}
+
+/// 同核变化，不能单独充任 raw/事务权限；所有 rank 均指真实坐标升序生效账。
+#[derive(Debug, Clone, Copy)]
+pub(super) struct ParserChanges {
+    pub old_steps: usize,
+    pub new_steps: usize,
+    pub old_groups: usize,
+    pub new_groups: usize,
+    pub group_dirty_from: Option<usize>,
+    pub merged_dirty_from: Option<usize>,
+    pub effective_dirty_from: Option<usize>,
+    pub source_revision_from: Option<i64>,
+    pub replayed_from: Option<usize>,
+    pub parsed_bars: usize,
+}
+
+impl DeltaLane {
+    pub(super) fn new(
+        budget: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+    ) -> Result<Self, String> {
+        #[cfg(not(feature = "s_allocation_json_testonly"))]
+        if budget.is_some() {
+            return Err("prototype_audit_allocation_incomplete：delta lane 缺 Owned 构建".into());
+        }
+        Ok(Self {
+            rows: newchan_rust::s_content::CodecVec::new_with_allocation(budget),
+            state: IncrFactsState::empty(),
+            facts: tb02a_facts::FactCache::new(),
+            binding: None,
+            prefix: 0,
+            poisoned: false,
+        })
+    }
+
+    pub(super) fn state(&self) -> &IncrFactsState {
+        &self.state
+    }
+
+    pub(super) fn rows(&self) -> &[DeltaRawRow] {
+        &self.rows
+    }
+
+    /// parse 只收到 owner 提供的最终新 winner；旧 bars 直接借本车道，不重新解码/建 fps。
+    /// 任一错误丢弃 pending 车道的资格，调用者必须丢弃整个实例，不能失败后转旧 advance。
+    pub(super) fn advance_bound(
+        &mut self,
+        bound: &crate::v3::audit_owner::BoundRawAdvance<'_>,
+        mut parse: impl FnMut(usize) -> Result<Bar, String>,
+    ) -> Result<ParserChanges, String> {
+        let result = self.advance_bound_inner(bound, &mut parse);
+        if result.is_err() {
+            bound.invalidate_after_consumer_failure();
+            self.binding = None;
+            self.poisoned = true;
+        }
+        result
+    }
+
+    fn advance_bound_inner(
+        &mut self,
+        bound: &crate::v3::audit_owner::BoundRawAdvance<'_>,
+        parse: &mut impl FnMut(usize) -> Result<Bar, String>,
+    ) -> Result<ParserChanges, String> {
+        bound.ensure_current()?;
+        if self.poisoned
+            || self.prefix != bound.previous_prefix()
+            || match self.binding {
+                Some(previous) => previous != bound.previous_binding(),
+                None => {
+                    self.prefix != 0
+                        || !self.rows.is_empty()
+                        || !bound.previous_binding().is_initial()
+                }
+            }
+        {
+            return Err("GenError：delta lane 原账域或前代 binding 不匹配，须丢弃".into());
+        }
+        let raw = bound.raw();
+        if !match (self.rows.allocation_budget(), raw.budget()) {
+            (None, None) => true,
+            (Some(a), Some(b)) => a.same_ledger(b),
+            _ => false,
+        } {
+            return Err("prototype_audit_allocation_incomplete：delta lane 原账本改变".into());
+        }
+        let old_len = self.rows.len();
+        let mut changes = ParserChanges {
+            old_steps: self.state.step_count(),
+            new_steps: self.state.step_count(),
+            old_groups: self.state.group_count(),
+            new_groups: self.state.group_count(),
+            group_dirty_from: None,
+            merged_dirty_from: None,
+            effective_dirty_from: None,
+            source_revision_from: None,
+            replayed_from: None,
+            parsed_bars: 0,
+        };
+        struct Edit {
+            old: Option<crate::v3::audit_owner::RawWinner>,
+            new: Option<DeltaRawRow>,
+            same_coord: bool,
+        }
+        let mut edits = newchan_rust::s_content::CodecVec::new_with_allocation(raw.budget());
+        edits
+            .try_reserve_exact(bound.winner_edits().len())
+            .map_err(|e| e.to_string())?;
+        let mut numeric_dirty = None;
+        let mut removed = 0usize;
+        let mut added = 0usize;
+        for edit in bound.winner_edits() {
+            let previous = match edit.old {
+                Some(old) => {
+                    let rank = self
+                        .rows
+                        .binary_search_by_key(&old.coord, |row| row.bar.source_index as i64)
+                        .map_err(|_| "GenError：delta lane 旧 winner 坐标缺失".to_string())?;
+                    let row = self.rows[rank];
+                    if row.ordinal != old.ordinal {
+                        return Err("GenError：delta lane 旧 winner ordinal 不匹配".into());
+                    }
+                    changes.effective_dirty_from =
+                        min_frontier(changes.effective_dirty_from, Some(rank));
+                    changes.source_revision_from =
+                        min_source(changes.source_revision_from, old.coord);
+                    removed += 1;
+                    Some((rank, row))
+                }
+                None => None,
+            };
+            let next = match edit.new {
+                Some(new) => {
+                    let bar = parse(new.ordinal)?;
+                    if i64::try_from(bar.source_index).ok() != Some(new.coord) {
+                        return Err("GenError：delta lane 新 winner 坐标与真实 bar 不符".into());
+                    }
+                    let rank = self
+                        .rows
+                        .binary_search_by_key(&new.coord, |row| row.bar.source_index as i64)
+                        .unwrap_or_else(|rank| rank);
+                    changes.effective_dirty_from =
+                        min_frontier(changes.effective_dirty_from, Some(rank));
+                    if rank < old_len {
+                        changes.source_revision_from =
+                            min_source(changes.source_revision_from, new.coord);
+                    }
+                    added += 1;
+                    Some((
+                        rank,
+                        DeltaRawRow {
+                            ordinal: new.ordinal,
+                            bar,
+                        },
+                    ))
+                }
+                None => None,
+            };
+            if !matches!((previous, next), (Some((_, a)), Some((_, b))) if InputFp::of(&a.bar) == InputFp::of(&b.bar))
+            {
+                numeric_dirty = min_frontier(numeric_dirty, previous.map(|(rank, _)| rank));
+                numeric_dirty = min_frontier(numeric_dirty, next.map(|(rank, _)| rank));
+            }
+            let same_coord =
+                matches!((edit.old, edit.new), (Some(old), Some(new)) if old.coord == new.coord);
+            edits
+                .try_push(Edit {
+                    old: edit.old,
+                    new: next.map(|(_, row)| row),
+                    same_coord,
+                })
+                .map_err(|e| e.to_string())?;
+        }
+        let new_len = old_len
+            .checked_sub(removed)
+            .and_then(|n| n.checked_add(added))
+            .ok_or_else(|| "GenError：delta lane winner 数量不一致".to_string())?;
+        self.rows
+            .try_reserve_exact(new_len.saturating_sub(old_len))
+            .map_err(|e| e.to_string())?;
+        // 坐标变化的旧 winner 先全部移除；不能按 identity 边删边加而误拒合法坐标互换。
+        for edit in edits.iter().filter(|edit| !edit.same_coord) {
+            if let Some(old) = edit.old {
+                let rank = self
+                    .rows
+                    .binary_search_by_key(&old.coord, |row| row.bar.source_index as i64)
+                    .map_err(|_| "GenError：delta lane 重复移除旧 winner".to_string())?;
+                self.rows.remove(rank);
+            }
+        }
+        for edit in edits.iter() {
+            if let Some(new) = edit.new {
+                let rank = self
+                    .rows
+                    .binary_search_by_key(&(new.bar.source_index as i64), |row| {
+                        row.bar.source_index as i64
+                    });
+                if edit.same_coord {
+                    self.rows[rank
+                        .map_err(|_| "GenError：delta lane 原位 winner 缺失".to_string())?] = new;
+                } else {
+                    let rank = rank.map_or_else(Ok, |_| {
+                        Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖业务身份".to_string())
+                    })?;
+                    self.rows.try_push(new).map_err(|e| e.to_string())?;
+                    self.rows[rank..].rotate_right(1);
+                }
+            }
+        }
+        if let Some(from) = changes.source_revision_from {
+            // 即使 InputFp 完全相同，真实 seq/revision 更替也撤销来源事实缓存。
+            self.facts.invalidate_from(from);
+        }
+        if let Some(rank) = numeric_dirty {
+            let rank = rank.min(changes.old_steps).min(self.rows.len());
+            if rank < changes.old_steps {
+                self.state
+                    .rewind_to(rank)
+                    .map_err(|e| format!("GenError：delta parser 回退失败：{}", e.reason))?;
+                changes.replayed_from = Some(rank);
+                changes.group_dirty_from = Some(self.state.group_count().saturating_sub(1));
+                changes.merged_dirty_from = Some(self.state.merged_slice().len().saturating_sub(1));
+            }
+            for row in &self.rows[rank..] {
+                let appended = self.state.append_with_changes(row.bar);
+                if !appended.shared_available() {
+                    return Err("GenError：有效 raw winner 非严格升序，不能沿用共享 parser".into());
+                }
+                changes.group_dirty_from =
+                    min_frontier(changes.group_dirty_from, appended.group_dirty_from());
+                changes.merged_dirty_from =
+                    min_frontier(changes.merged_dirty_from, appended.merged_dirty_from());
+                changes.parsed_bars += 1;
+            }
+        }
+        changes.new_steps = self.state.step_count();
+        changes.new_groups = self.state.group_count();
+        self.prefix = bound.current_prefix();
+        self.binding = Some(bound.current_binding());
+        Ok(changes)
+    }
+}
+
+fn min_frontier(left: Option<usize>, right: Option<usize>) -> Option<usize> {
+    match (left, right) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (a, b) => a.or(b),
+    }
+}
+
+fn min_source(previous: Option<i64>, coord: i64) -> Option<i64> {
+    Some(previous.map_or(coord, |old| old.min(coord)))
+}
+
+#[cfg(test)]
+mod delta_tests {
+    use super::*;
+    use crate::v3::audit_owner::{RawAdvanceFixture, RawWinner, RawWinnerEdit};
+    use crate::v3::business_json::{RawEventsView, RawPrefixIndex};
+    use newchan_rust::theta_v0::parser::inclusion::process_inclusion_with_facts;
+
+    fn fixture() -> (Vec<Value>, Vec<Bar>) {
+        let rows = [
+            (2, 10, 5, 1),
+            (7, 12, 7, 1),
+            (12, 11, 8, 1),
+            (7, 12, 7, 2),
+            (12, 14, 9, 2),
+        ];
+        let mut events = Vec::new();
+        let mut bars = Vec::new();
+        for (ordinal, (coord, high, low, revision)) in rows.into_iter().enumerate() {
+            events.push(serde_json::json!({
+                "identity_key": format!("id-{coord}"), "source_coord": coord.to_string(),
+                "revision": revision, "seq": ordinal + 1, "ts": coord.to_string(),
+                "open": low.to_string(), "close": high.to_string(), "high": high.to_string(), "low": low.to_string(),
+                "input_revision": revision.to_string(), "payload_hash": format!("hash-{ordinal}"),
+                "receipt_id": format!("receipt-{ordinal}"), "event_id": format!("event-{coord}"),
+            }));
+            bars.push(Bar {
+                source_index: coord,
+                timestamp: coord as i64,
+                open: low,
+                high,
+                low,
+                close: high,
+                volume: 1.0,
+                untradable: false,
+            });
+        }
+        (events, bars)
+    }
+
+    #[test]
+    fn delta_lane_reads_only_changed_winners_and_replays_only_numeric_suffix() {
+        let (events, bars) = fixture();
+        let mut index = RawPrefixIndex::new(RawEventsView::plain(&events));
+        let owner = RawAdvanceFixture::new();
+        let mut lane = DeltaLane::new(None).unwrap();
+        let mut previous = 0;
+        for (prefix, expected_parsed) in [(2, 2), (3, 1), (4, 0), (5, 1)] {
+            let edits = index.advance(prefix).unwrap();
+            let bound = owner
+                .bind(
+                    RawEventsView::plain(&events[..prefix]),
+                    previous,
+                    &edits.winner_edits,
+                )
+                .unwrap();
+            let mut decoded = 0;
+            let changes = lane
+                .advance_bound(&bound, |ordinal| {
+                    assert!(ordinal >= previous, "追加/修订不能重新解码旧 raw");
+                    decoded += 1;
+                    Ok(bars[ordinal])
+                })
+                .unwrap();
+            assert_eq!(decoded, edits.winner_edits.len());
+            assert_eq!(changes.parsed_bars, expected_parsed);
+            let effective: Vec<_> = index.ordered().map(|(_, ordinal)| bars[ordinal]).collect();
+            assert_eq!(
+                lane.state.materialize_facts(),
+                process_inclusion_with_facts(&effective)
+            );
+            if prefix == 4 {
+                assert_eq!(changes.source_revision_from, Some(7));
+                assert_eq!(changes.replayed_from, None);
+            }
+            if prefix == 5 {
+                assert_eq!(changes.replayed_from, Some(2));
+            }
+            previous = prefix;
+        }
+    }
+
+    #[test]
+    fn delta_lane_same_ohlc_revision_invalidates_real_fact_cache() {
+        let (events, bars) = fixture();
+        let owner = RawAdvanceFixture::new();
+        let mut index = RawPrefixIndex::new(RawEventsView::plain(&events));
+        let mut lane = DeltaLane::new(None).unwrap();
+        let first = index.advance(3).unwrap();
+        let bound = owner
+            .bind(RawEventsView::plain(&events[..3]), 0, &first.winner_edits)
+            .unwrap();
+        lane.advance_bound(&bound, |ordinal| Ok(bars[ordinal]))
+            .unwrap();
+        let mut raw: BTreeMap<i64, Value> = index
+            .ordered()
+            .map(|(coord, ordinal)| (coord, events[ordinal].clone()))
+            .collect();
+        let groups = lane.state.materialize_groups();
+        tb02a_facts::build_incremental(
+            &lane.state,
+            &groups,
+            &raw,
+            &[],
+            1,
+            "c1",
+            3,
+            &mut lane.facts,
+        );
+        tb02a_facts::build_incremental(
+            &lane.state,
+            &groups,
+            &raw,
+            &[],
+            1,
+            "c1",
+            3,
+            &mut lane.facts,
+        );
+        assert!(lane.facts.hits() > 0, "负控前必须真命中缓存");
+        let misses = lane.facts.misses();
+        let edits = index.advance(4).unwrap();
+        let revision = owner
+            .bind(RawEventsView::plain(&events[..4]), 3, &edits.winner_edits)
+            .unwrap();
+        let changes = lane
+            .advance_bound(&revision, |ordinal| Ok(bars[ordinal]))
+            .unwrap();
+        assert_eq!(changes.parsed_bars, 0);
+        raw.insert(7, events[3].clone());
+        let groups = lane.state.materialize_groups();
+        let got = tb02a_facts::build_incremental(
+            &lane.state,
+            &groups,
+            &raw,
+            &[],
+            2,
+            "c2",
+            4,
+            &mut lane.facts,
+        );
+        let want = tb02a_facts::build(
+            &process_inclusion_with_facts(&bars[..3]),
+            &raw,
+            &[],
+            2,
+            "c2",
+            4,
+        );
+        assert_eq!(got, want);
+        assert!(
+            lane.facts.misses() > misses,
+            "来源版本变了必须真正撤销旧事实"
+        );
+    }
+
+    #[test]
+    fn delta_lane_mismatched_old_ordinal_poison_has_no_complete_fallback() {
+        let (events, bars) = fixture();
+        let owner = RawAdvanceFixture::new();
+        let mut index = RawPrefixIndex::new(RawEventsView::plain(&events));
+        let first = index.advance(3).unwrap();
+        let mut lane = DeltaLane::new(None).unwrap();
+        let bound = owner
+            .bind(RawEventsView::plain(&events[..3]), 0, &first.winner_edits)
+            .unwrap();
+        lane.advance_bound(&bound, |ordinal| Ok(bars[ordinal]))
+            .unwrap();
+        // 只在 cfg(test) 故意伪造工作描述；生产 owner 不应签发这种变化。
+        let wrong = [RawWinnerEdit {
+            old: Some(RawWinner {
+                coord: 7,
+                ordinal: 0,
+            }),
+            new: Some(RawWinner {
+                coord: 7,
+                ordinal: 3,
+            }),
+        }];
+        let bound = owner
+            .bind(RawEventsView::plain(&events[..4]), 3, &wrong)
+            .unwrap();
+        let error = lane
+            .advance_bound(&bound, |_| panic!("错旧身份须先拒绝，不能解码或走全量"))
+            .unwrap_err();
+        assert!(error.contains("ordinal"));
+        assert!(bound.ensure_current().is_err());
+        assert!(lane.binding.is_none());
+        assert!(lane.poisoned);
+    }
+}
+
 /// 测量/测试面：清空本线程车道。
 #[cfg(test)]
 pub(super) fn warm_lane_reset() {

@@ -327,6 +327,8 @@ pub(super) struct GenerationRuntime {
     rule_revision: String,
     /// `(source_coord, revision)` → 已写事件节点摘要（原件不可变；见模块文档）。
     event_nodes: BTreeMap<(i64, i64), NodeDigest>,
+    /// #1488：owner 绑定的 raw/parser pending 状态；不混用旧线程 Lane 的全指纹路径。
+    delta_lane: Option<s_fact_cache::DeltaLane>,
     raw_events_seq: SequenceMemo,
     effective_events_seq: SequenceMemo,
     objects_seq: SequenceMemo,
@@ -367,6 +369,7 @@ impl GenerationRuntime {
             profile_id: profile_id.to_string(),
             rule_revision: rule_revision.to_string(),
             event_nodes: BTreeMap::new(),
+            delta_lane: None,
             raw_events_seq: SequenceMemo::default(),
             effective_events_seq: SequenceMemo::default(),
             objects_seq: SequenceMemo::default(),
@@ -378,17 +381,119 @@ impl GenerationRuntime {
 
     /// 事务回滚 / 换库 / 换来源域之后必须调用：清掉同核运行态与全部跨代序列记忆。
     ///
-    /// 车道（`IncrFactsState`）按持久身份键隔离且 `advance` 对同一输入幂等，这里不重建；
-    /// 键不符时 `LaneGuard::take` 自然丢弃旧车道。
+    /// 旧线程车道仍由完整输入比较恢复；新 delta 车道没有这道全扫，必须与根一起丢弃。
     pub(super) fn discard_runtime_state(&mut self) {
         self.bi.discard_runtime_state(&mut self.producer);
         self.event_nodes.clear();
+        self.delta_lane = None;
         self.raw_events_seq.discard();
         self.effective_events_seq.discard();
         self.objects_seq.discard();
         self.witnesses_seq.discard();
         self.relations_seq.discard();
         self.observations_seq.discard();
+    }
+
+    /// #1488 原账片：消费 owner 当前资格，只构造新 raw 尾与生效账受影响后缀。
+    /// 这是完整 generate_delta 的内部前段，不发布 Generated，不替代六阶段接线/验收。
+    pub(super) fn advance_raw_bound(
+        &mut self,
+        store: &mut dyn NodeStore,
+        bound: &super::audit_owner::BoundRawAdvance<'_>,
+    ) -> Result<RawGenerationDelta, String> {
+        let result = self.advance_raw_bound_inner(store, bound);
+        if result.is_err() {
+            bound.invalidate_after_consumer_failure();
+            self.discard_runtime_state();
+        }
+        result
+    }
+
+    fn advance_raw_bound_inner(
+        &mut self,
+        store: &mut dyn NodeStore,
+        bound: &super::audit_owner::BoundRawAdvance<'_>,
+    ) -> Result<RawGenerationDelta, String> {
+        bound.ensure_current()?;
+        if self.delta_lane.is_none() {
+            if self.raw_events_seq.bound || self.effective_events_seq.bound {
+                return Err("GenError：旧生成态不可无 raw 资格转为 delta 车道，须丢弃".into());
+            }
+            self.delta_lane = Some(s_fact_cache::DeltaLane::new(bound.raw().budget())?);
+        }
+        if self.raw_events_seq.keys.as_slice().len() != bound.previous_prefix() {
+            return Err("GenError：raw sequence 与 owner 前代 prefix 不一致".into());
+        }
+        let raw = bound.raw();
+        let lane = self.delta_lane.as_mut().expect("刚建立");
+        let changes = lane.advance_bound(bound, |ordinal| {
+            let event = raw
+                .get(ordinal)
+                .ok_or_else(|| "GenError：新 winner 原账缺失".to_string())?;
+            bar_of(event)
+        })?;
+        let budget = raw.budget();
+        let mut appended = sc::CodecVec::new_with_allocation(budget);
+        let append_ordinals = bound.append_ordinals();
+        appended
+            .try_reserve_exact(append_ordinals.len())
+            .map_err(codec_error)?;
+        for ordinal in append_ordinals {
+            let event = raw
+                .get(ordinal)
+                .ok_or_else(|| "GenError：raw append ordinal 缺失".to_string())?;
+            appended
+                .try_push(event_node(&mut self.event_nodes, store, event)?)
+                .map_err(codec_error)?;
+        }
+        let prefix = changes
+            .effective_dirty_from
+            .unwrap_or(lane.rows().len())
+            .min(lane.rows().len());
+        let mut effective_suffix = sc::CodecVec::new_with_allocation(budget);
+        effective_suffix
+            .try_reserve_exact(lane.rows().len() - prefix)
+            .map_err(codec_error)?;
+        for row in &lane.rows()[prefix..] {
+            // 所有赢家原件都已在 raw append 路径写过；旧尾只查节点，不再读/解码其 raw。
+            // 初期没有 ordinal→node 索引时不能按(coord,revision)回读旧 raw 冒充 Δ。
+            let node = if row.ordinal < bound.previous_prefix() {
+                self.raw_events_seq
+                    .keys
+                    .as_slice()
+                    .get(row.ordinal)
+                    .copied()
+            } else {
+                appended.get(row.ordinal - bound.previous_prefix()).copied()
+            }
+            .ok_or_else(|| "GenError：生效 winner 对应的 raw 节点缺失".to_string())?;
+            effective_suffix.try_push(node).map_err(codec_error)?;
+        }
+        let raw_events = self.raw_events_seq.sync_splice(
+            store,
+            SequenceSplice {
+                expected_previous: self.raw_events_seq.seq,
+                unchanged_prefix: bound.previous_prefix(),
+                replacement_suffix: &appended,
+            },
+            "raw_events",
+            budget,
+        )?;
+        let effective_events = self.effective_events_seq.sync_splice(
+            store,
+            SequenceSplice {
+                expected_previous: self.effective_events_seq.seq,
+                unchanged_prefix: prefix,
+                replacement_suffix: &effective_suffix,
+            },
+            "effective_events",
+            budget,
+        )?;
+        Ok(RawGenerationDelta {
+            raw_events,
+            effective_events,
+            changes,
+        })
     }
     #[cfg(all(test, feature = "s_allocation_json_testonly"))]
     pub(super) fn sequence_keys_bound_to_for_test(
@@ -448,6 +553,9 @@ impl GenerationRuntime {
         budget: Option<&sc::capture_allocation::OwnedBudget>,
         native: Option<&super::prepared::NativeGeneration>,
     ) -> Result<Generated<'b>, String> {
+        if self.delta_lane.is_some() {
+            return Err("GenError：delta 车道不能切回完整 generate 重判，须显式丢弃".into());
+        }
         if input.profile_id != self.profile_id || input.rule_revision != self.rule_revision {
             return Err(format!(
                 "IdentityConflict：生成运行态的档案/规则修订（{}/{}）与本次输入（{}/{}）不一致",
@@ -899,6 +1007,14 @@ impl GenerationRuntime {
     }
 }
 
+/// 仅原账两根与 parser 变化，不是完整 Generated/Manifest/提交回执。
+#[derive(Debug)]
+pub(super) struct RawGenerationDelta {
+    pub raw_events: Built,
+    pub effective_events: Built,
+    pub changes: s_fact_cache::ParserChanges,
+}
+
 /// 生成态对象（14 字段 + 可选 `catalog_axes`）：只写对象节点，六条数组借既有根。
 fn emit_state(
     store: &mut dyn NodeStore,
@@ -1020,6 +1136,34 @@ impl SequenceKeys {
         }
         Ok(())
     }
+
+    /// 容量已在改 keys/root 前预留；只截变化后缀，不复制未变前缀。
+    fn splice_reserved(&mut self, prefix: usize, suffix: &[NodeDigest]) -> Result<(), String> {
+        match self {
+            Self::Plain(keys) => {
+                keys.truncate(prefix);
+                keys.extend_from_slice(suffix);
+            }
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Self::Owned(keys) => {
+                keys.truncate(prefix);
+                for digest in suffix {
+                    keys.try_push(*digest).map_err(codec_error)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// 私有工作描述，**不是** owner 签发的原件资格。
+///
+/// 只能由本模块在消费真实 owner/raw/parser 变化之后派生；不对 prepared/外部调用者暴露
+/// unchecked prefix。当前生产仍走旧 sync，接线前仅测试消费，不能称完整 delta 已上线。
+struct SequenceSplice<'a> {
+    expected_previous: Option<SequenceRef>,
+    unchanged_prefix: usize,
+    replacement_suffix: &'a [NodeDigest],
 }
 
 /// 跨代共享序列记忆：未变前缀不重写，真变化处一次重建后缀（#1488）。
@@ -1055,6 +1199,72 @@ impl SequenceMemo {
         }
         self.seq = None;
         self.bound = false;
+    }
+
+    /// 消费本模块由已核变化导出的 splice；不读取或比较任何未变 keys。
+    /// 旧根/长度、原账身份在写前核对；失败不推进 root/keys，不回全量 sync 重判。
+    fn sync_splice(
+        &mut self,
+        store: &mut dyn NodeStore,
+        edit: SequenceSplice<'_>,
+        what: &'static str,
+        budget: Option<&sc::capture_allocation::OwnedBudget>,
+    ) -> Result<Built, String> {
+        if self.bound
+            && !match (self.allocation_budget(), budget) {
+                (None, None) => true,
+                (Some(a), Some(b)) => a.same_ledger(b),
+                _ => false,
+            }
+        {
+            return Err("prototype_audit_allocation_incomplete：缓存账本改变，须discard".into());
+        }
+        let previous_len = self.keys.as_slice().len();
+        if self.seq != edit.expected_previous
+            || self.bound != self.seq.is_some()
+            || edit.unchanged_prefix > previous_len
+        {
+            return Err(format!(
+                "GenError：{what} splice 旧根或前缀不匹配，须discard"
+            ));
+        }
+        let previous = match self.seq {
+            Some(seq) if seq.count() == previous_len as u64 => seq,
+            None if previous_len == 0 => SequenceRef::empty(),
+            _ => return Err(format!("GenError：{what} 序列缓存计数不一致，须discard")),
+        };
+        let length = edit
+            .unchanged_prefix
+            .checked_add(edit.replacement_suffix.len())
+            .ok_or_else(|| format!("GenError：{what} splice 长度溢出"))?;
+        let mut next_keys = if !self.bound {
+            budget.map(SequenceKeys::owned).transpose()?
+        } else {
+            None
+        };
+        next_keys
+            .as_mut()
+            .unwrap_or(&mut self.keys)
+            .reserve_owned(length)?;
+        let seq = sc::sequence_rebuild_suffix_with_allocation(
+            &mut *store,
+            &previous,
+            edit.unchanged_prefix as u64,
+            edit.replacement_suffix,
+            budget,
+        )
+        .map_err(|error| format!("GenError：{what} 序列后缀重建失败：{error}"))?;
+        let built = array_from_sequence(&mut *store, &seq).map_err(producer_error)?;
+        next_keys
+            .as_mut()
+            .unwrap_or(&mut self.keys)
+            .splice_reserved(edit.unchanged_prefix, edit.replacement_suffix)?;
+        if let Some(keys) = next_keys {
+            self.keys = keys;
+        }
+        self.seq = Some(seq);
+        self.bound = true;
+        Ok(built)
     }
 
     pub(super) fn sync(
@@ -1599,6 +1809,216 @@ mod tests {
     use newchan_rust::s_content::{render_canonical, MemoryNodes};
     use serde_json::json;
 
+    fn delta_raw_fixture() -> Vec<Value> {
+        [
+            ("a", 2, 10, 5, 1), ("b", 7, 12, 7, 1),
+            ("c", 12, 11, 8, 2), ("d", 17, 16, 12, 1),
+            ("b", 7, 12, 7, 2), // OHLC 不变，真实来源版本变化。
+            ("c", 12, 14, 9, 4), ("e", 22, 20, 16, 1),
+            ("c", 12, 13, 8, 3), // 迟到较低修订不改变最终赢家。
+            ("f", 5, 11, 6, 1), // 中段插入。
+            ("a", 17, 17, 12, 2), ("d", 2, 9, 4, 2), // 同 cut 坐标互换。
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(ordinal, (identity, coord, high, low, revision))| json!({
+            "identity_key": identity, "source_coord": coord.to_string(),
+            "revision": revision, "seq": ordinal + 1, "ts": coord.to_string(),
+            "open": low.to_string(), "high": high.to_string(), "low": low.to_string(),
+            "close": high.to_string(), "input_revision": revision.to_string(),
+            "payload_hash": format!("payload-{ordinal}"), "receipt_id": format!("receipt-{ordinal}"),
+            "event_id": format!("event-{identity}"),
+        }))
+        .collect()
+    }
+
+    fn delta_raw_four_paths(budget: Option<&sc::capture_allocation::OwnedBudget>) {
+        use super::super::audit_owner::RawAdvanceFixture;
+        let events = delta_raw_fixture();
+        let originals = match budget {
+            None => bj::RawEvents::Plain(events.clone()),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Some(budget) => bj::RawEvents::Owned(
+                sc::capture_allocation::audit_json::OwnedJson::from_view(
+                    (&Value::Array(events.clone())).into(),
+                    budget,
+                )
+                .unwrap(),
+            ),
+            #[cfg(not(feature = "s_allocation_json_testonly"))]
+            Some(_) => unreachable!("无 Owned 构建不调用该分支"),
+        };
+        // winner edits 来自真实既有算法；Owned 只由 test fixture 把同一变化绑定原账。
+        // 这不声称 Owned RawPrefixIndex / owner 生产签发已经接通。
+        let mut index = bj::RawPrefixIndex::new(RawEventsView::plain(&events));
+        let fixture = RawAdvanceFixture::new();
+        let mut runtime =
+            GenerationRuntime::new("delta raw fixture".into(), crate::tb02a::PROFILE, "r");
+        let mut store = MemoryNodes::new();
+        let mut previous = 0;
+        for prefix in [0, 1, 2, 4, 5, 6, 8, 8, 9, 11] {
+            let edits = index.advance(prefix).unwrap();
+            let raw = originals.view().prefix(prefix).unwrap();
+            let bound = fixture.bind(raw, previous, &edits.winner_edits).unwrap();
+            let result = runtime.advance_raw_bound(&mut store, &bound).unwrap();
+            // 独立 full effective 排序路径 + full JSON writer，不借 delta roots 或 parser。
+            let effective = bj::effective(raw, None).unwrap();
+            let mut full = MemoryNodes::new();
+            let raw_root = sc::write_json_view(&mut full, JsonView::BorrowedArray(&raw)).unwrap();
+            let effective_root = sc::write_json_view(&mut full, effective.view()).unwrap();
+            assert_eq!(result.raw_events, raw_root);
+            assert_eq!(result.effective_events, effective_root);
+            let bars: Vec<Bar> = effective
+                .iter()
+                .map(|event| bar_of(event).unwrap())
+                .collect();
+            let lane = runtime.delta_lane.as_ref().unwrap();
+            assert_eq!(
+                lane.state().materialize_facts(),
+                parser::inclusion::process_inclusion_with_facts(&bars)
+            );
+            assert_eq!(
+                lane.rows().iter().map(|row| row.bar).collect::<Vec<_>>(),
+                bars
+            );
+            if prefix == 5 {
+                assert_eq!(result.changes.source_revision_from, Some(7));
+                assert_eq!(
+                    result.changes.parsed_bars, 0,
+                    "同 OHLC 修订不能假称数值重放"
+                );
+                assert_eq!(result.changes.replayed_from, None);
+            }
+            if prefix == 6 {
+                assert_eq!(result.changes.replayed_from, Some(2));
+                assert_eq!(result.changes.parsed_bars, 2, "旧数值修订只重放变化后缀");
+            }
+            if prefix == 8 && previous == 8 {
+                assert_eq!(result.changes.parsed_bars, 0);
+                assert_eq!(result.changes.effective_dirty_from, None);
+            }
+            if prefix == 9 {
+                assert_eq!(result.changes.replayed_from, Some(1));
+                assert_eq!(result.changes.parsed_bars, 5);
+            }
+            if let Some(budget) = budget {
+                assert!(runtime
+                    .raw_events_seq
+                    .allocation_budget()
+                    .unwrap()
+                    .same_ledger(budget));
+                assert!(runtime
+                    .effective_events_seq
+                    .allocation_budget()
+                    .unwrap()
+                    .same_ledger(budget));
+            }
+            previous = prefix;
+        }
+        runtime.discard_runtime_state();
+        assert!(runtime.delta_lane.is_none());
+        drop(originals);
+        if let Some(budget) = budget {
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+            assert!(!budget.ledger_health().invariant_broken);
+        }
+    }
+
+    #[test]
+    fn delta_raw_plain_append_revision_swap_and_roots_match_full_oracle() {
+        delta_raw_four_paths(None);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn delta_raw_owned_append_revision_swap_and_roots_match_full_oracle() {
+        let budget = sc::capture_allocation::OwnedBudget::new(1 << 24);
+        delta_raw_four_paths(Some(&budget));
+    }
+
+    #[test]
+    fn delta_raw_expired_foreign_domain_and_rollback_cannot_reuse_pending_state() {
+        use super::super::audit_owner::RawAdvanceFixture;
+        let events = delta_raw_fixture();
+        let mut index = bj::RawPrefixIndex::new(RawEventsView::plain(&events));
+        let first = index.advance(2).unwrap();
+        let fixture = RawAdvanceFixture::new();
+        let mut runtime =
+            GenerationRuntime::new("delta invalidation".into(), crate::tb02a::PROFILE, "r");
+        let mut store = MemoryNodes::new();
+        let bound = fixture
+            .bind(RawEventsView::plain(&events[..2]), 0, &first.winner_edits)
+            .unwrap();
+        runtime.advance_raw_bound(&mut store, &bound).unwrap();
+        fixture.invalidate();
+        assert!(runtime.advance_raw_bound(&mut store, &bound).is_err());
+        assert!(runtime.delta_lane.is_none());
+        assert!(!runtime.raw_events_seq.bound && !runtime.effective_events_seq.bound);
+
+        let fixture = RawAdvanceFixture::new();
+        let bound = fixture
+            .bind(RawEventsView::plain(&events[..2]), 0, &first.winner_edits)
+            .unwrap();
+        runtime.advance_raw_bound(&mut store, &bound).unwrap();
+        let second = index.advance(4).unwrap();
+        let foreign = RawAdvanceFixture::new();
+        let wrong = foreign
+            .bind(RawEventsView::plain(&events[..4]), 2, &second.winner_edits)
+            .unwrap();
+        assert!(runtime
+            .advance_raw_bound(&mut store, &wrong)
+            .unwrap_err()
+            .contains("binding"));
+        assert!(runtime.delta_lane.is_none());
+        // 回滚后必须冷建且发新域；旧 fixture 下一步不能借 previous_prefix=0 假装初始。
+        let stale_step = fixture
+            .bind(RawEventsView::plain(&events[..2]), 0, &first.winner_edits)
+            .unwrap();
+        assert!(runtime.advance_raw_bound(&mut store, &stale_step).is_err());
+        let cold = RawAdvanceFixture::new();
+        let rebound = cold
+            .bind(RawEventsView::plain(&events[..2]), 0, &first.winner_edits)
+            .unwrap();
+        let got = runtime.advance_raw_bound(&mut store, &rebound).unwrap();
+        let mut full = MemoryNodes::new();
+        let want =
+            sc::write_json_view(&mut full, (&Value::Array(events[..2].to_vec())).into()).unwrap();
+        assert_eq!(got.raw_events, want);
+    }
+
+    #[test]
+    fn delta_raw_initial_write_failure_revokes_token_and_requires_new_owner_domain() {
+        use super::super::audit_owner::RawAdvanceFixture;
+        let events = delta_raw_fixture();
+        let mut index = bj::RawPrefixIndex::new(RawEventsView::plain(&events));
+        let changes = index.advance(2).unwrap();
+        let owner = RawAdvanceFixture::new();
+        let bound = owner
+            .bind(RawEventsView::plain(&events[..2]), 0, &changes.winner_edits)
+            .unwrap();
+        let mut runtime =
+            GenerationRuntime::new("delta failure".into(), crate::tb02a::PROFILE, "r");
+        let mut store = SequenceTestStore::default();
+        store.writes_left = Some(0);
+        assert!(runtime
+            .advance_raw_bound(&mut store, &bound)
+            .unwrap_err()
+            .contains("test_sequence_write"));
+        assert!(bound.ensure_current().is_err());
+        assert!(runtime.delta_lane.is_none());
+        assert!(!runtime.raw_events_seq.bound && !runtime.effective_events_seq.bound);
+        store.writes_left = None;
+        let writes = store.writes.len();
+        assert!(runtime.advance_raw_bound(&mut store, &bound).is_err());
+        assert_eq!(store.writes.len(), writes, "故障旧 token 不能重入构造");
+        let new_owner = RawAdvanceFixture::new();
+        let cold = new_owner
+            .bind(RawEventsView::plain(&events[..2]), 0, &changes.winner_edits)
+            .unwrap();
+        assert_ne!(bound.domain(), cold.domain());
+        runtime.advance_raw_bound(&mut store, &cold).unwrap();
+    }
+
     #[test]
     fn streamed_witness_identity_matches_normal_recipe_at_decimal_boundaries() {
         let raw = json!([{"source_coord":"0", "open":"12.5", "note":"原件"}]);
@@ -2037,6 +2457,207 @@ mod tests {
     fn sequence_sync_owned_errors_release_stack_and_preserve_keys_and_root() {
         let budget = sc::capture_allocation::OwnedBudget::new(1 << 20);
         sequence_memo_failure_preserves_state(Some(&budget));
+    }
+
+    fn delta_splice_matches_full_writer(budget: Option<&sc::capture_allocation::OwnedBudget>) {
+        let values: Vec<NodeDigest> = (1..=40).map(|n| [n; 32]).collect();
+        let mut memo = SequenceMemo::default();
+        let mut store = SequenceTestStore::default();
+        let mut expected = Vec::new();
+        // 外部输入是明确 rank edit，不先建完整 next keys 去找公共前缀。
+        let mut edits: Vec<(usize, Vec<NodeDigest>)> = vec![(0, vec![])];
+        let mut length = 0;
+        for next in [1, 2, 3, 4, 7, 8, 9, 15, 16, 17, 31, 32, 33] {
+            edits.push((length, values[length..next].to_vec()));
+            length = next;
+        }
+        edits.extend([
+            (33, vec![]),
+            (9, vec![[101; 32]; 12]),    // 中段替换/缩短。
+            (5, values[5..17].to_vec()), // 旧子树再激活。
+            (7, vec![[102; 32]; 20]),    // 中段插入导致后缀重新布局。
+            (4, vec![]),
+            (0, vec![]),
+            (0, values[..9].to_vec()),
+        ]);
+        for (prefix, suffix) in edits {
+            let previous = memo.seq;
+            let got = memo
+                .sync_splice(
+                    &mut store,
+                    SequenceSplice {
+                        expected_previous: previous,
+                        unchanged_prefix: prefix,
+                        replacement_suffix: &suffix,
+                    },
+                    "delta rank edit",
+                    budget,
+                )
+                .unwrap();
+            expected.truncate(prefix);
+            expected.extend_from_slice(&suffix);
+            let mut full = MemoryNodes::new();
+            let root = sc::write_sequence(&mut full, &expected).unwrap();
+            let sequence = SequenceRef::from_parts_unchecked(root, expected.len() as u64);
+            let oracle = array_from_sequence(&mut full, &sequence).unwrap();
+            assert_eq!(got, oracle, "splice 必须保留 layout/1 完整根");
+            assert_eq!(memo.seq, Some(sequence));
+            assert_eq!(memo.keys.as_slice(), expected.as_slice());
+            if let Some(budget) = budget {
+                assert!(memo.allocation_budget().unwrap().same_ledger(budget));
+            }
+        }
+        memo.discard();
+        if let Some(budget) = budget {
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+            assert!(!budget.ledger_health().invariant_broken);
+        }
+    }
+
+    #[test]
+    fn delta_sequence_plain_rank_splice_matches_independent_full_writer() {
+        delta_splice_matches_full_writer(None);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn delta_sequence_owned_rank_splice_matches_independent_full_writer() {
+        let budget = sc::capture_allocation::OwnedBudget::new(1 << 20);
+        delta_splice_matches_full_writer(Some(&budget));
+    }
+
+    fn delta_splice_failures(budget: Option<&sc::capture_allocation::OwnedBudget>) {
+        let base: Vec<NodeDigest> = (1..=17).map(|n| [n; 32]).collect();
+        let suffix = [[201; 32]; 12];
+        let mut memo = SequenceMemo::default();
+        let mut store = SequenceTestStore::default();
+        memo.sync(&mut store, &base, "初始化", budget).unwrap();
+        let previous = memo.seq;
+        let mut probe = SequenceMemo::default();
+        let mut probe_store = SequenceTestStore::default();
+        probe.sync(&mut probe_store, &base, "计写", None).unwrap();
+        probe_store.writes.clear();
+        probe
+            .sync_splice(
+                &mut probe_store,
+                SequenceSplice {
+                    expected_previous: previous,
+                    unchanged_prefix: 5,
+                    replacement_suffix: &suffix,
+                },
+                "计写",
+                None,
+            )
+            .unwrap();
+        // 从第一节点到最后 ARRAY 的每个真实写点，以及共享前缀读取失败。
+        for reject in 0..=probe_store.writes.len() {
+            store.reject_reads = reject == probe_store.writes.len();
+            store.writes_left = (!store.reject_reads).then_some(reject);
+            store.failures = 0;
+            let error = memo
+                .sync_splice(
+                    &mut store,
+                    SequenceSplice {
+                        expected_previous: previous,
+                        unchanged_prefix: 5,
+                        replacement_suffix: &suffix,
+                    },
+                    "故障",
+                    budget,
+                )
+                .unwrap_err();
+            assert!(error.contains("test_sequence_"), "{error}");
+            assert_eq!(store.failures, 1, "失败直接返回，不能全量 fallback");
+            assert_eq!(memo.seq, previous);
+            assert_eq!(memo.keys.as_slice(), base.as_slice());
+        }
+        store.reject_reads = false;
+        store.writes_left = None;
+        // 旧根/旧长度/越界前缀拒绝在任何写入之前。
+        for (old, prefix) in [(None, 5), (previous, 18)] {
+            store.writes.clear();
+            assert!(memo
+                .sync_splice(
+                    &mut store,
+                    SequenceSplice {
+                        expected_previous: old,
+                        unchanged_prefix: prefix,
+                        replacement_suffix: &[],
+                    },
+                    "错旧态",
+                    budget,
+                )
+                .is_err());
+            assert!(store.writes.is_empty());
+            assert_eq!(memo.seq, previous);
+            assert_eq!(memo.keys.as_slice(), base.as_slice());
+        }
+        memo.discard();
+        if let Some(budget) = budget {
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        }
+    }
+
+    #[test]
+    fn delta_sequence_plain_failures_do_not_advance_keys_or_root() {
+        delta_splice_failures(None);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn delta_sequence_owned_failures_do_not_advance_keys_or_root() {
+        let budget = sc::capture_allocation::OwnedBudget::new(1 << 20);
+        delta_splice_failures(Some(&budget));
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn delta_sequence_foreign_budget_and_allocation_failure_preserve_binding() {
+        let budget = sc::capture_allocation::OwnedBudget::new(1 << 20);
+        let foreign = sc::capture_allocation::OwnedBudget::new(1 << 20);
+        let empty = sc::capture_allocation::OwnedBudget::new(0);
+        let mut memo = SequenceMemo::default();
+        let mut store = SequenceTestStore::default();
+        let suffix = [[8; 32]; 8];
+        assert!(memo
+            .sync_splice(
+                &mut store,
+                SequenceSplice {
+                    expected_previous: None,
+                    unchanged_prefix: 0,
+                    replacement_suffix: &suffix,
+                },
+                "零预算",
+                Some(&empty),
+            )
+            .is_err());
+        assert!(!memo.bound && memo.seq.is_none() && memo.keys.as_slice().is_empty());
+        assert_eq!(empty.snapshot().live_requested_layout_bytes, 0);
+        memo.sync(&mut store, &suffix, "绑定", Some(&budget))
+            .unwrap();
+        let previous = memo.seq;
+        for wrong in [None, Some(&foreign)] {
+            store.writes.clear();
+            assert!(memo
+                .sync_splice(
+                    &mut store,
+                    SequenceSplice {
+                        expected_previous: previous,
+                        unchanged_prefix: 8,
+                        replacement_suffix: &[],
+                    },
+                    "错账本",
+                    wrong,
+                )
+                .unwrap_err()
+                .contains("缓存账本改变"));
+            assert_eq!(memo.seq, previous);
+            assert_eq!(memo.keys.as_slice(), suffix.as_slice());
+            assert!(store.writes.is_empty());
+        }
+        memo.discard();
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        assert_eq!(foreign.snapshot().live_requested_layout_bytes, 0);
     }
 
     /// #1394 整合 W-3：合并后 oracle 是 main 的 v2 写者，它在 TB-02-A/B 之外另发布 TB-02-C/D

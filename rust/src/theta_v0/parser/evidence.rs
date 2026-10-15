@@ -90,6 +90,18 @@ impl<T: Clone> ChunkedSeq<T> {
         self.len += 1;
     }
 
+    /// #1488：撤回末元素，只访问末块；共享时最多复制一个 CHUNK 块。
+    /// 空块立即移除，保留的旧快照及其块不受影响。
+    pub fn pop(&mut self) -> Option<T> {
+        let chunk = self.chunks.last_mut()?;
+        let value = Rc::make_mut(chunk).pop().expect("分块序列不保留空块");
+        if chunk.is_empty() {
+            self.chunks.pop();
+        }
+        self.len -= 1;
+        Some(value)
+    }
+
     pub fn to_vec(&self) -> Vec<T> {
         let mut out = Vec::with_capacity(self.len);
         out.extend(self.iter().cloned());
@@ -199,6 +211,21 @@ impl CoordsRef {
         CoordsRef::concat(self, &CoordsRef::single(coord))
     }
 
+    /// #1488：撤回最大坐标，沿 AVL 最右路径重建；未变子树与旧快照保持共享。
+    /// 只删除一个叶，回程每层高度最多降 1，可用同一 balance 保持 O(log n)。
+    pub fn without_last(&self) -> Self {
+        fn remove(node: &Rc<CoordNode>) -> Option<Rc<CoordNode>> {
+            match node.as_ref() {
+                CoordNode::Leaf(_) => None,
+                CoordNode::Concat(left, right, _) => Some(match remove(right) {
+                    None => Rc::clone(left),
+                    Some(right) => balance(Rc::clone(left), right),
+                }),
+            }
+        }
+        CoordsRef(self.0.as_ref().and_then(remove))
+    }
+
     /// #1394 5.3：只读借出共享坐标树的根节点（空集 = `None`）。
     ///
     /// 供下游转换按**自身**唯一分解遍历（如 s-content/1 的 `M(...)` 按元素计数的二分）：
@@ -265,6 +292,66 @@ impl CoordsRef {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn delta_chunked_pop_preserves_shared_snapshots_at_block_boundaries() {
+        let mut seq = ChunkedSeq::new();
+        for value in 0..385 {
+            seq.push(value);
+        }
+        let frozen = seq.clone();
+        for value in (0..385).rev() {
+            assert_eq!(seq.pop(), Some(value));
+            assert_eq!(seq.len, value);
+            assert!(seq.chunks.iter().all(|chunk| !chunk.is_empty()));
+            assert_eq!(seq.to_vec(), (0..value).collect::<Vec<_>>());
+        }
+        assert_eq!(seq.pop(), None);
+        assert_eq!(frozen.to_vec(), (0..385).collect::<Vec<_>>());
+        seq.push(900);
+        assert_eq!(seq.pop(), Some(900));
+    }
+
+    #[test]
+    fn delta_coords_remove_last_preserves_avl_and_old_snapshots() {
+        fn checked_height(node: &Rc<CoordNode>) -> u32 {
+            match node.as_ref() {
+                CoordNode::Leaf(_) => 1,
+                CoordNode::Concat(left, right, h) => {
+                    let a = checked_height(left);
+                    let b = checked_height(right);
+                    assert!(a.abs_diff(b) <= 1, "删除后必须仍为 AVL");
+                    assert_eq!(*h, a.max(b) + 1);
+                    *h
+                }
+            }
+        }
+        let mut coords = CoordsRef::empty();
+        for value in 0..1025 {
+            coords = coords.append_greater(value * 3);
+        }
+        let frozen = coords.clone();
+        for remaining in (0..1025).rev() {
+            coords = coords.without_last();
+            assert_eq!(
+                coords.materialize(),
+                (0..remaining).map(|i| i * 3).collect::<Vec<_>>()
+            );
+            if let Some(root) = coords.root_node() {
+                checked_height(root);
+            }
+        }
+        assert!(coords.without_last().is_empty());
+        assert_eq!(
+            frozen.materialize(),
+            (0..1025).map(|i| i * 3).collect::<Vec<_>>()
+        );
+        let pair = CoordsRef::single(1).append_greater(2);
+        let CoordNode::Concat(left, _, _) = pair.root_node().unwrap().as_ref() else {
+            panic!("两叶应有分支")
+        };
+        assert!(Rc::ptr_eq(left, pair.without_last().root_node().unwrap()));
+    }
 
     #[test]
     fn coords_ref_balances_persistent_prefixes() {
