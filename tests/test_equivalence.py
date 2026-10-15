@@ -249,6 +249,36 @@ class TestMakeRatioKlineSubFreq:
             assert col in ratio.columns
         assert "volume" in ratio.columns
 
+    def test_sub_freq_data_is_clipped_to_target_window(self):
+        """子频率缓存宽于目标窗口时，不应产出窗口外 K 线。"""
+        # 目标日频只请求 01-02 和 01-03。
+        df_a = _ohlcv([110, 120], start="2024-01-02")
+        df_b = _ohlcv([55, 60], start="2024-01-02")
+
+        # 子频率缓存覆盖 01-01 到 01-04；窗口外数据不能泄漏到输出。
+        sub_a = _hourly_ohlcv([100 + i for i in range(96)], start="2024-01-01")
+        sub_b = _hourly_ohlcv([50 + i * 0.5 for i in range(96)], start="2024-01-01")
+
+        ratio = make_ratio_kline(df_a, df_b, sub_a=sub_a, sub_b=sub_b)
+
+        assert list(ratio.index) == list(df_a.index)
+
+    def test_sub_freq_clip_preserves_non_midnight_target_index(self):
+        """目标日线用收盘时间戳时，裁剪不应静默删除聚合结果。"""
+        target_idx = pd.date_range("2024-01-02 16:00", periods=2, freq="D")
+        df_a = _ohlcv([110, 120], start="2024-01-02")
+        df_b = _ohlcv([55, 60], start="2024-01-02")
+        df_a.index = target_idx
+        df_b.index = target_idx
+
+        sub_a = _hourly_ohlcv([100 + i for i in range(96)], start="2024-01-01")
+        sub_b = _hourly_ohlcv([50 + i * 0.5 for i in range(96)], start="2024-01-01")
+
+        ratio = make_ratio_kline(df_a, df_b, sub_a=sub_a, sub_b=sub_b)
+
+        assert list(ratio.index) == list(target_idx)
+        assert len(ratio) == 2
+
     def test_sub_freq_high_low_from_ratio_series(self):
         """子频率聚合的 high/low 来自 ratio 序列的 max/min，不是 OHLC 各自除法。"""
         df_a = _ohlcv([100, 110], start="2024-01-01")
